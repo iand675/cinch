@@ -48,6 +48,7 @@ class BootstrapContract(unittest.TestCase):
             inputs = {"protocol": bootstrap.PROTOCOL, "host": bootstrap.HOST,
                       "source_sha256": bootstrap.source_hash(files),
                       "builder_sha256": bootstrap.file_hash(builder), "built_by_stage": 0,
+                      "shard_count": bootstrap.JOBS,
                       "seed_runtime_profile": "release", "seed_runtime_sha256": bootstrap.file_hash(runtime)}
             (stage / "compiler.cinch").write_bytes(bootstrap.bundle(files))
             (stage / "sources/build/Main.manifest.json").write_text("{}")
@@ -60,7 +61,7 @@ class BootstrapContract(unittest.TestCase):
             log.write_text("")
             bootstrap.record_build(stage, inputs, 0, log)
 
-            def fail_seed_build(command, cwd, log):
+            def fail_seed_build(command, cwd, log, **kwargs):
                 seed_ir.write_bytes(b"failed linker input")
                 return 9
 
@@ -86,7 +87,7 @@ class BootstrapContract(unittest.TestCase):
             compiler = build / "stage1/cinch"
             seed_ir = compiler.with_suffix(".ll")
 
-            def seed_build(command, cwd, log):
+            def seed_build(command, cwd, log, **kwargs):
                 seed_ir.write_bytes(b"linker input")
                 compiler.write_bytes(b"linked compiler")
                 compiler.chmod(0o755)
@@ -337,7 +338,13 @@ class BootstrapContract(unittest.TestCase):
                     return 0
                 if str(args[0]) == "selected-clang":
                     self.assertTrue(append)
-                    self.assertEqual(args[1:4], [directory / "compiler.ll", runtime.parent / "library.o", runtime])
+                    self.assertEqual(args[1:3], ["-O2", "-Wno-override-module"])
+                    # Every stage compiles its module from one content
+                    # addressed path, never from the stage directory.
+                    self.assertEqual(args[3].name, "compiler.ll")
+                    self.assertIn("shards", args[3].parts)
+                    self.assertEqual(args[3].read_text(), "typed IR")
+                    self.assertEqual(args[4:6], [runtime.parent / "library.o", runtime])
                     exe = directory / "cinch"
                     exe.write_bytes(b"linked compiler")
                     exe.chmod(0o755)
@@ -347,6 +354,7 @@ class BootstrapContract(unittest.TestCase):
                 return 1
 
             with patch.object(bootstrap, "runtime_provider", side_effect=lambda: self.provider_fixture(runtime)), \
+                    patch.object(bootstrap, "BUILD", root), \
                     patch.dict(os.environ, {"CINCH_CLANG": "selected-clang"}), \
                     patch.object(bootstrap, "run", side_effect=command):
                 bootstrap.build_self(builder, files, directory, 1)
@@ -405,6 +413,7 @@ class BootstrapContract(unittest.TestCase):
                 return 19
 
             with patch.object(bootstrap, "runtime_provider", side_effect=lambda: self.provider_fixture(runtime)), \
+                    patch.object(bootstrap, "BUILD", root), \
                     patch.object(bootstrap, "run", side_effect=command) as run:
                 with self.assertRaisesRegex(bootstrap.BootstrapError, "linker rejected"):
                     bootstrap.build_self(builder, files, directory, 1)
@@ -424,6 +433,7 @@ class BootstrapContract(unittest.TestCase):
                 return 0
 
             with patch.object(bootstrap, "runtime_provider", side_effect=lambda: self.provider_fixture(runtime)), \
+                    patch.object(bootstrap, "BUILD", root), \
                     patch.object(bootstrap, "run", side_effect=command) as run:
                 with self.assertRaisesRegex(bootstrap.BootstrapError, "without a runnable compiler"):
                     bootstrap.build_self(builder, files, directory, 1)

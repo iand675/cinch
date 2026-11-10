@@ -11,10 +11,17 @@ import os
 import platform
 from pathlib import Path, PurePosixPath
 import re
+import shlex
 import shutil
 import subprocess
 import sys
 import tarfile
+import time
+
+# Profile-guided optimization: the stage link's flags, workload and cache.
+# The module is local, so importing it costs one read of a file that needs
+# nothing beyond the standard library.
+import pgo
 
 ROOT = Path(__file__).resolve().parents[1]
 # CINCH_BOOTSTRAP_BUILD lets a second chain (another pin or source set) build
@@ -28,6 +35,12 @@ RUNTIME_ABIS = (5, 6, 7)
 # Parallel clang jobs for the stage link. 1 keeps the single-module
 # translation unit; above 1 the module is sharded (see tooling/shard_ir.py).
 JOBS = 1
+# Profile-guided optimization of the stage links (see tooling/pgo.py). The
+# shipped default is on. `main` resolves --pgo/--no-pgo or
+# CINCH_BOOTSTRAP_PGO into PGO, so a caller that never resolved it builds the
+# plain -O2 link the tests assert.
+PGO_DEFAULT = True
+PGO = False
 
 
 class BootstrapError(RuntimeError):
@@ -173,21 +186,151 @@ def resolve_jobs(flag: int | None) -> int:
     return jobs
 
 
-def stage_link_environment() -> dict[str, str]:
+def resolve_pgo(flag: bool | None) -> bool:
+    if flag is not None:
+        return flag
+    value = (os.environ.get("CINCH_BOOTSTRAP_PGO") or "").strip().lower()
+    if not value:
+        return PGO_DEFAULT
+    if value in ("1", "yes", "on", "true"):
+        return True
+    if value in ("0", "no", "off", "false"):
+        return False
+    raise BootstrapError("CINCH_BOOTSTRAP_PGO must be 0 or 1")
+
+
+def pgo_dir() -> Path:
+    """The profile cache: one profile per compiler source digest and IR family."""
+    return BUILD / "pgo"
+
+
+def pgo_workload() -> tuple[Path, str]:
+    """The training bundle and its digest, written once per workload text."""
+    data = pgo.workload_source(ROOT)
+    workload = digest(data)
+    path = pgo_dir() / "workload" / f"toolkit-{workload}.cinch"
+    if not path.is_file():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+    return path, workload
+
+
+def pgo_profile(family: str, source: str, ir: Path | None = None) -> dict | None:
+    """The cached profile for these sources and IR, or None.
+
+    The record carries the source digest, the workload digest, the
+    llvm-profdata version and the digest of the IR it was trained on, so a
+    profile that outlived a code generation change is rebuilt rather than
+    silently applied.
+    """
+    _, workload = pgo_workload()
+    _, version = pgo.profdata_tool()
+    profile = pgo.load(pgo_dir(), source, family, workload, version)
+    if profile is not None and ir is not None and profile.get("ir_sha256") != file_hash(ir):
+        return None
+    return profile
+
+
+def pgo_inputs(profile: dict) -> dict:
+    """The stage input record for a compiler linked with this profile."""
+    return {"profdata_sha256": profile["profdata_sha256"],
+            "workload_sha256": profile["workload_sha256"]}
+
+
+def pgo_train(family: str, source: str, ir: Path, trainer: Path, directory: Path,
+              log: Path, instrumented_seconds: float | None, interfaces: dict) -> dict:
+    """Train one profile with the instrumented compiler and install it in the cache.
+
+    The trainer is the instrumented link of the same IR, so its counters
+    describe exactly the functions the profile-use link will optimize. The
+    work directory is training state and does not survive.
+    """
+    workload, workload_sha = pgo_workload()
+    _, version = pgo.profdata_tool()
+    work = directory / "pgo"
+    if work.exists():
+        shutil.rmtree(work)
+    work.mkdir(parents=True)
+    manifest = work / "interfaces.json"
+    write_json(manifest, interfaces)
+    profdata, seconds = pgo.train(trainer, workload, manifest, work, environment(), log)
+    profile = pgo.store(pgo_dir(), source, family, workload_sha, file_hash(ir), profdata,
+                        trainer=f"{directory.name}: instrumented link",
+                        tool_version=version, instrumented_seconds=instrumented_seconds,
+                        train_seconds=seconds)
+    shutil.rmtree(work)
+    print(f"{directory.name}: trained the {family} profile for {source[:12]} "
+          f"({profile['profdata_bytes']} bytes) in {seconds:.1f} s", flush=True)
+    return profile
+
+
+def pgo_base_interfaces(directory: Path, defined: set[str]) -> dict:
+    """A check manifest from the interfaces a seed build already emitted.
+
+    Stage1 has no library manifest of its own, and building one would need
+    the library producer. The seed emits every interface it checked, so the
+    training workload can be checked against exactly those. Modules the
+    workload or the compiler defines are left out: the workload supplies the
+    toolkit bodies, and a compiler module's interface is an implementation
+    detail whose dependencies the manifest would then have to carry too.
+    """
+    from bootstrap_interfaces import interface_hash, read_contract
+    rows = []
+    for path in sorted((directory / "sources" / "build").glob("*.cinchif")):
+        doc = read_contract(path)
+        if doc["module"] in defined:
+            continue
+        rows.append([doc["module"], interface_hash(doc), str(path.resolve())])
+    if not rows:
+        raise BootstrapError("no base interfaces to train the profile against")
+    return {"schema": 1, "interfaces": rows}
+
+
+def pgo_relink(exe: Path, ir: Path, record: Path, source: str,
+               directory: Path, log: Path, interfaces: dict) -> dict:
+    """Rebuild the seed's link with the profile and install it as the stage compiler."""
+    if not ir.is_file():
+        raise BootstrapError("the seed did not retain the link input the PGO relink needs")
+    profile = pgo_profile("seed", source, ir)
+    if profile is None:
+        profile = pgo_train("seed", source, ir, exe, directory, log, None, interfaces)
+    print(f"{directory.name}: relinking with profile {profile['profdata_sha256'][:12]}", flush=True)
+    argv, cwd = pgo.recorded_link(record)
+    wrapper = (ROOT / "tooling" / "shard_ir.py").resolve()
+    env = stage_link_environment(shlex.join(pgo.use_flags(profile, pgo_dir())))
+    code = run([wrapper, *argv, "-o", exe], cwd, log, append=True, env_extra=env)
+    if code:
+        raise BootstrapError(f"the profile-use relink of {directory.name} failed (exit {code}): {log}")
+    # A link that produces a non-runnable compiler must not be installed.
+    startup = run([exe], directory, log, append=True)
+    if startup != 1:
+        raise BootstrapError(f"the profile-use compiler of {directory.name} does not start "
+                             f"(invoked without arguments it returned {startup}, not 1)")
+    return profile
+
+
+def stage_link_environment(append: str | None = None,
+                           record: Path | None = None) -> dict[str, str]:
     """Point the seed's own clang call at the sharding wrapper.
 
     Stage1's link happens inside the pinned Rust seed, which honours only
     `CINCH_CLANG`. The wrapper shards one huge `.ll` link and execs the real
-    clang for everything else. JOBS == 1 leaves the seed untouched.
+    clang for everything else. JOBS == 1 and no appended flags leaves the
+    seed untouched, because then the wrapper has nothing to do.
     """
-    if JOBS <= 1:
+    if JOBS <= 1 and append is None:
         return {}
     wrapper = (ROOT / "tooling" / "shard_ir.py").resolve()
     real = os.environ.get("CINCH_CLANG") or shutil.which("clang") or "clang"
     if Path(real).resolve() == wrapper:
         real = shutil.which("clang") or "clang"
-    return {"CINCH_CLANG": str(wrapper), "CINCH_CLANG_REAL": str(real),
-            "CINCH_BOOTSTRAP_JOBS": str(JOBS)}
+    env = {"CINCH_CLANG": str(wrapper), "CINCH_CLANG_REAL": str(real),
+           "CINCH_BOOTSTRAP_JOBS": str(JOBS)}
+    if append is not None:
+        env["CINCH_CLANG_APPEND"] = append
+    if record is not None:
+        env["CINCH_CLANG_RECORD"] = str(record)
+    return env
 
 
 def required_artifacts(inputs: dict) -> tuple[str, ...]:
@@ -377,12 +520,15 @@ def bundle(files: dict[str, bytes]) -> bytes:
 
 def prepare_outputs(directory: Path) -> None:
     directory.mkdir(parents=True, exist_ok=True)
-    for name in ("cinch", "compiler.ll", "compiler.ll.diagnostics", "link-report.txt", "requested-roots.json"):
+    for name in ("cinch", "cinch.instrumented", "compiler.ll", "compiler.ll.diagnostics",
+                 "link-report.txt", "requested-roots.json", "seed-link.json"):
         (directory / name).unlink(missing_ok=True)
     for shard in directory.glob("compiler.shard*"):
         shard.unlink()
     for interface in directory.rglob("*.cinchif"):
         interface.unlink()
+    # Training state never outlives the build that produced it.
+    shutil.rmtree(directory / "pgo", ignore_errors=True)
 
 
 def build_stage(stage: int) -> Path:
@@ -405,6 +551,9 @@ def build_stage(stage: int) -> Path:
     # The seed writes this sidecar for clang. The fixed point compares the
     # later stages' compiler.ll, so a successful Stage1 can discard it.
     seed_ir = compiler.with_suffix(".ll")
+    profile = pgo_profile("seed", inputs["source_sha256"]) if PGO else None
+    if profile is not None:
+        inputs["pgo"] = pgo_inputs(profile)
     if cached(directory, inputs):
         seed_ir.unlink(missing_ok=True)
         print(f"stage{stage}: verified cached compiler", flush=True)
@@ -420,28 +569,77 @@ def build_stage(stage: int) -> Path:
     (directory / "compiler.cinch").write_bytes(bundle(files))
     # Stage1 does the largest compile of the chain (it builds Stage2), so the
     # seed links it optimized. Above one job the seed's own clang call goes
-    # through tooling/shard_ir.py, which shards its single `.ll` module.
+    # through tooling/shard_ir.py, which shards its single `.ll` module. With
+    # PGO the seed links an instrumented module, the resulting compiler trains
+    # the profile, and the recorded seed command is replayed with it.
+    record = directory / "seed-link.json"
+    append = None
+    if PGO:
+        record.unlink(missing_ok=True)
+        append = shlex.join(pgo.generate_flags(directory / "pgo" / "raw"))
     code = run([builder, "build", sources / "Main.cinch", "-o", compiler, "--opt-level", "2"],
-               sources, log, env_extra=stage_link_environment())
+               sources, log, env_extra=stage_link_environment(append, record if PGO else None))
+    if code == 0 and PGO:
+        # The seed's instrumented link is inside the seed's own command, so
+        # the record cannot report it separately from the frontend.
+        profile = pgo_relink(compiler, seed_ir, record, inputs["source_sha256"],
+                             directory, log,
+                             pgo_base_interfaces(directory,
+                                                 {name[:-6] for name in files
+                                                  if name.endswith(".cinch")}
+                                                 | pgo.workload_modules()))
+        inputs["pgo"] = pgo_inputs(profile)
     record_build(directory, inputs, code, log)
     seed_ir.unlink(missing_ok=True)
     return compiler
 
 
+def link_directory(ir: Path) -> Path:
+    """The one path every stage hands clang for this IR module.
+
+    A profile-use compile of identical bytes from two different paths
+    produces different objects: a profile's records are matched per module,
+    and the module's identity is the path clang was given. Stage2 and Stage3
+    link byte-identical IR, so they must also compile it from one path, and a
+    rebuilt stage must reuse the path its profile was trained under. The
+    directory is keyed by the IR digest, which keeps the choice content
+    addressed; the older directories in it can never be used again.
+    """
+    fingerprint = file_hash(ir)
+    root = BUILD / "shards"
+    root.mkdir(parents=True, exist_ok=True)
+    directory = root / fingerprint[:16]
+    shared = directory / ir.name
+    if shared.is_file() and file_hash(shared) == fingerprint:
+        return shared
+    for stale in root.iterdir():
+        if stale != directory:
+            shutil.rmtree(stale, ignore_errors=True)
+    directory.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(ir, shared)
+    return shared
+
+
 def build_self(builder: Path, files: dict[str, bytes], directory: Path,
-               built_by_stage: int, source: Path | None = None) -> Path:
+               built_by_stage: int, source: Path | None = None,
+               pgo_enabled: bool | None = None) -> Path:
     provider = runtime_provider()
     base = provider["interfaces"]
     base_bytes = json.dumps(base, sort_keys=True, separators=(",", ":")).encode()
     configuration = json.dumps(provider["configuration"], sort_keys=True, separators=(",", ":")).encode()
     runtime = provider["runtime"]
-    inputs = {"protocol": PROTOCOL, "host": HOST, "source_sha256": source_hash(files),
+    sources = source_hash(files)
+    inputs = {"protocol": PROTOCOL, "host": HOST, "source_sha256": sources,
               "builder_sha256": file_hash(builder), "built_by_stage": built_by_stage,
               "shard_count": JOBS,
               "interface_set_sha256": digest(base_bytes), "frontend_mode": "typed-ir-objects",
               "interface_output": "checked-schema10",
               "library_provider": provider["identity"], "object_configuration_sha256": digest(configuration),
               "runtime_archive_sha256": file_hash(runtime)}
+    guided = PGO if pgo_enabled is None else pgo_enabled
+    cached_profile = pgo_profile("cinch", sources) if guided else None
+    if cached_profile is not None:
+        inputs["pgo"] = pgo_inputs(cached_profile)
     if cached(directory, inputs):
         print(f"{directory.name}: verified cached compiler", flush=True)
         return directory / "cinch"
@@ -465,32 +663,55 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
         diagnostics = directory / "compiler.ll.diagnostics"
         if diagnostics.is_file():
             write_json(directory / "requested-roots.json", requested_roots(diagnostics.read_text(errors="replace")))
+    profile = pgo_profile("cinch", sources, ir) if guided and code == 0 else None
+    if profile is not None:
+        print(f"{directory.name}: linking with profile {profile['profdata_sha256'][:12]}", flush=True)
     if code == 0:
         # Optimized: the stage compilers are the bootstrap's hot loop, and
         # identical IR under identical flags still yields identical binaries.
         # Above one job the module is cut into deterministic shards, each
         # compiled in parallel, and the objects are linked in shard order.
         # Shard contents and link order depend only on the IR text and JOBS,
-        # never on scheduling.
+        # never on scheduling. The input path is the stage's shared one
+        # because a profile-use compile depends on it: identical IR compiled
+        # from another path would not be the same binary.
         from shard_ir import compile_shards, object_paths, write_shards
         clang = os.environ.get("CINCH_CLANG", "clang")
-        if JOBS > 1:
-            shards = write_shards(ir, directory, JOBS)
-            shard_objects = object_paths(directory, JOBS)
-            failure, shard_log = compile_shards(shards, shard_objects, clang, 2, JOBS,
-                                                directory, environment())
-            with log.open("ab") as stream:
-                stream.write(shard_log.encode())
-            if failure:
-                code = failure
+        link_ir = link_directory(ir)
+        shards = write_shards(link_ir, link_ir.parent, JOBS) if JOBS > 1 else None
+        shard_objects = object_paths(directory, JOBS) if JOBS > 1 else None
+
+        def link(output: Path, flags: tuple[str, ...]) -> int:
+            """Compile the emitted IR at -O2 and link it into output."""
+            if JOBS > 1:
+                failure, shard_log = compile_shards(shards, shard_objects, clang, 2, JOBS,
+                                                    directory, environment(), flags)
+                with log.open("ab") as stream:
+                    stream.write(shard_log.encode())
+                if failure:
+                    return failure
+                command = [clang, *shard_objects, provider["object"], runtime, "-o", output, *flags]
             else:
-                command = [clang, *shard_objects, provider["object"], runtime, "-o", exe]
-        else:
-            command = [clang, "-O2", "-Wno-override-module", ir, provider["object"], runtime, "-o", exe]
-        if code == 0:
+                command = [clang, "-O2", "-Wno-override-module", *flags, link_ir,
+                           provider["object"], runtime, "-o", output]
             if HOST["system"] == "Linux":
                 command.extend(["-ldl", "-lpthread", "-lm"])
-            code = run(command, directory, log, append=True)
+            return run(command, directory, log, append=True)
+
+        if guided and profile is None:
+            # One instrumented link per source revision trains the profile:
+            # the counters describe exactly the functions the profile-use
+            # link optimizes, and the instrumented binary is training state.
+            instrumented = directory / "cinch.instrumented"
+            started = time.monotonic()
+            code = link(instrumented, tuple(pgo.generate_flags(directory / "pgo" / "raw")))
+            seconds = time.monotonic() - started
+            if code == 0:
+                profile = pgo_train("cinch", sources, ir, instrumented, directory, log,
+                                    seconds, base)
+            instrumented.unlink(missing_ok=True)
+        if code == 0:
+            code = link(exe, tuple(pgo.use_flags(profile, pgo_dir())) if profile else ())
         report = f"clang-exit: {code}\n"
         if code == 0:
             if exe.is_file() and os.access(exe, os.X_OK):
@@ -502,6 +723,8 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
                     stream.write(b"linker succeeded without a runnable compiler\n")
                 code = 1
         (directory / "link-report.txt").write_text(report)
+    if profile is not None:
+        inputs["pgo"] = pgo_inputs(profile)
     return record_build(directory, inputs, code, log)
 
 
@@ -675,7 +898,9 @@ def check_changed_source() -> None:
         raise BootstrapError("update the changed-source probe for Bootstrap.Check's diagnostic label")
     files[name] = files[name].replace(marker, changed_marker)
     directory = BUILD / "changed-source" / "stage2"
-    compiler = build_self(BUILD / "stage2" / "cinch", files, directory, 2)
+    # The probe exists to show a changed diagnostic, not to be fast, and its
+    # changed source digest could not match the chain's profile anyway.
+    compiler = build_self(BUILD / "stage2" / "cinch", files, directory, 2, pgo_enabled=False)
     case = directory / "probe"
     case.mkdir(exist_ok=True)
     evidence = case / "checked.json"
@@ -704,10 +929,16 @@ def main() -> int:
     parser.add_argument("-j", "--jobs", type=int, default=None,
                         help="parallel clang shard jobs (default: half the cores; "
                              "CINCH_BOOTSTRAP_JOBS; 1 keeps the single module)")
+    parser.add_argument("--pgo", dest="pgo", action="store_true", default=None,
+                        help="link the stage compilers with a source-keyed profile "
+                             f"(default: {'on' if PGO_DEFAULT else 'off'}; CINCH_BOOTSTRAP_PGO)")
+    parser.add_argument("--no-pgo", dest="pgo", action="store_false",
+                        help="plain -O2 stage links, as before profile-guided optimization")
     args = parser.parse_args()
     try:
-        global JOBS
+        global JOBS, PGO
         JOBS = resolve_jobs(args.jobs)
+        PGO = resolve_pgo(args.pgo)
         environment()
         BUILD.mkdir(parents=True, exist_ok=True)
         # Serialize mutations of the stage cache; ordinary cargo test runs
@@ -743,9 +974,12 @@ def main() -> int:
                     status = "stale library inputs"
                 elif status == "built" and inputs.get("host") != HOST:
                     status = "different build host"
-                print(f"stage{stage}: {status}")
+                profile = inputs.get("pgo") if isinstance(inputs.get("pgo"), dict) else None
+                print(f"stage{stage}: {status}"
+                      + (f" (profile {profile['profdata_sha256'][:12]})" if profile else ""))
+            print(f"pgo: {'on' if PGO else 'off'} for this invocation; cache {pgo_dir()}")
         return 0
-    except (BootstrapError, OSError, subprocess.CalledProcessError) as error:
+    except (BootstrapError, pgo.ProfileError, OSError, subprocess.CalledProcessError) as error:
         print(f"bootstrap: {error}", file=sys.stderr)
         return 1
 

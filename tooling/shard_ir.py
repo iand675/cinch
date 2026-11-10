@@ -26,18 +26,24 @@ Shards stay linkable:
 This file also runs as the `CINCH_CLANG` wrapper, so a compiler that invokes
 clang itself (the pinned Rust seed building Stage1) gets the same split. It
 shards only a link of exactly one huge `.ll` input; anything else is exec'd to
-the real clang unchanged.
+the real clang unchanged. Two environment variables serve profile-guided
+optimization, which cannot change the seed's own command line:
+`CINCH_CLANG_APPEND` adds flags to the shard compiles and the final link, and
+`CINCH_CLANG_RECORD` writes each stage link's arguments to a JSON-lines file
+so the profile-use relink replays exactly that command.
 """
 from __future__ import annotations
 
 import concurrent.futures
+import hashlib
+import json
 import os
 from pathlib import Path
 import re
+import shlex
 import shutil
 import subprocess
 import sys
-import tempfile
 
 # Definition-only words on a `define` line. A declaration has no linkage, so
 # they are removed when the signature is reused for a `declare`.
@@ -534,12 +540,59 @@ def _clang_command(argv: list[str]) -> tuple[str | None, list[str], str | None]:
     return real, inputs, output
 
 
+def _append_flags() -> list[str]:
+    """Extra flags this link gets from CINCH_CLANG_APPEND.
+
+    The pinned seed builds its own clang command line, so a caller that needs
+    a flag on it (profile instrumentation, profile use) cannot add one. The
+    flags reach both the shard compiles and the final link, because
+    `-fprofile-generate` also has to select the profile runtime at link time.
+    """
+    value = os.environ.get("CINCH_CLANG_APPEND")
+    return shlex.split(value) if value else []
+
+
+def record_invocation(argv: list[str]) -> None:
+    """Append one stage link's arguments to CINCH_CLANG_RECORD as JSON lines.
+
+    A profile-use relink must reproduce the seed's own command exactly, so
+    the record holds the real argv and the directory it ran in. Only a link
+    of a `.ll` input to an output is recorded; anything else the seed runs
+    through this wrapper is not a stage link.
+    """
+    path = os.environ.get("CINCH_CLANG_RECORD")
+    if not path:
+        return
+    if not any(not word.startswith("-") and word.endswith(".ll") for word in argv):
+        return
+    if "-o" not in argv and not any(word.startswith("-o") for word in argv):
+        return
+    with open(path, "a") as stream:
+        stream.write(json.dumps({"argv": argv, "cwd": os.getcwd()}) + "\n")
+
+
+def shard_directory(ir_path: Path) -> Path:
+    """The directory this module's shards are written to.
+
+    It depends only on the IR text and on where the IR lives, never on the
+    run: a profile-use compile of identical bytes from two different paths
+    produces different objects, because a profile's records are matched per
+    module and the module's identity is the path clang was handed. Profile
+    instrumentation and profile use must therefore see the same shard paths,
+    and a rebuilt stage must reuse the path its profile was trained under.
+    """
+    fingerprint = hashlib.sha256(ir_path.read_bytes()).hexdigest()[:16]
+    return ir_path.parent / f".shards-{fingerprint}"
+
+
 def clang_main(argv: list[str]) -> int:
     """Shard one huge `.ll` link; otherwise hand the arguments to real clang."""
     real, inputs, output = _clang_command(argv)
     if real is None:
         print("shard_ir: clang not found (set CINCH_CLANG_REAL)", file=sys.stderr)
         return 127
+    append = _append_flags()
+    record_invocation(argv)
     jobs = int(os.environ.get("CINCH_BOOTSTRAP_JOBS", "1"))
     threshold = int(os.environ.get("CINCH_SHARD_MIN_BYTES", str(4 << 20)))
     ir_inputs = [Path(word) for word in inputs if word.endswith(".ll")]
@@ -548,7 +601,7 @@ def clang_main(argv: list[str]) -> int:
             or any("-target" in word for word in argv)
             or ir_inputs[0].stat().st_size < threshold
             or output is None):
-        return subprocess.run([real, *argv]).returncode
+        return subprocess.run([real, *argv, *append]).returncode
 
     ir_path = ir_inputs[0]
     opt_level = 0
@@ -557,13 +610,15 @@ def clang_main(argv: list[str]) -> int:
             opt_level = 0 if word[2] in "sz" else int(word[2])
     compile_flags = tuple(word for word in argv
                           if word.startswith(COMPILE_FLAG_PREFIXES)
-                          and not word.startswith(LINK_VALUE_FLAGS))
+                          and not word.startswith(LINK_VALUE_FLAGS)) + tuple(append)
     link_flags = tuple(word for word in argv
                        if word.startswith(("-Wl,", "-L", "-l", "-framework", "-Xlinker")))
     # Positional non-IR inputs (the runtime archive, library objects) keep
     # their command-line order and go after the shard objects.
     link_inputs = [word for word in inputs if not word.endswith(".ll")]
-    directory = Path(tempfile.mkdtemp(prefix="cinch-shards-"))
+    directory = shard_directory(ir_path)
+    shutil.rmtree(directory, ignore_errors=True)
+    directory.mkdir(parents=True)
     try:
         shards = write_shards(ir_path, directory, jobs)
         objects = object_paths(directory, jobs)
@@ -574,7 +629,7 @@ def clang_main(argv: list[str]) -> int:
             sys.stderr.write(log)
             return failure
         return subprocess.run([real, *[str(obj) for obj in objects], *link_inputs,
-                               "-o", str(output), *link_flags]).returncode
+                               "-o", str(output), *append, *link_flags]).returncode
     finally:
         shutil.rmtree(directory, ignore_errors=True)
 

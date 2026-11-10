@@ -86,6 +86,90 @@ inside the pinned Rust seed, which honours only `CINCH_CLANG`; bootstrap
 points that at `shard_ir.py`, which shards one large `.ll` link and execs
 `CINCH_CLANG_REAL` (or `clang` on `PATH`) for everything else.
 
+## Profile-guided stage compilers
+
+A stage compiler is the chain's own hot loop: Stage1 compiles Stage2 and
+Stage2 compiles Stage3, so a faster compiler shortens the chain and every
+check the chain runs. Each stage is linked with a profile by default;
+`--no-pgo`, or `CINCH_BOOTSTRAP_PGO=0`, restores the plain `-O2` link:
+
+```sh
+CINCH_HEAP_LIMIT=2G python3 tooling/bootstrap.py build --stage 3            # --pgo is the default
+CINCH_HEAP_LIMIT=2G python3 tooling/bootstrap.py build --stage 3 --no-pgo
+```
+
+The pipeline is the one measured in `design/compilation-speed.md` section 8:
+link the emitted IR with `-fprofile-generate`, run the resulting compiler
+over a training workload, merge the counters with `llvm-profdata merge`
+(`xcrun -f llvm-profdata` on macOS, `llvm-profdata` elsewhere), and relink
+with `-fprofile-use`. The installed `cinch` is always the profile-use link.
+The instrumented binary and its counters live in the stage's `pgo/` work
+directory and are removed before the stage is recorded, so nothing
+instrumented becomes an artifact.
+
+Where the flags attach follows where the link happens:
+
+- Stage1 is linked inside the pinned Rust seed, which builds its own clang
+  command line. `shard_ir.py` adds flags the seed cannot be told about
+  (`CINCH_CLANG_APPEND`) and records the seed's own link arguments
+  (`CINCH_CLANG_RECORD`); the profile-use relink replays exactly those
+  arguments, so only the profile flag and the output path differ from the
+  command the seed ran.
+- Stages 2 and 3 are linked by `bootstrap.py`, so the flags go straight to
+  `clang`, or to every shard above one job.
+
+The training workload is `Text.Lex`, `Text.Scan`, `Text.Parse`, `Text.Json`
+and `Text.Builder` plus a `Main` that imports all five so the checker walks
+the whole toolkit (about 4,000 lines): the same workload section 8 measured,
+and a check is small enough to retrain on every source revision. Stage1's
+manifest for that check is built from the interfaces the seed emitted; later
+stages use their own `base-interfaces.json`.
+
+A profile is keyed, and rechecked on every use, by what it depends on: the
+compiler source digest, the workload digest, the `llvm-profdata` version, and
+the digest of the IR it was trained on. It lives at
+`build/bootstrap/pgo/<source sha256>-<family>.profdata` with a `.json` record
+beside it. The family is `seed` for Stage1's module, which the Rust seed
+emits, and `cinch` for Stage2 and Stage3, whose IR the fixed point keeps byte
+identical, so Stage3 reuses what Stage2's instrumented build trained. A
+profile that no longer matches those digests is retrained rather than reused,
+the cache keeps one live profile per family, and the profile's digest is part
+of the stage's recorded inputs, so a stage built against one profile is
+rebuilt if the profile changes. `status` prints the profile each stage was
+linked with.
+
+Profile data moves basic-block weights and inline costs and nothing else, so
+the emitted IR, every `.cinchif` and every build manifest are unchanged and
+the Stage2/Stage3 fixed point still holds on all of them. The executables do
+change, because inlining decisions differ; that is why both stages must link
+the same IR with the same profile, which they do.
+
+One property of profile-use compiles matters for that last point: clang's
+output for a module depends on the path it was handed. The same bytes
+compiled from two directories gave objects that differ by 38% (a profile's
+records are matched per module, so a module compiled from a different path
+matches differently). Two consequences are wired in. Every stage links its
+module from one content-addressed path, `build/bootstrap/shards/<ir
+digest>/`, so Stage2 and Stage3 compile identical input at identical paths
+and a rebuilt stage reproduces its binary; and `shard_ir.py` writes a
+wrapper's shards to a directory named after the IR rather than a temporary
+one, so the instrumented link and the profile-use relink of Stage1 compile
+the same paths. A profile trained under a different path scheme is refused
+by the record's schema version rather than reused.
+
+Measured on this machine at `-j 9`, the two chains' Stage3 compilers against
+each other on the toolkit check, five interleaved runs each: 22.53 s median
+wall and 20.07 s CPU without a profile, 20.62 s and 18.06 s with one (8.5%
+wall, 10.0% CPU; the machine was fully loaded throughout, and an earlier,
+quieter measurement of the same pair gave 15.47 s against 13.96 s). The
+profile is 5.5 MB for the Cinch family and 9.9 MB for the seed family. The
+cost is one instrumented link plus one training run per source revision,
+about 26 s and 20 s at this shard count. `__text` is unchanged within 2%
+(12.08 MB to 11.91 MB on the Stage2 module); the executable file grows from
+15.98 MB to 20.57 MB because cold call sites stay out of line and our
+mangled names are long, so the symbol table in `__LINKEDIT` is 33k entries
+larger.
+
 ## Drift check (CI)
 
 ```sh

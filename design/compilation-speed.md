@@ -269,10 +269,12 @@ link the compiler IR with `-fprofile-generate`, train it on a real workload
 with `-fprofile-use`. On the toolkit check the same IR ran in a median of
 13.7 s against 15.3 s plain `-O2`, about 10%, with identical output. The
 profile is keyed to the compiler source, so it must be regenerated when the
-sources change; and because every stage is the same program, one trained
-profile serves all of them (functions whose IR differs are simply skipped,
-with the profile-use warnings suppressed). Link cost is one extra
-instrumented build per source revision.
+sources change. One profile serves every stage that links the same IR:
+Stage2 and Stage3 link byte-identical modules, so they share a profile.
+Stage1 is the exception this note first got wrong: its module is emitted by
+the Rust seed, so a profile trained on Cinch-emitted IR matches almost none
+of it, and Stage1 trains its own. Link cost is one extra instrumented build
+per source revision.
 
 ThinLTO across the compiler module and the library object links and halves
 the binary (15.9 MB to 11.9 MB) but the result faults at run time in the
@@ -284,6 +286,81 @@ still bypasses the rounding. It is worth one investigation because LTO also
 removes the cross-module call cost to the library's string and `Nat`
 routines, which the profiles put at 14% of the compiler's time. Until then,
 LTO stays off.
+
+### Profile-guided stage links (implemented 2026-11-10)
+
+The pipeline above is now the default stage link, with `--no-pgo` (or
+`CINCH_BOOTSTRAP_PGO=0`) as the documented off switch. Per stage: link the
+emitted IR with `-fprofile-generate`, run the instrumented compiler over the
+toolkit bundle, merge with `llvm-profdata`, relink with `-fprofile-use`, and
+install only the profile-use binary. The instrumented link and its counters
+are training state in the stage's `pgo/` directory, removed before the stage
+is recorded. `tooling/README.md` documents the mechanics in full.
+
+Flag plumbing had to reach two different link sites. Stages 2 and 3 are
+linked by `bootstrap.py`, so the flags go straight to clang, or to each shard
+above one job. Stage1 is linked inside the pinned Rust seed, which builds its
+own command line, so `tooling/shard_ir.py` gained `CINCH_CLANG_APPEND` (flags
+for the shard compiles and the final link) and `CINCH_CLANG_RECORD` (the
+seed's real argv, as JSON lines). The profile-use relink replays that
+recorded argv with only the profile flag and the output path changed, so the
+seed's own link options stay authoritative.
+
+The cache key is what a profile depends on: the compiler source digest, the
+workload digest, the `llvm-profdata` version, and the digest of the IR it was
+trained on. A record that no longer matches is retrained, never reused, and
+the profile's own digest enters the stage inputs, so a stage cached against
+another profile is rebuilt. Two profiles exist per source revision: `seed`
+for Stage1 and `cinch` for Stage2 and Stage3, and Stage3 reuses what Stage2's
+instrumented link trained.
+
+Two findings from wiring it are load bearing:
+
+- **One profile cannot serve Stage1.** This note assumed every stage is the
+  same program, so one profile would cover all of them with the functions
+  that differ skipped. In practice Stage1's module is emitted by the Rust
+  seed and differs structurally from the Cinch-emitted module of the later
+  stages (224 MB against 48 MB for the same source program), so a
+  Cinch-trained profile matches almost none of it and Stage1 trains its own.
+  That is why the cache is keyed by family as well as by source digest.
+- **A profile-use compile depends on the module's path.** Identical shard
+  text compiled from two directories produced objects that differ by 38%: a
+  profile's records are matched per module, and a module compiled from a
+  different path matches differently. That broke the fixed point on the first
+  attempt, because Stage2 and Stage3 linked the same IR from their own
+  directories and produced different binaries. Every stage now links its
+  module from one content-addressed path,
+  `build/bootstrap/shards/<ir digest>/`, and the wrapper writes its shards to
+  a directory named after the IR instead of a temporary one, so
+  instrumentation and profile use see identical paths.
+
+Profile data moves basic-block weights and inline costs only, so the emitted
+IR, every `.cinchif` and every build manifest are byte identical to a
+`--no-pgo` chain, and Stage2 and Stage3 still meet byte for byte; only the
+executables differ. The two chains' Stage3 compilers, five interleaved runs
+each on the toolkit check, measure 22.53 s median wall and 20.07 s CPU
+without a profile against 20.62 s and 18.06 s with one (8.5% wall, 10.0%
+CPU; the machine was fully loaded, and an earlier quieter run of the same
+pair gave 15.47 s against 13.96 s). The price is one instrumented link plus
+one training run per source revision (26 s and 22 s at `-j 9` for the Cinch
+family, 20 s of training for the seed family). The profile files are 5.5 MB
+(`cinch`) and 9.9 MB (`seed`). `__text` is 12.08 MB to 11.91 MB; the
+executable file grows from 15.98 MB to 20.57 MB because cold call sites stay
+out of line and our mangled names are long, so the symbol table is 33k
+entries larger.
+
+The chain itself, measured stage by stage. The `--no-pgo` chain was cold
+(seed and library producer built inside it): 242.0 s, 502.8 s and 323.1 s for
+Stages 1 to 3. The profile chain, with the seed and producer already built
+from an earlier attempt, spent 123.5 s on Stage1 (of which 19.8 s is
+training and 26.3 s the instrumented link), 266.4 s on Stage2 (one
+instrumented link, one training run of 22.3 s, then the profile-use link)
+and 247.9 s on Stage3, which is a frontend plus one profile-use link because
+it reuses Stage2's profile. Stage3 shrinking from 323.1 s to 247.9 s is the
+profile paying for itself on the chain's largest single compile; the cold
+seed and producer builds mean the two totals are not directly comparable,
+and the marginal cost at the top of a chain is one instrumented link plus
+one training run per stage.
 
 ### Sharded code generation (implemented 2026-11-10)
 
@@ -569,9 +646,23 @@ Metrics, reported per edit and per clean build:
 
 ## 12. Backlog, in evidence order
 
-1. **PGO for the stage compilers.** Wire the measured 10% into
-   `tooling/bootstrap.py`: instrument, train on the bundle, merge, relink,
-   key the profile by the compiler source digest.
+1. **PGO for the stage compilers. Done (2026-11-10).** `tooling/bootstrap.py`
+   links each stage with a profile by default (`--no-pgo` or
+   `CINCH_BOOTSTRAP_PGO=0` keeps the plain `-O2` link): instrument with
+   `-fprofile-generate`, train on the toolkit bundle, `llvm-profdata merge`,
+   relink with `-fprofile-use`, and install only the profile-use binary. The
+   profile is keyed by the compiler source digest, the workload digest, the
+   `llvm-profdata` version and the IR it was trained on, and lives at
+   `build/bootstrap/pgo/<source sha256>-<family>.profdata`. The family is
+   `seed` for Stage1 (its module comes from the Rust seed) and `cinch` for
+   Stage2 and Stage3, which link identical IR and share one profile. Two
+   things were learned wiring it: a profile only matches the IR structure it
+   was trained on, so Stage1 cannot share Stage2's; and with a profile,
+   clang's output for a module depends on the path it is given, so every
+   stage now links its module from one content-addressed path or the fixed
+   point breaks. The toolkit check falls from 15.47 s to 13.96 s median
+   (9.8%, five interleaved runs) and the chain pays one instrumented link
+   and one training run per source revision. See section 8.
 2. **Profile harness.** A `tooling/profile_build.py` that runs a stage
    chain and emits phase timings, clang `-ftime-trace` summaries, sample
    profiles of the running compiler, and per-target test times, as one JSON
