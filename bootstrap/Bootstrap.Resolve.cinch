@@ -14,6 +14,7 @@ module Bootstrap.Resolve where
   import Bootstrap.Parse (exported-fixities)
   import Text.Lex (Span, span-start, span-end)
   import Data.Json
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Algebra.Semigroup
 
   export resolve-program, resolve-program-with, resolve-overlay-with, unshadowed-interfaces
@@ -49,6 +50,29 @@ module Bootstrap.Resolve where
     Nil -> None
     Cons b rest -> case b of
       MkBinding visible owner symbol -> if same name visible then Some b else lookup-binding name rest
+
+  -- A module's visible surface during renaming: the ordered list the passes
+  -- carry for shadowing order, and a name index so reaching a binding is one
+  -- hash probe instead of a scan of every visible declaration. The index
+  -- keeps the front-most binding of a repeated spelling, which is the one
+  -- the scan would find.
+  data Visible where
+    MkVisible :: List Binding -> HashMap String Binding -> Visible
+
+  visible-of :: List Binding -> Visible
+  visible-of entries = MkVisible entries (binding-index entries)
+
+  binding-index :: List Binding -> HashMap String Binding
+  binding-index entries = case entries of
+    Nil -> hash-map-empty
+    Cons (MkBinding name owner symbol) rest -> hash-map-insert name (MkBinding name owner symbol) (binding-index rest)
+
+  visible-lookup :: String -> Visible -> Option Binding
+  visible-lookup name entries = case entries of
+    MkVisible order index -> hash-map-lookup name index
+
+  visible-order :: Visible -> List Binding
+  visible-order entries = case entries of MkVisible order index -> order
 
   binding-name :: Binding -> String
   binding-name b = case b of
@@ -303,7 +327,7 @@ module Bootstrap.Resolve where
     let (surface, export-errors) = case export-items (module-decls m) of
           Nil -> (if has-export-declaration (module-decls m) then Nil else declared, Nil)
           Cons first rest -> build-exports (Cons first rest) visible views Nil in
-    let (body, body-errors) = rename-decls home visible (module-decls m) in
+    let (body, body-errors) = rename-decls home (visible-of visible) (module-decls m) in
     (MkScoped home surface body, visibility-errors <> export-errors <> body-errors)
 
   resolve-ordered :: List Module -> List Scoped -> List Binding -> (List Scoped, List Diagnostic)
@@ -352,8 +376,8 @@ module Bootstrap.Resolve where
   -- Type variables and dependent binders remain local. Only names in the
   -- module's visible global surface are rewritten here; the checker owns
   -- kind checking and unknown type diagnostics.
-  type-name :: List Binding -> List String -> String -> String
-  type-name visible locals name = if has-name name locals then name else case lookup-binding name visible of
+  type-name :: Visible -> List String -> String -> String
+  type-name visible locals name = if has-name name locals then name else case visible-lookup name visible of
     None -> name
     Some b -> if has-name (annotation-type-local name) locals then name else binding-symbol b
 
@@ -387,7 +411,7 @@ module Bootstrap.Resolve where
   -- The closed structural predicate vocabulary is syntax in a predicate
   -- position. A same-spelled refinement constructor in carrier position
   -- still resolves to its real defining module.
-  rename-predicate :: List Binding -> List String -> TypeExpr -> TypeExpr
+  rename-predicate :: Visible -> List String -> TypeExpr -> TypeExpr
   rename-predicate visible locals syntax = case syntax of
     TName s name -> if same name "NonZero" then syntax else rename-type visible locals syntax
     TApp s (TName at name) (TArg arg input (TArgsEnd end)) ->
@@ -395,12 +419,12 @@ module Bootstrap.Resolve where
       else rename-type visible locals syntax
     TInfix s op first second -> TInfix s op (rename-predicate visible locals first) (rename-predicate visible locals second)
     other -> rename-type visible locals syntax
-  rename-proof-bounds :: List Binding -> List String -> TypeExpr -> TypeExpr
+  rename-proof-bounds :: Visible -> List String -> TypeExpr -> TypeExpr
   rename-proof-bounds visible locals syntax = case syntax of
     TBound s name app rest -> TBound s name (rename-predicate visible locals app) (rename-proof-bounds visible (Cons name locals) rest)
     other -> rename-type visible locals syntax
 
-  rename-type :: List Binding -> List String -> TypeExpr -> TypeExpr
+  rename-type :: Visible -> List String -> TypeExpr -> TypeExpr
   rename-type visible locals t = case t of
     TName s name -> TName s (type-name visible locals name)
     TIndex s digits -> t
@@ -429,20 +453,20 @@ module Bootstrap.Resolve where
     Nil -> Nil
     Cons p rest -> Cons (param-name p) (parameter-names rest)
 
-  rename-params :: List Binding -> List String -> List TypeParam -> List TypeParam
+  rename-params :: Visible -> List String -> List TypeParam -> List TypeParam
   rename-params visible locals params = case params of
     Nil -> Nil
     Cons (MkTypeParam s name kind only) rest ->
       Cons (MkTypeParam s name (case kind of None -> None; Some t -> Some (rename-type visible locals t)) only)
         (rename-params visible (Cons name locals) rest)
 
-  rename-ctors :: String -> List Binding -> List String -> List (String, TypeExpr) -> List (String, TypeExpr)
+  rename-ctors :: String -> Visible -> List String -> List (String, TypeExpr) -> List (String, TypeExpr)
   rename-ctors home visible locals ctors = case ctors of
     Nil -> Nil
     Cons (name, ty) rest -> Cons (global-name home name, rename-type visible locals ty) (rename-ctors home visible locals rest)
 
   -- Labels belong to the record. Only their field types use module names.
-  rename-record-fields :: Bool -> List Binding -> List String -> List (String, TypeExpr) -> List (String, TypeExpr)
+  rename-record-fields :: Bool -> Visible -> List String -> List (String, TypeExpr) -> List (String, TypeExpr)
   rename-record-fields dependent visible locals fields = case fields of
     Nil -> Nil
     Cons (name, ty) rest -> Cons (name, rename-type visible locals ty)
@@ -479,13 +503,13 @@ module Bootstrap.Resolve where
     Nil -> False
     Cons binding rest -> same qualifier (name-qualifier (binding-name binding)) || visible-qualifier qualifier rest
 
-  resolve-use :: Span -> Bool -> List Binding -> List String -> String -> (String, List Diagnostic)
+  resolve-use :: Span -> Bool -> Visible -> List String -> String -> (String, List Diagnostic)
   resolve-use sp constructor visible locals name = if has-name name locals && not constructor then (name, Nil)
-    else case lookup-binding name visible of
+    else case visible-lookup name visible of
       Some b -> (binding-symbol b, Nil)
       None -> if constructor && (same name "True" || same name "False") then (name, Nil)
         else let qualifier = name-qualifier name in
-          if constructor && string-length qualifier > 0 && visible-qualifier qualifier visible then
+          if constructor && string-length qualifier > 0 && visible-qualifier qualifier (visible-order visible) then
             (name, fail sp (cat ["unknown constructor ", name, ": not exported into this scope"]))
           else (name, fail sp (cat ["name is not in scope: ", name]))
 
@@ -494,7 +518,7 @@ module Bootstrap.Resolve where
     PArgsEnd at -> PCon sp (interface-global "Data.Core.Nil") (PArgsEnd sp)
     PArg at first rest -> PCon sp (interface-global "Data.Core.Cons") (PArg at first (PArg at (list-pattern sp rest) (PArgsEnd at)))
     other -> PUnmodeled sp "invalid list pattern spine"
-  rename-pat :: List Binding -> Pat -> (Pat, List Diagnostic)
+  rename-pat :: Visible -> Pat -> (Pat, List Diagnostic)
   rename-pat visible p = case p of
     PRecord s name fields -> case resolve-use s True visible Nil name of
       (symbol, errors) -> case rename-pat visible fields of
@@ -519,14 +543,14 @@ module Bootstrap.Resolve where
     PUnmodeled s text -> (p, fail s (cat ["unmodeled pattern: ", text]))
     other -> (p, Nil)
 
-  rename-pats :: List Binding -> List Pat -> (List Pat, List Diagnostic)
+  rename-pats :: Visible -> List Pat -> (List Pat, List Diagnostic)
   rename-pats visible ps = case ps of
     Nil -> (Nil, Nil)
     Cons p rest -> case rename-pat visible p of
       (renamed, errors) -> case rename-pats visible rest of
         (others, more) -> (Cons renamed others, errors <> more)
 
-  rename-bindings :: List Binding -> List String -> Expr -> (Expr, List String, List Diagnostic)
+  rename-bindings :: Visible -> List String -> Expr -> (Expr, List String, List Diagnostic)
   rename-bindings visible locals bs = case bs of
     EBindingsEnd s -> (bs, locals, Nil)
     EBinding s name rhs rest -> case rename-expr visible locals rhs of
@@ -568,7 +592,7 @@ module Bootstrap.Resolve where
     Nil -> Nil
     Cons (sp, name) rest -> let more = orphan-group-signatures declared rest in
       if has-name name declared then more else fail sp (cat ["local signature has no binding for ", name]) <> more
-  rename-group-bindings :: List Binding -> List String -> List String -> Expr -> (Expr, List Diagnostic)
+  rename-group-bindings :: Visible -> List String -> List String -> Expr -> (Expr, List Diagnostic)
   rename-group-bindings visible strict all bindings = case bindings of
     ELocalEnd sp -> (bindings, Nil)
     ELocalStrict sp pattern value rest -> (case rename-pat visible pattern of
@@ -581,7 +605,7 @@ module Bootstrap.Resolve where
     ELocalSignature sp name ty rest -> (case rename-group-bindings visible strict all rest of
       (more, errors) -> (ELocalSignature sp name (rename-type visible all ty) more, errors))
     other -> (bindings, fail (expr-span bindings) "malformed local group")
-  rename-local-group :: Bool -> List Binding -> List String -> Span -> Expr -> Expr -> (Expr, List Diagnostic)
+  rename-local-group :: Bool -> Visible -> List String -> Span -> Expr -> Expr -> (Expr, List Diagnostic)
   rename-local-group recursive visible locals sp bindings body =
     let sites = group-binding-sites bindings in
     let declared = map group-site-name sites in
@@ -594,7 +618,7 @@ module Bootstrap.Resolve where
       (renamed, more) -> (case rename-expr visible all body of
         (value, others) -> (if recursive then ELetRec sp renamed value else ELocalGroup sp renamed value, errors <> more <> others)))
 
-  rename-alts :: List Binding -> List String -> Expr -> (Expr, List Diagnostic)
+  rename-alts :: Visible -> List String -> Expr -> (Expr, List Diagnostic)
   rename-alts visible locals alts = case alts of
     EAltsEnd s -> (alts, Nil)
     EAlt s pat body rest -> case rename-pat visible pat of
@@ -603,29 +627,29 @@ module Bootstrap.Resolve where
           (others, tail-errors) -> (EAlt s renamed rhs others, errors <> more <> tail-errors)
     other -> (alts, fail (expr-span alts) "malformed case alternative spine")
 
-  builtin-decision-use :: List Binding -> List String -> Expr -> Bool
+  builtin-decision-use :: Visible -> List String -> Expr -> Bool
   builtin-decision-use visible locals expression = case expression of
-    EVar sp name -> not (has-name name locals) && (case lookup-binding name visible of Some binding -> same (binding-symbol binding) "b.decide"; None -> False)
+    EVar sp name -> not (has-name name locals) && (case visible-lookup name visible of Some binding -> same (binding-symbol binding) "b.decide"; None -> False)
     other -> False
   -- In a branch test, the structural former may also have the standard
   -- refinement constructor in scope. A distinct constructor keeps its
   -- ordinary binding and type.
-  branch-predicate-former :: List Binding -> String -> Bool
-  branch-predicate-former visible name = has-name name ["NonZero", "NotNull"] && (case lookup-binding name visible of
+  branch-predicate-former :: Visible -> String -> Bool
+  branch-predicate-former visible name = has-name name ["NonZero", "NotNull"] && (case visible-lookup name visible of
     Some binding -> same name "NonZero" && same (binding-symbol binding) (interface-global "Algebra.Arithmetic.NonZero")
     None -> True)
   branch-literal :: String -> Expr -> Bool
   branch-literal expected syntax = case syntax of
     ECon sp name (EArgsEnd end) -> same name expected
     other -> False
-  rename-branch-value :: List Binding -> List String -> Expr -> (Expr, List Diagnostic)
+  rename-branch-value :: Visible -> List String -> Expr -> (Expr, List Diagnostic)
   rename-branch-value visible locals syntax = case syntax of
     ECon sp name (EArg at input (EArgsEnd end)) | branch-predicate-former visible name ->
       (case rename-expr visible locals input of
         (value, errors) -> (ECon sp ("#condition." <> name) (EArg at value (EArgsEnd end)), errors))
     EApp sp (ECon at name (EArgsEnd end)) input | branch-predicate-former visible name ->
       rename-branch-value visible locals (ECon sp name (EArg at input (EArgsEnd end)))
-    EApp sp (EVar at name) input -> (case lookup-binding name visible of
+    EApp sp (EVar at name) input -> (case visible-lookup name visible of
       Some binding | not (has-name name locals) && same (binding-symbol binding) (interface-global "Data.Bool.not") ->
         (case rename-branch-value visible locals input of
           (value, errors) -> (EApp sp (EVar at (binding-symbol binding)) value, errors))
@@ -633,7 +657,7 @@ module Bootstrap.Resolve where
     other -> rename-expr visible locals syntax
   -- Predicate operators denote logical operations here. Ordinary applications
   -- retain their declaration-owned bindings and cannot become decision authority.
-  rename-decision-syntax :: List Binding -> List String -> Expr -> (Expr, List Diagnostic)
+  rename-decision-syntax :: Visible -> List String -> Expr -> (Expr, List Diagnostic)
   rename-decision-syntax visible locals syntax = case syntax of
     ECon sp name arguments -> if has-name name ["NonZero", "NotNull", "Not", "True", "False"] then
       (case rename-decision-syntax visible locals arguments of (args, errors) -> (ECon sp name args, errors)) else rename-expr visible locals syntax
@@ -651,7 +675,7 @@ module Bootstrap.Resolve where
     EArg sp first rest -> (case rename-decision-syntax visible locals first of (value, errors) -> case rename-decision-syntax visible locals rest of (more, others) -> (EArg sp value more, errors <> others))
     EArgsEnd sp -> (syntax, Nil)
     other -> rename-expr visible locals syntax
-  rename-do :: List Binding -> List String -> Expr -> (Expr, List Diagnostic)
+  rename-do :: Visible -> List String -> Expr -> (Expr, List Diagnostic)
   rename-do visible locals statements = case statements of
     EArgsEnd sp -> (statements, Nil)
     EArg sp (EBind at name rhs) rest -> (case rename-expr visible locals rhs of
@@ -663,7 +687,7 @@ module Bootstrap.Resolve where
     EArg sp first rest -> (case rename-expr visible locals first of
       (value, errors) -> case rename-do visible locals rest of (more, others) -> (EArg sp value more, errors <> others))
     other -> (other, fail (expr-span other) "malformed do statement spine")
-  rename-expr :: List Binding -> List String -> Expr -> (Expr, List Diagnostic)
+  rename-expr :: Visible -> List String -> Expr -> (Expr, List Diagnostic)
   rename-expr visible locals e = case e of
     ERecord s name fields -> case resolve-use s True visible Nil name of
       (symbol, errors) -> case rename-expr visible locals fields of
@@ -695,7 +719,7 @@ module Bootstrap.Resolve where
     EBin s op a b -> case rename-expr visible locals a of
       (left, errors) -> case rename-expr visible locals b of
         (right, more) ->
-          let rewritten = case lookup-binding op visible of
+          let rewritten = case visible-lookup op visible of
                 None -> EBin s op left right
                 Some binding -> EApp s (EApp s (EVar s (binding-symbol binding)) left) right in
           (rewritten, errors <> more)
@@ -749,10 +773,10 @@ module Bootstrap.Resolve where
     EUnmodeled s text -> (e, fail s (cat ["unmodeled expression: ", text]))
     other -> (e, fail (expr-span e) "this expression requires further namespace elaboration")
 
-  rename-clauses :: List Binding -> List (List Pat, Expr) -> (List (List Pat, Expr), List Diagnostic)
+  rename-clauses :: Visible -> List (List Pat, Expr) -> (List (List Pat, Expr), List Diagnostic)
   rename-clauses visible clauses = rename-member-clauses visible Nil clauses
 
-  rename-member-clauses :: List Binding -> List String -> List (List Pat, Expr) -> (List (List Pat, Expr), List Diagnostic)
+  rename-member-clauses :: Visible -> List String -> List (List Pat, Expr) -> (List (List Pat, Expr), List Diagnostic)
   rename-member-clauses visible locals clauses = case clauses of
     Nil -> (Nil, Nil)
     Cons (ps, body) rest -> case rename-pats visible ps of
@@ -772,9 +796,9 @@ module Bootstrap.Resolve where
     Nil -> Nil
     Cons (DSig sp member ty) rest -> if same member name then instance-head-names ty else instance-method-names name rest
     Cons other rest -> instance-method-names name rest
-  rename-instance-members :: List Binding -> List String -> Decl -> (Decl, List Diagnostic)
+  rename-instance-members :: Visible -> List String -> Decl -> (Decl, List Diagnostic)
   rename-instance-members visible locals members = rename-instance-members-with visible locals (decls-of members) members
-  rename-instance-members-with :: List Binding -> List String -> List Decl -> Decl -> (Decl, List Diagnostic)
+  rename-instance-members-with :: Visible -> List String -> List Decl -> Decl -> (Decl, List Diagnostic)
   rename-instance-members-with visible locals all members = case members of
     DDecl s member rest -> case rename-instance-members-with visible locals all member of
       (renamed, errors) -> case rename-instance-members-with visible locals all rest of
@@ -798,7 +822,7 @@ module Bootstrap.Resolve where
     TName s name -> same name "Copy" || same name "Share"
     TApp s head args -> structural-class-head head
     other -> False
-  rename-decl :: String -> List Binding -> List Decl -> Decl -> (List Decl, List Diagnostic)
+  rename-decl :: String -> Visible -> List Decl -> Decl -> (List Decl, List Diagnostic)
   rename-decl home visible declarations d = case d of
     DSig s name ty -> (Cons (DSig s (global-name home name) (rename-type visible Nil ty)) Nil, Nil)
     DFun s name clauses -> case rename-member-clauses visible (instance-method-names name declarations) clauses of
@@ -857,7 +881,7 @@ module Bootstrap.Resolve where
     DGenerate s actions -> (Nil, fail s "a generate block requires compile-time expansion")
     other -> (Cons d Nil, fail (decl-span d) "this declaration requires further namespace elaboration")
 
-  rename-prim-bodies :: List Binding -> List PrimBody -> (List PrimBody, List Diagnostic)
+  rename-prim-bodies :: Visible -> List PrimBody -> (List PrimBody, List Diagnostic)
   rename-prim-bodies visible bodies = case bodies of
     Nil -> (Nil, Nil)
     Cons (MkPrimBody sp family fragment unverified condition justification uses immediates) rest ->
@@ -874,16 +898,16 @@ module Bootstrap.Resolve where
     EVar sp name -> Some (sp, name, args)
     ECon sp name arguments -> Some (sp, name, exprs-of arguments <> args)
     other -> None
-  rewrite-citation :: List Binding -> Expr -> Option (Span, String, String, List Expr)
+  rewrite-citation :: Visible -> Expr -> Option (Span, String, String, List Expr)
   rewrite-citation visible expression = case rewrite-application expression Nil of
-    Some (sp, name, args) -> case lookup-binding name visible of
+    Some (sp, name, args) -> case visible-lookup name visible of
       Some ordinary -> None
       None -> let qualifier = name-qualifier name in
-        (case lookup-binding qualifier visible of
+        (case visible-lookup qualifier visible of
           Some owner -> if string-length qualifier > 0 then Some (sp, binding-symbol owner, short-name name, args) else None
           None -> None)
     None -> None
-  rename-rewrite-evidence :: List Binding -> List String -> RewriteJustification -> (RewriteJustification, List Diagnostic)
+  rename-rewrite-evidence :: Visible -> List String -> RewriteJustification -> (RewriteJustification, List Diagnostic)
   rename-rewrite-evidence visible locals evidence = case evidence of
     RewriteTerm expression -> (case rewrite-citation visible expression of
       Some (sp, owner, member, args) -> (case rename-expr visible locals (expr-spine sp args) of
@@ -899,7 +923,7 @@ module Bootstrap.Resolve where
     TBound sp name ty rest -> if string-length name > 0 then Cons (sp, name) (rewrite-requirement-sites rest)
       else rewrite-requirement-sites rest
     other -> Nil
-  rename-rewrite :: List Binding -> RewriteSyntax -> (RewriteSyntax, List Diagnostic)
+  rename-rewrite :: Visible -> RewriteSyntax -> (RewriteSyntax, List Diagnostic)
   rename-rewrite visible syntax = case syntax of
     MkRewriteSyntax targeted params bounds pattern replacement guard evidence ->
       let names = parameter-names params in
@@ -914,14 +938,14 @@ module Bootstrap.Resolve where
       (MkRewriteSyntax targeted (rename-params visible Nil params) (rename-type visible names bounds) left right condition justification,
        duplicates <> left-errors <> right-errors <> guard-errors <> proof-errors)
 
-  rename-class-members :: String -> String -> List Binding -> List String -> List Decl -> (List Decl, List Diagnostic)
+  rename-class-members :: String -> String -> Visible -> List String -> List Decl -> (List Decl, List Diagnostic)
   rename-class-members home owner visible locals ds = rename-class-members-with home owner visible locals ds ds
   declared-class-method :: String -> List Decl -> Bool
   declared-class-method name ds = case ds of
     Nil -> False
     Cons (DSig sp member ty) rest -> same name member || declared-class-method name rest
     Cons other rest -> declared-class-method name rest
-  rename-class-members-with :: String -> String -> List Binding -> List String -> List Decl -> List Decl -> (List Decl, List Diagnostic)
+  rename-class-members-with :: String -> String -> Visible -> List String -> List Decl -> List Decl -> (List Decl, List Diagnostic)
   rename-class-members-with home owner visible locals all ds = case ds of
     Nil -> (Nil, Nil)
     Cons (DSig s name ty) rest -> case rename-class-members-with home owner visible locals all rest of
@@ -937,7 +961,7 @@ module Bootstrap.Resolve where
     Cons other rest -> case rename-class-members-with home owner visible locals all rest of
       (more, errors) -> (Cons other more, fail (decl-span other) "source signature member needs checked default or declaration elaboration" <> errors)
 
-  rename-law :: List Binding -> List String -> LawSyntax -> (LawSyntax, List Diagnostic)
+  rename-law :: Visible -> List String -> LawSyntax -> (LawSyntax, List Diagnostic)
   rename-law visible locals syntax = case syntax of
     LawForall parameters rest -> case rename-law visible (parameter-names parameters <> locals) rest of
       (renamed, errors) -> (LawForall (rename-params visible locals parameters) renamed, errors)
@@ -948,9 +972,9 @@ module Bootstrap.Resolve where
         (second, more) -> (LawEquation first second, errors <> more)
     LawProposition ty -> (LawProposition (rename-type visible locals ty), Nil)
 
-  rename-decls :: String -> List Binding -> List Decl -> (List Decl, List Diagnostic)
+  rename-decls :: String -> Visible -> List Decl -> (List Decl, List Diagnostic)
   rename-decls home visible ds = rename-decls-with home visible ds ds
-  rename-decls-with :: String -> List Binding -> List Decl -> List Decl -> (List Decl, List Diagnostic)
+  rename-decls-with :: String -> Visible -> List Decl -> List Decl -> (List Decl, List Diagnostic)
   rename-decls-with home visible all ds = case ds of
     Nil -> (Nil, Nil)
     Cons d rest -> case rename-decl home visible all d of

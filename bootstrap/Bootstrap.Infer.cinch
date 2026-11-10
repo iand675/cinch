@@ -77,7 +77,9 @@ module Bootstrap.Infer where
     MkForeignBinding :: String -> Scheme -> ForeignPlan -> CheckedBinding
     MkBodyBinding :: BodyBinding -> CheckedBinding
     -- The module environment's cache entry: the checked body contracts and
-    -- the position of each name's first binding in the rest of the list.
+    -- the position of each name's first binding in the rest of the list. A
+    -- binding cannot live here directly: CheckedBinding nested inside a map
+    -- field is a recursive occurrence the positivity discipline refuses.
     MkBodyContext :: BodyBindings -> HashMap String Nat -> CheckedBinding
     MkMethodBinding :: String -> Scheme -> String -> Nat -> CheckedBinding
     MkConditionalBinding :: String -> String -> Nat -> String -> UType -> Scheme -> Option GuardedBinding -> CheckedBinding

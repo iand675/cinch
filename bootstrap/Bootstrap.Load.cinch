@@ -11,6 +11,7 @@ module Bootstrap.Load where
   import Bootstrap.Nominal (interface-global, resolved-entry-valid, resolved-text, resolved-nominals, resolved-measures)
   import Data.Bytes (bytes-compare, bytes-get, bytes-len)
   import Data.Json
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Text.Json (canonical-bytes)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Text.Lex (Span)
@@ -44,9 +45,18 @@ module Bootstrap.Load where
   imported-type :: ImportedValue -> ParseOutcome TypeExpr
   imported-type v = parse-scheme (imported-name v) (string-to-bytes (imported-scheme v))
 
+  -- Every exported row by its defining identity, built once per interface:
+  -- a consumer asking for one name probes a table instead of scanning the
+  -- whole contract document. Each table keeps the first row in document
+  -- order, which is the row the scan it replaces returned.
+  data ExportEntries where
+    MkExportEntries ::
+      HashMap String Json -> HashMap String Json -> HashMap String Json
+      -> HashMap String Json -> HashMap String Json -> HashMap String Json -> ExportEntries
+
   data LoadedInterface where
     MkLoadedInterface :: String -> String -> Json -> List ImportedValue
-      -> List (String, String, Nat) -> List (String, String) -> LoadedInterface
+      -> List (String, String, Nat) -> List (String, String) -> ExportEntries -> LoadedInterface
 
   -- Only a complete dependency-validated set constructs this handle. Keep
   -- typed body graphs once, so method dispatch lookup never reparses them.
@@ -91,22 +101,22 @@ module Bootstrap.Load where
   load-checked-interface-set inputs = case load-interface-set inputs of Err error -> Err error; Ok members -> Ok (CheckedInterfaceSet members (index-graph-bodies (set-bodies members)))
 
   loaded-module :: LoadedInterface -> String
-  loaded-module i = case i of MkLoadedInterface name hash doc values fixes refs -> name
+  loaded-module i = case i of MkLoadedInterface name hash doc values fixes refs entries -> name
 
   loaded-hash :: LoadedInterface -> String
-  loaded-hash i = case i of MkLoadedInterface name hash doc values fixes refs -> hash
+  loaded-hash i = case i of MkLoadedInterface name hash doc values fixes refs entries -> hash
 
   loaded-contract :: LoadedInterface -> Json
-  loaded-contract i = case i of MkLoadedInterface name hash doc values fixes refs -> doc
+  loaded-contract i = case i of MkLoadedInterface name hash doc values fixes refs entries -> doc
 
   loaded-values :: LoadedInterface -> List ImportedValue
-  loaded-values i = case i of MkLoadedInterface name hash doc values fixes refs -> values
+  loaded-values i = case i of MkLoadedInterface name hash doc values fixes refs entries -> values
 
   loaded-fixities :: LoadedInterface -> List (String, String, Nat)
-  loaded-fixities i = case i of MkLoadedInterface name hash doc values fixes refs -> fixes
+  loaded-fixities i = case i of MkLoadedInterface name hash doc values fixes refs entries -> fixes
 
   loaded-imports :: LoadedInterface -> List (String, String)
-  loaded-imports i = case i of MkLoadedInterface name hash doc values fixes refs -> refs
+  loaded-imports i = case i of MkLoadedInterface name hash doc values fixes refs entries -> refs
 
   -- Name, namespace category, defining identity. Contract-only class
   -- members are intentionally absent: only explicit export lists bind
@@ -154,42 +164,80 @@ module Bootstrap.Load where
   -- Recover the full contract for an exported category/identity. Public
   -- spellings are a scope concern; all aliases share this defining row.
   loaded-entry :: LoadedInterface -> String -> String -> Option Json
-  loaded-entry i kind identity =
-    let exports = field "exports" (loaded-contract i) in
-    if same kind "value" then entry-by "symbol" identity (field "values" exports)
-    else if same kind "type" then entry-by "identity" identity (field "types" exports)
-    else if same kind "signature" then entry-by "identity" identity (field "signatures" exports)
-    else if same kind "constructor" then ctor-entry identity (field "types" exports)
-    else if same kind "method" then method-entry identity (field "signatures" exports)
-    else if same kind "instance" then entry-by "id" identity (field "instances" exports)
-    else None
+  loaded-entry i kind identity = case i of
+    MkLoadedInterface name hash doc values fixes refs entries ->
+      if same kind "value" then entry-in value-entries identity entries
+      else if same kind "type" then entry-in type-entries identity entries
+      else if same kind "signature" then entry-in signature-entries identity entries
+      else if same kind "constructor" then entry-in constructor-entries identity entries
+      else if same kind "method" then entry-in method-entries identity entries
+      else if same kind "instance" then entry-in instance-entries identity entries
+      else None
 
-  entry-by :: String -> String -> Json -> Option Json
-  entry-by key identity rows = case rows of
-    JArr row rest -> if same identity (text (field key row)) then Some row else entry-by key identity rest
-    other -> None
+  value-entries :: ExportEntries -> HashMap String Json
+  value-entries entries = case entries of
+    MkExportEntries values types signatures constructors methods instances -> values
+  type-entries :: ExportEntries -> HashMap String Json
+  type-entries entries = case entries of
+    MkExportEntries values types signatures constructors methods instances -> types
+  signature-entries :: ExportEntries -> HashMap String Json
+  signature-entries entries = case entries of
+    MkExportEntries values types signatures constructors methods instances -> signatures
+  constructor-entries :: ExportEntries -> HashMap String Json
+  constructor-entries entries = case entries of
+    MkExportEntries values types signatures constructors methods instances -> constructors
+  method-entries :: ExportEntries -> HashMap String Json
+  method-entries entries = case entries of
+    MkExportEntries values types signatures constructors methods instances -> methods
+  instance-entries :: ExportEntries -> HashMap String Json
+  instance-entries entries = case entries of
+    MkExportEntries values types signatures constructors methods instances -> instances
+  entry-in :: (ExportEntries -> HashMap String Json) -> String -> ExportEntries -> Option Json
+  entry-in table identity entries = hash-map-lookup identity (table entries)
 
-  ctor-entry :: String -> Json -> Option Json
-  ctor-entry identity rows = case rows of
-    JArr row rest -> if same (text (field "kind" row)) "codata" then ctor-entry identity rest else
-      (case entry-by "symbol" identity (field "ctors" row) of
-        Some entry -> Some entry
-        None -> ctor-entry identity rest)
-    other -> None
+  -- The tables are built by descending to the tail first, so the head row of
+  -- a repeated identity is the row that survives, as the scan's first match
+  -- was. `constructors` skips codata rows: a codata type exports no
+  -- constructor, and its own identity carries the row.
+  export-entries :: Json -> ExportEntries
+  export-entries exports = MkExportEntries
+    (row-table "symbol" (field "values" exports))
+    (row-table "identity" (field "types" exports))
+    (row-table "identity" (field "signatures" exports))
+    (constructor-table (field "types" exports))
+    (method-table (field "signatures" exports))
+    (row-table "id" (field "instances" exports))
 
-  method-in :: String -> String -> Json -> Option Json
-  method-in owner identity rows = case rows of
-    JArr row rest -> if same identity (string-concat-all [owner, ".", text (field "name" row)]) then
-      Some (JObj "class" (JStr owner) (JObj "identity" (JStr identity) row))
-      else method-in owner identity rest
-    other -> None
+  row-table :: String -> Json -> HashMap String Json
+  row-table key rows = case rows of
+    JArr row rest -> hash-map-insert (text (field key row)) row (row-table key rest)
+    other -> hash-map-empty
 
-  method-entry :: String -> Json -> Option Json
-  method-entry identity rows = case rows of
-    JArr row rest -> case method-in (text (field "identity" row)) identity (field "methods" row) of
-      Some entry -> Some entry
-      None -> method-entry identity rest
-    other -> None
+  constructor-table :: Json -> HashMap String Json
+  constructor-table rows = case rows of
+    JArr row rest -> constructor-rows (text (field "kind" row)) (field "ctors" row)
+      (constructor-table rest)
+    other -> hash-map-empty
+
+  constructor-rows :: String -> Json -> HashMap String Json -> HashMap String Json
+  constructor-rows kind rows acc = if same kind "codata" then acc else case rows of
+    JArr entry rest -> hash-map-insert (text (field "symbol" entry)) entry (constructor-rows kind rest acc)
+    other -> acc
+
+  method-table :: Json -> HashMap String Json
+  method-table rows = case rows of
+    JArr row rest -> method-rows (text (field "identity" row)) (field "methods" row)
+      (method-table rest)
+    other -> hash-map-empty
+
+  method-rows :: String -> Json -> HashMap String Json -> HashMap String Json
+  method-rows owner rows acc = case rows of
+    JArr row rest ->
+      let identity = string-concat-all [owner, ".", text (field "name" row)] in
+      hash-map-insert identity
+        (JObj "class" (JStr owner) (JObj "identity" (JStr identity) row))
+        (method-rows owner rest acc)
+    other -> acc
 
   loaded-private-methods :: LoadedInterface -> List (String, String, String)
   loaded-private-methods i =
@@ -575,7 +623,8 @@ module Bootstrap.Load where
         if not (same hash expected-hash) then Err "interface contract identity mismatch"
         else let exports = field "exports" doc in
           Ok (MkLoadedInterface expected-name hash doc (read-values (field "values" exports))
-            (read-fixes (field "fixities" exports)) (read-refs (field "imports" doc)))
+            (read-fixes (field "fixities" exports)) (read-refs (field "imports" doc))
+            (export-entries exports))
 
   find-interface :: String -> List LoadedInterface -> Option LoadedInterface
   find-interface name loaded = case loaded of
@@ -721,7 +770,7 @@ module Bootstrap.Load where
       if not (member owner-name reachable) then Err (string-concat "signature identity is outside the checked dependency closure: " identity)
       else case find-interface owner-name all of
         None -> Err (string-concat "missing defining signature interface: " identity)
-        Some owner -> case entry-by "identity" identity (field "signatures" (field "exports" (loaded-contract owner))) of
+        Some owner -> case loaded-entry owner "signature" identity of
           None -> Err (string-concat "signature identity has no defining contract: " identity)
           Some definition -> if bytes-compare (canonical-bytes (signature-contract row)) (canonical-bytes (signature-contract definition)) == 0
             then (case field "laws" definition of
@@ -738,7 +787,7 @@ module Bootstrap.Load where
     let identity = text (field "identity" row) in
     case find-interface (nominal-owner identity) all of
       None -> False
-      Some owner -> case entry-by "identity" identity (field "signatures" (field "exports" (loaded-contract owner))) of
+      Some owner -> case loaded-entry owner "signature" identity of
         None -> not (same (text (field "kind" row)) "signature")
         Some definition -> same (text (field "kind" row)) "signature"
           && bytes-compare (canonical-bytes (field "parameters" row)) (canonical-bytes (field "parameters" definition)) == 0
@@ -825,7 +874,7 @@ module Bootstrap.Load where
       if not (member (body-node-owner identity all "") reachable) then Err (string-concat "total body identity is outside the checked dependency closure: " identity)
       else (case find-interface (body-node-owner identity all "") all of
         None -> Err (string-concat "missing defining total body interface: " identity)
-        Some owner -> (case entry-by "symbol" identity (field "values" (field "exports" (loaded-contract owner))) of
+        Some owner -> (case loaded-entry owner "value" identity of
           Some definition -> if bytes-compare bytes (canonical-bytes (body-declaration identity definition)) == 0 then verify-body-consistency row rest reachable all seen bytes
             else Err (string-concat "total body disagrees with its declaring module: " identity)
           None -> verify-body-consistency row rest reachable all seen bytes))
