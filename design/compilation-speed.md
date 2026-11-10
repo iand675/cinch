@@ -85,6 +85,7 @@ problem first, then the constant factor.
 | Borrowed parameters for closed programs | `compiler/src/rc.rs` | 2,672 parameters borrowed |
 | Per-thread size-class heap | `compiler/runtime/src/small.rs` | 29% faster, 42% less peak RSS |
 | Core simplifier with a tick budget, case-merge, known-constructor case, direct static-dictionary calls | `compiler/src/simplify.rs` | fires 597 direct-call and 17 known-constructor rewrites on the toolkit; IR down 2.2% |
+| Core inliner: one site for a body up to 40 nodes, every site for a body up to 12 with no call and no allocation, `case` pattern binders admitted | `compiler/src/simplify.rs` | 133 sites / 497 nodes on the toolkit and 7,253 / 17,326 on the compiler source; it spends IR to delete allocations, because `known-constructor` can only fold a constructor case once the call hiding it is gone (1,000-iteration block loop: 506 blocks to 6) |
 | Core text output, verifier, diff, server, grammar, editors | `compiler/src/coretext.rs`, `compiler/src/lsp.rs`, `tooling/tree-sitter-cinch-core`, `tooling/editors/*` | makes each stage's codegen input inspectable and comparable |
 | `--opt-level` and `-O2` library objects and stage links | `compiler/src/driver.rs`, `tooling/bootstrap.py` | 28% on the toolkit check |
 | Core simplifier: case-merge, known-constructor, direct dictionary calls | `compiler/src/simplify.rs` | removes `Option`/`Result` scaffolding and static-dictionary `__apply` calls; reports ticks (section 10) |

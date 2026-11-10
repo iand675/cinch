@@ -21,9 +21,11 @@
 //!    call or `spawn` argument, a jump argument, a projection's container,
 //!    a closure environment slot, or a `RefSet`/`BoxInit`/`LazyInit`
 //!    store;
-//! 2. the binder is never `Dup`ped. A second reference would need a second
-//!    release of the payload, and a frame block has no count to make one of
-//!    them a no-op;
+//! 2. the binder is `Dup`ped only when its payload holds no counted word. A
+//!    second reference would need a second release of the payload, and a
+//!    frame block has no count to make one of them a no-op; with nothing
+//!    counted in the payload there is nothing for either release to do, so
+//!    the two references cannot disagree;
 //! 3. the constructor's layout is a regular one (a `repr(C)`,
 //!    `repr(packed)` or `repr(transparent)` block stores its fields at
 //!    recorded offsets, which this lowering does not reproduce);
@@ -163,7 +165,9 @@ pub enum Refusal {
     Form,
     /// Above [`DEFAULT_BLOCK_LIMIT`] bytes.
     Size,
-    /// The binder is `Dup`ped: a second reference outlives the first.
+    /// The binder is `Dup`ped and its payload holds a counted word: a
+    /// second reference needs a second release of that word, which a frame
+    /// block has no count to make a no-op.
     Duplicated,
     /// A reference leaves the activation (returned, stored, passed,
     /// captured, projected, or written through).
@@ -307,6 +311,13 @@ fn unit(f: &FnDef, facts: &Facts, opts: &Options, report: &mut Report) -> Plan {
     let mut plan = Plan::default();
     for (x, cand) in cands {
         report.candidates += 1;
+        // The counted payload words, for the trace's column: what a dup or a
+        // drop of the block has to act on, and so what the duplicated rule
+        // turns on.
+        let counted_fields = match &cand {
+            Ok(site) => site.fields.len(),
+            Err(_) => 0,
+        };
         let why = match &cand {
             Ok(site) => match eligible(x, site, &uses, &plan, opts) {
                 Ok(()) => {
@@ -315,7 +326,11 @@ fn unit(f: &FnDef, facts: &Facts, opts: &Options, report: &mut Report) -> Plan {
                     plan.slots.push(site.words);
                     plan.sites.insert(x, Site { slot, ..site.clone() });
                     if trace {
-                        eprintln!("cinch-stack: {} local {x}: slot {slot}, {} bytes", f.id, site.bytes());
+                        eprintln!(
+                            "cinch-stack: {} local {x}: slot {slot}, {} bytes, {counted_fields} counted field(s)",
+                            f.id,
+                            site.bytes()
+                        );
                     }
                     continue;
                 }
@@ -326,7 +341,12 @@ fn unit(f: &FnDef, facts: &Facts, opts: &Options, report: &mut Report) -> Plan {
         report.refuse(why);
         if trace {
             let detail = uses.get(&x).map(|u| u.why).unwrap_or("");
-            eprintln!("cinch-stack: {} local {x}: refused ({}{detail})", f.id, why.name());
+            let dups = uses.get(&x).map_or(0, |u| u.duplicated);
+            eprintln!(
+                "cinch-stack: {} local {x}: refused ({}{detail}, {counted_fields} counted field(s), {dups} dup(s))",
+                f.id,
+                why.name()
+            );
         }
     }
     plan
@@ -343,7 +363,11 @@ fn eligible(
 ) -> Result<(), Refusal> {
     let _ = x;
     let u = uses.get(&x).copied().unwrap_or_default();
-    if u.duplicated > 0 {
+    // A second reference is harmless when the payload holds nothing to
+    // release: a frame block's dup writes no count (the `RC_FRAME` header
+    // is immortal) and its drop frees nothing, so two references cannot
+    // disagree about a payload that has no owned word in it.
+    if u.duplicated > 0 && !site.fields.is_empty() {
         return Err(Refusal::Duplicated);
     }
     if u.escapes > 0 {
@@ -644,13 +668,16 @@ fn verify(program: &Program) {
         let mut uses: BTreeMap<usize, Uses> = BTreeMap::new();
         let facts = Facts::of(program);
         scan(&f.body, Role::Value, &facts, &mut uses);
-        for x in plan.sites.keys() {
+        for (x, site) in &plan.sites {
             let u = uses.get(x).copied().unwrap_or_default();
+            // A second reference is admissible exactly when the payload has
+            // no counted word to release twice (the rule `eligible` states).
             assert!(
-                u.duplicated == 0 && u.escapes == 0,
-                "compiler bug: {unit}: frame binder {x} escapes ({} dups, {} escapes)",
+                (u.duplicated == 0 || site.fields.is_empty()) && u.escapes == 0,
+                "compiler bug: {unit}: frame binder {x} escapes ({} dups, {} escapes, {} counted fields)",
                 u.duplicated,
-                u.escapes
+                u.escapes,
+                site.fields.len()
             );
             assert!(u.death > 0, "compiler bug: {unit}: frame binder {x} has no release");
         }

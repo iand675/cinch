@@ -3991,6 +3991,10 @@ pub struct DriverOptions {
     /// projection plus `__apply` instead of a direct call
     /// (design/compilation-speed.md section 10).
     pub no_direct_dict_calls: bool,
+    /// `--no-inline`: leave every call in place, so a measurement can be
+    /// taken against the same program with the inliner active
+    /// (design/stack-allocation.md section 7).
+    pub no_inline: bool,
     /// `--case-of-case`: run the case-of-case rule (off by default; the join
     /// node, its introduction and its printing stay on either way).
     pub case_of_case: bool,
@@ -4030,6 +4034,7 @@ impl DriverOptions {
         crate::simplify::SimplifyOptions {
             max_iterations: self.max_simplifier_iterations.unwrap_or(4),
             direct_dict_calls: !self.no_direct_dict_calls,
+            inline: !self.no_inline,
             case_of_case: self.case_of_case,
             ..crate::simplify::SimplifyOptions::default()
         }
@@ -4340,7 +4345,7 @@ cinch core: the annotated Core dump (design/core-output.md)
 usage:
   cinch core emit <file.cinch> [--stage=<name>] [--target <triple>] [-o <out.core>]
                      [--max-simplifier-iterations <n>] [--no-direct-dict-calls]
-                     [--case-of-case] [--no-stack-alloc]
+                     [--case-of-case] [--no-inline] [--no-stack-alloc]
                      [--stack-frame-limit <bytes>]
   cinch core verify <file.core>
   cinch core diff <a.core> <b.core>
@@ -4398,6 +4403,7 @@ fn core_emit(args: &[String]) -> i32 {
                 }
             }
             "--no-direct-dict-calls" => opts.no_direct_dict_calls = true,
+            "--no-inline" => opts.no_inline = true,
             "--case-of-case" => opts.case_of_case = true,
             "--no-stack-alloc" => opts.no_stack_alloc = true,
             "--stack-frame-limit" => {

@@ -2,7 +2,7 @@ core 1
 module Main
 target aarch64-apple-darwin opt-level 0
 source sha256:2b722db450f5e30a20609ab2bcf010f34f40563cedafffaefbd46807a45904df
-@ticks 166
+@ticks 183
 unit Main.Blue :: Main.Colour
   @ctor(1, 0, Main.Colour)
   @stage(lowered)

@@ -366,3 +366,121 @@ fn the_lowered_dump_marks_the_frame_decision_and_verifies() {
     assert_eq!(emitted, text, "core emit and emit-ir disagree about the dump");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// ------------------------------------------------- the duplicated rule
+//
+// A block with two references needs two releases of its payload, and a frame
+// block has no count that makes one of them a no-op. When the payload holds
+// no counted word there is nothing for either release to do, so the second
+// reference cannot disagree with the first and the block still belongs in the
+// frame. These programs are Core, so the reference shape is exact: a closed
+// source program rarely produces the shape, because borrow inference lends a
+// parameter that is only read and drop specialization turns a second
+// scrutinee read into a `Drop` rather than a `Dup`.
+
+use cinch::core::{
+    CAlt, CPat, Core, FnDef, FnHints, FnMeta, GlobalId, InstanceDef, LocalId, Program, UnitRepr,
+};
+
+fn test_gid(name: &str) -> GlobalId {
+    GlobalId(name.to_string())
+}
+
+fn test_unit(name: &str, params: Vec<cinch::repr::Class>, body: Core) -> FnDef {
+    FnDef {
+        id: test_gid(name),
+        params: (0..params.len()).map(|i| format!("p{i}")).collect(),
+        body,
+        prim: None,
+        ctor: None,
+        hints: FnHints::default(),
+        meta: FnMeta::default(),
+        repr: UnitRepr { params, ..UnitRepr::default() },
+    }
+}
+
+fn test_ctor(name: &str, tag: usize, fields: Vec<cinch::repr::Class>) -> FnDef {
+    let mut f = test_unit(name, fields.clone(), Core::Unit);
+    f.ctor = Some((tag, fields.len()));
+    f.repr.fields = fields;
+    f
+}
+
+fn test_program(fns: Vec<FnDef>) -> Program {
+    Program {
+        total_bodies: cinch::total::CheckedGraph::empty(),
+        fns,
+        instances: Vec::<InstanceDef>::new(),
+        main: None,
+        rewrites: vec![],
+        plans: Default::default(),
+        foreigns: Default::default(),
+        prims: vec![],
+        laws: vec![],
+        lent: Default::default(),
+        frame: Default::default(),
+        stack: Default::default(),
+        borrowed: Default::default(),
+        inline: Default::default(),
+    }
+}
+
+/// `let x = Ctor bool in dup x (let a = case x of C y -> 1 in drop x a)`: one
+/// block, two references, no counted payload word.
+fn duplicated_block(field: cinch::repr::Class) -> Program {
+    use cinch::repr::Class;
+    let con = |binder: usize| CPat::Con {
+        tag: 0,
+        fields: vec![LocalId(binder)],
+        classes: vec![field],
+    };
+    let body = Core::Let(
+        LocalId(0),
+        Class::Obj,
+        Box::new(Core::App(
+            Box::new(Core::Ctor(test_gid("Main.Flag"), vec![])),
+            vec![Core::Bool(true)],
+        )),
+        Box::new(Core::Dup(
+            LocalId(0),
+            Class::Obj,
+            Box::new(Core::Let(
+                LocalId(2),
+                Class::Obj,
+                Box::new(Core::Case {
+                    scrut: Box::new(Core::Var(LocalId(0))),
+                    alts: vec![CAlt::new(con(1), Core::Int(1))],
+                }),
+                Box::new(Core::Drop(LocalId(0), Class::Obj, Box::new(Core::Var(LocalId(2))))),
+            )),
+        )),
+    );
+    test_program(vec![
+        test_ctor("Main.Flag", 0, vec![field]),
+        test_unit("Main.picks", vec![], body),
+    ])
+}
+
+fn allocated(p: &mut Program) -> bool {
+    p.frame.get("Main.picks").is_some_and(|plan| plan.site(0).is_some())
+}
+
+#[test]
+fn a_duplicated_block_with_no_counted_field_takes_a_slot() {
+    use cinch::repr::Class;
+    let mut p = duplicated_block(Class::Raw);
+    cinch::stack::allocate(&mut p, &cinch::core::TargetProfile::native(), &cinch::stack::Options::default());
+    assert!(allocated(&mut p), "the uncounted duplicated block has no frame slot: {:?}", p.stack);
+    assert_eq!(p.stack.refused.get("duplicated"), None, "{:?}", p.stack);
+    assert_eq!(p.stack.slots, 1, "{:?}", p.stack);
+}
+
+#[test]
+fn a_duplicated_block_with_a_counted_field_stays_on_the_heap() {
+    use cinch::repr::Class;
+    let mut p = duplicated_block(Class::Obj);
+    cinch::stack::allocate(&mut p, &cinch::core::TargetProfile::native(), &cinch::stack::Options::default());
+    assert!(!allocated(&mut p), "a duplicated counted block took a frame slot: {:?}", p.frame);
+    assert_eq!(p.stack.refused.get("duplicated"), Some(&1), "{:?}", p.stack);
+    assert_eq!(p.stack.slots, 0, "{:?}", p.stack);
+}

@@ -151,9 +151,9 @@ pub struct SimplifyOptions {
     pub inline: bool,
     /// The node cap of a body inlined at its single call site.
     pub inline_threshold: usize,
-    /// The node cap of the smallest bodies the inliner considers at all.
-    /// Reserved for the multi-site rule, which is not landed (see the
-    /// module documentation).
+    /// The node cap of a body the multi-site rule copies to every site that
+    /// reaches it: a body with no call and no allocation, where a copy costs
+    /// nothing at run time (see the module documentation).
     pub inline_small: usize,
 }
 
@@ -640,8 +640,16 @@ fn unit_classes(f: &FnDef) -> HashMap<LocalId, Class> {
 /// `crate::rc` can balance, because the enclosing code does not run again
 /// after the jump.
 fn free_locals(e: &Core, out: &mut Vec<LocalId>) {
+    free_locals_in(e, out, false);
+}
+
+/// [`free_locals`] with a switch for application heads. A head is a child of
+/// the node ([`subst`] walks it), but `child_slots` leaves it out because it
+/// is a unit name in almost every body; a copy's closure check needs every
+/// local an application could evaluate, head included.
+fn free_locals_in(e: &Core, out: &mut Vec<LocalId>, heads: bool) {
     let mut bound: HashSet<LocalId> = HashSet::new();
-    fn go(e: &Core, bound: &mut HashSet<LocalId>, out: &mut Vec<LocalId>) {
+    fn go(e: &Core, bound: &mut HashSet<LocalId>, out: &mut Vec<LocalId>, heads: bool) {
         let use_local = |x: LocalId, bound: &HashSet<LocalId>, out: &mut Vec<LocalId>| {
             if !bound.contains(&x) && !out.contains(&x) {
                 out.push(x);
@@ -649,20 +657,26 @@ fn free_locals(e: &Core, out: &mut Vec<LocalId>) {
         };
         match e {
             Core::Var(x) => use_local(*x, bound, out),
+            Core::App(h, args) if heads => {
+                go(h, bound, out, heads);
+                for a in args {
+                    go(a, bound, out, heads);
+                }
+            }
             Core::Let(x, _, v, body) => {
-                go(v, bound, out);
+                go(v, bound, out, heads);
                 bound.insert(*x);
-                go(body, bound, out);
+                go(body, bound, out, heads);
                 bound.remove(x);
             }
             Core::Case { scrut, alts } => {
-                go(scrut, bound, out);
+                go(scrut, bound, out, heads);
                 for a in alts {
                     let binders: Vec<LocalId> = pat_binders(&a.pat).iter().map(|(l, _)| *l).collect();
                     for b in &binders {
                         bound.insert(*b);
                     }
-                    go(&a.body, bound, out);
+                    go(&a.body, bound, out, heads);
                     for b in &binders {
                         bound.remove(b);
                     }
@@ -672,35 +686,35 @@ fn free_locals(e: &Core, out: &mut Vec<LocalId>) {
                 for (p, _) in params {
                     bound.insert(*p);
                 }
-                go(body, bound, out);
+                go(body, bound, out, heads);
                 for (p, _) in params {
                     bound.remove(p);
                 }
-                go(rest, bound, out);
+                go(rest, bound, out, heads);
             }
             Core::Dup(x, _, body) | Core::Drop(x, _, body) => {
                 use_local(*x, bound, out);
-                go(body, bound, out);
+                go(body, bound, out, heads);
             }
             Core::Release { block, moved, rest, body } => {
                 use_local(*block, bound, out);
                 for (l, _) in moved.iter().chain(rest) {
                     use_local(*l, bound, out);
                 }
-                go(body, bound, out);
+                go(body, bound, out, heads);
             }
             Core::BoxInit(l, v, _) | Core::LazyInit(l, v) | Core::RefSet(l, v, _) => {
-                go(v, bound, out);
+                go(v, bound, out, heads);
                 use_local(*l, bound, out);
             }
             _ => {
                 for k in child_slots_imm(e) {
-                    go(k, bound, out);
+                    go(k, bound, out, heads);
                 }
             }
         }
     }
-    go(e, &mut bound, out);
+    go(e, &mut bound, out, heads);
 }
 
 /// Whether the term carries a join point or a jump. `case-of-case` neither
@@ -1307,17 +1321,29 @@ pub fn simplify(program: &mut Program, opts: &SimplifyOptions, report: &mut Simp
 //   the call graph, with a self edge counting too, so the pass terminates),
 //   carries no quotation (whose retained body is a binding scope of its
 //   own) and no join or jump, and its body is at most
-//   [`SimplifyOptions::inline_threshold`] nodes.
+//   [`SimplifyOptions::inline_threshold`] nodes. A body that binds locals
+//   is admitted when every binder it makes is a `case` pattern binder
+//   ([`pattern_binders_only`]): a borrowed view of an argument, so the copy
+//   needs nothing the caller does not already hold. That is the shape the
+//   frame pass's refusals are in, `case p of Path s -> s`.
 // - A unit is inlined at every call site when it is called at least twice
 //   and its body is at most [`SimplifyOptions::inline_small`] nodes and
 //   contains no call and no allocation at all: the small matchers and
-//   selectors, where a copy costs nothing at run time.
+//   selectors, where a copy costs nothing at run time. A `case` body with
+//   pattern binders is such a body, so the same selector is copied to every
+//   site that reads it.
+// - [`admit`] states the two rules in one place and names the check that
+//   refused a candidate; `CINCH_INLINE_TRACE` prints a line per candidate
+//   with its node count, sites and free locals.
 // - Arguments that are not a local are bound to fresh locals in order, so
 //   strict evaluation order is unchanged, and the callee's body sees a
 //   `Var` in every parameter position. A local argument is substituted
 //   directly.
-// - Every binder of the copied body gets a fresh local id, so the copy can
-//   never capture or shadow the caller's binders.
+// - Every binder of the copied body gets a fresh local id and every use of
+//   it is renamed with it, so the copy can never capture or shadow the
+//   caller's binders. The parameters are then renamed to fresh ids too, and
+//   the substitution replaces those: a caller's local that lands in the body
+//   can never be mistaken for a parameter still to be substituted.
 // - A node budget (two percent of the program by default) caps how much the
 //   pass may grow the program; a site that would pass it is left alone.
 //
@@ -1385,42 +1411,189 @@ fn inline_table(program: &Program, tables: &Tables, opts: &SimplifyOptions) -> I
         edges.insert(f.id.0.clone(), out);
     }
     let recursive = recursive_units(&edges);
+    let trace = opts_trace();
     let mut table = InlineTable::default();
     for f in &program.fns {
         if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body {
             continue;
         }
         let name = &f.id.0;
-        // The entry unit is called from the generated exit glue, which is
-        // not Core: inlining it anywhere is pointless, and keeping it out
-        // keeps the entry visible.
-        if program.main.as_ref().is_some_and(|m| &m.0 == name) {
-            continue;
-        }
-        if values.contains(name) || recursive.contains(name) {
-            continue;
-        }
-        // An unresolved parameter class (`Param`, which the collector left
-        // in a body no concrete vector reached) would give a bound argument
-        // a `Raw` binder while the body reads it as a borrowed case
-        // scrutinee, which the ownership verifier refuses. A callee the
-        // inliner cannot type is not inlined.
-        if f.repr.params.iter().any(|c| c.is_param()) {
-            continue;
-        }
-        if carries_quote(&f.body) || carries_join(&f.body) {
-            continue;
-        }
         let sites = calls.get(name).copied().unwrap_or(0);
-        let params: Vec<Class> = (0..f.arity())
-            .map(|i| f.repr.params.get(i).copied().map_or(Class::Raw, concrete))
-            .collect();
         let n = nodes(&f.body);
-        if sites == 1 && n <= opts.inline_threshold && !binds_anything(&f.body) {
+        let admit = candidate(f, program, &values, &recursive, sites, n, opts);
+        if trace {
+            // Every candidate the sweep considered, with the numbers the
+            // rules decide on: the body's size, its sites, and the locals
+            // the body reads free (exactly its parameters for a body the
+            // copy can be closed over).
+            let free: Vec<usize> = copy_free_locals(&f.body).into_iter().map(|l| l.0).collect();
+            eprintln!(
+                "cinch-inline-candidate: {name}: {n} nodes, {sites} site(s), {} parameter(s), free {free:?}: {}",
+                f.arity(),
+                match &admit {
+                    Ok(_) => "admitted".to_string(),
+                    Err(why) => format!("refused ({})", why.name()),
+                }
+            );
+        }
+        if let Ok(params) = admit {
             table.insert(name.clone(), InlineBody { body: f.body.clone(), params });
         }
     }
     table
+}
+
+/// Why a unit's body is not admitted, in the order [`candidate`] checks
+/// them. Spelled out so `CINCH_INLINE_TRACE` says which rule refused
+/// rather than leaving a candidate's absence unexplained.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Refused {
+    /// The entry unit, called from generated glue that is not Core.
+    Entry,
+    /// A value use: the unit is named somewhere that is not a saturated
+    /// call, so a copy would not replace it everywhere.
+    Value,
+    /// In a recursive group, or a loop breaker of one.
+    Recursive,
+    /// An open parameter class the collector did not resolve.
+    Open,
+    /// Carries a quotation or a join, whose binding scope is its own.
+    Scope,
+    /// Binds a local the case-bearing rule does not admit (`let`, join).
+    Binds,
+    /// Too many nodes for the rule that would apply at its site count.
+    Large,
+    /// Called at no site, or at more than one with a body the multi-site
+    /// rule does not admit.
+    Sites,
+    /// The multi-site rule's body test: it calls, allocates or quotes.
+    Costly,
+}
+
+impl Refused {
+    fn name(self) -> &'static str {
+        match self {
+            Refused::Entry => "entry",
+            Refused::Value => "value",
+            Refused::Recursive => "recursive",
+            Refused::Open => "open",
+            Refused::Scope => "scope",
+            Refused::Binds => "binds",
+            Refused::Large => "large",
+            Refused::Sites => "sites",
+            Refused::Costly => "costly",
+        }
+    }
+}
+
+/// One unit's admission: its parameter classes when a rule takes it, or the
+/// check that refused it. `sites` is its saturated direct call count and
+/// `n` its body's node count.
+fn candidate(
+    f: &FnDef,
+    program: &Program,
+    values: &HashSet<String>,
+    recursive: &HashSet<String>,
+    sites: usize,
+    n: usize,
+    opts: &SimplifyOptions,
+) -> Result<Vec<Class>, Refused> {
+    let name = &f.id.0;
+    // The entry unit is called from the generated exit glue, which is not
+    // Core: inlining it anywhere is pointless, and keeping it out keeps the
+    // entry visible.
+    if program.main.as_ref().is_some_and(|m| &m.0 == name) {
+        return Err(Refused::Entry);
+    }
+    if values.contains(name) {
+        return Err(Refused::Value);
+    }
+    if recursive.contains(name) {
+        return Err(Refused::Recursive);
+    }
+    // An unresolved parameter class (`Param`, which the collector left in a
+    // body no concrete vector reached) would give a bound argument a `Raw`
+    // binder while the body reads it as a borrowed case scrutinee, which
+    // the ownership verifier refuses. A callee the inliner cannot type is
+    // not inlined.
+    if f.repr.params.iter().any(|c| c.is_param()) {
+        return Err(Refused::Open);
+    }
+    if carries_quote(&f.body) || carries_join(&f.body) {
+        return Err(Refused::Scope);
+    }
+    if sites == 0 {
+        return Err(Refused::Sites);
+    }
+    if sites == 1 {
+        if n > opts.inline_threshold {
+            return Err(Refused::Large);
+        }
+        // A body that binds only its own `case` pattern binders is the
+        // shape the refusals are in (`case p of Path s -> s`): every binder
+        // it makes is a borrowed view of an argument, so the copy needs
+        // nothing the caller does not already hold.
+        if binds_anything(&f.body) && !pattern_binders_only(&f.body) {
+            return Err(Refused::Binds);
+        }
+    } else {
+        if n > opts.inline_small {
+            return Err(Refused::Large);
+        }
+        // The multi-site rule: a body cheap enough that a second copy costs
+        // nothing at run time (no call, no allocation), so every site takes
+        // it.
+        if !is_cheap(&f.body) {
+            return Err(Refused::Costly);
+        }
+        if binds_anything(&f.body) && !pattern_binders_only(&f.body) {
+            return Err(Refused::Binds);
+        }
+    }
+    Ok((0..f.arity())
+        .map(|i| f.repr.params.get(i).copied().map_or(Class::Raw, concrete))
+        .collect())
+}
+
+/// Whether every binder `e` introduces is a `case` pattern binder. A `let`
+/// introduces a binder that owns the value it binds, which makes the copy's
+/// count operations depend on the bound expression's shape; those bodies
+/// stay refused until the multi-site rule's cost test can carry them.
+fn pattern_binders_only(e: &Core) -> bool {
+    if matches!(e, Core::Let(..) | Core::Join { .. }) {
+        return false;
+    }
+    child_slots_imm(e).into_iter().all(pattern_binders_only)
+}
+
+/// Whether the copy diagnostics run: always in a test build, and under
+/// `CINCH_INLINE_CHECK` in any build, so a release compiler can be made to
+/// check the invariant it is suspected of breaking.
+fn check_copies() -> bool {
+    use std::sync::LazyLock;
+    static ON: LazyLock<bool> = LazyLock::new(|| {
+        cfg!(debug_assertions) || std::env::var_os("CINCH_INLINE_CHECK").is_some()
+    });
+    *ON
+}
+
+/// Whether the candidate trace is on (`CINCH_INLINE_TRACE`).
+fn opts_trace() -> bool {
+    use std::sync::LazyLock;
+    static ON: LazyLock<bool> = LazyLock::new(|| std::env::var_os("CINCH_INLINE_TRACE").is_some());
+    *ON
+}
+
+/// The locals a copy of a callee's body reads free, sorted by id. A copy
+/// before its substitution must have exactly its parameter ids free: any
+/// other id is a local of the copy's original unit, which the copy does not
+/// own, and the ownership verifier then reports it as a read of a dead
+/// binder.
+fn copy_free_locals(e: &Core) -> Vec<LocalId> {
+    let mut out: Vec<LocalId> = Vec::new();
+    free_locals_in(e, &mut out, true);
+    out.sort_by_key(|l| l.0);
+    out
 }
 
 /// Count the references to every unit in `e`: a saturated direct call of a
@@ -1634,8 +1807,14 @@ fn inline_unit(
     *budget -= added;
     facts.sites += 1;
     facts.nodes += added as u32;
-    if std::env::var_os("CINCH_INLINE_TRACE").is_some() {
-        eprintln!("cinch-inline: {} <= {} ({} nodes)", current_unit(), g.0, added);
+    if opts_trace() {
+        eprintln!(
+            "cinch-inline: {} <= {} ({} nodes, {} site(s))",
+            current_unit(),
+            g.0,
+            added,
+            facts.sites
+        );
     }
     facts.callees.push(g.0.clone());
     t.fire(Rule::Inline);
@@ -1643,13 +1822,42 @@ fn inline_unit(
     let mut copy = callee.body.clone();
     let mut renames: HashMap<LocalId, LocalId> = HashMap::new();
     rename_binders(&mut copy, &mut renames, fresh);
+    // The parameters are renamed to fresh ids before any substitution. The
+    // copy is then closed over ids no caller expression can mention: the
+    // parameters are `LocalId(0..arity)`, and a caller's own locals use the
+    // same numbers, so substituting a parameter directly would leave a
+    // `Var(k)` that a later parameter's substitution could rewrite.
+    let params: Vec<LocalId> = (0..args.len()).map(|_| fresh.local()).collect();
+    for (i, p) in params.iter().enumerate() {
+        subst(&mut copy, LocalId(i), &Core::Var(*p));
+    }
+    if check_copies() {
+        // The invariant the substitution relies on: after the binder and
+        // parameter renaming, every local the copy reads free is one of its
+        // parameters (a body need not read all of them). A local outside
+        // that set is one the copy does not own: the original unit's binder,
+        // which the caller's body cannot supply, and which the ownership
+        // verifier then refuses.
+        let free = copy_free_locals(&copy);
+        let mut want = params.clone();
+        want.sort_by_key(|l| l.0);
+        assert!(
+            free.iter().all(|l| want.contains(l)),
+            "inline: the copy of {} at {} reads free locals {:?} outside its parameters {:?}: {:?}",
+            g.0,
+            current_unit(),
+            free,
+            want,
+            copy
+        );
+    }
     // A local argument is substituted where the parameter is read. Any other
     // argument is bound to a fresh local in the order the language
     // evaluates it, so nothing moves past an effect and a parameter read
     // twice reads the same value.
     let mut bound: Vec<(LocalId, Class, Core)> = Vec::new();
     for (i, a) in args.iter().enumerate() {
-        let p = LocalId(i);
+        let p = params[i];
         if matches!(a, Core::Var(_)) {
             subst(&mut copy, p, a);
             continue;
@@ -1665,6 +1873,24 @@ fn inline_unit(
     *e = copy;
 }
 
+/// Give one binder a fresh id, checking the copy's own invariant: the body
+/// binds each id once. Two binders of one body sharing an id means one of
+/// them was already a copy, and renaming it here would make the two into one
+/// binder (a capture the ownership verifier then reports as a read of a dead
+/// local).
+fn fresh_binder(x: &mut LocalId, renames: &mut HashMap<LocalId, LocalId>, fresh: &mut Fresh) {
+    let id = fresh.local();
+    let old = *x;
+    if renames.insert(old, id).is_some() && check_copies() {
+        panic!(
+            "inline: two binders of one body share id {} in {}, so a copy would capture it",
+            old.0,
+            current_unit()
+        );
+    }
+    *x = id;
+}
+
 /// Give every binder of `e` a fresh local id: a copy of a callee's body must
 /// not share a binder with its original or capture one of the caller's.
 /// Parameter ids are not binders here, so they stay for the substitution
@@ -1676,7 +1902,13 @@ fn rename_binders(e: &mut Core, renames: &mut HashMap<LocalId, LocalId>, fresh: 
         }
     };
     match e {
-        Core::Var(_) | Core::Global(..) | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) => {}
+        // A use of a binder: the whole point of the pass. Every `Var` the
+        // copy reads through a renamed binder is renamed with it, which is
+        // what makes the copy closed over its parameters alone. Dropping
+        // this arm leaves the copy reading the original's ids, which the
+        // caller's body does not bind.
+        Core::Var(x) => rename(x, renames),
+        Core::Global(..) | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) => {}
         Core::Int(_)
         | Core::ConstBig { .. }
         | Core::ConstBytes(_)
@@ -1727,25 +1959,17 @@ fn rename_binders(e: &mut Core, renames: &mut HashMap<LocalId, LocalId>, fresh: 
         }
         Core::Let(x, _, v, body) => {
             rename_binders(v, renames, fresh);
-            let id = fresh.local();
-            renames.insert(*x, id);
-            *x = id;
+            fresh_binder(x, renames, fresh);
             rename_binders(body, renames, fresh);
         }
         Core::Case { scrut, alts } => {
             rename_binders(scrut, renames, fresh);
             for a in alts {
                 match &mut a.pat {
-                    CPat::Var(x, _) => {
-                        let id = fresh.local();
-                        renames.insert(*x, id);
-                        *x = id;
-                    }
+                    CPat::Var(x, _) => fresh_binder(x, renames, fresh),
                     CPat::Con { fields, .. } => {
                         for x in fields.iter_mut() {
-                            let id = fresh.local();
-                            renames.insert(*x, id);
-                            *x = id;
+                            fresh_binder(x, renames, fresh);
                         }
                     }
                     CPat::Wild => {}
@@ -1755,9 +1979,7 @@ fn rename_binders(e: &mut Core, renames: &mut HashMap<LocalId, LocalId>, fresh: 
         }
         Core::Join { params, body, rest, .. } => {
             for (x, _) in params.iter_mut() {
-                let id = fresh.local();
-                renames.insert(*x, id);
-                *x = id;
+                fresh_binder(x, renames, fresh);
             }
             rename_binders(body, renames, fresh);
             rename_binders(rest, renames, fresh);

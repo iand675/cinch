@@ -46,6 +46,8 @@ flags:
               specialized program (default 4; 0 disables the simplifier)
   --no-direct-dict-calls  keep a static dictionary projection plus its
               `__apply` call instead of a direct call to the method unit
+  --no-inline  leave every call in place instead of copying a small
+              callee's body to its site (the rule is on by default)
   --no-stack-alloc  keep every allocation on the heap instead of building
               a non-escaping block in its activation's frame (the pass is
               on by default; with it off the IR is the pre-pass IR)
@@ -290,6 +292,7 @@ fn main() {
                 }
             }
             "--no-direct-dict-calls" => opts.no_direct_dict_calls = true,
+            "--no-inline" => opts.no_inline = true,
             "--no-stack-alloc" => opts.no_stack_alloc = true,
             "--stack-frame-limit" => {
                 i += 1;
