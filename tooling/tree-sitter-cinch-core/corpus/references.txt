@@ -1,0 +1,104 @@
+==========================================
+references: local binder
+==========================================
+core 1
+unit Main.a :: Nat
+  body
+    (local xs)
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (local_ref
+      (name))))
+
+==========================================
+references: top level unit
+==========================================
+core 1
+unit Main.b :: Nat
+  body
+    (global Data.Nat.add)
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (global_ref
+      (name))))
+
+==========================================
+references: constructor with tag and arity
+==========================================
+core 1
+unit Main.c :: List Nat
+  body
+    (ctor Cons 1 2)
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name)
+      (name))
+    (ctor_ref
+      (name))))
+
+==========================================
+references: primitive operation
+==========================================
+core 1
+unit Main.d :: Int
+  body
+    (prim i64.add)
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (prim_ref
+      (name))))
+
+==========================================
+references: foreign symbol
+==========================================
+core 1
+unit Main.e :: Int
+  body
+    (foreign "cinch_now")
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (foreign_ref)))

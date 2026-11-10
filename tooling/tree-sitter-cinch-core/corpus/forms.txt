@@ -1,0 +1,208 @@
+==========================================
+forms: application, callee first
+==========================================
+core 1
+unit Main.a :: Nat
+  body
+    (app (global Main.f) (int 1) (int 2))
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (app
+      (global_ref
+        (name))
+      (int_lit)
+      (int_lit))))
+
+==========================================
+forms: closure with typed params
+==========================================
+core 1
+unit Main.b :: Nat->Nat
+  body
+    (lam (x :: Nat @owned, y :: Nat @lent) (local x))
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name)
+      (type
+        (name)))
+    (lam
+      (params
+        (param
+          (name)
+          (type
+            (name))
+          (class))
+        (param
+          (name)
+          (type
+            (name))
+          (class)))
+      (local_ref
+        (name)))))
+
+==========================================
+forms: closure with no params
+==========================================
+core 1
+unit Main.c :: Unit->Unit
+  body
+    (lam () (unit))
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name)
+      (type
+        (name)))
+    (lam
+      (unit_lit))))
+
+==========================================
+forms: dictionary projection
+==========================================
+core 1
+unit Main.d :: Ord Nat
+  body
+    (dictproj (global Data.Nat.Ord_Nat) 0 Ord)
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name)
+      (name))
+    (dict_proj
+      (global_ref
+        (name))
+      (name))))
+
+==========================================
+forms: record or constructor projection
+==========================================
+core 1
+unit Main.e :: Nat
+  body
+    (proj (local pair) fst)
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (proj
+      (local_ref
+        (name))
+      (name))))
+
+==========================================
+forms: constructed dictionary
+==========================================
+core 1
+unit Main.f :: Ord Nat
+  body
+    (instdict Ord.Nat (dictproj (global Data.Nat.Ord_Nat) 0 Ord))
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name)
+      (name))
+    (inst_dict
+      (name)
+      (dict_proj
+        (global_ref
+          (name))
+        (name)))))
+
+==========================================
+forms: strict let
+==========================================
+core 1
+unit Main.g :: Nat
+  body
+    (let n :: Nat @owned (int 1) (app (global Main.inc) (local n)))
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (let
+      (name)
+      (type
+        (name))
+      (class)
+      (int_lit)
+      (app
+        (global_ref
+          (name))
+        (local_ref
+          (name))))))
+
+==========================================
+forms: conditional
+==========================================
+core 1
+unit Main.h :: Nat
+  body
+    (if (local c) (int 1) (int 0))
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (if
+      (local_ref
+        (name))
+      (int_lit)
+      (int_lit))))

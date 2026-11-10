@@ -1,0 +1,27 @@
+{
+  "grammars": [
+    {
+      "name": "cinch_core",
+      "camelcase": "CinchCore",
+      "scope": "source.cinch-core",
+      "path": ".",
+      "file-types": [
+        "core"
+      ]
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "UNLICENSED",
+    "description": "Tree-sitter grammar for the Cinch Core text format (design/core-output.md section 10)",
+    "authors": [
+      {
+        "name": "Cinch design repository"
+      }
+    ],
+    "links": {
+      "repository": "https://github.com/mercurytechnologies/designing-a-safe-language"
+    }
+  },
+  "bindings": {}
+}

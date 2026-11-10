@@ -1,0 +1,152 @@
+==========================================
+type: forall binders and a right associative arrow
+==========================================
+core 1
+unit Main.a :: forall a b. (a->b)->List a->List b
+  body
+    (unit)
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name)
+      (name)
+      (type
+        (type
+          (name)
+          (type
+            (name)))
+        (type
+          (name)
+          (name)
+          (type
+            (name)
+            (name)))))
+    (unit_lit)))
+
+==========================================
+type: type application
+==========================================
+core 1
+unit Main.b :: List (Maybe Nat)
+  body
+    (unit)
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name)
+      (type
+        (name)
+        (name)))
+    (unit_lit)))
+
+==========================================
+type: row applied to a result
+==========================================
+core 1
+unit Main.c :: {IO r, Diverge} a
+  body
+    (unit)
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (row_type
+        (type
+          (name)
+          (name))
+        (type
+          (name)))
+      (name))
+    (unit_lit)))
+
+==========================================
+type: refinement with a predicate
+==========================================
+core 1
+unit Main.d :: refine (x :: Nat) with x < 8
+  body
+    (unit)
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (refinement_type
+        (name)
+        (type
+          (name))
+        (name)))
+    (unit_lit)))
+
+==========================================
+type: rigid and metavariables
+==========================================
+core 1
+unit Main.e :: #a->?12
+  body
+    (unit)
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (rigid_var)
+      (type
+        (meta_var)))
+    (unit_lit)))
+
+==========================================
+type: refinement with a compound predicate
+==========================================
+core 1
+unit Main.f :: refine (x :: Nat) with x < 8 && Finite x
+  body
+    (unit)
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (refinement_type
+        (name)
+        (type
+          (name))
+        (name)
+        (name)
+        (name)))
+    (unit_lit)))

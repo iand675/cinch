@@ -1,0 +1,210 @@
+==========================================
+unit: minimal, no annotations and no params
+==========================================
+core 1
+unit Main.id :: forall a. a->a
+  body
+    (local x)
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name)
+      (type
+        (name)
+        (type
+          (name))))
+    (local_ref
+      (name))))
+
+==========================================
+unit: class annotation with ownership counts on the unit line
+==========================================
+core 1
+unit Main.f :: Nat->Nat @borrowed(1,2)
+  body
+    (local x)
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name)
+      (type
+        (name)))
+    (annotation
+      (class)
+      (ownership_counts))
+    (local_ref
+      (name))))
+
+==========================================
+unit: annotations as indented lines with a params list
+==========================================
+core 1
+unit Main.g :: Nat @immortal
+  @span Main.cinch:20:3
+  @specialised(<Nat, Int>) from List.map
+  @params f :: a->b @borrowed, xs :: List a @lent
+  body
+    (unit)
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (annotation
+      (class))
+    (annotation
+      (span))
+    (annotation
+      (annotation_name
+        (name))
+      (annotation_args)
+      (name))
+    (annotation
+      (params
+        (param
+          (name)
+          (type
+            (name)
+            (type
+              (name)))
+          (class))
+        (param
+          (name)
+          (type
+            (name)
+            (name))
+          (class))))
+    (unit_lit)))
+
+==========================================
+unit: quoted unit name and the spelled out class annotation
+==========================================
+core 1
+unit 'weird name' :: Nat
+  @class borrowed
+  body
+    (unit)
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (annotation
+      (class))
+    (unit_lit)))
+
+==========================================
+unit: a dictionary binding unit
+==========================================
+core 1
+unit $d.Ord.Nat :: Ord Nat @immortal
+  @span Data/Nat.cinch:88:1
+  body
+    (instdict Ord.Nat (dictproj (global Data.Nat.Ord_Nat) 0 Ord))
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name)
+      (name))
+    (annotation
+      (class))
+    (annotation
+      (span))
+    (inst_dict
+      (name)
+      (dict_proj
+        (global_ref
+          (name))
+        (name)))))
+
+==========================================
+unit: the remaining annotation forms
+==========================================
+core 1
+unit Main.h :: Int->Int @owned
+  @captures(env)
+  @rewrite(commute v3)
+  @prim(i64.add for machine-word)
+  @resolved(Ord.Nat at Data/Nat.cinch:88:1)
+  @tailrec
+  @join(4)
+  @stage(lowered)
+  body
+    (local x)
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name)
+      (type
+        (name)))
+    (annotation
+      (class))
+    (annotation
+      (annotation_name
+        (name))
+      (annotation_args))
+    (annotation
+      (annotation_name
+        (name))
+      (annotation_args))
+    (annotation
+      (annotation_name
+        (name))
+      (annotation_args))
+    (annotation
+      (annotation_name
+        (name))
+      (annotation_args))
+    (annotation
+      (annotation_name
+        (name)))
+    (annotation
+      (annotation_name
+        (name))
+      (annotation_args))
+    (annotation
+      (annotation_name
+        (name))
+      (annotation_args))
+    (local_ref
+      (name))))

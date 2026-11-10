@@ -1,0 +1,25 @@
+==========================================
+quotations: quote, splice, syntax literal and demand
+==========================================
+core 1
+unit Main.a :: Nat
+  body
+    (app (quote 1 (splice 2)) (syntaxlit 3) (demand (local later)))
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (app
+      (quote
+        (splice))
+      (syntax_lit)
+      (demand
+        (local_ref
+          (name))))))

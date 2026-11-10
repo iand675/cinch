@@ -1,0 +1,72 @@
+core 1
+module Main
+target aarch64-apple-darwin opt-level 2
+source sha256:9f2c7a1d4e3b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5
+
+-- A hand written Core file covering every form the grammar accepts. The
+-- printer's golden files live in compiler/tests/core/; this sample exists
+-- so the whole file parse check has a Core input before those land.
+unit Main.map :: forall a b. (a->b)->List a->List b @borrowed(1,2)
+  @span Main.cinch:20:3
+  @specialised(<Nat, Int>) from List.map
+  @params f :: a->b @borrowed, xs :: List a @borrowed
+  body
+    (case (local xs)
+      (((Nil) (global Nil))
+       ((Cons (h) (t))
+        (app (global Cons)
+          (app (local f) (local h))
+          (app (global Main.map) (local f) (local t))))))
+end
+
+unit $d.Ord.Nat :: Ord Nat @immortal
+  @span Data/Nat.cinch:88:1
+  body
+    (instdict Ord.Nat
+      (dictproj (global Data.Nat.Ord_Nat) 0 Ord)
+      (dictproj (global Data.Nat.Eq_Nat) 1 Eq))
+end
+
+unit Main.knot :: Int->Nat @owned
+  @span Main.cinch:41:1
+  @captures(env)
+  @tailrec
+  body
+    (let n :: Nat @owned
+      (int 1)
+      (release n (moved) (rest)
+        (let slot :: Nat @lent
+          (boxget (local n))
+          (app (if (bool true)
+                 (boxinit cell (int 2))
+                 (boxclear cell))
+               (quote 1 (splice 2))
+               (syntaxlit 3)
+               (demand (foreign "cinch_now"))
+               (prim i64.add)
+               (ctor Cons 0 2)
+               (proj (local n) field)
+               (refset cell (nat "18446744073709551616"))
+               (bytes "\x00\xff" 2)
+               (string "tab\there" 8)
+               (sym 'sym+name')
+               (unit)))))
+end
+
+unit Main.types :: forall a. {IO r, Diverge} a @uncounted
+  @span Main.cinch:57:9
+  @rewrite(commute v3)
+  @prim(i64.add for machine-word)
+  @resolved(Ord.Nat at Data/Nat.cinch:88:1)
+  @join(4)
+  @stage(lowered)
+  body
+    (unit)
+end
+
+unit Main.refined :: refine (x :: Nat) with x < 8 @lent
+  @class borrowed
+  @params x :: refine (n :: Nat) with NotNull n @borrowed
+  body
+    (dup x)
+end

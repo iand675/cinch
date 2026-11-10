@@ -1,0 +1,166 @@
+==========================================
+literals: positive machine word
+==========================================
+core 1
+unit Main.a :: Int
+  body
+    (int 42)
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (int_lit)))
+
+==========================================
+literals: negative machine word keeps its sign
+==========================================
+core 1
+unit Main.b :: Int
+  body
+    (int -7)
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (int_lit)))
+
+==========================================
+literals: Nat constant outside the word range
+==========================================
+core 1
+unit Main.c :: Nat
+  body
+    (nat "18446744073709551616")
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (nat_lit)))
+
+==========================================
+literals: byte buffer with hex escapes
+==========================================
+core 1
+unit Main.d :: Bytes
+  body
+    (bytes "\x00\xff" 2)
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (bytes_lit)))
+
+==========================================
+literals: string with escapes
+==========================================
+core 1
+unit Main.e :: String
+  body
+    (string "tab\there \"q\" \\ end" 20)
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (string_lit)))
+
+==========================================
+literals: interned symbol, bare and quoted names
+==========================================
+core 1
+unit Main.f :: Symbol
+  body
+    (app (sym plus) (sym 'sym+name'))
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (app
+      (sym_lit
+        (name))
+      (sym_lit
+        (name)))))
+
+==========================================
+literals: booleans
+==========================================
+core 1
+unit Main.g :: Bool
+  body
+    (if (bool true) (bool false) (bool true))
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (if
+      (bool_lit)
+      (bool_lit)
+      (bool_lit))))
+
+==========================================
+literals: the unit value
+==========================================
+core 1
+unit Main.h :: Unit
+  body
+    (unit)
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (unit_lit)))

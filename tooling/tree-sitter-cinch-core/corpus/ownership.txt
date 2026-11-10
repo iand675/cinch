@@ -1,0 +1,132 @@
+==========================================
+ownership: duplication and dropping of a local
+==========================================
+core 1
+unit Main.a :: Nat
+  body
+    (let x :: Nat @owned
+      (int 1)
+      (app (dup x) (drop x)))
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (let
+      (name)
+      (type
+        (name))
+      (class)
+      (int_lit)
+      (app
+        (dup
+          (name))
+        (drop
+          (name))))))
+
+==========================================
+ownership: release with no moved and no rest fields
+==========================================
+core 1
+unit Main.b :: Nat
+  body
+    (release x (moved) (rest) (int 0))
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (release
+      (name)
+      (int_lit))))
+
+==========================================
+ownership: release with moved and rest fields
+==========================================
+core 1
+unit Main.c :: Nat
+  body
+    (release x (moved a b) (rest c d) (local a))
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (release
+      (name)
+      (name)
+      (name)
+      (name)
+      (name)
+      (local_ref
+        (name)))))
+
+==========================================
+ownership: knot slot initialisation, read and clear
+==========================================
+core 1
+unit Main.d :: Nat
+  body
+    (app (boxinit cell (int 0))
+      (boxget (local cell))
+      (boxclear cell))
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (app
+      (box_init
+        (name)
+        (int_lit))
+      (box_get
+        (local_ref
+          (name)))
+      (box_clear
+        (name)))))
+
+==========================================
+ownership: field store
+==========================================
+core 1
+unit Main.e :: Unit
+  body
+    (refset cell (int 0))
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (ref_set
+      (name)
+      (int_lit))))

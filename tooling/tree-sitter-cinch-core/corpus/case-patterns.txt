@@ -1,0 +1,92 @@
+==========================================
+case: alternatives with constructor and variable patterns
+==========================================
+core 1
+unit Main.a :: Nat
+  body
+    (case (local xs)
+      (((Nil) (int 0))
+       ((Cons (h) (t)) (local h))))
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (case
+      (local_ref
+        (name))
+      (alt
+        (pat
+          (name))
+        (int_lit))
+      (alt
+        (pat
+          (name)
+          (pat
+            (name))
+          (pat
+            (name)))
+        (local_ref
+          (name))))))
+
+==========================================
+case: the empty alternative list
+==========================================
+core 1
+unit Main.b :: Void
+  body
+    (case (local v) ())
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (case
+      (local_ref
+        (name)))))
+
+==========================================
+case: wildcard, integer and negative integer patterns
+==========================================
+core 1
+unit Main.c :: Nat
+  body
+    (case (local n)
+      ((_ (int 0))
+       (5 (int 1))
+       (-1 (int 2))))
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (case
+      (local_ref
+        (name))
+      (alt
+        (pat)
+        (int_lit))
+      (alt
+        (pat)
+        (int_lit))
+      (alt
+        (pat)
+        (int_lit)))))

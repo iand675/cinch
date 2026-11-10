@@ -1,0 +1,81 @@
+==========================================
+layout: a node whose children fit on one line
+==========================================
+core 1
+unit Main.a :: Nat
+  body
+    (app (global Main.f) (app (global Main.g) (int 1)))
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (app
+      (global_ref
+        (name))
+      (app
+        (global_ref
+          (name))
+        (int_lit)))))
+
+==========================================
+layout: the same node wrapped over several lines
+==========================================
+core 1
+unit Main.a :: Nat
+  body
+    (app
+      (global Main.f)
+      (app
+        (global Main.g)
+        (int 1)))
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (app
+      (global_ref
+        (name))
+      (app
+        (global_ref
+          (name))
+        (int_lit)))))
+
+==========================================
+layout: line comments between and inside units
+==========================================
+core 1
+-- a unit follows
+unit Main.a :: Nat
+  -- its body is one word
+  body
+    (int 1)
+end
+-- trailing comment
+
+---
+
+(source_file
+  (header)
+  (comment)
+  (unit
+    (unit_name
+      (name))
+    (type
+      (name))
+    (comment)
+    (int_lit))
+  (comment))

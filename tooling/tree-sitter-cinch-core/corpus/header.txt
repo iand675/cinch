@@ -1,0 +1,72 @@
+==========================================
+header: the file signature alone
+==========================================
+core 1
+
+---
+
+(source_file
+  (header))
+
+==========================================
+header: module line
+==========================================
+core 1
+module Data.Nat
+
+---
+
+(source_file
+  (header)
+  (module_line
+    (name)))
+
+==========================================
+header: target line with opt-level
+==========================================
+core 1
+module Main
+target aarch64-apple-darwin opt-level 2
+
+---
+
+(source_file
+  (header)
+  (module_line
+    (name))
+  (target_line
+    (target_triple)))
+
+==========================================
+header: source line with a sha256 identity
+==========================================
+core 1
+module Main
+source sha256:9f2c7a1d4e3b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5
+
+---
+
+(source_file
+  (header)
+  (module_line
+    (name))
+  (source_line))
+
+==========================================
+header: all four lines in order with a comment
+==========================================
+core 1
+module Main
+target x86_64-unknown-linux-gnu opt-level 0
+source sha256:0000000000000000000000000000000000000000000000000000000000000000 -- identity, not a file list
+
+---
+
+(source_file
+  (header)
+  (module_line
+    (name))
+  (target_line
+    (target_triple))
+  (source_line)
+  (comment))

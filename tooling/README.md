@@ -17,15 +17,24 @@ D198-D205, D221-D227 where the specs understate).
   runs like `<$>`/`>>=`/`<>`, attributes, prim/contract forms, layout).
   `test/corpus` is a symlink so `tree-sitter test` finds them; the
   corpus lives in `corpus/` as named in the deliverables.
+- `tree-sitter-cinch-core/`: the grammar for the Core text format
+  (`design/core-output.md` section 10), its corpus, and
+  `samples/forms.core`, a hand written whole file that
+  `check-real-files-parse.sh` parses. Same `test/corpus` symlink and the
+  same rule that generated parser sources are not committed.
 - `editors/vim`, `editors/emacs`, `editors/sublime`, `editors/zed`,
   `editors/vscode`: the integrations.
 - `lsp-driver/`: a two-file cargo binary that runs the compiler's
   language server over stdio (see below).
 - `check-grammar-drift.sh`: the drift check (regenerates the parser and
-  runs the corpus assertions).
+  runs the corpus assertions). `--core` does the same for the Core
+  grammar.
 - `check-real-files-parse.sh`: parses every real `.cinch` file under
-  `compiler/prelude/` and `examples/source/` and requires zero ERROR
-  nodes (the whole-file property net for the scanner).
+  `compiler/prelude/` and `examples/source/` and, for Core, every
+  `*.core` under `compiler/tests/core/` and
+  `tree-sitter-cinch-core/samples/`, requiring zero ERROR nodes (the
+  whole-file property net). `--surface` and `--core` restrict it to one
+  grammar.
 - `run-bootstrap-ladder.sh`: assembles a project out of the toolkit sources,
   every `bootstrap/*.cinch` module and (optionally) one rung program, and
   either type-checks the ladder's modules or runs one rung through the real
@@ -38,18 +47,110 @@ D198-D205, D221-D227 where the specs understate).
 ## Drift check (CI)
 
 ```sh
-tooling/check-grammar-drift.sh
+tooling/check-grammar-drift.sh            # surface grammar
+tooling/check-grammar-drift.sh --core     # Core grammar
 ```
 
-It regenerates the parser from `grammar.js` and runs
-`tree-sitter test` against `corpus/`; any divergence from the asserted
-trees exits nonzero. Requirements: the `tree-sitter` CLI (0.26 tested;
+Each mode regenerates that grammar's parser from its `grammar.js` and
+runs `tree-sitter test` against its `corpus/`; any divergence from the
+asserted trees exits nonzero. Requirements: the `tree-sitter` CLI (0.26 tested;
 the script falls back to `npx --yes tree-sitter-cli`) and a C compiler.
 There is no CI config in this repository today; the script is what CI
 would call. The generated parser (`src/parser.c`,
 `src/grammar.json`, `src/node-types.json`) is deliberately not
 committed: the drift check always regenerates from `grammar.js`, so the
 assertions cannot pass against a stale parser.
+
+## Core grammar
+
+`tree-sitter-cinch-core/` parses the Core text format of
+`design/core-output.md` sections 4 and 10: the fixed header (`core 1`,
+`module`, `target`, `source`), units with their annotations and parameter
+lists, types, and one named node per expression form in section 10's
+table. It has no external scanner. The format is line oriented and every
+expression is a parenthesised form, so a child list is just the children
+between a form's parentheses.
+
+Node types: `source_file`, `header`, `module_line`, `target_line`,
+`source_line`, `target_triple`, `unit`, `unit_name`, `name`,
+`annotation`, `annotation_name`, `annotation_args`, `ownership_counts`,
+`params`, `param`, `class`, `span`, `type`, `rigid_var`, `meta_var`,
+`refinement_type`, `row_type`, `comment`, and the 32 expression nodes
+`int_lit`, `nat_lit`, `bytes_lit`, `string_lit`, `sym_lit`, `bool_lit`,
+`unit_lit`, `local_ref`, `global_ref`, `ctor_ref`, `prim_ref`,
+`foreign_ref`, `app`, `lam`, `dict_proj`, `proj`, `inst_dict`, `let`,
+`if`, `case`, `alt`, `pat`, `dup`, `drop`, `release`, `box_init`,
+`box_get`, `box_clear`, `ref_set`, `quote`, `splice`, `syntax_lit`,
+`demand`. The grammar name is `cinch_core`, the scope
+`source.cinch-core`, the file type `core`.
+
+The corpus has 50 cases across `corpus/`: one per expression form, the
+four header lines, units with and without annotations and params, the
+annotation forms of section 4, the type shapes (`forall`, application,
+row, refinement, rigid and metavariables), literals with escapes, every
+pattern shape including the empty case, `release` with empty moved and
+rest lists, a one-line node and the same node wrapped, and comments.
+`tooling/check-grammar-drift.sh --core` regenerates the parser and runs
+them. `tooling/check-real-files-parse.sh --core` parses the printer's
+golden `compiler/tests/core/*.core` files when that directory exists and
+`samples/forms.core` always, requiring zero `ERROR` and `MISSING` nodes.
+The golden files are another slice's deliverable; until they land the
+script reports that it skipped them.
+
+Decisions the design note leaves open or states only in prose:
+
+- Comments. Section 4's sample carries a `-- ...` trailing comment and
+  the surface language spells line comments the same way, so Core
+  accepts `--` to end of line as an `extra` named `comment`. The design
+  note does not define a comment syntax, so this is the one lexical
+  addition the grammar makes.
+- `end` is an anonymous token, like `unit`, `body`, `@`, `forall`,
+  `refine`, `with`, `moved`, `rest`, `from`, `true`/`false`, the five
+  class words standing alone, and every form keyword. None of them is a
+  node: the rule that names the keyword already requires the right one,
+  and a missing `end` or `body` still fails the parse as a `MISSING`
+  token. Editors match them as string literals in queries.
+- Annotations attach as siblings of the unit's `type`, in source order,
+  with no field recording which line they came from. Section 4 allows
+  each annotation on the unit line or on an indented `@` line, and both
+  are the same whitespace-separated position here. `@span` yields a
+  structured `span`, `@params` a `params` list, `@class` and `@<class>`
+  (with optional `(n,m)` counts) a `class`. Every other annotation is an
+  `annotation_name` plus `annotation_args`, the arguments captured
+  verbatim between balanced parentheses, optionally followed by
+  `from <name>`. The note fixes those names and their print order but
+  not each argument's internal grammar, so no structure is invented
+  below the name. Annotation order and uniqueness are the verifier's
+  invariants, not the grammar's.
+- Layout. Section 4 fixes two spaces per depth and folds a node onto one
+  line when its children fit in 100 columns. A scannerless grammar
+  cannot check columns, so whitespace is trivia and a wrapped node and
+  its one-line form parse to the same tree; `corpus/layout.txt` asserts
+  exactly that. What the grammar does check is that `body` is followed
+  by a complete expression and that `end` closes the unit.
+- Names. A bare canonical name is dot separated segments starting with a
+  letter, `_` or `$`, with dashes only between word characters. That is
+  what keeps `a->b` three tokens instead of the name `a-`, and
+  `forall a b.` two names plus the binder terminator. Anything outside
+  that spelling is quoted (`'weird name'`), as section 4 says, and the
+  quoted form is accepted verbatim.
+- Refinement predicates (`refine (x :: T) with p`) are parsed greedily
+  as a term over names, numerals, operators and nested parentheses, up
+  to the next delimiter the enclosing type needs. A predicate that ends
+  in an application therefore needs parentheses around the application,
+  the same convention the printed format already uses for types.
+- A row applied to a result (`{IO r, Diverge} a`) is type application:
+  `row_type` is only the braced row, and the application supplies the
+  result. That removes the ambiguity between `{} a` and `{}` followed by
+  an atom.
+- The parenthesised pattern shape `(<Name> <pat>*)` covers both a
+  variable pattern `(x)` and a nullary constructor pattern `(Nil)`;
+  nothing in the text distinguishes them, and the verifier knows the
+  constructor set.
+- `core <digits>` and `opt-level <digits>` accept more than the single
+  digit of section 10, so a later format version still parses instead of
+  failing at the header. Version specific meaning stays the reader's
+  job.
 
 ## Language server wiring
 
@@ -170,15 +271,23 @@ take the theme's colours.
 
 ## Known gaps (honest)
 
+- The Core grammar's corpus is green (50 cases,
+  `tooling/check-grammar-drift.sh --core`), and
+  `tooling/check-real-files-parse.sh --core` parses
+  `tree-sitter-cinch-core/samples/forms.core` with zero ERROR or MISSING
+  nodes. That same check reports that it skipped
+  `compiler/tests/core/` because the printer slice has not created it
+  yet; when the golden files land they are parsed with no change to the
+  script.
 - The corpus is green end to end: `tooling/check-grammar-drift.sh`
   regenerates the parser and passes all 88 assertions in seconds. The
   one corpus case that ever failed without a scanner fault ("minus
   table: a line comment splits x--3") had lost its expected tree and was
   restored from the asserted behavior (`y--3` lexes as identifier `y`
   plus line comment `--3`).
-- `tooling/check-real-files-parse.sh` is not green today: it parses 109
-  files under `compiler/prelude/` and `examples/source/` and 25 of them
-  report ERROR nodes. Those modules use forms the grammar does not have
+- `tooling/check-real-files-parse.sh --surface` is not green today: it
+  parses 113 files under `compiler/prelude/` and `examples/source/` and
+  26 of them report ERROR nodes. Those modules use forms the grammar does not have
   yet, refinement types first among them (`type Ascii = refine (s ::
   String) with Ascii s` in `compiler/prelude/Data/Ascii.cinch`). The
   drift check stays green, so this is missing grammar coverage rather
