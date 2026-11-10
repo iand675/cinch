@@ -62,8 +62,8 @@ fn real_div_and_rem_contracts_keep_abstract_carriers_until_specialization() {
         ("Nat Rem rejects zero", "bad :: Nat\n  bad = 7 % 0", 4, "refinement predicate is not established"),
         ("abstract carrier grants no Nat facts", "bad :: forall a. NonZero a -> refined (r > 0) Nat\n  bad d = 0", 4, "refinement predicate is not established"),
         ("abstract carrier identities stay distinct", "bad :: forall a b. NonZero a -> NonZero b\n  bad d = d", 4, "mismatch"),
-        ("float carrier remains refused", "bad :: NonZero F64 -> Nat\n  bad d = 0", 4, "NonZero needs a checked mathematical carrier"),
-        ("Bool carrier remains refused", "bad :: NonZero Bool -> Nat\n  bad d = 0", 4, "NonZero needs a checked mathematical carrier"),
+        ("float carrier remains refused", "bad :: NonZero F64 -> Nat\n  bad d = 0", 4, "`NonZero` decides numeric values (`Nat`, `Int`, machine integers), not `F64`"),
+        ("Bool carrier remains refused", "bad :: NonZero Bool -> Nat\n  bad d = 0", 4, "`NonZero` decides numeric values (`Nat`, `Int`, machine integers), not `Bool`"),
     ] {
         std::fs::write(dir.join("source.cinch"), format!("module Main where\n  import Algebra.Arithmetic (NonZero, Div, Rem, (/), (%))\n  import Data.Nat (nat-rem)\n  {body}\n  main :: Int\n  main = 0\n")).unwrap();
         let output = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
