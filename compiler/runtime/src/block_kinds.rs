@@ -12,8 +12,9 @@
 //   rc      40 bits, signed: 0 immortal, > 0 a single-threaded count,
 //           -n an atomic count of n (a block shared across tasks, see
 //           the runtime's `rc.rs`), and `RC_FRAME` for a block that
-//           lives in an activation's frame rather than on the heap (see
-//           below); the field must be the low bits, so an atomic add or
+//           lives in an activation's frame rather than on the heap, with
+//           `RC_FRAME_RELEASED` for one whose payload has been released
+//           (see below); the field must be the low bits, so an atomic add or
 //           subtract of one on the whole word changes only the count,
 //           except the drop that takes the last reference, whose carry
 //           its thread repairs
@@ -154,7 +155,26 @@ pub const RC_MIN: i64 = -(1i64 << (RC_BITS - 1));
 /// the free path).
 pub const RC_FRAME: i64 = RC_MAX;
 
+/// `rc` of a frame block whose payload has been released: the sticky
+/// marker that makes the release happen exactly once
+/// (`crate::rc::cinch_frame_release`, design/stack-allocation.md
+/// section 7.3). A frame block is released by whichever of three paths
+/// reaches it first (its binder's static death, a callee that took it as
+/// an owned parameter, or a parent frame block releasing the payload it
+/// was stored in), so the payload words are dropped by that path and the
+/// header field says so; every later path finds [`RC_FRAME_RELEASED`]
+/// and does nothing.
+///
+/// The value is the count one below [`RC_MAX`], which no heap block can
+/// hold for the same reason [`RC_FRAME`] cannot: a count only moves by
+/// one from [`RC_FRESH`], and the heap cap bounds the live words of the
+/// process far below `2^39`. The header's kind and layout, and an escaped
+/// descriptor's word at -16, are left exactly as the allocation wrote
+/// them, so a released block still reads its tag and its payload map.
+pub const RC_FRAME_RELEASED: i64 = RC_MAX - 1;
+
 const _: () = assert!(RC_FRAME == RC_MAX && RC_FRAME > RC_FRESH);
+const _: () = assert!(RC_FRAME_RELEASED < RC_FRAME && RC_FRAME_RELEASED > RC_FRESH);
 
 /// The `layout` value saying the real value is stored out of line, in
 /// the word at offset -16: a constructor block's descriptor, or another

@@ -15,17 +15,19 @@
 //! the count pass already treats as one owned reference. The allocation is
 //! frame-eligible when:
 //!
-//! 1. every reference to the binder is either the scrutinee of a `case`
-//!    (a borrowed read) or a `Drop`/`Release` that ends it. Anything else
-//!    escapes the activation: a returned value, a constructor field, a
-//!    call or `spawn` argument, a jump argument, a projection's container,
-//!    a closure environment slot, or a `RefSet`/`BoxInit`/`LazyInit`
-//!    store;
+//! 1. every reference to the binder is one of the four a frame block
+//!    admits: the scrutinee of a `case` (a borrowed read), a `Drop` or
+//!    `Release` that ends it, a pass to a callee's owned parameter the
+//!    callee consumes, or a store into a field of a block that is itself
+//!    frame-bound. Anything else escapes the activation: a returned value,
+//!    a field of a heap block, a call argument whose callee may keep it, a
+//!    `spawn` argument, a jump argument, a projection's container, a
+//!    closure environment slot, or a `RefSet`/`BoxInit`/`LazyInit` store;
 //! 2. the binder is `Dup`ped only when its payload holds no counted word. A
-//!    second reference would need a second release of the payload, and a
-//!    frame block has no count to make one of them a no-op; with nothing
-//!    counted in the payload there is nothing for either release to do, so
-//!    the two references cannot disagree;
+//!    second reference would outlive the payload's release, and a frame
+//!    block has no count to make one reference's drop a no-op; with
+//!    nothing counted in the payload there is nothing for either release to
+//!    do, so the two references cannot disagree;
 //! 3. the constructor's layout is a regular one (a `repr(C)`,
 //!    `repr(packed)` or `repr(transparent)` block stores its fields at
 //!    recorded offsets, which this lowering does not reproduce);
@@ -37,22 +39,39 @@
 //!
 //! Rule 1 is what the ownership lattice gives us for free: after
 //! `crate::rc::insert` every owned binder is consumed exactly once on every
-//! path, so "all references are a case scrutinee or a death" is also "the
-//! reference never leaves the activation". No separate escape analysis over
-//! callees is needed, and a value stored into any block at all is refused
-//! (the pass does not yet know whether that block is itself frame-bound).
+//! path, so "every reference is a read or one of the transfers above" is
+//! also "the reference never leaves the activation". The two transfers that
+//! are not a read widen the rule to a callee's frame and to a nested frame
+//! block, and each needs one fact about a place the pass cannot see:
+//!
+//! - A pass to a callee's owned parameter is admissible only when the
+//!   callee consumes the parameter ([`Facts::consumed`]: every reference to
+//!   it there is a read or a death, and nothing stores it, returns it or
+//!   passes it on). The callee then releases the payload exactly once, on
+//!   the same path its own drop takes. A parameter the callee forwards to
+//!   another unit is not consumed by this rule, so forwarding is refused
+//!   (one pass over the program, no fixpoint over summaries).
+//! - A store into a field of another frame-bound block is admissible only
+//!   when that block is itself frame-bound, which means the decision is a
+//!   fixpoint: each round's frame binders make the stores into them
+//!   admissible in the next. The result grows monotonically, so it
+//!   terminates, and the frame limit is applied as a final shrink so it
+//!   cannot oscillate ([`decide`]).
 //!
 //! # What the lowering relies on
 //!
 //! A frame block keeps an ordinary header with the count
 //! [`crate::codegen`]'s shared `block_kinds.rs` calls `RC_FRAME`, so a
 //! `case` still reads its tag and a stale count operation is a no-op. The
-//! payload is released by the code generator at the binder's death, in
-//! reverse payload order, with an ordinary `Drop` per counted field: the
-//! block itself is not freed, and its payload fields are ordinary heap
-//! references. A frame block is therefore never a payload field of another
-//! frame block (rule 1 refuses the store), which is what keeps every
-//! frame block's release a flat list of classes.
+//! payload is released exactly once (design/stack-allocation.md
+//! section 7.3): the code generator drops the counted fields at the
+//! binder's own death, in reverse payload order, and the runtime's
+//! `cinch_frame_release` walks the block's map when a drop arrives from a
+//! place the unit cannot see (a callee's owned parameter, or a parent
+//! frame block's release). Either way the header is marked released first,
+//! so a second path into the same block does nothing: that marker is what
+//! lets a frame block be a payload field of another frame block and what
+//! makes a callee's drop of a frame argument safe.
 //!
 //! # Inspectability
 //!
@@ -63,7 +82,7 @@
 
 use crate::core::{Core, FnDef, GlobalId, Program};
 use crate::repr::Class;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// The largest payload a frame block may have: a very large object
 /// belongs on the heap, where the frame is not grown for every call.
@@ -73,7 +92,8 @@ pub const DEFAULT_BLOCK_LIMIT: u64 = 4096;
 /// allocations stay on the heap.
 pub const DEFAULT_FRAME_LIMIT: u64 = 16 * 1024;
 
-/// The pass's knobs: `--no-stack-alloc` and `--stack-frame-limit`.
+/// The pass's knobs: `--no-stack-alloc`, `--stack-frame-limit`, and the
+/// measurement switch for the rule's two extra transfers.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Options {
     /// Whether the pass runs at all. With it off the program keeps every
@@ -82,11 +102,52 @@ pub struct Options {
     pub enabled: bool,
     /// The most frame bytes one unit may reserve (`--stack-frame-limit`).
     pub frame_limit: u64,
+    /// Which transfers beyond a read or a death the rule admits
+    /// (`CINCH_STACK_WIDEN`): the switch that measures one widening against
+    /// the other.
+    pub widen: Widen,
 }
 
 impl Default for Options {
     fn default() -> Options {
-        Options { enabled: true, frame_limit: DEFAULT_FRAME_LIMIT }
+        Options { enabled: true, frame_limit: DEFAULT_FRAME_LIMIT, widen: Widen::All }
+    }
+}
+
+/// The two transfers [`Options::widen`] selects, named for the environment
+/// variable that sets them (`CINCH_STACK_WIDEN`): `all` (default),
+/// `consume` (a callee's consumed owned parameter), `store` (a store into
+/// a frame-bound block), `none` (neither, the rule before
+/// design/stack-allocation.md section 7.3).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Widen {
+    #[default]
+    All,
+    Consume,
+    Store,
+    None,
+}
+
+impl Widen {
+    /// The switch's value, from `CINCH_STACK_WIDEN` (anything else is
+    /// `All`, so an unset variable is the shipped rule).
+    pub fn from_env() -> Widen {
+        match std::env::var("CINCH_STACK_WIDEN").ok().as_deref() {
+            Some("none") => Widen::None,
+            Some("consume") => Widen::Consume,
+            Some("store") => Widen::Store,
+            _ => Widen::All,
+        }
+    }
+
+    /// Whether a pass to a callee's consumed owned parameter is admissible.
+    fn consumes(self) -> bool {
+        matches!(self, Widen::All | Widen::Consume)
+    }
+
+    /// Whether a store into a frame-bound block is admissible.
+    fn stores(self) -> bool {
+        matches!(self, Widen::All | Widen::Store)
     }
 }
 
@@ -206,6 +267,11 @@ pub struct Report {
     pub candidates: u64,
     /// The candidates that stayed on the heap, by reason.
     pub refused: BTreeMap<&'static str, u64>,
+    /// The units that were handed a frame block as an owned argument: each
+    /// callee whose parameter the pass let a frame allocation flow into.
+    /// Code generation gives such a unit the runtime's frame arms even
+    /// when it builds no frame block of its own (`codegen::Registry`).
+    pub receives_frame: std::collections::BTreeSet<String>,
 }
 
 impl Report {
@@ -223,21 +289,25 @@ pub fn allocate(program: &mut Program, profile: &crate::core::TargetProfile, opt
     if !opts.enabled || !profile.reclaim {
         return;
     }
-    let fns = Facts::of(program);
+    let fns = Facts::of(program, opts.widen);
     let mut plans: BTreeMap<String, Plan> = BTreeMap::new();
     let mut report = Report { enabled: true, ..Report::default() };
     // The analysis only reads the units, so collect the plans and write
     // them back once.
-    let decided: Vec<(String, Plan)> = program
+    let decided: Vec<(String, Plan, BTreeSet<String>)> = program
         .fns
         .iter()
         .filter(|f| f.prim.is_none() && f.ctor.is_none() && !f.meta.prim_body)
-        .filter_map(|f| {
-            let plan = unit(f, &fns, opts, &mut report);
-            (!plan.is_empty()).then(|| (f.id.0.clone(), plan))
+        .map(|f| {
+            let (plan, receivers) = unit(f, &fns, opts, &mut report);
+            (f.id.0.clone(), plan, receivers)
         })
         .collect();
-    for (unit, plan) in decided {
+    for (unit, plan, receivers) in decided {
+        report.receives_frame.extend(receivers);
+        if plan.is_empty() {
+            continue;
+        }
         report.units += 1;
         report.slots += plan.slot_count() as u64;
         report.bytes += plan.bytes;
@@ -246,7 +316,7 @@ pub fn allocate(program: &mut Program, profile: &crate::core::TargetProfile, opt
     program.stack = report;
     program.frame = plans;
     if cfg!(debug_assertions) {
-        verify(program);
+        verify(program, opts);
     }
 }
 
@@ -266,10 +336,17 @@ struct Facts {
     borrowed: BTreeMap<String, Vec<bool>>,
     /// The primitive units' borrowed parameters (`Program::lent`).
     lent: BTreeMap<String, Vec<bool>>,
+    /// Per unit, which of its parameters it consumes: every reference to
+    /// the parameter inside the unit is a read or a death, none is
+    /// `Dup`ped, and nothing stores it, returns it or passes it on. The
+    /// caller may hand such a parameter a frame block, because the
+    /// callee's own drop of it is the payload's release (the frame release
+    /// marker makes a second path a no-op).
+    consumed: HashMap<String, Vec<bool>>,
 }
 
 impl Facts {
-    fn of(p: &Program) -> Facts {
+    fn of(p: &Program, widen: Widen) -> Facts {
         let mut arity = HashMap::new();
         let mut ctors = HashMap::new();
         let mut params = HashMap::new();
@@ -292,7 +369,42 @@ impl Facts {
             params,
             borrowed: p.borrowed.clone(),
             lent: p.lent.clone(),
+            // The parameter summaries are computed against the facts
+            // without them: a unit consumes a parameter it drops itself,
+            // not one it forwards, so the summary is one pass, not a
+            // fixpoint over the call graph (module docs).
+            consumed: HashMap::new(),
         }
+        .with_summaries(p, widen)
+    }
+
+    /// [`Facts::of`]'s second step: fill [`Facts::consumed`] from every
+    /// unit's body.
+    fn with_summaries(mut self, p: &Program, widen: Widen) -> Facts {
+        let mut consumed = HashMap::with_capacity(p.fns.len());
+        for f in &p.fns {
+            if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body {
+                // A unit whose body is not Core has no references to read.
+                continue;
+            }
+            consumed.insert(f.id.0.clone(), self.summary(f, widen));
+        }
+        self.consumed = consumed;
+        self
+    }
+
+    /// Which of `f`'s parameters `f` consumes: counted, every reference a
+    /// read or a death, no `Dup`, and at least one death. Scanned with no
+    /// frame binder, so a parameter stored anywhere at all is an escape.
+    fn summary(&self, f: &FnDef, widen: Widen) -> Vec<bool> {
+        let mut s = Scan::with_frames(self, BTreeSet::new(), widen);
+        s.unit(&f.body);
+        (0..f.arity())
+            .map(|i| {
+                counted(f.repr.params.get(i).copied().unwrap_or(Class::Raw))
+                    && s.uses.get(&i).is_some_and(|u| u.escapes == 0 && u.duplicated == 0 && u.death > 0)
+            })
+            .collect()
     }
 }
 
@@ -301,85 +413,186 @@ fn counted(c: Class) -> bool {
     matches!(c, Class::Obj | Class::TObj)
 }
 
-/// One unit's plan.
-fn unit(f: &FnDef, facts: &Facts, opts: &Options, report: &mut Report) -> Plan {
+/// One unit's plan, and the units it hands a frame block to: those need
+/// the runtime's frame arms even when they build no frame block
+/// themselves (`codegen::Registry::any_frame`).
+fn unit(f: &FnDef, facts: &Facts, opts: &Options, report: &mut Report) -> (Plan, BTreeSet<String>) {
     let mut cands: BTreeMap<usize, Result<Site, Refusal>> = BTreeMap::new();
     candidates(&f.body, facts, &mut cands);
-    let mut uses: BTreeMap<usize, Uses> = BTreeMap::new();
-    scan(&f.body, Role::Value, facts, &mut uses);
     let trace = std::env::var_os("CINCH_STACK_TRACE").is_some();
     let mut plan = Plan::default();
-    for (x, cand) in cands {
+    let mut receivers: BTreeSet<String> = BTreeSet::new();
+    if cands.is_empty() {
+        return (plan, receivers);
+    }
+    let (frames, scan) = decide(f, &cands, facts, opts);
+    for (x, cand) in &cands {
         report.candidates += 1;
         // The counted payload words, for the trace's column: what a dup or a
         // drop of the block has to act on, and so what the duplicated rule
         // turns on.
-        let counted_fields = match &cand {
+        let counted_fields = match cand {
             Ok(site) => site.fields.len(),
             Err(_) => 0,
         };
-        let why = match &cand {
-            Ok(site) => match eligible(x, site, &uses, &plan, opts) {
-                Ok(()) => {
-                    let slot = plan.slots.len() as u32;
-                    plan.bytes += site.bytes();
-                    plan.slots.push(site.words);
-                    plan.sites.insert(x, Site { slot, ..site.clone() });
-                    if trace {
-                        eprintln!(
-                            "cinch-stack: {} local {x}: slot {slot}, {} bytes, {counted_fields} counted field(s)",
-                            f.id,
-                            site.bytes()
-                        );
-                    }
-                    continue;
+        let site = match cand {
+            Ok(site) if frames.contains(x) => site,
+            Ok(site) => {
+                // Refused at the fixpoint: either the frame limit's shrink
+                // took it (the rule itself says it is eligible) or the last
+                // round's scan did.
+                let why = eligible(*x, site, &scan).err().unwrap_or(Refusal::FrameLimit);
+                report.refuse(why);
+                if trace {
+                    let detail = scan.uses.get(x).map(|u| u.why).unwrap_or("");
+                    let dups = scan.uses.get(x).map_or(0, |u| u.duplicated);
+                    eprintln!(
+                        "cinch-stack: {} local {x}: refused ({}{detail}, {counted_fields} counted field(s), {dups} dup(s))",
+                        f.id,
+                        why.name()
+                    );
                 }
-                Err(why) => why,
-            },
-            Err(why) => *why,
+                continue;
+            }
+            Err(why) => {
+                report.refuse(*why);
+                if trace {
+                    let detail = scan.uses.get(x).map(|u| u.why).unwrap_or("");
+                    let dups = scan.uses.get(x).map_or(0, |u| u.duplicated);
+                    eprintln!(
+                        "cinch-stack: {} local {x}: refused ({}{detail}, {counted_fields} counted field(s), {dups} dup(s))",
+                        f.id,
+                        why.name()
+                    );
+                }
+                continue;
+            }
         };
-        report.refuse(why);
+        let slot = plan.slots.len() as u32;
+        plan.bytes += site.bytes();
+        plan.slots.push(site.words);
+        plan.sites.insert(*x, Site { slot, ..site.clone() });
+        if let Some(units) = scan.consumers.get(x) {
+            receivers.extend(units.iter().cloned());
+        }
         if trace {
-            let detail = uses.get(&x).map(|u| u.why).unwrap_or("");
-            let dups = uses.get(&x).map_or(0, |u| u.duplicated);
+            let u = scan.uses.get(x).copied().unwrap_or_default();
             eprintln!(
-                "cinch-stack: {} local {x}: refused ({}{detail}, {counted_fields} counted field(s), {dups} dup(s))",
+                "cinch-stack: {} local {x}: slot {slot}, {} bytes, {counted_fields} counted field(s), \
+                 {} consumptions ({}, {} stored, {} in the callee's frame)",
                 f.id,
-                why.name()
+                site.bytes(),
+                u.death + u.consumed + u.stored,
+                u.lent,
+                u.stored,
+                u.consumed
             );
         }
     }
-    plan
+    (plan, receivers)
 }
 
-/// Why a candidate cannot take a frame slot: the rule's checks in the
-/// order the report names them.
-fn eligible(
-    x: usize,
-    site: &Site,
-    uses: &BTreeMap<usize, Uses>,
-    plan: &Plan,
+/// The rule's fixpoint for one unit: the binders that take a frame slot,
+/// with the scan they were decided under.
+///
+/// A store into a block is admissible only when that block is itself
+/// frame-bound, so the store rule makes the decision a fixpoint: start with
+/// no frame binder and repeat, each round taking the candidates the last
+/// round's frame set makes eligible. Adding a frame binder can only turn a
+/// store from an escape into a consumption, so the set grows and the
+/// iteration terminates.
+///
+/// The frame limit is *not* part of that iteration: it would make the
+/// decision non-monotone (an earlier slot can push a later one over the
+/// limit, and dropping it can re-admit the earlier one). It is applied as a
+/// shrink of the fixpoint instead, and the fixpoint is re-run under the
+/// shrunk set, which only removes further binders, so that loop terminates
+/// too.
+fn decide<'f>(f: &FnDef, cands: &BTreeMap<usize, Result<Site, Refusal>>, facts: &'f Facts, opts: &Options) -> (BTreeSet<usize>, Scan<'f>) {
+    let (mut frames, _) = fixpoint(f, cands, facts, opts, None);
+    loop {
+        let cap = budget(cands, &frames, opts);
+        let (next, scan) = fixpoint(f, cands, facts, opts, Some(&cap));
+        if next == frames {
+            return (frames, scan);
+        }
+        frames = next;
+    }
+}
+
+/// [`decide`]'s structural iteration under an optional set the result may
+/// not leave (`cap`).
+fn fixpoint<'f>(
+    f: &FnDef,
+    cands: &BTreeMap<usize, Result<Site, Refusal>>,
+    facts: &'f Facts,
     opts: &Options,
-) -> Result<(), Refusal> {
-    let _ = x;
-    let u = uses.get(&x).copied().unwrap_or_default();
-    // A second reference is harmless when the payload holds nothing to
+    cap: Option<&BTreeSet<usize>>,
+) -> (BTreeSet<usize>, Scan<'f>) {
+    let mut frames: BTreeSet<usize> = cap.cloned().unwrap_or_default();
+    loop {
+        let mut scan = Scan::with_frames(facts, frames.clone(), opts.widen);
+        scan.unit(&f.body);
+        let mut next: BTreeSet<usize> = BTreeSet::new();
+        for (x, cand) in cands {
+            let Ok(site) = cand else { continue };
+            if eligible(*x, site, &scan).is_ok() {
+                next.insert(*x);
+            }
+        }
+        if let Some(cap) = cap {
+            next.retain(|x| cap.contains(x));
+        }
+        if next == frames {
+            return (next, scan);
+        }
+        frames = next;
+    }
+}
+
+/// The frame bytes a set of binders reserves, in binder order, and the
+/// prefix of it that fits the limit: the candidates the frame-limit rule
+/// keeps (`decide`'s shrink).
+fn budget(
+    cands: &BTreeMap<usize, Result<Site, Refusal>>,
+    frames: &BTreeSet<usize>,
+    opts: &Options,
+) -> BTreeSet<usize> {
+    let mut bytes = 0;
+    let mut kept = BTreeSet::new();
+    for x in frames {
+        let Some(Ok(site)) = cands.get(x) else { continue };
+        bytes += site.bytes();
+        if bytes > opts.frame_limit {
+            break;
+        }
+        kept.insert(*x);
+    }
+    kept
+}
+
+/// Why a candidate cannot take a frame slot, given the round's scan: the
+/// rule's checks in the order the report names them. The frame limit is
+/// [`budget`]'s, not this function's.
+fn eligible(x: usize, site: &Site, scan: &Scan<'_>) -> Result<(), Refusal> {
+    let u = scan.uses.get(&x).copied().unwrap_or_default();
+    // A second reference is harmless only when the payload holds nothing to
     // release: a frame block's dup writes no count (the `RC_FRAME` header
-    // is immortal) and its drop frees nothing, so two references cannot
-    // disagree about a payload that has no owned word in it.
+    // is never counted) and its drop frees nothing, so two references
+    // cannot disagree about a payload that has no owned word in it. With a
+    // counted word, the release of one reference would leave the other
+    // reading dropped children, and no count can tell them apart.
     if u.duplicated > 0 && !site.fields.is_empty() {
         return Err(Refusal::Duplicated);
     }
     if u.escapes > 0 {
         return Err(Refusal::Escapes);
     }
-    if u.death == 0 {
-        // No reference's death: the binder is dead on every path, but
-        // nothing releases its payload. Refuse rather than leak.
+    if u.death + u.consumed + u.stored == 0 {
+        // No path releases the payload: the binder is dead on every path,
+        // or handed to places that cannot release it. Refuse rather than
+        // leak the payload.
         return Err(Refusal::Escapes);
-    }
-    if plan.bytes + site.bytes() > opts.frame_limit {
-        return Err(Refusal::FrameLimit);
     }
     Ok(())
 }
@@ -484,9 +697,16 @@ struct Uses {
     scrutinee: u32,
     /// References lent to a borrowed parameter: the callee only reads them.
     lent: u32,
+    /// References handed to a callee's owned parameter that the callee
+    /// consumes: the callee's drop of it is the payload's release.
+    consumed: u32,
+    /// References stored in a field of a block that is itself frame-bound:
+    /// that block's release drops them.
+    stored: u32,
     /// `Dup` operations: a second reference exists.
     duplicated: u32,
-    /// References that leave the activation or are stored inside a block.
+    /// References that leave the activation or are stored inside a block
+    /// that is not frame-bound.
     escapes: u32,
     /// The first escape's role, for `CINCH_STACK_TRACE`.
     why: &'static str,
@@ -501,8 +721,13 @@ enum Role {
     Value,
     /// A field of the constructor block `(app (ctor C) ... args)`.
     Field,
-    /// An argument of a call, or of a join's jump.
+    /// An argument of a call the pass cannot see into, or of a join's jump.
     Arg,
+    /// An argument of a call whose parameter is owned and consumed.
+    Consumed,
+    /// An argument of a call whose parameter is lent: the callee only reads
+    /// it.
+    Lent,
     /// The callee of an application: the closure is consumed by the call.
     Head,
     /// A closure's saved word.
@@ -517,122 +742,200 @@ enum Role {
     Write,
 }
 
-/// Accumulate every local's reference uses in `e`. `role` is the position
-/// `e`'s own value sits in, which is what makes a bare `Var` readable as a
-/// scrutinee, a projection's container or a lent argument instead of an
-/// escape; a compound subexpression is scanned as an ordinary value, since
-/// the role describes the result, not the parts.
-fn scan(e: &Core, role: Role, facts: &Facts, out: &mut BTreeMap<usize, Uses>) {
-    match e {
-        Core::Var(x) => note(out, x.0, role),
-        Core::Dup(x, ..) => uses_of(out, x.0).duplicated += 1,
-        Core::Drop(x, ..) => uses_of(out, x.0).death += 1,
-        Core::Release { block, moved, rest, body } => {
-            uses_of(out, block.0).death += 1;
-            // A `Release` field is a pattern binder; if a `let` binder ever
-            // names one, it was stored in a block: not this pass's value.
-            for (x, _) in moved.iter().chain(rest) {
-                note(out, x.0, Role::Store);
-            }
-            scan(body, role, facts, out);
-            return;
-        }
-        Core::Case { scrut, alts } => {
-            scan(scrut, Role::Scrutinee, facts, out);
-            for a in alts {
-                // An alternative's body is the case's value.
-                scan(&a.body, role, facts, out);
-            }
-            return;
-        }
-        // A projection reads one field and hands out an owned reference to
-        // it; the block keeps its own. A memo cell or a knot is written
-        // rather than read (`Demand`, `BoxGet`, `BoxClear`), and no frame
-        // block is one: those stay escapes.
-        Core::Proj(d, _) | Core::DictProj(d, ..) => {
-            scan(d, Role::Project, facts, out);
-        }
-        Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => {
-            scan(d, Role::Value, facts, out);
-        }
-        Core::RefSet(x, v, _) | Core::BoxInit(x, v, _) | Core::LazyInit(x, v) => {
-            note(out, x.0, Role::Write);
-            scan(v, Role::Store, facts, out);
-        }
-        Core::App(h, args) => {
-            let ctor = matches!(&**h, Core::Ctor(..));
-            let modes = callee_modes(facts, h).filter(|m| m.len() == args.len());
-            scan(h, Role::Head, facts, out);
-            for (i, a) in args.iter().enumerate() {
-                if ctor {
-                    scan(a, Role::Field, facts, out);
-                    continue;
+/// The reference scan of one unit: every local's uses under one round's
+/// frame decision, and the units each local was handed to as a consumed
+/// owned argument.
+struct Scan<'a> {
+    /// The facts the classification reads: each unit's borrowed and
+    /// consumed parameters, and the constructor field classes.
+    facts: &'a Facts,
+    /// The binders this round lowers into the frame. A store into one of
+    /// them is a consumption (the block's own release drops it); a store
+    /// into any other block is an escape.
+    frames: BTreeSet<usize>,
+    /// The transfers this run admits beyond a read or a death
+    /// ([`Options::widen`]).
+    widen: Widen,
+    uses: BTreeMap<usize, Uses>,
+    /// The callees each binder was handed to as a consumed owned argument:
+    /// the units that must carry the runtime's frame arms.
+    consumers: BTreeMap<usize, BTreeSet<String>>,
+    /// The callee of the consumed argument being scanned, so a reference
+    /// inside it records which unit receives the block.
+    callee: Option<String>,
+}
+
+impl<'a> Scan<'a> {
+    fn with_frames(facts: &'a Facts, frames: BTreeSet<usize>, widen: Widen) -> Scan<'a> {
+        Scan { facts, frames, widen, uses: BTreeMap::new(), consumers: BTreeMap::new(), callee: None }
+    }
+
+    /// Scan the unit's whole body.
+    fn unit(&mut self, body: &Core) {
+        self.go(body, Role::Value, None);
+    }
+
+    /// Accumulate every local's reference uses in `e`. `role` is the
+    /// position `e`'s own value sits in, which is what makes a bare `Var`
+    /// readable as a scrutinee, a projection's container or a consumed
+    /// argument instead of an escape. `owner` names the binder of the block
+    /// this value is stored into, when the scan knows it: a `let` whose
+    /// value is a constructor allocation passes its own binder to that
+    /// allocation's fields.
+    fn go(&mut self, e: &Core, role: Role, owner: Option<usize>) {
+        match e {
+            Core::Var(x) => self.note(x.0, role, owner),
+            Core::Dup(x, ..) => self.uses_of(x.0).duplicated += 1,
+            Core::Drop(x, ..) => self.uses_of(x.0).death += 1,
+            Core::Release { block, moved, rest, body } => {
+                self.uses_of(block.0).death += 1;
+                // A `Release` field is a pattern binder; if a `let` binder
+                // ever names one, it was stored in a block: not this pass's
+                // value.
+                for (x, _) in moved.iter().chain(rest) {
+                    self.note(x.0, Role::Store, None);
                 }
-                if modes.is_some_and(|m| m[i]) {
-                    // A borrowed parameter is only read by the callee: the
-                    // reference stays the caller's own, which is where its
-                    // release is.
-                    match a {
-                        Core::Var(x) => borrow_note(out, x.0),
-                        other => scan(other, Role::Arg, facts, out),
+                self.go(body, role, owner);
+                return;
+            }
+            Core::Case { scrut, alts } => {
+                self.go(scrut, Role::Scrutinee, None);
+                for a in alts {
+                    // An alternative's body is the case's value.
+                    self.go(&a.body, role, owner);
+                }
+                return;
+            }
+            // A projection reads one field and hands out an owned reference
+            // to it; the block keeps its own. A memo cell or a knot is
+            // written rather than read (`Demand`, `BoxGet`, `BoxClear`), and
+            // no frame block is one: those stay escapes.
+            Core::Proj(d, _) | Core::DictProj(d, ..) => {
+                self.go(d, Role::Project, None);
+            }
+            Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => {
+                self.go(d, Role::Value, None);
+            }
+            Core::RefSet(x, v, _) | Core::BoxInit(x, v, _) | Core::LazyInit(x, v) => {
+                self.note(x.0, Role::Write, None);
+                self.go(v, Role::Store, None);
+            }
+            Core::Let(x, c, v, body) => {
+                // A constructor allocation's arguments are its block's
+                // fields, so a reference stored in one is a store into the
+                // binder `x` (`eligible` admits it when `x` is frame-bound).
+                let alloc = matches!(&**v, Core::App(h, _) if matches!(&**h, Core::Ctor(..)));
+                self.go(v, Role::Value, alloc.then_some(x.0));
+                self.go(body, role, owner);
+                return;
+            }
+            Core::App(h, args) => {
+                let ctor = matches!(&**h, Core::Ctor(..));
+                let modes = callee_modes(self.facts, h).filter(|m| m.len() == args.len());
+                let consumed = self
+                    .widen
+                    .consumes()
+                    .then(|| callee_consumes(self.facts, h))
+                    .flatten()
+                    .filter(|c| c.len() == args.len());
+                self.go(h, Role::Head, None);
+                for (i, a) in args.iter().enumerate() {
+                    if ctor {
+                        // The fields of the allocation this value is: the
+                        // binder the last `let` passed down.
+                        self.go(a, Role::Field, owner);
+                        continue;
                     }
-                    continue;
+                    if modes.is_some_and(|m| m[i]) {
+                        self.go(a, Role::Lent, None);
+                    } else if consumed.is_some_and(|c| c[i]) {
+                        if let Core::Global(g, _) = &**h {
+                            self.callee = Some(g.0.clone());
+                        }
+                        self.go(a, Role::Consumed, None);
+                        self.callee = None;
+                    } else {
+                        self.go(a, Role::Arg, None);
+                    }
                 }
-                scan(a, Role::Arg, facts, out);
+                return;
             }
-            return;
-        }
-        Core::InstDict(_, args, _) => {
-            for a in args {
-                scan(a, Role::Arg, facts, out);
+            Core::InstDict(_, args, _) => {
+                for a in args {
+                    self.go(a, Role::Arg, None);
+                }
+                return;
             }
-            return;
-        }
-        Core::Lam { env, .. } => {
-            for a in env {
-                scan(a, Role::Capture, facts, out);
+            Core::Lam { env, .. } => {
+                for a in env {
+                    self.go(a, Role::Capture, None);
+                }
+                return;
             }
-            return;
-        }
-        Core::Jump { args, .. } => {
-            for a in args {
-                scan(a, Role::Arg, facts, out);
+            Core::Jump { args, .. } => {
+                for a in args {
+                    self.go(a, Role::Arg, None);
+                }
+                return;
             }
-            return;
-        }
-        // A quotation's retained body is a code unit of its own.
-        Core::Quote { holes, .. } => {
-            for h in holes {
-                scan(h, Role::Value, facts, out);
+            // A quotation's retained body is a code unit of its own.
+            Core::Quote { holes, .. } => {
+                for h in holes {
+                    self.go(h, Role::Value, None);
+                }
+                return;
             }
-            return;
+            _ => {}
         }
-        _ => {}
+        // A part of a compound value is an ordinary value position: the
+        // role belongs to the whole.
+        for k in crate::core::child_slots_imm(e) {
+            self.go(k, Role::Value, None);
+        }
     }
-    // A part of a compound value is an ordinary value position: the role
-    // belongs to the whole.
-    for k in crate::core::child_slots_imm(e) {
-        scan(k, Role::Value, facts, out);
-    }
-}
 
-/// Record one reference of local `x` in `role`.
-fn note(out: &mut BTreeMap<usize, Uses>, x: usize, role: Role) {
-    if matches!(role, Role::Scrutinee | Role::Project) {
-        // A read: the block stays the binder's own.
-        uses_of(out, x).scrutinee += 1;
-        return;
-    }
-    let u = uses_of(out, x);
-    u.escapes += 1;
-    if u.why.is_empty() {
-        u.why = role_name(role);
-    }
-}
+    /// Record one reference of local `x` in `role`.
+    fn note(&mut self, x: usize, role: Role, owner: Option<usize>) {
+        match role {
+            // A read: the block stays the binder's own.
+            Role::Scrutinee | Role::Project => self.uses_of(x).scrutinee += 1,
+            Role::Lent => self.uses_of(x).lent += 1,
+            Role::Consumed => {
+                self.uses_of(x).consumed += 1;
+                if let Some(unit) = self.callee.clone() {
+                    self.consumers.entry(x).or_default().insert(unit);
+                }
+            }
+            Role::Field => {
 
-/// A borrowed argument of a call: the callee reads it and does not own it.
-fn borrow_note(out: &mut BTreeMap<usize, Uses>, x: usize) {
-    uses_of(out, x).lent += 1;
+                // A store into a block whose binder this round frame-binds is
+                // a consumption: that block's release drops the field. A
+                // store into any other block keeps the child on the heap,
+                // because nothing proves the holder dies with the
+                // activation.
+                if self.widen.stores() && owner.is_some_and(|p| self.frames.contains(&p)) {
+                    self.uses_of(x).stored += 1;
+                } else {
+                    self.escape(x, "field");
+                }
+            }
+            _ => {
+                self.escape(x, role_name(role))
+            }
+        }
+    }
+
+    fn escape(&mut self, x: usize, why: &'static str) {
+        let u = self.uses_of(x);
+        u.escapes += 1;
+        if u.why.is_empty() {
+            u.why = why;
+        }
+    }
+
+    fn uses_of(&mut self, x: usize) -> &mut Uses {
+        self.uses.entry(x).or_default()
+    }
 }
 
 /// The trace's name for a role an escape sits in.
@@ -641,6 +944,8 @@ fn role_name(role: Role) -> &'static str {
         Role::Value => "value",
         Role::Field => "field",
         Role::Arg => "call",
+        Role::Consumed => "consumed",
+        Role::Lent => "lent",
         Role::Head => "head",
         Role::Capture => "capture",
         Role::Scrutinee => "scrutinee",
@@ -660,18 +965,43 @@ fn callee_modes<'f>(facts: &'f Facts, head: &Core) -> Option<&'f Vec<bool>> {
     }
 }
 
+/// The parameters of a saturated call's head that the callee consumes
+/// ([`Facts::consumed`]). Only a Cinch unit has one: a primitive's and a
+/// foreign wrapper's body is not Core, so a frame block is never handed to
+/// them.
+fn callee_consumes<'f>(facts: &'f Facts, head: &Core) -> Option<&'f Vec<bool>> {
+    match head {
+        Core::Global(g, _) => facts.consumed.get(&g.0),
+        _ => None,
+    }
+}
+
 /// Re-derive every frame decision in debug builds and refuse a plan that
 /// breaks the rule: a compiler bug at compile time (design/no-faults.md).
-fn verify(program: &Program) {
+fn verify(program: &Program, opts: &Options) {
+    let facts = Facts::of(program, opts.widen);
     for (unit, plan) in &program.frame {
         let Some(f) = program.fns.iter().find(|f| f.id.0 == *unit) else { continue };
-        let mut uses: BTreeMap<usize, Uses> = BTreeMap::new();
-        let facts = Facts::of(program);
-        scan(&f.body, Role::Value, &facts, &mut uses);
+        let mut cands: BTreeMap<usize, Result<Site, Refusal>> = BTreeMap::new();
+        candidates(&f.body, &facts, &mut cands);
+        let (frames, scan) = decide(f, &cands, &facts, opts);
+        // The plan is exactly the rule's fixpoint: a slot the rule does not
+        // admit, or a candidate the plan left out that the rule admits, is
+        // a compiler bug.
+        let sites: BTreeSet<usize> = plan.sites.keys().copied().collect();
+        assert_eq!(
+            sites, frames,
+            "compiler bug: {unit}: the frame slots are not the rule's fixpoint"
+        );
+        let words: Vec<u32> = plan.sites.values().map(|s| s.words).collect();
+        assert_eq!(words, plan.slots, "compiler bug: {unit}: a frame slot is not its binder's payload");
+        let bytes: u64 = plan.sites.values().map(|s| s.bytes()).sum();
+        assert_eq!(bytes, plan.bytes, "compiler bug: {unit}: the frame bytes are not the slots'");
         for (x, site) in &plan.sites {
-            let u = uses.get(x).copied().unwrap_or_default();
+            let u = scan.uses.get(x).copied().unwrap_or_default();
             // A second reference is admissible exactly when the payload has
-            // no counted word to release twice (the rule `eligible` states).
+            // no counted word to release twice (the rule `eligible` states),
+            // and some path must release the payload.
             assert!(
                 (u.duplicated == 0 || site.fields.is_empty()) && u.escapes == 0,
                 "compiler bug: {unit}: frame binder {x} escapes ({} dups, {} escapes, {} counted fields)",
@@ -679,12 +1009,10 @@ fn verify(program: &Program) {
                 u.escapes,
                 site.fields.len()
             );
-            assert!(u.death > 0, "compiler bug: {unit}: frame binder {x} has no release");
+            assert!(
+                u.death + u.consumed + u.stored > 0,
+                "compiler bug: {unit}: frame binder {x} has no release"
+            );
         }
     }
-}
-
-/// The use record of local `x`.
-fn uses_of(out: &mut BTreeMap<usize, Uses>, x: usize) -> &mut Uses {
-    out.entry(x).or_default()
 }

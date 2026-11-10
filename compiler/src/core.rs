@@ -4151,6 +4151,11 @@ pub struct SimplifyReport {
     /// Units whose body was inlined at least once, sorted, so the Core dump
     /// can say which callers carry a copy.
     pub inlined_units: Vec<String>,
+    /// Units the reachability sweep removed after inlining
+    /// (`crate::simplify::prune`).
+    pub pruned: usize,
+    /// The Core nodes those units held: IR the artifact no longer carries.
+    pub pruned_nodes: usize,
 }
 
 // -------------------------------------------------- target conditions (`when`)

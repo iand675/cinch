@@ -2947,6 +2947,8 @@ fn write_artifacts(
         ("duplicated", (opt.simplify.duplicated as u64).into()),
         ("inlined", (opt.simplify.inlined as u64).into()),
         ("inlined_nodes", (opt.simplify.inlined_nodes as u64).into()),
+        ("pruned", (opt.simplify.pruned as u64).into()),
+        ("pruned_nodes", (opt.simplify.pruned_nodes as u64).into()),
     ]);
     // Tail-call status of the recursive call-graph groups (surface
     // grammar local amendments section 9; decision D104): "marked" when
@@ -4023,6 +4025,9 @@ impl DriverOptions {
         crate::stack::Options {
             enabled: !self.no_stack_alloc,
             frame_limit: self.stack_frame_limit.unwrap_or(crate::stack::DEFAULT_FRAME_LIMIT),
+            // The measurement switch for the rule's two extra transfers
+            // (`CINCH_STACK_WIDEN`); unset is the shipped rule.
+            widen: crate::stack::Widen::from_env(),
         }
     }
 
@@ -4981,12 +4986,44 @@ pub fn driver_with_profile_opts(
     // Specialization (supercompilation and JIT specification sections
     // 2-5): every residual program is rechecked before installation, and
     // the report records where specialization stopped.
-    let (program, opt, method_families) = if mode == Mode::EmitObject {
+    let (mut program, mut opt, method_families) = if mode == Mode::EmitObject {
         crate::specialize::optimize_object_with(&program, profile, &opts.object_roots, &opts.simplifier())?
     } else {
         let (program, opt) = crate::specialize::optimize_with(&program, profile, &opts.simplifier())?;
         (program, opt, Vec::new())
     };
+    // Dead-unit elimination (design/stack-allocation.md section 7.4): after
+    // inlining, whose copies leave a callee with no call site, and before
+    // reference counting, so the removal is not paid for. `check` prunes
+    // nothing: it emits no artifact.
+    // `CINCH_NO_PRUNE=1` takes the measurement the other way: the same
+    // program with every unit the sweep would remove still in it.
+    if mode != Mode::Check && std::env::var_os("CINCH_NO_PRUNE").is_none() {
+        let mut roots: Vec<String> = if mode == Mode::EmitObject {
+            emit_modules.clone()
+        } else {
+            Vec::new()
+        };
+        // An object build also names its entry points, and a Wasm world's
+        // exported bindings are called from the component side.
+        for root in &opts.object_roots {
+            if let crate::specialize::ObjectRoot::Unit { symbol, .. }
+            | crate::specialize::ObjectRoot::Dictionary { symbol, .. } = root
+            {
+                roots.push(symbol.clone());
+            }
+        }
+        for a in &adapters {
+            for b in &a.bindings {
+                if b.export {
+                    roots.push(b.impl_unit.clone());
+                }
+            }
+        }
+        let pruned = crate::simplify::prune(&mut program, &roots);
+        opt.simplify.pruned = pruned.removed;
+        opt.simplify.pruned_nodes = pruned.removed_nodes;
+    }
     write_artifacts(
         &out_dir,
         &entry_stem,

@@ -491,8 +491,9 @@ pub(crate) unsafe fn free_in(p: *mut u8, h: u64, debug: bool, local: Option<&cra
     if debug {
         // A frame block lives in a stack frame: freeing it would hand the
         // stack's memory to the allocator. Only a compiler bug reaches
-        // here, because the compiler elides every frame block's free.
-        if rc(h) == RC_FRAME {
+        // here, because the compiler elides every frame block's free, and
+        // its payload's release leaves the header marked (both markers).
+        if matches!(rc(h), RC_FRAME | RC_FRAME_RELEASED) {
             crate::abi::panic_exit(b"compiler bug: a stack frame block reached the free path");
         }
         let Some((payload, _)) = (unsafe { payload_bytes(p, h) }) else {

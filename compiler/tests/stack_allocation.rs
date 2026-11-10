@@ -286,6 +286,74 @@ fn a_frame_block_releases_its_counted_payload_and_leaks_nothing() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// A block stored in another block: admissible only when the holder is
+/// itself frame-bound (`CINCH_STACK_WIDEN=store`), because only then does the
+/// holder's own release drop the stored reference.
+const NATIVE_STORE: &str = r#"
+module Main where
+  import Data.List
+
+  data Box a where
+    Box :: a -> Box a
+
+  data Holder where
+    Holder :: Box (List Int) -> Int -> Holder
+
+  local :: Int
+  local =
+    let b = Box (Cons 1 Nil) in
+    let h = Holder b 0 in
+    case h of
+      Holder x _ -> case x of
+        Box xs -> length xs
+
+  main :: Int
+  main = local
+"#;
+
+#[test]
+fn a_block_stored_in_a_frame_block_takes_a_slot() {
+    let dir = dir("store");
+    let entry = source(&dir, NATIVE_STORE);
+    let output = cinch(
+        &dir,
+        &["core", "emit", "--max-simplifier-iterations", "0", "-o", "lowered.core", &entry.display().to_string()],
+    );
+    assert!(
+        output.status.success(),
+        "core emit failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let dump = std::fs::read_to_string(dir.join("lowered.core")).expect("lowered.core");
+    // Two slots: the box, and the holder that stores it (16 + 32 bytes).
+    let start = dump.find("unit Main.local").expect("Main.local in the dump");
+    let unit = &dump[start..start + dump[start..].find("\nend").expect("unit end")];
+    assert!(unit.contains("@frame(2 slots, 48 bytes)"), "the nested store took no slot:\n{unit}");
+    assert!(unit.contains("@frame(f0)") && unit.contains("@frame(f1)"), "{unit}");
+    let stack = stack_of(&dir);
+    assert!(slots(&stack) >= 2, "{stack}");
+    // Released exactly once, at the holder's death: the payload's box is
+    // released through its own frame block, whose list is the counted word.
+    let exe = dir.join("prog");
+    let output = cinch(&dir, &["build", "Main.cinch", "-o", exe.to_str().expect("path")]);
+    assert!(output.status.success(), "build failed: {}", String::from_utf8_lossy(&output.stderr));
+    for debug in [false, true] {
+        let mut cmd = Command::new(&exe);
+        cmd.env("CINCH_LEAK_CHECK", "1").env("CINCH_HEAP_LIMIT", "64M");
+        if debug {
+            cmd.env("CINCH_RC_DEBUG", "1");
+        }
+        let out = cmd.output().expect("run the program");
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert_eq!(out.status.code(), Some(1), "{stderr}");
+        assert!(
+            stderr.contains("cinch-leak: live=0 immortal=0 leaked=0"),
+            "the nested frame block's payload leaked (debug {debug}): {stderr}"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 #[test]
 fn a_returned_block_stays_on_the_heap() {
     let dir = dir("returned");
@@ -483,4 +551,109 @@ fn a_duplicated_block_with_a_counted_field_stays_on_the_heap() {
     assert!(!allocated(&mut p), "a duplicated counted block took a frame slot: {:?}", p.frame);
     assert_eq!(p.stack.refused.get("duplicated"), Some(&1), "{:?}", p.stack);
     assert_eq!(p.stack.slots, 0, "{:?}", p.stack);
+}
+
+// ------------------------------------------------- the two widenings
+//
+// Rule 1 admits two transfers beyond a read or a death: a pass to a callee's
+// owned parameter that the callee consumes, and a store into a block that is
+// itself frame-bound. These are Core programs, for the same reason the
+// duplicated rule's are: the shape a source program produces is decided by
+// unfold and borrow inference before the pass sees it.
+
+use cinch::repr::Class;
+use cinch::stack::{Options, Widen};
+
+/// `Main.first` takes a pair, keeps one field and drops the block: the
+/// parameter is consumed, so the caller may hand it a frame block.
+fn consuming_callee() -> FnDef {
+    test_unit(
+        "Main.first",
+        vec![Class::Obj],
+        Core::Release {
+            block: LocalId(0),
+            moved: vec![],
+            rest: vec![],
+            body: Box::new(Core::Int(0)),
+        },
+    )
+}
+
+/// `let p = MkPair in <tail>`: one block, handed to `Main.first` by `tail`.
+fn consumed_argument(tail: Core) -> Program {
+    let body = Core::Let(
+        LocalId(0),
+        Class::Obj,
+        Box::new(Core::App(
+            Box::new(Core::Ctor(test_gid("Main.Pair"), vec![])),
+            vec![Core::Int(1), Core::Int(2)],
+        )),
+        Box::new(tail),
+    );
+    let mut p = test_program(vec![
+        test_ctor("Main.Pair", 0, vec![Class::Raw, Class::Raw]),
+        consuming_callee(),
+        test_unit("Main.local", vec![], body),
+    ]);
+    // The borrow inference's answer for the callee: an owned parameter.
+    p.borrowed.insert("Main.first".to_string(), vec![false]);
+    p
+}
+
+/// The call the caller makes, as a value: `Main.first p`.
+fn call_first() -> Core {
+    Core::App(Box::new(Core::Global(test_gid("Main.first"), vec![])), vec![Core::Var(LocalId(0))])
+}
+
+fn local_allocated(p: &mut Program, widen: Widen) -> bool {
+    let opts = Options { widen, ..Options::default() };
+    cinch::stack::allocate(p, &cinch::core::TargetProfile::native(), &opts);
+    p.frame.get("Main.local").is_some_and(|plan| plan.site(0).is_some())
+}
+
+#[test]
+fn a_frame_block_passed_to_a_consuming_owned_parameter_takes_a_slot() {
+    for widen in [Widen::All, Widen::Consume] {
+        let mut p = consumed_argument(call_first());
+        assert!(local_allocated(&mut p, widen), "{widen:?}: the consumed argument has no frame slot: {:?}", p.stack);
+        // The callee needs the runtime's frame arms even though it builds
+        // no frame block of its own.
+        assert!(
+            p.stack.receives_frame.contains("Main.first"),
+            "{widen:?}: the callee does not carry the frame arms: {:?}",
+            p.stack
+        );
+    }
+}
+
+#[test]
+fn a_frame_block_passed_to_a_borrowed_or_unconsuming_parameter_stays_on_the_heap() {
+    // The rule as it was before the widening: a pass to a callee's
+    // parameter is an escape.
+    let mut p = consumed_argument(call_first());
+    assert!(!local_allocated(&mut p, Widen::None), "the disabled rule admitted the pass: {:?}", p.frame);
+    assert_eq!(p.stack.refused.get("escapes"), Some(&1), "{:?}", p.stack);
+    assert!(p.stack.receives_frame.is_empty(), "{:?}", p.stack);
+    // A callee that does not consume its parameter (it returns it) leaves
+    // the block reachable from its caller's caller, so the pass refuses
+    // even with the widening on.
+    let mut p = consumed_argument(call_first());
+    for f in p.fns.iter_mut() {
+        if f.id.0 == "Main.first" {
+            f.body = Core::Var(LocalId(0));
+        }
+    }
+    assert!(!local_allocated(&mut p, Widen::All), "an unconsumed parameter took a frame block: {:?}", p.frame);
+    assert_eq!(p.stack.refused.get("escapes"), Some(&1), "{:?}", p.stack);
+}
+
+#[test]
+fn a_frame_block_parameter_that_is_lent_is_not_a_consumption() {
+    // A borrowed parameter is not the callee's to release: the caller's
+    // own drop still is, so the transfer is already admissible and the
+    // receiver needs no frame arms.
+    let mut p = consumed_argument(Core::Drop(LocalId(0), Class::Obj, Box::new(call_first())));
+    p.borrowed.insert("Main.first".to_string(), vec![true]);
+    assert!(local_allocated(&mut p, Widen::None), "{:?}", p.frame);
+    assert!(p.stack.receives_frame.is_empty(), "{:?}", p.stack);
 }

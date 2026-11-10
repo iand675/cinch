@@ -2028,3 +2028,163 @@ fn max_join(program: &Program) -> usize {
     }
     next
 }
+
+// ------------------------------------------------- dead-unit elimination
+//
+// Inlining is the pass that makes the frame allocation pass matter (it moves
+// an allocation from a callee into its caller's activation), but a copy
+// leaves the callee's body behind: a unit whose every call site was inlined
+// is never called again, and one that a rewrite emptied is never called at
+// all. Those units are code the artifact still pays for, and they are what
+// keeps the inliner's node budget (two percent of the program) the binding
+// constraint rather than the size of the program.
+//
+// `prune` is a reachability sweep over the call graph with the program's
+// real roots, run after inlining and before reference counting:
+//
+// - `program.main`, the synthesized entry adapter;
+// - every `foreign export` target, and every Wasm world binding's
+//   implementation unit (the C or component side calls those, not Core);
+// - every instance's dictionary unit and its methods (a dictionary's words
+//   are code pointers, so a method is reached through a `DictProj` the scan
+//   cannot see through);
+// - every constructor unit, because the layout table's ids and the tags a
+//   `case` compares against name them, and a block built by another module
+//   carries one of those ids;
+// - every `prim` declaration's unit, whose content is inline target IR
+//   rather than a Core body;
+// - every boundary layout plan's unit (`repr(C)` and friends);
+// - every unit of a module an object or package build emits
+//   (`emit_modules`), because an interface value of that module may be
+//   called from outside the artifact.
+//
+// A unit is then live when a live unit mentions it, directly or as the
+// `Lam` of a closure, and everything else is removed. "Mentions" is the
+// conservative relation: any `Core::Global`, `Core::Ctor` or `Lam`'s unit in
+// any position, including a quotation's retained body, which code
+// generation emits as part of the unit that writes it.
+//
+// The relations this relies on: a dictionary's method units are referenced
+// by the `InstanceDef` (rooted), a constructor's unit by the layout table
+// (rooted), and no `Core::Global` names a unit outside `program.fns` for a
+// unit this program must emit (`Prim` and `Foreign` name runtime symbols,
+// not units).
+
+/// The units removed by [`prune`], for the artifact manifest.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PruneReport {
+    /// The units left after the sweep.
+    pub kept: usize,
+    /// The units removed.
+    pub removed: usize,
+    /// The Core nodes those units held (the IR the artifact no longer
+    /// carries).
+    pub removed_nodes: usize,
+}
+
+/// Remove every unit no live unit can reach, with the program's real roots
+/// (`keep`, in addition to the ones the program itself names): an object or
+/// package build's emitted modules and its object roots.
+pub fn prune(program: &mut Program, keep: &[String]) -> PruneReport {
+    let present: HashSet<&str> = program.fns.iter().map(|f| f.id.0.as_str()).collect();
+    let mut live: HashSet<String> = HashSet::new();
+    let mut work: Vec<String> = Vec::new();
+    let mut root = |name: &str, live: &mut HashSet<String>, work: &mut Vec<String>| {
+        if present.contains(name) && live.insert(name.to_string()) {
+            work.push(name.to_string());
+        }
+    };
+    if let Some(main) = &program.main {
+        root(&main.0, &mut live, &mut work);
+    }
+    for name in program.plans.keys() {
+        root(name, &mut live, &mut work);
+    }
+    for plan in program.foreigns.values() {
+        if plan.export {
+            root(&plan.unit, &mut live, &mut work);
+        }
+    }
+    for inst in &program.instances {
+        root(&inst.id.0, &mut live, &mut work);
+        for m in &inst.methods {
+            root(&m.0, &mut live, &mut work);
+        }
+    }
+    for f in &program.fns {
+        if f.ctor.is_some() || f.prim.is_some() || f.meta.prim_body {
+            root(&f.id.0, &mut live, &mut work);
+        }
+    }
+    for name in keep {
+        root(name, &mut live, &mut work);
+        let prefix = format!("{name}.");
+        for f in &program.fns {
+            if f.id.0.starts_with(&prefix) {
+                root(&f.id.0.clone(), &mut live, &mut work);
+            }
+        }
+    }
+    // The call graph's edges: every unit a body names, in any position.
+    let bodies: HashMap<&str, &Core> = program
+        .fns
+        .iter()
+        .filter(|f| f.prim.is_none() && f.ctor.is_none() && !f.meta.prim_body)
+        .map(|f| (f.id.0.as_str(), &f.body))
+        .collect();
+    let mut mentioned: Vec<String> = Vec::new();
+    while let Some(unit) = work.pop() {
+        let Some(body) = bodies.get(unit.as_str()) else { continue };
+        mentioned.clear();
+        unit_mentions(body, &mut mentioned);
+        for name in &mentioned {
+            if present.contains(name.as_str()) && live.insert(name.clone()) {
+                work.push(name.clone());
+            }
+        }
+    }
+    let before: usize = program.fns.len();
+    let mut removed_nodes = 0;
+    program.fns.retain(|f| {
+        let keep = live.contains(&f.id.0);
+        if !keep {
+            removed_nodes += nodes(&f.body);
+        }
+        keep
+    });
+    // The per-unit facts name units too; a removed unit's entry is stale.
+    program.inline.retain(|unit, _| live.contains(unit));
+    program.frame.retain(|unit, _| live.contains(unit));
+    PruneReport { kept: program.fns.len(), removed: before - program.fns.len(), removed_nodes }
+}
+
+/// Every unit the body `e` names anywhere: a direct call or a `Global` in
+/// value position, a constructor unit, and the unit behind a `Lam`'s code
+/// pointer. Recurses through every child, including a quotation's retained
+/// body, which code generation emits inline.
+fn unit_mentions(e: &Core, out: &mut Vec<String>) {
+    match e {
+        Core::Global(g, _) | Core::Ctor(g, _) => out.push(g.0.clone()),
+        Core::Lam { fn_id, .. } => out.push(fn_id.0.clone()),
+        Core::App(h, args) => {
+            unit_mentions(h, out);
+            for a in args {
+                unit_mentions(a, out);
+            }
+            return;
+        }
+        Core::Quote { holes, body, .. } => {
+            for h in holes {
+                unit_mentions(h, out);
+            }
+            if let Some(b) = body {
+                unit_mentions(b, out);
+            }
+            return;
+        }
+        _ => {}
+    }
+    for k in child_slots_imm(e) {
+        unit_mentions(k, out);
+    }
+}

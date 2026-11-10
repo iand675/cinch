@@ -273,7 +273,11 @@ fn emit_module(
     out.push_str("declare void @cinch_free(i64)\n");
     out.push_str("declare void @cinch_reclaim_enable()\n");
     if reg.reclaim && !reg.rc_debug {
-        out.push_str(&rc_helpers(reg.any_frame()));
+        let frame = reg.any_frame();
+        if frame {
+            out.push_str("declare void @cinch_frame_release(i64)\n");
+        }
+        out.push_str(&rc_helpers(frame));
     }
     // The runtime ABI's mathematical `Nat`/`Int` and `Bytes` externs
     // (`compiler/runtime/src/lib.rs`); `Nat`/`Int` words are opaque
@@ -845,14 +849,21 @@ struct Registry {
     /// Frame allocation decisions by unit name ([`Program::frame`],
     /// `crate::stack`): the allocations a unit builds in its own frame.
     frame: std::collections::BTreeMap<String, crate::stack::Plan>,
+    /// Whether the program hands a frame block to a callee's owned
+    /// parameter ([`Program::stack`], `crate::stack::Report`): the callees
+    /// then need the count paths' frame arms even though they build no
+    /// frame block of their own.
+    frame_received: bool,
 }
 
 impl Registry {
-    /// Whether any unit of this module builds a block in its own frame: the
-    /// inline count helpers then also skip `RC_FRAME` (they must not change
-    /// the module of a program the pass left alone).
+    /// Whether this module can hold or receive a frame block: the inline
+    /// count helpers then carry the frame arms. A module of a program the
+    /// pass lowered builds none and receives none only when every one of
+    /// its units is its own caller, which is what keeps a module that
+    /// `--no-stack-alloc` left alone byte-identical to the pre-pass IR.
     fn any_frame(&self) -> bool {
-        !self.frame.is_empty()
+        !self.frame.is_empty() || self.frame_received
     }
 }
 
@@ -1165,6 +1176,7 @@ impl Registry {
     fn build(p: &Program) -> Result<Registry> {
         let mut reg = Registry::default();
         reg.frame = p.frame.clone();
+        reg.frame_received = !p.stack.receives_frame.is_empty();
         let mut fn_arities: HashMap<String, usize> = HashMap::new();
         for f in &p.fns {
             if fn_arities.insert(f.id.0.clone(), f.arity()).is_some() {
@@ -2256,10 +2268,10 @@ fn classify_callee(sym: &str, units: &HashSet<String>, extra: Option<&str>) -> C
         // the uniqueness test reads one, and its unit also frees.
         "cinch_dup" | "cinch_dup_mt" | "cinch.rc.dup.obj" | "cinch.rc.dup.tobj" | RC_UNIQUE => Callee::Copy,
         // A drop may free what the caller passed or allocated before the
-        // call, and so does the raw release of a unique closure.
-        "cinch_drop" | "cinch_drop_slow" | "cinch_drop_mt" | "cinch_free" | "cinch.rc.drop.obj" | "cinch.rc.drop.tobj" => {
-            Callee::Free
-        }
+        // call, and so does the raw release of a unique closure, and the
+        // frame release, which drops the block's counted children.
+        "cinch_drop" | "cinch_drop_slow" | "cinch_drop_mt" | "cinch_free" | "cinch_frame_release" | "cinch.rc.drop.obj"
+        | "cinch.rc.drop.tobj" => Callee::Free,
         "__apply" | "__cinch_demand" => Callee::Indirect,
         "exit" | "cinch_panic" | "__cinch_blackhole" => Callee::Fault,
         "cinch_scope_close"
@@ -3510,6 +3522,15 @@ const RC_TOP_SHIFT: u32 = 64 - (block::RC_SHIFT + block::RC_BITS);
 /// `1 << RC_TOP_SHIFT` (a count of one).
 const RC_FRAME_TOP: i64 = block::RC_FRAME << RC_TOP_SHIFT;
 
+/// `RC_FRAME_RELEASED`'s count in the same form ([`RC_FRAME_TOP`]): the
+/// lowest top-shifted word a frame block has, so one signed compare
+/// (`top < this`) separates every real count from both markers.
+const RC_FRAME_RELEASED_TOP: i64 = block::RC_FRAME_RELEASED << RC_TOP_SHIFT;
+
+/// The header bits above the count field, kept when the released marker
+/// replaces it.
+const HEADER_RC_MASK: u64 = !((1u64 << block::RC_BITS) - 1);
+
 /// Load the header word at `hp` into a fresh register. The load is
 /// atomic (`monotonic`, an ordinary load on every target, measured free
 /// against a plain one): a block shared with other tasks has its count
@@ -3558,10 +3579,11 @@ fn rc_helper_name(drop: bool, class: Class) -> &'static str {
 }
 
 /// The definitions of the four count helpers [`rc_op`] calls, private to
-/// each emitted module. `frame` adds the `RC_FRAME` no-op arm: a module the
-/// stack allocation pass lowered can hand a frame block to a count path
-/// (the pass elides the operations, so this is the backstop), and a module
-/// it left alone keeps the exact helper it always had.
+/// each emitted module. `frame` adds the arms a frame block takes: a dup
+/// of one writes nothing, and a drop of one releases its payload once
+/// (`cinch_frame_release`) instead of counting. A module that neither
+/// holds nor receives a frame block keeps the exact helper it always had,
+/// which is what leaves `--no-stack-alloc` byte-identical.
 fn rc_helpers(frame: bool) -> String {
     let mut out = String::new();
     for class in [Class::Obj, Class::TObj] {
@@ -3639,13 +3661,15 @@ fn rc_inline(b: &mut Builder, drop: bool, w: &str, class: Class, frame: bool) {
     let one = 1u64 << block::RC_SHIFT;
     let top_one = 1i64 << RC_TOP_SHIFT;
     let (lplain, lother, lmt) = (b.label(), b.label(), b.label());
-    // A frame block's count is `RC_FRAME` (block_kinds.rs): never counted,
-    // so never a plain or a shared count. The arm is present exactly when
-    // this module can hold a frame block, which keeps every other module's
-    // helper byte-identical to the one it always had.
+    // A frame block's count is `RC_FRAME`, and a released one's is
+    // `RC_FRAME_RELEASED` (block_kinds.rs): neither is ever counted, so
+    // neither is a plain or a shared count. One signed compare excludes
+    // both, and the arm is present exactly when this module can hold or
+    // receive a frame block, which keeps every other module's helper
+    // byte-identical to the one it always had.
     let not_frame = frame.then(|| {
         let nf = b.reg();
-        b.line(&format!("{nf} = icmp ne i64 {top}, {RC_FRAME_TOP}"));
+        b.line(&format!("{nf} = icmp slt i64 {top}, {RC_FRAME_RELEASED_TOP}"));
         nf
     });
     let plain = b.reg();
@@ -3674,8 +3698,16 @@ fn rc_inline(b: &mut Builder, drop: bool, w: &str, class: Class, frame: bool) {
     b.start(&lother);
     if drop {
         let lslow = b.label();
-        let frame_arm = match &not_frame {
-            Some(_) => format!("\n  i64 {RC_FRAME_TOP}, label %{ldone}"),
+        // A frame block's drop is its payload's release, once: the block
+        // itself is never freed (design/stack-allocation.md section 7.3),
+        // and a second drop of the same block finds the released marker
+        // and does nothing. A module that can neither hold nor receive a
+        // frame block emits the switch it always emitted.
+        let lframe = not_frame.as_ref().map(|_| b.label());
+        let frame_arm = match &lframe {
+            Some(lf) => format!(
+                "\n  i64 {RC_FRAME_TOP}, label %{lf}\n  i64 {RC_FRAME_RELEASED_TOP}, label %{lf}"
+            ),
             None => String::new(),
         };
         b.line(&format!(
@@ -3684,6 +3716,11 @@ fn rc_inline(b: &mut Builder, drop: bool, w: &str, class: Class, frame: bool) {
         b.start(&lslow);
         b.line(&format!("call void @cinch_drop_slow(i64 {w})"));
         b.line(&format!("br label %{ldone}"));
+        if let Some(lf) = lframe {
+            b.start(&lf);
+            b.line(&format!("call void @cinch_frame_release(i64 {w})"));
+            b.line(&format!("br label %{ldone}"));
+        }
     } else {
         let shared = b.reg();
         b.line(&format!("{shared} = icmp ne i64 {top}, 0"));
@@ -6659,9 +6696,10 @@ impl CoreEmitter<'_, '_> {
             return err(format!("count operation on unknown local {}", x.0));
         }
         // A frame block carries no count: a `dup` is a second static
-        // reference (which the pass refuses, so this arm is the backstop),
-        // and a `drop` releases the payload here, in place of a count
-        // reaching zero and freeing the block.
+        // reference (which the pass refuses unless the payload holds
+        // nothing counted, so this arm is the backstop), and a `drop`
+        // releases the payload here, in place of a count reaching zero and
+        // freeing the block.
         if let Some(site) = self.frame_site(x).cloned() {
             if matches!(e, Core::Drop(..)) {
                 let w = self.load_local(x);
@@ -6698,7 +6736,12 @@ impl CoreEmitter<'_, '_> {
             // free: the moved fields keep the references the block held and
             // the rest are dropped here. The search for a unique count
             // would always answer `no` (a frame count is `RC_FRAME`), so it
-            // is not emitted.
+            // is not emitted. The block is marked released first, so a
+            // second path into it (a caller's drop of the same reference
+            // after the copy that specialisation unrolled) is a no-op
+            // rather than a second release of the payload.
+            let w = self.load_local(block);
+            self.frame_mark_released(&w);
             for (r, c) in rest {
                 let v = self.load_local(*r);
                 rc_op(self.b, self.reg.rc_debug, true, &v, *c);
@@ -6839,10 +6882,15 @@ impl CoreEmitter<'_, '_> {
         self.b.gep(&base, prefix + 8)
     }
 
-    /// Release the counted payload of the frame block behind `w`: an
-    /// ordinary `Drop` per counted field, in reverse payload order (D390:
-    /// destruction runs in reverse). The block itself is not freed.
+    /// Release the counted payload of the frame block behind `w`: mark the
+    /// block released, then drop each counted field with an ordinary
+    /// `Drop`, in reverse payload order (D390: destruction runs in
+    /// reverse). The block itself is not freed and nothing is scanned: the
+    /// pass knows the counted words, so this is cheaper than the runtime
+    /// walk `cinch_frame_release` does for a block whose origin the unit
+    /// cannot see (design/stack-allocation.md section 7.3).
     fn frame_release(&mut self, w: &str, fields: &[(u32, Class)]) {
+        self.frame_mark_released(w);
         if fields.is_empty() {
             return;
         }
@@ -6852,6 +6900,31 @@ impl CoreEmitter<'_, '_> {
             let v = self.b.load_at(&p, *off as usize);
             rc_op(self.b, self.reg.rc_debug, true, &v, *class);
         }
+    }
+
+    /// Mark the frame block behind `w` released without touching its
+    /// payload: whoever dropped its counted words has done so, and every
+    /// later path into this block (a second drop of the same reference, a
+    /// callee that took it as an owned parameter, a parent frame block
+    /// releasing the payload it was stored in) must find the marker and do
+    /// nothing. The count field is the low `RC_BITS`; kind and layout stay
+    /// as the allocation wrote them, so the block's tag and payload map
+    /// still read correctly.
+    fn frame_mark_released(&mut self, w: &str) {
+        let p = self.b.reg();
+        self.b.line(&format!("{p} = inttoptr i64 {w} to ptr"));
+        let hp = self.b.reg();
+        self.b.line(&format!("{hp} = getelementptr inbounds i8, ptr {p}, i64 -8"));
+        let h = self.b.reg();
+        self.b.line(&format!("{h} = load i64, ptr {hp}"));
+        let keep = self.b.reg();
+        self.b.line(&format!("{keep} = and i64 {h}, {}", HEADER_RC_MASK as i64));
+        let marked = self.b.reg();
+        self.b.line(&format!(
+            "{marked} = or i64 {keep}, {}",
+            block::RC_FRAME_RELEASED
+        ));
+        self.b.line(&format!("store i64 {marked}, ptr {hp}"));
     }
 
     /// The current word of a bound local.

@@ -14,12 +14,31 @@
 //!
 //! `compiler/src/stack.rs` lowers a block that cannot escape its
 //! activation to an `alloca` with the header count [`block::RC_FRAME`]
-//! (`block_kinds.rs`). A frame block is never counted, never freed and
-//! never scanned: the compiler elides its `dup`/`drop` and releases its
-//! counted payload at the point the reference dies. The count paths here
-//! see one only as a backstop, so they treat it exactly like an immortal
-//! block, and under `CINCH_RC_DEBUG=1` a frame block that reaches the free
-//! path traps as a compiler bug.
+//! (`block_kinds.rs`). A frame block is never counted and never freed, and
+//! its payload is released exactly once by [`cinch_frame_release`]:
+//!
+//! 1. the first of the three paths into it sets [`block::RC_FRAME_RELEASED`]
+//!    in the header *before* dropping a child, so the payload's counted
+//!    words are dropped exactly once even though no count says which drop
+//!    is the last. The paths are the binder's static death (code
+//!    generation's own field-by-field release, which marks the block too),
+//!    a callee that took the block as an owned parameter and drops it, and
+//!    a parent frame block whose release walks the payload it was stored
+//!    in;
+//! 2. [`cinch_drop`] on a frame block calls the release, [`cinch_dup`] is a
+//!    no-op (a frame dup is a second static reference), `cinch_free` and
+//!    the release walk leave the block alone, [`cinch_mark_mt`] stops at
+//!    it, and the inline fast paths route both markers to
+//!    [`cinch_frame_release`] instead of counting;
+//! 3. [`cinch_drop_slow`] traps on a frame block under `CINCH_RC_DEBUG=1`
+//!    (a compiler bug: the debug paths go through [`cinch_drop`]), and in
+//!    a release build it releases the payload rather than handing stack
+//!    memory to the allocator.
+//!
+//! The two markers are the two largest counts the field can hold, which
+//! no heap block can reach; the payload's kind, layout and descriptor are
+//! untouched by the release, so a released block still reads its tag and
+//! its map.
 //!
 //! # Counts shared across tasks
 //!
@@ -176,8 +195,10 @@ pub unsafe extern "C" fn cinch_dup(word: i64) {
         check(word, h);
     }
     match block::rc(h) {
-        // Static blocks and frame blocks are never counted.
-        block::RC_IMMORTAL | block::RC_FRAME => {}
+        // Static blocks and frame blocks are never counted, released or
+        // not: a dup of a frame block is a second static reference, and the
+        // count field is not a count to change.
+        block::RC_IMMORTAL | block::RC_FRAME | block::RC_FRAME_RELEASED => {}
         // No overflow check: the heap cap keeps every count below `RC_MAX`
         // (block_kinds.rs).
         n if n > 0 => unsafe { block::write_header(p, block::header(n + 1, block::kind(h), block::layout(h))) },
@@ -204,9 +225,11 @@ pub unsafe extern "C" fn cinch_drop(word: i64) {
         check(word, h);
     }
     match block::rc(h) {
-        // Static blocks and frame blocks are never counted and never
-        // freed: the frame's activation ends them.
-        block::RC_IMMORTAL | block::RC_FRAME => {}
+        // A static block is never counted and never freed: the process
+        // owns it. A frame block is released once (`cinch_frame_release`)
+        // and never freed: the activation's frame owns its memory.
+        block::RC_IMMORTAL | block::RC_FRAME_RELEASED => {}
+        block::RC_FRAME => unsafe { cinch_frame_release(word) },
         block::RC_FRESH => unsafe { release(p) },
         n if n > 1 => unsafe { block::write_header(p, block::header(n - 1, block::kind(h), block::layout(h))) },
         _ => unsafe { drop_atomic(p) },
@@ -217,10 +240,16 @@ pub unsafe extern "C" fn cinch_drop(word: i64) {
 /// being dropped is its last. This is the zero-crossing path of an
 /// inlined drop.
 ///
+/// A frame block never has a count, so the inline fast paths route it to
+/// [`cinch_frame_release`] instead of here. The check stays because this
+/// path ends in the allocator, and freeing memory a frame owns would be
+/// the worst failure the runtime can have: a frame block that arrives
+/// here during the run releases its payload and returns.
+///
 /// # Safety
 ///
 /// `word` is a live mortal block word with `rc == 1` whose reference the
-/// caller owns and does not use again.
+/// caller owns and does not use again, or a frame block word.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_drop_slow(word: i64) {
     if !is_block_word(word) {
@@ -230,13 +259,98 @@ pub unsafe extern "C" fn cinch_drop_slow(word: i64) {
     let h = unsafe { block::read_header(p) };
     if crate::heap::rc_debug() {
         check(word, h);
-        // A frame block is never released: the compiler elides the drop,
-        // and this path would free memory the stack owns.
-        if block::rc(h) != block::RC_FRESH {
+    }
+    match block::rc(h) {
+        // A frame block under `CINCH_RC_DEBUG=1` is a compiler bug: the
+        // debug paths call `cinch_drop`, which releases a frame payload
+        // without a count, so this path should never see one.
+        block::RC_FRAME | block::RC_FRAME_RELEASED if crate::heap::rc_debug() => corrupt(),
+        block::RC_FRAME => unsafe { cinch_frame_release(word) },
+        block::RC_FRAME_RELEASED => {}
+        block::RC_FRESH => unsafe { release(p) },
+        _ => corrupt(),
+    }
+}
+
+/// Release the payload of the frame block behind `word` exactly once:
+/// drop each counted child in reverse payload order, then leave the block
+/// marked [`block::RC_FRAME_RELEASED`]. The block itself is not freed and
+/// the allocator is not touched: its memory is the activation's frame.
+///
+/// # The exactly-once rule
+///
+/// A frame block has no count that could make one of its drops the last,
+/// so the release is owned by the first path that reaches it: the
+/// binder's static death, a callee that took the block as an owned
+/// parameter and drops it, or a parent frame block whose own release
+/// walks the payload it was stored in. The marker in the header is what
+/// makes that safe: it is set *before* the children are dropped, so every
+/// later path (a second release of the same reference, a child cycle back
+/// into this block, a parent that still holds the word) finds the payload
+/// already released and returns. The invariant is therefore not "one
+/// path releases" but "the children are dropped exactly once on every
+/// path", which the marker enforces without any count.
+///
+/// Consequences the compiler relies on:
+///
+/// - Two live references to one frame block are admissible only when its
+///   payload holds no counted word (`compiler/src/stack.rs`'s duplicated
+///   rule): a second reference that outlives the release would read
+///   dropped children, and no count can tell the two references apart.
+/// - A released block keeps its kind, its layout and its payload words,
+///   so a `case` over it after the release still reads a tag. That is a
+///   program the ownership discipline cannot produce; the debug check
+///   below states it.
+///
+/// # Safety
+///
+/// `word` is a frame block word whose payload the caller's activation
+/// owns (the header is still readable, and the payload words are live
+/// until the frame returns).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_frame_release(word: i64) {
+    if !is_block_word(word) {
+        if crate::heap::rc_debug() {
+            corrupt();
+        }
+        return;
+    }
+    let p = word as usize as *mut u8;
+    let h = unsafe { block::read_header(p) };
+    let n = block::rc(h);
+    if n == block::RC_FRAME_RELEASED {
+        // The marker: the payload's children have been dropped already.
+        return;
+    }
+    if crate::heap::rc_debug() {
+        check(word, h);
+        // A frame release of a heap block is a compiler bug: the block's
+        // count is live and `cinch_drop` owns its release.
+        if n != block::RC_FRAME {
             corrupt();
         }
     }
-    unsafe { release(p) }
+    if n != block::RC_FRAME {
+        return;
+    }
+    // Mark first: a child that points back here, or a second path into
+    // this block while the walk is in progress, then finds the payload
+    // released instead of dropping its children twice.
+    unsafe { block::write_header(p, block::header(block::RC_FRAME_RELEASED, block::kind(h), block::layout(h))) };
+    let debug = crate::heap::rc_debug();
+    let scan = unsafe { Scan::of(p, h) };
+    let mut at = scan.words();
+    while let Some((slot, code)) = scan.counted_below(at) {
+        at = slot;
+        let w = unsafe { p.cast::<i64>().add(slot).read() };
+        if debug && code == SCAN_OBJ && w & 1 != 0 {
+            // An `Obj` slot never holds an immediate.
+            corrupt();
+        }
+        // A child that is itself a frame block takes the same path: its
+        // own payload is dropped (once), and nothing is freed.
+        unsafe { cinch_drop(w) };
+    }
 }
 
 /// Add one reference to the block behind `word`, whose count is atomic
@@ -433,9 +547,10 @@ unsafe fn claim(word: i64) -> bool {
         corrupt();
     }
     let n = block::rc(h);
-    if n <= 0 || n == block::RC_FRAME {
+    if n <= 0 || matches!(n, block::RC_FRAME | block::RC_FRAME_RELEASED) {
         // Immortal (a static, an interned cell) or a frame block: neither
-        // is counted, so a task body that reaches one never marks it.
+        // is counted, so a task body that reaches one never marks it. A
+        // released frame block's field is its marker, not a count to negate.
         return false;
     }
     unsafe { block::write_header(p, block::header(-n, block::kind(h), block::layout(h))) };
@@ -531,9 +646,10 @@ unsafe fn release(root: *mut u8) {
             let dies = match block::rc(ch) {
                 block::RC_IMMORTAL => false,
                 // A frame block is never freed by a release: its activation
-                // owns the memory, and the compiler releases its payload at
-                // the point its reference dies (`compiler/src/stack.rs`).
-                block::RC_FRAME => false,
+                // owns the memory, and `cinch_frame_release` owns its
+                // payload. The walk leaves both markers alone rather than
+                // decrementing one, which is not a count.
+                block::RC_FRAME | block::RC_FRAME_RELEASED => false,
                 block::RC_FRESH => true,
                 n if n > 1 => {
                     unsafe { block::write_header(c, block::header(n - 1, block::kind(ch), block::layout(ch))) };
@@ -1051,61 +1167,106 @@ mod tests {
             .expect("spawn");
         assert_eq!(handle.join().expect("mark thread"), N);
     }
-    /// A constructor block whose header says `RC_FRAME`: what
-    /// `compiler/src/stack.rs` writes into a frame slot. Its payload word
-    /// holds the counted `child`.
+    /// A frame slot: the header word, then the payload, aligned the way
+    /// `compiler/src/codegen.rs` aligns one.
     #[repr(align(16))]
-    struct FrameSlot([u64; 3]);
+    struct Slot([u64; 8]);
 
-    fn frame_block(child: i64, tag: u64) -> FrameSlot {
-        let mut slot = FrameSlot([0; 3]);
-        slot.0[0] = block::header(block::RC_FRAME, block::KIND_CTOR, tag as u16);
-        slot.0[1] = child as u64;
-        slot.0[2] = 0;
+    /// A frame block whose payload words are `payload` and whose header
+    /// layout is `layout`.
+    fn frame_slot(layout: u16, payload: &[i64]) -> Slot {
+        let mut slot = Slot([0; 8]);
+        slot.0[0] = block::header(block::RC_FRAME, block::KIND_CTOR, layout);
+        for (i, w) in payload.iter().enumerate() {
+            slot.0[1 + i] = *w as u64;
+        }
         slot
     }
 
+    /// The block word of a frame slot's payload.
+    fn word_of(slot: &Slot) -> i64 {
+        slot.0[1..].as_ptr() as usize as i64
+    }
+
     #[test]
-    fn frame_blocks_are_never_counted_freed_or_scanned() {
+    fn a_frame_block_is_released_once_and_never_freed() {
         crate::block::install_test_layouts();
         let child = ctor(NIL, &[]);
-        let slot = frame_block(child, NIL);
-        let w = slot.0[1..].as_ptr() as usize as i64;
+        let slot = frame_slot(CONS_O as u16, &[child, 0]);
+        let w = word_of(&slot);
         unsafe {
             cinch_dup(w);
             cinch_dup(w);
         }
         assert_eq!(rc_of(w), block::RC_FRAME, "a frame block is never counted");
-        // The compiler elides a frame block's drop; the runtime path is a
-        // no-op, so nothing is freed and the payload is left to the code
-        // generation's own release.
-        assert!(freed_by(|| {
-            unsafe { cinch_drop(w) };
-        })
-        .is_empty());
-        assert_eq!(rc_of(w), block::RC_FRAME);
-        // `cinch_free` is the raw release of a drop specialisation.
+        // The first drop releases the payload: the child dies, the frame
+        // block itself stays (its memory is the activation's) and its header
+        // says the payload is released.
+        assert_eq!(freed_by(|| unsafe { cinch_drop(w) }), vec![child as usize]);
+        assert_eq!(rc_of(w), block::RC_FRAME_RELEASED, "the marker is the header's count field");
+        // A second drop finds the marker: no second release of the payload
+        // and no free of the block.
+        assert!(freed_by(|| unsafe { cinch_drop(w) }).is_empty());
+        assert_eq!(rc_of(w), block::RC_FRAME_RELEASED);
+        // The direct entry point is the same rule, from either state.
+        assert!(freed_by(|| unsafe { cinch_frame_release(w) }).is_empty());
+        // `cinch_free` is the raw release of a drop specialisation; a frame
+        // block never goes through it to the allocator.
         unsafe { crate::abi::cinch_free(w) };
-        assert_eq!(rc_of(w), block::RC_FRAME);
-        assert_eq!(rc_of(child), 1, "the frame drop leaves the payload's reference alone");
-        // A spawn's mark stops at a frame block instead of negating it.
+        assert_eq!(rc_of(w), block::RC_FRAME_RELEASED);
+        // A spawn's mark stops at a frame block instead of negating it,
+        // released or not.
         unsafe { cinch_mark_mt(w) };
-        assert_eq!(rc_of(w), block::RC_FRAME);
-        // The payload is still a live heap block with its own count.
-        assert_eq!(freed_by(|| {
-            unsafe { cinch_drop(child) };
-        })
-        .len(), 1);
+        assert_eq!(rc_of(w), block::RC_FRAME_RELEASED);
+        // The kind and layout survive the marker, so a case still reads the
+        // tag and the payload's map still describes the payload.
+        let p = w as usize as *const u8;
+        let h = unsafe { block::read_header(p) };
+        assert_eq!((block::kind(h), block::layout(h)), (block::KIND_CTOR, CONS_O as u16));
+        assert_eq!(unsafe { crate::block::ctor_tag_of(p) }, CONS_O & block::CTOR_TAG_MASK);
+    }
+
+    #[test]
+    fn a_frame_release_walks_every_counted_child_in_reverse() {
+        crate::block::install_test_layouts();
+        // `QUAD` has four counted words, so the walk has an order to get
+        // wrong: reverse payload order.
+        let (a, b, c, d) = (ctor(NIL, &[]), ctor(NIL, &[]), ctor(NIL, &[]), ctor(NIL, &[]));
+        let slot = frame_slot(QUAD as u16, &[a, b, c, d]);
+        let w = word_of(&slot);
+        let freed = freed_by(|| unsafe { cinch_frame_release(w) });
+        assert_eq!(freed, vec![d as usize, c as usize, b as usize, a as usize]);
+        assert_eq!(rc_of(w), block::RC_FRAME_RELEASED);
+    }
+
+    #[test]
+    fn a_frame_block_stored_in_a_frame_block_is_released_once() {
+        crate::block::install_test_layouts();
+        // The parent is a frame block of `{raw; obj}`, the store the pass
+        // admits once the parent is itself frame-bound. The parent's release
+        // drops the child, whose own release drops its payload, and neither
+        // block is freed.
+        let leaf = ctor(NIL, &[]);
+        let inner = frame_slot(CONS_O as u16, &[leaf, 0]);
+        let inner_w = word_of(&inner);
+        let outer = frame_slot(PAIR_RO as u16, &[0, inner_w]);
+        let outer_w = word_of(&outer);
+        let freed = freed_by(|| unsafe { cinch_frame_release(outer_w) });
+        assert_eq!(freed, vec![leaf as usize]);
+        assert_eq!(rc_of(outer_w), block::RC_FRAME_RELEASED);
+        assert_eq!(rc_of(inner_w), block::RC_FRAME_RELEASED);
+        assert!(!freed.contains(&(inner_w as usize)) && !freed.contains(&(outer_w as usize)));
     }
 
     #[test]
     fn a_frame_block_child_survives_a_heap_parent_release() {
         crate::block::install_test_layouts();
         let child = ctor(NIL, &[]);
-        let slot = frame_block(child, NIL);
-        let w = slot.0[1..].as_ptr() as usize as i64;
+        let slot = frame_slot(CONS_O as u16, &[child, 0]);
+        let w = word_of(&slot);
         // A heap cell holding the frame block: releasing the parent leaves
-        // the frame block (and its payload) to the activation.
+        // the frame block (and its payload) to the activation, because the
+        // heap block can outlive the frame. The pass refuses that store.
         let parent = ctor(CONS_O, &[w, immortal_nil()]);
         let freed = freed_by(|| {
             unsafe { cinch_drop(parent) };
@@ -1113,6 +1274,21 @@ mod tests {
         assert_eq!(freed, vec![parent as usize]);
         assert_eq!(rc_of(w), block::RC_FRAME);
         assert_eq!(rc_of(child), 1);
+    }
+
+    #[test]
+    fn a_frame_block_never_reaches_the_allocator_through_a_release() {
+        crate::block::install_test_layouts();
+        let child = ctor(NIL, &[]);
+        let slot = frame_slot(CONS_O as u16, &[child, 0]);
+        let w = word_of(&slot);
+        // `cinch_drop_slow` ends in the allocator for a heap block; a frame
+        // block that arrives there (a module with no frame arm, so a
+        // compiler bug) releases the payload and returns instead of freeing
+        // memory the stack owns.
+        assert_eq!(freed_by(|| unsafe { cinch_drop_slow(w) }), vec![child as usize]);
+        assert_eq!(rc_of(w), block::RC_FRAME_RELEASED);
+        assert!(freed_by(|| unsafe { cinch_drop_slow(w) }).is_empty());
     }
 
 }
