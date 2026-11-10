@@ -69,6 +69,7 @@ Each page records a decision, its evidence, or the work remaining for one part o
 - [The value-level computation type former (`Comp {e} a`)](design/comp-computation-type.md)
 - [Compiled interface metadata](design/compiled-interface-metadata.md)
 - [Compilation speed: measurements, technique catalogue and backlog](design/compilation-speed.md)
+- [Stack allocation of non-escaping blocks](design/stack-allocation.md)
 - [Core output: the annotated codegen input](design/core-output.md)
 - [Dependent core kernel design](design/dependent-core-kernel.md)
 - [Effect boundaries and interposition (draft)](design/effect-boundaries-and-interposition.md)
