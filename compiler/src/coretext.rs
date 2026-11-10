@@ -1348,13 +1348,19 @@ struct Parsed {
 /// [`Error`]; `None` means the file was not readable at all.
 fn parse(text: &str, errors: &mut Vec<Error>) -> Option<Parsed> {
     let lines: Vec<&str> = text.lines().collect();
+    // The reader reports the line it rejects, so every finding carries the
+    // range the language server highlights.
+    let src = Source::new(text);
     let mut file = Parsed::default();
     if lines.is_empty() {
         errors.push(Error::header("empty file"));
         return None;
     }
     if lines[0] != "core 1" {
-        errors.push(Error::header(format!("the first line is `{}`, not `core 1`", lines[0])));
+        errors.push(
+            Error::header(format!("the first line is `{}`, not `core 1`", lines[0]))
+                .at(src.line_rng(0)),
+        );
         return None;
     }
     let mut i = 1;
@@ -1363,62 +1369,73 @@ fn parse(text: &str, errors: &mut Vec<Error>) -> Option<Parsed> {
     let mut stage = 0u8;
     while i < lines.len() {
         let line = lines[i];
+        let here = src.line_rng(i);
         if let Some(rest) = line.strip_prefix("module ") {
             if stage > 0 {
-                errors.push(Error::header(format!("`module` after the header's target line: `{line}`")));
+                errors.push(
+                    Error::header(format!("`module` after the header's target line: `{line}`")).at(here),
+                );
             }
             stage = 0;
             if rest.trim().is_empty() || rest.contains(' ') {
-                errors.push(Error::header(format!("module name `{rest}` is not one name")));
+                errors.push(Error::header(format!("module name `{rest}` is not one name")).at(here));
             }
             if file.modules.iter().any(|m| m == rest) {
-                errors.push(Error::header(format!("module `{rest}` is declared twice")));
+                errors.push(Error::header(format!("module `{rest}` is declared twice")).at(here));
             }
             if file.modules.last().is_some_and(|last| last.as_str() > rest) {
-                errors.push(Error::header(format!("module `{rest}` is out of order")));
+                errors.push(Error::header(format!("module `{rest}` is out of order")).at(here));
             }
             file.modules.push(rest.to_string());
         } else if let Some(rest) = line.strip_prefix("target ") {
             if stage > 1 {
-                errors.push(Error::header(format!("`target` after `source`: `{line}`")));
+                errors.push(Error::header(format!("`target` after `source`: `{line}`")).at(here));
             }
             stage = 1;
             if file.target.is_some() {
-                errors.push(Error::header("`target` is declared twice"));
+                errors.push(Error::header("`target` is declared twice").at(here));
             }
             match rest.rsplit_once(" opt-level ") {
                 Some((triple, level)) => {
                     if triple.trim().is_empty() || triple.contains(' ') {
-                        errors.push(Error::header(format!("target triple `{triple}` is not one word")));
+                        errors.push(
+                            Error::header(format!("target triple `{triple}` is not one word")).at(here),
+                        );
                     }
                     match level.parse::<u32>() {
                         Ok(level) if level <= 3 => file.target = Some((triple.to_string(), level)),
-                        _ => errors.push(Error::header(format!("`{level}` is not an opt-level of 0 to 3"))),
+                        _ => errors.push(
+                            Error::header(format!("`{level}` is not an opt-level of 0 to 3")).at(here),
+                        ),
                     }
                 }
-                None => errors.push(Error::header("`target` needs `<triple> opt-level <0-3>`")),
+                None => errors.push(
+                    Error::header("`target` needs `<triple> opt-level <0-3>`").at(here),
+                ),
             }
         } else if let Some(rest) = line.strip_prefix("source ") {
             if stage > 2 {
-                errors.push(Error::header(format!("`source` after `global`: `{line}`")));
+                errors.push(Error::header(format!("`source` after `global`: `{line}`")).at(here));
             }
             stage = 2;
             if file.source.is_some() {
-                errors.push(Error::header("`source` is declared twice"));
+                errors.push(Error::header("`source` is declared twice").at(here));
             }
             match rest.strip_prefix("sha256:") {
                 Some(hex) if hex.len() == 64 && hex.chars().all(|c| c.is_ascii_hexdigit()) => {
                     file.source = Some(hex.to_string());
                 }
-                _ => errors.push(Error::header("`source` needs `sha256:` and 64 hex digits")),
+                _ => errors.push(
+                    Error::header("`source` needs `sha256:` and 64 hex digits").at(here),
+                ),
             }
         } else if let Some(rest) = line.strip_prefix("global ") {
             if file.source.is_none() {
-                errors.push(Error::header("`global` lines come after `source`"));
+                errors.push(Error::header("`global` lines come after `source`").at(here));
             }
             stage = 3;
             if rest.trim().is_empty() || rest.contains(' ') {
-                errors.push(Error::header(format!("global name `{rest}` is not one name")));
+                errors.push(Error::header(format!("global name `{rest}` is not one name")).at(here));
             }
             file.globals.push(rest.to_string());
         } else {
@@ -1434,13 +1451,17 @@ fn parse(text: &str, errors: &mut Vec<Error>) -> Option<Parsed> {
     }
     while i < lines.len() {
         let line = lines[i];
+        let here = src.line_rng(i);
         if line.is_empty() {
-            errors.push(Error::header(format!("blank line before the record at `{}`", line_near(&lines, i))));
+            errors.push(
+                Error::header(format!("blank line before the record at `{}`", line_near(&lines, i)))
+                    .at(here),
+            );
             i += 1;
             continue;
         }
         let Some(rest) = line.strip_prefix("unit ") else {
-            errors.push(Error::header(format!("expected `unit`, found `{line}`")));
+            errors.push(Error::header(format!("expected `unit`, found `{line}`")).at(here));
             i += 1;
             continue;
         };
@@ -1448,6 +1469,7 @@ fn parse(text: &str, errors: &mut Vec<Error>) -> Option<Parsed> {
             Some(pos) => {
                 let name = rest[..pos].trim().to_string();
                 let ty = rest[pos + 4..].trim().to_string();
+                let unit_line = here;
                 let mut unit = ParsedUnit {
                     name,
                     ty,
@@ -1461,11 +1483,15 @@ fn parse(text: &str, errors: &mut Vec<Error>) -> Option<Parsed> {
                 let mut terminated = false;
                 while i < lines.len() {
                     let inner = lines[i];
+                    let here = src.line_rng(i);
                     if inner == "end" {
                         terminated = true;
                         i += 1;
                         break;
                     }
+                    // The parameter and slot helpers report through the
+                    // shared vector, so their findings take this line's range.
+                    let before = errors.len();
                     if let Some(rest) = inner.strip_prefix("  @params ") {
                         unit.params = parse_params(rest, &unit.name, errors);
                         unit.anns.push(("params".to_string(), rest.to_string()));
@@ -1474,7 +1500,9 @@ fn parse(text: &str, errors: &mut Vec<Error>) -> Option<Parsed> {
                         unit.anns.push((name, value));
                     } else if let Some(rest) = inner.strip_prefix("  body ") {
                         if unit.body.is_some() || unit.has_static {
-                            errors.push(Error::new(&unit.name, "body", "a second body"));
+                            errors.push(
+                                Error::new(&unit.name, "body", "a second body").coded(code::PARSE),
+                            );
                         }
                         let (text, used) = body_text(&lines, i, rest);
                         match parse_node(&text) {
@@ -1482,28 +1510,55 @@ fn parse(text: &str, errors: &mut Vec<Error>) -> Option<Parsed> {
                             Err(message) => errors.push(Error::new(&unit.name, "body", message)),
                         }
                         i += used;
+                        for error in &mut errors[before..] {
+                            error.set_at(here);
+                            error.set_code(code::PARSE);
+                        }
                         continue;
                     } else if let Some(rest) = inner.strip_prefix("  static ") {
                         if unit.body.is_some() || unit.has_static {
-                            errors.push(Error::new(&unit.name, "static", "a second body"));
+                            errors.push(
+                                Error::new(&unit.name, "static", "a second body").coded(code::PARSE),
+                            );
                         }
                         unit.has_static = true;
                         unit.statics = parse_statics(rest, &unit.name, errors);
                     } else if !inner.is_empty() {
-                        errors.push(Error::new(&unit.name, "record", format!("unexpected line `{inner}`")));
+                        errors.push(
+                            Error::new(&unit.name, "record", format!("unexpected line `{inner}`"))
+                                .coded(code::PARSE),
+                        );
+                    }
+                    // The parameter, slot and s-expression helpers report
+                    // through the shared vector: every finding they raise is a
+                    // reader finding on this line.
+                    for error in &mut errors[before..] {
+                        error.set_at(here);
+                        error.set_code(code::PARSE);
                     }
                     i += 1;
                 }
                 if !terminated {
-                    errors.push(Error::new(&unit.name, "record", "the unit has no `end`"));
+                    let last = i.min(lines.len().saturating_sub(1));
+                    errors.push(
+                        Error::new(&unit.name, "record", "the unit has no `end`")
+                            .coded(code::PARSE)
+                            .at(src.line_rng(last)),
+                    );
                 }
                 if unit.body.is_none() && !unit.has_static {
-                    errors.push(Error::new(&unit.name, "record", "the unit has no `body` and no `static` slots"));
+                    errors.push(
+                        Error::new(&unit.name, "record", "the unit has no `body` and no `static` slots")
+                            .coded(code::PARSE)
+                            .at(unit_line),
+                    );
                 }
                 file.units.push(unit);
             }
             None => {
-                errors.push(Error::header(format!("`unit` line has no ` :: `: `{line}`")));
+                errors.push(
+                    Error::header(format!("`unit` line has no ` :: `: `{line}`")).at(here),
+                );
                 i += 1;
             }
         }
@@ -1846,22 +1901,83 @@ const NODE_MARKS: &[&str] = &["class", "classes", "weight"];
 
 // -------------------------------------------------------------- verification
 
+/// The diagnostic codes the language server publishes (design note section
+/// 8.4): one per check the reader and verifier perform.
+pub mod code {
+    /// A reader finding: the file does not follow the text grammar.
+    pub const PARSE: &str = "core/parse";
+    /// A `local` reference the enclosing scope does not bind.
+    pub const UNBOUND_LOCAL: &str = "core/unbound-local";
+    /// Two units of one name, which makes resolution ambiguous.
+    pub const DUPLICATE_UNIT: &str = "core/duplicate-unit";
+    /// A dictionary slot that is not in the instance's printed table.
+    pub const SLOT_MISSING: &str = "core/slot-missing";
+    /// An annotation out of the documented order.
+    pub const ANNOTATION_ORDER: &str = "core/annotation-order";
+    /// An annotation name the grammar does not define.
+    pub const UNKNOWN_ANNOTATION: &str = "core/unknown-annotation";
+    /// Any other verifier finding.
+    pub const VERIFY: &str = "core/verify";
+    /// A unit with no `@span`, which the server warns about rather than
+    /// refusing: a dump's records carry no source position.
+    pub const SPAN_MISSING: &str = "core/span-missing";
+}
+
 /// One verifier finding, located by unit and by structural path rather than
-/// by line (`Main.map:body:alt 2`).
+/// by line (`Main.map:body:alt 2`), and by the source range the language
+/// server highlights. `start` and `end` are 0-based line and 0-based column
+/// in UTF-16 code units, the LSP convention: the reader fills them for what
+/// it rejects, and [`verify`] fills them for the rest from the printed
+/// structure.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Error {
     pub unit: String,
     pub path: String,
     pub message: String,
+    /// The first position of the offending syntax.
+    pub start: (u32, u32),
+    /// One past its last position.
+    pub end: (u32, u32),
+    /// The check that failed, one of [`code`].
+    pub code: &'static str,
 }
 
 impl Error {
     fn new(unit: &str, path: &str, message: impl Into<String>) -> Error {
-        Error { unit: unit.to_string(), path: path.to_string(), message: message.into() }
+        Error {
+            unit: unit.to_string(),
+            path: path.to_string(),
+            message: message.into(),
+            start: (0, 0),
+            end: (0, 0),
+            code: code::VERIFY,
+        }
     }
 
     fn header(message: impl Into<String>) -> Error {
-        Error { unit: String::new(), path: "header".to_string(), message: message.into() }
+        Error::new("", "header", message).coded(code::PARSE)
+    }
+
+    /// The same finding with a source range.
+    fn at(mut self, range: Rng) -> Error {
+        self.set_at(range);
+        self
+    }
+
+    /// Name the check that failed.
+    fn coded(mut self, code: &'static str) -> Error {
+        self.code = code;
+        self
+    }
+
+    fn set_at(&mut self, range: Rng) {
+        self.start = range.start;
+        self.end = range.end;
+    }
+
+    /// Name the check that failed, in place.
+    fn set_code(&mut self, check: &'static str) {
+        self.code = check;
     }
 }
 
@@ -1925,6 +2041,18 @@ pub fn verify(text: &str) -> Result<Report, Vec<Error>> {
     if errors.is_empty() {
         Ok(report)
     } else {
+        // The verifier names a finding by unit and structural path; the
+        // printed structure is what turns that into the range a client
+        // highlights. Reader findings already carry their line.
+        let syntax = syntax(text);
+        for error in &mut errors {
+            if error.end != (0, 0) {
+                continue;
+            }
+            if let Some(range) = syntax.locate(error) {
+                error.set_at(range);
+            }
+        }
         errors.sort();
         Err(errors)
     }
@@ -1943,7 +2071,10 @@ fn check_file(file: &Parsed, errors: &mut Vec<Error>) -> Report {
     }
     for unit in &file.units {
         if units.insert(unit.name.as_str(), unit).is_some() {
-            errors.push(Error::new(&unit.name, "record", "the unit name is not unique"));
+            errors.push(
+                Error::new(&unit.name, "record", "the unit name is not unique")
+                    .coded(code::DUPLICATE_UNIT),
+            );
         }
         declared.insert(unit.name.as_str());
     }
@@ -1960,12 +2091,18 @@ fn check_file(file: &Parsed, errors: &mut Vec<Error>) -> Report {
                 Some(rank) => {
                     if let Some(previous) = last {
                         if rank <= previous {
-                            errors.push(Error::new(&unit.name, "@", format!("annotation `@{name}` is out of order")));
+                            errors.push(
+                                Error::new(&unit.name, "@", format!("annotation `@{name}` is out of order"))
+                                    .coded(code::ANNOTATION_ORDER),
+                            );
                         }
                     }
                     last = Some(rank);
                 }
-                None => errors.push(Error::new(&unit.name, "@", format!("unknown annotation `@{name}`"))),
+                None => errors.push(
+                    Error::new(&unit.name, "@", format!("unknown annotation `@{name}`"))
+                        .coded(code::UNKNOWN_ANNOTATION),
+                ),
             }
             *report.annotations.entry(name.clone()).or_insert(0) += 1;
             if name == "span" {
@@ -1984,11 +2121,14 @@ fn check_file(file: &Parsed, errors: &mut Vec<Error>) -> Report {
         report.dictionary_bindings += unit.statics.len();
         for (slot, method) in &unit.statics {
             if !declared.contains(method.as_str()) {
-                errors.push(Error::new(
-                    &unit.name,
-                    &format!("static:{slot}"),
-                    format!("slot {slot} names the undefined unit `{method}`"),
-                ));
+                errors.push(
+                    Error::new(
+                        &unit.name,
+                        &format!("static:{slot}"),
+                        format!("slot {slot} names the undefined unit `{method}`"),
+                    )
+                    .coded(code::SLOT_MISSING),
+                );
             }
         }
         if let Some(body) = &unit.body {
@@ -2042,7 +2182,10 @@ impl<'a> Checker<'a> {
                 let name = atom_at(tail, 0, unit, path, errors);
                 if let Some(name) = name {
                     if !scope.iter().any(|bound| bound == name) {
-                        errors.push(Error::new(unit, path, format!("`{name}` is out of scope")));
+                        errors.push(
+                            Error::new(unit, path, format!("`{name}` is out of scope"))
+                                .coded(code::UNBOUND_LOCAL),
+                        );
                     }
                 }
                 return;
@@ -2156,7 +2299,10 @@ impl<'a> Checker<'a> {
                         for name in names {
                             if let Node::Atom(name) = name {
                                 if !scope.iter().any(|bound| bound == name) {
-                                    errors.push(Error::new(unit, &child_path, format!("`{name}` is out of scope")));
+                                    errors.push(
+                                        Error::new(unit, &child_path, format!("`{name}` is out of scope"))
+                                            .coded(code::UNBOUND_LOCAL),
+                                    );
                                 }
                             }
                         }
@@ -2191,7 +2337,10 @@ impl<'a> Checker<'a> {
     ) {
         if let Some(Node::Atom(name)) = tail.get(index) {
             if !scope.iter().any(|bound| bound == name) {
-                errors.push(Error::new(unit, path, format!("`{name}` is out of scope")));
+                errors.push(
+                    Error::new(unit, path, format!("`{name}` is out of scope"))
+                        .coded(code::UNBOUND_LOCAL),
+                );
             }
         } else if tail.get(index).is_some() {
             errors.push(Error::new(unit, path, "the count operation's name is not an atom"));
@@ -2237,13 +2386,19 @@ impl<'a> Checker<'a> {
                 match self.units.get(name.as_str()) {
                     Some(instance) => {
                         if !instance.has_static {
-                            errors.push(Error::new(unit, path, format!("`{name}` has no static slots")));
+                            errors.push(
+                                Error::new(unit, path, format!("`{name}` has no static slots"))
+                                    .coded(code::SLOT_MISSING),
+                            );
                         } else if !instance.statics.iter().any(|(printed, _)| *printed == slot) {
-                            errors.push(Error::new(
-                                unit,
-                                path,
-                                format!("slot {slot} is not in `{name}`'s static slot table"),
-                            ));
+                            errors.push(
+                                Error::new(
+                                    unit,
+                                    path,
+                                    format!("slot {slot} is not in `{name}`'s static slot table"),
+                                )
+                                .coded(code::SLOT_MISSING),
+                            );
                         }
                         if let Some(class) = class {
                             if class != "-" && class != unquote(&instance.ty) {
@@ -2255,7 +2410,10 @@ impl<'a> Checker<'a> {
                             }
                         }
                     }
-                    None => errors.push(Error::new(unit, path, format!("unknown dictionary `{name}`"))),
+                    None => errors.push(
+                        Error::new(unit, path, format!("unknown dictionary `{name}`"))
+                            .coded(code::SLOT_MISSING),
+                    ),
                 }
             }
             return;
@@ -2514,6 +2672,1601 @@ fn diff_node(left: &Node, right: &Node, path: String) -> Option<String> {
         }
         (a, b) => Some(format!("{path}: left {} right {}", a.flat(), b.flat())),
     }
+}
+
+// ----------------------------------------------------------------- syntax
+//
+// The language server reads a Core file as text, so it needs a position
+// carrying view of what the reader above already recognises: units,
+// annotations, forms, references and literals, with the range of each.
+// Nothing here re-derives a type; the printed text is the only source. Every
+// range is in LSP coordinates: 0-based line, 0-based column in UTF-16 code
+// units.
+
+/// A position in LSP coordinates.
+pub type Pos = (u32, u32);
+
+/// A half-open range in LSP coordinates.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Rng {
+    pub start: Pos,
+    pub end: Pos,
+}
+
+impl Rng {
+    pub fn new(start: Pos, end: Pos) -> Rng {
+        Rng { start, end }
+    }
+
+    /// Whether `pos` lies inside the range. A cursor sits between characters,
+    /// so an atom's start position is inside it and its end position outside.
+    pub fn contains(&self, pos: Pos) -> bool {
+        self.start <= pos && pos < self.end
+    }
+
+    /// The four numbers in the order [`definition`] returns them.
+    pub fn tuple(&self) -> (u32, u32, u32, u32) {
+        (self.start.0, self.start.1, self.end.0, self.end.1)
+    }
+
+    /// Whether `self` covers `other` entirely.
+    pub fn covers(&self, other: &Rng) -> bool {
+        self.start <= other.start && other.end <= self.end
+    }
+}
+
+/// A header line's kind.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HeaderKind {
+    /// `core 1`.
+    Version,
+    Module,
+    Target,
+    Source,
+    Global,
+}
+
+impl HeaderKind {
+    /// The word that introduces the line.
+    pub fn word(self) -> &'static str {
+        match self {
+            HeaderKind::Version => "core",
+            HeaderKind::Module => "module",
+            HeaderKind::Target => "target",
+            HeaderKind::Source => "source",
+            HeaderKind::Global => "global",
+        }
+    }
+}
+
+/// One header line and the value it declares.
+#[derive(Clone, Debug)]
+pub struct HeaderLine {
+    pub kind: HeaderKind,
+    pub value: String,
+    pub range: Rng,
+}
+
+/// A `@name(value)` or `@name value` annotation on a unit record.
+#[derive(Clone, Debug)]
+pub struct Annotation {
+    pub name: String,
+    /// The whole annotation, `@` included.
+    pub range: Rng,
+    /// The name without its `@`.
+    pub name_range: Rng,
+    pub value: String,
+    pub value_range: Rng,
+}
+
+/// A form's `@` mark: `@class(owned)`, `@classes(TT)`, `@weight(1)`.
+#[derive(Clone, Debug)]
+pub struct Mark {
+    pub name: String,
+    pub range: Rng,
+    pub name_range: Rng,
+    pub value: String,
+    pub value_range: Rng,
+}
+
+/// An atom inside a form: a name, a slot number, a literal's text.
+#[derive(Clone, Debug)]
+pub struct Atom {
+    pub text: String,
+    pub range: Rng,
+}
+
+/// A child of a form: a nested form, or an atom.
+#[derive(Clone, Debug)]
+pub enum Item {
+    Atom(Atom),
+    Form(Box<Form>),
+}
+
+/// One expression node: a form's keyword, its marks and its children.
+#[derive(Clone, Debug)]
+pub struct Form {
+    /// The form's keyword (`app`, `let`, `local`, ...); for an atom node, the
+    /// atom's text.
+    pub head: String,
+    pub head_range: Rng,
+    /// The whole node, parentheses included.
+    pub range: Rng,
+    /// The structural path the verifier reports (`body:alt 2:field 1`), so a
+    /// finding's range is a lookup and not a second traversal rule.
+    pub path: String,
+    /// Whether the node is an atom rather than a list.
+    pub atom: bool,
+    pub marks: Vec<Mark>,
+    /// The printed tail in printed order, marks excluded, which is the order
+    /// the verifier numbers them in.
+    pub children: Vec<Item>,
+}
+
+impl Form {
+    /// The atom child at `index`.
+    pub fn atom(&self, index: usize) -> Option<&Atom> {
+        match self.children.get(index) {
+            Some(Item::Atom(atom)) => Some(atom),
+            _ => None,
+        }
+    }
+
+    /// The nested form child at `index`.
+    pub fn form(&self, index: usize) -> Option<&Form> {
+        match self.children.get(index) {
+            Some(Item::Form(form)) => Some(form),
+            _ => None,
+        }
+    }
+
+    /// This node and every nested form, in source order.
+    pub fn walk<'a>(&'a self, out: &mut Vec<&'a Form>) {
+        out.push(self);
+        for child in &self.children {
+            if let Item::Form(child) = child {
+                child.walk(out);
+            }
+        }
+    }
+}
+
+/// What a name in a body refers to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RefKind {
+    Local,
+    Global,
+    Ctor,
+    Prim,
+    Foreign,
+}
+
+impl RefKind {
+    /// The form keyword that carries the reference.
+    pub fn head(self) -> &'static str {
+        match self {
+            RefKind::Local => "local",
+            RefKind::Global => "global",
+            RefKind::Ctor => "ctor",
+            RefKind::Prim => "prim",
+            RefKind::Foreign => "foreign",
+        }
+    }
+
+    /// The kind's name in prose.
+    pub fn name(self) -> &'static str {
+        match self {
+            RefKind::Local => "local",
+            RefKind::Global => "unit",
+            RefKind::Ctor => "constructor",
+            RefKind::Prim => "prim",
+            RefKind::Foreign => "foreign unit",
+        }
+    }
+
+    /// The semantic token type a reference reports as.
+    pub fn token(self) -> &'static str {
+        match self {
+            RefKind::Local => "variable",
+            RefKind::Global | RefKind::Ctor => "namespace",
+            RefKind::Prim | RefKind::Foreign => "function",
+        }
+    }
+}
+
+/// A `(local x)`, `(global X)`, `(ctor X ...)`, `(prim p)` or
+/// `(foreign "s")` reference.
+#[derive(Clone, Debug)]
+pub struct Ref {
+    pub kind: RefKind,
+    /// The name the reference prints, quoted atoms unquoted.
+    pub name: String,
+    pub range: Rng,
+    /// The index of the unit whose body holds the reference.
+    pub unit: usize,
+}
+
+/// A literal's kind.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LiteralKind {
+    Int,
+    Nat,
+    Big,
+    Bytes,
+    String,
+    Sym,
+    Bool,
+    Unit,
+}
+
+impl LiteralKind {
+    /// The kind's name in prose.
+    pub fn word(self) -> &'static str {
+        match self {
+            LiteralKind::Int => "integer",
+            LiteralKind::Nat => "natural",
+            LiteralKind::Big => "big integer",
+            LiteralKind::Bytes => "bytes",
+            LiteralKind::String => "string",
+            LiteralKind::Sym => "symbol",
+            LiteralKind::Bool => "boolean",
+            LiteralKind::Unit => "unit",
+        }
+    }
+
+    /// The semantic token type a literal reports as.
+    pub fn token(self) -> &'static str {
+        match self {
+            LiteralKind::Int | LiteralKind::Nat | LiteralKind::Big => "number",
+            LiteralKind::Bytes | LiteralKind::String | LiteralKind::Sym => "string",
+            LiteralKind::Bool | LiteralKind::Unit => "keyword",
+        }
+    }
+}
+
+/// A printed literal and its text.
+#[derive(Clone, Debug)]
+pub struct Literal {
+    pub kind: LiteralKind,
+    /// The printed payload (`1`, `"abc"`, `true`), quotes included.
+    pub text: String,
+    pub range: Rng,
+    pub unit: usize,
+}
+
+/// A `(dictproj dict slot class)` projection.
+#[derive(Clone, Debug)]
+pub struct Projection {
+    pub range: Rng,
+    pub slot: Option<u64>,
+    pub slot_range: Option<Rng>,
+    pub class: Option<String>,
+    pub class_range: Option<Rng>,
+}
+
+/// A class name in a class position: an `@class(...)` mark, a `@params` class
+/// token or a projection's class.
+#[derive(Clone, Debug)]
+pub struct ClassOccurrence {
+    pub name: String,
+    pub range: Rng,
+}
+
+/// A `@params` entry: `name :: type @class`.
+#[derive(Clone, Debug)]
+pub struct Param {
+    pub name: String,
+    pub name_range: Rng,
+    pub ty: String,
+    /// The entry as printed, which is what a hover shows.
+    pub text: String,
+}
+
+/// A static slot table entry: `slot = unit`.
+#[derive(Clone, Debug)]
+pub struct StaticSlot {
+    pub slot: u64,
+    pub method: String,
+    pub range: Rng,
+}
+
+/// One `unit NAME :: TYPE` record and the body it prints.
+#[derive(Clone, Debug)]
+pub struct Unit {
+    pub name: String,
+    pub name_range: Rng,
+    pub ty: String,
+    pub ty_range: Rng,
+    /// The whole `unit ... end` block.
+    pub block: Rng,
+    pub anns: Vec<Annotation>,
+    pub params: Vec<Param>,
+    pub statics: Vec<StaticSlot>,
+    pub body: Option<Form>,
+}
+
+impl Unit {
+    /// The annotation of `name`, when the record carries one.
+    pub fn annotation(&self, name: &str) -> Option<&Annotation> {
+        self.anns.iter().find(|ann| ann.name == name)
+    }
+
+    /// The `@stage` value.
+    pub fn stage(&self) -> Option<&str> {
+        self.annotation("stage").map(|ann| ann.value.as_str())
+    }
+
+    /// The `@span` value.
+    pub fn span(&self) -> Option<&str> {
+        self.annotation("span").map(|ann| ann.value.as_str())
+    }
+
+    /// The `@class` value.
+    pub fn class(&self) -> Option<&str> {
+        self.annotation("class").map(|ann| ann.value.as_str())
+    }
+
+    /// The `@params` entry of `name`.
+    pub fn param(&self, name: &str) -> Option<&Param> {
+        self.params.iter().find(|param| param.name == name)
+    }
+}
+
+/// Everything the server reads from one Core file.
+#[derive(Clone, Debug, Default)]
+pub struct Syntax {
+    pub header: Vec<HeaderLine>,
+    pub units: Vec<Unit>,
+    /// References in source order.
+    pub refs: Vec<Ref>,
+    /// Literals in source order.
+    pub literals: Vec<Literal>,
+    /// Projections in source order.
+    pub projections: Vec<Projection>,
+    /// Class names in class positions, in source order.
+    pub classes: Vec<ClassOccurrence>,
+}
+
+impl Syntax {
+    /// Every expression node in the file, in source order.
+    pub fn forms(&self) -> Vec<&Form> {
+        let mut out = Vec::new();
+        for unit in &self.units {
+            if let Some(body) = &unit.body {
+                body.walk(&mut out);
+            }
+        }
+        out
+    }
+
+    /// The unit of `name`. `last` picks the later record when a file prints
+    /// the same name twice, which is what a duplicate unit's finding means.
+    pub fn unit(&self, name: &str, last: bool) -> Option<&Unit> {
+        let mut found = None;
+        for unit in &self.units {
+            if unit.name == name {
+                found = Some(unit);
+                if !last {
+                    break;
+                }
+            }
+        }
+        found
+    }
+
+    /// The range of the syntax a verifier finding names, when the file still
+    /// shows it. `None` for a header finding, which the reader located.
+    fn locate(&self, error: &Error) -> Option<Rng> {
+        if error.unit.is_empty() || error.path == "header" {
+            return None;
+        }
+        let duplicate = error.message.contains("not unique");
+        let unit = self.unit(&error.unit, duplicate)?;
+        match error.path.as_str() {
+            "" => return Some(unit.name_range),
+            "record" => return Some(unit.block),
+            "@" => {
+                let name = annotation_in(&error.message)?;
+                return Some(unit.annotation(&name).map(|ann| ann.range).unwrap_or(unit.block));
+            }
+            "@stage" | "@span" | "params" => {
+                let name = error.path.trim_start_matches('@');
+                return Some(unit.annotation(name).map(|ann| ann.range).unwrap_or(unit.block));
+            }
+            _ => {}
+        }
+        if let Some(slot) = error.path.strip_prefix("static:") {
+            let found = unit.statics.iter().find(|entry| entry.slot.to_string() == slot);
+            return Some(found.map(|entry| entry.range).unwrap_or(unit.block));
+        }
+        let found = unit.body.as_ref().and_then(|body| find_path(body, &error.path));
+        Some(found.unwrap_or(unit.block))
+    }
+}
+
+/// The `@name` an annotation finding names, if its message carries one.
+fn annotation_in(message: &str) -> Option<String> {
+    let at = message.find('@')?;
+    let rest = &message[at + 1..];
+    let end = rest
+        .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+        .unwrap_or(rest.len());
+    Some(rest[..end].to_string())
+}
+
+/// The range of the form whose structural path is `path`.
+fn find_path(form: &Form, path: &str) -> Option<Rng> {
+    if form.path == path {
+        return Some(form.range);
+    }
+    for child in &form.children {
+        if let Item::Form(child) = child {
+            if let Some(range) = find_path(child, path) {
+                return Some(range);
+            }
+        }
+    }
+    None
+}
+
+// ------------------------------------------------------------ the scanner
+
+/// The file as characters plus each line's start offset, so a character
+/// offset converts to an LSP position in one step.
+struct Source {
+    chars: Vec<char>,
+    /// The character offset each line starts at; `starts[0]` is zero.
+    starts: Vec<usize>,
+}
+
+impl Source {
+    fn new(text: &str) -> Source {
+        let chars: Vec<char> = text.chars().collect();
+        let mut starts = vec![0usize];
+        for (offset, c) in chars.iter().enumerate() {
+            if *c == '\n' {
+                starts.push(offset + 1);
+            }
+        }
+        Source { chars, starts }
+    }
+
+    fn lines(&self) -> usize {
+        self.starts.len()
+    }
+
+    /// Line `index` without its terminator.
+    fn line(&self, index: usize) -> &[char] {
+        let start = self.starts[index];
+        let mut end = match self.starts.get(index + 1) {
+            Some(next) => next - 1,
+            None => self.chars.len(),
+        };
+        while end > start && self.chars[end - 1] == '\r' {
+            end -= 1;
+        }
+        &self.chars[start..end]
+    }
+
+    /// Line `index` as text.
+    fn text(&self, index: usize) -> String {
+        self.line(index).iter().collect()
+    }
+
+    /// The LSP position of a character offset.
+    fn pos(&self, offset: usize) -> Pos {
+        let offset = offset.min(self.chars.len());
+        let line = self.starts.partition_point(|start| *start <= offset).saturating_sub(1);
+        let col: usize = self.chars[self.starts[line]..offset]
+            .iter()
+            .map(|c| c.len_utf16())
+            .sum();
+        (line as u32, col as u32)
+    }
+
+    fn rng(&self, start: usize, end: usize) -> Rng {
+        Rng { start: self.pos(start), end: self.pos(end) }
+    }
+
+    /// A whole line, terminator excluded.
+    fn line_rng(&self, index: usize) -> Rng {
+        let start = self.starts[index];
+        self.rng(start, start + self.line(index).len())
+    }
+
+    /// The character offset of column `col` on `line`.
+    fn offset(&self, line: usize, col: usize) -> usize {
+        self.starts[line] + col
+    }
+
+    fn slice(&self, start: usize, end: usize) -> String {
+        let start = start.min(self.chars.len());
+        let end = end.min(self.chars.len()).max(start);
+        self.chars[start..end].iter().collect()
+    }
+}
+
+/// The offset of `needle` in `line` from `from`, as a character index.
+fn find_chars(line: &[char], from: usize, needle: &str) -> Option<usize> {
+    let needle: Vec<char> = needle.chars().collect();
+    if needle.is_empty() {
+        return Some(from);
+    }
+    let mut at = from;
+    while at + needle.len() <= line.len() {
+        if line[at..at + needle.len()] == needle[..] {
+            return Some(at);
+        }
+        at += 1;
+    }
+    None
+}
+
+/// `line[from..to]` trimmed of whitespace, as a character range.
+fn word_span(line: &[char], from: usize, to: usize) -> (usize, usize) {
+    let to = to.min(line.len());
+    let from = from.min(to);
+    let mut start = from;
+    let mut end = to;
+    while start < end && line[start].is_whitespace() {
+        start += 1;
+    }
+    while end > start && line[end - 1].is_whitespace() {
+        end -= 1;
+    }
+    (start, end)
+}
+
+/// A character cursor over the file. Bodies run over several lines, so the
+/// cursor crosses a line end as whitespace.
+struct Cursor<'a> {
+    src: &'a Source,
+    line: usize,
+    col: usize,
+}
+
+impl<'a> Cursor<'a> {
+    fn new(src: &'a Source, line: usize, col: usize) -> Cursor<'a> {
+        Cursor { src, line, col }
+    }
+
+    fn peek(&self) -> Option<char> {
+        let line = self.src.line(self.line);
+        if self.col < line.len() {
+            Some(line[self.col])
+        } else if self.line + 1 < self.src.lines() {
+            Some('\n')
+        } else {
+            None
+        }
+    }
+
+    fn bump(&mut self) {
+        let len = self.src.line(self.line).len();
+        if self.col < len {
+            self.col += 1;
+        } else if self.line + 1 < self.src.lines() {
+            self.line += 1;
+            self.col = 0;
+        }
+    }
+
+    fn offset(&self) -> usize {
+        self.src.offset(self.line, self.col)
+    }
+
+    fn skip_ws(&mut self) {
+        while self.peek().is_some_and(|c| c.is_whitespace()) {
+            self.bump();
+        }
+    }
+
+    /// A token up to whitespace or a parenthesis.
+    fn token(&mut self) -> String {
+        let mut out = String::new();
+        while let Some(c) = self.peek() {
+            if c.is_whitespace() || c == '(' || c == ')' {
+                break;
+            }
+            out.push(c);
+            self.bump();
+        }
+        out
+    }
+
+    /// A form's keyword: a token that also stops at a nested form, a quoted
+    /// atom and a mark.
+    fn head_token(&mut self) -> String {
+        let mut out = String::new();
+        while let Some(c) = self.peek() {
+            if c.is_whitespace() || matches!(c, '(' | ')' | '"' | '@') {
+                break;
+            }
+            out.push(c);
+            self.bump();
+        }
+        out
+    }
+
+    /// A quoted atom, quotes included.
+    fn string_token(&mut self) -> String {
+        let mut out = String::new();
+        if self.peek() != Some('"') {
+            return out;
+        }
+        out.push('"');
+        self.bump();
+        let mut escaped = false;
+        while let Some(c) = self.peek() {
+            out.push(c);
+            self.bump();
+            if escaped {
+                escaped = false;
+            } else if c == '\\' {
+                escaped = true;
+            } else if c == '"' {
+                break;
+            }
+        }
+        out
+    }
+}
+
+/// Read a mark: `@name`, `@name(value)`.
+fn parse_mark(src: &Source, cursor: &mut Cursor) -> Mark {
+    let start = cursor.offset();
+    cursor.bump(); // `@`
+    let name_start = cursor.offset();
+    let mut name = String::new();
+    while let Some(c) = cursor.peek() {
+        if c.is_whitespace() || matches!(c, '(' | ')' | '@' | '"') {
+            break;
+        }
+        name.push(c);
+        cursor.bump();
+    }
+    let name_range = src.rng(name_start, cursor.offset());
+    let mut value = String::new();
+    let mut value_range = Rng::default();
+    if cursor.peek() == Some('(') {
+        cursor.bump();
+        let value_start = cursor.offset();
+        let mut depth = 1;
+        while let Some(c) = cursor.peek() {
+            match c {
+                '(' => {
+                    depth += 1;
+                    cursor.bump();
+                }
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        break;
+                    }
+                    cursor.bump();
+                }
+                '"' => {
+                    cursor.string_token();
+                }
+                _ => cursor.bump(),
+            }
+        }
+        let value_end = cursor.offset();
+        if cursor.peek() == Some(')') {
+            cursor.bump();
+        }
+        value = src.slice(value_start, value_end);
+        value_range = src.rng(value_start, value_end);
+    }
+    Mark { name, range: src.rng(start, cursor.offset()), name_range, value, value_range }
+}
+
+/// Read one expression node. `path` is the structural path the verifier gives
+/// the node's position.
+fn parse_form(
+    src: &Source,
+    syn: &mut Syntax,
+    cursor: &mut Cursor,
+    unit: usize,
+    path: String,
+) -> Option<Form> {
+    cursor.skip_ws();
+    let start = cursor.offset();
+    let ch = cursor.peek()?;
+    if ch != '(' {
+        let text = if ch == '"' { cursor.string_token() } else { cursor.token() };
+        if text.is_empty() {
+            return None;
+        }
+        let range = src.rng(start, cursor.offset());
+        return Some(Form {
+            head: text,
+            head_range: range,
+            range,
+            path,
+            atom: true,
+            marks: Vec::new(),
+            children: Vec::new(),
+        });
+    }
+    cursor.bump();
+    cursor.skip_ws();
+    let head_start = cursor.offset();
+    let head = cursor.head_token();
+    let head_range = src.rng(head_start, cursor.offset());
+    let mut marks = Vec::new();
+    let mut children = Vec::new();
+    loop {
+        cursor.skip_ws();
+        let Some(ch) = cursor.peek() else { break };
+        match ch {
+            ')' => {
+                cursor.bump();
+                break;
+            }
+            '(' => {
+                // An alternative prints as `((pattern) body)`, and the
+                // verifier names its fields from one, so the path rule
+                // differs from the numbered default.
+                let child = if head.is_empty() {
+                    if children.is_empty() {
+                        format!("{path}:pattern")
+                    } else {
+                        format!("{path}:field {}", children.len())
+                    }
+                } else {
+                    child_path(&head, children.len(), &path)
+                };
+                match parse_form(src, syn, cursor, unit, child) {
+                    Some(child) => children.push(Item::Form(Box::new(child))),
+                    None => break,
+                }
+            }
+            '@' => marks.push(parse_mark(src, cursor)),
+            _ => {
+                let atom_start = cursor.offset();
+                let text = if ch == '"' { cursor.string_token() } else { cursor.token() };
+                let range = src.rng(atom_start, cursor.offset());
+                if text.is_empty() {
+                    cursor.bump();
+                } else {
+                    children.push(Item::Atom(Atom { text, range }));
+                }
+            }
+        }
+    }
+    let range = src.rng(start, cursor.offset());
+    let form = Form { head, head_range, range, path, atom: false, marks, children };
+    record(syn, unit, &form);
+    Some(form)
+}
+
+/// Record what a finished node means: a reference, a literal, a projection,
+/// and the classes its marks name.
+fn record(syn: &mut Syntax, unit: usize, form: &Form) {
+    for mark in &form.marks {
+        if mark.name == "class" && !mark.value.is_empty() {
+            syn.classes
+                .push(ClassOccurrence { name: mark.value.clone(), range: mark.value_range });
+        }
+    }
+    let kind = match form.head.as_str() {
+        "local" => Some(RefKind::Local),
+        "global" => Some(RefKind::Global),
+        "ctor" => Some(RefKind::Ctor),
+        "prim" => Some(RefKind::Prim),
+        "foreign" => Some(RefKind::Foreign),
+        _ => None,
+    };
+    if let Some(kind) = kind {
+        if let Some(atom) = form.atom(0) {
+            let name = match kind {
+                RefKind::Foreign => strip_quotes(&atom.text),
+                _ => unquote(&atom.text),
+            };
+            syn.refs.push(Ref { kind, name, range: atom.range, unit });
+        }
+        return;
+    }
+    let literal = match form.head.as_str() {
+        "int" => Some(LiteralKind::Int),
+        "nat" => Some(LiteralKind::Nat),
+        "bigint" => Some(LiteralKind::Big),
+        "bytes" => Some(LiteralKind::Bytes),
+        "string" => Some(LiteralKind::String),
+        "sym" => Some(LiteralKind::Sym),
+        "bool" => Some(LiteralKind::Bool),
+        "unit" => Some(LiteralKind::Unit),
+        _ => None,
+    };
+    if let Some(kind) = literal {
+        let (text, range) = match form.atom(0) {
+            Some(atom) => (atom.text.clone(), atom.range),
+            None => (String::new(), form.head_range),
+        };
+        syn.literals.push(Literal { kind, text, range, unit });
+        return;
+    }
+    if form.head == "dictproj" {
+        let slot_atom = form.atom(1);
+        let slot = slot_atom.and_then(|atom| atom.text.parse::<u64>().ok());
+        let slot_range = slot_atom.map(|atom| atom.range);
+        let class_atom = form.atom(2);
+        let class = class_atom
+            .map(|atom| unquote(&atom.text))
+            .filter(|name| !name.is_empty() && name != "-");
+        let class_range = class_atom.map(|atom| atom.range);
+        if let (Some(name), Some(range)) = (class.clone(), class_range) {
+            syn.classes.push(ClassOccurrence { name, range });
+        }
+        syn.projections
+            .push(Projection { range: form.range, slot, slot_range, class, class_range });
+    }
+}
+
+/// A `"name"` atom without its quotes.
+fn strip_quotes(text: &str) -> String {
+    text.strip_prefix('"')
+        .and_then(|rest| rest.strip_suffix('"'))
+        .unwrap_or(text)
+        .to_string()
+}
+
+/// Walk a Core file and describe it. The reader is deliberately shallow: it
+/// re-reads the printed shape, never the program the printer started from.
+struct Builder<'a> {
+    src: &'a Source,
+    syn: Syntax,
+}
+
+impl<'a> Builder<'a> {
+    fn build(mut self) -> Syntax {
+        let lines = self.src.lines();
+        let mut i = 0;
+        if lines > 0 && self.src.text(0) == "core 1" {
+            self.syn.header.push(HeaderLine {
+                kind: HeaderKind::Version,
+                value: "1".to_string(),
+                range: self.src.line_rng(0),
+            });
+            i = 1;
+        }
+        while i < lines {
+            let Some(kind) = self.header_kind(i) else { break };
+            let text = self.src.text(i);
+            let value = text
+                .strip_prefix(kind.word())
+                .map(|rest| rest.trim_start().to_string())
+                .unwrap_or_default();
+            self.syn.header.push(HeaderLine { kind, value, range: self.src.line_rng(i) });
+            i += 1;
+        }
+        while i < lines {
+            if self.src.text(i).starts_with("unit ") {
+                i = self.unit(i);
+            } else {
+                i += 1;
+            }
+        }
+        self.syn
+    }
+
+    fn header_kind(&self, line: usize) -> Option<HeaderKind> {
+        let text = self.src.text(line);
+        if text.starts_with("module ") {
+            Some(HeaderKind::Module)
+        } else if text.starts_with("target ") {
+            Some(HeaderKind::Target)
+        } else if text.starts_with("source ") {
+            Some(HeaderKind::Source)
+        } else if text.starts_with("global ") {
+            Some(HeaderKind::Global)
+        } else {
+            None
+        }
+    }
+
+    /// Read one unit record and return the line after its block.
+    fn unit(&mut self, start: usize) -> usize {
+        let chars = self.src.line(start).to_vec();
+        let prefix = "unit ".chars().count();
+        let sep = find_chars(&chars, prefix, " :: ");
+        let (name_start, name_end) = word_span(&chars, prefix, sep.unwrap_or(chars.len()));
+        let (ty_start, ty_end) = match sep {
+            Some(at) => word_span(&chars, at + 4, chars.len()),
+            None => (chars.len(), chars.len()),
+        };
+        let index = self.syn.units.len();
+        self.syn.units.push(Unit {
+            name: chars[name_start..name_end].iter().collect(),
+            name_range: self
+                .src
+                .rng(self.src.offset(start, name_start), self.src.offset(start, name_end)),
+            ty: chars[ty_start..ty_end].iter().collect(),
+            ty_range: self.src.rng(self.src.offset(start, ty_start), self.src.offset(start, ty_end)),
+            block: Rng::default(),
+            anns: Vec::new(),
+            params: Vec::new(),
+            statics: Vec::new(),
+            body: None,
+        });
+        let mut i = start + 1;
+        let mut end_line = None;
+        while i < self.src.lines() {
+            let text = self.src.text(i);
+            if text == "end" {
+                end_line = Some(i);
+                break;
+            }
+            if text.starts_with("  @") {
+                self.annotation(index, i);
+            } else if text.starts_with("  body ") {
+                let col = "  body ".chars().count();
+                let mut cursor = Cursor::new(self.src, i, col);
+                let body =
+                    parse_form(self.src, &mut self.syn, &mut cursor, index, "body".to_string());
+                self.syn.units[index].body = body;
+                // A body runs until its form closes, which may be past this
+                // line; the line that closes it is the last one it occupies.
+                i = (cursor.line + 1).max(i + 1);
+                continue;
+            } else if let Some(rest) = text.strip_prefix("  static ") {
+                self.statics(index, i, rest);
+            }
+            i += 1;
+        }
+        // The block ends at `end`, or at the last line the record occupied.
+        let last = end_line.unwrap_or_else(|| i.saturating_sub(1).max(start));
+        let next = end_line.map(|end| end + 1).unwrap_or(i);
+        self.syn.units[index].block = Rng::new(
+            self.src.line_rng(start).start,
+            self.src.line_rng(last.min(self.src.lines().saturating_sub(1)).max(start)).end,
+        );
+        next
+    }
+
+    /// Read an annotation line: `@name(value)` or `@name value`.
+    fn annotation(&mut self, unit: usize, line: usize) {
+        let chars = self.src.line(line).to_vec();
+        let at = "  ".chars().count();
+        let mut name_end = at + 1;
+        while name_end < chars.len() && !matches!(chars[name_end], ' ' | '(' | ')') {
+            name_end += 1;
+        }
+        let name: String = chars[at + 1..name_end].iter().collect();
+        let (value_start, value_end) = if name_end < chars.len() && chars[name_end] == '(' {
+            let mut close = chars.len();
+            while close > name_end && chars[close - 1] != ')' {
+                close -= 1;
+            }
+            let close = if close > name_end { close - 1 } else { name_end + 1 };
+            (name_end + 1, close.max(name_end + 1))
+        } else {
+            word_span(&chars, name_end, chars.len())
+        };
+        let value: String = chars[value_start..value_end].iter().collect();
+        let mut end = chars.len();
+        while end > at && chars[end - 1].is_whitespace() {
+            end -= 1;
+        }
+        let ann = Annotation {
+            name: name.clone(),
+            range: self.src.rng(self.src.offset(line, at), self.src.offset(line, end)),
+            name_range: self
+                .src
+                .rng(self.src.offset(line, at + 1), self.src.offset(line, name_end)),
+            value_range: self
+                .src
+                .rng(self.src.offset(line, value_start), self.src.offset(line, value_end)),
+            value,
+        };
+        if name == "params" {
+            let params = self.params(line, value_start, value_end);
+            self.syn.units[unit].params = params;
+        }
+        if name == "class" && !ann.value.is_empty() {
+            self.syn
+                .classes
+                .push(ClassOccurrence { name: ann.value.clone(), range: ann.value_range });
+        }
+        self.syn.units[unit].anns.push(ann);
+    }
+
+    /// Read a `@params` value: `name :: type @class`, comma separated.
+    fn params(&mut self, line: usize, from: usize, to: usize) -> Vec<Param> {
+        let chars = self.src.line(line);
+        let to = to.min(chars.len());
+        let from = from.min(to);
+        let mut spans = Vec::new();
+        let mut start = from;
+        let mut depth = 0i32;
+        let mut at = from;
+        while at < to {
+            match chars[at] {
+                '(' | '[' | '{' => depth += 1,
+                ')' | ']' | '}' => depth -= 1,
+                ',' if depth == 0 => {
+                    spans.push((start, at));
+                    start = at + 1;
+                }
+                _ => {}
+            }
+            at += 1;
+        }
+        spans.push((start, to));
+        let mut out = Vec::new();
+        for (part_start, part_end) in spans {
+            let (start, end) = word_span(chars, part_start, part_end);
+            if start == end {
+                continue;
+            }
+            let (name_start, name_end, ty) = match find_chars(chars, start, " :: ") {
+                Some(sep) if sep < end => {
+                    let (name_start, name_end) = word_span(chars, start, sep);
+                    let (ty_start, ty_end) = word_span(chars, sep + 4, end);
+                    (
+                        name_start,
+                        name_end,
+                        chars[ty_start.min(ty_end)..ty_end.max(ty_start)].iter().collect(),
+                    )
+                }
+                _ => (start, end, String::new()),
+            };
+            // The class token follows the type, as `@owned`.
+            let mut class_at = name_end;
+            while class_at < end && chars[class_at] != '@' {
+                class_at += 1;
+            }
+            if class_at < end {
+                let mut class_end = class_at + 1;
+                while class_end < end && !chars[class_end].is_whitespace() {
+                    class_end += 1;
+                }
+                let name: String = chars[(class_at + 1).min(class_end)..class_end.max(class_at + 1)]
+                    .iter()
+                    .collect();
+                if !name.is_empty() {
+                    self.syn.classes.push(ClassOccurrence {
+                        name,
+                        range: self.src.rng(
+                            self.src.offset(line, class_at + 1),
+                            self.src.offset(line, class_end),
+                        ),
+                    });
+                }
+            }
+            out.push(Param {
+                name: chars[name_start..name_end].iter().collect(),
+                name_range: self
+                    .src
+                    .rng(self.src.offset(line, name_start), self.src.offset(line, name_end)),
+                ty,
+                text: chars[start..end].iter().collect(),
+            });
+        }
+        out
+    }
+
+    /// Read a `static { slot = unit, ... }` line.
+    fn statics(&mut self, unit: usize, line: usize, rest: &str) {
+        let chars = self.src.line(line).to_vec();
+        let offset = chars.len().saturating_sub(rest.chars().count());
+        let Some(open) = find_chars(&chars, offset, "{") else { return };
+        let Some(close) = find_chars(&chars, open, "}") else { return };
+        let mut spans = Vec::new();
+        let mut start = open + 1;
+        let mut depth = 0i32;
+        let mut at = open + 1;
+        while at < close {
+            match chars[at] {
+                '(' | '[' | '{' => depth += 1,
+                ')' | ']' | '}' => depth -= 1,
+                ',' if depth == 0 => {
+                    spans.push((start, at));
+                    start = at + 1;
+                }
+                _ => {}
+            }
+            at += 1;
+        }
+        spans.push((start, close));
+        let mut slots = Vec::new();
+        for (part_start, part_end) in spans {
+            let (start, end) = word_span(&chars, part_start, part_end);
+            let Some(equals) = find_chars(&chars, start, "=") else { continue };
+            if equals >= end {
+                continue;
+            }
+            let slot: String = chars[start..equals].iter().collect();
+            let Ok(slot) = slot.trim().parse::<u64>() else { continue };
+            let (method_start, method_end) = word_span(&chars, equals + 1, end);
+            slots.push(StaticSlot {
+                slot,
+                method: chars[method_start.min(method_end)..method_end.max(method_start)]
+                    .iter()
+                    .collect(),
+                range: self.src.rng(self.src.offset(line, start), self.src.offset(line, end)),
+            });
+        }
+        self.syn.units[unit].statics = slots;
+    }
+}
+
+/// Describe a Core file's structure with source ranges.
+pub fn syntax(text: &str) -> Syntax {
+    let src = Source::new(text);
+    let mut syn = Builder { src: &src, syn: Syntax::default() }.build();
+    // The scanner records a node when it closes, so the flat lists are in
+    // post-order; sort them into the source order the API promises.
+    syn.refs.sort_by_key(|item| (item.range.start, item.range.end));
+    syn.literals.sort_by_key(|item| (item.range.start, item.range.end));
+    syn.projections.sort_by_key(|item| (item.range.start, item.range.end));
+    syn.classes.sort_by_key(|item| (item.range.start, item.range.end));
+    syn
+}
+
+// ------------------------------------------------------------- hover
+
+/// What a hover over a Core position reports.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Hover {
+    pub range: Rng,
+    pub markdown: String,
+}
+
+/// A local a body binds, with the annotation the printer gave it.
+#[derive(Clone, Debug)]
+struct Binder {
+    name: String,
+    detail: String,
+}
+
+/// The hover for a position (0-based line, 0-based UTF-16 column), if the text
+/// says anything about it.
+pub fn hover(text: &str, line: u32, column: u32) -> Option<Hover> {
+    let syn = syntax(text);
+    let pos = (line, column);
+    let unit = syn.units.iter().find(|unit| unit.block.contains(pos))?;
+    if unit.name_range.contains(pos) {
+        return Some(Hover { range: unit.name_range, markdown: unit_markdown(unit) });
+    }
+    if unit.ty_range.contains(pos) {
+        return Some(Hover { range: unit.ty_range, markdown: format!("`:: {}`", unit.ty) });
+    }
+    for ann in &unit.anns {
+        if ann.range.contains(pos) {
+            return Some(Hover { range: ann.range, markdown: annotation_markdown(&syn, ann) });
+        }
+    }
+    for param in &unit.params {
+        if param.name_range.contains(pos) {
+            return Some(param_hover(param));
+        }
+    }
+    if let Some(body) = &unit.body {
+        let mut scope: Vec<Binder> = unit
+            .params
+            .iter()
+            .map(|param| Binder { name: param.name.clone(), detail: param.text.clone() })
+            .collect();
+        if let Some(hover) = hover_form(&syn, unit, body, pos, &mut scope) {
+            return Some(hover);
+        }
+    }
+    for class in &syn.classes {
+        if class.range.contains(pos) {
+            return Some(class_hover(&syn, &class.name, class.range));
+        }
+    }
+    for literal in &syn.literals {
+        if literal.range.contains(pos) {
+            return Some(Hover { range: literal.range, markdown: literal_markdown(literal) });
+        }
+    }
+    None
+}
+
+/// The hover for a node, given the locals its enclosing forms bind.
+fn hover_form(
+    syn: &Syntax,
+    unit: &Unit,
+    form: &Form,
+    pos: Pos,
+    scope: &mut Vec<Binder>,
+) -> Option<Hover> {
+    if !form.range.contains(pos) {
+        return None;
+    }
+    for mark in &form.marks {
+        if mark.range.contains(pos) {
+            return Some(Hover { range: mark.range, markdown: mark_markdown(syn, mark) });
+        }
+    }
+    if let Some(hover) = operand_hover(syn, form, pos, scope) {
+        return Some(hover);
+    }
+    if form.head_range.contains(pos) && !form.head.is_empty() {
+        if let Some(param) = unit.param(&form.head) {
+            return Some(param_hover(param));
+        }
+        return Some(Hover { range: form.head_range, markdown: format!("`{}`", form.head) });
+    }
+    // An alternative: its first child is the pattern, which binds in the rest
+    // of the alternative.
+    if form.head.is_empty() && !form.children.is_empty() {
+        let mut binders = Vec::new();
+        if let Item::Form(pattern) = &form.children[0] {
+            form_pattern_binders(pattern, unit, &mut binders);
+        }
+        for (index, child) in form.children.iter().enumerate() {
+            let before = scope.len();
+            if index > 0 {
+                scope.extend(binders.iter().cloned());
+            }
+            let hit = match child {
+                Item::Atom(atom) => atom_hover(unit, atom, pos),
+                Item::Form(child) => hover_form(syn, unit, child, pos, scope),
+            };
+            scope.truncate(before);
+            if hit.is_some() {
+                return hit;
+            }
+        }
+        return None;
+    }
+    if form.head == "let" {
+        let binder = form.atom(0).map(|atom| binder_for(unit, form, &atom.text));
+        let body_index = form.children.len().saturating_sub(1);
+        for (index, child) in form.children.iter().enumerate() {
+            let before = scope.len();
+            let hit = match child {
+                Item::Atom(atom) => {
+                    if index == 0 && atom.range.contains(pos) {
+                        Some(Hover {
+                            range: atom.range,
+                            markdown: binder_markdown(&atom.text, binder.as_ref()),
+                        })
+                    } else {
+                        None
+                    }
+                }
+                Item::Form(child) => {
+                    if index == body_index {
+                        if let Some(binder) = &binder {
+                            scope.push(binder.clone());
+                        }
+                    }
+                    hover_form(syn, unit, child, pos, scope)
+                }
+            };
+            scope.truncate(before);
+            if hit.is_some() {
+                return hit;
+            }
+        }
+        return None;
+    }
+    if form.head == "lam" {
+        // The parameter list is the first child; its names bind in the rest of
+        // the form.
+        let mut binders = Vec::new();
+        if let Some(params) = form.form(0) {
+            if !params.head.is_empty() {
+                binders.push(binder_for(unit, params, &params.head));
+            }
+            for child in &params.children {
+                if let Item::Atom(atom) = child {
+                    binders.push(binder_for(unit, params, &atom.text));
+                }
+            }
+        }
+        if let Some(params) = form.form(0) {
+            if let Some(hover) = hover_form(syn, unit, params, pos, scope) {
+                return Some(hover);
+            }
+        }
+        for (index, child) in form.children.iter().enumerate() {
+            if index == 0 {
+                continue;
+            }
+            let Item::Form(child) = child else { continue };
+            let before = scope.len();
+            scope.extend(binders.iter().cloned());
+            let hit = hover_form(syn, unit, child, pos, scope);
+            scope.truncate(before);
+            if hit.is_some() {
+                return hit;
+            }
+        }
+        return None;
+    }
+    for child in &form.children {
+        let hit = match child {
+            Item::Atom(atom) => atom_hover(unit, atom, pos),
+            Item::Form(child) => hover_form(syn, unit, child, pos, scope),
+        };
+        if hit.is_some() {
+            return hit;
+        }
+    }
+    None
+}
+
+/// The hover for a form's operand: a reference, a projection's slot or class.
+fn operand_hover(syn: &Syntax, form: &Form, pos: Pos, scope: &[Binder]) -> Option<Hover> {
+    match form.head.as_str() {
+        "local" => {
+            let atom = form.atom(0)?;
+            if !atom.range.contains(pos) {
+                return None;
+            }
+            let name = &atom.text;
+            let binder = scope.iter().rev().find(|binder| &binder.name == name);
+            let markdown = match binder {
+                Some(binder) => format!("local `{name}`\n\nbound by `{}`", binder.detail),
+                None => format!("local `{name}`\n\nnot bound by an enclosing form"),
+            };
+            Some(Hover { range: atom.range, markdown })
+        }
+        "global" | "ctor" => {
+            let atom = form.atom(0)?;
+            if !atom.range.contains(pos) {
+                return None;
+            }
+            let name = unquote(&atom.text);
+            let markdown = match syn.unit(&name, false) {
+                Some(unit) => ref_markdown(unit),
+                None => format!("imported unit: no definition in this file\n\n`{name}`"),
+            };
+            Some(Hover { range: atom.range, markdown })
+        }
+        "prim" => {
+            let atom = form.atom(0)?;
+            if !atom.range.contains(pos) {
+                return None;
+            }
+            Some(Hover {
+                range: atom.range,
+                markdown: format!("runtime prim `{}`", unquote(&atom.text)),
+            })
+        }
+        "foreign" => {
+            let atom = form.atom(0)?;
+            if !atom.range.contains(pos) {
+                return None;
+            }
+            Some(Hover {
+                range: atom.range,
+                markdown: format!("foreign unit `{}`", strip_quotes(&atom.text)),
+            })
+        }
+        "instdict" => {
+            let atom = form.atom(0)?;
+            if !atom.range.contains(pos) {
+                return None;
+            }
+            let name = unquote(&atom.text);
+            let markdown = match syn.unit(&name, false) {
+                Some(unit) => ref_markdown(unit),
+                None => format!("dictionary `{name}`"),
+            };
+            Some(Hover { range: atom.range, markdown })
+        }
+        "dictproj" => {
+            if let Some(atom) = form.atom(1) {
+                if atom.range.contains(pos) {
+                    return Some(Hover {
+                        range: atom.range,
+                        markdown: format!(
+                            "dictionary slot {}\n\nthe slot the dictionary's class index names",
+                            atom.text
+                        ),
+                    });
+                }
+            }
+            let atom = form.atom(2)?;
+            if !atom.range.contains(pos) {
+                return None;
+            }
+            Some(class_hover(syn, &unquote(&atom.text), atom.range))
+        }
+        _ => None,
+    }
+}
+
+/// The hover for an atom child, which is a parameter's name when `@params`
+/// prints it.
+fn atom_hover(unit: &Unit, atom: &Atom, pos: Pos) -> Option<Hover> {
+    if !atom.range.contains(pos) {
+        return None;
+    }
+    match unit.param(&atom.text) {
+        Some(param) => Some(param_hover(param)),
+        None => Some(Hover { range: atom.range, markdown: format!("`{}`", atom.text) }),
+    }
+}
+
+fn param_hover(param: &Param) -> Hover {
+    Hover {
+        range: param.name_range,
+        markdown: format!("parameter `{}`\n\n`{}`", param.name, param.text),
+    }
+}
+
+/// The binder a form introduces under `index`, with the annotation the printer
+/// gave it.
+fn binder_for(unit: &Unit, form: &Form, name: &str) -> Binder {
+    if let Some(param) = unit.param(name) {
+        return Binder { name: name.to_string(), detail: param.text.clone() };
+    }
+    // A printer that writes `:: type` between a binder and its value prints it
+    // as a `::`-prefixed atom; this compiler prints only the class.
+    let typed = form.children.iter().find_map(|child| match child {
+        Item::Atom(atom) if atom.text.starts_with(":: ") => Some(atom.text.clone()),
+        _ => None,
+    });
+    Binder {
+        name: name.to_string(),
+        detail: typed.unwrap_or_else(|| "local binder".to_string()),
+    }
+}
+
+fn binder_markdown(name: &str, binder: Option<&Binder>) -> String {
+    match binder {
+        Some(binder) => format!("local `{name}`\n\nbound by `{}`", binder.detail),
+        None => format!("local `{name}`"),
+    }
+}
+
+/// The locals a pattern binds, by the rule the verifier uses: a `con` pattern
+/// binds its fields, an `int`/`nat` pattern binds nothing, and any other list
+/// head is a variable.
+fn form_pattern_binders(pattern: &Form, unit: &Unit, out: &mut Vec<Binder>) {
+    if pattern.atom {
+        if pattern.head != "_" {
+            out.push(binder_for(unit, pattern, &pattern.head));
+        }
+        return;
+    }
+    match pattern.head.as_str() {
+        "con" => {
+            for child in pattern.children.iter().skip(1) {
+                if let Item::Form(child) = child {
+                    form_pattern_binders(child, unit, out);
+                }
+            }
+        }
+        "int" | "nat" | "" => {}
+        name => out.push(binder_for(unit, pattern, name)),
+    }
+}
+
+/// A unit's type, class, span and stage.
+fn unit_markdown(unit: &Unit) -> String {
+    let mut out = format!("`{}`\n\ntype: `{}`", unit.name, dash(&unit.ty));
+    if let Some(class) = unit.class() {
+        out.push_str(&format!("\nclass: `{class}`"));
+    }
+    if let Some(span) = unit.span() {
+        out.push_str(&format!("\nspan: `{span}`"));
+        if let Some((file, line, column)) = span_position(span) {
+            out.push_str(&format!("\nsource `{file}` line {line}, column {column}"));
+        }
+    }
+    if let Some(stage) = unit.stage() {
+        out.push_str(&format!("\nstage: `{stage}`"));
+    }
+    out
+}
+
+/// A referenced unit's type and location.
+fn ref_markdown(unit: &Unit) -> String {
+    let mut out = format!("`{} :: {}`", unit.name, dash(&unit.ty));
+    if let Some(span) = unit.span() {
+        out.push_str(&format!("\n\nspan: `{span}`"));
+    }
+    if let Some(stage) = unit.stage() {
+        out.push_str(&format!("\n\nstage: `{stage}`"));
+    }
+    out
+}
+
+fn dash(text: &str) -> &str {
+    if text.is_empty() {
+        "-"
+    } else {
+        text
+    }
+}
+
+/// A class name and the dictionary bindings of this file that provide it.
+fn class_hover(syn: &Syntax, name: &str, range: Rng) -> Hover {
+    let mut markdown = format!("class `{name}`");
+    let providers: Vec<&Unit> = syn
+        .units
+        .iter()
+        .filter(|unit| !unit.statics.is_empty() && unquote(&unit.ty) == name)
+        .collect();
+    if providers.is_empty() {
+        markdown.push_str("\n\nno dictionary bindings in this file");
+    } else {
+        markdown.push_str("\n\nprovided by:");
+        for unit in providers {
+            let slots: Vec<String> = unit
+                .statics
+                .iter()
+                .map(|slot| format!("{} = `{}`", slot.slot, slot.method))
+                .collect();
+            markdown.push_str(&format!("\n- `{}`, slots {}", unit.name, slots.join(", ")));
+        }
+    }
+    Hover { range, markdown }
+}
+
+fn annotation_markdown(syn: &Syntax, ann: &Annotation) -> String {
+    match ann.name.as_str() {
+        "span" => match span_position(&ann.value) {
+            Some((file, line, column)) => {
+                format!("`@span`: source `{file}` line {line}, column {column}")
+            }
+            None => format!("`@span`\n\n`{}`", ann.value),
+        },
+        "stage" => format!("stage `{}`", ann.value),
+        "class" => class_hover(syn, &ann.value, ann.range).markdown,
+        "params" => format!("the unit's parameters\n\n`@params {}`", ann.value),
+        "instance" => format!("dictionary instance\n\n`@instance({})`", ann.value),
+        _ => {
+            if ann.value.is_empty() {
+                format!("`@{}`", ann.name)
+            } else {
+                format!("`@{}`\n\n`{}`", ann.name, ann.value)
+            }
+        }
+    }
+}
+
+fn mark_markdown(syn: &Syntax, mark: &Mark) -> String {
+    match mark.name.as_str() {
+        "class" => class_hover(syn, &mark.value, mark.value_range).markdown,
+        "classes" => format!("instantiation classes `{}`", mark.value),
+        "weight" => format!("alternative weight `{}`", mark.value),
+        _ => format!("`@{}`", mark.name),
+    }
+}
+
+fn literal_markdown(literal: &Literal) -> String {
+    if literal.text.is_empty() {
+        format!("{} literal", literal.kind.word())
+    } else {
+        format!("{} literal `{}`", literal.kind.word(), literal.text)
+    }
+}
+
+/// A `@span` value as its file, line and column.
+fn span_position(value: &str) -> Option<(&str, u32, u32)> {
+    let mut parts = value.rsplitn(3, ':');
+    let column = parts.next()?.parse::<u32>().ok()?;
+    let line = parts.next()?.parse::<u32>().ok()?;
+    let file = parts.next()?.trim();
+    if file.is_empty() {
+        return None;
+    }
+    Some((file, line, column))
+}
+
+/// The range of the unit a `(global X)` names, when `X` is a unit of this
+/// file. `None` for an imported name: a jump to a guess is worse than none.
+pub fn definition(text: &str, line: u32, column: u32) -> Option<(u32, u32, u32, u32)> {
+    let syn = syntax(text);
+    let pos = (line, column);
+    for reference in &syn.refs {
+        if reference.kind != RefKind::Global || !reference.range.contains(pos) {
+            continue;
+        }
+        let unit = syn.unit(&reference.name, false)?;
+        return Some(unit.name_range.tuple());
+    }
+    None
 }
 
 #[cfg(test)]
@@ -2845,4 +4598,266 @@ end
         );
         assert_eq!(diff(left, left), None);
     }
+    // -------------------------------------------------- the syntax view
+
+    const SAMPLE: &str = "\
+core 1
+module Main
+source sha256:0000000000000000000000000000000000000000000000000000000000000000
+unit Main.EchoInt :: Main.Echo
+  @span tests/core/dictionaries.cinch:2:3
+  @instance(tparams 0, subdicts 0)
+  @stage(checked)
+  static {0 = Main.EchoInt.echo}
+end
+unit Main.EchoInt.echo :: -
+  @params v4343 :: - @owned
+  @stage(checked)
+  body (app (dictproj (instdict Main.EchoInt) 0 Main.Echo) (local v4343) (int 1))
+end
+unit Main.main :: Int
+  @span tests/core/dictionaries.cinch:8:1
+  @stage(checked)
+  body (let $v1 @class(owned) (app (global Main.EchoInt.echo) (int 1)) (local $v1))
+end
+";
+
+    /// The 0-based position of `needle` in `text`.
+    fn at(text: &str, needle: &str) -> Pos {
+        let byte = text.find(needle).expect("the needle is in the text");
+        let before = &text[..byte];
+        let line = before.matches('\n').count() as u32;
+        let col = before
+            .rsplit('\n')
+            .next()
+            .unwrap_or("")
+            .chars()
+            .map(|c| c.len_utf16() as u32)
+            .sum();
+        (line, col)
+    }
+
+    #[test]
+    fn syntax_locates_units_annotations_refs_and_literals() {
+        let syn = syntax(SAMPLE);
+        let names: Vec<&str> = syn.units.iter().map(|unit| unit.name.as_str()).collect();
+        assert_eq!(names, ["Main.EchoInt", "Main.EchoInt.echo", "Main.main"]);
+        assert_eq!(syn.units[0].ty, "Main.Echo");
+        assert_eq!(
+            syn.units[0].name_range.start,
+            at(SAMPLE, "Main.EchoInt ::"),
+            "the name range starts at the name"
+        );
+        assert_eq!(syn.units[0].ty_range.start, at(SAMPLE, "Main.Echo\n"));
+        // The header is `core 1`, `module Main`, `source ...`.
+        let kinds: Vec<HeaderKind> = syn.header.iter().map(|line| line.kind).collect();
+        assert_eq!(
+            kinds,
+            [HeaderKind::Version, HeaderKind::Module, HeaderKind::Source]
+        );
+        assert_eq!(syn.header[1].value, "Main");
+        // Annotations carry their own name range, which is inside the range.
+        let span = syn.units[0].annotation("span").expect("the echo unit has no span");
+        assert_eq!(span.value, "tests/core/dictionaries.cinch:2:3");
+        assert_eq!(span.name_range.start, at(SAMPLE, "span tests/core"));
+        assert!(span.range.covers(&span.name_range));
+        assert_eq!(syn.units[1].stage(), Some("checked"));
+        assert_eq!(syn.units[0].statics.len(), 1);
+        assert_eq!(syn.units[0].statics[0].slot, 0);
+        assert_eq!(syn.units[0].statics[0].method, "Main.EchoInt.echo");
+        // References in source order: the echo body's local, then main's
+        // global and its `let` binder's use.
+        let refs: Vec<(&str, &str)> = syn
+            .refs
+            .iter()
+            .map(|r| (r.kind.head(), r.name.as_str()))
+            .collect();
+        assert_eq!(
+            refs,
+            [
+                ("local", "v4343"),
+                ("global", "Main.EchoInt.echo"),
+                ("local", "$v1")
+            ]
+        );
+        assert_eq!(syn.refs[1].range.start, at(SAMPLE, "Main.EchoInt.echo)"));
+        // Literals, classes and the one projection.
+        let literals: Vec<&str> = syn.literals.iter().map(|l| l.text.as_str()).collect();
+        assert_eq!(literals, ["1", "1"]);
+        assert_eq!(syn.projections.len(), 1);
+        assert_eq!(syn.projections[0].slot, Some(0));
+        assert_eq!(syn.projections[0].class.as_deref(), Some("Main.Echo"));
+        let classes: Vec<&str> = syn.classes.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(classes, ["owned", "Main.Echo", "owned"]);
+        // Every form is reachable from the unit body with its structural path.
+        let paths: Vec<&str> = syn.forms().iter().map(|f| f.path.as_str()).collect();
+        assert!(paths.contains(&"body"), "{paths:?}");
+        assert!(paths.contains(&"body:callee"), "{paths:?}");
+        assert!(paths.contains(&"body:body"), "{paths:?}");
+    }
+
+    #[test]
+    fn the_sample_verifies() {
+        let report = verify(SAMPLE).expect("the sample follows the grammar");
+        assert_eq!(report.units, 3);
+        assert_eq!(report.projections, 1);
+    }
+
+    #[test]
+    fn verifier_findings_are_located_at_their_form() {
+        let unbound = SAMPLE.replace("(local v4343)", "(local v9)");
+        let errors = verify(&unbound).expect_err("v9 is not bound");
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert_eq!(errors[0].code, code::UNBOUND_LOCAL);
+        // The finding is the `local` form itself, not the whole body.
+        assert_eq!(errors[0].path, "body:arg 1");
+        assert_eq!(errors[0].start, at(&unbound, "(local v9)"));
+        assert_eq!(errors[0].start.0, at(&unbound, "body (app (dictproj").0);
+        let order = SAMPLE.replace("  @instance(tparams 0, subdicts 0)\n", "");
+        let order = order.replace("  @stage(checked)\n", "  @stage(checked)\n  @instance(tparams 0, subdicts 0)\n");
+        let errors = verify(&order).expect_err("instance after stage is out of order");
+        assert!(errors.iter().any(|error| error.code == code::ANNOTATION_ORDER), "{errors:?}");
+        let spaced = errors
+            .iter()
+            .find(|error| error.code == code::ANNOTATION_ORDER)
+            .expect("an order finding");
+        assert_eq!(spaced.start.0, at(&order, "@instance(tparams").0);
+        let unknown = SAMPLE.replace("@instance(tparams 0, subdicts 0)", "@inlined(yes)");
+        let errors = verify(&unknown).expect_err("an unknown annotation is refused");
+        assert_eq!(errors[0].code, code::UNKNOWN_ANNOTATION);
+        assert_eq!(errors[0].start.0, at(&unknown, "@inlined").0);
+        let duplicate = format!("{SAMPLE}unit Main.main :: Int\n  @stage(checked)\n  body (int 0)\nend\n");
+        let errors = verify(&duplicate).expect_err("the name repeats");
+        assert!(errors.iter().any(|error| error.code == code::DUPLICATE_UNIT), "{errors:?}");
+        let missing = SAMPLE.replace(") 0 Main.Echo)", ") 7 Main.Echo)");
+        let errors = verify(&missing).expect_err("slot 7 is not printed");
+        assert_eq!(errors[0].code, code::SLOT_MISSING);
+        assert_eq!(errors[0].start, at(&missing, "(dictproj"));
+    }
+
+    #[test]
+    fn hover_describes_a_unit_a_reference_a_local_and_a_class() {
+        let found = hover(SAMPLE, at(SAMPLE, "Main.main ::").0, at(SAMPLE, "Main.main ::").1)
+            .expect("a unit name hovers");
+        assert!(found.markdown.contains("type: `Int`"), "{}", found.markdown);
+        assert!(found.markdown.contains("stage: `checked`"), "{}", found.markdown);
+        assert!(
+            found.markdown.contains("tests/core/dictionaries.cinch:8:1"),
+            "{}",
+            found.markdown
+        );
+        let (line, col) = at(SAMPLE, "Main.EchoInt.echo)");
+        let found = hover(SAMPLE, line, col + 2).expect("a global reference hovers");
+        assert!(
+            found.markdown.contains("`Main.EchoInt.echo :: -`"),
+            "{}",
+            found.markdown
+        );
+        let (line, col) = at(SAMPLE, "(local $v1))");
+        let found = hover(SAMPLE, line, col + 8).expect("a local reference hovers");
+        assert!(found.markdown.contains("bound by `local binder`"), "{}", found.markdown);
+        let (line, col) = at(SAMPLE, "(local v4343)");
+        let found = hover(SAMPLE, line, col + 8).expect("a parameter hovers");
+        assert!(
+            found.markdown.contains("v4343 :: - @owned"),
+            "{}",
+            found.markdown
+        );
+        let (line, col) = at(SAMPLE, "0 Main.Echo)");
+        let found = hover(SAMPLE, line, col + 3).expect("a class token hovers");
+        assert!(found.markdown.contains("class `Main.Echo`"), "{}", found.markdown);
+        assert!(
+            found.markdown.contains("`Main.EchoInt`, slots 0 = `Main.EchoInt.echo`"),
+            "{}",
+            found.markdown
+        );
+        let imported = SAMPLE.replace("(global Main.EchoInt.echo)", "(global Other.thing)");
+        let (line, col) = at(&imported, "Other.thing");
+        let found = hover(&imported, line, col).expect("an imported reference hovers");
+        assert!(
+            found.markdown.contains("imported unit: no definition in this file"),
+            "{}",
+            found.markdown
+        );
+    }
+
+    #[test]
+    fn definition_jumps_only_to_a_unit_of_the_same_file() {
+        let (line, col) = at(SAMPLE, "Main.EchoInt.echo)");
+        let (sl, sc, el, ec) =
+            definition(SAMPLE, line, col).expect("the referenced unit is in the file");
+        assert_eq!((sl, sc), at(SAMPLE, "Main.EchoInt.echo ::"));
+        assert_eq!((el, ec), (sl, sc + "Main.EchoInt.echo".len() as u32));
+        let imported = SAMPLE.replace("(global Main.EchoInt.echo)", "(global Other.thing)");
+        let (line, col) = at(&imported, "Other.thing");
+        assert_eq!(definition(&imported, line, col), None, "an imported name has no jump");
+        // On a local there is no definition to report.
+        let (line, col) = at(SAMPLE, "(local $v1))");
+        assert_eq!(definition(SAMPLE, line, col + 8), None);
+    }
+
+    #[test]
+    fn the_syntax_view_reads_every_golden_file() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/core");
+        let mut files = 0;
+        for entry in std::fs::read_dir(&dir).expect("the golden directory") {
+            let path = entry.expect("a directory entry").path();
+            if path.extension().and_then(|ext| ext.to_str()) != Some("core") {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).expect("read the golden file");
+            let name = path.file_name().unwrap().to_string_lossy().to_string();
+            // The golden files are ASCII, so a UTF-16 column is a character
+            // index and the assertion can index the line directly.
+            let line_at = |pos: Pos| -> Vec<char> {
+                text.lines().nth(pos.0 as usize).expect("the line exists").chars().collect()
+            };
+            let syn = syntax(&text);
+            let listed = text.lines().filter(|line| line.starts_with("unit ")).count();
+            assert_eq!(syn.units.len(), listed, "{name}");
+            assert!(!syn.header.is_empty(), "{name}: no header");
+            for unit in &syn.units {
+                assert!(!unit.name.is_empty(), "{name}: an unnamed unit");
+                assert!(
+                    unit.body.is_some() || !unit.statics.is_empty(),
+                    "{name}: {} has no body and no slots",
+                    unit.name
+                );
+                let line = line_at(unit.name_range.start);
+                let width = unit.name.chars().count();
+                let start = unit.name_range.start.1 as usize;
+                let printed: String = line[start..start + width].iter().collect();
+                assert_eq!(printed, unit.name, "{name}");
+                // Every annotation's name range sits on its own `@name`.
+                for ann in &unit.anns {
+                    let line = line_at(ann.name_range.start);
+                    let start = ann.name_range.start.1 as usize;
+                    let end = ann.name_range.end.1 as usize;
+                    let printed: String = line[start..end].iter().collect();
+                    assert_eq!(printed, ann.name, "{name}: {}", unit.name);
+                }
+            }
+            for reference in &syn.refs {
+                let line = line_at(reference.range.start);
+                let start = reference.range.start.1 as usize;
+                let end = reference.range.end.1 as usize;
+                let printed: String = line[start..end].iter().collect();
+                let printed = if reference.kind == RefKind::Foreign {
+                    strip_quotes(&printed)
+                } else {
+                    unquote(&printed)
+                };
+                assert_eq!(printed, reference.name, "{name}");
+            }
+            for literal in &syn.literals {
+                assert!(
+                    literal.range.start <= literal.range.end,
+                    "{name}: a literal range runs backwards"
+                );
+            }
+            files += 1;
+        }
+        assert!(files >= 7, "the corpus is present: {files} files");
+    }
+
 }

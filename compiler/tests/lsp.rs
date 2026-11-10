@@ -672,3 +672,529 @@ fn the_lsp_subcommand_runs_the_server_over_stdio() {
     assert!(response(1.0).get("result").is_some(), "{msgs:?}");
     assert!(response(2.0).get("result").is_some(), "{msgs:?}");
 }
+
+// ------------------------------------------------------- core documents
+//
+// The Core path (design note section 8.4) answers from the document text
+// alone: these tests drive `LspServer::handle` with the wire bodies, as a
+// client would, and inspect the published diagnostics and responses.
+
+const CORE_SRC: &str = "\
+core 1
+module Main
+source sha256:0000000000000000000000000000000000000000000000000000000000000000
+unit Main.first :: Int -> Int
+  @span tests/core/lsp.cinch:1:1
+  @params v0 :: Int @owned
+  @stage(checked)
+  body (local v0)
+end
+unit Main.second :: Int
+  @span tests/core/lsp.cinch:5:1
+  @stage(checked)
+  body (app (global Main.first) (int 1))
+end
+";
+
+const CORE_FOLDS: &str = "\
+core 1
+module Main
+source sha256:0000000000000000000000000000000000000000000000000000000000000000
+unit Main.alts :: Int
+  @span tests/core/lsp.cinch:1:1
+  @stage(checked)
+  body (case (int 0)
+    ((int 1)
+      (int 2))
+    ((int 3)
+      (int 4)))
+end
+unit Main.lammy :: Int
+  @span tests/core/lsp.cinch:10:1
+  @stage(checked)
+  body (lam (v0)
+    (int 1))
+end
+";
+
+/// The 0-based position of `needle` in `text`.
+fn core_at(text: &str, needle: &str) -> (u32, u32) {
+    let byte = text.find(needle).expect("the needle is in the text");
+    let before = &text[..byte];
+    let line = before.matches('\n').count() as u32;
+    let col = before
+        .rsplit('\n')
+        .next()
+        .unwrap_or("")
+        .chars()
+        .map(|c| c.len_utf16() as u32)
+        .sum();
+    (line, col)
+}
+
+fn request_raw(server: &mut LspServer, id: f64, method: &str, params: Json) -> Json {
+    let body = Json::obj(vec![
+        ("jsonrpc", Json::Str("2.0".to_string())),
+        ("id", Json::Num(id)),
+        ("method", Json::Str(method.to_string())),
+        ("params", params),
+    ])
+    .to_text();
+    let out = server.handle(&body);
+    assert_eq!(out.len(), 1, "{method} answers once: {out:?}");
+    parse_json(&out[0]).expect("the response is JSON")
+}
+
+fn call(server: &mut LspServer, method: &str, params: Json) -> Json {
+    request_raw(server, 2.0, method, params)
+}
+
+fn start_core() -> (LspServer, Json) {
+    let mut server = LspServer::new();
+    let init = request_raw(
+        &mut server,
+        1.0,
+        "initialize",
+        Json::obj(vec![("rootUri", Json::Str("file:///project".to_string()))]),
+    );
+    (server, init)
+}
+
+/// Open a document and return the notifications the server published.
+fn open_core(server: &mut LspServer, uri: &str, text: &str) -> Vec<Json> {
+    let body = Json::obj(vec![
+        ("jsonrpc", Json::Str("2.0".to_string())),
+        ("method", Json::Str("textDocument/didOpen".to_string())),
+        (
+            "params",
+            Json::obj(vec![(
+                "textDocument",
+                Json::obj(vec![
+                    ("uri", Json::Str(uri.to_string())),
+                    ("languageId", Json::Str("cinch-core".to_string())),
+                    ("version", Json::Num(1.0)),
+                    ("text", Json::Str(text.to_string())),
+                ]),
+            )]),
+        ),
+    ])
+    .to_text();
+    server
+        .handle(&body)
+        .iter()
+        .map(|out| parse_json(out).expect("the notification is JSON"))
+        .collect()
+}
+
+fn change_core(server: &mut LspServer, uri: &str, text: &str) -> Vec<Json> {
+    let body = Json::obj(vec![
+        ("jsonrpc", Json::Str("2.0".to_string())),
+        ("method", Json::Str("textDocument/didChange".to_string())),
+        (
+            "params",
+            Json::obj(vec![
+                ("textDocument", Json::obj(vec![("uri", Json::Str(uri.to_string()))])),
+                (
+                    "contentChanges",
+                    Json::Arr(vec![Json::obj(vec![("text", Json::Str(text.to_string()))])]),
+                ),
+            ]),
+        ),
+    ])
+    .to_text();
+    server
+        .handle(&body)
+        .iter()
+        .map(|out| parse_json(out).expect("the notification is JSON"))
+        .collect()
+}
+
+fn hover_at(server: &mut LspServer, uri: &str, line: u32, col: u32) -> Json {
+    call(
+        server,
+        "textDocument/hover",
+        Json::obj(vec![
+            ("textDocument", doc(uri)),
+            ("position", position(line, col)),
+        ]),
+    )
+}
+
+fn hover_value(resp: &Json) -> String {
+    resp.get("result")
+        .and_then(|result| result.get("contents"))
+        .and_then(|contents| contents.get("value"))
+        .and_then(Json::as_str)
+        .unwrap_or_else(|| panic!("no hover value: {resp:?}"))
+        .to_string()
+}
+
+fn core_position(line: u32, col: u32) -> Json {
+    position(line, col)
+}
+
+#[test]
+fn initialize_advertises_the_capabilities_the_server_answers() {
+    let (_, init) = start_core();
+    let caps = init
+        .get("result")
+        .and_then(|result| result.get("capabilities"))
+        .expect("capabilities");
+    for provider in [
+        "hoverProvider",
+        "definitionProvider",
+        "documentSymbolProvider",
+        "foldingRangeProvider",
+        "workspaceSymbolProvider",
+    ] {
+        assert!(
+            matches!(caps.get(provider), Some(Json::Bool(true))),
+            "{provider} is advertised: {caps:?}"
+        );
+    }
+    assert!(
+        matches!(caps.get("semanticTokensProvider"), Some(Json::Obj(_))),
+        "semantic tokens stay advertised"
+    );
+    let legend = caps
+        .get("semanticTokensProvider")
+        .and_then(|provider| provider.get("legend"))
+        .and_then(|legend| legend.get("tokenTypes"))
+        .and_then(Json::as_arr)
+        .expect("a token legend");
+    let legend: Vec<&str> = legend.iter().filter_map(Json::as_str).collect();
+    assert!(legend.contains(&"namespace"), "{legend:?}");
+    assert!(legend.contains(&"property"), "{legend:?}");
+}
+
+#[test]
+fn a_clean_core_document_publishes_no_diagnostics() {
+    let (mut server, _) = start_core();
+    let notes = open_core(&mut server, "file:///project/main.core", CORE_SRC);
+    assert_eq!(notes.len(), 1, "{notes:?}");
+    assert!(
+        published_diagnostics(&notes[0]).is_empty(),
+        "{:?}",
+        notes[0]
+    );
+    // A Core document never reaches the analysis.
+    assert!(server.reports().is_empty(), "a Core document never rechecks");
+    // And closing it clears whatever it published.
+    let body = Json::obj(vec![
+        ("jsonrpc", Json::Str("2.0".to_string())),
+        ("method", Json::Str("textDocument/didClose".to_string())),
+        (
+            "params",
+            Json::obj(vec![("textDocument", doc("file:///project/main.core"))]),
+        ),
+    ])
+    .to_text();
+    let out = server.handle(&body);
+    assert_eq!(out.len(), 1);
+    let note = parse_json(&out[0]).expect("JSON");
+    assert!(published_diagnostics(&note).is_empty());
+}
+
+#[test]
+fn an_unbound_local_is_one_located_diagnostic() {
+    let (mut server, _) = start_core();
+    let clean = open_core(&mut server, "file:///project/broken.core", CORE_SRC);
+    assert!(published_diagnostics(&clean[0]).is_empty());
+    let text = CORE_SRC.replace("body (local v0)", "body (local $v9)");
+    let notes = change_core(&mut server, "file:///project/broken.core", &text);
+    let diags = published_diagnostics(&notes[0]);
+    assert_eq!(diags.len(), 1, "{diags:?}");
+    let diag = &diags[0];
+    assert_eq!(
+        diag.get("code").and_then(Json::as_str),
+        Some("core/unbound-local"),
+        "{diag:?}"
+    );
+    assert_eq!(diag.get("severity").and_then(Json::as_num), Some(1.0));
+    let (line, col) = core_at(&text, "(local $v9)");
+    let start = diag
+        .get("range")
+        .and_then(|range| range.get("start"))
+        .expect("a range start");
+    assert_eq!(start.get("line").and_then(Json::as_num), Some(line as f64));
+    assert_eq!(
+        start.get("character").and_then(Json::as_num),
+        Some(col as f64)
+    );
+    assert!(server.reports().is_empty());
+}
+
+#[test]
+fn core_semantic_tokens_cover_a_unit_name() {
+    let (mut server, _) = start_core();
+    open_core(&mut server, "file:///project/main.core", CORE_SRC);
+    let resp = call(
+        &mut server,
+        "textDocument/semanticTokens/full",
+        Json::obj(vec![("textDocument", doc("file:///project/main.core"))]),
+    );
+    let data = resp
+        .get("result")
+        .and_then(|result| result.get("data"))
+        .and_then(Json::as_arr)
+        .expect("a token payload");
+    assert!(!data.is_empty(), "{resp:?}");
+    let nums: Vec<u32> = data
+        .iter()
+        .map(|value| value.as_num().expect("a number") as u32)
+        .collect();
+    assert_eq!(nums.len() % 5, 0, "{nums:?}");
+    let mut line = 0u32;
+    let mut col = 0u32;
+    let mut tokens = Vec::new();
+    for chunk in nums.chunks(5) {
+        if chunk[0] > 0 {
+            line += chunk[0];
+            col = chunk[1];
+        } else {
+            col += chunk[1];
+        }
+        tokens.push((line, col, chunk[2], chunk[3]));
+    }
+    let (want_line, want_col) = core_at(CORE_SRC, "Main.first ::");
+    let namespace = TOKEN_TYPES
+        .iter()
+        .position(|kind| *kind == "namespace")
+        .expect("namespace is in the legend") as u32;
+    assert!(
+        tokens.contains(&(want_line, want_col, "Main.first".len() as u32, namespace)),
+        "{tokens:?}"
+    );
+    let property = TOKEN_TYPES
+        .iter()
+        .position(|kind| *kind == "property")
+        .expect("property is in the legend") as u32;
+    let (span_line, span_col) = core_at(CORE_SRC, "span tests/core");
+    assert!(
+        tokens.contains(&(span_line, span_col, "span".len() as u32, property)),
+        "{tokens:?}"
+    );
+}
+
+#[test]
+fn core_hover_shows_a_unit_a_reference_and_a_local() {
+    let (mut server, _) = start_core();
+    open_core(&mut server, "file:///project/main.core", CORE_SRC);
+    let (line, col) = core_at(CORE_SRC, "Main.first ::");
+    let value = hover_value(&hover_at(&mut server, "file:///project/main.core", line, col));
+    assert!(value.contains("type: `Int -> Int`"), "{value}");
+    assert!(value.contains("stage: `checked`"), "{value}");
+    assert!(value.contains("tests/core/lsp.cinch:1:1"), "{value}");
+    // The `(global Main.first)` reference reports the defining unit's type.
+    let (line, col) = core_at(CORE_SRC, "Main.first) (int 1)");
+    let value = hover_value(&hover_at(&mut server, "file:///project/main.core", line, col));
+    assert!(value.contains("`Main.first :: Int -> Int`"), "{value}");
+    // The local Reference reports the binder `@params` printed.
+    let (line, col) = core_at(CORE_SRC, "(local v0)");
+    let value = hover_value(&hover_at(
+        &mut server,
+        "file:///project/main.core",
+        line,
+        col + 8,
+    ));
+    assert!(value.contains("v0 :: Int @owned"), "{value}");
+}
+
+#[test]
+fn core_definition_jumps_only_inside_the_file() {
+    let (mut server, _) = start_core();
+    open_core(&mut server, "file:///project/main.core", CORE_SRC);
+    let (line, col) = core_at(CORE_SRC, "Main.first) (int 1)");
+    let resp = call(
+        &mut server,
+        "textDocument/definition",
+        Json::obj(vec![
+            ("textDocument", doc("file:///project/main.core")),
+            ("position", core_position(line, col)),
+        ]),
+    );
+    let result = resp.get("result").expect("a location: {resp:?}");
+    assert_eq!(
+        result.get("uri").and_then(Json::as_str),
+        Some("file:///project/main.core")
+    );
+    let (want_line, want_col) = core_at(CORE_SRC, "Main.first ::");
+    let start = result
+        .get("range")
+        .and_then(|range| range.get("start"))
+        .expect("a range start");
+    assert_eq!(
+        start.get("line").and_then(Json::as_num),
+        Some(want_line as f64)
+    );
+    assert_eq!(
+        start.get("character").and_then(Json::as_num),
+        Some(want_col as f64)
+    );
+    // An imported name reports no location, never a wrong one.
+    let imported = CORE_SRC.replace("(global Main.first)", "(global Other.thing)");
+    open_core(&mut server, "file:///project/imported.core", &imported);
+    let (line, col) = core_at(&imported, "Other.thing");
+    let resp = call(
+        &mut server,
+        "textDocument/definition",
+        Json::obj(vec![
+            ("textDocument", doc("file:///project/imported.core")),
+            ("position", core_position(line, col)),
+        ]),
+    );
+    assert!(matches!(resp.get("result"), Some(Json::Null)), "{resp:?}");
+}
+
+#[test]
+fn document_symbols_list_units_in_order() {
+    let (mut server, _) = start_core();
+    open_core(&mut server, "file:///project/main.core", CORE_SRC);
+    let resp = call(
+        &mut server,
+        "textDocument/documentSymbol",
+        Json::obj(vec![("textDocument", doc("file:///project/main.core"))]),
+    );
+    let items = resp
+        .get("result")
+        .and_then(Json::as_arr)
+        .expect("a symbol list");
+    let names: Vec<&str> = items
+        .iter()
+        .filter_map(|item| item.get("name").and_then(Json::as_str))
+        .collect();
+    assert_eq!(names, ["Main.first", "Main.second"]);
+    let children = items[1]
+        .get("children")
+        .and_then(Json::as_arr)
+        .expect("the body's forms");
+    assert!(
+        children
+            .iter()
+            .any(|child| child.get("name").and_then(Json::as_str) == Some("app")),
+        "{children:?}"
+    );
+    // A surface document has no document symbols from this server.
+    let resp = call(
+        &mut server,
+        "textDocument/documentSymbol",
+        Json::obj(vec![("textDocument", doc("file:///project/A.cinch"))]),
+    );
+    assert_eq!(resp.get("result").and_then(Json::as_arr), Some(&[][..]));
+}
+
+#[test]
+fn folding_covers_units_lam_and_case_alternatives() {
+    let (mut server, _) = start_core();
+    open_core(&mut server, "file:///project/folds.core", CORE_FOLDS);
+    let resp = call(
+        &mut server,
+        "textDocument/foldingRange",
+        Json::obj(vec![("textDocument", doc("file:///project/folds.core"))]),
+    );
+    let ranges = resp.get("result").and_then(Json::as_arr).expect("ranges");
+    let pairs: Vec<(u32, u32)> = ranges
+        .iter()
+        .map(|range| {
+            (
+                range.get("startLine").and_then(Json::as_num).expect("start") as u32,
+                range.get("endLine").and_then(Json::as_num).expect("end") as u32,
+            )
+        })
+        .collect();
+    // The first unit's block spans its `unit` line to its `end`.
+    let (unit_line, _) = core_at(CORE_FOLDS, "unit Main.alts");
+    assert!(
+        pairs.iter().any(|(start, _)| *start == unit_line),
+        "{pairs:?}"
+    );
+    // A case alternative that wraps folds from its pattern line.
+    let (alt_line, _) = core_at(CORE_FOLDS, "((int 1)");
+    assert!(pairs.iter().any(|(start, _)| *start == alt_line), "{pairs:?}");
+    // And a `lam` folds from its own line.
+    let (lam_line, _) = core_at(CORE_FOLDS, "(lam (v0)");
+    assert!(pairs.iter().any(|(start, _)| *start == lam_line), "{pairs:?}");
+}
+
+#[test]
+fn workspace_symbols_cover_every_open_core_document() {
+    let (mut server, _) = start_core();
+    open_core(&mut server, "file:///project/main.core", CORE_SRC);
+    open_core(&mut server, "file:///project/folds.core", CORE_FOLDS);
+    let resp = call(
+        &mut server,
+        "workspace/symbol",
+        Json::obj(vec![("query", Json::Str(String::new()))]),
+    );
+    let items = resp.get("result").and_then(Json::as_arr).expect("symbols");
+    let names: Vec<&str> = items
+        .iter()
+        .filter_map(|item| item.get("name").and_then(Json::as_str))
+        .collect();
+    assert_eq!(
+        names,
+        [
+            "folds.core: Main.alts",
+            "folds.core: Main.lammy",
+            "main.core: Main.first",
+            "main.core: Main.second"
+        ],
+        "every unit of every open Core document, by file"
+    );
+    let query = call(
+        &mut server,
+        "workspace/symbol",
+        Json::obj(vec![("query", Json::Str("second".to_string()))]),
+    );
+    let items = query.get("result").and_then(Json::as_arr).expect("symbols");
+    assert_eq!(items.len(), 1, "{items:?}");
+}
+
+#[test]
+fn a_cinch_document_still_gets_its_analysis_diagnostics() {
+    let (mut server, _) = start_core();
+    let notes = open_core(&mut server, "file:///project/B.cinch", B_BAD);
+    // The analysis publishes for every open surface document.
+    assert!(!notes.is_empty(), "the analysis answered");
+    let note = notes
+        .iter()
+        .find(|note| published_uri(note).ends_with("B.cinch"))
+        .expect("a B.cinch publish");
+    let diags = published_diagnostics(note);
+    assert_eq!(diags.len(), 1, "{diags:?}");
+    assert!(
+        diags[0]
+            .get("message")
+            .and_then(Json::as_str)
+            .unwrap_or("")
+            .contains("type mismatch"),
+        "{:?}",
+        diags[0]
+    );
+    assert!(!server.reports().is_empty(), "the surface path rechecks");
+}
+
+#[test]
+fn a_missing_span_warns_and_a_bad_header_is_a_parse_error() {
+    let (mut server, _) = start_core();
+    // A record without `@span` is warned about, not refused: a dump carries
+    // no source position.
+    let unspanned = CORE_SRC.replace("  @span tests/core/lsp.cinch:5:1\n", "");
+    let notes = open_core(&mut server, "file:///project/unspanned.core", &unspanned);
+    let diags = published_diagnostics(&notes[0]);
+    assert_eq!(diags.len(), 1, "{diags:?}");
+    assert_eq!(diags[0].get("severity").and_then(Json::as_num), Some(2.0));
+    assert_eq!(
+        diags[0].get("code").and_then(Json::as_str),
+        Some("core/span-missing")
+    );
+    // A file the reader cannot start is a parse finding, not a verifier one.
+    let notes = open_core(&mut server, "file:///project/bad.core", "core 2\nmodule Main\n");
+    let diags = published_diagnostics(&notes[0]);
+    assert_eq!(diags.len(), 1, "{diags:?}");
+    assert_eq!(
+        diags[0].get("code").and_then(Json::as_str),
+        Some("core/parse")
+    );
+    assert_eq!(diags[0].get("severity").and_then(Json::as_num), Some(1.0));
+}

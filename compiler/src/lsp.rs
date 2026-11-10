@@ -8,8 +8,17 @@
 //! analysis produces is workspace-relative, so no output carries an
 //! absolute path (the standing manifest rule); documents are addressed
 //! by their client-supplied URIs, rooted at the workspace root URI.
+//!
+//! One server serves both languages, and the document's extension routes it:
+//! a `.core` document takes the [`crate::coretext`] path, whose checks are
+//! structural and computed from the text alone (design note section 8.4), and
+//! every other document takes the [`Analysis`] path exactly as before. The
+//! Core path never feeds a file to the checker, and the requests the Core path
+//! answers (hover, definition, symbols, folding, semantic tokens) answer with
+//! an empty result for a surface document rather than guessing.
 
 use crate::analysis::{Analysis, Completion, Diag, SemToken, Severity, SymKind, UpdateReport};
+use crate::coretext::{self, Form, Item, Pos, Rng, Syntax};
 use std::collections::BTreeMap;
 
 // --------------------------------------------------------------- JSON
@@ -364,6 +373,10 @@ pub struct LspServer {
     root_path: String,
     /// Every recheck report so far (the incremental evidence).
     reports: Vec<UpdateReport>,
+    /// Open Core documents, by workspace-relative key. They never reach the
+    /// analysis: a Core file records what a check produced, so re-checking one
+    /// would be circular.
+    core: BTreeMap<String, String>,
     shutdown: bool,
     exit: bool,
 }
@@ -382,6 +395,7 @@ impl LspServer {
             root_uri: String::new(),
             root_path: String::new(),
             reports: Vec::new(),
+            core: BTreeMap::new(),
             shutdown: false,
             exit: false,
         }
@@ -453,16 +467,21 @@ impl LspServer {
                 let doc = params.get("textDocument").cloned().unwrap_or(Json::Null);
                 let uri = doc.get("uri").and_then(|u| u.as_str()).unwrap_or("").to_string();
                 let text = doc.get("text").and_then(|t| t.as_str()).unwrap_or("").to_string();
-                let key = self.key_of(&uri);
-                self.analysis.set_document(&key, &text);
-                let report = self.analysis.update();
-                self.reports.push(report);
-                out.extend(self.publish_all());
+                if self.is_core(&uri) {
+                    let key = self.key_of(&uri);
+                    self.core.insert(key.clone(), text);
+                    out.push(self.publish_core(&uri, &key));
+                } else {
+                    let key = self.key_of(&uri);
+                    self.analysis.set_document(&key, &text);
+                    let report = self.analysis.update();
+                    self.reports.push(report);
+                    out.extend(self.publish_all());
+                }
             }
             "textDocument/didChange" => {
                 let td = params.get("textDocument").cloned().unwrap_or(Json::Null);
                 let uri = td.get("uri").and_then(|u| u.as_str()).unwrap_or("").to_string();
-                let key = self.key_of(&uri);
                 // Full sync: the last content change carries the whole
                 // document.
                 let text = params
@@ -473,43 +492,83 @@ impl LspServer {
                     .and_then(|t| t.as_str())
                     .unwrap_or("")
                     .to_string();
-                self.analysis.set_document(&key, &text);
-                let report = self.analysis.update();
-                self.reports.push(report);
-                out.extend(self.publish_all());
+                if self.is_core(&uri) {
+                    let key = self.key_of(&uri);
+                    self.core.insert(key.clone(), text);
+                    out.push(self.publish_core(&uri, &key));
+                } else {
+                    let key = self.key_of(&uri);
+                    self.analysis.set_document(&key, &text);
+                    let report = self.analysis.update();
+                    self.reports.push(report);
+                    out.extend(self.publish_all());
+                }
             }
             "textDocument/didClose" => {
                 let td = params.get("textDocument").cloned().unwrap_or(Json::Null);
                 let uri = td.get("uri").and_then(|u| u.as_str()).unwrap_or("").to_string();
-                let key = self.key_of(&uri);
-                self.analysis.remove_document(&key);
+                if self.is_core(&uri) {
+                    let key = self.key_of(&uri);
+                    self.core.remove(&key);
+                } else {
+                    let key = self.key_of(&uri);
+                    self.analysis.remove_document(&key);
+                }
                 out.push(diagnostics_notification(&uri, &[]));
             }
             "textDocument/hover" => {
-                let (uri, line, col) = doc_pos(&params);
-                let key = self.key_of(&uri);
-                let value = self.analysis.hover(&key, line, col);
-                let result = match value {
-                    Some(v) => Json::obj(vec![(
-                        "contents",
-                        Json::obj(vec![
-                            ("kind", Json::Str("markdown".to_string())),
-                            ("value", Json::Str(v)),
+                let (uri, line, col) = raw_doc_pos(&params);
+                let result = if self.is_core(&uri) {
+                    match self.core_text(&uri).and_then(|text| coretext::hover(text, line, col)) {
+                        Some(hover) => Json::obj(vec![
+                            (
+                                "contents",
+                                Json::obj(vec![
+                                    ("kind", Json::Str("markdown".to_string())),
+                                    ("value", Json::Str(hover.markdown)),
+                                ]),
+                            ),
+                            ("range", rng_json(&hover.range)),
                         ]),
-                    )]),
-                    None => Json::Null,
+                        None => Json::Null,
+                    }
+                } else {
+                    let key = self.key_of(&uri);
+                    match self.analysis.hover(&key, line + 1, col + 1) {
+                        Some(v) => Json::obj(vec![(
+                            "contents",
+                            Json::obj(vec![
+                                ("kind", Json::Str("markdown".to_string())),
+                                ("value", Json::Str(v)),
+                            ]),
+                        )]),
+                        None => Json::Null,
+                    }
                 };
                 out.push(result_response(&id, result));
             }
             "textDocument/definition" => {
-                let (uri, line, col) = doc_pos(&params);
-                let key = self.key_of(&uri);
-                let result = match self.analysis.definition(&key, line, col) {
-                    Some((file, l, c)) => Json::obj(vec![(
-                        "uri",
-                        Json::Str(self.uri_of(&file)),
-                    ), ("range", range_json(l, c, l, c + 1))]),
-                    None => Json::Null,
+                let (uri, line, col) = raw_doc_pos(&params);
+                let result = if self.is_core(&uri) {
+                    match self
+                        .core_text(&uri)
+                        .and_then(|text| coretext::definition(text, line, col))
+                    {
+                        Some((sl, sc, el, ec)) => Json::obj(vec![
+                            ("uri", Json::Str(uri.clone())),
+                            ("range", rng_json(&Rng::new((sl, sc), (el, ec)))),
+                        ]),
+                        None => Json::Null,
+                    }
+                } else {
+                    let key = self.key_of(&uri);
+                    match self.analysis.definition(&key, line + 1, col + 1) {
+                        Some((file, l, c)) => Json::obj(vec![
+                            ("uri", Json::Str(self.uri_of(&file))),
+                            ("range", range_json(l, c, l, c + 1)),
+                        ]),
+                        None => Json::Null,
+                    }
                 };
                 out.push(result_response(&id, result));
             }
@@ -536,12 +595,80 @@ impl LspServer {
                     .and_then(|t| t.get("uri"))
                     .and_then(|u| u.as_str())
                     .unwrap_or("");
-                let key = self.key_of(uri);
-                let data = semantic_data(&self.analysis.semantic_tokens(&key));
+                let data = if self.is_core(uri) {
+                    let tokens = match self.core_text(uri) {
+                        Some(text) => core_semantic_tokens(&coretext::syntax(text)),
+                        None => Vec::new(),
+                    };
+                    semantic_data(&tokens)
+                } else {
+                    let key = self.key_of(uri);
+                    semantic_data(&self.analysis.semantic_tokens(&key))
+                };
                 out.push(result_response(
                     &id,
                     Json::obj(vec![("data", Json::Arr(data))]),
                 ));
+            }
+            "textDocument/documentSymbol" => {
+                let uri = params
+                    .get("textDocument")
+                    .and_then(|t| t.get("uri"))
+                    .and_then(|u| u.as_str())
+                    .unwrap_or("");
+                let items = match self.core_text(uri) {
+                    Some(text) => core_symbols(&coretext::syntax(text)),
+                    // Document symbols are a Core capability; a surface
+                    // document keeps whatever the client derives itself.
+                    None => Vec::new(),
+                };
+                out.push(result_response(&id, Json::Arr(items)));
+            }
+            "textDocument/foldingRange" => {
+                let uri = params
+                    .get("textDocument")
+                    .and_then(|t| t.get("uri"))
+                    .and_then(|u| u.as_str())
+                    .unwrap_or("");
+                let ranges = match self.core_text(uri) {
+                    Some(text) => core_folding(&coretext::syntax(text)),
+                    None => Vec::new(),
+                };
+                out.push(result_response(&id, Json::Arr(ranges)));
+            }
+            "workspace/symbol" => {
+                let query = params
+                    .get("query")
+                    .and_then(|q| q.as_str())
+                    .unwrap_or("")
+                    .to_lowercase();
+                let mut items = Vec::new();
+                for (key, text) in &self.core {
+                    let name = std::path::Path::new(key)
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                        .unwrap_or_else(|| key.clone());
+                    for unit in &coretext::syntax(text).units {
+                        if !query.is_empty()
+                            && !unit.name.to_lowercase().contains(&query)
+                            && !name.to_lowercase().contains(&query)
+                        {
+                            continue;
+                        }
+                        items.push(Json::obj(vec![
+                            ("name", Json::Str(format!("{name}: {}", unit.name))),
+                            ("kind", Json::Num(12.0)),
+                            (
+                                "location",
+                                Json::obj(vec![
+                                    ("uri", Json::Str(self.uri_of(key))),
+                                    ("range", rng_json(&unit.name_range)),
+                                ]),
+                            ),
+                        ]));
+                    }
+                }
+                out.push(result_response(&id, Json::Arr(items)));
             }
             "" if id.is_some() => {
                 out.push(error_response(&id.unwrap_or(Json::Null), -32600, "invalid request"));
@@ -583,6 +710,24 @@ impl LspServer {
         )
     }
 
+    /// Whether a document URI names a Core file. The extension decides: a
+    /// client's language id may be spelled differently, and routing a file to
+    /// the wrong checks would be worse than not answering.
+    fn is_core(&self, uri: &str) -> bool {
+        uri_path(uri).ends_with(".core")
+    }
+
+    /// The text of an open Core document.
+    fn core_text(&self, uri: &str) -> Option<&str> {
+        self.core.get(&self.key_of(uri)).map(String::as_str)
+    }
+
+    /// The diagnostics notification for one open Core document.
+    fn publish_core(&self, uri: &str, key: &str) -> String {
+        let text = self.core.get(key).map(String::as_str).unwrap_or("");
+        core_diagnostics_notification(uri, text)
+    }
+
     /// Publish diagnostics for every open document.
     fn publish_all(&self) -> Vec<String> {
         let mut out = Vec::new();
@@ -614,6 +759,9 @@ fn initialize_result() -> Json {
                 ("textDocumentSync", Json::Num(1.0)),
                 ("hoverProvider", Json::Bool(true)),
                 ("definitionProvider", Json::Bool(true)),
+                ("documentSymbolProvider", Json::Bool(true)),
+                ("foldingRangeProvider", Json::Bool(true)),
+                ("workspaceSymbolProvider", Json::Bool(true)),
                 (
                     "completionProvider",
                     Json::obj(vec![
@@ -722,16 +870,34 @@ fn range_json(sl: u32, sc: u32, el: u32, ec: u32) -> Json {
 }
 
 fn doc_pos(params: &Json) -> (String, u32, u32) {
+    let (uri, line, col) = raw_doc_pos(params);
+    (uri, line + 1, col + 1)
+}
+
+/// A document URI and the request position as the client sent it (0-based
+/// line and character, which is what the Core path needs).
+fn raw_doc_pos(params: &Json) -> (String, u32, u32) {
     let td = params.get("textDocument").cloned().unwrap_or(Json::Null);
     let uri = td.get("uri").and_then(|u| u.as_str()).unwrap_or("").to_string();
     let pos = params.get("position").cloned().unwrap_or(Json::Null);
-    let line = pos.get("line").and_then(|l| l.as_num()).unwrap_or(0.0) as u32 + 1;
-    let col = pos
-        .get("character")
-        .and_then(|c| c.as_num())
-        .unwrap_or(0.0) as u32
-        + 1;
+    let line = pos.get("line").and_then(|l| l.as_num()).unwrap_or(0.0) as u32;
+    let col = pos.get("character").and_then(|c| c.as_num()).unwrap_or(0.0) as u32;
     (uri, line, col)
+}
+
+/// A range whose endpoints are already 0-based (the Core path works in the
+/// wire's own coordinates).
+fn rng_json(range: &Rng) -> Json {
+    let pos = |p: Pos| {
+        Json::obj(vec![
+            ("line", Json::Num(p.0 as f64)),
+            ("character", Json::Num(p.1 as f64)),
+        ])
+    };
+    Json::obj(vec![
+        ("start", pos(range.start)),
+        ("end", pos(range.end)),
+    ])
 }
 
 fn completion_json(c: &Completion) -> Json {
@@ -802,4 +968,226 @@ fn uri_path(uri: &str) -> String {
         }
     }
     out
+}
+
+// -------------------------------------------------------- core documents
+
+/// One Core finding in the coordinates the wire uses.
+struct CoreDiag {
+    severity: u8,
+    code: &'static str,
+    message: String,
+    range: Rng,
+}
+
+/// The `textDocument/publishDiagnostics` notification for a Core document:
+/// the reader's and verifier's findings at their own ranges, plus a warning
+/// for every unit the file does not locate with `@span`. A Core file is never
+/// type-checked; these are structural checks only.
+fn core_diagnostics_notification(uri: &str, text: &str) -> String {
+    let mut diags: Vec<CoreDiag> = Vec::new();
+    if let Err(errors) = coretext::verify(text) {
+        for error in errors {
+            diags.push(CoreDiag {
+                severity: 1,
+                code: error.code,
+                message: error.message,
+                range: Rng::new(error.start, error.end),
+            });
+        }
+    }
+    for unit in &coretext::syntax(text).units {
+        if unit.annotation("span").is_none() {
+            diags.push(CoreDiag {
+                severity: 2,
+                code: coretext::code::SPAN_MISSING,
+                message: format!("unit `{}` has no `@span` annotation", unit.name),
+                range: unit.name_range,
+            });
+        }
+    }
+    diags.sort_by_key(|diag| (diag.range.start, diag.range.end));
+    let items: Vec<Json> = diags
+        .iter()
+        .map(|diag| {
+            Json::obj(vec![
+                ("range", rng_json(&diag.range)),
+                ("severity", Json::Num(diag.severity as f64)),
+                ("code", Json::Str(diag.code.to_string())),
+                ("source", Json::Str("cinch".to_string())),
+                ("message", Json::Str(diag.message.clone())),
+            ])
+        })
+        .collect();
+    Json::obj(vec![
+        ("jsonrpc", Json::Str("2.0".to_string())),
+        ("method", Json::Str("textDocument/publishDiagnostics".to_string())),
+        (
+            "params",
+            Json::obj(vec![
+                ("uri", Json::Str(uri.to_string())),
+                ("diagnostics", Json::Arr(items)),
+            ]),
+        ),
+    ])
+    .to_text()
+}
+
+/// The semantic tokens a Core document reports. Candidates are sorted and a
+/// token that starts inside its predecessor is dropped: the payload may not
+/// overlap, and an atom that is both a form's keyword and a literal
+/// (`(unit)`) is one token.
+fn core_semantic_tokens(syn: &Syntax) -> Vec<SemToken> {
+    let mut candidates: Vec<(Pos, u32, &'static str)> = Vec::new();
+    {
+        let mut push = |range: &Rng, kind: &'static str| {
+            if range.start.0 != range.end.0 || range.end.1 <= range.start.1 {
+                return;
+            }
+            candidates.push((range.start, range.end.1 - range.start.1, kind));
+        };
+        for line in &syn.header {
+            let word = line.kind.word();
+            let start = line.range.start;
+            push(&Rng::new(start, (start.0, start.1 + word.len() as u32)), "keyword");
+            if matches!(
+                line.kind,
+                coretext::HeaderKind::Module | coretext::HeaderKind::Global
+            ) && !line.value.is_empty()
+            {
+                let value_start = (start.0, start.1 + word.len() as u32 + 1);
+                let len: u32 = line.value.chars().map(|c| c.len_utf16() as u32).sum();
+                push(&Rng::new(value_start, (start.0, value_start.1 + len)), "namespace");
+            }
+        }
+        for unit in &syn.units {
+            push(&unit.name_range, "namespace");
+            if !unit.ty.is_empty() && unit.ty != "-" {
+                push(&unit.ty_range, "type");
+            }
+            for ann in &unit.anns {
+                push(&ann.name_range, "property");
+            }
+            for param in &unit.params {
+                push(&param.name_range, "variable");
+            }
+        }
+        for form in syn.forms() {
+            if !form.head.is_empty() {
+                push(&form.head_range, "keyword");
+            }
+            for mark in &form.marks {
+                push(&mark.name_range, "property");
+            }
+        }
+        for reference in &syn.refs {
+            push(&reference.range, reference.kind.token());
+        }
+        for literal in &syn.literals {
+            push(&literal.range, literal.kind.token());
+        }
+        for class in &syn.classes {
+            push(&class.range, "type");
+        }
+        for projection in &syn.projections {
+            if let Some(range) = &projection.slot_range {
+                push(range, "number");
+            }
+        }
+    }
+    candidates.sort_by_key(|candidate| (candidate.0, candidate.1));
+    let mut tokens = Vec::new();
+    let mut last_end: Option<Pos> = None;
+    for (start, len, kind) in candidates {
+        if last_end.is_some_and(|end| start < end) {
+            continue;
+        }
+        last_end = Some((start.0, start.1 + len));
+        tokens.push(SemToken { line: start.0 + 1, col: start.1 + 1, len, kind });
+    }
+    tokens
+}
+
+/// A Core document's units, with the body's forms nested by depth.
+fn core_symbols(syn: &Syntax) -> Vec<Json> {
+    let mut out = Vec::new();
+    for unit in &syn.units {
+        let mut children = Vec::new();
+        if let Some(body) = &unit.body {
+            // The body is the unit's first nested symbol, so the tree shows
+            // the depth the forms print at.
+            children.push(form_symbol(body));
+        }
+        out.push(Json::obj(vec![
+            ("name", Json::Str(unit.name.clone())),
+            (
+                "detail",
+                Json::Str(if unit.ty.is_empty() { "-".to_string() } else { unit.ty.clone() }),
+            ),
+            ("kind", Json::Num(12.0)),
+            ("range", rng_json(&unit.block)),
+            ("selectionRange", rng_json(&unit.name_range)),
+            ("children", Json::Arr(children)),
+        ]));
+    }
+    out
+}
+
+fn form_symbol(form: &Form) -> Json {
+    let mut nested = Vec::new();
+    form_symbols(form, &mut nested);
+    let name = if form.head.is_empty() { "alternative" } else { form.head.as_str() };
+    Json::obj(vec![
+        ("name", Json::Str(name.to_string())),
+        ("kind", Json::Num(13.0)),
+        ("range", rng_json(&form.range)),
+        ("selectionRange", rng_json(&form.head_range)),
+        ("children", Json::Arr(nested)),
+    ])
+}
+
+fn form_symbols(form: &Form, out: &mut Vec<Json>) {
+    for child in &form.children {
+        let Item::Form(child) = child else { continue };
+        out.push(form_symbol(child));
+    }
+}
+
+/// A Core document's folding ranges: a unit's block, every `lam`, and every
+/// `case` alternative.
+fn core_folding(syn: &Syntax) -> Vec<Json> {
+    let mut out = Vec::new();
+    for unit in &syn.units {
+        folding(&mut out, &unit.block, "region");
+        if let Some(body) = &unit.body {
+            fold_forms(body, &mut out);
+        }
+    }
+    out
+}
+
+fn fold_forms(form: &Form, out: &mut Vec<Json>) {
+    if form.head == "lam" {
+        folding(out, &form.range, "region");
+    }
+    for child in &form.children {
+        let Item::Form(child) = child else { continue };
+        // A `case` alternative prints as `((pattern) body)`: no head of its
+        // own, and children from the pattern on.
+        if child.head.is_empty() && !child.children.is_empty() {
+            folding(out, &child.range, "region");
+        }
+        fold_forms(child, out);
+    }
+}
+
+fn folding(out: &mut Vec<Json>, range: &Rng, kind: &str) {
+    if range.end.0 <= range.start.0 {
+        return;
+    }
+    out.push(Json::obj(vec![
+        ("startLine", Json::Num(range.start.0 as f64)),
+        ("endLine", Json::Num(range.end.0 as f64)),
+        ("kind", Json::Str(kind.to_string())),
+    ]));
 }
