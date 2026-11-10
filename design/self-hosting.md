@@ -1,6 +1,40 @@
 # Self-hosting
 
-## Current development checkpoint (2026-11-07)
+## Current development checkpoint (2026-11-10)
+
+The seed and the library producer are now pinned to the same recent
+compiler (`03ebe3b4`, runtime ABI 7, interface schema 10). A full chain on
+those pins converges: Stage2 and Stage3 agree byte for byte on the
+executable, the LLVM IR and all 46 compiler interfaces, and the Stage3
+smoke tests pass.
+
+Build speed changed by an order of magnitude:
+
+| Step | Before | After |
+| --- | --- | --- |
+| Rust seed builds Stage1 | about 1,690 s | about 40 s (`--opt-level 0`), about 110 s at `-O2` |
+| Seed IR for the compiler | 1.3 GB | 218 MB |
+| Stage2 compiles the compiler | 1,500 s | 195 s (measured on the current sources) |
+| Stage2 checks the 4K-line toolkit | 49 s | 11 to 17 s |
+
+The causes were quadratic trial unification in the seed (now an undo log),
+match compilation copying fallthrough rows into every constructor branch,
+per-name linear scans and quadratic identity encoding in the Cinch
+compiler, unoptimized links, a malloc-based runtime heap (now per-thread
+size classes), per-call literal and dictionary construction, and redundant
+reference counting. Stage compilers are linked at `-O2`.
+
+Acceptance 5 progress: the test targets that check, build or run source now
+go through the selected frontend (`compiler/tests/common`), and
+`tooling/run_stage_targets.py` runs them through any stage. Of 200 such
+targets run through Stage3, 130 pass completely and 70 fail (742 tests
+pass, 350 fail). The failures cluster into foreign and effect elaboration,
+refinement and precondition proofs, module and namespace elaboration,
+staging and quotations, and a few stale self-tests; they are being repaired
+in parallel lanes. Parallel compilation is designed in
+[parallel evaluation](parallel-evaluation.md); its runtime pool is in.
+
+## Development checkpoint (2026-11-07)
 
 Rust and Cinch require schema 10 for compiled interfaces. The pinned
 producer rebuilt all 55 library interfaces. The first schema 10 chain
