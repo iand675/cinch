@@ -271,6 +271,79 @@ formatting, parsing and a local checker. The plan:
 - Whether the demonstration HTML view belongs in the compiler or in the
   site's tooling. The compiler should emit only the text.
 
+## 9. Text grammar (normative)
+
+This section is the normative grammar both printers implement. Anything
+not stated here is printed by the rules of section 4.
+
+```
+file        = header line* module-body
+header      = "core 1" NL
+line*       = ( "module " name NL | "target " triple " opt-level " digit NL
+              | "source sha256:" hex64 NL )*
+module-body = unit*
+unit        = "unit " name " :: " type ann* NL
+              ( "  @span " file ":" int ":" int NL )?
+              ( "  @params " params NL )?
+              "  body " expr NL
+              "end" NL
+params      = param ( ", " param )*
+param       = name " :: " type " @ " class
+```
+
+Expressions are canonical s-expressions, one node per line, indented two
+spaces per depth relative to `body`; a node whose children all fit on one
+line of at most 100 characters prints on one line. Every node form:
+
+| Form | Meaning |
+| --- | --- |
+| `(int <i64>)` | machine word constant |
+| `(nat "<digits>")` | mathematical Nat constant outside the word range |
+| `(bytes "<escaped>" <len>)` | byte buffer constant |
+| `(string "<escaped>" <len>)` | String constant |
+| `(sym <name>)` | interned symbol constant |
+| `(bool true|false)`, `(unit)` | literals |
+| `(local <name>)` | local binder |
+| `(global <Name>)` | top-level unit |
+| `(ctor <Name> <tag> <arity>)` | constructor function |
+| `(prim <Name>)` | primitive operation |
+| `(foreign "<symbol>")` | foreign function |
+| `(app <expr> <expr>*)` | application, callee first |
+| `(lam (<params>) <body>)` | closure (its captured `env` prints as a `@captures` annotation) |
+| `(dictproj <expr> <slot> <Class>)` | dictionary projection |
+| `(proj <expr> <field>)` | constructor or record projection |
+| `(instdict <Name> <expr>*)` | constructed dictionary |
+| `(let <name> :: <type> @<class> <expr> <body>)` | strict let |
+| `(if <expr> <expr> <expr>)` | conditional |
+| `(case <expr> (<alt>*) )` | case; alts sorted by tag then text |
+| `(dup <name>)`, `(drop <name>)` | count operation on a local |
+| `(release <name> (moved <name>*) (rest <name>*) <body>)` | drop specialisation |
+| `(boxinit <name> <expr>)`, `(boxget <expr>)`, `(boxclear <name>)` | knot slots |
+| `(refset <name> <expr>)` | field store |
+| `(quote <n> <body>)`, `(splice <n>)`, `(syntaxlit <n>)` | quotations |
+| `(demand <expr>)` | `Later` demand |
+
+`alt = (<pat> <expr>)`; `pat = _ | (<var>) | (<CtorName> <pat>*) | <int>`.
+
+Types print in surface-like canonical form with no spaces around arrows:
+`forall a b. a -> b`, `List Nat`, `refine (x :: Nat) with x < 8`,
+`{IO r, Diverge} a` for a row applied to a result. Type variables print
+`a`, `b`, ... in first-occurrence order of the unit's scheme; a rigid
+skolem prints `#a`, a metavariable `?12`.
+
+Annotations print in this order, each on the `unit` line or as an
+indented `@` line when long: `@span`, `@class`, `@captures`,
+`@specialised(<keys>)`, `@rewrite(<rule> v<n>)`, `@prim(<Name> for
+<fact>)`, `@resolved(<instance> at <span>)`, `@tailrec`, `@join(<id>)`,
+`@stage(<name>)`. An annotation the stage does not carry is omitted.
+
+Classes print `owned`, `borrowed`, `lent`, `uncounted`, `immortal`.
+
+Sorting: modules by name, units by canonical name, dictionary bindings by
+name, alternatives by tag then text, annotations in the order above.
+Numbers print without separators; negative `Int` constants keep their
+sign; strings escape `\` `"` `\n` `\t` and bytes below 0x20 as `\xNN`.
+
 Related designs: `dependent-core-kernel.md`, `compiled-interface-metadata.md`,
 `ownership-and-usage.md`, `reclamation.md`, `inline-target-ir.md`,
 `arrays.md`, `self-hosting.md`.
