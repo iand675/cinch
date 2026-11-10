@@ -1,5 +1,5 @@
-use cinch::driver::{check_sources, run_source_with, StagingCx};
 mod common;
+use common::source_frontend::{check_sources, run_source};
 
 fn refuses(source: &str) {
     let error = check_sources(source, "nominal-identity.cinch")
@@ -56,7 +56,7 @@ module Main where
   main = value!(())
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
 }
@@ -77,7 +77,7 @@ module Main where
   main = read (F.Make 42)
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
 }
@@ -105,7 +105,7 @@ module Main where
   main = if readA (makeA 42) == 42 && readB (makeB True) then 0 else 1
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         0
     );
 }

@@ -21,7 +21,8 @@
 //! no `Eq` instance, so an `Option (List Nat)` has none either), and the
 //! two comparators the sort checks need are defined here.
 
-use cinch::driver::run_source;
+mod common;
+use common::source_frontend::run_source;
 
 /// Helpers every program shares: structural equality per carrier and the
 /// comparators and tuple projections the checks use.

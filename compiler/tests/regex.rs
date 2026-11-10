@@ -17,7 +17,8 @@
 //! `compiler/prelude/Text/Regex.cinch` and `Text/Scan.cinch` sources
 //! (the driver does not embed them: the P30 note's pattern).
 
-use cinch::driver::{driver, Mode};
+mod common;
+use cinch::driver::Mode;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -46,26 +47,13 @@ fn write_project(name: &str, files: &[(&str, &str)]) -> PathBuf {
     dir
 }
 
-/// Run a driver invocation on a thread with a large stack (the
-/// checker recurses over a program's elaborated code).
-fn drive(mode: Mode, entry: &Path, out: Option<&Path>) -> i32 {
-    let entry = entry.to_path_buf();
-    let out = out.map(|p| p.to_path_buf());
-    std::thread::Builder::new()
-        .stack_size(64 * 1024 * 1024)
-        .spawn(move || driver(mode, &entry, out.as_deref()))
-        .expect("spawn harness thread")
-        .join()
-        .expect("harness thread")
-        .unwrap_or_else(|e| panic!("compilation failed: {e}"))
-}
-
 /// Compile and run a `Main`; the exit code is the program's
 /// `main :: Int` result (0 on success, the failing case number on a
 /// named failure).
 fn run_main(name: &str, main: &str) -> i32 {
     let dir = write_project(name, &[("main.cinch", main)]);
-    let code = drive(Mode::Run, &dir.join("main.cinch"), None);
+    let code = common::drive(Mode::Run, &dir, "main.cinch", None)
+        .unwrap_or_else(|e| panic!("compilation failed: {e}"));
     let _ = std::fs::remove_dir_all(&dir);
     code
 }
@@ -80,7 +68,8 @@ fn expect_exit(name: &str, main: &str, expected: i32) {
 fn build_exe(name: &str, main: &str) -> (PathBuf, PathBuf) {
     let dir = write_project(name, &[("main.cinch", main)]);
     let exe = dir.join("program");
-    let code = drive(Mode::Build, &dir.join("main.cinch"), Some(&exe));
+    let code = common::drive(Mode::Build, &dir, "main.cinch", Some(exe.clone()))
+        .unwrap_or_else(|e| panic!("compilation failed: {e}"));
     assert_eq!(code, 0, "{name}: build failed");
     (dir, exe)
 }

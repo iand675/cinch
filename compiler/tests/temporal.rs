@@ -22,12 +22,12 @@
 //! (identity pinned both ways, the P20 precedent) and rows in the
 //! artifact manifest with their stated assumptions.
 
+mod common;
+
 use cinch::check::{check_program_multi_full, StagingCx};
 use cinch::core::TargetProfile;
-use cinch::driver::{
-    check_sources, check_sources_ifaces, driver_with_profile, parse_prelude, parse_source,
-    Mode, StageMode,
-};
+use cinch::driver::{driver_with_profile, parse_prelude, parse_source, Mode, StageMode};
+use common::source_frontend::{check_source_interfaces, check_sources};
 use cinch::interface::{ContractFact, Iface};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -60,7 +60,7 @@ fn expect_err(name: &str, src: &str, needles: &[&str]) {
 
 /// The `Main` interface of a checked source.
 fn iface_of(src: &str) -> Iface {
-    let (_p, ifaces) = check_sources_ifaces(src, "<test>").expect("check");
+    let ifaces = check_source_interfaces(src, "<test>").expect("check");
     ifaces
         .into_iter()
         .find(|i| i.module == "Main")

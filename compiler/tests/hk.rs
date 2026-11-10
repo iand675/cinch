@@ -21,7 +21,9 @@
 //! name is unknown). `shipped_category_functor_imports_across_files`
 //! is the dotted-name probe over the real modules.
 
-use cinch::driver::{check_sources, driver, run_source, Mode};
+mod common;
+use cinch::driver::Mode;
+use common::source_frontend::{check_sources, run_source};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -137,7 +139,7 @@ fn shipped_category_functor_imports_across_files() {
          \x20   None -> 1\n\
          \x20   Some n -> if n == 2 then 0 else 2\n";
     std::fs::write(dir.join("Main.cinch"), main).expect("write Main");
-    let code = match driver(Mode::Run, &dir.join("Main.cinch"), None) {
+    let code = match common::drive(Mode::Run, &dir, "Main.cinch", None) {
         Ok(code) => code,
         Err(e) => panic!("shipped multi-file: compilation failed: {e}"),
     };
@@ -246,7 +248,7 @@ fn probe12_dotted_import_multi_file() {
     std::fs::create_dir_all(&dir).expect("temp project dir");
     std::fs::write(dir.join("Functor.cinch"), MULTI_FUNCTOR).expect("write module");
     std::fs::write(dir.join("Main.cinch"), MULTI_MAIN).expect("write module");
-    let code = match driver(Mode::Check, &dir.join("Main.cinch"), None) {
+    let code = match common::drive(Mode::Check, &dir, "Main.cinch", None) {
         Ok(code) => code,
         Err(e) => panic!("probe12 (multi/): compilation failed: {e}"),
     };

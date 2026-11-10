@@ -1,5 +1,7 @@
 //! Native choreography preserves role projection, branch/wire types and ownership.
-use cinch::driver::{check_sources, run_source_with, StagingCx};
+use cinch::driver::check_sources;
+mod common;
+use common::source_frontend::run_source;
 
 fn libraries() -> String {
     format!("{}\n{}\n", include_str!("../../experiments/malleable-syntax/libraries/LocalWire.cinch"),
@@ -8,12 +10,12 @@ fn libraries() -> String {
 
 #[track_caller]
 fn run(source: &str) {
-    assert_eq!(run_source_with(source, &mut StagingCx::default()).unwrap(), 42);
+    assert_eq!(run_source(source).unwrap(), 42);
 }
 
 #[track_caller]
 fn refuses(source: &str, needle: &str) {
-    let error = check_sources(source, "native-choreography.cinch").err().expect("must refuse").to_string();
+    let error = common::source_frontend::check_sources(source, "native-choreography.cinch").err().expect("must refuse");
     assert!(error.contains(needle), "{error}");
 }
 
@@ -121,7 +123,7 @@ fn original_three_role_checkout_runs_both_branches_with_native_declarations() {
         assert!(names.contains(&required), "missing checked participant API {required}");
     }
     assert!(!names.contains(&"Checkout.send-Checkout-Bank-Order"));
-    assert_eq!(run_source_with(&source, &mut StagingCx::default()).unwrap(), 0);
+    assert_eq!(run_source(&source).unwrap(), 0);
 }
 
 #[test]

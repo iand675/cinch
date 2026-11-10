@@ -1,5 +1,7 @@
 //! Experimental goal-directed elaboration must preserve ordinary evidence rules.
-use cinch::driver::check_sources;
+mod common;
+
+use common::source_frontend::check_sources;
 
 fn checks(body: &str) {
     let src = format!("module Main where\n{body}\n  main :: Int\n  main = 0\n");
@@ -90,7 +92,7 @@ module Main where
   main :: Int
   main = 0
 "#;
-    let error = check_sources(source, "native-tactic-diagnostic.cinch")
+    let error = cinch::driver::check_sources(source, "native-tactic-diagnostic.cinch")
         .err().expect("a missing fact cannot be supplied by the macro's definition scope");
     assert!(error.message.contains("could not prove `i < n`"), "{error}");
     let line = source.lines().position(|line| line.contains("unsafe i n =")).unwrap();

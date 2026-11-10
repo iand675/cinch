@@ -1,11 +1,12 @@
 //! Generated and captured evidence retains its runtime value and erasure scope.
-use cinch::driver::{check_sources, run_source_with, StagingCx};
+mod common;
+use common::source_frontend::{check_sources, run_source};
 
 const BASE: &str = include_str!("fixtures/syntax/runtime-proof-bindings.cinch");
 
 #[track_caller]
 fn run(source: &str) {
-    assert_eq!(run_source_with(source, &mut StagingCx::default()).unwrap(), 42);
+    assert_eq!(run_source(source).unwrap(), 42);
 }
 
 #[track_caller]

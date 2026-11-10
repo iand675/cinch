@@ -3,7 +3,9 @@
 //! `Ref`/`Mut` borrows with region escape checking, and the thunk
 //! multiplicity discipline. See `../design/ownership-and-usage.md`.
 
-use cinch::driver::{check_sources, run_source};
+mod common;
+
+use common::source_frontend::{check_sources, run_source, run_source_io};
 
 fn expect_ok(name: &str, src: &str, expected: i32) {
     match run_source(src) {
@@ -174,7 +176,7 @@ module Main where
   main :: Int
   main = discard-word 928374615
 "#;
-    let program = check_sources(src, "<test>").expect("check erased worker");
+    let program = cinch::driver::check_sources(src, "<test>").expect("check erased worker");
     let ir = cinch::codegen::emit(&program).expect("emit erased worker");
     assert!(ir.lines().any(|line| line.starts_with(r#"define i64 @"Main.discard-word"()"#)));
     assert!(ir.lines().any(|line| line.contains("@__apply(i64 %p0, i64 0,")));
@@ -225,7 +227,7 @@ module Main where
   main u = with (io = newIO ()) in
     let unused = ping () in 0
 "#;
-    let (code, stdout) = cinch::driver::run_source_io(src, b"").expect("run erased IO call");
+    let (code, stdout) = run_source_io(src, b"").expect("run erased IO call");
     assert_eq!((code, stdout.as_str()), (0, "ping"));
 }
 

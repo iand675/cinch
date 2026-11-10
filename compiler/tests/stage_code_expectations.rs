@@ -1,5 +1,6 @@
 //! Expected Code types must survive stored stage values, splices and composition.
-use cinch::driver::{check_sources, run_source_with, StagingCx};
+mod common;
+use common::source_frontend::{check_sources, run_source};
 
 fn linear_refusal(source: &str) {
     let error = check_sources(source, "staged-linear-code.cinch")
@@ -23,7 +24,7 @@ fn carrier_refusal(source: &str) {
 #[test]
 fn stored_stage_values_preserve_linear_parameter_usage() {
     assert_eq!(
-        run_source_with(STAGE_ONCE_CONTROL, &mut StagingCx::default()).unwrap(),
+        run_source(STAGE_ONCE_CONTROL).unwrap(),
         42
     );
     linear_refusal(STAGE_LINEAR_DUPLICATION);
@@ -70,10 +71,7 @@ fn generic_declaration_source(argument: &str, marker: &str) -> String {
 fn generic_declaration_producers_keep_the_bool_callers_type() {
     for (argument, marker) in [("a", "(True :: Bool)"), ("Code a", "[| True |]")] {
         assert_eq!(
-            run_source_with(
-                &generic_declaration_source(argument, marker),
-                &mut StagingCx::default()
-            )
+            run_source(&generic_declaration_source(argument, marker))
             .unwrap(),
             42
         );
@@ -103,7 +101,7 @@ fn separate_stage_instantiations_can_choose_different_types() {
 "#
     );
     assert_eq!(
-        run_source_with(&source, &mut StagingCx::default()).unwrap(),
+        run_source(&source).unwrap(),
         42
     );
     let producer = format!(
@@ -116,7 +114,7 @@ fn separate_stage_instantiations_can_choose_different_types() {
     emit declarations
 "#,
     );
-    assert_eq!(run_source_with(&producer, &mut StagingCx::default()).unwrap(), 42);
+    assert_eq!(run_source(&producer).unwrap(), 42);
 }
 
 #[test]
@@ -144,7 +142,7 @@ fn partial_application_retains_the_generic_callers_type() {
         );
         if valid {
             assert_eq!(
-                run_source_with(&source, &mut StagingCx::default()).unwrap(),
+                run_source(&source).unwrap(),
                 42
             );
         } else {
@@ -167,7 +165,7 @@ fn returned_stage_closures_retain_the_generic_callers_type() {
             );
         if valid {
             assert_eq!(
-                run_source_with(&source, &mut StagingCx::default()).unwrap(),
+                run_source(&source).unwrap(),
                 42
             );
         } else {

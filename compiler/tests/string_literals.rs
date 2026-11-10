@@ -30,11 +30,12 @@
 //!   (Haskell's `Data.String` pair) live in the type's home;
 //!   `Show Bool`/`Show Ordering` render through literals.
 
+mod common;
+
 use cinch::check::{check_program_multi_full, StagingCx};
+use common::source_frontend::{check_sources, run_source};
 use cinch::core::TargetProfile;
-use cinch::driver::{
-    check_sources, driver_with, parse_prelude, parse_source, run_source, Mode, StageMode,
-};
+use cinch::driver::{driver_with, parse_prelude, parse_source, Mode, StageMode};
 use cinch::Result;
 use std::collections::HashMap;
 use std::path::PathBuf;

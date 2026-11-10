@@ -23,7 +23,9 @@
 //! therefore safe for each, and the reasoning is repeated at each
 //! observation's site.
 
-use cinch::driver::{driver, Mode};
+mod common;
+
+use cinch::driver::Mode;
 use std::path::PathBuf;
 
 const RANDOM: &str = include_str!("../prelude/Effect/Random.cinch");
@@ -42,15 +44,8 @@ fn run_main(name: &str, main_src: &str) -> i32 {
     // The checker's elaboration recursion runs near the default test
     // thread stack at the whole-prelude baseline, so compile on a thread
     // with a generous stack (as `tests/lib_base64.rs` and
-    // `tests/runtime_prims.rs` do).
-    let path = dir.join("Main.cinch");
-    let compiled = std::thread::Builder::new()
-        .stack_size(64 * 1024 * 1024)
-        .spawn(move || driver(Mode::Run, &path, None))
-        .expect("spawn compiler thread")
-        .join()
-        .expect("compiler thread panicked");
-    match compiled {
+    // `tests/runtime_prims.rs` do); `common::drive` compiles on one.
+    match common::drive(Mode::Run, &dir, "Main.cinch", None) {
         Ok(code) => code,
         Err(e) => panic!("{name}: compilation failed: {e}"),
     }

@@ -6,7 +6,9 @@
 //! answer `None` for a zero divisor. Every program here runs through the
 //! real driver.
 
-use cinch::driver::{check_sources, run_source};
+mod common;
+
+use common::source_frontend::{check_sources, run_source};
 
 fn expect_run(name: &str, src: &str, expected: i32) {
     match run_source(src) {

@@ -1,4 +1,7 @@
 //! Erased constructor witnesses retain lexical runtime value identity.
+mod common;
+use common::source_frontend::{check_sources, run_source};
+
 #[test]
 fn constructor_proofs_keep_derivation_scope_and_strict_aliases() {
     let cases = [
@@ -13,8 +16,8 @@ fn constructor_proofs_keep_derivation_scope_and_strict_aliases() {
     ];
     for (name, body, accepted) in cases {
         let source = format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n");
-        let actual = cinch::driver::check_sources(&source, "proof-value-identity.cinch");
-        assert_eq!(actual.is_ok(), accepted, "{name}: {}", actual.err().map_or("accepted".into(), |e| e.message));
+        let actual = check_sources(&source, "proof-value-identity.cinch");
+        assert_eq!(actual.is_ok(), accepted, "{name}: {}", actual.err().unwrap_or_else(|| "accepted".into()));
     }
 }
 
@@ -37,7 +40,7 @@ fn quantified_proposition_domains_keep_their_declared_kind() {
     for (name, body, accepted) in cases {
         let body = body.replace("\\n", "\n");
         let source = format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n");
-        let actual = cinch::driver::check_sources(&source, "proposition-carrier.cinch");
+        let actual = check_sources(&source, "proposition-carrier.cinch");
         assert_eq!(actual.is_ok(), accepted, "{name}: {actual:?}\n{source}");
     }
 }
@@ -64,7 +67,7 @@ fn quantified_evidence_constructors_execute_with_erased_fields() {
 "#,
     ];
     for source in cases {
-        assert_eq!(cinch::driver::run_source(source).expect("compile quantified erased evidence"), 0);
+        assert_eq!(run_source(source).expect("compile quantified erased evidence"), 0);
     }
 }
 
@@ -89,7 +92,7 @@ fn logical_literals_keep_proof_and_boolean_carriers_distinct() {
     ];
     for (name, body, accepted) in cases {
         let source = format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n");
-        let result = cinch::driver::check_sources(&source, "logical-literal.cinch");
+        let result = check_sources(&source, "logical-literal.cinch");
         assert_eq!(result.is_ok(), accepted, "{name}: {result:?}\n{source}");
     }
 }
@@ -123,6 +126,6 @@ fn literal_decisions_execute_with_erased_evidence_and_compound_truth_tables() {
 "#,
     ];
     for source in cases {
-        assert_eq!(cinch::driver::run_source(source).expect("compile logical literal decisions"), 0);
+        assert_eq!(run_source(source).expect("compile logical literal decisions"), 0);
     }
 }

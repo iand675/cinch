@@ -16,7 +16,9 @@
 //! the staging probes pin that a build cannot observe the clock at
 //! all.
 
-use cinch::driver::{check_sources, run_source, run_source_io};
+mod common;
+
+use common::source_frontend::{check_sources, run_source, run_source_io};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 

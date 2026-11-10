@@ -11,7 +11,9 @@
 //! family) is opaque. A fact over a rebound name or a written place still
 //! never participates.
 
-use cinch::driver::{check_sources, run_source};
+mod common;
+
+use common::source_frontend::{check_sources, run_source};
 
 fn expect_checks(name: &str, src: &str) {
     if let Err(e) = check_sources(src, "<test>") {

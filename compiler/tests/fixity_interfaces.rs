@@ -14,7 +14,8 @@
 
 mod common;
 
-use cinch::driver::{check_sources, Mode};
+use cinch::driver::Mode;
+use common::source_frontend::check_sources;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 

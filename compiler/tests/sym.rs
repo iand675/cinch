@@ -13,7 +13,10 @@
 //! `Syntax` token trees, whose name lexemes reify to the interned
 //! constant).
 
-use cinch::driver::{check_sources, run_source};
+mod common;
+
+use cinch::driver::check_sources;
+use common::source_frontend::run_source;
 use cinch::lexer::{lex, Tok};
 
 /// Compile, run and assert the exit code.
@@ -27,7 +30,7 @@ fn run_ok(name: &str, src: &str, expected: i32) {
 /// Assert that checking the program fails with a message containing
 /// `needle`.
 fn expect_err(name: &str, src: &str, needle: &str) {
-    match check_sources(src, name) {
+    match common::source_frontend::check_sources(src, name) {
         Ok(_) => panic!("{name}: expected a compilation error containing {needle:?}"),
         Err(e) => {
             let msg = e.to_string();

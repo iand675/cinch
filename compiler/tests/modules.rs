@@ -2,7 +2,9 @@
 //! These tests drive the real CLI pipeline (project loading, per-module
 //! interfaces, chain and coherence checks, linking with the Rust runtime).
 
-use cinch::driver::{driver, Mode};
+mod common;
+
+use cinch::driver::Mode;
 use std::path::{Path, PathBuf};
 
 fn write_project(files: &[(&str, &str)]) -> PathBuf {
@@ -20,13 +22,11 @@ fn write_project(files: &[(&str, &str)]) -> PathBuf {
 }
 
 fn run_entry(dir: &Path, entry: &str) -> Result<i32, String> {
-    driver(Mode::Run, &dir.join(entry), None).map_err(|e| e.to_string())
+    common::drive(Mode::Run, dir, entry, None)
 }
 
 fn check_entry(dir: &Path, entry: &str) -> Result<(), String> {
-    driver(Mode::Check, &dir.join(entry), None)
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    common::check(dir, entry)
 }
 
 fn assert_manifest(dir: &Path, entry: &str, modules: &[&str]) {

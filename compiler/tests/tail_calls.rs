@@ -18,8 +18,10 @@
 //! group would die like the control, so the marks are asserted beside
 //! the runs.
 
+mod common;
+
 use cinch::core::tail_report;
-use cinch::driver::{check_sources, driver, Mode};
+use cinch::driver::{check_sources, Mode};
 
 /// Build a `Main` through the driver and run it on an 8 MiB stack:
 /// `Some(code)` is the program's `main :: Int` result, `None` a death on
@@ -31,7 +33,7 @@ fn run_on_8mib(name: &str, src: &str) -> Option<i32> {
     let entry = dir.join("Main.cinch");
     std::fs::write(&entry, src).expect("write Main.cinch");
     let exe = dir.join("Main");
-    if let Err(e) = driver(Mode::Build, &entry, Some(&exe)) {
+    if let Err(e) = common::drive(Mode::Build, &dir, "Main.cinch", Some(exe.clone())) {
         panic!("{name}: compilation failed: {e}");
     }
     let status = std::process::Command::new(&exe)

@@ -1,5 +1,8 @@
 //! Versioned interface bodies retain actual defining identity and dependencies.
+mod common;
+
 use cinch::interface::{Iface, SCHEMA_VERSION};
+use common::source_frontend::check_source_interfaces;
 use cinch::total::{CheckedGraph, Definition, Expr, Sort};
 
 #[test]
@@ -19,7 +22,7 @@ module Main where
   main :: Int
   main = 0
 "#;
-    let (_, interfaces) = cinch::driver::check_sources_ifaces(source, "body-interfaces.cinch").unwrap();
+    let interfaces = check_source_interfaces(source, "body-interfaces.cinch").unwrap();
     let a = interfaces.iter().find(|i| i.module == "A").unwrap();
     assert_eq!(a.schema, SCHEMA_VERSION);
     let width = a.exports.values.iter().find(|v| v.name == "width").unwrap();
@@ -33,7 +36,7 @@ module Main where
     assert_eq!(measure.symbol, "A.width");
     assert_eq!(measure.total_body.as_ref(), Some(body));
     assert_eq!(Iface::from_json(&a.to_json()).unwrap(), *a);
-    let (_, changed) = cinch::driver::check_sources_ifaces(&source.replace("then 1 else 4", "then 2 else 4"), "body-interfaces.cinch").unwrap();
+    let changed = check_source_interfaces(&source.replace("then 1 else 4", "then 2 else 4"), "body-interfaces.cinch").unwrap();
     let changed = changed.iter().find(|i| i.module == "A").unwrap();
     assert_ne!(a.iface_hash(), changed.iface_hash(), "actual body changes invalidate semantic consumers despite identical value schemes");
     let native = cinch::driver::check_sources("module Main where\n  main :: Int\n  main = 0\n", "real-measure-export.cinch").unwrap();

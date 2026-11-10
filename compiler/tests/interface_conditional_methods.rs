@@ -1,10 +1,11 @@
 //! Conditional implementations retain callable proof contracts, never a general dictionary.
-use cinch::driver::{check_sources, check_sources_ifaces};
+mod common;
+use common::source_frontend::{check_source_interfaces, check_sources};
 use cinch::interface::Iface;
 
 #[test]
 fn checked_conditional_declarations_follow_actual_dictionary_slots() {
-    let (_, interfaces) = check_sources_ifaces("module Main where\n  main :: Int\n  main = 0\n", "conditional-declarations.cinch").unwrap();
+    let interfaces = check_source_interfaces("module Main where\n  main :: Int\n  main = 0\n", "conditional-declarations.cinch").unwrap();
     let nat = interfaces.iter().find(|iface| iface.module == "Data.Nat").unwrap();
     let sub = nat.exports.instances.iter().find(|instance| instance.id == "Data.Nat.Sub_Nat").unwrap();
     assert!(sub.resolved.is_none(), "a conditional implementation must not become an unrestricted dictionary factory");

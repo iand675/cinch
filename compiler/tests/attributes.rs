@@ -4,9 +4,12 @@
 //! computed layout facts (attribute annotations specification sections
 //! 1-5, 7).
 
+mod common;
+
 use cinch::check::{check_program_multi_diag, Diagnostic, StagingCx};
 use cinch::core::Program;
-use cinch::driver::{check_sources, parse_prelude, parse_source, run_source};
+use cinch::driver::{parse_prelude, parse_source};
+use common::source_frontend::{check_sources, run_source};
 use cinch::interface::Iface;
 use cinch::Result;
 use std::collections::HashMap;
@@ -60,7 +63,7 @@ fn expect_err(name: &str, src: &str, needle: &str) {
 /// which code generation requires).
 fn ir_of(name: &str, src: &str) -> String {
     let program =
-        check_sources(src, "<test>").unwrap_or_else(|e| panic!("{name}: check failed: {e}"));
+        cinch::driver::check_sources(src, "<test>").unwrap_or_else(|e| panic!("{name}: check failed: {e}"));
     cinch::codegen::emit(&program).unwrap_or_else(|e| panic!("{name}: emit failed: {e}"))
 }
 

@@ -2,7 +2,8 @@
 //!
 //! Each test compiles a real two-module project (Text/Digest.cinch beside a `Main` that informs the checks) through the CLI pipeline's driver, exactly as lib_base64.rs does. Checks are top-level `check-*` style functions returning 0 or their bit; `main` sums them, so a nonzero exit code is a bitmask naming the failed checks (check k contributes bit 2^(k-1)). The checks are top-level because a `case` in a `let` binder's right-hand side must indent past the binder's column under the layout rules; and the compiler runs on a generously stacked thread because the elaboration recursion sits near the default test-thread stack at the whole-prelude baseline.
 
-use cinch::driver::{driver, Mode};
+mod common;
+use cinch::driver::Mode;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -62,16 +63,7 @@ fn run_main(name: &str, main_src: &str) -> i32 {
     for (file, src) in [("Digest.cinch", DIGEST), ("Main.cinch", main_src)] {
         std::fs::write(dir.join(file), src).expect("write module");
     }
-    // Compile on a thread with a generous stack: the checker's
-    // elaboration recursion runs near the default test-thread stack at
-    // the whole-prelude baseline, as lib_base64.rs notes.
-    let path = dir.join("Main.cinch");
-    let compiled = std::thread::Builder::new()
-        .stack_size(64 * 1024 * 1024)
-        .spawn(move || driver(Mode::Run, &path, None))
-        .expect("spawn compiler thread")
-        .join()
-        .expect("compiler thread panicked");
+    let compiled = common::drive(Mode::Run, &dir, "Main.cinch", None);
     match compiled {
         Ok(code) => code,
         Err(e) => panic!("{name}: compilation failed: {e}"),

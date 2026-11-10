@@ -4,7 +4,8 @@
 //! with dictionary-passing semantics, parameter identity in `.cinchif`,
 //! and intact instance coherence. These tests drive the real CLI pipeline.
 
-use cinch::driver::{driver, Mode};
+mod common;
+use cinch::driver::Mode;
 use std::path::{Path, PathBuf};
 
 fn write_project(files: &[(&str, &str)]) -> PathBuf {
@@ -22,13 +23,11 @@ fn write_project(files: &[(&str, &str)]) -> PathBuf {
 }
 
 fn run_entry(dir: &Path, entry: &str) -> Result<i32, String> {
-    driver(Mode::Run, &dir.join(entry), None).map_err(|e| e.to_string())
+    common::drive(Mode::Run, dir, entry, None)
 }
 
 fn check_entry(dir: &Path, entry: &str) -> Result<(), String> {
-    driver(Mode::Check, &dir.join(entry), None)
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    common::check(dir, entry)
 }
 
 /// The shared vocabulary: a user-declared `signature` and two explicit

@@ -31,7 +31,8 @@
 //! sums them, so a nonzero exit code is a bitmask naming the failed
 //! checks (check k contributes bit 2^(k-1)).
 
-use cinch::driver::{driver, Mode};
+mod common;
+use cinch::driver::Mode;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -55,7 +56,7 @@ fn run_main(name: &str, main_src: &str) -> i32 {
     ] {
         std::fs::write(dir.join(file), src).expect("write module");
     }
-    match driver(Mode::Run, &dir.join("Main.cinch"), None) {
+    match common::drive(Mode::Run, &dir, "Main.cinch", None) {
         Ok(code) => code,
         Err(e) => panic!("{name}: compilation failed: {e}"),
     }

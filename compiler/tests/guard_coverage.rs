@@ -3,7 +3,8 @@
 //! cover every constructor and value. A match whose guards could all fail
 //! is a compile error, never a runtime fault.
 
-use cinch::driver::{check_sources, run_source};
+mod common;
+use common::source_frontend::{check_sources, run_source};
 
 fn expect_ok(name: &str, src: &str, expected: i32) {
     match run_source(src) {

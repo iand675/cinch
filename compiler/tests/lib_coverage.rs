@@ -32,7 +32,8 @@
 //! binder's right-hand side must indent past the binder's column under
 //! the layout rules.
 
-use cinch::driver::{driver, Mode};
+mod common;
+use cinch::driver::Mode;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -90,7 +91,7 @@ fn run_main(name: &str, main_src: &str) -> i32 {
     for (file, src) in [("Coverage.cinch", COVERAGE), ("Main.cinch", main_src)] {
         std::fs::write(dir.join(file), src).expect("write module");
     }
-    match driver(Mode::Run, &dir.join("Main.cinch"), None) {
+    match common::drive(Mode::Run, &dir, "Main.cinch", None) {
         Ok(code) => code,
         Err(e) => panic!("{name}: compilation failed: {e}"),
     }

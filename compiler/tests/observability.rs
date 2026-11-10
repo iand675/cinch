@@ -23,7 +23,9 @@
 //! close at all). The handler clauses are one line each over the
 //! record builders.
 
-use cinch::driver::{driver, Mode};
+mod common;
+
+use cinch::driver::Mode;
 use std::path::{Path, PathBuf};
 
 const LOG_SRC: &str = include_str!("../prelude/Effect/Log.cinch");
@@ -75,15 +77,9 @@ fn write_project(name: &str, files: &[(&str, &str)]) -> PathBuf {
 /// checker recurses over a program's elaborated code; the toolkit
 /// programs are bigger than a default test thread's stack).
 fn drive(mode: Mode, entry: &Path, out: Option<&Path>) -> Result<i32, String> {
-    let entry = entry.to_path_buf();
-    let out = out.map(|p| p.to_path_buf());
-    std::thread::Builder::new()
-        .stack_size(64 * 1024 * 1024)
-        .spawn(move || driver(mode, &entry, out.as_deref()))
-        .expect("spawn harness thread")
-        .join()
-        .expect("harness thread")
-        .map_err(|e| e.to_string())
+    let dir = entry.parent().expect("entry directory");
+    let file = entry.file_name().and_then(|f| f.to_str()).expect("entry file name");
+    common::drive(mode, dir, file, out.map(|p| p.to_path_buf()))
 }
 
 /// Compile and run a `Main`; the exit code is the program's

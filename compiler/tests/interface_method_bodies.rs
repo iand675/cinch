@@ -1,4 +1,6 @@
 //! Actual selected implementations travel without publishing private names.
+mod common;
+
 use cinch::interface::{Iface, verify_chain};
 use cinch::total::{CheckedGraph, Definition, Expr, Sort};
 
@@ -17,7 +19,7 @@ const OWNER: &str = r#"module Owner where
   private-helper :: Nat -> Nat
   private-helper n = nat-add n 1
 "#;
-fn interfaces(source: &str) -> Vec<Iface> { cinch::driver::check_sources_ifaces(source, "method-bodies.cinch").unwrap().1 }
+fn interfaces(source: &str) -> Vec<Iface> { common::source_frontend::check_source_interfaces(source, "method-bodies.cinch").unwrap() }
 fn owner(interfaces: &[Iface]) -> &Iface { interfaces.iter().find(|interface| interface.module == "Owner").unwrap() }
 fn reject(mut interface: Iface, change: impl FnOnce(&mut cinch::interface::InstanceMethodBody)) {
     change(&mut interface.exports.instances[0].method_bodies[0]);
@@ -98,7 +100,7 @@ fn private_calls_and_slots_remain_associated_without_leaking_source_names() {
     assert!(class.methods.iter().find(|method| method.name == "hidden").unwrap().exports.is_empty());
     assert!(class.methods.iter().find(|method| method.name == "observe").unwrap().exports.contains(&"observe".to_string()));
     verify_chain(&interfaces).unwrap();
-    assert!(cinch::driver::check_sources(&format!("{OWNER}\nmodule Main where\n  import Owner\n  bad :: Nat\n  bad = Owner.private-helper 1\n  main :: Int\n  main = 0\n"), "private-method.cinch").is_err());
+    assert!(common::source_frontend::check_sources(&format!("{OWNER}\nmodule Main where\n  import Owner\n  bad :: Nat\n  bad = Owner.private-helper 1\n  main :: Int\n  main = 0\n"), "private-method.cinch").is_err());
     let changed = self::interfaces(&OWNER.replace("nat-add n 1", "nat-add n 2"));
     assert_ne!(original.iface_hash(), owner(&changed).iface_hash());
 }

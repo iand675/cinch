@@ -43,7 +43,8 @@
 //! the byte-built stored fixture, the round trip, the checksum vectors
 //! and every error path still run.
 
-use cinch::driver::{driver, Mode};
+mod common;
+use cinch::driver::Mode;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -254,15 +255,8 @@ fn path_lit(dir: &Path, name: &str) -> String {
 /// deeper than the prelude baseline.
 fn run_project(name: &str, dir: &Path, main_src: &str) -> i32 {
     write_fixture(dir, "Zlib.cinch", ZLIB.as_bytes());
-    let main_path = dir.join("Main.cinch");
-    std::fs::write(&main_path, main_src).expect("write Main.cinch");
-    let compiled = std::thread::Builder::new()
-        .name(name.to_string())
-        .stack_size(64 * 1024 * 1024)
-        .spawn(move || driver(Mode::Run, &main_path, None).map_err(|e| e.to_string()))
-        .expect("spawn compile thread")
-        .join()
-        .expect("compile thread panicked");
+    std::fs::write(dir.join("Main.cinch"), main_src).expect("write Main.cinch");
+    let compiled = common::drive(Mode::Run, dir, "Main.cinch", None);
     match compiled {
         Ok(code) => code,
         Err(e) => panic!("{name}: compilation failed: {e}"),

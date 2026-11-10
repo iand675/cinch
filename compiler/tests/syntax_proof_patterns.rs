@@ -1,5 +1,6 @@
 //! Proof patterns share typed lexical scope and coverage with ordinary patterns.
-use cinch::driver::{check_sources, run_source_with, StagingCx};
+mod common;
+use common::source_frontend::{check_sources, run_source};
 
 #[track_caller]
 fn refuses(source: &str, reason: &str) {
@@ -25,14 +26,12 @@ fn proof_patterns_check_the_actual_subject_carrier() {
 
 #[test]
 fn typed_structural_induction_still_checks_and_erases() {
-    assert_eq!(run_source_with(include_str!("fixtures/syntax/proof-case-induction.cinch"),
-        &mut StagingCx::default()).unwrap(), 42);
+    assert_eq!(run_source(include_str!("fixtures/syntax/proof-case-induction.cinch")).unwrap(), 42);
 }
 
 #[test]
 fn captured_induction_binders_survive_a_generated_shadow() {
-    assert_eq!(run_source_with(include_str!("fixtures/syntax/proof-case-captured-induction.cinch"),
-        &mut StagingCx::default()).unwrap(), 42);
+    assert_eq!(run_source(include_str!("fixtures/syntax/proof-case-captured-induction.cinch")).unwrap(), 42);
 }
 
 const SHADOWED_GOAL: &str = r#"module Main where
@@ -47,7 +46,7 @@ const SHADOWED_GOAL: &str = r#"module Main where
 
 #[test]
 fn pattern_shadows_preserve_the_outer_goal_and_its_existing_evidence() {
-    assert_eq!(run_source_with(SHADOWED_GOAL, &mut StagingCx::default()).unwrap(), 42);
+    assert_eq!(run_source(SHADOWED_GOAL).unwrap(), 42);
 }
 
 #[test]
@@ -66,7 +65,7 @@ fn nested_constructor_patterns_retain_induction_fields() {
   main :: Int
   main = 42
 "#;
-    assert_eq!(run_source_with(source, &mut StagingCx::default()).unwrap(), 42);
+    assert_eq!(run_source(source).unwrap(), 42);
 }
 
 #[test]
@@ -77,7 +76,7 @@ fn exhaustive_numeric_patterns_keep_the_default_subject() {
   main :: Int
   main = 42
 "#;
-    assert_eq!(run_source_with(source, &mut StagingCx::default()).unwrap(), 42);
+    assert_eq!(run_source(source).unwrap(), 42);
 }
 
 #[test]
@@ -88,7 +87,7 @@ fn exhaustive_boolean_proof_patterns_still_check() {
   main :: Int
   main = 42
 "#;
-    assert_eq!(run_source_with(source, &mut StagingCx::default()).unwrap(), 42);
+    assert_eq!(run_source(source).unwrap(), 42);
 }
 
 #[test]
@@ -138,7 +137,7 @@ fn generic_constructor_refinement_keeps_its_type_instantiation() {
   main :: Int
   main = 42
 "#;
-    assert_eq!(run_source_with(source, &mut StagingCx::default()).unwrap(), 42);
+    assert_eq!(run_source(source).unwrap(), 42);
 }
 
 const CAPTURED_FIELD_PROOF: &str = r#"module Main where
@@ -156,7 +155,7 @@ const CAPTURED_FIELD_PROOF: &str = r#"module Main where
 
 #[test]
 fn captured_erased_fields_keep_their_runtime_subject_under_shadowing() {
-    assert_eq!(run_source_with(CAPTURED_FIELD_PROOF, &mut StagingCx::default()).unwrap(), 42);
+    assert_eq!(run_source(CAPTURED_FIELD_PROOF).unwrap(), 42);
 }
 
 #[test]
@@ -171,5 +170,5 @@ fn ordinary_matches_preserve_captured_erased_field_subjects() {
         "type Zero = refine (value :: Nat) with Eq value 0\n  extract :: Certified -> Zero\n  extract (Certified index witness) = Zero index (hide!((witness), index))",
     );
     assert_ne!(source, CAPTURED_FIELD_PROOF);
-    assert_eq!(run_source_with(&source, &mut StagingCx::default()).unwrap(), 42);
+    assert_eq!(run_source(&source).unwrap(), 42);
 }

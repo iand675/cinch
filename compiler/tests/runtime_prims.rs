@@ -11,7 +11,9 @@
 //! against the published vectors (FIPS 180-4, FIPS 180-1, RFC 1321 and
 //! RFC 4231).
 
-use cinch::driver::{driver, Mode};
+mod common;
+
+use cinch::driver::Mode;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -53,14 +55,7 @@ fn run_project(name: &str, main_src: &str) -> i32 {
     // checks carry deep list literals; compile on a thread with a
     // generous stack so the slice is not sensitive to the harness
     // default (as `tests/lib_base64.rs` does).
-    let path = dir.join("Main.cinch");
-    let compiled = std::thread::Builder::new()
-        .stack_size(64 * 1024 * 1024)
-        .spawn(move || driver(Mode::Run, &path, None))
-        .expect("spawn compiler thread")
-        .join()
-        .expect("compiler thread panicked");
-    match compiled {
+    match common::drive(Mode::Run, &dir, "Main.cinch", None) {
         Ok(code) => code,
         Err(e) => panic!("{name}: compilation failed: {e}"),
     }

@@ -2,7 +2,9 @@
 //!
 //! The four tests are the four acceptance aspects: a differential oracle against `string-concat` over a large document (empty pieces, embedded newlines, large numbers and non-ASCII through `Data.Char`); the structural claim that N appends leave N chunks and the flattened byte length equals `builder-size`; a few-thousand-line scale case asserted on content properties (newline count, total length, a known line), never on wall-clock time; and an LLVM-module-shaped emission whose exact text is pinned for a small N.
 
-use cinch::driver::{driver, Mode};
+mod common;
+
+use cinch::driver::Mode;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -21,14 +23,7 @@ fn run_main(name: &str, main_src: &str) -> i32 {
     for (file, src) in [("Text.Builder.cinch", BUILDER), ("Main.cinch", main_src)] {
         std::fs::write(dir.join(file), src).expect("write module");
     }
-    let path = dir.join("Main.cinch");
-    let compiled = std::thread::Builder::new()
-        .stack_size(64 * 1024 * 1024)
-        .spawn(move || driver(Mode::Run, &path, None))
-        .expect("spawn compiler thread")
-        .join()
-        .expect("compiler thread panicked");
-    match compiled {
+    match common::drive(Mode::Run, &dir, "Main.cinch", None) {
         Ok(code) => code,
         Err(e) => panic!("{name}: compilation failed: {e}"),
     }
@@ -374,11 +369,8 @@ fn many_chunks_flatten_on_a_small_stack() {
   main = let builder = make 65536 builder-new in
     if builder-chunks builder == 65536 && builder-size builder == 131072 && string-byte-length (builder-run builder) == 131072 then 0 else 1
 "#).unwrap();
-    let input = dir.join("Main.cinch"); let exe = dir.join("builder");
-    let compiled = std::thread::Builder::new().stack_size(64 * 1024 * 1024).spawn({
-        let exe = exe.clone();
-        move || driver(Mode::Build, &input, Some(&exe))
-    }).unwrap().join().unwrap().unwrap();
+    let exe = dir.join("builder");
+    let compiled = common::drive(Mode::Build, &dir, "Main.cinch", Some(exe.clone())).unwrap();
     assert_eq!(compiled, 0);
     let result = std::process::Command::new(&exe).env("CINCH_STACK_SIZE", "2M")
         .env("CINCH_HEAP_LIMIT", "64M").env("CINCH_LEAK_CHECK", "1").output().unwrap();

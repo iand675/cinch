@@ -16,7 +16,8 @@
 //! The exit code is the 1-based position of the first failed check (0
 //! when all pass), so a red run names the check.
 
-use cinch::driver::run_source;
+mod common;
+use common::source_frontend::{check_sources, run_source};
 
 /// Compile and run `src`; its exit code.
 fn run(name: &str, src: &str) -> i32 {
@@ -346,7 +347,7 @@ fn nat_from_a_possibly_negative_i64_is_refused_and_the_checked_form_answers() {
     // a compile error (the runtime's negative check is a compiler-bug
     // trap), and `checked-nat-from-i64` answers `None` for it.
     let refused = "  checks :: Nat -> List Bool\n  checks z = [ nat-from-i64 (wrapping-sub-i64 (i64-of (nat-to-int z)) 1) == 0 ]\n";
-    match cinch::driver::check_sources(&program(refused), "<test>") {
+    match check_sources(&program(refused), "<test>") {
         Ok(_) => panic!("a possibly negative argument must be refused"),
         Err(e) => assert!(e.to_string().contains("the obligation `0 <= "), "{e}"),
     }

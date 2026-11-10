@@ -1,14 +1,16 @@
 //! Guarded body transport follows checked code, not a method spelling.
-use cinch::driver::check_sources_ifaces;
+mod common;
+
+use common::source_frontend::check_source_interfaces;
 use cinch::interface::{GuardedNatExpr, Iface};
 
 fn provider(body: &str) -> Iface {
     let source = format!("module A where\n  signature Operation a where\n    apply-op :: a -> a -> a\n  implicit instance Operation_Nat :: Operation Nat where\n    apply-op :: using (y <= x) => (x :: Nat) -> (y :: Nat) -> Nat\n    apply-op x y = {body}\nmodule Main where\n  import A\n  main :: Int\n  main = 0\n");
-    check_sources_ifaces(&source, "guarded-body-provider.cinch").unwrap().1.into_iter().find(|iface| iface.module == "A").unwrap()
+    check_source_interfaces(&source, "guarded-body-provider.cinch").unwrap().into_iter().find(|iface| iface.module == "A").unwrap()
 }
 #[test]
 fn guarded_bodies_retain_actual_code_and_formal_scope() {
-    let (_, interfaces) = check_sources_ifaces("module Main where\n  main :: Int\n  main = 0\n", "guarded-base.cinch").unwrap();
+    let interfaces = check_source_interfaces("module Main where\n  main :: Int\n  main = 0\n", "guarded-base.cinch").unwrap();
     let nat = interfaces.iter().find(|iface| iface.module == "Data.Nat").unwrap();
     let method = &nat.exports.instances.iter().find(|instance| instance.id == "Data.Nat.Sub_Nat").unwrap().method_contracts[0];
     let body = method.checked.body.as_ref().expect("actual Nat subtraction body");

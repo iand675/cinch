@@ -18,7 +18,9 @@
 //! appearing twice, a header matched case-insensitively, a malformed
 //! status line, a body past the bound, and `https` refused by name.
 
-use cinch::driver::{driver, Mode};
+mod common;
+
+use cinch::driver::Mode;
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -55,15 +57,9 @@ fn write_project(name: &str, main: &str) -> PathBuf {
 /// A driver invocation on a thread with a large stack (the checker
 /// recurses over elaborated code).
 fn drive(mode: Mode, entry: &Path, out: Option<&Path>) -> Result<i32, String> {
-    let entry = entry.to_path_buf();
-    let out = out.map(|p| p.to_path_buf());
-    std::thread::Builder::new()
-        .stack_size(64 * 1024 * 1024)
-        .spawn(move || driver(mode, &entry, out.as_deref()))
-        .expect("spawn harness thread")
-        .join()
-        .expect("harness thread")
-        .map_err(|e| e.to_string())
+    let dir = entry.parent().expect("entry has a project directory");
+    let name = entry.file_name().and_then(|name| name.to_str()).expect("entry file name");
+    common::drive(mode, dir, name, out.map(Path::to_path_buf))
 }
 
 /// Compile the `Main` to an executable, run it, and capture its exit code

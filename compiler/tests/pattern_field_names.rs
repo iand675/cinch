@@ -1,5 +1,7 @@
 //! Row-local names agree only when later constructor fields depend on them.
-use cinch::driver::{check_sources, run_source};
+mod common;
+
+use common::source_frontend::{check_sources, run_source};
 
 #[test]
 fn nested_json_patterns_can_use_different_row_local_names() {

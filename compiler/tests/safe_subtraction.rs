@@ -11,7 +11,7 @@
 
 mod common;
 
-use cinch::driver::{check_sources, run_source};
+use common::source_frontend::{check_sources, run_source};
 
 fn expect_run(name: &str, src: &str, expected: i32) {
     match run_source(src) {

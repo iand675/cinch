@@ -1,5 +1,6 @@
 //! Token captures inside a declaration quote retain its owned namespaces.
-use cinch::driver::{check_sources, run_source_with, StagingCx};
+mod common;
+use common::source_frontend::{check_sources, run_source};
 
 const OWNED: &str = r#"module Main where
   macro keep :: forall a. Syntax -> Code a
@@ -25,9 +26,9 @@ const OWNED: &str = r#"module Main where
 
 #[test]
 fn quoted_macro_arguments_keep_owned_values_constructors_and_annotation_types() {
-    assert_eq!(run_source_with(OWNED, &mut StagingCx::default()).unwrap(), 42);
+    assert_eq!(run_source(OWNED).unwrap(), 42);
     let direct_constructor = OWNED.replace("maker 42 :: Local", "Constructor 42 :: Local");
-    assert_eq!(run_source_with(&direct_constructor, &mut StagingCx::default()).unwrap(), 42);
+    assert_eq!(run_source(&direct_constructor).unwrap(), 42);
 }
 
 #[test]

@@ -25,7 +25,9 @@
 //! accepted, which is the honest boundary of what the discipline covers
 //! (a local binder defaults to `%many`, so it cannot be annotated).
 
-use cinch::driver::{driver, Mode};
+mod common;
+
+use cinch::driver::Mode;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -57,16 +59,8 @@ fn write_project(name: &str, main_src: &str) -> PathBuf {
 /// happens on a thread with a generous stack (as
 /// `tests/runtime_net_prims.rs` does).
 fn compile(name: &str, main_src: &str, mode: Mode) -> Result<i32, String> {
-    let path = write_project(name, main_src).join("Main.cinch");
-    let compiled = std::thread::Builder::new()
-        .stack_size(64 * 1024 * 1024)
-        .spawn(move || driver(mode, &path, None).map_err(|e| e.to_string()))
-        .expect("spawn compiler thread")
-        .join();
-    match compiled {
-        Ok(result) => result,
-        Err(_) => panic!("{name}: the compiler thread panicked"),
-    }
+    let dir = write_project(name, main_src);
+    common::drive(mode, &dir, "Main.cinch", None)
 }
 
 fn run_main(name: &str, main_src: &str) -> i32 {

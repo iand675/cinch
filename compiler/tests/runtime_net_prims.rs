@@ -24,7 +24,8 @@
 //! and a `which` outside the two output pipes, the resolved-address
 //! lines, and the piped child's three streams, exit code and close.
 
-use cinch::driver::{driver, Mode};
+mod common;
+use cinch::driver::Mode;
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -55,17 +56,9 @@ fn write_project(name: &str, main_src: &str) -> PathBuf {
 /// this directory do the same).
 fn run_main(name: &str, main_src: &str) -> i32 {
     let dir = write_project(name, main_src);
-    let entry = dir.join("Main.cinch");
-    let compiled = std::thread::Builder::new()
-        .name(name.to_string())
-        .stack_size(64 * 1024 * 1024)
-        .spawn(move || driver(Mode::Run, &entry, None).map_err(|e| e.to_string()))
-        .expect("spawn compiler thread")
-        .join();
-    match compiled {
-        Ok(Ok(code)) => code,
-        Ok(Err(e)) => panic!("{name}: compilation failed: {e}"),
-        Err(_) => panic!("{name}: the compiler thread panicked"),
+    match common::drive(Mode::Run, &dir, "Main.cinch", None) {
+        Ok(code) => code,
+        Err(e) => panic!("{name}: compilation failed: {e}"),
     }
 }
 

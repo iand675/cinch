@@ -4,7 +4,8 @@
 //! (section 11), and the file-type converters (section 11). These tests
 //! drive the real CLI pipeline over temp multi-file projects.
 
-use cinch::driver::{driver, Mode};
+mod common;
+use cinch::driver::Mode;
 use std::path::{Path, PathBuf};
 
 fn write_project(files: &[(&str, &str)]) -> PathBuf {
@@ -22,13 +23,11 @@ fn write_project(files: &[(&str, &str)]) -> PathBuf {
 }
 
 fn run_entry(dir: &Path, entry: &str) -> Result<i32, String> {
-    driver(Mode::Run, &dir.join(entry), None).map_err(|e| e.to_string())
+    common::drive(Mode::Run, dir, entry, None)
 }
 
 fn check_entry(dir: &Path, entry: &str) -> Result<(), String> {
-    driver(Mode::Check, &dir.join(entry), None)
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    common::check(dir, entry)
 }
 
 /// The manifest's `literal_folds` boundary: `(kind, folded)` per site.

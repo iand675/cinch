@@ -1,5 +1,6 @@
 //! Index applications retain their complete checked evidence telescope.
-use cinch::driver::{check_sources, run_source_with, StagingCx};
+mod common;
+use common::source_frontend::{check_sources, run_source};
 
 fn source(constraint: &str, captured: bool) -> String {
     let body = "case (tag :: Tagged (measure payload)) of { Tag value -> value }";
@@ -28,7 +29,7 @@ fn source(constraint: &str, captured: bool) -> String {
 fn captured_index_applications_accept_available_dictionary_evidence() {
     for captured in [false, true] {
         assert_eq!(
-            run_source_with(&source("eq :: Eq a", captured), &mut StagingCx::default()).unwrap(),
+            run_source(&source("eq :: Eq a", captured)).unwrap(),
             42
         );
     }
@@ -41,7 +42,7 @@ fn captured_index_applications_use_an_explicit_lexical_dictionary() {
             "use :: (payload :: Int)",
             "use :: using (eq :: Eq Int) => (payload :: Int)",
         );
-        assert_eq!(run_source_with(&program, &mut StagingCx::default()).unwrap(), 42);
+        assert_eq!(run_source(&program).unwrap(), 42);
     }
 }
 
@@ -67,7 +68,7 @@ fn index_applications_require_their_dictionary_even_outside_macros() {
 fn captured_index_applications_discharge_true_proof_obligations() {
     for captured in [false, true] {
         assert_eq!(
-            run_source_with(&source("0 == 0", captured), &mut StagingCx::default()).unwrap(),
+            run_source(&source("0 == 0", captured)).unwrap(),
             42
         );
     }
@@ -93,7 +94,7 @@ fn captured_index_applications_retain_the_selected_lexical_dictionary() {
             &format!("measureDict = {provider})"),
         );
         assert_eq!(
-            run_source_with(&source, &mut StagingCx::default()).unwrap(),
+            run_source(&source).unwrap(),
             42
         );
     }
@@ -138,7 +139,7 @@ fn captured_index_keeps_its_source_provider_under_a_generated_provider() {
         "macro wrap arg = Syntax.capture arg",
         "macro wrap arg = let captured = Syntax.capture arg in [| with (measureDict = FortyOne) in $(captured) |]",
     );
-    assert_eq!(run_source_with(&source, &mut StagingCx::default()).unwrap(), 42);
+    assert_eq!(run_source(&source).unwrap(), 42);
 }
 
 #[test]
@@ -150,7 +151,7 @@ fn copied_generic_functions_retain_their_inner_dictionary_scope() {
   main :: Int
   main = let generic item = with (measureDict = Forty) in (item, use 7 (Tag probe)) in case generic True of { (_, left) -> case generic (0 :: U32) of { (_, right) -> left + right } }"#,
     );
-    assert_eq!(run_source_with(&source, &mut StagingCx::default()).unwrap(), 84);
+    assert_eq!(run_source(&source).unwrap(), 84);
 }
 
 #[test]
@@ -160,7 +161,7 @@ fn declaration_evidence_can_select_a_later_user_instance() {
         .replace("use :: using (measureDict :: IndexedMeasure Int) =>", "use ::")
         .replace("main = with (measureDict = Forty) in", "main =");
     let program = format!("{program}\n  implicit instance Forty :: IndexedMeasure Int where\n    readMeasure value = 40\n");
-    assert_eq!(run_source_with(&program, &mut StagingCx::default()).unwrap(), 42);
+    assert_eq!(run_source(&program).unwrap(), 42);
 }
 
 #[test]
@@ -195,11 +196,11 @@ fn declaration_evidence_selects_the_later_refinement_specific_instance() {
 "#;
     // Numeric comparison refinements are carrier facts, so unconstrained
     // generic calls use Nat's instance. Semantic points retain their own.
-    assert_eq!(run_source_with(program, &mut StagingCx::default()).unwrap(), 0);
+    assert_eq!(run_source(program).unwrap(), 0);
     let semantic = program.replace("n < 10", "NonZero n").replace("((7 :: Nat) < 10)", "(NonZero (7 :: Nat))");
-    assert_eq!(run_source_with(&semantic, &mut StagingCx::default()).unwrap(), 42);
+    assert_eq!(run_source(&semantic).unwrap(), 42);
     let base_only = semantic.replace("  implicit instance Specific :: Count Small where\n    readCount value = 41\n", "");
-    assert_eq!(run_source_with(&base_only, &mut StagingCx::default()).unwrap(), 0);
+    assert_eq!(run_source(&base_only).unwrap(), 0);
 }
 
 #[test]
@@ -218,7 +219,7 @@ fn declaration_evidence_is_shared_consistently_across_dependent_headers() {
   main :: Int
   main = use 7 (Tag 42)
 "#;
-    assert_eq!(run_source_with(program, &mut StagingCx::default()).unwrap(), 42);
+    assert_eq!(run_source(program).unwrap(), 42);
 }
 
 #[test]
@@ -232,7 +233,7 @@ fn declaration_evidence_cannot_turn_recursive_instances_into_proofs() {
             .err().expect("recursive instance requirements must not become provisional evidence").to_string();
         assert!(error.contains("recursive instance") || error.contains("dictionary resolution too deep"), "{error}");
         let nonrecursive = program.replace("using (again :: Recursive a) => ", "");
-        assert_eq!(run_source_with(&nonrecursive, &mut StagingCx::default()).unwrap(), 42);
+        assert_eq!(run_source(&nonrecursive).unwrap(), 42);
     }
 }
 
@@ -252,7 +253,7 @@ fn declaration_evidence_can_determine_a_type_from_multiple_constraints() {
   implicit instance One :: OnlyInt Int where
     witness = ()
 "#;
-    assert_eq!(run_source_with(program, &mut StagingCx::default()).unwrap(), 42);
+    assert_eq!(run_source(program).unwrap(), 42);
     let missing = program.replace("  implicit instance One :: OnlyInt Int where\n    witness = ()\n", "");
     let error = check_sources(&missing, "missing-specific-evidence.cinch")
         .err().expect("unresolved constraints must not choose a provisional type").to_string();

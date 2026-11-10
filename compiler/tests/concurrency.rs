@@ -5,10 +5,12 @@
 //! (concurrency specification sections 2, 3, 4 and 6, and the runtime
 //! capabilities, effects and sequencing spec).
 
-use cinch::driver::{check_sources, run_source_io, run_source_objects};
+mod common;
+
+use common::source_frontend::{check_source_interfaces, check_sources, run_source, run_source_io, run_source_objects};
 
 fn expect_ok(name: &str, src: &str, expected: i32) {
-    match cinch::driver::run_source(src) {
+    match run_source(src) {
         Ok(code) => assert_eq!(code, expected, "{name}: expected exit {expected}, got {code}"),
         Err(e) => panic!("{name}: compilation failed: {e}"),
     }
@@ -412,7 +414,7 @@ fn source_task_forwarders_check_actual_captures() {
         "  main :: Unit ->{Async r, Cancel r, Diverge} Int\n  main u = with (io = newIO ()) in case work () of\n    Ok n -> if n == 42 then 0 else 1\n    Err e -> 2",
     );
     expect_ok("forwarded-closed-callback", &run, 0);
-    let (_, interfaces) = cinch::driver::check_sources_ifaces(safe, "source-forwarder.cinch").unwrap();
+    let interfaces = check_source_interfaces(safe, "source-forwarder.cinch").unwrap();
     let main = interfaces.iter().find(|iface| iface.module == "Main").unwrap();
     assert!(!main.exports.values.iter().any(|value| value.name == "fork"));
     let escaped = safe.replace(

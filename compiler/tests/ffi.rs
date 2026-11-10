@@ -3,7 +3,9 @@
 //! the no-unwind rule (foreign function interface specification
 //! sections 2-4; attribute annotations specification section 4).
 
-use cinch::driver::{check_sources, run_source_objects};
+mod common;
+
+use common::source_frontend::{check_sources, run_source_objects};
 use cinch::core::TargetProfile;
 
 /// Compile a C fixture to an object file and return its path.
@@ -207,7 +209,7 @@ module Main where
     );
     // The marshalling wrapper reads each field at its recorded offset with
     // its recorded size: no word-width load crosses the padding bytes.
-    let program = check_sources(
+    let program = cinch::driver::check_sources(
         r#"
 module Main where
   #[repr(C, packed(2))]

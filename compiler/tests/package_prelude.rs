@@ -4,6 +4,8 @@
 //! prelude that nothing declares is refused at load time
 //! (design/base-as-a-package.md sections 3 and 4.2).
 
+mod common;
+
 use std::path::{Path, PathBuf};
 
 fn scratch(tag: &str) -> PathBuf {
@@ -25,9 +27,7 @@ fn write(dir: &Path, files: &[(&str, &str)]) {
 }
 
 fn check(dir: &Path, entry: &str) -> Result<(), String> {
-    cinch::driver::driver(cinch::driver::Mode::Check, &dir.join(entry), None)
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    common::check(dir, entry)
 }
 
 const LIB_MANIFEST: &str = r#"{

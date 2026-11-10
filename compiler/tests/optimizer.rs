@@ -7,7 +7,9 @@
 //! target conditions.
 
 use cinch::core::{optimize, OptReport, Program, TargetProfile};
-use cinch::driver::{check_sources, driver, run_source_profile, Mode};
+mod common;
+
+use cinch::driver::{check_sources, run_source_profile, Mode};
 use std::path::{Path, PathBuf};
 
 fn checked(name: &str, src: &str) -> Program {
@@ -31,7 +33,7 @@ fn run(name: &str, src: &str, profile: &TargetProfile) -> i32 {
 }
 
 fn expect_err(name: &str, src: &str, needle: &str) {
-    match check_sources(src, name) {
+    match common::source_frontend::check_sources(src, name) {
         Ok(_) => panic!("{name}: expected an error containing {needle:?}, but the program checked"),
         Err(e) => {
             let msg = e.to_string();
@@ -661,7 +663,7 @@ module Main where
 "#
         ),
     )]);
-    driver(Mode::Run, &dir.join("Main.cinch"), None).expect("project run");
+    common::drive(Mode::Run, &dir, "Main.cinch", None).expect("project run");
     let manifest =
         std::fs::read_to_string(dir.join("build/Main.manifest.json")).expect("manifest");
     assert!(manifest.contains("\"trust\""), "{manifest}");
@@ -742,7 +744,7 @@ fn example_08_probe_is_past_rewrite() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../examples/source/08-platform-simd.cinch");
     let src = std::fs::read_to_string(&path).expect("example 08");
-    match check_sources(&src, "08-platform-simd.cinch") {
+    match common::source_frontend::check_sources(&src, "08-platform-simd.cinch") {
         Ok(_) => {}
         Err(e) => {
             let msg = e.to_string();

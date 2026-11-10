@@ -12,7 +12,9 @@
 //! end to end through compiled programs calling the `cinch_evo_*` entry
 //! points of the runtime's `evolution` module.
 
-use cinch::driver::{check_sources, check_sources_ifaces, run_source};
+mod common;
+
+use common::source_frontend::{check_source_interfaces, check_sources, run_source};
 use cinch::interface::Iface;
 
 fn expect_ok(name: &str, src: &str, expected: i32) {
@@ -414,7 +416,7 @@ fn deopt_refuses_an_unbalanced_linear_transfer() {
 /// The `.cinchif` of a single-module program: the compatibility evidence
 /// and contract projection the "checked against" chain reads.
 fn iface_of(src: &str) -> Iface {
-    let (_program, ifaces) = check_sources_ifaces(src, "<test>").expect("the program checks");
+    let ifaces = check_source_interfaces(src, "<test>").expect("the program checks");
     ifaces
         .into_iter()
         .find(|i| i.module == "Main")

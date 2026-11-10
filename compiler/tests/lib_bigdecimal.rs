@@ -37,7 +37,8 @@
 //! `main`'s sum, so a nonzero exit code is a bitmask naming the failed
 //! checks, and every failure mode of one check shares its bit.
 
-use cinch::driver::{driver, Mode};
+mod common;
+use cinch::driver::Mode;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -152,21 +153,7 @@ fn run_main(name: &str, main_src: &str) -> i32 {
     for (file, src) in [("BigDecimal.cinch", BIGDECIMAL), ("Main.cinch", main_src)] {
         std::fs::write(dir.join(file), src).expect("write module");
     }
-    // The checker elaborates the whole embedded family for every program,
-    // so its recursion depth is a function of the family's size, not of
-    // this program: once the family grew past the harness default the pool
-    // threads aborted here with no diagnostic (every test failed at once
-    // and none of them panicked), while the same tests passed serially on
-    // the main thread. Compile on a thread with a generous stack so the
-    // slice does not depend on the harness default (the reason
-    // lib_base64.rs does the same).
-    let entry = dir.join("Main.cinch");
-    let compiled = std::thread::Builder::new()
-        .stack_size(64 * 1024 * 1024)
-        .spawn(move || driver(Mode::Run, &entry, None))
-        .expect("spawn compiler thread")
-        .join()
-        .expect("compiler thread panicked");
+    let compiled = common::drive(Mode::Run, &dir, "Main.cinch", None);
     match compiled {
         Ok(code) => code,
         Err(e) => panic!("{name}: compilation failed: {e}"),

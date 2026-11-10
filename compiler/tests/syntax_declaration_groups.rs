@@ -1,9 +1,11 @@
 //! Native declaration instantiation follows opaque ownership, never text.
-use cinch::driver::{check_sources, check_sources_ifaces, run_source_with, StagingCx};
+mod common;
+
+use common::source_frontend::{check_source_interfaces, check_sources, run_source};
 
 #[track_caller]
 fn run(source: &str) {
-    assert_eq!(run_source_with(source, &mut StagingCx::default()).unwrap(), 42);
+    assert_eq!(run_source(source).unwrap(), 42);
 }
 
 #[track_caller]
@@ -214,7 +216,7 @@ fn native_group_operator_references_and_exported_fixity_follow_the_owned_member(
   main = calculate
 "#;
     run(source);
-    let (_, interfaces) = check_sources_ifaces(source, "owned-fixity.cinch").unwrap();
+    let interfaces = check_source_interfaces(source, "owned-fixity.cinch").unwrap();
     let main = interfaces.iter().find(|interface| interface.module == "Main").unwrap();
     assert!(main.exports.fixities.iter().any(|fixity| fixity.op == "<%>" && fixity.assoc == "right" && fixity.prec == 6));
     // The unrelated source operator and its fixity keep their own identity.

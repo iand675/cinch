@@ -35,9 +35,10 @@
 //! explicit imports of their homes, since the curated facade names
 //! only the pre-split surface.
 
-use cinch::driver::{
-    check_sources, check_sources_ifaces, driver, prelude_sources, run_source, Mode, PRELUDE_FACADE,
-};
+mod common;
+
+use cinch::driver::{prelude_sources, Mode, PRELUDE_FACADE};
+use common::source_frontend::{check_source_interfaces, check_sources, run_source};
 use cinch::interface::Iface;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -68,13 +69,11 @@ fn write_project(files: &[(&str, &str)]) -> PathBuf {
 }
 
 fn run_entry(dir: &Path, entry: &str) -> Result<i32, String> {
-    driver(Mode::Run, &dir.join(entry), None).map_err(|e| e.to_string())
+    common::drive(Mode::Run, dir, entry, None)
 }
 
 fn check_entry(dir: &Path, entry: &str) -> Result<(), String> {
-    driver(Mode::Check, &dir.join(entry), None)
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    common::check(dir, entry)
 }
 
 // ----------------------------------------------------------------
@@ -148,8 +147,8 @@ fn facade_export_names() -> BTreeSet<String> {
 }
 
 fn prelude_iface() -> Iface {
-    let (_program, ifaces) =
-        check_sources_ifaces("module Main where\n  main :: Int\n  main = 0\n", "<test>")
+    let ifaces =
+        check_source_interfaces("module Main where\n  main :: Int\n  main = 0\n", "<test>")
             .expect("the trivial program checks");
     ifaces
         .into_iter()

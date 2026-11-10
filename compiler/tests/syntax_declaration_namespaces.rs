@@ -1,9 +1,11 @@
 //! Owned declarations carry both their binding identity and their contracts.
-use cinch::driver::{check_sources, run_source_objects, run_source_with, StagingCx};
+mod common;
+
+use common::source_frontend::{check_sources, run_source, run_source_objects};
 
 #[track_caller]
 fn run(source: &str) {
-    assert_eq!(run_source_with(source, &mut StagingCx::default()).unwrap(), 42);
+    assert_eq!(run_source(source).unwrap(), 42);
 }
 
 #[track_caller]
@@ -147,7 +149,7 @@ fn foreign_group_instances_rename_cinch_bindings_and_keep_the_external_contract(
   main :: Unit ->{Foreign Syntax} Int
   main unit = if first 21 == 42 && second 21 == 42 then 42 else 0
 "#;
-    let program = check_sources(source, "owned-foreign.cinch").unwrap();
+    let program = cinch::driver::check_sources(source, "owned-foreign.cinch").unwrap();
     for name in ["Main.native-first", "Main.native-second"] {
         let plan = program.foreigns.get(name).expect("renamed foreign contract");
         assert_eq!(plan.symbol, "cinch_syntax_scale");
@@ -171,7 +173,7 @@ fn foreign_export_renames_its_cinch_definition_without_changing_the_c_entry() {
   generate do
     emit (Syntax.renameDeclarations (sym-to-name 'helper) (sym-to-name 'native-export) family)
 "#;
-    let program = check_sources(source, "owned-export.cinch").unwrap();
+    let program = cinch::driver::check_sources(source, "owned-export.cinch").unwrap();
     let plan = program.foreigns.get("Main.native-export").expect("renamed export contract");
     assert!(plan.export);
     assert_eq!(plan.unit, "Main.native-export");

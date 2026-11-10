@@ -12,7 +12,9 @@
 //! failed checks. The RFC 3986 section 5.4 examples are split across
 //! several tests because the process exit status carries eight bits.
 
-use cinch::driver::{driver, Mode};
+mod common;
+
+use cinch::driver::Mode;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -114,18 +116,11 @@ fn run_main(name: &str, main_src: &str) -> i32 {
     ] {
         std::fs::write(dir.join(file), src).expect("write module");
     }
-    let entry = dir.join("Main.cinch");
     // Compiling the embedded prelude plus these modules recurses deeply in
-    // the compiler, so the driver runs on a thread with a large stack (the
-    // harness default thread stack is too small for it).
-    let handle = std::thread::Builder::new()
-        .stack_size(256 * 1024 * 1024)
-        .spawn(move || driver(Mode::Run, &entry, None).map_err(|e| e.to_string()))
-        .expect("spawn compile thread");
-    match handle.join() {
-        Ok(Ok(code)) => code,
-        Ok(Err(e)) => panic!("{name}: compilation failed: {e}"),
-        Err(_) => panic!("{name}: compile thread panicked"),
+    // the compiler; `common::drive` compiles on a large-stack thread.
+    match common::drive(Mode::Run, &dir, "Main.cinch", None) {
+        Ok(code) => code,
+        Err(e) => panic!("{name}: compilation failed: {e}"),
     }
 }
 

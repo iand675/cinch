@@ -1,5 +1,7 @@
 //! Index lambdas retain lexical handles and checked annotations.
-use cinch::driver::{check_sources, run_source_with, StagingCx};
+mod common;
+
+use common::source_frontend::{check_sources, run_source};
 
 fn program(body: &str, captured: bool) -> String {
     let body = format!("congr ({body}) (same next)");
@@ -20,14 +22,14 @@ fn program(body: &str, captured: bool) -> String {
 #[test]
 fn index_lambda_binders_work_in_raw_and_captured_induction() {
     for captured in [false, true] {
-        assert_eq!(run_source_with(&program("\\item -> S item", captured), &mut StagingCx::default()).unwrap(), 42);
+        assert_eq!(run_source(&program("\\item -> S item", captured)).unwrap(), 42);
     }
 }
 
 #[test]
 fn index_lambda_annotations_are_checked_in_the_binders_scope() {
     for captured in [false, true] {
-        assert_eq!(run_source_with(&program("\\item -> S (item :: Count)", captured), &mut StagingCx::default()).unwrap(), 42);
+        assert_eq!(run_source(&program("\\item -> S (item :: Count)", captured)).unwrap(), 42);
     }
 }
 
@@ -43,7 +45,7 @@ fn index_lambdas_cannot_discard_a_wrong_carrier_annotation() {
 #[test]
 fn nested_captured_index_lambdas_keep_distinct_same_spelled_binders() {
     for captured in [false, true] {
-        assert_eq!(run_source_with(&program("\\item -> S ((\\item -> item) item)", captured), &mut StagingCx::default()).unwrap(), 42);
+        assert_eq!(run_source(&program("\\item -> S ((\\item -> item) item)", captured)).unwrap(), 42);
     }
 }
 
@@ -58,7 +60,7 @@ const OUTER: &str = r#"module Main where
 
 #[test]
 fn an_index_lambda_cannot_capture_an_existing_outer_subject_by_spelling() {
-    assert_eq!(run_source_with(OUTER, &mut StagingCx::default()).unwrap(), 42);
+    assert_eq!(run_source(OUTER).unwrap(), 42);
 }
 
 #[test]
@@ -85,6 +87,6 @@ fn index_lambdas_in_captured_type_annotations_retain_their_handles() {
     let body = "case (token :: Tagged ((\\index -> index) 0)) of Tag value -> value";
     for captured in [false, true] {
         let body = if captured { format!("wrap!(({body}))") } else { body.to_string() };
-        assert_eq!(run_source_with(&source.replace("BODY", &body), &mut StagingCx::default()).unwrap(), 42);
+        assert_eq!(run_source(&source.replace("BODY", &body)).unwrap(), 42);
     }
 }

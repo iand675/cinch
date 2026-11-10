@@ -1,5 +1,7 @@
 //! Ordinary index annotations use checked lexical values and their carriers.
-use cinch::driver::{check_sources, run_source_with, StagingCx};
+mod common;
+
+use common::source_frontend::{check_sources, run_source};
 
 const SOURCE: &str = r#"module Main where
   data Tagged (n :: Nat) where
@@ -18,7 +20,7 @@ const SOURCE: &str = r#"module Main where
 fn ordinary_index_annotations_resolve_locals_and_check_their_carriers() {
     let program = SOURCE;
     assert_eq!(
-        run_source_with(&program, &mut StagingCx::default()).unwrap(),
+        run_source(&program).unwrap(),
         42
     );
     let wrong = program

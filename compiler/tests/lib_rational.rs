@@ -18,7 +18,9 @@
 //! (`ZeroDenominator`, `DivideByZero`) observed as their own
 //! constructors.
 
-use cinch::driver::{driver, Mode};
+mod common;
+
+use cinch::driver::Mode;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -36,7 +38,7 @@ fn run_project(name: &str, module_src: &str, main_src: &str) -> i32 {
     std::fs::create_dir_all(&dir).expect("temp project dir");
     std::fs::write(dir.join("Rational.cinch"), module_src).expect("write Rational");
     std::fs::write(dir.join("Main.cinch"), main_src).expect("write Main");
-    match driver(Mode::Run, &dir.join("Main.cinch"), None) {
+    match common::drive(Mode::Run, &dir, "Main.cinch", None) {
         Ok(code) => code,
         Err(e) => panic!("{name}: compilation failed: {e}"),
     }

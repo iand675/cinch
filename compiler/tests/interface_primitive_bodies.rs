@@ -1,9 +1,12 @@
 //! Actual checked primitive values retain their own executable contracts.
+mod common;
+
 use cinch::interface::{Iface, verify_chain};
+use common::source_frontend::check_source_interfaces;
 use cinch::total::{Expr, Op, Sort};
 #[test]
 fn plain_primitive_values_survive_without_an_ordinary_caller() {
-    let (_, interfaces) = cinch::driver::check_sources_ifaces("module Main where\n  main :: Int\n  main = 0\n", "primitive-roots.cinch").unwrap();
+    let interfaces = check_source_interfaces("module Main where\n  main :: Int\n  main = 0\n", "primitive-roots.cinch").unwrap();
     let nat = interfaces.iter().find(|interface| interface.module == "Data.Nat").unwrap();
     for (name, operation, result) in [("nat-add", Op::NatAdd, Sort::Nat), ("nat-mul", Op::NatMul, Sort::Nat), ("nat-cmp", Op::NatCmp, Sort::I64)] {
         let value = nat.exports.values.iter().find(|value| value.name == name).unwrap();
@@ -35,7 +38,7 @@ module Main where
   main :: Int
   main = 0
 "#;
-    let (_, interfaces) = cinch::driver::check_sources_ifaces(source, "primitive-aliases.cinch").unwrap();
+    let interfaces = check_source_interfaces(source, "primitive-aliases.cinch").unwrap();
     let owner = interfaces.iter().find(|interface| interface.module == "Owner").unwrap();
     let actual = owner.exports.values.iter().find(|value| value.name == "actual").unwrap();
     let graph = actual.total_body.as_ref().unwrap();

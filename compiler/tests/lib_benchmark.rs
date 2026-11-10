@@ -13,7 +13,9 @@
 //! many times) must measure a strictly positive span that exceeds the
 //! trivial action's.
 
-use cinch::driver::{driver, Mode};
+mod common;
+
+use cinch::driver::Mode;
 use std::path::{Path, PathBuf};
 
 const BENCHMARK: &str = include_str!("../prelude/Effect/Benchmark.cinch");
@@ -43,14 +45,9 @@ fn write_project(name: &str, main: &str) -> PathBuf {
 /// Run a driver invocation on a thread with a large stack (the checker
 /// recurses over a program's elaborated code).
 fn drive(mode: Mode, entry: &Path, out: Option<&Path>) -> i32 {
-    let entry = entry.to_path_buf();
-    let out = out.map(|p| p.to_path_buf());
-    std::thread::Builder::new()
-        .stack_size(64 * 1024 * 1024)
-        .spawn(move || driver(mode, &entry, out.as_deref()))
-        .expect("spawn harness thread")
-        .join()
-        .expect("harness thread")
+    let dir = entry.parent().expect("entry has a project directory");
+    let name = entry.file_name().and_then(|name| name.to_str()).expect("entry file name");
+    common::drive(mode, dir, name, out.map(Path::to_path_buf))
         .unwrap_or_else(|e| panic!("compilation failed: {e}"))
 }
 

@@ -1,7 +1,8 @@
 //! Strict let equations follow actual checked Nat bodies and lexical scopes.
-use cinch::driver::check_sources;
+mod common;
+use common::source_frontend::check_sources;
 fn check(body: &str) -> Result<(), String> {
-    check_sources(&format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n"), "checked-nat-let.cinch").map(|_| ()).map_err(|e| e.message)
+    check_sources(&format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n"), "checked-nat-let.cinch")
 }
 #[test]
 fn guarded_subtraction_keeps_its_strict_let_equation() {

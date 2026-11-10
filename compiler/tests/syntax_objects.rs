@@ -1,5 +1,8 @@
 //! Binding boundaries shared by native quotations and library syntax objects.
-use cinch::driver::{check_sources, run_source_with, StagingCx};
+mod common;
+
+use cinch::driver::StagingCx;
+use common::source_frontend::{check_sources, run_source};
 use cinch::syntax::{CapturedTerm, SyntaxScope, TermTemplate};
 use cinch::{ast, layout, lexer, parser};
 
@@ -331,7 +334,7 @@ fn native_macro_arguments_retain_caller_values_in_type_annotations() {
     ] {
         let program = source.replace("wrap!(read n (Tag 42 :: Tagged n))", body);
         assert_eq!(
-            run_source_with(&program, &mut StagingCx::default())
+            run_source(&program)
                 .unwrap_or_else(|e| panic!("{body}: {e}")),
             42
         );
@@ -454,7 +457,7 @@ module Main where
   main = outer!(0)
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
 }
@@ -503,14 +506,14 @@ module Main where
   main = outer!(0)
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
     let qualified = source
         .replace("import Facade (exposed as chosen)", "import Facade as F")
         .replace("inner!(chosen)", "inner!(F.exposed)");
     assert_eq!(
-        run_source_with(&qualified, &mut StagingCx::default()).unwrap(),
+        run_source(&qualified).unwrap(),
         42
     );
 }
@@ -537,7 +540,7 @@ module Main where
   main = outer!(0)
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
     let caller_source = r#"module Library where
@@ -558,7 +561,7 @@ module Main where
   main = outer!(inner!(hidden))
 "#;
     assert_eq!(
-        run_source_with(caller_source, &mut StagingCx::default()).unwrap(),
+        run_source(caller_source).unwrap(),
         42
     );
 }
@@ -581,7 +584,7 @@ module Main where
   main = outer!(0)
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
 }
@@ -602,7 +605,7 @@ module Main where
   main = outer!(0)
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
 }
@@ -625,7 +628,7 @@ module Main where
   main = outer!(0)
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
     let forged = r#"module Library where
@@ -657,7 +660,7 @@ module Main where
   main = outer!(Nil)
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
 }
@@ -686,7 +689,7 @@ module Main where
   main = outer!(inner!(1 <#> 2 <#> 3))
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         33
     );
 }
@@ -713,12 +716,12 @@ module Main where
   main = outer!(0)
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
     let qualified = source.replace("Tagged limit))", "Tagged Library.limit))");
     assert_eq!(
-        run_source_with(&qualified, &mut StagingCx::default()).unwrap(),
+        run_source(&qualified).unwrap(),
         42
     );
 }
@@ -740,7 +743,7 @@ fn native_captured_index_quantified_value_shadows_same_named_global() {
   main = use (Tag 42 :: Tagged 40)
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
 }
@@ -786,7 +789,7 @@ fn native_captured_index_uses_the_named_functions_argument_carrier() {
   main = use 7
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
 }
@@ -806,7 +809,7 @@ fn native_captured_index_builtin_observations_keep_their_argument_carriers() {
   main = let payload = bytes-new 3 in use payload (Tag 42)
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
     let word = source
@@ -817,7 +820,7 @@ fn native_captured_index_builtin_observations_keep_their_argument_carriers() {
             "use 3 (Tag 42)",
         );
     assert_eq!(
-        run_source_with(&word, &mut StagingCx::default()).unwrap(),
+        run_source(&word).unwrap(),
         42
     );
 }
@@ -837,7 +840,7 @@ fn native_captured_index_does_not_freeze_owned_dependent_binders_as_globals() {
   main = wrap!(unpack ((40, Tag 42) :: Sigma (limit :: Nat). Tagged limit))
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
 }
@@ -857,7 +860,7 @@ fn native_captured_index_function_values_retain_their_binding_when_applied() {
   main = use bump 40 (Tag 42)
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
     let wrong = source
@@ -911,7 +914,7 @@ module Main where
         "main = inner!((case (Tag 42 :: Tagged limit) of { Tag value -> value }))",
     );
     assert_eq!(
-        run_source_with(&caller, &mut StagingCx::default()).unwrap(),
+        run_source(&caller).unwrap(),
         42
     );
     let error = check_sources(source, "captured-global-index-kind.cinch")
@@ -936,7 +939,7 @@ fn native_captured_index_polymorphic_function_keeps_argument_carriers() {
   main = use 7 (Tag 42)
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
     let bytes = source
@@ -946,7 +949,7 @@ fn native_captured_index_polymorphic_function_keeps_argument_carriers() {
             "main = let payload = bytes-new 3 in use payload (Tag 42)",
         );
     assert_eq!(
-        run_source_with(&bytes, &mut StagingCx::default()).unwrap(),
+        run_source(&bytes).unwrap(),
         42
     );
     let nested = source
@@ -956,7 +959,7 @@ fn native_captured_index_polymorphic_function_keeps_argument_carriers() {
         )
         .replace("measure payload", "measure (identity payload)");
     assert_eq!(
-        run_source_with(&nested, &mut StagingCx::default()).unwrap(),
+        run_source(&nested).unwrap(),
         42
     );
     let shadow = source.replace(
@@ -964,7 +967,7 @@ fn native_captured_index_polymorphic_function_keeps_argument_carriers() {
         "macro wrap arg = [| let payload :: Nat; payload = 0 in $(arg) |]",
     );
     assert_eq!(
-        run_source_with(&shadow, &mut StagingCx::default()).unwrap(),
+        run_source(&shadow).unwrap(),
         42
     );
     let independent = source
@@ -979,7 +982,7 @@ fn native_captured_index_polymorphic_function_keeps_argument_carriers() {
             "main = let bytes = bytes-new 3 in use 7 (Tag 20) + use-bytes bytes (Tag 22)",
         );
     assert_eq!(
-        run_source_with(&independent, &mut StagingCx::default()).unwrap(),
+        run_source(&independent).unwrap(),
         42
     );
 }
@@ -999,7 +1002,7 @@ fn native_captured_index_polymorphic_arguments_share_their_type_parameter() {
   main = let other = bytes-new 3 in use 7 other (Tag 42)
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
     let wrong = source.replace(
@@ -1047,7 +1050,7 @@ module Main where
   main :: Int
   main = if empty!() == 42 then number!() else 0
 "#;
-    assert_eq!(run_source_with(source, &mut StagingCx::default()).unwrap(), 42);
+    assert_eq!(run_source(source).unwrap(), 42);
     let wrong = source.replace("number!()", "number!(hidden)");
     let error = check_sources(&wrong, "nullary-macro-with-an-argument.cinch")
         .err().expect("a nullary macro cannot silently discard input").to_string();
@@ -1066,7 +1069,7 @@ module Main where
   main = let x = 40 in once!(x + 1, x, x + 1)
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
 }
@@ -1080,7 +1083,7 @@ fn native_syntax_api_generic_once_supports_nested_calls_and_distinct_types() {
   main = if once!(True, flag, flag) then once!(40, x, once!(x + 1, x, x + 1)) else 0
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
 }
@@ -1096,7 +1099,7 @@ fn native_syntax_api_capture_keeps_outer_binding_and_reference_uses_the_handle()
   main = let x = 40 in keep!(x, x) + useNew!(x) - 40
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
 }
@@ -1119,7 +1122,7 @@ module Main where
   main = outer!(0)
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
 }
@@ -1183,7 +1186,7 @@ fn native_syntax_api_once_preserves_linear_use_and_rejects_duplication_and_drop(
   main = use (Resource 42)
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
     for body in [
@@ -1211,7 +1214,7 @@ fn native_syntax_api_once_evaluates_allocating_rhs_once() {
   main = once!(bytes-new 1, buffer, let unit = bytes-set buffer 0 42 in nat-to-int (bytes-get buffer 0))
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
     let out_of_bounds = source.replace("bytes-new 1", "bytes-new 0");
@@ -1235,7 +1238,7 @@ fn native_syntax_api_operates_through_stage_values_and_declaration_splices() {
   main = answer
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
 }
@@ -1291,7 +1294,7 @@ module Main where
   main = outer!(inner!(1 <#> 2 <#> 3))
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         33
     );
 }
@@ -1320,11 +1323,11 @@ fn native_syntax_apply_resolves_overloaded_helpers_after_operand_capture() {
         .replace("applyCount!(True)", "count True")
         .replace("applyCount!((21 :: Int))", "count (21 :: Int)");
     assert_eq!(
-        run_source_with(&direct, &mut StagingCx::default()).unwrap(),
+        run_source(&direct).unwrap(),
         42
     );
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
 }
@@ -1349,7 +1352,7 @@ module Main where
   main = let step value = value + 1 in Macros.apply!(step, Macros.invoke!(40))
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
 }
@@ -1363,7 +1366,7 @@ fn native_syntax_apply_does_not_retarget_captured_code_under_a_generated_binder(
   main = let step value = value + 1 in bind!(step, step)
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
 }
@@ -1389,7 +1392,7 @@ fn native_syntax_apply_accepts_typed_linear_arrows_and_preserves_linear_use() {
   main = if answer == 42 then use (Resource 42) else 0
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
     let duplicate = source.replace(
@@ -1423,7 +1426,7 @@ fn native_syntax_apply_preserves_latent_effects_and_requires_handlers() {
         answer unit resume next -> next 42))
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
     let unhandled = source.replace(
@@ -1505,7 +1508,7 @@ module Main where
   main = let payload = 33 in create!(Item, { value = inc!(payload + (10 <#> 3 <#> 2)) })
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
     let unknown_field = source.replace("{ value = inc!", "{ absent = inc!");
@@ -1545,7 +1548,7 @@ module Main where
   main = read!(public)
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
     let forbidden = source.replace("main = read!(public)", "main = read!(hiddenValue)");
@@ -1701,7 +1704,7 @@ fn run_quote(expression: &str, expected: i32) {
   main = answer
 "#
     );
-    let code = run_source_with(&source, &mut StagingCx::default())
+    let code = run_source(&source)
         .unwrap_or_else(|e| panic!("quotation {expression:?}: {e}"));
     assert_eq!(code, expected, "quotation {expression:?}");
 }
@@ -1760,7 +1763,7 @@ fn captured_call_site_parameters_survive_generated_binders() {
   main = call 40
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
 }
@@ -1780,7 +1783,7 @@ fn declaration_parameters_do_not_leak_between_generated_equations() {
   main = second
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
 }
@@ -1798,12 +1801,12 @@ fn spliced_syntax_keeps_native_linear_usage_checks() {
   main = use (Token 42)
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
     let duplicated = source.replace("case ($(arg) :: Token) of { Token value -> value }",
         "let first = ($(arg) :: Token) in let second = ($(arg) :: Token) in case first of { Token a -> case second of { Token b -> a + b } }");
-    let error = run_source_with(&duplicated, &mut StagingCx::default())
+    let error = run_source(&duplicated)
         .unwrap_err()
         .to_string();
     assert!(error.contains("multiplicity %1"), "{error}");
@@ -1831,7 +1834,7 @@ fn quoted_handler_return_patterns_bind_their_own_bodies() {
 "#
         );
         assert_eq!(
-            run_source_with(&source, &mut StagingCx::default()).unwrap(),
+            run_source(&source).unwrap(),
             expected
         );
     }
@@ -1849,7 +1852,7 @@ fn qualified_effect_helpers_ignore_unrelated_caller_bindings() {
       ask unit resume continuation -> continuation 42)
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
     let unhandled = r#"module Main where
@@ -1858,7 +1861,7 @@ fn qualified_effect_helpers_ignore_unrelated_caller_bindings() {
   main :: Int
   main = let ask :: Unit -> Int; ask = \unit -> 99 in Main.ask ()
 "#;
-    let error = run_source_with(unhandled, &mut StagingCx::default())
+    let error = run_source(unhandled)
         .unwrap_err()
         .to_string();
     assert!(error.contains("must be pure"), "{error}");
@@ -1879,7 +1882,7 @@ module Main where
   main = if result == 2 then 0 else 1
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         0
     );
     let forged = source.replace("then 5 - n", "then n - 5");
@@ -1932,7 +1935,7 @@ module Main where
   main = wrap!(secret)
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
     let direct = source.replace("main = wrap!(secret)", "main = Library.secret");
@@ -1960,14 +1963,14 @@ module Main where
   main = wrap!(renamed)
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
     let qualified = source
         .replace("import Helpers (helper as renamed)", "import Helpers as H")
         .replace("$(arg) + renamed", "$(arg) + H.helper");
     assert_eq!(
-        run_source_with(&qualified, &mut StagingCx::default()).unwrap(),
+        run_source(&qualified).unwrap(),
         42
     );
 }
@@ -2003,7 +2006,7 @@ fn binding_identity_scheduling_keeps_ordinary_recursive_components() {
   main = even 4
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
 }
@@ -2052,7 +2055,7 @@ fn checked_quotations_retain_type_directed_constructor_identity() {
   main = read value
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
     // Checking this quote as a List must not let later emission choose the
@@ -2080,7 +2083,7 @@ module Main where
   main = inspect!(make!(()))
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
     let forged = source.replace("inspect!(make!(()))", "inspect!(Library.Hide 42)");
@@ -2107,7 +2110,7 @@ module Main where
   main = value!(())
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
     let forged = source.replace(
@@ -2162,7 +2165,7 @@ module Main where
   main = call 40
 "#;
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
 }

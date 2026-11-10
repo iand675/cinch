@@ -40,7 +40,9 @@
 //! right-hand side must indent past the binder's column under the layout
 //! rules.
 
-use cinch::driver::{driver, Mode};
+mod common;
+
+use cinch::driver::Mode;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -136,14 +138,9 @@ const HELPERS: &str = r#"
 /// prelude modules) is deeper than a default test thread's stack
 /// (the same harness `json.rs` uses).
 fn drive(entry: &Path) -> i32 {
-    let entry = entry.to_path_buf();
-    std::thread::Builder::new()
-        .stack_size(64 * 1024 * 1024)
-        .spawn(move || driver(Mode::Run, &entry, None))
-        .expect("spawn harness thread")
-        .join()
-        .expect("harness thread")
-        .unwrap_or_else(|e| panic!("compilation failed: {e}"))
+    let dir = entry.parent().expect("entry directory");
+    let file = entry.file_name().and_then(|f| f.to_str()).expect("entry file name");
+    common::drive(Mode::Run, dir, file, None).unwrap_or_else(|e| panic!("compilation failed: {e}"))
 }
 
 fn run_main(name: &str, main_src: &str) -> i32 {

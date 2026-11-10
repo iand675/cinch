@@ -7,12 +7,14 @@
 //! observation (design/llvm-contract-attributes.md), never wiring
 //! tests.
 
+mod common;
+
 use cinch::check::StageMode;
 use cinch::core::TargetProfile;
 use cinch::driver::{
-    check_sources, check_sources_profile, driver_with_profile, run_source, target_profile,
-    DriverOptions, Mode,
+    check_sources, check_sources_profile, driver_with_profile, target_profile, DriverOptions, Mode,
 };
+use common::source_frontend::run_source;
 use std::path::PathBuf;
 
 /// The `prim` acceptance fixture: one prim with `llvm` and `asm` bodies
@@ -58,7 +60,7 @@ fn body_of(ir: &str, unit: &str) -> String {
 /// Assert that checking the program fails with a message containing
 /// `needle`.
 fn expect_err(name: &str, src: &str, needle: &str) {
-    match check_sources(src, name) {
+    match common::source_frontend::check_sources(src, name) {
         Ok(_) => panic!("{name}: expected an error containing {needle:?}, but the program checked"),
         Err(e) => {
             let msg = e.to_string();
@@ -377,7 +379,7 @@ module Main where
         "module Main where\n  foreign import ccall \"cinch.prim.eqI64\" equal :: I64 -> I64 -> Bool",
     );
     let interface = |source: &str| {
-        let (_, interfaces) = cinch::driver::check_sources_ifaces(source, "assumed-prim.cinch")
+        let interfaces = common::source_frontend::check_source_interfaces(source, "assumed-prim.cinch")
             .expect("the assumed primitive interface checks");
         interfaces.into_iter().find(|iface| iface.module == "Main").unwrap()
     };
@@ -445,7 +447,7 @@ module Main where
   main :: Int
   main = 0
 "#;
-    check_sources(src, "pure-prim-evidence").expect("a pure prim call leaves evidence intact");
+    common::source_frontend::check_sources(src, "pure-prim-evidence").expect("a pure prim call leaves evidence intact");
     let ir = ir_of("pure-prim-evidence", src);
     assert!(attrs_of(&ir, "Main.caller").contains("memory(none)"), "{ir}");
 }

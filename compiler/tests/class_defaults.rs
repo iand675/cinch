@@ -8,7 +8,9 @@
 //! and is part of the class's interface contract, because an instance
 //! elsewhere inlines it.
 
-use cinch::driver::{driver, Mode};
+mod common;
+
+use cinch::driver::Mode;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -28,7 +30,7 @@ fn project(files: &[(&str, &str)]) -> PathBuf {
 }
 
 fn outcome(mode: Mode, dir: &Path) -> Result<i32, String> {
-    driver(mode, &dir.join("Main.cinch"), None).map_err(|e| e.to_string())
+    common::drive(mode, dir, "Main.cinch", None)
 }
 
 /// The class module. `double-of` is private: a default may use it, an
@@ -242,7 +244,7 @@ fn annotations_keep_definition_and_default_parameter_identities() {
         ("nested forall shadows the outer binder", "module Main where\n  identity :: forall a. a -> a\n  identity x = let inner = ((\\value -> (value :: a)) :: forall a. a -> a) in inner x\n  main :: Int\n  main = identity 42\n".into(), true),
         ("unused class parameter cannot be concretized", "module Main where\n  signature Bad a where\n    bad :: a -> a\n    bad x = (1 :: a)\n  main :: Int\n  main = 0\n".into(), false),
     ] {
-        let result = cinch::driver::check_sources(&source, "default-annotation-scope.cinch");
+        let result = common::source_frontend::check_sources(&source, "default-annotation-scope.cinch");
         assert_eq!(result.is_ok(), accepted, "{name}: {result:?}\n{source}");
     }
     let dir = project(&[("Defaults.cinch", class), ("Main.cinch", &instance[instance.find("module Main where").unwrap()..])]);

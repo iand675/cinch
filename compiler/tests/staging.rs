@@ -3,7 +3,10 @@
 //! capabilities, stage scheduling, and multi-module source files
 //! (modules and compilation specification sections 7-10).
 
+mod common;
+
 use cinch::driver::{driver_with, run_source_with, Mode, StageMode, StagingCx};
+use common::source_frontend::run_source;
 use std::path::PathBuf;
 
 #[test]
@@ -24,7 +27,7 @@ fn staged_evaluation_runs_recursive_instance_dictionary_methods() {
 }
 
 fn run(src: &str) -> Result<i32, String> {
-    run_source_with(src, &mut StagingCx::default()).map_err(|e| e.to_string())
+    run_source(src)
 }
 
 fn run_err(src: &str) -> String {
@@ -647,7 +650,7 @@ fn quoted_using_contexts_keep_their_following_argument_binders() {
     ];
     for (name, declarations, accepted, diagnostic) in cases {
         let source = format!("module Main where\n  stage family :: Declarations\n  stage family = quoteDecls where {{ {declarations} }}\n  generate do\n    emit family\n  main :: Int\n  main = 0\n");
-        match cinch::driver::check_sources(&source, "quoted-precondition-telescope.cinch") {
+        match common::source_frontend::check_sources(&source, "quoted-precondition-telescope.cinch") {
             Ok(_) => assert!(accepted, "{name} unexpectedly accepted\n{source}"),
             Err(error) => {
                 assert!(!accepted, "{name}: {error}\n{source}");
@@ -671,5 +674,5 @@ fn quoted_preconditions_do_not_capture_a_same_named_global() {
   main :: Int
   main = good 1
 "#;
-    assert_eq!(run_source_with(source, &mut StagingCx::default()).unwrap(), 42);
+    assert_eq!(run_source(source).unwrap(), 42);
 }

@@ -1,8 +1,11 @@
 //! Native declaration objects preserve the scope of captured field types.
-use cinch::driver::{check_sources, check_sources_ifaces, driver_with, run_source_with, Mode, StageMode, StagingCx};
+mod common;
+
+use cinch::driver::{driver_with, Mode, StageMode};
+use common::source_frontend::{check_source_interfaces, check_sources, run_source};
 
 fn run(source: &str) {
-    assert_eq!(run_source_with(source, &mut StagingCx::default()).unwrap(), 42);
+    assert_eq!(run_source(source).unwrap(), 42);
 }
 
 fn refuses(source: &str, needles: &[&str]) {
@@ -74,7 +77,7 @@ module Main where
   main = Wire.inspect (Wire.make 42)
 "#;
     run(source);
-    let (_, interfaces) = check_sources_ifaces(source, "generated-export.cinch").unwrap();
+    let interfaces = check_source_interfaces(source, "generated-export.cinch").unwrap();
     let library = interfaces.iter().find(|interface| interface.module == "Library").unwrap();
     let caller = interfaces.iter().find(|interface| interface.module == "Main").unwrap();
     let wire_type = library.exports.types.iter().find(|ty| ty.name == "Envelope").unwrap();
@@ -106,7 +109,7 @@ module Main where
   main = Wire.inspect (Wire.make 42)
 "#;
     run(source);
-    let (_, interfaces) = check_sources_ifaces(source, "generated-data-export.cinch").unwrap();
+    let interfaces = check_source_interfaces(source, "generated-data-export.cinch").unwrap();
     let library = interfaces.iter().find(|interface| interface.module == "Library").unwrap();
     let wire_type = library.exports.types.iter().find(|ty| ty.name == "Envelope").unwrap();
     let make = library.exports.values.iter().find(|value| value.name == "make").unwrap();

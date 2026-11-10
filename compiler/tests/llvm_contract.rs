@@ -4,7 +4,9 @@
 //! analysis proves the fact and is absent where it does not (the plan
 //! note's evidence style: never wiring tests).
 
-use cinch::driver::{check_sources, run_source_objects};
+mod common;
+use cinch::driver::check_sources;
+use common::source_frontend::run_source_objects;
 
 /// The emitted LLVM IR of one checked source (every IR test carries a
 /// `main`, which code generation requires).
@@ -100,7 +102,7 @@ fn word_range_of(ir: &str, body: &str) -> Option<String> {
 }
 
 fn expect_err(name: &str, src: &str, needle: &str) {
-    match check_sources(src, "<test>") {
+    match common::source_frontend::check_sources(src, "<test>") {
         Ok(_) => panic!("{name}: expected an error containing {needle:?}, but the program checked"),
         Err(e) => {
             let msg = e.to_string();

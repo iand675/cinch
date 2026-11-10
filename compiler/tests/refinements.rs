@@ -14,7 +14,9 @@
 
 use cinch::check::StageMode;
 use cinch::core::TargetProfile;
-use cinch::driver::{check_sources, driver_with_profile, run_source, Mode};
+use cinch::driver::{check_sources, driver_with_profile, Mode};
+mod common;
+use common::source_frontend::run_source;
 use std::path::PathBuf;
 
 #[test]
@@ -41,7 +43,7 @@ fn signature_preconditions_keep_quantified_value_parameters_in_scope() {
 /// Assert that checking the program fails with errors containing every
 /// `needle`.
 fn expect_err(name: &str, src: &str, needles: &[&str]) {
-    match check_sources(src, name) {
+    match common::source_frontend::check_sources(src, name) {
         Ok(_) => panic!("{name}: expected an error, but the program checked"),
         Err(e) => {
             let msg = e.to_string();
@@ -57,7 +59,7 @@ fn expect_err(name: &str, src: &str, needles: &[&str]) {
 
 /// Assert that the program checks.
 fn expect_checks(name: &str, src: &str) {
-    if let Err(e) = check_sources(src, name) {
+    if let Err(e) = common::source_frontend::check_sources(src, name) {
         panic!("{name}: compilation failed: {e}");
     }
 }
@@ -548,11 +550,7 @@ module Main where
             ),
         ],
     );
-    match cinch::driver::driver(
-        Mode::Check,
-        &dir.join("Main.cinch"),
-        None,
-    ) {
+    match common::drive(Mode::Check, &dir, "Main.cinch", None) {
         Ok(_) => panic!("sorted-reverse: expected a preservation rejection, but the program checked"),
         Err(e) => {
             let msg = e.to_string();
@@ -958,7 +956,7 @@ fn logical_literal_preconditions_are_propositions_without_runtime_boolean_coerci
         ("refinement-former shorthand is unchanged", "bad :: refined True Nat\n  bad = 0", false),
     ] {
         let source = format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n");
-        let result = check_sources(&source, "literal-precondition.cinch");
+        let result = common::source_frontend::check_sources(&source, "literal-precondition.cinch");
         assert_eq!(result.is_ok(), accepted, "{name}: {result:?}\n{source}");
     }
 }
@@ -981,7 +979,7 @@ fn signature_predicates_keep_checked_index_carrier_kinds() {
         ("proof arithmetic is invalid", "bad :: using (h + h > 0) => (h :: True) -> Nat\n  bad h = 0", false),
     ] {
         let source = format!("module Main where\n  import Data.Bytes\n  {body}\n  main :: Int\n  main = 0\n");
-        let result = check_sources(&source, "signature-index-carriers.cinch");
+        let result = common::source_frontend::check_sources(&source, "signature-index-carriers.cinch");
         assert_eq!(result.is_ok(), accepted, "{name}: {}\n{source}",
             result.as_ref().err().map(ToString::to_string).unwrap_or_else(|| "accepted".into()));
     }

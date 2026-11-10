@@ -34,8 +34,9 @@
 //! (check k contributes bit 2^(k-1), `main` sums them), so a nonzero
 //! exit code names the failed check.
 
-use cinch::driver::{driver, Mode};
-use std::path::{Path, PathBuf};
+mod common;
+use cinch::driver::Mode;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// The module under test, written into every project beside the entry.
@@ -57,26 +58,11 @@ fn write_project(name: &str, main: &str) -> PathBuf {
     dir
 }
 
-/// A driver invocation on a thread with a large stack (the checker
-/// recurses over elaborated code; the suite programs are bigger than a
-/// default test thread's stack).
-fn drive(mode: Mode, entry: &Path, out: Option<&Path>) -> Result<i32, String> {
-    let entry = entry.to_path_buf();
-    let out = out.map(|p| p.to_path_buf());
-    std::thread::Builder::new()
-        .stack_size(64 * 1024 * 1024)
-        .spawn(move || driver(mode, &entry, out.as_deref()))
-        .expect("spawn harness thread")
-        .join()
-        .expect("harness thread")
-        .map_err(|e| e.to_string())
-}
-
 /// Compile and run a `Main`; the exit code is the program's `main`
 /// result (0 when every check passed, otherwise the bitmask).
 fn run_main(name: &str, main: &str) -> i32 {
     let dir = write_project(name, main);
-    let code = drive(Mode::Run, &dir.join("Main.cinch"), None)
+    let code = common::drive(Mode::Run, &dir, "Main.cinch", None)
         .unwrap_or_else(|e| panic!("{name}: compilation failed: {e}"));
     let _ = std::fs::remove_dir_all(&dir);
     code
@@ -93,7 +79,7 @@ fn build_and_run(name: &str, main: &str) -> (i32, String) {
     use std::io::Write;
     let dir = write_project(name, main);
     let exe = dir.join("program");
-    let code = drive(Mode::Build, &dir.join("Main.cinch"), Some(&exe))
+    let code = common::drive(Mode::Build, &dir, "Main.cinch", Some(exe.clone()))
         .unwrap_or_else(|e| panic!("{name}: compilation failed: {e}"));
     assert_eq!(code, 0, "{name}: build failed");
     let mut child = std::process::Command::new(&exe)
@@ -118,7 +104,7 @@ fn build_and_run(name: &str, main: &str) -> (i32, String) {
 /// A program expected to be refused at check time; the error text.
 fn check_error(name: &str, main: &str) -> String {
     let dir = write_project(name, main);
-    let res = drive(Mode::Check, &dir.join("Main.cinch"), None);
+    let res = common::drive(Mode::Check, &dir, "Main.cinch", None);
     let _ = std::fs::remove_dir_all(&dir);
     match res {
         Ok(_) => panic!("{name}: expected a check error, but the program checked"),

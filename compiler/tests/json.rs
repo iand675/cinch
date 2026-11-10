@@ -17,7 +17,9 @@
 //! exact expected texts, and the content hash is pinned against an
 //! independent SHA-256 computation of the canonical document.
 
-use cinch::driver::{driver, Mode};
+mod common;
+
+use cinch::driver::Mode;
 use std::path::{Path, PathBuf};
 
 const LEX_SRC: &str = include_str!("../prelude/Text/Lex.cinch");
@@ -59,14 +61,9 @@ fn write_project(name: &str, files: &[(&str, &str)]) -> PathBuf {
 /// checker recurses over a program's elaborated code; the toolkit
 /// programs are bigger than a default test thread's stack).
 fn drive(mode: Mode, entry: &Path, out: Option<&Path>) -> i32 {
-    let entry = entry.to_path_buf();
-    let out = out.map(|p| p.to_path_buf());
-    std::thread::Builder::new()
-        .stack_size(64 * 1024 * 1024)
-        .spawn(move || driver(mode, &entry, out.as_deref()))
-        .expect("spawn harness thread")
-        .join()
-        .expect("harness thread")
+    let dir = entry.parent().expect("entry directory");
+    let file = entry.file_name().and_then(|f| f.to_str()).expect("entry file name");
+    common::drive(mode, dir, file, out.map(Path::to_path_buf))
         .unwrap_or_else(|e| panic!("compilation failed: {e}"))
 }
 

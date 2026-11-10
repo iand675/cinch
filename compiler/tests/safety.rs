@@ -11,10 +11,9 @@ use cinch::check::{
     check_program_multi_full, Diagnostic, JplSummary, SafetyReport, StagingCx,
 };
 use cinch::core::{Program, TargetProfile};
-use cinch::driver::{
-    check_sources, check_sources_ifaces, driver_with_profile, parse_prelude, parse_source,
-    run_source, Mode, StageMode,
-};
+use cinch::driver::{driver_with_profile, parse_prelude, parse_source, Mode, StageMode};
+mod common;
+use common::source_frontend::{check_source_interfaces, check_sources, run_source};
 use cinch::interface::Iface;
 use cinch::Result;
 use std::collections::HashMap;
@@ -1037,7 +1036,7 @@ module Main where
         "  #[recursion(\"tail\")]\n  loop :: Int -> Int -> Int",
     );
     let iface_of = |src: &str| -> Iface {
-        let (_p, ifaces) = check_sources_ifaces(src, "<test>").expect("check");
+        let ifaces = check_source_interfaces(src, "<test>").expect("check");
         ifaces
             .into_iter()
             .find(|i| i.module == "Main")

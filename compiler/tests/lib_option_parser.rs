@@ -25,7 +25,9 @@
 //! in a `let` binder's right-hand side must indent past the binder's
 //! column.
 
-use cinch::driver::{driver, Mode};
+mod common;
+
+use cinch::driver::Mode;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -160,14 +162,9 @@ fn main_module(extra_imports: &str, body: &str) -> String {
 /// deeper than a default test thread's stack allows, the same reason
 /// `json.rs`/`lib_toml.rs` drive on a large stack).
 fn drive(entry: &Path) -> i32 {
-    let entry = entry.to_path_buf();
-    std::thread::Builder::new()
-        .stack_size(64 * 1024 * 1024)
-        .spawn(move || driver(Mode::Run, &entry, None))
-        .expect("spawn harness thread")
-        .join()
-        .expect("harness thread")
-        .unwrap_or_else(|e| panic!("compilation failed: {e}"))
+    let dir = entry.parent().expect("entry directory");
+    let file = entry.file_name().and_then(|f| f.to_str()).expect("entry file name");
+    common::drive(Mode::Run, dir, file, None).unwrap_or_else(|e| panic!("compilation failed: {e}"))
 }
 
 fn run_main(name: &str, main_src: &str, with_args: bool) -> i32 {

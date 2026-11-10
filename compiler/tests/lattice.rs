@@ -17,7 +17,10 @@
 
 use cinch::check::StageMode;
 use cinch::core::TargetProfile;
-use cinch::driver::{check_sources, driver_with_profile, run_source, Mode};
+mod common;
+
+use cinch::driver::{check_sources, driver_with_profile, Mode};
+use common::source_frontend::run_source;
 use std::path::PathBuf;
 
 /// Assert that checking the program fails with errors containing every
@@ -39,7 +42,7 @@ fn expect_err(name: &str, src: &str, needles: &[&str]) {
 
 /// Assert that the program checks.
 fn expect_checks(name: &str, src: &str) {
-    if let Err(e) = check_sources(src, name) {
+    if let Err(e) = common::source_frontend::check_sources(src, name) {
         panic!("{name}: compilation failed: {e}");
     }
 }
@@ -632,7 +635,7 @@ module Main where
             ),
         ],
     );
-    match cinch::driver::driver(Mode::Check, &dir.join("Main.cinch"), None) {
+    match common::drive(Mode::Check, &dir, "Main.cinch", None) {
         Ok(_) => panic!(
             "sorted-generic-only: expected the generic candidate to reject, but the program checked"
         ),

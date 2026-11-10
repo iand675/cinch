@@ -4,7 +4,9 @@
 //! the missing guard. Multi-binding `let` groups cover the sequential
 //! side.
 
-use cinch::driver::{check_sources, run_source};
+mod common;
+
+use common::source_frontend::{check_sources, run_source};
 
 fn expect_ok(name: &str, src: &str, expected: i32) {
     match run_source(src) {

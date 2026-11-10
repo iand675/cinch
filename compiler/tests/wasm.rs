@@ -6,10 +6,11 @@
 //! of scope on this machine (no `wasm-ld` or Wasm runtime is installed);
 //! these tests assert the tables, the typing and the emitted IR text.
 
+mod common;
+
 use cinch::core::{ArtifactProfile, TargetProfile};
-use cinch::driver::{
-    check_sources_ifaces, check_sources_profile, package_variants, run_source_profile,
-};
+use cinch::driver::{check_sources_profile, package_variants};
+use common::source_frontend::{check_source_interfaces, check_sources, run_source};
 use cinch::interface::{build_wit_adapter, CanonicalAbi};
 use cinch::parser::parse_wit;
 
@@ -134,7 +135,7 @@ module Wide where
 "
     );
     assert!(
-        check_sources_profile(&wide("4294967296"), "<test>", &TargetProfile::native()).is_ok(),
+        check_sources(&wide("4294967296"), "<test>").is_ok(),
         "the literal fits the host's 64-bit Usize"
     );
     let err = check_sources_profile(
@@ -183,8 +184,8 @@ module UsesEval where
         err.to_string().contains("forbids runtime code generation"),
         "{err}"
     );
-    let (_program, ifaces) =
-        check_sources_ifaces(src, "<test>").expect("eval is admitted by default");
+    let ifaces =
+        check_source_interfaces(src, "<test>").expect("eval is admitted by default");
     let user = ifaces
         .iter()
         .find(|i| i.module == "UsesEval")
@@ -238,7 +239,7 @@ module EvalRun where
   main :: Int
   main = if run == 42 then 0 else 1
 "#;
-    let code = run_source_profile(src, &TargetProfile::native()).expect("the program compiles");
+    let code = run_source(src).expect("the program compiles");
     assert_eq!(code, 0, "eval [| 40 + 2 |] evaluates to 42");
 }
 
@@ -416,7 +417,7 @@ module VariantRT where
     if g == 0 then (if bad < 0 then (if fv == vs then (if retd == 1 then (if res == 1 then 0 else 1) else 2) else 3) else 4) else 5
 "
     );
-    let code = run_source_profile(&evo, &TargetProfile::native())
+    let code = run_source(&evo)
         .expect("the variant round trip compiles and runs");
     assert_eq!(code, 0, "guard holds on the supplied feature, enter runs the specialized identity, retire keeps it resident for the live frame");
 }

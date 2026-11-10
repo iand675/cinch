@@ -16,7 +16,9 @@
 //! `main` sums them, so a nonzero exit code is a bitmask naming the
 //! failed checks (check k contributes bit 2^(k-1)).
 
-use cinch::driver::{driver, Mode};
+mod common;
+
+use cinch::driver::Mode;
 use std::path::PathBuf;
 
 const TOML_SRC: &str = include_str!("../prelude/Text/Toml.cinch");
@@ -94,13 +96,7 @@ fn run_main(name: &str, body: &str) -> i32 {
     std::fs::write(dir.join("Toml.cinch"), TOML_SRC).expect("write Text.Toml");
     std::fs::write(dir.join("Text.Scan.cinch"), SCAN_SRC).expect("write Text.Scan");
     std::fs::write(dir.join("main.cinch"), src).expect("write Main");
-    let entry = dir.join("main.cinch");
-    std::thread::Builder::new()
-        .stack_size(64 * 1024 * 1024)
-        .spawn(move || driver(Mode::Run, &entry, None))
-        .expect("spawn harness thread")
-        .join()
-        .expect("harness thread")
+    common::drive(Mode::Run, &dir, "main.cinch", None)
         .unwrap_or_else(|e| panic!("{name}: compilation failed: {e}"))
 }
 

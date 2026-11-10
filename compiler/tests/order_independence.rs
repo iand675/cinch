@@ -29,7 +29,9 @@
 //!                         rely on, pinned from both sides (an
 //!                         unexported name stays out of scope).
 
-use cinch::driver::{check_sources, driver, run_source, Mode};
+mod common;
+
+use common::source_frontend::{check_sources, run_source};
 use std::path::{Path, PathBuf};
 
 // ----------------------------------------------------------------
@@ -58,13 +60,11 @@ fn write_project(files: &[(&str, &str)]) -> PathBuf {
 }
 
 fn run_entry(dir: &Path, entry: &str) -> Result<i32, String> {
-    driver(Mode::Run, &dir.join(entry), None).map_err(|e| e.to_string())
+    common::drive(cinch::driver::Mode::Run, dir, entry, None)
 }
 
 fn check_entry(dir: &Path, entry: &str) -> Result<(), String> {
-    driver(Mode::Check, &dir.join(entry), None)
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    common::check(dir, entry)
 }
 
 // ----------------------------------------------------------------

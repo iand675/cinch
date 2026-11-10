@@ -13,7 +13,8 @@
 //! `let` binder's right-hand side must indent past the binder's column under
 //! the layout rules.
 
-use cinch::driver::{driver, Mode};
+mod common;
+use cinch::driver::Mode;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -32,13 +33,7 @@ fn run_main(name: &str, main_src: &str) -> i32 {
     for (file, src) in [("Text.Scan.cinch", SCAN), ("Main.cinch", main_src)] {
         std::fs::write(dir.join(file), src).expect("write module");
     }
-    let path = dir.join("Main.cinch");
-    let compiled = std::thread::Builder::new()
-        .stack_size(64 * 1024 * 1024)
-        .spawn(move || driver(Mode::Run, &path, None))
-        .expect("spawn compiler thread")
-        .join()
-        .expect("compiler thread panicked");
+    let compiled = common::drive(Mode::Run, &dir, "Main.cinch", None);
     match compiled {
         Ok(code) => code,
         Err(e) => panic!("{name}: compilation failed: {e}"),

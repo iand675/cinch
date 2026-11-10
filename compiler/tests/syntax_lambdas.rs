@@ -1,9 +1,11 @@
 //! Cinch libraries build native lambda binders around source-scoped bodies.
-use cinch::driver::{check_sources, run_source_with, StagingCx};
+mod common;
+
+use common::source_frontend::{check_sources, run_source};
 
 fn run(source: &str) {
     assert_eq!(
-        run_source_with(source, &mut StagingCx::default()).unwrap(),
+        run_source(source).unwrap(),
         42
     );
 }

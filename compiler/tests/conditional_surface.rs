@@ -33,6 +33,8 @@
 //! the profile of whatever machine runs them, so they assert the same
 //! split on a Darwin or a Linux host.
 
+mod common;
+
 use cinch::driver::{
     check_sources_profile, check_sources_profile_ifaces, target_profile, DriverOptions,
 };
@@ -547,6 +549,9 @@ fn check_project(
     entry: &str,
     triple: Option<&str>,
 ) -> Result<(), String> {
+    if triple.is_none() {
+        return common::check(dir, entry);
+    }
     let opts = DriverOptions {
         target: triple.map(str::to_string),
         ..DriverOptions::default()

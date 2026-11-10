@@ -21,7 +21,9 @@
 //! `Effect.Process` capability (`sh -c 'echo $PPID'`), as
 //! `compiler/tests/runtime_prims.rs` does.
 
-use cinch::driver::{driver, Mode};
+mod common;
+
+use cinch::driver::Mode;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -42,14 +44,7 @@ fn run_main(name: &str, main_src: &str) -> i32 {
     // The checker's elaboration recursion runs near the default
     // test-thread stack; compile on a thread with a generous stack (as
     // `tests/lib_base64.rs` and `tests/runtime_prims.rs` do).
-    let path = dir.join("Main.cinch");
-    let compiled = std::thread::Builder::new()
-        .stack_size(64 * 1024 * 1024)
-        .spawn(move || driver(Mode::Run, &path, None))
-        .expect("spawn compiler thread")
-        .join()
-        .expect("compiler thread panicked");
-    match compiled {
+    match common::drive(Mode::Run, &dir, "Main.cinch", None) {
         Ok(code) => code,
         Err(e) => panic!("{name}: compilation failed: {e}"),
     }

@@ -17,7 +17,9 @@
 //! in `compiler/prelude/Text/*.cinch` sources (the driver does not
 //! embed them yet: see the P30 note in the report).
 
-use cinch::driver::{driver, Mode};
+mod common;
+
+use cinch::driver::Mode;
 use std::path::PathBuf;
 
 const LEX_SRC: &str = include_str!("../prelude/Text/Lex.cinch");
@@ -253,7 +255,7 @@ fn run_main(name: &str, main: &str) -> i32 {
         .stack_size(64 * 1024 * 1024)
         .spawn(move || {
             let dir = write_project(&name, &main);
-            let result = driver(Mode::Run, &dir.join("main.cinch"), None);
+            let result = common::drive(Mode::Run, &dir, "main.cinch", None);
             let _ = std::fs::remove_dir_all(&dir);
             match result {
                 Ok(code) => code,
@@ -1615,7 +1617,7 @@ fn expect_eof_is_a_non_consuming_guard() {
 
 /// A `Main` that must compile and run through the driver's own path.
 fn expect_src_exit(name: &str, src: &str, expected: i32) {
-    match cinch::driver::run_source(src) {
+    match common::source_frontend::run_source(src) {
         Ok(code) => assert_eq!(code, expected, "{name}: expected exit {expected}, got {code}"),
         Err(e) => panic!("{name}: compilation failed: {e}"),
     }
@@ -1624,7 +1626,7 @@ fn expect_src_exit(name: &str, src: &str, expected: i32) {
 /// A `Main` that must be refused at check time, with `needle` in the
 /// diagnostic.
 fn expect_src_err(name: &str, src: &str, needle: &str) {
-    match cinch::driver::check_sources(src, "<test>") {
+    match common::source_frontend::check_sources(src, "<test>") {
         Ok(_) => panic!("{name}: expected an error containing {needle:?}, but the program checked"),
         Err(e) => {
             let msg = e.to_string();

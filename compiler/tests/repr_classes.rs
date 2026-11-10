@@ -4,7 +4,9 @@
 //! and the collector's version set is read from its report.
 
 use cinch::core::TargetProfile;
-use cinch::driver::{check_sources, run_source};
+use cinch::driver::check_sources;
+mod common;
+use common::source_frontend::run_source;
 
 /// The representation copies the collector emitted for `src`.
 fn versions(name: &str, src: &str) -> Vec<String> {

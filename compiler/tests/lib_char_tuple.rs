@@ -16,7 +16,9 @@
 //! `char-from-code` (there is no ASCII-only way to spell them);
 //! `233` is LATIN SMALL LETTER E WITH ACUTE, `160` is NO-BREAK SPACE.
 
-use cinch::driver::run_source;
+mod common;
+
+use common::source_frontend::run_source;
 
 /// The `Main` module header: the shared imports and the two non-ASCII
 /// scalar helpers. A `case` in a `let` binder's right-hand side must

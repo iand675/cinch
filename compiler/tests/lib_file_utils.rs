@@ -25,7 +25,9 @@
 //! absoluteness, normalize, relative-to), including `/a/b/../c` and a
 //! leading `..` case.
 
-use cinch::driver::{driver, Mode};
+mod common;
+
+use cinch::driver::Mode;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -106,14 +108,7 @@ fn run_main(name: &str, main_src: &str) -> i32 {
     ] {
         std::fs::write(dir.join(file), src).expect("write module");
     }
-    let path = dir.join("Main.cinch");
-    let compiled = std::thread::Builder::new()
-        .stack_size(64 * 1024 * 1024)
-        .spawn(move || driver(Mode::Run, &path, None))
-        .expect("spawn compiler thread")
-        .join()
-        .expect("compiler thread panicked");
-    match compiled {
+    match common::drive(Mode::Run, &dir, "Main.cinch", None) {
         Ok(code) => code,
         Err(e) => panic!("{name}: compilation failed: {e}"),
     }

@@ -3,7 +3,9 @@
 //! explicit conversions and literal range checking
 //! (`specifications/primitive-types-specification.md`).
 
-use cinch::driver::{check_sources, run_source};
+mod common;
+
+use common::source_frontend::{check_sources, run_source};
 
 /// Compile, run and assert the exit code.
 fn run_ok(name: &str, src: &str, expected: i32) {

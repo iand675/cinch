@@ -10,7 +10,8 @@ mod common;
 
 use cinch::check::StageMode;
 use cinch::core::TargetProfile;
-use cinch::driver::{check_sources, driver_with_profile};
+use cinch::driver::driver_with_profile;
+use common::source_frontend::{check_source_interfaces, check_sources};
 use std::path::PathBuf;
 
 /// The law-abiding instance fixture: a concrete carrier whose `<>`
@@ -78,7 +79,7 @@ fn mathematical_law_samples_use_the_checked_numeric_representation() {
     expect_err("nat-law-counterexample.cinch", bad, "breaks class law `Monoid.left-unit`");
 
     let lawful = bad.replace("mempty = Ticket 1", "mempty = Ticket 0");
-    let (_, interfaces) = cinch::driver::check_sources_ifaces(&lawful, "nat-lawful.cinch").unwrap();
+    let interfaces = check_source_interfaces(&lawful, "nat-lawful.cinch").unwrap();
     let main = interfaces.iter().find(|iface| iface.module == "Main").unwrap();
     let observations: Vec<_> = main.laws.iter().map(|law| (law.law.as_str(), law.status.as_str())).collect();
     assert!(observations.contains(&("assoc", "checked (8 samples)")));
@@ -98,7 +99,7 @@ fn mathematical_law_indices_promote_integer_literals() {
   main :: Int
   main = 0
 "#;
-    let (_, interfaces) = cinch::driver::check_sources_ifaces(source, "mathematical-law-indices.cinch").unwrap();
+    let interfaces = check_source_interfaces(source, "mathematical-law-indices.cinch").unwrap();
     let main = interfaces.iter().find(|iface| iface.module == "Main").unwrap();
     assert_eq!(main.laws.len(), 2);
     assert!(main.laws.iter().all(|law| law.status == "checked (3 samples)"), "{:?}", main.laws);
@@ -111,7 +112,7 @@ fn checked_class_laws_travel_with_the_defining_interfaces() {
     use cinch::interface::{verify_chain, Iface};
 
     let source = "module Main where\n  import Data.Ordering\n  main :: Int\n  main = 0\n";
-    let (_, interfaces) = cinch::driver::check_sources_ifaces(source, "portable-laws.cinch").unwrap();
+    let interfaces = check_source_interfaces(source, "portable-laws.cinch").unwrap();
     verify_chain(&interfaces).unwrap();
     for (module, class, names) in [
         ("Algebra.Semigroup", "Semigroup", &["assoc"][..]),
