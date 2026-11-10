@@ -261,7 +261,7 @@ that until either the module shrinks further or the backend gets cheaper.
 Both are in the backlog: shrinking IR (section 10) and the development
 codegen tier (section 6).
 
-## 8a. Tried and measured: PGO, LTO, and the compiler's own build
+### Tried and measured: PGO, LTO, and the compiler's own build
 
 Profile-guided optimization of a stage compiler works and is cheap to wire:
 link the compiler IR with `-fprofile-generate`, train it on a real workload
@@ -284,6 +284,77 @@ still bypasses the rounding. It is worth one investigation because LTO also
 removes the cross-module call cost to the library's string and `Nat`
 routines, which the profiles put at 14% of the compiler's time. Until then,
 LTO stays off.
+
+### Sharded code generation (implemented 2026-11-10)
+
+`tooling/shard_ir.py` cuts the stage module into K shards and
+`tooling/bootstrap.py` compiles them in parallel under one `-j` budget
+(default half the cores, `-j` or `CINCH_BOOTSTRAP_JOBS`; `-j 1` keeps the
+single translation unit). Functions are grouped by the module prefix in
+their symbol, groups are balanced by IR line count into the least loaded
+shard in sorted name order, and a group larger than its fair share is cut
+at function boundaries. Cross-shard references become `declare`s with the
+same signature, and `internal` definitions are copied into the shards that
+use them. The split and the link order depend only on the IR text and K,
+so Stage2 and Stage3 still meet byte for byte.
+
+Stage1's module is 224,541,238 bytes. Link phase alone, `-O2`, on the
+development machine (Apple clang 21, arm64). The split is the serial Python
+pass that writes the shards and runs before the budget starts:
+
+| K | split | clang wall | clang CPU | speedup | `cinch` bytes |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 0 | 128.9 s | 126.4 s | 1.0x | 28,450,024 |
+| 2 | 6.3 s | 67.5 s | 126.9 s | 1.9x | 28,064,296 |
+| 4 | 7.0 s | 34.4 s | 125.1 s | 3.7x | 27,885,416 |
+| 8 | 5.3 s | 20.1 s | 132.3 s | 6.4x | 27,871,432 |
+
+A full `build --stage 1` from a clean stage1 output adds the seed's ~20 s
+frontend producing that module:
+
+| K | wall | CPU | peak RSS | notes |
+| --- | --- | --- | --- | --- |
+| 1 | 154.5 s | 145.3 s | 8.09 GB | one translation unit |
+| 2 | 92.2 s | 149.0 s | 4.13 GB | |
+| 4 | 67.1 s | 157.0 s | 2.25 GB | |
+| 8 | 58.7 s | 189.8 s | 2.25 GB | 2.6x wall, 2.0x CPU of baseline |
+
+The parallel phase's CPU rises because shards re-parse their headers and
+metadata, copied `internal` definitions are compiled more than once, and
+the eight clang processes contend for memory bandwidth. Peak memory falls
+sharply because no single process holds the whole module.
+
+Stage2's module is 48,541,467 bytes. Its frontend (Stage1 compiling
+Stage2) is 200.7 s wall and 195.9 s CPU on one thread, so the link is now
+the small part of the build:
+
+| K | link wall | link CPU | stage2 build wall (frontend + link) | `cinch` bytes |
+| --- | --- | --- | --- | --- |
+| 1 | 45.1 s | 44.3 s | 245.8 s | 15,833,032 |
+| 2 | 25.2 s | 45.7 s | 225.9 s | 15,833,912 |
+| 4 | 15.4 s | 50.2 s | 216.1 s | 15,833,832 |
+| 8 | 9.7 s | 55.6 s | 210.5 s | 15,833,736 |
+
+What the split costs at run time: the same Stage2 compiler binary built at
+K=1 and K=8 checked the 4K-line toolkit bundle (`--check` with the base
+interfaces, median of three runs) in 13.70 s wall and 13.33 s CPU at K=1
+and 13.20 s wall and 12.85 s CPU at K=8. Cross-shard inlining loss is not
+measurable on that workload, and the compiler binary grows by 704 bytes
+(0.004%). K=4 and K=8 are the knee: past 8 the split and the duplicate
+compilation dominate, and the frontend remains the critical path.
+
+Determinism evidence: re-splitting the retained stage2 `compiler.ll` at
+K=8, recompiling the shards and relinking reproduced the stage2 compiler
+byte for byte (sha256 `3eb77b89…`); stage2 and stage3 then matched on all
+46 emitted interfaces, on `compiler.ll`, and on `cinch`. `tooling/bootstrap.py
+check -j 8` and `smoke --stage 3` pass.
+
+The consequence for the rest of this note is that the backend is no longer
+the wall clock: Stage2's 245.8 s build spends 200.7 s in the single-threaded
+frontend. The ordered work is now section 5 (query reuse), section 7
+(frontend mechanics) and section 9 (parallel phases), with the remaining
+backend items (direct object emission, ThinLTO to recover cross-shard
+inlining) worth less than the split already bought.
 
 ## 9. Scheduling `-j N` (Make jobserver, Ninja pools, Bazel workers)
 
@@ -500,46 +571,44 @@ Metrics, reported per edit and per clean build:
 
 1. **PGO for the stage compilers.** Wire the measured 10% into
    `tooling/bootstrap.py`: instrument, train on the bundle, merge, relink,
-   key the profile by the compiler source digest. Do this after the shard
-   work lands so both changes touch the link path once.
+   key the profile by the compiler source digest.
 2. **Profile harness.** A `tooling/profile_build.py` that runs a stage
    chain and emits phase timings, clang `-ftime-trace` summaries, sample
    profiles of the running compiler, and per-target test times, as one JSON
    file. Everything below is measured through it. Also add a `-j` sweep
    (1, 2, 4, 8) over four workloads: many small modules, a wide dependency
    graph, a deep import chain, one huge generated module.
-3. **Shard the module for parallel code generation.** One 218 MB
-   translation unit runs on one thread; the time trace above says 54 s of
-   the 55 s `-O2` cost is backend work that shards in parallel. Emit one
-   `.ll` per shard (grouped by module prefix, fixed order), compile shards
-   with `clang -O2 -c` in parallel under one `-j` budget, and link the
-   objects in sorted order so the result stays deterministic and the
-   Stage2/Stage3 binaries still match byte for byte. Measure shard counts
-   1, 2, 4, 8 for wall time, total CPU and the resulting compiler's own
-   speed (cross-shard inlining is what we give up; measure it).
-4. **Shrink clang's input further.** Re-measure the IR after the
-   reference-count and match changes, then target the largest remaining
-   constructs: functions above 20K IR lines, repeated `case` spines, and
-   every remaining out-of-line helper call.
+3. **Parallel code generation. Done (2026-11-10).** `tooling/shard_ir.py`
+   emits one `.ll` per shard (grouped by module prefix, fixed order) and
+   `tooling/bootstrap.py` compiles them with `clang -O2 -c` in parallel
+   under `-j`, then links the objects in shard order. The Stage1 link falls
+   from 128.9 s to 20.1 s wall at K=8 and the Stage2 link from 45.1 s to
+   9.7 s, the compiler's own toolkit check is unchanged, and the fixed
+   point holds. What remains is recovering cross-shard inlining (ThinLTO
+   over the shard objects, or inlining at the Core level before emission)
+   and emitting objects directly instead of text IR; neither is worth more
+   than the frontend work in items 6 and 7 until the module shrinks.
+4. **Shrink the emitted IR further.** Re-measure after the reference-count
+   and match changes, then target the largest remaining constructs:
+   functions above 20K IR lines, repeated `case` spines, and every
+   remaining out-of-line helper call.
 5. **Interface format.** Sectioned or indexed `.cinchif` decoding, plus an
    optimization section (size, arity, inline guidance). Needs a schema
    version bump and a producer rebuild.
-6. **Per-declaration query reuse inside one build**, with fingerprints and
-   early cutoff. Start with `signature` and `elaboratedBody` because they
-   dominate a self-build.
+6. **The frontend is now the critical path.** Stage2's build spends 200.7 s
+   of 245.8 s in the single-threaded frontend, so per-declaration query
+   reuse with fingerprints and early cutoff (section 3) and a parallel
+   phase schedule (section 9) matter more than any backend work.
 7. **Interning `Ty` and names** in the Cinch compiler, and in the seed
    where the profile still shows clone-heavy code.
-8. **Finish the GHC-style simplifier** on our Core, in this order: case-merge,
-   case-of-case with join points, call-arity and eta, loopification,
-   CPR plus worker/wrapper for single-field constructors, spec-constr and
-   liberate-case. Gate every step on the fixed point and on Core output
-   equality, and measure the compiler's own runtime, which is the best
-   benchmark we have. The pass shape, the tick budget and the first three
-   rewrites (case-merge, known-constructor, direct dictionary calls) are in
-   the tree (section 10.1); case-of-case and join points are the next
-   slice, and they need the join node in Core first.
+8. **Finish the GHC-style simplifier** on our Core: case-of-case with join
+   points, call-arity and eta, loopification, CPR plus worker/wrapper for
+   single-field constructors, spec-constr and liberate-case. The pass
+   shape, the tick budget and the first three rewrites (case-merge,
+   known-constructor, direct dictionary calls) are in the tree (section
+   10.1); case-of-case needs the join node in Core first.
 9. **LTO across the library boundary**: finish the investigation in section
-   8a. It is worth one focused pass because it halves the binary and removes
+   8. It is worth one focused pass because it halves the binary and removes
    the call cost to the library's string and `Nat` routines (14% of the
    compiler's profile), but only if the stack-probe fault is understood.
 10. **Parallel phases** using the runtime pool, once section 11's corpus

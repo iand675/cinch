@@ -44,6 +44,47 @@ D198-D205, D221-D227 where the specs understate).
   With `--all-programs` it asks the design document's question of every
   rung: is the artifact runnable? It builds each `bootstrap/programs/Run.*.cinch`
   and reports its exit code, failing only when a program did not build.
+- `shard_ir.py`: the deterministic IR splitter for the stage link
+  (below), which also runs as a `CINCH_CLANG` wrapper so the pinned seed's
+  own link of Stage1 gets the same treatment.
+
+## Bootstrap stage link
+
+Each stage is linked by clang from one `.ll` module. Above one job,
+`tooling/bootstrap.py` splits that module first, compiles every shard in
+parallel and links the objects in shard order:
+
+```sh
+CINCH_HEAP_LIMIT=2G python3 tooling/bootstrap.py build --stage 3 -j 8
+```
+
+`-j`, or `CINCH_BOOTSTRAP_JOBS`, is one job budget for the whole stage link;
+the default is half the machine's cores. `-j 1` keeps the original single
+translation unit and records no shard objects. The split changes the
+binaries (cross-shard calls cannot inline), so the job count is part of the
+stage's recorded inputs: changing it rebuilds the stage rather than
+reusing a cached compiler.
+
+`tooling/shard_ir.py` groups functions by the module prefix in their symbol
+(`Bootstrap.Infer.foo` joins `Bootstrap.Infer`; the generated `.app`,
+`.clo`, `.blk`, `.dec<N>` and `#tail` suffixes are stripped first, so a
+unit and its companions shard together), balances the groups into K shards
+by IR line count (sorted names, greedy into the least loaded shard, ties to
+the lower index; a group larger than its fair share is cut at function
+boundaries), and makes every cross-shard reference resolvable: a function
+defined elsewhere gets a `declare` with the same signature and attribute
+group, an externally linked global gets an `external` declaration, and an
+`internal` definition is copied into each shard that uses it, because local
+symbols do not resolve across objects. Module-level content (globals,
+aliases, intrinsics, and the numbered metadata that `!range` attachments
+need) stays with shard 0 or is copied where an attachment needs it.
+
+The split is a pure function of the IR text and K. Shard contents, object
+files and the link order therefore do not depend on scheduling, and Stage2
+and Stage3 still link to byte-identical compilers. Stage1's link happens
+inside the pinned Rust seed, which honours only `CINCH_CLANG`; bootstrap
+points that at `shard_ir.py`, which shards one large `.ll` link and execs
+`CINCH_CLANG_REAL` (or `clang` on `PATH`) for everything else.
 
 ## Drift check (CI)
 

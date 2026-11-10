@@ -25,6 +25,9 @@ PROTOCOL = 4
 HOST = {"system": platform.system(), "machine": platform.machine()}
 FROZEN_SOURCES = None
 RUNTIME_ABIS = (5, 6, 7)
+# Parallel clang jobs for the stage link. 1 keeps the single-module
+# translation unit; above 1 the module is sharded (see tooling/shard_ir.py).
+JOBS = 1
 
 
 class BootstrapError(RuntimeError):
@@ -140,11 +143,51 @@ def write_json(path: Path, value: dict) -> None:
     temp.replace(path)
 
 
-def run(command: list[str | Path], cwd: Path, log: Path, *, append: bool = False) -> int:
+def run(command: list[str | Path], cwd: Path, log: Path, *, append: bool = False,
+        env_extra: dict[str, str] | None = None) -> int:
     log.parent.mkdir(parents=True, exist_ok=True)
+    process_env = environment()
+    if env_extra:
+        process_env.update(env_extra)
     with log.open("ab" if append else "wb") as stream:
-        return subprocess.run([str(x) for x in command], cwd=cwd, env=environment(),
+        return subprocess.run([str(x) for x in command], cwd=cwd, env=process_env,
                               stdout=stream, stderr=subprocess.STDOUT).returncode
+
+
+def default_jobs() -> int:
+    # Half the cores: the stage compilers themselves are not parallel, and a
+    # shard compile saturates a core.
+    return max(1, (os.cpu_count() or 2) // 2)
+
+
+def resolve_jobs(flag: int | None) -> int:
+    value = flag if flag is not None else os.environ.get("CINCH_BOOTSTRAP_JOBS")
+    if value is None or value == "":
+        return default_jobs()
+    try:
+        jobs = int(value)
+    except (TypeError, ValueError):
+        raise BootstrapError("--jobs (or CINCH_BOOTSTRAP_JOBS) must be a positive integer")
+    if not 1 <= jobs <= 256:
+        raise BootstrapError("--jobs (or CINCH_BOOTSTRAP_JOBS) must be between 1 and 256")
+    return jobs
+
+
+def stage_link_environment() -> dict[str, str]:
+    """Point the seed's own clang call at the sharding wrapper.
+
+    Stage1's link happens inside the pinned Rust seed, which honours only
+    `CINCH_CLANG`. The wrapper shards one huge `.ll` link and execs the real
+    clang for everything else. JOBS == 1 leaves the seed untouched.
+    """
+    if JOBS <= 1:
+        return {}
+    wrapper = (ROOT / "tooling" / "shard_ir.py").resolve()
+    real = os.environ.get("CINCH_CLANG") or shutil.which("clang") or "clang"
+    if Path(real).resolve() == wrapper:
+        real = shutil.which("clang") or "clang"
+    return {"CINCH_CLANG": str(wrapper), "CINCH_CLANG_REAL": str(real),
+            "CINCH_BOOTSTRAP_JOBS": str(JOBS)}
 
 
 def required_artifacts(inputs: dict) -> tuple[str, ...]:
@@ -183,6 +226,8 @@ def record_build(directory: Path, inputs: dict, code: int, log: Path) -> Path:
     if good:
         record["executable_sha256"] = file_hash(exe)
         record["artifacts"] = {name: file_hash(directory / name) for name in required}
+        record["artifacts"].update({str(p.relative_to(directory)): file_hash(p)
+                                    for p in sorted(directory.glob("compiler.shard*.o"))})
         record["artifacts"].update({str(p.relative_to(directory)): file_hash(p)
                                     for p in directory.rglob("*.cinchif")})
     write_json(directory / "stage.json", record)
@@ -334,6 +379,8 @@ def prepare_outputs(directory: Path) -> None:
     directory.mkdir(parents=True, exist_ok=True)
     for name in ("cinch", "compiler.ll", "compiler.ll.diagnostics", "link-report.txt", "requested-roots.json"):
         (directory / name).unlink(missing_ok=True)
+    for shard in directory.glob("compiler.shard*"):
+        shard.unlink()
     for interface in directory.rglob("*.cinchif"):
         interface.unlink()
 
@@ -351,6 +398,7 @@ def build_stage(stage: int) -> Path:
     runtime = build_seed_runtime()
     inputs = {"protocol": PROTOCOL, "host": HOST, "source_sha256": source_hash(files),
               "builder_sha256": file_hash(builder), "built_by_stage": stage - 1,
+              "shard_count": JOBS,
               "seed_runtime_profile": "release", "seed_runtime_sha256": file_hash(runtime)}
     directory = BUILD / f"stage{stage}"
     compiler = directory / "cinch"
@@ -371,8 +419,10 @@ def build_stage(stage: int) -> Path:
         (sources / name).write_bytes(data)
     (directory / "compiler.cinch").write_bytes(bundle(files))
     # Stage1 does the largest compile of the chain (it builds Stage2), so the
-    # seed links it optimized.
-    code = run([builder, "build", sources / "Main.cinch", "-o", compiler, "--opt-level", "2"], sources, log)
+    # seed links it optimized. Above one job the seed's own clang call goes
+    # through tooling/shard_ir.py, which shards its single `.ll` module.
+    code = run([builder, "build", sources / "Main.cinch", "-o", compiler, "--opt-level", "2"],
+               sources, log, env_extra=stage_link_environment())
     record_build(directory, inputs, code, log)
     seed_ir.unlink(missing_ok=True)
     return compiler
@@ -387,6 +437,7 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
     runtime = provider["runtime"]
     inputs = {"protocol": PROTOCOL, "host": HOST, "source_sha256": source_hash(files),
               "builder_sha256": file_hash(builder), "built_by_stage": built_by_stage,
+              "shard_count": JOBS,
               "interface_set_sha256": digest(base_bytes), "frontend_mode": "typed-ir-objects",
               "interface_output": "checked-schema10",
               "library_provider": provider["identity"], "object_configuration_sha256": digest(configuration),
@@ -417,10 +468,29 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
     if code == 0:
         # Optimized: the stage compilers are the bootstrap's hot loop, and
         # identical IR under identical flags still yields identical binaries.
-        command = [os.environ.get("CINCH_CLANG", "clang"), "-O2", "-Wno-override-module", ir, provider["object"], runtime, "-o", exe]
-        if HOST["system"] == "Linux":
-            command.extend(["-ldl", "-lpthread", "-lm"])
-        code = run(command, directory, log, append=True)
+        # Above one job the module is cut into deterministic shards, each
+        # compiled in parallel, and the objects are linked in shard order.
+        # Shard contents and link order depend only on the IR text and JOBS,
+        # never on scheduling.
+        from shard_ir import compile_shards, object_paths, write_shards
+        clang = os.environ.get("CINCH_CLANG", "clang")
+        if JOBS > 1:
+            shards = write_shards(ir, directory, JOBS)
+            shard_objects = object_paths(directory, JOBS)
+            failure, shard_log = compile_shards(shards, shard_objects, clang, 2, JOBS,
+                                                directory, environment())
+            with log.open("ab") as stream:
+                stream.write(shard_log.encode())
+            if failure:
+                code = failure
+            else:
+                command = [clang, *shard_objects, provider["object"], runtime, "-o", exe]
+        else:
+            command = [clang, "-O2", "-Wno-override-module", ir, provider["object"], runtime, "-o", exe]
+        if code == 0:
+            if HOST["system"] == "Linux":
+                command.extend(["-ldl", "-lpthread", "-lm"])
+            code = run(command, directory, log, append=True)
         report = f"clang-exit: {code}\n"
         if code == 0:
             if exe.is_file() and os.access(exe, os.X_OK):
@@ -506,12 +576,25 @@ def check_fixed_point() -> None:
     print("bootstrap: stages 2 and 3 reached a fixed point", flush=True)
 
 
+def compiler_interface_paths(directory: Path):
+    """The emitter's canonical per-module interfaces.
+
+    A checked build also leaves the admitted closure in `build/`: the
+    library's interfaces plus a second copy of every source module. Those
+    are not canonical and would read as duplicates of the emitted set.
+    """
+    for path in sorted(directory.rglob("*.cinchif")):
+        if "build" in path.relative_to(directory).parts:
+            continue
+        yield path
+
+
 def require_compiler_interfaces(directory: Path, files: dict[str, bytes]) -> None:
     from bootstrap_interfaces import interface_hash, read_contract, validate_contract, verify_dependencies
 
     expected = {name[:-6] for name in files if name.endswith(".cinch")}
     documents = {}
-    for path in directory.rglob("*.cinchif"):
+    for path in compiler_interface_paths(directory):
         header = read_json(path)
         if not isinstance(header, dict) or not isinstance(header.get("module"), str):
             raise BootstrapError(f"invalid actual compiler interface header: {path}")
@@ -563,7 +646,7 @@ def check_interface_consumer(directory: Path, files: dict[str, bytes]) -> None:
     rows = {name: [name, identity, filename]
             for name, identity, filename in read_json(directory / "base-interfaces.json").get("interfaces", [])}
     expected = {name[:-6] for name in files if name.endswith(".cinch")}
-    for path in directory.rglob("*.cinchif"):
+    for path in compiler_interface_paths(directory):
         doc = read_contract(path)
         if doc["module"] in expected:
             rows[doc["module"]] = [doc["module"], interface_hash(doc), str(path.resolve())]
@@ -618,8 +701,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("build", "smoke", "check", "status"))
     parser.add_argument("--stage", type=int, choices=range(4), default=1)
+    parser.add_argument("-j", "--jobs", type=int, default=None,
+                        help="parallel clang shard jobs (default: half the cores; "
+                             "CINCH_BOOTSTRAP_JOBS; 1 keeps the single module)")
     args = parser.parse_args()
     try:
+        global JOBS
+        JOBS = resolve_jobs(args.jobs)
         environment()
         BUILD.mkdir(parents=True, exist_ok=True)
         # Serialize mutations of the stage cache; ordinary cargo test runs
