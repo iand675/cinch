@@ -813,6 +813,15 @@ struct Registry {
     /// (`%__sl_layout_N = type [W x i8]`), keyed by width: the `byval`
     /// and `sret` spellings need a pointee type.
     layout_types: BTreeMap<u64, String>,
+    /// The symbols the callee classifier tests for: every unit this module
+    /// emits plus the tail workers derived from it. One set per module,
+    /// built on first use because the registry is complete by the time
+    /// emission asks.
+    ///
+    /// It is a field rather than a local because rebuilding it per emitted
+    /// unit re-collected and re-sorted every unit name once per unit, which
+    /// was a quarter of the emit pass on the compiler bundle.
+    symbols: std::sync::OnceLock<HashSet<String>>,
     /// The widened tail signatures (`crate::core::tail_widths`): a unit
     /// named here runs its body in the worker `tail_worker(name)`, which
     /// takes the mapped number of words.
@@ -848,6 +857,17 @@ impl Registry {
 }
 
 impl Registry {
+    /// The unit symbols the callee classifier tests for: the registry's
+    /// units and the tail workers derived from them. Built once, then read
+    /// by every unit's body scan.
+    fn unit_symbols(&self) -> &HashSet<String> {
+        self.symbols.get_or_init(|| {
+            let mut symbols: HashSet<String> = self.arity.keys().cloned().collect();
+            symbols.extend(self.tail_width.keys().map(|unit| tail_worker(unit)));
+            symbols
+        })
+    }
+
     /// Whether instance `id`'s dictionary is one immortal static block
     /// `@"<id>.dict"`: it has no subdictionaries and no eagerly computed
     /// value slots, so every method word is the method's own static
@@ -2225,8 +2245,8 @@ enum Callee {
 
 /// Classify one call target by its symbol (the unit names decide
 /// module units; everything else is a runtime symbol).
-fn classify_callee(sym: &str, units: &BTreeSet<String>) -> Callee {
-    if units.contains(sym) {
+fn classify_callee(sym: &str, units: &HashSet<String>, extra: Option<&str>) -> Callee {
+    if units.contains(sym) || extra == Some(sym) {
         return Callee::Unit;
     }
     match sym {
@@ -2292,7 +2312,7 @@ fn callee_symbol(line: &str) -> Option<String> {
 
 /// Scan one unit's lowered body (its `alloca` block and its code) for
 /// the facts its contract attributes rest on.
-fn scan_body(text: &str, units: &BTreeSet<String>) -> UnitScan {
+fn scan_body(text: &str, units: &HashSet<String>, extra: Option<&str>) -> UnitScan {
     let mut scan = UnitScan::default();
     // Stack slots and the addresses derived from them are the unit's
     // own memory: accesses to them are not memory effects.
@@ -2318,7 +2338,7 @@ fn scan_body(text: &str, units: &BTreeSet<String>) -> UnitScan {
         }
         if line.contains("call ") {
             if let Some(sym) = callee_symbol(line) {
-                match classify_callee(&sym, units) {
+                match classify_callee(&sym, units, extra) {
                     Callee::Unit => {
                         scan.callees.insert(sym);
                     }
@@ -2594,9 +2614,7 @@ fn build_unit(
         }
     }
     let header = fn_header(name, arity, ret_range, &noundef_params);
-    let mut units: BTreeSet<String> = reg.arity.keys().cloned().collect();
-    units.extend(reg.tail_width.keys().map(|u| tail_worker(u)));
-    let scan = scan_body(&format!("{}{}", b.allocas, b.code), &units);
+    let scan = scan_body(&format!("{}{}", b.allocas, b.code), reg.unit_symbols(), None);
     // A worker is never a first-class value: closures and the apply
     // stub reach it through the unit's own symbol.
     let worker = matches!(body, UnitBody::TailWorker(_));
@@ -10084,8 +10102,7 @@ fn prim_impl_unit(reg: &Registry, plan: &PrimPlan, idx: usize, asm: bool) -> Res
     } else {
         format!("{}\n", body.fragment.trim_end())
     };
-    let scan_units: BTreeSet<String> = reg.arity.keys().cloned().collect();
-    let scan = scan_body(&code, &scan_units);
+    let scan = scan_body(&code, reg.unit_symbols(), None);
     Ok(EmittedUnit {
         name,
         hints: crate::core::FnHints::default(),
@@ -10139,9 +10156,7 @@ fn prim_wrapper_unit(
     ));
     let r = prim_res_bridge(&mut b, &plan.res, &v);
     ret(&mut b, &r);
-    let mut scan_units: BTreeSet<String> = reg.arity.keys().cloned().collect();
-    scan_units.insert(impl_name.clone());
-    let scan = scan_body(&format!("{}{}", b.allocas, b.code), &scan_units);
+    let scan = scan_body(&format!("{}{}", b.allocas, b.code), reg.unit_symbols(), Some(impl_name.as_str()));
     Ok(EmittedUnit {
         name: name.clone(),
         hints: f.hints.clone(),

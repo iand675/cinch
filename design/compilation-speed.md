@@ -321,14 +321,40 @@ reach in the seed:
   integer ids would have to be threaded through `simplify`, `rc`,
   `specialize` and `codegen` together. The names inside `Core`'s payloads
   (about 1% of the check run) are what interning can take today.
-- `codegen::build_unit` rebuilds `BTreeSet<String>` of every unit name once
-  per emitted unit (`reg.arity.keys().cloned().collect()`, `codegen.rs`).
-  That single line is 28% of the `emit-ir` run's samples: 3,439 of 12,282,
-  almost all of it in `quicksort<String>` and `memcmp`. It is an accidental
-  quadratic, not an interning problem, and it is the largest single win
-  visible in the seed's profile. `scan_body` only needs membership, so the
-  set should be built once per module, or replaced by a borrowed
-  `HashSet<&str>` of the registry's keys.
+- `codegen::build_unit` rebuilt `BTreeSet<String>` of every unit name once
+  per emitted unit (`reg.arity.keys().cloned().collect()`). That line was
+  28% of the `emit-ir` run's samples (3,439 of 12,282, almost all in
+  `quicksort<String>` and `memcmp`): an accidental quadratic in the unit
+  count, not an interning problem. Fixed, see below.
+
+### 2.4 One unit-symbol set per module (2026-11-10)
+
+The callee classifier only asks membership (`units.contains(sym)`), yet
+`build_unit`, `prim_impl_unit` and `prim_wrapper_unit` each rebuilt the whole
+name universe and sorted it again. The set now lives in the registry
+(`Registry::unit_symbols`, a `OnceLock` filled on first use: every unit's
+arity key plus the tail workers derived from it), so the names are collected
+and sorted once per module and every body scan is a hash probe.
+
+Interleaved A/B, five pairs in both orders, child CPU:
+
+| Workload | before | after |
+| --- | --- | --- |
+| `emit-ir`, 40,052-line compiler bundle | 16.12 s | 8.62 s (-46.5%) |
+| `emit-ir`, 3,966-line toolkit | 1.03 s | 0.69 s (-33.0%) |
+| `check`, 40,052-line compiler bundle | 6.54 s | 5.90 s (-9.8%) |
+
+The `check` row is the surprising one: that path does not emit IR, so the
+gain is either the registry build it does share or code layout, not the pass
+itself. `compiler.ll` stays
+`dc30feb2367cdd52f86281b64481b4a9` and all 105 `.cinchif` files match, so
+the emitted bytes did not change.
+
+After the fix the emit profile's top self entries are the allocator
+(`xzm_free`/`xzm_malloc`/`malloc_zone` 14.8%), `__ulock_wait` 9.0%,
+`memmove` 5.5%, SipHash 3.7%, `child_slots_imm` 1.6%, `Core::clone` 1.1%,
+`memcmp` 1.1% and `Iface::iface_hash` 1.0%; no string sort appears in the
+top twenty any more.
 
 ## 3. The query graph (rustc, Salsa, Shake)
 
