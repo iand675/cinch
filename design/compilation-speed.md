@@ -98,14 +98,25 @@ problem first, then the constant factor.
 
 ### 2.1 Frontend names and environment projections (2026-11-10)
 
-Self-compile of the 35,000-line bundle, child CPU (user plus system), one
-run per build: 208.8 s before, 210.6 s with the name indexes, 251.5 s with
-the environment caches. The last run was taken while three other lanes were
-building: its wall time (331 s against 217 s) shows the contention, so the
-environment cache is unmeasured rather than measured slower, and every
-number below it needs an interleaved A/B before it is trusted. What does hold
-for every one of these builds is that the emitted IR is byte identical to the
-baseline, which is the determinism gate.
+Self-compile of the 35,000-line bundle, child CPU (user plus system). The
+environment caches were settled by an interleaved A/B on the same input
+bundle (A then B, then B then A, five pairs), because the machine carries
+other lanes' builds and a single run drifts by tens of seconds:
+
+| Build | Best CPU | Median CPU | Worst CPU |
+| --- | --- | --- | --- |
+| before | 233.0 s | 244.8 s | 265.2 s |
+| after the name indexes and the environment caches | 176.9 s | 209.9 s | 228.1 s |
+
+That is 14% off the median and 24% off the best, and the two builds emit
+byte-identical IR. The name index alone measured inside the noise of two
+single runs (208.8 s before, 210.6 s after), so the resolver's scans were
+not what the phase names suggested.
+
+Fixed point on this tree: Stage2 and Stage3 emit the same `compiler.ll`
+(md5 `27eb01fe966103cb91ccef6506905da5`), link the same `cinch`, and agree on
+all 46 `.cinchif` files; the fib, precedence and refusal smokes pass on
+Stage3.
 
 The 1 kHz sampled profile of the whole compile (542,000 samples of the
 working thread) puts inference at 35%, and the rest in interface JSON
