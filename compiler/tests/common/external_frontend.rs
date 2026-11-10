@@ -83,7 +83,7 @@ pub fn options_request(mode: Mode, opts: &DriverOptions) -> Result<Request, Stri
     let DriverOptions {
         object_roots, emit_modules, package_objects, rebuild_store, native_words, print_link_plan,
         allow_raw_link, target, runtime_archive, opt_level, target_version, dump_core, core_out,
-        core_only, program_args, max_simplifier_iterations, no_direct_dict_calls,
+        core_only, program_args, max_simplifier_iterations, no_direct_dict_calls, ..
     } = opts;
     let mut lacking = Vec::new();
     // The selected compiler compiles for the build host only; naming the

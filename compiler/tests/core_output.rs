@@ -46,8 +46,15 @@ fn dump_source(src: &str, file: &str, stage: Stage, profile: &TargetProfile) -> 
             coretext::dump(&owned, stage, profile, &ifaces, &modules, &BTreeMap::new(), 0)
         }
         Stage::Lowered => {
+            // `joins.cinch` pins the case-of-case rule, which is off by
+            // default (`SimplifyOptions::case_of_case`); every other golden
+            // runs the shipped defaults.
+            let mut opts = cinch::simplify::SimplifyOptions::default();
+            if file.starts_with("joins") {
+                opts.case_of_case = true;
+            }
             let (specialized, report) =
-                cinch::specialize::optimize(&program, profile).expect("specialization");
+                cinch::specialize::optimize_with(&program, profile, &opts).expect("specialization");
             let lowered = cinch::rc::insert_closed(specialized, profile).expect("reference counting");
             let mut rewrites: BTreeMap<String, Vec<String>> = BTreeMap::new();
             for site in &report.sites {

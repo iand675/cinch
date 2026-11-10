@@ -138,7 +138,9 @@ pub struct SimplifyOptions {
     /// call (`direct-dict-call`).
     pub direct_dict_calls: bool,
     /// Push an outer decision into the alternatives of the decision it
-    /// scrutinizes (`case-of-case`).
+    /// scrutinizes (`case-of-case`, `--case-of-case`). Off by default: on
+    /// the self-build corpus it grows Core instead of shrinking it (see the
+    /// module documentation for the measurement).
     pub case_of_case: bool,
     /// The node count up to which case-of-case duplicates an alternative
     /// rather than sharing it through a join point. A decision the rule
@@ -152,7 +154,12 @@ impl Default for SimplifyOptions {
         SimplifyOptions {
             max_iterations: 4,
             direct_dict_calls: true,
-            case_of_case: true,
+            // Off by default: measured on the compiler's own bundle it grows
+            // Core by about a tenth (3.22M nodes to 3.54M) even with the
+            // constructor fold that collapses the decisions it produces, and
+            // two units reach tens of thousands of lines from duplicated
+            // alternatives. Turn it on with `--case-of-case` to measure it.
+            case_of_case: false,
             join_threshold: 20,
         }
     }
@@ -1055,10 +1062,22 @@ fn inner_case(
 /// application reduces to the tag's alternative.
 fn known_constructor(e: &mut Core, scope: &Scope, tables: &Tables) -> bool {
     let Core::Case { scrut, .. } = e else { return false };
-    let Core::Var(v) = &**scrut else { return false };
-    let Some(value) = scope.ctor_of(*v) else { return false };
-    let Some(tag) = ctor_app(value, tables) else { return false };
-    let args = ctor_args(value);
+    // The scrutinee is a constructor application: the value a local was bound
+    // to (through the alias `let`s lowering adds), or the application itself.
+    // The second form is what `case-of-case` produces when it scrutinizes the
+    // value an inner alternative built (`case (Some x) of ...`), and folding
+    // it removes the block the inner alternative allocated.
+    let (value, tag, args) = match &**scrut {
+        Core::Var(v) => {
+            let Some(value) = scope.ctor_of(*v) else { return false };
+            let Some(tag) = ctor_app(value, tables) else { return false };
+            (value.clone(), tag, ctor_args(value))
+        }
+        other => {
+            let Some(tag) = ctor_app(other, tables) else { return false };
+            (other.clone(), tag, ctor_args(other))
+        }
+    };
     // Alternatives are tried in order: a constructor alternative for
     // another tag cannot match a value of this tag, and a variable or
     // wildcard alternative matches it.

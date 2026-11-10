@@ -608,12 +608,94 @@ Three rules, each with the preconditions it assumes:
 
 A pass also drops a `let` whose binder the body no longer reads when its
 value is a value, which removes the constructor block a
-known-constructor reduction orphaned. Case-of-case and join points are
-deliberately absent: they need a join node in Core and a printer for it.
+known-constructor reduction orphaned.
 
 Measured on the self-build corpus, the pass converges before the default
 cap: on `compiler/tests/core/ownership.cinch` it runs two passes with 160
-ticks; the distribution is in the report and in section 11's harness.
+ticks (174 once `case-of-case` runs); the distribution is in the report
+and in section 11's harness.
+
+### 10.2 Join points and case-of-case (2026-11-10)
+
+Core gained the join node the previous slice deferred, and with it the
+transformation that needs it.
+
+**The node.** `Join { id, params, body, rest }` binds a code block inside
+the enclosing body: `rest` is the continuation, and `Jump { id, args }`
+transfers to it. `JoinId` is its own identity, disjoint from locals, so a
+join is never a value. The invariants, stated on the node and checked by
+the Core text verifier:
+
+- a jump names exactly one enclosing `Join` of its id, and sits where its
+  value is that join's result (a tail position of the function or of an
+  enclosing join's body; under destination passing the same rule covers a
+  join in a value position, whose jumps deliver to the slot the enclosing
+  form stores into);
+- a jump never crosses a lambda or a quotation's retained body, both
+  being separate code units;
+- the parameters are owned exactly as a unit's parameters are: a jump
+  hands one reference per parameter over, and the body consumes each
+  exactly once on every path, or drops it.
+
+Every consumer handles the pair. `crate::rc` inserts the count operations
+(a jump's arguments are owned uses, the body's parameters owned binders)
+and its verifier re-derives them, including "the body leaves the
+enclosing holdings as it found them". Code generation emits a join as one
+basic block and a jump as a branch to it: no closure, no frame, no call.
+The printer writes `(join j0 (params (t1 @class(..))) body rest)` and
+`(jump j0 args)`, and the verifier checks the three rules above plus the
+argument count.
+
+`case-of-case` pushes an outer decision into the alternatives of the
+decision it scrutinizes: `case (case s of A -> eA; B -> eB) of alts2`
+becomes `case s of A -> case eA of alts2; ...`. It also takes the shape
+our lowering actually produces, `let t = case s of ... in case t of ...`,
+when `t` is read exactly once, including the alias `let`s that open the
+value. It refuses a weighted inner decision, a quotation in either
+decision's alternatives, a scrutinee read inside either decision's
+alternatives, a computed scrutinee, and a body that already carries a
+join. Because it duplicates the outer alternatives, an alternative larger
+than `join_threshold` (20 nodes) is lifted into a join and each copy
+becomes a jump; smaller ones are copied with fresh binders and reported
+as `duplicated`.
+
+Two limits are part of the design, not oversights:
+
+- **A lifted body's parameters are its own pattern binders.** The obvious
+  generalisation, "over all its free variables", needs a release point
+  inside the join body, because no enclosing code runs after a jump; a
+  join body that carries a jump as its value has nowhere to put those
+  releases within this Core. So a body that reads an enclosing local is
+  copied when it is small and makes the rule refuse when it is not.
+- **The decision a push creates is folded only when its scrutinee is a
+  constructor application of values.** `known-constructor` now fires on
+  that shape directly (not only through a `let`), which is what collapses
+  `case (Some x) of ...`; a pushed decision on a computed field keeps its
+  decision.
+
+**Measured on the compiler's own bundle** (46 modules, 2.6 MB of source;
+Core from `cinch core emit`, wall from the same command):
+
+| configuration | Core lines | Core nodes | units | joins / jumps | largest unit | wall |
+| --- | --- | --- | --- | --- | --- | --- |
+| before this slice | 1,452,387 | 3,220,635 | 6,472 | 0 / 0 | 18,321 | 3 m 07 s |
+| shipped default (fold, rule off) | 1,452,554 | 3,220,428 | 6,472 | 0 / 0 | 18,321 | 2 m 47 s |
+| rule on, fold | 1,577,885 | 3,539,984 | 6,478 | 81 / 801 | 18,325 | 2 m 45 s |
+| rule on, before the fold | 2,237,111 | 4,661,747 | 6,450 | 1,647 / 11,893 | 58,353 | 3 m 26 s |
+
+The fold is what makes the rule usable at all: without it two units reach
+58K and 53K lines from duplicated alternatives and Core grows by 45 %.
+With it the largest unit is unchanged and the growth is 9.9 % of nodes,
+which is still more than the rule earns, so **`case-of-case` ships off by
+default** (`--case-of-case` turns it on). The join node, its
+introduction, its printing and its verification stay on: they cost
+nothing when no join exists, and `compiler/tests/core/joins.cinch` pins
+them (a join with two jumps) through the flag.
+
+The next lever is the missing half of the fold: a pushed decision on a
+constructor application whose arguments are *computed* would collapse if
+the substitution were allowed when the field is read at most once, which
+needs an evaluation-order argument the pass does not yet state.
 
 ## 11. Benchmark corpus and metrics
 

@@ -3988,6 +3988,9 @@ pub struct DriverOptions {
     /// projection plus `__apply` instead of a direct call
     /// (design/compilation-speed.md section 10).
     pub no_direct_dict_calls: bool,
+    /// `--case-of-case`: run the case-of-case rule (off by default; the join
+    /// node, its introduction and its printing stay on either way).
+    pub case_of_case: bool,
     /// The words the CLI forwards to the program `Mode::Run` executes:
     /// every argument after the entry file (`cinch run f.cinch a b`, or
     /// everything after `--` verbatim). They land on the built program's
@@ -4007,6 +4010,7 @@ impl DriverOptions {
         crate::simplify::SimplifyOptions {
             max_iterations: self.max_simplifier_iterations.unwrap_or(4),
             direct_dict_calls: !self.no_direct_dict_calls,
+            case_of_case: self.case_of_case,
             ..crate::simplify::SimplifyOptions::default()
         }
     }
@@ -4271,6 +4275,7 @@ cinch core: the annotated Core dump (design/core-output.md)
 usage:
   cinch core emit <file.cinch> [--stage=<name>] [--target <triple>] [-o <out.core>]
                      [--max-simplifier-iterations <n>] [--no-direct-dict-calls]
+                     [--case-of-case]
   cinch core verify <file.core>
   cinch core diff <a.core> <b.core>
 
@@ -4327,6 +4332,7 @@ fn core_emit(args: &[String]) -> i32 {
                 }
             }
             "--no-direct-dict-calls" => opts.no_direct_dict_calls = true,
+            "--case-of-case" => opts.case_of_case = true,
             other if other.starts_with("--stage=") => {
                 let name = &other["--stage=".len()..];
                 match crate::coretext::Stage::parse(name) {
