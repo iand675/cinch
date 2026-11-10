@@ -215,15 +215,38 @@ six units gain slots because a copied callee brought its allocation with it
 0 to 2), and `Bootstrap.RuntimeIr.scheme-classes.shared0` loses its only slot
 because the inlined body removed the subterm that had it.
 
-What inlining does buy is volume, through the rule that follows it:
-`known-constructor` can only fold a constructor case once the call that hid
-it is gone (`case (pick (MkPair i 2)) of` becomes `case (MkPair i 2) of`),
-which deletes the block instead of framing it. A 1,000-iteration loop over
-`open (Cell i)` allocates 506 blocks without the inliner and 6 with it, and a
-200,000-iteration loop over `pick (MkPair i 2)` 100,006 against 6, with
-`live=0` either way (`CINCH_ALLOC_STATS=1`, `CINCH_LEAK_CHECK=1`). The
-`escapes:call` and `escapes:field` populations move by 3 and 1, because the
-inlined selectors are cheap: they read a field, they do not build blocks.
+What inlining buys is volume, in two ways that a block count separates
+(`CINCH_ALLOC_STATS=1`, `CINCH_LEAK_CHECK=1`, `live=0` in every row):
+
+| Program (200,000-iteration loop unless noted) | Inliner | Frame pass | Blocks | Bytes |
+| --- | --- | --- | --- | --- |
+| selector with a primitive call in its body (`pick p = case p of MkPair a b -> a + b`) | on | on | 100,006 | 2,400,213 |
+| the same, `--no-inline` | off | on | 100,006 | 2,400,213 |
+| selector without the call (`pick p = case p of MkPair a b -> a`) | on | on | 6 | 213 |
+| the same, `--no-inline` | off | on | 100,006 | 2,400,213 |
+| helper returns a block, caller matches it at once (`case tick i of Step a b -> ...`, tag not statically known) | on | on | 6 | 213 |
+| the same, `--no-stack-alloc` | on | off | 200,006 | 4,800,213 |
+| the same, `--no-inline` | off | on | 100,005 | 2,400,189 |
+| 1,000 iterations, `open (Cell i)` | on | on | 6 | 213 |
+| the same, `--no-inline` | off | on | 506 | 12,144 |
+
+The first row is the landed rule's boundary: `a + b` is an application, so the
+multi-site rule refuses the body as `costly` and nothing moves. The second
+block is `known-constructor` folding the case once the call that hid it is
+gone (`case (pick (MkPair i 2)) of` becomes `case (MkPair i 2) of`), which
+deletes the block rather than framing it. The third is the case the whole
+note is about: the block is *returned* by `tick`, so without the inliner the
+frame pass can only refuse it (`escapes:value`, and the manifest shows it);
+with the inliner the block is born and matched in `drive`'s activation and
+takes one of the unit's two 32-byte slots, 200,006 blocks down to 6. So the
+reach numbers in the table above understate what the rule is for: the
+workloads that race it are the ones where the callee's block is returned,
+and the compiler source's own loop bodies are `let`-heavy enough that
+`pattern_binders_only` refuses them (the single-site rule admits a `let`
+body only when it binds nothing but `case` pattern binders).
+
+The `escapes:call` and `escapes:field` populations move by 3 and 1, because
+the inlined selectors are cheap: they read a field, they do not build blocks.
 
 The duplicated rule (item 3) moved three refusals on the compiler source and
 no slots. Against the same measurement with the widened rule disabled
