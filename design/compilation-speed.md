@@ -350,6 +350,17 @@ itself. `compiler.ll` stays
 `dc30feb2367cdd52f86281b64481b4a9` and all 105 `.cinchif` files match, so
 the emitted bytes did not change.
 
+One more candidate from the same profile was tried and dropped. The intern
+table's `Mutex` shows up as `__ulock_wait`, 8% of the seed's check samples,
+so `intern` gained a lock-free per-thread cache of the last 512 spellings
+(content hash, hit verified against the cached spelling). Measured as five
+interleaved pairs against the committed state it did not pay: `check` 6.20 s
+to 6.11 s CPU (-1.5%), `emit-ir` 8.35 s to 8.43 s (+1.0%), the toolkit check
+0.56 s to 0.60 s. The revert is recorded here rather than the code: the
+`ulock_wait` samples are the allocator's arena lock and the second thread,
+not the intern table, and a thread-local array is 100 lines that buy
+nothing.
+
 After the fix the emit profile's top self entries are the allocator
 (`xzm_free`/`xzm_malloc`/`malloc_zone` 14.8%), `__ulock_wait` 9.0%,
 `memmove` 5.5%, SipHash 3.7%, `child_slots_imm` 1.6%, `Core::clone` 1.1%,
