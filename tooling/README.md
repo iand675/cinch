@@ -169,6 +169,43 @@ about 26 s and 20 s at this shard count. `__text` is unchanged within 2%
 15.98 MB to 20.57 MB because cold call sites stay out of line and our
 mangled names are long, so the symbol table in `__LINKEDIT` is 33k entries
 larger.
+\\\\\\\        to: qrutmztx 0052933a "Add a build profile harness for the ladder" (rebased revision)
+- `profile_build.py`: measures where the ladder spends its time and writes
+  `bootstrap/speed-baseline.json` (see below).
+
+## Build profile
+
+`design/compilation-speed.md` sections 11 and 12 say what to measure. This
+script produces one JSON object so later runs diff against the first.
+
+```sh
+tooling/profile_build.py all                              # chain, check, targets
+tooling/profile_build.py chain --stage 3                  # stages 0..3 from clean
+tooling/profile_build.py check examples/source/01-...cinch --repeat 7
+tooling/profile_build.py targets bootstrap_check lib_json --jobs 4
+```
+
+- `chain` rebuilds `build/bootstrap` from nothing, one `bootstrap.py build
+  --stage N` invocation per stage. Per stage it records `wall_s`, `seed_s`
+  (the `Finished in` cargo line(s) that stage's invocation wrote),
+  `frontend_s` (the residual: the builder's own run), `clang_s` (measured by
+  a `CINCH_CLANG` wrapper, so it is the clang the ladder actually ran), and
+  `clang_trace` from re-linking that stage's IR with `-ftime-trace`
+  (`ExecuteCompiler`, `Frontend`, `Optimizer`, `CodeGenPasses`, and the five
+  largest `Total *` entries). Stage 1's IR is re-emitted with the seed because
+  the seed deletes its sidecar.
+- `check` times `cinch check` and `cinch emit-ir` on a copy of one source in
+  `build/bootstrap-profile/check` (median and p95 over `--repeat` runs) and then runs
+  `sample <pid> 10` on the slower of the two, reporting the top 15 symbols by
+  self and by inclusive samples.
+- `targets` runs `run_stage_targets.py` at stage 1 and stage 3 and records
+  each target's exit code, passed and failed test counts, and wall time (log
+  birth to close, so contention between parallel targets is included).
+
+Only the standard library, `clang` and `sample` are needed. Everything the
+run generates lands in `build/bootstrap-profile` or `build/bootstrap`, both ignored by
+git, so measuring never edits a source file. The one exception is the
+baseline itself, `bootstrap/speed-baseline.json`.
 
 ## Drift check (CI)
 
