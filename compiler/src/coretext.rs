@@ -214,6 +214,12 @@ pub struct Context<'a> {
     /// Rewrite rules the optimizer applied, by unit (`OptSite::kind` is
     /// `rewrite:<rule>`).
     pub rewrites: &'a BTreeMap<String, Vec<String>>,
+    /// The Core simplifier's tick count, when the dump is of a program the
+    /// simplifier ran over (`--dump-core=lowered` after specialization).
+    /// The header carries it as `@ticks <n>`: the count says how much work
+    /// the pass did, so a change in it is visible beside the bodies it
+    /// rewrote (design/compilation-speed.md section 10).
+    pub ticks: Option<usize>,
 }
 
 impl<'a> Context<'a> {
@@ -226,6 +232,7 @@ impl<'a> Context<'a> {
             signatures: empty_signatures(),
             modules: None,
             rewrites: empty_rewrites(),
+            ticks: None,
         }
     }
 
@@ -310,6 +317,21 @@ pub fn dump(
     rewrites: &BTreeMap<String, Vec<String>>,
     opt_level: u8,
 ) -> String {
+    dump_with_ticks(program, stage, profile, ifaces, modules, rewrites, opt_level, None)
+}
+
+/// [`dump`] with the simplifier's tick count in the header (`@ticks <n>`).
+#[allow(clippy::too_many_arguments)]
+pub fn dump_with_ticks(
+    program: &Program,
+    stage: Stage,
+    profile: &TargetProfile,
+    ifaces: &[Iface],
+    modules: &BTreeSet<String>,
+    rewrites: &BTreeMap<String, Vec<String>>,
+    opt_level: u8,
+    ticks: Option<usize>,
+) -> String {
     let signatures = Signatures::from_ifaces(ifaces);
     let digest = source_digest(ifaces, modules);
     let mut ctx = Context::new(stage, profile, &digest);
@@ -317,6 +339,7 @@ pub fn dump(
     ctx.modules = Some(modules);
     ctx.rewrites = rewrites;
     ctx.opt_level = opt_level;
+    ctx.ticks = ticks;
     print_with(program, &ctx)
 }
 
@@ -407,6 +430,9 @@ impl<'a> Printer<'a> {
             ));
         }
         out.push_str(&format!("source sha256:{}\n", self.ctx.source_digest));
+        if let Some(ticks) = self.ctx.ticks {
+            out.push_str(&format!("@ticks {ticks}\n"));
+        }
         for name in &referenced {
             out.push_str("global ");
             out.push_str(&ident(name));
@@ -1341,6 +1367,8 @@ struct Parsed {
     globals: Vec<String>,
     target: Option<(String, u32)>,
     source: Option<String>,
+    /// The simplifier's tick count, when the header carries `@ticks <n>`.
+    ticks: Option<u64>,
     units: Vec<ParsedUnit>,
 }
 
@@ -1428,6 +1456,24 @@ fn parse(text: &str, errors: &mut Vec<Error>) -> Option<Parsed> {
                 _ => errors.push(
                     Error::header("`source` needs `sha256:` and 64 hex digits").at(here),
                 ),
+            }
+        } else if let Some(rest) = line.strip_prefix("@ticks ") {
+            if file.source.is_none() {
+                errors.push(Error::header("`@ticks` lines come after `source`").at(here));
+            }
+            if stage > 2 {
+                errors.push(Error::header(format!("`@ticks` after `global`: `{line}`")).at(here));
+            }
+            stage = 2;
+            if file.ticks.is_some() {
+                errors.push(Error::header("`@ticks` is declared twice").at(here));
+            }
+            match rest.parse::<u64>() {
+                Ok(ticks) => file.ticks = Some(ticks),
+                Err(_) => errors.push(Error::header(format!(
+                    "`@ticks` needs a non-negative count, not `{rest}`"
+                ))
+                .at(here)),
             }
         } else if let Some(rest) = line.strip_prefix("global ") {
             if file.source.is_none() {
@@ -2723,6 +2769,7 @@ pub enum HeaderKind {
     Module,
     Target,
     Source,
+    Ticks,
     Global,
 }
 
@@ -2734,6 +2781,7 @@ impl HeaderKind {
             HeaderKind::Module => "module",
             HeaderKind::Target => "target",
             HeaderKind::Source => "source",
+            HeaderKind::Ticks => "@ticks",
             HeaderKind::Global => "global",
         }
     }
@@ -3559,6 +3607,8 @@ impl<'a> Builder<'a> {
             Some(HeaderKind::Target)
         } else if text.starts_with("source ") {
             Some(HeaderKind::Source)
+        } else if text.starts_with("@ticks ") {
+            Some(HeaderKind::Ticks)
         } else if text.starts_with("global ") {
             Some(HeaderKind::Global)
         } else {

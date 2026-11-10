@@ -55,7 +55,18 @@ fn dump_source(src: &str, file: &str, stage: Stage, profile: &TargetProfile) -> 
                     rewrites.entry(site.fn_id.clone()).or_default().push(rule.to_string());
                 }
             }
-            coretext::dump(&lowered, stage, profile, &ifaces, &modules, &rewrites, 0)
+            // The simplifier's tick count is part of the lowered header, so
+            // the golden pins it as well as the bodies it rewrote.
+            coretext::dump_with_ticks(
+                &lowered,
+                stage,
+                profile,
+                &ifaces,
+                &modules,
+                &rewrites,
+                0,
+                Some(report.simplify.ticks),
+            )
         }
     }
 }

@@ -239,11 +239,14 @@ readability; the naming rule below is what a printer emits):
   plus a digest.
 - Everything sorts: modules by name, units by canonical name, dictionary
   bindings by name, alternatives by constructor tag then by pattern text.
-- The header is fixed (`core 1`, `module`, `target`, `source`). The target
-  line appears only for stages where the target matters (`lowered`); an
-  earlier stage is target-independent and must be byte-identical across
-  `--target` values, which is the check that target facts have not leaked
-  into the frontend.
+- The header is fixed (`core 1`, `module`, `target`, `source`, and an
+  optional `@ticks <n>`). The target line appears only for stages where the
+  target matters (`lowered`); an earlier stage is target-independent and
+  must be byte-identical across `--target` values, which is the check that
+  target facts have not leaked into the frontend. `@ticks <n>` appears only
+  on a dump whose program the Core simplifier ran over: it is the number of
+  rewrites the pass applied, so a change in the pass's work is visible
+  beside the bodies it rewrote (`design/compilation-speed.md` section 10).
 
 ## 5. Where it lives
 
@@ -435,7 +438,7 @@ not stated here is printed by the rules of section 4.
 file        = header line* module-body
 header      = "core 1" NL
 line*       = ( "module " name NL | "target " triple " opt-level " digit NL
-              | "source sha256:" hex64 NL )*
+              | "source sha256:" hex64 NL | "@ticks " int NL )*
 module-body = unit*
 unit        = "unit " name " :: " type ann* NL
               ( "  @span " file ":" int ":" int NL )?

@@ -89,10 +89,21 @@ fn borrowed_parameters_release_and_static_dictionaries_place_fewer_operations() 
     let ir_path = dir.join("prog.ll");
     drive(Mode::EmitIr, &dir, &ir_path, false);
     let ir = std::fs::read_to_string(&ir_path).expect("read IR");
-    // The instance has only methods: one immortal static block, which
-    // its factory returns and a use in this module reads directly.
+    // The instance has only methods: one immortal static block. The
+    // simplifier's `direct-dict-call` rule turns the projection from that
+    // block into a direct method call, so nothing reads the block and no
+    // `__apply` stands between the call site and the method.
     assert!(ir.contains("@\"Main.SizeInt.dict\" = "), "no static dictionary");
-    assert!(ir.contains("ptrtoint ptr @\"Main.SizeInt.dict\" to i64"), "no direct use of the static dictionary");
+    assert!(
+        !ir.contains("ptrtoint ptr @\"Main.SizeInt.dict\""),
+        "the dictionary is still projected at a use:\n{ir}"
+    );
+    let count = body(&ir, "Main.count");
+    assert!(
+        count.contains("call i64 @\"Main.SizeInt.size\"("),
+        "the method call is not direct:\n{count}"
+    );
+    assert!(!count.contains("@__apply("), "count still applies a closure:\n{count}");
     // `lastOr` only reads its list: the parameter and its fields are
     // borrowed, so nothing dups or drops a cell.
     let last = body(&ir, "Main.lastOr");

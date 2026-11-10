@@ -1,0 +1,40 @@
+core 1
+module Main
+target aarch64-apple-darwin opt-level 0
+source sha256:2b722db450f5e30a20609ab2bcf010f34f40563cedafffaefbd46807a45904df
+@ticks 159
+unit Main.Blue :: Main.Colour
+  @ctor(1, 0, Main.Colour)
+  @stage(lowered)
+  body (unit)
+end
+unit Main.Green :: Main.Colour
+  @ctor(2, 0, Main.Colour)
+  @stage(lowered)
+  body (unit)
+end
+unit Main.Red :: Main.Colour
+  @ctor(0, 0, Main.Colour)
+  @stage(lowered)
+  body (unit)
+end
+unit Main.colour :: Main.Colour -> Int
+  @params t0 :: Main.Colour @owned
+  @stage(lowered)
+  body (case (local t0) ((con 0) (int 1)) ((con 1) (int 4)) ((con 2) (int 3)))
+end
+unit Main.main :: Int
+  @stage(lowered)
+  body (let t0 @class(owned)
+    (int 3)
+    (let t1 @class(owned) (int 5) (app (prim cinch.runtime.intAdd) (local t0) (local t1))))
+end
+unit Main.main.exit :: -
+  @stage(lowered)
+  body (app (prim cinch.runtime.intToI64) (global Main.main))
+end
+unit Main.option-sum :: (Data.Core.Option Int) -> Int
+  @params t0 :: (Data.Core.Option Int) @owned
+  @stage(lowered)
+  body (case (local t0) ((con 0) (int 0)) ((con 1 (t1 @class(owned))) (dup t1 @class(owned) (local t1))))
+end

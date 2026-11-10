@@ -542,11 +542,23 @@ fn specialize_with_roots(program: &Program, report: &mut OptReport, roots: &[Obj
 /// exact logical-to-physical class method families used by the collector.
 pub fn optimize_object(program: &Program, profile: &crate::core::TargetProfile, roots: &[ObjectRoot])
     -> crate::Result<(Program, OptReport, Vec<MethodFamily>)> {
+    optimize_object_with(program, profile, roots, &crate::simplify::SimplifyOptions::default())
+}
+
+/// [`optimize_object`] with an explicit simplifier budget
+/// (`--max-simplifier-iterations` and the direct-dictionary switch).
+pub fn optimize_object_with(
+    program: &Program,
+    profile: &crate::core::TargetProfile,
+    roots: &[ObjectRoot],
+    simplifier: &crate::simplify::SimplifyOptions,
+) -> crate::Result<(Program, OptReport, Vec<MethodFamily>)> {
     validate_object_roots(program, roots)?;
     let (residual, mut report) = crate::core::optimize(program, profile)?;
     validate_object_roots(&residual, roots)?;
     let mut families = Vec::new();
-    let out = specialize_with_roots(&residual, &mut report, roots, Some(&mut families));
+    let mut out = specialize_with_roots(&residual, &mut report, roots, Some(&mut families));
+    crate::simplify::simplify(&mut out, simplifier, &mut report.simplify);
     if report.unrecorded != 0 {
         return Err(crate::Error::plain(format!("object specialization has {} unrecorded representation arguments", report.unrecorded)));
     }
@@ -554,12 +566,24 @@ pub fn optimize_object(program: &Program, profile: &crate::core::TargetProfile, 
 }
 
 /// The driver's optimization step: driving and rewriting
-/// (`crate::core::optimize`), then the collector over the residual.
+/// (`crate::core::optimize`), then the collector over the residual, then
+/// the Core simplifier (`crate::simplify`) on the specialized program, so
+/// reference counting in `crate::rc` balances the simplified bodies.
 pub fn optimize(
     program: &Program,
     profile: &crate::core::TargetProfile,
 ) -> crate::Result<(Program, OptReport)> {
+    optimize_with(program, profile, &crate::simplify::SimplifyOptions::default())
+}
+
+/// [`optimize`] with an explicit simplifier budget.
+pub fn optimize_with(
+    program: &Program,
+    profile: &crate::core::TargetProfile,
+    simplifier: &crate::simplify::SimplifyOptions,
+) -> crate::Result<(Program, OptReport)> {
     let (residual, mut report) = crate::core::optimize(program, profile)?;
-    let out = specialize(&residual, &mut report);
+    let mut out = specialize(&residual, &mut report);
+    crate::simplify::simplify(&mut out, simplifier, &mut report.simplify);
     Ok((out, report))
 }

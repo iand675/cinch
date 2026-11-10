@@ -1,0 +1,23 @@
+module Main where
+  import Data.Option
+
+  data Colour where
+    Red :: Colour
+    Blue :: Colour
+    Green :: Colour
+
+  colour :: Colour -> Int
+  colour c = case c of
+               Red -> 1
+               _ -> case c of
+                      Blue -> 4
+                      Green -> 3
+                      Red -> 2
+
+  option-sum :: Option Int -> Int
+  option-sum o = case o of
+                   None -> 0
+                   Some x -> x
+
+  main :: Int
+  main = colour Green + option-sum (Some 5)

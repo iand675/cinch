@@ -2,9 +2,7 @@ core 1
 module Main
 target aarch64-apple-darwin opt-level 0
 source sha256:b4080beddeb96cb83c3329d9f6e86f1e3aad24efec37abede9415b336753824c
-global 'Data.Core.Cons@T'
-global Data.Core.Nil
-global Data.Int.Add_Int
+@ticks 160
 global 'Data.Int.Add_Int.+'
 unit Main.drain :: (Data.Core.List Int) -> Int
   @params t0 :: (Data.Core.List Int) @owned
@@ -25,12 +23,7 @@ unit Main.drain :: (Data.Core.List Int) -> Int
                     (case (local t8)
                       ((con 0) (int 0))
                       ((con 1 (t9 @class(owned)) (t10 @class(owned)))
-                        (app
-                          (let t11 @class(owned)
-                            (instdict Data.Int.Add_Int)
-                            (let t12 @class(owned)
-                              (dictproj (local t11) 0 -)
-                              (drop t11 @class(owned) (local t12))))
+                        (app (global 'Data.Int.Add_Int.+')
                           (dup t9 @class(owned) (local t9))
                           (app (global Main.drain) (local t10))))))))
               (app (prim cinch.runtime.intAdd) (dup t4 @class(owned) (local t4)) (local t6)))))
@@ -39,51 +32,8 @@ end
 unit Main.main :: Int
   @stage(lowered)
   body (let t0 @class(owned)
-    (app (ctor 'Data.Core.Cons@T' @classes(T) 1 2)
-      (int 1)
-      (app (ctor 'Data.Core.Cons@T' @classes(T) 1 2)
-        (int 2)
-        (app (ctor Data.Core.Nil @classes(T) 0 0))))
-    (case (local t0)
-      ((con 0) (drop t0 @class(owned) (int 0)))
-      ((con 1 (t1 @class(owned)) (t2 @class(owned)))
-        (release t0
-          (moved t1 t2)
-          (rest)
-          (let t3 @class(owned)
-            (case (local t2)
-              ((con 0) (drop t2 @class(owned) (int 0)))
-              ((con 1 (t4 @class(owned)) (t5 @class(owned)))
-                (release t2
-                  (moved t4 t5)
-                  (rest)
-                  (let t6 @class(owned)
-                    (case (local t5)
-                      ((con 0) (drop t5 @class(owned) (int 0)))
-                      ((con 1 (t7 @class(owned)) (t8 @class(owned)))
-                        (release t5
-                          (moved t7 t8)
-                          (rest)
-                          (app (global 'Data.Int.Add_Int.+')
-                            (local t7)
-                            (case (local t8)
-                              ((con 0) (drop t8 @class(owned) (int 0)))
-                              ((con 1 (t9 @class(owned)) (t10 @class(owned)))
-                                (release t8
-                                  (moved t9 t10)
-                                  (rest)
-                                  (app
-                                    (let t11 @class(owned)
-                                      (instdict Data.Int.Add_Int)
-                                      (let t12 @class(owned)
-                                        (dictproj (local t11) 0 -)
-                                        (drop t11 @class(owned) (local t12))))
-                                    (local t9)
-                                    (let t13 @class(uncounted)
-                                      (app (global Main.drain) (local t10))
-                                      (drop t10 @class(owned) (local t13)))))))))))
-                    (app (prim cinch.runtime.intAdd) (local t4) (local t6))))))
-            (app (prim cinch.runtime.intAdd) (local t1) (local t3)))))))
+    (let t1 @class(owned) (int 0) (app (prim cinch.runtime.intAdd) (int 2) (local t1)))
+    (app (prim cinch.runtime.intAdd) (int 1) (local t0)))
 end
 unit Main.main.exit :: -
   @stage(lowered)

@@ -4016,6 +4016,30 @@ pub struct OptReport {
     /// Instantiation sites whose class vector was missing or not concrete
     /// (padded with `Raw`, which can only leak, never free a live block).
     pub unrecorded: usize,
+    /// The Core simplifier's budget use (`crate::simplify`,
+    /// design/compilation-speed.md section 10).
+    pub simplify: SimplifyReport,
+}
+
+/// What the Core simplifier did (design/compilation-speed.md section 10):
+/// how many passes it ran, how many rewrites fired, and how many of each
+/// rule. A tick is one rewrite application, so the tick count is the work
+/// the fixed point cost.
+#[derive(Clone, Debug, Default)]
+pub struct SimplifyReport {
+    /// The passes actually run, at most the iteration cap.
+    pub iterations: usize,
+    /// The iteration cap the run was given (`--max-simplifier-iterations`).
+    pub max_iterations: usize,
+    /// Rewrite applications over the whole program.
+    pub ticks: usize,
+    /// Merged nested decisions (rule `case-merge`).
+    pub case_merge: usize,
+    /// Decisions reduced by a known constructor (rule `known-constructor`).
+    pub known_ctor: usize,
+    /// Static dictionary projections turned into direct calls (rule
+    /// `direct-dict-call`).
+    pub dict_call: usize,
 }
 
 // -------------------------------------------------- target conditions (`when`)
@@ -6920,7 +6944,7 @@ fn ctor_shape(e: &Core, defs: &HashMap<String, FnDef>) -> (Option<usize>, Vec<Co
 /// Alpha-equivalence of two terms: the pattern compiler clones a default
 /// alternative's body once per uncovered constructor, renaming its local
 /// binders.
-fn alpha_eq(a: &Core, b: &Core) -> bool {
+pub(crate) fn alpha_eq(a: &Core, b: &Core) -> bool {
     fn go(a: &Core, b: &Core, map: &mut HashMap<LocalId, LocalId>) -> bool {
         match (a, b) {
             (Core::Var(x), Core::Var(y)) => match map.get(x) {

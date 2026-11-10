@@ -42,6 +42,10 @@ flags:
   --package-object <path>  link an installed package object in build/run
   --opt-level <0|1|2|3>  clang's optimization level for build, run and
               emit-object (default 0 for build and run, 2 for emit-object)
+  --max-simplifier-iterations <n>  the Core simplifier's pass cap over the
+              specialized program (default 4; 0 disables the simplifier)
+  --no-direct-dict-calls  keep a static dictionary projection plus its
+              `__apply` call instead of a direct call to the method unit
   --dump-core <stage>  also write build/<entry>.core at that pipeline point:
               checked (solved and elaborated are aliases), owned, or lowered
               (the default stage, and the exact code generation input); a
@@ -270,6 +274,17 @@ fn main() {
                     }
                 }
             }
+            "--max-simplifier-iterations" => {
+                i += 1;
+                match rest.get(i).and_then(|n| n.parse::<u32>().ok()) {
+                    Some(n) => opts.max_simplifier_iterations = Some(n),
+                    None => {
+                        eprintln!("cinch: --max-simplifier-iterations needs a non-negative count");
+                        exit(2);
+                    }
+                }
+            }
+            "--no-direct-dict-calls" => opts.no_direct_dict_calls = true,
             "--print-link-plan" => opts.print_link_plan = true,
             "--allow-raw-link" => {
                 i += 1;

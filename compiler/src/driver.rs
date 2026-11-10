@@ -2931,6 +2931,18 @@ fn write_artifacts(
         ("representation_versions", (&opt.versions).into()),
         ("representation_unrecorded", (opt.unrecorded as u64).into()),
     ]);
+    // The Core simplifier's budget use (design/compilation-speed.md
+    // section 10): the cap it was given, the passes it ran, and the tick
+    // count per rule, so a change in the pass's work is visible in the
+    // artifact rather than inferred from IR size.
+    let simplifier = J::obj([
+        ("max_iterations", (opt.simplify.max_iterations as u64).into()),
+        ("iterations", (opt.simplify.iterations as u64).into()),
+        ("ticks", (opt.simplify.ticks as u64).into()),
+        ("case_merge", (opt.simplify.case_merge as u64).into()),
+        ("known_constructor", (opt.simplify.known_ctor as u64).into()),
+        ("direct_dict_call", (opt.simplify.dict_call as u64).into()),
+    ]);
     // Tail-call status of the recursive call-graph groups (surface
     // grammar local amendments section 9; decision D104): "marked" when
     // the group's self and mutual tail calls are jumps or `musttail`
@@ -3118,6 +3130,7 @@ fn write_artifacts(
         ("profiles", profiles),
         ("wasm", wasm),
         ("specialization", specialization),
+        ("simplifier", simplifier),
         ("tail_calls", tail_calls),
         ("literal_folds", literal_folds),
         ("data_imports", data_imports),
@@ -3964,6 +3977,14 @@ pub struct DriverOptions {
     /// `core emit`: stop once the dump is written. The command's only job
     /// is the dump, so it emits neither IR nor a binary.
     pub core_only: bool,
+    /// `--max-simplifier-iterations <n>`: the Core simplifier's pass cap
+    /// (default 4, zero disables the simplifier; design/compilation-speed.md
+    /// section 10).
+    pub max_simplifier_iterations: Option<u32>,
+    /// `--no-direct-dict-calls`: leave a static dictionary projection as a
+    /// projection plus `__apply` instead of a direct call
+    /// (design/compilation-speed.md section 10).
+    pub no_direct_dict_calls: bool,
     /// The words the CLI forwards to the program `Mode::Run` executes:
     /// every argument after the entry file (`cinch run f.cinch a b`, or
     /// everything after `--` verbatim). They land on the built program's
@@ -3972,6 +3993,17 @@ pub struct DriverOptions {
     /// the program itself, not one of these). Empty for a library
     /// caller, which is every test: only the CLI has words to forward.
     pub program_args: Vec<String>,
+}
+
+impl DriverOptions {
+    /// The simplifier budget these flags select: the pass cap, and whether
+    /// static dictionary projections become direct calls.
+    pub fn simplifier(&self) -> crate::simplify::SimplifyOptions {
+        crate::simplify::SimplifyOptions {
+            max_iterations: self.max_simplifier_iterations.unwrap_or(4),
+            direct_dict_calls: !self.no_direct_dict_calls,
+        }
+    }
 }
 
 /// The compile-time I/O mode from `CINCH_STAGE_MODE` (`refresh`,
@@ -4082,8 +4114,9 @@ impl<'a> CoreDump<'a> {
         stage: crate::coretext::Stage,
         rewrites: &std::collections::BTreeMap<String, Vec<String>>,
         ifaces: &[crate::interface::Iface],
+        ticks: Option<usize>,
     ) -> String {
-        crate::coretext::dump(
+        crate::coretext::dump_with_ticks(
             program,
             stage,
             self.profile,
@@ -4091,6 +4124,7 @@ impl<'a> CoreDump<'a> {
             &self.modules,
             rewrites,
             self.opt_level,
+            ticks,
         )
     }
 
@@ -4101,7 +4135,7 @@ impl<'a> CoreDump<'a> {
         ifaces: &[crate::interface::Iface],
         rows: &mut Vec<CoreRow>,
     ) -> Result<()> {
-        let text = self.text(program, stage, &std::collections::BTreeMap::new(), ifaces);
+        let text = self.text(program, stage, &std::collections::BTreeMap::new(), ifaces, None);
         self.save(&text, stage, rows)
     }
 
@@ -4121,7 +4155,15 @@ impl<'a> CoreDump<'a> {
                 rewrites.entry(site.fn_id.clone()).or_default().push(rule.to_string());
             }
         }
-        let text = self.text(program, crate::coretext::Stage::Lowered, &rewrites, ifaces);
+        // The simplifier's tick count rides in the header, so the dump says
+        // how much rewriting produced the bodies beside it.
+        let text = self.text(
+            program,
+            crate::coretext::Stage::Lowered,
+            &rewrites,
+            ifaces,
+            Some(opt.simplify.ticks),
+        );
         self.save(&text, crate::coretext::Stage::Lowered, rows)
     }
 
@@ -4222,6 +4264,7 @@ cinch core: the annotated Core dump (design/core-output.md)
 
 usage:
   cinch core emit <file.cinch> [--stage=<name>] [--target <triple>] [-o <out.core>]
+                     [--max-simplifier-iterations <n>] [--no-direct-dict-calls]
   cinch core verify <file.core>
   cinch core diff <a.core> <b.core>
 
@@ -4267,6 +4310,17 @@ fn core_emit(args: &[String]) -> i32 {
                     }
                 }
             }
+            "--max-simplifier-iterations" => {
+                i += 1;
+                match args.get(i).and_then(|n| n.parse::<u32>().ok()) {
+                    Some(n) => opts.max_simplifier_iterations = Some(n),
+                    None => {
+                        eprintln!("cinch core emit: --max-simplifier-iterations needs a non-negative count");
+                        return 2;
+                    }
+                }
+            }
+            "--no-direct-dict-calls" => opts.no_direct_dict_calls = true,
             other if other.starts_with("--stage=") => {
                 let name = &other["--stage=".len()..];
                 match crate::coretext::Stage::parse(name) {
@@ -4833,9 +4887,9 @@ pub fn driver_with_profile_opts(
     // 2-5): every residual program is rechecked before installation, and
     // the report records where specialization stopped.
     let (program, opt, method_families) = if mode == Mode::EmitObject {
-        crate::specialize::optimize_object(&program, profile, &opts.object_roots)?
+        crate::specialize::optimize_object_with(&program, profile, &opts.object_roots, &opts.simplifier())?
     } else {
-        let (program, opt) = crate::specialize::optimize(&program, profile)?;
+        let (program, opt) = crate::specialize::optimize_with(&program, profile, &opts.simplifier())?;
         (program, opt, Vec::new())
     };
     write_artifacts(

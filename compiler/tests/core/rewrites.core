@@ -2,6 +2,7 @@ core 1
 module Main
 target aarch64-apple-darwin opt-level 0
 source sha256:c1925910f5993a5591361a716ea65985299f78b39a44fb0e9e7af24967a60f3e
+@ticks 158
 global Algebra.Monoid.Sum
 unit Main.combine :: Algebra.Monoid.Sum -> (Algebra.Monoid.Sum -> (Algebra.Monoid.Sum -> Algebra.Monoid.Sum))
   @params t0 :: Algebra.Monoid.Sum @owned, t1 :: Algebra.Monoid.Sum @owned, t2 :: Algebra.Monoid.Sum @owned
@@ -30,44 +31,22 @@ unit Main.main :: Int
   @stage(lowered)
   body (let t0 @class(owned)
     (let t1 @class(owned)
-      (app (ctor Algebra.Monoid.Sum 0 1) (nat "1"))
-      (let t2 @class(owned)
-        (app (ctor Algebra.Monoid.Sum 0 1) (nat "2"))
-        (let t3 @class(owned)
-          (app (ctor Algebra.Monoid.Sum 0 1) (nat "3"))
-          (let t4 @class(owned)
-            (case (local t1)
-              ((con 0 (t5 @class(owned)))
-                (release t1
-                  (moved t5)
-                  (rest)
-                  (case (local t2)
-                    ((con 0 (t6 @class(owned)))
-                      (release t2
-                        (moved t6)
-                        (rest)
-                        (app (ctor Algebra.Monoid.Sum 0 1)
-                          (app (prim cinch.runtime.natAdd) (local t5) (local t6)))))))))
-            (case (local t4)
-              ((con 0 (t7 @class(owned)))
-                (release t4
-                  (moved t7)
-                  (rest)
-                  (case (local t3)
-                    ((con 0 (t8 @class(owned)))
-                      (release t3
-                        (moved t8)
-                        (rest)
-                        (app (ctor Algebra.Monoid.Sum 0 1)
-                          (app (prim cinch.runtime.natAdd) (local t7) (local t8)))))))))))))
+      (app (ctor Algebra.Monoid.Sum 0 1) (app (prim cinch.runtime.natAdd) (nat "1") (nat "2")))
+      (case (local t1)
+        ((con 0 (t2 @class(owned)))
+          (release t1
+            (moved t2)
+            (rest)
+            (app (ctor Algebra.Monoid.Sum 0 1)
+              (app (prim cinch.runtime.natAdd) (local t2) (nat "3")))))))
     (case (local t0)
-      ((con 0 (t9 @class(owned)))
+      ((con 0 (t3 @class(owned)))
         (release t0
-          (moved t9)
+          (moved t3)
           (rest)
           (if
             (app (prim cinch.prim.eqI64)
-              (app (prim cinch.runtime.natCmp) (local t9) (nat "6"))
+              (app (prim cinch.runtime.natCmp) (local t3) (nat "6"))
               (int 0))
             (int 0)
             (int 1))))))

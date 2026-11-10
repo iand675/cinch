@@ -86,6 +86,7 @@ problem first, then the constant factor.
 | Per-thread size-class heap | `compiler/runtime/src/small.rs` | 29% faster, 42% less peak RSS |
 | Core text output, verifier, diff, server, grammar, editors | `compiler/src/coretext.rs`, `compiler/src/lsp.rs`, `tooling/tree-sitter-cinch-core`, `tooling/editors/*` | makes each stage's codegen input inspectable and comparable |
 | `--opt-level` and `-O2` library objects and stage links | `compiler/src/driver.rs`, `tooling/bootstrap.py` | 28% on the toolkit check |
+| Core simplifier: case-merge, known-constructor, direct dictionary calls | `compiler/src/simplify.rs` | removes `Option`/`Result` scaffolding and static-dictionary `__apply` calls; reports ticks (section 10) |
 | Package store keyed by content | `compiler/src/store.rs` | reuses checked artifacts per compile |
 | Analysis layer + LSP incremental update | `compiler/src/analysis.rs` | editor path, not build path |
 | Work-stealing parallel runtime (`cinch_par_*`) | `compiler/runtime/src/par.rs` | available; the compiler is not yet parallel |
@@ -390,6 +391,57 @@ Core-level simplifier and a per-pass budget with a reported tick count. Both
 are cheap to add once Core output exists, because the same printer can show
 each iteration's result.
 
+### 10.1 What landed (2026-11-10)
+
+`compiler/src/simplify.rs` is the pass shape above, on the specialized
+program and before reference counting, so `crate::rc` balances the
+simplified bodies. A pass walks every unit bottom up and applies local
+rewrites; a tick is one rewrite application; passes repeat while the
+previous one fired, to `--max-simplifier-iterations` passes (default 4,
+zero disables the pass). The report records the cap, the passes actually
+run, the ticks, and the count per rule, in the artifact manifest under
+`simplifier`, and the lowered dump prints `@ticks <n>` in its header.
+(`cinch core emit` takes the same two flags as `build`.)
+
+Three rules, each with the preconditions it assumes:
+
+- **case-merge** (`case-merge`): an outer decision's alternative whose body
+  decides the same local again merges into one decision. It covers the
+  shape the match compiler produces for a source wildcard
+  (`case c of Red -> 1; _ -> case c of Blue -> 4; Green -> 3; Red -> 2`) and
+  the shared-default expansion with several alternatives per default, which
+  the driving pass's weighted merge refuses. It requires unweighted
+  decisions (a weighted merge rescales the weight spaces, and the driving
+  pass owns that rule), constructor-tag alternatives on both sides, defaults
+  after every explicit alternative, and no pattern binder a default
+  introduced that the kept alternatives read. Inner alternatives whose tag
+  an explicit outer alternative already names are dead under the default and
+  are dropped.
+- **known-constructor** (`known-constructor`): a decision whose scrutinee is
+  a local a `let` bound to a constructor application (through the alias
+  `let`s lowering adds) reduces to the tag's alternative with the field
+  binders substituted. It requires every argument of the constructor
+  application to be a value (local, literal, unit or primitive reference):
+  only then can an argument move past the branch's effects and be
+  substituted at every use of its field binder without changing what the
+  program does. A body carrying a quotation keeps its decision, because a
+  quotation's retained body is a separate binding scope.
+- **direct-dict-call** (`direct-dict-call`, `--no-direct-dict-calls` turns it
+  off): `dictproj (instdict I) idx` applied to exactly the method unit's
+  arity calls the method unit directly. It requires a static instance (no
+  subdictionaries, a known nonzero method arity), which is what code
+  generation's `static_dict` requires, so the projection yielded a shared
+  closure with no environment and the application becomes the call.
+
+A pass also drops a `let` whose binder the body no longer reads when its
+value is a value, which removes the constructor block a
+known-constructor reduction orphaned. Case-of-case and join points are
+deliberately absent: they need a join node in Core and a printer for it.
+
+Measured on the self-build corpus, the pass converges before the default
+cap: on `compiler/tests/core/ownership.cinch` it runs two passes with 160
+ticks; the distribution is in the report and in section 11's harness.
+
 ## 11. Benchmark corpus and metrics
 
 The corpus is edits, not programs. Each entry is a case in
@@ -453,7 +505,10 @@ Metrics, reported per edit and per clean build:
    CPR plus worker/wrapper for single-field constructors, spec-constr and
    liberate-case. Gate every step on the fixed point and on Core output
    equality, and measure the compiler's own runtime, which is the best
-   benchmark we have.
+   benchmark we have. The pass shape, the tick budget and the first three
+   rewrites (case-merge, known-constructor, direct dictionary calls) are in
+   the tree (section 10.1); case-of-case and join points are the next
+   slice, and they need the join node in Core first.
 8. **Direct-call dictionaries**: resolve a projection from a known static
    dictionary to a direct call, removing the `__apply` stub.
 9. **Parallel phases** using the runtime pool, once section 11's corpus
