@@ -68,13 +68,30 @@ def seed_sources(directory: Path) -> dict[str, bytes]:
     return files
 
 
+def git_root() -> Path:
+    """The checkout that holds the git repository.
+
+    A jj workspace (``.jj/repo`` is a file naming the main checkout) has no
+    ``.git`` of its own, so git commands run in the main checkout instead.
+    """
+    marker = ROOT / ".jj" / "repo"
+    # AGENTS.md: never grep for agent files. This reads the workspace pointer.
+    if marker.is_file():
+        target = Path(marker.read_text().strip())
+        if not target.is_absolute():
+            target = ROOT / ".jj" / target
+        return target.resolve().parents[1]
+    return ROOT
+
+
 def native_source_archive(revision: str) -> bytes:
     paths = ["compiler"]
+    where = git_root()
     build_script = subprocess.run(["git", "ls-tree", "--name-only", revision, "--", NATIVE_BUILD_SCRIPT],
-                                  cwd=ROOT, check=True, stdout=subprocess.PIPE).stdout
+                                  cwd=where, check=True, stdout=subprocess.PIPE).stdout
     if build_script:
         paths.extend(f"{NATIVE_GRAMMAR}/{part}" for part in NATIVE_GRAMMAR_INPUTS)
-    return subprocess.run(["git", "archive", revision, *paths], cwd=ROOT, check=True,
+    return subprocess.run(["git", "archive", revision, *paths], cwd=where, check=True,
                           stdout=subprocess.PIPE).stdout
 
 
