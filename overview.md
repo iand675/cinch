@@ -68,6 +68,7 @@ Each page records a decision, its evidence, or the work remaining for one part o
 - [Codata and guardedness design](design/codata-guardedness.md)
 - [The value-level computation type former (`Comp {e} a`)](design/comp-computation-type.md)
 - [Compiled interface metadata](design/compiled-interface-metadata.md)
+- [Core output: the annotated codegen input](design/core-output.md)
 - [Dependent core kernel design](design/dependent-core-kernel.md)
 - [Effect boundaries and interposition (draft)](design/effect-boundaries-and-interposition.md)
 - [Effects, capabilities and sequencing design](design/effects-capabilities-sequencing.md)
