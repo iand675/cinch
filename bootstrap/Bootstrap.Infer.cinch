@@ -39,7 +39,7 @@ module Bootstrap.Infer where
   export Elaboration, elaboration-errors, elaboration-bindings, elaboration-contexts, elaboration-core, elaboration-law-observations
   export elaboration-core-contracts-closed, elaboration-rewrite-assumptions
   export CheckedBinding, checked-name, checked-scheme, checked-role, checked-body-binding, checked-guarded-binding, checked-method-matches, checked-conditional-target
-  export checked-foreign-plan
+  export checked-foreign-plan, checked-intrinsic-symbol
   export elaboration-declarations, elaboration-data, elaboration-effects, elaboration-classes, elaboration-class-context, elaboration-instances
   export source-class-default-symbol, source-class-default-clauses, portable-default-export-global
 
@@ -109,6 +109,11 @@ module Bootstrap.Infer where
     other -> False
   checked-foreign-plan :: CheckedBinding -> Option ForeignPlan
   checked-foreign-plan binding = case binding of MkForeignBinding name scheme plan -> Some plan; other -> None
+  -- The runtime intrinsic a checked binding names, when it is one. The
+  -- canonical symbol selects the arithmetic total body the intrinsic's
+  -- scheme carries.
+  checked-intrinsic-symbol :: CheckedBinding -> Option String
+  checked-intrinsic-symbol binding = case binding of MkIntrinsicBinding name scheme symbol -> Some symbol; other -> None
   checked-body-binding :: CheckedBinding -> Option BodyBinding
   checked-body-binding binding = case binding of MkBodyBinding body -> Some body; other -> None
   -- Checked equations remain separate from definitional conversion and
@@ -1304,8 +1309,8 @@ module Bootstrap.Infer where
     Some row -> (case (field "external" row, field "type" row) of
       (JStr symbol, JStr declared) -> (case array-plan symbol of
         Some (operation, format, canonical) -> (case (parse-scheme symbol (string-to-bytes canonical), parse-scheme name (string-to-bytes declared)) of
-          (Parsed expected Nil, Parsed cached Nil) -> (case make-scheme False classes context Nil (array-canonical-type expected) st of
-            (wanted, ready) -> case make-scheme False classes context Nil (array-canonical-type cached) ready of
+          (Parsed expected Nil, Parsed cached Nil) -> (case make-scheme False classes context Nil (kernel-canonical-type expected) st of
+            (wanted, ready) -> case make-scheme False classes context Nil (kernel-canonical-type cached) ready of
               (foreign-scheme, checked) ->
                 let matched = check-array-kernel-scheme sp actual wanted (check-array-kernel-scheme sp foreign-scheme wanted checked) in
                 case lookup-binding name env of
@@ -2181,7 +2186,7 @@ module Bootstrap.Infer where
       Some (text, external) -> case make-scheme False classes kinds Nil syntax st of
         (sc, checked) -> case (scheme-params sc, scheme-requirements sc) of
           (Nil, Nil) -> case parse-scheme symbol (string-to-bytes text) of
-            Parsed expected Nil -> case convert False kinds Nil expected checked of
+            Parsed expected Nil -> case convert False kinds Nil (kernel-canonical-type expected) checked of
               (ty, prepared) -> case lookup-binding name env of
                 Some prior -> (env, add-error sp "duplicate intrinsic binding" prepared)
                 None -> (Cons (MkIntrinsicBinding name sc symbol) env, if same symbol "cinch.runtime.bytesNew" && byte-allocation-contract (normalize prepared (scheme-body sc)) then prepared
@@ -2295,16 +2300,16 @@ module Bootstrap.Infer where
         Ok plan -> (case lookup-binding name env of
           Some prior -> (env, add-error sp "duplicate foreign binding" checked)
           None -> (Cons (MkForeignBinding name actual plan) env, checked))
-  array-canonical-type :: TypeExpr -> TypeExpr
-  array-canonical-type syntax = case syntax of
-    TName sp name -> if same name "List" || same name "Option" then TName sp (interface-global (string-concat "Data.Core." name)) else syntax
-    TForall sp qs body -> TForall sp qs (array-canonical-type body)
-    TFun sp domain result -> TFun sp (array-canonical-type domain) (array-canonical-type result)
-    TApp sp head args -> TApp sp (array-canonical-type head) (array-canonical-arguments args)
-    TTuple sp fields -> TTuple sp (array-canonical-arguments fields)
+  kernel-canonical-type :: TypeExpr -> TypeExpr
+  kernel-canonical-type syntax = case syntax of
+    TName sp name -> if same name "List" || same name "Option" || same name "Result" then TName sp (interface-global (string-concat "Data.Core." name)) else syntax
+    TForall sp qs body -> TForall sp qs (kernel-canonical-type body)
+    TFun sp domain result -> TFun sp (kernel-canonical-type domain) (kernel-canonical-type result)
+    TApp sp head args -> TApp sp (kernel-canonical-type head) (kernel-canonical-arguments args)
+    TTuple sp fields -> TTuple sp (kernel-canonical-arguments fields)
     other -> syntax
-  array-canonical-arguments :: TypeExpr -> TypeExpr
-  array-canonical-arguments args = case args of TArg sp ty rest -> TArg sp (array-canonical-type ty) (array-canonical-arguments rest); other -> args
+  kernel-canonical-arguments :: TypeExpr -> TypeExpr
+  kernel-canonical-arguments args = case args of TArg sp ty rest -> TArg sp (kernel-canonical-type ty) (kernel-canonical-arguments rest); other -> args
   array-quantifiers-match :: List Quant -> List Quant -> Bool
   array-quantifiers-match actual expected = case (actual, expected) of
     (Nil, Nil) -> True
@@ -2313,7 +2318,7 @@ module Bootstrap.Infer where
   register-array-intrinsic :: Span -> String -> String -> TypeExpr -> String -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-array-intrinsic sp name symbol syntax canonical classes kinds env st = case make-scheme False classes kinds Nil syntax st of
     (actual, checked) -> case parse-scheme symbol (string-to-bytes canonical) of
-      Parsed expected Nil -> (case make-scheme False classes kinds Nil (array-canonical-type expected) checked of
+      Parsed expected Nil -> (case make-scheme False classes kinds Nil (kernel-canonical-type expected) checked of
         (wanted, ready) -> if not (array-quantifiers-match (scheme-params actual) (scheme-params wanted)) || list-length (scheme-requirements actual) /= 0 then
           (env, add-error sp "array intrinsic requires its exact polymorphic kernel scheme" ready)
           else case lookup-binding name env of
@@ -2462,12 +2467,12 @@ module Bootstrap.Infer where
       None -> add-error sp "unknown cached kernel syntax type" st
   register-kernel :: Span -> String -> Json -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-kernel sp name metadata classes kinds env st =
-    if not (has name ["b.newIO", "b.ioWrite", "b.ioSleep", "b.pollCancel"]) then (env, add-error sp (unsupported-import "builtin" name) st)
+    if not (has name ["b.newIO", "b.ioWrite", "b.ioRead", "b.ioSleep", "b.pollCancel"]) then (env, add-error sp (unsupported-import "builtin" name) st)
     else case kernel-metadata name builtin-declarations of
       Some trusted -> if same-kernel-fields ["name", "symbol", "operation", "arity", "runtime_abi", "fresh_region", "scheme"] metadata trusted then
         (case field "scheme" trusted of
           JStr text -> case parse-scheme name (string-to-bytes text) of
-            Parsed ty Nil -> case make-scheme False classes kinds Nil ty st of
+            Parsed ty Nil -> case make-scheme False classes kinds Nil (kernel-canonical-type ty) st of
               (sc, checked) -> add-binding sp name sc "builtin" env checked
             other -> (env, add-error sp "invalid kernel scheme" st)
           other -> (env, add-error sp "missing kernel scheme" st))

@@ -9,7 +9,7 @@ module Bootstrap.Resolve where
   import Bootstrap.Builtin (builtin-bindings, builtin-declarations, finite-index-declaration)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-exports, validate-interface-set)
-  import Bootstrap.Contracts (public-global, interface-headers, interface-declarations, materialize-externals, declaration-references, imported-class-references)
+  import Bootstrap.Contracts (public-global, interface-headers, interface-declarations, materialize-externals, declaration-references, imported-class-references, kernel-references)
   import Bootstrap.Parse (exported-fixities)
   import Text.Lex (Span, span-start, span-end)
   import Data.Json
@@ -108,7 +108,7 @@ module Bootstrap.Resolve where
       DInstance s only name params class-app members -> own-bindings home rest (add-own home name acc)
       DClass s name params members -> own-bindings home rest (own-class-methods home (decls-of members) (add-own home name acc))
       DData s name params ctors -> own-bindings home rest (own-ctors home ctors (add-own home name acc))
-      DEffect s name params ops -> own-bindings home rest (own-ctors home ops (add-own home name acc))
+      DEffect s name params ops -> own-bindings home rest (own-ctors home ops (add-own-effect home name acc))
       DForeign s direction abi symbol name ty -> own-bindings home rest (if same direction "import" then add-own home name acc else acc)
       other -> case decl-name other of
         None -> own-bindings home rest acc
@@ -118,6 +118,14 @@ module Bootstrap.Resolve where
   add-own home name entries = case lookup-binding name entries of
     Some b -> entries
     None -> Cons (MkBinding name home (global-name home name)) entries
+  -- A source effect is its own identity: the spelling is unique in the
+  -- program, so a label resolves by its bare name in every module, the
+  -- same global effect namespace the native frontend holds. Qualifying it
+  -- here would hide an effect a module does not select.
+  add-own-effect :: String -> String -> List Binding -> List Binding
+  add-own-effect home name entries = case lookup-binding name entries of
+    Some b -> entries
+    None -> Cons (MkBinding name home name) entries
 
   own-class-methods :: String -> List Decl -> List Binding -> List Binding
   own-class-methods home ds acc = case ds of
@@ -811,7 +819,7 @@ module Bootstrap.Resolve where
       let renamed-binder = case binder of MkTypeParam at local kind only -> MkTypeParam at local (case kind of None -> None; Some carrier -> Some (rename-type visible names carrier)) only in
       (Cons (DRefine s (global-name home name) (rename-params visible Nil params) renamed-binder
         (rename-predicate visible (Cons (param-name binder) names) predicate)) Nil, Nil)
-    DEffect s name params ops -> (Cons (DEffect s (global-name home name) (rename-params visible Nil params)
+    DEffect s name params ops -> (Cons (DEffect s name (rename-params visible Nil params)
       (rename-ctors home visible (parameter-names params) ops)) Nil, Nil)
     DInstance s only name params class-app members -> case rename-instance-members visible (instance-head-names class-app <> parameter-names params) members of
       (renamed, errors) -> (Cons (DInstance s only (global-name home name) (rename-params visible Nil params)
@@ -1020,7 +1028,7 @@ module Bootstrap.Resolve where
           let record-references = (case imported-records of
             Nil -> Nil
             other -> imported-record-references references imported-records declarations) in
-          let all-references = references <> imported-class-references declarations declarations <> record-references in
+          let all-references = references <> kernel-references references declarations <> imported-class-references declarations declarations <> record-references in
           let admitted = if has-name "b.Fin" all-references then Cons finite-index-declaration declarations else declarations in
           case materialize-externals all-references admitted Nil of
             (body, errors) -> (MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp (contexts <> body))) Nil), errors)

@@ -124,18 +124,15 @@ module Bootstrap.Foreign where
   add-parameter abstracts domain result backwards = case parameter abstracts domain of
     Err error -> Err error
     Ok argument -> parameters abstracts result (Cons argument backwards)
-  identifier-rest :: List Char -> Bool
-  identifier-rest chars = case chars of
-    Nil -> True
-    Cons char rest -> let n = char-code char in
-      ((n >= 65 && n <= 90) || (n >= 97 && n <= 122) || (n >= 48 && n <= 57) || n == 95) && identifier-rest rest
-  identifier :: String -> Bool
-  identifier name = case unpack name of
-    Nil -> False
-    Cons char rest -> let n = char-code char in ((n >= 65 && n <= 90) || (n >= 97 && n <= 122) || n == 95) && identifier-rest rest
+  -- The intrinsic namespaces are reserved: a symbol there without a checked
+  -- runtime contract names a retired or unknown intrinsic, never C. Any
+  -- other nonempty symbol is a C object name, quoted as an LLVM global.
+  reserved-symbol :: String -> Bool
+  reserved-symbol name = string-starts-with "cinch.prim." name || string-starts-with "cinch.runtime." name
   foreign-plan :: Nat -> List String -> String -> Scheme -> Result String ForeignPlan
   foreign-plan word-bits abstracts symbol scheme = if word-bits /= 64 then Err "foreign boundary target ABI is not supported"
-    else if not (identifier symbol) then Err "foreign symbol has no checked runtime intrinsic contract or valid C identifier"
+    else if reserved-symbol symbol then Err (string-concat-all ["foreign symbol ", symbol, " is not a cinch intrinsic; only cinch.prim.* and cinch.runtime.* intrinsics are supported in the bootstrap slice"])
+    else if string-length symbol == 0 then Err "foreign symbol is empty"
     else if not (contract-scheme-closed scheme) then Err "foreign scheme has an unbound or unresolved contract"
     else if not (region-quantifiers (scheme-params scheme)) || list-length (scheme-requirements scheme) /= 0 then Err "foreign binding cannot be polymorphic or constrained"
     else if not (envelope (scheme-body scheme)) then Err "foreign import needs a function type, closed explicit rows and accounted result effects"

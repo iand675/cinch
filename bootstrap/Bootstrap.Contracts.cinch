@@ -15,7 +15,7 @@ module Bootstrap.Contracts where
   import Algebra.Semigroup
 
   export interface-headers, interface-declarations, public-global
-  export materialize-externals, declaration-references, expr-references, imported-class-references
+  export materialize-externals, declaration-references, expr-references, imported-class-references, kernel-references
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -104,6 +104,29 @@ module Bootstrap.Contracts where
   seen-entry name kind seen = case seen of
     Nil -> False
     Cons (n, k) rest -> (same name n && same kind k) || seen-entry name kind rest
+
+  -- A kernel declaration's scheme is compiler-owned text, so nothing in
+  -- the source mentions the prelude families it names. A program that uses
+  -- the builtin keeps those defining declarations, exactly as a source
+  -- mention of the same family would.
+  kernel-references :: List String -> List Decl -> List String
+  kernel-references used ds = case ds of
+    Nil -> Nil
+    Cons (DExternal s symbol category ty metadata) rest ->
+      (if same category "builtin" && has symbol used then
+        (case field "scheme" metadata of
+          JStr text -> (case parse-scheme symbol (string-to-bytes text) of
+            Parsed scheme Nil -> kernel-canonical-references (type-references scheme)
+            other -> Nil)
+          other -> Nil)
+       else Nil) <> kernel-references used rest
+    Cons other rest -> kernel-references used rest
+  kernel-canonical-reference :: String -> List String
+  kernel-canonical-reference name = if has name ["List", "Option", "Result"] then Cons (interface-global (string-concat "Data.Core." name)) Nil else Nil
+  kernel-canonical-references :: List String -> List String
+  kernel-canonical-references names = case names of
+    Nil -> Nil
+    Cons first rest -> kernel-canonical-reference first <> kernel-canonical-references rest
 
   external-type :: Span -> String -> String -> Json -> (Option TypeExpr, List Diagnostic)
   external-type s name kind metadata =

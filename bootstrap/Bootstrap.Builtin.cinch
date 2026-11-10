@@ -8,12 +8,25 @@ module Bootstrap.Builtin where
   import Data.Json
   import Text.Lex (Span)
 
-  export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, intrinsic-contract, array-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation
+  export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, intrinsic-contract, array-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation, platform-intrinsic, total-primitive
 
   nat-arithmetic-extern :: String -> Option String
   nat-arithmetic-extern symbol =
     if string-compare symbol "cinch.runtime.natAdd" == 0 then Some "cinch_nat_add"
     else if string-compare symbol "cinch.runtime.natMul" == 0 then Some "cinch_nat_mul"
+    else None
+
+  -- The executable total body an arithmetic intrinsic carries: the
+  -- operation applied to its own parameters. Only an intrinsic whose
+  -- checked scheme is exactly the operation's plain first-order signature
+  -- has one (closed total-body contracts).
+  total-primitive :: String -> Option (String, List String, String)
+  total-primitive symbol =
+    if string-compare symbol "cinch.runtime.natAdd" == 0 then Some ("NatAdd", ["Nat", "Nat"], "Nat")
+    else if string-compare symbol "cinch.runtime.natMul" == 0 then Some ("NatMul", ["Nat", "Nat"], "Nat")
+    else if string-compare symbol "cinch.runtime.bytesLen" == 0 then Some ("BytesLen", ["Bytes"], "Nat")
+    else if string-compare symbol "cinch.prim.eqI64" == 0 then Some ("I64Eq", ["I64", "I64"], "Bool")
+    else if string-compare symbol "cinch.prim.neI64" == 0 then Some ("I64Ne", ["I64", "I64"], "Bool")
     else None
 
   u32-wrapping-operation :: String -> Option String
@@ -34,12 +47,12 @@ module Bootstrap.Builtin where
     else if string-compare symbol "cinch.prim.wrappingAddI64" == 0 then Some ("I64 -> I64 -> I64", symbol)
     else if string-compare symbol "cinch.prim.wrappingSubI64" == 0 then Some ("I64 -> I64 -> I64", symbol)
     else if (case u32-wrapping-operation symbol of Some operation -> True; None -> False) then Some ("U32 -> U32 -> U32", symbol)
-    else if string-compare symbol "cinch.runtime.textSha256" == 0 then Some ("Bytes -> Bytes", "cinch_text_sha256")
-    else if string-compare symbol "cinch.runtime.textSha512" == 0 then Some ("Bytes -> Bytes", "cinch_text_sha512")
-    else if string-compare symbol "cinch.runtime.textSha1" == 0 then Some ("Bytes -> Bytes", "cinch_text_sha1")
-    else if string-compare symbol "cinch.runtime.textMd5" == 0 then Some ("Bytes -> Bytes", "cinch_text_md5")
-    else if string-compare symbol "cinch.runtime.textHmacSha256" == 0 then Some ("Bytes -> Bytes -> Bytes", "cinch_text_hmac_sha256")
-    else if string-compare symbol "cinch.runtime.textF64ToDecimal" == 0 then Some ("F64 -> Bytes", "cinch_text_f64_to_decimal")
+    else case platform-intrinsic symbol of
+      Some (scheme, external, arguments, result) -> Some (scheme, external)
+      None -> numeric-intrinsic-contract symbol
+  numeric-intrinsic-contract :: String -> Option (String, String)
+  numeric-intrinsic-contract symbol =
+    if string-compare symbol "cinch.runtime.textF64ToDecimal" == 0 then Some ("F64 -> Bytes", "cinch_text_f64_to_decimal")
     else if string-compare symbol "cinch.runtime.textF64FromDecimal" == 0 then Some ("Bytes -> F64", "cinch_text_f64_from_decimal")
     else if string-compare symbol "cinch.runtime.bytesLen" == 0 then Some ("Bytes -> Nat", "cinch_bytes_len")
     else if string-compare symbol "cinch.runtime.bytesGet" == 0 then Some ("Bytes -> Nat -> refined (0 <= out && out <= 255) Nat", "cinch_bytes_get")
@@ -49,6 +62,49 @@ module Bootstrap.Builtin where
       None -> case array-plan symbol of
         Some (operation, format, scheme) -> Some (scheme, array-extern operation)
         None -> None
+
+  -- Runtime operations over buffers, the platform, sockets, piped children
+  -- and pseudo-terminals: canonical scheme, runtime extern, argument
+  -- passing and result construction. Every extern borrows its Bytes
+  -- arguments and answers one i64 word. Argument codes: 0 a raw word
+  -- passed as is, 1 a Bytes word passed as is, 2 a Nat converted by
+  -- cinch_nat_to_len, 3 a Unit the extern does not take. Result codes: 0
+  -- the raw word, 1 a Nat from the raw count, and 2 to 5 the prelude
+  -- `Result I64 a` a boundary word stands for (a negative word is `Err`
+  -- over its negation; otherwise `Ok` over the word as I64 for 2, as a
+  -- Nat count for 3, as a fresh Bytes buffer for 4, or Unit for 5).
+  platform-intrinsic :: String -> Option (String, String, List Nat, Nat)
+  platform-intrinsic symbol =
+    if string-compare symbol "cinch.runtime.textSha256" == 0 then Some ("Bytes -> Bytes", "cinch_text_sha256", [1], 0)
+    else if string-compare symbol "cinch.runtime.textSha512" == 0 then Some ("Bytes -> Bytes", "cinch_text_sha512", [1], 0)
+    else if string-compare symbol "cinch.runtime.textSha1" == 0 then Some ("Bytes -> Bytes", "cinch_text_sha1", [1], 0)
+    else if string-compare symbol "cinch.runtime.textMd5" == 0 then Some ("Bytes -> Bytes", "cinch_text_md5", [1], 0)
+    else if string-compare symbol "cinch.runtime.textHmacSha256" == 0 then Some ("Bytes -> Bytes -> Bytes", "cinch_text_hmac_sha256", [1, 1], 0)
+    else if string-compare symbol "cinch.runtime.randomBytes" == 0 then Some ("Nat -> Bytes", "cinch_random_bytes", [2], 0)
+    else if string-compare symbol "cinch.runtime.fsMkdir" == 0 then Some ("Bytes -> Bool -> I64", "cinch_fs_mkdir", [1, 0], 0)
+    else if string-compare symbol "cinch.runtime.fsRemove" == 0 then Some ("Bytes -> Bool -> I64", "cinch_fs_remove", [1, 0], 0)
+    else if string-compare symbol "cinch.runtime.fsTempDir" == 0 then Some ("Unit -> Bytes", "cinch_fs_temp_dir", [3], 0)
+    else if string-compare symbol "cinch.runtime.signalSend" == 0 then Some ("I64 -> I64 -> I64", "cinch_signal_send", [0, 0], 0)
+    else if string-compare symbol "cinch.runtime.netTcpConnect" == 0 then Some ("Bytes -> I64 -> Result I64 I64", "cinch_net_tcp_connect", [1, 0], 2)
+    else if string-compare symbol "cinch.runtime.netRead" == 0 then Some ("I64 -> Nat -> Result I64 Bytes", "cinch_net_read", [0, 2], 4)
+    else if string-compare symbol "cinch.runtime.netWrite" == 0 then Some ("I64 -> Bytes -> Result I64 Nat", "cinch_net_write", [0, 1], 3)
+    else if string-compare symbol "cinch.runtime.netClose" == 0 then Some ("I64 -> Result I64 Unit", "cinch_net_close", [0], 5)
+    else if string-compare symbol "cinch.runtime.netResolve" == 0 then Some ("Bytes -> I64 -> Result I64 Bytes", "cinch_net_resolve", [1, 0], 4)
+    else if string-compare symbol "cinch.runtime.processArgCount" == 0 then Some ("Unit -> Nat", "cinch_argv_count", [3], 1)
+    else if string-compare symbol "cinch.runtime.processSpawn" == 0 then Some ("Bytes -> Bytes -> Bytes -> Bytes -> Result I64 I64", "cinch_process_spawn", [1, 1, 1, 1], 2)
+    else if string-compare symbol "cinch.runtime.processWriteStdin" == 0 then Some ("I64 -> Bytes -> Result I64 Nat", "cinch_process_write_stdin", [0, 1], 3)
+    else if string-compare symbol "cinch.runtime.processCloseStdin" == 0 then Some ("I64 -> Result I64 Unit", "cinch_process_close_stdin", [0], 5)
+    else if string-compare symbol "cinch.runtime.processRead" == 0 then Some ("I64 -> I64 -> Nat -> Result I64 Bytes", "cinch_process_read", [0, 0, 2], 4)
+    else if string-compare symbol "cinch.runtime.processWait" == 0 then Some ("I64 -> Result I64 Nat", "cinch_process_wait", [0], 3)
+    else if string-compare symbol "cinch.runtime.processClose" == 0 then Some ("I64 -> Result I64 Unit", "cinch_process_close", [0], 5)
+    else if string-compare symbol "cinch.runtime.ptyOpen" == 0 then Some ("Unit -> Result I64 I64", "cinch_pty_open", [3], 2)
+    else if string-compare symbol "cinch.runtime.ptySpawn" == 0 then Some ("I64 -> Bytes -> Bytes -> Bytes -> Bytes -> Result I64 I64", "cinch_pty_spawn", [0, 1, 1, 1, 1], 2)
+    else if string-compare symbol "cinch.runtime.ptyRead" == 0 then Some ("I64 -> Nat -> Result I64 Bytes", "cinch_pty_read", [0, 2], 4)
+    else if string-compare symbol "cinch.runtime.ptyWrite" == 0 then Some ("I64 -> Bytes -> Result I64 Nat", "cinch_pty_write", [0, 1], 3)
+    else if string-compare symbol "cinch.runtime.ptyWait" == 0 then Some ("I64 -> Result I64 Nat", "cinch_pty_wait", [0], 3)
+    else if string-compare symbol "cinch.runtime.ptyClose" == 0 then Some ("I64 -> Result I64 Unit", "cinch_pty_close", [0], 5)
+    else if string-compare symbol "cinch.runtime.ptyResize" == 0 then Some ("I64 -> Nat -> Nat -> Result I64 Unit", "cinch_pty_resize", [0, 2, 2], 5)
+    else None
 
   -- Visible spelling and canonical kernel identity. Runtime.newIO is the
   -- native compiler's qualified alias; other IO operations are unqualified.

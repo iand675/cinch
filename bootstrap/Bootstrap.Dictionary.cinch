@@ -81,6 +81,7 @@ module Bootstrap.Dictionary where
       (case free-metas st wanted of
         Nil -> (CENeeded sp (normalize st wanted) allowed, st)
         other -> fail-evidence sp wanted "a law's dictionary arguments must be determined by its binders" st)
+      else if capability-type (normalize st wanted) then fail-evidence sp wanted (string-concat-all ["no ", diagnostic-dictionary (normalize st wanted), " capability in scope; supply one lexically with `with (io = ...) in` or `f @{io = ...}`, or take it in a `using` clause"]) st
       else choose-instance context allowed sp wanted st
     Cons candidate rest -> case find-given (given-symbol candidate) allowed of
       None -> fail-evidence sp wanted "dictionary evidence refers to an out-of-scope binder" st

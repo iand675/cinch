@@ -1,11 +1,11 @@
 -- Checked schema 10 interface production. Every public spelling is matched
 -- against a retained checked binding or defining data declaration.
 module Bootstrap.Export where
-  import Bootstrap.Builtin (array-plan)
+  import Bootstrap.Builtin (array-plan, total-primitive)
   import Algebra.Semigroup
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
   import Bootstrap.Ast (Program, Module, Decl, TypeExpr, module-decls, program-modules, DClass, DInstance, DForeign, DExternal, DRefine, DRecord, DCodata, DEffect, DLaw, decls-of, source-clauses-document, source-law-document, portable-law-syntax, qualify-default-clauses)
-  import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, elaboration-rewrite-assumptions, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
+  import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, elaboration-rewrite-assumptions, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, checked-intrinsic-symbol, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
   import Bootstrap.Core (CoreData, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme, core-name, core-scheme, core-method-total-function, core-definition-closed)
   import Bootstrap.Typing (task-source-forwarder, task-forwarder-type)
   import Bootstrap.Instance
@@ -138,7 +138,55 @@ module Bootstrap.Export where
   value-total-body :: CheckedBinding -> Json
   value-total-body binding = case checked-body-binding binding of
     Some body -> if total-source-projection (binding-function body) then JNull else total-function-document (binding-function body)
+    None -> case checked-intrinsic-symbol binding of
+      Some symbol -> case export-global (checked-name binding) of
+        Ok identity -> intrinsic-total-body identity symbol (checked-scheme binding)
+        Err error -> JNull
+      None -> JNull
+  -- A plain first-order carrier sort: the only sorts a total body has.
+  total-carrier :: UType -> Option String
+  total-carrier ty = case ty of
+    UCon name KType -> if same name "Nat" || same name "Int" || same name "I64" || same name "Bool" || same name "Bytes" then Some name else None
+    other -> None
+  -- The arrow chain a closed total body can stand for: pure arrows over
+  -- plain carrier sorts. A refinement, an effect row or a binder has none.
+  total-arrow :: UType -> Option (List String, String)
+  total-arrow ty = case ty of
+    UFun domain result -> (case (total-carrier domain, total-arrow result) of
+      (Some first, Some (rest, final)) -> Some (Cons first rest, final)
+      other -> None)
+    other -> (case total-carrier ty of Some sort -> Some (Nil, sort); None -> None)
+  same-sorts :: List String -> List String -> Bool
+  same-sorts actual expected = case (actual, expected) of
+    (Nil, Nil) -> True
+    (Cons first rest, Cons other more) -> same first other && same-sorts rest more
+    other -> False
+  sort-list :: List String -> Json
+  sort-list sorts = case sorts of
+    Nil -> JArrEnd
+    Cons first rest -> JArr (JStr first) (sort-list rest)
+  local-slots :: Nat -> Nat -> Json
+  local-slots index count = if index >= count then JArrEnd else JArr (JObj "node" (JStr "local") (JObj "slot" (JNum (nat-to-int index)) JObjEnd)) (local-slots (index + 1) count)
+  primitive-total-document :: String -> String -> List String -> String -> Json
+  primitive-total-document identity operation parameters result = JObj "version" (JNum 1)
+    (JObj "definitions" (JArr (JObj "identity" (JStr identity)
+      (JObj "parameters" (sort-list parameters) (JObj "result" (JStr result)
+        (JObj "body" (JObj "node" (JStr "primitive") (JObj "operation" (JStr operation)
+          (JObj "arguments" (local-slots 0 (list-length parameters)) JObjEnd))) JObjEnd)))) JArrEnd) JObjEnd)
+  -- An arithmetic intrinsic has an executable total body of its own: the
+  -- operation applied to its own parameters. It is granted only when the
+  -- checked scheme is exactly that operation's plain first-order
+  -- signature, so no refinement, effect or binder disappears through a
+  -- base-sort projection.
+  intrinsic-total-body :: String -> String -> Scheme -> Json
+  intrinsic-total-body identity symbol scheme = case total-primitive symbol of
     None -> JNull
+    Some (operation, parameters, result) ->
+      if not (case scheme-params scheme of Nil -> True; other -> False)
+        || not (case scheme-requirements scheme of Nil -> True; other -> False) then JNull
+      else case total-arrow (scheme-body scheme) of
+        Some (actual, final) -> if same-sorts actual parameters && same final result then primitive-total-document identity operation parameters result else JNull
+        None -> JNull
   resolved-source-scheme :: Elaboration -> List LoadedInterface -> String -> Scheme -> Result String Json
   resolved-source-scheme typed interfaces symbol scheme = case (resolved-scheme typed interfaces scheme, binding-refinements (elaboration-declarations typed) symbol) of
     (Ok resolved, Ok refinements) -> (case merge-nominals refinements (field "nominals" resolved) of
