@@ -12,6 +12,11 @@ usage:
   cinch build <file.cinch> [-o <out>] [--rebuild]
   cinch run <file.cinch> [args...] [--rebuild] compile and run; exit code is the program's
   cinch lsp                        run the language server over stdio
+  cinch core emit <file.cinch> [--stage=<name>] [--target <triple>] [-o <out.core>]
+                                   write the Core dump codegen consumes
+  cinch core verify <file.core>    parse and re-check a Core dump
+  cinch core diff <a.core> <b.core>
+                                   report the first structural divergence
   cinch doc extract <file.cinch> [--iface <cinchif>] [--legacy] [--out <json>]
   cinch doc render <file.cinch> [--iface <cinchif>] [--legacy] [--plain] [--out <markdown>]
   cinch doc lookup <symbol> [--dir <root>] [--legacy] [--json]
@@ -37,6 +42,11 @@ flags:
   --package-object <path>  link an installed package object in build/run
   --opt-level <0|1|2|3>  clang's optimization level for build, run and
               emit-object (default 0 for build and run, 2 for emit-object)
+  --dump-core <stage>  also write build/<entry>.core at that pipeline point:
+              checked (solved and elaborated are aliases), owned, or lowered
+              (the default stage, and the exact code generation input); a
+              non-default stage writes build/<entry>.<stage>.core, and
+              `check` dumps the point it reaches, marked in @stage
   --rebuild   recompute a package-store entry that fails verification
               instead of failing the compile with the reason
   --target <triple>  the target to compile for: aarch64-apple-darwin,
@@ -64,6 +74,7 @@ fn main() {
         Some("emit-object") => (Mode::EmitObject, &args[1..]),
         Some("build") => (Mode::Build, &args[1..]),
         Some("run") => (Mode::Run, &args[1..]),
+        Some("core") => exit(cinch::driver::core_cli(&args[1..])),
         Some("doc") => exit(cinch::cinchdoc::cli(&args[1..])),
         Some("repl") => {
             if let Err(error) = cinch::repl::run() {
@@ -227,6 +238,38 @@ fn main() {
                 }
             }
             "--rebuild" => opts.rebuild_store = true,
+            "--dump-core" => {
+                i += 1;
+                match rest.get(i).map(String::as_str) {
+                    Some(name) => match cinch::coretext::Stage::parse(name) {
+                        Some(stage) => opts.dump_core = Some(stage),
+                        None => {
+                            eprintln!(
+                                "cinch: --dump-core takes one of {}",
+                                cinch::coretext::Stage::spellings().join(", ")
+                            );
+                            exit(2);
+                        }
+                    },
+                    None => {
+                        eprintln!("cinch: --dump-core needs a stage");
+                        exit(2);
+                    }
+                }
+            }
+            other if other.starts_with("--dump-core=") => {
+                let name = &other["--dump-core=".len()..];
+                match cinch::coretext::Stage::parse(name) {
+                    Some(stage) => opts.dump_core = Some(stage),
+                    None => {
+                        eprintln!(
+                            "cinch: --dump-core takes one of {}",
+                            cinch::coretext::Stage::spellings().join(", ")
+                        );
+                        exit(2);
+                    }
+                }
+            }
             "--print-link-plan" => opts.print_link_plan = true,
             "--allow-raw-link" => {
                 i += 1;

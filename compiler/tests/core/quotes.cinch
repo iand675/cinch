@@ -1,0 +1,9 @@
+module Main where
+  q :: Code Int
+  q = [| 21 |]
+
+  project :: Code Int -> Int
+  project c = 7
+
+  main :: Int
+  main = project q

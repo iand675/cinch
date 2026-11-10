@@ -1,0 +1,59 @@
+core 1
+module Main
+source sha256:b203f5ad8a79057a6900f16c4425b01267680f454464558c888ae84d290f6cbf
+global '<builtin>.Cons'
+global '<builtin>.Nil'
+global Data.Int.Add_Int
+global Data.Int.Eq_Int
+unit Main.main :: Int
+  @stage(checked)
+  body (if
+    (app (dictproj (instdict Data.Int.Eq_Int) 0 Relation.Eq.Eq)
+      (app (global Main.sum3) (global Main.three))
+      (int 6))
+    (int 0)
+    (int 1))
+end
+unit Main.main.exit :: -
+  @stage(checked)
+  body (app (prim cinch.runtime.intToI64) (global Main.main))
+end
+unit Main.sum1 :: Vec 1 Int -> Int
+  @params v4351 :: Vec 1 Int @owned
+  @stage(checked)
+  body (let $v1 @class(owned)
+    (local v4351)
+    (case (local $v1) ((con 1 ($v2 @class(owned)) ($v3 @class(owned))) (local $v2))))
+end
+unit Main.sum2 :: Vec 2 Int -> Int
+  @params v4346 :: Vec 2 Int @owned
+  @stage(checked)
+  body (let $v1 @class(owned)
+    (local v4346)
+    (case (local $v1)
+      ((con 1 ($v2 @class(owned)) ($v3 @class(owned)))
+        (app (dictproj (instdict Data.Int.Add_Int) 0 Algebra.Arithmetic.Add)
+          (local $v2)
+          (app (global Main.sum1) (local $v3))))))
+end
+unit Main.sum3 :: Vec 3 Int -> Int
+  @params v4341 :: Vec 3 Int @owned
+  @stage(checked)
+  body (let $v1 @class(owned)
+    (local v4341)
+    (case (local $v1)
+      ((con 1 ($v2 @class(owned)) ($v3 @class(owned)))
+        (app (dictproj (instdict Data.Int.Add_Int) 0 Algebra.Arithmetic.Add)
+          (local $v2)
+          (app (global Main.sum2) (local $v3))))))
+end
+unit Main.three :: Vec (2 + 1) Int
+  @stage(checked)
+  body (app (ctor '<builtin>.Cons' @classes(T) 1 2)
+    (int 1)
+    (app (ctor '<builtin>.Cons' @classes(T) 1 2)
+      (int 2)
+      (app (ctor '<builtin>.Cons' @classes(T) 1 2)
+        (int 3)
+        (app (ctor '<builtin>.Nil' @classes(T) 0 0)))))
+end

@@ -1,0 +1,27 @@
+core 1
+module Main
+source sha256:c9d0cff711ea23323860d60719e2ebafaeccbf4318351086707a99158f734f41
+global Data.Int.Add_Int
+unit Main.EchoInt :: Main.Echo
+  @instance(tparams 0, subdicts 0)
+  @stage(checked)
+  static {0 = Main.EchoInt.echo}
+end
+unit Main.EchoInt.echo :: -
+  @params v4343 :: - @owned
+  @stage(checked)
+  body (app (dictproj (instdict Data.Int.Add_Int) 0 Algebra.Arithmetic.Add) (local v4343) (int 1))
+end
+unit Main.main :: Int
+  @stage(checked)
+  body (app (global Main.viaDict) (instdict Main.EchoInt) (int 1))
+end
+unit Main.main.exit :: -
+  @stage(checked)
+  body (app (prim cinch.runtime.intToI64) (global Main.main))
+end
+unit Main.viaDict :: using (e :: Main.Echo) => (Int -> Int)
+  @params v4341 :: Main.Echo @owned, v4342 :: Int @owned
+  @stage(checked)
+  body (app (dictproj (local v4341) 0 Main.Echo) (local v4342))
+end

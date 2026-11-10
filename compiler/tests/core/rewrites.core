@@ -1,0 +1,78 @@
+core 1
+module Main
+target aarch64-apple-darwin opt-level 0
+source sha256:c1925910f5993a5591361a716ea65985299f78b39a44fb0e9e7af24967a60f3e
+global Algebra.Monoid.Sum
+unit Main.combine :: Algebra.Monoid.Sum -> (Algebra.Monoid.Sum -> (Algebra.Monoid.Sum -> Algebra.Monoid.Sum))
+  @params v4341 :: Algebra.Monoid.Sum @owned, v4342 :: Algebra.Monoid.Sum @owned, v4343 :: Algebra.Monoid.Sum @owned
+  @rewrite(assocRule)
+  @stage(lowered)
+  body (let $v3 @class(owned)
+    (case (local v4341)
+      ((con 0 ($v5 @class(owned)))
+        (case (local v4342)
+          ((con 0 ($v7 @class(owned)))
+            (app (ctor Algebra.Monoid.Sum 0 1)
+              (app (prim cinch.runtime.natAdd)
+                (dup $v5 @class(owned) (local $v5))
+                (dup $v7 @class(owned) (local $v7))))))))
+    (case (local $v3)
+      ((con 0 ($v9 @class(owned)))
+        (release $v3
+          (moved $v9)
+          (rest)
+          (case (local v4343)
+            ((con 0 ($v11 @class(owned)))
+              (app (ctor Algebra.Monoid.Sum 0 1)
+                (app (prim cinch.runtime.natAdd) (local $v9) (dup $v11 @class(owned) (local $v11))))))))))
+end
+unit Main.main :: Int
+  @stage(lowered)
+  body (let $v0 @class(owned)
+    (let $v1 @class(owned)
+      (app (ctor Algebra.Monoid.Sum 0 1) (nat "1"))
+      (let $v2 @class(owned)
+        (app (ctor Algebra.Monoid.Sum 0 1) (nat "2"))
+        (let $v3 @class(owned)
+          (app (ctor Algebra.Monoid.Sum 0 1) (nat "3"))
+          (let $v4 @class(owned)
+            (case (local $v1)
+              ((con 0 ($v6 @class(owned)))
+                (release $v1
+                  (moved $v6)
+                  (rest)
+                  (case (local $v2)
+                    ((con 0 ($v8 @class(owned)))
+                      (release $v2
+                        (moved $v8)
+                        (rest)
+                        (app (ctor Algebra.Monoid.Sum 0 1)
+                          (app (prim cinch.runtime.natAdd) (local $v6) (local $v8)))))))))
+            (case (local $v4)
+              ((con 0 ($v10 @class(owned)))
+                (release $v4
+                  (moved $v10)
+                  (rest)
+                  (case (local $v3)
+                    ((con 0 ($v12 @class(owned)))
+                      (release $v3
+                        (moved $v12)
+                        (rest)
+                        (app (ctor Algebra.Monoid.Sum 0 1)
+                          (app (prim cinch.runtime.natAdd) (local $v10) (local $v12)))))))))))))
+    (case (local $v0)
+      ((con 0 ($v13 @class(owned)))
+        (release $v0
+          (moved $v13)
+          (rest)
+          (if
+            (app (prim cinch.prim.eqI64)
+              (app (prim cinch.runtime.natCmp) (local $v13) (nat "6"))
+              (int 0))
+            (int 0)
+            (int 1))))))
+end
+unit Main.main.exit :: -
+  @stage(lowered)
+  body (app (prim cinch.runtime.intToI64) (global Main.main))
+end

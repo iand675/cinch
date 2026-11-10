@@ -1,0 +1,12 @@
+module Main where
+  signature Echo where
+    echo :: Int -> Int
+
+  implicit instance EchoInt :: Echo where
+    echo x = x + 1
+
+  viaDict :: using (e :: Echo) => Int -> Int
+  viaDict x = echo x
+
+  main :: Int
+  main = viaDict 1

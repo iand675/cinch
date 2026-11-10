@@ -11,6 +11,7 @@ pub mod ast;
 pub mod check;
 pub mod cinchdoc;
 pub mod codegen;
+pub mod coretext;
 pub mod highlight;
 pub mod core;
 pub mod driver;

@@ -1,0 +1,15 @@
+module Main where
+  import Algebra.Semigroup
+  import Algebra.Monoid
+
+  rewrite assocRule forall (x :: Sum) (y :: Sum) (z :: Sum). using (sg :: Semigroup Sum) where
+    match ((x <> y) <> z)
+    replace (x <> (y <> z))
+    justify Semigroup.assoc x y z
+
+  combine :: Sum -> Sum -> Sum -> Sum
+  combine x y z = (x <> y) <> z
+
+  main :: Int
+  main = case combine (Sum 1) (Sum 2) (Sum 3) of
+           Sum n -> if n == 6 then 0 else 1

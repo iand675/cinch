@@ -1,0 +1,18 @@
+module Main where
+  three :: Vec (2 + 1) Int
+  three = Cons 1 (Cons 2 (Cons 3 Nil))
+
+  sum3 :: Vec 3 Int -> Int
+  sum3 v = case v of
+    Cons x xs -> x + sum2 xs
+
+  sum2 :: Vec 2 Int -> Int
+  sum2 v = case v of
+    Cons x xs -> x + sum1 xs
+
+  sum1 :: Vec 1 Int -> Int
+  sum1 v = case v of
+    Cons x xs -> x
+
+  main :: Int
+  main = if sum3 three == 6 then 0 else 1

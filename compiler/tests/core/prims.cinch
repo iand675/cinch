@@ -1,0 +1,13 @@
+module Main where
+  prim peek-word :: I64 -> I64 where
+    llvm {
+      %p = inttoptr i64 %0 to ptr
+      %v = load i64, ptr %p, align 8
+      ret i64 %v
+    }
+
+  readTwice :: I64 -> Int
+  readTwice addr = int-from-i64 (peek-word addr) + int-from-i64 (peek-word addr)
+
+  main :: Int
+  main = readTwice 0

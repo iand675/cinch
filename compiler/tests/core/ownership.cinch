@@ -1,0 +1,10 @@
+module Main where
+  import Data.List
+
+  drain :: List Int -> Int
+  drain xs = case xs of
+                Nil -> 0
+                Cons h t -> h + drain t
+
+  main :: Int
+  main = drain (Cons 1 (Cons 2 Nil))

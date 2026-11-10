@@ -3954,6 +3954,16 @@ pub struct DriverOptions {
     /// explicit parameter rather than the host's version, because a
     /// host-derived value makes the lock machine-specific.
     pub target_version: Option<String>,
+    /// `--dump-core=<stage>`: after the pipeline point that stage names,
+    /// write the Core dump beside the artifact (`build/<stem>.core`) and
+    /// list it in the artifact manifest. It never changes what the
+    /// pipeline does otherwise (design/core-output.md section 2).
+    pub dump_core: Option<crate::coretext::Stage>,
+    /// `core emit`: write the dump here instead of `build/<stem>.core`.
+    pub core_out: Option<PathBuf>,
+    /// `core emit`: stop once the dump is written. The command's only job
+    /// is the dump, so it emits neither IR nor a binary.
+    pub core_only: bool,
     /// The words the CLI forwards to the program `Mode::Run` executes:
     /// every argument after the entry file (`cinch run f.cinch a b`, or
     /// everything after `--` verbatim). They land on the built program's
@@ -3995,6 +4005,370 @@ pub fn driver_opts(
 ) -> Result<i32> {
     let profile = target_profile(opts)?;
     driver_with_profile_opts(mode, stage_mode_from_env(), path, out, &profile, opts)
+}
+
+/// The Core dump one compile asked for (`--dump-core=<stage>`, or `cinch
+/// core emit`): what to print, where, and the facts the printer needs that
+/// the program itself does not carry (unit signatures, the module set, the
+/// source identity).
+struct CoreDump<'a> {
+    stage: Option<crate::coretext::Stage>,
+    out: Option<PathBuf>,
+    only: bool,
+    profile: &'a crate::core::TargetProfile,
+    modules: std::collections::BTreeSet<String>,
+    dir: PathBuf,
+    stem: String,
+    opt_level: u8,
+}
+
+impl<'a> CoreDump<'a> {
+    fn new(
+        opts: &DriverOptions,
+        profile: &'a crate::core::TargetProfile,
+        ifaces: &[crate::interface::Iface],
+        entry_modules: &[String],
+        path: &Path,
+        out_dir: &Path,
+        stem: &str,
+    ) -> CoreDump<'a> {
+        use sha2::{Digest, Sha256};
+        let signatures = crate::coretext::Signatures::from_ifaces(ifaces);
+        let modules: std::collections::BTreeSet<String> = entry_modules.iter().cloned().collect();
+        // The source identity is the checked sources of the dumped modules,
+        // not a file list: sorted, so a directory walk cannot reorder it.
+        let mut identity = String::new();
+        for iface in ifaces {
+            if modules.contains(&iface.module) {
+                identity.push_str(&iface.module);
+                identity.push('\0');
+                identity.push_str(&iface.source_hash);
+                identity.push('\n');
+            }
+        }
+        let digest = format!("{:x}", Sha256::digest(identity.as_bytes()));
+        let _ = path;
+        CoreDump {
+            stage: opts.dump_core,
+            out: opts.core_out.clone(),
+            only: opts.core_only,
+            profile,
+            modules,
+            dir: out_dir.to_path_buf(),
+            stem: stem.to_string(),
+            opt_level: opts.opt_level.unwrap_or(0),
+        }
+    }
+
+    fn stage(&self) -> Option<crate::coretext::Stage> {
+        self.stage
+    }
+
+    fn wants(&self, stage: crate::coretext::Stage) -> bool {
+        self.stage == Some(stage)
+    }
+
+    /// The file name for one stage: the last stage keeps the plain name,
+    /// every earlier one appends its name (`Main.checked.core`).
+    fn file_name(stem: &str, stage: crate::coretext::Stage) -> String {
+        if stage == crate::coretext::Stage::Lowered {
+            format!("{stem}.core")
+        } else {
+            format!("{stem}.{}.core", stage.name())
+        }
+    }
+
+    fn text(
+        &self,
+        program: &crate::core::Program,
+        stage: crate::coretext::Stage,
+        rewrites: &std::collections::BTreeMap<String, Vec<String>>,
+        ifaces: &[crate::interface::Iface],
+    ) -> String {
+        crate::coretext::dump(
+            program,
+            stage,
+            self.profile,
+            ifaces,
+            &self.modules,
+            rewrites,
+            self.opt_level,
+        )
+    }
+
+    fn write(
+        &self,
+        program: &crate::core::Program,
+        stage: crate::coretext::Stage,
+        ifaces: &[crate::interface::Iface],
+        rows: &mut Vec<CoreRow>,
+    ) -> Result<()> {
+        let text = self.text(program, stage, &std::collections::BTreeMap::new(), ifaces);
+        self.save(&text, stage, rows)
+    }
+
+    /// The lowered dump: specialization recorded which rewrite rule fired in
+    /// which unit, and that is the one fact the program does not carry.
+    fn write_lowered(
+        &self,
+        program: &crate::core::Program,
+        opt: &crate::core::OptReport,
+        ifaces: &[crate::interface::Iface],
+        rows: &mut Vec<CoreRow>,
+    ) -> Result<()> {
+        let mut rewrites: std::collections::BTreeMap<String, Vec<String>> =
+            std::collections::BTreeMap::new();
+        for site in &opt.sites {
+            if let Some(rule) = site.kind.strip_prefix("rewrite:") {
+                rewrites.entry(site.fn_id.clone()).or_default().push(rule.to_string());
+            }
+        }
+        let text = self.text(program, crate::coretext::Stage::Lowered, &rewrites, ifaces);
+        self.save(&text, crate::coretext::Stage::Lowered, rows)
+    }
+
+    fn save(
+        &self,
+        text: &str,
+        stage: crate::coretext::Stage,
+        rows: &mut Vec<CoreRow>,
+    ) -> Result<()> {
+        use sha2::{Digest, Sha256};
+        let path = match &self.out {
+            Some(path) => path.clone(),
+            None => self.dir.join(Self::file_name(&self.stem, stage)),
+        };
+        if let Some(parent) = path.parent() {
+            if !parent.as_os_str().is_empty() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| Error::plain(format!("{}: {e}", parent.display())))?;
+            }
+        }
+        std::fs::write(&path, text)
+            .map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
+        rows.push(CoreRow {
+            stage: stage.name().to_string(),
+            target: self.profile.triple.clone(),
+            digest: format!("{:x}", Sha256::digest(text.as_bytes())),
+            path: path.display().to_string(),
+        });
+        Ok(())
+    }
+
+    /// Add the dumped files to the artifact manifest (design note section
+    /// 5). The manifest is already written by the time the lowered stage
+    /// exists, so the rows are merged into it here; everything else in the
+    /// document is untouched.
+    fn record(&self, manifest_path: &Path, rows: &[CoreRow]) -> Result<()> {
+        if rows.is_empty() {
+            return Ok(());
+        }
+        use crate::interface::{parse_json, JsonValue as J};
+        let text = std::fs::read_to_string(manifest_path)
+            .map_err(|e| Error::plain(format!("{}: {e}", manifest_path.display())))?;
+        let mut doc = parse_json(&text)
+            .map_err(|e| Error::plain(format!("{}: {e}", manifest_path.display())))?;
+        let J::Obj(fields) = &mut doc else {
+            return Err(Error::plain(format!(
+                "{}: the manifest is not a JSON object",
+                manifest_path.display()
+            )));
+        };
+        fields.insert(
+            "core".to_string(),
+            J::arr(rows, |row| {
+                J::obj([
+                    ("stage", row.stage.as_str().into()),
+                    ("target", row.target.as_str().into()),
+                    ("digest", row.digest.as_str().into()),
+                    ("path", row.path.as_str().into()),
+                ])
+            }),
+        );
+        std::fs::write(manifest_path, doc.to_canonical_string())
+            .map_err(|e| Error::plain(format!("{}: {e}", manifest_path.display())))?;
+        Ok(())
+    }
+}
+
+/// One Core file the build wrote, as the artifact manifest records it.
+#[derive(Clone, Debug)]
+struct CoreRow {
+    stage: String,
+    target: String,
+    digest: String,
+    path: String,
+}
+
+/// `cinch core ...`: the Core text tools (design/core-output.md section 2).
+///
+/// `emit` runs the compile pipeline through the dump (no IR, no link),
+/// `verify` parses and re-checks a Core file, and `diff` reports the first
+/// structural divergence between two files. The return value is the process
+/// exit code, so `main` can hand it straight to `exit`.
+pub fn core_cli(args: &[String]) -> i32 {
+    match args.first().map(String::as_str) {
+        Some("emit") => core_emit(&args[1..]),
+        Some("verify") => core_verify(&args[1..]),
+        Some("diff") => core_diff(&args[1..]),
+        _ => {
+            eprintln!("{}", core_usage());
+            2
+        }
+    }
+}
+
+fn core_usage() -> &'static str {
+    "\
+cinch core: the annotated Core dump (design/core-output.md)
+
+usage:
+  cinch core emit <file.cinch> [--stage=<name>] [--target <triple>] [-o <out.core>]
+  cinch core verify <file.core>
+  cinch core diff <a.core> <b.core>
+
+stages: checked, solved, elaborated (aliases), owned, lowered (the default)
+"
+}
+
+fn core_emit(args: &[String]) -> i32 {
+    let mut file: Option<&str> = None;
+    let mut out: Option<&str> = None;
+    let mut stage = crate::coretext::Stage::Lowered;
+    let mut opts = DriverOptions::default();
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "-o" => {
+                i += 1;
+                match args.get(i) {
+                    Some(path) => out = Some(path),
+                    None => {
+                        eprintln!("cinch core emit: -o needs a path");
+                        return 2;
+                    }
+                }
+            }
+            "--target" => {
+                i += 1;
+                match args.get(i) {
+                    Some(triple) => opts.target = Some(triple.clone()),
+                    None => {
+                        eprintln!("cinch core emit: --target needs a triple such as aarch64-apple-darwin");
+                        return 2;
+                    }
+                }
+            }
+            "--target-version" => {
+                i += 1;
+                match args.get(i) {
+                    Some(version) => opts.target_version = Some(version.clone()),
+                    None => {
+                        eprintln!("cinch core emit: --target-version needs a version such as 14.0");
+                        return 2;
+                    }
+                }
+            }
+            other if other.starts_with("--stage=") => {
+                let name = &other["--stage=".len()..];
+                match crate::coretext::Stage::parse(name) {
+                    Some(parsed) => stage = parsed,
+                    None => {
+                        eprintln!(
+                            "cinch core emit: unknown stage `{name}`: one of {}",
+                            crate::coretext::Stage::spellings().join(", ")
+                        );
+                        return 2;
+                    }
+                }
+            }
+            other if other.starts_with("--") => {
+                eprintln!("cinch core emit: unknown flag {other}");
+                return 2;
+            }
+            other => {
+                if file.is_some() {
+                    eprintln!("cinch core emit: takes one source file");
+                    return 2;
+                }
+                file = Some(other);
+            }
+        }
+        i += 1;
+    }
+    let Some(file) = file else {
+        eprintln!("cinch core emit: needs a source file\n{}", core_usage());
+        return 2;
+    };
+    opts.dump_core = Some(stage);
+    opts.core_out = out.map(PathBuf::from);
+    opts.core_only = true;
+    // `EmitIr` is the cheapest mode that runs specialization and reference
+    // counting; with `core_only` the compile stops at the dump, so no IR and
+    // no binary are produced.
+    match driver_opts(Mode::EmitIr, Path::new(file), None, &opts) {
+        Ok(code) => code,
+        Err(error) => {
+            eprintln!("cinch: {error}");
+            1
+        }
+    }
+}
+
+fn core_verify(args: &[String]) -> i32 {
+    let Some(file) = args.iter().find(|arg| !arg.starts_with("--")) else {
+        eprintln!("cinch core verify: needs a `.core` file\n{}", core_usage());
+        return 2;
+    };
+    let text = match std::fs::read_to_string(file) {
+        Ok(text) => text,
+        Err(error) => {
+            eprintln!("cinch core verify: {file}: {error}");
+            return 1;
+        }
+    };
+    match crate::coretext::verify(&text) {
+        Ok(report) => {
+            println!("{report}");
+            0
+        }
+        Err(errors) => {
+            for error in &errors {
+                eprintln!("{file}: {error}");
+            }
+            eprintln!(
+                "cinch core verify: {} error{}",
+                errors.len(),
+                if errors.len() == 1 { "" } else { "s" }
+            );
+            1
+        }
+    }
+}
+
+fn core_diff(args: &[String]) -> i32 {
+    let files: Vec<&String> = args.iter().filter(|arg| !arg.starts_with("--")).collect();
+    let (Some(left), Some(right)) = (files.first(), files.get(1)) else {
+        eprintln!("cinch core diff: needs two `.core` files\n{}", core_usage());
+        return 2;
+    };
+    let mut texts = Vec::new();
+    for file in [left, right] {
+        match std::fs::read_to_string(file) {
+            Ok(text) => texts.push(text),
+            Err(error) => {
+                eprintln!("cinch core diff: {file}: {error}");
+                return 1;
+            }
+        }
+    }
+    match crate::coretext::diff(&texts[0], &texts[1]) {
+        None => 0,
+        Some(divergence) => {
+            println!("{divergence}");
+            1
+        }
+    }
 }
 
 /// The triples this compiler emits for. `check` and `emit-ir` work for
@@ -4439,6 +4813,24 @@ pub fn driver_with_profile_opts(
     // Metadata boundary checks (design note, section 3).
     crate::interface::verify_chain(&ifaces).map_err(|e| Error::plain(e.to_string()))?;
     crate::interface::check_coherence(&ifaces).map_err(|e| Error::plain(e.to_string()))?;
+    // Core dumps (design/core-output.md section 2): the checked program
+    // prints here, and the ownership stage prints the count pass applied to
+    // that same program, which is why the two are target independent.
+    let dump = CoreDump::new(opts, profile, &ifaces, &project.entry_modules, path, &out_dir, &entry_stem);
+    let mut core_rows: Vec<CoreRow> = Vec::new();
+    if dump.wants(crate::coretext::Stage::Checked)
+        || (mode == Mode::Check && dump.stage().is_some())
+    {
+        dump.write(&program, crate::coretext::Stage::Checked, &ifaces, &mut core_rows)?;
+    }
+    let owned_program = if dump.wants(crate::coretext::Stage::Owned) && mode != Mode::Check {
+        Some(crate::rc::insert(program.clone(), profile)?)
+    } else {
+        None
+    };
+    if let Some(owned) = &owned_program {
+        dump.write(owned, crate::coretext::Stage::Owned, &ifaces, &mut core_rows)?;
+    }
     // Specialization (supercompilation and JIT specification sections
     // 2-5): every residual program is rechecked before installation, and
     // the report records where specialization stopped.
@@ -4464,6 +4856,11 @@ pub fn driver_with_profile_opts(
         &link_plan,
     )?;
     if mode == Mode::Check {
+        // A check reaches no later stage, so `--dump-core=owned` and
+        // `--dump-core=lowered` dump the checked program and say so in
+        // `@stage(checked)`: the dump never claims a stage the mode did not
+        // reach.
+        dump.record(&manifest_path, &core_rows)?;
         return Ok(0);
     }
     // Artifact admission (platform proofs and SIMD specification
@@ -4483,6 +4880,16 @@ pub fn driver_with_profile_opts(
     } else {
         crate::rc::insert(program, profile)?
     };
+    // The lowered stage is the exact code-generation input, so it prints
+    // here, after specialization and reference counting.
+    if dump.wants(crate::coretext::Stage::Lowered) && mode != Mode::Check {
+        dump.write_lowered(&program, &opt, &ifaces, &mut core_rows)?;
+    }
+    if opts.core_only {
+        dump.record(&manifest_path, &core_rows)?;
+        return Ok(0);
+    }
+    dump.record(&manifest_path, &core_rows)?;
     if mode == Mode::EmitObject {
         return write_object(
             profile,
