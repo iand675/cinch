@@ -553,6 +553,23 @@ impl<'a> Printer<'a> {
                 format!("@frame({} slot{}, {} bytes)", plan.slot_count(), plural(plan.slot_count()), plan.bytes),
             ));
         }
+        if let Some(facts) = self.program.inline.get(&f.id.0) {
+            // The inliner's copies in this unit (`inline` rule): the sites
+            // and the callees their bodies came from.
+            let mut callees = facts.callees.clone();
+            callees.sort();
+            callees.dedup();
+            anns.push((
+                rank("inline"),
+                format!(
+                    "@inline({} site{}, {} nodes: {})",
+                    facts.sites,
+                    plural(facts.sites as usize),
+                    facts.nodes,
+                    callees.join(", ")
+                ),
+            ));
+        }
         if let Some((base, letters)) = specialisation(&f.id.0) {
             anns.push((rank("specialised"), format!("@specialised({letters}) from {}", ident(&base))));
         }
@@ -1981,6 +1998,7 @@ const ANNOTATION_ORDER: &[&str] = &[
     "frame",
     "specialised",
     "rewrite",
+    "inline",
     "prim",
     "resolved",
     "tailrec",

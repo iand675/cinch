@@ -7415,6 +7415,7 @@ mod tests {
             frame: Default::default(),
             stack: Default::default(),
             borrowed: Default::default(),
+            inline: Default::default(),
         }
     }
 

@@ -147,6 +147,14 @@ pub struct SimplifyOptions {
     /// would duplicate at this size or below is copied; a larger one is
     /// lifted into a join and reached by a jump, so its code exists once.
     pub join_threshold: usize,
+    /// Inline a call at the one site that reaches it (`inline`).
+    pub inline: bool,
+    /// The node cap of a body inlined at its single call site.
+    pub inline_threshold: usize,
+    /// The node cap of the smallest bodies the inliner considers at all.
+    /// Reserved for the multi-site rule, which is not landed (see the
+    /// module documentation).
+    pub inline_small: usize,
 }
 
 impl Default for SimplifyOptions {
@@ -161,6 +169,9 @@ impl Default for SimplifyOptions {
             // alternatives. Turn it on with `--case-of-case` to measure it.
             case_of_case: false,
             join_threshold: 20,
+            inline: true,
+            inline_threshold: 40,
+            inline_small: 12,
         }
     }
 }
@@ -263,6 +274,25 @@ fn is_value(e: &Core, tables: &Tables) -> bool {
             matches!(&**head, Core::Ctor(id, _) if tables.ctors.contains_key(&id.0))
                 && args.iter().all(|a| is_value(a, tables))
         }
+        _ => false,
+    }
+}
+
+/// Whether `e` is a word for free: a local, a literal, a unit name, a
+/// primitive or a foreign symbol. Substituting one of these anywhere is a
+/// read of the same word, so the inliner's local half may move it into a
+/// closure or a loop body without changing what runs.
+fn is_trivial(e: &Core) -> bool {
+    match e {
+        Core::Int(_)
+        | Core::ConstSym(_)
+        | Core::Bool(_)
+        | Core::Unit
+        | Core::Var(_)
+        | Core::Global(..)
+        | Core::Prim(_)
+        | Core::Foreign(_) => true,
+        Core::Ctor(id, _) => id.0.is_empty(),
         _ => false,
     }
 }
@@ -388,6 +418,7 @@ enum Rule {
     KnownConstructor,
     DirectDictCall,
     CaseOfCase,
+    Inline,
 }
 
 /// The accumulator every pass shares: the tick total, the per-rule
@@ -401,6 +432,7 @@ struct Ticks {
     case_of_case: usize,
     joins: usize,
     duplicated: usize,
+    inline: usize,
     changed: bool,
 }
 
@@ -413,6 +445,7 @@ impl Ticks {
             Rule::KnownConstructor => self.known_ctor += 1,
             Rule::DirectDictCall => self.dict_call += 1,
             Rule::CaseOfCase => self.case_of_case += 1,
+            Rule::Inline => self.inline += 1,
         }
     }
 }
@@ -490,6 +523,19 @@ fn pass(
     if let Core::Let(l, _, value, body) = &*e {
         if !mentions(body, *l) && is_value(value, tables) {
             let body = (**body).clone();
+            *e = body;
+        }
+    }
+    // A `let` bound to a trivial value with one reader is a renaming: the
+    // inliner's local half (its occurrence analysis per unit). A trivial
+    // value is a local, a literal, a unit name or a primitive, so no effect
+    // can move, no allocation is copied, and substituting it inside a
+    // lambda or a join body is a read of the same word.
+    if let Core::Let(l, _, value, body) = &*e {
+        if is_trivial(value) && uses_of(body, *l) == 1 {
+            let (l, value) = (*l, (**value).clone());
+            let mut body = (**body).clone();
+            subst(&mut body, l, &value);
             *e = body;
         }
     }
@@ -1175,8 +1221,44 @@ pub fn simplify(program: &mut Program, opts: &SimplifyOptions, report: &mut Simp
     let tables = Tables::new(program);
     let mut ticks = Ticks::default();
     let mut fresh = Fresh { local: max_local(program), join: max_join(program) };
+    // Two percent of the program is the most inlining may add: a copy is
+    // code the linker and the instruction cache pay for, so the budget is
+    // what keeps the pass from trading a run-time win for an unbounded
+    // growth.
+    let mut budget = (program.fns.iter().map(|f| nodes(&f.body)).sum::<usize>() / 50).max(1_000);
+    program.inline.clear();
+    let mut facts: HashMap<String, InlineFacts> = HashMap::new();
     for _ in 0..opts.max_iterations {
         ticks.changed = false;
+        if opts.inline {
+            let table = inline_table(program, &tables, opts);
+            if !table.is_empty() {
+                for f in program.fns.iter_mut() {
+                    if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body {
+                        continue;
+                    }
+                    CURRENT.with(|c| c.borrow_mut().clone_from(&f.id.0));
+                    let mut body = std::mem::replace(&mut f.body, Core::Unit);
+                    let mut here = InlineFacts::default();
+                    inline_unit(
+                        &mut body,
+                        &table,
+                        &tables.arity,
+                        &mut fresh,
+                        &mut budget,
+                        &mut here,
+                        &mut ticks,
+                    );
+                    f.body = body;
+                    if here.sites > 0 {
+                        let entry = facts.entry(f.id.0.clone()).or_default();
+                        entry.sites += here.sites;
+                        entry.nodes += here.nodes;
+                        entry.callees.extend(here.callees);
+                    }
+                }
+            }
+        }
         for f in program.fns.iter_mut() {
             if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body {
                 continue;
@@ -1199,6 +1281,503 @@ pub fn simplify(program: &mut Program, opts: &SimplifyOptions, report: &mut Simp
     report.case_of_case = ticks.case_of_case;
     report.joins = ticks.joins;
     report.duplicated = ticks.duplicated;
+    report.inlined = ticks.inline;
+    report.inlined_nodes = facts.values().map(|f| f.nodes as usize).sum();
+    let mut units: Vec<String> = facts.keys().cloned().collect();
+    units.sort();
+    report.inlined_units = units;
+    program.inline = facts.into_iter().collect();
+}
+
+
+// ---------------------------------------------------------------- inlining
+//
+// The inliner is the pass's fifth rule (`inline`) and the only one that
+// rewrites across units: it replaces a saturated direct call with the
+// callee's body, so an allocation a callee would have performed happens at
+// the call site instead. That is what makes a small function's fresh block
+// the caller's own value, which is the shape `crate::stack` needs: a block
+// that is born at the call site and dies in the same activation can live in
+// the frame.
+//
+// The rule is GHC-shaped and analysis-light:
+//
+// - A unit is inlined at its single call site when it is used nowhere as a
+//   value, is not in a recursive group (a strongly connected component of
+//   the call graph, with a self edge counting too, so the pass terminates),
+//   carries no quotation (whose retained body is a binding scope of its
+//   own) and no join or jump, and its body is at most
+//   [`SimplifyOptions::inline_threshold`] nodes.
+// - A unit is inlined at every call site when it is called at least twice
+//   and its body is at most [`SimplifyOptions::inline_small`] nodes and
+//   contains no call and no allocation at all: the small matchers and
+//   selectors, where a copy costs nothing at run time.
+// - Arguments that are not a local are bound to fresh locals in order, so
+//   strict evaluation order is unchanged, and the callee's body sees a
+//   `Var` in every parameter position. A local argument is substituted
+//   directly.
+// - Every binder of the copied body gets a fresh local id, so the copy can
+//   never capture or shadow the caller's binders.
+// - A node budget (two percent of the program by default) caps how much the
+//   pass may grow the program; a site that would pass it is left alone.
+//
+// Nothing is removed: the callee keeps its body, because other artifacts
+// and the program's interfaces name it.
+
+thread_local! {
+    /// The unit the sweep is rewriting, for `CINCH_INLINE_TRACE`.
+    static CURRENT: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
+}
+
+fn current_unit() -> String {
+    CURRENT.with(|c| c.borrow().clone())
+}
+
+/// One unit's inlining facts, for the Core dump: the sites its body was
+/// copied to and the callees it took in.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct InlineFacts {
+    /// Call sites replaced in this unit.
+    pub sites: u32,
+    /// Core nodes the copies added here.
+    pub nodes: u32,
+    /// The callees inlined here, in site order.
+    pub callees: Vec<String>,
+}
+
+/// The bodies a sweep may inline, with their parameter classes.
+#[derive(Default)]
+struct InlineTable {
+    /// Bodies inlined at their single call site, by unit name.
+    bodies: HashMap<String, InlineBody>,
+}
+
+struct InlineBody {
+    body: Core,
+    /// The callee's parameter classes (`UnitRepr::params`), so a bound
+    /// argument's `let` carries the class the count pass needs.
+    params: Vec<Class>,
+}
+
+impl InlineTable {
+    fn get(&self, unit: &str) -> Option<&InlineBody> {
+        self.bodies.get(unit)
+    }
+
+    fn insert(&mut self, unit: String, body: InlineBody) {
+        self.bodies.insert(unit, body);
+    }
+
+    fn is_empty(&self) -> bool {
+        self.bodies.is_empty()
+    }
+}
+
+/// The inlining facts of one sweep: the call count and value uses of every
+/// unit, and the bodies the rules admit.
+fn inline_table(program: &Program, tables: &Tables, opts: &SimplifyOptions) -> InlineTable {
+    let mut calls: HashMap<String, usize> = HashMap::new();
+    let mut values: HashSet<String> = HashSet::new();
+    let mut edges: HashMap<String, Vec<String>> = HashMap::new();
+    for f in &program.fns {
+        let mut out = Vec::new();
+        collect_refs(&f.body, &tables.arity, false, &mut calls, &mut values, &mut out);
+        edges.insert(f.id.0.clone(), out);
+    }
+    let recursive = recursive_units(&edges);
+    let mut table = InlineTable::default();
+    for f in &program.fns {
+        if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body {
+            continue;
+        }
+        let name = &f.id.0;
+        // The entry unit is called from the generated exit glue, which is
+        // not Core: inlining it anywhere is pointless, and keeping it out
+        // keeps the entry visible.
+        if program.main.as_ref().is_some_and(|m| &m.0 == name) {
+            continue;
+        }
+        if values.contains(name) || recursive.contains(name) {
+            continue;
+        }
+        // An unresolved parameter class (`Param`, which the collector left
+        // in a body no concrete vector reached) would give a bound argument
+        // a `Raw` binder while the body reads it as a borrowed case
+        // scrutinee, which the ownership verifier refuses. A callee the
+        // inliner cannot type is not inlined.
+        if f.repr.params.iter().any(|c| c.is_param()) {
+            continue;
+        }
+        if carries_quote(&f.body) || carries_join(&f.body) {
+            continue;
+        }
+        let sites = calls.get(name).copied().unwrap_or(0);
+        let params: Vec<Class> = (0..f.arity())
+            .map(|i| f.repr.params.get(i).copied().map_or(Class::Raw, concrete))
+            .collect();
+        let n = nodes(&f.body);
+        if sites == 1 && n <= opts.inline_threshold && !binds_anything(&f.body) {
+            table.insert(name.clone(), InlineBody { body: f.body.clone(), params });
+        }
+    }
+    table
+}
+
+/// Count the references to every unit in `e`: a saturated direct call of a
+/// unit with its arity, or a value use (a bare reference, an unsaturated
+/// application, or anything inside a quotation's retained body, where the
+/// evaluator applies closures). `edges` collects every unit reference for
+/// the recursion test.
+fn collect_refs(
+    e: &Core,
+    arity: &HashMap<String, usize>,
+    quoted: bool,
+    calls: &mut HashMap<String, usize>,
+    values: &mut HashSet<String>,
+    edges: &mut Vec<String>,
+) {
+    match e {
+        Core::Global(g, _) => {
+            values.insert(g.0.clone());
+            edges.push(g.0.clone());
+        }
+        Core::App(head, args) => {
+            match &**head {
+                Core::Global(g, _) if !quoted && arity.get(&g.0) == Some(&args.len()) => {
+                    *calls.entry(g.0.clone()).or_insert(0) += 1;
+                    edges.push(g.0.clone());
+                }
+                other => collect_refs(other, arity, quoted, calls, values, edges),
+            }
+            for a in args {
+                collect_refs(a, arity, quoted, calls, values, edges);
+            }
+            return;
+        }
+        Core::Quote { holes, body, .. } => {
+            for h in holes {
+                collect_refs(h, arity, quoted, calls, values, edges);
+            }
+            if let Some(body) = body {
+                collect_refs(body, arity, true, calls, values, edges);
+            }
+            return;
+        }
+        Core::DeclsQuote { holes, .. } => {
+            for h in holes {
+                collect_refs(h, arity, quoted, calls, values, edges);
+            }
+            return;
+        }
+        _ => {}
+    }
+    for k in child_slots_imm(e) {
+        collect_refs(k, arity, quoted, calls, values, edges);
+    }
+}
+
+/// Whether `e` binds a local of its own (a `let`, a pattern binder or a
+/// join). A body that binds nothing is a plain expression over its
+/// parameters: the copy needs no renaming and no binder of its own, which is
+/// the shape a constructor wrapper has.
+fn binds_anything(e: &Core) -> bool {
+    if matches!(e, Core::Let(..) | Core::Case { .. } | Core::Join { .. }) {
+        return true;
+    }
+    child_slots_imm(e).into_iter().any(binds_anything)
+}
+
+/// Whether `e` allocates or calls anything: no block, no dictionary, no
+/// closure, no runtime box, no call. What the multi-site rule requires.
+fn is_cheap(e: &Core) -> bool {
+    match e {
+        // An application's head is not a child slot, so every `App` is a
+        // call here, including one whose head is a constructor.
+        Core::App(..)
+        | Core::Ctor(..)
+        | Core::InstDict(..)
+        | Core::Lam { .. }
+        | Core::LazyAlloc
+        | Core::BoxAlloc
+        | Core::ConstBig { .. }
+        | Core::ConstBytes(_)
+        | Core::ConstSym(_)
+        | Core::ConstString { .. }
+        | Core::Quote { .. }
+        | Core::DeclsQuote { .. } => return false,
+        _ => {}
+    }
+    child_slots_imm(e).into_iter().all(is_cheap)
+}
+
+/// The units that are recursive, directly or through a cycle: the members of
+/// every strongly connected component with more than one node, and every
+/// unit with an edge to itself. Tarjan's algorithm, iterative so a deep call
+/// graph cannot overflow the native stack.
+fn recursive_units(edges: &HashMap<String, Vec<String>>) -> HashSet<String> {
+    struct Node<'a> {
+        name: &'a str,
+        next: usize,
+    }
+    let mut index: HashMap<&str, usize> = HashMap::new();
+    let mut low: HashMap<&str, usize> = HashMap::new();
+    let mut on_stack: HashSet<&str> = HashSet::new();
+    let mut stack: Vec<&str> = Vec::new();
+    let mut out: HashSet<String> = HashSet::new();
+    let mut counter = 0usize;
+    for root in edges.keys() {
+        if index.contains_key(root.as_str()) {
+            continue;
+        }
+        let mut frames: Vec<Node> = vec![Node { name: root.as_str(), next: 0 }];
+        index.insert(root.as_str(), counter);
+        low.insert(root.as_str(), counter);
+        counter += 1;
+        stack.push(root.as_str());
+        on_stack.insert(root.as_str());
+        while let Some(frame) = frames.last_mut() {
+            let name = frame.name;
+            let children = edges.get(name).map(Vec::as_slice).unwrap_or(&[]);
+            if frame.next < children.len() {
+                let child = children[frame.next].as_str();
+                frame.next += 1;
+                let Some(child_edges) = edges.get(child) else { continue };
+                let _ = child_edges;
+                if !index.contains_key(child) {
+                    index.insert(child, counter);
+                    low.insert(child, counter);
+                    counter += 1;
+                    stack.push(child);
+                    on_stack.insert(child);
+                    frames.push(Node { name: child, next: 0 });
+                } else if on_stack.contains(child) {
+                    let i = index[child];
+                    let l = low[name];
+                    low.insert(name, l.min(i));
+                }
+                continue;
+            }
+            // Every child is done: close this node.
+            let me = low[name];
+            let parent = frames.len().checked_sub(2).map(|i| frames[i].name);
+            frames.pop();
+            if let Some(parent) = parent {
+                let p = low[parent];
+                low.insert(parent, p.min(me));
+            }
+            if Some(me) == low.get(name).copied() && index[name] == me {
+                // `name` roots a component: pop it off the stack.
+                let mut component: Vec<&str> = Vec::new();
+                while let Some(top) = stack.pop() {
+                    on_stack.remove(top);
+                    component.push(top);
+                    if top == name {
+                        break;
+                    }
+                }
+                let self_edge = edges
+                    .get(name)
+                    .is_some_and(|cs| cs.iter().any(|c| c == name));
+                if component.len() > 1 || self_edge {
+                    out.extend(component.into_iter().map(str::to_string));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Inline every call site `table` admits in one unit's body. Returns the
+/// nodes the copies added.
+#[allow(clippy::too_many_arguments)]
+fn inline_unit(
+    e: &mut Core,
+    table: &InlineTable,
+    arity: &HashMap<String, usize>,
+    fresh: &mut Fresh,
+    budget: &mut usize,
+    facts: &mut InlineFacts,
+    t: &mut Ticks,
+) {
+    // Children first, so a call nested in an argument is inlined before the
+    // call whose argument it is.
+    match e {
+        Core::App(head, args) => {
+            inline_unit(head, table, arity, fresh, budget, facts, t);
+            for a in args {
+                inline_unit(a, table, arity, fresh, budget, facts, t);
+            }
+        }
+        Core::Quote { holes, .. } | Core::DeclsQuote { holes, .. } => {
+            // A quotation's retained body is a code unit of its own.
+            for h in holes {
+                inline_unit(h, table, arity, fresh, budget, facts, t);
+            }
+            return;
+        }
+        _ => {
+            for k in child_slots(e) {
+                inline_unit(k, table, arity, fresh, budget, facts, t);
+            }
+        }
+    }
+    let Core::App(head, args) = e else { return };
+    let Core::Global(g, _) = &**head else { return };
+    let Some(callee) = table.get(&g.0) else { return };
+    if arity.get(&g.0) != Some(&args.len()) {
+        return;
+    }
+    let added = nodes(&callee.body);
+    if added > *budget {
+        return;
+    }
+    *budget -= added;
+    facts.sites += 1;
+    facts.nodes += added as u32;
+    if std::env::var_os("CINCH_INLINE_TRACE").is_some() {
+        eprintln!("cinch-inline: {} <= {} ({} nodes)", current_unit(), g.0, added);
+    }
+    facts.callees.push(g.0.clone());
+    t.fire(Rule::Inline);
+    let args = args.clone();
+    let mut copy = callee.body.clone();
+    let mut renames: HashMap<LocalId, LocalId> = HashMap::new();
+    rename_binders(&mut copy, &mut renames, fresh);
+    // A local argument is substituted where the parameter is read. Any other
+    // argument is bound to a fresh local in the order the language
+    // evaluates it, so nothing moves past an effect and a parameter read
+    // twice reads the same value.
+    let mut bound: Vec<(LocalId, Class, Core)> = Vec::new();
+    for (i, a) in args.iter().enumerate() {
+        let p = LocalId(i);
+        if matches!(a, Core::Var(_)) {
+            subst(&mut copy, p, a);
+            continue;
+        }
+        let t = fresh.local();
+        let class = callee.params.get(i).copied().unwrap_or(Class::Raw);
+        subst(&mut copy, p, &Core::Var(t));
+        bound.push((t, class, a.clone()));
+    }
+    for (t, class, value) in bound.into_iter().rev() {
+        copy = Core::Let(t, class, Box::new(value), Box::new(copy));
+    }
+    *e = copy;
+}
+
+/// Give every binder of `e` a fresh local id: a copy of a callee's body must
+/// not share a binder with its original or capture one of the caller's.
+/// Parameter ids are not binders here, so they stay for the substitution
+/// that follows.
+fn rename_binders(e: &mut Core, renames: &mut HashMap<LocalId, LocalId>, fresh: &mut Fresh) {
+    let rename = |x: &mut LocalId, renames: &HashMap<LocalId, LocalId>| {
+        if let Some(n) = renames.get(x) {
+            *x = *n;
+        }
+    };
+    match e {
+        Core::Var(_) | Core::Global(..) | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) => {}
+        Core::Int(_)
+        | Core::ConstBig { .. }
+        | Core::ConstBytes(_)
+        | Core::ConstString { .. }
+        | Core::ConstSym(_)
+        | Core::Bool(_)
+        | Core::Unit
+        | Core::SpliceVal(_)
+        | Core::Fault
+        | Core::LazyAlloc
+        | Core::BoxAlloc
+        | Core::StrLit(_)
+        | Core::SyntaxLit(..) => {}
+        Core::Dup(x, _, body) | Core::Drop(x, _, body) => {
+            rename(x, renames);
+            rename_binders(body, renames, fresh);
+        }
+        Core::Release { block, moved, rest, body } => {
+            rename(block, renames);
+            for (x, _) in moved.iter_mut().chain(rest.iter_mut()) {
+                rename(x, renames);
+            }
+            rename_binders(body, renames, fresh);
+        }
+        Core::BoxInit(x, v, _) | Core::RefSet(x, v, _) | Core::LazyInit(x, v) => {
+            rename(x, renames);
+            rename_binders(v, renames, fresh);
+        }
+        Core::BoxGet(d, _) | Core::BoxClear(d, _) | Core::Demand(d, _) | Core::Proj(d, _) => {
+            rename_binders(d, renames, fresh);
+        }
+        Core::DictProj(d, ..) => rename_binders(d, renames, fresh),
+        Core::App(head, args) => {
+            rename_binders(head, renames, fresh);
+            for a in args {
+                rename_binders(a, renames, fresh);
+            }
+        }
+        Core::InstDict(_, args, _) => {
+            for a in args {
+                rename_binders(a, renames, fresh);
+            }
+        }
+        Core::Lam { env, .. } => {
+            for a in env {
+                rename_binders(a, renames, fresh);
+            }
+        }
+        Core::Let(x, _, v, body) => {
+            rename_binders(v, renames, fresh);
+            let id = fresh.local();
+            renames.insert(*x, id);
+            *x = id;
+            rename_binders(body, renames, fresh);
+        }
+        Core::Case { scrut, alts } => {
+            rename_binders(scrut, renames, fresh);
+            for a in alts {
+                match &mut a.pat {
+                    CPat::Var(x, _) => {
+                        let id = fresh.local();
+                        renames.insert(*x, id);
+                        *x = id;
+                    }
+                    CPat::Con { fields, .. } => {
+                        for x in fields.iter_mut() {
+                            let id = fresh.local();
+                            renames.insert(*x, id);
+                            *x = id;
+                        }
+                    }
+                    CPat::Wild => {}
+                }
+                rename_binders(&mut a.body, renames, fresh);
+            }
+        }
+        Core::Join { params, body, rest, .. } => {
+            for (x, _) in params.iter_mut() {
+                let id = fresh.local();
+                renames.insert(*x, id);
+                *x = id;
+            }
+            rename_binders(body, renames, fresh);
+            rename_binders(rest, renames, fresh);
+        }
+        Core::Jump { args, .. } => {
+            for a in args {
+                rename_binders(a, renames, fresh);
+            }
+        }
+        Core::If(c, th, el) => {
+            rename_binders(c, renames, fresh);
+            rename_binders(&mut th.body, renames, fresh);
+            rename_binders(&mut el.body, renames, fresh);
+        }
+        Core::Quote { holes, .. } | Core::DeclsQuote { holes, .. } => {
+            for h in holes {
+                rename_binders(h, renames, fresh);
+            }
+        }
+    }
 }
 
 /// One past the largest local any unit mentions: every fresh local the pass

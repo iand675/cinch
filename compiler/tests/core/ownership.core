@@ -2,7 +2,7 @@ core 1
 module Main
 target aarch64-apple-darwin opt-level 0
 source sha256:b4080beddeb96cb83c3329d9f6e86f1e3aad24efec37abede9415b336753824c
-@ticks 160
+@ticks 167
 global 'Data.Int.Add_Int.+'
 unit Main.drain :: (Data.Core.List Int) -> Int
   @params t0 :: (Data.Core.List Int) @owned

@@ -10294,6 +10294,7 @@ impl Checker {
             frame: Default::default(),
             stack: Default::default(),
             borrowed: Default::default(),
+            inline: Default::default(),
         };
         crate::dictionary_values::lower(&mut program)?;
         Ok(program)

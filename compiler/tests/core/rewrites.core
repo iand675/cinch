@@ -2,7 +2,7 @@ core 1
 module Main
 target aarch64-apple-darwin opt-level 0
 source sha256:c1925910f5993a5591361a716ea65985299f78b39a44fb0e9e7af24967a60f3e
-@ticks 158
+@ticks 165
 global Algebra.Monoid.Sum
 unit Main.combine :: Algebra.Monoid.Sum -> (Algebra.Monoid.Sum -> (Algebra.Monoid.Sum -> Algebra.Monoid.Sum))
   @params t0 :: Algebra.Monoid.Sum @owned, t1 :: Algebra.Monoid.Sum @owned, t2 :: Algebra.Monoid.Sum @owned

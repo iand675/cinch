@@ -1579,6 +1579,7 @@ impl Session {
             frame: Default::default(),
             stack: Default::default(),
             borrowed: Default::default(),
+            inline: Default::default(),
                 });
             }
         }
@@ -1632,6 +1633,7 @@ impl Session {
             frame: Default::default(),
             stack: Default::default(),
             borrowed: Default::default(),
+            inline: Default::default(),
         })
     }
 

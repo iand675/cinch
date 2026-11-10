@@ -2945,6 +2945,8 @@ fn write_artifacts(
         ("case_of_case", (opt.simplify.case_of_case as u64).into()),
         ("joins", (opt.simplify.joins as u64).into()),
         ("duplicated", (opt.simplify.duplicated as u64).into()),
+        ("inlined", (opt.simplify.inlined as u64).into()),
+        ("inlined_nodes", (opt.simplify.inlined_nodes as u64).into()),
     ]);
     // Tail-call status of the recursive call-graph groups (surface
     // grammar local amendments section 9; decision D104): "marked" when

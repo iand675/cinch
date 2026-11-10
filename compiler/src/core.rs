@@ -3110,6 +3110,10 @@ pub struct Program {
     /// The stack allocation pass's totals over this program: slots, bytes
     /// and refused allocations by reason, for the artifact manifest.
     pub stack: crate::stack::Report,
+    /// The inliner's per-unit facts (`crate::simplify`): the call sites whose
+    /// body was copied into this unit, and the callees those copies came
+    /// from. Empty before the simplifier and whenever inlining is disabled.
+    pub inline: std::collections::BTreeMap<String, crate::simplify::InlineFacts>,
     /// The borrow inference's parameter modes by unit name
     /// (`crate::rc::borrow_modes`), `true` where the caller only lends the
     /// argument. Empty for an open program, whose units other artifacts
@@ -4138,6 +4142,15 @@ pub struct SimplifyReport {
     /// Nodes the rule duplicated by copying a small alternative instead of
     /// sharing it through a join.
     pub duplicated: usize,
+    /// Call sites the inliner replaced with the callee's body (rule
+    /// `inline`).
+    pub inlined: usize,
+    /// The Core nodes those bodies added (the bodies' own size, summed over
+    /// every site; the call node each one replaced is not subtracted).
+    pub inlined_nodes: usize,
+    /// Units whose body was inlined at least once, sorted, so the Core dump
+    /// can say which callers carry a copy.
+    pub inlined_units: Vec<String>,
 }
 
 // -------------------------------------------------- target conditions (`when`)
@@ -8213,6 +8226,7 @@ mod tests {
             frame: Default::default(),
             stack: Default::default(),
             borrowed: Default::default(),
+            inline: Default::default(),
         };
         for reverse in [false, true] {
             if reverse { program.fns.reverse(); }
@@ -8267,6 +8281,7 @@ mod tests {
             frame: Default::default(),
             stack: Default::default(),
             borrowed: Default::default(),
+            inline: Default::default(),
         };
         share_repeated_subterms(&mut program);
         assert_eq!(program.fns.len(), 2);

@@ -305,3 +305,57 @@ which is why the self-hosted compiler is where it has to be measured.
   produces without it, so the bootstrap build has to either implement the
   pass or the seed has to compile the ladder with `--no-stack-alloc`.
   Nothing in this landing gates the ladder; the orchestrator decides.
+
+## 9. The inliner (second landing)
+
+Section 8.5 said the remaining volume needs inlining: 68% of refusals were
+a callee's returned value. `compiler/src/simplify.rs` now carries the
+`inline` rule, which runs in the simplifier's pass loop (so its work is
+ticked and capped with the other rewrites) and therefore *before* the
+count pass and before stack allocation: an inlined body's allocation is a
+`let`-bound allocation at the call site, which is exactly what
+`crate::stack` already understands.
+
+What it does: a unit inlined at its single call site. The conditions are
+that the unit is referenced nowhere as a value, is not a member of a
+recursive strongly connected component of the call graph (Tarjan, with a
+self edge counting, which is what makes the pass terminate), carries no
+quotation and no join, has no unresolved parameter class, binds no local
+of its own (no `let`, no pattern binder, no join: the copy then needs no
+renaming), and its body is at most `inline_threshold` (40) nodes. Every
+argument that is not a local is bound to a fresh local in evaluation
+order, so nothing moves past an effect and a parameter read twice reads
+the same word; a local argument is substituted directly. A node budget of
+2% of the program caps the growth, and nothing is removed: the callee keeps
+its body, because interfaces and other artifacts name it.
+
+The local half of the occurrence analysis lives in the pass itself: a
+`let` bound to a trivial value (a local, a literal, a unit name, a
+primitive or a foreign symbol) whose binder has one reader is substituted,
+which is safe anywhere because such a word has no effect and no
+allocation to move into a branch or a loop body.
+
+Reported: `inlined` (sites) and `inlined_nodes` in the manifest's
+`simplifier` object, `@inline(<n> sites, <m> nodes: <callees>)` on a
+caller in `--dump-core`, and `CINCH_INLINE_TRACE=1` per site on stderr.
+
+Measured reach: 12 sites and 66 nodes on the toolkit bundle, and the
+stack pass's reach there did not move (5 slots, 128 candidates, 160
+bytes), because the toolkit's constructor wrappers are already unfolded
+by the simplifier's own inlining. On the 39,953-line compiler source the
+numbers are in the table below.
+
+The multi-site rule (a body of at most `inline_small` nodes, with no call
+and no allocation, copied at every site) is **not landed**: with it on,
+two units' bodies came out in a shape the ownership verifier refuses
+(`dup of v<N>, which is not alive here`, and a borrowed read of a binder
+the verifier counts as dead), so the small-matcher case is refused and
+recorded here as the next slice's first task. The single-site rule above
+is what the measurements were taken with.
+
+The honest answer to "did the reach move enough": not yet. The inliner
+reaches only binder-free wrappers at their single call site, so it cannot
+take the returned-value case the census pointed at whenever the callee
+matches its argument (a `case` binds a local, and such a body is
+refused). Fixing the multi-site path, then allowing `case`-bearing single
+site bodies, is what unlocks those 786 sites.
