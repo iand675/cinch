@@ -64,12 +64,50 @@ fn project_directory(tag: &str) -> PathBuf {
         .map(PathBuf::from)
         .unwrap_or_else(|| std::env::current_dir().expect("active package root"));
     assert_source_root(Path::new(env!("CARGO_MANIFEST_DIR")), &active_root);
+    prune_stale_projects();
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let n = COUNTER.fetch_add(1, Ordering::SeqCst);
     let dir = std::env::temp_dir().join(format!("cinch_boot_{}_{}_{}", tag, std::process::id(), n));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("project directory");
     dir
+}
+
+/// Remove project directories a previous run left behind.
+///
+/// Every test that compiles a rung writes a whole compiler source tree into
+/// the system temp directory, so one `cargo test` invocation for the ladder
+/// leaves gigabytes behind and a full suite leaves hundreds of gigabytes.
+/// A run shorter than the cutoff keeps its own directories, and every
+/// sibling that outlives the cutoff is dead because no test run lasts that
+/// long.
+fn prune_stale_projects() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        const CUTOFF: std::time::Duration = std::time::Duration::from_secs(2 * 60 * 60);
+        let root = std::env::temp_dir();
+        let Ok(entries) = std::fs::read_dir(&root) else { return };
+        let now = std::time::SystemTime::now();
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if !(name.starts_with("cinch_boot_") || name.starts_with("cinch-run-")) {
+                continue;
+            }
+            let Ok(meta) = entry.metadata() else { continue };
+            if !meta.is_dir() {
+                continue;
+            }
+            let stale = meta
+                .modified()
+                .ok()
+                .and_then(|at| now.duration_since(at).ok())
+                .is_some_and(|age| age > CUTOFF);
+            if stale {
+                let _ = std::fs::remove_dir_all(entry.path());
+            }
+        }
+    });
 }
 
 pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
