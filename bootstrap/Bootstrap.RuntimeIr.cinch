@@ -981,8 +981,10 @@ module Bootstrap.RuntimeIr where
       else unsupported w sp "polymorphic or aggregate let needs runtime lowering"
     CIf sp ty test yes no -> branch definitions locals w sp test yes no
     CTuple sp ty fields -> tuple definitions locals w sp fields
-    CCase sp ty value alternatives -> case expression definitions locals w value of
-      (ready, word) -> case-value definitions locals ready (core-type value) word alternatives
+    CCase sp ty value alternatives -> case fold-known-case definitions locals w value alternatives of
+      Some folded -> folded
+      None -> case expression definitions locals w value of
+        (ready, word) -> case-value definitions locals ready (core-type value) word alternatives
     CPrimitive sp ty op args -> primitive definitions locals w sp ty op args
     CProved sp ty evidence body -> expression definitions locals w body
     CRefine sp ty evidence body -> expression definitions locals w body
@@ -2572,6 +2574,111 @@ module Bootstrap.RuntimeIr where
     other -> if local-function-value rhs && (case scheme-requirements sc of Nil -> True; other -> False) then
       guarded-expression definitions locals w failed (specialize-local id sc rhs body)
       else unsupported w sp "guarded where binding needs runtime specialization"
+  -- A case whose scrutinee is a saturated constructor application already
+  -- knows its alternative. Evaluating the scrutinee allocates a cell the
+  -- case takes apart at once, so the alternative is lowered with the
+  -- applied arguments in place of its binders, and those arguments are
+  -- released where the allocation would have owned them. An alternative
+  -- that reads the scrutinee as a whole cannot be expressed this way, and
+  -- an alternative guarded by a row keeps the allocating path because a
+  -- failed guard must reach the alternatives after it.
+  data CaseFold where
+    FoldCase :: CorePattern -> CoreTerm -> CaseFold
+    FoldAbsent :: CaseFold
+    FoldBlocked :: CaseFold
+  fold-known-case :: List CoreDefinition -> List Local -> Writer -> CoreTerm -> CoreTerm -> Option (Writer, String)
+  fold-known-case definitions locals w value alternatives = case erased-constructor-call value Nil of
+    Some (name, actuals, args) -> case known-constructor-fields w (core-type value) name of
+      Some count -> if count == list-length args then (case fold-alternatives alternatives name count of
+          FoldCase fields body -> if row-guarded body then None else Some (fold-case-body definitions locals w args fields body)
+          other -> None)
+        else None
+      None -> None
+    None -> None
+  -- The runtime field count of a constructor whose declared representation
+  -- the allocating path supports, so folding never admits a case the
+  -- ordinary path refuses.
+  known-constructor-fields :: Writer -> UType -> String -> Option Nat
+  known-constructor-fields w ty name =
+    if named ty "Bool" && (same name "True" || same name "False") then Some 0
+    else if decision-word-type ty && (same name "b.Yes" || same name "b.No") then Some 0
+    else case constructor name (writer-data w) of
+      Some (owner, tag, c) -> if list-length (core-constructor-fields c) <= 16 && tag < 16777216 then Some (list-length (core-constructor-fields c)) else None
+      None -> None
+  fold-alternatives :: CoreTerm -> String -> Nat -> CaseFold
+  fold-alternatives alternatives name count = case alternatives of
+    CAlternative sp pattern body rest -> case fold-alternative pattern name count body of
+      FoldAbsent -> fold-alternatives rest name count
+      other -> other
+    other -> FoldBlocked
+  fold-alternative :: CorePattern -> String -> Nat -> CoreTerm -> CaseFold
+  fold-alternative pattern name count body = case pattern of
+    CPWild sp ty -> FoldCase (CPDone sp) body
+    CPVar sp ty id binder -> if term-local-use id body then FoldBlocked else FoldCase (CPDone sp) body
+    CPAs sp ty id binder inner -> if term-local-use id body then FoldBlocked else fold-alternative inner name count body
+    CPConstructor sp ty cname actuals sc fields ->
+      if same cname name then
+        if runtime-field-count fields 0 == count && fold-field-check fields body then FoldCase fields body else FoldBlocked
+      else FoldAbsent
+    other -> FoldAbsent
+  -- A field pattern this transform can bind is a variable, a wildcard, or
+  -- an as-pattern over one: every binder is then a whole argument word. A
+  -- nested constructor or tuple pattern stays refused, and a field binder
+  -- the body reads as a whole value keeps the allocating path.
+  runtime-field-count :: CorePattern -> Nat -> Nat
+  runtime-field-count fields count = case fields of
+    CPDone sp -> count
+    CPField sp (CPProof at predicate id binder) rest -> runtime-field-count rest count
+    CPField sp first rest -> runtime-field-count rest (count + 1)
+    other -> count
+  -- A field pattern binds whole argument words, so any binder may be used:
+  -- only a nested constructor, tuple or literal pattern has no word to bind
+  -- and keeps the allocating path.
+  fold-field-check :: CorePattern -> CoreTerm -> Bool
+  fold-field-check fields body = case fields of
+    CPDone sp -> True
+    CPField sp (CPProof at predicate id binder) rest -> fold-field-check rest body
+    CPField sp first rest -> fold-leaf-check first && fold-field-check rest body
+    other -> False
+  fold-leaf-check :: CorePattern -> Bool
+  fold-leaf-check pattern = case pattern of
+    CPWild sp ty -> True
+    CPVar sp ty id binder -> True
+    CPAs sp ty id binder inner -> fold-leaf-check inner
+    other -> False
+  term-local-use :: Nat -> CoreTerm -> Bool
+  term-local-use id term = case term of
+    CLocal sp ty key name actuals -> key == id
+    other -> term-local-use-any id (runtime-term-children term)
+  term-local-use-any :: Nat -> List CoreTerm -> Bool
+  term-local-use-any id terms = case terms of
+    Nil -> False
+    Cons first rest -> term-local-use id first || term-local-use-any id rest
+  fold-case-body :: List CoreDefinition -> List Local -> Writer -> List CoreTerm -> CorePattern -> CoreTerm -> (Writer, String)
+  fold-case-body definitions locals w args fields body =
+    case expressions definitions locals w args of
+      (evaluated, words) -> case expression definitions (fold-field-locals fields words <> locals) evaluated body of
+        (done, result) -> (release-terms (term-types args) words done, result)
+  -- The binders of a folded alternative, in argument order, as borrowed
+  -- reads of the evaluated arguments. Only reached after the field check
+  -- admitted the spine, so the walk consumes every word that is there.
+  fold-field-locals :: CorePattern -> List String -> List Local
+  fold-field-locals fields words = case fields of
+    CPDone sp -> Nil
+    CPField sp (CPProof at predicate id binder) rest -> fold-field-locals rest words
+    CPField sp first rest -> case words of
+      Nil -> Nil
+      Cons word more -> case first of
+        CPWild wspan wty -> fold-field-locals rest more
+        CPVar vspan vty id binder -> Cons (Borrowed id vty word) (fold-field-locals rest more)
+        CPAs aspan atyp id binder (CPWild ispan ity) -> Cons (Borrowed id atyp word) (fold-field-locals rest more)
+        CPAs aspan atyp id binder (CPVar ispan ity iid ibinder) -> Cons (Borrowed id atyp word) (Cons (Borrowed iid ity word) (fold-field-locals rest more))
+        other -> Nil
+    other -> Nil
+  release-terms :: List UType -> List String -> Writer -> Writer
+  release-terms types words w = case (types, words) of
+    (Cons first rest, Cons word more) -> release-terms rest more (count-op False first word w)
+    other -> w
   case-value :: List CoreDefinition -> List Local -> Writer -> UType -> String -> CoreTerm -> (Writer, String)
   case-value definitions locals w ty value alternatives =
     let (one, slot) = fresh w "%slot" in
