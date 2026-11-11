@@ -286,7 +286,9 @@ fn known_constructor_refuses_a_computed_argument() {
         unit("Main.f", vec![Class::Obj], body),
     ]);
     let mut report = SimplifyReport::default();
-    simplify(&mut p, &SimplifyOptions { inline: false, inline_small: 0, ..SimplifyOptions::default() }, &mut report);
+    // Same: the one-shot binder is the occurrence rule's business, and the
+    // known-constructor refusal is this test's.
+    simplify(&mut p, &SimplifyOptions { inline: false, inline_small: 0, occurrence: false, ..SimplifyOptions::default() }, &mut report);
     assert_eq!(report.known_ctor, 0);
     assert!(matches!(&p.fns[3].body, Core::Let(..)));
 }
@@ -393,7 +395,9 @@ fn an_application_head_is_a_reader() {
     );
     let mut p = program(vec![ctor_unit("None", 0, 0), unit("Main.f", vec![Class::Raw], body)]);
     let mut report = SimplifyReport::default();
-    simplify(&mut p, &SimplifyOptions { inline: false, inline_small: 0, ..SimplifyOptions::default() }, &mut report);
+    // The occurrence rules are a different rule and would substitute the
+    // one-shot binder; this test pins the reader analysis, so they are off.
+    simplify(&mut p, &SimplifyOptions { inline: false, inline_small: 0, occurrence: false, ..SimplifyOptions::default() }, &mut report);
     assert_eq!(report.ticks, 0, "{:?}", p.fns[1].body);
     assert!(matches!(&p.fns[1].body, Core::Let(..)), "{:?}", p.fns[1].body);
 }

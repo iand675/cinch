@@ -149,11 +149,17 @@ pub struct SimplifyOptions {
     pub join_threshold: usize,
     /// Inline a call at the one site that reaches it (`inline`).
     pub inline: bool,
-    /// The node cap of a body inlined at its single call site.
-    pub inline_threshold: usize,
-    /// The node cap of a body the multi-site rule copies to every site that
-    /// reaches it: a body with no call and no allocation, where a copy costs
-    /// nothing at run time (see the module documentation).
+    /// The most a copy may add at a site, on the model's scale (`weighted`
+    /// tenths of a node), after the site's discount. GHC's
+    /// `-funfolding-use-threshold`, on the same scale.
+    pub inline_use_threshold: usize,
+    /// The most a body may weigh and still be admitted to the table at all.
+    /// GHC's `-funfolding-creation-threshold`: beyond it a body is not
+    /// considered, so no site test runs for it.
+    pub inline_creation_threshold: usize,
+    /// The node cap of a body with no unit call and no decision that the
+    /// class copies to every site. A certain copy is not size tested at the
+    /// site, so this is the only bound on it.
     pub inline_small: usize,
     /// The node cap of an unfoldable body that applies another unfoldable
     /// unit, whose copy carries a call the recursive rule then expands.
@@ -171,6 +177,10 @@ pub struct SimplifyOptions {
     /// the inline stack is refused regardless, so this bounds the cost of a
     /// long chain, not its termination.
     pub inline_depth: usize,
+    /// Run the occurrence analysis and its two unconditional rules: a
+    /// binder read once in the spine is substituted whatever its size, and
+    /// one read never is dropped when its value is harmless to discard.
+    pub occurrence: bool,
 }
 
 impl Default for SimplifyOptions {
@@ -186,12 +196,14 @@ impl Default for SimplifyOptions {
             case_of_case: false,
             join_threshold: 20,
             inline: true,
-            inline_threshold: 40,
+            inline_use_threshold: 90,
+            inline_creation_threshold: 750,
             inline_small: 12,
             inline_unfold: 40,
             inline_unfold_case: 24,
             inline_unfold_small: 8,
             inline_depth: 6,
+            occurrence: true,
         }
     }
 }
@@ -298,24 +310,6 @@ fn is_value(e: &Core, tables: &Tables) -> bool {
     }
 }
 
-/// Whether `e` is a word for free: a local, a literal, a unit name, a
-/// primitive or a foreign symbol. Substituting one of these anywhere is a
-/// read of the same word, so the inliner's local half may move it into a
-/// closure or a loop body without changing what runs.
-fn is_trivial(e: &Core) -> bool {
-    match e {
-        Core::Int(_)
-        | Core::ConstSym(_)
-        | Core::Bool(_)
-        | Core::Unit
-        | Core::Var(_)
-        | Core::Global(..)
-        | Core::Prim(_)
-        | Core::Foreign(_) => true,
-        Core::Ctor(id, _) => id.0.is_empty(),
-        _ => false,
-    }
-}
 
 /// The constructor a value is, when it is one and every argument is a
 /// value. `App` carries at least one argument, so a nullary constructor
@@ -417,6 +411,136 @@ fn mentions(e: &Core, l: LocalId) -> bool {
     found
 }
 
+// ------------------------------------------------- occurrence analysis
+//
+// GHC decides whether a binding is worth keeping before it decides on size:
+// a binder read exactly once is substituted whatever the size of its right
+// hand side, and a binder read never is dropped when dropping it discards
+// nothing observable. Those two rules are what make a chain of one-shot
+// helpers vanish without any size heuristic, and they are the half of
+// GHC's simplifier this pass was missing (OccurAnal's `OnceAndOnly`, and
+// `preInlineUnconditionally` in the simplifier).
+//
+// The analysis is one walk per unit per pass, recomputed because a rewrite
+// can change a count. A stale count can only make the pass do less, except
+// for the one hazard that matters in a strict language: a substitution
+// moves the right hand side's work to its read, so a read under a branch
+// that may not be taken would drop the work instead of moving it. That is
+// why the rule also requires the read to be in the spine, and why a read
+// inside a join body (reached once per jump) is excluded.
+
+/// One binder's occurrence in a unit body.
+#[derive(Clone, Copy, Default)]
+struct Occ {
+    /// Reads of the binder.
+    uses: usize,
+    /// A read inside a join body, reached once per jump.
+    in_join: bool,
+}
+
+/// Count every binder's reads in `e`, including the reads a count operation
+/// names directly rather than as a child term. The walk covers every child
+/// position, an application's head and a quotation's retained body included:
+/// missing a read makes a live binder look dead, and the dead-binder rule
+/// then removes it.
+fn occurrences(e: &Core, in_join: bool, out: &mut HashMap<LocalId, Occ>) {
+    let read = |x: &LocalId, out: &mut HashMap<LocalId, Occ>| {
+        let entry = out.entry(*x).or_default();
+        entry.uses += 1;
+        entry.in_join |= in_join;
+    };
+    match e {
+        Core::Var(x) => {
+            read(x, out);
+            return;
+        }
+        Core::Dup(x, _, body) | Core::Drop(x, _, body) => {
+            read(x, out);
+            occurrences(body, in_join, out);
+            return;
+        }
+        Core::Release { block, moved, rest, body } => {
+            read(block, out);
+            for (x, _) in moved.iter().chain(rest.iter()) {
+                read(x, out);
+            }
+            occurrences(body, in_join, out);
+            return;
+        }
+        Core::App(head, args) => {
+            occurrences(head, in_join, out);
+            for a in args {
+                occurrences(a, in_join, out);
+            }
+            return;
+        }
+        Core::Join { body, rest, .. } => {
+            occurrences(body, true, out);
+            occurrences(rest, in_join, out);
+            return;
+        }
+        Core::Quote { holes, body, .. } => {
+            for h in holes {
+                occurrences(h, in_join, out);
+            }
+            if let Some(body) = body {
+                occurrences(body, true, out);
+            }
+            return;
+        }
+        Core::DeclsQuote { holes, .. } => {
+            for h in holes {
+                occurrences(h, in_join, out);
+            }
+            return;
+        }
+        _ => {}
+    }
+    for child in child_slots_imm(e) {
+        occurrences(child, in_join, out);
+    }
+}
+
+/// Whether every read of `l` in `e` is on the evaluator's spine: not inside
+/// a decision's alternative, an `If` branch, a join body or a retained
+/// quotation, any of which may be skipped or repeated. The walk covers the
+/// same positions as [`occurrences`], so a read can never be counted as
+/// spine-free by one and missed by the other.
+fn spine_only(e: &Core, l: LocalId, spine: bool) -> bool {
+    match e {
+        Core::Var(x) => *x != l || spine,
+        Core::Case { scrut, alts } => {
+            spine_only(scrut, l, spine) && alts.iter().all(|a| spine_only(&a.body, l, false))
+        }
+        Core::If(condition, then, otherwise) => {
+            spine_only(condition, l, spine)
+                && spine_only(&then.body, l, false)
+                && spine_only(&otherwise.body, l, false)
+        }
+        Core::Join { body, rest, .. } => spine_only(body, l, false) && spine_only(rest, l, spine),
+        Core::App(head, args) => {
+            spine_only(head, l, spine) && args.iter().all(|a| spine_only(a, l, spine))
+        }
+        Core::Quote { holes, body, .. } => {
+            holes.iter().all(|h| spine_only(h, l, spine))
+                && body.as_deref().is_none_or(|b| spine_only(b, l, false))
+        }
+        Core::DeclsQuote { holes, .. } => holes.iter().all(|h| spine_only(h, l, spine)),
+        _ => child_slots_imm(e).into_iter().all(|child| spine_only(child, l, spine)),
+    }
+}
+
+/// Whether discarding an expression discards nothing observable: a value,
+/// or a field read from one. A count operation is not here (it changes the
+/// count), and neither is a dictionary selection, which hands out an owned
+/// reference.
+fn speculatable(e: &Core, tables: &Tables) -> bool {
+    match e {
+        Core::Proj(inner, _) => speculatable(inner, tables) || is_value(inner, tables),
+        _ => is_value(e, tables),
+    }
+}
+
 /// Whether the term carries a quotation, whose retained body is a binding
 /// scope of its own.
 fn carries_quote(e: &Core) -> bool {
@@ -439,6 +563,12 @@ enum Rule {
     DirectDictCall,
     CaseOfCase,
     Inline,
+    /// A binding whose one read is in the spine, substituted whatever its
+    /// size (GHC's `preInlineUnconditionally`).
+    PreInline,
+    /// A binding nothing reads and whose value is harmless to discard
+    /// (GHC's dead-binder drop).
+    DeadBinder,
 }
 
 /// The accumulator every pass shares: the tick total, the per-rule
@@ -453,6 +583,8 @@ struct Ticks {
     joins: usize,
     duplicated: usize,
     inline: usize,
+    pre_inline: usize,
+    dead_binder: usize,
     changed: bool,
 }
 
@@ -466,6 +598,8 @@ impl Ticks {
             Rule::DirectDictCall => self.dict_call += 1,
             Rule::CaseOfCase => self.case_of_case += 1,
             Rule::Inline => self.inline += 1,
+            Rule::PreInline => self.pre_inline += 1,
+            Rule::DeadBinder => self.dead_binder += 1,
         }
     }
 }
@@ -479,6 +613,7 @@ fn pass(
     scope: &mut Scope,
     tables: &Tables,
     classes: &HashMap<LocalId, Class>,
+    occ: &HashMap<LocalId, Occ>,
     opts: &SimplifyOptions,
     fresh: &mut Fresh,
     t: &mut Ticks,
@@ -488,7 +623,7 @@ fn pass(
     // same result.
     match e {
         Core::Let(l, _, value, body) => {
-            pass(value, scope, tables, classes, opts, fresh, t);
+            pass(value, scope, tables, classes, occ, opts, fresh, t);
             let alias = match &**value {
                 Core::Var(w) => Some(scope.root_of(*w)),
                 _ => None,
@@ -504,7 +639,7 @@ fn pass(
             if let Some(v) = bound {
                 scope.ctor.insert(*l, v);
             }
-            pass(body, scope, tables, classes, opts, fresh, t);
+            pass(body, scope, tables, classes, occ, opts, fresh, t);
             if alias.is_some() {
                 scope.alias.remove(&*l);
             }
@@ -514,7 +649,7 @@ fn pass(
         }
         _ => {
             for slot in child_slots(e) {
-                pass(slot, scope, tables, classes, opts, fresh, t);
+                pass(slot, scope, tables, classes, occ, opts, fresh, t);
             }
         }
     }
@@ -538,26 +673,44 @@ fn pass(
             None => break,
         }
     }
-    // After the node's own rewrites, a `let` whose only reader was the
-    // decision that just left has no reader: dropping it removes the
-    // allocation. An alias let over a local is a value too.
+    // The occurrence rules, after the node's own rewrites so a count reflects
+    // what the rewrites left (design/inline-unfolding-policy.md section 9).
+    // With the analysis off there is no count, and a missing count must not
+    // read as "every binder is dead".
+    //
+    // A binder nothing reads, whose value is harmless to discard, goes. That
+    // is what removes the allocation an abandoned decision left behind, and
+    // it is the same rule GHC states as the dead-binder drop.
     if let Core::Let(l, _, value, body) = &*e {
-        if !mentions(body, *l) && is_value(value, tables) {
+        let count = occ.get(l).copied().unwrap_or_default();
+        if !opts.occurrence {
+            return;
+        }
+        if count.uses == 0 && speculatable(value, tables) {
             let body = (**body).clone();
             *e = body;
+            t.fire(Rule::DeadBinder);
+            return;
         }
-    }
-    // A `let` bound to a trivial value with one reader is a renaming: the
-    // inliner's local half (its occurrence analysis per unit). A trivial
-    // value is a local, a literal, a unit name or a primitive, so no effect
-    // can move, no allocation is copied, and substituting it inside a
-    // lambda or a join body is a read of the same word.
-    if let Core::Let(l, _, value, body) = &*e {
-        if is_trivial(value) && uses_of(body, *l) == 1 {
+        // A binder read exactly once, in the spine, is substituted whatever
+        // the size of its right hand side. The spine condition is the strict
+        // language's addition to GHC's rule: the work moves to the read, so a
+        // read under a branch that may not be taken would drop it. A join
+        // body is excluded for the same reason: it runs once per jump.
+        // The right hand side must be worth moving: a value, or a load from
+        // one. GHC substitutes any RHS here because in a lazy language the
+        // substitution cannot lose work; in a strict one it moves the work,
+        // so a memo cell or a call is left where it is.
+        if count.uses == 1
+            && !count.in_join
+            && speculatable(value, tables)
+            && spine_only(body, *l, true)
+        {
             let (l, value) = (*l, (**value).clone());
             let mut body = (**body).clone();
             subst(&mut body, l, &value);
             *e = body;
+            t.fire(Rule::PreInline);
         }
     }
 }
@@ -590,6 +743,78 @@ fn nodes(e: &Core) -> usize {
     let mut n = 1;
     visit_children(e, &mut |child| n += nodes(child));
     n
+}
+
+/// The cost of a copy, on the scale the thresholds are stated in (tenths of
+/// a node; design/inline-unfolding-policy.md section 10). An allocation is
+/// the expensive thing a copy can duplicate, so it is priced six times a
+/// call; a zero-field constructor is a static block and costs nothing.
+fn weighted(e: &Core, tables: &Tables) -> usize {
+    let here = match e {
+        Core::Prim(_) => 10,
+        Core::Foreign(_) => 20,
+        Core::Var(_)
+        | Core::Int(_)
+        | Core::Bool(_)
+        | Core::Unit
+        | Core::ConstBig { .. }
+        | Core::ConstBytes(_)
+        | Core::ConstString { .. }
+        | Core::ConstSym(_)
+        | Core::StrLit(_) => 0,
+        Core::Proj(..) | Core::DictProj(..) => 10,
+        Core::Lam { .. } => 30,
+        Core::Case { alts, .. } => alts.len() * 10,
+        Core::If(..) => 20,
+        Core::Global(..) => 10,
+        Core::Ctor(id, _) => {
+            if tables.ctors.get(&id.0).is_some_and(|(_, fields)| *fields == 0) {
+                0
+            } else {
+                60
+            }
+        }
+        _ => 0,
+    };
+    let mut total = here;
+    if let Core::App(head, args) = e {
+        total += weighted(head, tables);
+        for a in args {
+            total += weighted(a, tables);
+        }
+        return total;
+    }
+    for child in child_slots_imm(e) {
+        total += weighted(child, tables);
+    }
+    total
+}
+
+/// Whether a call's argument makes the site more worth inlining into, GHC's
+/// `ValueArg` shapes we have: a constructor application, a literal, a
+/// lambda, a unit whose body is a value, a primop.
+fn interesting_arg(e: &Core, tables: &Tables) -> bool {
+    match e {
+        Core::Int(_)
+        | Core::Bool(_)
+        | Core::Unit
+        | Core::ConstBig { .. }
+        | Core::ConstBytes(_)
+        | Core::ConstString { .. }
+        | Core::ConstSym(_)
+        | Core::StrLit(_)
+        | Core::Lam { .. }
+        | Core::Prim(_) => true,
+        Core::Ctor(..) => true,
+        Core::Global(id, _) => tables.ctors.contains_key(&id.0),
+        _ => matches!(e, Core::App(head, _) if matches!(&**head, Core::Ctor(..))),
+    }
+}
+
+/// Whether an argument is trivial, which is what makes a call cheap to leave
+/// in place: a variable, a literal, or a static block.
+fn trivial_arg(e: &Core, tables: &Tables) -> bool {
+    matches!(e, Core::Var(_)) || weighted(e, tables) == 0
 }
 
 /// A class with an open parameter resolved to `Raw`: the convention a
@@ -1305,7 +1530,11 @@ pub fn simplify(program: &mut Program, opts: &SimplifyOptions, report: &mut Simp
             let mut scope = Scope::default();
             let classes = unit_classes(f);
             let mut body = std::mem::replace(&mut f.body, Core::Unit);
-            pass(&mut body, &mut scope, &tables, &classes, opts, &mut fresh, &mut ticks);
+            let mut occ: HashMap<LocalId, Occ> = HashMap::new();
+            if opts.occurrence {
+                occurrences(&body, false, &mut occ);
+            }
+            pass(&mut body, &mut scope, &tables, &classes, &occ, opts, &mut fresh, &mut ticks);
             f.body = body;
         }
         report.iterations += 1;
@@ -1339,27 +1568,31 @@ pub fn simplify(program: &mut Program, opts: &SimplifyOptions, report: &mut Simp
 // that is born at the call site and dies in the same activation can live in
 // the frame.
 //
-// The rule is GHC-shaped and analysis-light:
+// The rule is GHC's decision, reduced to the inputs this pass has
+// (design/inline-unfolding-policy.md section 9):
 //
-// - A unit is inlined at its single call site when it is used nowhere as a
-//   value, is not in a recursive group (a strongly connected component of
-//   the call graph, with a self edge counting too, so the pass terminates),
-//   carries no quotation (whose retained body is a binding scope of its
-//   own) and no join or jump, and its body is at most
-//   [`SimplifyOptions::inline_threshold`] nodes. A body that binds locals
-//   is admitted when every binder it makes is a `case` pattern binder
-//   ([`pattern_binders_only`]): a borrowed view of an argument, so the copy
-//   needs nothing the caller does not already hold. That is the shape the
-//   frame pass's refusals are in, `case p of Path s -> s`.
-// - A unit is inlined at every call site when it is called at least twice
-//   and its body is at most [`SimplifyOptions::inline_small`] nodes and
-//   contains no call and no allocation at all: the small matchers and
-//   selectors, where a copy costs nothing at run time. A `case` body with
-//   pattern binders is such a body, so the same selector is copied to every
-//   site that reads it.
-// - [`admit`] states the two rules in one place and names the check that
-//   refused a candidate; `CINCH_INLINE_TRACE` prints a line per candidate
-//   with its node count, sites and free locals.
+// - **Certain.** A unit in the unfoldable class is copied at every site with
+//   no size test: its body is cheap by construction (a primop, a projection,
+//   a literal, a shallow decision over a known constructor, a delegation to
+//   another such unit). A zero-field constructor is certain too, because its
+//   body is a static block, so a copy is a constant. A unit in a recursive
+//   group, one that carries a quotation or a join, and one whose parameter
+//   classes are still open are refused before any of this.
+// - **Risky.** Any other body is admitted to the table only when its
+//   weighted size ([`weighted`]) is under
+//   [`SimplifyOptions::inline_creation_threshold`], and a site copies it
+//   only when its weighted size minus the call's discount is under
+//   [`SimplifyOptions::inline_use_threshold`]. The discount is the call
+//   itself plus every argument that already costs something, plus more for
+//   an interesting argument ([`interesting_arg`]) because the copy will fold
+//   it. The discount is the whole of GHC's `computeDiscount` that our cost
+//   model can express.
+// - A decision-bearing copy is admitted at a site only where the scrutinee
+//   argument is a constructor application (unless the body is small enough
+//   that duplicating the branch costs no more than the call), so the copy
+//   folds in the pass that follows instead of duplicating the branch.
+// - `CINCH_INLINE_TRACE` prints a line per candidate with its node count,
+//   sites and free locals, and per copy with the caller and the callee.
 // - Arguments that are not a local are bound to fresh locals in order, so
 //   strict evaluation order is unchanged, and the callee's body sees a
 //   `Var` in every parameter position. A local argument is substituted
@@ -1413,6 +1646,10 @@ struct InlineBody {
     /// being duplicated.
     cases: Vec<usize>,
     fold: bool,
+    /// Whether the copy is certain: no site test.
+    certain: bool,
+    /// The copy's cost on the model's scale.
+    weight: usize,
     /// Whether the copy charges the growth budget. A pure class body (no
     /// decision and no link to another unit) replaces a call and its frame
     /// with the instruction itself, so it shrinks the module and spends
@@ -1451,13 +1688,16 @@ fn inline_table(program: &Program, tables: &Tables, opts: &SimplifyOptions) -> I
     let trace = opts_trace();
     let mut table = InlineTable::default();
     for f in &program.fns {
-        if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body {
+        // A `prim` unit's body is inline target IR, not Core, and a ctor unit
+        // is admitted only when its body is a static block (a nullary
+        // constructor's value), which `candidate` decides.
+        if f.prim.is_some() || f.meta.prim_body {
             continue;
         }
         let name = &f.id.0;
         let sites = calls.get(name).copied().unwrap_or(0);
         let n = nodes(&f.body);
-        let admit = candidate(f, program, &values, &recursive, &unfold, sites, n, opts);
+        let admit = candidate(f, program, &tables, &values, &recursive, &unfold, sites, n, opts);
         if trace {
             // Every candidate the sweep considered, with the numbers the
             // rules decide on: the body's size, its sites, and the locals
@@ -1482,6 +1722,8 @@ fn inline_table(program: &Program, tables: &Tables, opts: &SimplifyOptions) -> I
                     cases: admitted.cases,
                     fold: admitted.fold,
                     charge: admitted.charge,
+                    certain: admitted.certain,
+                    weight: admitted.weight,
                 },
             );
         }
@@ -1505,8 +1747,6 @@ enum Refused {
     Open,
     /// Carries a quotation or a join, whose binding scope is its own.
     Scope,
-    /// Binds a local the case-bearing rule does not admit (`let`, join).
-    Binds,
     /// Too many nodes for the rule that would apply at its site count.
     Large,
     /// Called at no site, or at more than one with a body the multi-site
@@ -1524,7 +1764,6 @@ impl Refused {
             Refused::Recursive => "recursive",
             Refused::Open => "open",
             Refused::Scope => "scope",
-            Refused::Binds => "binds",
             Refused::Large => "large",
             Refused::Sites => "sites",
             Refused::Costly => "costly",
@@ -1547,11 +1786,17 @@ struct Admitted {
     fold: bool,
     /// Whether the copy charges the growth budget.
     charge: bool,
+    /// Whether the copy is certain: no site test at all (the class, and a
+    /// zero-field constructor, whose body is a static block).
+    certain: bool,
+    /// The copy's cost on the model's scale (`weighted`).
+    weight: usize,
 }
 
 fn candidate(
     f: &FnDef,
     program: &Program,
+    tables: &Tables,
     values: &HashSet<String>,
     recursive: &HashSet<String>,
     unfold: &HashMap<String, Shape>,
@@ -1583,32 +1828,37 @@ fn candidate(
     if sites == 0 {
         return Err(Refused::Sites);
     }
+    // A nullary constructor's unit returns a static block, so a copy of it
+    // is a constant, not work: it is certain, with no size test. A
+    // constructor with fields allocates per copy, and stays out.
+    if let Some((_, fields)) = f.ctor {
+        return if fields == 0 {
+            Ok(Admitted {
+                params: Vec::new(),
+                cases: Vec::new(),
+                fold: false,
+                charge: false,
+                certain: true,
+                weight: 0,
+            })
+        } else {
+            Err(Refused::Costly)
+        };
+    }
     let params = || {
         (0..f.arity())
             .map(|i| f.repr.params.get(i).copied().map_or(Class::Raw, concrete))
             .collect()
     };
-    // The single-site rule keeps its precedence and its shape: a body that
-    // binds only `case` pattern binders is a borrowed view of an argument,
-    // so the copy needs nothing the caller does not already hold. It is
-    // admitted without a site test, which is why it is tried before the
-    // class rule (that one may require a fold at the site).
-    if sites == 1
-        && !values.contains(name)
-        && n <= opts.inline_threshold
-        && (!binds_anything(&f.body) || pattern_binders_only(&f.body))
-    {
-        return Ok(Admitted { params: params(), cases: Vec::new(), fold: false, charge: true });
-    }
     // The class rule: a body cheap by construction is copied to every site
     // that reaches it, whatever the site count, and even when the unit is
     // also used as a value (the definition survives, so a value use still
-    // has a code pointer). The caps bound the duplicated code: a body of
-    // pure projections and primops is small, a body that chains to another
-    // unit carries a call the recursive rule expands (so it is allowed to
-    // be larger), and a decision-bearing body is either small enough that
-    // duplicating the decision costs no more than the call, or admitted
-    // only where the decision folds.
+    // has a code pointer). A certain copy needs no size test at the site,
+    // so the caps below are the only bound on it: a body of pure projections
+    // and primops is small, a body that chains to another unit carries a
+    // call the recursive rule expands, and a decision-bearing body is either
+    // small enough that duplicating the decision costs no more than the
+    // call, or admitted only where the decision folds.
     if let Some(shape) = unfold.get(name) {
         if shape.cases == 0 {
             let cap = if shape.chain { opts.inline_unfold } else { opts.inline_small };
@@ -1618,6 +1868,8 @@ fn candidate(
                     cases: Vec::new(),
                     fold: false,
                     charge: shape.chain,
+                    certain: true,
+                    weight: weighted(&f.body, tables),
                 });
             }
         } else if n <= opts.inline_unfold_case {
@@ -1628,42 +1880,32 @@ fn candidate(
             let mut cases = Vec::new();
             case_scrutinee_params(&f.body, &mut cases);
             let fold = n > opts.inline_unfold_small;
-            return Ok(Admitted { params: params(), cases, fold, charge: true });
+            return Ok(Admitted {
+                params: params(),
+                cases,
+                fold,
+                charge: true,
+                certain: true,
+                weight: weighted(&f.body, tables),
+            });
         }
+    }
+    // The risky path: a body that is not certain is admitted only when it is
+    // small enough to be worth considering at all (GHC's creation
+    // threshold), and each site then compares its own discount against the
+    // use threshold. A value use is refused here because the copy is no
+    // longer a replacement for every reference, which is the size argument
+    // the class does not need.
+    let weight = weighted(&f.body, tables);
+    if weight > opts.inline_creation_threshold {
+        return Err(Refused::Large);
     }
     if values.contains(name) {
         return Err(Refused::Value);
     }
-    if sites == 1 {
-        if n > opts.inline_threshold {
-            return Err(Refused::Large);
-        }
-        return Err(Refused::Binds);
-    }
-    if n > opts.inline_small {
-        return Err(Refused::Large);
-    }
-    // The multi-site rule: a body cheap enough that a second copy costs
-    // nothing at run time (no call, no allocation), so every site takes it.
-    if !is_cheap(&f.body) {
-        return Err(Refused::Costly);
-    }
-    if binds_anything(&f.body) && !pattern_binders_only(&f.body) {
-        return Err(Refused::Binds);
-    }
-    Ok(Admitted { params: params(), cases: Vec::new(), fold: false, charge: true })
+    Ok(Admitted { params: params(), cases: Vec::new(), fold: false, charge: true, certain: false, weight })
 }
 
-/// Whether every binder `e` introduces is a `case` pattern binder. A `let`
-/// introduces a binder that owns the value it binds, which makes the copy's
-/// count operations depend on the bound expression's shape; those bodies
-/// stay refused until the multi-site rule's cost test can carry them.
-fn pattern_binders_only(e: &Core) -> bool {
-    if matches!(e, Core::Let(..) | Core::Join { .. }) {
-        return false;
-    }
-    child_slots_imm(e).into_iter().all(pattern_binders_only)
-}
 
 /// Whether the copy diagnostics run: always in a test build, and under
 /// `CINCH_INLINE_CHECK` in any build, so a release compiler can be made to
@@ -1748,41 +1990,7 @@ fn collect_refs(
     }
 }
 
-/// Whether `e` binds a local of its own (a `let`, a pattern binder or a
-/// join). A body that binds nothing is a plain expression over its
-/// parameters: the copy needs no renaming and no binder of its own, which is
-/// the shape a constructor wrapper has.
-fn binds_anything(e: &Core) -> bool {
-    if matches!(e, Core::Let(..) | Core::Case { .. } | Core::Join { .. }) {
-        return true;
-    }
-    child_slots_imm(e).into_iter().any(binds_anything)
-}
 
-/// Whether `e` allocates or calls anything: no block, no dictionary, no
-/// closure, no runtime box, no call. What the old multi-site rule required,
-/// and still the shape a body must have to be copied with no size test at
-/// all.
-fn is_cheap(e: &Core) -> bool {
-    match e {
-        // An application's head is not a child slot, so every `App` is a
-        // call here, including one whose head is a constructor.
-        Core::App(..)
-        | Core::Ctor(..)
-        | Core::InstDict(..)
-        | Core::Lam { .. }
-        | Core::LazyAlloc
-        | Core::BoxAlloc
-        | Core::ConstBig { .. }
-        | Core::ConstBytes(_)
-        | Core::ConstSym(_)
-        | Core::ConstString { .. }
-        | Core::Quote { .. }
-        | Core::DeclsQuote { .. } => return false,
-        _ => {}
-    }
-    child_slots_imm(e).into_iter().all(is_cheap)
-}
 
 // ------------------------------------------------- the unfoldable class
 //
@@ -1841,8 +2049,9 @@ fn unfold_body(
         // A unit, an intrinsic or a foreign symbol used as a value is a
         // constant the module already carries, not an allocation.
         Core::Global(..) | Core::Prim(_) | Core::Foreign(_) => true,
-        // A constructor used as a value is a closure over the allocator.
-        Core::Ctor(..) => false,
+        // A constructor with no fields is a static block, so a copy of it is
+        // a constant. One with fields allocates per copy.
+        Core::Ctor(id, _) => tables.ctors.get(&id.0).is_some_and(|(_, fields)| *fields == 0),
         Core::Proj(inner, _) | Core::DictProj(inner, ..) => value(inner, shape),
         Core::Let(_, _, bound, body) => value(bound, shape) && value(body, shape),
         Core::App(head, args) => match &**head {
@@ -2141,6 +2350,23 @@ fn inline_unit(
         })
     {
         return;
+    }
+    // The site test (design/inline-unfolding-policy.md section 10): the copy
+    // pays for the call it removes and for every argument that already costs
+    // something, and an interesting argument pays more because the copy will
+    // fold it. What is left is compared with the use threshold.
+    if !callee.certain {
+        let mut discount = 10usize;
+        for a in args.iter() {
+            discount += if trivial_arg(a, tables) {
+                10 * usize::from(interesting_arg(a, tables))
+            } else {
+                10 + 10 * usize::from(interesting_arg(a, tables))
+            };
+        }
+        if callee.weight.saturating_sub(discount) > opts.inline_use_threshold {
+            return;
+        }
     }
     let added = nodes(&callee.body);
     if callee.charge {

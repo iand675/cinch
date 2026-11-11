@@ -215,6 +215,11 @@ fn emit_module(
     reg.rc_debug = profile.rc_debug;
     reg.reclaim = profile.reclaim;
     reg.emit_modules = emit_modules.to_vec();
+    // An object, or a module emitted without its neighbours, may not define
+    // the constructor unit whose block a use would name: such a module keeps
+    // the call. A whole-program module emits every constructor unit, so a use
+    // there is the address.
+    reg.partial_module = object || !emit_modules.is_empty();
     reg.lent = program.lent.clone();
     let reg = reg;
     // A program with `foreign export` entries may be linked as a library
@@ -839,6 +844,15 @@ struct Registry {
     ctors: HashMap<String, (usize, usize)>,
     /// Constructor units' descriptors (`block_kinds.rs`) by unit name.
     ctor_descs: HashMap<String, u64>,
+    /// Static constructor blocks this module defines, by symbol. A caller may
+    /// reference a zero-field constructor's block before the constructor's
+    /// own unit is emitted, so the definition is emitted on first use and
+    /// exactly once.
+    emitted_blocks: RefCell<std::collections::HashSet<String>>,
+    /// Whether this module defines only some units (an object build, or a
+    /// module emitted without its neighbours), where a constructor's block
+    /// may not be defined at all.
+    partial_module: bool,
     /// The program's constructor layout ids and layout table.
     layouts: RefCell<Layouts>,
     /// The named by-value layout types of the aggregate boundary
@@ -2616,7 +2630,9 @@ fn build_unit(
         }
         UnitBody::Ctor(fields) => {
             let desc = reg.ctor_desc(name)?;
-            if *fields == 0 {
+            if *fields == 0
+                && reg.emitted_blocks.borrow_mut().insert(format!("{name}.blk"))
+            {
                 globals.push_str(&static_ctor_block(&format!("{name}.blk"), desc, &[]));
             }
             ctor_body(&mut b, reg, name, desc, *fields, reg.plan_of(name));
@@ -6392,6 +6408,24 @@ impl CoreEmitter<'_, '_> {
     }
 
     /// If `f` names a code generation unit, its name and arity.
+    /// `ptrtoint ptr @"U.blk"`, the value of a zero-field constructor and
+    /// the entire body of its unit. The block is a constant, so a use may
+    /// come from a unit emitted without the constructor's own unit (an
+    /// object build selects roots): the definition is emitted here on first
+    /// use, and the constructor's own unit skips it when it is already
+    /// there.
+    fn ctor_block(&mut self, unit: &str) -> Result<String> {
+        let symbol = format!("{unit}.blk");
+        if self.reg.emitted_blocks.borrow_mut().insert(symbol.clone()) {
+            let desc = self.reg.ctor_desc(unit)?;
+            let global = static_ctor_block(&symbol, desc, &[]);
+            self.b.global(global);
+        }
+        let r = self.b.reg();
+        self.b.line(&format!("{r} = ptrtoint ptr @{} to i64", quote(&symbol)));
+        Ok(r)
+    }
+
     fn known_unit(&self, f: &Core) -> Option<(String, usize)> {
         match f {
             Core::Global(id, _) | Core::Ctor(id, _) => {
@@ -6581,6 +6615,18 @@ impl CoreEmitter<'_, '_> {
                 Ok(r)
             }
             Core::Global(id, _) => self.unit_value(&id.0),
+            // A zero-field constructor's value is its static block, which is
+            // the whole body of its unit (`ptrtoint @"U.blk"`): emitting the
+            // address is the same word without a call, a frame and a return.
+            // The block is immortal, so the reference counting a block
+            // carries is unchanged. A constructor with fields is a function
+            // and takes the closure path.
+            Core::Ctor(id, _)
+                if !self.reg.partial_module
+                    && matches!(self.reg.ctors.get(&id.0), Some((_, 0))) =>
+            {
+                self.ctor_block(&id.0)
+            }
             Core::Ctor(id, _) => self.unit_value(&id.0),
             Core::Prim(op) => self.unit_value(&op.symbol()),
             Core::Foreign(n) => self.unit_value(n),
@@ -7080,6 +7126,19 @@ impl CoreEmitter<'_, '_> {
     /// `call`; anything else (a dynamic head, a partial application, an
     /// over-application) goes through the `__apply` stub.
     fn emit_app(&mut self, f: &Core, args: &[Core]) -> Result<String> {
+        // A saturated zero-field constructor application is the block, not a
+        // call to the constructor's unit. The saturation test is exact: a
+        // zero-field constructor takes no arguments, so `args` being empty is
+        // the only saturated application there is.
+        if args.is_empty() {
+            if let Core::Ctor(id, _) = f {
+                if !self.reg.partial_module
+                    && matches!(self.reg.ctors.get(&id.0), Some((_, 0)))
+                {
+                    return self.ctor_block(&id.0);
+                }
+            }
+        }
         if let Some((unit, arity)) = self.known_unit(f) {
             if arity == args.len() {
                 let mut vals = Vec::with_capacity(args.len());

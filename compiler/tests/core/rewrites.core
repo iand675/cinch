@@ -2,7 +2,7 @@ core 1
 module Main
 target aarch64-apple-darwin opt-level 0
 source sha256:c1925910f5993a5591361a716ea65985299f78b39a44fb0e9e7af24967a60f3e
-@ticks 521
+@ticks 1907
 global Algebra.Monoid.Sum
 unit Main.main :: Int
   @frame(1 slot, 16 bytes)

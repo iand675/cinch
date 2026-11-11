@@ -1240,6 +1240,35 @@ Core-level simplifier and a per-pass budget with a reported tick count. Both
 are cheap to add once Core output exists, because the same printer can show
 each iteration's result.
 
+### 10.2 The inlining decision kernel (2026-11-11)
+
+The summary above described GHC's inliner from the user guide. Reading the
+implementation (`GHC/Core/Unfold.hs`, `GHC/Core/Unfold/Make.hs`,
+`GHC/Core/Opt/Simplify/Inline.hs`, `GHC/Core/Opt/Simplify/Utils.hs`,
+`GHC/Core/Opt/OccurAnal.hs`) corrects three things the summary implied:
+
+- The thresholds are 750 for creation and 90 for use, on a scale of tenths
+  of a node (`Unfold.hs:94-127`), and **the call's cost is subtracted before
+  either comparison** (`computeDiscount`, `Inline.hs:709-751`). There is no
+  separate growth allowance any more; the discounts replaced `ug_grow`.
+- A `DFunUnfolding` is never unfolded at a call site ("Never unfold a DFun",
+  `Inline.hs:117`). Its certainty is narrower: it stops a worker/wrapper
+  split and it counts as an interesting argument. The certain-at-a-site
+  class is `UnfWhen` plus `CompulsorySrc`.
+- Occurrence analysis is size-blind (`OccurAnal`), and a binder read once
+  outside a lambda is substituted **regardless of the right hand side's
+  size** (`Utils.hs:1524-1528`). That, not a size rule, is what makes chains
+  of one-shot helpers disappear.
+
+`design/inline-unfolding-policy.md` section 9 maps every input of that
+decision onto this compiler, present or missing with the reason, and section
+10 states the size model we adopted on GHC's scale. The round that mapping
+motivated added the occurrence rules, interesting arguments, the two
+thresholds, and the one change with the largest measured effect, which is
+not in the inliner at all: a zero-field constructor is now emitted as its
+static block instead of a call to its unit, which removed 65,759 calls from
+the compiler's own module (section 13 of that note).
+
 ### 10.1 What landed (2026-11-10)
 
 `compiler/src/simplify.rs` is the pass shape above, on the specialized
