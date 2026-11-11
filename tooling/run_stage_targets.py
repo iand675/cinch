@@ -75,8 +75,22 @@ def main():
     p.add_argument('--cargo-target', type=Path, default=None)
     p.add_argument('--tree', type=Path, default=ROOT)
     p.add_argument('--all', action='store_true')
+    p.add_argument('--allow-dirty', action='store_true',
+                   help='measure a tree with uncommitted changes instead of refusing')
     p.add_argument('targets', nargs='*')
     a = p.parse_args()
+    # A suite measures the tree it compiles, and this runner compiles the
+    # tree's own sources. An edit landing while it runs (another lane writing
+    # one file by a relative path, an integration in progress) produces
+    # results that describe neither the old tree nor the new one, so refuse
+    # by default and make the exception explicit.
+    dirty = subprocess.run(['git', '-c', 'core.fsmonitor=false', 'status', '--porcelain', '--',
+                            'compiler', 'bootstrap', 'tooling'],
+                           cwd=a.tree, capture_output=True, text=True).stdout.split()
+    if dirty and not a.allow_dirty:
+        sys.stderr.write(f'refusing to measure a dirty tree: {" ".join(dirty[:8])}\n'
+                         f'commit the change or pass --allow-dirty\n')
+        return 2
     if a.all:
         a.targets = all_targets(a.tree)
     if not a.targets:
