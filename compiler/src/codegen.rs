@@ -374,6 +374,11 @@ fn emit_module(
         "declare i64 @cinch_fs_remove(i64, i64)",
         "declare i64 @cinch_fs_temp_dir()",
         "declare i64 @cinch_signal_send(i64, i64)",
+        // The bump arena (`compiler/runtime/src/arena.rs`): a scope enters
+        // one, allocates its constructor cells from it uncounted, and
+        // leaves it, which frees the chunks wholesale.
+        "declare i64 @cinch_arena_new(i64)",
+        "declare i64 @cinch_arena_leave(i64)",
         // The networking family (`compiler/runtime/src/net.rs`): TCP
         // sockets by handle and platform name resolution.
         "declare i64 @cinch_net_tcp_connect(i64, i64)",
@@ -4110,6 +4115,12 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                         k.extern_name(),
                         &["i64 %p0".to_string(), "i64 %p1".to_string()],
                     );
+                    ret(b, &r);
+                }
+                // The arena entries take and answer one machine word: the
+                // size or the handle, both never blocks.
+                ArenaNew | ArenaLeave => {
+                    let r = rt_call(b, k.extern_name(), &["i64 %p0".to_string()]);
                     ret(b, &r);
                 }
                 FsTempDir => {

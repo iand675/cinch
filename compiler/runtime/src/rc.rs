@@ -337,7 +337,23 @@ pub unsafe extern "C" fn cinch_frame_release(word: i64) {
     // this block while the walk is in progress, then finds the payload
     // released instead of dropping its children twice.
     unsafe { block::write_header(p, block::header(block::RC_FRAME_RELEASED, block::kind(h), block::layout(h))) };
-    let debug = crate::heap::rc_debug();
+    unsafe { release_children(p, h, crate::heap::rc_debug()) };
+}
+
+/// Drop every counted child of the block at `p` whose header is `h`, and
+/// leave the block itself untouched: no header write, no free.
+///
+/// This is the teardown of a block whose memory belongs to someone else:
+/// a frame block's release ([`cinch_frame_release`]) and an arena's
+/// `cinch_arena_leave` (`crate::arena`) both need the payload's references
+/// returned and nothing else. A child that is itself a frame or arena
+/// block takes its own path and answers nothing.
+///
+/// # Safety
+///
+/// `p` is the payload pointer of a live block of a kind whose map the
+/// layout table describes, and its payload words are readable.
+pub(crate) unsafe fn release_children(p: *mut u8, h: u64, debug: bool) {
     let scan = unsafe { Scan::of(p, h) };
     let mut at = scan.words();
     while let Some((slot, code)) = scan.counted_below(at) {
@@ -347,8 +363,8 @@ pub unsafe extern "C" fn cinch_frame_release(word: i64) {
             // An `Obj` slot never holds an immediate.
             corrupt();
         }
-        // A child that is itself a frame block takes the same path: its
-        // own payload is dropped (once), and nothing is freed.
+        // A child that is itself a frame or arena block takes the same
+        // path: its own payload is dropped (once), and nothing is freed.
         unsafe { cinch_drop(w) };
     }
 }

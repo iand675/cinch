@@ -3,6 +3,6 @@
 module Bootstrap.RuntimeAbi where
   export runtime-abi, runtime-abi-int
   runtime-abi :: Nat
-  runtime-abi = 8
+  runtime-abi = 9
   runtime-abi-int :: Int
-  runtime-abi-int = 8
+  runtime-abi-int = 9

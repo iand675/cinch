@@ -279,6 +279,16 @@
 //! * `cinch_exit_check(code: i64) -> i64`: called by the entry glue when
 //!   `main` returns; `code` unless `CINCH_LEAK_CHECK=1` finds live mortal
 //!   blocks, then 74 (below).
+//! * `cinch_arena_new(bytes: i64) -> i64` and
+//!   `cinch_arena_leave(handle: i64) -> i64`: enter and leave a bump
+//!   arena on this thread ([`arena`]). While an arena is entered,
+//!   constructor cells and closure and dictionary blocks come from its
+//!   chunks with `RC_IMMORTAL` headers, so their `dup` and `drop` do
+//!   nothing, and leave returns the chunks wholesale. The handle is a
+//!   machine word (never a block), 0 when `CINCH_ARENA=0` disables the
+//!   mechanism. Only a scope whose result is a machine scalar or a value
+//!   of a kind the arena does not serve may hold one: a word pointing
+//!   into an arena's chunks must not be reachable after leave.
 //!
 //! A corrupt header, a count of the wrong sign for its entry point or an
 //! invalid map code reached by these entry points is a compiler-bug trap
@@ -540,6 +550,7 @@
 
 pub mod abi;
 pub mod alloc_kinds;
+pub mod arena;
 pub mod block;
 pub mod bytes;
 pub mod arrays;

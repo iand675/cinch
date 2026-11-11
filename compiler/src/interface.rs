@@ -32,7 +32,7 @@ pub const SCHEMA_VERSION: u32 = 10;
 /// on the work-stealing pool, with the sequential `cinch_coop_par_*`
 /// readings on the cooperative backend (design/parallel-evaluation.md
 /// sections 3.3 and 3.6).
-pub const RUNTIME_ABI_VERSION: u32 = 8;
+pub const RUNTIME_ABI_VERSION: u32 = 9;
 pub const LANGUAGE_VERSION: &str = "draft-0.2+amendments";
 const CALLING_CONVENTION: &str = "uniform-word, curried apply stub";
 

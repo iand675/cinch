@@ -151,6 +151,24 @@ unsafe fn allocate_block(payload: usize, header: u64, ext: Option<u64>, immortal
     let Some(layout) = plan(payload, ext.is_some()) else {
         crate::heap::request_too_large(payload);
     };
+    // An entered arena ([`crate::arena`]) serves the kinds whose payload
+    // no runtime destructor owns, and only when the caller does not ask
+    // for zeroed memory (the shaped allocators never do). The block is a
+    // full header block with its own kind and layout and `RC_IMMORTAL`
+    // as its count, so every count path ignores it and the arena's leave
+    // frees it with its chunk.
+    let kind = header_kind(header);
+    if !zeroed && matches!(kind, KIND_CTOR | KIND_CLOSURE | KIND_DICT) {
+        let prefix = layout.size() - payload;
+        if let Some(p) = unsafe { crate::arena::serve(layout.size(), prefix) } {
+            if let Some(x) = ext {
+                unsafe { p.sub(prefix).cast::<u64>().write(x) };
+            }
+            unsafe { write_header(p, crate::arena::arena_header(kind, header_layout(header))) };
+            crate::alloc_kinds::note_arena(kind, layout.size());
+            return p;
+        }
+    }
     let base = unsafe { crate::heap::alloc_block(layout, immortal, zeroed) };
     crate::alloc_kinds::note(header_kind(header), layout.size());
     let p = match ext {

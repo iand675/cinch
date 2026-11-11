@@ -1,6 +1,10 @@
 # Arenas for short-lived compiler data
 
-Status: design complete, implementation blocked in this tree, 2026-11-11.
+Status: built and measured, 2026-11-11. The arena serves constructor cells
+from the runtime and the compiler wraps one phase in it; section 8 is what
+that measured. The blockers of section 4 are resolved (F1 by the `uses`
+declare slices, F3/F4 by the ABI 9 pin bump), and the representation is the
+one section 3.5 expected: `RC_IMMORTAL` headers, not a new block kind.
 Companions: `design/compilation-speed.md` (the measured profile this
 follows), `design/allocators.md` (the `Heap` capability and slice A3, which
 is the prerequisite), `design/reclamation.md` (the header word and the
@@ -451,3 +455,148 @@ Probes, all under `/tmp/arena/probe`, run with the installed checker:
 | `prim` with `uses (malloc :: I64 -> I64)` | checks; `emit-ir` leaves `@malloc` and `@free` undeclared; `run` fails at clang with `use of undefined value '@free'` |
 | `prim` returning `Unit` | refused: "a prim body returns the declared result shape ... not Unit" |
 | `bad :: forall region. Ref region (List2 Nat); bad = borrow (Cons2 1 Nil2)` | accepted, so the escape rule does not cover body against signature |
+
+---
+
+## 8 Built, and what it measured (2026-11-11)
+
+The lane `dasl-arena-real` implemented sections 3.5 and 5, wrapped one phase,
+and measured it. This section supersedes the "blocked" verdict of section 1:
+what remains true from it is F5 and section 6.1's memory argument, which the
+measurement in 8.4 confirms.
+
+### 8.1 The representation actually built
+
+`compiler/runtime/src/arena.rs`. `cinch_arena_new(bytes: i64) -> i64` enters
+an arena on the calling thread and returns its record pointer as an opaque
+handle word; `cinch_arena_leave(handle) -> i64` releases it and restores the
+arena entered before it, so arenas nest. The record and every chunk are
+[`heap::alloc_block`](compiler/runtime/src/heap.rs) allocations, so the heap
+cap, the stats line and the leak check account for them; a chunk is a 16-byte
+header (`next`, data size) followed by an 8-aligned data area, starting at
+64 KiB and doubling to a 64 MiB cap.
+
+No `KIND_ARENA` was added and no kind number moved. A served block is an
+ordinary header block with its own kind and layout, so `case` reads its tag
+and a projection reads its fields unchanged. Its `rc` is `RC_IMMORTAL`:
+`cinch_dup` and `cinch_drop` return without writing, the inlined dup/drop
+helpers of emitted code take their count-zero arms and never reach
+`cinch_drop_slow`, the release walk and `cinch_frame_release` stop at it, and
+mark-on-spawn stops at it. `cinch_free` already returns early on
+`RC_IMMORTAL`. Zero lines of `rc.rs` changed for counting; the frame mark was
+rejected for the reason section 3.5 gives and this confirms: `RC_FRAME`'s drop
+is a payload *release*, so an arena block carrying it would recursively
+release its tree on every drop instead of doing nothing.
+
+`block::allocate_block` is the one hook: `KIND_CTOR`, `KIND_CLOSURE` and
+`KIND_DICT` go to the bump path when an arena is entered and the caller did
+not ask for zeroed memory. `Nat`/`Int` boxes, `Bytes` and `Sym` always come
+from the heap: their payloads own Rust-side resources only the counted free
+path drops.
+
+### 8.2 The finding the unit test could not have made
+
+The first build passed every byte gate and failed the leak check: 533,113
+`live` blocks against 0 with `CINCH_ARENA=0`. Cause: a served cell can own an
+outer heap block (a rendered `Bytes`, a boxed `Nat`, a `String`'s backing),
+and since a drop of the cell is a no-op, nothing ever returned that child.
+The arena's first draft said children "are freed normally", which is only true
+when something else owns them.
+
+Teardown now does what a frame block's release does: it walks the blocks it
+served and drops each one's counted children exactly once
+(`rc::release_children`, extracted from `cinch_frame_release`), then frees the
+chunks. The arena records the payload pointer of every block it serves in a
+`Vec` for that walk; `payload_bytes` would also recover sizes from the header,
+but the side list cannot desynchronise. After the fix the gate reads
+`cinch-leak: live=0 immortal=0 leaked=0` in both arms.
+
+That teardown is not optional bookkeeping: without it the arena is a memory
+leak of roughly a quarter of the `Bytes` traffic of the phase it wraps.
+
+### 8.3 ABI 9 and the pins
+
+* `interface::RUNTIME_ABI_VERSION` 8 to 9; `RUNTIME_ABIS` gains 9;
+  `bootstrap/Bootstrap.RuntimeAbi.cinch` is the rendered 9.
+* Both locks (`bootstrap/stage0.lock.json`, `bootstrap/library-provider.lock.json`)
+  name revision `e3705d4f78bb5de5168f540e519e8bacc5a214fe` with source hash
+  `0ebe3caf1980c0a7884730eba5265aa84a20c950598022f7bac324e0fae2c38a` and
+  `runtime_abi` 9. The revision is a git commit object of the lane's
+  `compiler/` tree, written with `git commit-tree` so no ref moved.
+* The intrinsics: `cinch.runtime.arenaNew`/`arenaLeave` in the Rust
+  compiler's `PrimOp::Platform` table (arity 1, signature `I64 -> I64`,
+  declared `i64 @cinch_arena_new(i64)` / `@cinch_arena_leave(i64)`), in
+  `Bootstrap.Builtin.platform-intrinsic` for the self-hosted compiler, and in
+  `Bootstrap.RuntimeIr.declarations-counting`. The namespace is reserved
+  (D73), so a program reaches them only by spelling the intrinsic.
+* `CINCH_ARENA=0` makes `cinch_arena_new` return 0, so every scope is a no-op
+  and every block is a heap block: one build, two arms.
+
+### 8.4 The phase, and the numbers
+
+The phase is interface serialization, entered after `export-interfaces`
+(the `Json` documents are built before it and the manifest embeds them) and
+left after the last `.cinchif` and the manifest are written
+(`Bootstrap.Pipeline.serialize-artifacts`). It is the one finished phase in
+this tree whose output is files, so nothing it serves outlives it by
+construction; `write-source-artifacts` returns `Unit` so no value leaves.
+
+Stage3 compiler, `--check`, `CINCH_HEAP_LIMIT=2G`, interleaved pairs on one
+build.
+
+Counting arms (`CINCH_ALLOC_STATS=1 CINCH_ALLOC_KINDS=1`, one pair each):
+
+| workload | arm | blocks | bytes | peak live | header blocks | ctor blocks |
+| --- | --- | --- | --- | --- | --- | --- |
+| toolkit (3,940 lines) | off | 263,949,613 | 5,842,786,204 | 24.2 MB | 253,519,221 | 235,991,699 |
+| toolkit | on | 262,609,433 | 5,908,618,422 | 106.9 MB | 252,179,021 | 234,780,462 + 1,211,234 arena |
+| self-check (1.12 G blocks) | off | 1,117,248,587 | 26,437,113,944 | 154.2 MB | 1,082,593,416 | 957,480,192 |
+| self-check | on | 1,112,939,710 | 26,572,619,922 | 364.4 MB | 1,078,284,517 | 954,986,310 + 2,493,879 arena |
+
+So the phase is 1,340,204 of 263.9M blocks on the toolkit (0.51%; 1,211,234
+of them constructor cells and the rest closures) and 4,308,904 of 1.117G on
+the self-check (0.39%). The arena does what it was
+built to do, exactly: the ctor count on the heap falls by the arena's count
+and the totals are conserved. And the arithmetic in bytes goes the wrong way:
+chunk granularity, the served-block list and the record cost more bytes than
+the header-block accounting saved (+1.1% on the toolkit).
+
+Timing arms (census off, `/usr/bin/time -l`, same build):
+
+| workload | arm | CPU | wall | peak RSS |
+| --- | --- | --- | --- | --- |
+| toolkit, median of 3 interleaved pairs | off | 7.03 s | 7.12 s | 40.3 MB |
+| toolkit | on | 7.30 s | 7.46 s | 85.4 MB |
+| self-check, one pair | off | 83.19 s | 84.83 s | 183.7 MB |
+| self-check | on | 127.48 s | 171.27 s | 356.9 MB |
+
+The toolkit is the reliable row: the arena is **3.8% slower on CPU, 4.8% on
+wall, and doubles resident memory** on a phase worth 0.5% of the traffic. The
+self-check pair is one pair and confounded (its census run in the same session
+showed the opposite CPU ordering, 90.6 on against 114.2 off), so it is
+reported and not used. Where the cost comes from is structural: a bump
+allocation is not cheaper than the per-thread size-class allocator for a
+40-byte cell, the served-block `Vec` adds a store per block, the chunks are
+cold pages (the RSS), and teardown walks every served block to release the
+children that make the mechanism sound.
+
+### 8.5 Verdict
+
+A negative result with a clean mechanism. The arena is sound, uncounted,
+tears down to `live=0 immortal=0 leaked=0`, and preserves every byte gate
+(stage2 and stage3 `compiler.ll` and `cinch` are identical, 46 interfaces
+identical, smoke passes), but the population a *sound* scope can reach in this
+tree is 0.4 to 0.5% of the compiler's blocks, because the pipeline is
+whole-program: every phase's output is retained, so the only escape-free scope
+is a rendering step whose bytes are written and never read again. Within that
+scope the counted-allocator win does not pay for the chunked memory, the
+per-block bookkeeping and the teardown. Per section 6.1 the lever is the
+schedule, not the allocator: a per-module phase schedule is what would let an
+arena hold elaboration's traffic, and until then the mechanism has nothing
+large enough to hold.
+
+Two facts worth keeping from the exercise. First, `RC_IMMORTAL` is the whole
+mechanism, so an arena needs no new kind, no new mark, and no change to any
+count path. Second, an arena block that owns a heap block is a leak unless
+teardown releases children; a runtime arena without that walk is not
+shippable, and the leak check finds it in one run.

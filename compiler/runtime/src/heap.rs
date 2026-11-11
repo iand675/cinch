@@ -546,6 +546,20 @@ pub(crate) fn thread_freed() -> u64 {
     THREAD_FREED.with(std::cell::Cell::get)
 }
 
+/// The header blocks the calling test thread has allocated, and the
+/// immortal ones among them: its own tally, so a test beside it cannot
+/// disturb the count ([`thread_freed`]'s reason).
+#[cfg(test)]
+pub(crate) fn thread_header_blocks() -> (u64, u64) {
+    match small::local() {
+        Some(heap) => (
+            heap.tally.header_blocks.load(Relaxed),
+            heap.tally.immortal.load(Relaxed),
+        ),
+        None => (0, 0),
+    }
+}
+
 /// Held by the unit tests whose allocation volume would disturb a
 /// live-bytes measurement running beside them.
 #[cfg(test)]

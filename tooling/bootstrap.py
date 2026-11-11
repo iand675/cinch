@@ -31,7 +31,7 @@ TOOLKIT = ("Lex", "Scan", "Parse", "Json", "Builder")
 PROTOCOL = 4
 HOST = {"system": platform.system(), "machine": platform.machine()}
 FROZEN_SOURCES = None
-RUNTIME_ABIS = (5, 6, 7, 8)
+RUNTIME_ABIS = (5, 6, 7, 8, 9)
 # Parallel clang jobs for the stage link. 1 keeps the single-module
 # translation unit; above 1 the module is sharded (see tooling/shard_ir.py).
 JOBS = 1

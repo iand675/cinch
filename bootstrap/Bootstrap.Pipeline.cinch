@@ -214,9 +214,7 @@ module Bootstrap.Pipeline where
   -- working directory's `build/`. Emission has already checked the program,
   -- so a client whose interfaces cannot be exported still emits.
   emit-client-artifacts :: forall r. using (io :: Io r) => String -> Bytes -> CheckedProgram -> List LoadedInterface ->{IO r, Diverge} Unit
-  emit-client-artifacts entry src checked admitted = case write-source-artifacts entry src checked admitted Nil of
-    Err message -> ()
-    Ok done -> ()
+  emit-client-artifacts entry src checked admitted = write-source-artifacts entry src checked admitted Nil
 
   -- A published interface client writes its interfaces beside the IR path
   -- and its build manifest beside them; a plain client build only emits.
@@ -427,17 +425,51 @@ module Bootstrap.Pipeline where
     (other, Err found) -> after-check inlining mode src result ir exe report
     (other, Ok checked) -> let admitted = unshadowed-interfaces (program-modules (checked-surface checked)) interfaces in
       case write-source-artifacts name src checked admitted replaced of
-        Err message -> after-check inlining mode src result ir exe report
-        Ok done -> after-check inlining mode src result ir exe report
+        done -> after-check inlining mode src result ir exe report
 
   -- The artifact set is best effort: the frontend's own refusal codes stay
   -- the ones a caller reads, and an interface the checker admits but cannot
   -- project does not turn a passing check into an emission failure.
 
-  write-source-artifacts :: forall r. using (io :: Io r) => String -> Bytes -> CheckedProgram -> List LoadedInterface -> List (String, Json) ->{IO r, Diverge} Result String Unit
+  -- The first chunk of the serialization arena: one megabyte, one module's
+  -- worth of rendered spellings and hash material in a phase. Growth
+  -- doubles, so a wider interface set asks for another chunk instead of
+  -- copying one.
+  arena-first-chunk :: I64
+  arena-first-chunk = 1048576
+
+  -- The arena entries (`compiler/runtime/src/arena.rs`). The symbol
+  -- namespace is reserved (D73), so a program reaches them only by
+  -- spelling the intrinsic and only the checker's own intrinsic table
+  -- types that spelling: nothing else in the language can obtain one.
+  foreign import ccall "cinch.runtime.arenaNew" arena-new :: I64 -> I64
+  foreign import ccall "cinch.runtime.arenaLeave" arena-leave :: I64 -> I64
+
+  -- Interface serialization is the one finished phase whose whole output
+  -- is files: the documents themselves are built before this scope (the
+  -- manifest embeds them) and what the scope allocates is their rendering,
+  -- which nothing reads once the bytes are written. So the scope can hold
+  -- its own churn and free it wholesale, and no word it served outlives it.
+  -- `CINCH_ARENA=0` makes both entries no-ops, so the same build measures
+  -- the same phase with every block back on the counted heap.
+  write-source-artifacts :: forall r. using (io :: Io r) => String -> Bytes -> CheckedProgram -> List LoadedInterface -> List (String, Json) ->{IO r, Diverge} Unit
   write-source-artifacts name src checked admitted replaced = case export-interfaces checked admitted src of
-    Err message -> Err message
-    Ok rows -> write-build-artifacts (path-stem (path-from-string name)) admitted (replaced <> rows)
+    Err message -> ()
+    Ok rows -> serialize-artifacts (path-stem (path-from-string name)) admitted (replaced <> rows)
+
+  serialize-artifacts :: forall r. using (io :: Io r) => String -> List LoadedInterface -> List (String, Json) ->{IO r, Diverge} Unit
+  serialize-artifacts entry admitted rows =
+    let arena = arena-new arena-first-chunk in
+    let written = ignore-artifact-outcome (write-build-artifacts entry admitted rows) in
+    case arena-leave arena of _ -> written
+
+  -- The artifact write's outcome is already reported through the files it
+  -- left (the caller's exit code does not read it), and the value must
+  -- not leave the arena, so this reduces it to the unit word inside.
+  ignore-artifact-outcome :: Result String Unit -> Unit
+  ignore-artifact-outcome outcome = case outcome of
+    Err message -> ()
+    Ok done -> ()
 
   write-build-artifacts :: forall r. using (io :: Io r) => String -> List LoadedInterface -> List (String, Json) ->{IO r, Diverge} Result String Unit
   write-build-artifacts entry interfaces rows =

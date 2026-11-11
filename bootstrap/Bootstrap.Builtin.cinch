@@ -85,6 +85,11 @@ module Bootstrap.Builtin where
     else if string-compare symbol "cinch.runtime.fsRemove" == 0 then Some ("Bytes -> Bool -> I64", "cinch_fs_remove", [1, 0], 0)
     else if string-compare symbol "cinch.runtime.fsTempDir" == 0 then Some ("Unit -> Bytes", "cinch_fs_temp_dir", [3], 0)
     else if string-compare symbol "cinch.runtime.signalSend" == 0 then Some ("I64 -> I64 -> I64", "cinch_signal_send", [0, 0], 0)
+    -- The bump arena (`compiler/runtime/src/arena.rs`): the handle is a
+    -- machine word at both ends, so neither entry takes or answers a
+    -- counted word.
+    else if string-compare symbol "cinch.runtime.arenaNew" == 0 then Some ("I64 -> I64", "cinch_arena_new", [0], 0)
+    else if string-compare symbol "cinch.runtime.arenaLeave" == 0 then Some ("I64 -> I64", "cinch_arena_leave", [0], 0)
     else if string-compare symbol "cinch.runtime.netTcpConnect" == 0 then Some ("Bytes -> I64 -> Result I64 I64", "cinch_net_tcp_connect", [1, 0], 2)
     else if string-compare symbol "cinch.runtime.netRead" == 0 then Some ("I64 -> Nat -> Result I64 Bytes", "cinch_net_read", [0, 2], 4)
     else if string-compare symbol "cinch.runtime.netWrite" == 0 then Some ("I64 -> Bytes -> Result I64 Nat", "cinch_net_write", [0, 1], 3)

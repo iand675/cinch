@@ -632,6 +632,14 @@ pub enum PlatformOp {
     FsTempDir,
     /// `signalSend :: I64 -> I64 -> I64`: POSIX `kill`; the raw result.
     SignalSend,
+    /// `arenaNew :: I64 -> I64`: enter a bump arena whose first chunk is
+    /// at least that many bytes and return its handle
+    /// (`compiler/runtime/src/arena.rs`). The handle is a machine word,
+    /// never a block, and 0 when `CINCH_ARENA=0` makes the scope a no-op.
+    ArenaNew,
+    /// `arenaLeave :: I64 -> I64`: free every chunk of the arena the
+    /// handle names, restore the arena entered before it, and answer 0.
+    ArenaLeave,
 }
 
 impl PlatformOp {
@@ -642,6 +650,8 @@ impl PlatformOp {
             PlatformOp::FsRemove => "fsRemove",
             PlatformOp::FsTempDir => "fsTempDir",
             PlatformOp::SignalSend => "signalSend",
+            PlatformOp::ArenaNew => "arenaNew",
+            PlatformOp::ArenaLeave => "arenaLeave",
         }
     }
 
@@ -653,6 +663,8 @@ impl PlatformOp {
             PlatformOp::FsRemove => "cinch_fs_remove",
             PlatformOp::FsTempDir => "cinch_fs_temp_dir",
             PlatformOp::SignalSend => "cinch_signal_send",
+            PlatformOp::ArenaNew => "cinch_arena_new",
+            PlatformOp::ArenaLeave => "cinch_arena_leave",
         }
     }
 }
@@ -1180,6 +1192,8 @@ impl PrimOp {
                 "fsRemove" => Platform(PlatformOp::FsRemove),
                 "fsTempDir" => Platform(PlatformOp::FsTempDir),
                 "signalSend" => Platform(PlatformOp::SignalSend),
+                "arenaNew" => Platform(PlatformOp::ArenaNew),
+                "arenaLeave" => Platform(PlatformOp::ArenaLeave),
                 "netTcpConnect" => Net(NetOp::TcpConnect),
                 "netRead" => Net(NetOp::Read),
                 "netWrite" => Net(NetOp::Write),
@@ -1321,7 +1335,8 @@ impl PrimOp {
                 TextOp::Sha256 | TextOp::Sha512 | TextOp::Sha1 | TextOp::Md5
                     | TextOp::F64ToDecimal | TextOp::F64FromDecimal,
             )
-            | Platform(PlatformOp::RandomBytes | PlatformOp::FsTempDir) => 1,
+            | Platform(PlatformOp::RandomBytes | PlatformOp::FsTempDir)
+            | Platform(PlatformOp::ArenaNew | PlatformOp::ArenaLeave) => 1,
             Net(_) | Proc(_) | Pty(_) => self.sig().0.len(),
             Bytes(BytesOp::Set) => 3,
             Bytes(BytesOp::Copy) => 5,
@@ -1421,6 +1436,7 @@ impl PrimOp {
             }
             Platform(PlatformOp::FsTempDir) => (vec![Ty::Unit], Ty::Bytes),
             Platform(PlatformOp::SignalSend) => (vec![i64t.clone(), i64t.clone()], i64t),
+            Platform(PlatformOp::ArenaNew | PlatformOp::ArenaLeave) => (vec![i64t.clone()], i64t),
             Net(NetOp::TcpConnect) => (vec![Ty::Bytes, i64t.clone()], res(i64t.clone())),
             Net(NetOp::Read) => (vec![i64t.clone(), Ty::Nat], res(Ty::Bytes)),
             Net(NetOp::Write) => (vec![i64t.clone(), Ty::Bytes], res(Ty::Nat)),

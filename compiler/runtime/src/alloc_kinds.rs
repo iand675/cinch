@@ -69,6 +69,13 @@ static KIND_BLOCKS: [AtomicU64; BUCKETS] = [const { AtomicU64::new(0) }; BUCKETS
 static KIND_BYTES: [AtomicU64; BUCKETS] = [const { AtomicU64::new(0) }; BUCKETS];
 static CLASS_BLOCKS: [AtomicU64; CLASSES] = [const { AtomicU64::new(0) }; CLASSES];
 static CLASS_BYTES: [AtomicU64; CLASSES] = [const { AtomicU64::new(0) }; CLASSES];
+/// The blocks an entered arena served ([`crate::arena`]): the same two
+/// censuses, kept apart so the lines above keep saying how much the
+/// counted heap allocated, which is the number an arena changes.
+static ARENA_KIND_BLOCKS: [AtomicU64; BUCKETS] = [const { AtomicU64::new(0) }; BUCKETS];
+static ARENA_KIND_BYTES: [AtomicU64; BUCKETS] = [const { AtomicU64::new(0) }; BUCKETS];
+static ARENA_CLASS_BLOCKS: [AtomicU64; CLASSES] = [const { AtomicU64::new(0) }; CLASSES];
+static ARENA_CLASS_BYTES: [AtomicU64; CLASSES] = [const { AtomicU64::new(0) }; CLASSES];
 
 /// Turn the census on: the environment said so.
 pub(crate) fn enable() {
@@ -106,8 +113,33 @@ fn record(kind: u8, bytes: usize) {
     CLASS_BYTES[c].fetch_add(bytes as u64, Relaxed);
 }
 
+/// Count one fresh block of `kind` whose whole allocation, header and
+/// escape word included, is `bytes` bytes that an entered arena served
+/// ([`crate::block::allocate_block`]'s bump path). The counted-heap
+/// lines are left alone: an arena block never reaches the heap, so the
+/// two censuses answer different questions and stay separate.
+#[inline]
+pub(crate) fn note_arena(kind: u8, bytes: usize) {
+    if ENABLED.load(Relaxed) {
+        record_arena(kind, bytes);
+    }
+}
+
+/// [`note_arena`] with the census on.
+#[inline(never)]
+fn record_arena(kind: u8, bytes: usize) {
+    let b = (kind as usize).min(OTHER);
+    ARENA_KIND_BLOCKS[b].fetch_add(1, Relaxed);
+    ARENA_KIND_BYTES[b].fetch_add(bytes as u64, Relaxed);
+    let c = class_of(bytes);
+    ARENA_CLASS_BLOCKS[c].fetch_add(1, Relaxed);
+    ARENA_CLASS_BYTES[c].fetch_add(bytes as u64, Relaxed);
+}
+
 /// Write the census, one line per kind that allocated and then one per
-/// size class that allocated. The `atexit` handler of `CINCH_ALLOC_KINDS=1`.
+/// size class that allocated, and after them the arena lines of
+/// [`note_arena`] when an arena served anything. The `atexit` handler of
+/// `CINCH_ALLOC_KINDS=1`.
 pub(crate) extern "C" fn print() {
     use crate::heap::Line;
     let mut kind = 0;
@@ -141,6 +173,42 @@ pub(crate) extern "C" fn print() {
             line.num(blocks);
             line.push(b" bytes=");
             line.num(CLASS_BYTES[class].load(Relaxed));
+            line.push(b"\n");
+            line.flush();
+        }
+        class += 1;
+    }
+    let mut kind = 0;
+    while kind < BUCKETS {
+        let blocks = ARENA_KIND_BLOCKS[kind].load(Relaxed);
+        if blocks != 0 {
+            let mut line = Line::new();
+            line.push(b"cinch-arena-kind: kind=");
+            line.push(NAMES[kind]);
+            line.push(b" blocks=");
+            line.num(blocks);
+            line.push(b" bytes=");
+            line.num(ARENA_KIND_BYTES[kind].load(Relaxed));
+            line.push(b"\n");
+            line.flush();
+        }
+        kind += 1;
+    }
+    let mut class = 0;
+    while class < CLASSES {
+        let blocks = ARENA_CLASS_BLOCKS[class].load(Relaxed);
+        if blocks != 0 {
+            let mut line = Line::new();
+            line.push(b"cinch-arena-size: upto=");
+            if class == ABOVE {
+                line.push(b"above");
+            } else {
+                line.num(SIZES[class] as u64);
+            }
+            line.push(b" blocks=");
+            line.num(blocks);
+            line.push(b" bytes=");
+            line.num(ARENA_CLASS_BYTES[class].load(Relaxed));
             line.push(b"\n");
             line.flush();
         }
