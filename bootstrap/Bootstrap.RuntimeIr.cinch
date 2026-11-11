@@ -3132,9 +3132,11 @@ module Bootstrap.RuntimeIr where
   arm-plan :: Writer -> CorePattern -> ArmPlan
   arm-plan w pattern = if not (word-type (writer-context w) (pattern-type pattern)) then NoArm
     else case pattern of
+      -- A decision value is a produced constructor, not a tag: its word is
+      -- not the 0/1 the chain's kernel test compares, so the switch keeps
+      -- the chain for it rather than naming cases no value can have.
       CPConstructor sp ty name actuals sc fields ->
-        if decision-word-type ty && (same name "b.Yes" || same name "b.No") && erased-decision-fields fields then
-          WordArm (if same name "b.Yes" then "0" else "1")
+        if decision-word-type ty then NoArm
         else if named ty "Bool" && (same name "True" || same name "False") then
           WordArm (if same name "True" then "1" else "0")
         else case constructor name (writer-data w) of
@@ -3304,7 +3306,11 @@ module Bootstrap.RuntimeIr where
   branch :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> CoreTerm -> (Writer, String)
   branch definitions locals w sp test yes no =
     let (tested, condition) = expression definitions locals w test in
-    branch-diamond definitions locals tested condition yes no
+    case static-word locals tested yes of
+      Some left -> case static-word locals tested no of
+        Some right -> branch-select tested condition left right
+        None -> branch-diamond definitions locals tested condition yes no
+      None -> branch-diamond definitions locals tested condition yes no
   -- Both arms are already words, so one select chooses between them and the
   -- branch disappears.
   branch-select :: Writer -> String -> String -> String -> (Writer, String)
