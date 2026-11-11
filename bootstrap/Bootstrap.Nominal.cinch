@@ -9,8 +9,9 @@ module Bootstrap.Nominal where
   import Text.Lex (Span)
   import Algebra.Semigroup
   import Data.Nat (nat-div, nat-rem)
+  import Data.Char (char-from-code)
 
-  export interface-global, encode-identity, resolved-entry-valid, resolved-nominals
+  export interface-global, encode-identity, decode-identity, resolved-entry-valid, resolved-nominals
   export resolved-text, qualify-resolved, kernel-type-name, qualify-refinement-predicate, resolved-measures
   export global-data-core-nil, global-data-core-cons, global-data-core-list, global-data-core-result, global-data-core-option, global-data-core-some, global-data-core-none, global-data-core-ok, global-data-core-err, global-data-string-string, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-relation-ord-ord, global-data-ordering-ordering, global-data-ordering-lt, global-data-ordering-eq, global-data-ordering-gt, global-algebra-arithmetic-nonzero, global-data-bool-not
 
@@ -24,19 +25,116 @@ module Bootstrap.Nominal where
   has name names = case names of Nil -> False; Cons n rest -> same name n || has name rest
   text :: Json -> String
   text doc = case doc of JStr value -> value; other -> ""
-  -- The encoded identity's characters before `rest`: each scalar's decimal
-  -- code and a separator. Callers pack the whole name once, without a
-  -- numeral string (and its UTF-8 check) per character or a copy of the
-  -- encoded suffix at every step.
+  -- The identity spelling every interface, object and symbol name agrees on.
+  -- It is injective and reversible: `$` always starts an escape, a plain
+  -- character is itself, and a component separator is never inside an
+  -- escape. `[A-Za-z0-9_]` is itself, `$` is `$24`, and every other scalar
+  -- is the lowercase two-digit hex of each of its UTF-8 bytes (`$2e` for a
+  -- dot, `$2d` for a hyphen, `$e2$86$92` for a right arrow). The dot is
+  -- escaped inside an identity because the `m.` and `o.` prefixes already
+  -- spend a bare dot on the boundary between two components.
+  --
+  -- Callers pack the whole name once, without a numeral string (and its
+  -- UTF-8 check) per character or a copy of the encoded suffix at every
+  -- step.
   encode-identity :: List Char -> List Char -> List Char
   encode-identity chars rest = case chars of
     Nil -> rest
-    Cons c more -> code-digits (char-code c) (Cons '_' (encode-identity more rest))
-  code-digits :: Nat -> List Char -> List Char
-  code-digits n rest = if n < 10 then Cons (digit-char n) rest else code-digits (nat-div n 10) (Cons (digit-char (nat-rem n 10)) rest)
+    Cons c more -> let code = char-code c in
+      if plain-code code then Cons c (encode-identity more rest)
+      else escaped-code code (encode-identity more rest)
+  -- The decimal fallback this replaced spent four characters on every
+  -- plain letter. The escape is also shorter for punctuation: `$2e` against
+  -- `46_`, and the plain class is the whole difference on identifier text.
+  plain-code :: Nat -> Bool
+  plain-code code = (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || (code >= 48 && code <= 57) || code == 95
+  escaped-code :: Nat -> List Char -> List Char
+  escaped-code code rest =
+    if code < 128 then escape-byte code rest
+    else if code < 2048 then escape-byte (192 + nat-div code 64) (escape-byte (128 + nat-rem code 64) rest)
+    else if code < 65536 then escape-byte (224 + nat-div code 4096)
+      (escape-byte (128 + nat-rem (nat-div code 64) 64) (escape-byte (128 + nat-rem code 64) rest))
+    else escape-byte (240 + nat-div code 262144) (escape-byte (128 + nat-rem (nat-div code 4096) 64)
+      (escape-byte (128 + nat-rem (nat-div code 64) 64) (escape-byte (128 + nat-rem code 64) rest)))
+  escape-byte :: Nat -> List Char -> List Char
+  escape-byte byte rest = Cons '$' (Cons (hex-digit (nat-div byte 16)) (Cons (hex-digit (nat-rem byte 16)) rest))
+  hex-digit :: Nat -> Char
+  hex-digit n = if n < 10 then digit-char n
+    else if n == 10 then 'a' else if n == 11 then 'b' else if n == 12 then 'c'
+    else if n == 13 then 'd' else if n == 14 then 'e' else 'f'
   digit-char :: Nat -> Char
   digit-char n = if n == 0 then '0' else if n == 1 then '1' else if n == 2 then '2' else if n == 3 then '3' else if n == 4 then '4'
     else if n == 5 then '5' else if n == 6 then '6' else if n == 7 then '7' else if n == 8 then '8' else '9'
+  -- The inverse, for the consumers that read a spelling back: `export-global`
+  -- in front of every interface symbol and the readable type text in a
+  -- diagnostic. A run of escapes is one scalar's UTF-8 encoding, so a stray
+  -- continuation byte, an overlong form, a surrogate and a value past
+  -- `0x10FFFF` are all refused rather than guessed. An encoded run ends at
+  -- the first character outside the grammar, which is how a name embedded in
+  -- a longer spelling keeps its suffix.
+  decode-identity :: List Char -> Option (String, List Char)
+  decode-identity chars = case decode-run chars Nil of
+    Some (reversed, rest) -> Some (pack (reverse reversed), rest)
+    None -> None
+  decode-run :: List Char -> List Char -> Option (List Char, List Char)
+  decode-run chars reversed = case chars of
+    Nil -> Some (reversed, Nil)
+    Cons c rest -> let code = char-code c in
+      if plain-code code then decode-run rest (Cons c reversed)
+      else if code == 36 then (case hex-byte rest of
+        Some (lead, more) -> (case decode-scalar lead more of
+          Some (scalar, after) -> decode-run after (Cons scalar reversed)
+          None -> None)
+        None -> None)
+      else Some (reversed, chars)
+  -- Each admitted lead and continuation byte's payload is taken modulo its
+  -- field width, which is the same number for every value its width admits:
+  -- `lead >= 194` for two bytes is `lead mod 32 = lead - 192`, and a
+  -- continuation byte's `mod 64` is its `- 128`. That keeps every step total.
+  decode-scalar :: Nat -> List Char -> Option (Char, List Char)
+  decode-scalar lead chars =
+    if lead < 128 then scalar-char lead 0 chars
+    else if lead < 194 then None
+    else if lead < 224 then (case continuation-byte chars of
+      Some (first, more) -> scalar-char ((nat-rem lead 32) * 64 + nat-rem first 64) 128 more
+      None -> None)
+    else if lead < 240 then (case continuation-byte chars of
+      Some (first, more) -> (case continuation-byte more of
+        Some (second, after) -> scalar-char ((nat-rem lead 16) * 4096 + (nat-rem first 64) * 64 + nat-rem second 64) 2048 after
+        None -> None)
+      None -> None)
+    else if lead < 245 then (case continuation-byte chars of
+      Some (first, more) -> (case continuation-byte more of
+        Some (second, after) -> (case continuation-byte after of
+          Some (third, done) -> scalar-char ((nat-rem lead 8) * 262144 + (nat-rem first 64) * 4096 + (nat-rem second 64) * 64 + nat-rem third 64) 65536 done
+          None -> None)
+        None -> None)
+      None -> None)
+    else None
+  scalar-char :: Nat -> Nat -> List Char -> Option (Char, List Char)
+  scalar-char code minimum rest = if code < minimum then None else case char-from-code code of
+    Some scalar -> Some (scalar, rest)
+    None -> None
+  continuation-byte :: List Char -> Option (Nat, List Char)
+  continuation-byte chars = case chars of
+    Cons c rest -> if char-code c == 36 then (case hex-byte rest of
+      Some (byte, more) -> if byte >= 128 && byte < 192 then Some (byte, more) else None
+      None -> None)
+      else None
+    Nil -> None
+  hex-byte :: List Char -> Option (Nat, List Char)
+  hex-byte chars = case hex-digit-code chars of
+    Some (high, more) -> (case hex-digit-code more of
+      Some (low, rest) -> Some (high * 16 + low, rest)
+      None -> None)
+    None -> None
+  hex-digit-code :: List Char -> Option (Nat, List Char)
+  hex-digit-code chars = case chars of
+    Cons c rest -> let code = char-code c in
+      if code >= 48 && code <= 57 then Some (code - 48, rest)
+      else if code >= 97 && code <= 102 then Some (code - 87, rest)
+      else None
+    Nil -> None
   interface-global :: String -> String
   interface-global identity = pack (Cons 'i' (Cons '.' (encode-identity (unpack identity) Nil)))
   -- The encoded global of each identity the compiler compares against, in
@@ -46,43 +144,43 @@ module Bootstrap.Nominal where
   -- comparison. Each constant is `interface-global` of the identity its
   -- comment names, and the checker compares against that spelling.
   global-data-core-nil :: String
-  global-data-core-nil = "i.68_97_116_97_46_67_111_114_101_46_78_105_108_"  -- Data.Core.Nil
+  global-data-core-nil = "i.Data$2eCore$2eNil"  -- Data.Core.Nil
   global-data-core-cons :: String
-  global-data-core-cons = "i.68_97_116_97_46_67_111_114_101_46_67_111_110_115_"  -- Data.Core.Cons
+  global-data-core-cons = "i.Data$2eCore$2eCons"  -- Data.Core.Cons
   global-data-core-list :: String
-  global-data-core-list = "i.68_97_116_97_46_67_111_114_101_46_76_105_115_116_"  -- Data.Core.List
+  global-data-core-list = "i.Data$2eCore$2eList"  -- Data.Core.List
   global-data-core-result :: String
-  global-data-core-result = "i.68_97_116_97_46_67_111_114_101_46_82_101_115_117_108_116_"  -- Data.Core.Result
+  global-data-core-result = "i.Data$2eCore$2eResult"  -- Data.Core.Result
   global-data-core-option :: String
-  global-data-core-option = "i.68_97_116_97_46_67_111_114_101_46_79_112_116_105_111_110_"  -- Data.Core.Option
+  global-data-core-option = "i.Data$2eCore$2eOption"  -- Data.Core.Option
   global-data-core-some :: String
-  global-data-core-some = "i.68_97_116_97_46_67_111_114_101_46_83_111_109_101_"  -- Data.Core.Some
+  global-data-core-some = "i.Data$2eCore$2eSome"  -- Data.Core.Some
   global-data-core-none :: String
-  global-data-core-none = "i.68_97_116_97_46_67_111_114_101_46_78_111_110_101_"  -- Data.Core.None
+  global-data-core-none = "i.Data$2eCore$2eNone"  -- Data.Core.None
   global-data-core-ok :: String
-  global-data-core-ok = "i.68_97_116_97_46_67_111_114_101_46_79_107_"  -- Data.Core.Ok
+  global-data-core-ok = "i.Data$2eCore$2eOk"  -- Data.Core.Ok
   global-data-core-err :: String
-  global-data-core-err = "i.68_97_116_97_46_67_111_114_101_46_69_114_114_"  -- Data.Core.Err
+  global-data-core-err = "i.Data$2eCore$2eErr"  -- Data.Core.Err
   global-data-string-string :: String
-  global-data-string-string = "i.68_97_116_97_46_83_116_114_105_110_103_46_83_116_114_105_110_103_"  -- Data.String.String
+  global-data-string-string = "i.Data$2eString$2eString"  -- Data.String.String
   global-data-fromlist-fromlist :: String
-  global-data-fromlist-fromlist = "i.68_97_116_97_46_70_114_111_109_76_105_115_116_46_70_114_111_109_76_105_115_116_"  -- Data.FromList.FromList
+  global-data-fromlist-fromlist = "i.Data$2eFromList$2eFromList"  -- Data.FromList.FromList
   global-data-fromlist-fromlist-from-list :: String
-  global-data-fromlist-fromlist-from-list = "i.68_97_116_97_46_70_114_111_109_76_105_115_116_46_70_114_111_109_76_105_115_116_46_102_114_111_109_45_108_105_115_116_"  -- Data.FromList.FromList.from-list
+  global-data-fromlist-fromlist-from-list = "i.Data$2eFromList$2eFromList$2efrom$2dlist"  -- Data.FromList.FromList.from-list
   global-relation-ord-ord :: String
-  global-relation-ord-ord = "i.82_101_108_97_116_105_111_110_46_79_114_100_46_79_114_100_"  -- Relation.Ord.Ord
+  global-relation-ord-ord = "i.Relation$2eOrd$2eOrd"  -- Relation.Ord.Ord
   global-data-ordering-ordering :: String
-  global-data-ordering-ordering = "i.68_97_116_97_46_79_114_100_101_114_105_110_103_46_79_114_100_101_114_105_110_103_"  -- Data.Ordering.Ordering
+  global-data-ordering-ordering = "i.Data$2eOrdering$2eOrdering"  -- Data.Ordering.Ordering
   global-data-ordering-lt :: String
-  global-data-ordering-lt = "i.68_97_116_97_46_79_114_100_101_114_105_110_103_46_76_84_"  -- Data.Ordering.LT
+  global-data-ordering-lt = "i.Data$2eOrdering$2eLT"  -- Data.Ordering.LT
   global-data-ordering-eq :: String
-  global-data-ordering-eq = "i.68_97_116_97_46_79_114_100_101_114_105_110_103_46_69_81_"  -- Data.Ordering.EQ
+  global-data-ordering-eq = "i.Data$2eOrdering$2eEQ"  -- Data.Ordering.EQ
   global-data-ordering-gt :: String
-  global-data-ordering-gt = "i.68_97_116_97_46_79_114_100_101_114_105_110_103_46_71_84_"  -- Data.Ordering.GT
+  global-data-ordering-gt = "i.Data$2eOrdering$2eGT"  -- Data.Ordering.GT
   global-algebra-arithmetic-nonzero :: String
-  global-algebra-arithmetic-nonzero = "i.65_108_103_101_98_114_97_46_65_114_105_116_104_109_101_116_105_99_46_78_111_110_90_101_114_111_"  -- Algebra.Arithmetic.NonZero
+  global-algebra-arithmetic-nonzero = "i.Algebra$2eArithmetic$2eNonZero"  -- Algebra.Arithmetic.NonZero
   global-data-bool-not :: String
-  global-data-bool-not = "i.68_97_116_97_46_66_111_111_108_46_110_111_116_"  -- Data.Bool.not
+  global-data-bool-not = "i.Data$2eBool$2enot"  -- Data.Bool.not
   kernel-type-name :: String -> Bool
   kernel-type-name name = array-type-name name || has name ["Int", "Nat", "Fin", "Bool", "Unit", "()", "(->)", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "F32", "F64", "Ref", "Mut", "Thunk", "Lazy", "Later"]
   nonempty :: Json -> Bool

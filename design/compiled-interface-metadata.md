@@ -333,6 +333,71 @@ that machinery.
   `abi.symbols` is the authority for what a linker should resolve, so codegen
   and metadata cannot drift silently.
 
+## 4.1 Linkage identity spelling
+
+A linkage identity carries one spelling, and that spelling is normative
+(modules specification, linkage identity spelling amendment). It is what
+`i.`, `m.` and `o.` globals use, what an object's symbol table holds and what
+a stack frame prints; the interface's own `identity` and `symbol` fields keep
+the source spelling, and an imported external's defining identity and every
+default-clause global cross into the encoded spelling through
+`interface-global`. `[A-Za-z0-9_]` is
+itself, `$` is `$24`, and every other scalar is `$` followed by the
+lowercase two-digit hex of each of its UTF-8 bytes:
+
+| identity | spelling |
+| --- | --- |
+| `Data.Core.Nil` | `i.Data$2eCore$2eNil` |
+| `Data.FromList.FromList.from-list` | `i.Data$2eFromList$2eFromList$2efrom$2dlist` |
+| `Bootstrap.Infer.Bootstrap.Infer.add-error` | `i.Bootstrap$2eInfer$2eBootstrap$2eInfer$2eadd$2derror` |
+| `Data.Sym.$` | `i.Data$2eSym$2e$24` |
+| `Data.Sym.→` | `i.Data$2eSym$2e$e2$86$92` |
+
+**Where the escaping applies.** Escaping applies to each encoded run: the
+whole identity passed to `encode-identity`, or, for the `m.` and `o.` forms,
+each of the two components separately. A run never contains a bare dot,
+because a dot is escaped wherever it appears, so the bare dots a spelling
+does contain are exactly the structural separators `i.`, `m.` and `o.`
+introduce: `m.<escaped member>.<escaped owner>` splits at its first bare dot
+without further syntax, and `i.<escaped identity>` never needs splitting.
+That is why the escape covers the dot rather than only exotic scalars: keeping
+the identity's own dots would make `m.A.B.C` ambiguous between member `A.B`
+named `C` and member `A` named `B.C`.
+
+**Decoding is the exact inverse.** `$` always starts an escape, the two
+digits are lowercase, and a run of escapes is one scalar's UTF-8 encoding.
+A stray continuation byte, an overlong form, a surrogate and a value past
+`0x10FFFF` are refused, so a malformed spelling becomes an export refusal
+rather than a guessed identity. A run embedded in a longer spelling (a
+`.object-closure` accessor, a `.app` stub, a representation version `.r0`, an
+`@ROT` variant suffix) ends at the first character outside the grammar. The
+suffixes compose because each character escapes on its own: appending the
+escaped class codes to an escaped name is the escape of the concatenation,
+which is what the runtime object's variant and `.mk` factory lookups rely on.
+
+**Why the change.** The first spelling wrote every scalar as its decimal
+UTF-8 code and an underscore, so `Bootstrap.Infer` became
+`66_111_111_116_115_116_114_97_112_46_73_110_102_101_114_`. Measured on the
+compiler's own emitted IR (`build/bootstrap/stage2/compiler.ll`, 981,414
+lines): 36,714 occurrences covering 48 modules, 5 identities and 8 builtins
+spent 2,658,006 characters, 5.4% of the whole file, for 745 characters of
+identities, a 4.6x expansion. The escape spells ordinary identifier text
+whole, costs three characters for punctuation where the decimal form cost
+three or four (`$2e` against `46_`), and is still reversible by construction.
+The cost the decimal form imposed was not only bytes: the compiler's own
+`Bootstrap.Infer.add-error` appeared 6,058 times as a 72-character string,
+so the artifact used to diagnose codegen was the least readable one.
+
+**Both implementations move together.** The pinned library object is produced
+by the seed, so the seed encoder (`compiler/src/check_default_wire.rs`) and
+the Cinch encoder (`bootstrap/Bootstrap.Nominal.cinch`) are one spelling:
+the library producer pin and the compiler are rebuilt and repinned together,
+and the roots extraction in `tooling/bootstrap_objects.py` decodes the new
+spelling. Both encoders are pinned to the same table by
+`compiler/tests/interface_method_bodies.rs` and
+`compiler/tests/bootstrap_export_types.rs`, and both decoders are exercised
+by the exporter and the type display.
+
 # 5 Evolution hooks
 
 Later slices extend the same artifact additively:

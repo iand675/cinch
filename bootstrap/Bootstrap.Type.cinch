@@ -8,10 +8,9 @@ module Bootstrap.Type where
   import Data.Nat (nat-from-int, nat-to-int)
   import Data.Int (int-div, int-rem)
   import Bootstrap.Index
-  import Bootstrap.Nominal (interface-global, global-data-core-list)
+  import Bootstrap.Nominal (interface-global, decode-identity, global-data-core-list)
   import Bootstrap.Total (TotalFunction, read-total-function, total-identity, total-parameters, total-result, total-function-document, total-function-equal)
   import Text.Show (int-to-string)
-  import Data.Char (char-from-code)
   import Algebra.Semigroup
 
   export Kind, KType, KProp, KRegion, KEffect, KRow, KFun, KValue, kind-equal, kind-text
@@ -979,9 +978,10 @@ module Bootstrap.Type where
   mismatch sp a b st = add-deferred-error sp (\u -> mismatch-message a b) st
   mismatch-message :: UType -> UType -> String
   mismatch-message a b = string-concat-all ["type mismatch: expected ", display-type-text b, ", found ", display-type-text a]
-  -- Diagnostic text only: every encoded nominal identity `i.<code>_...`
-  -- reads as the unqualified source name it encodes. type-text itself,
-  -- and so every interface and IR spelling, keeps the encoded identity.
+  -- Diagnostic text only: every encoded nominal identity `i.` reads as the
+  -- unqualified source name it encodes (Bootstrap.Nominal.decode-identity).
+  -- type-text itself, and so every interface and IR spelling, keeps the
+  -- encoded identity.
   display-type-text :: UType -> String
   display-type-text ty = readable-identities (type-text ty)
   readable-identities :: String -> String
@@ -992,8 +992,8 @@ module Bootstrap.Type where
     Cons c rest -> if boundary && char-code c == 105 then
       (case rest of
         Cons dot more -> if char-code dot == 46 then
-          (case decode-identity more Nil 0 False of
-            Some (name, after) -> unqualified name Nil <> readable-chars False after
+          (case decode-identity more of
+            Some (name, after) -> unqualified (unpack name) Nil <> readable-chars False after
             None -> Cons c (readable-chars False rest))
           else Cons c (readable-chars False rest)
         Nil -> [c])
@@ -1001,21 +1001,6 @@ module Bootstrap.Type where
   identifier-char :: Char -> Bool
   identifier-char c = let code = char-code c in
     (code >= 48 && code <= 57) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || code == 45 || code == 95 || code == 46
-  -- Decimal scalar codes, each closed by `_`; at least one scalar.
-  decode-identity :: List Char -> List Char -> Nat -> Bool -> Option (List Char, List Char)
-  decode-identity chars decoded code digits = case chars of
-    Cons c rest -> let n = char-code c in
-      if n >= 48 && n <= 57 then decode-identity rest decoded (code * 10 + (n - 48)) True
-      else if n == 95 && digits then
-        (case char-from-code code of
-          Some scalar -> decode-identity rest (Cons scalar decoded) 0 False
-          None -> None)
-      else finish-identity chars decoded digits
-    Nil -> finish-identity chars decoded digits
-  finish-identity :: List Char -> List Char -> Bool -> Option (List Char, List Char)
-  finish-identity chars decoded digits = if digits then None else case decoded of
-    Nil -> None
-    other -> Some (reverse decoded, chars)
   -- The last dotted segment, so `Data.String.String` reads `String`.
   unqualified :: List Char -> List Char -> List Char
   unqualified chars segment = case chars of

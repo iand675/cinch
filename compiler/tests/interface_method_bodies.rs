@@ -77,9 +77,24 @@ fn standard_monoid_default_transports_the_checked_owner_clauses() {
     let method = class.methods.iter().find(|method| method.name == "mconcat").unwrap();
     let body = method.default.as_ref().expect("the original mconcat body").to_json();
     let identity = |name: &str| {
-        let encoded = name.chars().map(|c| format!("{}_", u32::from(c))).collect::<String>();
-        format!("i.{encoded}")
+        let mut encoded = String::from("i.");
+        for character in name.chars() {
+            if character.is_ascii_alphanumeric() || character == '_' {
+                encoded.push(character);
+            } else {
+                let mut buffer = [0; 4];
+                for byte in character.encode_utf8(&mut buffer).as_bytes() {
+                    encoded.push_str(&format!("${byte:02x}"));
+                }
+            }
+        }
+        encoded
     };
+    assert_eq!(identity("Algebra.Semigroup.sconcat"), "i.Algebra$2eSemigroup$2esconcat");
+    assert_eq!(identity("Data.FromList.FromList.from-list"), "i.Data$2eFromList$2eFromList$2efrom$2dlist");
+    assert_eq!(identity("Bootstrap.Infer.Bootstrap.Infer.add-error"), "i.Bootstrap$2eInfer$2eBootstrap$2eInfer$2eadd$2derror");
+    assert_eq!(identity("Data.Sym.$"), "i.Data$2eSym$2e$24");
+    assert_eq!(identity("Data.Sym.\u{2192}"), "i.Data$2eSym$2e$e2$86$92");
     assert!(body.contains("\"ECase\""));
     assert!(body.contains(&identity("Algebra.Monoid.Monoid.mempty")));
     assert!(body.contains(&identity("Algebra.Semigroup.sconcat")));

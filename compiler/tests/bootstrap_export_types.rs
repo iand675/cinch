@@ -31,6 +31,10 @@ fn checked_schemes_have_portable_definition_owned_syntax() {
             "scope" => "probe x = x",
             "task" => "probe u = probe u",
             "source-identity" => { assert_eq!(scheme, "A.Token"); continue; }
+            "escaped-identity" => { assert_eq!(scheme, "Bootstrap.Infer.Bootstrap.Infer.add-error"); continue; }
+            "spelling" => { assert_eq!(scheme, "i.Bootstrap$2eInfer$2eBootstrap$2eInfer$2eadd$2derror"); continue; }
+            "escaped-spelling" => { assert_eq!(scheme, "i.Data$2eSym$2e$24"); continue; }
+            "scalar-spelling" => { assert_eq!(scheme, "i.Data$2eSym$2e$e2$86$92"); continue; }
             "alpha-stable" => { assert_eq!(scheme, "yes"); continue; }
             "unsolved" | "escaped" | "malformed-identity" | "independent-row-tails" | "proof-domain-not-proposition" | "proof-row-not-effects" | "early-proof-precondition" => {
                 assert!(scheme.starts_with("ERROR:"), "{name}: {scheme}"); continue;

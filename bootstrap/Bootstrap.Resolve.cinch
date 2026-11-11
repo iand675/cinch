@@ -101,10 +101,12 @@ module Bootstrap.Resolve where
     Nil -> False
     Cons m rest -> same name (module-name m) || has-module name rest
 
-  -- Decimal scalar codes separated by underscores are injective
-  -- (Bootstrap.Nominal.encode-identity). The dot keeps these internal
-  -- globals distinct from every lexical identifier. All resulting
-  -- characters are legal in an unquoted LLVM name.
+  -- The identity spelling (Bootstrap.Nominal.encode-identity): plain
+  -- identifier characters are themselves and everything else, including the
+  -- dot, is a `$` escape. A bare dot is therefore always the boundary
+  -- between the two components this prefix joins, which keeps `m.` globals
+  -- distinct from every lexical identifier and from each other. Every
+  -- character of the result is legal in an unquoted LLVM name.
   global-name :: String -> String -> String
   global-name home name = if same home "Main" && same name "main" then "main"
     else pack (Cons 'm' (Cons '.' (encode-identity (unpack home) (Cons '.' (encode-identity (unpack name) Nil)))))

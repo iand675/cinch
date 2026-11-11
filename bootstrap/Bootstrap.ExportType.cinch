@@ -3,10 +3,10 @@
 module Bootstrap.ExportType where
   import Algebra.Semigroup
   import Bootstrap.Type
+  import Bootstrap.Nominal (decode-identity)
   import Bootstrap.Ast
   import Bootstrap.Index
   import Bootstrap.Total (total-identity, total-source-projection)
-  import Data.Char (char-from-code)
   import Data.String
   import Text.Show (nat-to-string, int-to-string)
 
@@ -23,22 +23,20 @@ module Bootstrap.ExportType where
     Cons (Ok first) rest -> case join rest of Err error -> Err error; Ok more -> Ok (string-concat first more)
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
-  decode :: List Char -> Nat -> Bool -> List Char -> Result String String
-  decode input number digits reversed = case input of
-    Nil -> if digits then Err "unterminated encoded defining identity" else Ok (pack (reverse reversed))
-    Cons c rest -> let code = char-code c in
-      if code == 95 then
-        (if not digits then Err "empty encoded identity scalar" else case char-from-code number of
-          None -> Err "invalid encoded identity scalar"
-          Some scalar -> decode rest 0 False (Cons scalar reversed))
-      else if code >= 48 && code <= 57 then decode rest (number * 10 + (code - 48)) True reversed
-      else Err "invalid encoded defining identity"
+  -- The whole identity, or a refusal. The grammar is Bootstrap.Nominal's
+  -- `decode-identity`; a spelling is an identity only when it decodes
+  -- completely and canonically, so a trailing character or an escape that
+  -- does not spell one scalar is not a source name to compare against.
+  decode :: List Char -> Result String String
+  decode input = case decode-identity input of
+    Some (value, Nil) -> if string-length value > 0 then Ok value else Err "empty encoded defining identity"
+    other -> Err "invalid encoded defining identity"
   split-owner :: List Char -> List Char -> Result String (String, String)
   split-owner input prefix = case input of
     Nil -> Err "source defining identity has no member"
     Cons c rest -> if char-code c == 46 then
-      (case (decode (reverse prefix) 0 False Nil, decode rest 0 False Nil) of
-        (Ok owner, Ok member) -> if string-length owner > 0 && string-length member > 0 then Ok (owner, member) else Err "empty source defining identity"
+      (case (decode (reverse prefix), decode rest) of
+        (Ok owner, Ok member) -> Ok (owner, member)
         (Err error, other) -> Err error
         (other, Err error) -> Err error)
       else split-owner rest (Cons c prefix)
@@ -46,8 +44,7 @@ module Bootstrap.ExportType where
   -- Resolve reserves the unencoded runtime entry spelling for Main.main.
   -- Interfaces still record its defining source identity, like every value.
   export-global name = if same name "#kernel.ForeignIO" then Ok "IO" else if same name "main" then Ok "Main.main" else case unpack name of
-    Cons prefix (Cons dot rest) -> if char-code dot == 46 && char-code prefix == 105 then
-      (case decode rest 0 False Nil of Ok value -> if string-length value > 0 then Ok value else Err "empty imported defining identity"; Err error -> Err error)
+    Cons prefix (Cons dot rest) -> if char-code dot == 46 && char-code prefix == 105 then decode rest
       else if char-code dot == 46 && char-code prefix == 109 then
         (case split-owner rest Nil of Err error -> Err error; Ok (owner, member) -> Ok (string-concat-all [owner, ".", member]))
       else if same name "b.Io" then Ok "Io" else if same name "b.Dec" then Ok "Dec" else if same name "b.Fin" then Ok "Fin" else if same name "b.Scope" then Ok "Scope" else if same name "b.Task" then Ok "Task"

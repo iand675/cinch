@@ -51,10 +51,13 @@ module Bootstrap.Object where
   -- export as well. Private helpers and dictionary workers do not bind names.
   object-unit :: String -> RuntimeObject -> Option RuntimeUnit
   object-unit name value = object-variant name Nil value
+  -- The variant suffix in the identity spelling: `@` and the class letters
+  -- are escapes, and appending them to an encoded name is the encoding of
+  -- the concatenation because each character escapes on its own.
   encoded-classes :: List Nat -> String
-  encoded-classes codes = case codes of Nil -> ""; Cons code rest -> (if code == 0 then "82_" else if code == 1 then "79_" else "84_") <> encoded-classes rest
+  encoded-classes codes = case codes of Nil -> ""; Cons code rest -> (if code == 0 then "$52" else if code == 1 then "$4f" else "$54") <> encoded-classes rest
   encoded-variant :: List Nat -> String
-  encoded-variant codes = case codes of Nil -> ""; other -> "64_" <> encoded-classes codes
+  encoded-variant codes = case codes of Nil -> ""; other -> "$40" <> encoded-classes codes
   object-variant :: String -> List Nat -> RuntimeObject -> Option RuntimeUnit
   object-variant name codes value = case value of
     RuntimeObject words units exports instances dictionaries families constructors types -> if has name exports then find-unit (name <> encoded-variant codes) units else None
@@ -76,7 +79,7 @@ module Bootstrap.Object where
   object-dictionary name codes value = case value of
     RuntimeObject words units exports instances dictionaries families constructors types -> if not (has name instances) then None else
       (case dictionary-row (name <> encoded-variant codes) dictionaries of
-        Some (key, row) -> (case (field "class" row, field "context_arity" row, classes (field "fields" row), find-unit (key <> "46_109_107_") units) of
+        Some (key, row) -> (case (field "class" row, field "context_arity" row, classes (field "fields" row), find-unit (key <> "$2emk") units) of
           (JStr owner, JNum count, Some fields, Some unit) -> if count < 0 then None else Some (unit, interface-global owner, nat-from-int count, fields)
           other -> None)
         None -> None)

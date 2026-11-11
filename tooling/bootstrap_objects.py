@@ -13,25 +13,59 @@ def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
 
 
+PLAIN_IDENTITY_CHARS = frozenset(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_")
+HEX_PAIR = re.compile(r"[0-9a-f]{2}")
+
+
+def identity_encoding(symbol):
+    """The one canonical spelling of a defining identity."""
+    out = []
+    for character in symbol:
+        if character in PLAIN_IDENTITY_CHARS:
+            out.append(character)
+        else:
+            out.extend("$%02x" % byte for byte in character.encode("utf-8"))
+    return "".join(out)
+
+
 def defining_symbol(encoded):
-    if not re.fullmatch(r"i\.(?:[0-9]+_)+", encoded):
+    """The source identity an `i.` linkage spelling names, or `None`.
+
+    The grammar is bootstrap/Bootstrap.Nominal.cinch's: `$` plus two lowercase
+    hex digits is one byte of a UTF-8 scalar, a plain character is itself, and
+    a spelling is canonical only when re-encoding the decoded identity
+    reproduces it exactly.
+    """
+    if not re.fullmatch(r"i\.[A-Za-z0-9_$]+", encoded):
         return None
+    body = encoded[2:]
+    raw = bytearray()
+    index = 0
+    while index < len(body):
+        character = body[index]
+        if character == "$":
+            pair = body[index + 1:index + 3]
+            if not HEX_PAIR.fullmatch(pair):
+                return None
+            raw.append(int(pair, 16))
+            index += 3
+        else:
+            raw.append(ord(character))
+            index += 1
     try:
-        codes = [int(word) for word in encoded[2:-1].split("_")]
-        if any(code > 0x10ffff or 0xd800 <= code <= 0xdfff or code < 32 for code in codes):
-            return None
-        symbol = "".join(chr(code) for code in codes)
-        return symbol if "i." + "".join(str(ord(char)) + "_" for char in symbol) == encoded else None
-    except (ValueError, OverflowError):
+        symbol = raw.decode("utf-8")
+    except UnicodeDecodeError:
         return None
+    return symbol if identity_encoding(symbol) == body else None
 
 
 def requested_roots(diagnostics):
     """Extract only actual retained-Core runtime representation demands."""
     units, dictionaries, methods = set(), set(), set()
     prefix = r"^bootstrap\.runtime-ir:[0-9]+:[0-9]+: "
-    missing = re.compile(prefix + r"checked (external|factory) variant is absent from the runtime object: (i\.[0-9_]+) \[([ROT]*)\]$")
-    method = re.compile(prefix + r"method representation has no planned declaring-class slot: (i\.[0-9_]+):([0-9]+) \[([ROT]*)\]$")
+    missing = re.compile(prefix + r"checked (external|factory) variant is absent from the runtime object: (i\.[A-Za-z0-9_$]+) \[([ROT]*)\]$")
+    method = re.compile(prefix + r"method representation has no planned declaring-class slot: (i\.[A-Za-z0-9_$]+):([0-9]+) \[([ROT]*)\]$")
     for line in diagnostics.splitlines():
         match = missing.fullmatch(line)
         if match:

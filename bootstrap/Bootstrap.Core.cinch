@@ -1045,15 +1045,15 @@ module Bootstrap.Core where
   -- every call is checked against these, and a literal is one static
   -- constant where interface-global would encode the identity again.
   bytes-len-global :: String
-  bytes-len-global = "i.68_97_116_97_46_66_121_116_101_115_46_98_121_116_101_115_45_108_101_110_"
+  bytes-len-global = "i.Data$2eBytes$2ebytes$2dlen"
   bytes-get-global :: String
-  bytes-get-global = "i.68_97_116_97_46_66_121_116_101_115_46_98_121_116_101_115_45_103_101_116_"
+  bytes-get-global = "i.Data$2eBytes$2ebytes$2dget"
   bytes-set-global :: String
-  bytes-set-global = "i.68_97_116_97_46_66_121_116_101_115_46_98_121_116_101_115_45_115_101_116_"
+  bytes-set-global = "i.Data$2eBytes$2ebytes$2dset"
   bytes-copy-range-global :: String
-  bytes-copy-range-global = "i.68_97_116_97_46_66_121_116_101_115_46_98_121_116_101_115_45_99_111_112_121_45_114_97_110_103_101_"
+  bytes-copy-range-global = "i.Data$2eBytes$2ebytes$2dcopy$2drange"
   bytes-new-global :: String
-  bytes-new-global = "i.68_97_116_97_46_66_121_116_101_115_46_98_121_116_101_115_45_110_101_119_"
+  bytes-new-global = "i.Data$2eBytes$2ebytes$2dnew"
 
   map-types :: (UType -> UType) -> List UType -> List UType
   map-types f types = case types of Nil -> Nil; Cons ty rest -> Cons (f ty) (map-types f rest)

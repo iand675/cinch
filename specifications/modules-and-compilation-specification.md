@@ -306,3 +306,22 @@ D-numbers) that amend or interpret this chapter's normative text.
 - **Cinch naming (D278-D281), 2026-10-28.** The language is Cinch:
   sources are `.cinch`, compiled interfaces `.cinchif`, runtime externs
   `cinch_*`; artifact names in this chapter read with those names.
+- **Linkage identity spelling, 2026-11-11.** This amends section 4 and the
+  linkage contract: one spelling of an identity is normative, because the
+  seed's interfaces, the self-hosted compiler's interfaces, object symbol
+  tables and symbol names all have to agree, and a disagreement is a link
+  failure rather than a subtle bug. In that spelling `[A-Za-z0-9_]` is
+  itself, `$` is `$24`, and every other scalar is `$` followed by the
+  lowercase two-digit hex of each of its UTF-8 bytes: a dot is `$2e`, a
+  hyphen is `$2d`, and `U+2192` is `$e2$86$92`. The dot is escaped inside an
+  identity because `i.`, `m.` and `o.` prefixes spend a bare dot on the
+  boundary between components, so a bare dot in a spelling is always a
+  separator and never part of a name. `$` always starts an escape and an
+  escape never contains a separator, so the spelling is injective and
+  reversible; a decoder MUST refuse a stray continuation byte, an overlong
+  form, a surrogate and a value past `0x10FFFF` rather than guessing an
+  identity. An encoded run may be embedded in a longer spelling, which ends
+  it at the first character outside the grammar. Both implementations carry
+  the same encoder and decoder (`compiler/src/check_default_wire.rs`,
+  `bootstrap/Bootstrap.Nominal.cinch`), and the pinned library producer and
+  the compiler MUST move together.

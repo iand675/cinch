@@ -48,10 +48,14 @@ module Main where
     row "alpha-stable" (case (export-scheme (MkScheme [MkQuant 7 "a" KType False] (UFun (UBound 7 "a" KType) (UBound 7 "a" KType))), export-scheme (MkScheme [MkQuant 997 "renamed" KType False] (UFun (UBound 997 "renamed" KType) (UBound 997 "renamed" KType)))) of
       (Ok first, Ok second) -> if string-compare first second == 0 then Ok "yes" else Err "inference identities changed the exported contract"
       other -> Err "valid alpha-renamed scheme was refused") <>
-    row "source-identity" (export-global "m.65_.84_111_107_101_110_") <>
+    row "source-identity" (export-global "m.A.Token") <>
+    row "escaped-identity" (export-global "m.Bootstrap$2eInfer.Bootstrap$2eInfer$2eadd$2derror") <>
+    row "spelling" (Ok (interface-global "Bootstrap.Infer.Bootstrap.Infer.add-error")) <>
+    row "escaped-spelling" (Ok (interface-global "Data.Sym.$")) <>
+    row "scalar-spelling" (Ok (interface-global "Data.Sym.→")) <>
     row "unsolved" (export-scheme (mono (UMeta 7 KType))) <>
     row "escaped" (export-scheme (mono (URigid 3 "escaped" 1 KType))) <>
-    row "malformed-identity" (export-global "m.65_.not_encoded") <>
+    row "malformed-identity" (export-global "m.A-Token") <>
     row "independent-row-tails" (export-scheme (MkScheme [MkQuant 1 "e" KRow False, MkQuant 2 "f" KRow False] (UFunEff unit (URowJoin (UBound 1 "e" KRow) (UBound 2 "f" KRow)) unit)))
   main :: Unit ->{IO r} Int
   main u = with (io = newIO ()) in case fs-write (path-from-string "export-types.txt") (string-to-bytes report) of Ok done -> 0; Err error -> 1

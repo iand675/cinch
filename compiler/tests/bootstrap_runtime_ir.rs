@@ -618,7 +618,7 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
         assert!(common::read_output(&dir, &format!("output-{index}.diagnostics")).is_empty());
         let ir = common::read_output(&dir, &format!("output-{index}.ll"));
         std::fs::write(dir.join("output.ll"), &ir).unwrap();
-        let identity_worker = |line: &&str| line.starts_with("define i64 ") && line.contains("105_100_101_110_116_105_116_121_") && line.contains(".r");
+        let identity_worker = |line: &&str| line.starts_with("define i64 ") && line.contains("m.Main.identity") && line.contains(".r");
         if name == "machine-i64-overflow" {
             assert!(ir.contains(" = add i64 %arg0, %arg1"));
             assert!(ir.contains(" = sub i64 %arg0, %arg1"));
@@ -631,7 +631,7 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
         }
         if name == "generic-identity-classes" {
             assert_eq!(ir.lines().filter(identity_worker).count(), 3, "one worker per reached Raw/Obj/TObj class");
-            let raw_header = ir.lines().find(|line| line.starts_with("define i64 ") && line.contains("105_100_101_110_116_105_116_121_.r0")).expect("raw identity worker");
+            let raw_header = ir.lines().find(|line| line.starts_with("define i64 ") && line.contains("m.Main.identity.r0")).expect("raw identity worker");
             let raw = ir.split(raw_header).nth(1).unwrap();
             let raw_body = raw.split('}').next().unwrap();
             assert!(!raw_body.contains("@cinch_dup") && !raw_body.contains("@cinch_drop") && !raw_body.contains("@cinch.typed.rc."), "Raw values must never be reference counted: {raw_body}");
@@ -640,7 +640,7 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
             assert_eq!(ir.lines().filter(identity_worker).count(), 1, "{name}: callers with the same class must share one worker");
         }
         if name == "polymorphic-recursion" || name == "generic-data-growing-recursion" {
-            let grow_name = "103_114_111_119_";
+            let grow_name = "m.Main.grow";
             assert_eq!(ir.lines().filter(|line| line.starts_with("define i64 ") && line.contains(grow_name) && line.contains(".r")).count(), 2, "{name}: changing source types must reach only two representation versions");
         }
         let exe = dir.join(format!("emitted-{name}"));

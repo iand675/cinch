@@ -7,12 +7,29 @@ fn default_node(tag: &str, items: impl IntoIterator<Item = DefaultJson>) -> Defa
     DefaultJson::Arr(std::iter::once(tag.into()).chain(items).collect())
 }
 
-fn default_global(identity: &str) -> String {
+/// The identity spelling every interface, object and symbol name agrees on
+/// (`bootstrap/Bootstrap.Nominal.cinch`): `[A-Za-z0-9_]` is itself, and every
+/// other scalar is the lowercase two-digit hex of each of its UTF-8 bytes,
+/// introduced by `$`. `$` is outside the plain class, so it spells `$24`.
+/// `$` always starts an escape and a component separator is never inside an
+/// escape, which makes the spelling injective and reversible.
+fn encode_identity(identity: &str, encoded: &mut String) {
     use std::fmt::Write;
-    let mut encoded = String::from("i.");
     for character in identity.chars() {
-        write!(encoded, "{}_", u32::from(character)).expect("writing to String cannot fail");
+        if character.is_ascii_alphanumeric() || character == '_' {
+            encoded.push(character);
+        } else {
+            let mut buffer = [0; 4];
+            for byte in character.encode_utf8(&mut buffer).as_bytes() {
+                write!(encoded, "${byte:02x}").expect("writing to String cannot fail");
+            }
+        }
     }
+}
+
+fn default_global(identity: &str) -> String {
+    let mut encoded = String::from("i.");
+    encode_identity(identity, &mut encoded);
     encoded
 }
 
