@@ -9,13 +9,14 @@ module Bootstrap.Contracts where
   import Bootstrap.Parse (parse-scheme)
   import Bootstrap.Nominal (interface-global, resolved-text, qualify-resolved, encode-identity, global-data-core-cons, global-data-core-nil, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Data.Json
   import Text.Lex (Span)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Algebra.Semigroup
 
   export interface-headers, interface-declarations, public-global
-  export materialize-externals, declaration-references, expr-references, imported-class-references, kernel-references
+  export materialize-externals, reference-index, referenced, declaration-references, expr-references, imported-class-references, kernel-references
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -82,22 +83,59 @@ module Bootstrap.Contracts where
   has :: String -> List String -> Bool
   has name names = case names of Nil -> False; Cons n rest -> same name n || has name rest
 
-  materialize-externals :: List String -> List Decl -> List (String, String) -> (List Decl, List Diagnostic)
-  materialize-externals references ds seen = case ds of
+  -- Membership in the reference list, built once. The list holds every
+  -- symbol the program mentions (tens of thousands), and the passes below
+  -- ask it once per imported declaration (thousands), so a scan per
+  -- question is the quadratic pass: two billion `string-compare` calls on
+  -- the compiler's own source. One table turns each question into a hash
+  -- probe, and the hash is the digest the keyed structures already pay.
+  reference-index :: List String -> HashMap String Bool
+  reference-index names = case names of
+    Nil -> hash-map-empty
+    Cons name rest -> hash-map-insert name True (reference-index rest)
+
+  referenced :: String -> HashMap String Bool -> Bool
+  referenced name index = case hash-map-lookup name index of
+    Some _ -> True
+    None -> False
+
+  materialize-externals :: HashMap String Bool -> List Decl -> List (String, String) -> (List Decl, List Diagnostic)
+  materialize-externals references ds seen = materialize-externals-from references (seen-index seen) ds
+
+  materialize-externals-from :: HashMap String Bool -> HashMap String (List String) -> List Decl -> (List Decl, List Diagnostic)
+  materialize-externals-from references seen ds = case ds of
     Nil -> (Nil, Nil)
     Cons d rest -> case d of
       DExternal s name kind scheme metadata ->
-        if not (has name references) || seen-entry name kind seen then materialize-externals references rest seen
+        if not (referenced name references) || seen-entry name kind seen then materialize-externals-from references seen rest
         else case external-type s name kind metadata of
-          (ty, errors) -> case materialize-externals references rest (Cons (name, kind) seen) of
+          (ty, errors) -> case materialize-externals-from references (seen-add name kind seen) rest of
             (others, more) -> (Cons (DExternal s name kind ty metadata) others, errors <> more)
-      other -> case materialize-externals references rest seen of
+      other -> case materialize-externals-from references seen rest of
         (others, errors) -> (Cons d others, errors)
 
-  seen-entry :: String -> String -> List (String, String) -> Bool
-  seen-entry name kind seen = case seen of
+  -- The materialized set is a table by name whose value is the kinds the
+  -- name was materialized as: an identity carries one kind, and the pair
+  -- is what the scan compared.
+  seen-index :: List (String, String) -> HashMap String (List String)
+  seen-index seen = case seen of
+    Nil -> hash-map-empty
+    Cons (name, kind) rest -> seen-add name kind (seen-index rest)
+
+  seen-add :: String -> String -> HashMap String (List String) -> HashMap String (List String)
+  seen-add name kind index = case hash-map-lookup name index of
+    None -> hash-map-insert name (Cons kind Nil) index
+    Some kinds -> hash-map-insert name (Cons kind kinds) index
+
+  seen-entry :: String -> String -> HashMap String (List String) -> Bool
+  seen-entry name kind seen = case hash-map-lookup name seen of
+    None -> False
+    Some kinds -> kind-member kind kinds
+
+  kind-member :: String -> List String -> Bool
+  kind-member kind kinds = case kinds of
     Nil -> False
-    Cons (n, k) rest -> (same name n && same kind k) || seen-entry name kind rest
+    Cons k rest -> same kind k || kind-member kind rest
 
   -- A kernel declaration's scheme is compiler-owned text, so nothing in
   -- the source mentions the prelude families it names. A program that uses

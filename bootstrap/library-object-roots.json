@@ -515,6 +515,18 @@
       "symbol": "Data.HashMap.hash-map-lookup"
     },
     {
+      "classes": "OR",
+      "symbol": "Data.HashMap.hash-map-empty"
+    },
+    {
+      "classes": "OR",
+      "symbol": "Data.HashMap.hash-map-insert"
+    },
+    {
+      "classes": "OR",
+      "symbol": "Data.HashMap.hash-map-lookup"
+    },
+    {
       "classes": "OO",
       "symbol": "Data.List.map"
     },

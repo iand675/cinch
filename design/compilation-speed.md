@@ -721,6 +721,99 @@ programs (same exit codes, same check lines). Hash order is not observable
 by contract (`hash-map-to-list` documents its order as unstable), so no
 program may depend on the reordering a new digest produces.
 
+### 2.10 Identifier comparison: count, not width (2026-11-11)
+
+A 40 s `sample` of a stage-3 self-check put the string comparison family at
+19.1% of the working thread's samples: `cinch.runtime.bytesCompare` 5,768 of
+30,244 inclusive, `_platform_memcmp` 4,177 self (13.8%), and
+`Data.String.string-compare` 1,890 self. Nothing else in the profile was
+close except the allocator.
+
+The question was whether that cost is the width of one compare or the number
+of compares, because the two answers have different fixes. A census inside
+`cinch_bytes_compare` (temporary, compiled in for these runs) answered it by
+counting every call, every byte read before the decision, and the call's
+operand lengths:
+
+| input | compares | bytes examined per compare | mean shorter operand | equal lengths | equal contents |
+| --- | --- | --- | --- | --- | --- |
+| 3,964-line toolkit | 187,029,613 | 1.87 | 8.56 | 31.3% | 20.1% |
+| 41,223-line compiler bundle | 2,290,295,595 | 4.20 | 17.17 | 11.3% | 4.6% |
+
+The compares are short and there are billions of them: 88% of the
+self-check's compares decide within the first four bytes, and half of them
+are between operands longer than eight bytes that differ at the front. The
+cost is the count.
+
+**The fast path.** `cinch_bytes_compare` recompiled every call through
+`memcmp`: a call, a dispatch and a byte loop, for a name one word long. It
+now reads the common prefix eight bytes at a time as a big-endian word
+(which is byte order, so the first differing byte decides the sign), answers
+two words over one region from the pointers alone, and reads the lengths
+last, where they break a prefix tie and never decide the order of two
+differing prefixes. `Data.Bytes`' `Eq` instance routes through the same
+entry instead of its own Cinch byte loop with a bounds-checked `bytes-get`
+per byte. Byte-lexicographic order is observable (canonical interface rows,
+JSON keys, diagnostics), and it is pinned two ways:
+`compiler/runtime/tests/bytes_compare.rs` asserts every pair of a corpus
+(empty, prefixes, a difference at each position inside and across a word
+boundary, high bytes, 1 to 17 bytes) against `&[u8]::cmp`, and the stage
+chain's fixed point keeps stage 2 and stage 3 byte-identical in `compiler.ll`
+and in all 46 `.cinchif` files.
+
+Child CPU, interleaved runs in both orders, on the pinned revision's
+runtime object:
+
+| input | baseline | fast path | fast path + index |
+| --- | --- | --- | --- |
+| toolkit check | 6.93 s | 6.44 s (-7.1%) | 6.08 s (-12.3%) |
+| toolkit check, wall | 7.14 s | 6.71 s (-6.0%) | 6.09 s (-14.7%) |
+
+**Where the compares came from.** The census said count, so the next
+question was count *where*. The repeated work was two passes in the
+resolver, each asking a membership question of the reference list once per
+imported declaration: `Bootstrap.Contracts.materialize-externals` asked
+whether the program mentions an external, and
+`Bootstrap.Resolve.imported-record-references` asked the same of every
+external's name. The reference list holds every symbol the program mentions
+(tens of thousands) and the imported declarations number in the thousands,
+so each pass is a product of two large lists, with a `string-compare` per
+element: 2.29 billion compares on the self-check.
+
+Both now take one `HashMap String Bool` built from the list, so a question
+is a hash probe. The materialized set threaded through
+`materialize-externals` is a table by name whose value is the kinds the name
+was materialized as, which is the pair the scan compared. The compare count
+fell from 2,290,295,595 to 1,836,320,953 (-19.8%) and the toolkit's from
+187,029,613 to 163,105,931 (-12.8%); the reference index is 0.1% more
+blocks (264.3M to 264.9M on the toolkit) and no visible time.
+
+**Interning, measured and rejected.** The Lean model is an interned name
+compared as a handle. It was not taken here, and the measurements say why.
+An `intern` is one hash-table probe of the name: a standalone measurement of
+the runtime's own table shape (`HashMap<Vec<u8>, usize>`, SipHash, 20,000
+identifier-sized names) puts it at 10.3 ns, and an out-of-line identity
+compare (`cinch_sym_eq`'s shape) at 0.54 ns. Candidate (b), interning at
+`same`, therefore costs two interns per compare (about 21 ns) where the
+current compare costs about 5 ns: it loses by four times on 2.29 billion
+calls before it removes anything. Candidate (a), interning names where they
+are built and comparing handles afterwards, pays one intern per name
+(cheap: the compiler's source has a few hundred thousand name occurrences,
+a few milliseconds) and turns each compare into a 0.54 ns call, so its best
+case is 2.29 billion compares times about half a nanosecond, roughly a
+second, and it needs a `Sym` in every AST and interface name, thousands of
+lines across the checker. The index removes 454 million of those compares
+and the fast path halves the price of the rest, for about sixty lines. If
+the remaining 1.84 billion compares are attributed to their callers the same
+way, the next lever is another index, not an interned representation.
+
+Remaining compares are concentrated: after the index the same census gives
+1,836,320,953 compares (4.8 bytes examined each), so the ids above did not
+remove all of the count. The profile's unnamed frames (Cinch functions
+inlined into `resolve-context` at compiler build time) hide which pass owns
+them; a compiler built with inlining off would name them, and that is the
+measurement this section leaves open.
+
 ## 3. The query graph (rustc, Salsa, Shake)
 
 The single largest structural gap. Today a build rechecks whatever the

@@ -10,7 +10,7 @@ module Bootstrap.Resolve where
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-exports, validate-interface-set)
   import Bootstrap.Inputs (embedded-library-home)
-  import Bootstrap.Contracts (public-global, interface-headers, interface-declarations, materialize-externals, declaration-references, imported-class-references, kernel-references)
+  import Bootstrap.Contracts (public-global, interface-headers, interface-declarations, materialize-externals, reference-index, referenced, declaration-references, imported-class-references, kernel-references)
   import Bootstrap.Parse (exported-fixities)
   import Text.Lex (Span, span-start, span-end)
   import Data.Json
@@ -1078,12 +1078,14 @@ module Bootstrap.Resolve where
           let prelude-available = (case lookup-scoped "Prelude" done of Some prelude -> True; None -> False) in
           let contexts = source-contexts modules (modules <> headers) done source-surfaces prelude-available records base in
           let references = declaration-references declarations <> export-references source-surfaces <> record-context-references contexts in
+          let reference-set = reference-index references in
           let record-references = (case imported-records of
             Nil -> Nil
-            other -> imported-record-references references imported-records declarations) in
+            other -> imported-record-references reference-set imported-records declarations) in
           let all-references = references <> kernel-references references declarations <> imported-class-references declarations declarations <> record-references in
-          let admitted = if has-name "b.Fin" all-references then Cons finite-index-declaration declarations else declarations in
-          case materialize-externals all-references admitted Nil of
+          let all-reference-set = reference-index all-references in
+          let admitted = if referenced "b.Fin" all-reference-set then Cons finite-index-declaration declarations else declarations in
+          case materialize-externals all-reference-set admitted Nil of
             (body, errors) -> (MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp (contexts <> body))) Nil), errors)
         (done, errors) -> (p, errors)
       errors -> (p, errors)
@@ -1146,12 +1148,12 @@ module Bootstrap.Resolve where
   -- A known receiver can use its public defining record even when only
   -- the function that returned it was imported. Nominal closures contain
   -- no labels, so private carriers cannot introduce field authority here.
-  imported-record-references :: List String -> List String -> List Decl -> List String
+  imported-record-references :: HashMap String Bool -> List String -> List Decl -> List String
   imported-record-references references records declarations = case declarations of
     Nil -> Nil
     Cons (DExternal sp name category syntax metadata) rest ->
       let more = imported-record-references references records rest in
-      if has-name name references then
+      if referenced name references then
         record-nominal-references records (context-field "nominals" (context-field "resolved" metadata)) <> more
       else more
     Cons other rest -> imported-record-references references records rest

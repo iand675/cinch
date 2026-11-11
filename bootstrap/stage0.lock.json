@@ -2,8 +2,8 @@
   "description": "ABI 8 Native seed at the readable identity spelling and the wrapping-bits digest; empty patch.",
   "patch": "bootstrap/seed/stage0.patch",
   "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "revision": "bb1ad9b4daa312d5c8f7cc0859c1cb39b07f02c9",
+  "revision": "8329ce4084a3d3fd59c253206f2dad28a92dc0d1",
   "runtime_abi": 8,
   "schema": 1,
-  "source_sha256": "8974df6bc6120ffb0ebeddc5a8a52991080f81b6af5d07d27eb47139eafe9d77"
+  "source_sha256": "cc806c7b5cd7f66ba6b1e7afbfb7c92908af9024c3618577c09cbcaf4c682102"
 }
