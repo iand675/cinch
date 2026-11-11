@@ -12,6 +12,7 @@ module Bootstrap.Nominal where
 
   export interface-global, encode-identity, resolved-entry-valid, resolved-nominals
   export resolved-text, qualify-resolved, kernel-type-name, qualify-refinement-predicate, resolved-measures
+  export global-data-core-nil, global-data-core-cons, global-data-core-list, global-data-core-result, global-data-core-option, global-data-core-some, global-data-core-none, global-data-core-ok, global-data-core-err, global-data-string-string, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-relation-ord-ord, global-data-ordering-ordering, global-data-ordering-lt, global-data-ordering-eq, global-data-ordering-gt, global-algebra-arithmetic-nonzero, global-data-bool-not
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -38,6 +39,50 @@ module Bootstrap.Nominal where
     else if n == 5 then '5' else if n == 6 then '6' else if n == 7 then '7' else if n == 8 then '8' else '9'
   interface-global :: String -> String
   interface-global identity = pack (Cons 'i' (Cons '.' (encode-identity (unpack identity) Nil)))
+  -- The encoded global of each identity the compiler compares against, in
+  -- the spelling `interface-global` defines. A literal is one read-only
+  -- constant; `interface-global` of a literal re-encodes it on every
+  -- evaluation, which is a character list plus a fresh buffer per
+  -- comparison. Each constant is `interface-global` of the identity its
+  -- comment names, and the checker compares against that spelling.
+  global-data-core-nil :: String
+  global-data-core-nil = "i.68_97_116_97_46_67_111_114_101_46_78_105_108_"  -- Data.Core.Nil
+  global-data-core-cons :: String
+  global-data-core-cons = "i.68_97_116_97_46_67_111_114_101_46_67_111_110_115_"  -- Data.Core.Cons
+  global-data-core-list :: String
+  global-data-core-list = "i.68_97_116_97_46_67_111_114_101_46_76_105_115_116_"  -- Data.Core.List
+  global-data-core-result :: String
+  global-data-core-result = "i.68_97_116_97_46_67_111_114_101_46_82_101_115_117_108_116_"  -- Data.Core.Result
+  global-data-core-option :: String
+  global-data-core-option = "i.68_97_116_97_46_67_111_114_101_46_79_112_116_105_111_110_"  -- Data.Core.Option
+  global-data-core-some :: String
+  global-data-core-some = "i.68_97_116_97_46_67_111_114_101_46_83_111_109_101_"  -- Data.Core.Some
+  global-data-core-none :: String
+  global-data-core-none = "i.68_97_116_97_46_67_111_114_101_46_78_111_110_101_"  -- Data.Core.None
+  global-data-core-ok :: String
+  global-data-core-ok = "i.68_97_116_97_46_67_111_114_101_46_79_107_"  -- Data.Core.Ok
+  global-data-core-err :: String
+  global-data-core-err = "i.68_97_116_97_46_67_111_114_101_46_69_114_114_"  -- Data.Core.Err
+  global-data-string-string :: String
+  global-data-string-string = "i.68_97_116_97_46_83_116_114_105_110_103_46_83_116_114_105_110_103_"  -- Data.String.String
+  global-data-fromlist-fromlist :: String
+  global-data-fromlist-fromlist = "i.68_97_116_97_46_70_114_111_109_76_105_115_116_46_70_114_111_109_76_105_115_116_"  -- Data.FromList.FromList
+  global-data-fromlist-fromlist-from-list :: String
+  global-data-fromlist-fromlist-from-list = "i.68_97_116_97_46_70_114_111_109_76_105_115_116_46_70_114_111_109_76_105_115_116_46_102_114_111_109_45_108_105_115_116_"  -- Data.FromList.FromList.from-list
+  global-relation-ord-ord :: String
+  global-relation-ord-ord = "i.82_101_108_97_116_105_111_110_46_79_114_100_46_79_114_100_"  -- Relation.Ord.Ord
+  global-data-ordering-ordering :: String
+  global-data-ordering-ordering = "i.68_97_116_97_46_79_114_100_101_114_105_110_103_46_79_114_100_101_114_105_110_103_"  -- Data.Ordering.Ordering
+  global-data-ordering-lt :: String
+  global-data-ordering-lt = "i.68_97_116_97_46_79_114_100_101_114_105_110_103_46_76_84_"  -- Data.Ordering.LT
+  global-data-ordering-eq :: String
+  global-data-ordering-eq = "i.68_97_116_97_46_79_114_100_101_114_105_110_103_46_69_81_"  -- Data.Ordering.EQ
+  global-data-ordering-gt :: String
+  global-data-ordering-gt = "i.68_97_116_97_46_79_114_100_101_114_105_110_103_46_71_84_"  -- Data.Ordering.GT
+  global-algebra-arithmetic-nonzero :: String
+  global-algebra-arithmetic-nonzero = "i.65_108_103_101_98_114_97_46_65_114_105_116_104_109_101_116_105_99_46_78_111_110_90_101_114_111_"  -- Algebra.Arithmetic.NonZero
+  global-data-bool-not :: String
+  global-data-bool-not = "i.68_97_116_97_46_66_111_111_108_46_110_111_116_"  -- Data.Bool.not
   kernel-type-name :: String -> Bool
   kernel-type-name name = array-type-name name || has name ["Int", "Nat", "Fin", "Bool", "Unit", "()", "(->)", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "F32", "F64", "Ref", "Mut", "Thunk", "Lazy", "Later"]
   nonempty :: Json -> Bool

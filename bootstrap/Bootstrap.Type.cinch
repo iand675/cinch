@@ -2,13 +2,13 @@
 -- only after a diagnostic; they are not evidence of type equality.
 module Bootstrap.Type where
 
-  import Bootstrap.Report (Diagnostic, MkDiagnostic)
+  import Bootstrap.Report (Diagnostic, MkDiagnostic, MkDeferredDiagnostic)
   import Text.Lex (Span)
   import Data.Json
   import Data.Nat (nat-from-int, nat-to-int)
   import Data.Int (int-div, int-rem)
   import Bootstrap.Index
-  import Bootstrap.Nominal (interface-global)
+  import Bootstrap.Nominal (interface-global, global-data-core-list)
   import Bootstrap.Total (TotalFunction, read-total-function, total-identity, total-parameters, total-result, total-function-document, total-function-equal)
   import Text.Show (int-to-string)
   import Data.Char (char-from-code)
@@ -493,6 +493,12 @@ module Bootstrap.Type where
   add-error :: Span -> String -> Store -> Store
   add-error sp message st = case st of
     MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells (Cons (MkDiagnostic label sp message) errors) numbers in-law depth
+  -- A named diagnostic whose text is built when the report is read. A failed
+  -- trial unification discards its whole error list, so a mismatch that is
+  -- rolled back pays one closure instead of a rendering.
+  add-deferred-error :: Span -> (Unit -> String) -> Store -> Store
+  add-deferred-error sp render st = case st of
+    MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells (Cons (MkDeferredDiagnostic label sp render) errors) numbers in-law depth
 
   fresh-meta :: Kind -> Store -> (UType, Store)
   fresh-meta k original =
@@ -686,11 +692,11 @@ module Bootstrap.Type where
         other -> UPropNonZeroPending value)
     None -> UPropNonZeroPending value
   core-list-type :: UType -> UType
-  core-list-type element = UApp (UCon (interface-global "Data.Core.List") (KFun KType KType)) element
+  core-list-type element = UApp (UCon (global-data-core-list) (KFun KType KType)) element
   core-list-element :: UType -> Option UType
   core-list-element carrier = case carrier of
     UApp (UCon name (KFun KType KType)) element ->
-      if same-tag name (interface-global "Data.Core.List") && carrier-type element then Some element else None
+      if same-tag name (global-data-core-list) && carrier-type element then Some element else None
     other -> None
   not-null-carrier :: UType -> Bool
   not-null-carrier carrier = case core-list-element carrier of Some element -> True; None -> False
@@ -970,7 +976,7 @@ module Bootstrap.Type where
         UIndex carrier (IMeta id) -> if same-shape a b then checked else bind-meta sp id (value-kind carrier) a checked
         other -> unify-structure sp a b checked
   mismatch :: Span -> UType -> UType -> Store -> Store
-  mismatch sp a b st = add-error sp (mismatch-message a b) st
+  mismatch sp a b st = add-deferred-error sp (\u -> mismatch-message a b) st
   mismatch-message :: UType -> UType -> String
   mismatch-message a b = string-concat-all ["type mismatch: expected ", display-type-text b, ", found ", display-type-text a]
   -- Diagnostic text only: every encoded nominal identity `i.<code>_...`

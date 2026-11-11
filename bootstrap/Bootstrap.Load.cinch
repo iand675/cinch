@@ -31,6 +31,7 @@ module Bootstrap.Load where
   export loaded-exports, loaded-identities
   export load-interface, load-interface-set, validate-interface-set
   export load-interface-from-contract, load-interface-set-from-contracts
+  export load-interface-from-document, load-interface-set-from-documents
   export loaded-entry, loaded-private-methods
   export InterfaceSet, load-checked-interface-set, load-checked-interface-set-from-contracts
   export check-interface-set, interface-set-members
@@ -731,6 +732,18 @@ module Bootstrap.Load where
     Err message -> Err message
     Ok unit -> accepted-interface expected-name hash doc
 
+  -- The contract a document states, with the identity derived from the
+  -- document. An artifact that carries its interfaces as documents (the
+  -- runtime object does) admits them here: canonicalising one to parse it
+  -- again derived nothing the parse had not already given.
+  load-interface-from-document :: String -> String -> Json -> Result String LoadedInterface
+  load-interface-from-document expected-name expected-hash doc = case check-contract-envelope expected-name doc of
+    Err message -> Err message
+    Ok unit ->
+      let hash = fnv-source-hash (canonical-bytes (contract-projection doc)) in
+      if not (same hash expected-hash) then Err "interface contract identity mismatch"
+      else accepted-interface expected-name hash doc
+
   -- A contract whose envelope and identity are settled: its rows become the
   -- loaded module's tables.
   accepted-interface :: String -> String -> Json -> Result String LoadedInterface
@@ -755,6 +768,14 @@ module Bootstrap.Load where
         Err message -> Err (string-concat-all [name, ": ", message])
         Ok i -> read-set rest (Cons i loaded)
 
+  read-document-set :: List (String, String, Json) -> List LoadedInterface -> Result String (List LoadedInterface)
+  read-document-set inputs loaded = case inputs of
+    Nil -> Ok (reverse loaded)
+    Cons (name, hash, doc) rest -> case find-interface name loaded of
+      Some previous -> Err (string-concat "duplicate interface module: " name)
+      None -> case load-interface-from-document name hash doc of
+        Err message -> Err (string-concat-all [name, ": ", message])
+        Ok i -> read-document-set rest (Cons i loaded)
   read-contract-set :: List (String, String, Json) -> List LoadedInterface -> Result String (List LoadedInterface)
   read-contract-set inputs loaded = case inputs of
     Nil -> Ok (reverse loaded)
@@ -847,6 +868,10 @@ module Bootstrap.Load where
 
   load-interface-set-from-contracts :: List (String, String, Json) -> Result String (List LoadedInterface)
   load-interface-set-from-contracts inputs = case read-contract-set inputs Nil of
+    Err message -> Err message
+    Ok loaded -> validate-interface-set loaded
+  load-interface-set-from-documents :: List (String, String, Json) -> Result String (List LoadedInterface)
+  load-interface-set-from-documents inputs = case read-document-set inputs Nil of
     Err message -> Err message
     Ok loaded -> validate-interface-set loaded
 

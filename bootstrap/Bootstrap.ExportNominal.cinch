@@ -6,7 +6,7 @@ module Bootstrap.ExportNominal where
   import Bootstrap.Core (CoreData, CoreConstructor, core-data-name, core-data-params, core-data-constructors, core-constructor-name)
   import Bootstrap.ExportType (export-global, export-parameters)
   import Bootstrap.Load (LoadedInterface, loaded-contract)
-  import Bootstrap.Nominal (kernel-type-name, interface-global)
+  import Bootstrap.Nominal (kernel-type-name, interface-global, global-data-core-list)
   import Bootstrap.Instance (CoreClass, class-name, class-params)
   import Data.Json
   import Bootstrap.Ast (Decl, DRefine, DSig, DMethod, DFun, DData, DOpaque, DClass, DInstance, DForeign, decls-of, TypeExpr, TName, TIndex, TNegate, TInfix, TFun, TApp, TArg, TArgsEnd, TypeParam, param-name, param-kind, param-implicit, decl-name, type-expr-span)
@@ -201,7 +201,7 @@ module Bootstrap.ExportNominal where
     TApp sp (TName at name) (TArg arg input (TArgsEnd end)) ->
       if same name "NotNull" then
         (case template-text declarations locals input of Ok value -> Ok (string-concat "NotNull " value); Err error -> Err error)
-      else if same name (interface-global "Data.Core.List") then
+      else if same name (global-data-core-list) then
         (case template-text declarations locals input of Ok value -> Ok (string-concat "Data.Core.List " value); Err error -> Err error)
       else if same name "NonZero" || same name "#kernel.bytes-length" || primitive-observer name declarations then
         (case template-text declarations locals input of

@@ -11,7 +11,7 @@ module Bootstrap.Typing where
   import Bootstrap.Guarded
   import Bootstrap.Kinds
   import Bootstrap.Proof (Proposition, PNegate)
-  import Bootstrap.Nominal (interface-global)
+  import Bootstrap.Nominal (interface-global, global-data-string-string)
   import Bootstrap.Builtin (array-type-name)
   import Text.Lex (Span)
   import Algebra.Semigroup
@@ -52,7 +52,7 @@ module Bootstrap.Typing where
   type-is :: String -> UType -> Bool
   type-is name ty = equal-type (UCon name KType) ty
   string-type :: UType -> Bool
-  string-type ty = type-is "String" ty || type-is (interface-global "Data.String.String") ty
+  string-type ty = type-is "String" ty || type-is (global-data-string-string) ty
   constructor-pure :: UType -> Bool
   constructor-pure ty = case ty of
     UFun a b -> constructor-pure b
@@ -405,7 +405,7 @@ module Bootstrap.Typing where
   -- carriers and mutable buffers do not acquire sharing from a printed name.
   task-shareable :: TypingContext -> List UType -> Nat -> UType -> Bool
   task-shareable context seen fuel ty = if fuel == 0 then False else case task-base ty of
-    UCon name KType -> if has name ["Int", "Nat", "Bool", "Unit", "Char", "String", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "F32", "F64"] || same name (interface-global "Data.String.String") then True else task-data-property context True seen fuel ty
+    UCon name KType -> if has name ["Int", "Nat", "Bool", "Unit", "Char", "String", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "F32", "F64"] || same name (global-data-string-string) then True else task-data-property context True seen fuel ty
     UTuple fields -> task-fields-property context True seen fuel fields
     UApp (UCon name kind) owner -> if same name "b.Io" then True else task-data-property context True seen fuel ty
     UApp (UApp (UCon name kind) owner) region -> if same name "b.Scope" then True
@@ -419,7 +419,7 @@ module Bootstrap.Typing where
   -- ordinary saturated calls to return such values without inventing loans.
   task-region-free-type :: TypingContext -> List UType -> Nat -> UType -> Bool
   task-region-free-type context seen fuel ty = if fuel == 0 then False else case task-base ty of
-    UCon name KType -> if has name ["Int", "Nat", "Bool", "Unit", "Char", "String", "Bytes", "Sym", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "F32", "F64"] || same name (interface-global "Data.String.String") then True else task-data-property context False seen fuel ty
+    UCon name KType -> if has name ["Int", "Nat", "Bool", "Unit", "Char", "String", "Bytes", "Sym", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "F32", "F64"] || same name (global-data-string-string) then True else task-data-property context False seen fuel ty
     UTuple fields -> task-fields-property context False seen fuel fields
     other -> task-data-property context False seen fuel ty
   task-property :: TypingContext -> Bool -> List UType -> Nat -> UType -> Bool

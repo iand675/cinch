@@ -5,7 +5,7 @@
 module Bootstrap.Resolve where
 
   import Bootstrap.Ast
-  import Bootstrap.Nominal (interface-global, kernel-type-name, encode-identity)
+  import Bootstrap.Nominal (interface-global, kernel-type-name, encode-identity, global-algebra-arithmetic-nonzero, global-data-bool-not, global-data-core-cons, global-data-core-nil)
   import Bootstrap.Builtin (builtin-bindings, builtin-declarations, finite-index-declaration)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-exports, validate-interface-set)
@@ -515,8 +515,8 @@ module Bootstrap.Resolve where
 
   list-pattern :: Span -> Pat -> Pat
   list-pattern sp fields = case fields of
-    PArgsEnd at -> PCon sp (interface-global "Data.Core.Nil") (PArgsEnd sp)
-    PArg at first rest -> PCon sp (interface-global "Data.Core.Cons") (PArg at first (PArg at (list-pattern sp rest) (PArgsEnd at)))
+    PArgsEnd at -> PCon sp (global-data-core-nil) (PArgsEnd sp)
+    PArg at first rest -> PCon sp (global-data-core-cons) (PArg at first (PArg at (list-pattern sp rest) (PArgsEnd at)))
     other -> PUnmodeled sp "invalid list pattern spine"
   rename-pat :: Visible -> Pat -> (Pat, List Diagnostic)
   rename-pat visible p = case p of
@@ -636,7 +636,7 @@ module Bootstrap.Resolve where
   -- ordinary binding and type.
   branch-predicate-former :: Visible -> String -> Bool
   branch-predicate-former visible name = has-name name ["NonZero", "NotNull"] && (case visible-lookup name visible of
-    Some binding -> same name "NonZero" && same (binding-symbol binding) (interface-global "Algebra.Arithmetic.NonZero")
+    Some binding -> same name "NonZero" && same (binding-symbol binding) (global-algebra-arithmetic-nonzero)
     None -> True)
   branch-literal :: String -> Expr -> Bool
   branch-literal expected syntax = case syntax of
@@ -650,7 +650,7 @@ module Bootstrap.Resolve where
     EApp sp (ECon at name (EArgsEnd end)) input | branch-predicate-former visible name ->
       rename-branch-value visible locals (ECon sp name (EArg at input (EArgsEnd end)))
     EApp sp (EVar at name) input -> (case visible-lookup name visible of
-      Some binding | not (has-name name locals) && same (binding-symbol binding) (interface-global "Data.Bool.not") ->
+      Some binding | not (has-name name locals) && same (binding-symbol binding) (global-data-bool-not) ->
         (case rename-branch-value visible locals input of
           (value, errors) -> (EApp sp (EVar at (binding-symbol binding)) value, errors))
       other -> rename-expr visible locals syntax)

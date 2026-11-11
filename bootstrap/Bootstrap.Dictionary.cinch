@@ -5,7 +5,7 @@ module Bootstrap.Dictionary where
   import Bootstrap.Type
   import Bootstrap.Core
   import Bootstrap.ExportType (diagnostic-member-name, export-global)
-  import Bootstrap.Nominal (interface-global)
+  import Bootstrap.Nominal (interface-global, global-data-core-list, global-data-fromlist-fromlist)
   import Text.Lex (Span)
 
   export resolve-dictionary-definition, resolve-dictionary-term
@@ -266,8 +266,8 @@ module Bootstrap.Dictionary where
     Cons first rest -> valid-goal classes (normalize st (requirement-type first)) && valid-instance-context classes rest st
   collection-default :: UType -> Store -> Store
   collection-default wanted st = case normalize st wanted of
-    UApp (UApp (UCon name kind) container) element -> if same name (interface-global "Data.FromList.FromList") then (case container of
-      UMeta id KType -> unify (Span 0 0 1 1) container (UApp (UCon (interface-global "Data.Core.List") (KFun KType KType)) element) st
+    UApp (UApp (UCon name kind) container) element -> if same name (global-data-fromlist-fromlist) then (case container of
+      UMeta id KType -> unify (Span 0 0 1 1) container (UApp (UCon (global-data-core-list) (KFun KType KType)) element) st
       other -> st) else st
     other -> st
   diagnostic-dictionary :: UType -> String

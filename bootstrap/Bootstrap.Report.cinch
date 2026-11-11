@@ -13,20 +13,30 @@ module Bootstrap.Report where
   import Text.Show (nat-to-string)
   import Bootstrap.Ast (span-join, span-here)
 
+  -- A diagnostic carries its text, or the computation that produces it. The
+  -- type checker pushes the pair of types it could not unify as a deferred
+  -- message, because a trial unification that is rolled back throws its whole
+  -- error list away: rendering a type as text and decoding its identities back
+  -- for a message nothing reads was most of the cost of a failed trial.
+  -- Rendering is unchanged: `diagnostic-message` runs the deferred text.
   data Diagnostic where
     MkDiagnostic :: String -> Span -> String -> Diagnostic
+    MkDeferredDiagnostic :: String -> Span -> (Unit -> String) -> Diagnostic
 
   diagnostic-rung :: Diagnostic -> String
   diagnostic-rung d = case d of
     MkDiagnostic rung s msg -> rung
+    MkDeferredDiagnostic rung s render -> rung
 
   diagnostic-span :: Diagnostic -> Span
   diagnostic-span d = case d of
     MkDiagnostic rung s msg -> s
+    MkDeferredDiagnostic rung s render -> s
 
   diagnostic-message :: Diagnostic -> String
   diagnostic-message d = case d of
     MkDiagnostic rung s msg -> msg
+    MkDeferredDiagnostic rung s render -> render ()
 
   -- `line:col`, the position a reader navigates to.
   render-position :: Span -> String

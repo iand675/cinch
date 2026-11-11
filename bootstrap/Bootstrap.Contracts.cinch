@@ -7,7 +7,7 @@ module Bootstrap.Contracts where
   import Bootstrap.Builtin (builtin-syntax-metadata)
   import Bootstrap.Load
   import Bootstrap.Parse (parse-scheme)
-  import Bootstrap.Nominal (interface-global, resolved-text, qualify-resolved, encode-identity)
+  import Bootstrap.Nominal (interface-global, resolved-text, qualify-resolved, encode-identity, global-data-core-cons, global-data-core-nil, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Data.Json
   import Text.Lex (Span)
@@ -174,7 +174,7 @@ module Bootstrap.Contracts where
     PRecord s name fields -> Cons name (pat-references fields)
     PRecordField s name value rest -> pat-references value <> pat-references rest
     PTuple s args -> pat-references args
-    PList s args -> [interface-global "Data.Core.Nil", interface-global "Data.Core.Cons"] <> pat-references args
+    PList s args -> [global-data-core-nil, global-data-core-cons] <> pat-references args
     PAs s name inner -> pat-references inner
     PAnn s inner ty -> pat-references inner <> type-references ty
     PArg s x rest -> pat-references x <> pat-references rest
@@ -189,13 +189,13 @@ module Bootstrap.Contracts where
     -- The resolver keeps the bare predicate name only inside kernel decide.
     -- Elaborating that test needs the checked list constructors in scope.
     ECon s name args | same name "NotNull" ->
-      [interface-global "Data.Core.Nil", interface-global "Data.Core.Cons"] <> expr-references args
+      [global-data-core-nil, global-data-core-cons] <> expr-references args
     ECon s name args -> Cons name (expr-references args)
     ERecord s name fields -> Cons name (expr-references fields)
     ERecordField s name value rest -> expr-references value <> expr-references rest
     EProject s value name -> expr-references value
     ETuple s args -> expr-references args
-    EList s args -> [interface-global "Data.Core.Nil", interface-global "Data.Core.Cons", interface-global "Data.FromList.FromList.from-list"] <> expr-references args
+    EList s args -> [global-data-core-nil, global-data-core-cons, global-data-fromlist-fromlist-from-list] <> expr-references args
     EApp s f a -> expr-references f <> expr-references a
     EBin s op a b -> expr-references a <> expr-references b
     ENeg s x -> expr-references x

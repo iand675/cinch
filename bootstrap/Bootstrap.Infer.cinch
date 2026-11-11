@@ -27,7 +27,7 @@ module Bootstrap.Infer where
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Dictionary (resolve-dictionary-definition-with, resolve-dictionary-term-with, resolve-ready-term, check-instance-coherence, check-law-term-evidence, law-context-resolves)
   import Bootstrap.Parse (parse-scheme)
-  import Bootstrap.Nominal (interface-global, resolved-entry-valid, resolved-text, resolved-nominals, qualify-resolved, qualify-refinement-predicate, resolved-measures)
+  import Bootstrap.Nominal (interface-global, resolved-entry-valid, resolved-text, resolved-nominals, qualify-resolved, qualify-refinement-predicate, resolved-measures, global-data-core-cons, global-data-core-list, global-data-core-nil, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-data-string-string)
   import Bootstrap.Report (Diagnostic)
   import Data.Json
   import Text.Lex (Span, span-line, span-col)
@@ -313,8 +313,8 @@ module Bootstrap.Infer where
   primitive-type name = UCon (if same name "()" then "Unit" else name) KType
   literal-type :: TypeContext -> String -> UType
   literal-type kinds name = if same name "String" then
-    (case context-kind (interface-global "Data.String.String") kinds of
-      Some KType -> UCon (interface-global "Data.String.String") KType
+    (case context-kind (global-data-string-string) kinds of
+      Some KType -> UCon (global-data-string-string) KType
       other -> primitive-type name)
     else primitive-type name
   primitive-kinds :: TypeContext
@@ -2823,9 +2823,9 @@ module Bootstrap.Infer where
     (element, opened) -> let list = collection-list element in
       case check classes kinds families env locals input list opened of
         (value, checked) -> case reify-argument sp env (map-term-types (normalize checked) value) checked of
-          (index, indexed) -> case bind-pattern classes kinds families env locals (PCon sp (interface-global "Data.Core.Nil") (PArgsEnd sp)) list indexed of
+          (index, indexed) -> case bind-pattern classes kinds families env locals (PCon sp (global-data-core-nil) (PArgsEnd sp)) list indexed of
             (empty-scope, empty, matched) ->
-              let cons = PCon sp (interface-global "Data.Core.Cons") (pat-spine sp [PWild sp, PWild sp]) in
+              let cons = PCon sp (global-data-core-cons) (pat-spine sp [PWild sp, PWild sp]) in
               case bind-pattern classes kinds families env locals cons list matched of
                 (nonempty-scope, nonempty, done) ->
                   let branches = CAlternative sp empty (decision-boolean sp False) (CAlternative sp nonempty (decision-boolean sp True) (CAlternativesEnd sp)) in
@@ -2844,24 +2844,24 @@ module Bootstrap.Infer where
       other -> (term, checked)
 
   collection-list :: UType -> UType
-  collection-list element = UApp (UCon (interface-global "Data.Core.List") (KFun KType KType)) element
+  collection-list element = UApp (UCon (global-data-core-list) (KFun KType KType)) element
   raw-collection :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> UType -> Store -> (CoreTerm, Store)
   raw-collection classes kinds families env locals sp fields element st = let list = collection-list element in case fields of
-    EArgsEnd at -> (case lookup-value at (interface-global "Data.Core.Nil") env st of
+    EArgsEnd at -> (case lookup-value at (global-data-core-nil) env st of
       (nil, checked) -> (nil, unify at (core-type nil) list checked))
     EArg at first rest -> (case check classes kinds families env locals first element st of
       (value, checked) -> (case raw-collection classes kinds families env locals sp rest element checked of
-        (more, next) -> (case lookup-value at (interface-global "Data.Core.Cons") env next of
+        (more, next) -> (case lookup-value at (global-data-core-cons) env next of
           (cons, ready) -> let shaped = unify at (core-type cons) (UFun element (UFun list list)) ready in
             (CApply at list (CApply at (UFun list list) cons value) more, shaped))))
     other -> term-error sp "invalid collection literal element spine" st
   infer-collection :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Option UType -> Store -> (CoreTerm, Store)
   infer-collection classes kinds families env locals sp fields expected st = case fresh-meta KType st of
     (element, fresh) -> (case (case expected of Some ty -> (ty, fresh); None -> fresh-meta KType fresh) of
-      (result, next) -> (case lookup-value sp (interface-global "Data.FromList.FromList.from-list") env next of
+      (result, next) -> (case lookup-value sp (global-data-fromlist-fromlist-from-list) env next of
         (method, opened) -> let shaped = unify sp (core-type method) (UFun (collection-list element) result) opened in
           (case method of
-            CMethod at ty name owner slot actuals (Cons needed Nil) -> if not (same name (interface-global "Data.FromList.FromList.from-list") && same owner (interface-global "Data.FromList.FromList")) then term-error sp "collection literal needs its actual defining FromList method" shaped
+            CMethod at ty name owner slot actuals (Cons needed Nil) -> if not (same name (global-data-fromlist-fromlist-from-list) && same owner (global-data-fromlist-fromlist)) then term-error sp "collection literal needs its actual defining FromList method" shaped
               else (case raw-collection classes kinds families env locals sp fields element shaped of
                 (items, checked) -> (CApply sp result method items, checked))
             other -> term-error sp "collection literal has no checked FromList declaration" shaped)))
@@ -4201,7 +4201,7 @@ module Bootstrap.Infer where
             other -> add-error sp "equality needs an Eq dictionary for this type" sb)
     else term-error sp "operator needs dictionary or NonZero proof elaboration" st
   comparable-names :: List String
-  comparable-names = ["Int", "Nat", "Bool", "Unit", "String", "Char", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "Isize", "Usize", interface-global "Data.String.String"]
+  comparable-names = ["Int", "Nat", "Bool", "Unit", "String", "Char", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "Isize", "Usize", global-data-string-string]
   comparable :: UType -> Bool
   comparable ty = case ty of UCon name KType -> has name comparable-names; other -> False
   tuple-type :: UType -> UType
@@ -6386,13 +6386,26 @@ module Bootstrap.Infer where
       let needed = source-total-closure all (module-decls m) [name] Nil in
       let preliminary = source-total-preliminary interfaces label m needed in
       (case elaboration-errors preliminary of Nil -> source-total-from-checked [name] preliminary <> more; other -> more)
+  -- The module elaboration's bindings in declaration order, with a name's own
+  -- elaboration standing in only for the names the module elaboration did not
+  -- produce. A module elaboration that reports an error still registers a
+  -- total body for every declaration that checked, so one failed declaration
+  -- costs one extra elaboration per failed name, not one per name: the whole
+  -- module's names were re-elaborated one at a time before this.
+  source-total-resolved :: Result String InterfaceSet -> String -> Module -> List String -> List String -> Elaboration -> List BodyBinding
+  source-total-resolved interfaces label m all names preliminary = case names of
+    Nil -> Nil
+    Cons name rest -> let more = source-total-resolved interfaces label m all rest preliminary in
+      case source-total-from-checked [name] preliminary of
+        Cons binding Nil -> Cons binding more
+        other -> source-total-individual interfaces label m all [name] <> more
   source-total-bodies :: Result String InterfaceSet -> String -> Module -> List (String, Kind) -> TypeContext -> List BodyBinding
   source-total-bodies interfaces label m classes kinds = let declarations = module-decls m in
     let names = source-total-names classes kinds declarations declarations in
     case names of
       Nil -> Nil
       other -> let preliminary = source-total-preliminary interfaces label m names in
-        (case elaboration-errors preliminary of Nil -> source-total-from-checked names preliminary; other -> source-total-individual interfaces label m names names)
+        (case elaboration-errors preliminary of Nil -> source-total-from-checked names preliminary; other -> source-total-resolved interfaces label m names names preliminary)
   add-source-bodies :: List BodyBinding -> TypeContext -> Store -> (TypeContext, Store)
   add-source-bodies bindings kinds st = case bindings of
     Nil -> (kinds, st)
@@ -6491,7 +6504,7 @@ module Bootstrap.Infer where
   convert-not-null sp locals syntax st = case syntax of
     TName at name -> (case lookup-local name locals of
       Some value -> (case value-carrier (type-kind value) of
-        Some (UApp (UCon owner (KFun KType KType)) element) -> if same owner (interface-global "Data.Core.List") then
+        Some (UApp (UCon owner (KFun KType KType)) element) -> if same owner (global-data-core-list) then
           (UPropNotNull value, st)
           else bad sp "NotNull needs the checked Data.Core.List carrier" st
         other -> bad sp "NotNull needs the checked Data.Core.List carrier" st)

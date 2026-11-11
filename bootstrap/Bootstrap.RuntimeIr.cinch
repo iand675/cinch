@@ -11,7 +11,7 @@ module Bootstrap.RuntimeIr where
   import Bootstrap.Builtin (array-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation, platform-intrinsic)
   import Bootstrap.Index
   import Bootstrap.ExportType (export-global)
-  import Bootstrap.Nominal (interface-global)
+  import Bootstrap.Nominal (interface-global, global-data-core-cons, global-data-core-err, global-data-core-list, global-data-core-nil, global-data-core-none, global-data-core-ok, global-data-core-option, global-data-core-result, global-data-core-some)
   import Bootstrap.Instance
   import Bootstrap.Type
   import Bootstrap.Report
@@ -1065,9 +1065,9 @@ module Bootstrap.RuntimeIr where
         other -> None)
     other -> None
   task-result-abi :: Writer -> Bool
-  task-result-abi w = case data-declaration (interface-global "Data.Core.Result") (writer-data w) of
+  task-result-abi w = case data-declaration (global-data-core-result) (writer-data w) of
     Some d -> (case (core-data-params d, core-data-constructors d) of
-      ([error, value], [first, second]) -> same (core-constructor-name first) (interface-global "Data.Core.Err") && same (core-constructor-name second) (interface-global "Data.Core.Ok")
+      ([error, value], [first, second]) -> same (core-constructor-name first) (global-data-core-err) && same (core-constructor-name second) (global-data-core-ok)
         && (case (core-constructor-fields first, core-constructor-fields second) of
           ([UBound left name KType], [UBound right other KType]) -> left == quant-id error && right == quant-id value
           other -> False)
@@ -1093,14 +1093,14 @@ module Bootstrap.RuntimeIr where
   task-load-words w pointer index count = if count == 0 then (w, Nil) else case load-word w pointer (nat-to-string index) of
     (loaded, value) -> case task-load-words loaded pointer (index + 1) (count - 1) of (done, rest) -> (done, Cons value rest)
   task-result-types :: UType -> Option (UType, UType)
-  task-result-types ty = case ty of UApp (UApp (UCon name kind) error) value -> if same name (interface-global "Data.Core.Result") then Some (error, value) else None; other -> None
+  task-result-types ty = case ty of UApp (UApp (UCon name kind) error) value -> if same name (global-data-core-result) then Some (error, value) else None; other -> None
   task-tuple-types :: UType -> Option (List UType)
   task-tuple-types ty = case ty of UTuple fields -> task-tuple-fields fields; other -> None
   task-tuple-fields :: UType -> Option (List UType)
   task-tuple-fields fields = case fields of UEnd -> Some Nil; UArg ty more -> (case task-tuple-fields more of Some rest -> Some (Cons ty rest); None -> None); other -> None
   task-join-success :: Writer -> Span -> UType -> List String -> (Writer, String)
   task-join-success w sp ty values = case task-result-types ty of
-    Some (error, payload) -> (case (task-tuple-types payload, data-declaration (interface-global "Data.Core.Result") (writer-data w)) of
+    Some (error, payload) -> (case (task-tuple-types payload, data-declaration (global-data-core-result) (writer-data w)) of
       (Some types, Some d) -> (case class-vector (writer-context w) types of
         Some classes -> (case request-object-shape sp classes w of
           (planned, descriptor) -> case allocate planned descriptor values of
@@ -1239,7 +1239,7 @@ module Bootstrap.RuntimeIr where
     ([parameter], UBound id name KType) -> quant-id parameter == id && kind-equal (quant-kind parameter) KType
     other -> False
   array-list-abi :: Writer -> Bool
-  array-list-abi w = case (data-declaration (interface-global "Data.Core.List") (writer-data w), constructor (interface-global "Data.Core.Nil") (writer-data w), constructor (interface-global "Data.Core.Cons") (writer-data w)) of
+  array-list-abi w = case (data-declaration (global-data-core-list) (writer-data w), constructor (global-data-core-nil) (writer-data w), constructor (global-data-core-cons) (writer-data w)) of
     (Some d, Some (nil-owner, 0, nil-constructor), Some (cons-owner, 1, cons-constructor)) ->
       same nil-owner (core-data-name d) && same cons-owner nil-owner && list-length (core-data-constructors d) == 2 && list-length (core-constructor-fields nil-constructor) == 0 &&
       (case core-constructor-fields cons-constructor of
@@ -1277,9 +1277,9 @@ module Bootstrap.RuntimeIr where
     Cons first rest -> array-drop-arguments rest (index + 1) (if first == 0 then w else line w (count-call False (cat ["%arg", nat-to-string index])))
   array-option :: Writer -> Span -> Nat -> String -> String -> List String -> (Writer, String)
   array-option w sp payload-class invalid runtime arguments =
-    case (constructor (interface-global "Data.Core.Some") (writer-data w), constructor (interface-global "Data.Core.None") (writer-data w)) of
+    case (constructor (global-data-core-some) (writer-data w), constructor (global-data-core-none) (writer-data w)) of
       (Some (owner, some-tag, some-constructor), Some (none-owner, none-tag, none-constructor)) ->
-        if not (same owner (interface-global "Data.Core.Option") && same owner none-owner) || some-tag /= 1 || none-tag /= 0 || list-length (core-constructor-fields some-constructor) /= 1 || list-length (core-constructor-fields none-constructor) /= 0 then unsupported w sp "array result needs its checked Option declaration" else
+        if not (same owner (global-data-core-option) && same owner none-owner) || some-tag /= 1 || none-tag /= 0 || list-length (core-constructor-fields some-constructor) /= 1 || list-length (core-constructor-fields none-constructor) /= 0 then unsupported w sp "array result needs its checked Option declaration" else
         (case data-declaration owner (writer-data w) of
           Some d -> if list-length (core-data-constructors d) /= 2 || not (case core-constructor-fields some-constructor of [field] -> array-binder-field d field; other -> False) then unsupported w sp "array Option payload disagrees with its checked parameter" else (case request-data sp d [payload-class] w of
             (planned, descriptor) ->
@@ -1398,9 +1398,9 @@ module Bootstrap.RuntimeIr where
   -- its result code names (platform-intrinsic).
   platform-result :: Writer -> String -> Nat -> (Writer, String)
   platform-result w raw result = let sp = Span 0 0 1 1 in
-    case (constructor (interface-global "Data.Core.Err") (writer-data w), constructor (interface-global "Data.Core.Ok") (writer-data w)) of
+    case (constructor (global-data-core-err) (writer-data w), constructor (global-data-core-ok) (writer-data w)) of
       (Some (owner, err-tag, err-constructor), Some (ok-owner, ok-tag, ok-constructor)) ->
-        if not (same owner (interface-global "Data.Core.Result") && same owner ok-owner) || err-tag /= 0 || ok-tag /= 1 then unsupported w sp "runtime result needs its checked Result declaration" else
+        if not (same owner (global-data-core-result) && same owner ok-owner) || err-tag /= 0 || ok-tag /= 1 then unsupported w sp "runtime result needs its checked Result declaration" else
         (case data-declaration owner (writer-data w) of
           Some d -> if list-length (core-data-constructors d) /= 2 || not (result-binder-fields d err-constructor ok-constructor) then unsupported w sp "runtime Result fields disagree with their checked parameters" else
             (case request-data sp d [0, if result == 3 then 2 else if result == 4 then 1 else 0] w of

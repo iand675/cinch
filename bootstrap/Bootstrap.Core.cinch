@@ -6,7 +6,7 @@ module Bootstrap.Core where
 
   import Bootstrap.Index
   import Bootstrap.Type
-  import Bootstrap.Nominal (interface-global)
+  import Bootstrap.Nominal (interface-global, global-data-core-cons, global-data-core-nil, global-data-core-result, global-data-ordering-eq, global-data-ordering-gt, global-data-ordering-lt, global-data-ordering-ordering)
   import Bootstrap.Proof
   import Bootstrap.Total
   import Bootstrap.TotalSemantics (total-numeric-reading, total-bytes-reading, total-boolean-reading, total-numeric-operation, total-numeric-comparison, total-boolean-negation)
@@ -721,7 +721,7 @@ module Bootstrap.Core where
   task-type :: UType -> UType -> UType -> UType
   task-type region error value = UApp (UApp (UApp (UCon "b.Task" task-kind) region) error) value
   task-result-type :: UType -> UType -> UType
-  task-result-type error value = UApp (UApp (UCon (interface-global "Data.Core.Result") (KFun KType (KFun KType KType))) error) value
+  task-result-type error value = UApp (UApp (UCon (global-data-core-result) (KFun KType (KFun KType KType))) error) value
   scope-parameters :: UType -> Option (UType, UType)
   scope-parameters ty = case scope-callback-parts (UFun ty (UCon "Unit" KType)) of Some (owner, region, row, result) -> Some (owner, region); None -> None
   task-parts :: UType -> Option (UType, UType, UType)
@@ -735,7 +735,7 @@ module Bootstrap.Core where
     other -> None
   task-body-result :: UType -> UType -> UType -> Option (UType, UType, UType)
   task-body-result domain row result = case result of
-    UApp (UApp (UCon name kind) error) value -> if contract-equal domain (UCon "Unit" KType) && string-compare name (interface-global "Data.Core.Result") == 0 && kind-equal kind (KFun KType (KFun KType KType)) then Some (error, value, row) else None
+    UApp (UApp (UCon name kind) error) value -> if contract-equal domain (UCon "Unit" KType) && string-compare name (global-data-core-result) == 0 && kind-equal kind (KFun KType (KFun KType KType)) then Some (error, value, row) else None
     other -> None
   task-effect :: String -> UType -> UType
   task-effect name owner = URow (UArg (UApp (UCon name (KFun KRegion KEffect)) owner) UEnd)
@@ -1930,7 +1930,7 @@ module Bootstrap.Core where
       (case (empty, nonempty) of
         (CPConstructor nil-at nil-type nil args nil-ctor (CPDone nil-end),
          CPConstructor cons-at cons-type cons params cons-ctor (CPField head (CPWild h-at h-type) (CPField tail (CPWild t-at t-type) (CPDone cons-end)))) ->
-          if string-compare nil (interface-global "Data.Core.Nil") == 0 && string-compare cons (interface-global "Data.Core.Cons") == 0
+          if string-compare nil (global-data-core-nil) == 0 && string-compare cons (global-data-core-cons) == 0
             && contract-equal nil-type (core-type input) && contract-equal cons-type (core-type input)
             && decision-constant False no && decision-constant True yes
           then actual-index gamma facts input else None
@@ -2198,12 +2198,12 @@ module Bootstrap.Core where
         other -> Nil)
     other -> Nil
   ordering-result :: UType
-  ordering-result = UCon (interface-global "Data.Ordering.Ordering") KType
+  ordering-result = UCon (global-data-ordering-ordering) KType
   ordering-row-comparison :: String -> Option Comparison
   ordering-row-comparison name =
-    if string-compare name (interface-global "Data.Ordering.LT") == 0 then Some Less
-    else if string-compare name (interface-global "Data.Ordering.EQ") == 0 then Some Equal
-    else if string-compare name (interface-global "Data.Ordering.GT") == 0 then Some Greater
+    if string-compare name (global-data-ordering-lt) == 0 then Some Less
+    else if string-compare name (global-data-ordering-eq) == 0 then Some Equal
+    else if string-compare name (global-data-ordering-gt) == 0 then Some Greater
     else None
   ordering-case-facts :: ProofScope -> List Proposition -> CoreTerm -> UType -> UType -> String -> Bool -> List Proposition
   ordering-case-facts gamma facts value ty constructor name positive =
@@ -2280,9 +2280,9 @@ module Bootstrap.Core where
   list-pattern-shape :: UType -> String -> UType -> CorePattern -> Bool -> Option Int
   list-pattern-shape ty name constructor fields positive = case (core-list-element ty, fields) of
     (Some element, CPDone end) ->
-      if string-compare name (interface-global "Data.Core.Nil") == 0 && contract-equal constructor ty then Some (if positive then 0 else 1) else None
+      if string-compare name (global-data-core-nil) == 0 && contract-equal constructor ty then Some (if positive then 0 else 1) else None
     (Some element, CPField sp head (CPField tail-at tail (CPDone end))) ->
-      if string-compare name (interface-global "Data.Core.Cons") == 0 && contract-equal constructor (UFun element (UFun ty ty))
+      if string-compare name (global-data-core-cons) == 0 && contract-equal constructor (UFun element (UFun ty ty))
         && (positive || (irrefutable-case-pattern element head && irrefutable-case-pattern ty tail)) then Some (if positive then 1 else 0) else None
     other -> None
   case-list-shape :: ProofScope -> List Proposition -> CoreTerm -> UType -> String -> UType -> CorePattern -> Bool -> List Proposition
@@ -2862,10 +2862,10 @@ module Bootstrap.Core where
     None -> case scoped-list-index gamma facts term of Some value -> Some value; None -> ordinary-index gamma facts term
   scoped-list-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
   scoped-list-index gamma facts term = case term of
-    CUse sp ty name role actuals | string-compare name (interface-global "Data.Core.Nil") == 0 && string-compare role "constructor" == 0 ->
+    CUse sp ty name role actuals | string-compare name (global-data-core-nil) == 0 && string-compare role "constructor" == 0 ->
       checked-list-index gamma facts term UEnd
     CApply sp ty (CApply at partial (CUse origin constructor name role actuals) first) rest
-        | string-compare name (interface-global "Data.Core.Cons") == 0 && string-compare role "constructor" == 0 ->
+        | string-compare name (global-data-core-cons) == 0 && string-compare role "constructor" == 0 ->
       (case (actual-index gamma facts first, actual-index gamma facts rest) of
         (Some head, Some tail) -> checked-list-index gamma facts term (UArg head tail)
         other -> None)
