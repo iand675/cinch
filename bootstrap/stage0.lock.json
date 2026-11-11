@@ -1,9 +1,9 @@
 {
-  "description": "ABI 9 Native seed with the bump arena in the runtime and its intrinsics.",
+  "description": "ABI 9 Native seed with the bump arena and static blocks addressed by offset; empty patch.",
   "patch": "bootstrap/seed/stage0.patch",
   "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "revision": "e237aa3b3dc0cd6e5d49d994b3d7f3a152960625",
+  "revision": "a9a9a638659df5cba5a7c007e7b063dedf05dd4a",
   "runtime_abi": 9,
   "schema": 1,
-  "source_sha256": "196b39fa78244ddcd094aafd17a4529aeb44d386d162e3d19d1ab86460fbc595"
+  "source_sha256": "d55f97792290c33ea56547d47747520e0b477000fddc078202fb0489ddc44a5b"
 }
