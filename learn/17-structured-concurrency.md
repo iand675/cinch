@@ -172,7 +172,7 @@ The alternative to refusing is to copy, and the type tells you when that is what
 
 <span class="support-tag support-tag--planned">Coming soon</span> **Bounded channels and race or select APIs.** The intended channel model specifies capacity, ownership transfer, and cancellation-safe sends, and a send race says whether ownership moved. The library ships the scopes, tasks and joins used above and does not ship a general channel API, so a program that needs one today has to model it over a scope and a synchronized structure, and the prelude does not ship one of those either.
 
-A blocking foreign call is the one capture that is admitted and still needs care. A `foreign import` labelled `Blocking` runs on the task's dedicated OS thread and is cancellation-blind until it returns, so its label has to appear in the spawning scope's performed row. The checker folds it in, which forces your program to carry `Blocking` and makes the reason visible at the call site.
+A blocking foreign call is the one capture that is admitted and still needs care. A `foreign import` labelled `Blocking` holds the OS thread under it for as long as it runs, because the runtime cannot suspend inside foreign code, and it is cancellation-blind until it returns. The compiler brackets the call so the runtime knows the thread is blocked and allows one more for the tasks that can run meanwhile. Its label has to appear in the spawning scope's performed row; the checker folds it in, which forces your program to carry `Blocking` and makes the reason visible at the call site.
 
 # The capability identities and exit statuses
 

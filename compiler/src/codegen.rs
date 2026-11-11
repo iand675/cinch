@@ -537,6 +537,16 @@ fn emit_module(
                 out.push_str(&foreign_declare(plan, &reg));
             }
         }
+        // The bracket around a `Blocking` import's call (`foreign_call`).
+        // A program with no such import emits neither line, so its IR is
+        // unchanged.
+        if !cx.coop_tasks && program.foreigns.values().any(|plan| plan.blocking) {
+            for entry in ["cinch_sched_blocking_enter", "cinch_sched_blocking_exit"] {
+                if declared.insert(entry.to_string()) {
+                    out.push_str(&format!("declare i64 @{entry}()\n"));
+                }
+            }
+        }
         out.push('\n');
     }
 
@@ -5890,6 +5900,24 @@ fn assume_ptr(b: &mut Builder, ptr: &str, p: &AbiParam) {
     ));
 }
 
+/// Emit `call`, the call to a foreign import's symbol. An import whose
+/// row carries `Blocking` may block its thread in the operating system,
+/// so on the native task backend its call is bracketed as a blocking
+/// region of the runtime's scheduler (`compiler/runtime/src/sched.rs`):
+/// the other tasks keep running on another thread meanwhile (concurrency
+/// specification section 9). The cooperative backend has one thread and
+/// no scheduler to tell.
+fn foreign_call(b: &mut Builder, cx: &LowerCx, plan: &ForeignPlan, call: &str) {
+    let region = plan.blocking && !cx.coop_tasks;
+    if region {
+        b.line("call i64 @cinch_sched_blocking_enter()");
+    }
+    b.line(call);
+    if region {
+        b.line("call i64 @cinch_sched_blocking_exit()");
+    }
+}
+
 /// The synthesized wrapper for one foreign import: convert the canonical
 /// value words to the C ABI shape, call the symbol, and convert the
 /// result back (foreign function interface specification section 2).
@@ -5968,32 +5996,35 @@ fn foreign_import_body(
         .collect();
     match &plan.result.class {
         AbiClass::Unit => {
-            b.line(&format!(
-                "call void @{}({})",
-                quote(&plan.symbol),
-                call_args.join(", ")
-            ));
+            foreign_call(
+                b,
+                cx,
+                plan,
+                &format!("call void @{}({})", quote(&plan.symbol), call_args.join(", ")),
+            );
             b.line("ret i64 0");
         }
         AbiClass::Scalar(s) => {
             let rty = abi_llvm_ty(&plan.result);
             let r = b.reg();
-            b.line(&format!(
-                "{r} = call {rty} @{}({})",
-                quote(&plan.symbol),
-                call_args.join(", ")
-            ));
+            foreign_call(
+                b,
+                cx,
+                plan,
+                &format!("{r} = call {rty} @{}({})", quote(&plan.symbol), call_args.join(", ")),
+            );
             let w = c_to_word(b, *s, &r);
             let w = freeze_word(b, &w);
             b.line(&format!("ret i64 {w}"));
         }
         AbiClass::Ptr => {
             let r = b.reg();
-            b.line(&format!(
-                "{r} = call ptr @{}({})",
-                quote(&plan.symbol),
-                call_args.join(", ")
-            ));
+            foreign_call(
+                b,
+                cx,
+                plan,
+                &format!("{r} = call ptr @{}({})", quote(&plan.symbol), call_args.join(", ")),
+            );
             if !plan.result.nullable {
                 check_non_null(b, &r, &fault);
                 any_check = true;
@@ -6012,11 +6043,12 @@ fn foreign_import_body(
             let buf = b.alloca_bytes(plan.result.width, plan.result.align.max(1));
             let mut full = vec![format!("ptr {sret} {buf}")];
             full.extend(call_args);
-            b.line(&format!(
-                "call void @{}({})",
-                quote(&plan.symbol),
-                full.join(", ")
-            ));
+            foreign_call(
+                b,
+                cx,
+                plan,
+                &format!("call void @{}({})", quote(&plan.symbol), full.join(", ")),
+            );
             // The block holds C bytes: no word in it is a reference this
             // program owns, so none is counted.
             let blk = b.reg();

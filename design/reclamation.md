@@ -1040,14 +1040,18 @@ in `block.rs` (`Scan`). Where S3 differs from the plan above:
 
 ## 8 Concurrency
 
-Tasks are one OS thread each, with fork-join happens-before at spawn and
-join and no other atomics (D80, `specifications/concurrency-specification.md:150-154`;
-`task.rs`). Task bodies use one-shot frames. `%1`/`%aff` captures transfer
-exactly once. `Ref`/`Copy` values and shareable dictionaries are shared.
-`Mut` is refused, and so are untransferred `Bytes`/`Lazy` cells (D77,
-`concurrency-specification.md:140-143`). The spec requires `Send`-like
-captures and a `Sync`-like referent for cross-thread sharing
-(`concurrency-specification.md:39-41`).
+Tasks are fibers multiplexed over a bounded set of OS threads (D428, which
+replaces D80's "one OS thread per task" claim; `design/green-threads.md`),
+with fork-join happens-before at spawn and join and no other atomics in the
+model (D80, `specifications/concurrency-specification.md`; `task.rs`,
+`sched.rs`). A task may resume on a different thread than it suspended on,
+which is why the happens-before edges below are stated over the scheduler's
+own stores and not over threads. Task bodies use one-shot frames.
+`%1`/`%aff` captures transfer exactly once. `Ref`/`Copy` values and
+shareable dictionaries are shared. `Mut` is refused, and so are
+untransferred `Bytes`/`Lazy` cells (D77, `concurrency-specification.md`).
+The spec requires `Send`-like captures and a `Sync`-like referent for
+cross-thread sharing (`concurrency-specification.md:39-41`).
 
 A shared `Copy` capture or `Ref` borrow is reachable from two threads. A
 task that dups it races with the parent's count operations. Transferred

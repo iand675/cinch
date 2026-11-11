@@ -3096,6 +3096,11 @@ pub struct ForeignPlan {
     /// area instead of the C ABI classes, and `symbol` is the canonical
     /// import/export symbol (`ns:name/interface#func`).
     pub canon: Option<CanonCall>,
+    /// An import whose declared row carries `Blocking`: the call may
+    /// block its thread in the operating system, so the wrapper makes it
+    /// a blocking region of the runtime's scheduler (concurrency
+    /// specification section 9; `compiler/runtime/src/sched.rs`).
+    pub blocking: bool,
 }
 
 impl ForeignPlan {

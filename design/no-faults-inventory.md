@@ -164,8 +164,11 @@ Two structurally different fault regimes exist:
   deliberate `exit()` with a message on stderr. Exit codes: `70` BlackHole, `71` panic
   (generic), `72` DivByZero, `73` HeapLimit (`compiler/runtime/src/abi.rs:17-28`,
   `compiler/runtime/src/error.rs:48-60`).
-- **Undefined termination**: native stack overflow (SIGSEGV/SIGABRT), OS thread-spawn
-  panic, or anything a `foreign` call does. These bypass the exit-code table entirely.
+- **Undefined termination**: anything a `foreign` call does. These bypass the
+  exit-code table entirely. Native stack overflow and a refused OS thread are no
+  longer in this set: a 64 KiB guard band plus a signal handler makes the former
+  exit 73 with `cinch: exhausted: stack`, and `stack::spawn_refused` makes the
+  latter exit 73 with `cinch: exhausted: threads`.
 
 ---
 
@@ -191,8 +194,8 @@ Grouped by `Error` variant (`compiler/runtime/src/error.rs:12-45`) / exit code.
 
 Additional direct `std::process::exit`/`panic!` sites not routed through `Error`:
 - `abi.rs:125,130,359`: `panic_exit`, `div_zero_exit`, `cinch_blackhole` themselves (the exit mechanics, not new triggers).
-- `task.rs:152-153`: `Scope::spawn` calls `.unwrap_or_else(|e| panic!(...))` if `std::thread::Builder::spawn` fails (OS thread-creation failure). **Yes, reachable** under resource exhaustion (too many OS threads/processes); this is a genuine Rust `panic!`: on an `extern "C"` boundary a Rust panic *aborts the process* (no unwind across FFI), not a defined exit code (§5).
-- `platform.rs:555-566` `cinch_run_main`: if the 1 GiB stack reservation thread fails to spawn, it degrades gracefully by running `entry` on the calling thread instead of faulting; if the spawned thread's `join()` fails it maps to `EXIT_PANIC` (71).
+- `task.rs` `Scope::spawn` no longer creates an OS thread, so it has no thread-creation failure to report: it marks the closure, queues a fiber on the scheduler (`sched.rs`), and returns the handle. The thread-creation failures that remain are a scheduler worker, a parallel worker and the program's thread, and all three take `stack::spawn_refused` (`Exhausted`, exit 73). A fiber stack that cannot be reserved is the same exit, taken at the fiber's first run (`sched/fiber.rs` `obtain_stack`).
+- `platform.rs` `cinch_run_main`: if the program's thread fails to spawn, `stack::spawn_refused` takes the `Exhausted` exit rather than degrading onto the unguarded calling thread; if the spawned thread's `join()` fails it maps to `EXIT_PANIC` (71).
 
 ---
 
@@ -249,9 +252,10 @@ Refinement-typed indices (`Dec`/`decide`, `design`'s total-API pattern) exist fo
 | mechanism | site | behavior | exit code / termination |
 |---|---|---|---|
 | Heap cap | `heap.rs` `account_alloc`; env `CINCH_HEAP_LIMIT` (default 8 GiB, `0` disables) | **closed 2026-10-30**: the cap is on live bytes (allocated minus freed); a refused system allocation and a request too large for any layout take the same exit | `Exhausted`, exit **73**, `cinch: exhausted: heap (<n> bytes)` |
-| Native stack overflow | `platform.rs` `cinch_run_main`, `task.rs` `Scope::spawn`, `stack.rs` `guarded` | **closed 2026-10-30**: a 64 KiB guard band at the low end of every Cinch thread's stack, a `SIGSEGV`/`SIGBUS` handler on an alternate stack, and inline stack probes on every generated unit | `Exhausted`, exit **73**, `cinch: exhausted: stack` |
+| Native stack overflow | `platform.rs` `cinch_run_main`, `sched/fiber.rs` (a fiber's stack and its zone), `stack.rs` `guarded` | **closed 2026-10-30**: a 64 KiB guard band at the low end of every Cinch stack, a `SIGSEGV`/`SIGBUS` handler on an alternate stack, and inline stack probes on every generated unit. Since D423 a task runs on a fiber's stack rather than a thread's, so the band is the fiber's and the scheduler installs its zone through the thread's key at every switch | `Exhausted`, exit **73**, `cinch: exhausted: stack` |
 | Eval nesting | `eval.rs` `MAX_NESTING = 1024` | **closed 2026-10-30**: the bound stands in for the stack, so passing it is the stack outcome | `Exhausted`, exit **73**, `cinch: exhausted: stack` |
-| OS thread spawn failure | `task.rs` `Scope::spawn`, `platform.rs` `cinch_run_main` (the old fallback onto the unguarded main thread is gone) | **closed 2026-10-30**: `stack::spawn_refused` | `Exhausted`, exit **73**, `cinch: exhausted: threads` (`stack` when the refusal was `ENOMEM`) |
+| OS thread spawn failure | `sched/fiber.rs` `start_worker`, `par.rs` `start_worker`, `platform.rs` `cinch_run_main` (the old fallback onto the unguarded main thread is gone; `Scope::spawn` no longer creates a thread) | **closed 2026-10-30**: `stack::spawn_refused` | `Exhausted`, exit **73**, `cinch: exhausted: threads` (`stack` when the refusal was `ENOMEM`) |
+| Fiber stack cannot be reserved | `sched/fiber.rs` `obtain_stack` / `map_stack` | **open by design**: a process at its mapping cap cannot reserve another fiber's 8 MiB, so the fiber's first run takes the stack outcome | `Exhausted`, exit **73**, `cinch: exhausted: stack` |
 | File-descriptor / OS errors | `abi.rs:946-951` `cinch_io_write` maps a write/flush failure to `Error::OutOfBounds` (exit 71, a slight misnomer but still a defined fault); `platform.rs` process/pty/net handle operations return negated error codes (`-INVALID_ARGUMENT` etc.) as ordinary `Result`-shaped values, not faults | OS errors are generally surfaced as values, not faults, **except** `cinch_io_write`'s stdout failure | mostly fine; the one write-failure case reuses the `OutOfBounds` fault rather than returning a `Result` |
 
 ---

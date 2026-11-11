@@ -584,6 +584,112 @@ fn sleep() {
 }
 
 // ---------------------------------------------------------------------------
+// What a task costs
+// ---------------------------------------------------------------------------
+
+/// Spawn one task and join it, `rounds` times: the time per round.
+fn spawn_join_one(rounds: usize) -> Duration {
+    let scope = cinch_scope_open();
+    let begun = Instant::now();
+    for _ in 0..rounds {
+        let handle = spawn(scope, quick_body, &[]);
+        let mut out = [0i64; 1];
+        let status = unsafe {
+            cinch_task_join_all_or_cancel(
+                scope,
+                &handle as *const i64 as usize as i64,
+                1,
+                out.as_mut_ptr() as usize as i64,
+            )
+        };
+        assert_eq!(status, 0);
+        unsafe { cinch_drop(out[0]) };
+    }
+    let each = begun.elapsed() / rounds as u32;
+    unsafe { cinch_scope_close(scope) };
+    each
+}
+
+/// Spawn `count` tasks into one scope, then join them all: the time per
+/// task.
+fn spawn_join_batch(count: usize) -> Duration {
+    let scope = cinch_scope_open();
+    let begun = Instant::now();
+    let handles: Vec<i64> = (0..count).map(|_| spawn(scope, quick_body, &[])).collect();
+    black_box(join(scope, &handles));
+    let each = begun.elapsed() / count as u32;
+    unsafe { cinch_scope_close(scope) };
+    each
+}
+
+/// The numbers of design/green-threads.md: the best of five passes of
+/// each shape. Runs on both backends.
+fn bench() {
+    setup();
+    let best = |pass: &dyn Fn() -> Duration| (0..5).map(|_| pass()).min().unwrap();
+    let one = best(&|| spawn_join_one(2_000));
+    let batch = best(&|| spawn_join_batch(2_000));
+    let stats = sched::stats();
+    println!(
+        "sched: fibers={} one_ns={} batch_ns={} threads={} stacks={}",
+        u8::from(sched::FIBERS),
+        one.as_nanos(),
+        batch.as_nanos(),
+        stats.threads_started,
+        stats.stacks_mapped,
+    );
+}
+
+/// How many tasks [`suspended`] holds suspended, when the parent names a
+/// count.
+const SUSPENDED: &str = "CINCH_SCHED_SUSPENDED";
+static WAITING_TASKS: AtomicUsize = AtomicUsize::new(0);
+
+unsafe extern "C" fn waits_until_canceled(clo: i64, _argc: i64, _argv: *mut i64) -> i64 {
+    cinch_stm_wait_begin(1 << 11);
+    WAITING_TASKS.fetch_add(1, SeqCst);
+    let ended = cinch_stm_wait_park(1);
+    ok(clo, ended as u64)
+}
+
+/// The resident memory of this process, in KiB, as the system reports
+/// it.
+fn resident_kib() -> u64 {
+    let out = Command::new("ps").args(["-o", "rss=", "-p", &std::process::id().to_string()]).output().unwrap();
+    String::from_utf8_lossy(&out.stdout).trim().parse().unwrap_or(0)
+}
+
+/// What it costs to hold many tasks suspended at once: every task waits
+/// until the scope's close cancels it.
+fn suspended() {
+    setup();
+    let count: usize = std::env::var(SUSPENDED).ok().and_then(|v| v.parse().ok()).unwrap_or(10_000);
+    let before = resident_kib();
+    let scope = cinch_scope_open();
+    let begun = Instant::now();
+    for _ in 0..count {
+        spawn(scope, waits_until_canceled, &[]);
+    }
+    eventually("every task is waiting", || {
+        cinch_io_sleep(0);
+        WAITING_TASKS.load(SeqCst) == count && sched::stats().queued == 0
+    });
+    let started_ms = begun.elapsed().as_millis();
+    let held = resident_kib();
+    let stats = sched::stats();
+    let begun = Instant::now();
+    unsafe { cinch_scope_close(scope) };
+    println!(
+        "sched: fibers={} count={count} started_ms={started_ms} resident_kib={} stacks={} threads={} closed_ms={}",
+        u8::from(sched::FIBERS),
+        held.saturating_sub(before),
+        stats.stacks_mapped,
+        stats.threads_started,
+        begun.elapsed().as_millis(),
+    );
+}
+
+// ---------------------------------------------------------------------------
 // The child dispatcher and the parent side
 // ---------------------------------------------------------------------------
 
@@ -603,6 +709,8 @@ fn run_scenario(name: &str) {
         "blocking" => blocking(),
         "blocking-main" => blocking_main(),
         "sleep" => sleep(),
+        "bench" => bench(),
+        "suspended" => suspended(),
         other => panic!("unknown scenario {other}"),
     }
 }
@@ -790,4 +898,26 @@ fn a_sleeping_task_holds_no_thread_and_wakes_on_time_or_on_cancellation() {
     }
     let r = report("sleep@main", "1", &[]);
     assert_eq!(r["threads"], "0");
+}
+
+/// The cost of tasks on this machine, for design/green-threads.md: a
+/// spawn and a join, and ten thousand tasks held suspended at once. Not
+/// a test of anything: run it with `--release -- --ignored --nocapture`,
+/// and with `--cfg cinch_thread_tasks` for the cost of one OS thread per
+/// task.
+#[test]
+#[ignore]
+fn what_tasks_cost() {
+    for (name, threads) in [("bench", "4"), ("bench@main", "4"), ("bench@main", "1")] {
+        let r = report(name, threads, &[]);
+        println!(
+            "{name} with {threads} threads: fibers={} one spawn+join {} ns, in a batch of 2000 {} ns per task, {} worker threads started, {} stacks mapped",
+            r["fibers"], r["one_ns"], r["batch_ns"], r["threads"], r["stacks"]
+        );
+    }
+    let r = report("suspended", "4", &[(SUSPENDED, "10000")]);
+    println!(
+        "suspended: fibers={} {} tasks suspended after {} ms, {} KiB resident for them, {} stacks mapped, cancelled and joined in {} ms",
+        r["fibers"], r["count"], r["started_ms"], r["resident_kib"], r["stacks"], r["closed_ms"]
+    );
 }

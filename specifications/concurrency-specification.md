@@ -143,15 +143,17 @@ D-numbers) that amend or interpret this chapter's normative text.
   refused, and untransferred `Bytes`/`Lazy` cells are refused (D77).
   `joinAllOrCancel` is n-ary (n >= 1) and scope exit cancels and joins
   unjoined children as defense in depth (D78). `Blocking`-labeled
-  foreign calls run on the task's dedicated OS thread, are
-  cancellation-blind until they return, and fold their label into the
-  spawning scope's performed row so effect honesty forces the program
-  to carry `Blocking` (D79).
-- **Memory model (D80), 2026-10-28.** This amends section 6: one OS
-  thread per task; fork-join happens-before at spawn and join;
-  cancellation is a sequentially consistent atomic observed only at
-  defined points (`pollCancel`, `ioSleep`); no other atomics. The Wasm
-  cooperative backend preserves the same permitted observations.
+  foreign calls are cancellation-blind until they return, and fold
+  their label into the spawning scope's performed row so effect
+  honesty forces the program to carry `Blocking` (D79, amended by
+  D428 below).
+- **Memory model (D80), 2026-10-28.** This amends section 6: fork-join
+  happens-before at spawn and join; cancellation is a sequentially
+  consistent atomic observed only at defined points (`pollCancel`,
+  `ioSleep`); no other atomics. The Wasm cooperative backend preserves
+  the same permitted observations. D428 below replaces this note's
+  "one OS thread per task" claim; the permitted observations are
+  unchanged.
 - **Io surface and task ABI (D81), 2026-10-28.** `ioWrite` (stdout,
   flushed), `ioRead` (stdin, `None` at end of input), `ioSleep`
   (millisecond slices, early return on cancellation) and `pollCancel`
@@ -160,6 +162,26 @@ D-numbers) that amend or interpret this chapter's normative text.
   the apply-stub calling convention. The sketch's `Request`/
   `LoadError`/`fetch` vocabulary lives in the prelude over `ioRead` (a
   short read is the `LoadError` case).
+- **Tasks are fibers on a scheduler (D428), 2026-11-11.** This
+  replaces the implementation claim D79 and D80 made, not the
+  contracts they state. A task is a stackful fiber with a stack of its
+  own, and the runtime multiplexes every task over at most
+  `CINCH_THREADS` OS threads (default the available parallelism), the
+  program's own thread among them. A task that waits for a child, in
+  `ioSleep` or in a transaction's `retry` is suspended and the thread
+  under it runs another task, so a program limited to one OS thread
+  still runs all of its tasks. A task is not pinned to a thread: after
+  a suspension it may resume on a different one, so nothing may assume
+  two operations in one body share an OS thread. The permitted
+  observations are exactly D80's, and the fork-join and capture rules
+  are what carry them. A `Blocking`-labeled foreign call is the one
+  place a task holds an OS thread, because the runtime cannot suspend
+  inside foreign code; D79's offload contract holds around that fact,
+  by bracketing the call as a blocking region during which one more
+  thread is allowed. A target with no context switch keeps one OS
+  thread per task behind the same runtime entries, and the Wasm
+  cooperative backend is unchanged. The scheduler's model, protocol
+  and measurements are in `design/green-threads.md`.
 - **Temporal obligations (D198-D205), 2026-10-28.** This chapter's
   section 10 is the assumption source for temporal contracts: bounded
   `eventually` claims verify only the finite scope obligations

@@ -1,12 +1,20 @@
 //! Structured-concurrency tests (P12): structured scopes with `spawn`
 //! and task handles, `joinAllOrCancel` with the documented failure
 //! policy, task captures under the ownership discipline, the blocking
-//! call policy, and the `Io r` runtime operations end to end
-//! (concurrency specification sections 2, 3, 4 and 6, and the runtime
-//! capabilities, effects and sequencing spec).
+//! call policy, the `Io r` runtime operations end to end, and tasks as
+//! green threads on a bounded number of OS threads (concurrency
+//! specification sections 2, 3, 4 and 6, the runtime capabilities,
+//! effects and sequencing spec, and design/green-threads.md).
 
 mod common;
 
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output, Stdio};
+use std::time::{Duration, Instant};
+
+use cinch::check::StageMode;
+use cinch::core::TargetProfile;
+use cinch::driver::Mode;
 use common::source_frontend::{check_source_interfaces, check_sources, run_source, run_source_io, run_source_objects};
 
 fn expect_ok(name: &str, src: &str, expected: i32) {
@@ -445,6 +453,296 @@ module Main where
     );
 }
 
+// ------------------------------------------- tasks as green threads (design/green-threads.md)
+
+/// Build `src` as an executable in a project of its own, counting
+/// references when `reclaim`.
+fn built(tag: &str, src: &str, reclaim: bool) -> (PathBuf, PathBuf) {
+    let dir = common::project(tag, &[("Main.cinch", src)]);
+    let exe = dir.join("prog");
+    let profile = TargetProfile { reclaim, ..TargetProfile::native() };
+    common::drive_with_profile(Mode::Build, StageMode::Refresh, &dir, "Main.cinch", Some(exe.clone()), &profile)
+        .unwrap_or_else(|e| panic!("{tag}: build: {e}"));
+    (dir, exe)
+}
+
+/// Run `exe` under `env`. A scheduler bug is usually a hang, so a run
+/// that has not finished in two minutes is ended and fails the test.
+fn run_bounded(exe: &Path, env: &[(&str, &str)]) -> Output {
+    let mut cmd = Command::new(exe);
+    cmd.env_remove("CINCH_ALLOC_STATS")
+        .env_remove("CINCH_THREADS")
+        .env("CINCH_HEAP_LIMIT", "512M")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    for (k, v) in env {
+        cmd.env(k, v);
+    }
+    let mut child = cmd.spawn().expect("spawn program");
+    let limit = Instant::now() + Duration::from_secs(120);
+    while child.try_wait().expect("wait for program").is_none() {
+        if Instant::now() >= limit {
+            let _ = child.kill();
+            panic!("{} under {env:?} did not finish in two minutes", exe.display());
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    child.wait_with_output().expect("collect program output")
+}
+
+/// What a C fixture adds so that its process has a fixed thread budget
+/// and cannot hang: the budget is read when the first task is queued,
+/// after every constructor has run.
+fn pinned(threads: u32) -> String {
+    format!(
+        r#"
+#include <pthread.h>
+#include <stdlib.h>
+#include <unistd.h>
+__attribute__((constructor)) static void pin_budget(void) {{
+    setenv("CINCH_THREADS", "{threads}", 1);
+    alarm(120);
+}}
+"#
+    )
+}
+
+#[test]
+fn one_thread_suspends_a_task_mid_body_and_resumes_it() {
+    // The program's thread is the only thread that runs tasks. Task A
+    // notes 1 and then waits, in the middle of its body, for a wake only
+    // task B gives (the runtime's wait for a blocked transaction, called
+    // directly). B starts after A, on the same thread, while A's frames
+    // are suspended: it notes 2 and wakes A, which resumes and notes 3.
+    // With one OS thread per task this needs two threads; with tasks run
+    // to completion on one stack it cannot finish at all.
+    let o = c_fixture(
+        "onethread",
+        &format!(
+            r#"{}
+static long long noted = 0;
+long long fix_note(long long digit) {{ noted = noted * 10 + digit; return noted; }}
+long long fix_noted(long long unused) {{ return noted; }}
+"#,
+            pinned(1)
+        ),
+    );
+    let src = r#"
+module Main where
+  foreign import ccall "fix_note" note :: I64 ->{IO} I64
+  foreign import ccall "fix_noted" noted :: I64 ->{IO} I64
+  foreign import ccall "cinch_stm_wait_begin" waitBegin :: I64 ->{IO} I64
+  foreign import ccall "cinch_stm_wait_park" waitPark :: I64 ->{IO} I64
+  foreign import ccall "cinch_stm_wake" wake :: I64 ->{IO} I64
+
+  waiter :: Unit ->{IO} Result LoadError I64
+  waiter u = case note 1 of
+    _ -> case waitBegin 4 of
+      _ -> case waitPark 0 of
+        _ -> Ok (note 3)
+
+  waker :: Unit ->{IO} Result LoadError I64
+  waker u = case note 2 of
+    _ -> Ok (wake 4)
+
+  work :: forall r. using (io :: Io r) => Unit ->{Async r, IO, Cancel r, Diverge} Result LoadError (I64, I64)
+  work u = withScope $ \s -> do
+    a <- spawn s (\() -> waiter ())
+    b <- spawn s (\() -> waker ())
+    joinAllOrCancel s a b
+
+  main :: Unit ->{Async r, IO, Cancel r, Diverge} Int
+  main u = with (io = newIO ()) in case work () of
+    Ok p -> if noted 0 == 123 then 0 else 1
+    Err e -> 2
+"#;
+    match run_source_objects(src, &[&o]) {
+        Ok(code) => assert_eq!(code, 0, "one-thread: expected exit 0, got {code}"),
+        Err(e) => panic!("one-thread: compilation failed: {e}"),
+    }
+}
+
+#[test]
+fn ten_thousand_tasks_in_one_scope_join_and_leak_nothing() {
+    // Every task is spawned before the first is joined, so ten thousand
+    // are alive at once in one scope, on at most four threads. (The
+    // spawn sits in a function of its own because a handle bound inside
+    // one branch of an `if` is not accepted as joined on every path.)
+    let src = r#"
+module Main where
+  fan :: forall r s. using (io :: Io r) => Scope r s -> Int ->{Async r, Cancel r, Diverge} Result LoadError Int
+  fan s n = if n == 0 then Ok 0 else more s n
+
+  more :: forall r s. using (io :: Io r) => Scope r s -> Int ->{Async r, Cancel r, Diverge} Result LoadError Int
+  more s n = do
+    h <- spawn s (\() -> Ok n)
+    case fan s (n - 1) of
+      Ok sum -> case joinAllOrCancel s h of
+        Ok mine -> Ok (sum + mine)
+        Err e -> Err e
+      Err e -> case joinAllOrCancel s h of
+        Ok mine -> Err e
+        Err late -> Err e
+
+  work :: forall r. using (io :: Io r) => Unit ->{Async r, Cancel r, Diverge} Result LoadError Int
+  work u = withScope (\s -> fan s 10000)
+
+  main :: Unit ->{Async r, Cancel r, Diverge} Int
+  main u = with (io = newIO ()) in case work () of
+    Ok total -> if total == 50005000 then 0 else 1
+    Err e -> 2
+"#;
+    let (dir, exe) = built("green_many", src, true);
+    for threads in ["4", "1"] {
+        let out = run_bounded(&exe, &[("CINCH_THREADS", threads), ("CINCH_LEAK_CHECK", "1")]);
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert_eq!(out.status.code(), Some(0), "{threads} threads: {stderr}");
+        assert!(
+            stderr.contains("cinch-leak: live=0 immortal=0 leaked=0"),
+            "{threads} threads: {stderr}"
+        );
+    }
+    common::cleanup(&dir);
+}
+
+#[test]
+fn the_failure_policy_and_sleeps_hold_on_one_thread() {
+    let prelude = r#"
+module Main where
+  fill :: InRange 0 255 Nat -> Bytes
+  fill v = let b = bytes-new 1 in case bytes-set b 0 v of
+    _ -> b
+
+  putByte :: forall r. using (io :: Io r) => InRange 0 255 Nat ->{IO r} Unit
+  putByte v = ioWrite (fill v)
+"#;
+    // The sibling polls for cancellation in a loop with no sleep, and is
+    // spawned first. On one thread the failing task behind it only runs
+    // because the poll point yields, and the sibling only stops because
+    // the request that follows is observed at that same point.
+    let polling = format!(
+        r#"{prelude}
+  spin :: forall r. using (io :: Io r) => Unit ->{{IO r, Cancel r}} Result LoadError Nat
+  spin u = case pollCancel () of
+    True -> case putByte 67 of
+      _ -> Ok 0
+    False -> spin ()
+
+  work :: forall r. using (io :: Io r) => Unit ->{{Async r, IO r, Cancel r, Diverge}} Result LoadError (Nat, Nat)
+  work u = withScope $ \s -> do
+    h <- spawn s (\() -> spin ())
+    h2 <- spawn s (\() -> Err (LoadError 2))
+    joinAllOrCancel s h h2
+
+  main :: Unit ->{{Async r, IO r, Cancel r, Diverge}} Int
+  main u = with (io = newIO ()) in case work () of
+    Ok p -> 1
+    Err e -> case e of
+      LoadError c -> if c == 2 then 0 else 3
+"#
+    );
+    let (dir, exe) = built("green_poll", &polling, false);
+    for threads in ["1", "2"] {
+        let out = run_bounded(&exe, &[("CINCH_THREADS", threads)]);
+        assert_eq!(out.status.code(), Some(0), "polling, {threads} threads: {out:?}");
+        assert_eq!(String::from_utf8_lossy(&out.stdout), "C", "polling, {threads} threads");
+    }
+    common::cleanup(&dir);
+    // A sleeping task holds no thread: on one thread the task spawned
+    // after the sleeper writes first, and the sleeper writes when its
+    // time has passed.
+    let sleeping = format!(
+        r#"{prelude}
+  sleeper :: forall r. using (io :: Io r) => Unit ->{{IO r, Cancel r}} Result LoadError Nat
+  sleeper u = case ioSleep 30 of
+    _ -> case putByte 83 of
+      _ -> Ok 1
+
+  quick :: forall r. using (io :: Io r) => Unit ->{{IO r, Cancel r}} Result LoadError Nat
+  quick u = case putByte 81 of
+    _ -> Ok 2
+
+  work :: forall r. using (io :: Io r) => Unit ->{{Async r, IO r, Cancel r, Diverge}} Result LoadError (Nat, Nat)
+  work u = withScope $ \s -> do
+    h <- spawn s (\() -> sleeper ())
+    h2 <- spawn s (\() -> quick ())
+    joinAllOrCancel s h h2
+
+  main :: Unit ->{{Async r, IO r, Cancel r, Diverge}} Int
+  main u = with (io = newIO ()) in case work () of
+    Ok p -> case p of
+      (a, b) -> if a + b == 3 then 0 else 1
+    Err e -> 2
+"#
+    );
+    let (dir, exe) = built("green_sleep", &sleeping, false);
+    let begun = Instant::now();
+    let out = run_bounded(&exe, &[("CINCH_THREADS", "1")]);
+    assert_eq!(out.status.code(), Some(0), "sleeping: {out:?}");
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "QS", "the sleeper held the thread");
+    assert!(begun.elapsed() >= Duration::from_millis(30), "the sleep returned early");
+    common::cleanup(&dir);
+}
+
+#[test]
+fn a_blocking_foreign_call_does_not_hold_up_the_other_tasks() {
+    // Two threads, and two tasks that each block one in a `Blocking`
+    // foreign call until a third task has run. The third only runs if
+    // the generated bracket around the two calls told the scheduler,
+    // which then starts a thread beyond the budget for it.
+    let o = c_fixture(
+        "gate",
+        &format!(
+            r#"{}
+static pthread_mutex_t gate = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t moved = PTHREAD_COND_INITIALIZER;
+static int waiting = 0;
+static int open = 0;
+long long fix_wait_at_gate(long long x) {{
+    pthread_mutex_lock(&gate);
+    waiting++;
+    pthread_cond_broadcast(&moved);
+    while (!open) pthread_cond_wait(&moved, &gate);
+    pthread_mutex_unlock(&gate);
+    return x + 1;
+}}
+long long fix_open_gate(long long x) {{
+    pthread_mutex_lock(&gate);
+    while (waiting < 2) pthread_cond_wait(&moved, &gate);
+    open = 1;
+    pthread_cond_broadcast(&moved);
+    pthread_mutex_unlock(&gate);
+    return x;
+}}
+"#,
+            pinned(2)
+        ),
+    );
+    let src = r#"
+module Main where
+  foreign import ccall "fix_wait_at_gate" waitAtGate :: I64 ->{IO, Blocking} I64
+  foreign import ccall "fix_open_gate" openGate :: I64 ->{IO, Blocking} I64
+
+  work :: forall r. using (io :: Io r) => Unit ->{Async r, IO, Blocking, Cancel r, Diverge} Result LoadError (I64, I64, I64)
+  work u = withScope $ \s -> do
+    a <- spawn s (\() -> Ok (waitAtGate 10))
+    b <- spawn s (\() -> Ok (waitAtGate 20))
+    c <- spawn s (\() -> Ok (openGate 30))
+    joinAllOrCancel s a b c
+
+  main :: Unit ->{Async r, IO, Blocking, Cancel r, Diverge} Int
+  main u = with (io = newIO ()) in case work () of
+    Ok r -> case r of
+      (x, y, z) -> if x == 11 then (if y == 21 then (if z == 30 then 0 else 1) else 1) else 1
+    Err e -> 2
+"#;
+    match run_source_objects(src, &[&o]) {
+        Ok(code) => assert_eq!(code, 0, "blocking-gate: expected exit 0, got {code}"),
+        Err(e) => panic!("blocking-gate: compilation failed: {e}"),
+    }
+}
+
 // ------------------------------------------- the blocking call policy (section 9)
 
 #[test]
@@ -455,10 +753,10 @@ fn blocking_foreign_call_is_accounted_in_the_task_row() {
 long long fix_block_inc(long long x) { return x + 1; }
 "#,
     );
-    // The `Blocking` foreign call runs on the task's own thread (the
-    // bootstrap's offload contract) and its label is accounted in the
-    // task body's row, which `spawn` folds into the spawning scope's
-    // row and the program's declared row.
+    // The `Blocking` foreign call blocks only its own task (the call is
+    // a blocking region of the scheduler, the offload contract) and its
+    // label is accounted in the task body's row, which `spawn` folds
+    // into the spawning scope's row and the program's declared row.
     let src = r#"
 module Main where
   foreign import ccall "fix_block_inc" blockingInc :: I64 ->{IO, Blocking} I64

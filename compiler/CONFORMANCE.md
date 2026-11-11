@@ -820,6 +820,31 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   lock and a reference to it is taken only under the pin. Replaced
   values leave by swap into the staging cell and are released after
   the locks. `compiler/runtime/src/stm.rs`, `tests/stm.rs`.
+- **D428 (P12 tasks are fibers on a scheduler, supersedes D79/D80's
+  thread-per-task text)**: a task is a stackful fiber, not an OS
+  thread. The runtime multiplexes every task over at most
+  `CINCH_THREADS` OS threads (default the available parallelism), the
+  program's own thread among them: it runs tasks while its own code
+  waits. A task that waits for a child, in `ioSleep` or in a
+  transaction's `retry` is suspended, and the thread under it runs
+  another task, so `CINCH_THREADS=1` runs a whole program's tasks on
+  one thread. A task is not pinned to a thread and may resume on a
+  different one after a suspension, so no program may assume two
+  operations in one body share an OS thread; the fork-join edges of
+  D80 and the capture rules of D77 are what the model actually
+  guarantees, and they are unchanged. `Blocking`-labeled foreign calls
+  are the one exception and the reason is structural: the runtime
+  cannot suspend inside foreign code, so the call holds its thread.
+  D79's offload contract still holds, kept by bracketing the call as a
+  blocking region during which one more thread is allowed. Everything
+  a program can observe is unchanged, so D80's permitted observations
+  stand as written; only the implementation claim "one OS thread per
+  task" is replaced. A target with no context switch keeps one OS
+  thread per task behind the same entries, and the Wasm cooperative
+  backend is unchanged. `compiler/runtime/src/sched.rs`,
+  `sched/fiber.rs`, `sched/switch.rs`, `sched/thread.rs`, `park.rs`,
+  `task.rs`; `compiler/runtime/tests/sched.rs`,
+  `compiler/tests/concurrency.rs`; `design/green-threads.md`.
 - **D221-D227 (P18 continuation, reported)**: `unsafe` is a per-body
   prefix (`unsafe <family> { ... }`) with `unsafe prim ... where` sugar
   folding into bodies at parse, recognized contextually so `unsafe`

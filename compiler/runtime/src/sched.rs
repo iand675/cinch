@@ -31,11 +31,11 @@
 //!
 //! Each fiber's stack is a reservation of [`crate::task::TASK_STACK_BYTES`]
 //! of address space, committed as it is touched, with an inaccessible
-//! band at its low end ([`crate::stack::map_stack`]). A fiber gets its
-//! stack when it first runs, not when it is spawned, and a finished
-//! fiber's stack goes to the next fiber that starts, so the stacks in
-//! use track the fibers that are suspended or running, not the fibers
-//! that exist.
+//! band at its low end (the fiber's fault zone, [`crate::stack`]). A
+//! fiber gets its stack when it first runs, not when it is spawned, and
+//! a finished fiber's stack goes to the next fiber that starts, so the
+//! stacks in use track the fibers that are suspended or running, not the
+//! fibers that exist.
 //!
 //! # The state machine
 //!
@@ -117,10 +117,11 @@
 //!
 //! * The functions that switch ([`park`], [`park_timeout`],
 //!   [`yield_now`]) and every function that reads a thread-local on
-//!   behalf of a frame that parks ([`current`], [`blocking_enter`],
-//!   [`blocking_exit`], `task::current_task_canceled`, `stm::take_wait`,
-//!   the join's hand-over of results) are `#[inline(never)]`: each call
-//!   finds the thread it is on.
+//!   behalf of a frame that parks ([`current`], the two entries of a
+//!   blocking region, `task::current_task_canceled`, `stm::take_wait`,
+//!   `eval::swap_state`, the join's and the close's hand-over of
+//!   results) are `#[inline(never)]`: each call finds the thread it is
+//!   on.
 //! * No frame holds a reference derived from a thread-local across a
 //!   call that may park.
 //!
@@ -128,8 +129,8 @@
 //! fiber always switches back to the context of the thread it is
 //! running on, so the frame that switched into a fiber is resumed on the
 //! thread that left it. The allocator is reached through the allocator
-//! symbol, which is a call boundary, and finds its heap from the thread
-//! register on every call. Generated code has no thread-locals.
+//! symbol, which is a call boundary, and looks its heap up anew on every
+//! call. Generated code has no thread-locals.
 //!
 //! # Blocking regions
 //!
@@ -199,7 +200,8 @@ pub struct Stats {
     pub fibers: bool,
     /// Worker threads alive now.
     pub workers: usize,
-    /// Worker threads waiting for the run queue to fill.
+    /// Worker threads not running a fiber: waiting for the run queue to
+    /// fill, or started and not yet at their first look at it.
     pub idle: usize,
     /// Fibers in the run queue.
     pub queued: usize,

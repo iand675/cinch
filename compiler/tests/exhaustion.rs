@@ -85,8 +85,11 @@ fn deep_recursion_within_the_limit_still_succeeds() {
 
 #[test]
 fn deep_recursion_inside_a_task_exits_exhausted_stack() {
-    // The overflow happens on the task's own thread (its 8 MiB stack, not
-    // the program thread's), which is guarded the same way.
+    // The overflow happens on the task's own stack (8 MiB, not the
+    // program thread's), whose low end is guarded the same way. The
+    // task is a fiber: the fault is recognised on whichever thread is
+    // running it, a worker by default and the program's own thread when
+    // the budget is one thread.
     let src = format!(
         r#"
 module Main where
@@ -104,6 +107,8 @@ module Main where
     );
     let (dir, exe) = built("exh_task", &src);
     let out = run_with(&exe, &[]);
+    assert_exhausted(&out, "cinch: exhausted: stack");
+    let out = run_with(&exe, &[("CINCH_THREADS", "1")]);
     assert_exhausted(&out, "cinch: exhausted: stack");
     common::cleanup(&dir);
 }

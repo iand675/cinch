@@ -1394,6 +1394,7 @@ impl Checker {
                         result: result.clone(),
                         deallocator: String::new(),
                         canon: Some(b.call.clone()),
+                        blocking: false,
                     },
                 ));
                 if b.export {
@@ -1408,6 +1409,7 @@ impl Checker {
                             result,
                             deallocator: String::new(),
                             canon: Some(b.call.clone()),
+                            blocking: false,
                         },
                     ));
                 }
@@ -1536,6 +1538,7 @@ impl Checker {
                     },
                     deallocator: String::new(),
                     canon: None,
+                    blocking: false,
                 },
             ));
         }
@@ -11545,6 +11548,8 @@ impl Checker {
             result: result.clone(),
             deallocator: String::new(),
             canon: None,
+            blocking: f.is_import
+                && rows.iter().any(|r| r.labels.iter().any(|l| l.head == "Blocking")),
         };
         let entry = crate::interface::ForeignExport {
             symbol: f.name.text.clone(),
