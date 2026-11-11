@@ -11,12 +11,3 @@ unit Main.main.exit :: -
   @stage(lowered)
   body (app (prim cinch.runtime.intToI64) (global Main.main))
 end
-unit Main.project :: Code Int -> Int
-  @params t0 :: Code Int @owned
-  @stage(lowered)
-  body (int 7)
-end
-unit Main.q :: Code Int
-  @stage(lowered)
-  body (quote 0 (holes) (int 21))
-end

@@ -3,32 +3,6 @@ module Main
 target aarch64-apple-darwin opt-level 0
 source sha256:b4080beddeb96cb83c3329d9f6e86f1e3aad24efec37abede9415b336753824c
 @ticks 184
-global 'Data.Int.Add_Int.+'
-unit Main.drain :: (Data.Core.List Int) -> Int
-  @params t0 :: (Data.Core.List Int) @owned
-  @stage(lowered)
-  body (case (local t0)
-    ((con 0) (int 0))
-    ((con 1 (t1 @class(owned)) (t2 @class(owned)))
-      (let t10 @class(owned)
-        (case (local t2)
-          ((con 0) (int 0))
-          ((con 1 (t3 @class(owned)) (t4 @class(owned)))
-            (let t9 @class(owned)
-              (case (local t4)
-                ((con 0) (int 0))
-                ((con 1 (t5 @class(owned)) (t6 @class(owned)))
-                  (app (global 'Data.Int.Add_Int.+')
-                    (dup t5 @class(owned) (local t5))
-                    (case (local t6)
-                      ((con 0) (int 0))
-                      ((con 1 (t7 @class(owned)) (t8 @class(owned)))
-                        (app (global 'Data.Int.Add_Int.+')
-                          (dup t7 @class(owned) (local t7))
-                          (app (global Main.drain) (local t8))))))))
-              (app (prim cinch.runtime.intAdd) (dup t3 @class(owned) (local t3)) (local t9)))))
-        (app (prim cinch.runtime.intAdd) (dup t1 @class(owned) (local t1)) (local t10)))))
-end
 unit Main.main :: Int
   @stage(lowered)
   body (let t1 @class(owned)

@@ -18,11 +18,6 @@ unit Main.Red :: Main.Colour
   @stage(lowered)
   body (unit)
 end
-unit Main.colour :: Main.Colour -> Int
-  @params t0 :: Main.Colour @owned
-  @stage(lowered)
-  body (case (local t0) ((con 0) (int 1)) ((con 1) (int 4)) ((con 2) (int 3)))
-end
 unit Main.main :: Int
   @stage(lowered)
   body (let t0 @class(owned)
@@ -32,9 +27,4 @@ end
 unit Main.main.exit :: -
   @stage(lowered)
   body (app (prim cinch.runtime.intToI64) (global Main.main))
-end
-unit Main.option-sum :: (Data.Core.Option Int) -> Int
-  @params t0 :: (Data.Core.Option Int) @owned
-  @stage(lowered)
-  body (case (local t0) ((con 0) (int 0)) ((con 1 (t1 @class(owned))) (dup t1 @class(owned) (local t1))))
 end

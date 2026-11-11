@@ -23,12 +23,3 @@ unit Main.peek-word :: I64 -> I64
   body (prim-body llvm
     "\n      %p = inttoptr i64 %0 to ptr\n      %v = load i64, ptr %p, align 8\n      ret i64 %v\n    ")
 end
-unit Main.readTwice :: I64 -> Int
-  @params t0 :: I64 @uncounted
-  @stage(lowered)
-  body (let t1 @class(owned)
-    (app (prim cinch.runtime.intFromI64) (app (global Main.peek-word) (local t0)))
-    (let t2 @class(owned)
-      (app (prim cinch.runtime.intFromI64) (app (global Main.peek-word) (local t0)))
-      (app (prim cinch.runtime.intAdd) (local t1) (local t2))))
-end

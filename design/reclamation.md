@@ -557,28 +557,41 @@ and the code generator both include. Where S5 differs from the plan:
 
 **As built (stack allocation).** `compiler/src/stack.rs` lowers a block
 that cannot escape its activation to a slot in the unit's frame
-(`design/stack-allocation.md`). The header's count field is
-`RC_FRAME = RC_MAX` (`block_kinds.rs`), the largest count the 40-bit field
-holds, which no heap block can reach: the heap cap bounds the live words of
-the process far below `2^39`, and a count only moves by one from
-`RC_FRESH`. A frame block is therefore distinguishable from every
-reachable count, and every count path treats it as immortal without a
-second representation:
+(`design/stack-allocation.md`). The header's count field says which state
+the block is in, and both states are counts no heap block can reach:
 
-- `cinch_dup` and `cinch_drop` ignore it, `cinch_free` returns before it
-  deallocates, `cinch_drop_slow` refuses it under `CINCH_RC_DEBUG=1`
-  (a compiler bug: the stack owns that memory), `claim` (the spawn mark)
-  stops at it, and the release walk never descends into it.
-- The inline fast paths each module emits (`rc_helpers`) gain one
-  `RC_FRAME` arm, and only in a module whose program has a frame slot. A
-  program the pass left alone emits the helper it always emitted, which is
+- `RC_FRAME = RC_MAX` while the payload is live, and
+  `RC_FRAME_RELEASED = RC_MAX - 1` once it has been released
+  (`block_kinds.rs`). The heap cap bounds the live words of the process far
+  below `2^39`, and a count only moves by one from `RC_FRESH`, so nothing
+  reachable holds either value.
+- The release is owned by the first path that reaches the block, not by a
+  count: `cinch_frame_release(word)` marks the header **before** dropping
+  any child and then walks the block's real kind and descriptor with
+  `Scan`, dropping each counted child in reverse payload order. It never
+  frees the block and never touches the allocator. The invariant is that
+  the payload's counted children are dropped exactly once on every path; the
+  three paths are the binder's static death, a callee that took the block as
+  an owned parameter, and a parent frame block releasing the payload it was
+  stored in, and the marker makes every path after the first a no-op.
+- `cinch_dup` on a frame block writes nothing (the field is not a count),
+  `cinch_drop` on one calls the release, `cinch_free` and the release walk
+  leave both markers alone, `claim` (the spawn mark) stops at both, and
+  `cinch_drop_slow` releases the payload instead of freeing stack memory
+  (under `CINCH_RC_DEBUG=1` it traps: the debug paths go through
+  `cinch_drop`, which owns that case).
+- The inline fast paths each module emits (`rc_helpers`) exclude both
+  markers with one signed compare and give them a frame arm: a drop calls
+  `cinch_frame_release`, a dup does nothing. The arms are present only in a
+  module that can hold or receive a frame block: its own frame slots, or a
+  callee the pass hands a frame block to (`stack::Report::receives_frame`).
+  A program the pass left alone emits the helper it always emitted, which is
   what keeps `--no-stack-alloc` byte-identical to the pre-pass IR.
-- Code generation elides the frame binder's dup and drop and releases the
-  payload itself at the reference's death
-  (`CoreEmitter::frame_release`): an ordinary `drop` per counted field, in
-  reverse payload order, with no free and no scan. A frame block is
-  therefore never a field of another frame block, which is what keeps that
-  release a flat list of classes instead of a recursive plan.
+- Code generation still releases a frame binder's payload itself at the
+  reference's death (`CoreEmitter::frame_release`): the counted byte offsets
+  are known statically, so that path is a fixed list of drops with no call
+  and no scan, and it marks the block released with the same header store.
+  The runtime walk exists for the block whose origin the unit cannot see.
 - A frame block never enters the live-bytes counter or the leak count, so
   `cinch-leak: live=0 immortal=0 leaked=0` still holds and
   `CINCH_HEAP_LIMIT` does not see it. The per-unit frame bound

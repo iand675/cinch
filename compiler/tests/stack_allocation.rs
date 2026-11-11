@@ -80,9 +80,16 @@ fn source(dir: &Path, src: &str) -> PathBuf {
 }
 
 /// The `cinch` command with extra flags, run in `dir`.
+///
+/// `CINCH_NO_PRUNE=1` because every assertion in this file is about a named
+/// unit's body: the specializer unfolds a small callee into its caller, and
+/// the reachability sweep then removes the now uncalled unit
+/// (design/stack-allocation.md section 7.4), which is the sweep's subject and
+/// not this file's.
 fn cinch(dir: &Path, args: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_cinch"))
         .current_dir(dir)
+        .env("CINCH_NO_PRUNE", "1")
         .args(args)
         .output()
         .expect("run cinch")
@@ -91,7 +98,11 @@ fn cinch(dir: &Path, args: &[&str]) -> std::process::Output {
 fn emit_ir(dir: &Path, src: &str, flags: &[&str]) -> String {
     let entry = source(dir, src);
     let out = dir.join("prog.ll");
-    let mut args: Vec<String> = vec!["emit-ir".into()];
+    // `--no-inline` keeps the callee a unit of its own: dead-unit
+    // elimination removes a unit the inliner left with no caller
+    // (design/stack-allocation.md section 7.4), and every assertion here is
+    // about a named unit's body.
+    let mut args: Vec<String> = vec!["emit-ir".into(), "--no-inline".into()];
     args.extend(flags.iter().map(|f| f.to_string()));
     args.push(entry.display().to_string());
     args.push("-o".into());
@@ -317,7 +328,16 @@ fn a_block_stored_in_a_frame_block_takes_a_slot() {
     let entry = source(&dir, NATIVE_STORE);
     let output = cinch(
         &dir,
-        &["core", "emit", "--max-simplifier-iterations", "0", "-o", "lowered.core", &entry.display().to_string()],
+        &[
+            "core",
+            "emit",
+            "--max-simplifier-iterations",
+            "0",
+            "--no-inline",
+            "-o",
+            "lowered.core",
+            &entry.display().to_string(),
+        ],
     );
     assert!(
         output.status.success(),

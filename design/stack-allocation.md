@@ -186,6 +186,156 @@ The parameters are now renamed to fresh ids first and the substitution
 replaces those: no caller local can be mistaken for a parameter still to be
 substituted, and the copy's closure is the invariant the diagnostic checks.
 
+### 7.3 The frame payload's release, exactly once (item 4)
+
+A frame block has no count that can make one of its drops the last, so the
+release cannot be driven by a zero crossing. It is owned instead by the
+first path that reaches it, and the header records that it happened:
+
+- The count field holds `RC_FRAME` while the payload is live and
+  `RC_FRAME_RELEASED = RC_MAX - 1` once it has been released. Both are
+  counts no heap block can hold (the heap cap bounds live words far below
+  `2^39`, and a count only moves by one from `RC_FRESH`), so the two states
+  cost no extra field and no extra word.
+- `cinch_frame_release(word)` reads the header, returns when it is already
+  marked, otherwise writes the marker *before* touching a child and then
+  walks the block's real kind and descriptor, dropping each counted child in
+  reverse payload order with an ordinary `cinch_drop`. It never frees the
+  block and never touches the allocator.
+- The invariant is not "one path releases" but **the payload's counted
+  children are dropped exactly once on every path**. The three paths are
+  the binder's static death (code generation's own field-by-field release,
+  which marks first too), a callee that took the block as an owned
+  parameter and drops it, and a parent frame block whose own release walks
+  the payload it was stored in. Marking first makes the second and later
+  paths no-ops, which also covers a child that points back into a block
+  still being released.
+- `cinch_drop` on a frame block calls the release. The inline count helpers
+  exclude both markers with one signed compare (`top < RC_FRAME_RELEASED`,
+  top-shifted) and route them to a frame arm: the drop arm calls
+  `cinch_frame_release`, the dup arm is a no-op, because a frame dup is a
+  second static reference and the field is not a count. The arm is present
+  only in a module that can hold or receive a frame block, so a program the
+  pass left alone (and `--no-stack-alloc`) still emits the helper it always
+  emitted.
+- `cinch_free`, the spawn mark and the heap release walk leave both markers
+  alone rather than decrementing a field that is not a count, and
+  `cinch_drop_slow` releases the payload instead of handing stack memory to
+  the allocator (under `CINCH_RC_DEBUG=1` it traps, because the debug paths
+  go through `cinch_drop`).
+
+What the marker buys is that a frame block may be released from a place its
+allocating unit cannot see, which is what the two widenings below need. What
+it does not buy is a second *live* reference: a `Dup` of a frame block with a
+counted payload is still refused, because the reference that outlives the
+release would read dropped children.
+
+The pass's static release stays: the code generator knows the counted byte
+offsets at the binder's own death, so that path is a fixed list of drops with
+no call and no scan. The runtime walk exists for the block whose origin the
+unit cannot see.
+
+Two transfers become admissible, and each needs a fact about a place the
+pass cannot see:
+
+- **A frame block passed to a callee's owned parameter** (`escapes:call`).
+  Admissible when the callee consumes the parameter: every reference to it
+  inside the callee is a read or a death, none is `Dup`ped, and nothing
+  stores it, returns it or passes it on (`Facts::consumed`, one scan per
+  unit). The callee's own drop is then the release. A parameter the callee
+  forwards is not consumed by this rule, so forwarding stays refused: that
+  would need a fixpoint over summaries.
+- **A frame block stored in a field of another frame block**
+  (`escapes:field`). Admissible when the enclosing block is itself
+  frame-bound, which makes the decision a fixpoint: start with no frame
+  binder and repeat, each round taking the candidates the last round's set
+  makes eligible. Adding a frame binder can only turn a store from an escape
+  into a consumption, so the set grows and the iteration terminates. The
+  frame limit is applied as a *shrink* of the fixpoint and the fixpoint is
+  re-run under the shrunk set, because a limit inside the iteration can
+  oscillate (an earlier slot pushes a later one out, and dropping it
+  re-admits the earlier one).
+
+`CINCH_STACK_WIDEN=none|consume|store|all` selects the transfers, so one
+widening can be measured against the other; `CINCH_STACK_TRACE` now prints,
+on an accepted candidate, how many consumptions it had and how many were
+static deaths, stores in a frame block, or passes to a consuming callee.
+
+### 7.4 Dead-unit elimination (item 2)
+
+Inlining moves an allocation into its caller's activation, which is what the
+frame pass needs, but a copy leaves the callee's body behind: a unit whose
+every call site was inlined is never called again. Those units are code the
+artifact still pays for, and they are what keeps the inliner's node budget
+(two percent of the program) the binding constraint.
+
+`simplify::prune` is a reachability sweep over the units, run after inlining
+and before reference counting, with the program's real roots: `program.main`,
+every `foreign export` target and Wasm world binding implementation, every
+instance's dictionary unit and its methods, every constructor unit (the
+layout table's ids and the tags a `case` compares name them, and another
+module's block carries one of those ids), every `prim` declaration's unit,
+every boundary layout plan's unit, and every unit of a module an object or
+package build emits. A unit is live when a live unit mentions it, directly or
+as a `Lam`'s code pointer, in any position including a quotation's retained
+body; everything else is removed. The removed unit count and the Core nodes
+they held go in the artifact manifest as `simplifier.pruned` and
+`simplifier.pruned_nodes`, and `CINCH_NO_PRUNE=1` takes the measurement the
+other way.
+
+### 7.5 Measured: which widening paid
+
+`core emit` over the compiler workload (the bootstrapped compiler: 46 files,
+40,266 lines, the `Run.Check` entry) with `CINCH_STACK_TRACE=1` and
+`--no-inline`, so the population is the pre-inliner units:
+
+| `CINCH_STACK_WIDEN` | Slots | `escapes:value` | `escapes:call` | `escapes:field` | `duplicated` |
+| --- | --- | --- | --- | --- | --- |
+| `none` (the rule before section 7.3) | 694 | 460 | 160 | 231 | 439 |
+| `consume` | 711 | 460 | 129 | 245 | 440 |
+| `store` | 694 | 460 | 160 | 231 | 439 |
+| `all` | 711 | 460 | 129 | 245 | 440 |
+
+**The owned-parameter widening paid; the store widening did not.**
+
+- A frame block passed to a callee's consuming owned parameter recovered 31
+  of the 160 `escapes:call` refusals and 17 slots (694 to 711). The 31 are
+  calls whose callee was not unfolded and whose parameter the callee drops
+  itself: the compiler's own units pass a freshly built block to a helper
+  that pattern matches it once.
+- The store widening moved no slot on this workload, and the refusal counts
+  are identical to `none` in every column: here a block that would hold
+  another block is itself returned or stored, so the holder is never
+  frame-bound (the 460 `escapes:value` are mostly returned blocks, which
+  item 3's worker/wrapper rule is the route to). It does fire on the shapes
+  it is for: `stored.cinch` (a `Box` stored in a `Holder` that is matched in
+  the same unit) goes from 0 slots to 2, and a leak-checked run of it is
+  `live=0 immortal=0 leaked=0` under both `CINCH_LEAK_CHECK=1` and
+  `CINCH_RC_DEBUG=1`.
+- `escapes:field` *rose* by 14 under `consume` (231 to 245), which is the
+  fixpoint working: a block whose callee now consumes it becomes a frame
+  site, so stores into that block are re-decided and the ones whose holder
+  is not frame-bound are refused for the true reason.
+- The counts are lower than section 7.2's because dead-unit elimination now
+  runs first: 1,101 units and 122,878 Core nodes the inliner or the
+  specializer left with no caller are gone before the frame pass walks the
+  program, so it considers fewer candidates (1,994 here).
+
+The IR the sweep removes, on the same workload, is the direct measure of
+item 2: the emitted module is 5,067,823 lines with `CINCH_NO_PRUNE=1` and
+4,455,074 without, 12.1% of the artifact, and the manifest records
+`simplifier.pruned` (1,101) and `simplifier.pruned_nodes` (122,878) so the
+removal is visible in the artifact rather than inferred from IR size.
+
+What is not measured here: the compiler's own speed (the toolkit check and a
+self-compile) with interleaved medians. The first measurement was built to
+answer "does the release remove volume", and the frame payload's release
+costs nothing at run time on the paths the pass already lowered (the static
+release is a fixed list of drops plus one header store per block, where it
+was a fixed list of drops). The runtime walk only runs for a block whose
+origin the unit cannot see, which is the population `consume` opened (31
+refusals).
+
 ### 7.2 Measured reach
 
 `core emit` with the rules on and with `--no-inline`, refusals by reason

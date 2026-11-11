@@ -16,15 +16,6 @@ unit Main.main.exit :: -
   @stage(lowered)
   body (app (prim cinch.runtime.intToI64) (global Main.main))
 end
-unit Main.step :: (Data.Core.Option Int) -> (Data.Core.Option Int)
-  @params t0 :: (Data.Core.Option Int) @owned
-  @stage(lowered)
-  body (case (local t0)
-    ((con 0) (app (ctor Data.Core.None @classes(T) 0 0)))
-    ((con 1 (t1 @class(owned)))
-      (app (ctor 'Data.Core.Some@T' @classes(T) 1 1)
-        (app (prim cinch.runtime.intAdd) (dup t1 @class(owned) (local t1)) (int 1)))))
-end
 unit Main.wide :: (Data.Core.Option Int) -> Int
   @params t0 :: (Data.Core.Option Int) @owned
   @frame(1 slot, 16 bytes)

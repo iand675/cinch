@@ -55,7 +55,14 @@ fn dump_source(src: &str, file: &str, stage: Stage, profile: &TargetProfile) -> 
             }
             let (specialized, report) =
                 cinch::specialize::optimize_with(&program, profile, &opts).expect("specialization");
+            let mut specialized = specialized;
+            // Dead-unit elimination runs after inlining and before counting
+            // (design/stack-allocation.md section 7.4), and `cinch core
+            // emit` runs it, so the corpus does too: the dump is the code
+            // generation input, not the unit set before the sweep.
+            let pruned = cinch::simplify::prune(&mut specialized, &[]);
             let mut lowered = cinch::rc::insert_closed(specialized, profile).expect("reference counting");
+            let _ = pruned;
             // The lowered stage is the code generation input: frame
             // allocation runs after counting (design/stack-allocation.md),
             // and `cinch core emit` runs it, so the corpus does too.
