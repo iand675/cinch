@@ -40,6 +40,9 @@ module Bootstrap.RuntimeIr where
     GivenLocal :: String -> UType -> String -> Local
     SelfValue :: String -> Nat -> UType -> String -> Local
     KnownSelf :: String -> String -> List Nat -> List CoreGiven -> Local
+    -- A binder whose value is a constructor application that has not been
+    -- built. A non-case use builds it; a case on it folds without building.
+    DeferredConstructor :: Nat -> UType -> String -> List UType -> List CoreTerm -> Local
 
   data RecursiveWorker where
     RecursiveWorker :: Nat -> UType -> String -> List CorePattern -> CoreTerm -> RecursiveWorker
@@ -440,6 +443,7 @@ module Bootstrap.RuntimeIr where
     Cons (KnotLocal id region ty value) rest -> drop-locals rest w
     Cons (GivenLocal name ty value) rest -> drop-locals rest w
     Cons (KnownSelf symbol name classes context) rest -> drop-locals rest w
+    Cons (DeferredConstructor id ty name actuals args) rest -> drop-locals rest w
     Cons (SelfValue owner slot ty word) rest -> drop-locals rest w
   local :: Nat -> List Local -> Option (UType, String)
   local id locals = case locals of
@@ -451,6 +455,7 @@ module Bootstrap.RuntimeIr where
     Cons (GivenLocal name ty value) rest -> local id rest
     Cons (KnownSelf symbol name classes context) rest -> local id rest
     Cons (SelfValue owner slot ty word) rest -> local id rest
+    Cons (DeferredConstructor key ty name actuals args) rest -> local id rest
 
   field-map :: RuntimeContext -> List UType -> Nat -> Option Nat
   field-map datas fields factor = case fields of
@@ -942,11 +947,13 @@ module Bootstrap.RuntimeIr where
     CChar sp ty text -> if named ty "Char" then (case char-word text of Some word -> (w, word); None -> unsupported w sp "invalid typed character literal") else unsupported w sp "character literal has no checked Char carrier"
     CString sp ty text -> string-literal w sp ty text
     CUnit sp ty -> (w, "0")
-    CLocal sp ty id name Nil -> case knot-local id locals of
-      Some (declared, slot) -> knot-read w declared slot
-      None -> case local id locals of
-        Some (declared, value) -> (count-op True declared value w, value)
-        None -> unsupported w sp "runtime local is absent from its lexical scope"
+    CLocal sp ty id name Nil -> case deferred-constructor id locals of
+      Some (ctor, actuals, args) -> direct-call definitions locals w sp ctor actuals args
+      None -> case knot-local id locals of
+        Some (declared, slot) -> knot-read w declared slot
+        None -> case local id locals of
+          Some (declared, value) -> (count-op True declared value w, value)
+          None -> unsupported w sp "runtime local is absent from its lexical scope"
     CUse sp ty name role actuals ->
       if named ty "Bool" && same name "True" then (w, "1")
       else if named ty "Bool" && same name "False" then (w, "0")
@@ -974,6 +981,9 @@ module Bootstrap.RuntimeIr where
     CRecursiveValues sp ty region members body -> knot-expression definitions locals w sp region members body
     CLet sp ty id name sc rhs body -> if (case scheme-params sc of Nil -> False; other -> True) && local-function-value rhs && (case scheme-requirements sc of Nil -> True; other -> False) then
       expression definitions locals w (specialize-local id sc rhs body)
+      else if deferred-let w id sc rhs body then (case deferred-value (writer-data w) rhs of
+        Some (ctor, actuals, args) -> expression definitions (Cons (DeferredConstructor id (scheme-body sc) ctor actuals args) locals) w body
+        None -> unsupported w sp "deferred constructor let failed its checked representation")
       else if (case scheme-params sc of Nil -> True; other -> False) && scheme-supported (writer-context w) sc && word-type (writer-context w) (scheme-body sc) then
       (case expression definitions locals w rhs of
         (bound, value) -> case expression definitions (Cons (Local id (scheme-body sc) value) locals) bound body of
@@ -2235,6 +2245,7 @@ module Bootstrap.RuntimeIr where
     Cons (KnownSelf key owner classes context) rest -> if given-uses key body then Cons (KnownSelf key owner classes context) (captures-from parameter body all rest) else captures-from parameter body all rest
     Cons (SelfValue owner slot ty value) rest -> if self-values-used owner body all then Cons (SelfValue owner slot ty value) (captures-from parameter body all rest) else captures-from parameter body all rest
     Cons (Discard ty value) rest -> captures-from parameter body all rest
+    Cons (DeferredConstructor id ty name actuals args) rest -> captures-from parameter body all rest
   capture-types :: List Local -> List UType
   capture-types locals = case locals of
     Nil -> Nil
@@ -2588,13 +2599,80 @@ module Bootstrap.RuntimeIr where
     FoldBlocked :: CaseFold
   fold-known-case :: List CoreDefinition -> List Local -> Writer -> CoreTerm -> CoreTerm -> Option (Writer, String)
   fold-known-case definitions locals w value alternatives = case erased-constructor-call value Nil of
-    Some (name, actuals, args) -> case known-constructor-fields w (core-type value) name of
-      Some count -> if count == list-length args then (case fold-alternatives alternatives name count of
-          FoldCase fields body -> if row-guarded body then None else Some (fold-case-body definitions locals w args fields body)
-          other -> None)
-        else None
-      None -> None
+    Some (name, actuals, args) -> fold-known-application definitions locals w (core-type value) name args alternatives
+    None -> case value of
+      CLocal lsp lty id lname Nil -> case deferred-constructor id locals of
+        Some (ctor, actuals, args) -> fold-known-application definitions locals w (core-type value) ctor args alternatives
+        None -> None
+      other -> None
+  fold-known-application :: List CoreDefinition -> List Local -> Writer -> UType -> String -> List CoreTerm -> CoreTerm -> Option (Writer, String)
+  fold-known-application definitions locals w ty name args alternatives = case known-constructor-fields w ty name of
+    Some count -> if count == list-length args then (case fold-alternatives alternatives name count of
+        FoldCase fields body -> if row-guarded body then None else Some (fold-case-body definitions locals w args fields body)
+        other -> None)
+      else None
     None -> None
+  deferred-constructor :: Nat -> List Local -> Option (String, List UType, List CoreTerm)
+  deferred-constructor id locals = case locals of
+    Nil -> None
+    Cons (DeferredConstructor key ty name actuals args) rest -> if key == id then Some (name, actuals, args) else deferred-constructor id rest
+    Cons other rest -> deferred-constructor id rest
+  -- A let-bound constructor application is deferred only when its single
+  -- use is a case scrutinee and every argument is already a value: then
+  -- nothing between the binder and that case can observe when the
+  -- arguments were read or that the cell was never built.
+  deferred-let :: Writer -> Nat -> Scheme -> CoreTerm -> CoreTerm -> Bool
+  deferred-let w id sc rhs body =
+    (case scheme-params sc of Nil -> True; other -> False) && (case scheme-requirements sc of Nil -> True; other -> False)
+      && scheme-supported (writer-context w) sc && word-type (writer-context w) (scheme-body sc)
+      && case-scrutinee-only id body && (case deferred-value (writer-data w) rhs of Some plan -> True; None -> False)
+  deferred-value :: List CoreData -> CoreTerm -> Option (String, List UType, List CoreTerm)
+  deferred-value datas rhs = case erased-constructor-call rhs Nil of
+    Some (name, actuals, args) -> if trivial-arguments args && (case constructor name datas of Some found -> True; None -> False) then Some (name, actuals, args) else None
+    None -> None
+  trivial-arguments :: List CoreTerm -> Bool
+  trivial-arguments args = case args of
+    Nil -> True
+    Cons first rest -> trivial-term first && trivial-arguments rest
+  trivial-term :: CoreTerm -> Bool
+  trivial-term term = case term of
+    CLocal sp ty id name Nil -> True
+    CInt sp ty text -> True
+    CString sp ty text -> True
+    CChar sp ty text -> True
+    CUnit sp ty -> True
+    CProofRef sp ty id name -> True
+    CProofRefl sp ty -> True
+    CUse sp ty name role actuals -> same role "constructor"
+    other -> False
+  -- Exactly one use of the binder, and that use is a case scrutinee.
+  case-scrutinee-only :: Nat -> CoreTerm -> Bool
+  case-scrutinee-only id body = not (other-local-use id body) && case-scrutinee-count id body == 1
+  other-local-use :: Nat -> CoreTerm -> Bool
+  other-local-use id term = case term of
+    CLocal sp ty key name actuals -> key == id
+    CCase sp ty value alternatives -> case-local-use id value || other-local-use id alternatives
+    other -> other-local-use-any id (runtime-term-children term)
+  case-local-use :: Nat -> CoreTerm -> Bool
+  case-local-use id value = case value of
+    CLocal sp ty key name Nil -> False
+    other -> other-local-use id other
+  other-local-use-any :: Nat -> List CoreTerm -> Bool
+  other-local-use-any id terms = case terms of
+    Nil -> False
+    Cons first rest -> other-local-use id first || other-local-use-any id rest
+  case-scrutinee-count :: Nat -> CoreTerm -> Nat
+  case-scrutinee-count id term = case term of
+    CCase sp ty value alternatives -> case-scrutinee-value id value + case-scrutinee-count-any id (runtime-term-children term)
+    other -> case-scrutinee-count-any id (runtime-term-children term)
+  case-scrutinee-count-any :: Nat -> List CoreTerm -> Nat
+  case-scrutinee-count-any id terms = case terms of
+    Nil -> 0
+    Cons first rest -> case-scrutinee-count id first + case-scrutinee-count-any id rest
+  case-scrutinee-value :: Nat -> CoreTerm -> Nat
+  case-scrutinee-value id value = case value of
+    CLocal sp ty key name Nil -> if key == id then 1 else 0
+    other -> 0
   -- The runtime field count of a constructor whose declared representation
   -- the allocating path supports, so folding never admits a case the
   -- ordinary path refuses.
