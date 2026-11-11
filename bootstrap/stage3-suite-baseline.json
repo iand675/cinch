@@ -1,17 +1,23 @@
 {
  "date": "2026-11-11",
  "stage": 3,
- "compiler": "main at ecdd626e (ABI 8, parallel builtins, stack allocation with the tail-call rule, Cinch folds/inliner)",
- "targets": 228,
- "fully_passing": 140,
- "tests_passed": 860,
- "tests_failed": 635,
+ "compiler": "main at 93fc5399: ABI 9 with the bump arena off, static blocks addressed by offset, fixed-frame apply stub, reset/reuse, dense body transport, GHC inlining inputs, resolver index and compare fast path",
+ "targets": 231,
+ "fully_passing": 145,
+ "tests_passed": 879,
+ "tests_failed": 634,
  "runner": "tooling/run_stage_targets.py --stage 3 --jobs 4 --all",
  "rows": [
   {
    "target": "alloc_accounting",
    "exit": 0,
    "passed": 8,
+   "failed": 0
+  },
+  {
+   "target": "arena",
+   "exit": 0,
+   "passed": 1,
    "failed": 0
   },
   {
@@ -280,9 +286,9 @@
   },
   {
    "target": "bootstrap_load",
-   "exit": 101,
-   "passed": 1,
-   "failed": 1
+   "exit": 0,
+   "passed": 2,
+   "failed": 0
   },
   {
    "target": "bootstrap_machine_values",
@@ -412,15 +418,15 @@
   },
   {
    "target": "bootstrap_runtime_ir",
-   "exit": 101,
-   "passed": 0,
-   "failed": 1
+   "exit": 0,
+   "passed": 1,
+   "failed": 0
   },
   {
    "target": "bootstrap_runtime_library",
-   "exit": 101,
-   "passed": 0,
-   "failed": 1
+   "exit": 0,
+   "passed": 1,
+   "failed": 0
   },
   {
    "target": "bootstrap_runtime_library_abi",
@@ -599,8 +605,8 @@
   {
    "target": "dependent",
    "exit": 101,
-   "passed": 5,
-   "failed": 9
+   "passed": 6,
+   "failed": 13
   },
   {
    "target": "effects",
@@ -1049,8 +1055,8 @@
   {
    "target": "nominal_identity",
    "exit": 101,
-   "passed": 2,
-   "failed": 5
+   "passed": 4,
+   "failed": 3
   },
   {
    "target": "observability",
@@ -1073,7 +1079,7 @@
   {
    "target": "ownership",
    "exit": 101,
-   "passed": 21,
+   "passed": 23,
    "failed": 6
   },
   {
@@ -1127,7 +1133,7 @@
   {
    "target": "prim",
    "exit": 101,
-   "passed": 11,
+   "passed": 13,
    "failed": 13
   },
   {
@@ -1189,6 +1195,12 @@
    "exit": 0,
    "passed": 3,
    "failed": 0
+  },
+  {
+   "target": "reuse",
+   "exit": 101,
+   "passed": 1,
+   "failed": 1
   },
   {
    "target": "runtime_net_prims",
@@ -1301,8 +1313,8 @@
   {
    "target": "syntax_index_evidence",
    "exit": 101,
-   "passed": 1,
-   "failed": 13
+   "passed": 2,
+   "failed": 12
   },
   {
    "target": "syntax_index_lambdas",
@@ -1339,6 +1351,12 @@
    "exit": 101,
    "passed": 0,
    "failed": 12
+  },
+  {
+   "target": "syntax_sigil_identifiers",
+   "exit": 0,
+   "passed": 6,
+   "failed": 0
   },
   {
    "target": "syntax_signature_scope",
