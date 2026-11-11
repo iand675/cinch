@@ -15,6 +15,22 @@ fn expect_ok(name: &str, src: &str, expected: i32) {
     }
 }
 
+/// A refusal whose wording differs between the seed and the self-hosted
+/// compiler, because they stop at different points: each spelling names the
+/// same cause, so the test asserts a refusal that names it in either form.
+fn expect_err_any(name: &str, src: &str, needles: &[&str]) {
+    match check_sources(src, "<test>") {
+        Ok(_) => panic!("{name}: expected an error containing one of {needles:?}, but the program checked"),
+        Err(e) => {
+            let msg = e.to_string();
+            assert!(
+                needles.iter().any(|needle| msg.contains(needle)),
+                "{name}: error {msg:?} does not contain any of {needles:?}"
+            );
+        }
+    }
+}
+
 fn expect_err(name: &str, src: &str, needle: &str) {
     match check_sources(src, "<test>") {
         Ok(_) => panic!("{name}: expected an error containing {needle:?}, but the program checked"),
@@ -467,7 +483,7 @@ module Main where
 "#,
         "positivity",
     );
-    expect_err(
+    expect_err_any(
         "mutual-through-refinement",
         r#"
 module Main where
@@ -480,7 +496,7 @@ module Main where
   main :: Int
   main = 0
 "#,
-        "unknown type R",
+        &["unknown type R", "ill-formed source refinement"],
     );
 }
 
