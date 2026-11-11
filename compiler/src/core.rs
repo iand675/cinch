@@ -917,6 +917,54 @@ impl ConcOp {
     }
 }
 
+/// The deterministic pure-parallelism builtins (`design/parallel-evaluation.md`
+/// sections 2 and 4.2). Their meaning is their sequential defining equation,
+/// so no result depends on the participant count or the schedule:
+///
+/// ```text
+/// parBoth f g     = (f (), g ())
+/// parTabulate n f = array-tabulate n f      -- the sequential reading
+/// parMap f xs     = map f xs
+/// ```
+///
+/// The callbacks are borrowed: the caller keeps them alive across the call
+/// and drops them afterwards, and the runtime duplicates one reference per
+/// invocation. The checker installs the three as compiler-known values with
+/// their capture and effect obligations (`install_parallel_api`), because
+/// their callbacks are read literally at the call site.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ParOp {
+    /// `parBoth f g`: both branches, joined into the pair.
+    Both,
+    /// `parTabulate n f`: index `i` is one unit of work.
+    Tabulate,
+    /// `parMapArray f arr`: `f` over each element of an array. `parMap`
+    /// lowers to this between the prelude's `array-from-list` and
+    /// `array-to-list`.
+    MapArray,
+}
+
+impl ParOp {
+    /// The unit name's operation part (`cinch.runtime.<name>`).
+    pub fn name(self) -> &'static str {
+        match self {
+            ParOp::Both => "parBoth",
+            ParOp::Tabulate => "parTabulate",
+            ParOp::MapArray => "parMapArray",
+        }
+    }
+
+    /// How many element classes the unit is parameterized by: the pair's
+    /// two component classes for `parBoth`, and the result array's element
+    /// class for the other two.
+    pub fn class_count(self) -> usize {
+        match self {
+            ParOp::Both => 2,
+            ParOp::Tabulate | ParOp::MapArray => 1,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum PrimOp {
     /// Immutable typed arrays, specialized by element representation.
@@ -1008,6 +1056,14 @@ pub enum PrimOp {
     /// Structured concurrency and runtime I/O (concurrency specification
     /// sections 2, 4 and 9): builtin values, never foreign imports.
     Conc(ConcOp),
+    /// Deterministic pure parallelism (`design/parallel-evaluation.md`
+    /// sections 2 and 4.2): builtin values, never foreign imports. The
+    /// classes are the result blocks' exact pointer maps: the pair's two
+    /// component classes, or the result array's element class. They are
+    /// part of the unit's identity, because each is baked into the unit's
+    /// body (`cinch.runtime.parBoth@RO`), exactly as a specialized unit's
+    /// name carries its class vector.
+    Par { op: ParOp, classes: [Class; 2] },
     /// `eval q`: evaluate a typed quotation at runtime (supercompilation
     /// and JIT specification section 7). The quote is typed by its
     /// `Code a` type when constructed; `eval` carries no capability or
@@ -1198,6 +1254,12 @@ impl PrimOp {
             U32ToChar => return "cinch.prim.u32ToChar".to_string(),
             Eval => return "cinch.prim.eval".to_string(),
             Conc(k) => return k.symbol(),
+            Par { op, classes } => {
+                // The class vector is part of the name (each class is an
+                // immediate in the unit's body): `cinch.runtime.parBoth@RO`.
+                let used = &classes[..op.class_count()];
+                return format!("cinch.runtime.{}@{}", op.name(), crate::repr::letters(used));
+            }
             Bound { ty, max } => {
                 format!("{}Bound{}", if max { "max" } else { "min" }, ty.name())
             }
@@ -1267,6 +1329,10 @@ impl PrimOp {
             Neg { .. } | BitNot { .. } | BitScan { .. } | FloatUn { .. } | FClass { .. }
             | CharToU32 | U32ToChar | Conv { .. } | Delay | Force | ApplyErased | NotBool | Eval => 1,
             Conc(k) => k.arity(),
+            // Two runtime words each (`n` and the callback, two callbacks,
+            // or the callback and the input array). The element classes are
+            // immediates in the body, not parameters.
+            Par { .. } => 2,
             _ => 2,
         }
     }
@@ -1425,6 +1491,7 @@ impl PrimOp {
             CharToU32 => (vec![prim(Scalar::Char)], u32t),
             U32ToChar => (vec![u32t], opt(prim(Scalar::Char))),
             Conc(_) => unreachable!("concurrency and runtime I/O builtins are not foreign imports"),
+            Par { .. } => unreachable!("the parallel builtins are not foreign imports"),
             Conv { from, to, mode } => {
                 let res = if mode == ConvMode::Checked { opt(prim(to)) } else { prim(to) };
                 (vec![prim(from)], res)
@@ -7154,6 +7221,11 @@ pub fn subst_classes(e: &mut Core, cv: &[Class]) {
         Core::Demand(_, c) | Core::BoxGet(_, c) | Core::BoxClear(_, c) | Core::BoxInit(_, _, c) | Core::RefSet(_, _, c) => *c = c.subst(cv),
         Core::Dup(_, c, _) | Core::Drop(_, c, _) => *c = c.subst(cv),
         Core::Let(_, c, _, _) => *c = c.subst(cv),
+        Core::Prim(PrimOp::Par { op, classes }) => {
+            for c in classes.iter_mut().take(op.class_count()) {
+                *c = c.subst(cv);
+            }
+        }
         Core::Case { alts, .. } => {
             for a in alts.iter_mut() {
                 match &mut a.pat {

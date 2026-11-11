@@ -27,7 +27,12 @@ pub const SCHEMA_VERSION: u32 = 10;
 /// header; 2: the header word and small immediates.)
 /// 6: immutable Array/Tensor/Columnar block kinds and element pointer maps.
 /// 7: Mut arguments carry owned, shared one-field cells through calls.
-pub const RUNTIME_ABI_VERSION: u32 = 7;
+/// 8: deterministic pure parallelism: `cinch_par_both`,
+/// `cinch_par_tabulate`, `cinch_par_map_array` and `cinch_par_set_workers`
+/// on the work-stealing pool, with the sequential `cinch_coop_par_*`
+/// readings on the cooperative backend (design/parallel-evaluation.md
+/// sections 3.3 and 3.6).
+pub const RUNTIME_ABI_VERSION: u32 = 8;
 pub const LANGUAGE_VERSION: &str = "draft-0.2+amendments";
 const CALLING_CONVENTION: &str = "uniform-word, curried apply stub";
 

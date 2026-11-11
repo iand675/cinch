@@ -228,6 +228,7 @@ impl Checker {
                     self.oneshot_frames.push(OneshotFrame {
                         lam: self.lam_depth + 1,
                         task: false,
+                        parallel: false,
                         scope: s.clone(),
                         outer,
                     });
@@ -305,6 +306,7 @@ impl Checker {
                     self.oneshot_frames.push(OneshotFrame {
                         lam: self.lam_depth + 1,
                         task: true,
+                        parallel: false,
                         scope: s.clone().to_string(),
                         outer: outer.clone(),
                     });
@@ -378,6 +380,374 @@ impl Checker {
                 unreachable!("the Io r operations take the ordinary application path")
             }
         }
+    }
+
+    /// The deterministic pure-parallelism builtin behind an application
+    /// head (`parBoth`, `parTabulate`, `parMap`), when it is unshadowed:
+    /// their application elaboration is [`Checker::infer_par_app`]. A
+    /// definition of the same name shadows the builtin (decision D2).
+    fn par_builtin(&self, env: &Env, f: &ast::Term) -> Option<ValueInfo> {
+        let ast::Term::Var(p) = f else { return None };
+        if !p.quals.is_empty() || env.lookup_name(&p.name).is_some() {
+            return None;
+        }
+        let v = self.resolve_var(p, p.span()).ok()?;
+        match v.kind {
+            ValueKind::Prim(PrimOp::Par { .. }) => Some(v),
+            _ => None,
+        }
+    }
+
+    /// `parBoth f g`, `parTabulate n f`, `parMap f xs`
+    /// (`design/parallel-evaluation.md` sections 2.1 to 2.3). The meaning of
+    /// each is its sequential defining equation, so parallelism is only
+    /// permission: no result depends on the participant count or the
+    /// schedule. Four obligations are checked here, because none can travel
+    /// through an ordinary function type:
+    ///
+    /// - the callback is written literally at the call site, so its captures
+    ///   are visible (a function-typed parameter's are not);
+    /// - its effect row is parallel-safe (the closed empty row or
+    ///   `{Diverge}`), because every other label would make the schedule
+    ///   observable or let a branch hold a single-threaded resource;
+    /// - each capture is `Share`, or (in `parBoth` only) moves into the one
+    ///   branch that consumes it;
+    /// - `parMap` has array storage, so its element type must be `Share`.
+    ///
+    /// The capture classification is deferred to the definition's end, when
+    /// unification has resolved the binder types (`check_parallel_captures`).
+    fn infer_par_app(
+        &mut self,
+        env: &mut Env,
+        v: &ValueInfo,
+        args: &[ast::Term],
+        span: ast::Span,
+    ) -> Result<(ECore, Ty)> {
+        let op = match v.kind {
+            ValueKind::Prim(PrimOp::Par { op, .. }) => op,
+            _ => unreachable!("par_builtin only yields the parallel builtins"),
+        };
+        use crate::core::ParOp;
+        match op {
+            ParOp::Both => {
+                if args.len() != 2 {
+                    return Err(Error::at(span, "parBoth takes exactly two callbacks"));
+                }
+                let a = self.uni.fresh();
+                let b = self.uni.fresh();
+                let f = self.parallel_callback(env, &args[0], &Ty::Unit, &a, "parBoth")?;
+                let g = self.parallel_callback(env, &args[1], &Ty::Unit, &b, "parBoth")?;
+                let classes = [self.class_of_ty(&a), self.class_of_ty(&b)];
+                Ok((
+                    app_spine(
+                        ECore::Prim(PrimOp::Par { op: ParOp::Both, classes }),
+                        vec![f, g],
+                    ),
+                    Ty::Tuple(vec![a, b]),
+                ))
+            }
+            ParOp::Tabulate => {
+                if args.len() != 2 {
+                    return Err(Error::at(
+                        span,
+                        "parTabulate takes a count and one callback",
+                    ));
+                }
+                let n = self.check(env, &args[0], &Ty::Nat)?;
+                let a = self.uni.fresh();
+                let f = self.parallel_callback(env, &args[1], &Ty::Nat, &a, "parTabulate")?;
+                let classes = [self.class_of_ty(&a), crate::repr::Class::Raw];
+                Ok((
+                    app_spine(
+                        ECore::Prim(PrimOp::Par { op: ParOp::Tabulate, classes }),
+                        vec![n, f],
+                    ),
+                    Ty::Adt("Array".to_string().into(), vec![a]),
+                ))
+            }
+            ParOp::MapArray => {
+                if args.len() != 2 {
+                    return Err(Error::at(span, "parMap takes a callback and one list"));
+                }
+                let elem = self.uni.fresh();
+                let out = self.uni.fresh();
+                let f = self.parallel_callback(env, &args[0], &elem, &out, "parMap")?;
+                let xs_ty = Ty::Adt("List".to_string().into(), vec![elem.clone()]);
+                let xs = self.check(env, &args[1], &xs_ty)?;
+                // The input array is one block every participant reads, so
+                // its element type must be shareable (section 2.3). The
+                // result type has no constraint: each result is built by one
+                // participant and moves to the caller at the join.
+                let actual = self.uni.zonk(&elem);
+                if !self.share_safe(&actual, &env.dicts) {
+                    return Err(Error::at(
+                        args[1].span(),
+                        format!(
+                            "parMap's element type must be Share: {} is stored in the shared input array, which every participant reads (design/parallel-evaluation.md section 2.3)",
+                            actual
+                        ),
+                    ));
+                }
+                // `map f xs` = `array-to-list (parMapArray f (array-from-list xs))`,
+                // so the runtime never builds list cells (section 4.2).
+                let array_in = Ty::Adt("Array".to_string().into(), vec![elem.clone()]);
+                let from_value = self.prelude_value("Data.Array", "array-from-list")?;
+                let from = self.value_use(&from_value, span, env)?;
+                let (arr, _) = self.apply_known(from, xs, &xs_ty, &array_in, args[1].span())?;
+                let classes = [self.class_of_ty(&out), crate::repr::Class::Raw];
+                let mapped = app_spine(
+                    ECore::Prim(PrimOp::Par { op: ParOp::MapArray, classes }),
+                    vec![f, arr],
+                );
+                let array_out = Ty::Adt("Array".to_string().into(), vec![out.clone()]);
+                let to_value = self.prelude_value("Data.Array", "array-to-list")?;
+                let to = self.value_use(&to_value, span, env)?;
+                let list_out = Ty::Adt("List".to_string().into(), vec![out.clone()]);
+                self.apply_known(to, mapped, &array_out, &list_out, span)
+            }
+        }
+    }
+
+    /// Check one parallel callback against `domain ->{e} result`, restrict
+    /// it to the parallel-safe row, and record its captures for the
+    /// definition's end. The callback's performed row joins the call's,
+    /// exactly as evaluating the defining equation would.
+    fn parallel_callback(
+        &mut self,
+        env: &mut Env,
+        arg: &ast::Term,
+        domain: &Ty,
+        result: &Ty,
+        op: &'static str,
+    ) -> Result<ECore> {
+        let row = self.uni.fresh_row();
+        let callback_ty = Ty::fun_mult(domain.clone(), Mult::Many, row.clone(), result.clone());
+        // A literal callback body runs inside the call: its uses are
+        // one-shot for `parBoth`'s branches (each runs exactly once and
+        // may consume a `%1` capture) and many-shot for the other two (the
+        // capture rules refuse a move unconditionally). Either way the
+        // closure is dropped before the call returns, so it cannot outlive
+        // a borrowed region.
+        let lam = matches!(arg, ast::Term::Lam(_, _, _));
+        if lam {
+            self.oneshot_frames.push(OneshotFrame {
+                lam: self.lam_depth + 1,
+                task: false,
+                parallel: true,
+                scope: String::new(),
+                outer: Vec::new(),
+            });
+        }
+        let core = self.check(env, arg, &callback_ty);
+        if lam {
+            self.oneshot_frames.pop();
+        }
+        let core = core?;
+        self.parallel_safe_row(&row, arg.span(), op)?;
+        self.note_parallel_closure(&core, arg.span(), &env.dicts, op)?;
+        let resolved = self.uni.resolve_row(&row);
+        self.perform(&resolved)?;
+        Ok(core)
+    }
+
+    /// A parallel callback may perform only the parallel-safe row: the
+    /// closed empty row or `{Diverge}` (section 2.2). `Diverge` is admitted
+    /// because the sequential reading already permits it and the caller's
+    /// row carries the label; every other label would make the schedule
+    /// observable, pin a participant, or let a branch hold a resource whose
+    /// operations are single-threaded. An effect handled inside the branch
+    /// never appears in its row, so a branch may install its own handler.
+    fn parallel_safe_row(&mut self, row: &EffRow, span: ast::Span, op: &'static str) -> Result<()> {
+        let resolved = self.uni.resolve_row(row);
+        if let Some(label) = resolved
+            .labels
+            .iter()
+            .find(|l| l.head.as_str() != "Diverge")
+        {
+            return Err(Error::at(
+                span,
+                format!(
+                    "a {op} callback may perform only the parallel-safe row ({{}} or {{Diverge}}), but it performs {label}: order, foreign state and thread affinity are not promised across a parallel call (design/parallel-evaluation.md section 2.2)"
+                ),
+            ));
+        }
+        match &resolved.tail {
+            RowTail::Closed => Ok(()),
+            RowTail::Rigid(_) => Err(Error::at(
+                span,
+                format!(
+                    "a {op} callback's effects must be the empty row or {{Diverge}}, but its row is {resolved}, whose tail is a rigid row variable: a row-polymorphic caller cannot supply a parallel callback in this slice (design/parallel-evaluation.md section 2.2)"
+                ),
+            )),
+            // An unsolved tail carries no further label the body observed,
+            // so it closes here, exactly as an unsolved row defaults at the
+            // end of a definition. Closing the tail rather than comparing
+            // the whole row with the empty one keeps the labels the branch
+            // performed, which the call carries to its caller.
+            RowTail::Meta(_) => {
+                let closed = EffRow {
+                    labels: resolved.labels.clone(),
+                    tail: RowTail::Closed,
+                };
+                self.uni
+                    .unify_rows(&resolved, &closed)
+                    .map_err(|m| Error::at(span, m))
+            }
+        }
+    }
+
+    /// Record the captures of a parallel callback (section 2.3). A callback
+    /// is read literally at the call site: a lambda literal, a global
+    /// function name, a partial application of a global, or a local alias of
+    /// any of these. A function-typed parameter is refused, because its
+    /// captures are unknown.
+    fn note_parallel_closure(
+        &mut self,
+        core: &ECore,
+        span: ast::Span,
+        dicts: &[(LocalId, ClassApp)],
+        op: &'static str,
+    ) -> Result<()> {
+        let many_shot = op != "parBoth";
+        let mut captures = self.callback_captures(core, op, span)?;
+        let mut seen = HashSet::new();
+        while let Some(local) = captures.pop() {
+            let origin = self.value_aliases.get(&local).copied().unwrap_or(local);
+            if !seen.insert(origin) {
+                continue;
+            }
+            if let Some(nested) = self.local_closure_captures.get(&origin) {
+                let nested = nested.clone();
+                captures.extend(nested);
+                continue;
+            }
+            let Some(binding) = self.obligations.get(&origin) else { continue };
+            self.par_captures.push(ParCapture {
+                binder: origin,
+                name: binding.name.clone(),
+                ty: binding.ty.clone(),
+                span,
+                dicts: dicts.to_vec(),
+                many_shot,
+                op,
+            });
+        }
+        Ok(())
+    }
+
+    /// The locals a literal callback reads from the caller's frame, or the
+    /// refusal for a callback whose captures are not visible here.
+    fn callback_captures(
+        &self,
+        core: &ECore,
+        op: &'static str,
+        span: ast::Span,
+    ) -> Result<Vec<LocalId>> {
+        let mut captures = Vec::new();
+        match core {
+            ECore::Lam { .. } => {
+                free_locals(core, &mut Vec::new(), &mut captures);
+                Ok(captures)
+            }
+            // A global function name has no captures.
+            ECore::Global(..) => Ok(captures),
+            // A partial application of a global to arguments captures
+            // whatever those arguments read.
+            ECore::App(head, args) => {
+                let mut head = &**head;
+                while let ECore::App(f, _) = head {
+                    head = &**f;
+                }
+                if !matches!(head, ECore::Global(..)) {
+                    return Err(Error::at(span, self.callback_refusal(op, None)));
+                }
+                for a in args {
+                    free_locals(a, &mut Vec::new(), &mut captures);
+                }
+                Ok(captures)
+            }
+            ECore::Var(local) => {
+                let origin = self.value_aliases.get(local).copied().unwrap_or(*local);
+                match self.local_closure_captures.get(&origin) {
+                    Some(known) => Ok(known.clone()),
+                    None => Err(Error::at(span, self.callback_refusal(op, Some(origin)))),
+                }
+            }
+            _ => Err(Error::at(span, self.callback_refusal(op, None))),
+        }
+    }
+
+    /// The refusal for a callback whose captures cannot be read, naming the
+    /// binding when the callback is a function-typed one.
+    fn callback_refusal(&self, op: &'static str, local: Option<LocalId>) -> String {
+        let name = local
+            .and_then(|l| self.obligations.get(&l))
+            .map(|b| {
+                format!(
+                    ": {} is a function-typed binding whose captures are unknown",
+                    b.name
+                )
+            })
+            .unwrap_or_default();
+        format!(
+            "{} must be applied directly to a callback written at the call site (a lambda literal, a global function, or a partial application of one){name} (design/parallel-evaluation.md section 2.3)",
+            op
+        )
+    }
+
+    /// The representation class of a type as the enclosing definition's
+    /// class vector sees it: a type parameter takes its index, a resolved
+    /// type its own class, and an undetermined metavariable `Raw` (no word
+    /// of such a type is ever produced at run time).
+    fn class_of_ty(&self, ty: &Ty) -> crate::repr::Class {
+        let z = self.uni.zonk(ty);
+        crate::repr::repr_of(&z, &self.body_tparams, self, &mut |_| {})
+    }
+
+    /// A prelude value by its defining module, whether or not the current
+    /// module imports that module: the parallel lowering needs the array
+    /// conversions, which are the prelude's business, not the caller's.
+    fn prelude_value(&self, module: &str, name: &str) -> Result<ValueInfo> {
+        if let Ok(v) = self.lookup_value(Some(module), name) {
+            return Ok(v);
+        }
+        self.values
+            .get(name)
+            .and_then(|vs| vs.iter().find(|v| v.module == module))
+            .cloned()
+            .ok_or_else(|| {
+                Error::plain(format!(
+                    "the prelude's {module}.{name} is unavailable (the parallel builtins lower through it)"
+                ))
+            })
+    }
+
+    /// Apply an elaborated argument to an elaborated function, unifying the
+    /// arrow's domain with the argument's type and its codomain with
+    /// `result` (the caller states both ends, and the middle pins the
+    /// instantiation's classes).
+    fn apply_known(
+        &mut self,
+        (core, ty): (ECore, Ty),
+        arg: ECore,
+        arg_ty: &Ty,
+        result: &Ty,
+        span: ast::Span,
+    ) -> Result<(ECore, Ty)> {
+        let ty = self.uni.zonk(&ty);
+        let Ty::Fun(dom, _, eff, cod) = ty else {
+            return Err(Error::plain(
+                "internal error: a value used as a conversion is not a function",
+            ));
+        };
+        self.uni
+            .unify(&dom, arg_ty)
+            .map_err(|m| Error::at(span, m))?;
+        self.uni
+            .unify(&cod, result)
+            .map_err(|m| Error::at(span, m))?;
+        self.perform(&eff)?;
+        Ok((app_spine(core, vec![arg]), (*cod).clone()))
     }
 
     /// A collection literal (surface grammar local amendments section 10):
@@ -610,6 +980,19 @@ impl Checker {
         if matches!(v.kind, ValueKind::Prim(PrimOp::Conc(ConcOp::Spawn))) {
             return Err(Error::at(p.span(), "spawn must be applied directly to check the task callback"));
         }
+        if let ValueKind::Prim(PrimOp::Par { op, .. }) = v.kind {
+            return Err(Error::at(
+                p.span(),
+                format!(
+                    "{} must be applied directly to check its parallel callback (design/parallel-evaluation.md section 4.1)",
+                    match op {
+                        crate::core::ParOp::Both => "parBoth",
+                        crate::core::ParOp::Tabulate => "parTabulate",
+                        crate::core::ParOp::MapArray => "parMap",
+                    }
+                ),
+            ));
+        }
         if call_arity != 2 && !self.task_forwarders.is_empty()
             && self.task_forwarders.contains(&fn_id(&v.module, &v.name))
         {
@@ -755,6 +1138,11 @@ impl Checker {
                 // `withScope`, `spawn` and `joinAllOrCancel`.
                 if let Some(v) = self.conc_builtin(env, f) {
                     return self.infer_conc_app(env, &v, args, *span);
+                }
+                // Deterministic pure parallelism (design/parallel-evaluation.md
+                // section 2): the callbacks are read literally at the call.
+                if let Some(v) = self.par_builtin(env, f) {
+                    return self.infer_par_app(env, &v, args, *span);
                 }
                 // A constructor application is type-directed even in
                 // inference position (erased evidence arguments never
@@ -1836,6 +2224,12 @@ impl Checker {
                 // section 2).
                 if let Some(v) = self.conc_builtin(env, f) {
                     let (core, ty) = self.infer_conc_app(env, &v, args, *span)?;
+                    self.unify_arg(&ty, expected)
+                        .map_err(|m| Error::at(term.span(), m))?;
+                    return Ok(core);
+                }
+                if let Some(v) = self.par_builtin(env, f) {
+                    let (core, ty) = self.infer_par_app(env, &v, args, *span)?;
                     self.unify_arg(&ty, expected)
                         .map_err(|m| Error::at(term.span(), m))?;
                     return Ok(core);

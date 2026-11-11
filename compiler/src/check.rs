@@ -2451,6 +2451,12 @@ struct OneshotFrame {
     /// Whether this is a task body (the task capture rules apply) or a
     /// scope body.
     task: bool,
+    /// Whether this is a parallel callback. Its value runs inside the call
+    /// that builds it and is dropped when the call returns, so it cannot
+    /// outlive a borrowed region: the conservative borrowed-environment
+    /// rule does not apply, and the parallel capture rules decide instead
+    /// (`check_parallel_captures`).
+    parallel: bool,
     /// The scope this frame belongs to (its region identity).
     scope: String,
     /// The memo regions active when the scope opened: a borrow of these
@@ -2488,6 +2494,27 @@ struct TaskCapture {
     outer: Vec<String>,
     /// Direct one-shot task bodies may transfer a linear or affine capture.
     transfer_allowed: bool,
+}
+
+/// A capture of a definition-level binder into a parallel callback,
+/// validated at the definition's end when unification has resolved the
+/// binder's type (`design/parallel-evaluation.md` section 2.3). A capture
+/// must be `Share`, except that a `%1`/`%aff` value may move into exactly
+/// one `parBoth` branch; the many-shot forms run their callback once per
+/// index, so nothing may move into them.
+struct ParCapture {
+    binder: LocalId,
+    name: String,
+    ty: Ty,
+    span: ast::Span,
+    /// The lexical class dictionaries live at the capture (for `Copy`/
+    /// `Share` evidence over abstract parameters).
+    dicts: Vec<(LocalId, ClassApp)>,
+    /// Whether the callback runs many times (`parTabulate`, `parMap`) or
+    /// exactly once (`parBoth`).
+    many_shot: bool,
+    /// The builtin's source spelling, for the diagnostic.
+    op: &'static str,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -3183,6 +3210,14 @@ struct Checker {
     /// Task-capture sites of the definition being checked, validated at
     /// its end (concurrency specification section 3).
     task_captures: Vec<TaskCapture>,
+    /// Parallel-callback capture sites of the definition being checked,
+    /// validated at its end (`design/parallel-evaluation.md` section 2.3).
+    par_captures: Vec<ParCapture>,
+    /// The definition's type-parameter names in class-vector order, set
+    /// before its body is elaborated: a parallel call records its result
+    /// blocks' representation classes, and a type parameter's class is its
+    /// index here.
+    body_tparams: Vec<String>,
     /// Free locals of known closures before local aliases erase their shape.
     local_closure_captures: HashMap<LocalId, Vec<LocalId>>,
     /// Source definitions whose entire body directly forwards its parameters
@@ -3779,6 +3814,8 @@ impl Checker {
             oneshot_frames: Vec::new(),
             scope_frames: Vec::new(),
             task_captures: Vec::new(),
+            par_captures: Vec::new(),
+            body_tparams: Vec::new(),
             local_closure_captures: HashMap::new(),
             task_forwarders: HashSet::new(),
             checking_task_forwarder: false,
@@ -3948,6 +3985,7 @@ impl Checker {
         self.oneshot_frames.clear();
         self.scope_frames.clear();
         self.task_captures.clear();
+        self.par_captures.clear();
         self.local_closure_captures.clear();
         self.place_path.clear();
         self.conts.clear();
@@ -4695,10 +4733,13 @@ impl Checker {
                         outer: frame.outer.clone(),
                         transfer_allowed: true,
                     });
-                } else {
+                } else if !frame.parallel {
                     // A `withScope` body capture: the borrowed
                     // environment rule (core specification, section 7)
-                    // still applies.
+                    // still applies. A parallel callback is exempt: it
+                    // runs inside its call and is dropped before the call
+                    // returns, and the parallel capture rules classify
+                    // what it reads.
                     self.reject_live_region_capture(&t, &name, span)?;
                 }
             } else {
@@ -4909,6 +4950,7 @@ impl Checker {
     /// (ownership and usage design, section 2).
     fn check_usage(&mut self) -> Result<()> {
         self.check_task_captures()?;
+        self.check_parallel_captures()?;
         let mut binders: Vec<(&LocalId, &Obligation)> = self.obligations.iter().collect();
         binders.sort_by_key(|(l, _)| l.0);
         for (l, ob) in binders {
@@ -5069,6 +5111,70 @@ impl Checker {
                     ),
                 ));
             }
+        }
+        Ok(())
+    }
+
+    /// The parallel-callback capture rules (`design/parallel-evaluation.md`
+    /// section 2.3), once every binder type is resolved. A callback's
+    /// captures are read from the caller's frame and released when the call
+    /// returns, so nothing escapes a region and no scope rule applies. What
+    /// remains is what the runtime can promise: the branch never writes a
+    /// capture, so a capture is either shared (every participant reads it),
+    /// or moved into the one branch that runs once.
+    fn check_parallel_captures(&mut self) -> Result<()> {
+        for c in std::mem::take(&mut self.par_captures) {
+            let t = self.uni.zonk(&c.ty);
+            if crate::types::mentions_memo(&t) {
+                return Err(Error::at(
+                    c.span,
+                    format!(
+                        "a parallel capture cannot be a memo cell: {} holds a `Lazy` cell, which is single-threaded by construction (design/parallel-evaluation.md section 2.3)",
+                        c.name
+                    ),
+                ));
+            }
+            let mut borrows = Vec::new();
+            borrow_regions(&t, &mut borrows);
+            if borrows.iter().any(|(_, is_mut)| *is_mut) {
+                return Err(Error::at(
+                    c.span,
+                    format!(
+                        "an exclusive `Mut` borrow cannot enter a parallel callback: {} holds one (design/parallel-evaluation.md section 2.3)",
+                        c.name
+                    ),
+                ));
+            }
+            let additive = matches!(
+                self.effective_mult(c.binder),
+                Some(Mult::One) | Some(Mult::Aff)
+            );
+            let safe = if !c.many_shot && additive {
+                self.structural_usage(&t, &c.dicts, &mut Vec::new(), StructuralUsage::Transfer)
+            } else {
+                self.share_safe(&t, &c.dicts)
+            };
+            if safe {
+                continue;
+            }
+            // A many-shot callback runs once per index, so a value it
+            // consumes would be consumed many times; only sharing is left.
+            if c.many_shot && additive {
+                return Err(Error::at(
+                    c.span,
+                    format!(
+                        "a {} callback runs once per index, so {} cannot move into it: a parallel capture must be Share (design/parallel-evaluation.md section 2.3)",
+                        c.op, c.name
+                    ),
+                ));
+            }
+            return Err(Error::at(
+                c.span,
+                format!(
+                    "a parallel capture must be Share, or move into one parBoth branch: {} is shared with a {} callback without shareable evidence (design/parallel-evaluation.md section 2.3)",
+                    c.name, c.op
+                ),
+            ));
         }
         Ok(())
     }

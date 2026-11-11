@@ -653,6 +653,7 @@ impl Checker {
         self.install_index_families();
         self.install_staging_api();
         self.install_concurrency_api();
+        self.install_parallel_api();
         self.install_eval_api();
     }
 
@@ -918,6 +919,141 @@ impl Checker {
                 ),
             },
             ConcOp::PollCancel,
+        );
+    }
+
+    /// Deterministic pure parallelism (`design/parallel-evaluation.md`
+    /// sections 2.1 and 4.1): three compiler-known values whose meaning is
+    /// their sequential defining equation, so no result depends on the
+    /// participant count or the schedule. Each carries a full scheme here
+    /// (they are builtins, not prelude foreign imports), and the
+    /// application rules that need the callback written literally at the
+    /// call site are in `check_terms.rs`; the capture and effect-row
+    /// classification is deferred to the end of the definition
+    /// (`check_parallel_captures`).
+    ///
+    /// `parBoth` gives each branch its own row variable. The design note
+    /// states one `e` for both branches, but rows unify by equality, so a
+    /// shared variable would refuse a total branch beside a diverging one
+    /// (`{}` never equals `{Diverge}`) even though the defining equation
+    /// admits it. The result's row is the join of the branches', which is
+    /// what evaluating `(f (), g ())` performs.
+    fn install_parallel_api(&mut self) {
+        use crate::core::{ParOp, PrimOp};
+        use crate::types::{EffRow, Mult, RowTail};
+        let a = Ty::Param("a".to_string().into());
+        let b = Ty::Param("b".to_string().into());
+        let open = |tail: &str| EffRow {
+            labels: Vec::new(),
+            tail: RowTail::Rigid(tail.to_string().into()),
+        };
+        let thunk = |row: &str, result: &Ty| {
+            Ty::fun_mult(Ty::Unit, Mult::Many, open(row), result.clone())
+        };
+        let list = |t: &Ty| Ty::Adt("List".to_string().into(), vec![t.clone()]);
+        let array = |t: &Ty| Ty::Adt("Array".to_string().into(), vec![t.clone()]);
+        let mut reg = |this: &mut Self, name: &str, scheme: Scheme, op: ParOp| {
+            let info = ValueInfo {
+                module: "<builtin>".to_string(),
+                name: name.to_string(),
+                scheme,
+                // Placeholder classes: the elaboration records the exact
+                // ones at each call site, because the pair's components
+                // and the result array's element class decide the block's
+                // pointer map.
+                kind: ValueKind::Prim(PrimOp::Par {
+                    op,
+                    classes: [crate::repr::Class::Raw; 2],
+                }),
+            };
+            this.values.entry(name.to_string()).or_default().push(info.clone());
+            this.qualified.insert(("<builtin>".to_string(), name.to_string()), info);
+        };
+        // `parBoth f g` = `(f (), g ())`: two branches, each a one-shot
+        // thunk over `Unit`.
+        reg(
+            self,
+            "parBoth",
+            Scheme {
+                evidence_params: Vec::new(),
+                con_params: Vec::new(),
+                params: vec!["a".to_string().into(), "b".to_string().into()],
+                idx_params: Vec::new(),
+                val_params: Vec::new(),
+                prop_params: Vec::new(),
+                row_params: vec![
+                    "e1".to_string().into(),
+                    "e2".to_string().into(),
+                ],
+                region_params: Vec::new(),
+                ctx: Vec::new(),
+                obligs: Vec::new(),
+                ty: Ty::fun_mult(
+                    thunk("e1", &a),
+                    Mult::Many,
+                    open("e2"),
+                    Ty::fun_mult(
+                        thunk("e2", &b),
+                        Mult::Many,
+                        open("e1"),
+                        Ty::Tuple(vec![a.clone(), b.clone()]),
+                    ),
+                ),
+            },
+            ParOp::Both,
+        );
+        // `parTabulate n f` = `array-tabulate n f`: one index, one call.
+        reg(
+            self,
+            "parTabulate",
+            Scheme {
+                evidence_params: Vec::new(),
+                con_params: Vec::new(),
+                params: vec!["a".to_string().into()],
+                idx_params: Vec::new(),
+                val_params: Vec::new(),
+                prop_params: Vec::new(),
+                row_params: vec!["e".to_string().into()],
+                region_params: Vec::new(),
+                ctx: Vec::new(),
+                obligs: Vec::new(),
+                ty: Ty::fun_mult(
+                    Ty::Nat,
+                    Mult::Many,
+                    open("e"),
+                    Ty::fun_mult(
+                        Ty::fun_mult(Ty::Nat, Mult::Many, open("e"), a.clone()),
+                        Mult::Many,
+                        open("e"),
+                        array(&a),
+                    ),
+                ),
+            },
+            ParOp::Tabulate,
+        );
+        // `parMap f xs` = `map f xs`: one element, one call.
+        reg(
+            self,
+            "parMap",
+            Scheme {
+                evidence_params: Vec::new(),
+                con_params: Vec::new(),
+                params: vec!["a".to_string().into(), "b".to_string().into()],
+                idx_params: Vec::new(),
+                val_params: Vec::new(),
+                prop_params: Vec::new(),
+                row_params: vec!["e".to_string().into()],
+                region_params: Vec::new(),
+                ctx: Vec::new(),
+                obligs: Vec::new(),
+                ty: Ty::fun_mult(
+                    Ty::fun_mult(a.clone(), Mult::Many, open("e"), b.clone()),
+                    Mult::Many,
+                    open("e"),
+                    Ty::fun_mult(list(&a), Mult::Many, open("e"), list(&b)),
+                ),
+            },
+            ParOp::MapArray,
         );
     }
 
@@ -6856,7 +6992,9 @@ impl Checker {
         if self.compile_time {
             self.stage_definition_scopes.insert(id.0.clone(), (scheme.clone(), Scheme::mono(Ty::Unit)));
         }
+        let saved_tparams = std::mem::take(&mut self.body_tparams);
         let result = self.check_equations_inner(name, id, scheme, eqs, extra_dicts, annotation_aliases);
+        self.body_tparams = saved_tparams;
         self.code_quantifiers = saved;
         self.body_annotation_scope = saved_annotations;
         self.checking_task_forwarder = saved_forwarder;
@@ -6915,6 +7053,10 @@ impl Checker {
                 })
                 .collect(),
         };
+        // The body is elaborated below, and a parallel call records its
+        // result blocks' representation classes, which a type parameter
+        // names by its index in this vector.
+        self.body_tparams = tparams.clone();
         for parameter in &tparams {
             if !self.code_quantifiers.params.contains(parameter.into()) {
                 self.code_quantifiers.params.push(parameter.clone().into());
@@ -21648,6 +21790,24 @@ impl Checker {
             PrimOp::BitScan { .. } => Err(Error::plain(
                 "bit-scan primitives are not available at compile time in this slice",
             )),
+            // Deterministic pure parallelism (`design/parallel-evaluation.md`
+            // section 4.2): the defining equation is the meaning, so the
+            // compile-time evaluator runs it sequentially. `parBoth` is
+            // reachable (its branches are closures over `Unit`); the array
+            // forms are not, because the evaluator has no array value and
+            // their lowering reaches `arrayFromList`, which refuses below.
+            PrimOp::Par { op: crate::core::ParOp::Both, .. } => {
+                let f = args[0].clone();
+                let g = args[1].clone();
+                let a = self.apply_value(cx, f, vec![Value::Unit])?;
+                let b = self.apply_value(cx, g, vec![Value::Unit])?;
+                let pair = self.global_value(cx, "Tuple.2")?;
+                self.apply_value(cx, pair, vec![a, b])
+            }
+            PrimOp::Par { op, .. } => Err(Error::plain(format!(
+                "`{}` is not available at compile time in this slice: the compile-time evaluator has no array values (its array primitives are unavailable for the same reason)",
+                op.name()
+            ))),
             _ => Err(Error::plain(format!(
                 "primitive `{}` is not available at compile time in this slice",
                 op.symbol()

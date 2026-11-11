@@ -443,6 +443,22 @@ fn emit_module(
         out.push_str(f);
         out.push('\n');
     }
+    // Deterministic pure parallelism (design/parallel-evaluation.md
+    // section 3; `compiler/runtime/src/par.rs`): the work-stealing entries,
+    // or their sequential readings on the cooperative backend
+    // (`cinch_coop_par_*`). A program that uses none of the parallel
+    // builtins emits none of these lines, so its IR is unchanged.
+    if reg
+        .prims
+        .iter()
+        .any(|op| matches!(op, PrimOp::Par { .. }))
+    {
+        let prefix = if cx.coop_tasks { "cinch_coop_par" } else { "cinch_par" };
+        for entry in ["both", "tabulate", "map_array"] {
+            out.push_str(&format!("declare i64 @{prefix}_{entry}(i64, i64, i64)\n"));
+        }
+        out.push_str(&format!("declare i64 @{prefix}_set_workers(i64)\n"));
+    }
     // LLVM intrinsics used by the machine scalar primitives (primitive
     // types specification, sections 4 and 7).
     for w in ["i8", "i16", "i32", "i64"] {
@@ -1546,6 +1562,15 @@ fn prim_param_classes(op: PrimOp) -> Vec<Class> {
                 .collect()
         }
         PrimOp::Delay | PrimOp::Force | PrimOp::ApplyErased | PrimOp::Eval => vec![Class::Obj],
+        // The parallel units' parameters: two closures, or the callback and
+        // the count / input array. The element classes are immediates in
+        // the body, not parameters.
+        PrimOp::Par { op, .. } => match op {
+            crate::core::ParOp::Both | crate::core::ParOp::MapArray => {
+                vec![Class::Obj, Class::Obj]
+            }
+            crate::core::ParOp::Tabulate => vec![Class::TObj, Class::Obj],
+        },
         PrimOp::Conc(WithScope | Spawn | IoWrite) => vec![Class::Raw, Class::Obj],
         PrimOp::Conc(IoRead | IoSleep) => vec![Class::Raw, Class::TObj],
         PrimOp::Conc(PollCancel | JoinN(_)) => vec![Class::Raw; op.arity()],
@@ -2290,7 +2315,7 @@ fn classify_callee(sym: &str, units: &HashSet<String>, extra: Option<&str>) -> C
 /// carry no boundary signature.
 fn prim_sig(op: PrimOp) -> Option<(Vec<crate::types::Ty>, crate::types::Ty)> {
     use PrimOp::*;
-    if matches!(op, Delay | Force | ApplyErased | Eval | Conc(_)) {
+    if matches!(op, Delay | Force | ApplyErased | Eval | Conc(_) | PrimOp::Par { .. }) {
         return None;
     }
     Some(op.sig())
@@ -4256,6 +4281,69 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     );
                     let w = freeze_word(b, &r);
                     ret_result(b, reg, op, &w, |_| "0".to_string());
+                }
+            }
+        }
+        Par { op: par_op, classes } => {
+            // Deterministic pure parallelism (design/parallel-evaluation.md
+            // sections 2 and 4.3): the units wrap the runtime's work-stealing
+            // entries of `compiler/runtime/src/par.rs`, or their sequential
+            // readings on the cooperative backend (`cinch_coop_par_*`). The
+            // callback closures are borrowed (the caller drops them after the
+            // call) and the runtime duplicates one reference per invocation.
+            // Every class here is an immediate baked into the body.
+            use crate::core::ParOp::*;
+            match par_op {
+                Both => {
+                    // `out[0]`, `out[1]` are owned result words; the pair
+                    // takes the two component classes' exact pointer map, so
+                    // no mask and no shaped-join limit apply (section 4.3).
+                    let out = b.alloca_words(2);
+                    let outw = b.reg();
+                    b.line(&format!("{outw} = ptrtoint ptr {out} to i64"));
+                    let _ = rt_call(
+                        b,
+                        &task_rt(cx, "par_both"),
+                        &[
+                            "i64 %p0".to_string(),
+                            "i64 %p1".to_string(),
+                            format!("i64 {outw}"),
+                        ],
+                    );
+                    let first = b.load_at(&out, 0);
+                    let second = b.load_at(&out, 8);
+                    let pair = ctor_block_word(b, reg.shape_desc(&classes, 0), &[first, second]);
+                    ret(b, &pair);
+                }
+                Tabulate => {
+                    // `n` crosses as a length (`cinch_nat_to_len`), and the
+                    // element class as the scan code the array constructors
+                    // take.
+                    let n = rt_call(b, "cinch_nat_to_len", &["i64 %p0".to_string()]);
+                    let class = scan_code(classes[0]);
+                    let arr = rt_call(
+                        b,
+                        &task_rt(cx, "par_tabulate"),
+                        &[
+                            format!("i64 {n}"),
+                            "i64 %p1".to_string(),
+                            format!("i64 {class}"),
+                        ],
+                    );
+                    ret(b, &arr);
+                }
+                MapArray => {
+                    let class = scan_code(classes[0]);
+                    let arr = rt_call(
+                        b,
+                        &task_rt(cx, "par_map_array"),
+                        &[
+                            "i64 %p0".to_string(),
+                            "i64 %p1".to_string(),
+                            format!("i64 {class}"),
+                        ],
+                    );
+                    ret(b, &arr);
                 }
             }
         }
