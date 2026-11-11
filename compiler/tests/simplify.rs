@@ -286,7 +286,7 @@ fn known_constructor_refuses_a_computed_argument() {
         unit("Main.f", vec![Class::Obj], body),
     ]);
     let mut report = SimplifyReport::default();
-    simplify(&mut p, &SimplifyOptions::default(), &mut report);
+    simplify(&mut p, &SimplifyOptions { inline: false, inline_small: 0, ..SimplifyOptions::default() }, &mut report);
     assert_eq!(report.known_ctor, 0);
     assert!(matches!(&p.fns[3].body, Core::Let(..)));
 }
@@ -320,7 +320,7 @@ fn direct_dict_call_needs_the_method_arity() {
     let mut p = program(vec![add.clone(), unit("Main.f", vec![], body)]);
     p.instances.push(instance.clone());
     let mut report = SimplifyReport::default();
-    simplify(&mut p, &SimplifyOptions::default(), &mut report);
+    simplify(&mut p, &SimplifyOptions { inline: false, inline_small: 0, ..SimplifyOptions::default() }, &mut report);
     assert!(matches!(
         &p.fns[1].body,
         Core::App(head, args) if matches!(&**head, Core::Global(id, _) if id.0 == "Main.Add_Int.add") && args.len() == 2
@@ -334,7 +334,7 @@ fn direct_dict_call_needs_the_method_arity() {
     let mut report = SimplifyReport::default();
     simplify(
         &mut p,
-        &SimplifyOptions { max_iterations: 4, direct_dict_calls: false },
+        &SimplifyOptions { direct_dict_calls: false, ..SimplifyOptions::default() },
         &mut report,
     );
     assert_eq!(report.dict_call, 0);
@@ -345,7 +345,7 @@ fn direct_dict_call_needs_the_method_arity() {
     let mut p = program(vec![add, unit("Main.f", vec![], body)]);
     p.instances.push(instance);
     let mut report = SimplifyReport::default();
-    simplify(&mut p, &SimplifyOptions::default(), &mut report);
+    simplify(&mut p, &SimplifyOptions { inline: false, inline_small: 0, ..SimplifyOptions::default() }, &mut report);
     assert_eq!(report.dict_call, 0);
 }
 
@@ -381,17 +381,21 @@ fn the_iteration_cap_bounds_the_passes() {
 /// for code generation.
 #[test]
 fn an_application_head_is_a_reader() {
+    // The head of an application is a reader of its binder, so the `let` is not
+    // dead. The binder holds a constructor application rather than a trivial
+    // word or a unit name: those are substituted (that is the local inliner's
+    // job) and would prove nothing about the reader analysis.
     let body = Core::Let(
         LocalId(1),
         Class::Obj,
-        Box::new(Core::Prim(cinch::core::PrimOp::Nat(cinch::core::NatOp::ToI64))),
+        Box::new(Core::App(Box::new(Core::Ctor(gid("None"), vec![])), vec![])),
         Box::new(Core::App(Box::new(Core::Var(LocalId(1))), vec![Core::Var(LocalId(0))])),
     );
-    let mut p = program(vec![unit("Main.f", vec![Class::Raw], body)]);
+    let mut p = program(vec![ctor_unit("None", 0, 0), unit("Main.f", vec![Class::Raw], body)]);
     let mut report = SimplifyReport::default();
-    simplify(&mut p, &SimplifyOptions::default(), &mut report);
-    assert_eq!(report.ticks, 0);
-    assert!(matches!(&p.fns[0].body, Core::Let(..)), "{:?}", p.fns[0].body);
+    simplify(&mut p, &SimplifyOptions { inline: false, inline_small: 0, ..SimplifyOptions::default() }, &mut report);
+    assert_eq!(report.ticks, 0, "{:?}", p.fns[1].body);
+    assert!(matches!(&p.fns[1].body, Core::Let(..)), "{:?}", p.fns[1].body);
 }
 
 /// A `let` whose binder no rewrite reads is dropped when its value is a
@@ -401,7 +405,7 @@ fn a_dead_let_over_a_value_is_dropped() {
     let body = Core::Let(LocalId(0), Class::Raw, Box::new(Core::Int(1)), Box::new(Core::Int(2)));
     let mut p = program(vec![unit("Main.f", vec![], body)]);
     let mut report = SimplifyReport::default();
-    simplify(&mut p, &SimplifyOptions::default(), &mut report);
+    simplify(&mut p, &SimplifyOptions { inline: false, inline_small: 0, ..SimplifyOptions::default() }, &mut report);
     assert!(matches!(p.fns[0].body, Core::Int(2)));
 
     let body = Core::Let(
@@ -412,7 +416,7 @@ fn a_dead_let_over_a_value_is_dropped() {
     );
     let mut p = program(vec![unit("Main.g", vec![], Core::Int(0)), unit("Main.f", vec![], body)]);
     let mut report = SimplifyReport::default();
-    simplify(&mut p, &SimplifyOptions::default(), &mut report);
+    simplify(&mut p, &SimplifyOptions { inline: false, inline_small: 0, ..SimplifyOptions::default() }, &mut report);
     assert!(matches!(p.fns[1].body, Core::Let(..)), "a call's effects stay");
 }
 
