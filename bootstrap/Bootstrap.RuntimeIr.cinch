@@ -24,7 +24,10 @@ module Bootstrap.RuntimeIr where
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
 
   export emit-runtime-program, emit-runtime-program-with-object, emit-runtime-program-counting, check-runtime-entry
+  export emit-runtime-program-mode, emit-runtime-program-with-object-mode, emit-runtime-program-counting-mode
   export emit-runtime-library-with-object, emit-runtime-library-artifact-with-object
+  export emit-runtime-library-with-object-mode
+  export emit-runtime-library-object-with-object-mode, emit-runtime-library-artifact-with-object-mode
   export runtime-library-default-roots, emit-runtime-library-object-with-object
 
   -- Named families and anonymous tuples share one table, but distinct
@@ -40,6 +43,7 @@ module Bootstrap.RuntimeIr where
     GivenLocal :: String -> UType -> String -> Local
     SelfValue :: String -> Nat -> UType -> String -> Local
     KnownSelf :: String -> String -> List Nat -> List CoreGiven -> Local
+
     -- A binder whose value is a constructor application that has not been
     -- built. A non-case use builds it; a case on it folds without building.
     DeferredConstructor :: Nat -> UType -> String -> List UType -> List CoreTerm -> Local
@@ -78,8 +82,14 @@ module Bootstrap.RuntimeIr where
     BindingIndex :: List CheckedBinding -> List ForeignPlan -> HashMap String (Option ForeignPlan) -> BindingIndex
   data ProgramInfo where
     ProgramInfo :: List CoreData -> List CoreClass -> List CoreInstance -> BindingIndex -> List MethodVersion -> Option RuntimeObject -> Option (List String) -> List CoreEffect -> HashMap String (Nat, Nat) -> ProgramInfo
+  -- The units a sweep may copy at their call sites, and whether copying is
+  -- on at all. The names are fixed before emission, so the decision at a
+  -- site depends on nothing but the unit's name.
+  data InlinePlan where
+    InlinePlan :: Bool -> List String -> InlinePlan
+    NoInline :: InlinePlan
   data RuntimeContext where
-    RuntimeContext :: ProgramInfo -> List (Nat, Nat) -> List (Nat, Nat) -> List Demand -> List Demand -> RuntimeContext
+    RuntimeContext :: ProgramInfo -> List (Nat, Nat) -> List (Nat, Nat) -> List Demand -> List Demand -> InlinePlan -> RuntimeContext
   data Writer where
     Writer :: Nat -> Builder -> Builder -> List Diagnostic -> LayoutPlan -> RuntimeContext -> Writer
 
@@ -114,7 +124,7 @@ module Bootstrap.RuntimeIr where
   writer-context :: Writer -> RuntimeContext
   writer-context w = case w of Writer next globals code errors layouts context -> context
   writer-program :: Writer -> ProgramInfo
-  writer-program w = case writer-context w of RuntimeContext info bounds rigids pending done -> info
+  writer-program w = case writer-context w of RuntimeContext info bounds rigids pending done inlining -> info
   program-data :: ProgramInfo -> List CoreData
   program-data info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> datas
   program-classes :: ProgramInfo -> List CoreClass
@@ -171,9 +181,9 @@ module Bootstrap.RuntimeIr where
     Cons (MethodVersion name index actual) rest -> (same owner name && slot == index && same-classes classes actual) || version-present owner slot classes rest
   note-version :: String -> Nat -> List Nat -> Writer -> Writer
   note-version owner slot classes w = case w of
-    Writer next globals code errors layouts (RuntimeContext info bounds rigids pending done) ->
+    Writer next globals code errors layouts (RuntimeContext info bounds rigids pending done inlining) ->
       if list-length classes == 0 || version-present owner slot classes (program-versions info) then w else
-        Writer next globals code errors layouts (RuntimeContext (with-versions (program-versions info <> [MethodVersion owner slot classes]) info) bounds rigids pending done)
+        Writer next globals code errors layouts (RuntimeContext (with-versions (program-versions info <> [MethodVersion owner slot classes]) info) bounds rigids pending done inlining)
   method-class-ids :: CoreClassMethod -> List Nat
   method-class-ids member = case scheme-requirements (class-method-scheme member) of Cons self rest -> type-free-bound (requirement-type self); Nil -> Nil
   id-present :: Nat -> List Nat -> Bool
@@ -264,7 +274,7 @@ module Bootstrap.RuntimeIr where
     UApp (UCon name kind) predicate -> same name "b.Dec" && kind-equal kind (KFun KProp KType) && kind-equal (type-kind predicate) KProp && valid-type predicate
     other -> False
   program-info :: RuntimeContext -> ProgramInfo
-  program-info context = case context of RuntimeContext info bounds rigids pending done -> info
+  program-info context = case context of RuntimeContext info bounds rigids pending done inlining -> info
   foreign-type-equal :: UType -> UType -> Bool
   foreign-type-equal first second = valid-type first && valid-type second && (case store-errors (unify (Span 0 0 1 1) first second (empty-store "foreign ABI type")) of Nil -> True; other -> False)
   foreign-parameter-matches :: UType -> ForeignParameter -> Bool
@@ -292,7 +302,7 @@ module Bootstrap.RuntimeIr where
   -- Sym is an immortal runtime handle, classified Raw by the object ABI.
   value-word-class :: RuntimeContext -> UType -> Option Nat
   value-word-class context ty = if foreign-pointer ty || opaque-foreign-word ty (program-foreign-plans (program-info context)) then Some 0 else if decision-word-type ty || handler-word-type ty then Some 1 else if number ty then Some 2 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
-    RuntimeContext datas bounds rigids pending done -> case base ty of
+    RuntimeContext datas bounds rigids pending done inlining -> case base ty of
       UBound id name KType -> representation id bounds
       URigid id name level KType -> representation id rigids
       UFun domain result -> Some 1
@@ -393,8 +403,8 @@ module Bootstrap.RuntimeIr where
     Some opened -> Some (opened <> private-word-classes (core-private-types d))
   with-representations :: List (Nat, Nat) -> List (Nat, Nat) -> Writer -> Writer
   with-representations bounds rigids w = case w of
-    Writer next globals code errors layouts (RuntimeContext datas old-bound old-rigid pending done) ->
-      Writer next globals code errors layouts (RuntimeContext datas bounds rigids pending done)
+    Writer next globals code errors layouts (RuntimeContext datas old-bound old-rigid pending done inlining) ->
+      Writer next globals code errors layouts (RuntimeContext datas bounds rigids pending done inlining)
   demand-seen :: String -> List Demand -> Bool
   demand-seen key demands = case demands of Nil -> False; Cons first rest -> same key (demand-key first) || demand-seen key rest
   demand-key :: Demand -> String
@@ -413,9 +423,9 @@ module Bootstrap.RuntimeIr where
     PrimitiveIntrinsicDemand symbol -> cat ["inline intrinsic:", symbol]
   request-demand :: Demand -> Writer -> Writer
   request-demand demand w = case w of
-    Writer next globals code errors layouts (RuntimeContext datas bounds rigids pending done) ->
+    Writer next globals code errors layouts (RuntimeContext datas bounds rigids pending done inlining) ->
       if demand-seen (demand-key demand) (pending <> done) then w else
-        Writer next globals code errors layouts (RuntimeContext datas bounds rigids (Cons demand pending) done)
+        Writer next globals code errors layouts (RuntimeContext datas bounds rigids (Cons demand pending) done inlining)
   demand-worker :: String -> List Nat -> Writer -> Writer
   demand-worker name classes w = request-demand (Demand name classes) w
   runtime-number :: UType -> String
@@ -586,7 +596,7 @@ module Bootstrap.RuntimeIr where
   request-data sp d classes w = case class-bindings (core-data-params d) classes of
     None -> (refuse w sp "data parameters need first-order runtime representation classes", 0)
     Some bounds -> case w of
-      Writer next globals code errors (LayoutPlan groups tuples names cells) (RuntimeContext datas old-bound rigids pending done) ->
+      Writer next globals code errors (LayoutPlan groups tuples names cells) (RuntimeContext datas old-bound rigids pending done inlining) ->
         let key = specialized-name (core-data-name d) classes in
         case named-layout key names of
           Some id -> (w, id)
@@ -600,7 +610,7 @@ module Bootstrap.RuntimeIr where
               if groups + reserved > 1022 then
                 (refuse w sp "data family exceeds the supported shared runtime layout table", 0)
               else let planned = Writer next globals code errors (LayoutPlan (groups + reserved) tuples (Cons (key, id) names) cells) (writer-context w) in
-                (add-constructor-layouts (RuntimeContext datas bounds Nil pending done) d id 0 (core-data-constructors d) planned, id)
+                (add-constructor-layouts (RuntimeContext datas bounds Nil pending done inlining) d id 0 (core-data-constructors d) planned, id)
   -- The runtime's escaped descriptor stores the table index in bits40..63
   -- and the full tag in bits16..39; 65535 marks the header escape. Every
   -- constructor of an escaped family uses it, including tags below64.
@@ -1013,12 +1023,17 @@ module Bootstrap.RuntimeIr where
   application :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> CoreTerm -> (Writer, String)
   application definitions locals w sp term f x = case head term of
       CUse at function name role actuals -> direct-call definitions locals w sp name actuals (arguments term Nil)
-      CMethod at function name owner slot actuals [CEInstance location receiver factory Nil (CEArgumentsEnd end)] ->
-        (case closed-method-unit w name owner slot actuals factory of
-          Some unit -> if list-length (arguments term Nil) == list-length (unit-params unit) then
-            external-call-unit definitions locals (note-version owner slot Nil w) sp unit (mono function) Nil (arguments term Nil)
-            else indirect-application definitions locals w f x
-          None -> indirect-application definitions locals w f x)
+      CMethod at function name owner slot actuals evidence ->
+        (case static-instance-method w name owner slot actuals evidence of
+          Some (codes, own-codes, d) -> function-call definitions locals (note-version owner slot own-codes w) sp d Nil codes Nil (arguments term Nil)
+          None -> case evidence of
+            [CEInstance location receiver factory Nil (CEArgumentsEnd end)] ->
+              (case closed-method-unit w name owner slot actuals factory of
+                Some unit -> if list-length (arguments term Nil) == list-length (unit-params unit) then
+                  external-call-unit definitions locals (note-version owner slot Nil w) sp unit (mono function) Nil (arguments term Nil)
+                  else indirect-application definitions locals w f x
+                None -> indirect-application definitions locals w f x)
+            other -> indirect-application definitions locals w f x)
       other -> (case erased-constructor-call term Nil of
         Some (name, actuals, args) -> direct-call definitions locals w sp name actuals args
         None -> indirect-application definitions locals w f x)
@@ -1212,11 +1227,11 @@ module Bootstrap.RuntimeIr where
     None -> None
     Some bounds -> case definition-rigids d bounds of
       None -> None
-      Some rigids -> Some (RuntimeContext (writer-program w) bounds rigids Nil Nil)
+      Some rigids -> Some (RuntimeContext (writer-program w) bounds rigids Nil Nil NoInline)
   constructor-context :: CoreData -> List Nat -> Writer -> Option RuntimeContext
   constructor-context d classes w = case class-bindings (core-data-params d) classes of
     None -> None
-    Some bounds -> Some (RuntimeContext (writer-program w) bounds Nil Nil Nil)
+    Some bounds -> Some (RuntimeContext (writer-program w) bounds Nil Nil Nil NoInline)
   -- Array workers specialize on checked element classes; packed constructors
   -- carry their fixed format in their canonical operation identity.
   array-binder-field :: CoreData -> UType -> Bool
@@ -1489,7 +1504,9 @@ module Bootstrap.RuntimeIr where
           None -> unsupported w sp "constructor has no defining runtime declaration"
         None -> case definition name definitions of
           Some d -> case source-scheme-classes (writer-context w) (scheme-params (core-scheme d)) actuals of
-            Some classes -> function-call definitions locals w sp d actuals classes givens args
+            Some classes -> case inline-call definitions locals w sp d classes givens args of
+              Some copied -> copied
+              None -> function-call definitions locals w sp d actuals classes givens args
             None -> unsupported w sp "function parameters need first-order or erased representation classes"
           None -> external-call definitions locals w sp name actuals givens args
   foreign-parameter-types :: List ForeignParameter -> List String
@@ -1938,7 +1955,7 @@ module Bootstrap.RuntimeIr where
     Nil -> None
     Cons first rest -> if same name (checked-name first) && (same (checked-role first) "instance" || same (checked-role first) "implicit-instance") then Some first else instance-binding name rest
   extend-context :: List (Nat, Nat) -> RuntimeContext -> RuntimeContext
-  extend-context bindings context = case context of RuntimeContext info bounds rigids pending done -> RuntimeContext info (bindings <> bounds) rigids pending done
+  extend-context bindings context = case context of RuntimeContext info bounds rigids pending done inlining -> RuntimeContext info (bindings <> bounds) rigids pending done inlining
   external-field-map :: Writer -> CoreClass -> Scheme -> List Nat -> List (Nat, Nat, List Nat) -> Option (List Nat)
   external-field-map w description factory factory-codes slots = case slots of
     Nil -> Some Nil
@@ -1978,8 +1995,55 @@ module Bootstrap.RuntimeIr where
   method-at slot methods = case methods of Nil -> None; Cons first rest -> if class-method-slot first == slot then Some first else method-at slot rest
   class-owner :: UType -> Option String
   class-owner ty = case type-head ty of UCon name kind -> Some name; other -> None
+  -- A static instance names its method's defining unit, so a projection
+  -- out of the instance dictionary followed by an indirect apply is a
+  -- direct call to that unit at the method's own representation. The
+  -- result is the representation codes to specialize the unit with and the
+  -- unit itself; a factory with a context, a strict value field or a
+  -- method the unit cannot be reached from keeps the projection.
+  static-instance-method :: Writer -> String -> String -> Nat -> List UType -> List CoreEvidence -> Option (List Nat, List Nat, CoreDefinition)
+  static-instance-method w name owner slot actuals evidence = case evidence of
+    Cons first Nil -> case first of
+      CEInstance sp ty factory factory-actuals (CEArgumentsEnd end) -> static-instance-method-at w name owner slot actuals factory factory-actuals
+      other -> None
+    other -> None
+  static-instance-method-at :: Writer -> String -> String -> Nat -> List UType -> String -> List UType -> Option (List Nat, List Nat, CoreDefinition)
+  static-instance-method-at w name owner slot actuals factory factory-actuals =
+      if not (method-reference name owner slot (program-bindings (writer-program w))) then None else
+      (case instance-named factory (program-instances (writer-program w)) of
+        Some candidate -> if (case scheme-requirements (instance-scheme candidate) of Nil -> True; other -> False) then
+          (case class-owner (scheme-body (instance-scheme candidate)) of
+            Some actual -> if not (same owner actual) then None else
+              (case field-at slot (instance-fields candidate) of
+                Some field -> if strict-value-field w candidate field then None else
+                  (case (find-class owner (program-classes (writer-program w)), method-at slot (class-methods-of owner w)) of
+                    (Some description, Some member) -> (case (method-own-classes w member actuals, scheme-classes (writer-context w) (scheme-params (instance-scheme candidate)) factory-actuals) of
+                      (Some own-codes, Some classes) -> let codes = classes <> own-codes in let d = dictionary-field-definition field in
+                        if (case runtime-givens w d of Nil -> True; other -> False)
+                          && (case definition-value-dependencies w d of Nil -> True; other -> False)
+                          && (case core-openings d of Nil -> True; other -> False)
+                          && (case core-clauses d of Nil -> False; other -> True)
+                          && (case definition-context d codes w of Some context -> True; None -> False)
+                          then Some (codes, own-codes, d) else None
+                      other -> None)
+                    other -> None)
+                None -> None)
+            None -> None)
+          else None
+        None -> None)
+  -- The declared methods of a class, in slot order, without demanding the
+  -- class again at each caller.
+  class-methods-of :: String -> Writer -> List CoreClassMethod
+  class-methods-of owner w = case find-class owner (program-classes (writer-program w)) of
+    Some description -> class-methods description
+    None -> Nil
   method-value :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> String -> Nat -> List UType -> List CoreEvidence -> (Writer, String)
-  method-value definitions locals w sp ty name owner slot actuals evidence = case find-class owner (program-classes (writer-program w)) of
+  method-value definitions locals w sp ty name owner slot actuals evidence =
+    case static-instance-method w name owner slot actuals evidence of
+      Some (codes, own-codes, d) -> function-call definitions locals (note-version owner slot own-codes w) sp d Nil codes Nil Nil
+      None -> projected-method-value definitions locals w sp ty name owner slot actuals evidence
+  projected-method-value :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> String -> Nat -> List UType -> List CoreEvidence -> (Writer, String)
+  projected-method-value definitions locals w sp ty name owner slot actuals evidence = case find-class owner (program-classes (writer-program w)) of
     Some description -> case method-at slot (class-methods description) of
       Some member -> if not (method-reference name owner slot (program-bindings (writer-program w))) then unsupported w sp (cat ["dictionary field does not belong to the checked global method: ", name]) else
         (case method-own-classes w member actuals of
@@ -2288,7 +2352,7 @@ module Bootstrap.RuntimeIr where
       None -> unsupported w sp "lambda parameters need known runtime representations"
       Some classes -> let (named, name) = fresh w ".lambda" in
         (case writer-context named of
-          RuntimeContext datas bounds rigids pending done ->
+          RuntimeContext datas bounds rigids pending done inlining ->
             let planned = request-demand (LambdaDemand name bounds rigids saved parameter body) named in
             case capture-values saved planned of
               (ready, values) -> closure sp name classes values ready)
@@ -2310,7 +2374,7 @@ module Bootstrap.RuntimeIr where
   request-recursive-workers group pending saved w = case pending of
     Nil -> w
     Cons member rest -> case writer-context w of
-      RuntimeContext datas bounds rigids earlier done ->
+      RuntimeContext datas bounds rigids earlier done inlining ->
         request-recursive-workers group rest saved (request-demand (RecursiveDemand member group bounds rigids saved) w)
   -- The sibling closures save only the group's outer environment. Rebuild
   -- a closure when its worker needs that value without an owning cycle.
@@ -2603,15 +2667,12 @@ module Bootstrap.RuntimeIr where
     None -> case value of
       CLocal lsp lty id lname Nil -> case deferred-constructor id locals of
         Some (ctor, actuals, args) -> fold-known-application definitions locals w (core-type value) ctor args alternatives
+        None -> case inline-scrutinee definitions w value of
+          Some (name, args) -> fold-known-application definitions locals w (core-type value) name args alternatives
+          None -> None
+      other -> case inline-scrutinee definitions w value of
+        Some (name, args) -> fold-known-application definitions locals w (core-type value) name args alternatives
         None -> None
-      other -> None
-  fold-known-application :: List CoreDefinition -> List Local -> Writer -> UType -> String -> List CoreTerm -> CoreTerm -> Option (Writer, String)
-  fold-known-application definitions locals w ty name args alternatives = case known-constructor-fields w ty name of
-    Some count -> if count == list-length args then (case fold-alternatives alternatives name count of
-        FoldCase fields body -> if row-guarded body then None else Some (fold-case-body definitions locals w args fields body)
-        other -> None)
-      else None
-    None -> None
   deferred-constructor :: Nat -> List Local -> Option (String, List UType, List CoreTerm)
   deferred-constructor id locals = case locals of
     Nil -> None
@@ -2673,6 +2734,13 @@ module Bootstrap.RuntimeIr where
   case-scrutinee-value id value = case value of
     CLocal sp ty key name Nil -> if key == id then 1 else 0
     other -> 0
+  fold-known-application :: List CoreDefinition -> List Local -> Writer -> UType -> String -> List CoreTerm -> CoreTerm -> Option (Writer, String)
+  fold-known-application definitions locals w ty name args alternatives = case known-constructor-fields w ty name of
+    Some count -> if count == list-length args then (case fold-alternatives alternatives name count of
+        FoldCase fields body -> if row-guarded body then None else Some (fold-case-body definitions locals w args fields body)
+        other -> None)
+      else None
+    None -> None
   -- The runtime field count of a constructor whose declared representation
   -- the allocating path supports, so folding never admits a case the
   -- ordinary path refuses.
@@ -2757,6 +2825,140 @@ module Bootstrap.RuntimeIr where
   release-terms types words w = case (types, words) of
     (Cons first rest, Cons word more) -> release-terms rest more (count-op False first word w)
     other -> w
+  -- A unit small enough to copy is copied at each of its call sites. The
+  -- copy binds its arguments where the call would pass them and releases
+  -- them where the callee's worker releases its parameters, so the copy
+  -- counts references exactly as the call did. Copying is bounded by a node
+  -- budget of two percent of the program, and no admitted unit may name
+  -- another admitted unit: that fixed point is the loop-breaker rule, and
+  -- it is what keeps a recursive group out.
+  inline-body-shape :: CoreDefinition -> Option (List CorePattern, CoreTerm)
+  inline-body-shape d = case (core-givens d, core-openings d, core-clauses d) of
+    (Nil, Nil, [MkCoreClause sp patterns body]) -> if variable-patterns patterns && not (row-guarded body) then Some (patterns, body) else None
+    other -> None
+  variable-patterns :: List CorePattern -> Bool
+  variable-patterns patterns = case patterns of
+    Nil -> True
+    Cons first rest -> (case first of CPVar sp ty id name -> True; other -> False) && variable-patterns rest
+  term-nodes :: CoreTerm -> Nat
+  term-nodes term = 1 + term-nodes-any (runtime-term-children term)
+  term-nodes-any :: List CoreTerm -> Nat
+  term-nodes-any terms = case terms of Nil -> 0; Cons first rest -> term-nodes first + term-nodes-any rest
+  definition-nodes :: CoreDefinition -> Nat
+  definition-nodes d = clause-nodes (core-clauses d)
+  clause-nodes :: List CoreClause -> Nat
+  clause-nodes clauses = case clauses of
+    Nil -> 0
+    Cons (MkCoreClause sp patterns body) rest -> term-nodes body + clause-nodes rest
+  program-nodes :: List CoreDefinition -> Nat
+  program-nodes definitions = case definitions of
+    Nil -> 0
+    Cons first rest -> definition-nodes first + program-nodes rest
+  -- The copy limit is the seed's: two percent of the program, never less
+  -- than a thousand nodes, so a small program still admits its wrappers.
+  inline-limit :: List CoreDefinition -> Nat
+  inline-limit definitions = let total = program-nodes definitions in if total / 50 < 1000 then 1000 else total / 50
+  inline-candidates :: List CoreDefinition -> List (String, CoreTerm) -> List (String, CoreTerm)
+  inline-candidates definitions entries = case definitions of
+    Nil -> entries
+    Cons d rest -> case inline-body-shape d of
+      Some (patterns, body) -> if term-nodes body <= 40 then inline-candidates rest (Cons (core-name d, body) entries) else inline-candidates rest entries
+      None -> inline-candidates rest entries
+  inline-admitted-names :: List CoreDefinition -> List String
+  inline-admitted-names definitions = inline-spend definitions (inline-candidates definitions Nil) (inline-limit definitions) Nil
+  -- Admit entries while the budget lasts, then drop every entry whose body
+  -- names an admitted entry, until nothing changes. The result names units
+  -- no admitted unit reaches, so a copy can only reference units that are
+  -- not copied, and no cycle of copies can exist.
+  inline-spend :: List CoreDefinition -> List (String, CoreTerm) -> Nat -> List String -> List String
+  inline-spend definitions entries budget names = case entries of
+    Nil -> inline-settle definitions (inline-remove-referenced definitions names names Nil) names
+    Cons (name, body) rest -> let cost = term-nodes body in
+      if budget < cost then inline-spend definitions rest budget names else inline-spend definitions rest (budget - cost) (Cons name names)
+  inline-settle :: List CoreDefinition -> List String -> List String -> List String
+  inline-settle definitions names previous = if list-length names == list-length previous then names else
+    inline-settle definitions (inline-remove-referenced definitions names names Nil) names
+  inline-remove-referenced :: List CoreDefinition -> List String -> List String -> List String -> List String
+  inline-remove-referenced definitions names admitted kept = case names of
+    Nil -> kept
+    Cons name rest -> if inline-unit-references admitted definitions name then inline-remove-referenced definitions rest admitted kept else inline-remove-referenced definitions rest admitted (Cons name kept)
+  name-listed :: String -> List String -> Bool
+  name-listed name names = case names of Nil -> False; Cons first rest -> same name first || name-listed name rest
+  term-refers :: List String -> CoreTerm -> Bool
+  term-refers names term = case term of
+    CUse sp ty name role actuals -> name-listed name names || term-refers-any names (runtime-term-children term)
+    CQualifiedUse sp ty name role actuals evidence -> name-listed name names || term-refers-any names (runtime-term-children term)
+    other -> term-refers-any names (runtime-term-children term)
+  term-refers-any :: List String -> List CoreTerm -> Bool
+  term-refers-any names terms = case terms of
+    Nil -> False
+    Cons first rest -> term-refers names first || term-refers-any names rest
+  clauses-refer :: List String -> List CoreClause -> Bool
+  clauses-refer names clauses = case clauses of
+    Nil -> False
+    Cons (MkCoreClause sp patterns body) rest -> term-refers names body || clauses-refer names rest
+  inline-unit-references :: List String -> List CoreDefinition -> String -> Bool
+  inline-unit-references names definitions name = case definitions of
+    Nil -> False
+    Cons d rest -> if same name (core-name d) then clauses-refer names (core-clauses d) else inline-unit-references names rest name
+  inline-plan :: Bool -> List CoreDefinition -> ProgramInfo -> InlinePlan
+  inline-plan enabled definitions info = if enabled then InlinePlan True (inline-admitted-names definitions) else NoInline
+  with-inline :: InlinePlan -> Writer -> Writer
+  with-inline plan w = case w of Writer next globals code errors layouts context -> Writer next globals code errors layouts (context-inline plan context)
+  context-inline :: InlinePlan -> RuntimeContext -> RuntimeContext
+  context-inline plan context = case context of RuntimeContext info bounds rigids pending done current -> RuntimeContext info bounds rigids pending done plan
+  inline-admitted :: RuntimeContext -> String -> Bool
+  inline-admitted context name = case context of
+    RuntimeContext info bounds rigids pending done plan -> case plan of
+      InlinePlan enabled names -> enabled && name-listed name names
+      NoInline -> False
+  inline-call :: List CoreDefinition -> List Local -> Writer -> Span -> CoreDefinition -> List Nat -> List String -> List CoreTerm -> Option (Writer, String)
+  inline-call definitions locals w sp d classes givens args =
+    if not (inline-admitted (writer-context w) (core-name d)) then None
+    else if (case givens of Nil -> True; other -> False) then
+      (case inline-body-shape d of
+        Some (patterns, body) -> if list-length args == list-length patterns then
+          (case definition-context d classes w of
+            Some (RuntimeContext info bounds rigids pending done inlining) -> Some (inline-copy definitions locals (with-representations bounds rigids w) args patterns body)
+            None -> None)
+          else None
+        None -> None)
+    else None
+  inline-copy :: List CoreDefinition -> List Local -> Writer -> List CoreTerm -> List CorePattern -> CoreTerm -> (Writer, String)
+  inline-copy definitions locals w args patterns body =
+    case expressions definitions locals w args of
+      (evaluated, words) -> case expression definitions (parameter-locals patterns words <> locals) evaluated body of
+        (done, result) -> (release-terms (term-types args) words done, result)
+  parameter-locals :: List CorePattern -> List String -> List Local
+  parameter-locals patterns words = case (patterns, words) of
+    (Cons (CPVar sp ty id name) rest, Cons word more) -> Cons (Borrowed id ty word) (parameter-locals rest more)
+    other -> Nil
+  -- The scrutinee of a case can be a call whose unit answers with a
+  -- constructor application of its own parameters in order: the applied
+  -- arguments are then the fields, and the case folds without the block
+  -- the call would have allocated.
+  call-spine :: CoreTerm -> List CoreTerm -> Option (String, List UType, List CoreTerm)
+  call-spine term args = case term of
+    CUse sp ty name role actuals -> if same role "constructor" then None else Some (name, actuals, args)
+    CApply sp ty f x -> call-spine f (Cons x args)
+    CApplyEff sp ty row f x -> call-spine f (Cons x args)
+    CErasedApply sp ty row f witness -> call-spine f args
+    other -> None
+  identity-arguments :: List CorePattern -> List CoreTerm -> Bool
+  identity-arguments patterns args = case (patterns, args) of
+    (Cons (CPVar sp ty id name) rest, Cons (CLocal at aty key kname Nil) more) -> id == key && identity-arguments rest more
+    (other, Nil) -> True
+    other -> False
+  inline-scrutinee :: List CoreDefinition -> Writer -> CoreTerm -> Option (String, List CoreTerm)
+  inline-scrutinee definitions w value = case call-spine value Nil of
+    Some (name, actuals, args) -> if not (inline-admitted (writer-context w) name) then None else case definition name definitions of
+      Some d -> case inline-body-shape d of
+        Some (patterns, body) -> if list-length args /= list-length patterns then None else case erased-constructor-call body Nil of
+          Some (ctor, ctor-actuals, ctor-args) -> if identity-arguments patterns ctor-args then Some (ctor, args) else None
+          None -> None
+        None -> None
+      None -> None
+    None -> None
   case-value :: List CoreDefinition -> List Local -> Writer -> UType -> String -> CoreTerm -> (Writer, String)
   case-value definitions locals w ty value alternatives =
     let (one, slot) = fresh w "%slot" in
@@ -3069,7 +3271,7 @@ module Bootstrap.RuntimeIr where
     Some (owner, tag, c) -> case data-declaration owner (writer-data w) of
       Some d -> case constructor-context d classes w of
         Some context -> case context of
-          RuntimeContext datas bounds rigids pending done ->
+          RuntimeContext datas bounds rigids pending done inlining ->
             let scoped = with-representations bounds rigids w in
             case request-data (Span 0 0 1 1) d classes scoped of
               (planned, descriptor) ->
@@ -3279,10 +3481,10 @@ module Bootstrap.RuntimeIr where
               line (line (line done (cat [failed, ":"])) "  unreachable") "}")
   workers :: List CoreDefinition -> Writer -> Writer
   workers definitions w = case w of
-    Writer next globals code errors layouts (RuntimeContext datas bounds rigids pending done) -> case pending of
+    Writer next globals code errors layouts (RuntimeContext datas bounds rigids pending done inlining) -> case pending of
       Nil -> w
       Cons demand rest ->
-        let claimed = Writer next globals code errors layouts (RuntimeContext datas Nil Nil rest (Cons demand done)) in
+        let claimed = Writer next globals code errors layouts (RuntimeContext datas Nil Nil rest (Cons demand done) inlining) in
         case demand of
           Demand name classes -> case definition name definitions of
             Some d -> workers definitions (worker definitions classes claimed d)
@@ -3390,7 +3592,9 @@ module Bootstrap.RuntimeIr where
         MkCoreDefinition sp name scheme openings givens private clauses ->
           Err [MkDiagnostic "bootstrap.check" sp "main must have type Int or Unit ->{e} Int, without external evidence"]
   empty-writer :: ProgramInfo -> Writer
-  empty-writer info = Writer 0 builder-new builder-new Nil (object-layouts (program-object info)) (RuntimeContext info Nil Nil Nil Nil)
+  empty-writer info = empty-writer-with-plan info NoInline
+  empty-writer-with-plan :: ProgramInfo -> InlinePlan -> Writer
+  empty-writer-with-plan info plan = Writer 0 builder-new builder-new Nil (object-layouts (program-object info)) (RuntimeContext info Nil Nil Nil Nil plan)
   prefix-cells :: Nat -> List Nat -> List (Nat, Nat)
   prefix-cells index words = case words of Nil -> Nil; Cons first rest -> Cons (index, first) (prefix-cells (index + 1) rest)
   object-layouts :: Option RuntimeObject -> LayoutPlan
@@ -3407,12 +3611,14 @@ module Bootstrap.RuntimeIr where
   -- the versions a further pass would start from, so its writer is the
   -- emission itself.
   settled-workers :: List CoreDefinition -> List (String, List Nat) -> ProgramInfo -> Writer
-  settled-workers definitions roots info = settle-method-versions definitions roots (plan-tail-groups definitions info)
-  settle-method-versions :: List CoreDefinition -> List (String, List Nat) -> ProgramInfo -> Writer
-  settle-method-versions definitions roots info =
-    let emitted = workers definitions (demand-roots roots (empty-writer info)) in
+  settled-workers definitions roots info = settled-workers-with-plan NoInline definitions roots info
+  settled-workers-with-plan :: InlinePlan -> List CoreDefinition -> List (String, List Nat) -> ProgramInfo -> Writer
+  settled-workers-with-plan plan definitions roots info = settle-method-versions plan definitions roots (plan-tail-groups definitions info)
+  settle-method-versions :: InlinePlan -> List CoreDefinition -> List (String, List Nat) -> ProgramInfo -> Writer
+  settle-method-versions plan definitions roots info =
+    let emitted = workers definitions (demand-roots roots (empty-writer-with-plan info plan)) in
     if list-length (program-versions (writer-program emitted)) == list-length (program-versions info) then emitted
-    else settle-method-versions definitions roots (writer-program emitted)
+    else settle-method-versions plan definitions roots (writer-program emitted)
   root-symbols :: List (String, List Nat) -> List String
   root-symbols roots = case roots of Nil -> Nil; Cons (name, classes) rest -> Cons (specialized-name name classes) (root-symbols rest)
   demand-roots :: List (String, List Nat) -> Writer -> Writer
@@ -3531,11 +3737,14 @@ module Bootstrap.RuntimeIr where
   -- closure dispatcher stay local; descriptor namespaces still require a
   -- compatible provider layout prefix. Physical ABI metadata is separate.
   emit-runtime-library-with-object :: CheckedProgram -> Option RuntimeObject -> List (String, List Nat) -> Result (List Diagnostic) String
-  emit-runtime-library-with-object checked provider roots =
+  emit-runtime-library-with-object checked provider roots = emit-runtime-library-with-object-mode True checked provider roots
+  emit-runtime-library-with-object-mode :: Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat) -> Result (List Diagnostic) String
+  emit-runtime-library-with-object-mode inlining checked provider roots =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty in
-    case settled-workers definitions roots info of
+    let plan = inline-plan inlining definitions info in
+    case settled-workers-with-plan plan definitions roots info of
       Writer next globals code Nil layouts datas -> Ok (cat [declarations, builder-run globals, layout-table layouts, apply-entry-with-linkage "internal ", builder-run code])
       Writer next globals code errors layouts datas -> Err errors
   -- Public ABI bridges and their metadata share this checked physical plan.
@@ -3742,7 +3951,7 @@ module Bootstrap.RuntimeIr where
   library-object-facts w = case w of
     Writer next globals code errors (LayoutPlan groups tuples names cells) context ->
       let datas = program-data (writer-program w) in
-      let dictionary-demand = (case context of RuntimeContext info bounds rigids pending done -> library-has-dictionary-demand done) in
+      let dictionary-demand = (case context of RuntimeContext info bounds rigids pending done inlining -> library-has-dictionary-demand done) in
       JObj "method_families" (library-method-family-facts w (program-classes (writer-program w))) (JObj "unpublished_dictionaries" (JBool dictionary-demand) (JObj "types" (library-type-facts names datas)
         (JObj "constructors" (library-constructor-layout-facts names datas)
           (JObj "escaped_descriptors" (JBool (library-escaped names datas)) JObjEnd))))
@@ -3751,21 +3960,30 @@ module Bootstrap.RuntimeIr where
   -- checked export identities. The pipeline owns that source-name authority.
   -- These are physical unit/layout facts, not a completed object manifest.
   emit-runtime-library-artifact-with-object :: CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, List Nat, Json)
-  emit-runtime-library-artifact-with-object checked provider roots = case emit-runtime-library-artifact True checked provider roots of
+  emit-runtime-library-artifact-with-object checked provider roots = case emit-runtime-library-artifact True True checked provider roots of
     Err errors -> Err errors
     Ok (ir, words, units, facts) -> Ok (ir, words, units)
   -- A closed dependency object never installs a shorter layout table from a
   -- global constructor. The final consumer registers its complete compatible
   -- prefix, including this object's actual descriptors, once before use.
   emit-runtime-library-object-with-object :: CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, List Nat, Json, Json)
-  emit-runtime-library-object-with-object checked provider roots = emit-runtime-library-artifact False checked provider roots
-  emit-runtime-library-artifact :: Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, List Nat, Json, Json)
-  emit-runtime-library-artifact register checked provider roots =
+  emit-runtime-library-object-with-object checked provider roots = emit-runtime-library-artifact False True checked provider roots
+  -- The inlining switch is the plan's first field: a measured run takes the
+  -- same library with the copies turned off.
+  emit-runtime-library-object-with-object-mode :: Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, List Nat, Json, Json)
+  emit-runtime-library-object-with-object-mode inlining checked provider roots = emit-runtime-library-artifact False inlining checked provider roots
+  emit-runtime-library-artifact-with-object-mode :: Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, List Nat, Json)
+  emit-runtime-library-artifact-with-object-mode inlining checked provider roots = case emit-runtime-library-artifact True inlining checked provider roots of
+    Err errors -> Err errors
+    Ok (ir, words, units, facts) -> Ok (ir, words, units)
+  emit-runtime-library-artifact :: Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, List Nat, Json, Json)
+  emit-runtime-library-artifact register inlining checked provider roots =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let selected = library-selected-roots roots in
     let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil provider (Some Nil) (elaboration-effects typed) hash-map-empty in
-    case library-bridges definitions roots Nil (settled-workers definitions selected info) of
+    let plan = inline-plan inlining definitions info in
+    case library-bridges definitions roots Nil (settled-workers-with-plan plan definitions selected info) of
       (bridged, units) -> case workers definitions bridged of
         Writer next globals code Nil layouts context ->
           let ir = cat [declarations, builder-run globals, if register then layout-table layouts else "", apply-entry-with-linkage "internal ", builder-run code] in
@@ -3773,13 +3991,19 @@ module Bootstrap.RuntimeIr where
         Writer next globals code errors layouts context -> Err errors
   emit-runtime-program :: CheckedProgram -> Result (List Diagnostic) String
   emit-runtime-program checked = emit-runtime-program-with-object checked None
+  emit-runtime-program-mode :: Bool -> CheckedProgram -> Result (List Diagnostic) String
+  emit-runtime-program-mode inlining checked = emit-runtime-program-with-object-mode inlining checked None
   emit-runtime-program-with-object :: CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
   emit-runtime-program-with-object checked provider = emit-runtime-program-counting False checked provider
+  emit-runtime-program-with-object-mode :: Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
+  emit-runtime-program-with-object-mode inlining checked provider = emit-runtime-program-counting-mode inlining False checked provider
   -- A debug-counting program routes its own count operations through the
   -- runtime's checked entries; a linked provider object keeps the counts
   -- it was compiled with.
   emit-runtime-program-counting :: Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
-  emit-runtime-program-counting debug checked provider =
+  emit-runtime-program-counting debug checked provider = emit-runtime-program-counting-mode True debug checked provider
+  emit-runtime-program-counting-mode :: Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
+  emit-runtime-program-counting-mode inlining debug checked provider =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let datas = elaboration-data typed in
@@ -3790,7 +4014,8 @@ module Bootstrap.RuntimeIr where
         None -> Err [MkDiagnostic "bootstrap.runtime-ir" (Span 0 0 1 1) "runtime entry must be main :: Int or Unit -> Int, optionally effectful, without external evidence"]
         -- The planning roots demand `main` as a worker unless a constructor
         -- shares the name; only then does the entry need its own pass.
-        Some mode -> let settled = settled-workers definitions [("main", Nil)] info in
-          case (case constructor "main" datas of Some found -> workers definitions (demand-worker "main" Nil (empty-writer (writer-program settled))); None -> settled) of
+        Some mode -> let plan = inline-plan inlining definitions info in
+          let settled = settled-workers-with-plan plan definitions [("main", Nil)] info in
+          case (case constructor "main" datas of Some found -> workers definitions (demand-worker "main" Nil (empty-writer-with-plan (writer-program settled) plan)); None -> settled) of
             Writer next globals code Nil layouts datas -> Ok (cat [declarations-counting debug, builder-run globals, layout-table layouts, apply-entry, builder-run code, entry mode])
             Writer next globals code errors layouts datas -> Err errors

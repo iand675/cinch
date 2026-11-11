@@ -1171,6 +1171,20 @@ constructor application whose arguments are *computed* would collapse if
 the substitution were allowed when the field is read at most once, which
 needs an evaluation-order argument the pass does not yet state.
 
+### 10.3 The same folds in the Cinch backend (2026-11-11)
+
+`Bootstrap.RuntimeIr` gained the case fold on a known constructor twice:
+directly (`ccf0cadf`) and through a deferred `let` binder (`2935175b`, a
+`DeferredConstructor` local, admitted only when its single use is a case
+scrutinee and every argument is a value). Both are inert on this corpus:
+with the same input compiled by both emitters the module is identical to the
+line, 15,006 constructor allocation sites and 35,504 tag tests unchanged, so
+neither shape exists in the ladder's own Core, which reads a `let` binder at
+more than one case scrutinee or builds it from computed arguments; they are
+expected to pay only once occurrence analysis and `case-of-case` produce the
+shapes they fold, so they are kept rather than widened with further special
+cases.
+
 ## 11. Benchmark corpus and metrics
 
 The corpus is edits, not programs. Each entry is a case in
