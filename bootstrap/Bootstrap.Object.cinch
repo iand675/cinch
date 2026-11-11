@@ -51,11 +51,13 @@ module Bootstrap.Object where
   -- export as well. Private helpers and dictionary workers do not bind names.
   object-unit :: String -> RuntimeObject -> Option RuntimeUnit
   object-unit name value = object-variant name Nil value
-  -- The variant suffix in the identity spelling: `@` and the class letters
-  -- are escapes, and appending them to an encoded name is the encoding of
-  -- the concatenation because each character escapes on its own.
+  -- The variant suffix in the identity spelling: `@` is the one escaped
+  -- character and the class letters are plain, so appending the suffix to an
+  -- encoded name is the encoding of the concatenation, character for
+  -- character. Escaping `R`, `O` and `T` as if they needed it produced a
+  -- spelling no producer writes, and every non-empty variant lookup missed.
   encoded-classes :: List Nat -> String
-  encoded-classes codes = case codes of Nil -> ""; Cons code rest -> (if code == 0 then "$52" else if code == 1 then "$4f" else "$54") <> encoded-classes rest
+  encoded-classes codes = case codes of Nil -> ""; Cons code rest -> (if code == 0 then "R" else if code == 1 then "O" else "T") <> encoded-classes rest
   encoded-variant :: List Nat -> String
   encoded-variant codes = case codes of Nil -> ""; other -> "$40" <> encoded-classes codes
   object-variant :: String -> List Nat -> RuntimeObject -> Option RuntimeUnit
