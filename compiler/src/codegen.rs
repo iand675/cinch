@@ -709,10 +709,26 @@ fn emit_module(
         )?);
     }
     let classes = classify_units(&units);
+    // A whole program is emitted closed: every unit is reachable from an
+    // entry point, and a unit no entry point reaches is dead. Emitting the
+    // unreachable ones costs the assembler a whole prelude per program and
+    // leaves thousands of external symbols nothing can delete, so the
+    // reachable set is computed and the rest is skipped. A module subset or
+    // an object keeps everything: a consumer links against it.
+    let reachable = if object || !emit_modules.is_empty() {
+        None
+    } else {
+        Some(reachable_units(&units, &reg, main_exit.map(|e| e.0.clone())))
+    };
     for u in &units {
         let primitive = reg.prims.iter().any(|op| op.symbol() == u.name);
         if !emitted_symbol(&u.name, emit_modules) && !primitive {
             continue;
+        }
+        if let Some(reachable) = &reachable {
+            if !reachable.contains(&u.name) {
+                continue;
+            }
         }
         let group = reg.attr_group(u.hints, &u.lang_facts, &classes[&u.name], cx.native);
         assemble_unit(
@@ -2265,6 +2281,13 @@ struct UnitScan {
     externs: bool,
     /// The module units this body calls directly.
     callees: BTreeSet<String>,
+    /// Every module unit this body or its globals mention, by call or as
+    /// data. A unit's static block, closure descriptor and per-arity
+    /// entries all hang off its name, and a body reaches them with
+    /// `ptrtoint` or an alias rather than a call, so reachability has to
+    /// follow these too: a program that takes a constructor as a value
+    /// calls nothing, yet needs that constructor's `.blk`.
+    refs: BTreeSet<String>,
 }
 
 /// The memory class of one unit (the `memory(...)` function attribute).
@@ -2424,6 +2447,84 @@ fn callee_symbol(line: &str) -> Option<String> {
     }
     let end = rest.find('(')?;
     Some(rest[..end].to_string())
+}
+
+/// Every module unit `text` names, in any position.
+///
+/// A unit's static block, closure descriptor and per-arity entries all
+/// hang off its name, and a body reaches them as data (`ptrtoint`, an
+/// alias, an initializer) rather than with a `call`. Reachability that
+/// followed calls alone would drop a constructor a program only ever
+/// takes as a value, and the emitted IR would then name a block nothing
+/// defines.
+fn referenced_symbols(text: &str, units: &HashSet<String>) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    let bytes = text.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] != b'@' {
+            i += 1;
+            continue;
+        }
+        i += 1;
+        let (start, end) = if i < bytes.len() && bytes[i] == b'"' {
+            let start = i + 1;
+            match text[start..].find('"') {
+                Some(off) => (start, start + off),
+                None => break,
+            }
+        } else {
+            let start = i;
+            let mut end = i;
+            while end < bytes.len() {
+                let c = bytes[end];
+                if c.is_ascii_alphanumeric() || c == b'_' || c == b'.' || c == b'$' || c == b'-' {
+                    end += 1;
+                } else {
+                    break;
+                }
+            }
+            (start, end)
+        };
+        if end > start {
+            // A unit's artifacts all hang off its name: the static block
+            // (`X.blk#h`), the closure descriptor (`X.clo#h`), the
+            // per-arity entries (`X.app`, `X.clo`). The longest unit name
+            // the reference starts with is the unit it belongs to.
+            let name = &text[start..end];
+            let mut best: Option<&str> = None;
+            for unit in units {
+                // A tail worker is `<unit>#w` (`tail_worker`), so `#`
+                // separates a unit from its artifacts exactly as `.` does.
+                let prefix_matches = name == unit
+                    || name
+                        .strip_prefix(unit.as_str())
+                        .is_some_and(|rest| rest.starts_with('.') || rest.starts_with('#'));
+                if prefix_matches && best.is_none_or(|b| unit.len() > b.len()) {
+                    best = Some(unit);
+                }
+            }
+            // A tail worker `<unit>#tail` is reached only through its
+            // unit, which keeps its own one-word symbol for closures and
+            // exports (`tail_worker`), so the worker keeps its parent.
+            if let Some(unit) = name.split('#').next().filter(|base| *base != name && units.contains(*base)) {
+                out.insert(unit.to_string());
+            }
+            if let Some(unit) = best {
+                out.insert(unit.to_string());
+            } else if let Some(id) = name.split('#').next().and_then(|n| n.strip_suffix(".dict")) {
+                // A static dictionary block (`<instance>.dict`) is emitted
+                // by that instance's `.mk` factory, which is the unit that
+                // must stay.
+                let mk = format!("{id}.mk");
+                if units.contains(&mk) {
+                    out.insert(mk);
+                }
+            }
+        }
+        i = end.max(i);
+    }
+    out
 }
 
 /// Scan one unit's lowered body (its `alloca` block and its code) for
@@ -2617,6 +2718,50 @@ fn assemble_unit(out: &mut String, u: &EmittedUnit, group: Option<String>, linka
     out.push_str(&u.clo);
 }
 
+/// The units a whole program can reach from its entry points.
+///
+/// A unit's body is the only way to reach another unit: `scan.callees` is
+/// the call graph, and a unit's stub and closure family hang off the same
+/// name, so a reachable name carries its own `.app` entries and `.clo`
+/// block. The roots are the process entry's unit and every `foreign
+/// export` target, which is what a linker outside the program can name.
+///
+/// Names that are not units at all (runtime externs, LLVM intrinsics) are
+/// absent from the map and end the walk. That is deliberate: they are
+/// declared, never defined here.
+fn reachable_units(
+    units: &[EmittedUnit],
+    reg: &Registry,
+    main: Option<String>,
+) -> HashSet<String> {
+    let callees: HashMap<&str, &BTreeSet<String>> =
+        units.iter().map(|u| (u.name.as_str(), &u.scan.refs)).collect();
+    let mut roots: Vec<&str> = Vec::new();
+    if let Some(main) = &main {
+        roots.push(main.as_str());
+    }
+    for plan in reg.foreigns.values() {
+        if plan.export {
+            roots.push(plan.unit.as_str());
+        }
+    }
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut stack: Vec<&str> = roots;
+    while let Some(name) = stack.pop() {
+        if !seen.insert(name.to_string()) {
+            continue;
+        }
+        if let Some(next) = callees.get(name) {
+            for callee in next.iter() {
+                if !seen.contains(callee.as_str()) {
+                    stack.push(callee.as_str());
+                }
+            }
+        }
+    }
+    seen
+}
+
 /// Prefix `linkage ` to every top-level `define` in `text`. A unit's stub
 /// is a family of functions (the dispatcher, its per-arity entries and the
 /// shared `many` body), and all of them take the unit's linkage.
@@ -2755,17 +2900,26 @@ fn build_unit(
         }
     }
     let header = fn_header(name, arity, ret_range, &noundef_params);
-    let scan = scan_body(&format!("{}{}", b.allocas, b.code), reg.unit_symbols(), None);
+    // The unit's own globals carry its static blocks and closure
+    // descriptors, which name the units a body reaches as data rather
+    // than by calling them.
+    let mut unit_globals = globals;
+    unit_globals.push_str(&b.globals);
+    let body_text = format!("{}{}", b.allocas, b.code);
+    let mut scan = scan_body(&body_text, reg.unit_symbols(), None);
+    // A body reaches another unit's static block or closure descriptor as
+    // data (`ptrtoint`, an alias) as well as by calling it, so both the
+    // code and the globals contribute.
+    scan.refs.extend(referenced_symbols(&body_text, reg.unit_symbols()));
+    scan.refs.extend(referenced_symbols(&unit_globals, reg.unit_symbols()));
+    scan.refs.extend(scan.callees.iter().cloned());
     // A worker is never a first-class value: closures and the apply
     // stub reach it through the unit's own symbol.
     let worker = matches!(body, UnitBody::TailWorker(_));
     Ok(EmittedUnit {
         name: name.to_string(),
         hints,
-        globals: {
-            globals.push_str(&b.globals);
-            globals
-        },
+        globals: unit_globals,
         header,
         allocas: b.allocas,
         code: b.code,
