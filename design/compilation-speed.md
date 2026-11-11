@@ -1619,6 +1619,38 @@ impossible tag. `named-polymorphic-proof` returned 1 instead of 42, and
 the instrumented stage-1 link trapped on a freed block. Decision cases
 stay on the chain now.
 
+### 2.11 The 2026-11-11 round, in the order it landed
+
+Nine landings changed the shape of the compiler rather than tuning it. The
+numbers below are the ones each lane measured on its own gate, not a single
+census, so they are quoted with the workload they came from.
+
+|Landing|Mechanism|Effect|
+|---|---|---|
+|`9d975ee6`|dead-unit pruning rooted at what an object must export|library object correctness; check stopped recomputing|
+|`54376012`|direct static-dictionary calls, small-unit inliner behind a flag|neutral on the compiler's own module, kept off|
+|`5d62094a`|totality keeps the bindings it already produced; deferred diagnostics; identity literals; the runtime object parses once|self-check blocks 2.70B to 1.48B (-45%), CPU -16%|
+|`12a9bd37`|frame blocks kept out of a tail call's frame|stack allocation sound; volume -4.1% blocks on a toolkit check|
+|`b2be74ff`|one `switch` per case, `phi` joins, `select` arms|IR 981,414 to 841,609 lines (-14.2%), `switch` 1 to 5,261, join allocas -52%, toolkit -8.6%, self-check -25.9%|
+|`07b02519`|identity spelling escapes only what is ambiguous|encoded names 2.62M chars to 1.19M, IR -5.4%, binary -3.1%|
+|`f3610fa3`|GHC's inlining inputs: occurrence rules, argument interestingness, two thresholds, iteration cap|wrapper calls 80,834 to 15,112, IR -1.8%, allocation sites unchanged at 801|
+|`3e696293`|the resolver's reference list indexed instead of scanned per declaration|toolkit -4.0%, self-check -11% at fixed pins|
+|`a9a9a638`|static blocks addressed by a constant offset, not a linker alias|a real miscompile in every multi-object link, and the cause of the PGO SIGBUS|
+
+The last row is the one to read twice. An immortal static block was emitted
+as storage plus a global *alias* at its payload, and a multi-object link
+does not preserve the relation, so `payload - 8` was not the header: the
+release walk read the layout table's last word and stored into the text
+page. On Apple that is `SIGBUS`, which is why the instrumented training run
+of a sharded link died with exit -10 while the same module linked as one
+unit ran. The fix addresses the payload by a constant `getelementptr`
+offset, which travels as a relocation addend against the storage symbol.
+
+Current state of the two workloads, quiescent, median of three and two
+respectively: the 4K-line toolkit bundle checks in 6.13 s (49 s at the
+start of the day) and the 40,681-line compiler bundle in 56.6 s (585 s).
+Both are stage-3 binaries produced by the chain in `build/bootstrap`.
+
 ## 11. Benchmark corpus and metrics
 
 The corpus is edits, not programs. Each entry is a case in
