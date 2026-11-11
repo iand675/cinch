@@ -5,19 +5,23 @@
 //                  two-byte prefix and differ only in the last byte, is
 //                  built and every key queried; the 16 digests are
 //                  pairwise distinct (the index is not one bucket); two
-//                  slices that hash alike ([0, 31] and [1, 0]) are
-//                  proven to collide and both survive in one bucket;
+//                  slices that hash alike are proven to collide and both
+//                  survive in one bucket, through a key type this program
+//                  declares whose `Hash` is the constant 0 (the shipped
+//                  byte digest is FNV-1a, a 64-bit fold with no pair a
+//                  program can make collide);
 //                  insert replaces in place and leaves the size fixed;
 //                  a never-inserted key (and the empty slice) is absent;
 //                  delete removes the key and keeps its collision
 //                  partner.
 //   string keys    the same story over 16 names, including 'lambda',
 //                  'lambda1', 'lambda2' (a three-way shared prefix), a
-//                  genuine digest collision built from the bytes above
-//                  through `string-from-bytes`, absence, in-place
-//                  replacement, and delete; and the string digest agrees
-//                  with the digest of its own UTF-8 bytes, so the two
-//                  instances agree by construction.
+//                  digest collision built from the bytes above through
+//                  `string-from-bytes` and a declared key type with a
+//                  constant `Hash`, absence, in-place replacement, and
+//                  delete; and the string digest agrees with the digest
+//                  of its own UTF-8 bytes, so the two instances agree by
+//                  construction.
 //   the law        `x == y implies hash x == hash y` holds over pairs
 //                  the test supplies for `String`, `Bytes` and `Sym`
 //                  (equal values built by different routes), checked by
@@ -97,11 +101,31 @@ const BYTES_KEYS: &str = r#"module Main where
   key-b :: Nat -> Bytes
   key-b i = bytes-from-list (Cons 7 (Cons (nat-rem i 256) (Cons 2 Nil)))
 
-  coll-a :: Bytes
-  coll-a = bytes-from-list (Cons 0 (Cons 31 Nil))
+  -- Two byte slices that share one digest, through a key type declared
+  -- here: its carrier is a `Bytes`, its `Eq` is byte equality and its
+  -- `Hash` is the constant 0. The shipped byte digest is FNV-1a over the
+  -- bytes, a 64-bit fold with no pair a program can make collide, so the
+  -- collision fixture comes from this type; the property under test is
+  -- the bucket scan, not the digest's internals.
+  data Coll where
+    MkColl :: Bytes -> Coll
 
-  coll-b :: Bytes
-  coll-b = bytes-from-list (Cons 1 (Cons 0 Nil))
+  coll-bytes :: Coll -> Bytes
+  coll-bytes c = case c of
+    MkColl b -> b
+
+  implicit instance Eq-Coll :: Eq Coll where
+    (==) x y = coll-bytes x == coll-bytes y
+    (/=) x y = coll-bytes x /= coll-bytes y
+
+  implicit instance Hash-Coll :: Hash Coll where
+    hash c = 0
+
+  coll-a :: Coll
+  coll-a = MkColl (bytes-from-list (Cons 0 (Cons 31 Nil)))
+
+  coll-b :: Coll
+  coll-b = MkColl (bytes-from-list (Cons 1 (Cons 0 Nil)))
 
   add-pair :: Nat -> HashMap Bytes Nat -> HashMap Bytes Nat
   add-pair i m = hash-map-insert (key-b i) (100 + i) (hash-map-insert (key-a i) i m)
@@ -136,8 +160,18 @@ const BYTES_KEYS: &str = r#"module Main where
   overwritten :: HashMap Bytes Nat
   overwritten = hash-map-insert (key-a 2) 222 table
 
-  coll-table :: HashMap Bytes Nat
+  coll-table :: HashMap Coll Nat
   coll-table = hash-map-insert coll-b 200 (hash-map-insert coll-a 100 hash-map-empty)
+
+  chlookup-is :: Coll -> Nat -> HashMap Coll Nat -> Bool
+  chlookup-is k v m = case hash-map-lookup k m of
+    None -> False
+    Some w -> w == v
+
+  chlookup-absent :: Coll -> HashMap Coll Nat -> Bool
+  chlookup-absent k m = case hash-map-lookup k m of
+    None -> True
+    Some _ -> False
 
   check1 :: Int
   check1 = if hash coll-a == hash coll-b then 0 else 1
@@ -161,7 +195,7 @@ const BYTES_KEYS: &str = r#"module Main where
   check7 = if hlookup-absent (key-a 99) table && hlookup-absent (bytes-from-list (Cons 42 Nil)) table && hlookup-absent (bytes-new 0) table then 0 else 64
 
   check8 :: Int
-  check8 = if hlookup-is coll-a 100 coll-table && hlookup-is coll-b 200 coll-table && hash-map-size coll-table == 2 && hlookup-absent coll-a (hash-map-delete coll-a coll-table) && hlookup-is coll-b 200 (hash-map-delete coll-a coll-table) then 0 else 128
+  check8 = if chlookup-is coll-a 100 coll-table && chlookup-is coll-b 200 coll-table && hash-map-size coll-table == 2 && chlookup-absent coll-a (hash-map-delete coll-a coll-table) && chlookup-is coll-b 200 (hash-map-delete coll-a coll-table) then 0 else 128
 
   main :: Int
   main = check1 + check2 + check3 + check4 + check5 + check6 + check7 + check8
@@ -211,14 +245,38 @@ const STRING_KEYS: &str = r#"module Main where
     Some s -> s
     None -> empty-string
 
-  coll-a :: String
-  coll-a = str-of (Cons 0 (Cons 31 Nil))
+  -- Two distinct names that share one digest, through a key type declared
+  -- here with a constant `Hash` (the shipped string digest is FNV-1a over
+  -- the UTF-8 bytes, whose 64-bit fold has no pair a program can make
+  -- collide). The property under test is the bucket scan: `Eq` separates
+  -- the two keys, never the digest.
+  data SColl where
+    MkSColl :: String -> SColl
 
-  coll-b :: String
-  coll-b = str-of (Cons 1 (Cons 0 Nil))
+  scoll-name :: SColl -> String
+  scoll-name c = case c of
+    MkSColl t -> t
 
-  coll-table :: HashMap String Nat
+  implicit instance Eq-SColl :: Eq SColl where
+    (==) x y = string-compare (scoll-name x) (scoll-name y) == 0
+    (/=) x y = ne-i64 (string-compare (scoll-name x) (scoll-name y)) 0
+
+  implicit instance Hash-SColl :: Hash SColl where
+    hash c = 0
+
+  coll-a :: SColl
+  coll-a = MkSColl (str-of (Cons 0 (Cons 31 Nil)))
+
+  coll-b :: SColl
+  coll-b = MkSColl (str-of (Cons 1 (Cons 0 Nil)))
+
+  coll-table :: HashMap SColl Nat
   coll-table = hash-map-insert coll-b 200 (hash-map-insert coll-a 100 hash-map-empty)
+
+  chlookup-is :: SColl -> Nat -> HashMap SColl Nat -> Bool
+  chlookup-is k v m = case hash-map-lookup k m of
+    None -> False
+    Some w -> w == v
 
   overwritten :: HashMap String Nat
   overwritten = hash-map-insert "alpha" 99 name-table
@@ -245,7 +303,7 @@ const STRING_KEYS: &str = r#"module Main where
   check6 = if byte-agreement names then 0 else 32
 
   check7 :: Int
-  check7 = if hash coll-a == hash coll-b && coll-a /= coll-b && hlookup-is coll-a 100 coll-table && hlookup-is coll-b 200 coll-table && hash-map-size coll-table == 2 then 0 else 64
+  check7 = if hash coll-a == hash coll-b && coll-a /= coll-b && chlookup-is coll-a 100 coll-table && chlookup-is coll-b 200 coll-table && hash-map-size coll-table == 2 then 0 else 64
 
   check8 :: Int
   check8 = if hlookup-absent "gamma" pruned && hash-map-size pruned == 15 && hlookup-is "mu" 13 pruned then 0 else 128

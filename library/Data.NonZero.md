@@ -36,10 +36,11 @@ The instances below are the multiplicative ones on `NonZero Int`,
 written at the container's types (the transfer rule): the product of
 non-zeros is non-zero (preserved) and 1 is non-zero, so unlike
 `Monoid (NonEmpty a)` (whose identity is empty) `Monoid (NonZero
-Int)` exists. The unit laws state over `Semigroup.<>`, which the
-Monoid instance does not carry, so they report `not checked`
-honestly (the P18 law boundary); asserted in
-compiler/tests/refinements.rs.
+Int)` exists. The unit laws state over `Semigroup.<>`, which a class
+constraint does not entail; the law's own context supplies the
+`Semigroup (NonZero Int)` dictionary, so the check reads this
+module's product and identity and decides both laws at samples
+(asserted in compiler/tests/refinements.rs).
 
 </details>
 
@@ -57,7 +58,7 @@ This module exports no type declarations.
 
 The total constructors (refinement types design: the total API).
 
-[Source](/reference-sources/Data.NonZero.cinch) · line 36
+[Source](/reference-sources/Data.NonZero.cinch) · line 37
 
 <a id="value-6e6f6e2d7a65726f2d6e6174"></a>
 
@@ -89,4 +90,4 @@ non-zerohood and its transfer is rejected by the preservation law
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/NonZero.cinch`. Source SHA-256: `2eba752e6ccb3d4bb38eb4049a959af604b8d4c03015ccb0f5f15aa9910c4bde`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Data/NonZero.cinch`. Source SHA-256: `dc4fbe2ec9eb0ed867615d3d683bd55fd675bfdd6ae6eb57d6eb73435822b96b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

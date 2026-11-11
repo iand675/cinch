@@ -141,7 +141,7 @@
     {
       "module": "Data.Bytes",
       "path": "compiler/prelude/Data/Bytes.cinch",
-      "sha256": "4a18314a82db723cbd91eea9036b92efb2ea8137527dd2adccb3b30022d4e454",
+      "sha256": "e69447ff0e41540d9074e6e40bb3ce8c5cf1d3ce070949f3109a0f73ea63fc52",
       "embedded": true,
       "values": 10,
       "public_methods": 0
@@ -325,7 +325,7 @@
     {
       "module": "Data.NonZero",
       "path": "compiler/prelude/Data/NonZero.cinch",
-      "sha256": "2eba752e6ccb3d4bb38eb4049a959af604b8d4c03015ccb0f5f15aa9910c4bde",
+      "sha256": "dc4fbe2ec9eb0ed867615d3d683bd55fd675bfdd6ae6eb57d6eb73435822b96b",
       "embedded": true,
       "values": 2,
       "public_methods": 0

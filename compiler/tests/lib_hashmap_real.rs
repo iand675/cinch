@@ -19,15 +19,20 @@
 //!     equal the key count, and keys above the range must be absent;
 //!   * a key inserted twice keeps the last value, a key twice in
 //!     `hash-map-from-pairs` keeps the first;
-//!   * "Aa" and "BB" share one digest under the shipped 31-hash, and the
-//!     map must separate them by `Eq` alone (the inserted one answers, the
-//!     other is absent);
-//!   * 256 distinct strings that all share ONE digest (built by swapping
-//!     "Aa" for "BB" block by block) are all inserted, all found, and all
-//!     removed, leaving the empty map;
-//!   * a key type the program declares itself (with its own `Eq` and a
-//!     deliberately degenerate `Hash`, so all 300 keys land in one bucket)
-//!     is inserted, looked up, asked for an absent label, and emptied.
+//!   * a key type the program declares, whose `Eq` is string equality and whose `Hash`
+//!     is the constant 0 (the shipped `Hash String` is FNV-1a over the
+//!     UTF-8 bytes, a 64-bit fold with no pair a program can make
+//!     collide, so the collision fixtures come from a declared type): two
+//!     keys that share one digest must be separated by `Eq` alone (the
+//!     inserted one answers, the other is absent);
+//!   * 256 distinct 16-character strings (built by swapping "Aa" for
+//!     "BB" block by block) all share ONE digest through that type, so
+//!     they are all inserted into one bucket, all found, and all removed,
+//!     leaving the empty map;
+//!   * a second key type the program declares itself (with its own `Eq`
+//!     and a deliberately degenerate `Hash`, so all 300 keys land in one
+//!     bucket) is inserted, looked up, asked for an absent label, and
+//!     emptied.
 //!
 //! The measured limit, as data. The spans are the program's own
 //! monotonic clock, printed on stdout and asserted here:

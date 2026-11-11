@@ -21,21 +21,24 @@
 --   repeated    a key inserted twice keeps the LAST value
 --               (`hash-map-insert`), a key twice in `hash-map-from-pairs`
 --               keeps the FIRST, and keys never inserted are absent;
---   String     "Aa" and "BB" really do share one digest under the
---               shipped 31-hash, so the map must separate them by `Eq`
---               alone: the inserted key answers and the other is absent;
---   collisions 256 distinct strings of 16 characters, built by swapping
---               "Aa" for "BB" block by block, all share ONE digest (the
---               block swap cancels in the 31-hash), so a single bucket
---               holds 256 entries and every one of them is still found,
---               and deleting all 256 leaves the empty map;
---   Label      a key type declared HERE, with its own `Eq` and a
---               deliberately degenerate `Hash` (every label shares
---               digest 0), 300 of them: all found, a label never
---               inserted is absent, and deleting all 300 leaves the
---               empty map. This is the boundary the module's header
---               names (adversarial digests: only the bucket scan
---               degrades, correctness never does).
+--   Slug       a key type declared HERE whose `Eq` is string equality
+--               and whose `Hash` is the constant 0 (every slug shares
+--               digest 0). The shipped `Hash String` is FNV-1a over the
+--               UTF-8 bytes, a 64-bit fold with no pair a program can
+--               make collide, so the collision fixtures are built from
+--               this type: a pair sharing one digest must still be
+--               separated by `Eq` alone (the inserted key answers and the
+--               other is absent), and 256 distinct 16-character strings
+--               (built by swapping "Aa" for "BB" block by block) all
+--               share ONE digest, so a single bucket holds 256 entries,
+--               every one of them is still found, and deleting all 256
+--               leaves the empty map;
+--   Label      a second declared key type, also with a degenerate
+--               `Hash` (every label shares digest 0), 300 of them: all
+--               found, a label never inserted is absent, and deleting
+--               all 300 leaves the empty map. This is the boundary the
+--               module's header names (adversarial digests: only the
+--               bucket scan degrades, correctness never does).
 --
 -- The timed spans are the program's own monotonic clock: two phases of
 -- distinct-digest Nat keys (4000 and 32000) plus the two collision
@@ -98,18 +101,43 @@ module Main where
       Some v -> v == 1
 
   -- ------------------------------------------------------------------
-  -- String keys: one digest, two keys
+  -- One digest, two keys: a declared key type with a constant digest
   -- ------------------------------------------------------------------
 
-  -- The premise the collision checks rest on: the shipped 31-hash maps
-  -- "Aa" and "BB" to the same digest. A different String hash would make
-  -- the collision checks vacuous, so the program asserts the premise.
-  string-hash-collides :: Bool
-  string-hash-collides = hash "Aa" == hash "BB"
+  -- The shipped `Hash String` is FNV-1a over the UTF-8 bytes, a 64-bit
+  -- fold with no pair that can be made to collide by hand, so a string
+  -- collision is not a fixture a program can build. The bucket-scan
+  -- property the map owns is exercised through a key type declared HERE
+  -- instead: `Slug`'s `Eq` is string equality and its `Hash` is the
+  -- constant 0, so every slug shares one digest by construction. That is
+  -- lawful (`x == y` implies `hash x == hash y`, trivially) and it is
+  -- the adversarial end of the module's documented boundary: one bucket
+  -- for the whole map, and `Eq` alone separates the keys.
+  data Slug where
+    MkSlug :: String -> Slug
+
+  slug-name :: Slug -> String
+  slug-name s = case s of
+    MkSlug t -> t
+
+  slug :: String -> Slug
+  slug s = MkSlug s
+
+  slug-eq :: Slug -> Slug -> Bool
+  slug-eq a b = string-compare (slug-name a) (slug-name b) == 0
+
+  implicit instance Eq-Slug :: Eq Slug where
+    (==) a b = slug-eq a b
+    (/=) a b = slug-eq a b == False
+
+  -- Every slug shares digest 0 (the premise the collision checks rest
+  -- on, asserted below by `same-digest`).
+  implicit instance Hash-Slug :: Hash Slug where
+    hash s = 0
 
   same-digest-present :: Bool
   same-digest-present =
-    case hash-map-lookup "Aa" (hash-map-insert "Aa" 1 (hash-map-empty :: HashMap String Nat)) of
+    case hash-map-lookup (slug "Aa") (hash-map-insert (slug "Aa") 1 (hash-map-empty :: HashMap Slug Nat)) of
       None -> False
       Some v -> v == 1
 
@@ -118,24 +146,22 @@ module Main where
   -- the digest.
   same-digest-absent :: Bool
   same-digest-absent =
-    case hash-map-lookup "BB" (hash-map-insert "Aa" 1 (hash-map-empty :: HashMap String Nat)) of
+    case hash-map-lookup (slug "BB") (hash-map-insert (slug "Aa") 1 (hash-map-empty :: HashMap Slug Nat)) of
       None -> True
       Some _ -> False
 
   same-digest-ok :: Bool
-  same-digest-ok = case string-hash-collides of
+  same-digest-ok = case same-digest-present of
     False -> False
-    True -> case same-digest-present of
-      False -> False
-      True -> same-digest-absent
+    True -> same-digest-absent
 
   -- ------------------------------------------------------------------
-  -- 256 colliding strings in one bucket
+  -- 256 distinct keys in one bucket
   -- ------------------------------------------------------------------
 
-  -- Each step appends "Aa" and "BB" to every string so far: both appends
-  -- move the 31-hash by the same amount, so every string in the result
-  -- shares one digest with every other.
+  -- Each step appends "Aa" and "BB" to every string so far, so the result
+  -- is 256 DISTINCT 16-character strings; every one of them is a `Slug`,
+  -- so all 256 share digest 0 and land in one bucket.
   append-collision :: List String -> List String -> List String
   append-collision xs out = case xs of
     Nil -> out
@@ -147,29 +173,35 @@ module Main where
     True -> acc
     False -> collide-strings (k - 1) (append-collision acc Nil)
 
-  same-digest :: List String -> Bool
+  -- The generated strings as the colliding key type.
+  slug-all :: List String -> List Slug
+  slug-all xs = case xs of
+    Nil -> Nil
+    Cons s rest -> Cons (slug s) (slug-all rest)
+
+  same-digest :: List Slug -> Bool
   same-digest xs = case xs of
     Nil -> True
     Cons s rest -> all-digest rest (hash s)
 
-  all-digest :: List String -> Nat -> Bool
+  all-digest :: List Slug -> Nat -> Bool
   all-digest xs d = case xs of
     Nil -> True
     Cons s rest -> if hash s == d then all-digest rest d else False
 
-  insert-strings :: List String -> HashMap String Nat -> HashMap String Nat
+  insert-strings :: List Slug -> HashMap Slug Nat -> HashMap Slug Nat
   insert-strings xs m = case xs of
     Nil -> m
-    Cons s rest -> insert-strings rest (hash-map-insert s (string-length s) m)
+    Cons s rest -> insert-strings rest (hash-map-insert s (string-length (slug-name s)) m)
 
-  look-strings :: List String -> HashMap String Nat -> Bool
+  look-strings :: List Slug -> HashMap Slug Nat -> Bool
   look-strings xs m = case xs of
     Nil -> True
     Cons s rest -> case hash-map-lookup s m of
       None -> False
-      Some v -> if v == string-length s then look-strings rest m else False
+      Some v -> if v == string-length (slug-name s) then look-strings rest m else False
 
-  delete-strings :: List String -> HashMap String Nat -> HashMap String Nat
+  delete-strings :: List Slug -> HashMap Slug Nat -> HashMap Slug Nat
   delete-strings xs m = case xs of
     Nil -> m
     Cons s rest -> delete-strings rest (hash-map-delete s m)
@@ -311,7 +343,7 @@ module Main where
     let zero = clock-monotonic-ns () in
     let wide-empty = delete-all-nat 32000 m32 in
     let one = clock-monotonic-ns () in
-    let cs = collide-strings 8 (Cons "" Nil) in
+    let cs = slug-all (collide-strings 8 (Cons "" Nil)) in
     let two = clock-monotonic-ns () in
     let cmap = insert-strings cs hash-map-empty in
     let three = clock-monotonic-ns () in

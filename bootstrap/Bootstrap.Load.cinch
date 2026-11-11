@@ -149,6 +149,14 @@ module Bootstrap.Load where
   loaded-exports :: LoadedInterface -> List (String, String, String)
   loaded-exports i = case i of MkLoadedInterface name hash doc values fixes refs entries exports private-methods -> exports
 
+  -- Every global name this interface exports: `interface-global` of every
+  -- exported identity and of every private method identity, encoded once
+  -- when the interface was loaded. The global table of `InterfaceIndex` is
+  -- built from these.
+  loaded-globals :: LoadedInterface -> List String
+  loaded-globals i = case i of
+    MkLoadedInterface at hash doc values fixes refs entries exports private-methods -> global-entries entries
+
   -- The defining identities of one public name, document order, each once:
   -- the probe `public-global` and `overloads` make per name, answered from
   -- the name table the load built instead of a scan of every row.
@@ -786,27 +794,66 @@ module Bootstrap.Load where
         Ok i -> read-contract-set rest (Cons i loaded)
 
   -- The module index a set check asks its questions of. Built once per
-  -- validated set, it answers the two questions the checks ask thousands of
-  -- times: which interface a module name denotes, and whether a module is in
-  -- a checked closure. It also carries each module's name, its width and its
-  -- `Name.` bytes, so a body node's owner is decided by comparing bytes that
-  -- already exist instead of encoding a fresh prefix per module per node.
+  -- validated set, it answers the three questions the checks ask thousands
+  -- of times: which interface a module name denotes, which module exports a
+  -- global name (and so whether that name is in a checked closure at all),
+  -- and whether a module is in a checked closure. It also carries each
+  -- module's name, its width and its `Name.` bytes, so a body node's owner
+  -- is decided by comparing bytes that already exist instead of encoding a
+  -- fresh prefix per module per node.
   --
-  -- Both lookups are list scans, deliberately. A `HashMap String` here was
-  -- measured on the two-line program (2026-11-11): the prelude's `Hash
-  -- String` is a bignum polynomial (`nat-mul h 31` per byte), so hashing the
-  -- 59 module names costs more than the scans a set of 59 short names needs,
-  -- and the build grew by 1.5M blocks (1.9%) with no CPU change. The set
-  -- stays small and the keys stay short; a scan is the cheaper index.
+  -- The two name lookups are `HashMap` probes. They were list scans until
+  -- the `Hash String` instance became FNV-1a over the UTF-8 bytes in a
+  -- wrapping 64-bit word (Data.Bytes, design/compilation-speed.md 2.9):
+  -- the earlier bignum fold made one 20-character digest cost about 20
+  -- microseconds, more than the whole scan it would have replaced, so the
+  -- index lost and the scans stayed. With the word fold a digest is about
+  -- two microseconds and a probe beats the scan on every set here: the
+  -- module table holds every loaded module and the global table holds every
+  -- exported identity of every module (thousands of names in the compiler's
+  -- own set), and the law closure used to rescan all of that per law
+  -- reference.
+  --
+  -- INVARIANT: a global name is exported by at most one module, because
+  -- `interface-global` prefixes the identity with the exporting module's
+  -- name. The global table therefore records one owner per name; the fold
+  -- inserts the head interface last, so the first interface in the set's
+  -- order wins a name, exactly as the scan it replaces answered.
+  --
+  -- The closure membership tests (`name-in` over `reachable`, over the
+  -- ordering pass's `done`) still scan, deliberately: those sets hold tens
+  -- of short names, and the scan is measured level with a probe at that
+  -- size (design/compilation-speed.md 2.9).
   --
   -- No answer depends on iteration order: the ordered context a caller
   -- receives is still the list the ordering pass produced, and every other
   -- use is a membership test or a probe.
   data InterfaceIndex where
-    MkInterfaceIndex :: List LoadedInterface -> List (String, Nat, Bytes) -> InterfaceIndex
+    MkInterfaceIndex :: List LoadedInterface -> HashMap String LoadedInterface -> HashMap String String -> List (String, Nat, Bytes) -> InterfaceIndex
 
   index-interfaces :: List LoadedInterface -> InterfaceIndex
-  index-interfaces loaded = MkInterfaceIndex loaded (reverse (index-prefixes loaded Nil))
+  index-interfaces loaded =
+    MkInterfaceIndex loaded (interface-table loaded hash-map-empty)
+      (global-table loaded hash-map-empty) (reverse (index-prefixes loaded Nil))
+
+  -- Module name to interface. The fold inserts the head last, so the first
+  -- interface in the set's order wins a repeated module name.
+  interface-table :: List LoadedInterface -> HashMap String LoadedInterface -> HashMap String LoadedInterface
+  interface-table loaded table = case loaded of
+    Nil -> table
+    Cons i rest -> interface-table rest (hash-map-insert (loaded-module i) i table)
+
+  -- Global name to exporting module. The head is folded in last, so the
+  -- first interface in the set's order wins a repeated name.
+  global-table :: List LoadedInterface -> HashMap String String -> HashMap String String
+  global-table loaded table = case loaded of
+    Nil -> table
+    Cons i rest -> global-name-table (loaded-globals i) (loaded-module i) (global-table rest table)
+
+  global-name-table :: List String -> String -> HashMap String String -> HashMap String String
+  global-name-table globals module-name table = case globals of
+    Nil -> table
+    Cons name rest -> global-name-table rest module-name (hash-map-insert name module-name table)
 
   index-prefixes :: List LoadedInterface -> List (String, Nat, Bytes) -> List (String, Nat, Bytes)
   index-prefixes loaded acc = case loaded of
@@ -822,13 +869,13 @@ module Bootstrap.Load where
   name-in name set = member name set
 
   interface-by-name :: InterfaceIndex -> String -> Option LoadedInterface
-  interface-by-name ix name = case ix of MkInterfaceIndex all prefixes -> find-interface name all
+  interface-by-name ix name = case ix of MkInterfaceIndex all by-name globals prefixes -> hash-map-lookup name by-name
 
   interfaces-of :: InterfaceIndex -> List LoadedInterface
-  interfaces-of ix = case ix of MkInterfaceIndex all prefixes -> all
+  interfaces-of ix = case ix of MkInterfaceIndex all by-name globals prefixes -> all
 
   prefixes-of :: InterfaceIndex -> List (String, Nat, Bytes)
-  prefixes-of ix = case ix of MkInterfaceIndex all prefixes -> prefixes
+  prefixes-of ix = case ix of MkInterfaceIndex all by-name globals prefixes -> prefixes
 
   verify-refs :: List (String, String) -> InterfaceIndex -> Result String Unit
   verify-refs refs ix = case refs of
@@ -931,24 +978,16 @@ module Bootstrap.Load where
   signature-contract row = JObj "identity" (field "identity" row)
     (JObj "parameters" (field "parameters" row) (JObj "methods" (method-contracts (field "methods" row))
       (JObj "laws" (field "laws" row) JObjEnd)))
-  -- The probe the closure makes once per law occurrence, answered from the
-  -- table the load built: every exported identity and every private method
-  -- identity is encoded once per interface, not once per ask.
-  exported-global :: LoadedInterface -> String -> Bool
-  exported-global i name = case i of
-    MkLoadedInterface at hash doc values fixes refs entries exports private-methods ->
-      member name (global-entries entries)
-
+  -- The probe the closure makes once per law occurrence: the set's global
+  -- table says which module exports the name, and the closure says whether
+  -- that module is in it. The walk this replaces rescanned every interface's
+  -- exported identities per reference (queries x interfaces x rows); the
+  -- table is built once per set, one digest per exported identity.
   law-global-present :: String -> List String -> InterfaceIndex -> Bool
-  law-global-present name reachable ix = export-present-in (interfaces-of ix) name reachable
-
-  -- The walk is over the interface list itself; `ix` is the query, never the
-  -- cursor, so it is taken apart once by the caller.
-  export-present-in :: List LoadedInterface -> String -> List String -> Bool
-  export-present-in members name reachable = case members of
-    Nil -> False
-    Cons i rest -> (name-in (loaded-module i) reachable && exported-global i name)
-      || export-present-in rest name reachable
+  law-global-present name reachable ix = case ix of
+    MkInterfaceIndex all by-name globals prefixes -> case hash-map-lookup name globals of
+      None -> False
+      Some owner -> name-in owner reachable
 
   law-global :: List String -> InterfaceIndex -> String -> Option String
   law-global reachable ix name = if law-kernel-name name || member name ["True", "False"]

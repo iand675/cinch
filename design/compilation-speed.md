@@ -617,6 +617,110 @@ it is not in the tree; `child_slots` stays.
 one hash per module instead of one per edge, under 1% of the run, so the
 rewrite waits for a slice where the hash is measured again.
 
+### 2.9 A cheap digest, and the indexes it buys back (2026-11-11)
+
+`Data.Hash`'s `String` instance was the reason hash indexes lost. It folded
+the bytes with `nat-mul h 31` over `Nat`, so one compiler-length identifier
+(8 to 40 bytes) cost about 1,700 ns and 73 allocations for its digest, while
+the scan the index would replace costs about 600 ns at 64 short names. No
+index can pay at that price, and 2.5/2.7 recorded the reverts.
+
+The instance is now FNV-1a in a wrapping 64-bit word
+(`compiler/prelude/Data/Bytes.cinch`): the accumulator is a `U64` at every
+step, the multiply is `wrapping-mul-u64` (modulo 2^64, so no value can leave
+the word), and the word is reduced to `Nat` exactly once, at the end, by
+clearing the top bit and calling `nat-from-i64`. The class law is the only
+obligation the digest carries, and it holds: the fold reads content only and
+is a deterministic function of the bytes, so equal slices hash alike, no
+address or clock enters the result, and two distinct slices may still share
+a digest (the bucket scan decides). `Data.String` and `Data.Sym` hash their
+backing bytes through the same instance, so the three agree by construction.
+
+The digest before and after, driven by `bootstrap/programs/Run.HashDigest.cinch`
+(native programs built by the seed; the program's own monotonic clock, child
+CPU, median of three interleaved runs):
+
+| measurement | `nat-mul` 31-fold | FNV-1a 64 |
+| --- | --- | --- |
+| digest of one 8 to 40 byte name (mean 24) | 1,700 ns | 436 ns |
+| digest of 0 / 8 / 24 / 40 bytes | 60 / 316 / 1,445 / 2,951 ns | 60 / 172 / 437 / 679 ns |
+| blocks per digest (an isolated 10,000-name run) | 73 | 1 |
+| probe in a 10,000-key `HashMap` (digest plus spine) | 1,956 ns | 804 ns |
+| insert into the same map (digest plus spine) | 2,792 ns | 1,864 ns |
+| lookup by scanning a list of 64 names | 602 ns | 632 ns |
+| lookup by scanning a list of 256 names | 2,069 ns | 4,058 ns |
+| lookup by scanning a list of 1,024 names | 8,501 ns | 9,658 ns |
+| the whole benchmark's blocks and bytes | 5.09M, 155 MB | 0.61M, 17 MB |
+
+The fixed 60 ns both arms share is the reduction: one boxed `Nat` per digest,
+which is the floor the class's type imposes. What changed is the slope, 82 to
+19 ns per byte.
+
+Two consequences. First, the crossover moved: a probe used to lose to a scan
+until a set held roughly a thousand keys, and now a 256-name set is a 5x win
+for the probe while a 64-name set still ties (632 against 804 ns), because
+the digest alone is 436 of the probe's 804 ns. Second, the allocation traffic
+went with the time: 73 blocks per digest to 1, so hashing no longer competes
+with the checker's own cells.
+
+**The indexes re-tried, and what each measured.** `Bootstrap.Load`'s
+`InterfaceIndex` now carries two `HashMap`s: module name to interface (59
+entries), and global name to exporting module (every exported identity and
+every private method identity of the set, thousands of names in the
+compiler's own set). The second replaces the walk the law closure made per
+law reference, which rescanned every interface's exported globals; the
+invariant that makes one owner per name sound is that `interface-global`
+prefixes an identity with its exporting module, and the fold inserts the
+head interface last so the first in the set's order wins, as the scan did.
+
+Measured with stage compilers built against a library object emitted from
+this tree's prelude (see the pin note below), child CPU, three interleaved
+runs each:
+
+| arm | toolkit check | the 40-module self-check |
+| --- | --- | --- |
+| old digest, scans | 11.08 s | 99.3 s |
+| new digest, scans | 9.82 s (-11.3%) | 97.1 s (-2.2%) |
+| new digest, both index tables | 9.76 s (-0.6%) | 96.3 s (-0.8%) |
+
+So the digest is worth about 11% of a toolkit check and a couple of percent
+of the self-check (whose time is mostly elaboration, not name traffic), and
+the index tables are inside the noise on both. The self-check runs scatter
+over 90 to 125 s, so its deltas are weaker than the toolkit's; the toolkit
+figure is the reliable one. The index stays because its cost is now bounded
+and its algorithmic effect is not a micro-optimisation: the law closure went
+from `references x interfaces x globals` string compares to one digest per
+global per set, and the table build is that same digest count. What stays a
+list scan is the closure membership test (`name-in` over `reachable` and over
+the ordering pass's `done`): those sets hold tens of short names, exactly the
+size at which 632 ns of scan beats an 804 ns probe, and 2.9's next attempt
+should be a smaller digest, not a bigger table.
+
+**Pin note.** The library object the stage chain links is pinned
+(`bootstrap/library-provider.lock.json`, revision `12a9bd37`), and the pin
+carries the prelude's *compiled* code. A prelude change therefore reaches
+the stage compilers only after the pin moves to a revision that contains it.
+The three arms above were built by emitting a library object from this
+tree's prelude with the release seed (`cinch emit-object`) and running
+`build_self` against it, so the numbers are the compiler's own, with the
+digest it will have after the bump; the checked-in chain still hashes with
+the old instance until then. The `Run.HashDigest` numbers are unaffected by
+the pin: that program is compiled by the seed, which reads the prelude from
+source.
+
+**Oracles.** The change is contract-preserving: every `.cinchif` of the
+prelude is byte-identical across the two preludes except `Data.Bytes`'s own
+`source_hash` field. Emitted IR agrees on three programs (fib, classes,
+Run.Maps) once two renumberings are normalised (metadata ids, and the
+representation-class index that `cinch_alloc_shaped` takes, both of which
+shift when new units enter the module): the only added units are
+`Data.Bytes.fnv-offset` and three `cinch.prim` wrappers, and the only
+differing bodies are `Data.Bytes.hash-bytes-from`, `Data.Bytes.Hash_Bytes.hash`
+and the two instances that delegate to it. Behaviour agrees on the same
+programs (same exit codes, same check lines). Hash order is not observable
+by contract (`hash-map-to-list` documents its order as unstable), so no
+program may depend on the reordering a new digest produces.
+
 ## 3. The query graph (rustc, Salsa, Shake)
 
 The single largest structural gap. Today a build rechecks whatever the

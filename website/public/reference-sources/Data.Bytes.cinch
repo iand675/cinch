@@ -125,20 +125,50 @@ module Data.Bytes where
     (==) x y = bytes-equal-from x y 0
     (/=) x y = not (bytes-equal-from x y 0)
 
-  -- The whole slice folded with the 31-mix (`h * 31 + byte`): every
-  -- byte contributes, so two slices that differ only past a shared
-  -- prefix get different digests, and the fold runs over `Nat`
-  -- (bignum), so it cannot overflow. The digest reads content only,
-  -- so equal slices hash alike (the `Hash` law) and two distinct
-  -- slices may still share one (the bucket scan's job).
-  hash-bytes-from :: Bytes -> Nat -> Nat -> Nat
+  -- The digest fold is FNV-1a in a 64-bit word: the accumulator starts at
+  -- the offset basis, every byte is mixed in as `(h xor byte) * prime`
+  -- under WRAPPING multiplication, and the word is reduced to `Nat` once,
+  -- after the fold.
+  --
+  -- INVARIANT: the accumulator is a `U64` at every step, so a product is
+  -- taken modulo 2^64 and no value is ever out of the word's range. The
+  -- only boxed `Nat` a digest allocates is the one the reduction returns.
+  --
+  -- Why the word, not `Nat`. The earlier fold was `h * 31 + byte` over
+  -- `Nat`: two bignum operations and about 73 allocations per
+  -- compiler-length name, 1,700 ns for the digest of an 8 to 40 byte
+  -- identifier. A hash index only pays when a digest costs less than the
+  -- scan it replaces, and at that price none did (design/compilation-speed.md
+  -- 2.9 measures the old instance against the short scans it lost to).
+  --
+  -- The digest is a bucket key, so the class law is the only obligation
+  -- (Data.Hash): equal slices hash alike because the fold reads content
+  -- only, the result is a pure function of the bytes (no address, no time,
+  -- so it is reproducible across runs), and distinct slices may still
+  -- share a digest (the bucket scan's job).
+  hash-bytes-from :: Bytes -> Nat -> U64 -> Nat
   hash-bytes-from b i h =
-    if i >= bytes-len b then h
-    else hash-bytes-from b (i + 1) (nat-add (nat-mul h 31) (bytes-get b i))
+    if i >= bytes-len b then u64-to-nat h
+    else
+      let c = wrapping-i64-to-u64 (nat-to-i64 (bytes-get b i)) in
+      hash-bytes-from b (i + 1) (wrapping-mul-u64 (bit-xor-u64 h c) 1099511628211)
+
+  -- The offset basis of FNV-1a (64-bit): 14695981039346656037.
+  fnv-offset :: U64
+  fnv-offset = 14695981039346656037
+
+  -- A 64-bit word as the `Nat` of the same value with its top bit
+  -- cleared. INVARIANT: the result is in `0 .. 2^63 - 1`, which is what
+  -- `nat-from-i64` requires; `mask-i64` carries that refinement, and the
+  -- mask is a constant, so the cost is the single boxed `Nat` every
+  -- digest returns. Clearing one bit of a 64-bit digest changes nothing
+  -- about the law.
+  u64-to-nat :: U64 -> Nat
+  u64-to-nat w = nat-from-i64 (mask-i64 (wrapping-u64-to-i64 w) 9223372036854775807)
 
   -- The buffer's digest (instances live with their type). `Data.String`
   -- hashes its UTF-8 backing through THIS instance, so a string and the
   -- bytes it converts to agree by construction rather than by two
   -- copies of one algorithm.
   implicit instance Hash_Bytes :: Hash Bytes where
-    hash b = hash-bytes-from b 0 0
+    hash b = hash-bytes-from b 0 fnv-offset
