@@ -82,12 +82,19 @@ module Bootstrap.RuntimeIr where
     BindingIndex :: List CheckedBinding -> List ForeignPlan -> HashMap String (Option ForeignPlan) -> BindingIndex
   data ProgramInfo where
     ProgramInfo :: List CoreData -> List CoreClass -> List CoreInstance -> BindingIndex -> List MethodVersion -> Option RuntimeObject -> Option (List String) -> List CoreEffect -> HashMap String (Nat, Nat) -> ProgramInfo
-  -- The units a sweep may copy at their call sites, and whether copying is
-  -- on at all. The names are fixed before emission, so the decision at a
-  -- site depends on nothing but the unit's name.
+  -- The units a sweep may copy at their call sites, whether copying is on
+  -- at all, and the unfolding stack. The names are fixed before emission, so
+  -- the decision at a site depends on nothing but the unit's name; the stack
+  -- is what makes the recursion terminate, because a unit already being
+  -- unfolded is never unfolded again.
   data InlinePlan where
-    InlinePlan :: Bool -> List String -> InlinePlan
+    InlinePlan :: Bool -> List String -> List String -> InlinePlan
     NoInline :: InlinePlan
+  -- What the unfoldable class recorded about one body: whether it calls a
+  -- unit at the head of an application (a link the recursive rule may
+  -- expand) and how many decisions it carries (at most one).
+  data UnfoldShape where
+    MkUnfoldShape :: Bool -> Nat -> UnfoldShape
   data RuntimeContext where
     RuntimeContext :: ProgramInfo -> List (Nat, Nat) -> List (Nat, Nat) -> List Demand -> List Demand -> InlinePlan -> RuntimeContext
   data Writer where
@@ -2872,7 +2879,7 @@ module Bootstrap.RuntimeIr where
       Some (patterns, body) -> if term-nodes body <= 40 then inline-candidates rest (Cons (core-name d, body) entries) else inline-candidates rest entries
       None -> inline-candidates rest entries
   inline-admitted-names :: List CoreDefinition -> List String
-  inline-admitted-names definitions = inline-spend definitions (inline-candidates definitions Nil) (inline-limit definitions) Nil
+  inline-admitted-names definitions = inline-class-names definitions (inline-spend definitions (inline-candidates definitions Nil) (inline-limit definitions) Nil)
   -- Admit entries while the budget lasts, then drop every entry whose body
   -- names an admitted entry, until nothing changes. The result names units
   -- no admitted unit reaches, so a copy can only reference units that are
@@ -2908,8 +2915,85 @@ module Bootstrap.RuntimeIr where
   inline-unit-references names definitions name = case definitions of
     Nil -> False
     Cons d rest -> if same name (core-name d) then clauses-refer names (core-clauses d) else inline-unit-references names rest name
+  -- The unfoldable class: a body whose every node is work the code
+  -- generator performs at the site of the node. A unit in the class is
+  -- copied to every call site, whatever the site count, because a copy
+  -- replaces a call and its frame with the instruction itself. The class
+  -- excludes every node whose copy creates a scope or an allocation site:
+  -- a lambda, a recursive group, a scope, a handler, a join, a `let` (whose
+  -- binder is a slot of the defining unit), a construction, and a decision
+  -- whose scrutinee is unknown here. A decision over a known constructor is
+  -- admitted because it folds, which is the shallow case rule.
+  --
+  -- Admission is the class plus a size cap: 12 nodes for a body of
+  -- projections and primitives, 40 when it calls another unit (a link the
+  -- recursive rule expands, so a chain can close), and 24 with a decision.
+  -- A directly recursive body is refused; an indirect cycle is broken at
+  -- emission by the plan's unfolding stack.
+  unfold-shape :: CoreTerm -> Option UnfoldShape
+  unfold-shape term = case term of
+    CInt sp ty text -> Some (MkUnfoldShape False 0)
+    CString sp ty text -> Some (MkUnfoldShape False 0)
+    CChar sp ty text -> Some (MkUnfoldShape False 0)
+    CUnit sp ty -> Some (MkUnfoldShape False 0)
+    -- A constructor use is a block build: one allocation per copy.
+    CUse sp ty name role actuals -> if same role "constructor" then None else Some (MkUnfoldShape False 0)
+    CQualifiedUse sp ty name role actuals evidence -> if same role "constructor" then None else Some (MkUnfoldShape False 0)
+    CLocal sp ty key name actuals -> Some (MkUnfoldShape False 0)
+    CProofRef sp ty index name -> Some (MkUnfoldShape False 0)
+    CProofRefl sp ty -> Some (MkUnfoldShape False 0)
+    CProofSearch sp ty decide warrant -> Some (MkUnfoldShape False 0)
+    CApply sp ty f x -> case unfold-merge (unfold-shape f) (unfold-shape x) of
+      Some (MkUnfoldShape chain cases) -> Some (MkUnfoldShape (chain || is-unit-spine f) cases)
+      None -> None
+    CErasedApply sp ty row f witness -> unfold-merge (unfold-shape f) (unfold-shape witness)
+    CDecision sp ty predicate condition -> unfold-shape condition
+    CPrimitive sp ty name arg -> unfold-shape arg
+    CProved sp ty warrant body -> unfold-shape body
+    CRefine sp ty warrant body -> unfold-shape body
+    CRefineProof sp ty warrant body -> unfold-merge (unfold-shape warrant) (unfold-shape body)
+    CDischarge sp ty warrants body -> unfold-shape body
+    CForget sp ty body -> unfold-shape body
+    CIf sp ty test yes no -> unfold-merge (unfold-merge (unfold-shape test) (unfold-shape yes)) (unfold-shape no)
+    CArgument sp first rest -> unfold-merge (unfold-shape first) (unfold-shape rest)
+    CArgumentsEnd sp -> Some (MkUnfoldShape False 0)
+    other -> None
+  unfold-merge :: Option UnfoldShape -> Option UnfoldShape -> Option UnfoldShape
+  unfold-merge a b = case (a, b) of
+    (Some (MkUnfoldShape chain-a cases-a), Some (MkUnfoldShape chain-b cases-b)) -> Some (MkUnfoldShape (chain-a || chain-b) (cases-a + cases-b))
+    (other, more) -> None
+  -- An application spine whose head names a unit: the link a copy may
+  -- expand. It only widens the cap, so a false positive costs nothing.
+  is-unit-spine :: CoreTerm -> Bool
+  is-unit-spine term = case term of
+    CUse sp ty name role actuals -> True
+    CQualifiedUse sp ty name role actuals evidence -> True
+    CApply sp ty f x -> is-unit-spine f
+    CApplyEff sp ty row f x -> is-unit-spine f
+    CErasedApply sp ty row f witness -> is-unit-spine f
+    other -> False
+  -- Twelve nodes is the whole class cap on this side. The measurement is
+  -- what set it: admitting a body with a unit call up to forty nodes copied
+  -- a twenty-node body with calls in both branches four hundred times, and
+  -- the self-hosted IR grew by 3.6 % with two thousand more allocation
+  -- sites. A wrapper that delegates to another unit is two to seven nodes,
+  -- so the wider cap bought nothing the target class needs.
+  inline-class-candidate :: CoreDefinition -> Option UnfoldShape
+  inline-class-candidate d = case inline-body-shape d of
+    Some (patterns, body) ->
+      if term-refers (Cons (core-name d) Nil) body then None else
+        (case unfold-shape body of
+          Some shape -> if term-nodes body <= 12 then Some shape else None
+          None -> None)
+    None -> None
+  inline-class-names :: List CoreDefinition -> List String -> List String
+  inline-class-names definitions known = case definitions of
+    Nil -> known
+    Cons d rest -> case inline-class-candidate d of
+      Some shape -> inline-class-names rest (Cons (core-name d) known)
+      None -> inline-class-names rest known
   inline-plan :: Bool -> List CoreDefinition -> ProgramInfo -> InlinePlan
-  inline-plan enabled definitions info = if enabled then InlinePlan True (inline-admitted-names definitions) else NoInline
+  inline-plan enabled definitions info = if enabled then InlinePlan True (inline-admitted-names definitions) Nil else NoInline
   with-inline :: InlinePlan -> Writer -> Writer
   with-inline plan w = case w of Writer next globals code errors layouts context -> Writer next globals code errors layouts (context-inline plan context)
   context-inline :: InlinePlan -> RuntimeContext -> RuntimeContext
@@ -2917,16 +3001,46 @@ module Bootstrap.RuntimeIr where
   inline-admitted :: RuntimeContext -> String -> Bool
   inline-admitted context name = case context of
     RuntimeContext info bounds rigids pending done plan -> case plan of
-      InlinePlan enabled names -> enabled && name-listed name names
+      InlinePlan enabled names stack -> enabled && name-listed name names && not (name-listed name stack)
       NoInline -> False
+  -- The unfolding stack and its one bound: a unit already on the stack is
+  -- refused, so a cycle of admitted units cannot recurse without end, and
+  -- the depth cap bounds a long acyclic chain.
+  inline-stack :: RuntimeContext -> List String
+  inline-stack context = case context of
+    RuntimeContext info bounds rigids pending done plan -> case plan of
+      InlinePlan enabled names stack -> stack
+      NoInline -> Nil
+  inline-depth :: RuntimeContext -> Nat
+  inline-depth context = list-length (inline-stack context)
+  context-push-inline :: String -> RuntimeContext -> RuntimeContext
+  context-push-inline name context = case context of
+    RuntimeContext info bounds rigids pending done plan -> case plan of
+      InlinePlan enabled names stack -> RuntimeContext info bounds rigids pending done (InlinePlan enabled names (Cons name stack))
+      NoInline -> context
+  push-inline :: String -> Writer -> Writer
+  push-inline name w = case w of Writer next globals code errors layouts context -> Writer next globals code errors layouts (context-push-inline name context)
+  -- The push is only in scope while the copy is being emitted. Popping the
+  -- head restores the plan the site was reached with, because every nested
+  -- push inside the copy has already popped itself.
+  context-pop-inline :: RuntimeContext -> RuntimeContext
+  context-pop-inline context = case context of
+    RuntimeContext info bounds rigids pending done plan -> case plan of
+      InlinePlan enabled names (Cons first stack) -> RuntimeContext info bounds rigids pending done (InlinePlan enabled names stack)
+      other -> context
+  pop-inline :: Writer -> Writer
+  pop-inline w = case w of Writer next globals code errors layouts context -> Writer next globals code errors layouts (context-pop-inline context)
   inline-call :: List CoreDefinition -> List Local -> Writer -> Span -> CoreDefinition -> List Nat -> List String -> List CoreTerm -> Option (Writer, String)
   inline-call definitions locals w sp d classes givens args =
     if not (inline-admitted (writer-context w) (core-name d)) then None
+    else if inline-depth (writer-context w) >= 6 then None
     else if (case givens of Nil -> True; other -> False) then
       (case inline-body-shape d of
         Some (patterns, body) -> if list-length args == list-length patterns then
           (case definition-context d classes w of
-            Some (RuntimeContext info bounds rigids pending done inlining) -> Some (inline-copy definitions locals (with-representations bounds rigids w) args patterns body)
+            Some (RuntimeContext info bounds rigids pending done inlining) ->
+              (case inline-copy definitions locals (push-inline (core-name d) (with-representations bounds rigids w)) args patterns body of
+                (done, result) -> Some (pop-inline done, result))
             None -> None)
           else None
         None -> None)

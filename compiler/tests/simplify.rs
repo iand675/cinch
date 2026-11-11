@@ -469,3 +469,131 @@ fn dead_let_follows_the_reduction_that_orphaned_it() {
     assert!(matches!(p.fns[1].body, Core::Var(LocalId(0))));
     let _ = TargetProfile::native();
 }
+
+// ------------------------------------------------- the unfoldable class
+//
+// A declaration exposes its body when the body is cheap by construction: a
+// primop application, a projection, a literal, a shallow decision over a
+// known constructor, or a call to another such declaration. These tests pin
+// the class, the recursive rule, and the two site conditions
+// (design/inline-unfolding-policy.md).
+
+fn call(name: &str, args: Vec<Core>) -> Core {
+    Core::App(Box::new(Core::Global(gid(name), vec![])), args)
+}
+
+fn prim(op: cinch::core::PrimOp, args: Vec<Core>) -> Core {
+    Core::App(Box::new(Core::Prim(op)), args)
+}
+
+/// `Eq_I64.== a b = prim-eq a b`: a dictionary method that is one primop.
+/// Both sites take the copy, so no `Global` naming it survives.
+#[test]
+fn a_primop_method_is_copied_to_every_site() {
+    use cinch::core::PrimOp;
+    let method = unit(
+        "Data.Machine.Eq_I64.==",
+        vec![Class::Raw, Class::Raw],
+        prim(PrimOp::EqBool, vec![Core::Var(LocalId(0)), Core::Var(LocalId(1))]),
+    );
+    let body = prim(
+        PrimOp::AndBool,
+        vec![
+            call("Data.Machine.Eq_I64.==", vec![Core::Var(LocalId(0)), Core::Var(LocalId(1))]),
+            call("Data.Machine.Eq_I64.==", vec![Core::Var(LocalId(1)), Core::Var(LocalId(0))]),
+        ],
+    );
+    let mut p = program(vec![method, unit("Main.f", vec![Class::Raw, Class::Raw], body)]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &SimplifyOptions::default(), &mut report);
+    assert_eq!(report.inlined, 2, "both sites take the primop body");
+    let text = format!("{:?}", p.fns[1].body);
+    assert!(!text.contains("Data.Machine.Eq_I64.=="), "a call survived: {text}");
+}
+
+/// `A.== a b = B.== a b` and `B.== a b = prim a b`: the copy of `A` carries
+/// a call to `B`, and the recursive rule closes the chain in the same
+/// sweep.
+#[test]
+fn a_delegating_method_closes_its_chain() {
+    use cinch::core::PrimOp;
+    let outer = unit(
+        "Data.Machine.Eq_I64.=2=",
+        vec![Class::Raw, Class::Raw],
+        call("Data.Machine.Eq_I64.==", vec![Core::Var(LocalId(0)), Core::Var(LocalId(1))]),
+    );
+    let inner = unit(
+        "Data.Machine.Eq_I64.==",
+        vec![Class::Raw, Class::Raw],
+        prim(PrimOp::EqBool, vec![Core::Var(LocalId(0)), Core::Var(LocalId(1))]),
+    );
+    let body = prim(
+        PrimOp::OrBool,
+        vec![
+            call("Data.Machine.Eq_I64.=2=", vec![Core::Var(LocalId(0)), Core::Var(LocalId(1))]),
+            call("Data.Machine.Eq_I64.=2=", vec![Core::Var(LocalId(1)), Core::Var(LocalId(0))]),
+        ],
+    );
+    let mut p = program(vec![outer, inner, unit("Main.f", vec![Class::Raw, Class::Raw], body)]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &SimplifyOptions::default(), &mut report);
+    // Two sites, two links each, plus the sweep over `outer`'s own body.
+    assert_eq!(report.inlined, 5, "two sites, two links each");
+    let text = format!("{:?}", p.fns[2].body);
+    assert!(!text.contains("Eq_I64.=2="), "the outer call survived: {text}");
+    assert!(!text.contains("Eq_I64.=="), "the inner call survived: {text}");
+}
+
+/// A unit in a recursive group is refused, so nothing unfolds a body that
+/// can reach itself.
+#[test]
+fn a_recursive_method_is_refused() {
+    use cinch::core::PrimOp;
+    let mut again = unit("Main.again", vec![Class::Raw], Core::Unit);
+    again.body = call("Main.again", vec![prim(PrimOp::NotBool, vec![Core::Var(LocalId(0))])]);
+    let body = call("Main.again", vec![Core::Bool(true)]);
+    let mut p = program(vec![again, unit("Main.f", vec![Class::Raw], body)]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &SimplifyOptions::default(), &mut report);
+    assert_eq!(report.inlined, 0);
+}
+
+/// A decision-bearing body over `inline_unfold_small` nodes is copied only
+/// where the scrutinee argument is a constructor application, which the
+/// known-constructor rule then folds.
+#[test]
+fn a_decision_is_copied_only_where_it_folds() {
+    use cinch::core::PrimOp;
+    // case p of Path s -> not s; Path s -> not s; Path s -> not s
+    let alternative = |field: usize| {
+        CAlt::new(
+            con(0, &[field]),
+            prim(PrimOp::AndBool, vec![Core::Var(LocalId(field)), Core::Var(LocalId(field))]),
+        )
+    };
+    let method = unit(
+        "Data.Path.unpath",
+        vec![Class::Obj],
+        Core::Case {
+            scrut: Box::new(Core::Var(LocalId(0))),
+            alts: vec![alternative(1), alternative(2), alternative(3)],
+        },
+    );
+    let known = Core::App(Box::new(Core::Ctor(gid("Path"), vec![])), vec![Core::Var(LocalId(0))]);
+    let body = prim(
+        PrimOp::AndBool,
+        vec![
+            call("Data.Path.unpath", vec![known]),
+            call("Data.Path.unpath", vec![Core::Var(LocalId(0))]),
+            call("Data.Path.unpath", vec![Core::Var(LocalId(0))]),
+        ],
+    );
+    let mut p = program(vec![
+        ctor_unit("Path", 0, 1),
+        method,
+        unit("Main.f", vec![Class::Obj], body),
+    ]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &SimplifyOptions::default(), &mut report);
+    assert_eq!(report.inlined, 1, "only the known-constructor site takes the decision");
+}

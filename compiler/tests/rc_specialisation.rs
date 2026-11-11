@@ -99,11 +99,19 @@ fn borrowed_parameters_release_and_static_dictionaries_place_fewer_operations() 
         "the dictionary is still projected at a use:\n{ir}"
     );
     let count = body(&ir, "Main.count");
+    // The method's body is a literal, so the unfolding inliner copies it to
+    // the site: `size h` is the constant, and the method unit is not named
+    // at any use. Before the unfoldable class this was a direct call (the
+    // best `direct-dict-call` alone could do); the copy is the last step.
     assert!(
-        count.contains("call i64 @\"Main.SizeInt.size\"("),
-        "the method call is not direct:\n{count}"
+        !count.contains("@\"Main.SizeInt.size\"("),
+        "the method call survived the inliner:\n{count}"
     );
     assert!(!count.contains("@__apply("), "count still applies a closure:\n{count}");
+    assert!(
+        count.contains("call i64 @\"cinch.runtime.intAdd\""),
+        "the sum is not the runtime addition:\n{count}"
+    );
     // `lastOr` only reads its list: the parameter and its fields are
     // borrowed, so nothing dups or drops a cell.
     let last = body(&ir, "Main.lastOr");

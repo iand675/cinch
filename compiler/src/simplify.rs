@@ -155,6 +155,22 @@ pub struct SimplifyOptions {
     /// reaches it: a body with no call and no allocation, where a copy costs
     /// nothing at run time (see the module documentation).
     pub inline_small: usize,
+    /// The node cap of an unfoldable body that applies another unfoldable
+    /// unit, whose copy carries a call the recursive rule then expands.
+    pub inline_unfold: usize,
+    /// The node cap of an unfoldable body with a decision in it. A body at
+    /// or below `inline_unfold_small` is copied to every site (a compare and
+    /// a branch cost no more than the call); a larger one only where the
+    /// scrutinized argument is a known constructor, so the copy folds rather
+    /// than duplicating the branch.
+    pub inline_unfold_case: usize,
+    /// The node count up to which a decision-bearing body needs no fold
+    /// test at its site.
+    pub inline_unfold_small: usize,
+    /// The most links one unfolding may close. A call to a unit already on
+    /// the inline stack is refused regardless, so this bounds the cost of a
+    /// long chain, not its termination.
+    pub inline_depth: usize,
 }
 
 impl Default for SimplifyOptions {
@@ -172,6 +188,10 @@ impl Default for SimplifyOptions {
             inline: true,
             inline_threshold: 40,
             inline_small: 12,
+            inline_unfold: 40,
+            inline_unfold_case: 24,
+            inline_unfold_small: 8,
+            inline_depth: 6,
         }
     }
 }
@@ -1255,14 +1275,18 @@ pub fn simplify(program: &mut Program, opts: &SimplifyOptions, report: &mut Simp
                     CURRENT.with(|c| c.borrow_mut().clone_from(&f.id.0));
                     let mut body = std::mem::replace(&mut f.body, Core::Unit);
                     let mut here = InlineFacts::default();
+                    let mut stack: Vec<String> = Vec::new();
                     inline_unit(
                         &mut body,
                         &table,
-                        &tables.arity,
+                        &tables,
                         &mut fresh,
                         &mut budget,
                         &mut here,
                         &mut ticks,
+                        &mut stack,
+                        0,
+                        opts,
                     );
                     f.body = body;
                     if here.sites > 0 {
@@ -1384,6 +1408,17 @@ struct InlineBody {
     /// The callee's parameter classes (`UnitRepr::params`), so a bound
     /// argument's `let` carries the class the count pass needs.
     params: Vec<Class>,
+    /// The parameters a copy's `Case` scrutinizes, and whether each must be
+    /// a known constructor at the site so the decision folds instead of
+    /// being duplicated.
+    cases: Vec<usize>,
+    fold: bool,
+    /// Whether the copy charges the growth budget. A pure class body (no
+    /// decision and no link to another unit) replaces a call and its frame
+    /// with the instruction itself, so it shrinks the module and spends
+    /// nothing; a decision or a chain link can grow, and is bounded by the
+    /// budget like every other copy.
+    charge: bool,
 }
 
 impl InlineTable {
@@ -1412,6 +1447,7 @@ fn inline_table(program: &Program, tables: &Tables, opts: &SimplifyOptions) -> I
         edges.insert(f.id.0.clone(), out);
     }
     let recursive = recursive_units(&edges);
+    let unfold = unfoldable_units(program, tables, &recursive);
     let trace = opts_trace();
     let mut table = InlineTable::default();
     for f in &program.fns {
@@ -1421,7 +1457,7 @@ fn inline_table(program: &Program, tables: &Tables, opts: &SimplifyOptions) -> I
         let name = &f.id.0;
         let sites = calls.get(name).copied().unwrap_or(0);
         let n = nodes(&f.body);
-        let admit = candidate(f, program, &values, &recursive, sites, n, opts);
+        let admit = candidate(f, program, &values, &recursive, &unfold, sites, n, opts);
         if trace {
             // Every candidate the sweep considered, with the numbers the
             // rules decide on: the body's size, its sites, and the locals
@@ -1437,8 +1473,17 @@ fn inline_table(program: &Program, tables: &Tables, opts: &SimplifyOptions) -> I
                 }
             );
         }
-        if let Ok(params) = admit {
-            table.insert(name.clone(), InlineBody { body: f.body.clone(), params });
+        if let Ok(admitted) = admit {
+            table.insert(
+                name.clone(),
+                InlineBody {
+                    body: f.body.clone(),
+                    params: admitted.params,
+                    cases: admitted.cases,
+                    fold: admitted.fold,
+                    charge: admitted.charge,
+                },
+            );
         }
     }
     table
@@ -1487,27 +1532,39 @@ impl Refused {
     }
 }
 
-/// One unit's admission: its parameter classes when a rule takes it, or the
-/// check that refused it. `sites` is its saturated direct call count and
-/// `n` its body's node count.
+/// One unit's admission: what the copy needs when a rule takes it, or the
+/// check that refused it. `sites` is its saturated direct call count, `n`
+/// its body's node count, and `unfold` the class the body was classified
+/// into.
+struct Admitted {
+    /// The callee's parameter classes.
+    params: Vec<Class>,
+    /// The parameters a copy's `Case` scrutinizes.
+    cases: Vec<usize>,
+    /// Whether every one of those arguments must be a constructor at the
+    /// site, so the copy folds. False for a body small enough that a
+    /// duplicated decision costs no more than the call.
+    fold: bool,
+    /// Whether the copy charges the growth budget.
+    charge: bool,
+}
+
 fn candidate(
     f: &FnDef,
     program: &Program,
     values: &HashSet<String>,
     recursive: &HashSet<String>,
+    unfold: &HashMap<String, Shape>,
     sites: usize,
     n: usize,
     opts: &SimplifyOptions,
-) -> Result<Vec<Class>, Refused> {
+) -> Result<Admitted, Refused> {
     let name = &f.id.0;
     // The entry unit is called from the generated exit glue, which is not
     // Core: inlining it anywhere is pointless, and keeping it out keeps the
     // entry visible.
     if program.main.as_ref().is_some_and(|m| &m.0 == name) {
         return Err(Refused::Entry);
-    }
-    if values.contains(name) {
-        return Err(Refused::Value);
     }
     if recursive.contains(name) {
         return Err(Refused::Recursive);
@@ -1526,34 +1583,75 @@ fn candidate(
     if sites == 0 {
         return Err(Refused::Sites);
     }
+    let params = || {
+        (0..f.arity())
+            .map(|i| f.repr.params.get(i).copied().map_or(Class::Raw, concrete))
+            .collect()
+    };
+    // The single-site rule keeps its precedence and its shape: a body that
+    // binds only `case` pattern binders is a borrowed view of an argument,
+    // so the copy needs nothing the caller does not already hold. It is
+    // admitted without a site test, which is why it is tried before the
+    // class rule (that one may require a fold at the site).
+    if sites == 1
+        && !values.contains(name)
+        && n <= opts.inline_threshold
+        && (!binds_anything(&f.body) || pattern_binders_only(&f.body))
+    {
+        return Ok(Admitted { params: params(), cases: Vec::new(), fold: false, charge: true });
+    }
+    // The class rule: a body cheap by construction is copied to every site
+    // that reaches it, whatever the site count, and even when the unit is
+    // also used as a value (the definition survives, so a value use still
+    // has a code pointer). The caps bound the duplicated code: a body of
+    // pure projections and primops is small, a body that chains to another
+    // unit carries a call the recursive rule expands (so it is allowed to
+    // be larger), and a decision-bearing body is either small enough that
+    // duplicating the decision costs no more than the call, or admitted
+    // only where the decision folds.
+    if let Some(shape) = unfold.get(name) {
+        if shape.cases == 0 {
+            let cap = if shape.chain { opts.inline_unfold } else { opts.inline_small };
+            if n <= cap {
+                return Ok(Admitted {
+                    params: params(),
+                    cases: Vec::new(),
+                    fold: false,
+                    charge: shape.chain,
+                });
+            }
+        } else if n <= opts.inline_unfold_case {
+            // A decision whose scrutinee is a parameter: small copies go
+            // everywhere (a compare and a branch cost no more than the
+            // call), larger ones only where the scrutinee argument is a
+            // constructor so the copy folds.
+            let mut cases = Vec::new();
+            case_scrutinee_params(&f.body, &mut cases);
+            let fold = n > opts.inline_unfold_small;
+            return Ok(Admitted { params: params(), cases, fold, charge: true });
+        }
+    }
+    if values.contains(name) {
+        return Err(Refused::Value);
+    }
     if sites == 1 {
         if n > opts.inline_threshold {
             return Err(Refused::Large);
         }
-        // A body that binds only its own `case` pattern binders is the
-        // shape the refusals are in (`case p of Path s -> s`): every binder
-        // it makes is a borrowed view of an argument, so the copy needs
-        // nothing the caller does not already hold.
-        if binds_anything(&f.body) && !pattern_binders_only(&f.body) {
-            return Err(Refused::Binds);
-        }
-    } else {
-        if n > opts.inline_small {
-            return Err(Refused::Large);
-        }
-        // The multi-site rule: a body cheap enough that a second copy costs
-        // nothing at run time (no call, no allocation), so every site takes
-        // it.
-        if !is_cheap(&f.body) {
-            return Err(Refused::Costly);
-        }
-        if binds_anything(&f.body) && !pattern_binders_only(&f.body) {
-            return Err(Refused::Binds);
-        }
+        return Err(Refused::Binds);
     }
-    Ok((0..f.arity())
-        .map(|i| f.repr.params.get(i).copied().map_or(Class::Raw, concrete))
-        .collect())
+    if n > opts.inline_small {
+        return Err(Refused::Large);
+    }
+    // The multi-site rule: a body cheap enough that a second copy costs
+    // nothing at run time (no call, no allocation), so every site takes it.
+    if !is_cheap(&f.body) {
+        return Err(Refused::Costly);
+    }
+    if binds_anything(&f.body) && !pattern_binders_only(&f.body) {
+        return Err(Refused::Binds);
+    }
+    Ok(Admitted { params: params(), cases: Vec::new(), fold: false, charge: true })
 }
 
 /// Whether every binder `e` introduces is a `case` pattern binder. A `let`
@@ -1662,7 +1760,9 @@ fn binds_anything(e: &Core) -> bool {
 }
 
 /// Whether `e` allocates or calls anything: no block, no dictionary, no
-/// closure, no runtime box, no call. What the multi-site rule requires.
+/// closure, no runtime box, no call. What the old multi-site rule required,
+/// and still the shape a body must have to be copied with no size test at
+/// all.
 fn is_cheap(e: &Core) -> bool {
     match e {
         // An application's head is not a child slot, so every `App` is a
@@ -1683,6 +1783,222 @@ fn is_cheap(e: &Core) -> bool {
     }
     child_slots_imm(e).into_iter().all(is_cheap)
 }
+
+// ------------------------------------------------- the unfoldable class
+//
+// "Cheap by construction" is the class of bodies whose every node is work
+// the code generator performs at the site of the node: a literal, a read of
+// a binder the copy renames, a primop's instruction sequence, a projection,
+// a value binder, a shallow decision, or a call to another unit in the same
+// class. The class is what makes a dictionary method disappear at its call
+// site, and it is transitive so a method that delegates to a method closes
+// in one unfolding.
+//
+// The class deliberately excludes everything whose copy creates a new
+// scope, a new allocation site, or an effect whose time matters: a closure
+// (`Lam`), a quotation (a retained body with its own binding scope), a join
+// (a per-unit identity), a lazy thunk, a storage effect, a dictionary
+// construction, and a constructor application in value position (one block
+// per copy instead of one per definition). A constructor application in
+// scrutinee position is admitted because the decision over it folds, which
+// is the "shallow case on a known constructor" the policy is about.
+//
+// Units in a recursive group never reach the class. That keeps the
+// transitive walk acyclic, so it can be memoized, and it keeps a
+// self-recursive worker out of the stack rule's way.
+
+/// The facts one body accumulates while it is classified: whether it calls
+/// a unit (a link the recursive rule may expand) and how many decisions it
+/// carries (at most one).
+#[derive(Clone, Copy, Default)]
+struct Shape {
+    /// A call whose head is a unit: an unfoldable link, or a constructor.
+    chain: bool,
+    /// `Case` nodes in the body.
+    cases: usize,
+}
+
+/// Whether a body is in the unfoldable class, given `admit` for its
+/// callees. `scrutinee` marks a position the decision over it folds.
+fn unfold_body(
+    e: &Core,
+    tables: &Tables,
+    admit: &dyn Fn(&str) -> bool,
+    scrutinee: bool,
+    shape: &mut Shape,
+) -> bool {
+    let value = |child: &Core, shape: &mut Shape| unfold_body(child, tables, admit, false, shape);
+    match e {
+        Core::Int(_)
+        | Core::Bool(_)
+        | Core::Unit
+        | Core::ConstBig { .. }
+        | Core::ConstBytes(_)
+        | Core::ConstString { .. }
+        | Core::ConstSym(_)
+        | Core::StrLit(_)
+        | Core::Var(_) => true,
+        // A unit, an intrinsic or a foreign symbol used as a value is a
+        // constant the module already carries, not an allocation.
+        Core::Global(..) | Core::Prim(_) | Core::Foreign(_) => true,
+        // A constructor used as a value is a closure over the allocator.
+        Core::Ctor(..) => false,
+        Core::Proj(inner, _) | Core::DictProj(inner, ..) => value(inner, shape),
+        Core::Let(_, _, bound, body) => value(bound, shape) && value(body, shape),
+        Core::App(head, args) => match &**head {
+            Core::Prim(_) | Core::Foreign(_) => args.iter().all(|a| value(a, shape)),
+            Core::Global(g, _) => {
+                // A constructor unit is an allocation, admitted only where
+                // the decision over it folds.
+                if tables.ctors.contains_key(&g.0) {
+                    return scrutinee && args.iter().all(|a| value(a, shape));
+                }
+                shape.chain = true;
+                admit(&g.0) && args.iter().all(|a| value(a, shape))
+            }
+            Core::Ctor(..) => scrutinee && args.iter().all(|a| value(a, shape)),
+            // A call through a local, a projection or a closure is not a
+            // unit call the class can follow.
+            _ => false,
+        },
+        Core::Case { scrut, alts } => {
+            shape.cases += 1;
+            if shape.cases > 1 {
+                return false;
+            }
+            if !unfold_body(scrut, tables, admit, true, shape) {
+                return false;
+            }
+            alts.iter().all(|a| value(&a.body, shape))
+        }
+        Core::If(condition, then, otherwise) => {
+            value(condition, shape) && value(&then.body, shape) && value(&otherwise.body, shape)
+        }
+        Core::Dup(_, _, body) | Core::Drop(_, _, body) => value(body, shape),
+        _ => false,
+    }
+}
+
+/// Whether `e` is a constructor application, which is the only scrutinee
+/// shape `known_constructor` folds: a copy that carries a decision is
+/// admitted at a site without a fold test only when it is small enough that
+/// the duplicated decision costs no more than the call it replaces.
+fn known_constructor_value(e: &Core, tables: &Tables) -> bool {
+    ctor_app(e, tables).is_some()
+}
+
+/// The parameters a body scrutinizes in a `Case`, in order. A copy of a
+/// decision is admitted at a site only when each of these arguments is a
+/// known constructor, so the copy folds in the same pass.
+fn case_scrutinee_params(e: &Core, out: &mut Vec<usize>) {
+    if let Core::Case { scrut, alts } = e {
+        if let Core::Var(v) = &**scrut {
+            if !out.contains(&v.0) {
+                out.push(v.0);
+            }
+        }
+        for a in alts {
+            case_scrutinee_params(&a.body, out);
+        }
+        return;
+    }
+    if let Core::App(head, args) = e {
+        case_scrutinee_params(head, out);
+        for a in args {
+            case_scrutinee_params(a, out);
+        }
+        return;
+    }
+    for child in child_slots_imm(e) {
+        case_scrutinee_params(child, out);
+    }
+}
+
+/// The unfoldable units of a program: names whose bodies are in the class,
+/// with the shape each one has. Computed once per program, before any copy,
+/// because the class reads declarations and not sites.
+fn unfoldable_units(
+    program: &Program,
+    tables: &Tables,
+    recursive: &HashSet<String>,
+) -> HashMap<String, Shape> {
+    let bodies: HashMap<&str, &Core> = program
+        .fns
+        .iter()
+        .filter(|f| f.prim.is_none() && f.ctor.is_none() && !f.meta.prim_body)
+        .map(|f| (f.id.0.as_str(), &f.body))
+        .collect();
+    let mut known: HashMap<String, Option<Shape>> = HashMap::new();
+    for f in &program.fns {
+        let name = f.id.0.clone();
+        if known.contains_key(&name) {
+            continue;
+        }
+        classify(&name, &bodies, tables, recursive, &mut known);
+    }
+    known
+        .into_iter()
+        .filter_map(|(name, shape)| shape.map(|s| (name, s)))
+        .collect()
+}
+
+/// Every unit a body applies at the head of a saturated call, in order. The
+/// class walk follows these and no other node, so this is the dependency
+/// list it needs.
+fn body_callees(e: &Core, out: &mut Vec<String>) {
+    if let Core::App(head, args) = e {
+        if let Core::Global(g, _) = &**head {
+            if !out.contains(&g.0) {
+                out.push(g.0.clone());
+            }
+        }
+        body_callees(head, out);
+        for a in args {
+            body_callees(a, out);
+        }
+        return;
+    }
+    for child in child_slots_imm(e) {
+        body_callees(child, out);
+    }
+}
+
+/// Classify one unit, memoizing the answer. The graph is acyclic because
+/// every recursive unit is excluded before this runs, but the provisional
+/// `None` a name gets while it is being classified makes the walk total if
+/// that ever stops being true: a cycle reads as not admitted instead of
+/// recursing forever.
+fn classify(
+    name: &str,
+    bodies: &HashMap<&str, &Core>,
+    tables: &Tables,
+    recursive: &HashSet<String>,
+    known: &mut HashMap<String, Option<Shape>>,
+) -> Option<Shape> {
+    if recursive.contains(name) {
+        known.insert(name.to_string(), None);
+        return None;
+    }
+    if let Some(answer) = known.get(name) {
+        return answer.clone();
+    }
+    let Some(body) = bodies.get(name) else {
+        known.insert(name.to_string(), None);
+        return None;
+    };
+    known.insert(name.to_string(), None);
+    let mut callees: Vec<String> = Vec::new();
+    body_callees(body, &mut callees);
+    for callee in &callees {
+        classify(callee, bodies, tables, recursive, known);
+    }
+    let admitted = |callee: &str| known.get(callee).is_some_and(Option::is_some);
+    let mut shape = Shape::default();
+    let answer = unfold_body(body, tables, &admitted, false, &mut shape).then_some(shape);
+    known.insert(name.to_string(), answer.clone());
+    answer
+}
+
 
 /// The units that are recursive, directly or through a cycle: the members of
 /// every strongly connected component with more than one node, and every
@@ -1763,49 +2079,76 @@ fn recursive_units(edges: &HashMap<String, Vec<String>>) -> HashSet<String> {
 
 /// Inline every call site `table` admits in one unit's body. Returns the
 /// nodes the copies added.
+///
+/// `stack` is the unfolding chain: a call to a unit already on it is
+/// refused, which is what makes the recursion terminate when every bound
+/// would otherwise be removed. `depth` is the number of links already
+/// closed in this chain, bounded by `opts.inline_depth`.
 #[allow(clippy::too_many_arguments)]
 fn inline_unit(
     e: &mut Core,
     table: &InlineTable,
-    arity: &HashMap<String, usize>,
+    tables: &Tables,
     fresh: &mut Fresh,
     budget: &mut usize,
     facts: &mut InlineFacts,
     t: &mut Ticks,
+    stack: &mut Vec<String>,
+    depth: usize,
+    opts: &SimplifyOptions,
 ) {
     // Children first, so a call nested in an argument is inlined before the
     // call whose argument it is.
     match e {
         Core::App(head, args) => {
-            inline_unit(head, table, arity, fresh, budget, facts, t);
+            inline_unit(head, table, tables, fresh, budget, facts, t, stack, depth, opts);
             for a in args {
-                inline_unit(a, table, arity, fresh, budget, facts, t);
+                inline_unit(a, table, tables, fresh, budget, facts, t, stack, depth, opts);
             }
         }
         Core::Quote { holes, .. } | Core::DeclsQuote { holes, .. } => {
             // A quotation's retained body is a code unit of its own.
             for h in holes {
-                inline_unit(h, table, arity, fresh, budget, facts, t);
+                inline_unit(h, table, tables, fresh, budget, facts, t, stack, depth, opts);
             }
             return;
         }
         _ => {
             for k in child_slots(e) {
-                inline_unit(k, table, arity, fresh, budget, facts, t);
+                inline_unit(k, table, tables, fresh, budget, facts, t, stack, depth, opts);
             }
         }
     }
     let Core::App(head, args) = e else { return };
     let Core::Global(g, _) = &**head else { return };
     let Some(callee) = table.get(&g.0) else { return };
-    if arity.get(&g.0) != Some(&args.len()) {
+    if tables.arity.get(&g.0) != Some(&args.len()) {
+        return;
+    }
+    // The stack rule: a unit already being unfolded in this chain is never
+    // unfolded again, so a cycle of admitted units cannot recurse without
+    // end. Independent of it, the depth cap bounds a long acyclic chain and
+    // the node budget bounds the program-wide growth.
+    if depth >= opts.inline_depth || stack.iter().any(|name| name == &g.0) {
+        return;
+    }
+    // A decision-bearing body is copied only where the decision folds: a
+    // copy with an unknown scrutinee would duplicate the branch instead of
+    // removing it.
+    if callee.fold
+        && !callee.cases.iter().all(|i| {
+            args.get(*i).is_some_and(|a| known_constructor_value(a, tables))
+        })
+    {
         return;
     }
     let added = nodes(&callee.body);
-    if added > *budget {
-        return;
+    if callee.charge {
+        if added > *budget {
+            return;
+        }
+        *budget -= added;
     }
-    *budget -= added;
     facts.sites += 1;
     facts.nodes += added as u32;
     if opts_trace() {
@@ -1819,6 +2162,7 @@ fn inline_unit(
     }
     facts.callees.push(g.0.clone());
     t.fire(Rule::Inline);
+    let name = g.0.clone();
     let args = args.clone();
     let mut copy = callee.body.clone();
     let mut renames: HashMap<LocalId, LocalId> = HashMap::new();
@@ -1845,7 +2189,7 @@ fn inline_unit(
         assert!(
             free.iter().all(|l| want.contains(l)),
             "inline: the copy of {} at {} reads free locals {:?} outside its parameters {:?}: {:?}",
-            g.0,
+            name,
             current_unit(),
             free,
             want,
@@ -1871,6 +2215,13 @@ fn inline_unit(
     for (t, class, value) in bound.into_iter().rev() {
         copy = Core::Let(t, class, Box::new(value), Box::new(copy));
     }
+    // The recursive half: the copy's own calls are offered the same rule
+    // with the callee on the stack. Without this a delegation stays a call
+    // (`Eq_Nat.==` would still name `natCmp` through a second wrapper), and
+    // the chain is what the depth cap and the stack bound.
+    stack.push(name);
+    inline_unit(&mut copy, table, tables, fresh, budget, facts, t, stack, depth + 1, opts);
+    stack.pop();
     *e = copy;
 }
 
