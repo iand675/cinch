@@ -33,12 +33,19 @@ const TRIVIAL: &str = "module Main where\n  main :: Int\n  main = 0\n";
 /// A module that reaches the Linux syscall layer, so the emitted IR carries
 /// the `asm` bodies the target selects. `sys-o-rdonly` names the module
 /// without performing I/O, which `main :: Int` cannot do.
+/// A module that reaches the Linux syscall layer's `openat` body, so the
+/// emitted IR carries the `asm` bodies the target selects. The program is
+/// never run: the body is what this asserts on. It goes through
+/// `sys-open-read`, because a whole-program build emits only the units an
+/// entry point reaches and the constant `sys-o-rdonly` alone folds away.
 const SYS: &str = "\
 module Main where
   import Prim.Sys.Linux
 
-  main :: Int
-  main = if sys-o-rdonly == 0 then 0 else 1
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    case sys-open-read \"\" of
+      _ -> 0
 ";
 
 /// A module that runs a transaction, so the emitted IR carries the atomic
