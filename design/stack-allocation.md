@@ -79,9 +79,9 @@ so interprocedural flow does not need a whole-program fixpoint to start.
 ## 4. Lowering
 
 - The block's frame slot is an `alloca` in the entry block, 16-byte aligned
-  and rounded to an even word count, for the reasons `compiler/src/codegen.rs`
-  already documents for dynamic allocas (the AArch64 probe-stack
-  interaction).
+  and rounded to an even word count, so every slot keeps the stack a
+  multiple of 16 bytes (the AArch64 stack-probe requirement that retired
+  the apply stub's dynamic alloca, `compiler/src/codegen.rs`).
 - The block header is written once at the slot with a new
   `RC_FRAME` count (a value no correct program can produce on the heap), so
   every `dup`, `drop`, `release` and `Scan` path can treat it as immortal:

@@ -12,7 +12,13 @@
 //!
 //! * `@"U"`: the function itself, `i64` result, one `i64` parameter per
 //!   argument,
-//! * `@"U.app"`: the apply stub `i64 (ptr %self, i64 %argc, ptr %argv)`,
+//! * `@"U.app"`: the apply dispatcher `i64 (ptr %self, i64 %argc, ptr
+//!   %argv)`, which routes a constant argument count to one of the
+//!   per-arity entries `@"U.app.0"` through `@"U.app.<arity>"` (`i64 (ptr
+//!   %self, ptr %argv)`, the `caml_applyN` shape) and any other count to
+//!   `@"U.app.many"`. Every entry merges the closure's saved words with
+//!   the incoming ones into a fixed `[arity x i64]` frame, so no stub
+//!   allocates a dynamic stack region,
 //! * `@"U.clo"`: a static zero-filled closure record
 //!   `{ i64 ptrtoint(@"U.app"), i64 arity, i64 0 }`,
 //! * `@"U.blk"` (zero-field constructors): the static ADT block, so repeated
@@ -2581,11 +2587,29 @@ fn assemble_unit(out: &mut String, u: &EmittedUnit, group: Option<String>, linka
     out.push_str(&u.code);
     out.push_str("}\n\n");
     let stub = match linkage {
-        Some(linkage) => u.stub.replacen("define ", &format!("define {linkage} "), 1),
+        Some(linkage) => with_linkage(&u.stub, linkage),
         None => u.stub.clone(),
     };
     out.push_str(&stub);
     out.push_str(&u.clo);
+}
+
+/// Prefix `linkage ` to every top-level `define` in `text`. A unit's stub
+/// is a family of functions (the dispatcher, its per-arity entries and the
+/// shared `many` body), and all of them take the unit's linkage.
+fn with_linkage(text: &str, linkage: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for line in text.split_inclusive('\n') {
+        if let Some(rest) = line.strip_prefix("define ") {
+            out.push_str("define ");
+            out.push_str(linkage);
+            out.push(' ');
+            out.push_str(rest);
+        } else {
+            out.push_str(line);
+        }
+    }
+    out
 }
 
 /// Build one unit's pieces and the scan of its body (phase one of the
@@ -2778,9 +2802,23 @@ fn clo_def(reg: &Registry, name: &str, arity: usize) -> String {
     )
 }
 
-/// Emit the apply stub `@"<name>.app"`: merge `saved` with `argv`, then
-/// saturate (call the underlying function), grow (allocate a closure with
-/// more filled arguments) or over-apply (call then `__apply` the rest).
+/// Emit the apply stub family for `@"<name>.app"`.
+///
+/// A closure's code word points at the `app` dispatcher, which routes a
+/// constant argument count to one `app.<N>` entry (the `caml_applyN`
+/// shape: one fixed-frame entry per count it can be handed) and anything
+/// else to `app.many`. Each entry merges the closure's `nf` saved words
+/// with the incoming words into a frame of exactly `arity` words, then
+/// either saturates (call the underlying function, pushing any excess
+/// words at the result) or, when fewer than `arity` words are known,
+/// grows (allocate a closure with more filled arguments).
+///
+/// The frame is a static `[arity x i64]` allocation, never a dynamic
+/// `alloca`: with `"probe-stack"="inline-asm"` LLVM's AArch64 lowering of
+/// a dynamic alloca skips its rounding to the stack alignment, leaves `sp`
+/// misaligned, and the next stack access faults once a caller inlines the
+/// stub. A fixed frame also removes the two dynamic-length `memcpy` calls
+/// the merge used to make.
 ///
 /// Ownership (design/reclamation.md section 4): the stub consumes the
 /// closure and the arguments. The arguments move on, and so do the saved
@@ -2791,79 +2829,98 @@ fn clo_def(reg: &Registry, name: &str, arity: usize) -> String {
 /// call's intermediate result is consumed by the `__apply` that receives
 /// the rest.
 fn stub_def(reg: &Registry, name: &str, arity: usize) -> String {
+    let mut out = String::new();
+    out.push_str(&stub_dispatch(reg, name, arity));
+    for supplied in 0..=arity {
+        out.push_str(&stub_entry(reg, name, arity, supplied));
+    }
+    out.push_str(&stub_many(reg, name, arity));
+    out
+}
+
+/// The `app` dispatcher: one switch on the argument count, then a call to
+/// the matching per-arity entry. `app.many` handles any count above
+/// `arity` with the same fixed frame and a dynamic excess.
+fn stub_dispatch(reg: &Registry, name: &str, arity: usize) -> String {
     let mut b = Builder::new();
     b.rc_debug = reg.rc_debug;
     b.reclaim = reg.reclaim;
-    let nf_p = b.gep("%self", 16);
-    let nf = b.reg();
-    b.line(&format!("{nf} = load i64, ptr {nf_p}"));
-    let tot = b.reg();
-    b.line(&format!("{tot} = add i64 {nf}, %argc"));
-    let ss = b.gep("%self", 24);
-    let full = b.reg();
-    b.line(&format!("{full} = icmp uge i64 {tot}, {arity}"));
-    let lcall = b.label();
-    let lpart = b.label();
-    b.line(&format!("br i1 {full}, label %{lcall}, label %{lpart}"));
-
-    // Fewer arguments than the arity: build a closure holding the merge.
-    b.start(&lpart);
-    let sz = b.reg();
-    b.line(&format!("{sz} = add i64 {tot}, 3"));
-    let szb = b.reg();
-    b.line(&format!("{szb} = mul i64 {sz}, 8"));
-    let new = b.reg();
-    b.line(&shaped_alloc_call(
-        &new,
-        &szb,
-        block::KIND_CLOSURE,
-        reg.closure_desc(name),
-    ));
-    let cw = b.load_at("%self", 0);
-    b.store_at(&new, 0, &cw);
-    b.store_at(&new, 8, &arity.to_string());
-    b.store_at(&new, 16, &tot);
-    let nd = b.gep(&new, 24);
-    let nfb = b.reg();
-    b.line(&format!("{nfb} = mul i64 {nf}, 8"));
-    b.line(&format!("call ptr @memcpy(ptr {nd}, ptr {ss}, i64 {nfb})"));
-    let nd2 = b.gep_dyn(&nd, &nfb);
-    let acb = b.reg();
-    b.line(&format!("{acb} = mul i64 %argc, 8"));
+    let many = b.label();
+    let labels: Vec<String> = (0..=arity).map(|_| b.label()).collect();
+    let cases: Vec<String> = labels
+        .iter()
+        .enumerate()
+        .map(|(n, l)| format!("i64 {n}, label %{l}"))
+        .collect();
     b.line(&format!(
-        "call ptr @memcpy(ptr {nd2}, ptr %argv, i64 {acb})"
+        "switch i64 %argc, label %{many} [ {} ]",
+        cases.join(" ")
     ));
-    stub_take_saved(&mut b, reg, name, arity, &nd, &nf);
-    let wr = b.reg();
-    b.line(&format!("{wr} = ptrtoint ptr {new} to i64"));
-    b.line(&format!("ret i64 {wr}"));
-
-    // Enough arguments: call with the first `arity` merged words.
-    b.start(&lcall);
-    // The size is rounded up to an even word count (a multiple of 16
-    // bytes) by hand: with `"probe-stack"="inline-asm"`, LLVM's AArch64
-    // lowering of a dynamic alloca skips its own rounding to the stack
-    // alignment, leaves `sp` misaligned, and the next stack access faults
-    // in optimized builds.
-    let plus = b.reg();
-    b.line(&format!("{plus} = add i64 {tot}, 1"));
-    let even = b.reg();
-    b.line(&format!("{even} = and i64 {plus}, -2"));
-    let m = b.reg();
-    b.line(&format!("{m} = alloca i64, i64 {even}, align 16"));
-    let nfb2 = b.reg();
-    b.line(&format!("{nfb2} = mul i64 {nf}, 8"));
-    b.line(&format!("call ptr @memcpy(ptr {m}, ptr {ss}, i64 {nfb2})"));
-    let m2 = b.gep_dyn(&m, &nfb2);
-    let acb2 = b.reg();
-    b.line(&format!("{acb2} = mul i64 %argc, 8"));
+    for (n, l) in labels.iter().enumerate() {
+        b.start(l);
+        let r = b.reg();
+        b.line(&format!(
+            "{r} = call i64 @{}(ptr %self, ptr %argv)",
+            quote(&format!("{name}.app.{n}"))
+        ));
+        b.line(&format!("ret i64 {r}"));
+    }
+    b.start(&many);
+    let r = b.reg();
     b.line(&format!(
-        "call ptr @memcpy(ptr {m2}, ptr %argv, i64 {acb2})"
+        "{r} = call i64 @{}(ptr %self, i64 %argc, ptr %argv)",
+        quote(&format!("{name}.app.many"))
     ));
-    stub_take_saved(&mut b, reg, name, arity, &m, &nf);
+    b.line(&format!("ret i64 {r}"));
+    b.finish(&format!(
+        "define i64 @{}(ptr %self, i64 %argc, ptr %argv)",
+        quote(&format!("{name}.app"))
+    ))
+}
+
+/// Copy the first `arity` merged words (the closure's `nf` saved words
+/// followed by `argv`) into a static frame. Each slot selects between the
+/// two sources with a constant index; `argv` is indexed through a
+/// `getelementptr i8` that is deliberately not `inbounds`, because a slot
+/// that selects a saved word still computes, but never loads, the
+/// matching `argv` slot.
+fn stub_merge_frame(b: &mut Builder, arity: usize, nf: &str, nb: &str) -> String {
+    let frame = b.alloca_words(arity.max(1));
+    for i in 0..arity {
+        let saved = b.gep("%self", 24 + i * 8);
+        let off = b.reg();
+        b.line(&format!("{off} = sub i64 {}, {nb}", i * 8));
+        let arg = b.reg();
+        b.line(&format!("{arg} = getelementptr i8, ptr %argv, i64 {off}"));
+        let has = b.reg();
+        b.line(&format!("{has} = icmp ult i64 {i}, {nf}"));
+        let src = b.reg();
+        b.line(&format!("{src} = select i1 {has}, ptr {saved}, ptr {arg}"));
+        let word = b.reg();
+        b.line(&format!("{word} = load i64, ptr {src}"));
+        let slot = b.gep(&frame, i * 8);
+        b.line(&format!("store i64 {word}, ptr {slot}"));
+    }
+    frame
+}
+
+/// The saturated call: `frame` holds the merged words and `total` is
+/// `nf + supplied`. The excess words continue at `argv + (arity - nf)`,
+/// which is inside `argv` whenever there is an excess.
+fn stub_saturate(
+    b: &mut Builder,
+    reg: &Registry,
+    name: &str,
+    arity: usize,
+    nf: &str,
+    nb: &str,
+    total: &str,
+    frame: &str,
+) {
+    stub_take_saved(b, reg, name, arity, frame, nf);
     let mut args = Vec::with_capacity(arity);
     for i in 0..arity {
-        let w = b.load_at(&m, i * 8);
+        let w = b.load_at(frame, i * 8);
         args.push(format!("i64 {w}"));
     }
     let r = b.reg();
@@ -2877,7 +2934,7 @@ fn stub_def(reg: &Registry, name: &str, arity: usize) -> String {
         ));
     }
     let ex = b.reg();
-    b.line(&format!("{ex} = sub i64 {tot}, {arity}"));
+    b.line(&format!("{ex} = sub i64 {total}, {arity}"));
     let hx = b.reg();
     b.line(&format!("{hx} = icmp ne i64 {ex}, 0"));
     let lover = b.label();
@@ -2888,16 +2945,95 @@ fn stub_def(reg: &Registry, name: &str, arity: usize) -> String {
 
     // Over-applied: push the rest of the argument vector at the result.
     b.start(&lover);
-    let xp = b.gep(&m, arity * 8);
+    let off = b.reg();
+    b.line(&format!("{off} = sub i64 {}, {nb}", arity * 8));
+    let tail = b.reg();
+    b.line(&format!("{tail} = getelementptr i8, ptr %argv, i64 {off}"));
     let res = b.reg();
     b.line(&format!(
-        "{res} = call i64 @__apply(i64 {r}, i64 {ex}, ptr {xp})"
+        "{res} = call i64 @__apply(i64 {r}, i64 {ex}, ptr {tail})"
     ));
     b.line(&format!("ret i64 {res}"));
+}
 
+/// One `app.<supplied>` entry: `%argv` holds exactly `supplied` words, so
+/// the copies and the excess count are constants except for the saved
+/// prefix. A count equal to the arity always saturates, so that entry has
+/// no grow path at all.
+fn stub_entry(reg: &Registry, name: &str, arity: usize, supplied: usize) -> String {
+    let mut b = Builder::new();
+    b.rc_debug = reg.rc_debug;
+    b.reclaim = reg.reclaim;
+    let nf = b.load_at("%self", 16);
+    let total = b.reg();
+    b.line(&format!("{total} = add i64 {nf}, {supplied}"));
+    let nb = b.reg();
+    b.line(&format!("{nb} = mul i64 {nf}, 8"));
+    if supplied < arity {
+        let full = b.reg();
+        b.line(&format!("{full} = icmp uge i64 {total}, {arity}"));
+        let lpart = b.label();
+        let lcall = b.label();
+        b.line(&format!("br i1 {full}, label %{lcall}, label %{lpart}"));
+
+        // Fewer arguments than the arity: build a closure holding the merge.
+        b.start(&lpart);
+        let words = b.reg();
+        b.line(&format!("{words} = add i64 {total}, 3"));
+        let bytes = b.reg();
+        b.line(&format!("{bytes} = mul i64 {words}, 8"));
+        let new = b.reg();
+        b.line(&shaped_alloc_call(
+            &new,
+            &bytes,
+            block::KIND_CLOSURE,
+            reg.closure_desc(name),
+        ));
+        let cw = b.load_at("%self", 0);
+        b.store_at(&new, 0, &cw);
+        b.store_at(&new, 8, &arity.to_string());
+        b.store_at(&new, 16, &total);
+        let nd = b.gep(&new, 24);
+        let saved = b.gep("%self", 24);
+        b.line(&format!("call ptr @memcpy(ptr {nd}, ptr {saved}, i64 {nb})"));
+        if supplied > 0 {
+            let nd2 = b.gep_dyn(&nd, &nb);
+            b.line(&format!(
+                "call ptr @memcpy(ptr {nd2}, ptr %argv, i64 {})",
+                supplied * 8
+            ));
+        }
+        stub_take_saved(&mut b, reg, name, arity, &nd, &nf);
+        let word = b.reg();
+        b.line(&format!("{word} = ptrtoint ptr {new} to i64"));
+        b.line(&format!("ret i64 {word}"));
+        b.start(&lcall);
+    }
+    let frame = stub_merge_frame(&mut b, arity, &nf, &nb);
+    stub_saturate(&mut b, reg, name, arity, &nf, &nb, &total, &frame);
+    b.finish(&format!(
+        "define i64 @{}(ptr %self, ptr %argv)",
+        quote(&format!("{name}.app.{supplied}"))
+    ))
+}
+
+/// `app.many`: any argument count above `arity`, and the dispatcher's
+/// default case. The frame is still fixed at `arity` words; the excess is
+/// pushed from `argv` directly.
+fn stub_many(reg: &Registry, name: &str, arity: usize) -> String {
+    let mut b = Builder::new();
+    b.rc_debug = reg.rc_debug;
+    b.reclaim = reg.reclaim;
+    let nf = b.load_at("%self", 16);
+    let total = b.reg();
+    b.line(&format!("{total} = add i64 {nf}, %argc"));
+    let nb = b.reg();
+    b.line(&format!("{nb} = mul i64 {nf}, 8"));
+    let frame = stub_merge_frame(&mut b, arity, &nf, &nb);
+    stub_saturate(&mut b, reg, name, arity, &nf, &nb, &total, &frame);
     b.finish(&format!(
         "define i64 @{}(ptr %self, i64 %argc, ptr %argv)",
-        quote(&format!("{name}.app"))
+        quote(&format!("{name}.app.many"))
     ))
 }
 
