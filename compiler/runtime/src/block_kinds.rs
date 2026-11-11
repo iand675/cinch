@@ -104,8 +104,13 @@ pub const KIND_ARRAY: u8 = 14;
 pub const KIND_TENSOR: u8 = 15;
 /// Column tree: `{ rows; columns; tuple_desc; left; right }`.
 pub const KIND_COLUMNAR: u8 = 16;
+/// A transactional variable cell: `{ lock; value; format }` (`crate::stm`
+/// in the runtime, `Effect.Stm` in the prelude). The value word is the one
+/// scanned slot a live block ever has rewritten in place; its code is the
+/// cell's own `format` word (`SCAN_RAW`, `SCAN_OBJ` or `SCAN_TOBJ`).
+pub const KIND_TVAR: u8 = 17;
 /// Last live kind; keep range validation in step with new runtime kinds.
-pub const KIND_LAST: u8 = KIND_COLUMNAR;
+pub const KIND_LAST: u8 = KIND_TVAR;
 /// A freed block (debug poisoning).
 pub const KIND_FREED: u8 = 255;
 
@@ -329,6 +334,17 @@ pub const MEMO_OWNED_WORD: u64 = 1;
 /// A quote code block's fixed words (`{ KIND_CODE; code; len; holes }`)
 /// before its hole words.
 pub const CODE_PREFIX_WORDS: u64 = 4;
+
+/// A transactional variable cell's versioned lock word: bit 0 is the
+/// lock, the bits above it the version of the last commit that wrote the
+/// value.
+pub const TVAR_LOCK_WORD: u64 = 0;
+/// The cell's value word, scanned by the code in its format word.
+pub const TVAR_VALUE_WORD: u64 = 1;
+/// The scan code of the value word, fixed when the cell is made.
+pub const TVAR_FORMAT_WORD: u64 = 2;
+/// A cell's payload size in words.
+pub const TVAR_WORDS: u64 = 3;
 
 /// The code of payload word `slot` of a block whose kind fixes its map
 /// (every kind but `kind_has_shape`'s). A memo's value word is raw

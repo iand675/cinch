@@ -104,6 +104,10 @@ pub struct TaskState {
     done: AtomicBool,
     /// The body's `Result` word, valid once `done` is set.
     result: AtomicI64,
+    /// The context the body runs in, set when the body starts: a
+    /// cancellation request resumes it, so a body suspended at a
+    /// cancellable wait observes the request ([`crate::park`]).
+    parker: std::sync::OnceLock<crate::park::Parker>,
 }
 
 impl TaskState {
@@ -112,6 +116,20 @@ impl TaskState {
             cancel: AtomicBool::new(false),
             done: AtomicBool::new(false),
             result: AtomicI64::new(0),
+            parker: std::sync::OnceLock::new(),
+        }
+    }
+
+    /// Request cancellation (section 4) and resume the body if it is
+    /// suspended. The flag is set first and is sequentially consistent
+    /// with a waiter's own check, so a body either sees the flag before
+    /// it parks or is parked when the wake arrives; a body that has not
+    /// started yet has no context to resume and sees the flag when it
+    /// first checks.
+    fn request_cancel(&self) {
+        self.cancel.store(true, Ordering::SeqCst);
+        if let Some(p) = self.parker.get() {
+            p.unpark();
         }
     }
 
@@ -173,6 +191,7 @@ impl Scope {
         std::thread::Builder::new()
             .stack_size(TASK_STACK_BYTES)
             .spawn(move || {
+                let _ = thread_state.parker.set(crate::park::current());
                 CURRENT_TASK.with(|c| c.set(Some(Arc::clone(&thread_state))));
                 // Every spawned body runs (section 4: a request is
                 // cooperative; effects before the first poll point still
@@ -239,7 +258,7 @@ impl Scope {
             if first_err.is_some() {
                 for s in &states {
                     if !s.is_done() {
-                        s.cancel.store(true, Ordering::SeqCst);
+                        s.request_cancel();
                     }
                 }
             }
@@ -268,7 +287,7 @@ impl Scope {
             let mut pending = false;
             for s in &inner.children {
                 if !s.is_done() {
-                    s.cancel.store(true, Ordering::SeqCst);
+                    s.request_cancel();
                     pending = true;
                 }
             }

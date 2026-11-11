@@ -413,6 +413,15 @@ impl Scan {
             }
             KIND_TENSOR | KIND_COLUMNAR | KIND_CODE => Scan { words, kind: k, entry: 0, ext: &[], map: 0, inline: false },
             KIND_MEMO => Scan::mapped(words, k, 0, scan_slot(SCAN_OBJ, MEMO_OWNED_WORD) & slots_below(words)),
+            KIND_TVAR => {
+                // The format word is written once, before the cell is
+                // handed out, so reading it here races with nothing.
+                let code = unsafe { p.cast::<u64>().add(TVAR_FORMAT_WORD as usize).read() };
+                if code > SCAN_TOBJ || words != TVAR_WORDS as usize {
+                    crate::abi::panic_exit(b"compiler bug: corrupt transactional variable cell");
+                }
+                Scan::mapped(words, k, 0, scan_slot(code, TVAR_VALUE_WORD))
+            }
             _ => Scan::mapped(words, k, 0, 0),
         }
     }
