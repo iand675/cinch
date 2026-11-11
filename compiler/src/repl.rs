@@ -348,8 +348,8 @@ impl Repl {
                     // The parse wrapped the block one line down and four
                     // columns in (the module header and body indent).
                     let at = (
-                        eq.span.line.saturating_sub(1),
-                        eq.span.col.saturating_sub(4),
+                        eq.span.line().saturating_sub(1),
+                        eq.span.col().saturating_sub(4),
                     );
                     return ReplOutcome::Output(render_error(&e, block, at));
                 }
@@ -357,11 +357,11 @@ impl Repl {
         }
         // Every declaration's source text, by its start line (the parse
         // wrapped the block one line down: the module header).
-        let mut starts: Vec<usize> = decls.iter().map(|d| decl_span(d).line as usize).collect();
+        let mut starts: Vec<usize> = decls.iter().map(|d| decl_span(d).line() as usize).collect();
         starts.sort_unstable();
         let mut texts: Vec<(&ast::Decl, String)> = Vec::new();
         for d in decls.iter() {
-            let start = decl_span(d).line as usize;
+            let start = decl_span(d).line() as usize;
             let end = starts
                 .iter()
                 .copied()
@@ -526,7 +526,7 @@ impl Repl {
     /// An expression block: evaluate it through the D92 evaluator.
     fn eval_expr(&mut self, block: &str) -> ReplOutcome {
         if let Err(e) = self.analysis.parse_expr(SESSION_MODULE, block) {
-            let at = e.span.map(|s| (s.line, s.col)).unwrap_or((1, 1));
+            let at = e.span.map(|s| (s.line(), s.col())).unwrap_or((1, 1));
             return ReplOutcome::Output(render_error(&e.message, block, at));
         }
         let (report, outcome) = self.analysis.update_probe(SESSION_MODULE, block);
@@ -534,7 +534,7 @@ impl Repl {
             return ReplOutcome::Output(render_error(
                 &e.message,
                 block,
-                e.span.map(|s| (s.line, s.col)).unwrap_or((1, 1)),
+                e.span.map(|s| (s.line(), s.col())).unwrap_or((1, 1)),
             ));
         }
         if let Some(diag) = report
@@ -822,7 +822,7 @@ impl Repl {
                     return ReplOutcome::Output(render_error(
                         &e.message,
                         arg,
-                        e.span.map(|s| (s.line, s.col)).unwrap_or((1, 1)),
+                        e.span.map(|s| (s.line(), s.col())).unwrap_or((1, 1)),
                     ));
                 }
                 if let Some(diag) = report
@@ -974,7 +974,7 @@ fn decl_span(d: &ast::Decl) -> Span {
         ast::Decl::Effect(e) => e.span,
         ast::Decl::Import(i) => i.span,
         ast::Decl::Attributed { inner, .. } => decl_span(inner),
-        _ => Span { line: 1, col: 1 },
+        _ => Span::new(1, 1),
     }
 }
 
@@ -987,7 +987,7 @@ fn is_incomplete(block: &str) -> bool {
             // A lexical error at the block's last line is an unfinished
             // literal; anywhere else is a real error.
             let last = block.lines().count() as u32;
-            return e.span.map(|s| s.line >= last.max(1)).unwrap_or(false);
+            return e.span.map(|s| s.line() >= last.max(1)).unwrap_or(false);
         }
     };
     let tokens = match crate::layout::layout(tokens) {

@@ -7,11 +7,106 @@
 
 use crate::{Error, Result};
 use std::fmt;
+use std::collections::HashMap;
+use std::sync::{LazyLock, Mutex};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Span {
-    pub line: u32,
-    pub col: u32,
+/// A source position: a dense index into the process-wide span table.
+///
+/// A position is two numbers, the line and the column, and every token,
+/// syntax node and error only ever needs *which* position it came from: no
+/// pass of the compiler reads a position except to render a diagnostic.
+/// Carrying the pair inside every node therefore paid eight bytes of
+/// provenance per node for data that is written once by the lexer and read
+/// by the error renderer. The table holds one entry per distinct `(line,
+/// column)` pair, so a node carries four bytes and every copy of a position
+/// shares one table entry. Structural artefacts (interface rows, body
+/// fingerprints, emitted IR) are built from nodes and their names, never
+/// from this table, so a source position cannot reach a fingerprint.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct Span(u32);
+
+/// The dense side table: `entries` is indexed by [`Span`] id, and `lines`
+/// interns `(line, column)` so equal positions are equal ids.
+///
+/// Interned columns, grouped by line: one entry per token start, so a
+/// line's vector is short and a linear scan beats a second hash. The lines
+/// are a map, not a vector, because the frontend analyses files behind
+/// synthetic line bands (`BAND_WIDTH` apart), so line numbers are sparse.
+/// Interning is what keeps [`Span`] equality meaningful: two positions
+/// compare equal exactly when their line and column do.
+#[derive(Default)]
+struct SpanTable {
+    entries: Vec<(u32, u32)>,
+    lines: HashMap<u32, Vec<(u32, u32)>>,
+}
+
+static SPANS: LazyLock<Mutex<SpanTable>> = LazyLock::new(|| Mutex::new(SpanTable::default()));
+
+fn span_table() -> &'static Mutex<SpanTable> {
+    &SPANS
+}
+
+impl Span {
+    /// The position at `line`, `col`, interned into the dense table.
+    pub fn new(line: u32, col: u32) -> Span {
+        let mut table = span_table().lock().unwrap_or_else(|e| e.into_inner());
+        // Disjoint fields: the line's column list and the dense entries are
+        // borrowed separately, so one lookup can extend both.
+        let SpanTable { entries, lines } = &mut *table;
+        let columns = lines.entry(line).or_default();
+        if let Some(&(_, id)) = columns.iter().find(|(c, _)| *c == col) {
+            return Span(id);
+        }
+        let id = entries.len() as u32;
+        assert_ne!(id, u32::MAX, "the span table cannot grow past its id space");
+        entries.push((line, col));
+        columns.push((col, id));
+        Span(id)
+    }
+
+    /// The `(line, column)` this position names.
+    ///
+    /// A table entry never changes once written, so each thread memoizes the
+    /// last one it resolved: the layout and analysis passes read the same
+    /// token's position several times in a row, and a repeated read costs
+    /// one thread-local load instead of the table lock.
+    fn position(self) -> (u32, u32) {
+        LAST.with(|last| {
+            let (id, line, col) = last.get();
+            if id == self.0 {
+                return (line, col);
+            }
+            let table = span_table().lock().unwrap_or_else(|e| e.into_inner());
+            let position = table.entries[self.0 as usize];
+            drop(table);
+            last.set((self.0, position.0, position.1));
+            position
+        })
+    }
+
+    /// The line this position names.
+    pub fn line(self) -> u32 {
+        self.position().0
+    }
+
+    /// The column this position names.
+    pub fn col(self) -> u32 {
+        self.position().1
+    }
+}
+
+thread_local! {
+    /// The last resolved span, as `(id, line, column)`; `u32::MAX` is empty.
+    static LAST: std::cell::Cell<(u32, u32, u32)> =
+        const { std::cell::Cell::new((u32::MAX, 0, 0)) };
+}
+
+impl fmt::Debug for Span {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // The table id is an implementation detail: a debug rendering names
+        // the position, exactly as the derived form did before the table.
+        write!(f, "Span {{ line: {}, col: {} }}", self.line(), self.col())
+    }
 }
 
 /// Expansion provenance for generated syntax (modules specification
@@ -48,33 +143,33 @@ pub fn record_expansion(site: ExpSite) -> Span {
     EXPANSIONS.with(|e| {
         let mut e = e.borrow_mut();
         e.push(site);
-        Span { line: e.len() as u32, col: EXP_COL }
+        Span::new(e.len() as u32, EXP_COL)
     })
 }
 
 /// Is `span` a generated span carrying expansion provenance?
 pub fn is_generated(span: Span) -> bool {
-    span.col == EXP_COL
+    span.col() == EXP_COL
 }
 
 /// The provenance recorded in a generated span.
 pub fn expansion_of(span: Span) -> Option<ExpSite> {
-    if span.col != EXP_COL {
+    if span.col() != EXP_COL {
         return None;
     }
-    EXPANSIONS.with(|e| e.borrow().get(span.line.saturating_sub(1) as usize).cloned())
+    EXPANSIONS.with(|e| e.borrow().get(span.line().saturating_sub(1) as usize).cloned())
 }
 
 impl fmt::Display for Span {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match expansion_of(*self) {
             Some(site) => {
-                write!(f, "{}:{}:{} (in expansion of {} called at {}:{})", site.origin, site.template.line, site.template.col, site.name, site.call.line, site.call.col)?;
+                write!(f, "{}:{}:{} (in expansion of {} called at {}:{})", site.origin, site.template.line(), site.template.col(), site.name, site.call.line(), site.call.col())?;
                 let mut parent = site.parent;
                 while let Some(p) = parent {
                     match expansion_of(p) {
                         Some(outer) => {
-                            write!(f, ", expanded from `{}` at {}:{}", outer.name, outer.call.line, outer.call.col)?;
+                            write!(f, ", expanded from `{}` at {}:{}", outer.name, outer.call.line(), outer.call.col())?;
                             parent = outer.parent;
                         }
                         None => break,
@@ -82,7 +177,7 @@ impl fmt::Display for Span {
                 }
                 Ok(())
             }
-            None => write!(f, "{}:{}", self.line, self.col),
+            None => write!(f, "{}:{}", self.line(), self.col()),
         }
     }
 }
@@ -417,7 +512,7 @@ impl Lexer {
     }
 
     fn span(&self) -> Span {
-        Span { line: self.line, col: self.col }
+        Span::new(self.line, self.col)
     }
 
     fn peek(&self) -> Option<char> {
@@ -514,7 +609,7 @@ impl Lexer {
             _ => self.last_word = None,
         }
         if matches!(tok, Tok::Prim) {
-            self.prim = Some((span.col, false));
+            self.prim = Some((span.col(), false));
             return;
         }
         if let Some((prim_col, seen_where)) = &mut self.prim {
@@ -523,7 +618,7 @@ impl Lexer {
             }
             // The body block ends at the next token on the `prim`
             // keyword's own (or an outer) indentation level.
-            if at_line_start && span.col <= *prim_col {
+            if at_line_start && span.col() <= *prim_col {
                 self.prim = None;
             }
         }

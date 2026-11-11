@@ -61,6 +61,23 @@ const BASE_CONTRACT_EDIT: &str = r#"module Base where
     Mk-Count n -> n
 "#;
 
+/// A source-position-only edit: comment and blank lines inserted above and
+/// between declarations, so every following position moves while nothing
+/// semantic does. Used to pin the rule that a position is not identity.
+const BASE_POSITION_ONLY_EDIT: &str = r#"module Base where
+  -- a comment
+  --
+  data Count where
+    Mk-Count :: Int -> Count
+
+  bump-count :: Count -> Count
+  bump-count c = case c of
+    Mk-Count n -> Mk-Count (n + 1)
+  count-value :: Count -> Int
+  count-value c = case c of
+    Mk-Count n -> n
+"#;
+
 const LIB: &str = r#"module Lib where
   import Base
   total-count :: Count -> Int
@@ -559,4 +576,35 @@ fn latency_cold_warm_one_change_unchanged() {
     assert_ne!(fib, fib_edit, "the edit is real");
     let dir = write_project(&[("Main.cinch", &fib)]);
     measure("examples/compiler/fib.cinch", &dir, "Main.cinch", &fib_edit);
+}
+
+// ---------------------------------------------------------- identity: spans
+
+/// A source position is not part of any declaration's identity: the object
+/// cache keys on `decl_hash`, so inserting a comment must not re-place a
+/// single object. The module item is exempt: its body hash is its source
+/// text, and the text did change.
+#[test]
+fn a_position_only_edit_changes_no_declaration_identity() {
+    use cinch::driver::incremental::{ItemGraph, ItemKind};
+    fn identities(g: &ItemGraph) -> BTreeMap<String, String> {
+        g.items()
+            .filter(|item| item.kind != ItemKind::Module)
+            .map(|item| (item.id.clone(), item.decl_hash.clone()))
+            .collect()
+    }
+    let dir = probe_project();
+    let (mut session, _cold) = open(&dir);
+    let before = identities(&session.graph().expect("graph"));
+    assert!(before.len() >= 8, "the probe declares: {before:?}");
+    session.set_source(&key(&dir, "Base.cinch"), BASE_POSITION_ONLY_EDIT);
+    session.rebuild_edits().expect("position-only rebuild");
+    let after = identities(&session.graph().expect("graph"));
+    for (id, hash) in &before {
+        assert_eq!(
+            after.get(id),
+            Some(hash),
+            "`{id}` moved only its source positions, so its identity must hold"
+        );
+    }
 }

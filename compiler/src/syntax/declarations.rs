@@ -673,7 +673,7 @@ mod owned_effect_tests {
 
     #[test]
     fn effect_and_type_names_with_the_same_spelling_have_distinct_handles() {
-        let span = Span { line: 1, col: 1 };
+        let span = Span::new(1, 1);
         let mut declarations = vec![
             Decl::Data(DataDecl { name: Name::new("Event", span), params: vec![], ctors: vec![], span }),
             Decl::Effect(EffectDecl { name: Name::new("Event", span), params: vec![], ops: vec![], span }),

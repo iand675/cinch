@@ -86,7 +86,7 @@ fn sig_member_name(d: &Decl) -> Name {
         Decl::Attributed { inner, .. } => sig_member_name(inner),
         other => {
             let _ = other;
-            Name::new("_", Span { line: 0, col: 0 })
+            Name::new("_", Span::new(0, 0))
         }
     }
 }
@@ -4041,7 +4041,7 @@ fn resolve_module_decl(d: &mut Decl, fix: &FixityTable) -> Result<()> {
 /// section 8).
 pub fn parse_term_tokens(tokens: &[Token], fix: &FixityTable) -> Result<Term> {
     let mut toks = tokens.to_vec();
-    let span = toks.last().map(|t| t.span).unwrap_or(Span { line: 0, col: 0 });
+    let span = toks.last().map(|t| t.span).unwrap_or(Span::new(0, 0));
     toks.push(Token { tok: Tok::Eof, span, virtual_: false });
     let mut p = Parser::new(&toks);
     let mut t = p.parse_term()?;
@@ -4054,7 +4054,7 @@ pub fn parse_term_tokens(tokens: &[Token], fix: &FixityTable) -> Result<Term> {
 /// reparsing any declaration surrounding it.
 pub(crate) fn parse_type_tokens(tokens: &[Token], fix: &FixityTable) -> Result<Type> {
     let mut toks = tokens.to_vec();
-    let span = toks.last().map(|t| t.span).unwrap_or(Span { line: 0, col: 0 });
+    let span = toks.last().map(|t| t.span).unwrap_or(Span::new(0, 0));
     toks.push(Token { tok: Tok::Eof, span, virtual_: false });
     let mut parser = Parser::new(&toks);
     let mut ty = parser.parse_type()?;
@@ -4073,7 +4073,7 @@ pub(crate) fn parse_record_fields_tokens(
     let span = toks
         .last()
         .map(|t| t.span)
-        .unwrap_or(Span { line: 0, col: 0 });
+        .unwrap_or(Span::new(0, 0));
     toks.push(Token {
         tok: Tok::Eof,
         span,
@@ -4095,7 +4095,7 @@ pub(crate) fn parse_record_declaration_fields_tokens(
     fix: &FixityTable,
 ) -> Result<Vec<FieldDecl>> {
     let mut toks = tokens.to_vec();
-    let span = toks.last().map(|t| t.span).unwrap_or(Span { line: 0, col: 0 });
+    let span = toks.last().map(|t| t.span).unwrap_or(Span::new(0, 0));
     toks.push(Token { tok: Tok::Eof, span, virtual_: false });
     let mut parser = Parser::new(&toks);
     let mut fields = parser.parse_record_field_block()?;
@@ -4241,7 +4241,7 @@ fn resolve_term(t: &mut Term, fix: &FixityTable) -> Result<()> {
         Term::MacroCall { .. } | Term::SpliceHole { .. } | Term::Str(_, _) | Term::Char(_, _)
         | Term::Unit(_) | Term::Hole(_) | Term::Var(_) | Term::Con(_) | Term::Int(_, _) => {}
         Term::Infix(_, _, _) => {
-            let (terms, ops, span) = match std::mem::replace(t, Term::Unit(Span { line: 0, col: 0 })) {
+            let (terms, ops, span) = match std::mem::replace(t, Term::Unit(Span::new(0, 0))) {
                 Term::Infix(terms, ops, span) => (terms, ops, span),
                 _ => unreachable!(),
             };
@@ -4536,7 +4536,7 @@ fn resolve_type(t: &mut Type, fix: &FixityTable) -> Result<()> {
             }
         }
         Type::Infix(_, _, _) => {
-            let (terms, ops, span) = match std::mem::replace(t, Type::Unit(Span { line: 0, col: 0 }))
+            let (terms, ops, span) = match std::mem::replace(t, Type::Unit(Span::new(0, 0)))
             {
                 Type::Infix(terms, ops, span) => (terms, ops, span),
                 _ => unreachable!(),
@@ -5625,7 +5625,7 @@ fn lex_wit(src: &str) -> Result<Vec<WitTok>> {
             }
             _ => {
                 return Err(Error::at(
-                    Span { line: sl, col: sc },
+                    Span::new(sl, sc),
                     format!(
                         "WIT: unexpected character {:?}",
                         src[i..].chars().next().unwrap_or('?')
@@ -5651,12 +5651,12 @@ impl<'a> WitParser<'a> {
 
     fn span(&self) -> Span {
         match self.peek() {
-            Some(t) => Span { line: t.line, col: t.col },
+            Some(t) => Span::new(t.line, t.col),
             None => self
                 .toks
                 .last()
-                .map(|t| Span { line: t.line, col: t.col + (t.end - t.start) as u32 })
-                .unwrap_or(Span { line: 1, col: 1 }),
+                .map(|t| Span::new(t.line, t.col + (t.end - t.start) as u32))
+                .unwrap_or(Span::new(1, 1)),
         }
     }
 
@@ -5769,7 +5769,7 @@ impl<'a> WitParser<'a> {
                     }
                     _ => {
                         return Err(Error::at(
-                            Span { line: t.line, col: t.col },
+                            Span::new(t.line, t.col),
                             "WIT: malformed package version",
                         ))
                     }

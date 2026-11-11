@@ -207,8 +207,8 @@ fn canon(tok: &cinch::lexer::Token) -> String {
     let mut out = format!(
         "{kind}:{}@{}:{}",
         escape_spelling(&spelling),
-        tok.span.line,
-        tok.span.col
+        tok.span.line(),
+        tok.span.col()
     );
     if tok.virtual_ {
         out.push_str("!v");

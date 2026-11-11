@@ -11791,7 +11791,7 @@ mod index_substitution_tests {
             let mut inference = IndexInference::new(&checker.uni);
             let witness = inference.uni.fresh_idx_term();
             inference.dictionaries.push(PendingIndexDictionary {
-                parameter: witness.clone(), class: class.clone(), scope: vec![], span: ast::Span { line: 1, col: 1 },
+                parameter: witness.clone(), class: class.clone(), scope: vec![], span: ast::Span::new(1, 1),
             });
             (inference, witness)
         };
@@ -11808,7 +11808,7 @@ mod index_substitution_tests {
     #[test]
     fn index_generic_copy_owns_its_deferred_evidence_and_preserves_outer_captures() {
         let mut checker = Checker::new();
-        let span = ast::Span { line: 1, col: 1 };
+        let span = ast::Span::new(1, 1);
         let binding = checker.fresh_local();
         let outer = checker.fresh_local();
         let inner = checker.fresh_local();
@@ -11939,7 +11939,7 @@ mod index_substitution_tests {
     #[test]
     fn index_dictionary_reification_requires_checked_runtime_scope() {
         let checker = Checker::new();
-        let span = ast::Span { line: 1, col: 1 };
+        let span = ast::Span::new(1, 1);
         let evidence = ITerm::Evidence(IndexEvidence::Local(7));
         let mut scope = IndexRuntimeScope::default();
         scope.values.insert("$dictionary-local:7".into(), LocalId(8));
@@ -11951,7 +11951,7 @@ mod index_substitution_tests {
 
     #[test]
     fn index_quote_copy_remaps_native_metadata_without_rebinding_source_names() {
-        let span = ast::Span { line: 1, col: 1 };
+        let span = ast::Span::new(1, 1);
         let name = ast::Name::bound("captured", span, ast::LocalBinding::fresh());
         let identity = |local| Ty::Idx(Box::new(ITerm::Evidence(IndexEvidence::Local(local))));
         let mut scope = Scheme::mono(Ty::Tuple(vec![identity(0), identity(1)]));
@@ -11984,10 +11984,10 @@ mod index_substitution_tests {
         let mut environment = Env::default();
         environment.dicts.push((first, class.clone()));
         let (first_type, first_context, _) = checker.instantiate(&scheme);
-        checker.new_context_want(&first_context[0], ast::Span { line: 1, col: 1 }, &environment);
+        checker.new_context_want(&first_context[0], ast::Span::new(1, 1), &environment);
         environment.dicts.push((second, class));
         let (second_type, second_context, _) = checker.instantiate(&scheme);
-        checker.new_context_want(&second_context[0], ast::Span { line: 2, col: 1 }, &environment);
+        checker.new_context_want(&second_context[0], ast::Span::new(2, 1), &environment);
         checker.solve_wants().unwrap();
         let first_type = checker.uni.zonk(&first_type);
         let second_type = checker.uni.zonk(&second_type);
@@ -12042,7 +12042,7 @@ mod local_value_capability_tests {
         let outer = checker.fresh_local();
         let inner = checker.fresh_local();
         let value = ITerm::LocalValue(outer);
-        let span = ast::Span { line: 1, col: 1 };
+        let span = ast::Span::new(1, 1);
         let mut scope = IndexRuntimeScope::default();
         scope.values.insert("payload".into(), inner);
         scope.values.insert(value.to_string(), outer);
@@ -12081,7 +12081,7 @@ mod index_lambda_identity_tests {
     #[test]
     fn index_lambda_handles_survive_renaming_and_cannot_be_guessed() {
         let checker = Checker::new();
-        let span = ast::Span { line: 1, col: 1 };
+        let span = ast::Span::new(1, 1);
         let handle = ast::LocalBinding::fresh();
         let owner = ast::Name::bound("item", span, handle.clone());
         let renamed = ast::Name::bound("renamed", span, handle);
@@ -12104,7 +12104,7 @@ mod index_lambda_identity_tests {
     #[test]
     fn nested_index_lambda_scopes_restore_after_failure() {
         let checker = Checker::new();
-        let span = ast::Span { line: 1, col: 1 };
+        let span = ast::Span::new(1, 1);
         let outer = ast::Name::bound("item", span, ast::LocalBinding::fresh());
         let inner = ast::Name::bound("item", span, ast::LocalBinding::fresh());
         let outer_variable = checker.fresh_index_lambda_variable();
@@ -12132,7 +12132,7 @@ mod index_carrier_compatibility_tests {
     #[test]
     fn carrier_usage_holes_do_not_authorize_type_index_or_effect_specialization() {
         let mut checker = Checker::new();
-        let span = ast::Span { line: 1, col: 1 };
+        let span = ast::Span::new(1, 1);
         let inferred = Ty::fun(Ty::Nat, Ty::Nat);
         let unrestricted = Ty::fun_mult(Ty::Nat, Mult::Many, EffRow::pure(), Ty::Nat);
         assert!(checker.check_captured_index_carrier("f", &unrestricted, &inferred, span).is_ok());
@@ -12177,7 +12177,7 @@ mod signature_scope_tests {
             checker.sigs.entry("Private".into()).or_default().push(sig.clone());
             checker.qualified_sigs.insert((owner.into(), "Private".into()), sig);
         }
-        let span = ast::Span { line: 1, col: 1 };
+        let span = ast::Span::new(1, 1);
         let path = || ast::ConPath { segments: vec![ast::Name::new("Private", span)] };
         assert_eq!(checker.lookup_sig(&path()).unwrap().module, "Main");
         let mut scope = ast::GlobalScope::new("Library");
@@ -12195,7 +12195,7 @@ mod signature_scope_tests {
     fn signature_scope_owned_handles_select_their_actual_member_without_spelling_fallback() {
         let mut checker = Checker::new();
         checker.qualified_sigs.insert(("Library".into(), "Actual".into()), signature("Library", "Actual"));
-        let span = ast::Span { line: 1, col: 1 };
+        let span = ast::Span::new(1, 1);
         let binding = ast::LocalBinding::fresh();
         checker.declaration_bindings.insert((binding.clone(), ast::RefKind::Type), ("Library".into(), "Actual".into()));
         let path = ast::ConPath { segments: vec![ast::Name::new("Decoy", span).with_declaration_binding(binding)] };
@@ -12207,7 +12207,7 @@ mod signature_scope_tests {
     #[test]
     fn signature_scope_keeps_synthetic_builtin_classes_available_to_captures() {
         let checker = Checker::new();
-        let span = ast::Span { line: 1, col: 1 };
+        let span = ast::Span::new(1, 1);
         for (source, expected) in [("Copy", "Copy"), ("Share", "Copy"), ("Io", "Io")] {
             let path = ast::ConPath { segments: vec![ast::Name::new(source, span)] };
             let info = checker.lookup_sig(&captured(path, (*checker.syntax_global_scope("Main")).clone())).unwrap();
@@ -12227,7 +12227,7 @@ mod owned_effect_scope_tests {
         checker.current_module = "Main".into();
         checker.effect_bindings.insert(("Main".into(), "Event".into()), "Main.Event".into());
         checker.effects.insert("Main.Event".into(), EffectInfo { module: "Main".into(), name: "Event".into(), region_param: None, ops: vec![] });
-        let span = ast::Span { line: 1, col: 1 };
+        let span = ast::Span::new(1, 1);
         let path = ast::ConPath { segments: vec![ast::Name::new("Event", span)] };
         assert_eq!(checker.effect_head(&path, false).unwrap(), "Main.Event");
         let annotation = ast::Type::Fun { arg: Box::new(ast::Type::Unit(span)), mult: None,
@@ -12256,7 +12256,7 @@ mod owned_effect_qualified_scope_tests {
         checker.current_module = "Outside".into();
         checker.effect_bindings.insert(("Owner".into(), "Secret".into()), "Owner.Secret".into());
         checker.effects.insert("Owner.Secret".into(), EffectInfo { module: "Owner".into(), name: "Secret".into(), region_param: None, ops: vec![] });
-        let span = ast::Span { line: 1, col: 1 };
+        let span = ast::Span::new(1, 1);
         let path = ast::ConPath { segments: vec![ast::Name::new("Owner", span), ast::Name::new("Secret", span)] };
         assert!(checker.effect_head(&path, false).is_err());
         let annotation = ast::Type::Fun { arg: Box::new(ast::Type::Unit(span)), mult: None,

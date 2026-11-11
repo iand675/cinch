@@ -98,7 +98,7 @@ module Main where
     let line = source.lines().position(|line| line.contains("unsafe i n =")).unwrap();
     let column = source.lines().nth(line).unwrap().find("attempt!").unwrap();
     let span = error.span.expect("the requested goal has a source site");
-    assert_eq!((span.line as usize, span.col as usize), (line + 1, column + 1), "{error}");
+    assert_eq!((span.line() as usize, span.col() as usize), (line + 1, column + 1), "{error}");
 }
 
 #[test]

@@ -81,17 +81,17 @@ pub fn layout(tokens: Vec<Token>) -> Result<Vec<Token>> {
                 continue;
             } else {
                 if let Some(Frame::Implicit { col, .. }) = stack.last() {
-                    if span.col <= *col {
+                    if span.col() <= *col {
                         return Err(Error::at(
                             span,
                             format!(
                                 "layout block must indent farther than its enclosing block at column {col}, but this one starts at column {}",
-                                span.col
+                                span.col()
                             ),
                         ));
                     }
                 }
-                stack.push(Frame::Implicit { col: span.col, is_let });
+                stack.push(Frame::Implicit { col: span.col(), is_let });
                 out.push(virtual_tok(Tok::LBrace, span));
                 check = false;
             }
@@ -191,11 +191,11 @@ pub fn layout(tokens: Vec<Token>) -> Result<Vec<Token>> {
 
         if check {
             if let Some(p) = prev {
-                if span.line != p.line {
+                if span.line() != p.line() {
                     // Logical line start: close implicit blocks the token has
                     // outdented past, then separate equal indentation.
                     while let Some(Frame::Implicit { col, .. }) = stack.last() {
-                        if span.col < *col {
+                        if span.col() < *col {
                             stack.pop();
                             out.push(virtual_tok(Tok::RBrace, span));
                         } else {
@@ -203,7 +203,7 @@ pub fn layout(tokens: Vec<Token>) -> Result<Vec<Token>> {
                         }
                     }
                     if let Some(Frame::Implicit { col, .. }) = stack.last() {
-                        if span.col == *col {
+                        if span.col() == *col {
                             out.push(virtual_tok(Tok::Semicolon, span));
                         }
                     }
@@ -251,7 +251,7 @@ mod tests {
             .iter()
             .map(|t| Token {
                 tok: t.clone(),
-                span: Span { line: 1, col: 1 },
+                span: Span::new(1, 1),
                 virtual_: false,
             })
             .collect();

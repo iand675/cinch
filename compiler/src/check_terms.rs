@@ -828,7 +828,7 @@ impl Checker {
         let idx = self.literal_folds.len();
         self.literal_folds.push(LitFold {
             unit: String::new(),
-            site: format!("{}:{}", span.line, span.col),
+            site: format!("{}:{}", span.line(), span.col()),
             kind: if map { "map" } else { "list" }.to_string(),
             folded: false,
             result_ty: result.clone(),
@@ -907,7 +907,7 @@ impl Checker {
         let idx = self.literal_folds.len();
         self.literal_folds.push(LitFold {
             unit: String::new(),
-            site: format!("{}:{}", span.line, span.col),
+            site: format!("{}:{}", span.line(), span.col()),
             kind: "range".to_string(),
             folded: false,
             result_ty: result.clone(),

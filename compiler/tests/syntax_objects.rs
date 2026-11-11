@@ -65,7 +65,7 @@ fn syntax_int(value: i32) -> CapturedTerm {
 
 #[test]
 fn scoped_syntax_capture_keeps_outer_binding_under_same_spelled_inner_binder() {
-    let span = ast::Span { line: 7, col: 3 };
+    let span = ast::Span::new(7, 3);
     let root = SyntaxScope::new("Main");
     let (outer_scope, outer) = root.bind_value("x", span);
     let captured = outer_scope.reference("x", span).unwrap();
@@ -81,7 +81,7 @@ fn scoped_syntax_capture_keeps_outer_binding_under_same_spelled_inner_binder() {
 
 #[test]
 fn scoped_syntax_deliberate_binding_uses_the_new_scope() {
-    let span = ast::Span { line: 8, col: 3 };
+    let span = ast::Span::new(8, 3);
     let root = SyntaxScope::new("Main");
     let (outer_scope, outer) = root.bind_value("x", span);
     let (inner_scope, inner) = outer_scope.bind_value("x", span);
@@ -96,7 +96,7 @@ fn scoped_syntax_deliberate_binding_uses_the_new_scope() {
 
 #[test]
 fn scoped_syntax_out_of_scope_handle_cannot_fall_back_to_a_spelling() {
-    let span = ast::Span { line: 9, col: 3 };
+    let span = ast::Span::new(9, 3);
     let root = SyntaxScope::new("Main");
     let (gone, _) = root.bind_value("x", span);
     let captured = gone.reference("x", span).unwrap();
@@ -114,7 +114,7 @@ fn scoped_syntax_out_of_scope_handle_cannot_fall_back_to_a_spelling() {
 #[test]
 fn scoped_syntax_parsing_respects_lexical_binders_and_sibling_scopes() {
     let root = SyntaxScope::new("Main");
-    let (scope, outer) = root.bind_value("x", ast::Span { line: 7, col: 3 });
+    let (scope, outer) = root.bind_value("x", ast::Span::new(7, 3));
     for (source, expected) in [
         ("x", 40),
         ("let x = x + 2 in x", 42),
@@ -136,7 +136,7 @@ fn scoped_syntax_parsing_respects_lexical_binders_and_sibling_scopes() {
 #[test]
 fn scoped_syntax_template_preparation_remaps_owned_binders_and_preserves_free_handles() {
     let root = SyntaxScope::new("Main");
-    let span = ast::Span { line: 7, col: 3 };
+    let span = ast::Span::new(7, 3);
     let (outer_scope, outer) = root.bind_value("x", span);
     let (_, inner) = outer_scope.bind_value("x", span);
     let captured = outer_scope.reference("x", span).unwrap();
@@ -209,7 +209,7 @@ fn scoped_syntax_parsed_linear_captures_keep_usage_obligations() {
 #[test]
 fn scoped_syntax_captured_index_does_not_use_an_inner_values_facts() {
     let root = SyntaxScope::new("Main");
-    let span = ast::Span { line: 9, col: 3 };
+    let span = ast::Span::new(9, 3);
     let (outer_scope, outer) = root.bind_value("x", span);
     let (_, inner) = outer_scope.bind_value("x", span);
     for (wanted, accepted) in [(40, true), (0, false)] {
@@ -253,7 +253,7 @@ fn scoped_syntax_captured_index_does_not_use_an_inner_values_facts() {
 #[test]
 fn scoped_syntax_value_handles_are_not_reinterpreted_as_type_variables() {
     let root = SyntaxScope::new("Main");
-    let (scope, outer) = root.bind_value("x", ast::Span { line: 9, col: 3 });
+    let (scope, outer) = root.bind_value("x", ast::Span::new(9, 3));
     let body = scoped_parse("(0 :: x)", &scope);
     let error = check_syntax_tree(outer.let_in(syntax_int(40), body))
         .err()
@@ -269,7 +269,7 @@ fn scoped_syntax_value_handles_are_not_reinterpreted_as_type_variables() {
 #[test]
 fn scoped_type_indices_keep_their_value_binding_after_shadowing() {
     let root = SyntaxScope::new("Main");
-    let span = ast::Span { line: 9, col: 3 };
+    let span = ast::Span::new(9, 3);
     let (outer_scope, outer) = root.bind_value("x", span);
     let (inner_scope, inner) = outer_scope.bind_value("x", span);
     let declarations = "  data Tagged (n :: Nat) where\n    Tag :: Int -> Tagged n\n  read :: (n :: Nat) -> Tagged n -> Int\n  read n tag = case tag of { Tag value -> value }\n";
@@ -346,7 +346,7 @@ fn native_macro_arguments_retain_caller_values_in_type_annotations() {
 #[test]
 fn scoped_type_indices_check_kinds_and_expired_handles() {
     let root = SyntaxScope::new("Main");
-    let span = ast::Span { line: 9, col: 3 };
+    let span = ast::Span::new(9, 3);
     let (scope, binder) = root.bind_value("x", span);
     let declarations = "  data Tagged (n :: Nat) where\n    Tag :: Int -> Tagged n\n  consume :: forall (n :: Nat). Tagged n -> Int\n  consume tag = 42\n";
     let expression = scoped_parse("consume (Tag 42 :: Tagged x)", &scope);
@@ -380,7 +380,7 @@ fn scoped_type_indices_check_kinds_and_expired_handles() {
 #[test]
 fn scoped_type_indices_require_the_declared_refined_kind() {
     let root = SyntaxScope::new("Main");
-    let (scope, binder) = root.bind_value("x", ast::Span { line: 9, col: 3 });
+    let (scope, binder) = root.bind_value("x", ast::Span::new(9, 3));
     for kind in ["Fin 5", "InRange 0 5 Nat"] {
         let declarations = format!("  data Bounded (n :: {kind}) where\n    Bound :: Int -> Bounded n\n  consume :: forall (n :: {kind}). Bounded n -> Int\n  consume tag = 42\n");
         let body = scoped_parse("consume (Bound 42 :: Bounded x)", &scope);
@@ -429,7 +429,7 @@ fn scoped_type_indices_require_the_declared_refined_kind() {
 #[test]
 fn scoped_syntax_reintroducing_one_handle_as_two_binders_is_refused() {
     let root = SyntaxScope::new("Main");
-    let span = ast::Span { line: 9, col: 3 };
+    let span = ast::Span::new(9, 3);
     let (scope, binder) = root.bind_value("x", span);
     let body = scope.reference("x", span).unwrap();
     let error =
@@ -1644,11 +1644,11 @@ fn syntax_objects_keep_definition_site_helpers_separate_from_captures() {
 fn syntax_objects_refuse_out_of_range_slots_and_wrong_capture_counts() {
     let datum = ast::Term::SpliceHole {
         idx: 1,
-        span: ast::Span { line: 4, col: 9 },
+        span: ast::Span::new(4, 9),
     };
     let error = TermTemplate::new(datum, 1, SyntaxScope::new("Library")).unwrap_err();
     assert!(error.message.contains("outside 1 capture slots"));
-    assert_eq!(error.span.unwrap().line, 4);
+    assert_eq!(error.span.unwrap().line(), 4);
     assert!(prepare("$(value)")
         .substitute(&[])
         .unwrap_err()

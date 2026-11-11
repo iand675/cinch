@@ -2281,7 +2281,7 @@ impl Checker {
                         refine: None,
                     },
                 },
-                ast::Span { line: 0, col: 0 },
+                ast::Span::new(0, 0),
             )
             .expect("builtin constructors do not collide");
             self.fns.push(FnDef {
@@ -2327,7 +2327,7 @@ impl Checker {
             scheme: Scheme::mono(Ty::fun(Ty::Prim(Scalar::U32), Ty::Nat)),
             kind: ValueKind::TopFn,
         };
-        self.add_value(to_nat.clone(), ast::Span { line: 0, col: 0 })
+        self.add_value(to_nat.clone(), ast::Span::new(0, 0))
             .expect("builtin");
         self.fns.push(FnDef {
             id: GlobalId("<builtin>.toNat".to_string()),
@@ -2348,7 +2348,7 @@ impl Checker {
             scheme: Scheme::mono(Ty::fun(Ty::Bytes, Ty::Nat)),
             kind: ValueKind::TopFn,
         };
-        self.add_value(length, ast::Span { line: 0, col: 0 })
+        self.add_value(length, ast::Span::new(0, 0))
             .expect("builtin");
         self.fns.push(FnDef {
             id: GlobalId("<builtin>.length".to_string()),
@@ -2572,7 +2572,7 @@ impl Checker {
             },
             kind: ValueKind::TopFn,
         };
-        self.add_value(step_value, ast::Span { line: 0, col: 0 })
+        self.add_value(step_value, ast::Span::new(0, 0))
             .expect("builtin");
         self.fns.push(FnDef {
             id: step_gid,
@@ -2609,7 +2609,7 @@ impl Checker {
             },
             kind: ValueKind::ProofCtor,
         };
-        self.add_value(refl, ast::Span { line: 0, col: 0 })
+        self.add_value(refl, ast::Span::new(0, 0))
             .expect("builtin");
         let congr = ValueInfo {
             module: "<builtin>".to_string(),
@@ -2648,7 +2648,7 @@ impl Checker {
             },
             kind: ValueKind::ProofCtor,
         };
-        self.add_value(congr, ast::Span { line: 0, col: 0 })
+        self.add_value(congr, ast::Span::new(0, 0))
             .expect("builtin");
         // A bounded plan interpreted only where an expected proposition
         // exists. The placeholder scheme must never be instantiated as
@@ -2826,7 +2826,7 @@ impl Checker {
                                 *span,
                                 format!(
                                     "attribute name `{attr}` is already declared by macro `{owner}` (declared at {}:{}); macro attribute namespaces cannot collide silently",
-                                    at.line, at.col
+                                    at.line(), at.col()
                                 ),
                             ))
                         }
@@ -9601,7 +9601,7 @@ impl Checker {
         methods: &HashMap<String, (crate::core::GlobalId, Vec<crate::core::Value>)>,
     ) -> Result<crate::core::Value> {
         if matches!(self.uni.resolve_idx(value), ITerm::Num(_)) {
-            let literal = self.reify_index_value(value, &IndexRuntimeScope::default(), carrier, ast::Span { line: 0, col: 0 })?;
+            let literal = self.reify_index_value(value, &IndexRuntimeScope::default(), carrier, ast::Span::new(0, 0))?;
             let own = HashSet::new();
             let core = lower(&literal, &LowerCx::compile_time(self, &[], &own));
             return self.eval_core(cx, &core, &mut Vec::new());
@@ -9676,7 +9676,7 @@ impl Checker {
             ITerm::App(f, args) => {
                 let fv = self.eval_law_idx(cx, f, frame, methods)?;
                 let mut vals = Vec::new();
-                let mut carrier = self.index_function_carrier(f, ast::Span { line: 0, col: 0 })?;
+                let mut carrier = self.index_function_carrier(f, ast::Span::new(0, 0))?;
                 for a in args {
                     match carrier.take() {
                         Some(Ty::Fun(domain, _, _, result)) => {
@@ -10505,7 +10505,7 @@ impl Checker {
             pure_holes,
             dict_holes,
             assumptions,
-            line: r.span.line as u32,
+            line: r.span.line(),
         });
         Ok(())
     }
@@ -12801,12 +12801,12 @@ impl<'a> FactWalk<'a> {
         if self.facts.macro_site.is_none() && crate::lexer::is_generated(span) {
             self.facts.macro_site = Some(span);
         }
-        if span.line > 0 {
-            if self.facts.min_line == 0 || span.line < self.facts.min_line {
-                self.facts.min_line = span.line;
+        if span.line() > 0 {
+            if self.facts.min_line == 0 || span.line() < self.facts.min_line {
+                self.facts.min_line = span.line();
             }
-            if span.line > self.facts.max_line {
-                self.facts.max_line = span.line;
+            if span.line() > self.facts.max_line {
+                self.facts.max_line = span.line();
             }
         }
     }
@@ -18681,7 +18681,7 @@ impl UnitKey {
             }
             UnitKey::Gen(i) => {
                 let b = &checker.generate_blocks[*i];
-                format!("generate block in {} (at {}:{})", b.module, b.span.line, b.span.col)
+                format!("generate block in {} (at {}:{})", b.module, b.span.line(), b.span.col())
             }
             UnitKey::Ord(m, n) => format!("definition `{n}` in {m}"),
         }
@@ -20027,11 +20027,11 @@ impl Checker {
             let key = (module.clone(), name.clone());
             let implicit_values = self.syntax_implicit_values.entry(key.clone()).or_insert_with(|| {
                 self.top_schemes.get(&key).into_iter().flat_map(|scheme| scheme.val_params.iter())
-                    .map(|(name, _)| ast::Name::bound(name, ast::Span { line: 0, col: 0 }, ast::LocalBinding::fresh())).collect()
+                    .map(|(name, _)| ast::Name::bound(name, ast::Span::new(0, 0), ast::LocalBinding::fresh())).collect()
             }).clone();
             let context_values = self.syntax_context_values.entry(key.clone()).or_insert_with(|| {
                 self.top_schemes.get(&key).into_iter().flat_map(|scheme| scheme.ctx.iter())
-                    .map(|(name, _)| ast::Name::bound(name, ast::Span { line: 0, col: 0 }, ast::LocalBinding::fresh())).collect()
+                    .map(|(name, _)| ast::Name::bound(name, ast::Span::new(0, 0), ast::LocalBinding::fresh())).collect()
             }).clone();
             let dictionaries = context_values.iter().filter_map(ast::Name::local_binding).cloned().collect();
             let globals = std::sync::Arc::new((*self.syntax_global_scope(&module)).clone().with_dictionary_bindings(dictionaries));
@@ -22357,7 +22357,7 @@ impl Checker {
                 Ok(Value::Unit)
             }
             StageOp::QuoteNat | StageOp::QuoteInt | StageOp::QuoteBool => {
-                let span = cx.call.unwrap_or(ast::Span { line: 0, col: 0 });
+                let span = cx.call.unwrap_or(ast::Span::new(0, 0));
                 match op {
                     StageOp::QuoteNat => {
                         let b = big_of(&args[0], "`Nat`")?;
@@ -22434,7 +22434,7 @@ impl Checker {
                     return Err(Error::plain("Name.prefix takes a descriptive String prefix and Name"));
                 };
                 let spelling = format!("{prefix}{name}");
-                self.syntax_descriptive_name(&spelling, cx.call.unwrap_or(ast::Span { line: 0, col: 0 }))?;
+                self.syntax_descriptive_name(&spelling, cx.call.unwrap_or(ast::Span::new(0, 0)))?;
                 Ok(Value::Name(spelling))
             }
             StageOp::NameSuffix => {
@@ -23058,7 +23058,7 @@ impl Checker {
     fn derive_codecs(&self, snap: &crate::core::SchemaData) -> Result<Vec<ast::Decl>> {
         use crate::core::SchemaData;
         let _ = std::any::type_name::<SchemaData>();
-        let sp = ast::Span { line: 0, col: 0 };
+        let sp = ast::Span::new(0, 0);
         let con = |n: &str| ast::Term::Con(ast::ConPath { segments: vec![ast::Name::new(n, sp)] });
         let var = |n: &str| {
             ast::Term::Var(ast::VarPath {
@@ -23343,7 +23343,7 @@ impl Checker {
             self.hygienic_decl(cx, &mut d, &own_values, &own_types, &owned_declarations)?;
             decls.push(d);
         }
-        let site = self.expansion_site(cx, ast::Span { line: 0, col: 0 });
+        let site = self.expansion_site(cx, ast::Span::new(0, 0));
         for d in &mut decls {
             stamp_decl_spans(d, &site);
         }
@@ -23380,7 +23380,7 @@ impl Checker {
         use crate::syntax::{CapturedTerm, SyntaxScope};
         let mut terms = Vec::new();
         for (i, v) in vals.iter().enumerate() {
-            let span = cx.call.unwrap_or(ast::Span { line: 0, col: 0 });
+            let span = cx.call.unwrap_or(ast::Span::new(0, 0));
             if name_holes.contains(&i) {
                 let text = name_of_value(v, span)?;
                 terms.push(CapturedTerm::new(ast::Term::Var(ast::VarPath {
@@ -23497,7 +23497,7 @@ impl Checker {
     /// Provenance of an AST node constructed at a syntax API invocation.
     /// Child trees keep their own source spans and binding identities.
     fn syntax_construction_span(&self, cx: &StageCx) -> ast::Span {
-        let call = cx.call.unwrap_or(ast::Span { line: 0, col: 0 });
+        let call = cx.call.unwrap_or(ast::Span::new(0, 0));
         // This node is constructed at the invocation, not copied
         // from a quotation template in the macro definition's file.
         let mut site = self.expansion_site(cx, call);

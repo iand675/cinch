@@ -8,7 +8,7 @@
 //! completion, semantic tokens) from the checked and parsed modules.
 //!
 //! Source spans: the checker reports spans without file names, so every
-//! file's text is parsed behind a fixed line band (`span.line` lands in
+//! file's text is parsed behind a fixed line band (a span's line lands in
 //! exactly one file's band) and every span is translated back to
 //! workspace coordinates on the way out. All file names in this layer
 //! are workspace-relative; nothing here ever renders an absolute path
@@ -473,11 +473,11 @@ impl Analysis {
     /// carry their own coordinates).
     fn unband(&self, span: Span) -> (String, u32, u32) {
         for (file, &base) in &self.band {
-            if span.line as u64 >= base && (span.line as u64) < base + BAND_WIDTH {
-                return (file.clone(), span.line - (base as u32 - 1), span.col);
+            if span.line() as u64 >= base && (span.line() as u64) < base + BAND_WIDTH {
+                return (file.clone(), span.line() - (base as u32 - 1), span.col());
             }
         }
-        (String::new(), span.line, span.col)
+        (String::new(), span.line(), span.col())
     }
 
     // ------------------------------------------------------- scanning
@@ -1407,7 +1407,7 @@ impl Analysis {
                         .any(|m| {
                             m.defs
                                 .iter()
-                                .any(|d| d.line == t.span.line && d.col == t.span.col)
+                                .any(|d| d.line == t.span.line() && d.col == t.span.col())
                         }) {
                         token_kind_of_def(self.def_kind_at(file, t.span))
                     } else {
@@ -1451,8 +1451,8 @@ impl Analysis {
                 }
             };
             out.push(SemToken {
-                line: t.span.line,
-                col: t.span.col,
+                line: t.span.line(),
+                col: t.span.col(),
                 len,
                 kind,
             });
@@ -1471,7 +1471,7 @@ impl Analysis {
             .values()
             .filter(|m| m.file == file)
             .flat_map(|m| m.defs.iter())
-            .find(|d| d.line == span.line && d.col == span.col)
+            .find(|d| d.line == span.line() && d.col == span.col())
             .map(|d| d.kind)
     }
 
@@ -1482,7 +1482,7 @@ impl Analysis {
             .find_map(|(module, m)| {
                 m.refs
                     .iter()
-                    .find(|r| r.line == span.line && r.col == span.col)
+                    .find(|r| r.line == span.line() && r.col == span.col())
                     .map(|r| {
                         (
                             module.clone(),
@@ -1635,7 +1635,7 @@ fn index_module(file: &str, base: u64, modu: &ast::Module) -> ModuleState {
 }
 
 fn workspace_position(base: u64, span: Span) -> (u32, u32) {
-    (if span.line as u64 >= base { span.line - (base as u32 - 1) } else { span.line }, span.col)
+    (if span.line() as u64 >= base { span.line() - (base as u32 - 1) } else { span.line() }, span.col())
 }
 
 /// Nested expansions retain each template's coordinates. A generated
