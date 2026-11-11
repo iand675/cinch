@@ -1,7 +1,7 @@
 # Build artifacts
 /build/
+/build/bootstrap*/
 /compiler/build/bootstrap*/
-/build/
 /compiler/build/
 __pycache__/
 target/
@@ -23,13 +23,9 @@ dist/
 
 # Generated compiler artifacts (rebuilt by `cinch build`/`run`)
 examples/compiler/build/
-/compiler/build/
 examples/source/build/
-/compiler/build/
 bootstrap/build/
-/compiler/build/
 bootstrap/programs/build/
-/compiler/build/
 
 # Slice scratch dirs (probe scripts and fixtures)
 .wasm-probe/
