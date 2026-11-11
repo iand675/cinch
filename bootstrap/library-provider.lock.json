@@ -1,7 +1,7 @@
 {
-  "description": "ABI 8 library producer at the readable identity spelling.",
-  "revision": "9e2814f315207d37f776d6c3a726ceb18d88df31",
+  "description": "ABI 8 library producer at the readable identity spelling and the wrapping-bits digest.",
+  "revision": "bb1ad9b4daa312d5c8f7cc0859c1cb39b07f02c9",
   "runtime_abi": 8,
   "schema": 1,
-  "source_sha256": "53efa6b78465ba142c25dd7e4aa07b2f6ea813417f9ddfa7f3b419635c2b07e9"
+  "source_sha256": "8974df6bc6120ffb0ebeddc5a8a52991080f81b6af5d07d27eb47139eafe9d77"
 }
