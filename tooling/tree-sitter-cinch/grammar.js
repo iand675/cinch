@@ -203,6 +203,7 @@ module.exports = grammar({
     $.kw_asm,
     $.kw_clr,
     $.kw_jvm,
+    $.kw_hiding,
 
     // Reserved punctuation.
     $.colon_colon,
@@ -349,7 +350,7 @@ module.exports = grammar({
           choice($.kw_stage, $.kw_replaceable, $.kw_specialized),
         ),
         $.module_path,
-        optional($.import_clause),
+        optional(choice($.import_clause, $.hiding_clause)),
         optional(seq($.kw_as, $.constructor)),
       ),
 
@@ -359,6 +360,10 @@ module.exports = grammar({
     // section 11, decisions D108/D115).
     import_clause: ($) =>
       seq($.lparen, sepBy($.comma, $.import_item), $.rparen),
+
+    // `import X hiding (a, b)`: the whole surface except these names.
+    hiding_clause: ($) =>
+      seq($.kw_hiding, $.lparen, sepBy($.comma, $._name), $.rparen),
 
     import_item: ($) =>
       choice(

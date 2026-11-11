@@ -3529,14 +3529,29 @@ struct ImportView {
     /// `import X (a as b, c)`: local name to the source's name; `None`
     /// imports the whole surface under its own names.
     members: Option<Vec<(String, String)>>,
+    /// `import X hiding (a, b)`: names of the source's surface this view
+    /// leaves out. Only a whole-surface view (`members` is `None`) has
+    /// any.
+    hidden: Vec<String>,
 }
 
 impl ImportView {
+    /// The whole surface of `target` under its own names: the prelude's
+    /// view, and an import that selects and hides nothing.
+    fn whole(target: String, alias: String) -> ImportView {
+        ImportView { target, alias, stage: false, applied: false, alias_only: false, members: None, hidden: Vec::new() }
+    }
+
+    /// Whether the view leaves the source's name `name` out.
+    fn hides(&self, name: &str) -> bool {
+        self.hidden.iter().any(|h| h == name)
+    }
+
     /// The source's name for this view's local name, or `None` when the
     /// view does not make it visible.
     fn source_name<'a>(&'a self, local: &'a str) -> Option<&'a str> {
         match &self.members {
-            None => Some(local),
+            None => (!self.hides(local)).then_some(local),
             Some(ms) => ms
                 .iter()
                 .find(|(l, _)| l == local)
@@ -6199,9 +6214,9 @@ impl Checker {
         for v in &self.scope_views {
             let hit = match &v.members {
                 None => match self.module_surface.get(&v.target) {
-                    Some(m) => m.values().any(|d| d.module == module && d.name == name),
+                    Some(m) => m.iter().any(|(local, d)| !v.hides(local) && d.module == module && d.name == name),
                     None => {
-                        v.target == module && self.surface_def(&v.target, name).is_some()
+                        v.target == module && !v.hides(name) && self.surface_def(&v.target, name).is_some()
                     }
                 },
                 Some(ms) => ms.iter().any(|(_, s)| {

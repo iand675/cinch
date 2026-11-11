@@ -34,6 +34,7 @@
   (kw_generate)
   (kw_handle)
   (kw_handler)
+  (kw_hiding)
   (kw_if)
   (kw_immarg)
   (kw_implicit)

@@ -22,7 +22,7 @@ syntax keyword cinchReturn return resume
 " `unsafe` usable as an identifier).
 syntax keyword cinchContextual handler unsafe when uses immarg for
       \ migrate related attributes replaceable specialized
-      \ llvm wasm asm clr jvm
+      \ llvm wasm asm clr jvm hiding
 syntax keyword cinchTodo contained TODO FIXME XXX NOTE
 
 " `!` and `?` continue a name after its first character and never start one

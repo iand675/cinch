@@ -198,9 +198,15 @@ decision record in `compiler/CONFORMANCE.md` where applicable.
   module exports its declared names as before; imports are private
   until re-exported.
 - Import renaming: `import Foo as F` renames the module alias;
-  `import Foo (x as y, z)` renames and selects members. Duplicate
-  unrenamed imported names are a compile error naming both sources;
-  renaming is the fix.
+  `import Foo (x as y, z)` renames and selects members;
+  `import Foo hiding (x, y)` brings in the whole surface except the
+  named members, which are then out of scope bare and under the
+  qualifier. `hiding` is a contextual word (an ordinary name outside
+  this position), a hidden name MUST be a member of the module's
+  surface, a hidden operator's fixity is not imported, and an import
+  MUST NOT both select and hide. Duplicate unrenamed imported names
+  are a compile error naming both sources; renaming one or hiding one
+  is the fix.
 - File-type import converters (the TypeScript loader analogy):
   `import data "config.json" as config` binds the converted value of a
   non-source file; the extension selects the converter. Built-ins:

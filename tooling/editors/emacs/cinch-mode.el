@@ -44,7 +44,7 @@
 (defconst cinch-contextual-words
   '("handler" "unsafe" "when" "uses" "immarg" "for" "migrate" "related"
     "attributes" "replaceable" "specialized" "llvm" "wasm" "asm" "clr"
-    "jvm")
+    "jvm" "hiding")
   "Contextual words (ordinary identifiers elsewhere).")
 
 (defconst cinch-font-lock-keywords

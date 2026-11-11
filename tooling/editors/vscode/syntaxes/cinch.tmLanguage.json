@@ -98,7 +98,7 @@
         { "name": "keyword.control.flow.cinch", "match": "\\b(return|resume)\\b(?![A-Za-z0-9_'!?-])" },
         {
           "name": "variable.other.contextual.cinch",
-          "match": "\\b(handler|unsafe|when|uses|immarg|for|migrate|related|attributes|replaceable|specialized|llvm|wasm|asm|clr|jvm)\\b(?![A-Za-z0-9_'!?-])"
+          "match": "\\b(handler|unsafe|when|uses|immarg|for|migrate|related|attributes|replaceable|specialized|llvm|wasm|asm|clr|jvm|hiding)\\b(?![A-Za-z0-9_'!?-])"
         }
       ]
     },

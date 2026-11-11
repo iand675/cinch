@@ -3191,6 +3191,7 @@ impl Checker {
                         applied: true,
                         alias_only: false,
                         members: None,
+                        hidden: Vec::new(),
                     });
                     continue;
                 }
@@ -3222,6 +3223,7 @@ impl Checker {
                                 .collect(),
                         )
                     },
+                    hidden: i.hidden.iter().map(|h| h.text.clone()).collect(),
                     target,
                     stage: i.stage,
                     applied: false,
@@ -19020,10 +19022,7 @@ impl Checker {
         }
         let mut views = self.module_views.get(module).cloned().unwrap_or_default();
         if module != self.prelude_module {
-            views.push(ImportView {
-                target: self.prelude_module.clone(), alias: self.prelude_module.clone(),
-                stage: false, applied: false, alias_only: false, members: None,
-            });
+            views.push(ImportView::whole(self.prelude_module.clone(), self.prelude_module.clone()));
         }
         for view in views {
             if view.applied || (r.quals.is_empty() && view.alias_only)
@@ -19096,8 +19095,7 @@ impl Checker {
         }
         let mut views = self.module_views.get(module).cloned().unwrap_or_default();
         if module != self.prelude_module {
-            views.push(ImportView { target: self.prelude_module.clone(), alias: self.prelude_module.clone(),
-                stage: false, applied: false, alias_only: false, members: None });
+            views.push(ImportView::whole(self.prelude_module.clone(), self.prelude_module.clone()));
         }
         for view in views {
             if view.applied { continue; }
@@ -19105,7 +19103,7 @@ impl Checker {
                 let names = self.module_surface.get(&view.target)
                     .map(|surface| surface.keys().cloned().collect::<Vec<_>>())
                     .unwrap_or_else(|| self.declared_names(&view.target).into_iter().collect());
-                names.into_iter().map(|name| (name.clone(), name)).collect()
+                names.into_iter().filter(|name| !view.hides(name)).map(|name| (name.clone(), name)).collect()
             });
             members.sort();
             for (local, source) in members {
@@ -19214,14 +19212,7 @@ impl Checker {
             }
         }
         if self.prelude_module != module && !self.prelude_module.is_empty() {
-            views.push(ImportView {
-                target: self.prelude_module.clone(),
-                alias: self.prelude_module.clone(),
-                stage: false,
-                applied: false,
-                alias_only: false,
-                members: None,
-            });
+            views.push(ImportView::whole(self.prelude_module.clone(), self.prelude_module.clone()));
         }
         let mut visible = vec![module.to_string()];
         for v in &views {
@@ -19266,6 +19257,16 @@ impl Checker {
                     }
                 }
             }
+            // A hidden name is a member of the source's surface too: a
+            // misspelled one would otherwise hide nothing, silently.
+            for hidden in &v.hidden {
+                if self.surface_def(&v.target, hidden).is_none() && !self.defer_generated_headers {
+                    return Err(Error::plain(format!(
+                        "`{}` has no member `{hidden}` to hide",
+                        v.target
+                    )));
+                }
+            }
             if v.alias_only || v.stage {
                 continue;
             }
@@ -19275,7 +19276,10 @@ impl Checker {
                     .module_surface
                     .get(&v.target)
                     .map(|s| s.keys().cloned().collect())
-                    .unwrap_or_else(|| self.declared_names(&v.target)),
+                    .unwrap_or_else(|| self.declared_names(&v.target))
+                    .into_iter()
+                    .filter(|n| !v.hides(n))
+                    .collect(),
             };
             for n in names {
                 let origin = || {
@@ -19320,9 +19324,11 @@ impl Checker {
                         };
                         return Err(Error::plain(format!(
                             "the name `{n}` is imported from both {} and {}: \
-                             rename one (a selection like `import {} ({n} as ...)`)",
+                             rename one (a selection like `import {} ({n} as ...)`) \
+                             or leave one out (`import {} hiding ({n})`)",
                             side(&prev_target, &prev_origin),
                             side(&v.target, &origin),
+                            v.target,
                             v.target
                         )));
                     }
@@ -19399,14 +19405,22 @@ impl Checker {
                                         }
                                     }
                                 }
+                                // `export module X` re-exports what the
+                                // import brought in, so what it hid stays
+                                // out of the surface too.
                                 None => match self.module_surface.get(&v.target) {
                                     Some(sm) => {
                                         for (l, d) in sm {
-                                            out.push((l.clone(), d.clone()));
+                                            if !v.hides(l) {
+                                                out.push((l.clone(), d.clone()));
+                                            }
                                         }
                                     }
                                     None => {
                                         for n in self.declared_names(&v.target) {
+                                            if v.hides(&n) {
+                                                continue;
+                                            }
                                             if let Some(d) =
                                                 self.surface_def(&v.target, &n)
                                             {

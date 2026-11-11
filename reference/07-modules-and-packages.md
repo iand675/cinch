@@ -97,12 +97,13 @@ module Tally (S :: Stepper) where
 | `import Mod` | Brings `Mod` into the project and makes its exported names available unqualified |
 | `import Mod (a, b)` | Brings `Mod` in and makes only `a` and `b` available unqualified |
 | `import Mod (a as b)` | Same, renamed at the use site |
+| `import Mod hiding (a, b)` | Brings `Mod` in and makes every exported name available except `a` and `b`, which are then out of scope bare and as `Mod.a` |
 | `import Mod as M` | Available qualified only, as `M.a` |
 | `import stage Mod` | Compile-time dependency; see [staging](14-staging-and-macros.md) |
 | `import data "path" as name` | Binds a converted non-source input |
 | `import Mod when <clause>` | Selected by the compile target; see [conditional surface](#conditional-imports-and-declarations) |
 
-An unconditional import statement always loads the module. What a selection list changes is which of the module's names become unqualified in the importer, and whether the module's implicit instances are reachable (see below). An import with a `when` clause loads the module only where that clause holds, which the [conditional surface](#conditional-imports-and-declarations) section covers.
+An unconditional import statement always loads the module. What a selection or a `hiding` list changes is which of the module's names become unqualified in the importer, and whether the module's implicit instances are reachable (see below). A `hiding` list names members of the module's surface: hiding a name the module does not export is refused with `` `Mod` has no member `missing` to hide ``, so a misspelling cannot hide nothing in silence. A hidden operator's fixity stays out with it. An import either selects or hides, never both. An import with a `when` clause loads the module only where that clause holds, which the [conditional surface](#conditional-imports-and-declarations) section covers.
 
 <!-- cinch:project group=modules-two file=Main.cinch exit=0 stdout="hello, world" -->
 ```cinch
@@ -382,7 +383,30 @@ module Main where
 ```
 
 ```text
-cinch: the name `shared` is imported from both A and B: rename one (a selection like `import B (shared as ...)`) (in R3.cinch)
+cinch: the name `shared` is imported from both A and B: rename one (a selection like `import B (shared as ...)`) or leave one out (`import B hiding (shared)`) (in R3.cinch)
+```
+
+Either remedy the message names resolves it. Hiding is the one to reach for when the two modules are imported whole and only one name is in the way:
+
+<!-- cinch:run exit=0 -->
+```cinch
+module A where
+  export shared, other
+  shared :: Int
+  shared = 1
+  other :: Int
+  other = 10
+
+module B where
+  export shared
+  shared :: Int
+  shared = 2
+
+module Main where
+  import A hiding (shared)
+  import B
+  main :: Int
+  main = if shared + other == 12 then 0 else 1
 ```
 
 An import cycle is reported against the modules, after the per-module checks:

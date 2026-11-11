@@ -414,7 +414,7 @@ module M where
                 (identifier)))))))))
 
 ==========================================
-imports: renaming, selection, applied, and data converters
+imports: renaming, selection, hiding, applied, and data converters
 ==========================================
 module M where
   import Foo as F
@@ -422,6 +422,7 @@ module M where
   import Config (cfg) as C
   import data "config.json" as config
   import stage Gen
+  import Data.Option hiding (or-else, Option)
 
 ---
 
@@ -480,7 +481,21 @@ module M where
           (kw_import)
           (kw_stage)
           (module_path
-            (constructor)))))))
+            (constructor))))
+      (declaration
+        (import_declaration
+          (kw_import)
+          (module_path
+            (constructor)
+            (dot)
+            (constructor))
+          (hiding_clause
+            (kw_hiding)
+            (lparen)
+            (identifier)
+            (comma)
+            (constructor)
+            (rparen)))))))
 
 ==========================================
 exports: names, members, operators, whole modules

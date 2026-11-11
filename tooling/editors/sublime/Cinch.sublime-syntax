@@ -98,7 +98,7 @@ contexts:
     - match: '\b(return|resume)\b{{kw_guard}}'
       scope: keyword.control.flow.cinch
     # Contextual words (usable as identifiers elsewhere; D221-D227).
-    - match: '\b(handler|unsafe|when|uses|immarg|for|migrate|related|attributes|replaceable|specialized|llvm|wasm|asm|clr|jvm)\b{{kw_guard}}'
+    - match: '\b(handler|unsafe|when|uses|immarg|for|migrate|related|attributes|replaceable|specialized|llvm|wasm|asm|clr|jvm|hiding)\b{{kw_guard}}'
       scope: variable.other.contextual.cinch
 
   operators:

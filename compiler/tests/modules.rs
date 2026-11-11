@@ -355,3 +355,137 @@ fn a_failure_in_a_sibling_module_names_its_file() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// The two modules a hiding import is tested against: both export
+/// `shared`, and `A` exports an operator with a fixity beside it.
+const HIDING_SOURCES: [(&str, &str); 2] = [
+    (
+        "A.cinch",
+        "module A where\n\
+         \x20 export shared, other, (<+>)\n\
+         \x20 infixl 5 <+>\n\
+         \x20 shared :: Int\n\
+         \x20 shared = 1\n\
+         \x20 other :: Int\n\
+         \x20 other = 10\n\
+         \x20 (<+>) :: Int -> Int -> Int\n\
+         \x20 (<+>) a b = a * 10 + b\n",
+    ),
+    (
+        "B.cinch",
+        "module B where\n\
+         \x20 export shared\n\
+         \x20 shared :: Int\n\
+         \x20 shared = 2\n",
+    ),
+];
+
+fn hiding_project(main: &'static str) -> PathBuf {
+    write_project(&[HIDING_SOURCES[0], HIDING_SOURCES[1], ("Main.cinch", main)])
+}
+
+/// Two imports that export one name collide. `hiding` leaves one of them
+/// out, so the bare name is the other module's and the rest of the hiding
+/// module's surface, operators and their fixity included, still comes in.
+#[test]
+fn a_hiding_import_resolves_a_name_two_modules_export() {
+    let dir = hiding_project(
+        "module Main where\n\
+         \x20 import A hiding (shared)\n\
+         \x20 import B\n\
+         \x20 main :: Int\n\
+         \x20 main = if shared + other + (1 <+> 2) == 24 then 0 else 1\n",
+    );
+    let code = run_entry(&dir, "Main.cinch").expect("hiding run");
+    assert_eq!(code, 0);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A hidden name is out of scope under the module's qualifier as well,
+/// not only bare.
+#[test]
+fn a_hidden_name_is_not_reachable_through_the_qualifier() {
+    let dir = hiding_project(
+        "module Main where\n\
+         \x20 import A hiding (shared)\n\
+         \x20 main :: Int\n\
+         \x20 main = A.shared\n",
+    );
+    let err = check_entry(&dir, "Main.cinch").expect_err("the hidden name is used");
+    assert!(err.contains("shared"), "the refusal does not name the hidden name: {err}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A hidden operator takes its fixity with it. `A` declares `<+>`
+/// `infixl 5` and `C` declares its own `infixr 5`; with `A`'s hidden, an
+/// unparenthesized chain parses by `C`'s declaration whichever import
+/// comes first: `10 <+> 3 <+> 2` is `10 - (3 - 2)`.
+#[test]
+fn a_hidden_operator_does_not_bring_its_fixity() {
+    const C: (&str, &str) = (
+        "C.cinch",
+        "module C where\n\
+         \x20 export (<+>)\n\
+         \x20 infixr 5 <+>\n\
+         \x20 (<+>) :: Int -> Int -> Int\n\
+         \x20 (<+>) a b = a - b\n",
+    );
+    for main in [
+        "module Main where\n\
+         \x20 import A hiding ((<+>))\n\
+         \x20 import C\n\
+         \x20 main :: Int\n\
+         \x20 main = if 10 <+> 3 <+> 2 == 9 then 0 else 1\n",
+        "module Main where\n\
+         \x20 import C\n\
+         \x20 import A hiding ((<+>))\n\
+         \x20 main :: Int\n\
+         \x20 main = if 10 <+> 3 <+> 2 == 9 then 0 else 1\n",
+    ] {
+        let dir = write_project(&[HIDING_SOURCES[0], C, ("Main.cinch", main)]);
+        let code = run_entry(&dir, "Main.cinch").expect("hidden operator run");
+        assert_eq!(code, 0);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+/// Hiding a name the module does not export would silently hide nothing,
+/// so it is refused, and so is hiding beside a selection.
+#[test]
+fn a_hiding_import_names_only_members_and_excludes_a_selection() {
+    let dir = hiding_project(
+        "module Main where\n\
+         \x20 import A hiding (missing)\n\
+         \x20 main :: Int\n\
+         \x20 main = other\n",
+    );
+    let err = check_entry(&dir, "Main.cinch").expect_err("no such member");
+    assert!(err.contains("`A` has no member `missing` to hide"), "{err}");
+    let _ = std::fs::remove_dir_all(&dir);
+
+    let dir = hiding_project(
+        "module Main where\n\
+         \x20 import A hiding (shared) (other)\n\
+         \x20 main :: Int\n\
+         \x20 main = other\n",
+    );
+    let err = check_entry(&dir, "Main.cinch").expect_err("hiding and selecting");
+    assert!(err.contains("either selects members or hides them"), "{err}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The collision refusal names both ways out.
+#[test]
+fn an_import_collision_suggests_renaming_or_hiding() {
+    let dir = hiding_project(
+        "module Main where\n\
+         \x20 import A\n\
+         \x20 import B\n\
+         \x20 main :: Int\n\
+         \x20 main = other\n",
+    );
+    let err = check_entry(&dir, "Main.cinch").expect_err("collision");
+    assert!(err.contains("the name `shared` is imported from both A and B"), "{err}");
+    assert!(err.contains("import B hiding (shared)"), "{err}");
+    let _ = std::fs::remove_dir_all(&dir);
+}

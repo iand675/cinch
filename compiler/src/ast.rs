@@ -1023,6 +1023,11 @@ pub struct Import {
     /// names; empty selects the whole surface under its own names
     /// (surface grammar local amendments section 11).
     pub members: Vec<ImportMember>,
+    /// `import X hiding (a, b)`: the whole surface except these names,
+    /// which are then visible neither bare nor through the qualifier
+    /// (surface grammar local amendments section 11). Never combined with
+    /// a selection.
+    pub hidden: Vec<Name>,
     /// `import X when <clause> ...`: the target conditions under which the
     /// import contributes (modules specification section 11). Empty for an
     /// unconditional import. Where a clause does not hold, the import

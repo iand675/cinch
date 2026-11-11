@@ -220,7 +220,12 @@ fn import_fixities(imp: &Import, source: &FixityTable, qualified: bool) -> Fixit
     if !qualified && imp.alias.is_some() && imp.members.is_empty() {
         return FixityTable::new();
     }
-    if imp.members.is_empty() { return source.clone(); }
+    if imp.members.is_empty() {
+        if imp.hidden.is_empty() { return source.clone(); }
+        let mut rest = source.clone();
+        for name in &imp.hidden { rest.map.remove(&name.text); }
+        return rest;
+    }
     let mut selected = FixityTable::new();
     for item in &imp.members {
         if let Some(fix) = source.map.get(&item.name.text) {
@@ -1433,6 +1438,47 @@ impl<'a> Parser<'a> {
         // (a as b, c)`, surface grammar local amendments section 11).
         let mut args = Vec::new();
         let mut members = Vec::new();
+        // `hiding` is an ordinary name everywhere else: it is this clause
+        // only between an import's module path and a parenthesis.
+        let mut hidden: Vec<Name> = Vec::new();
+        if matches!(self.peek_tok(), Tok::VarId(s) if s == "hiding")
+            && matches!(self.peek_tok_at(1), Some(Tok::LParen))
+        {
+            self.bump();
+            self.bump();
+            loop {
+                let nspan = self.peek().span;
+                let name = match self.peek_tok().clone() {
+                    Tok::VarId(s) | Tok::ConId(s) => {
+                        self.bump();
+                        Name::new(s, nspan)
+                    }
+                    Tok::LParen => self.parse_value_name()?,
+                    t => {
+                        return Err(self.err(format!(
+                            "expected a name to hide, found {}",
+                            describe(&t)
+                        )))
+                    }
+                };
+                if hidden.iter().any(|h| h.text == name.text) {
+                    return Err(Error::at(nspan, format!("{} is hidden twice", name.text)));
+                }
+                hidden.push(name);
+                if self.at(&Tok::Comma) {
+                    self.bump();
+                } else {
+                    break;
+                }
+            }
+            self.expect(&Tok::RParen, "`)` closing the hidden names")?;
+            if self.at(&Tok::LParen) {
+                return Err(Error::at(
+                    span,
+                    "an import either selects members or hides them: `import X (a, b)` names what comes in, `import X hiding (a, b)` what stays out",
+                ));
+            }
+        }
         if self.at(&Tok::LParen) {
             let mut depth = 0usize;
             let mut k = 0usize;
@@ -1562,6 +1608,12 @@ impl<'a> Parser<'a> {
                 "a member selection and a module alias cannot combine: `import X (a as b)` selects members under their imported names",
             ));
         }
+        if !hidden.is_empty() && stage {
+            return Err(Error::at(
+                span,
+                "`import stage` takes no `hiding` clause: it brings in a module's generators, not its names",
+            ));
+        }
         // `import X when <clause>` (modules specification section 11): the
         // same atoms and the same conjunction a `prim` body uses, read off
         // the compile target profile. The clauses come after everything
@@ -1577,7 +1629,7 @@ impl<'a> Parser<'a> {
                 "an applied import (`import M (args) as N`) takes no `when` clause in the bootstrap slice: the instantiation is selected by the module the condition names",
             ));
         }
-        Ok(Import { path, alias, stage, args, members, when, span })
+        Ok(Import { path, alias, stage, args, members, hidden, when, span })
     }
 
     /// `import data "config.json" as config` (surface grammar local

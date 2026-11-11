@@ -214,9 +214,10 @@ D-numbers) that amend or interpret this chapter's normative text.
   blocks (the one-module-per-file rule is superseded); with `export`
   declarations a module's surface is exactly the named set and imports
   are private until re-exported (`export module X` bulk, `export A.b`
-  named); `import X as Y` and `import X (a as b, c)` rename/select
-  with the duplicate-name rule over explicit imports (the prelude is
-  the implicit base layer; own names shadow imports). Instances
+  named); `import X as Y`, `import X (a as b, c)` and
+  `import X hiding (a, b)` rename, select or leave out members, with
+  the duplicate-name rule over explicit imports (the prelude is the
+  implicit base layer; own names shadow imports). Instances
   and the foreign table stay module-owned facts, not names. Fixities
   belong to the module declaring the operator and follow that binding
   through imports and re-exports; consumers cannot redeclare or override

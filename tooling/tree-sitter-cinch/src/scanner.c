@@ -140,6 +140,7 @@ enum TokenType {
   KW_ASM,
   KW_CLR,
   KW_JVM,
+  KW_HIDING,
 
   COLON_COLON,
   ARROW,
@@ -292,7 +293,7 @@ static const char *SYM_NAMES[] = {
   "KW_HANDLER","KW_UNSAFE","KW_WHEN","KW_USES","KW_IMMARG","KW_FOR","KW_SAFETY","KW_LIVENESS",
   "KW_RECURRENCE","KW_STABILITY","KW_ALWAYS","KW_EVENTUALLY","KW_RECUR","KW_STABLE","KW_ASSUME",
   "KW_MIGRATE","KW_RELATED","KW_ATTRIBUTES","KW_REPLACEABLE","KW_SPECIALIZED","KW_LLVM","KW_WASM",
-  "KW_ASM","KW_CLR","KW_JVM",
+  "KW_ASM","KW_CLR","KW_JVM","KW_HIDING",
   "COLON_COLON","ARROW","LARROW","DARROW","LQUOTE","RQUOTE","SPLICE_OPEN","MULT_ZERO","MULT_ONE",
   "MULT_AFF","MULT_MANY","BANG","AT","DOT","EQUALS","PIPE","DOLLAR","BACKSLASH","TILDE",
   "LPAREN","RPAREN","LBRACKET","RBRACKET","LBRACE","RBRACE","COMMA","SEMICOLON",
@@ -477,6 +478,7 @@ static const struct WordSym CONTEXTUAL_WORDS[] = {
     {"llvm", KW_LLVM},             {"wasm", KW_WASM},
     {"asm", KW_ASM},               {"clr", KW_CLR},
     {"jvm", KW_JVM},
+    {"hiding", KW_HIDING},
     {NULL, 0},
 };
 
@@ -1020,6 +1022,12 @@ static int word_symbol(const bool *valid, const char *word,
       /* `macro name attributes (...)`: only before `(`. */
       if (valid[KW_ATTRIBUTES] && next && next->kind == KIND_LPAREN)
         return KW_ATTRIBUTES;
+      break;
+    case KW_HIDING:
+      /* `import X hiding (a, b)`: only between an import's module path
+         and `(`, so `hiding` stays an identifier everywhere else. */
+      if (valid[KW_HIDING] && next && next->kind == KIND_LPAREN)
+        return KW_HIDING;
       break;
     default:
       if (valid[ctx]) return ctx;

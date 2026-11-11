@@ -273,6 +273,11 @@ section 1.
   converts at compile time (built-in `json`/`txt`/`bytes` converters
   with provenance and content hashes in the manifest; unknown
   extensions are build errors naming the built-ins).
+- **Hiding imports, 2026-11-11.** `import X hiding (a, b)` imports the
+  whole surface of `X` except the named members (surface grammar local
+  amendments section 11). It is the second way out of the
+  duplicate-name rule, beside renaming: two modules imported whole that
+  export one name no longer force a selection list on one of them.
 - **Cinch naming (D278-D281), 2026-10-28.** The language is Cinch:
   source files are `.cinch`, compiled interfaces `.cinchif`, runtime
   externs `cinch_*`, the staticlib `cinchruntime`, and the reserved
