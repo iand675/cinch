@@ -89,10 +89,17 @@ module Bootstrap.Contracts where
   -- question is the quadratic pass: two billion `string-compare` calls on
   -- the compiler's own source. One table turns each question into a hash
   -- probe, and the hash is the digest the keyed structures already pay.
+  -- INVARIANT: the fold is tail recursive. The list holds every reference
+  -- the program mentions (hundreds of thousands on the compiler's own
+  -- source), and a frame that kept the map across the recursion would
+  -- overflow the stack long before it finished.
   reference-index :: List String -> HashMap String Bool
-  reference-index names = case names of
-    Nil -> hash-map-empty
-    Cons name rest -> hash-map-insert name True (reference-index rest)
+  reference-index names = reference-index-from names hash-map-empty
+
+  reference-index-from :: List String -> HashMap String Bool -> HashMap String Bool
+  reference-index-from names index = case names of
+    Nil -> index
+    Cons name rest -> reference-index-from rest (hash-map-insert name True index)
 
   referenced :: String -> HashMap String Bool -> Bool
   referenced name index = case hash-map-lookup name index of
