@@ -177,9 +177,12 @@ pub const STATE_SLEEPERS_OFFSET: usize = 128;
 
 const _: () = assert!(std::mem::size_of::<Line>() == STATE_SLEEPERS_OFFSET);
 
-/// The address of the shared state (module docs).
+/// The address of the shared state (module docs). The parameter is
+/// ignored here and in the two entry points below that have nothing to
+/// take: the prelude reaches them through a `uses` contract, which
+/// states a function of at least one machine word.
 #[unsafe(no_mangle)]
-pub extern "C" fn cinch_stm_state() -> i64 {
+pub extern "C" fn cinch_stm_state(_unused: i64) -> i64 {
     STATE.as_ptr() as usize as i64
 }
 
@@ -249,7 +252,7 @@ pub extern "C" fn cinch_stm_wait_begin(filter: i64) -> i64 {
 
 /// End a wait whose read set turned out to have changed already.
 #[unsafe(no_mangle)]
-pub extern "C" fn cinch_stm_wait_cancel() -> i64 {
+pub extern "C" fn cinch_stm_wait_cancel(_unused: i64) -> i64 {
     deregister(&take_wait());
     0
 }
@@ -313,7 +316,7 @@ pub extern "C" fn cinch_stm_wake(filter: i64) -> i64 {
 /// Give the processor to another runnable context: the last step of a
 /// transaction's contention backoff, after spinning has not helped.
 #[unsafe(no_mangle)]
-pub extern "C" fn cinch_stm_yield() -> i64 {
+pub extern "C" fn cinch_stm_yield(_unused: i64) -> i64 {
     std::thread::yield_now();
     0
 }
@@ -334,7 +337,7 @@ mod tests {
 
     #[test]
     fn the_state_layout_is_the_one_the_prelude_reads() {
-        let base = cinch_stm_state() as usize;
+        let base = cinch_stm_state(0) as usize;
         assert_eq!(base % 128, 0);
         assert_eq!(std::ptr::from_ref(sleepers()) as usize, base + STATE_SLEEPERS_OFFSET);
     }
@@ -429,7 +432,7 @@ mod tests {
             cinch_stm_wait_begin(1);
             let w = WAITING.with(|slot| slot.borrow().clone()).unwrap();
             assert!(waiters().iter().any(|x| Arc::ptr_eq(x, &w)));
-            cinch_stm_wait_cancel();
+            cinch_stm_wait_cancel(0);
             assert!(!waiters().iter().any(|x| Arc::ptr_eq(x, &w)));
         })
         .join()

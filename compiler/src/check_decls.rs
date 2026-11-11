@@ -4914,7 +4914,7 @@ impl Checker {
                             },
                         };
                         if SEQ_CLASSES.contains(&self.signature_key(&module, &sig.name.text).as_str()) {
-                            // The three sequencing providers all have
+                            // The sequencing providers all have
                             // `pure`/`bind` methods: they share the value
                             // namespace, and the first registered answers
                             // bare uses (decision D22).

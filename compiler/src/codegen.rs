@@ -4034,11 +4034,12 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     );
                     ret(b, &out);
                 }
-                // A cell's word is its address, and a cast or an opened
-                // value word is the word it was given: the unit only
-                // changes what the type checker and the count pass know.
+                // A cell's word is its address, and a cast, a held word
+                // or an opened value word is the word it was given: the
+                // unit only changes what the type checker and the count
+                // pass know.
                 CellAddr | CellCast => ret(b, "%p0"),
-                CellOpen => ret(b, "%p1"),
+                CellHold | CellOpen => ret(b, "%p1"),
             }
         }
         Nat(n) => {

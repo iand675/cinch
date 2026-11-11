@@ -2110,10 +2110,11 @@ struct EffectInfo {
     ops: Vec<(String, Scheme)>,
 }
 
-/// How often a continuation closure's body runs. Every continuation runs
-/// at most once per execution of its build site; a body over `%1` captures
-/// needs exactly-once semantics, which handler resumptions must promise
-/// (see [`Checker::note_use`]).
+/// How often a continuation closure's body runs. A continuation runs at
+/// most once per execution of its build site, except under a provider
+/// that reruns it; a body over `%1` captures needs exactly-once
+/// semantics, which handler resumptions must promise (see
+/// [`Checker::note_use`]).
 #[derive(Clone, Debug)]
 enum ContKind {
     /// Ordinary control continuations and direct-provider `do` binds.
@@ -2121,6 +2122,10 @@ enum ContKind {
     /// `Result`/`Option` provider binds: the continuation may be skipped
     /// by short-circuiting, so linear captures inside are rejected.
     AtMost,
+    /// `STM` provider binds: the continuation is part of a transaction,
+    /// which runs once per attempt and may be skipped by `retry`, so a
+    /// capture is used any number of times, like a lambda's.
+    Many,
 }
 
 /// A continuation closure currently being elaborated.
@@ -2164,12 +2169,19 @@ struct HandlerExtent {
     memo: usize,
 }
 
-/// Compiler-known sequencing provider class heads.
-const SEQ_CLASSES: [&str; 3] = [
+/// Compiler-known sequencing provider class heads, as class keys
+/// ([`Checker::signature_key`]): the three of the embedded family through
+/// the registry, and the transaction provider at its defining module,
+/// which ships as source.
+const SEQ_CLASSES: [&str; 4] = [
     crate::known::DIRECT_SEQUENCING,
     crate::known::RESULT_SEQUENCING,
     crate::known::OPTION_SEQUENCING,
+    STM_SEQUENCING,
 ];
+
+/// The class key of `Effect.Stm`'s `do` provider.
+const STM_SEQUENCING: &str = "Effect.Stm.StmSequencing";
 
 /// The maximum `let`/`letrec` nesting the elaborator recurses into.
 /// A deeper nesting gets the named let-nesting depth-limit diagnostic
@@ -4842,14 +4854,17 @@ impl Checker {
     /// once only when no enclosing frame can skip it.
     fn cont_use_count(&mut self, l: LocalId, span: ast::Span) -> Result<Count> {
         let linear = self.effective_mult(l) == Some(Mult::One);
-        let (has_at_most, has_risky) = {
+        let (has_at_most, has_many, has_risky) = {
             let active = &self.conts[self.conts.len() - self.cont_depth..];
             (
                 active.iter().any(|f| matches!(f.kind, ContKind::AtMost)),
+                active.iter().any(|f| matches!(f.kind, ContKind::Many)),
                 active.iter().any(|f| f.risky),
             )
         };
-        if linear && has_at_most {
+        if has_many {
+            Ok(Count::UNBOUNDED)
+        } else if linear && has_at_most {
             Ok(Count::AT_MOST_ONCE)
         } else if linear && has_risky {
             self.promote_resumptions(span)?;

@@ -11164,11 +11164,13 @@ impl Checker {
                 ))
             }
         };
-        let kind = if select_provider(&self.seq_binders, sspan)?.class == crate::known::DIRECT_SEQUENCING {
-            ContKind::Once
-        } else {
+        let kind = match select_provider(&self.seq_binders, sspan)?.class.as_str() {
+            crate::known::DIRECT_SEQUENCING => ContKind::Once,
+            // A transaction runs again whenever an attempt is abandoned,
+            // and its continuations with it.
+            STM_SEQUENCING => ContKind::Many,
             // A short-circuiting provider may skip the continuation.
-            ContKind::AtMost
+            _ => ContKind::AtMost,
         };
         let risky = self.term_may_dispatch(stmt);
         let sp = span;
