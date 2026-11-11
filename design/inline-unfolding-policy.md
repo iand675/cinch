@@ -529,3 +529,72 @@ What the numbers say, one change at a time:
   `cinch_alloc_ctor` is 801 in every row. That is the property the model's
   60-tenths allocation price exists to protect, and it is worth stating
   because the previous round's wide class added 2,038 of them.
+
+## 14 The interface optimisation artifact
+
+Mechanism A of section 12 is implemented as a second artifact beside the
+contract, not as a fatter `.cinchif` (the reason is in section 2.2 of
+`design/compiled-interface-metadata.md`: a body must not move the identity a
+dependent keys on):
+
+```text
+build/<Module>.cinchif   the contract (schema 10, unchanged)
+build/<Module>.cinchopt  the unfoldings (schema 1)
+```
+
+`compiler/src/ifaceopt.rs` defines it. It records the module, the
+`iface_hash` it was produced against, the runtime ABI, and one row per unit:
+arity, parameter representation classes and the body. The body encoding is a
+canonical tagged JSON form for exactly the unfoldable class (section 3): a
+node outside the class makes the writer skip that body, and the reader
+refuses an unknown tag. The writer runs in `write_artifacts` beside every
+`.cinchif`, filters by `simplify::unfoldable_names` (one class computation
+per program), and writes no artifact for a module with no class body. The
+artifact's own content hash is recorded in the package execution interface
+(`build/package.cinchif`) and travels with the package on install.
+
+The consumer is `--interface-optimisations <manifest>`, where the manifest is
+the interface manifest a consumer already uses. It loads each row's sibling
+`.cinchopt`, refuses one whose module or `iface_hash` disagrees with the row
+(inlining against a stale body is wrong code, not a missed win), and turns
+the bodies into a foreign table (`ifaceopt::load_manifest`). The driver then
+specializes *with the library's bodies still present*, because that is where
+a dictionary projection becomes a direct call to a method unit; only then
+does it drop the units the artifacts describe, and run
+`simplify::simplify_with_foreign`. The dropped units are not emitted by this
+compilation: the caller links the object the artifacts describe.
+
+Measured on the compiler's own 46 module bundle, at the post-specialization
+Core point (the point an artifact's bodies describe), with the library units
+made external:
+
+| measurement | no artifact | artifact |
+| --- | --- | --- |
+| artifact units | 0 | 359 |
+| cross-object calls | 15,759 | 10,895 |
+| Core nodes | 1,516,062 | 1,526,369 |
+| `Data.Machine.Eq_I64.==` | 532 | 0 |
+| `Data.Nat.Eq_Nat.==` | 890 | 0 |
+| `Data.Bool.not` | 52 | 0 |
+| `Data.Nat.Add_Nat.+` | 1,272 | 0 |
+| `Data.String.string-compare` | 1,037 | 1,037 |
+
+So the class removes 2,746 wrapper calls (4,864 cross-object calls including
+the secondary chains), and the copies cost 10,307 nodes, 0.68 per cent of the
+no-artifact program, while the program as a whole is 77,241 nodes smaller
+than before the simplifier because the duplicates the inliner already made
+are now made once per site instead of once per definition plus copies.
+`string-compare` does not move: it has two decisions and is outside the
+class, which is the size decision section 6 records.
+
+The emitted IR of an external-library build is 149 calls and 49 KB smaller
+than the whole-program build of the same bundle, and neither defines nor
+calls a wrapper unit: the whole-program build had already inlined them, and
+the artifact build reaches the same residual.
+
+The self-hosted compiler's inliner (`Bootstrap.RuntimeIr.cinch`) is not a
+consumer yet. Its bodies are `CoreTerm`s with `UType` annotations on every
+node, and the artifact would have to transport those types (or the consumer
+would have to re-elaborate the body); that codec is the next step for the
+stage chain, and it is what turns the 3,561 calls in
+`build/bootstrap/stage2/compiler.ll` into unfoldable ones.

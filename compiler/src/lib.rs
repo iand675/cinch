@@ -15,6 +15,7 @@ pub mod coretext;
 pub mod highlight;
 pub mod core;
 pub mod driver;
+pub mod ifaceopt;
 pub mod interface;
 pub mod intern;
 #[cfg(feature = "jit")]

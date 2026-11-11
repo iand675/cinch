@@ -2581,10 +2581,23 @@ fn write_artifacts(
 ) -> Result<()> {
     std::fs::create_dir_all(out_dir)
         .map_err(|e| Error::plain(format!("{}: {e}", out_dir.display())))?;
+    let unfoldable = crate::simplify::unfoldable_names(program);
     for iface in ifaces {
         let p = out_dir.join(format!("{}.cinchif", iface.module));
         std::fs::write(&p, iface.to_json())
             .map_err(|e| Error::plain(format!("{}: {e}", p.display())))?;
+        // The optimisation artifact (`crate::ifaceopt`): the unfoldable
+        // bodies of this module's small units, keyed by the interface
+        // identity just written. A module with no such body writes no
+        // artifact, so absence means "nothing to inline".
+        let optimisation = crate::ifaceopt::for_module_in(iface, program, &unfoldable);
+        let opt_path = out_dir.join(format!("{}.cinchopt", iface.module));
+        if optimisation.bodies.is_empty() {
+            let _ = std::fs::remove_file(&opt_path);
+        } else {
+            std::fs::write(&opt_path, optimisation.to_json())
+                .map_err(|e| Error::plain(format!("{}: {e}", opt_path.display())))?;
+        }
     }
     let mut modules: Vec<(&str, String)> = ifaces
         .iter()
@@ -3997,6 +4010,11 @@ pub struct DriverOptions {
     /// taken against the same program with the inliner active
     /// (design/stack-allocation.md section 7).
     pub no_inline: bool,
+    /// `--interface-optimisations <manifest>`: an interface manifest whose
+    /// modules' `.cinchopt` unfoldings answer this program's cross-object
+    /// call sites. The units those artifacts describe are not emitted by
+    /// this compilation, so the caller links the object they describe.
+    pub interface_optimisations: Option<PathBuf>,
     /// `--case-of-case`: run the case-of-case rule (off by default; the join
     /// node, its introduction and its printing stay on either way).
     pub case_of_case: bool,
@@ -4965,6 +4983,56 @@ pub fn driver_with_profile_opts(
     // Metadata boundary checks (design note, section 3).
     crate::interface::verify_chain(&ifaces).map_err(|e| Error::plain(e.to_string()))?;
     crate::interface::check_coherence(&ifaces).map_err(|e| Error::plain(e.to_string()))?;
+    // Interface optimisations (design/inline-unfolding-policy.md section
+    // 12, mechanism A): the unfoldings a library artifact carries join the
+    // inliner as foreign bodies, and the units they describe are external
+    // to this compilation. The checked program still holds those bodies
+    // (the embedded family is checked first), so they are removed here,
+    // which is exactly the separate-compilation shape the artifact exists
+    // for. A unit of a module this compilation defines keeps its own body:
+    // a source module shadows the external one.
+    let mut program = program;
+    let (mut program, foreign) = if let Some(manifest) = &opts.interface_optimisations {
+        let table = crate::ifaceopt::load_manifest(manifest)?;
+        if table.bodies.is_empty() || mode == Mode::EmitObject {
+            (program, table.bodies)
+        } else {
+            // Specialization runs first, with the library's own bodies still
+            // present: a dictionary projection becomes a direct call to the
+            // method unit, and the method's definition is what the artifact
+            // describes. Only then do the external units leave this program.
+            let mut no_simplify = opts.simplifier();
+            no_simplify.max_iterations = 0;
+            let (specialized, _) =
+                crate::specialize::optimize_with(&program, profile, &no_simplify)?;
+            let mut program = specialized;
+            let local: std::collections::BTreeSet<&str> =
+                ifaces.iter().map(|i| i.module.as_str()).collect();
+            let module_of = |unit: &str| -> Option<String> {
+                let mut best: Option<&str> = None;
+                for m in table.modules.iter() {
+                    if unit.starts_with(m.as_str())
+                        && unit.as_bytes().get(m.len()) == Some(&b'.')
+                        && best.map_or(true, |b: &str| m.len() > b.len())
+                    {
+                        best = Some(m);
+                    }
+                }
+                best.map(str::to_string)
+            };
+            program.fns.retain(|f| match module_of(&f.id.0) {
+                Some(m) => local.contains(m.as_str()),
+                None => true,
+            });
+            program.instances.retain(|i| match module_of(&i.id.0) {
+                Some(m) => local.contains(m.as_str()),
+                None => true,
+            });
+            (program, table.bodies)
+        }
+    } else {
+        (program, Vec::new())
+    };
     // Core dumps (design/core-output.md section 2): the checked program
     // prints here, and the ownership stage prints the count pass applied to
     // that same program, which is why the two are target independent.
@@ -4987,9 +5055,27 @@ pub fn driver_with_profile_opts(
     // 2-5): every residual program is rechecked before installation, and
     // the report records where specialization stopped.
     let (mut program, mut opt, method_families) = if mode == Mode::EmitObject {
-        crate::specialize::optimize_object_with(&program, profile, &opts.object_roots, &opts.simplifier())?
+        crate::specialize::optimize_object_with_foreign(
+            &program,
+            profile,
+            &opts.object_roots,
+            &foreign,
+            &opts.simplifier(),
+        )?
+    } else if !foreign.is_empty() {
+        // The split above already specialized and removed the external
+        // units, so this step is the simplifier only.
+        let mut opt = crate::core::OptReport::default();
+        crate::simplify::simplify_with_foreign(
+            &mut program,
+            &foreign,
+            &opts.simplifier(),
+            &mut opt.simplify,
+        );
+        (program, opt, Vec::new())
     } else {
-        let (program, opt) = crate::specialize::optimize_with(&program, profile, &opts.simplifier())?;
+        let (program, opt) =
+            crate::specialize::optimize_with_foreign(&program, profile, &foreign, &opts.simplifier())?;
         (program, opt, Vec::new())
     };
     // Dead-unit elimination (design/stack-allocation.md section 7.4): after
@@ -5121,6 +5207,7 @@ pub fn driver_with_profile_opts(
             out,
             &emit_modules,
             opts.opt_level.unwrap_or(2),
+            &out_dir,
         );
     }
     let ir = if emit_modules.is_empty() {
@@ -5186,6 +5273,7 @@ fn write_object(
     out: Option<&Path>,
     emit_modules: &[String],
     opt_level: u8,
+    artifacts: &Path,
 ) -> Result<i32> {
     use crate::interface::{parse_json, JsonValue as J};
     let object = codegen::emit_object_for_modules(profile, program, emit_modules)?;
@@ -5248,6 +5336,24 @@ fn write_object(
     let interfaces = ifaces
         .iter()
         .map(|iface| {
+            // The optimisation artifact, when the module has one, is a
+            // sibling of its contract. The package records its content hash
+            // so a consumer can pin the unfoldings it inlines with the same
+            // rigor as the object they came from.
+            let opt_path = artifacts.join(format!("{}.cinchopt", iface.module));
+            let optimisation = match std::fs::read_to_string(&opt_path) {
+                Ok(text) => {
+                    let artifact = crate::ifaceopt::Optimisation::from_json(&text)
+                        .map_err(|e| Error::plain(format!("{}: {e}", opt_path.display())))?;
+                    J::obj([
+                        ("schema", crate::ifaceopt::SCHEMA.into()),
+                        ("iface_hash", artifact.iface_hash.as_str().into()),
+                        ("content_hash", artifact.content_hash().as_str().into()),
+                        ("bodies", (artifact.bodies.len() as u64).into()),
+                    ])
+                }
+                Err(_) => J::Null,
+            };
             Ok(J::obj([
                 ("module", iface.module.as_str().into()),
                 ("iface_hash", iface.iface_hash().into()),
@@ -5255,6 +5361,7 @@ fn write_object(
                     "interface",
                     parse_json(&iface.to_json()).map_err(|e| Error::plain(e.to_string()))?,
                 ),
+                ("optimisation", optimisation),
             ]))
         })
         .collect::<Result<Vec<_>>>()?;

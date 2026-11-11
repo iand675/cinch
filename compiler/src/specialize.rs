@@ -553,12 +553,26 @@ pub fn optimize_object_with(
     roots: &[ObjectRoot],
     simplifier: &crate::simplify::SimplifyOptions,
 ) -> crate::Result<(Program, OptReport, Vec<MethodFamily>)> {
+    optimize_object_with_foreign(program, profile, roots, &[], simplifier)
+}
+
+/// [`optimize_object_with`] with a foreign body table: units this program
+/// calls but does not define, whose unfoldings came from an interface
+/// optimisation artifact (`crate::ifaceopt`). The inliner copies them at
+/// their call sites and no unit is emitted for them.
+pub fn optimize_object_with_foreign(
+    program: &Program,
+    profile: &crate::core::TargetProfile,
+    roots: &[ObjectRoot],
+    foreign: &[crate::core::FnDef],
+    simplifier: &crate::simplify::SimplifyOptions,
+) -> crate::Result<(Program, OptReport, Vec<MethodFamily>)> {
     validate_object_roots(program, roots)?;
     let (residual, mut report) = crate::core::optimize(program, profile)?;
     validate_object_roots(&residual, roots)?;
     let mut families = Vec::new();
     let mut out = specialize_with_roots(&residual, &mut report, roots, Some(&mut families));
-    crate::simplify::simplify(&mut out, simplifier, &mut report.simplify);
+    crate::simplify::simplify_with_foreign(&mut out, foreign, simplifier, &mut report.simplify);
     if report.unrecorded != 0 {
         return Err(crate::Error::plain(format!("object specialization has {} unrecorded representation arguments", report.unrecorded)));
     }
@@ -582,8 +596,19 @@ pub fn optimize_with(
     profile: &crate::core::TargetProfile,
     simplifier: &crate::simplify::SimplifyOptions,
 ) -> crate::Result<(Program, OptReport)> {
+    optimize_with_foreign(program, profile, &[], simplifier)
+}
+
+/// [`optimize_with`] with a foreign body table (see
+/// [`optimize_object_with_foreign`]).
+pub fn optimize_with_foreign(
+    program: &Program,
+    profile: &crate::core::TargetProfile,
+    foreign: &[crate::core::FnDef],
+    simplifier: &crate::simplify::SimplifyOptions,
+) -> crate::Result<(Program, OptReport)> {
     let (residual, mut report) = crate::core::optimize(program, profile)?;
     let mut out = specialize(&residual, &mut report);
-    crate::simplify::simplify(&mut out, simplifier, &mut report.simplify);
+    crate::simplify::simplify_with_foreign(&mut out, foreign, simplifier, &mut report.simplify);
     Ok((out, report))
 }

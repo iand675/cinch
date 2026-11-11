@@ -245,6 +245,19 @@ impl Tables {
         }
         tables
     }
+
+    /// Add the units a foreign body table defines. A foreign unit has no
+    /// `InstanceDef` of its own here: an artifact carries bodies, not the
+    /// dictionary tables, so only its arity and constructor fact matter to
+    /// the admission rule and to a saturated copy.
+    fn extend(&mut self, foreign: &[FnDef]) {
+        for f in foreign {
+            self.arity.insert(f.id.0.clone(), f.params.len());
+            if let Some((tag, fields)) = f.ctor {
+                self.ctors.insert(f.id.0.clone(), (tag, fields));
+            }
+        }
+    }
 }
 
 /// What the pass knows about the locals in scope: the alias chains the
@@ -1474,11 +1487,29 @@ fn same_pat(a: &CPat, b: &CPat) -> bool {
 /// iteration cap. `report` records the passes actually run, the ticks, and
 /// the per-rule counts.
 pub fn simplify(program: &mut Program, opts: &SimplifyOptions, report: &mut SimplifyReport) {
+    simplify_with_foreign(program, &[], opts, report)
+}
+
+/// [`simplify`] with a table of foreign bodies: units this program calls
+/// but does not define, whose unfoldings came from an interface
+/// optimisation artifact (`crate::ifaceopt`). They join the class exactly
+/// as the program's own units do, so a cross-object call site meets the
+/// same admission rule and the same copy machinery it would inside the
+/// program. Nothing is emitted for a foreign unit: its body is only ever
+/// copied into a caller of this program, and the definition stays in the
+/// object the artifact describes.
+pub fn simplify_with_foreign(
+    program: &mut Program,
+    foreign: &[FnDef],
+    opts: &SimplifyOptions,
+    report: &mut SimplifyReport,
+) {
     report.max_iterations = opts.max_iterations as usize;
     if opts.max_iterations == 0 {
         return;
     }
-    let tables = Tables::new(program);
+    let mut tables = Tables::new(program);
+    tables.extend(foreign);
     let mut ticks = Ticks::default();
     let mut fresh = Fresh { local: max_local(program), join: max_join(program) };
     // Two percent of the program is the most inlining may add: a copy is
@@ -1491,7 +1522,7 @@ pub fn simplify(program: &mut Program, opts: &SimplifyOptions, report: &mut Simp
     for _ in 0..opts.max_iterations {
         ticks.changed = false;
         if opts.inline {
-            let table = inline_table(program, &tables, opts);
+            let table = inline_table(program, foreign, &tables, opts);
             if !table.is_empty() {
                 for f in program.fns.iter_mut() {
                     if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body {
@@ -1672,9 +1703,12 @@ impl InlineTable {
     }
 }
 
-/// The inlining facts of one sweep: the call count and value uses of every
-/// unit, and the bodies the rules admit.
-fn inline_table(program: &Program, tables: &Tables, opts: &SimplifyOptions) -> InlineTable {
+/// The units of `program` whose bodies are in the unfoldable class, with no
+/// foreign table. The interface optimisation writer uses this to put exactly
+/// the bodies the admission rule would copy into an artifact; computing it
+/// once here keeps the producer and the consumer on one rule.
+pub fn unfoldable_names(program: &Program) -> std::collections::BTreeSet<String> {
+    let tables = Tables::new(program);
     let mut calls: HashMap<String, usize> = HashMap::new();
     let mut values: HashSet<String> = HashSet::new();
     let mut edges: HashMap<String, Vec<String>> = HashMap::new();
@@ -1684,10 +1718,50 @@ fn inline_table(program: &Program, tables: &Tables, opts: &SimplifyOptions) -> I
         edges.insert(f.id.0.clone(), out);
     }
     let recursive = recursive_units(&edges);
-    let unfold = unfoldable_units(program, tables, &recursive);
+    unfoldable_units(program, &[], &tables, &recursive).into_keys().collect()
+}
+
+/// The inlining facts of one sweep: the call count and value uses of every
+/// unit, and the bodies the rules admit. `foreign` are units the program
+/// calls but does not define (their unfoldings came from an interface
+/// optimisation artifact): they join the class and the table exactly as the
+/// program's own units do, and the call sites they answer are the program's.
+fn inline_table(
+    program: &Program,
+    foreign: &[FnDef],
+    tables: &Tables,
+    opts: &SimplifyOptions,
+) -> InlineTable {
+    let mut calls: HashMap<String, usize> = HashMap::new();
+    let mut values: HashSet<String> = HashSet::new();
+    let mut edges: HashMap<String, Vec<String>> = HashMap::new();
+    for f in &program.fns {
+        let mut out = Vec::new();
+        collect_refs(&f.body, &tables.arity, false, &mut calls, &mut values, &mut out);
+        edges.insert(f.id.0.clone(), out);
+    }
+    for f in foreign {
+        // A foreign body's own calls are not sites of this program: only a
+        // caller defined here can be replaced. They are collected for the
+        // call graph, so a foreign cycle is still refused entry to the class.
+        let mut scratch_calls = HashMap::new();
+        let mut scratch_values = HashSet::new();
+        let mut out = Vec::new();
+        collect_refs(
+            &f.body,
+            &tables.arity,
+            false,
+            &mut scratch_calls,
+            &mut scratch_values,
+            &mut out,
+        );
+        edges.insert(f.id.0.clone(), out);
+    }
+    let recursive = recursive_units(&edges);
+    let unfold = unfoldable_units(program, foreign, tables, &recursive);
     let trace = opts_trace();
     let mut table = InlineTable::default();
-    for f in &program.fns {
+    for f in program.fns.iter().chain(foreign.iter()) {
         // A `prim` unit's body is inline target IR, not Core, and a ctor unit
         // is admitted only when its body is a static block (a nullary
         // constructor's value), which `candidate` decides.
@@ -2123,22 +2197,25 @@ fn case_scrutinee_params(e: &Core, out: &mut Vec<usize>) {
     }
 }
 
-/// The unfoldable units of a program: names whose bodies are in the class,
-/// with the shape each one has. Computed once per program, before any copy,
-/// because the class reads declarations and not sites.
+/// The unfoldable units of a program and of its foreign body table: names
+/// whose bodies are in the class, with the shape each one has. Computed once
+/// per program, before any copy, because the class reads declarations and
+/// not sites.
 fn unfoldable_units(
     program: &Program,
+    foreign: &[FnDef],
     tables: &Tables,
     recursive: &HashSet<String>,
 ) -> HashMap<String, Shape> {
     let bodies: HashMap<&str, &Core> = program
         .fns
         .iter()
+        .chain(foreign.iter())
         .filter(|f| f.prim.is_none() && f.ctor.is_none() && !f.meta.prim_body)
         .map(|f| (f.id.0.as_str(), &f.body))
         .collect();
     let mut known: HashMap<String, Option<Shape>> = HashMap::new();
-    for f in &program.fns {
+    for f in program.fns.iter().chain(foreign.iter()) {
         let name = f.id.0.clone();
         if known.contains_key(&name) {
             continue;

@@ -1976,6 +1976,15 @@ fn materialize(
             std::fs::copy(&from, &to)
                 .map_err(|e| Error::plain(format!("{}: {e}", to.display())))?;
         }
+        // The optimisation artifact is the contract's optional companion
+        // (`crate::ifaceopt`); an installed package ships it so a consumer
+        // can inline the library's small units without its sources.
+        let opt_from = project_build.join(format!("{module}.cinchopt"));
+        let opt_to = interfaces.join(format!("{module}.cinchopt"));
+        if opt_from.exists() {
+            std::fs::copy(&opt_from, &opt_to)
+                .map_err(|e| Error::plain(format!("{}: {e}", opt_to.display())))?;
+        }
     }
     if !object.exists() || !abi.exists() || !interfaces.exists() {
         return Err(Error::plain(
