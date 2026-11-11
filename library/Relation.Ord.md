@@ -45,7 +45,7 @@ ordering methods reverse).
 
 [Source](/reference-sources/Relation.Ord.cinch) · line 46
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Down</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Down</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Down</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Down</span> <span class="tok-variable">a</span>)</code></pre>
 
 # Signatures and methods
 

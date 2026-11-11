@@ -58,7 +58,7 @@ defined here.
 
 [Source](/reference-sources/Data.Const.cinch)
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Const</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Const</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Const</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Const</span>.<span class="tok-constructor">Const</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>)</code></pre>
 
 # Values
 

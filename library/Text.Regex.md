@@ -102,7 +102,7 @@ None).
 
 [Source](/reference-sources/Text.Regex.cinch) · line 895
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Match</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">List</span> (<span class="tok-constructor">Option</span> <span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Match</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span>)))</code></pre>
 
 <a id="type-5265676578"></a>
 
@@ -166,7 +166,7 @@ offset for the report.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ProgramTooLarge</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidPatternSyntax</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidPatternSyntax</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>))</code></pre>
 
 # Values
 

@@ -130,7 +130,7 @@ module Prim.Sys.Linux where
       ret i64 %r
     } when arch aarch64
     unsafe llvm {
-      %r = call i64 asm sideeffect "mov rax, 257\0A mov rdi, $1\0A mov rsi, $2\0A mov rdx, $3\0A mov r10, $4\0A syscall\0A mov $0, rax", "={rax},{rdi},{rsi},{rdx},{r10},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
+      %r = call i64 asm sideeffect inteldialect "mov rax, 257\0A mov rdi, $1\0A mov rsi, $2\0A mov rdx, $3\0A mov r10, $4\0A syscall\0A mov $0, rax", "={rax},{rdi},{rsi},{rdx},{r10},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
       ret i64 %r
     } when arch x86_64
     llvm {
@@ -144,7 +144,7 @@ module Prim.Sys.Linux where
       ret i64 %r
     } when arch aarch64
     unsafe llvm {
-      %r = call i64 asm sideeffect "mov rax, 0\0A mov rdi, $1\0A mov rsi, $2\0A mov rdx, $3\0A syscall\0A mov $0, rax", "={rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2)
+      %r = call i64 asm sideeffect inteldialect "mov rax, 0\0A mov rdi, $1\0A mov rsi, $2\0A mov rdx, $3\0A syscall\0A mov $0, rax", "={rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2)
       ret i64 %r
     } when arch x86_64
     llvm {
@@ -158,7 +158,7 @@ module Prim.Sys.Linux where
       ret i64 %r
     } when arch aarch64
     unsafe llvm {
-      %r = call i64 asm sideeffect "mov rax, 1\0A mov rdi, $1\0A mov rsi, $2\0A mov rdx, $3\0A syscall\0A mov $0, rax", "={rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2)
+      %r = call i64 asm sideeffect inteldialect "mov rax, 1\0A mov rdi, $1\0A mov rsi, $2\0A mov rdx, $3\0A syscall\0A mov $0, rax", "={rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2)
       ret i64 %r
     } when arch x86_64
     llvm {
@@ -172,7 +172,7 @@ module Prim.Sys.Linux where
       ret i64 %r
     } when arch aarch64
     unsafe llvm {
-      %r = call i64 asm sideeffect "mov rax, 3\0A mov rdi, $1\0A syscall\0A mov $0, rax", "={rax},{rdi},~{rcx},~{r11},~{memory}"(i64 %0)
+      %r = call i64 asm sideeffect inteldialect "mov rax, 3\0A mov rdi, $1\0A syscall\0A mov $0, rax", "={rax},{rdi},~{rcx},~{r11},~{memory}"(i64 %0)
       ret i64 %r
     } when arch x86_64
     llvm {
@@ -186,7 +186,7 @@ module Prim.Sys.Linux where
       ret i64 %r
     } when arch aarch64
     unsafe llvm {
-      %r = call i64 asm sideeffect "mov rax, 8\0A mov rdi, $1\0A mov rsi, $2\0A mov rdx, $3\0A syscall\0A mov $0, rax", "={rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2)
+      %r = call i64 asm sideeffect inteldialect "mov rax, 8\0A mov rdi, $1\0A mov rsi, $2\0A mov rdx, $3\0A syscall\0A mov $0, rax", "={rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2)
       ret i64 %r
     } when arch x86_64
     llvm {
@@ -201,7 +201,7 @@ module Prim.Sys.Linux where
       ret i64 %r
     } when arch aarch64
     unsafe llvm {
-      %r = call i64 asm sideeffect "mov rax, 264\0A mov rdi, $1\0A mov rsi, $2\0A mov rdx, $3\0A mov r10, $4\0A syscall\0A mov $0, rax", "={rax},{rdi},{rsi},{rdx},{r10},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
+      %r = call i64 asm sideeffect inteldialect "mov rax, 264\0A mov rdi, $1\0A mov rsi, $2\0A mov rdx, $3\0A mov r10, $4\0A syscall\0A mov $0, rax", "={rax},{rdi},{rsi},{rdx},{r10},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
       ret i64 %r
     } when arch x86_64
     llvm {
@@ -215,7 +215,7 @@ module Prim.Sys.Linux where
       ret i64 %r
     } when arch aarch64
     unsafe llvm {
-      %r = call i64 asm sideeffect "mov rax, 258\0A mov rdi, $1\0A mov rsi, $2\0A mov rdx, $3\0A syscall\0A mov $0, rax", "={rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2)
+      %r = call i64 asm sideeffect inteldialect "mov rax, 258\0A mov rdi, $1\0A mov rsi, $2\0A mov rdx, $3\0A syscall\0A mov $0, rax", "={rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2)
       ret i64 %r
     } when arch x86_64
     llvm {
@@ -229,7 +229,7 @@ module Prim.Sys.Linux where
       ret i64 %r
     } when arch aarch64
     unsafe llvm {
-      %r = call i64 asm sideeffect "mov rax, 263\0A mov rdi, $1\0A mov rsi, $2\0A mov rdx, $3\0A syscall\0A mov $0, rax", "={rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2)
+      %r = call i64 asm sideeffect inteldialect "mov rax, 263\0A mov rdi, $1\0A mov rsi, $2\0A mov rdx, $3\0A syscall\0A mov $0, rax", "={rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2)
       ret i64 %r
     } when arch x86_64
     llvm {
@@ -243,7 +243,7 @@ module Prim.Sys.Linux where
       ret i64 %r
     } when arch aarch64
     unsafe llvm {
-      %r = call i64 asm sideeffect "mov rax, 262\0A mov rdi, $1\0A mov rsi, $2\0A mov rdx, $3\0A mov r10, $4\0A syscall\0A mov $0, rax", "={rax},{rdi},{rsi},{rdx},{r10},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
+      %r = call i64 asm sideeffect inteldialect "mov rax, 262\0A mov rdi, $1\0A mov rsi, $2\0A mov rdx, $3\0A mov r10, $4\0A syscall\0A mov $0, rax", "={rax},{rdi},{rsi},{rdx},{r10},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
       ret i64 %r
     } when arch x86_64
     llvm {
@@ -257,7 +257,7 @@ module Prim.Sys.Linux where
       ret i64 %r
     } when arch aarch64
     unsafe llvm {
-      %r = call i64 asm sideeffect "mov rax, 74\0A mov rdi, $1\0A syscall\0A mov $0, rax", "={rax},{rdi},~{rcx},~{r11},~{memory}"(i64 %0)
+      %r = call i64 asm sideeffect inteldialect "mov rax, 74\0A mov rdi, $1\0A syscall\0A mov $0, rax", "={rax},{rdi},~{rcx},~{r11},~{memory}"(i64 %0)
       ret i64 %r
     } when arch x86_64
     llvm {
@@ -272,7 +272,7 @@ module Prim.Sys.Linux where
       ret i64 %r
     } when arch aarch64
     unsafe llvm {
-      %r = call i64 asm sideeffect "mov rax, 39\0A syscall\0A mov $0, rax", "={rax},r,~{rcx},~{r11},~{memory}"(i64 %0)
+      %r = call i64 asm sideeffect inteldialect "mov rax, 39\0A syscall\0A mov $0, rax", "={rax},r,~{rcx},~{r11},~{memory}"(i64 %0)
       ret i64 %r
     } when arch x86_64
     llvm {

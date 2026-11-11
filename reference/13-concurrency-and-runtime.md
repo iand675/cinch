@@ -251,6 +251,150 @@ Four builtin values provide the runtime's own I/O, and each is labelled:
 
 Everything else lives in checked library modules: `Effect.Fs` for files, `Effect.Clock` for time, `Effect.Process` for subprocesses and the command line, `Effect.Log` and `Effect.Trace` for observability, and the networking, HTTP, resolution, signals, pseudo-terminal, and file-utility modules beside them. Their APIs return named `Result` errors where failure is expected, and the shipped HTTP client is plain HTTP and refuses HTTPS rather than falling back to it. See [the module reference](../library/00-index.md).
 
+# Software transactional memory
+
+`Effect.Stm` is shared mutable state that composes. A `TVar a` is a shared variable, an `STM a` describes reads and writes of such variables, and `atomically` runs one description so that all of it takes effect at one instant or none of it does. No other transaction sees some of its writes without the rest.
+
+<!-- cinch:run exit=0 -->
+```cinch
+module Main where
+  import Effect.Stm
+
+  move :: using (seq :: StmSequencing) => TVar Nat -> TVar Nat -> Nat -> STM Unit
+  move src dst n = do
+    a <- tvar-read src
+    if n <= a then do
+        _ <- tvar-write src (a - n)
+        tvar-modify dst (\b -> b + n)
+      else retry
+
+  main :: Unit ->{STM, Diverge} Int
+  main u =
+    let a = tvar-new-io (100 :: Nat) in
+    let b = tvar-new-io (0 :: Nat) in
+    case atomically (move a b 30) of
+      _ -> if tvar-read-io a == 70 then (if tvar-read-io b == 30 then 0 else 2) else 1
+```
+
+| Operation | Type | Meaning |
+| --- | --- | --- |
+| `atomically` | `STM a ->{STM, Diverge} a` | Run the transaction; run it again if another commit got in the way |
+| `retry` | `STM a` | Abandon the attempt and wait until a variable it read is written |
+| `or-else` | `STM a -> STM a -> STM a` | Run the second when the first would wait; the first's writes are discarded |
+| `check` | `Bool -> STM Unit` | `retry` unless the condition holds |
+| `tvar-new`, `tvar-read`, `tvar-write` | `a -> STM (TVar a)`, `TVar a -> STM a`, `TVar a -> a -> STM Unit` | The variable |
+| `tvar-modify`, `tvar-swap`, `tvar-state` | `TVar a -> (a -> a) -> STM Unit`, `TVar a -> a -> STM a`, `TVar a -> (a -> (b, a)) -> STM b` | Read and write in one step |
+| `tvar-new-io`, `tvar-read-io` | `a ->{STM} TVar a`, `TVar a ->{STM} a` | One-operation transactions outside `atomically` |
+| `atomically-or-cancel` | `using (io :: Io r) => STM a ->{STM, Cancel r, Diverge} Option a` | As `atomically`, answering `None` when the task is cancelled while it waits |
+
+`do` in a definition with a `using (seq :: StmSequencing)` binder sequences transactions, and `STM` is also a `Functor`, `Applicative`, `Monad` and `Alternative` (`empty` is `retry`, `<|>` is `or-else`). `stm-pure`, `stm-bind`, `stm-map` and `stm-then` are the same operations as plain functions. `Data.Option` exports an `or-else` of its own, so a module that imports both whole leaves one out: `import Data.Option hiding (or-else)`.
+
+`retry` is how a transaction blocks. A producer and a consumer hand values through a `TMVar` (`Effect.Stm.TMVar`), each waiting while the slot is in the wrong state:
+
+<!-- cinch:run exit=0 -->
+```cinch
+module Main where
+  import Effect.Stm
+  import Effect.Stm.TMVar
+  import Data.Machine
+
+  produce :: TMVar Nat -> I64 -> Nat ->{STM, Diverge} Nat
+  produce slot n x = if n == 0 then 0 else case atomically (tmvar-put slot x) of
+    _ -> produce slot (wrapping-sub-i64 n 1) (x + 1)
+
+  consume :: TMVar Nat -> I64 -> Nat ->{STM, Diverge} Nat
+  consume slot n acc = if n == 0 then acc else
+    let x = atomically (tmvar-take slot) in consume slot (wrapping-sub-i64 n 1) (acc + x)
+
+  work :: forall r. using (io :: Io r) => TMVar Nat ->{Async r, Cancel r, Diverge, STM} Result LoadError (Nat, Nat)
+  work slot = withScope $ \s -> do
+    a <- spawn s (\() -> Ok (consume slot 1000 0))
+    b <- spawn s (\() -> Ok (produce slot 1000 1))
+    joinAllOrCancel s a b
+
+  main :: Unit ->{Async r, Cancel r, Diverge, STM} Int
+  main u = with (io = newIO ()) in
+    let slot = tmvar-new-empty-io () in
+    case work slot of
+      Ok p -> (case p of
+        (total, _) -> if total == 500500 then 0 else 1)
+      Err _ -> 2
+```
+
+The structures built on the variable are ordinary library modules:
+
+| Module | Structure |
+| --- | --- |
+| `Effect.Stm.TMVar` | A variable that is empty or full; `tmvar-take` waits while empty, `tmvar-put` while full |
+| `Effect.Stm.TQueue` | An unbounded first-in first-out queue |
+| `Effect.Stm.TBQueue` | A bounded queue; a write waits at capacity |
+| `Effect.Stm.TSem` | A counting semaphore |
+
+## What a transaction guarantees
+
+| Guarantee | Statement |
+| --- | --- |
+| Atomicity and isolation | Committed transactions are serializable, in the order of their commits |
+| Opacity | An attempt that will not commit still reads only a snapshot some serial order could have produced, so a body cannot loop or fault on values that never existed together |
+| No lost wakeup | A transaction waiting in `retry` runs again after any commit that writes a variable it read |
+
+There is no fairness and no bound on attempts. A long transaction can be overtaken indefinitely by short ones that write what it reads, and a `retry` whose variables nobody writes waits forever, which is why `atomically` carries `Diverge`. A transaction may run many times: what an abandoned attempt allocated is released, and nothing an attempt did is visible unless it commits. An effect on the outside world belongs after the commit, under a protocol the application chooses.
+
+## What a transaction may not do
+
+A transaction's steps are pure functions, so I/O inside one has nowhere to put its effect row:
+
+<!-- cinch:reject contains="effect rows do not match" -->
+```cinch
+module Main where
+  import Effect.Stm
+
+  loud :: forall r. using (io :: Io r) => TVar Nat -> STM Nat
+  loud t = stm-bind (tvar-read t) (\n -> case ioWrite (bytes-new 1) of
+    _ -> stm-pure n)
+
+  main :: Int
+  main = 0
+```
+
+A step may run once per attempt, so a value that must be used exactly once cannot be carried across one:
+
+<!-- cinch:reject contains="multiplicity %1" -->
+```cinch
+module Main where
+  import Effect.Stm
+
+  bad :: using (seq :: StmSequencing) => TVar Nat -> Bytes %1 -> STM Nat
+  bad t b = do
+    a <- tvar-read t
+    pure (a + bytes-len b)
+
+  main :: Int
+  main = 0
+```
+
+A `TVar` handle is `Copy`, and a variable is reached from every task that holds it. Capturing one in a task therefore shares its value, and the value's type has to allow that:
+
+<!-- cinch:reject contains="shareable evidence" -->
+```cinch
+module Main where
+  import Effect.Stm
+
+  size :: TVar Bytes ->{STM, Diverge} Nat
+  size t = bytes-len (atomically (tvar-read t))
+
+  work :: forall r. using (io :: Io r) => TVar Bytes ->{Async r, Cancel r, Diverge, STM} Result LoadError (Nat, Nat)
+  work t = withScope $ \s -> do
+    a <- spawn s (\() -> Ok (size t))
+    b <- spawn s (\() -> Ok (size t))
+    joinAllOrCancel s a b
+
+  main :: Int
+  main = 0
+```
+
+The algorithm is versioned write locks with a global version clock (TL2), written in Cinch over inline target IR; the runtime supplies only the cell, the clock and the wait. [The STM design note](../design/stm.md) has the algorithm, the two rules that keep reference counts right when a value is replaced under readers, and the per-architecture instructions.
+
 # Exhaustion and defenses
 
 Heap, stack, and thread exhaustion are one outcome: exit 73 and exactly one stderr line naming the resource. They are not ordinary return values, and no program can observe them as data. The heap line reports the bytes the program asked to hold, which is the live heap past the cap rather than the cap itself.
@@ -263,10 +407,8 @@ The internal black-hole path and the impossible-boundary traps remain defenses f
 
 Long-lived supervised services, deterministic scheduler control, cancellation injection, and replayable schedule exploration remain design targets beyond the current structured-task API: no module in the library mentions a supervisor, a restart policy, or a scheduler, and no task API accepts a schedule. A scheduling test, when one exists, states its exploration bound.
 
-<span class="support-tag support-tag--planned">Coming soon</span> **Software transactional memory.** The specification proposes an optional transactional library with `atomically`, versioned shared cells, `retry`, and `orElse`, with no irreversible I/O, suspension, or linear consumption inside a retryable transaction. That is a design discussion rather than a shipped library: no module in the library declares `atomically`, `retry`, or `orElse`, so using one reports `unknown name atomically`, and no fairness, rollback, or starve-freedom claim holds of any program. External effects would occur after commit under an explicit protocol.
-
 <span class="support-tag support-tag--planned">Coming soon</span> **End-user runtime supervision.** Runtime upgrade and JIT mechanisms and the target APIs do not yet supply a complete service launcher, update supervisor, or cross-platform runtime packaging tool: `cinch --help` lists `check`, `emit-ir`, `emit-object`, `build`, `run`, `lsp`, `doc`, `repl`, `jit`, and `pkg`, and nothing that starts or supervises a service. Use the documented native CLI and the checked library contracts today.
 
 # Implementation
 
-The task and scope typing is in `check_decls.rs` (`install_concurrency_api`) and `check_terms.rs` (capture, scope, and join elaboration); the runtime half is `compiler/runtime/src/task.rs`, `platform.rs`, `heap.rs`, and `stack.rs`. Suites: `concurrency.rs`, `reclamation_tasks.rs`, `exhaustion.rs`, `platform.rs`, `argv.rs`. The normative text is [the concurrency specification](../specifications/concurrency-specification.md), amended by decisions D74 to D81. Tutorial: [structured concurrency](../learn/17-structured-concurrency.md).
+The task and scope typing is in `check_decls.rs` (`install_concurrency_api`) and `check_terms.rs` (capture, scope, and join elaboration); the runtime half is `compiler/runtime/src/task.rs`, `platform.rs`, `heap.rs`, and `stack.rs`. Transactions are `compiler/prelude/Effect/Stm.cinch` and the modules under `Effect/Stm/`, over `compiler/src/stm.rs` and `compiler/runtime/src/stm.rs` and `park.rs`. Suites: `concurrency.rs`, `reclamation_tasks.rs`, `stm.rs`, `exhaustion.rs`, `platform.rs`, `argv.rs`. The normative text is [the concurrency specification](../specifications/concurrency-specification.md), amended by decisions D74 to D81 and D424 to D427. Tutorial: [structured concurrency](../learn/17-structured-concurrency.md).

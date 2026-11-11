@@ -107,7 +107,7 @@ The `FromList` buffer: `bytes-from-list`'s shape over `U8`.
 
 ## `bytes-get`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-get</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg1</span> <span class="tok-operator">&lt;</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">255</span> <span class="tok-constructor">Nat</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-get</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg1</span> <span class="tok-operator">&lt;</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">255</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
 [Source](/reference-sources/Data.Bytes.cinch)
 
@@ -140,7 +140,7 @@ conversion out of a `String` copies.
 
 ## `bytes-set`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-set</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg1</span> <span class="tok-operator">&lt;</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg2</span> :: <span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">255</span> <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Unit</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-set</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg1</span> <span class="tok-operator">&lt;</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg2</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">255</span> <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Unit</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Bytes.cinch)
 
@@ -167,6 +167,12 @@ These are checked exported instance entries. Law/sample-check status is separate
 | `Data.Bytes.FromList_Bytes` | `Data.FromList.FromList Bytes U8` | Implicit |
 | `Data.Bytes.Hash_Bytes` | `Data.Hash.Hash Bytes` | Implicit |
 
+**`Data.Bytes.Eq_Bytes`**: Byte-for-byte equality over the backing: the in-place compare answers
+equal when the lengths agree and every byte agrees, reading the common
+prefix a word at a time. The keyed structures need `Eq` beside `Hash`
+(Data.HashMap's header): hashing alone cannot decide a digest
+collision, so an instance that hashes without comparing is not a
+key.
 **`Data.Bytes.Hash_Bytes`**: The buffer's digest (instances live with their type). `Data.String`
 hashes its UTF-8 backing through THIS instance, so a string and the
 bytes it converts to agree by construction rather than by two
@@ -174,4 +180,4 @@ copies of one algorithm.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Bytes.cinch`. Source SHA-256: `e69447ff0e41540d9074e6e40bb3ce8c5cf1d3ce070949f3109a0f73ea63fc52`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Bytes.cinch`. Source SHA-256: `b0ca021a04d0e01bb1028a934a79f9982f1fcb80110d7c4bf8085bf36607ec5c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -190,7 +190,7 @@ Foreign interfaces separate raw ABI declarations, safe ownership wrappers and se
 
 The proposed Wasm backend supports core modules, component interfaces and browser adapters. WASI 0.3 is the preferred component profile, with pinned 0.2 compatibility where needed. Imports express capabilities; dependent claims are checked at adapters, and unsupported instructions require a compatible module variant before instantiation.
 
-Structured scopes bound task lifetimes. Bounded channels transfer ownership and expose backpressure; thread migration requires transfer evidence. Cancellation, cleanup and foreign-operation completion are distinct. STM is a proposed library for composable shared-state transactions. Temporal proofs identify their scheduler and environment assumptions.
+Structured scopes bound task lifetimes. Bounded channels transfer ownership and expose backpressure; thread migration requires transfer evidence. Cancellation, cleanup and foreign-operation completion are distinct. STM is a library (`Effect.Stm`) for composable shared-state transactions, with no fairness claim. Temporal proofs identify their scheduler and environment assumptions.
 
 # Reading paths
 

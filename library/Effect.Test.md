@@ -105,7 +105,7 @@ failure list carries (test name, failing assertion, message).
 
 [Source](/reference-sources/Effect.Test.cinch) · line 156
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CaseFailure</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">CaseFailure</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CaseFailure</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">CaseFailure</span>)))</code></pre>
 
 <a id="type-436173654f7574636f6d65"></a>
 
@@ -118,7 +118,7 @@ observed (law 3), plus the failure detail when it failed.
 
 [Source](/reference-sources/Effect.Test.cinch) · line 173
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CasePassed</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">CaseOutcome</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CasePassed</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">CaseOutcome</span>))</code></pre>
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CaseFailed</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">CaseFailure</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">CaseOutcome</span>))</code></pre>
 
@@ -136,9 +136,9 @@ a failing case is reportable rather than fatal.
 
 [Source](/reference-sources/Effect.Test.cinch) · line 99
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Pass</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Check</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Pass</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Check</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Fail</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Check</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Fail</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Check</span>))</code></pre>
 
 <a id="type-5265706f7274"></a>
 
@@ -151,7 +151,7 @@ outcome per case in run order.
 
 [Source](/reference-sources/Effect.Test.cinch) · line 194
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Report</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">CaseOutcome</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Report</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Report</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">CaseOutcome</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Report</span>)</code></pre>
 
 <a id="type-5465737443617365"></a>
 
@@ -166,7 +166,7 @@ reporting (see the refusals).
 
 [Source](/reference-sources/Effect.Test.cinch) · line 141
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TestCase</span> :: (<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">Unit</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Check</span>) -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">TestCase</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TestCase</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">Unit</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Check</span>) -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">TestCase</span>))</code></pre>
 
 # Values
 

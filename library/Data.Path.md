@@ -60,7 +60,7 @@ The path text (POSIX; UTF-8 at the boundary).
 
 [Source](/reference-sources/Data.Path.cinch) · line 48
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Path</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Path</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Path</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span>)</code></pre>
 
 # Values
 

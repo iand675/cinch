@@ -112,7 +112,7 @@ for "unparsed" that a value could be confused with.
 
 [Source](/reference-sources/Data.BigDecimal.cinch) · line 109
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MalformedLiteral</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimalError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MalformedLiteral</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimalError</span>)</code></pre>
 
 <a id="type-526f756e64696e67"></a>
 

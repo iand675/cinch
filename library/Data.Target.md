@@ -58,7 +58,7 @@ represented as types in the bootstrap (decision D58).
 
 [Source](/reference-sources/Data.Target.cinch) · line 47
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">AVX2_256Tag</span> :: <span class="tok-constructor">AVX2_256</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">AVX2_256Tag</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">AVX2_256</span></code></pre>
 
 <a id="type-436170417661696c61626c65"></a>
 
@@ -72,7 +72,7 @@ supplying it. A rewrite's `require` clause names it.
 
 [Source](/reference-sources/Data.Target.cinch) · line 69
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Available</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> . (<span class="tok-constructor">VecU32Target</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> -&gt; <span class="tok-constructor">CapAvailable</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Available</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">VecU32Target</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">CapAvailable</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span>)</code></pre>
 
 <a id="type-45696768744c616e6573"></a>
 
@@ -82,7 +82,7 @@ supplying it. A rewrite's `require` clause names it.
 
 [Source](/reference-sources/Data.Target.cinch)
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EightLanesTag</span> :: <span class="tok-constructor">EightLanes</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EightLanesTag</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">EightLanes</span></code></pre>
 
 <a id="type-4e454f4e3634"></a>
 
@@ -92,7 +92,7 @@ supplying it. A rewrite's `require` clause names it.
 
 [Source](/reference-sources/Data.Target.cinch)
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NEON64Tag</span> :: <span class="tok-constructor">NEON64</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NEON64Tag</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">NEON64</span></code></pre>
 
 <a id="type-5363616c61626c655368617065"></a>
 
@@ -102,7 +102,7 @@ supplying it. A rewrite's `require` clause names it.
 
 [Source](/reference-sources/Data.Target.cinch)
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ScalableShapeTag</span> :: <span class="tok-constructor">ScalableShape</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ScalableShapeTag</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">ScalableShape</span></code></pre>
 
 # Signatures and methods
 
@@ -123,7 +123,7 @@ assumption in the artifact manifest (decision D55).
 
 ## `SumProofs.scalar-to-simd`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scalar-to-simd</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> (<span class="tok-variable">n</span> :: <span class="tok-constructor">Nat</span>) <span class="tok-variable">region</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">SumProofs</span>) =&gt; ((<span class="tok-variable">vectors</span> :: <span class="tok-constructor">VecU32Target</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span>) -&gt; ((<span class="tok-variable">xs</span> :: <span class="tok-constructor">Ref</span> <span class="tok-variable">region</span> <span class="tok-constructor">Vec</span> <span class="tok-variable">n</span> <span class="tok-constructor">U32</span>) -&gt; <span class="tok-constructor">Eq</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-variable">scalar-sum-wrap32</span> @(<span class="tok-constructor">Nat</span>) @(<span class="tok-variable">region</span>) @<span class="tok-number">1</span>((<span class="tok-constructor">Nat</span>, <span class="tok-variable">n</span>)) @<span class="tok-number">4</span>(<span class="tok-variable">region</span>) <span class="tok-variable">xs</span>) (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-variable">simd-sum-wrap32</span> @(<span class="tok-variable">t</span>) @(<span class="tok-variable">w</span>) @(<span class="tok-constructor">Nat</span>) @(<span class="tok-variable">region</span>) @<span class="tok-number">1</span>((<span class="tok-constructor">Nat</span>, <span class="tok-variable">n</span>)) @<span class="tok-number">4</span>(<span class="tok-variable">region</span>) <span class="tok-variable">vectors</span> <span class="tok-variable">xs</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scalar-to-simd</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> (<span class="tok-variable">n</span> :: <span class="tok-constructor">Nat</span>) <span class="tok-variable">region</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">SumProofs</span>) =&gt; ((<span class="tok-variable">vectors</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">VecU32Target</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span>) -&gt; ((<span class="tok-variable">xs</span> :: <span class="tok-constructor">Ref</span> <span class="tok-variable">region</span> <span class="tok-constructor">Vec</span> <span class="tok-variable">n</span> <span class="tok-constructor">U32</span>) -&gt; <span class="tok-constructor">Eq</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-variable">scalar-sum-wrap32</span> @(<span class="tok-constructor">Nat</span>) @(<span class="tok-variable">region</span>) @<span class="tok-number">1</span>((<span class="tok-constructor">Nat</span>, <span class="tok-variable">n</span>)) @<span class="tok-number">4</span>(<span class="tok-variable">region</span>) <span class="tok-variable">xs</span>) (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-variable">simd-sum-wrap32</span> @(<span class="tok-variable">t</span>) @(<span class="tok-variable">w</span>) @(<span class="tok-constructor">Nat</span>) @(<span class="tok-variable">region</span>) @<span class="tok-number">1</span>((<span class="tok-constructor">Nat</span>, <span class="tok-variable">n</span>)) @<span class="tok-number">4</span>(<span class="tok-variable">region</span>) <span class="tok-variable">vectors</span> <span class="tok-variable">xs</span>)))</code></pre>
 
 
 
@@ -167,7 +167,7 @@ folds this call or the `case` around it.
 
 ## `simd-sum-wrap32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-sum-wrap32</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> (<span class="tok-variable">n</span> :: <span class="tok-constructor">Nat</span>) <span class="tok-variable">region</span> . (<span class="tok-constructor">VecU32Target</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> -&gt; (<span class="tok-constructor">Ref</span> <span class="tok-variable">region</span> <span class="tok-constructor">Vec</span> <span class="tok-variable">n</span> <span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-sum-wrap32</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> (<span class="tok-variable">n</span> :: <span class="tok-constructor">Nat</span>) <span class="tok-variable">region</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">VecU32Target</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> -&gt; (<span class="tok-constructor">Ref</span> <span class="tok-variable">region</span> <span class="tok-constructor">Vec</span> <span class="tok-variable">n</span> <span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>))</code></pre>
 
 The SIMD intrinsic (the scalar/SIMD pair): its bootstrap lowering is
 the scalar loop, and the artifact manifest records which lowering

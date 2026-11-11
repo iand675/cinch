@@ -154,7 +154,7 @@ the named unproductions of the module header.
 
 [Source](/reference-sources/Text.Lex.cinch)
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LexedTokens</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LToken</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Lexed</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LexedTokens</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LToken</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Lexed</span>)</code></pre>
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LexedFail</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Span</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Lexed</span>))</code></pre>
 
@@ -187,31 +187,31 @@ decoded UTF-8 content, `TChar` the decoded scalar.
 
 [Source](/reference-sources/Text.Lex.cinch) · line 151
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TVar</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TVar</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TCon</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TCon</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TOp</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TOp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TInt</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TInt</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TFloat</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TFloat</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TStr</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TChar</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TWord</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TWord</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TPunct</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TPunct</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TAttr</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TAttr</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TPrimFrag</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TPrimFrag</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TTickName</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TTickName</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TTickType</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TTickType</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TEOF</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span></code></pre>
 
@@ -363,4 +363,4 @@ decoded UTF-8 content, `TChar` the decoded scalar.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Lex.cinch`. Source SHA-256: `7ce40c52587d28ea17f9bb4f6e9b3de900e2bf223e529a8ff43f372ca017a899`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Lex.cinch`. Source SHA-256: `bce5acadcde6ac5967b29c6eed2933e31df83451561d3ee9165e5d3beb2a2032`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -63,7 +63,7 @@ identity of conjunction is `True`, so `mconcat Nil` (an `All`) is
 
 [Source](/reference-sources/Algebra.Monoid.cinch) · line 110
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">All</span> :: (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">All</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">All</span> :: (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Monoid</span>.<span class="tok-constructor">All</span>)</code></pre>
 
 <a id="type-416e79"></a>
 
@@ -76,7 +76,7 @@ Bool under disjunction: `Any`'s identity is `False`, so
 
 [Source](/reference-sources/Algebra.Monoid.cinch) · line 123
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Any</span> :: (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Any</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Any</span> :: (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Monoid</span>.<span class="tok-constructor">Any</span>)</code></pre>
 
 <a id="type-4475616c"></a>
 
@@ -89,7 +89,7 @@ combines y before x, turning any monoid into its opposite.
 
 [Source](/reference-sources/Algebra.Monoid.cinch) · line 136
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Dual</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> . (<span class="tok-variable">t</span> -&gt; <span class="tok-constructor">Dual</span> <span class="tok-variable">t</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Dual</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> . (<span class="tok-variable">t</span> -&gt; <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Monoid</span>.<span class="tok-constructor">Dual</span> <span class="tok-variable">t</span>)</code></pre>
 
 <a id="type-456e646f"></a>
 
@@ -103,7 +103,7 @@ folding `<>` over endomorphisms chains them left to right.
 
 [Source](/reference-sources/Algebra.Monoid.cinch) · line 185
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Endo</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> . ((<span class="tok-variable">t</span> -&gt; <span class="tok-variable">t</span>) -&gt; <span class="tok-constructor">Endo</span> <span class="tok-variable">t</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Endo</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> . ((<span class="tok-variable">t</span> -&gt; <span class="tok-variable">t</span>) -&gt; <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Monoid</span>.<span class="tok-constructor">Endo</span> <span class="tok-variable">t</span>)</code></pre>
 
 <a id="type-4669727374"></a>
 
@@ -117,7 +117,7 @@ wrapper makes the intent explicit and leaves Option free).
 
 [Source](/reference-sources/Algebra.Monoid.cinch) · line 157
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">First</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> . (<span class="tok-constructor">Option</span> <span class="tok-variable">t</span> -&gt; <span class="tok-constructor">First</span> <span class="tok-variable">t</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">First</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">t</span> -&gt; <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Monoid</span>.<span class="tok-constructor">First</span> <span class="tok-variable">t</span>)</code></pre>
 
 <a id="type-4c617374"></a>
 
@@ -129,7 +129,7 @@ Last: the rightmost `Some`.
 
 [Source](/reference-sources/Algebra.Monoid.cinch) · line 170
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Last</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> . (<span class="tok-constructor">Option</span> <span class="tok-variable">t</span> -&gt; <span class="tok-constructor">Last</span> <span class="tok-variable">t</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Last</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">t</span> -&gt; <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Monoid</span>.<span class="tok-constructor">Last</span> <span class="tok-variable">t</span>)</code></pre>
 
 <a id="type-50726f64756374"></a>
 
@@ -141,7 +141,7 @@ Nat under multiplication.
 
 [Source](/reference-sources/Algebra.Monoid.cinch) · line 93
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Product</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Product</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Product</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Monoid</span>.<span class="tok-constructor">Product</span>)</code></pre>
 
 <a id="type-53756d"></a>
 
@@ -154,7 +154,7 @@ Semigroup instance (two monoids live on Nat; the newtype chooses).
 
 [Source](/reference-sources/Algebra.Monoid.cinch) · line 81
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Sum</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Sum</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Sum</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Monoid</span>.<span class="tok-constructor">Sum</span>)</code></pre>
 
 # Signatures and methods
 

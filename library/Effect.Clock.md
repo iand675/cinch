@@ -68,7 +68,7 @@ A length of time in milliseconds.
 
 [Source](/reference-sources/Effect.Clock.cinch) · line 52
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Duration</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Duration</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Duration</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Clock</span>.<span class="tok-constructor">Duration</span>)</code></pre>
 
 <a id="type-54696d656f7574"></a>
 
@@ -82,9 +82,9 @@ it (`TimedOut`).
 
 [Source](/reference-sources/Effect.Clock.cinch) · line 88
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TimedOut</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Timeout</span> <span class="tok-variable">a</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TimedOut</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Clock</span>.<span class="tok-constructor">Timeout</span> <span class="tok-variable">a</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Finished</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Timeout</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Finished</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Clock</span>.<span class="tok-constructor">Timeout</span> <span class="tok-variable">a</span>)</code></pre>
 
 # Values
 
@@ -141,7 +141,7 @@ passed in the other order measure zero.
 
 ## `timeout`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timeout</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Duration</span> -&gt; ((<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Cancel</span> <span class="tok-variable">r</span>} <span class="tok-variable">a</span>) %1 -&gt;{<span class="tok-constructor">Async</span> <span class="tok-variable">r</span>, <span class="tok-constructor">IO</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Cancel</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Diverge</span>} <span class="tok-constructor">Timeout</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timeout</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Clock</span>.<span class="tok-constructor">Duration</span> -&gt; ((<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Cancel</span> <span class="tok-variable">r</span>} <span class="tok-variable">a</span>) %1 -&gt;{<span class="tok-constructor">Async</span> <span class="tok-variable">r</span>, <span class="tok-constructor">IO</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Cancel</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Diverge</span>} <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Clock</span>.<span class="tok-constructor">Timeout</span> <span class="tok-variable">a</span>))</code></pre>
 
 Run `work` under the deadline `d`: `Finished` its value when it
 ran first, `TimedOut` when the deadline fired first and cancelled

@@ -13,7 +13,7 @@
 //!
 //! | word | name | content |
 //! |------|------|---------|
-//! | 0 | lock | `version << 1 | locked`, read and written atomically by the prelude |
+//! | 0 | lock | bit 0 the write lock, bit 1 the reader pin, the version above them in steps of 4; read and written atomically by the prelude |
 //! | 1 | value | the current value, an ABI word of the cell's format |
 //! | 2 | format | the value word's scan code (`SCAN_RAW`, `SCAN_OBJ`, `SCAN_TOBJ`), fixed at creation |
 //!
@@ -34,11 +34,13 @@
 //!    threads can reach, while the value is still private to the
 //!    committing thread. An unmarked cell is reachable from one thread
 //!    only, so it may hold anything.
-//! 2. **A value word is replaced, and its reference copied, only under
-//!    the cell's lock.** A reader that copied the pointer and counted it
-//!    afterwards could count a block the writer had already released.
-//!    The prelude takes the lock bit around the load and the count of a
-//!    counted value. An uncounted value (a raw scalar, an immediate, the
+//! 2. **A value word is replaced only under the write lock, and its
+//!    reference copied only under the pin.** A reader that copied the
+//!    pointer and counted it afterwards could count a block the writer
+//!    had already released. The prelude sets the pin bit around the
+//!    load and the count of a counted value, and a writer takes the
+//!    lock only from a word with neither bit set, so the two exclude
+//!    each other. An uncounted value (a raw scalar, an immediate, the
 //!    null word) needs no count and is read under the version check
 //!    alone.
 //!

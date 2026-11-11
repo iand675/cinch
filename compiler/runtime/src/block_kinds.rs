@@ -336,8 +336,9 @@ pub const MEMO_OWNED_WORD: u64 = 1;
 pub const CODE_PREFIX_WORDS: u64 = 4;
 
 /// A transactional variable cell's versioned lock word: bit 0 is the
-/// lock, the bits above it the version of the last commit that wrote the
-/// value.
+/// write lock, bit 1 the pin a reader holds while it counts the value,
+/// and the bits above them the version of the last commit that wrote
+/// the value.
 pub const TVAR_LOCK_WORD: u64 = 0;
 /// The cell's value word, scanned by the code in its format word.
 pub const TVAR_VALUE_WORD: u64 = 1;

@@ -53,9 +53,9 @@ the name here, which is the `map` situation over again.
 
 [Source](/reference-sources/Data.Core.cinch)
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Nil</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">List</span> <span class="tok-variable">a</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Nil</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Cons</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Cons</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
 
 # Values
 

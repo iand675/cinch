@@ -1,0 +1,87 @@
+-- Effect.Stm.TMVar: a transactional variable that is either full or empty.
+--
+-- `tmvar-take` waits for a value and leaves the variable empty;
+-- `tmvar-put` waits for room and leaves it full. Both wait by `retry`,
+-- so they compose: a transaction that takes from two of them takes
+-- both or neither, and `or-else` chooses between them.
+--
+-- Used as a lock, an empty variable is "held": take to acquire, put to
+-- release. Used as a one-place channel, a put is a send and a take is
+-- a receive, and the value changes hands at the taker's commit.
+--
+-- There is no fairness: when several tasks wait on one variable, the
+-- next value goes to whichever of them commits first.
+--
+-- Module scheme (design/base-library.md): a concrete type over
+-- `Effect.Stm`, shipped beside it.
+module Effect.Stm.TMVar where
+
+  import Effect.Stm
+
+  export TMVar, tmvar-new, tmvar-new-empty, tmvar-new-io, tmvar-new-empty-io
+  export tmvar-take, tmvar-put, tmvar-read, tmvar-swap
+  export tmvar-try-take, tmvar-try-put, tmvar-try-read, tmvar-is-empty
+
+  data TMVar a where
+    MkTMVar :: TVar (Option a) -> TMVar a
+
+  slot :: forall a. TMVar a -> TVar (Option a)
+  slot (MkTMVar t) = t
+
+  -- A full variable holding `x`.
+  tmvar-new :: forall a. a -> STM (TMVar a)
+  tmvar-new x = stm-map (\t -> MkTMVar t) (tvar-new (Some x))
+
+  tmvar-new-empty :: forall a. STM (TMVar a)
+  tmvar-new-empty = stm-map (\t -> MkTMVar t) (tvar-new None)
+
+  tmvar-new-io :: forall a. a ->{STM} TMVar a
+  tmvar-new-io x = MkTMVar (tvar-new-io (Some x))
+
+  tmvar-new-empty-io :: forall a. Unit ->{STM} TMVar a
+  tmvar-new-empty-io u = MkTMVar (tvar-new-io None)
+
+  -- The value, leaving the variable empty. Waits while it is empty.
+  tmvar-take :: forall a. TMVar a -> STM a
+  tmvar-take m = stm-bind (tvar-read (slot m)) (\v -> case v of
+    None -> retry
+    Some x -> stm-map (\_ -> x) (tvar-write (slot m) None))
+
+  -- Fill the variable. Waits while it is full.
+  tmvar-put :: forall a. TMVar a -> a -> STM Unit
+  tmvar-put m x = stm-bind (tvar-read (slot m)) (\v -> case v of
+    None -> tvar-write (slot m) (Some x)
+    Some _ -> retry)
+
+  -- The value, leaving it in place. Waits while the variable is empty.
+  tmvar-read :: forall a. TMVar a -> STM a
+  tmvar-read m = stm-bind (tvar-read (slot m)) (\v -> case v of
+    None -> retry
+    Some x -> stm-pure x)
+
+  -- Replace the value and answer the old one. Waits while empty.
+  tmvar-swap :: forall a. TMVar a -> a -> STM a
+  tmvar-swap m x = stm-bind (tvar-read (slot m)) (\v -> case v of
+    None -> retry
+    Some old -> stm-map (\_ -> old) (tvar-write (slot m) (Some x)))
+
+  -- `tmvar-take` that answers `None` instead of waiting.
+  tmvar-try-take :: forall a. TMVar a -> STM (Option a)
+  tmvar-try-take m = stm-bind (tvar-read (slot m)) (\v -> case v of
+    None -> stm-pure None
+    Some x -> stm-map (\_ -> Some x) (tvar-write (slot m) None))
+
+  -- `tmvar-put` that answers whether it filled the variable instead of
+  -- waiting.
+  tmvar-try-put :: forall a. TMVar a -> a -> STM Bool
+  tmvar-try-put m x = stm-bind (tvar-read (slot m)) (\v -> case v of
+    None -> stm-map (\_ -> True) (tvar-write (slot m) (Some x))
+    Some _ -> stm-pure False)
+
+  tmvar-try-read :: forall a. TMVar a -> STM (Option a)
+  tmvar-try-read m = tvar-read (slot m)
+
+  tmvar-is-empty :: forall a. TMVar a -> STM Bool
+  tmvar-is-empty m = stm-map (\v -> case v of
+    None -> True
+    Some _ -> False) (tvar-read (slot m))

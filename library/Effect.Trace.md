@@ -69,7 +69,7 @@ context propagates through.
 
 [Source](/reference-sources/Effect.Trace.cinch) · line 59
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TraceContext</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Trace</span>.<span class="tok-constructor">TraceContext</span> <span class="tok-variable">r</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TraceContext</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Trace</span>.<span class="tok-constructor">TraceContext</span> <span class="tok-variable">r</span>))))</code></pre>
 
 # Values
 
@@ -89,7 +89,7 @@ name is the scope being closed (the bracket pair's check).
 
 ## `end-span`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">end-span</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">String</span> -&gt;{<span class="tok-constructor">Trace</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">end-span</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt;{<span class="tok-constructor">Trace</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Trace.cinch)
 
@@ -97,7 +97,7 @@ name is the scope being closed (the bracket pair's check).
 
 ## `span`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Json</span> -&gt;{<span class="tok-constructor">Trace</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt;{<span class="tok-constructor">Trace</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
 
 [Source](/reference-sources/Effect.Trace.cinch)
 

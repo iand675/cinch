@@ -76,9 +76,9 @@ Backends MUST preserve the source memory model through native or Wasm lowering. 
 
 # 7 Software transactional memory
 
-A Haskell-like STM library is a proposed addition. `atomically` evaluates a transaction over versioned shared cells and commits atomically or retries. Transactional code is restricted to approved STM effects and total logical computation; it cannot perform arbitrary I/O, FFI, suspension, or irreversible resource consumption inside a retryable body.
+`Effect.Stm` is a Haskell-like STM library (amendment below; `design/stm.md`). `atomically` evaluates a transaction over versioned shared cells and commits atomically or runs again. A transaction is a value built from pure steps, so transactional code is total logical computation over its variables; it cannot perform arbitrary I/O, FFI, suspension, or irreversible resource consumption inside a retryable body, because a step has no effect row to carry them.
 
-`retry` suspends until relevant state changes under the selected runtime contract. `orElse` composes alternatives with documented retry behavior. Transactions may be re-executed, so captured ownership and allocations must obey a rollback-safe discipline. Starvation freedom and fairness are additional claims, not consequences of atomic commit.
+`retry` suspends until a variable the attempt read is written. `or-else` runs its second transaction when the first would wait, discarding the first's writes and waiting on what either read. Transactions may be re-executed, so a step is checked as a function that may be called many times: it cannot capture a value that must be consumed exactly once, and what an abandoned attempt allocated is released. Committed transactions are serializable and every attempt observes a consistent snapshot (opacity). Starvation freedom and fairness are additional claims, not consequences of atomic commit, and the library makes neither.
 
 External effects occur after commit through an explicit protocol, such as a durable outbox when the application needs crash recovery. An in-memory transaction plus a network request is not a distributed atomic transaction.
 
@@ -168,3 +168,22 @@ D-numbers) that amend or interpret this chapter's normative text.
 - **Cinch naming (D278-D281), 2026-10-28.** The language is Cinch:
   sources `.cinch`, interfaces `.cinchif`, runtime externs `cinch_*`;
   artifact names in this chapter read with those names.
+- **Software transactional memory (D424-D427), 2026-11-11.** This
+  amends section 7 from a proposal to the shipped contract. The
+  library is `Effect.Stm` with `TVar`, `STM`, `atomically`, `retry`,
+  `or-else` and `check`, and the structures `Effect.Stm.TMVar`,
+  `TQueue`, `TBQueue` and `TSem`. The algorithm (TL2 with snapshot
+  extension) is library source over inline target IR; the runtime
+  owns the cell, the global version clock, publication and the wait
+  (D424). The "approved STM effects" of section 7 are the empty set:
+  a transaction's steps are pure, the `STM` label marks code that
+  runs transactions, and no handler discharges it (D425). `do` for
+  transactions is the `StmSequencing` provider, whose continuations
+  are checked as called many times, which is the rollback-safe
+  ownership discipline (D426). A `TVar` handle is `Copy`; crossing a
+  task boundary requires the value type to be shareable; a shared
+  cell holds only shared values and a value is replaced only under
+  the cell's write lock (D427). Guaranteed: serializability, opacity,
+  no lost wakeup. Not guaranteed: fairness, a bound on attempts.
+  Section 11's rejection case "performing FFI inside a retryable
+  transaction" is `tests/stm.rs::io_inside_a_transaction_is_refused`.

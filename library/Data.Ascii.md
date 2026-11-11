@@ -41,7 +41,7 @@ both checked sample-wise by the law layer.
 
 ## `Ascii`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">type</span> <span class="tok-constructor">Ascii</span>  = <span class="tok-variable">refine</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">String</span>) <span class="tok-keyword">with</span> <span class="tok-constructor">Ascii</span> <span class="tok-variable">s</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">type</span> <span class="tok-constructor">Ascii</span>  = <span class="tok-variable">refine</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) <span class="tok-keyword">with</span> <span class="tok-constructor">Ascii</span> <span class="tok-variable">s</span></code></pre>
 
 [Source](/reference-sources/Data.Ascii.cinch)
 
@@ -51,7 +51,7 @@ both checked sample-wise by the law layer.
 
 ## `to-ascii`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-ascii</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Ascii</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-ascii</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ascii</span>.<span class="tok-constructor">Ascii</span>)</code></pre>
 
 The total constructor (refinement types design: the total API).
 
@@ -63,7 +63,7 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Data.Ascii.Semigroup_Ascii` | `Semigroup Ascii` | Implicit |
+| `Data.Ascii.Semigroup_Ascii` | `Algebra.Semigroup.Semigroup Data.Ascii.Ascii` | Implicit |
 
 # Reference provenance
 

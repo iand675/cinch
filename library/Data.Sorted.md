@@ -42,7 +42,7 @@ together with the deliberately non-preserving reverse-append).
 
 ## `Sorted`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">type</span> <span class="tok-constructor">Sorted</span>  = <span class="tok-variable">refine</span> (<span class="tok-variable">xs</span> :: <span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span>) <span class="tok-keyword">with</span> <span class="tok-constructor">Ordered</span> <span class="tok-variable">xs</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">type</span> <span class="tok-constructor">Sorted</span>  = <span class="tok-variable">refine</span> (<span class="tok-variable">xs</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span>) <span class="tok-keyword">with</span> <span class="tok-constructor">Ordered</span> <span class="tok-variable">xs</span></code></pre>
 
 [Source](/reference-sources/Data.Sorted.cinch)
 
@@ -64,7 +64,7 @@ both checked sample-wise by the law layer.
 
 ## `to-sorted`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-sorted</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Sorted</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-sorted</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Sorted</span>.<span class="tok-constructor">Sorted</span>)</code></pre>
 
 The total constructor (refinement types design: the total API).
 
@@ -76,7 +76,7 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Data.Sorted.Semigroup_Sorted` | `Semigroup Sorted` | Implicit |
+| `Data.Sorted.Semigroup_Sorted` | `Algebra.Semigroup.Semigroup Data.Sorted.Sorted` | Implicit |
 
 # Reference provenance
 

@@ -77,7 +77,7 @@ Module scheme (design/base-library.md): the type's home carries its
 
 [Source](/reference-sources/Data.HashMap.cinch)
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HashMap</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . (<span class="tok-constructor">Spine</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HashMap</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">HashMap</span>.<span class="tok-constructor">Spine</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">HashMap</span>.<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>)</code></pre>
 
 # Values
 

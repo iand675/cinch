@@ -121,15 +121,15 @@ order), and a value on a flag.
 
 [Source](/reference-sources/Text.OptionParser.cinch) · line 226
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnknownOption</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">OptionParser</span>.<span class="tok-constructor">OptionParseError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnknownOption</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">OptionParser</span>.<span class="tok-constructor">OptionParseError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MissingArgument</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">OptionParser</span>.<span class="tok-constructor">OptionParseError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MissingArgument</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">OptionParser</span>.<span class="tok-constructor">OptionParseError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidValue</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">OptionParser</span>.<span class="tok-constructor">OptionParseError</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidValue</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">OptionParser</span>.<span class="tok-constructor">OptionParseError</span>))</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">AmbiguousOption</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">OptionParser</span>.<span class="tok-constructor">OptionParseError</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">AmbiguousOption</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">OptionParser</span>.<span class="tok-constructor">OptionParseError</span>))</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnexpectedValue</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">OptionParser</span>.<span class="tok-constructor">OptionParseError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnexpectedValue</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">OptionParser</span>.<span class="tok-constructor">OptionParseError</span>)</code></pre>
 
 <a id="type-4f7074696f6e53706563"></a>
 
@@ -144,7 +144,7 @@ for `option-help`. `spec-takes-value` is derived from the converter
 
 [Source](/reference-sources/Text.OptionParser.cinch) · line 108
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">OptSpec</span> :: (<span class="tok-constructor">Option</span> <span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">OptionParser</span>.<span class="tok-constructor">Converter</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">OptionParser</span>.<span class="tok-constructor">OptionSpec</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">OptSpec</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">OptionParser</span>.<span class="tok-constructor">Converter</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">OptionParser</span>.<span class="tok-constructor">OptionSpec</span>))))</code></pre>
 
 <a id="type-4f7074696f6e56616c7565"></a>
 
@@ -157,7 +157,7 @@ flag's presence.
 
 [Source](/reference-sources/Text.OptionParser.cinch) · line 141
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">VString</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">OptionParser</span>.<span class="tok-constructor">OptionValue</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">VString</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">OptionParser</span>.<span class="tok-constructor">OptionValue</span>)</code></pre>
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">VInt</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">OptionParser</span>.<span class="tok-constructor">OptionValue</span>)</code></pre>
 
@@ -178,7 +178,7 @@ list.
 
 [Source](/reference-sources/Text.OptionParser.cinch) · line 189
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ParsedOptions</span> :: (<span class="tok-constructor">List</span> (<span class="tok-constructor">String</span>, <span class="tok-constructor">Text</span>.<span class="tok-constructor">OptionParser</span>.<span class="tok-constructor">OptionValue</span>) -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">OptionParser</span>.<span class="tok-constructor">ParsedOptions</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ParsedOptions</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Text</span>.<span class="tok-constructor">OptionParser</span>.<span class="tok-constructor">OptionValue</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">OptionParser</span>.<span class="tok-constructor">ParsedOptions</span>))</code></pre>
 
 # Values
 

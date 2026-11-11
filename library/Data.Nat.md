@@ -215,14 +215,14 @@ These are checked exported instance entries. Law/sample-check status is separate
 | --- | --- | --- |
 | `Data.Nat.Add_Nat` | `Algebra.Arithmetic.Add Nat` | Implicit |
 | `Data.Nat.Div_Nat` | `Algebra.Arithmetic.Div Nat` | Implicit |
-| `Data.Nat.Enum_Nat` | `Enum Nat` | Implicit |
+| `Data.Nat.Enum_Nat` | `Data.Enum.Enum Nat` | Implicit |
 | `Data.Nat.Eq_Nat` | `Relation.Eq.Eq Nat` | Implicit |
 | `Data.Nat.Hash_Nat` | `Data.Hash.Hash Nat` | Implicit |
 | `Data.Nat.Mul_Nat` | `Algebra.Arithmetic.Mul Nat` | Implicit |
 | `Data.Nat.Ord_Nat` | `Relation.Ord.Ord Nat` | Implicit |
 | `Data.Nat.Rem_Nat` | `Algebra.Arithmetic.Rem Nat` | Implicit |
 | `Data.Nat.Semiring_Nat` | `Algebra.Semiring.Semiring Nat` | Implicit |
-| `Data.Nat.Sub_Nat` | `Sub Nat` | Implicit |
+| `Data.Nat.Sub_Nat` | `Algebra.Arithmetic.Sub Nat` | Implicit |
 
 **`Data.Nat.Enum_Nat`**: The enumeration of natural numbers (Data.Enum): codes are the
 values; `pred 0` and `to-enum` of a negative code are `None`

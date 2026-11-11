@@ -67,9 +67,9 @@ The ordered set: a height-augmented AVL tree over `Ord a`.
 
 [Source](/reference-sources/Data.Set.cinch) · line 50
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Tip</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Set</span> <span class="tok-variable">a</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Tip</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Bin</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Set</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Set</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Set</span> <span class="tok-variable">a</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Bin</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>))))</code></pre>
 
 # Values
 

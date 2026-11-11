@@ -107,7 +107,7 @@ The recorder: hit counts keyed by site label. The tree is the
 
 [Source](/reference-sources/Effect.Coverage.cinch) · line 93
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Coverage</span> :: (<span class="tok-constructor">Map</span> <span class="tok-constructor">String</span> <span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Coverage</span>.<span class="tok-constructor">Coverage</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Coverage</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> <span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Coverage</span>.<span class="tok-constructor">Coverage</span>)</code></pre>
 
 # Values
 

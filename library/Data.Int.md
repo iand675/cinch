@@ -141,7 +141,7 @@ These are checked exported instance entries. Law/sample-check status is separate
 | --- | --- | --- |
 | `Data.Int.Add_Int` | `Algebra.Arithmetic.Add Int` | Implicit |
 | `Data.Int.Div_Int` | `Algebra.Arithmetic.Div Int` | Implicit |
-| `Data.Int.Enum_Int` | `Enum Int` | Implicit |
+| `Data.Int.Enum_Int` | `Data.Enum.Enum Int` | Implicit |
 | `Data.Int.Eq_Int` | `Relation.Eq.Eq Int` | Implicit |
 | `Data.Int.Group_Int` | `Algebra.Group.Group Int` | Implicit |
 | `Data.Int.Hash_Int` | `Data.Hash.Hash Int` | Implicit |

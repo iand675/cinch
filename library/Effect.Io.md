@@ -39,7 +39,7 @@ document is the payload, and an empty document is not a config.
 
 [Source](/reference-sources/Effect.Io.cinch)
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Config</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Config</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Config</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Io</span>.<span class="tok-constructor">Config</span>)</code></pre>
 
 <a id="type-436f6e6669674572726f72"></a>
 
@@ -59,7 +59,7 @@ document is not a config.
 
 [Source](/reference-sources/Effect.Io.cinch) · line 30
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadConfig</span> :: <span class="tok-constructor">ConfigError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadConfig</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Io</span>.<span class="tok-constructor">ConfigError</span></code></pre>
 
 <a id="type-50617468"></a>
 
@@ -71,7 +71,7 @@ The path text (POSIX; UTF-8 at the boundary).
 
 [Source](/reference-sources/Data.Path.cinch) · line 48
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Path</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Path</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Path</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span>)</code></pre>
 
 # Values
 

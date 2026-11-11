@@ -144,6 +144,7 @@ needs the checker to consume export tables instead of sources.
 | Structured scopes, `spawn`, join/cancel | done (`withScope`/`spawn`/`joinAllOrCancel` with rigid per-call scope regions (D74), n-ary join with first-failure-cancels and full acknowledgment awaiting (D78), cancellation observed at defined points (D80); `tests/concurrency.rs`) |
 | Task captures with ownership | done (handles are `%1` with no silent detach (D76); captures follow the P5 share-or-transfer discipline (D77): `%1`/`%aff` transfer exactly once including cancellation early-returns, `Ref`/`Copy` share, `Mut`/untransferred `Bytes`/`Lazy` refused) |
 | `Io r` runtime wired to real operations | done (`ioWrite`/`ioRead`/`ioSleep`/`pollCancel` over Rust runtime threads (D81); `Blocking` foreigns run on the task's OS thread, cancellation-blind until return, accounted in the body row and folded into the scope row (D79); one OS thread per task with fork-join happens-before and sequentially consistent cancellation (D80)) |
+| Software transactional memory (section 7) | done (`Effect.Stm`: `TVar`, `STM`, `atomically`, `retry`, `or-else`, the `StmSequencing` `do` provider, and `TMVar`/`TQueue`/`TBQueue`/`TSem`; TL2 in library source over inline target IR with the cell, clock, publication and wait in the runtime (D424-D427); serializable and opaque, no fairness claim; `tests/stm.rs` under leak checking in plain and `rc_debug` builds, `tests/targets.rs` for the per-architecture bodies) |
 
 ### Runtime evolution (P13) — runtime evolution specification
 
@@ -773,6 +774,52 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   `compiler/tests/bootstrap_lexer.rs`,
   `compiler/tests/bootstrap_export_types.rs`. Spec: surface syntax
   amendments, and surface grammar local amendments section 8.
+- **D423 (hiding imports, user direction)**: `import X hiding (a, b)`
+  imports the surface of `X` except the named members, which are then
+  out of scope bare and under the qualifier. `hiding` is a contextual
+  word; a hidden name must be a member of the module's surface
+  (`` `X` has no member `a` to hide ``); a hidden operator's fixity is
+  not imported; an import either selects or hides; `import stage` does
+  not hide. The duplicate-name refusal names both remedies. Reason: two
+  modules imported whole that export one name must not force a
+  selection list. `compiler/src/parser.rs`, `check_decls.rs`
+  (`ImportView`), `tooling/tree-sitter-cinch`, `tests/modules.rs`.
+- **D424 (STM: algorithm in source)**: `Effect.Stm` is Cinch source
+  over `prim` bodies in inline LLVM IR; the runtime owns only the
+  `KIND_TVAR` cell (the one block whose scanned slot is rewritten in
+  place), the global version clock and sleeper count, publication
+  (`cinch_stm_publish`) and the wait registry over the park seam
+  (`park.rs`). The algorithm is TL2 with snapshot extension: bit 0 of
+  a cell's lock word is the write lock, bit 1 the reader pin, the
+  version above them. No hardware transactional memory: TSX is
+  disabled on shipping Intel processors and no Arm core implements
+  TME. The per-architecture bodies are the spin hint (`pause`, `isb`)
+  and the cycle counter (`rdtsc`, `cntvct_el0`), each with a portable
+  fallback. `design/stm.md`.
+- **D425 (STM: purity is the effect discipline)**: an `STM a` is a
+  data type whose steps are pure functions, so I/O, FFI and suspension
+  inside a transaction are refused by the ordinary effect-row check
+  with no rule of their own. `STM` is also a closed effect label on
+  `atomically` and the `-io` shortcuts, marking code that runs
+  transactions; it is not handled (a handler-based discharge is
+  refused: "the handled effect is performed through a called
+  computation"). `atomically` carries `Diverge` because no fairness or
+  bound on attempts is claimed.
+- **D426 (STM: `do` and rollback-safe ownership)**: `do` for
+  transactions is the compiler-known provider `StmSequencing`,
+  declared in `Effect.Stm` and keyed by its defining module. Its
+  continuation kind is `ContKind::Many`: the function right of `<-`
+  may run once per attempt, so its captures count as a lambda's and a
+  `%1` value cannot cross a `<-`.
+- **D427 (STM: the mutable counted slot)**: a `TVar` handle is `Copy`,
+  and a `TVar a` crosses a task boundary only when `a` is shareable.
+  Two runtime rules keep counts right when a value is replaced under
+  readers: a marked (shared) cell holds only marked values, so commit
+  publishes staged values before installing them and repeats until a
+  pass marks nothing; a value word is replaced only under the write
+  lock and a reference to it is taken only under the pin. Replaced
+  values leave by swap into the staging cell and are released after
+  the locks. `compiler/runtime/src/stm.rs`, `tests/stm.rs`.
 - **D221-D227 (P18 continuation, reported)**: `unsafe` is a per-body
   prefix (`unsafe <family> { ... }`) with `unsafe prim ... where` sugar
   folding into bodies at parse, recognized contextually so `unsafe`

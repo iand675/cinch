@@ -1,0 +1,79 @@
+-- Effect.Stm.TQueue: an unbounded first-in, first-out queue of
+-- transactions.
+--
+-- The queue is two lists in two variables: writers push onto the back
+-- list, readers pop from the front list, and a reader that finds the
+-- front empty takes the whole back list, reversed. Each element is
+-- moved once, so a write and a read cost constant time amortized, and
+-- writers and readers touch different variables: a write does not
+-- conflict with a read unless the front has run dry.
+--
+-- `tqueue-read` waits while the queue is empty. Nothing bounds the
+-- queue, so a writer never waits and a producer that outruns its
+-- consumer grows the heap; `Effect.Stm.TBQueue` is the bounded form.
+--
+-- Module scheme (design/base-library.md): a concrete type over
+-- `Effect.Stm`, shipped beside it.
+module Effect.Stm.TQueue where
+
+  import Data.List
+  import Effect.Stm
+
+  export TQueue, tqueue-new, tqueue-new-io
+  export tqueue-write, tqueue-read, tqueue-try-read, tqueue-peek, tqueue-unget
+  export tqueue-flush, tqueue-is-empty
+
+  -- The front (next out first) and the back (last in first).
+  data TQueue a where
+    MkTQueue :: TVar (List a) -> TVar (List a) -> TQueue a
+
+  tqueue-new :: forall a. STM (TQueue a)
+  tqueue-new = stm-bind (tvar-new Nil) (\front -> stm-map (\back -> MkTQueue front back) (tvar-new Nil))
+
+  tqueue-new-io :: forall a. Unit ->{STM} TQueue a
+  tqueue-new-io u = MkTQueue (tvar-new-io Nil) (tvar-new-io Nil)
+
+  -- Append `x`. Never waits.
+  tqueue-write :: forall a. TQueue a -> a -> STM Unit
+  tqueue-write (MkTQueue _ back) x = tvar-modify back (\xs -> Cons x xs)
+
+  -- The oldest element, removed, or `None` when the queue is empty.
+  tqueue-try-read :: forall a. TQueue a -> STM (Option a)
+  tqueue-try-read (MkTQueue front back) = stm-bind (tvar-read front) (\xs -> case xs of
+    Cons x rest -> stm-map (\_ -> Some x) (tvar-write front rest)
+    Nil -> stm-bind (tvar-read back) (\ys -> case reverse ys of
+      Nil -> stm-pure None
+      Cons y rest -> stm-then (tvar-write back Nil) (stm-map (\_ -> Some y) (tvar-write front rest))))
+
+  -- The oldest element, removed. Waits while the queue is empty.
+  tqueue-read :: forall a. TQueue a -> STM a
+  tqueue-read q = stm-bind (tqueue-try-read q) (\v -> case v of
+    None -> retry
+    Some x -> stm-pure x)
+
+  -- The oldest element, left in place. Waits while the queue is empty.
+  tqueue-peek :: forall a. TQueue a -> STM a
+  tqueue-peek q = stm-bind (tqueue-read q) (\x -> stm-map (\_ -> x) (tqueue-unget q x))
+
+  -- Put `x` back at the front: the next read answers it.
+  tqueue-unget :: forall a. TQueue a -> a -> STM Unit
+  tqueue-unget (MkTQueue front _) x = tvar-modify front (\xs -> Cons x xs)
+
+  -- Every element, oldest first, leaving the queue empty.
+  tqueue-flush :: forall a. TQueue a -> STM (List a)
+  tqueue-flush (MkTQueue front back) =
+    stm-bind (tvar-swap front Nil) (\xs ->
+      stm-map (\ys -> list-append-reversed xs ys) (tvar-swap back Nil))
+
+  -- `xs` followed by the reverse of `ys`.
+  list-append-reversed :: forall a. List a -> List a -> List a
+  list-append-reversed xs ys = case xs of
+    Nil -> reverse ys
+    Cons x rest -> Cons x (list-append-reversed rest ys)
+
+  tqueue-is-empty :: forall a. TQueue a -> STM Bool
+  tqueue-is-empty (MkTQueue front back) = stm-bind (tvar-read front) (\xs -> case xs of
+    Cons _ _ -> stm-pure False
+    Nil -> stm-map (\ys -> case ys of
+      Nil -> True
+      Cons _ _ -> False) (tvar-read back))

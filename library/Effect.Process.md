@@ -105,7 +105,7 @@ A live child with three stdio pipes of its own.
 
 [Source](/reference-sources/Effect.Process.cinch) · line 310
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Child</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Child</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Child</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">Child</span>)</code></pre>
 
 <a id="type-436f6d6d616e64"></a>
 
@@ -118,7 +118,7 @@ A program with its arguments and its environment additions
 
 [Source](/reference-sources/Effect.Process.cinch) · line 107
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Command</span> :: (<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">List</span> (<span class="tok-constructor">String</span>, <span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Command</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Command</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">Command</span>)))</code></pre>
 
 <a id="type-50726f636573734572726f72"></a>
 
@@ -130,13 +130,13 @@ What went wrong before the child's own exit code could exist.
 
 [Source](/reference-sources/Effect.Process.cinch) · line 99
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ProcessNotFound</span> :: <span class="tok-constructor">ProcessError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ProcessNotFound</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">ProcessError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ProcessPermissionDenied</span> :: <span class="tok-constructor">ProcessError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ProcessPermissionDenied</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">ProcessError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ProcessInvalidArgument</span> :: <span class="tok-constructor">ProcessError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ProcessInvalidArgument</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">ProcessError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ProcessIoError</span> :: <span class="tok-constructor">ProcessError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ProcessIoError</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">ProcessError</span></code></pre>
 
 <a id="type-53747265616d"></a>
 
@@ -148,9 +148,9 @@ Which of the child's two output pipes a read takes.
 
 [Source](/reference-sources/Effect.Process.cinch) · line 314
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Stdout</span> :: <span class="tok-constructor">Stream</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Stdout</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">Stream</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Stderr</span> :: <span class="tok-constructor">Stream</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Stderr</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">Stream</span></code></pre>
 
 # Values
 

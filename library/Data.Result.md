@@ -38,9 +38,9 @@ checked before `Data.List`.
 
 [Source](/reference-sources/Data.Core.cinch) · line 37
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Err</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . (<span class="tok-variable">e</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Err</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . (<span class="tok-variable">e</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Ok</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Ok</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>)</code></pre>
 
 # Values
 
@@ -179,7 +179,7 @@ These are checked exported instance entries. Law/sample-check status is separate
 | `Data.Result.Applicative_Result` | `Category.Applicative.Applicative (Data.Core.Result e)` | Implicit |
 | `Data.Result.Functor_Result` | `Category.Functor.Functor (Data.Core.Result e)` | Implicit |
 | `Data.Result.Monad_Result` | `Category.Monad.Monad (Data.Core.Result e)` | Implicit |
-| `Data.Result.SeqResult` | `ResultSequencing e` | Implicit |
+| `Data.Result.SeqResult` | `Effect.Sequencing.ResultSequencing e` | Implicit |
 
 **`Data.Result.Applicative_Result`**: `pure` is `Ok`; application propagates the FIRST `Err` (the left
 operand's error wins), which is what makes `traverse` into `Result`

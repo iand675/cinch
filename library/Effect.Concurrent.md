@@ -36,7 +36,7 @@ compiler-known schemes (like `newIO`), never foreign imports.
 
 [Source](/reference-sources/Effect.Concurrent.cinch)
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LoadError</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">LoadError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LoadError</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">LoadError</span>)</code></pre>
 
 <a id="type-52657175657374"></a>
 
@@ -55,7 +55,7 @@ imports.
 
 [Source](/reference-sources/Effect.Concurrent.cinch) · line 24
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Request</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Request</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Request</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">Request</span>)</code></pre>
 
 # Values
 

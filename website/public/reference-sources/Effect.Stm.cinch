@@ -1,0 +1,872 @@
+-- Effect.Stm: software transactional memory.
+--
+-- A `TVar a` is a shared variable. An `STM a` is a description of reads
+-- and writes of such variables, and `atomically` runs one so that the
+-- whole description takes effect at a single instant or not at all:
+-- no other transaction sees some of its writes without the rest, and
+-- it never sees some of another's.
+--
+--   move :: using (seq :: StmSequencing) => TVar Nat -> TVar Nat -> Nat -> STM Unit
+--   move src dst n = do
+--     a <- tvar-read src
+--     if n <= a then do
+--         _ <- tvar-write src (a - n)
+--         tvar-modify dst (\b -> b + n)
+--       else retry
+--
+-- `retry` abandons the attempt and waits until a variable it read has
+-- changed (here, until `src` holds enough), and `or-else` tries a
+-- second transaction when the first would wait. A transaction is a
+-- value built from pure functions, so it cannot perform I/O, call
+-- foreign code or wait on anything but its variables: a body that tried
+-- would have an effect row, and a transaction's steps are pure
+-- functions of the values before them.
+--
+-- # What is guaranteed
+--
+-- * Atomicity and isolation: committed transactions are serializable,
+--   in the order of their commit versions.
+-- * Opacity: an attempt that will not commit still only ever reads a
+--   snapshot some serial order could have produced. A body therefore
+--   cannot loop or go wrong on a combination of values that never
+--   existed together.
+-- * No lost wakeup: a transaction waiting in `retry` runs again after
+--   any commit that writes a variable it read.
+--
+-- # What is not
+--
+-- No fairness and no bound on attempts. A long transaction can be
+-- overtaken indefinitely by short ones that write what it reads, and a
+-- `retry` whose variables nobody writes waits forever, which is why
+-- `atomically` carries `Diverge`. A transaction may run many times, so
+-- what it allocates on an abandoned attempt is released and nothing an
+-- attempt does is visible unless it commits.
+--
+-- # The algorithm
+--
+-- Versioned write locks with a global version clock (TL2, Dice, Shalev
+-- and Shavit 2006), with snapshot extension. Each variable's cell has a
+-- lock word: the version of the commit that last wrote it, a write-lock
+-- bit a committing transaction holds, and a pin bit a reader holds for
+-- the few instructions it takes to count a reference.
+--
+-- * An attempt starts by reading the clock: its snapshot version.
+-- * A read takes the lock word, the value, and the lock word again. The
+--   value belongs to the snapshot when the word did not change and its
+--   version is no newer than the snapshot. A newer version does not
+--   abandon the attempt at once: the attempt reads the clock again and
+--   checks that nothing it has read so far changed, which moves its
+--   snapshot forward to now.
+-- * A write stages the value in a private cell and touches nothing
+--   shared.
+-- * Commit locks the written variables, advances the clock, checks the
+--   read set against the snapshot (skipped when no other commit
+--   happened since it was taken), installs the staged values and
+--   releases the locks with the new version. A read-only attempt
+--   commits with no shared write at all.
+--
+-- Nothing ever blocks while holding a lock: a lock that is not free
+-- after a bounded spin abandons the attempt, which backs off (a random
+-- spin, then yielding the processor) and runs again.
+--
+-- # Values and reference counts
+--
+-- A value in a variable is an ordinary counted value, and the cell owns
+-- one reference to it. Two rules keep the counts right when the value is
+-- replaced under readers (the runtime's `stm.rs` states them in full):
+--
+-- * A reader takes its own reference to a counted value while it holds
+--   the cell's pin bit, and a commit replaces a value only while it
+--   holds the write lock, which excludes the pin. A value that needs no
+--   count (a machine scalar, a small `Nat` or `Int`) is read with no
+--   shared write at all.
+-- * A commit swaps each staged value with the value it replaces, so the
+--   old value leaves in the staging cell and is released with the
+--   attempt's log, after the locks are gone. Before the swap it marks
+--   the new value as shared when the variable is shared (the runtime's
+--   mark-on-spawn rule, applied at publication).
+--
+-- The log holds its cells with their value types forgotten, since one
+-- list holds variables of every type. `cell-cast` and `cell-open` are
+-- the two unchecked steps, and the invariant that makes them sound is
+-- local: a staged cell is paired with the variable it was written to,
+-- and is only ever opened through that variable's type.
+--
+-- # Target specifics
+--
+-- The atomic operations are inline LLVM IR, so each target gets its own
+-- instructions (a `lock cmpxchg`, a `casal`, or the load-linked pair).
+-- Two operations have no portable spelling and carry a body per
+-- architecture: the spin hint (`pause`, `isb`) and the cycle counter
+-- that randomizes backoff (`rdtsc`, the virtual counter). Hardware
+-- transactional memory is deliberately absent: Intel has disabled TSX
+-- on shipping processors and no Arm core implements TME, so a commit
+-- path through it could not be tested and would rarely run.
+--
+-- Module scheme (design/base-library.md): `Effect.*` is the effect
+-- system's vocabulary, and the `STM` label marks code that runs
+-- transactions. The class instances for `STM` live here with the type.
+module Effect.Stm where
+
+  import Data.Machine
+  import Data.Option
+  import Category.Functor
+  import Category.Applicative
+  import Category.Monad
+  import Category.Alternative
+
+  export STM, StmSequencing, atomically, atomically-or-cancel, retry, or-else, check
+  export stm-pure, stm-bind, stm-map, stm-then
+  export tvar-new, tvar-read, tvar-write, tvar-modify, tvar-swap, tvar-state
+  export tvar-new-io, tvar-read-io
+
+  -- ---------------------------------------------------------------------
+  -- The cell (compiler/src/stm.rs, compiler/runtime/src/stm.rs). None of
+  -- these leave the module.
+  -- ---------------------------------------------------------------------
+
+  foreign import ccall "cinch.runtime.stmCellNew" cell-new :: forall a. a -> TVar a
+  foreign import ccall "cinch.runtime.stmCellAddr" cell-addr :: forall a. TVar a -> I64
+  foreign import ccall "cinch.runtime.stmCellHold" cell-hold :: forall a. TVar a -> I64 -> I64
+  foreign import ccall "cinch.runtime.stmCellOpen" cell-open :: forall a. TVar a -> I64 -> a
+  foreign import ccall "cinch.runtime.stmCellCast" cell-cast :: forall a b. TVar a -> TVar b
+
+  -- The value type of a cell in the log: nothing is ever read at it.
+  data Erased where
+    MkErased :: Erased
+
+  -- ---------------------------------------------------------------------
+  -- Words. A cell is three words at its address: the lock word at 0, the
+  -- value at 8, the value's scan format at 16. A lock word is
+  --
+  --   bit 0   write lock: a commit owns the cell
+  --   bit 1   pin: a reader is taking a reference to the value
+  --   rest    the version, a multiple of 4 (the clock advances by 4)
+  -- ---------------------------------------------------------------------
+
+  -- Every access to a word another thread may write is atomic and
+  -- sequentially consistent. The wait protocol needs that order between
+  -- a committer's version store and its read of the sleeper count, and
+  -- a reader's validation needs its second lock load ordered after its
+  -- value load; one ordering for all of them is the choice that cannot
+  -- be wrong, and on the two supported architectures only the stores
+  -- cost more than a plain access.
+  prim word-load :: I64 -> I64 ->{STM} I64 where
+    llvm {
+      %a = add i64 %0, %1
+      %p = inttoptr i64 %a to ptr
+      %v = load atomic i64, ptr %p seq_cst, align 8
+      ret i64 %v
+    }
+
+  prim word-store :: I64 -> I64 -> I64 ->{STM} I64 where
+    llvm {
+      %a = add i64 %0, %1
+      %p = inttoptr i64 %a to ptr
+      store atomic i64 %2, ptr %p seq_cst, align 8
+      ret i64 %2
+    }
+
+  -- Replace the word at the address with the third argument if it holds
+  -- the second: 1 when it did.
+  prim word-cas :: I64 -> I64 -> I64 ->{STM} I64 where
+    llvm {
+      %p = inttoptr i64 %0 to ptr
+      %r = cmpxchg ptr %p, i64 %1, i64 %2 seq_cst seq_cst
+      %ok = extractvalue { i64, i1 } %r, 1
+      %z = zext i1 %ok to i64
+      ret i64 %z
+    }
+
+  -- Add to the word at the address: the sum it now holds.
+  prim word-add :: I64 -> I64 ->{STM} I64 where
+    llvm {
+      %p = inttoptr i64 %0 to ptr
+      %old = atomicrmw add ptr %p, i64 %1 seq_cst
+      %new = add i64 %old, %1
+      ret i64 %new
+    }
+
+  -- Exchange the value words of a variable's cell and a staging cell.
+  -- The caller holds the variable's write lock, so no other thread
+  -- writes either word; readers may still load the variable's, which is
+  -- why that one store is atomic. The staging cell is private.
+  prim value-swap :: I64 -> I64 ->{STM} I64 where
+    llvm {
+      %ta = add i64 %0, 8
+      %tp = inttoptr i64 %ta to ptr
+      %sa = add i64 %1, 8
+      %sp = inttoptr i64 %sa to ptr
+      %old = load i64, ptr %tp, align 8
+      %new = load i64, ptr %sp, align 8
+      store atomic i64 %new, ptr %tp seq_cst, align 8
+      store i64 %old, ptr %sp, align 8
+      ret i64 0
+    }
+
+  -- The version of a lock word, and the word with its pin bit cleared.
+  prim word-version :: I64 -> I64 where
+    llvm {
+      %v = and i64 %0, -4
+      ret i64 %v
+    }
+
+  prim word-unpinned :: I64 -> I64 where
+    llvm {
+      %v = and i64 %0, -3
+      ret i64 %v
+    }
+
+  -- One of 64 bits for a cell's address: the bit a transaction's filters
+  -- carry for the variable. The multiplier is 2^64 divided by the golden
+  -- ratio, which spreads the low address bits (cells are 32 bytes apart
+  -- at their closest) over the top six.
+  prim addr-bit :: I64 -> I64 where
+    llvm {
+      %h = mul i64 %0, -7046029254386353131
+      %s = lshr i64 %h, 58
+      %b = shl i64 1, %s
+      ret i64 %b
+    }
+
+  -- How many hints the backoff after attempt number `%0` spins: the low
+  -- bits of `%1` under a cap of 16 hints that doubles per attempt up to
+  -- 4096.
+  prim backoff-span :: I64 -> I64 -> I64 where
+    llvm {
+      %few = icmp ult i64 %0, 8
+      %shift = select i1 %few, i64 %0, i64 8
+      %cap = shl i64 16, %shift
+      %mask = sub i64 %cap, 1
+      %n = and i64 %1, %mask
+      ret i64 %n
+    }
+
+  -- Tell the processor this is a spin-wait: it relaxes the pipeline and
+  -- lets a sibling hyperthread run. There is no portable instruction, so
+  -- each architecture names its own and every other target spins bare.
+  prim cpu-relax :: I64 ->{STM} I64 where
+    unsafe llvm {
+      call void asm sideeffect "pause", "~{dirflag},~{fpsr},~{flags}"()
+      ret i64 %0
+    } when arch x86_64
+    unsafe llvm {
+      call void asm sideeffect "isb", ""()
+      ret i64 %0
+    } when arch aarch64
+    llvm {
+      ret i64 %0
+    }
+
+  -- A number that differs between threads and between calls: the cycle
+  -- counter where user code may read one. Backoff takes its low bits so
+  -- that two transactions that collided do not collide again in step.
+  -- The fallback answers its argument, which the caller varies.
+  prim cpu-ticks :: I64 ->{STM} I64 where
+    unsafe llvm {
+      %t = call { i32, i32 } asm sideeffect "rdtsc", "={ax},={dx},~{dirflag},~{fpsr},~{flags}"()
+      %lo = extractvalue { i32, i32 } %t, 0
+      %z = zext i32 %lo to i64
+      ret i64 %z
+    } when arch x86_64
+    unsafe llvm {
+      %t = call i64 asm sideeffect "mrs $0, cntvct_el0", "=r"()
+      ret i64 %t
+    } when arch aarch64
+    llvm {
+      ret i64 %0
+    }
+
+  -- The runtime's entry points (compiler/runtime/src/stm.rs).
+
+  -- The shared state's address: the version clock at 0, the count of
+  -- waiting transactions at 128.
+  prim rt-state :: I64 ->{STM} I64 where
+    unsafe llvm {
+      %s = call i64 @cinch_stm_state(i64 %0)
+      ret i64 %s
+    } uses (cinch_stm_state :: I64 -> I64)
+
+  -- Take one more reference to the block behind a counted value word
+  -- (null and immediates are ignored); the word comes back.
+  prim rt-keep :: I64 ->{STM} I64 where
+    unsafe llvm {
+      call void @cinch_dup(i64 %0)
+      ret i64 %0
+    } uses (cinch_dup :: I64 -> Unit)
+
+  prim rt-publish :: I64 -> I64 ->{STM} I64 where
+    unsafe llvm {
+      %r = call i64 @cinch_stm_publish(i64 %0, i64 %1)
+      ret i64 %r
+    } uses (cinch_stm_publish :: I64 -> I64 -> I64)
+
+  prim rt-wait-begin :: I64 ->{STM} I64 where
+    unsafe llvm {
+      %r = call i64 @cinch_stm_wait_begin(i64 %0)
+      ret i64 %r
+    } uses (cinch_stm_wait_begin :: I64 -> I64)
+
+  prim rt-wait-park :: I64 ->{STM} I64 where
+    unsafe llvm {
+      %r = call i64 @cinch_stm_wait_park(i64 %0)
+      ret i64 %r
+    } uses (cinch_stm_wait_park :: I64 -> I64)
+
+  prim rt-wait-cancel :: I64 ->{STM} I64 where
+    unsafe llvm {
+      %r = call i64 @cinch_stm_wait_cancel(i64 %0)
+      ret i64 %r
+    } uses (cinch_stm_wait_cancel :: I64 -> I64)
+
+  prim rt-wake :: I64 ->{STM} I64 where
+    unsafe llvm {
+      %r = call i64 @cinch_stm_wake(i64 %0)
+      ret i64 %r
+    } uses (cinch_stm_wake :: I64 -> I64)
+
+  prim rt-yield :: I64 ->{STM} I64 where
+    unsafe llvm {
+      %r = call i64 @cinch_stm_yield(i64 %0)
+      ret i64 %r
+    } uses (cinch_stm_yield :: I64 -> I64)
+
+  -- ---------------------------------------------------------------------
+  -- Cell accessors. Each one takes the cell, never a bare address:
+  -- `cell-hold` makes the cell an argument of the call that returns the
+  -- word, so the cell cannot be released while the operation runs.
+  -- ---------------------------------------------------------------------
+
+  lock-of :: forall e. TVar e ->{STM} I64
+  lock-of c = cell-hold c (word-load (cell-addr c) 0)
+
+  value-of :: forall e. TVar e ->{STM} I64
+  value-of c = cell-hold c (word-load (cell-addr c) 8)
+
+  -- 0 when the value word is never a counted pointer.
+  format-of :: forall e. TVar e ->{STM} I64
+  format-of c = cell-hold c (word-load (cell-addr c) 16)
+
+  set-lock :: forall e. TVar e -> I64 ->{STM} I64
+  set-lock c w = cell-hold c (word-store (cell-addr c) 0 w)
+
+  cas-lock :: forall e. TVar e -> I64 -> I64 ->{STM} Bool
+  cas-lock c old new = cell-hold c (word-cas (cell-addr c) old new) == 1
+
+  -- Whether a value word needs no reference: null, or an immediate.
+  uncounted :: I64 -> Bool
+  uncounted w = if w == 0 then True else bit-and-i64 w 1 == 1
+
+  clock-now :: Unit ->{STM} I64
+  clock-now u = word-load (rt-state 0) 0
+
+  -- How long a reader or a committer spins on a cell another thread
+  -- holds before it abandons its attempt. A pin is held for a few
+  -- instructions and a write lock for one commit's validation, so a
+  -- holder that is still there after this many hints has been
+  -- descheduled, and waiting longer only burns the waiter's time slice.
+  spin-limit :: I64
+  spin-limit = 100
+
+  -- ---------------------------------------------------------------------
+  -- The log
+  -- ---------------------------------------------------------------------
+
+  -- A variable the attempt read, with the version it read it at.
+  data Seen where
+    MkSeen :: TVar Erased -> I64 -> Seen
+
+  -- A variable the attempt wrote, with the private cell holding the
+  -- value to install. At most one entry per variable.
+  data Staged where
+    MkStaged :: TVar Erased -> TVar Erased -> Staged
+
+  -- An attempt in progress: its snapshot version, what it read, what it
+  -- wrote, and the filter of the written variables (`addr-bit`), which
+  -- lets a read skip the search of the writes when its bit is clear.
+  data Tx where
+    MkTx :: I64 -> List Seen -> List Staged -> I64 -> Tx
+
+  -- What running a transaction against an attempt produced.
+  data Step a where
+    -- A result, and the attempt extended by what the transaction did.
+    Done :: a -> Tx -> Step a
+    -- The transaction reached `retry`. The attempt's reads are what it
+    -- waits on; its writes are discarded.
+    Blocked :: Tx -> Step a
+    -- The attempt's snapshot cannot be extended, or a cell stayed held:
+    -- the attempt is abandoned and run again.
+    Stale :: Step a
+
+  -- A transaction: a function from an attempt to its outcome. The row
+  -- says the function reads shared cells; it writes none before commit.
+  data STM a where
+    MkSTM :: (Tx ->{STM} Step a) -> STM a
+
+  run-stm :: forall a. STM a -> Tx ->{STM} Step a
+  run-stm (MkSTM f) tx = f tx
+
+  -- The staged cell for the variable at `addr`, if the attempt wrote it.
+  find-staged :: I64 -> List Staged -> Option (TVar Erased)
+  find-staged addr staged = case staged of
+    Nil -> None
+    Cons e rest -> case e of
+      MkStaged dest box -> if cell-addr dest == addr then Some box else find-staged addr rest
+
+  -- `staged` with the entry for the variable at `addr` replaced, or the
+  -- entry added when there was none. The replaced staging cell is
+  -- released here, and with it the value that write had staged.
+  put-staged :: I64 -> TVar Erased -> TVar Erased -> List Staged -> List Staged
+  put-staged addr dest box staged = case staged of
+    Nil -> Cons (MkStaged dest box) Nil
+    Cons e rest -> case e of
+      MkStaged t b ->
+        if cell-addr t == addr then Cons (MkStaged dest box) rest
+        else Cons e (put-staged addr dest box rest)
+
+  -- Whether every variable the attempt read is still at the version it
+  -- was read at and no commit holds it. A pin does not count: a pinned
+  -- value is being copied, not replaced.
+  seen-current :: List Seen ->{STM} Bool
+  seen-current seen = case seen of
+    Nil -> True
+    Cons e rest -> case e of
+      MkSeen c v -> if word-unpinned (lock-of c) == v then seen-current rest else False
+
+  -- The same during this attempt's own commit, when the variables it
+  -- both read and wrote carry its write lock.
+  seen-current-locked :: List Seen -> List Staged -> I64 ->{STM} Bool
+  seen-current-locked seen staged filter = case seen of
+    Nil -> True
+    Cons e rest -> case e of
+      MkSeen c v ->
+        let w = word-unpinned (lock-of c) in
+        if w == v then seen-current-locked rest staged filter
+        else if w == bit-or-i64 v 1 then
+          (if owns (cell-addr c) staged filter then seen-current-locked rest staged filter else False)
+        else False
+
+  owns :: I64 -> List Staged -> I64 -> Bool
+  owns addr staged filter =
+    if bit-and-i64 filter (addr-bit addr) == 0 then False
+    else case find-staged addr staged of
+      Some _ -> True
+      None -> False
+
+  -- ---------------------------------------------------------------------
+  -- Reading
+  -- ---------------------------------------------------------------------
+
+  -- The value a staging cell holds, at the type of the variable it was
+  -- staged for. The cell is private to the attempt, so no pin is needed;
+  -- the caller's reference is a second one beside the cell's.
+  staged-value :: forall a. TVar a -> TVar Erased ->{STM} a
+  staged-value tv box =
+    let w = value-of box in
+    if format-of box == 0 then cell-open tv w else cell-open tv (rt-keep w)
+
+  -- Read a variable into an attempt. `spins` counts the times this read
+  -- found the cell held or changing.
+  read-shared :: forall a. TVar a -> I64 -> List Seen -> List Staged -> I64 -> I64 ->{STM} Step a
+  read-shared tv snapshot seen staged filter spins =
+    let w1 = lock-of tv in
+    if bit-and-i64 w1 1 == 1 then
+      -- A commit is installing a value. It will not be long.
+      (if spins < spin-limit then
+         (case cpu-relax spins of
+            _ -> read-shared tv snapshot seen staged filter (wrapping-add-i64 spins 1))
+       else Stale)
+    else if snapshot < word-version w1 then
+      -- Written since the snapshot. The read can still stand if nothing
+      -- read so far has changed: the snapshot moves to now.
+      (let now = clock-now () in
+       if seen-current seen then read-shared tv now seen staged filter spins else Stale)
+    else
+      let x = value-of tv in
+      if (if format-of tv == 0 then True else uncounted x) then
+        -- No reference to take: the value stands if the cell did not
+        -- change around the load.
+        (if word-unpinned (lock-of tv) == word-unpinned w1 then
+           Done (cell-open tv x) (MkTx snapshot (Cons (MkSeen (cell-cast tv) (word-version w1)) seen) staged filter)
+         else read-shared tv snapshot seen staged filter (wrapping-add-i64 spins 1))
+      else if (if bit-and-i64 w1 2 == 0 then cas-lock tv w1 (bit-or-i64 w1 2) else False) then
+        -- Pinned: no commit can replace the value until the pin goes, so
+        -- the reference is taken to a live block.
+        (let y = rt-keep (value-of tv) in
+         case set-lock tv w1 of
+           _ -> Done (cell-open tv y) (MkTx snapshot (Cons (MkSeen (cell-cast tv) (word-version w1)) seen) staged filter))
+      else if spins < spin-limit then
+        (case cpu-relax spins of
+           _ -> read-shared tv snapshot seen staged filter (wrapping-add-i64 spins 1))
+      else Stale
+
+  read-var :: forall a. TVar a -> Tx ->{STM} Step a
+  read-var tv tx = case tx of
+    MkTx snapshot seen staged filter ->
+      let addr = cell-addr tv in
+      if bit-and-i64 filter (addr-bit addr) == 0 then read-shared tv snapshot seen staged filter 0
+      else case find-staged addr staged of
+        Some box -> Done (staged-value tv box) tx
+        None -> read-shared tv snapshot seen staged filter 0
+
+  -- The variable's value now, outside any transaction: the same read
+  -- with no snapshot to belong to, so it waits out a commit instead of
+  -- giving up.
+  read-now :: forall a. TVar a -> I64 ->{STM} a
+  read-now tv spins =
+    let w1 = lock-of tv in
+    if bit-and-i64 w1 1 == 1 then pause-then-read tv spins
+    else
+      let x = value-of tv in
+      if (if format-of tv == 0 then True else uncounted x) then
+        (if word-unpinned (lock-of tv) == word-unpinned w1 then cell-open tv x else pause-then-read tv spins)
+      else if (if bit-and-i64 w1 2 == 0 then cas-lock tv w1 (bit-or-i64 w1 2) else False) then
+        (let y = rt-keep (value-of tv) in
+         case set-lock tv w1 of
+           _ -> cell-open tv y)
+      else pause-then-read tv spins
+
+  pause-then-read :: forall a. TVar a -> I64 ->{STM} a
+  pause-then-read tv spins =
+    if spins < spin-limit then
+      (case cpu-relax spins of
+         _ -> read-now tv (wrapping-add-i64 spins 1))
+    else
+      (case rt-yield 0 of
+         _ -> read-now tv 0)
+
+  -- ---------------------------------------------------------------------
+  -- Writing
+  -- ---------------------------------------------------------------------
+
+  write-var :: forall a. TVar a -> a -> Tx -> Step Unit
+  write-var tv x tx = case tx of
+    MkTx snapshot seen staged filter ->
+      let addr = cell-addr tv in
+      let bit = addr-bit addr in
+      let box = cell-cast (cell-new x) in
+      let dest = cell-cast tv in
+      if bit-and-i64 filter bit == 0 then
+        Done () (MkTx snapshot seen (Cons (MkStaged dest box) staged) (bit-or-i64 filter bit))
+      else
+        Done () (MkTx snapshot seen (put-staged addr dest box staged) filter)
+
+  -- ---------------------------------------------------------------------
+  -- Commit
+  -- ---------------------------------------------------------------------
+
+  -- Make every staged value safe to store in its variable (the first
+  -- rule of the runtime's `stm.rs`). Marking one value can turn another
+  -- written variable from private to shared, so the pass repeats until
+  -- it marks nothing.
+  publish-all :: List Staged ->{STM} I64
+  publish-all staged = if publish-pass staged 0 == 0 then 0 else publish-all staged
+
+  publish-pass :: List Staged -> I64 ->{STM} I64
+  publish-pass staged marked = case staged of
+    Nil -> marked
+    Cons e rest -> case e of
+      MkStaged dest box ->
+        let m = cell-hold dest (cell-hold box (rt-publish (cell-addr dest) (cell-addr box))) in
+        publish-pass rest (wrapping-add-i64 marked m)
+
+  -- Take one variable's write lock: the word must be free of both bits.
+  lock-cell :: TVar Erased -> I64 ->{STM} Bool
+  lock-cell c spins =
+    let w = lock-of c in
+    if (if bit-and-i64 w 3 == 0 then cas-lock c w (bit-or-i64 w 1) else False) then True
+    else if spins < spin-limit then
+      (case cpu-relax spins of
+         _ -> lock-cell c (wrapping-add-i64 spins 1))
+    else False
+
+  -- Lock every written variable, counting how many are held, or release
+  -- the ones taken and report failure. Nothing waits on a lock while
+  -- holding another, so two commits cannot deadlock.
+  lock-all :: List Staged -> List Staged -> I64 ->{STM} Bool
+  lock-all all rest held = case rest of
+    Nil -> True
+    Cons e more -> case e of
+      MkStaged dest _ ->
+        if lock-cell dest 0 then lock-all all more (wrapping-add-i64 held 1)
+        else (case unlock-first all held of
+                _ -> False)
+
+  -- Release the first `n` write locks of `staged`, versions unchanged.
+  unlock-first :: List Staged -> I64 ->{STM} I64
+  unlock-first staged n = if n == 0 then 0 else case staged of
+    Nil -> 0
+    Cons e rest -> case e of
+      MkStaged dest _ ->
+        case set-lock dest (word-version (lock-of dest)) of
+          _ -> unlock-first rest (wrapping-sub-i64 n 1)
+
+  unlock-all :: List Staged ->{STM} I64
+  unlock-all staged = case staged of
+    Nil -> 0
+    Cons e rest -> case e of
+      MkStaged dest _ ->
+        case set-lock dest (word-version (lock-of dest)) of
+          _ -> unlock-all rest
+
+  -- Exchange each staged value with its variable's. The old values now
+  -- sit in the staging cells and are released with the log.
+  install-all :: List Staged ->{STM} I64
+  install-all staged = case staged of
+    Nil -> 0
+    Cons e rest -> case e of
+      MkStaged dest box ->
+        case cell-hold dest (cell-hold box (value-swap (cell-addr dest) (cell-addr box))) of
+          _ -> install-all rest
+
+  -- Release every write lock at the commit's version.
+  release-all :: List Staged -> I64 ->{STM} I64
+  release-all staged version = case staged of
+    Nil -> 0
+    Cons e rest -> case e of
+      MkStaged dest _ ->
+        case set-lock dest version of
+          _ -> release-all rest version
+
+  -- Resume the transactions waiting on a written variable. The count of
+  -- waiters is read after the versions were stored (see the runtime's
+  -- account of why neither side can miss the other).
+  wake-waiters :: I64 ->{STM} I64
+  wake-waiters filter =
+    if word-load (rt-state 0) 128 == 0 then 0 else rt-wake filter
+
+  -- Make the attempt's writes take effect: True when they did.
+  commit :: Tx ->{STM} Bool
+  commit tx = case tx of
+    MkTx snapshot seen staged filter -> case staged of
+      -- Every read belonged to one snapshot and nothing was written:
+      -- the attempt already happened at that instant.
+      Nil -> True
+      Cons _ _ ->
+        case publish-all staged of
+          _ ->
+            if lock-all staged staged 0 then
+              (let version = word-add (rt-state 0) 4 in
+               -- When the clock went straight from the snapshot to this
+               -- commit, no other commit happened in between and the
+               -- reads need no second look.
+               if (if version == wrapping-add-i64 snapshot 4 then True else seen-current-locked seen staged filter) then
+                 (case install-all staged of
+                    _ -> case release-all staged version of
+                      _ -> case wake-waiters filter of
+                        _ -> True)
+               else
+                 (case unlock-all staged of
+                    _ -> False))
+            else False
+
+  -- ---------------------------------------------------------------------
+  -- Running
+  -- ---------------------------------------------------------------------
+
+  spin-for :: I64 ->{STM} I64
+  spin-for n = if n < 1 then 0 else case cpu-relax n of
+    _ -> spin-for (wrapping-sub-i64 n 1)
+
+  -- Wait before running an abandoned attempt again. The spin grows with
+  -- the number of attempts (16 hints doubling up to 4096) and its length
+  -- is drawn from the cycle counter, so the transactions that collided
+  -- come back at different times. After the fourth attempt the thread
+  -- also gives up its time slice: by then the holder it keeps meeting
+  -- is more likely descheduled than slow.
+  backoff :: I64 ->{STM} I64
+  backoff tries =
+    case spin-for (backoff-span tries (cpu-ticks tries)) of
+      _ -> if tries < 4 then 0 else rt-yield 0
+
+  -- The filter of the variables an attempt read.
+  seen-filter :: List Seen -> I64 -> I64
+  seen-filter seen acc = case seen of
+    Nil -> acc
+    Cons e rest -> case e of
+      MkSeen c _ -> seen-filter rest (bit-or-i64 acc (addr-bit (cell-addr c)))
+
+  -- Wait until a variable in `seen` may have changed: True when the wait
+  -- ended because the running task was asked to cancel instead (only
+  -- when `cancellable` is 1). The order is the runtime's wait protocol:
+  -- register, then look again, then sleep.
+  await-change :: List Seen -> I64 ->{STM} Bool
+  await-change seen cancellable =
+    case rt-wait-begin (seen-filter seen 0) of
+      _ ->
+        if seen-current seen then rt-wait-park cancellable == 1
+        else (case rt-wait-cancel 0 of
+                _ -> False)
+
+  attempt :: forall a. STM a -> I64 ->{STM, Diverge} a
+  attempt m tries =
+    case run-stm m (MkTx (clock-now ()) Nil Nil 0) of
+      Done x tx ->
+        if commit tx then x
+        else (case backoff tries of
+                _ -> attempt m (wrapping-add-i64 tries 1))
+      Blocked tx -> case tx of
+        MkTx _ seen _ _ -> case await-change seen 0 of
+          _ -> attempt m 0
+      Stale -> case backoff tries of
+        _ -> attempt m (wrapping-add-i64 tries 1)
+
+  -- Run a transaction: its reads and writes take effect together, at one
+  -- instant, or the transaction runs again. Returns when an attempt
+  -- commits, which `retry` and contention can postpone without bound.
+  atomically :: forall a. STM a ->{STM, Diverge} a
+  atomically m = attempt m 0
+
+  attempt-or-cancel :: forall r a. using (io :: Io r) => STM a -> I64 ->{STM, Cancel r, Diverge} Option a
+  attempt-or-cancel m tries =
+    case run-stm m (MkTx (clock-now ()) Nil Nil 0) of
+      Done x tx ->
+        if commit tx then Some x
+        else (case backoff tries of
+                _ -> attempt-or-cancel m (wrapping-add-i64 tries 1))
+      Blocked tx -> case tx of
+        MkTx _ seen _ _ ->
+          if await-change seen 1 then (if pollCancel () then None else attempt-or-cancel m 0)
+          else attempt-or-cancel m 0
+      Stale -> case backoff tries of
+        _ -> attempt-or-cancel m (wrapping-add-i64 tries 1)
+
+  -- `atomically` for a task that must stay cancellable while it waits:
+  -- `None` when the task's cancellation was requested while the
+  -- transaction was waiting in `retry`, with nothing committed. A
+  -- request does not interrupt an attempt that is running, and a
+  -- transaction that never waits never observes it.
+  atomically-or-cancel :: forall r a. using (io :: Io r) => STM a ->{STM, Cancel r, Diverge} Option a
+  atomically-or-cancel m = attempt-or-cancel m 0
+
+  -- ---------------------------------------------------------------------
+  -- Transactions
+  -- ---------------------------------------------------------------------
+
+  -- The transaction that does nothing and answers `x`.
+  stm-pure :: forall a. a -> STM a
+  stm-pure x = MkSTM (\tx -> Done x tx)
+
+  -- `m`, then the transaction `k` makes of its result, as one
+  -- transaction.
+  stm-bind :: forall a b. STM a -> (a -> STM b) -> STM b
+  stm-bind m k = MkSTM (\tx -> case run-stm m tx of
+    Done x tx1 -> run-stm (k x) tx1
+    Blocked tx1 -> Blocked tx1
+    Stale -> Stale)
+
+  stm-map :: forall a b. (a -> b) -> STM a -> STM b
+  stm-map f m = MkSTM (\tx -> case run-stm m tx of
+    Done x tx1 -> Done (f x) tx1
+    Blocked tx1 -> Blocked tx1
+    Stale -> Stale)
+
+  -- `m`, then `n`, keeping `n`'s result.
+  stm-then :: forall a b. STM a -> STM b -> STM b
+  stm-then m n = MkSTM (\tx -> case run-stm m tx of
+    Done _ tx1 -> run-stm n tx1
+    Blocked tx1 -> Blocked tx1
+    Stale -> Stale)
+
+  -- Abandon the attempt and run the whole transaction again once a
+  -- variable it has read changes. Inside `or-else`, give way to the
+  -- alternative instead.
+  retry :: forall a. STM a
+  retry = MkSTM (\tx -> Blocked tx)
+
+  -- `first`, unless it would wait: then its writes are discarded and
+  -- `second` runs in its place. If both would wait, the transaction
+  -- waits on what either of them read.
+  or-else :: forall a. STM a -> STM a -> STM a
+  or-else first second = MkSTM (\tx -> case tx of
+    MkTx _ _ staged filter -> case run-stm first tx of
+      Done x tx1 -> Done x tx1
+      Stale -> Stale
+      Blocked tx1 -> case tx1 of
+        MkTx snapshot seen _ _ -> run-stm second (MkTx snapshot seen staged filter))
+
+  -- Wait until the condition holds: `retry` when it does not.
+  check :: Bool -> STM Unit
+  check ok = if ok then stm-pure () else retry
+
+  -- A new variable holding `x`. Until the transaction commits (and
+  -- stores it somewhere another task can reach) the variable is private
+  -- to the attempt that made it.
+  tvar-new :: forall a. a -> STM (TVar a)
+  tvar-new x = MkSTM (\tx -> Done (cell-new x) tx)
+
+  tvar-read :: forall a. TVar a -> STM a
+  tvar-read tv = MkSTM (\tx -> read-var tv tx)
+
+  tvar-write :: forall a. TVar a -> a -> STM Unit
+  tvar-write tv x = MkSTM (\tx -> write-var tv x tx)
+
+  tvar-modify :: forall a. TVar a -> (a -> a) -> STM Unit
+  tvar-modify tv f = stm-bind (tvar-read tv) (\x -> tvar-write tv (f x))
+
+  -- Store `x` and answer the value it replaced.
+  tvar-swap :: forall a. TVar a -> a -> STM a
+  tvar-swap tv x = stm-bind (tvar-read tv) (\old -> stm-map (\_ -> old) (tvar-write tv x))
+
+  -- Apply a state transition: `f` answers a result and the next value.
+  tvar-state :: forall a b. TVar a -> (a -> (b, a)) -> STM b
+  tvar-state tv f = stm-bind (tvar-read tv) (\x -> case f x of
+    (out, next) -> stm-map (\_ -> out) (tvar-write tv next))
+
+  -- A new variable, made outside any transaction.
+  tvar-new-io :: forall a. a ->{STM} TVar a
+  tvar-new-io x = cell-new x
+
+  -- The variable's committed value at some instant during the call,
+  -- outside any transaction. Two such reads are two instants: use a
+  -- transaction to read variables consistently with one another.
+  tvar-read-io :: forall a. TVar a ->{STM} a
+  tvar-read-io tv = read-now tv 0
+
+  -- ---------------------------------------------------------------------
+  -- The class instances (design/base-library.md: instances live with
+  -- their type). `empty` is `retry` and `<|>` is `or-else`.
+  -- ---------------------------------------------------------------------
+
+  implicit instance Functor_STM :: Functor STM where
+    map f m = stm-map f m
+    (<$>) f m = stm-map f m
+
+  implicit instance Applicative_STM :: Applicative STM where
+    pure x = stm-pure x
+    (<*>) mf mx = stm-bind mf (\f -> stm-map f mx)
+    lift-a2 f mx my = stm-bind mx (\x -> stm-map (\y -> f x y) my)
+
+  implicit instance Monad_STM :: Monad STM where
+    (>>=) m k = stm-bind m k
+    join mm = stm-bind mm (\m -> m)
+
+  implicit instance Alternative_STM :: Alternative STM where
+    empty = retry
+    (<|>) first second = or-else first second
+
+  -- ---------------------------------------------------------------------
+  -- The `do` provider (decision D22: `do` picks its provider lexically,
+  -- from a `using` binder with a provider head). A definition that
+  -- declares `using (seq :: StmSequencing)` writes its transaction as a
+  -- block:
+  --
+  --   move :: using (seq :: StmSequencing) => TVar Nat -> TVar Nat -> STM Unit
+  --   move src dst = do
+  --     n <- tvar-read src
+  --     _ <- tvar-write src 0
+  --     tvar-modify dst (\m -> m + n)
+  --
+  -- A statement is a transaction, `<-` names its result, and the block
+  -- is the transaction that runs them in order. The block's
+  -- continuations run once per attempt, so what a statement captures is
+  -- used any number of times: a `%1` value cannot cross a `<-`.
+  -- ---------------------------------------------------------------------
+
+  signature StmSequencing where
+    pure :: forall a. a -> STM a
+    bind :: forall a b. STM a -> (a -> STM b) -> STM b
+
+  implicit instance SeqStm :: StmSequencing where
+    pure x = stm-pure x
+    bind m k = stm-bind m k

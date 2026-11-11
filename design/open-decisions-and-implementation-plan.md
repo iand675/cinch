@@ -73,7 +73,7 @@ The language requirements are ambitious but coherent enough to define a research
 | Source concurrency memory model and backend correspondence | Claiming data-race freedom across native and Wasm |
 | Cancellation, task failure and cleanup semantics | Stabilizing async APIs |
 | Exact component profiles, host support and adapter rules | Declaring a supported Wasm deployment matrix |
-| STM rollback ownership and scheduling assumptions | Claiming transactional and progress guarantees |
+| STM fairness and scheduling assumptions (rollback ownership is decided: `design/stm.md`) | Claiming progress guarantees beyond no lost wakeup |
 
 Syntax remains provisional. A concrete surface grammar is now specified in draft 0.2; the sound core calculus and elaboration judgments still require formalization. Surface convenience must elaborate to explicit core evidence; it cannot substitute for these decisions.
 

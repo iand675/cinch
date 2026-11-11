@@ -270,6 +270,26 @@ pub const EMBEDDED_SOURCES: &[(&str, &str)] = &[
         "Data/HashMap.cinch",
         include_str!("../prelude/Data/HashMap.cinch"),
     ),
+    (
+        "Effect/Stm.cinch",
+        include_str!("../prelude/Effect/Stm.cinch"),
+    ),
+    (
+        "Effect/Stm/TMVar.cinch",
+        include_str!("../prelude/Effect/Stm/TMVar.cinch"),
+    ),
+    (
+        "Effect/Stm/TQueue.cinch",
+        include_str!("../prelude/Effect/Stm/TQueue.cinch"),
+    ),
+    (
+        "Effect/Stm/TBQueue.cinch",
+        include_str!("../prelude/Effect/Stm/TBQueue.cinch"),
+    ),
+    (
+        "Effect/Stm/TSem.cinch",
+        include_str!("../prelude/Effect/Stm/TSem.cinch"),
+    ),
 ];
 
 /// One module of a package manifest: the name, the source path, and

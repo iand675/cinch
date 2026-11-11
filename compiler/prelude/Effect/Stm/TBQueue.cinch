@@ -1,0 +1,86 @@
+-- Effect.Stm.TBQueue: a bounded first-in, first-out queue of
+-- transactions.
+--
+-- The bounded channel of the concurrency specification's section 5,
+-- built from transactions: the capacity is explicit, a writer waits
+-- while the queue is full, and a reader waits while it is empty, so a
+-- producer cannot outrun its consumer by more than the capacity.
+--
+-- Ownership of an element passes at a commit, and only there: a write
+-- that has not committed has put nothing in the queue, and a read that
+-- has not committed has taken nothing out. A task cancelled while it
+-- waits (`atomically-or-cancel`) therefore neither loses an element nor
+-- leaves half of one behind.
+--
+-- The representation is `Effect.Stm.TQueue`'s two lists plus a count.
+-- The count is one more variable every write and every read both
+-- change, so unlike the unbounded queue a writer and a reader do
+-- conflict; that is the price of the bound.
+--
+-- Module scheme (design/base-library.md): a concrete type over
+-- `Effect.Stm`, shipped beside it.
+module Effect.Stm.TBQueue where
+
+  import Data.List
+  import Effect.Stm
+
+  export TBQueue, tbqueue-new, tbqueue-new-io, tbqueue-capacity
+  export tbqueue-write, tbqueue-read, tbqueue-try-write, tbqueue-try-read
+  export tbqueue-length, tbqueue-is-empty, tbqueue-is-full
+
+  -- The capacity, the number of elements held, the front (next out
+  -- first) and the back (last in first).
+  data TBQueue a where
+    MkTBQueue :: Nat -> TVar Nat -> TVar (List a) -> TVar (List a) -> TBQueue a
+
+  -- A queue that holds at most `capacity` elements. A capacity of zero
+  -- makes a queue no write can ever enter.
+  tbqueue-new :: forall a. Nat -> STM (TBQueue a)
+  tbqueue-new capacity =
+    stm-bind (tvar-new 0) (\count ->
+      stm-bind (tvar-new Nil) (\front ->
+        stm-map (\back -> MkTBQueue capacity count front back) (tvar-new Nil)))
+
+  tbqueue-new-io :: forall a. Nat ->{STM} TBQueue a
+  tbqueue-new-io capacity = MkTBQueue capacity (tvar-new-io 0) (tvar-new-io Nil) (tvar-new-io Nil)
+
+  tbqueue-capacity :: forall a. TBQueue a -> Nat
+  tbqueue-capacity (MkTBQueue capacity _ _ _) = capacity
+
+  -- Append `x`, or answer False when the queue is full.
+  tbqueue-try-write :: forall a. TBQueue a -> a -> STM Bool
+  tbqueue-try-write (MkTBQueue capacity count _ back) x = stm-bind (tvar-read count) (\n ->
+    if n < capacity then
+      stm-then (tvar-write count (n + 1)) (stm-map (\_ -> True) (tvar-modify back (\xs -> Cons x xs)))
+    else stm-pure False)
+
+  -- Append `x`. Waits while the queue is full.
+  tbqueue-write :: forall a. TBQueue a -> a -> STM Unit
+  tbqueue-write q x = stm-bind (tbqueue-try-write q x) (\ok -> check ok)
+
+  -- The oldest element, removed, or `None` when the queue is empty.
+  tbqueue-try-read :: forall a. TBQueue a -> STM (Option a)
+  tbqueue-try-read (MkTBQueue _ count front back) = stm-bind (tvar-read count) (\n ->
+    if 0 < n then
+      stm-then (tvar-write count (n - 1)) (stm-bind (tvar-read front) (\xs -> case xs of
+        Cons x rest -> stm-map (\_ -> Some x) (tvar-write front rest)
+        Nil -> stm-bind (tvar-read back) (\ys -> case reverse ys of
+          -- The count says an element exists, so one of the lists has it.
+          Nil -> stm-pure None
+          Cons y rest -> stm-then (tvar-write back Nil) (stm-map (\_ -> Some y) (tvar-write front rest)))))
+    else stm-pure None)
+
+  -- The oldest element, removed. Waits while the queue is empty.
+  tbqueue-read :: forall a. TBQueue a -> STM a
+  tbqueue-read q = stm-bind (tbqueue-try-read q) (\v -> case v of
+    None -> retry
+    Some x -> stm-pure x)
+
+  tbqueue-length :: forall a. TBQueue a -> STM Nat
+  tbqueue-length (MkTBQueue _ count _ _) = tvar-read count
+
+  tbqueue-is-empty :: forall a. TBQueue a -> STM Bool
+  tbqueue-is-empty q = stm-map (\n -> n == 0) (tbqueue-length q)
+
+  tbqueue-is-full :: forall a. TBQueue a -> STM Bool
+  tbqueue-is-full (MkTBQueue capacity count _ _) = stm-map (\n -> capacity <= n) (tvar-read count)

@@ -38,9 +38,9 @@ D22; the classes live in Effect.Sequencing).
 
 [Source](/reference-sources/Data.Core.cinch)
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">None</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Option</span> <span class="tok-variable">a</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">None</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Some</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Some</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
 
 # Values
 
@@ -174,7 +174,7 @@ These are checked exported instance entries. Law/sample-check status is separate
 | `Data.Option.Monad_Option` | `Category.Monad.Monad Data.Core.Option` | Implicit |
 | `Data.Option.Monoid_Option` | `Algebra.Monoid.Monoid (Data.Core.Option t)` | Implicit |
 | `Data.Option.Semigroup_Option` | `Algebra.Semigroup.Semigroup (Data.Core.Option t)` | Implicit |
-| `Data.Option.SeqOption` | `OptionSequencing` | Implicit |
+| `Data.Option.SeqOption` | `Effect.Sequencing.OptionSequencing` | Implicit |
 | `Data.Option.Traversable_Option` | `Category.Traversable.Traversable Data.Core.Option` | Implicit |
 
 **`Data.Option.Alternative_Option`**: First success wins: `None <|> y` is `y`, `Some x <|> y` keeps `x`

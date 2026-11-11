@@ -31,11 +31,11 @@ instance family (the parked-instance deviation of D159 is over).
 
 [Source](/reference-sources/Data.Ordering.cinch)
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LT</span> :: <span class="tok-constructor">Ordering</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LT</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EQ</span> :: <span class="tok-constructor">Ordering</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EQ</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">GT</span> :: <span class="tok-constructor">Ordering</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">GT</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span></code></pre>
 
 # Instances
 

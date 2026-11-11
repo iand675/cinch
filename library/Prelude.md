@@ -66,7 +66,7 @@ represented as types in the bootstrap (decision D58).
 
 [Source](/reference-sources/Data.Target.cinch) · line 47
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">AVX2_256Tag</span> :: <span class="tok-constructor">AVX2_256</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">AVX2_256Tag</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">AVX2_256</span></code></pre>
 
 <a id="type-436170417661696c61626c65"></a>
 
@@ -80,7 +80,7 @@ supplying it. A rewrite's `require` clause names it.
 
 [Source](/reference-sources/Data.Target.cinch) · line 69
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Available</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> . (<span class="tok-constructor">VecU32Target</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> -&gt; <span class="tok-constructor">CapAvailable</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Available</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">VecU32Target</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">CapAvailable</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span>)</code></pre>
 
 <a id="type-436f6e666967"></a>
 
@@ -90,7 +90,7 @@ supplying it. A rewrite's `require` clause names it.
 
 [Source](/reference-sources/Effect.Io.cinch)
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Config</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Config</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Config</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Io</span>.<span class="tok-constructor">Config</span>)</code></pre>
 
 <a id="type-436f6e6669674572726f72"></a>
 
@@ -110,7 +110,7 @@ document is not a config.
 
 [Source](/reference-sources/Effect.Io.cinch) · line 30
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadConfig</span> :: <span class="tok-constructor">ConfigError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadConfig</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Io</span>.<span class="tok-constructor">ConfigError</span></code></pre>
 
 <a id="type-446f776e"></a>
 
@@ -125,7 +125,7 @@ ordering methods reverse).
 
 [Source](/reference-sources/Relation.Ord.cinch) · line 46
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Down</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Down</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Down</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Down</span> <span class="tok-variable">a</span>)</code></pre>
 
 <a id="type-45696768744c616e6573"></a>
 
@@ -135,7 +135,7 @@ ordering methods reverse).
 
 [Source](/reference-sources/Data.Target.cinch)
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EightLanesTag</span> :: <span class="tok-constructor">EightLanes</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EightLanesTag</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">EightLanes</span></code></pre>
 
 <a id="type-496e52616e6765"></a>
 
@@ -171,23 +171,23 @@ the payloads stay inside the family.
 
 [Source](/reference-sources/Data.Json.cinch) · line 23
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JNull</span> :: <span class="tok-constructor">Json</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JNull</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JBool</span> :: (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JBool</span> :: (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JNum</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JNum</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JFloat</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JFloat</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JStr</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JStr</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JArr</span> :: (<span class="tok-constructor">Json</span> -&gt; (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Json</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JArr</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>))</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JObj</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Json</span> -&gt; (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Json</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JObj</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)))</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JArrEnd</span> :: <span class="tok-constructor">Json</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JArrEnd</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JObjEnd</span> :: <span class="tok-constructor">Json</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JObjEnd</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span></code></pre>
 
 <a id="type-4c697374"></a>
 
@@ -197,9 +197,9 @@ the payloads stay inside the family.
 
 [Source](/reference-sources/Data.Core.cinch)
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Nil</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">List</span> <span class="tok-variable">a</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Nil</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Cons</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Cons</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
 
 <a id="type-4c6f61644572726f72"></a>
 
@@ -209,7 +209,7 @@ the payloads stay inside the family.
 
 [Source](/reference-sources/Effect.Concurrent.cinch)
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LoadError</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">LoadError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LoadError</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">LoadError</span>)</code></pre>
 
 <a id="type-4d6170"></a>
 
@@ -224,9 +224,9 @@ the stored value in place.
 
 [Source](/reference-sources/Data.Map.cinch) · line 24
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Tip</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Tip</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Bin</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . (<span class="tok-variable">k</span> -&gt; (<span class="tok-variable">v</span> -&gt; (<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; (<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Bin</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . (<span class="tok-variable">k</span> -&gt; (<span class="tok-variable">v</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>))))</code></pre>
 
 <a id="type-4e454f4e3634"></a>
 
@@ -236,7 +236,7 @@ the stored value in place.
 
 [Source](/reference-sources/Data.Target.cinch)
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NEON64Tag</span> :: <span class="tok-constructor">NEON64</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NEON64Tag</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">NEON64</span></code></pre>
 
 <a id="type-4e6f6e5a65726f"></a>
 
@@ -263,9 +263,9 @@ predicate at compile time.
 
 [Source](/reference-sources/Data.Core.cinch)
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">None</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Option</span> <span class="tok-variable">a</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">None</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Some</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Some</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
 
 <a id="type-4f72646572696e67"></a>
 
@@ -275,11 +275,11 @@ predicate at compile time.
 
 [Source](/reference-sources/Data.Ordering.cinch)
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LT</span> :: <span class="tok-constructor">Ordering</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LT</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EQ</span> :: <span class="tok-constructor">Ordering</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EQ</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">GT</span> :: <span class="tok-constructor">Ordering</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">GT</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span></code></pre>
 
 <a id="type-50617468"></a>
 
@@ -291,7 +291,7 @@ The path text (POSIX; UTF-8 at the boundary).
 
 [Source](/reference-sources/Data.Path.cinch) · line 48
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Path</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Path</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Path</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span>)</code></pre>
 
 <a id="type-50726f6475636572"></a>
 
@@ -303,7 +303,7 @@ A producer: a state with its step function.
 
 [Source](/reference-sources/Data.Producer.cinch) · line 23
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Producer</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . ((<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Producer</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Producer</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . ((<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Producer</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>))</code></pre>
 
 <a id="type-52657175657374"></a>
 
@@ -322,7 +322,7 @@ imports.
 
 [Source](/reference-sources/Effect.Concurrent.cinch) · line 24
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Request</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Request</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Request</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">Request</span>)</code></pre>
 
 <a id="type-526573756c74"></a>
 
@@ -336,9 +336,9 @@ checked before `Data.List`.
 
 [Source](/reference-sources/Data.Core.cinch) · line 37
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Err</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . (<span class="tok-variable">e</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Err</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . (<span class="tok-variable">e</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Ok</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Ok</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>)</code></pre>
 
 <a id="type-5363616c61626c655368617065"></a>
 
@@ -348,7 +348,7 @@ checked before `Data.List`.
 
 [Source](/reference-sources/Data.Target.cinch)
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ScalableShapeTag</span> :: <span class="tok-constructor">ScalableShape</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ScalableShapeTag</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">ScalableShape</span></code></pre>
 
 <a id="type-53746570"></a>
 
@@ -361,11 +361,11 @@ The vector step form (modules section 6): `Done`, `Skip(state)` and
 
 [Source](/reference-sources/Data.Producer.cinch) · line 17
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Done</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Done</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Skip</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . (<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Skip</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . (<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Yield</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Yield</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>))</code></pre>
 
 <a id="type-537472696e67"></a>
 
@@ -388,7 +388,7 @@ never one a caller retains.
 
 [Source](/reference-sources/Data.Producer.cinch)
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TakeSt</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">TakeSt</span> <span class="tok-variable">s</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TakeSt</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">TakeSt</span> <span class="tok-variable">s</span>))</code></pre>
 
 # Signatures and methods
 
@@ -575,7 +575,7 @@ a `using` binder with a provider head selects another. `pure` and
 
 ## `DirectSequencing.bind`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">ef</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">DirectSequencing</span>) =&gt; (<span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt;{<span class="tok-variable">ef</span>} <span class="tok-variable">b</span>) -&gt;{<span class="tok-variable">ef</span>} <span class="tok-variable">b</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">ef</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">DirectSequencing</span>) =&gt; (<span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt;{<span class="tok-variable">ef</span>} <span class="tok-variable">b</span>) -&gt;{<span class="tok-variable">ef</span>} <span class="tok-variable">b</span>))</code></pre>
 
 
 
@@ -749,7 +749,7 @@ they default to `List` and `Map`. Instances opt in per container.
 
 ## `OptionSequencing.bind`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">ef</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">OptionSequencing</span>) =&gt; (<span class="tok-constructor">Option</span> <span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt;{<span class="tok-variable">ef</span>} <span class="tok-constructor">Option</span> <span class="tok-variable">b</span>) -&gt;{<span class="tok-variable">ef</span>} <span class="tok-constructor">Option</span> <span class="tok-variable">b</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">ef</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">OptionSequencing</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt;{<span class="tok-variable">ef</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">b</span>) -&gt;{<span class="tok-variable">ef</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">b</span>))</code></pre>
 
 
 
@@ -839,7 +839,7 @@ checked family only, per the primitive types specification.
 
 ## `ResultSequencing.bind`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">ef</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">ResultSequencing</span> <span class="tok-variable">e</span>) =&gt; (<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt;{<span class="tok-variable">ef</span>} <span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">b</span>) -&gt;{<span class="tok-variable">ef</span>} <span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">b</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">ef</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">ResultSequencing</span> <span class="tok-variable">e</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt;{<span class="tok-variable">ef</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">b</span>) -&gt;{<span class="tok-variable">ef</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">b</span>))</code></pre>
 
 
 
@@ -876,7 +876,7 @@ assumption in the artifact manifest (decision D55).
 
 ## `SumProofs.scalar-to-simd`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scalar-to-simd</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> (<span class="tok-variable">n</span> :: <span class="tok-constructor">Nat</span>) <span class="tok-variable">region</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">SumProofs</span>) =&gt; ((<span class="tok-variable">vectors</span> :: <span class="tok-constructor">VecU32Target</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span>) -&gt; ((<span class="tok-variable">xs</span> :: <span class="tok-constructor">Ref</span> <span class="tok-variable">region</span> <span class="tok-constructor">Vec</span> <span class="tok-variable">n</span> <span class="tok-constructor">U32</span>) -&gt; <span class="tok-constructor">Eq</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-variable">scalar-sum-wrap32</span> @(<span class="tok-constructor">Nat</span>) @(<span class="tok-variable">region</span>) @<span class="tok-number">1</span>((<span class="tok-constructor">Nat</span>, <span class="tok-variable">n</span>)) @<span class="tok-number">4</span>(<span class="tok-variable">region</span>) <span class="tok-variable">xs</span>) (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-variable">simd-sum-wrap32</span> @(<span class="tok-variable">t</span>) @(<span class="tok-variable">w</span>) @(<span class="tok-constructor">Nat</span>) @(<span class="tok-variable">region</span>) @<span class="tok-number">1</span>((<span class="tok-constructor">Nat</span>, <span class="tok-variable">n</span>)) @<span class="tok-number">4</span>(<span class="tok-variable">region</span>) <span class="tok-variable">vectors</span> <span class="tok-variable">xs</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scalar-to-simd</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> (<span class="tok-variable">n</span> :: <span class="tok-constructor">Nat</span>) <span class="tok-variable">region</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">SumProofs</span>) =&gt; ((<span class="tok-variable">vectors</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">VecU32Target</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span>) -&gt; ((<span class="tok-variable">xs</span> :: <span class="tok-constructor">Ref</span> <span class="tok-variable">region</span> <span class="tok-constructor">Vec</span> <span class="tok-variable">n</span> <span class="tok-constructor">U32</span>) -&gt; <span class="tok-constructor">Eq</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-variable">scalar-sum-wrap32</span> @(<span class="tok-constructor">Nat</span>) @(<span class="tok-variable">region</span>) @<span class="tok-number">1</span>((<span class="tok-constructor">Nat</span>, <span class="tok-variable">n</span>)) @<span class="tok-number">4</span>(<span class="tok-variable">region</span>) <span class="tok-variable">xs</span>) (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-variable">simd-sum-wrap32</span> @(<span class="tok-variable">t</span>) @(<span class="tok-variable">w</span>) @(<span class="tok-constructor">Nat</span>) @(<span class="tok-variable">region</span>) @<span class="tok-number">1</span>((<span class="tok-constructor">Nat</span>, <span class="tok-variable">n</span>)) @<span class="tok-number">4</span>(<span class="tok-variable">region</span>) <span class="tok-variable">vectors</span> <span class="tok-variable">xs</span>)))</code></pre>
 
 
 

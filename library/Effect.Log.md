@@ -170,7 +170,7 @@ The level's text in a record (`"debug"`, `"info"`, `"warn"`,
 
 ## `log`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">log</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">LogLevel</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Json</span> -&gt;{<span class="tok-constructor">Log</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">log</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">LogLevel</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt;{<span class="tok-constructor">Log</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)))</code></pre>
 
 [Source](/reference-sources/Effect.Log.cinch)
 
@@ -188,7 +188,7 @@ A log record: `{"level": ..., "message": ..., "fields": ...}`.
 
 ## `metric`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">metric</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">MetricKind</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Json</span> -&gt;{<span class="tok-constructor">Log</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">metric</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">MetricKind</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt;{<span class="tok-constructor">Log</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))))</code></pre>
 
 [Source](/reference-sources/Effect.Log.cinch)
 

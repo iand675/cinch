@@ -54,9 +54,9 @@ and a value outside the column's range.
 
 [Source](/reference-sources/Text.Codec.cinch) · line 40
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TypeMismatch</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">JsonDecodeError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TypeMismatch</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">JsonDecodeError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">OutOfRange</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">JsonDecodeError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">OutOfRange</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">JsonDecodeError</span>)</code></pre>
 
 # Signatures and methods
 

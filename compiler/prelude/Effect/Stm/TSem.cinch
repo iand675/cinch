@@ -1,0 +1,48 @@
+-- Effect.Stm.TSem: a counting semaphore of transactions.
+--
+-- A semaphore holds a number of permits. `tsem-wait` takes one and
+-- waits while there are none; `tsem-signal` returns one. Because both
+-- are transactions, taking a permit composes with whatever else the
+-- transaction does: it takes the permit and does the rest, or neither.
+--
+-- There is no fairness: a returned permit goes to whichever waiter
+-- commits first.
+--
+-- Module scheme (design/base-library.md): a concrete type over
+-- `Effect.Stm`, shipped beside it.
+module Effect.Stm.TSem where
+
+  import Effect.Stm
+
+  export TSem, tsem-new, tsem-new-io, tsem-wait, tsem-try-wait, tsem-signal, tsem-signal-n, tsem-available
+
+  data TSem where
+    MkTSem :: TVar Nat -> TSem
+
+  -- A semaphore with `permits` permits.
+  tsem-new :: Nat -> STM TSem
+  tsem-new permits = stm-map (\t -> MkTSem t) (tvar-new permits)
+
+  tsem-new-io :: Nat ->{STM} TSem
+  tsem-new-io permits = MkTSem (tvar-new-io permits)
+
+  -- Take a permit, or answer False when there is none.
+  tsem-try-wait :: TSem -> STM Bool
+  tsem-try-wait (MkTSem t) = stm-bind (tvar-read t) (\n ->
+    if 0 < n then stm-map (\_ -> True) (tvar-write t (n - 1)) else stm-pure False)
+
+  -- Take a permit. Waits while there is none.
+  tsem-wait :: TSem -> STM Unit
+  tsem-wait s = stm-bind (tsem-try-wait s) (\ok -> check ok)
+
+  -- Return a permit.
+  tsem-signal :: TSem -> STM Unit
+  tsem-signal (MkTSem t) = tvar-modify t (\n -> n + 1)
+
+  -- Return `k` permits at once.
+  tsem-signal-n :: TSem -> Nat -> STM Unit
+  tsem-signal-n (MkTSem t) k = tvar-modify t (\n -> n + k)
+
+  -- The permits available at the transaction's instant.
+  tsem-available :: TSem -> STM Nat
+  tsem-available (MkTSem t) = tvar-read t

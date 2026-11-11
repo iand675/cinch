@@ -163,12 +163,17 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Effect.Resolv](Effect.Resolv.md) | Ship source | Hostname/address resolution through the runtime, with named failure results. |
 | [Effect.Sequencing](Effect.Sequencing.md) | Embedded | The direct, Result, and Option do providers. One lexical provider/container is selected per definition. |
 | [Effect.Signal](Effect.Signal.md) | Ship source | Operating-system signal vocabulary and runtime operations with explicit error/effect handling. |
+| [Effect.Stm.TBQueue](Effect.Stm.TBQueue.md) | Embedded | A bounded first-in first-out queue for transactions: a write waits while the queue is at capacity, a read waits while it is empty. |
+| [Effect.Stm.TMVar](Effect.Stm.TMVar.md) | Embedded | A transactional variable that is either empty or full: take waits while empty, put waits while full. The building block for handoff and mutual exclusion inside transactions. |
+| [Effect.Stm.TQueue](Effect.Stm.TQueue.md) | Embedded | An unbounded first-in first-out queue for transactions, as two lists so that writers and readers touch different variables. |
+| [Effect.Stm.TSem](Effect.Stm.TSem.md) | Embedded | A counting semaphore for transactions: wait takes a permit or retries, signal returns one. |
+| [Effect.Stm](Effect.Stm.md) | Embedded | Software transactional memory: TVar cells, composable STM transactions run by atomically, retry and or-else for blocking and choice, and the STM do provider. The transaction algorithm is Cinch source over inline target IR. |
 | [Effect.Test](Effect.Test.md) | Ship source | A subprocess-based test runner and named test-result/report vocabulary. |
 | [Effect.Trace](Effect.Trace.md) | Ship source | Scoped tracing/span vocabulary and context propagation tied to the runtime identity. |
 
 # Scope and verification
 
-This generation covers **101 source modules**: **59 embedded** and **42 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **106 source modules**: **64 embedded** and **42 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

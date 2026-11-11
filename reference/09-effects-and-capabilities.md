@@ -489,6 +489,10 @@ module Main where
 
 `step (Some 4)` gives `Some 5` and `step None` gives `None`, so the exit status is `5`.
 
+## `STM` provider
+
+A fourth provider is declared outside `Effect/Sequencing.cinch`, beside the type it sequences. `StmSequencing` in `Effect.Stm` has `pure :: a -> STM a` and `bind :: STM a -> (a -> STM b) -> STM b`, and a definition selects it the same way, with `using (seq :: StmSequencing)`. It differs from the other three in one rule: the function to the right of `<-` may run once per attempt of the transaction, so it is checked as a lambda that may be called many times, and a `%1` value cannot be carried across a `<-`. [Software transactional memory](13-concurrency-and-runtime.md#software-transactional-memory) has the library and the refusal.
+
 ## `pure` resolution
 
 `pure` is a class method. Inside a definition with a provider binder, a bare `pure` is the provider's method. When a non-provider class constraint with a `pure` method is in scope, that constraint answers the bare use first, and `Applicative.pure` is the qualified spelling that always names the class method:

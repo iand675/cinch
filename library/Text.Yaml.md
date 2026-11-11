@@ -118,7 +118,7 @@ functions.
 
 [Source](/reference-sources/Text.Yaml.cinch)
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlError</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlError</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlError</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlError</span>))))</code></pre>
 
 <a id="type-59616d6c4572726f724b696e64"></a>
 

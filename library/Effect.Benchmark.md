@@ -79,7 +79,7 @@ always one this module read.
 
 [Source](/reference-sources/Effect.Benchmark.cinch) · line 62
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BenchmarkReport</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Benchmark</span>.<span class="tok-constructor">BenchmarkReport</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BenchmarkReport</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Benchmark</span>.<span class="tok-constructor">BenchmarkReport</span>))</code></pre>
 
 # Values
 

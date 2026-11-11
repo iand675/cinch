@@ -41,6 +41,20 @@ module Main where
   main = if sys-o-rdonly == 0 then 0 else 1
 ";
 
+/// A module that runs a transaction, so the emitted IR carries the atomic
+/// operations and the two architecture-gated bodies of `Effect.Stm` (the
+/// spin hint and the cycle counter).
+const STM: &str = "\
+module Main where
+  import Effect.Stm
+
+  main :: Unit ->{STM, Diverge} Int
+  main u =
+    let t = tvar-new-io (41 :: Nat) in
+    case atomically (tvar-modify t (\\x -> x + 1)) of
+      _ -> if tvar-read-io t == 42 then 0 else 1
+";
+
 /// The profile `--target <triple>` builds.
 fn profile(triple: &str) -> TargetProfile {
     target_profile(&DriverOptions {
@@ -206,6 +220,15 @@ fn the_target_gated_bodies_assemble_for_each_architecture() {
     for triple in ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "aarch64-apple-darwin"] {
         let target = profile(triple);
         assemble(&format!("asm-sys-{triple}"), &emit("asm-sys", SYS, &target), triple);
+        let stm = emit("asm-stm", STM, &target);
+        let (hint, counter) = if triple.starts_with("x86_64") {
+            ("\"pause\"", "\"rdtsc\"")
+        } else {
+            ("\"isb\"", "cntvct_el0")
+        };
+        assert!(stm.contains(hint), "{triple}: the spin hint is the architecture's own");
+        assert!(stm.contains(counter), "{triple}: the cycle counter is the architecture's own");
+        assemble(&format!("asm-stm-{triple}"), &stm, triple);
     }
 }
 

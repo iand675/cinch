@@ -299,6 +299,31 @@
       "name": "Data.HashMap",
       "path": "Data/HashMap.cinch",
       "embedded": true
+    },
+    {
+      "name": "Effect.Stm",
+      "path": "Effect/Stm.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Effect.Stm.TMVar",
+      "path": "Effect/Stm/TMVar.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Effect.Stm.TQueue",
+      "path": "Effect/Stm/TQueue.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Effect.Stm.TBQueue",
+      "path": "Effect/Stm/TBQueue.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Effect.Stm.TSem",
+      "path": "Effect/Stm/TSem.cinch",
+      "embedded": true
     }
   ],
   "order": [
@@ -360,6 +385,11 @@
     "Data.Set",
     "Data.Hash",
     "Text.Codec",
-    "Data.HashMap"
+    "Data.HashMap",
+    "Effect.Stm",
+    "Effect.Stm.TMVar",
+    "Effect.Stm.TQueue",
+    "Effect.Stm.TBQueue",
+    "Effect.Stm.TSem"
   ]
 }

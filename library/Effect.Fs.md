@@ -75,11 +75,11 @@ What a path names.
 
 [Source](/reference-sources/Effect.Fs.cinch) · line 80
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileIsFile</span> :: <span class="tok-constructor">FileKind</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileIsFile</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FileKind</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileIsDirectory</span> :: <span class="tok-constructor">FileKind</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileIsDirectory</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FileKind</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileIsOther</span> :: <span class="tok-constructor">FileKind</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileIsOther</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FileKind</span></code></pre>
 
 <a id="type-46696c654d657461"></a>
 
@@ -91,7 +91,7 @@ A file's metadata: its kind and its size in bytes.
 
 [Source](/reference-sources/Effect.Fs.cinch) · line 86
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileMeta</span> :: (<span class="tok-constructor">FileKind</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">FileMeta</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileMeta</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FileKind</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FileMeta</span>))</code></pre>
 
 <a id="type-46734572726f72"></a>
 
@@ -104,19 +104,19 @@ runtime maps its codes from).
 
 [Source](/reference-sources/Effect.Fs.cinch) · line 70
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NotFound</span> :: <span class="tok-constructor">FsError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NotFound</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FsError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PermissionDenied</span> :: <span class="tok-constructor">FsError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PermissionDenied</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FsError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">AlreadyExists</span> :: <span class="tok-constructor">FsError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">AlreadyExists</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FsError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NotADirectory</span> :: <span class="tok-constructor">FsError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NotADirectory</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FsError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsADirectory</span> :: <span class="tok-constructor">FsError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsADirectory</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FsError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidName</span> :: <span class="tok-constructor">FsError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidName</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FsError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IoError</span> :: <span class="tok-constructor">FsError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IoError</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FsError</span></code></pre>
 
 # Values
 

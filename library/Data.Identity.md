@@ -56,7 +56,7 @@ declarations), so no per-type operator stand-ins are defined here.
 
 [Source](/reference-sources/Data.Identity.cinch)
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Identity</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Identity</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>)</code></pre>
 
 # Values
 
