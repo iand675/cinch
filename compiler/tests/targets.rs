@@ -67,6 +67,30 @@ fn emit(name: &str, src: &str, target: &TargetProfile) -> String {
         .unwrap_or_else(|e| panic!("{name}: emit failed: {e}"))
 }
 
+/// Assemble emitted IR to an object for `triple` with clang, the
+/// assembler a build uses. This is where an inline `asm` body written in
+/// the wrong dialect, or with an instruction the architecture lacks, is
+/// found: emission only copies the text.
+fn assemble(name: &str, ir: &str, triple: &str) {
+    let dir = write_project(name, "");
+    let ll = dir.join("out.ll");
+    std::fs::write(&ll, ir).expect("write IR");
+    let out = std::process::Command::new("clang")
+        .arg("-c")
+        .arg(format!("--target={triple}"))
+        .arg(&ll)
+        .arg("-o")
+        .arg(dir.join("out.o"))
+        .output()
+        .expect("run clang");
+    assert!(
+        out.status.success(),
+        "{name}: clang refused the {triple} module: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// A minimal static archive holding one object that begins with `object`,
 /// so the archive check can be exercised without a cross toolchain.
 fn archive_with(object: &[u8]) -> Vec<u8> {
@@ -175,6 +199,14 @@ fn the_emitted_module_names_the_target_and_its_datalayout() {
     assert!(!x86.contains("svc #0"), "no aarch64 body survived: {x86}");
 
     assert_ne!(arm, x86, "the two targets do not emit the same module");
+}
+
+#[test]
+fn the_target_gated_bodies_assemble_for_each_architecture() {
+    for triple in ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "aarch64-apple-darwin"] {
+        let target = profile(triple);
+        assemble(&format!("asm-sys-{triple}"), &emit("asm-sys", SYS, &target), triple);
+    }
 }
 
 #[test]
