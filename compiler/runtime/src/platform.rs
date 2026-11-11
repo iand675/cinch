@@ -561,6 +561,12 @@ pub(crate) fn program_stack_bytes() -> usize {
 /// `entry` leaves through `exit` from the program's thread as before, so
 /// the exit code and the `atexit` handlers (the `CINCH_ALLOC_STATS` line)
 /// are unchanged.
+///
+/// The thread is also one of the scheduler's ([`crate::sched`]): while
+/// the program's own code waits (for a task it joins, in `ioSleep`, in a
+/// transaction's `retry`) this thread runs the program's tasks, and with
+/// a budget of one thread (`CINCH_THREADS=1`) it is the only thread that
+/// does.
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_run_main(entry: extern "C" fn() -> i64) -> i64 {
     let size = program_stack_bytes();
@@ -568,7 +574,7 @@ pub extern "C" fn cinch_run_main(entry: extern "C" fn() -> i64) -> i64 {
         .stack_size(size)
         .spawn(move || {
             crate::small::claim_sole();
-            crate::stack::guarded(|| entry())
+            crate::stack::guarded(|| crate::sched::program_thread(|| entry()))
         });
     match spawned {
         // Every runtime extern is `extern "C"`, so a Rust panic aborts in

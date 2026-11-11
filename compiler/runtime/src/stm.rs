@@ -216,6 +216,11 @@ fn waiters() -> std::sync::MutexGuard<'static, Vec<Arc<Waiter>>> {
 }
 
 /// The wait in progress, taken out of the calling context.
+///
+/// Never inlined: its caller parks afterwards and may continue on
+/// another thread, so the thread-local read stays out of that frame (the
+/// migration rule of [`crate::sched`]).
+#[inline(never)]
 fn take_wait() -> Arc<Waiter> {
     match WAITING.with(|w| w.borrow_mut().take()) {
         Some(w) => w,

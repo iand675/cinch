@@ -170,13 +170,15 @@
 //! (`design/no-faults.md` sections 4 and 7), never a crash: the live heap
 //! passing `CINCH_HEAP_LIMIT` or the system allocator refusing
 //! ([`heap`]; `<n>` is the live bytes the program asked to hold), a
-//! thread's stack overflowing its guard or the evaluator's nesting
-//! bound ([`stack`], [`eval`]), and the OS refusing a thread
-//! ([`stack::spawn_refused`]). A compiler-bug trap fires only when the
-//! compiler or runtime broke an invariant (a corrupt header, a null or
-//! wrong-kind word, a negative generated size, a zero divisor reaching
-//! `cinch_nat_div`/`cinch_int_div` or their remainders, whose divisor is
-//! a `NonZero` by its type): no well-typed program reaches one when the
+//! thread's or a task's stack overflowing its guard, a task's stack that
+//! cannot be reserved, or the evaluator's nesting bound ([`stack`],
+//! [`sched`], [`eval`]), and the OS refusing a thread for the program or
+//! for a scheduler or parallel worker ([`stack::spawn_refused`]). A
+//! compiler-bug trap fires only when the compiler or runtime broke an
+//! invariant (a corrupt header, a null or wrong-kind word, a negative
+//! generated size, a zero divisor reaching `cinch_nat_div`/`cinch_int_div`
+//! or their remainders, whose divisor is a `NonZero` by its type): no
+//! well-typed program reaches one when the
 //! compiler is correct. The faults 70 and 71 are the ones a well-typed
 //! program can still reach today (`design/no-faults-inventory.md`); exit
 //! 72, the old division fault, is retired. A program's own result can
@@ -310,11 +312,13 @@
 //! stack and each parallel worker's (default 1 GiB, at least 256 KiB,
 //! [`platform::cinch_run_main`]; overflowing it is the `Exhausted` exit
 //! with `cinch: exhausted: stack`, [`stack`]);
-//! `CINCH_THREADS=<n>` sets the parallel pool's participant budget when
-//! the program did not call `cinch_par_set_workers` (a positive decimal
-//! count, at most [`par::MAX_PARTICIPANTS`]; default the available
-//! parallelism; `1` runs every parallel entry sequentially, with no
-//! thread, [`par`]);
+//! `CINCH_THREADS=<n>` is the thread budget (a positive decimal count,
+//! at most [`par::MAX_PARTICIPANTS`]; default the available
+//! parallelism): the threads that run tasks, the program's thread
+//! included, so `1` runs every task on the program's thread
+//! ([`sched`]), and the parallel pool's participant budget when the
+//! program did not call `cinch_par_set_workers`, where `1` runs every
+//! parallel entry sequentially, with no thread ([`par`]);
 //! `CINCH_LEAK_CHECK=1` makes `cinch_exit_check` print `cinch-leak:
 //! live=<n> immortal=<n> leaked=<n>` and exit 74 when `leaked` (live
 //! header blocks that are not immortal) is not 0, an opt-in diagnostic of
@@ -455,33 +459,45 @@
 //! checks are compiler-bug traps. See `crate::error::Error`.
 //!
 //! Structured concurrency and runtime I/O (concurrency specification
-//! sections 2, 4 and 9; one OS thread per task, fork-join happens-before,
+//! sections 2, 4 and 9; every task a fiber of [`sched`] multiplexed over
+//! at most `CINCH_THREADS` threads, fork-join happens-before,
 //! cancellation as a sequentially consistent atomic):
 //!
 //! * `cinch_scope_open() -> i64`, `cinch_scope_close(scope: i64) -> i64`: the
 //!   structured scope of `withScope`; close cancels and joins unjoined
-//!   children (section 2).
-//! * `cinch_task_spawn(scope: i64, closure: i64) -> i64`: run `closure` on a
-//!   task thread, returning its handle. The closure's reference moves to
-//!   the thread, and a reclaiming program's closure is marked first
-//!   (`cinch_mark_mt`). The body runs through the closure apply-stub ABI
-//!   and returns the prelude `Result` word (the task outcome ABI of
-//!   `crate::task`).
+//!   children (section 2). The caller is suspended, not blocked, while
+//!   it waits for them.
+//! * `cinch_task_spawn(scope: i64, closure: i64) -> i64`: queue `closure`
+//!   as a task, returning its handle. The closure's reference moves to
+//!   the task, and a reclaiming program's closure is marked first
+//!   (`cinch_mark_mt`). The body runs on a stack of its own (8 MiB
+//!   reserved, guarded: overflowing it is the stack `Exhausted` exit)
+//!   through the closure apply-stub ABI and returns the prelude `Result`
+//!   word (the task outcome ABI of `crate::task`).
 //! * `cinch_task_join_all_or_cancel(scope, handles: i64, n: i64, out: i64) -> i64`:
 //!   `joinAllOrCancel`, handing the results over: -1 and the first
 //!   failure's own `Err` block in `out[0]`; for one handle, 0 and its own
 //!   `Ok` block in `out[0]`; for several, the owned payloads in `out` and
 //!   a mask whose bit `i` says payload `i` is counted, which picks the
 //!   join unit's tuple map. Results no join hands out are dropped by the
-//!   scope's close.
+//!   scope's close. The caller is suspended while it waits.
 //! * `cinch_task_poll_cancel() -> i64`: the cancellation observation point
-//!   (section 4).
+//!   (section 4), and a yield to the tasks queued behind the caller.
 //! * `cinch_io_write(word: i64) -> i64`, `cinch_io_read(len: i64) -> i64`,
 //!   `cinch_io_sleep(millis: i64) -> i64`: the `Io r` operations (stdout,
 //!   stdin, and a cancellation-aware suspension point). A failed stdout
 //!   write is `Error::OutputFailed` (71), the one operating-system outcome
 //!   here that a program cannot rule out; `cinch_io_read` takes its count
-//!   through `cinch_nat_to_len` and grows its buffer with what arrives.
+//!   through `cinch_nat_to_len`, grows its buffer with what arrives, and
+//!   is a blocking region; `cinch_io_sleep` suspends the caller without
+//!   holding a thread and ends early on a cancellation request.
+//! * `cinch_sched_blocking_enter() -> i64`,
+//!   `cinch_sched_blocking_exit() -> i64`: the bracket generated code
+//!   puts around a call to a foreign import whose row carries `Blocking`.
+//!   Between the two the caller may block its thread in the operating
+//!   system: the scheduler allows one more worker thread meanwhile, so
+//!   the other tasks keep running (section 9). Both return 0, and both
+//!   do nothing on a thread that runs no task.
 //! * `cinch_coop_*`: the cooperative single-threaded backend of [`coop`] (the Wasm profile's lowering target) mirrors this surface under these names with the same word conventions.
 //!
 //! Deterministic pure parallelism (runtime ABI 8, design/parallel-evaluation.md
@@ -569,6 +585,7 @@ pub mod park;
 pub mod platform;
 pub mod pty;
 pub mod rc;
+pub mod sched;
 mod small;
 pub mod string;
 pub mod stack;

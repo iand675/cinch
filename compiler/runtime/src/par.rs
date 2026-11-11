@@ -365,12 +365,17 @@ fn participant() -> Option<&'static Participant> {
         .ok()
 }
 
-/// Whether more than half of the calling thread's stack remains, so a
-/// stolen job may run on top of the current frame.
+/// Whether more than half of the calling context's stack remains, so a
+/// stolen job may run on top of the current frame. A task's frames are
+/// on its fiber's stack, not on the stack of the thread running it, so
+/// a fiber is measured against its own ([`crate::sched::help_floor`]).
 #[inline(never)]
 fn may_help() -> bool {
     let here = 0u8;
     let sp = &raw const here as usize;
+    if let Some(floor) = crate::sched::help_floor() {
+        return sp >= floor;
+    }
     LOCAL.try_with(|l| sp >= l.help_floor.get()).unwrap_or(false)
 }
 

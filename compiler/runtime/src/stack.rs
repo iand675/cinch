@@ -2,10 +2,11 @@
 //! (`design/no-faults.md` sections 4 and 7).
 //!
 //! Every thread that runs Cinch code (the program's thread from
-//! [`crate::platform::cinch_run_main`] and every task thread of
-//! [`crate::task`]) runs it inside [`guarded`]. A thread's stack can only
-//! run out at its low end, so `guarded` makes that end a known, reserved
-//! fault zone and installs a handler that recognises a fault inside it:
+//! [`crate::platform::cinch_run_main`], every parallel worker of
+//! [`crate::par`] and every scheduler worker of [`crate::sched`]) runs
+//! it inside [`guarded`]. A thread's stack can only run out at its low
+//! end, so `guarded` makes that end a known, reserved fault zone and
+//! installs a handler that recognises a fault inside it:
 //!
 //! * The bottom [`GUARD_BYTES`] of the thread's usable stack are made
 //!   inaccessible (`mprotect(PROT_NONE)`), on top of whatever guard the
@@ -40,6 +41,18 @@
 //! never ran `guarded` (it answers null there). The zone itself lives in
 //! `guarded`'s frame, which outlives every fault the body can take.
 //!
+//! # Fiber stacks
+//!
+//! A task body does not run on a thread's stack: it is a fiber of
+//! [`crate::sched`] on a stack of its own, a mapping whose low
+//! [`GUARD_BYTES`] are never made accessible. That band, exactly, is the
+//! fiber's zone. The key is per thread and a fiber moves between
+//! threads, so the scheduler hands the zone over at every switch
+//! ([`swap_zone`]): the fiber's zone while the thread runs the fiber,
+//! the thread's own again afterwards. The handler still runs on the
+//! thread's alternate signal stack, which is why every thread the
+//! scheduler runs fibers on is a guarded one.
+//!
 //! The signal layouts (`struct sigaction`, `stack_t`, the `si_addr`
 //! offset of `siginfo_t`) and constants are fixed by each platform's
 //! ABI and spelled per platform below, the same way [`crate::pty`] spells
@@ -68,9 +81,10 @@ pub const MIN_STACK_BYTES: usize = 4 * GUARD_BYTES;
 /// state (SVE/SME) and on Darwin is bounded by `SIGSTKSZ` (128 KiB).
 const ALT_STACK_BYTES: usize = 128 << 10;
 
+/// The protection bits of both platforms' `mprotect`.
 const PROT_NONE: i32 = 0;
-const PROT_READ: i32 = 1;
-const PROT_WRITE: i32 = 2;
+pub(crate) const PROT_READ: i32 = 1;
+pub(crate) const PROT_WRITE: i32 = 2;
 
 const SIGSEGV: i32 = 11;
 #[cfg(target_os = "linux")]
@@ -155,10 +169,10 @@ impl StackT {
 // (design/base-as-a-package.md section 5.1).
 
 /// The addresses a fault on this thread is stack exhaustion at:
-/// `lo..hi`.
-struct Zone {
-    lo: usize,
-    hi: usize,
+/// `lo..hi`. An empty range (`lo == hi`) is a zone no address is in.
+pub(crate) struct Zone {
+    pub(crate) lo: usize,
+    pub(crate) hi: usize,
 }
 
 /// The thread-specific key holding the current thread's `*const Zone`.
@@ -243,11 +257,10 @@ pub fn guarded<R>(body: impl FnOnce() -> R) -> R {
         hi: if band { lo + GUARD_BYTES } else { lo },
     };
     let _armed = Armed {
-        key,
         band: band.then_some(lo),
         alt: alt_stack(),
     };
-    unsafe { crate::sys::pthread_setspecific(key, (&raw const zone).cast()) };
+    unsafe { swap_zone(&raw const zone) };
     body()
 }
 
@@ -256,14 +269,13 @@ pub fn guarded<R>(body: impl FnOnce() -> R) -> R {
 /// and the band is made writable again, so a C library that caches
 /// thread stacks hands an ordinary stack to its next thread.
 struct Armed {
-    key: Key,
     band: Option<usize>,
     alt: Option<*mut c_void>,
 }
 
 impl Drop for Armed {
     fn drop(&mut self) {
-        unsafe { crate::sys::pthread_setspecific(self.key, null()) };
+        unsafe { swap_zone(null()) };
         if let Some(sp) = self.alt {
             let off = StackT::new(null_mut(), ALT_STACK_BYTES, SS_DISABLE);
             unsafe {
@@ -300,6 +312,24 @@ fn alt_stack() -> Option<*mut c_void> {
         crate::abi::exhausted(crate::abi::Resource::Stack);
     }
     Some(sp)
+}
+
+/// Make `zone` the calling thread's fault zone and answer the one it
+/// replaces (null for a thread that had none). [`guarded`] installs a
+/// thread's own zone with it, and the scheduler hands a fiber's zone
+/// over with it at every switch (module docs, "Fiber stacks").
+///
+/// # Safety
+///
+/// `zone` is null or stays valid until another call replaces it on this
+/// thread.
+pub(crate) unsafe fn swap_zone(zone: *const Zone) -> *const Zone {
+    let key = install();
+    unsafe {
+        let previous = crate::sys::pthread_getspecific(key).cast::<Zone>().cast_const();
+        crate::sys::pthread_setspecific(key, zone.cast());
+        previous
+    }
 }
 
 /// `ENOMEM`: 12 on both platforms, fixed by the ABI.

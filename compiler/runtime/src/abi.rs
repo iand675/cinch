@@ -1185,9 +1185,13 @@ pub unsafe extern "C" fn cinch_task_join_all_or_cancel(
 }
 
 /// The cancellation observation point (section 4): 1 once cancellation
-/// has been requested for the running task, else 0.
+/// has been requested for the running task, else 0. It is a yield point
+/// as well: a task that polls in a loop lets the tasks queued behind it
+/// run first, so a request made by one of them is observed at this same
+/// point, and one worker thread is enough for the loop to end.
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_task_poll_cancel() -> i64 {
+    crate::sched::yield_now();
     i64::from(crate::task::current_task_canceled())
 }
 
@@ -1212,7 +1216,9 @@ pub unsafe extern "C" fn cinch_io_write(word: i64) -> i64 {
 /// `None`). Generated code passes `len` through [`cinch_nat_to_len`], so
 /// a negative one is the compiler-bug trap. The buffer grows with what
 /// arrives rather than being sized to `len` up front, so a large request
-/// over a short input allocates only what is read.
+/// over a short input allocates only what is read. The read blocks its
+/// thread until input arrives, so it is a blocking region of
+/// [`crate::sched`]: the other tasks keep running meanwhile.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_io_read(len: i64) -> i64 {
     use std::io::Read;
@@ -1222,7 +1228,7 @@ pub unsafe extern "C" fn cinch_io_read(len: i64) -> i64 {
     let mut buf = Vec::new();
     // A read error ends the input as end of input did before; the bytes
     // already read stay in `buf`.
-    let _ = std::io::stdin().lock().take(want).read_to_end(&mut buf);
+    let _ = crate::sched::blocking(|| std::io::stdin().lock().take(want).read_to_end(&mut buf));
     if buf.is_empty() {
         return 0;
     }
@@ -1231,17 +1237,25 @@ pub unsafe extern "C" fn cinch_io_read(len: i64) -> i64 {
 
 /// Sleep `millis` milliseconds as a suspension point: returns early with
 /// 0 (the Unit word) once cancellation is requested for the running task
-/// (concurrency specification section 4).
+/// (concurrency specification section 4). The sleep is a timed park
+/// ([`crate::park::park_timeout`]): a sleeping task holds no thread, the
+/// program's thread runs tasks while it sleeps, and a cancellation
+/// request ends the sleep at once because it resumes the task's context.
+/// A sleep of 0 is a yield.
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_io_sleep(millis: i64) -> i64 {
-    let mut left = millis.max(0) as u64;
-    while left > 0 {
-        if crate::task::current_task_canceled() {
+    let wait = std::time::Duration::from_millis(millis.max(0) as u64);
+    if wait.is_zero() {
+        crate::sched::yield_now();
+        return 0;
+    }
+    let begun = std::time::Instant::now();
+    while !crate::task::current_task_canceled() {
+        let left = wait.saturating_sub(begun.elapsed());
+        if left.is_zero() {
             break;
         }
-        let slice = left.min(1);
-        std::thread::sleep(std::time::Duration::from_millis(slice));
-        left -= slice;
+        crate::park::park_timeout(left);
     }
     0
 }

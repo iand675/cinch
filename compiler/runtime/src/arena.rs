@@ -200,8 +200,22 @@ pub(crate) fn current() -> *mut Arena {
 }
 
 thread_local! {
-    /// The arena this thread has entered, or null.
+    /// The arena the context this thread is running has entered, or
+    /// null. The scheduler exchanges it at every switch
+    /// ([`replace_current`]), so a task that entered an arena finds it
+    /// on whichever thread resumes it, and no other task allocates from
+    /// it.
     static CURRENT: Cell<*mut Arena> = const { Cell::new(std::ptr::null_mut()) };
+}
+
+/// Make `arena` the calling thread's current arena and answer the one it
+/// replaces, without entering or leaving either. [`enter`] is this plus
+/// the count of entered arenas; the scheduler uses it bare at a switch,
+/// because a task's arena stays entered while the task is switched out
+/// ([`ENTERED`] counts the arenas that are entered, running or not).
+#[inline]
+pub(crate) fn replace_current(arena: *mut Arena) -> *mut Arena {
+    CURRENT.with(|c| c.replace(arena))
 }
 
 /// The arenas entered across the process, so a thread can skip the
@@ -212,7 +226,7 @@ static ENTERED: AtomicUsize = AtomicUsize::new(0);
 /// keep [`ENTERED`] exact.
 #[inline]
 fn enter(arena: *mut Arena) {
-    let previous = CURRENT.with(|c| c.replace(arena));
+    let previous = replace_current(arena);
     match (previous.is_null(), arena.is_null()) {
         (true, false) => {
             ENTERED.fetch_add(1, Relaxed);

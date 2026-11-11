@@ -14,3 +14,9 @@ name = "cinchruntime"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [dependencies]
+
+# `--cfg cinch_thread_tasks` builds the one-OS-thread-per-task backend of
+# `src/sched/thread.rs` on a target that has fibers, so the fallback every
+# other target gets can be compiled and tested here.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(cinch_thread_tasks)'] }

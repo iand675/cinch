@@ -3,16 +3,36 @@
 //!
 //! # Execution model
 //!
-//! Every task is one OS thread (`std::thread`) owned by a structured
-//! scope. This is the bootstrap's offload contract for `Blocking` foreign
-//! calls (section 9): a blocking call blocks only its task's thread, never
-//! a shared event loop. Thread creation and join are the memory model's
-//! fork and join points: everything before a spawn happens-before the
-//! task body, and everything the body does happens-before the join that
-//! observes its completion (section 6; see the module docs of `crate`).
-//! The cancellation token is a sequentially consistent atomic, so a
-//! request is observed at the next poll point (`cinch_task_poll_cancel`,
-//! `cinch_io_sleep`) without a data race.
+//! Every task is a fiber of [`crate::sched`] owned by a structured
+//! scope: a body on a stack of its own, run by whichever scheduler
+//! thread takes it from the run queue and suspended, not blocked, when
+//! it waits (for a child in a join or a close, for a variable in
+//! `retry`, in `ioSleep`). A `Blocking` foreign call still blocks only
+//! its own task (section 9): the call is a blocking region, and the
+//! scheduler starts another worker for the tasks that are runnable
+//! meanwhile. Spawn and join are the memory model's fork and join
+//! points: everything before a spawn happens-before the task body (the
+//! fiber is queued under the scheduler's lock after the spawner's
+//! writes, and taken from the queue under it), and everything the body
+//! does happens-before the join that observes its completion (section 6;
+//! see the module docs of `crate`). The cancellation token is a
+//! sequentially consistent atomic, so a request is observed at the next
+//! poll point (`cinch_task_poll_cancel`, `cinch_io_sleep`) without a
+//! data race, and a request resumes a task suspended at a cancellable
+//! wait. On a target with no context switch every task is one OS thread
+//! instead, behind the same entries (`sched/thread.rs`).
+//!
+//! # Waiting for a child
+//!
+//! A join and a scope's close wait through [`crate::park`], never on a
+//! condition variable, so a waiter that is a task gives its thread to
+//! other tasks and the program's thread runs tasks while it waits. The
+//! waiter registers its context in the scope under the scope's lock and
+//! parks; a finishing body stores its result and its done flag under the
+//! same lock, takes the registered contexts and unparks them after
+//! releasing it. The result and the flag are therefore published before
+//! the wake, and a waiter that registered too late to be taken saw the
+//! flag instead.
 //!
 //! # Task outcome ABI
 //!
@@ -36,14 +56,15 @@
 //!
 //! # Reclamation
 //!
-//! Values cross between threads at exactly two points, and the counts
+//! Values cross between tasks at exactly two points, and the counts
 //! follow them (design/reclamation.md section 8):
 //!
-//! * Spawn. The body closure moves to the task thread, which consumes it
-//!   through the apply stub. Before the thread exists, [`Scope::spawn`]
+//! * Spawn. The body closure moves to the task, whose apply stub
+//!   consumes it. Before the task can run anywhere, [`Scope::spawn`]
 //!   marks everything the closure reaches as atomically counted
 //!   ([`crate::rc::cinch_mark_mt`]), since the parent may keep and drop
-//!   references to the same blocks while the task runs.
+//!   references to the same blocks while the task runs on another
+//!   thread.
 //! * Result. A finished body's `Result` word moves to its task state and
 //!   from there to the join that hands it out, or, for a child no join
 //!   took (a failed join's other members), to the scope's close, which
@@ -63,7 +84,9 @@
 
 use std::cell::Cell;
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
+
+use crate::park::Parker;
 
 /// The prelude `Result` constructor tag of `Ok` (declaration order in
 /// `compiler/prelude/Prelude.cinch`).
@@ -75,9 +98,9 @@ pub const TASK_ERR_TAG: i64 = 0;
 /// The Unit word passed to a task body.
 const UNIT_WORD: i64 = 0;
 
-/// Task thread stack size: the same order as a process main stack, so
-/// ordinary recursive Cinch code behaves the same inside a task.
-const TASK_STACK_BYTES: usize = 8 << 20;
+/// Task stack size: the same order as a process main stack, so ordinary
+/// recursive Cinch code behaves the same inside a task.
+pub(crate) const TASK_STACK_BYTES: usize = 8 << 20;
 
 /// The closure apply-stub ABI (see `compiler/src/core.rs`).
 type ApplyStub = unsafe extern "C" fn(i64, i64, *mut i64) -> i64;
@@ -104,10 +127,10 @@ pub struct TaskState {
     done: AtomicBool,
     /// The body's `Result` word, valid once `done` is set.
     result: AtomicI64,
-    /// The context the body runs in, set when the body starts: a
+    /// The context the body runs in, set before the body can run: a
     /// cancellation request resumes it, so a body suspended at a
     /// cancellable wait observes the request ([`crate::park`]).
-    parker: std::sync::OnceLock<crate::park::Parker>,
+    parker: std::sync::OnceLock<Parker>,
 }
 
 impl TaskState {
@@ -120,16 +143,24 @@ impl TaskState {
         }
     }
 
+    /// Record the context the body runs in. The scheduler calls it once,
+    /// before the body can reach a wait.
+    pub(crate) fn set_parker(&self, parker: Parker) {
+        let _ = self.parker.set(parker);
+    }
+
     /// Request cancellation (section 4) and resume the body if it is
     /// suspended. The flag is set first and is sequentially consistent
     /// with a waiter's own check, so a body either sees the flag before
-    /// it parks or is parked when the wake arrives; a body that has not
-    /// started yet has no context to resume and sees the flag when it
-    /// first checks.
+    /// it parks or is parked when the wake arrives; a wake that reaches a
+    /// body before it first parks is kept as its token. Only the first
+    /// request wakes: after it the flag is set for good, and every
+    /// cancellable wait reads the flag before it suspends.
     fn request_cancel(&self) {
-        self.cancel.store(true, Ordering::SeqCst);
-        if let Some(p) = self.parker.get() {
-            p.unpark();
+        if !self.cancel.swap(true, Ordering::SeqCst) {
+            if let Some(p) = self.parker.get() {
+                p.unpark();
+            }
         }
     }
 
@@ -152,34 +183,39 @@ impl TaskState {
 /// A structured scope (section 2): the lifetime bound of its tasks.
 pub struct Scope {
     inner: Mutex<ScopeInner>,
-    cv: Condvar,
 }
 
 struct ScopeInner {
-    /// Every child spawned into this scope, joined or not.
+    /// Every child spawned into this scope, joined or not. The list only
+    /// grows.
     children: Vec<Arc<TaskState>>,
+    /// How many children have finished with `Err`, so a join looks for a
+    /// failure among its members only when there is a new one to find.
+    failed: usize,
+    /// The contexts parked in a join or the close until a child
+    /// finishes. A finishing child takes the whole list.
+    waiters: Vec<Parker>,
 }
 
 impl Scope {
     /// An empty scope.
     pub fn new() -> Scope {
         Scope {
-            inner: Mutex::new(ScopeInner { children: Vec::new() }),
-            cv: Condvar::new(),
+            inner: Mutex::new(ScopeInner { children: Vec::new(), failed: 0, waiters: Vec::new() }),
         }
     }
 
-    fn lock(&self) -> std::sync::MutexGuard<'_, ScopeInner> {
+    fn lock(&self) -> MutexGuard<'_, ScopeInner> {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
 
     /// Spawn `closure` as a task of this scope; returns the handle word.
-    /// The closure's reference moves to the task thread, whose apply stub
+    /// The closure's reference moves to the task, whose apply stub
     /// consumes it.
     pub fn spawn(self: &Arc<Scope>, closure: i64) -> i64 {
         // Everything the body reaches may now be counted from two threads
-        // at once: make it atomic while only this thread can reach it. The
-        // thread's creation below publishes the marks to the body.
+        // at once: make it atomic while only this context can reach it.
+        // Queueing the task below publishes the marks to the body.
         if crate::rc::reclaiming() {
             unsafe { crate::rc::cinch_mark_mt(closure) };
         }
@@ -187,28 +223,52 @@ impl Scope {
         let handle = Arc::into_raw(state.clone()) as i64;
         self.lock().children.push(state.clone());
         let scope = Arc::clone(self);
-        let thread_state = Arc::clone(&state);
-        std::thread::Builder::new()
-            .stack_size(TASK_STACK_BYTES)
-            .spawn(move || {
-                let _ = thread_state.parker.set(crate::park::current());
-                CURRENT_TASK.with(|c| c.set(Some(Arc::clone(&thread_state))));
-                // Every spawned body runs (section 4: a request is
-                // cooperative; effects before the first poll point still
-                // happen), and its return is the cleanup acknowledgment.
-                // The task's own stack is guarded like the program's, so
-                // overflowing it is the `Exhausted` exit.
-                let result = crate::stack::guarded(|| unsafe { apply_closure(closure, UNIT_WORD) });
-                {
-                    let inner = scope.lock();
-                    thread_state.result.store(result, Ordering::SeqCst);
-                    thread_state.done.store(true, Ordering::SeqCst);
-                    drop(inner);
-                }
-                scope.cv.notify_all();
-            })
-            .unwrap_or_else(|e| crate::stack::spawn_refused(&e));
+        let task = Arc::clone(&state);
+        // Every spawned body runs (section 4: a request is cooperative;
+        // effects before the first poll point still happen), and its
+        // return is the cleanup acknowledgment. The task's stack is
+        // guarded like the program's, so overflowing it is the
+        // `Exhausted` exit.
+        crate::sched::spawn(
+            state,
+            Box::new(move || {
+                let result = unsafe { apply_closure(closure, UNIT_WORD) };
+                scope.finish(&task, result);
+            }),
+        );
         handle
+    }
+
+    /// Publish `task`'s result and wake whoever waits for a child of
+    /// this scope (module docs, "Waiting for a child").
+    fn finish(&self, task: &TaskState, result: i64) {
+        let failed = result_tag(result) == TASK_ERR_TAG;
+        let waiters = {
+            let mut inner = self.lock();
+            task.result.store(result, Ordering::SeqCst);
+            task.done.store(true, Ordering::SeqCst);
+            inner.failed += usize::from(failed);
+            std::mem::take(&mut inner.waiters)
+        };
+        for waiter in &waiters {
+            waiter.unpark();
+        }
+    }
+
+    /// Suspend `me`, the calling context, until a child of this scope
+    /// finishes. `inner` is the lock under which the caller found a
+    /// child unfinished, so the child's finish cannot fall between that
+    /// check and the registration. May return for another reason (a
+    /// cancellation request for the caller's own task): the caller scans
+    /// again.
+    fn wait_for_child(&self, mut inner: MutexGuard<'_, ScopeInner>, me: &Parker) {
+        if !inner.waiters.iter().any(|waiter| waiter.is(me)) {
+            inner.waiters.push(me.clone());
+        }
+        // The lock is not held across the park: the caller may resume on
+        // another thread.
+        drop(inner);
+        crate::park::park();
     }
 
     /// `joinAllOrCancel` (section 2): wait for every task in `handles`,
@@ -236,45 +296,50 @@ impl Scope {
                 s
             })
             .collect();
-        let mut inner = self.lock();
+        let first_err = self.await_members(&states);
+        unsafe { hand_over(&states, first_err, out) }
+    }
+
+    /// Wait until every task in `states` has finished, requesting
+    /// cancellation of the rest once one has failed; answers the first
+    /// failure seen, by index.
+    ///
+    /// The waiter is woken once for every child that finishes, so each
+    /// pass does work in proportion to what changed, not to the member
+    /// count: it advances past the members that have finished since the
+    /// last pass, and reads the members' results only when the scope
+    /// counts a failure this join has not looked for yet.
+    fn await_members(&self, states: &[Arc<TaskState>]) -> Option<usize> {
+        let me = crate::park::current();
         let mut first_err: Option<usize> = None;
+        // Every member before `finished` has finished.
+        let mut finished = 0;
+        let mut failures_seen = 0;
         loop {
-            let mut all_done = true;
-            for (i, s) in states.iter().enumerate() {
-                if !s.is_done() {
-                    all_done = false;
-                    continue;
-                }
-                if first_err.is_none() && result_tag(s.result()) == TASK_ERR_TAG {
-                    first_err = Some(i);
-                }
+            let inner = self.lock();
+            while finished < states.len() && states[finished].is_done() {
+                finished += 1;
             }
-            if all_done {
-                break;
-            }
-            // A failure requests sibling cancellation (section 2); the
-            // loop still waits for every cleanup acknowledgment before
-            // returning, so no task outlives the join.
-            if first_err.is_some() {
-                for s in &states {
-                    if !s.is_done() {
-                        s.request_cancel();
+            if first_err.is_none() && inner.failed != failures_seen {
+                failures_seen = inner.failed;
+                first_err = states
+                    .iter()
+                    .position(|s| s.is_done() && result_tag(s.result()) == TASK_ERR_TAG);
+                // A failure requests sibling cancellation (section 2); the
+                // loop still waits for every cleanup acknowledgment before
+                // returning, so no task outlives the join.
+                if first_err.is_some() {
+                    for s in &states[finished..] {
+                        if !s.is_done() {
+                            s.request_cancel();
+                        }
                     }
                 }
             }
-            inner = self.cv.wait(inner).unwrap_or_else(|e| e.into_inner());
-        }
-        drop(inner);
-        // The join is the one observer of what it hands out, so it takes
-        // those results out of their task states. A failure takes only the
-        // `Err`: the other members' results stay, and the scope's close
-        // drops them.
-        match first_err {
-            Some(k) => unsafe { join_failed(states[k].result.swap(0, Ordering::SeqCst), out) },
-            None => {
-                let results: Vec<i64> = states.iter().map(|s| s.result.swap(0, Ordering::SeqCst)).collect();
-                unsafe { join_succeeded(&results, out) }
+            if finished == states.len() {
+                return first_err;
             }
+            self.wait_for_child(inner, &me);
         }
     }
 
@@ -282,25 +347,68 @@ impl Scope {
     /// join has observed, wait for each cleanup acknowledgment, and drop
     /// the results no join took.
     pub fn close(self: &Arc<Scope>) {
-        let mut inner = self.lock();
+        let unjoined = self.await_children();
+        discard_results(&unjoined);
+    }
+
+    /// Cancel and wait for every unfinished child; answers the results
+    /// no join took, taken out of their task states. Like a join's, each
+    /// pass looks only at what is new: the children spawned since the
+    /// last pass are asked to cancel, and the scan moves past the ones
+    /// that have finished.
+    fn await_children(&self) -> Vec<i64> {
+        let me = crate::park::current();
+        let mut asked = 0;
+        let mut finished = 0;
         loop {
-            let mut pending = false;
-            for s in &inner.children {
+            let inner = self.lock();
+            for s in &inner.children[asked..] {
                 if !s.is_done() {
                     s.request_cancel();
-                    pending = true;
                 }
             }
-            if !pending {
-                break;
+            asked = inner.children.len();
+            while finished < inner.children.len() && inner.children[finished].is_done() {
+                finished += 1;
             }
-            inner = self.cv.wait(inner).unwrap_or_else(|e| e.into_inner());
+            if finished == inner.children.len() {
+                return inner.children.iter().map(|s| s.result.swap(0, Ordering::SeqCst)).collect();
+            }
+            self.wait_for_child(inner, &me);
         }
-        let unjoined: Vec<i64> = inner.children.iter().map(|s| s.result.swap(0, Ordering::SeqCst)).collect();
-        drop(inner);
-        for r in unjoined {
-            unsafe { discard_result(r) };
+    }
+}
+
+/// Hand a finished join's results to its caller. The join is the one
+/// observer of what it hands out, so it takes those results out of their
+/// task states. A failure takes only the `Err`: the other members'
+/// results stay, and the scope's close drops them.
+///
+/// Never inlined: it runs after the join's wait, possibly on another
+/// thread than the wait began on, and releasing a block reads the
+/// thread's heap (the migration rule of [`crate::sched`]).
+///
+/// # Safety
+///
+/// Every task in `states` has finished and none was joined before;
+/// `out` points at `states.len()` writable words.
+#[inline(never)]
+unsafe fn hand_over(states: &[Arc<TaskState>], first_err: Option<usize>, out: *mut i64) -> i64 {
+    match first_err {
+        Some(k) => unsafe { join_failed(states[k].result.swap(0, Ordering::SeqCst), out) },
+        None => {
+            let results: Vec<i64> = states.iter().map(|s| s.result.swap(0, Ordering::SeqCst)).collect();
+            unsafe { join_succeeded(&results, out) }
         }
+    }
+}
+
+/// Drop the results a scope's close found unjoined. Never inlined, for
+/// the reason [`hand_over`] is not.
+#[inline(never)]
+fn discard_results(results: &[i64]) {
+    for r in results {
+        unsafe { discard_result(*r) };
     }
 }
 
@@ -386,12 +494,25 @@ fn result_payload(result: i64) -> i64 {
 }
 
 thread_local! {
-    /// The task state of the currently running task body, if any.
+    /// The task state of the task body the thread is running, if any.
+    /// The scheduler exchanges it at every switch ([`swap_current`]), so
+    /// it is the running fiber's task, not the thread's.
     static CURRENT_TASK: Cell<Option<Arc<TaskState>>> = const { Cell::new(None) };
+}
+
+/// Make `task` the calling thread's running task and answer the one it
+/// replaces.
+pub(crate) fn swap_current(task: Option<Arc<TaskState>>) -> Option<Arc<TaskState>> {
+    CURRENT_TASK.with(|c| c.replace(task))
 }
 
 /// Cancellation of the running task (section 4): false on the main thread,
 /// which belongs to no task.
+///
+/// Never inlined: a caller that parks between two calls may make them on
+/// different threads, and each must read its own thread's slot (the
+/// migration rule of [`crate::sched`]).
+#[inline(never)]
 pub fn current_task_canceled() -> bool {
     CURRENT_TASK.with(|c| {
         let cur = c.take();

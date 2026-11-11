@@ -309,22 +309,48 @@ enum Alt {
     Var(u32, Box<Node>),
 }
 
-// ------------------------------------------------------------ thread state
+// ------------------------------------------------------------ context state
 
-/// Per-thread evaluator state: the recursion budget, the `run` nesting
-/// counter (for the re-entrant fault channel), and the pending fault
-/// raised from applied code.
+/// The evaluator state of one execution context: the recursion budget,
+/// the `run` nesting counter (for the re-entrant fault channel), and the
+/// pending fault raised from applied code. It is kept per thread and
+/// exchanged by the scheduler at every switch ([`swap_state`]), so a
+/// task finds its own on whichever thread resumes it.
 #[derive(Clone, Copy)]
-struct Tls {
+pub(crate) struct State {
     frames: u32,
     runs: u32,
     pending: Option<Error>,
 }
 
+impl State {
+    /// The state of a context with no evaluation in progress.
+    pub(crate) const IDLE: State = State { frames: 0, runs: 0, pending: None };
+}
+
 thread_local! {
-    static TLS: Cell<Tls> = const {
-        Cell::new(Tls { frames: 0, runs: 0, pending: None })
-    };
+    static TLS: Cell<State> = const { Cell::new(State::IDLE) };
+}
+
+/// Make `state` the calling thread's evaluator state and answer the one
+/// it replaces.
+///
+/// Never inlined: an evaluation's frames stay live across the code it
+/// applies, which may park and resume on another thread, so every access
+/// finds the thread it is on (the migration rule of [`crate::sched`]).
+#[inline(never)]
+pub(crate) fn swap_state(state: State) -> State {
+    TLS.with(|t| t.replace(state))
+}
+
+/// Read and update the running context's evaluator state. `f` does not
+/// evaluate anything itself, so the state is back in place before any
+/// applied code can run.
+fn with_state<R>(f: impl FnOnce(&mut State) -> R) -> R {
+    let mut s = swap_state(State::IDLE);
+    let r = f(&mut s);
+    swap_state(s);
+    r
 }
 
 /// One recursion frame of the [`MAX_NESTING`] budget; dropping it
@@ -333,13 +359,11 @@ struct Frame;
 
 impl Frame {
     fn new() -> Result<Frame> {
-        TLS.with(|t| {
-            let mut s = t.get();
+        with_state(|s| {
             if s.frames >= MAX_NESTING {
                 return Err(Error::NestingTooDeep);
             }
             s.frames += 1;
-            t.set(s);
             Ok(Frame)
         })
     }
@@ -347,25 +371,16 @@ impl Frame {
 
 impl Drop for Frame {
     fn drop(&mut self) {
-        TLS.with(|t| {
-            let mut s = t.get();
-            s.frames -= 1;
-            t.set(s);
-        });
+        with_state(|s| s.frames -= 1);
     }
 }
 
 /// Surface and clear the pending fault, if any.
 fn take_pending() -> Result<()> {
-    TLS.with(|t| {
-        let mut s = t.get();
-        let e = s.pending.take();
-        t.set(s);
-        match e {
-            Some(e) => Err(e),
-            None => Ok(()),
-        }
-    })
+    match with_state(|s| s.pending.take()) {
+        Some(e) => Err(e),
+        None => Ok(()),
+    }
 }
 
 // ------------------------------------------------------------ word access
@@ -1080,16 +1095,13 @@ fn eval_demand(cell: &Node, counted: bool, env: &mut [i64], holes: &[i64]) -> Re
 /// [`MAX_NESTING`] is [`Error::NestingTooDeep`]. See the module docs
 /// for the block layout, the opcode table and the fault exit codes.
 pub fn run(quote: i64) -> Result<i64, Error> {
-    let outer = TLS.with(|t| {
-        let mut s = t.get();
+    let outer = with_state(|s| {
         let o = s.runs;
         s.runs += 1;
-        t.set(s);
         o
     });
     let r = run_body(quote);
-    TLS.with(|t| {
-        let mut s = t.get();
+    with_state(|s| {
         s.runs -= 1;
         if let Err(e) = r {
             if outer == 0 {
@@ -1102,7 +1114,6 @@ pub fn run(quote: i64) -> Result<i64, Error> {
                 s.pending = Some(e);
             }
         }
-        t.set(s);
     });
     r
 }
