@@ -689,6 +689,16 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
         # never on scheduling. The input path is the stage's shared one
         # because a profile-use compile depends on it: identical IR compiled
         # from another path would not be the same binary.
+        #
+        # No -flto here, deliberately. Measured 2026-11-11 on the stage-3
+        # module with this profile: -flto=thin cut the executable from 19.7 MB
+        # to 13.3 MB (the export table shrinks, __text 14.4 MB to 11.5 MB) and
+        # ran the 40K-line self-check within 2% of this link's CPU, at 26% to
+        # 33% more link time; -flto and a sharded thin link cost 4% to 9% of
+        # check CPU. LTO has nothing to inline outside the module: the library
+        # object and the runtime archive are native Mach-O, not bitcode, so
+        # 25,390 of the module's 203,698 call sites stay cross-object calls.
+        # design/compilation-speed.md section 8 has the tables.
         from shard_ir import compile_shards, object_paths, write_shards
         clang = os.environ.get("CINCH_CLANG", "clang")
         link_ir = link_directory(ir)
@@ -809,8 +819,8 @@ def check_fixed_point() -> None:
         raise BootstrapError("stage-2 and stage-3 compiler executables differ")
     if (second / "compiler.ll").read_bytes() != (third / "compiler.ll").read_bytes():
         raise BootstrapError("stage-2 and stage-3 LLVM IR differ")
-    interfaces = {str(p.relative_to(second)): file_hash(p) for p in second.rglob("*.cinchif")}
-    rebuilt = {str(p.relative_to(third)): file_hash(p) for p in third.rglob("*.cinchif")}
+    interfaces = {str(p.relative_to(second)): file_hash(p) for p in compiler_interface_paths(second)}
+    rebuilt = {str(p.relative_to(third)): file_hash(p) for p in compiler_interface_paths(third)}
     require_compiler_interfaces(second, compiler_sources())
     require_compiler_interfaces(third, compiler_sources())
     if not interfaces or interfaces != rebuilt:

@@ -1177,36 +1177,108 @@ the Rust seed, so a profile trained on Cinch-emitted IR matches almost none
 of it, and Stage1 trains its own. Link cost is one extra instrumented build
 per source revision.
 
-ThinLTO across the compiler module and the library object links and halves
-the binary, but an earlier result faulted at run time in the stack probe
-(`ldr xzr, [sp]`) inside an inlined caller. That was attributed to the
-AArch64 `probe-stack` interaction with the apply stub's dynamic alloca, the
-only dynamic `alloca` the emitted module contained.
-
-Measured 2026-11-11. At the revision before the stub change (`fe8d5206`,
-whose module still has 196 dynamic allocas) both `clang -O2 -flto=thin` and
-`clang -O2 -flto` link the stage-3 IR, the library object and the runtime,
-and the result runs `--check` on the toolkit bundle and on the compiler's
-own 40K-line bundle with exit 0. The recorded fault is therefore not
-reproducible at that revision, and `a9a9a638` (static blocks addressed by a
-constant offset) is the real fix for the SIGBUS that the note above blamed
-on this site. The apply stub change removes the suspected site regardless:
-the emitted module now has zero dynamic allocas, so whatever an LTO caller
-inlines sees only static, probed frames. A ThinLTO link of the new module
-builds a 12.3 MB binary against 11.5 MB for the same link at `fe8d5206`, and
-it runs the same two checks with exit 0.
+ThinLTO across the compiler module, the library object and the runtime was
+parked by a run-time fault in the stack probe (`ldr xzr, [sp]`) inside an
+inlined caller. That was attributed to the AArch64 `probe-stack`
+interaction with the apply stub's dynamic alloca, the only dynamic `alloca`
+the emitted module contained. Two later changes removed the cause:
+`a9a9a638` addressed static blocks by a constant offset instead of a linker
+alias, which is the shape of a release walk storing into the text page, and
+`618f276a` replaced the stub with fixed-frame entries, which takes the
+stage-3 module's dynamic allocas from 196 to zero. The fault does not
+reproduce now, sharded or not, at Stage 1 or at Stage 3.
 
 The cost is module size. One fixed-frame entry per argument count turns 196
 stubs into 1,365 functions (196 dispatchers, 973 per-arity entries, 196
 `many` bodies) and grows the stage-3 module from 40.4 MB to 46.2 MB (+14%),
-which the sharded `-O2` stage link absorbs. The linked binary grows less:
-ThinLTO builds 12.3 MB against 11.5 MB at `fe8d5206`, and full LTO 11.9 MB
-against 11.1 MB, and all four binaries run both checks. Check time did not
-move outside the spread: interleaved pairs at one held build slot, six for
-the toolkit and four for the self-check, measured the toolkit at a median
--1.8% CPU (best pair -2.1%) and the self-check at -0.5% CPU median with its
-best pair 0.7% slower. The survey's 1 to 4% is real on the toolkit and is
-not visible on the self-check.
+which the sharded `-O2` stage link absorbs.
+
+### Link-time optimization: measured, 2026-11-11
+
+The claim above, that LTO "halves the binary and removes the call cost to
+the library's string and `Nat` routines, 14% of the compiler's profile",
+does not survive contact with the link inputs. LTO can only inline what it
+is given as bitcode, and the library object and the runtime archive are not
+bitcode. `file` reports `Mach-O 64-bit object arm64` for the pinned library
+object; every member object of the runtime archive is `Mach-O 64-bit object
+arm64` and none has an `__LLVM,__bitcode` section. The runtime is a cargo
+staticlib built with `-C codegen-units=1` and no `-C linker-plugin-lto`,
+and the library object comes from the pinned producer's `emit-object`,
+which writes machine code directly. The producer retains its `library.ll`
+beside the object, so an LTO link over IR inputs is possible as a separate
+change, but the stage link is defined to consume `library.o` and the
+runtime archive by their pinned identities.
+
+What LTO would have to remove is the cross-object call population. In the
+stage-3 module 25,390 of 203,698 call sites name a function that is
+declared but not defined in the module: `cinch_alloc_ctor` 15,329,
+`cinch_alloc_shaped` 1,134, `memcpy` 777, then the `Data.*` wrappers
+(`Eq_I64.==` 728, `string-compare` 653, `Eq_Nat.==` 599, `Bool.not` 416,
+`Nat.Add` 340). Every one resolves in the library object or the runtime
+archive, so none can be inlined at link time.
+
+Five links of the same stage-3 IR, from the same content-addressed path,
+with the same profile, six build slots and `-j 3` (the default on this
+18-core machine, so the current link is three shards):
+
+| link | modules | link s | file MB | `__text` MB |
+| --- | --- | --- | --- | --- |
+| `-O2` objects, three shards (current) | 3 | 24.6 | 19.70 | 14.42 |
+| `-O2` objects, one module | 1 | 70.0 | 20.13 | 13.17 |
+| `-flto=thin`, one module | 1 | 88.4 | 13.26 | 11.50 |
+| `-flto`, one module | 1 | 73.6 | 13.23 | 11.47 |
+| `-flto=thin` bitcode shards, thin final link | 3 | 32.7 | 13.18 | 11.37 |
+
+Six interleaved pairs on the toolkit check and four on the 40K-line
+self-check, CPU seconds and peak resident set:
+
+| link | toolkit median / best | self-check median / best | peak RSS |
+| --- | --- | --- | --- |
+| `-O2`, three shards | 6.13 / 5.95 | 62.80 / 57.29 | 37 MB / 175 MB |
+| `-O2`, one module | 6.16 / 5.94 | 59.52 / 55.81 | 37 MB / 175 MB |
+| `-flto=thin`, one module | 6.27 / 6.03 | 62.70 / 58.64 | 37 MB / 175 MB |
+| `-flto`, one module | 6.66 / 6.50 | 66.43 / 59.41 | 38 MB / 176 MB |
+| `-flto=thin`, three bitcode shards | 6.72 / 6.62 | 65.50 / 64.28 | 39 MB / 176 MB |
+
+ThinLTO is a wash: 1.5% more CPU on the toolkit and within 2% of the
+current link on the self-check, with pairwise ranges from 5.2 s faster to
+3.2 s slower, at 26% to 33% more link time. Full LTO and the sharded thin
+link cost 4% to 9% of CPU. All five run the toolkit
+check and the self-check with exit 0, print `cinch-leak: live=0 immortal=0
+leaked=0` under `CINCH_LEAK_CHECK=1`, and emit the same `compiler.ll`
+(sha256 `985757f875ccd776...`) for a frozen toolkit source, so the
+differences are layout, not semantics.
+
+The size drop is real but does not reach the process. `__text` shrinks 13%
+and the export table loses about 5 MB as LTO internalises definitions and
+drops the ones nothing calls, while the self-check's peak resident set stays
+at 175 to 176 MB in every arm. Stage 1 tells the same story larger, because the seed's module
+is 335 MB and carries every prelude body: with the same profile and three
+shards, the current link is 89.9 s and 43.13 MB, `-flto=thin` 102.7 s and
+22.51 MB, and `-flto` 126.6 s and 22.22 MB. Both LTO binaries pass the
+toolkit check, the self-check and the leak gate and emit the baseline's
+`compiler.ll`, which is the direct test of the parked fault.
+
+Dropping to one module without LTO is the only shape that is faster on a
+check: 5.0% less median CPU on the self-check, because cross-shard calls
+can inline, and no change on the toolkit. It triples the stage link's wall
+time, 24.6 s to 70.0 s, so the sharded default stays; `-j 1` remains the
+documented way to get it, and the job count is part of the stage's inputs.
+
+Nothing was wired. The stage link keeps its plain `-O2` (with the profile
+when PGO is on), and `tooling/bootstrap.py` records the measurement at the
+link helper. The chain cost that was avoided: a clean chain built in 907.8 s
+with six slots and `-j 3`; ThinLTO would add 12.9 s to Stage 1's link and
+about 8 s to each later stage link, roughly 3% of a chain, for no check-time
+gain.
+
+One measurement the claim deserved and did not get: the interface
+unfoldings (`8f123c1f`) already removed 2,833 wrapper calls at the Core
+level, and the call census above is what remains. Turning that artifact off
+is a compiler change rather than a link flag, so the with-artifact number
+is the one reported; it removes exactly the calls LTO would otherwise
+inline, which is a second reason the link-time lever is smaller than this
+section first estimated.
 
 ### Profile-guided stage links (implemented 2026-11-10)
 
