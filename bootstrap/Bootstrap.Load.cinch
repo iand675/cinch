@@ -62,7 +62,8 @@ module Bootstrap.Load where
     MkExportEntries ::
       HashMap String Json -> HashMap String Json -> HashMap String Json
       -> HashMap String Json -> HashMap String Json -> HashMap String Json
-      -> HashMap String (List (String, String, String)) -> ExportEntries
+      -> HashMap String (List (String, String, String)) -> List String
+      -> ExportEntries
 
   -- `exports` and `private-methods` are the two row sets every consumer asks
   -- for by name, and both are read once here rather than per ask: a law
@@ -212,25 +213,35 @@ module Bootstrap.Load where
 
   name-entries :: ExportEntries -> HashMap String (List (String, String, String))
   name-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances names -> names
+    MkExportEntries values types signatures constructors methods instances names globals -> names
+  -- The globals this interface exports, `interface-global` of every export
+  -- identity and of every private method identity: the two lists the law
+  -- closure compares a name against. Both are encoded once here instead of
+  -- per ask, which was queries x interfaces x rows encodings. A list, not a
+  -- table: `Hash String` folds `nat-mul` over the bytes, so probing with it
+  -- costs more than the short `string-compare` scan it would replace
+  -- (design/compilation-speed.md 2.5 measured that).
+  global-entries :: ExportEntries -> List String
+  global-entries entries = case entries of
+    MkExportEntries values types signatures constructors methods instances names globals -> globals
   value-entries :: ExportEntries -> HashMap String Json
   value-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances names -> values
+    MkExportEntries values types signatures constructors methods instances names globals -> values
   type-entries :: ExportEntries -> HashMap String Json
   type-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances names -> types
+    MkExportEntries values types signatures constructors methods instances names globals -> types
   signature-entries :: ExportEntries -> HashMap String Json
   signature-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances names -> signatures
+    MkExportEntries values types signatures constructors methods instances names globals -> signatures
   constructor-entries :: ExportEntries -> HashMap String Json
   constructor-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances names -> constructors
+    MkExportEntries values types signatures constructors methods instances names globals -> constructors
   method-entries :: ExportEntries -> HashMap String Json
   method-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances names -> methods
+    MkExportEntries values types signatures constructors methods instances names globals -> methods
   instance-entries :: ExportEntries -> HashMap String Json
   instance-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances names -> instances
+    MkExportEntries values types signatures constructors methods instances names globals -> instances
   entry-in :: (ExportEntries -> HashMap String Json) -> String -> ExportEntries -> Option Json
   entry-in table identity entries = hash-map-lookup identity (table entries)
 
@@ -238,15 +249,26 @@ module Bootstrap.Load where
   -- a repeated identity is the row that survives, as the scan's first match
   -- was. `constructors` skips codata rows: a codata type exports no
   -- constructor, and its own identity carries the row.
-  export-entries :: Json -> ExportEntries
-  export-entries exports = MkExportEntries
-    (row-table "symbol" (field "values" exports))
-    (row-table "identity" (field "types" exports))
-    (row-table "identity" (field "signatures" exports))
-    (constructor-table (field "types" exports))
-    (method-table (field "signatures" exports))
-    (row-table "id" (field "instances" exports))
-    (name-rows-table (export-rows exports))
+  -- `private-methods` is passed in because the load derives it for the
+  -- interface itself; the globals table needs the same rows.
+  export-entries :: List (String, String, String) -> Json -> ExportEntries
+  export-entries private-methods exports =
+    let rows = export-rows exports in
+    MkExportEntries
+      (row-table "symbol" (field "values" exports))
+      (row-table "identity" (field "types" exports))
+      (row-table "identity" (field "signatures" exports))
+      (constructor-table (field "types" exports))
+      (method-table (field "signatures" exports))
+      (row-table "id" (field "instances" exports))
+      (name-rows-table rows)
+      (global-rows (rows <> private-methods) Nil)
+
+  global-rows :: List (String, String, String) -> List String -> List String
+  global-rows rows globals = case rows of
+    Nil -> globals
+    Cons row rest -> case row of
+      (local, kind, identity) -> global-rows rest (Cons (interface-global identity) globals)
 
   -- Every exported name, its namespace category and its defining identity.
   export-rows :: Json -> List (String, String, String)
@@ -714,10 +736,10 @@ module Bootstrap.Load where
   accepted-interface :: String -> String -> Json -> Result String LoadedInterface
   accepted-interface name hash doc =
     let exports = field "exports" doc in
+    let private = private-signature-methods name (field "signatures" exports) in
     Ok (MkLoadedInterface name hash doc (read-values (field "values" exports))
       (read-fixes (field "fixities" exports)) (read-refs (field "imports" doc))
-      (export-entries exports) (export-rows exports)
-      (private-signature-methods name (field "signatures" exports)))
+      (export-entries private exports) (export-rows exports) private)
 
   find-interface :: String -> List LoadedInterface -> Option LoadedInterface
   find-interface name loaded = case loaded of
@@ -884,10 +906,13 @@ module Bootstrap.Load where
   signature-contract row = JObj "identity" (field "identity" row)
     (JObj "parameters" (field "parameters" row) (JObj "methods" (method-contracts (field "methods" row))
       (JObj "laws" (field "laws" row) JObjEnd)))
-  law-export-present :: String -> List (String, String, String) -> Bool
-  law-export-present name exports = case exports of
-    Nil -> False
-    Cons (local, kind, identity) rest -> same name (interface-global identity) || law-export-present name rest
+  -- The probe the closure makes once per law occurrence, answered from the
+  -- table the load built: every exported identity and every private method
+  -- identity is encoded once per interface, not once per ask.
+  exported-global :: LoadedInterface -> String -> Bool
+  exported-global i name = case i of
+    MkLoadedInterface at hash doc values fixes refs entries exports private-methods ->
+      member name (global-entries entries)
 
   law-global-present :: String -> List String -> InterfaceIndex -> Bool
   law-global-present name reachable ix = export-present-in (interfaces-of ix) name reachable
@@ -897,8 +922,7 @@ module Bootstrap.Load where
   export-present-in :: List LoadedInterface -> String -> List String -> Bool
   export-present-in members name reachable = case members of
     Nil -> False
-    Cons i rest -> (name-in (loaded-module i) reachable &&
-      (law-export-present name (loaded-exports i) || law-export-present name (loaded-private-methods i)))
+    Cons i rest -> (name-in (loaded-module i) reachable && exported-global i name)
       || export-present-in rest name reachable
 
   law-global :: List String -> InterfaceIndex -> String -> Option String

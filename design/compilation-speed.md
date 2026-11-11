@@ -97,6 +97,7 @@ problem first, then the constant factor.
 | Environment projections cached at the module marker | `bootstrap/Bootstrap.Infer.cinch` | `env-instances`, `env-guarded-bindings` and `env-givens` stop at the marker instead of folding the whole module environment on every use |
 | One application-spine walk per expected-type check | `bootstrap/Bootstrap.Infer.cinch` | the ownership, projection, task and thunk head checks share one argument list |
 | Interned names in the seed's frontend | `compiler/src/intern.rs` | `Ty`/`ITerm`/`EffLabel`/`RowTail` names and the unifier's region substitution are pointer handles; -11.1% on the seed's check of the bundle (section 2.3) |
+| Export index for the law closure | `bootstrap/Bootstrap.Load.cinch` | `interface-global` of every export and private method identity is encoded once per interface, so a law closure query is a scan of pre-encoded globals, not an encoding per row per query; -7.5% of the two-line fixed cost's blocks (section 2.7) |
 
 ### 2.1 Frontend names and environment projections (2026-11-10)
 
@@ -367,109 +368,156 @@ After the fix the emit profile's top self entries are the allocator
 `memcmp` 1.1% and `Iface::iface_hash` 1.0%; no string sort appears in the
 top twenty any more.
 
-\\\\\\\        to: xzyvtooz 2aa7371a "Make interface set validation cheap where it is actually expensive" (rebased revision)
-+### 2.3 Set validation: what it actually costs (2026-11-11)
-+
-+Section 2.2 named `validate-interface-set` as the next lever and called it a
-+set-membership problem. That diagnosis was wrong in two ways, and both are
-+now measured rather than assumed. Attribution below is the two-line program
-+at `-O0` (identical block counts to the `-O2` link, frames not inlined), one
-+stage of validation added at a time:
-+
-+| validation stage | blocks | delta |
-+| --- | --- | --- |
-+| none (validation skipped) | 56,532,198 | |
-+| duplicate check and dependency ordering | 57,141,679 | +0.61M |
-+| plus `verify-set` (stale and missing dependencies) | 57,186,141 | +0.04M |
-+| plus `verify-nominal-set` | 78,720,303 | **+21.53M** |
-+| plus `verify-body-set` | 79,832,313 | +1.11M |
-+
-+So validation is 29% of the two-line fixed cost, not 20%, and 92% of it is
-+`verify-nominal-set`; membership and ordering are 0.65M, 2.8% of validation.
-+Inside `verify-nominal-set`, measured by removing one operation at a time:
-+
-+| operation | blocks |
-+| --- | --- |
-+| `verify-signature-contracts`, of which the law-closure test | 13.02M (7.72M) |
-+| - within it, the projection comparison (`canonical-bytes`) | 5.14M |
-+| `canonical-bytes` of every nominal row | 4.78M |
-+| `signature-owner-valid` (compares two parameter lists) | 2.17M |
-+| the `prior-nominal` duplicate scan | 0 (no allocations) |
-+
-+**Hash sets were tried and are a pessimisation here.** An index of
-+`HashMap String` (module name to interface, name set to `0`, both shapes the
-+pinned object carries at `[Obj, Obj]` and `[Obj, TObj]`) built once per
-+validated set, with every `member` and `find-interface` replaced by a probe,
-+grew the two-line build from 79,832,313 to 81,368,760 blocks (+1.9%) and moved
-+CPU by +0.6%. The reason is the prelude's `Hash String`: `Data.Bytes` hashes
-+by folding `nat-mul h 31` over the bytes in `Nat`, so hashing one module name
-+is a chain of bignum multiplications, while the scan it replaces is a couple
-+of dozen short `string-compare`s that exit on the first differing byte. A set
-+of 59 short names is cheaper to scan. `Bootstrap.Load`'s `InterfaceIndex`
-+therefore carries a list and the reason is recorded where the code is.
-+
-+What landed instead, in `Bootstrap.Load`:
-+
-+* **Ownership prefixes are encoded once per set.** `body-node-owner` used to
-+  build `name <> "."` and encode it per interface per body node; the index
-+  now carries each module's name, width and encoded prefix.
-+* **A signature contract owned by the interface being checked is not
-+  compared with itself.** `signature-owner-valid` and
-+  `verify-signature-contracts` looked the definition up and then compared two
-+  independently canonicalised projections of the same row. A row whose
-+  identity is owned by the module under test is that row, and `canonical-bytes`
-+  is deterministic, so the comparison is skipped and the law-closure check
-+  still runs.
-+* **Private method rows are read at load, once per interface.** They were
-+  derived per ask, and the law-closure test asks every interface for them once
-+  per law reference.
-+
-+Result on the two-line program (`--no-pgo` stage links, median of five):
-+
-+| metric | before | after |
-+| --- | --- | --- |
-+| blocks | 79,832,313 | 77,790,358 (-2.6%) |
-+| bytes | 2.182 GB | 2.129 GB (-2.4%) |
-+| CPU | 1.668 s | 1.667 s |
-+
-+Emitted interfaces are byte-identical for the two-line program and for the
-+toolkit bundle, and for the compiler bundle itself.
-+
-+The next largest item in this path is now the law-closure test (7.72M blocks,
-+9.7% of the fixed cost): `law-export-present` re-encodes every export identity
-+of every interface with `interface-global` on each query. The fix is the one
-+`loaded-exports` already got, applied to the name a law may reference: read
-+the law-referable global names per interface at load and make the closure test
-+a scan of those. After that, `canonical-bytes` of nominal rows (4.78M) is the
-+floor unless rows are deduplicated before encoding.
-+
-+### 2.4 Serialisation (proposal, not implemented)
-+
-+`parse-json` is 9.5% of the fixed-cost sample after the last round (330 of
-+3,469 samples in section 2.2), and the nominal and signature checks above are
-+22% between them because they re-derive text from the parsed form. A sectioned
-+encoding is worth it only after the algorithmic items, and it is a schema
-+bump: `iface-schema-version` 10 to 11, so every `.cinchif` and the pinned
-+provider must be regenerated, and the fixed point must be re-established at
-+18 interfaces per module rather than per file.
-+
-+What each side would have to change:
-+
-+* The Cinch reader (`Bootstrap.Interface`, `Bootstrap.Load`) gains a section
-+  table: a fixed header, then length-prefixed sections for the export name
-+  tables, the value rows, the type and instance rows, the nominal rows and the
-+  total bodies. `ExportEntries` already wants exactly this shape; today it is
-+  extracted from a general JSON document.
-+* The Rust seed (`compiler/src/interface.rs`) writes the sections instead of
-+  `JsonValue::write_canonical`, and `iface_hash` covers the section bytes
-+  directly instead of a blanked projection, which removes the text surgery
-+  `blank-field-string`/`empty-array-field` performs today.
-+* The fixed point requires the seed, the library provider and all three stages
-+  to agree on the new bytes, so it is a coordinated bump, not an incremental
-+  one. Nothing here should be started before the demand-driven load in
-+  section 12 item 4 lands, because both touch the same reader.
-+
-+
+### 2.5 Set validation: what it actually costs (2026-11-11)
+
+Section 2.2 named `validate-interface-set` as the next lever and called it a
+set-membership problem. That diagnosis was wrong in two ways, and both are
+now measured rather than assumed. Attribution below is the two-line program
+at `-O0` (identical block counts to the `-O2` link, frames not inlined), one
+stage of validation added at a time:
+
+| validation stage | blocks | delta |
+| --- | --- | --- |
+| none (validation skipped) | 56,532,198 | |
+| duplicate check and dependency ordering | 57,141,679 | +0.61M |
+| plus `verify-set` (stale and missing dependencies) | 57,186,141 | +0.04M |
+| plus `verify-nominal-set` | 78,720,303 | **+21.53M** |
+| plus `verify-body-set` | 79,832,313 | +1.11M |
+
+So validation is 29% of the two-line fixed cost, not 20%, and 92% of it is
+`verify-nominal-set`; membership and ordering are 0.65M, 2.8% of validation.
+Inside `verify-nominal-set`, measured by removing one operation at a time:
+
+| operation | blocks |
+| --- | --- |
+| `verify-signature-contracts`, of which the law-closure test | 13.02M (7.72M) |
+| - within it, the projection comparison (`canonical-bytes`) | 5.14M |
+| `canonical-bytes` of every nominal row | 4.78M |
+| `signature-owner-valid` (compares two parameter lists) | 2.17M |
+| the `prior-nominal` duplicate scan | 0 (no allocations) |
+
+**Hash sets were tried and are a pessimisation here.** An index of
+`HashMap String` (module name to interface, name set to `0`, both shapes the
+pinned object carries at `[Obj, Obj]` and `[Obj, TObj]`) built once per
+validated set, with every `member` and `find-interface` replaced by a probe,
+grew the two-line build from 79,832,313 to 81,368,760 blocks (+1.9%) and moved
+CPU by +0.6%. The reason is the prelude's `Hash String`: `Data.Bytes` hashes
+by folding `nat-mul h 31` over the bytes in `Nat`, so hashing one module name
+is a chain of bignum multiplications, while the scan it replaces is a couple
+of dozen short `string-compare`s that exit on the first differing byte. A set
+of 59 short names is cheaper to scan. `Bootstrap.Load`'s `InterfaceIndex`
+therefore carries a list and the reason is recorded where the code is.
+
+What landed instead, in `Bootstrap.Load`:
+
+* **Ownership prefixes are encoded once per set.** `body-node-owner` used to
+  build `name <> "."` and encode it per interface per body node; the index
+  now carries each module's name, width and encoded prefix.
+* **A signature contract owned by the interface being checked is not
+  compared with itself.** `signature-owner-valid` and
+  `verify-signature-contracts` looked the definition up and then compared two
+  independently canonicalised projections of the same row. A row whose
+  identity is owned by the module under test is that row, and `canonical-bytes`
+  is deterministic, so the comparison is skipped and the law-closure check
+  still runs.
+* **Private method rows are read at load, once per interface.** They were
+  derived per ask, and the law-closure test asks every interface for them once
+  per law reference.
+
+Result on the two-line program (`--no-pgo` stage links, median of five):
+
+| metric | before | after |
+| --- | --- | --- |
+| blocks | 79,832,313 | 77,790,358 (-2.6%) |
+| bytes | 2.182 GB | 2.129 GB (-2.4%) |
+| CPU | 1.668 s | 1.667 s |
+
+Emitted interfaces are byte-identical for the two-line program and for the
+toolkit bundle, and for the compiler bundle itself.
+
+The next largest item in this path was the law-closure test (7.72M blocks,
+9.7% of the fixed cost): `law-export-present` re-encoded every export identity
+of every interface with `interface-global` on each query. That landed as the
+one pass `loaded-exports` already got, applied to the names a law may
+reference, and section 2.7 measures it. After that, `canonical-bytes` of
+nominal rows (4.78M) is the floor unless rows are deduplicated before encoding.
+
+### 2.6 Serialisation (proposal, not implemented)
+
+`parse-json` is 9.5% of the fixed-cost sample after the last round (330 of
+3,469 samples in section 2.2), and the nominal and signature checks above are
+22% between them because they re-derive text from the parsed form. A sectioned
+encoding is worth it only after the algorithmic items, and it is a schema
+bump: `iface-schema-version` 10 to 11, so every `.cinchif` and the pinned
+provider must be regenerated, and the fixed point must be re-established at
+18 interfaces per module rather than per file.
+
+What each side would have to change:
+
+* The Cinch reader (`Bootstrap.Interface`, `Bootstrap.Load`) gains a section
+  table: a fixed header, then length-prefixed sections for the export name
+  tables, the value rows, the type and instance rows, the nominal rows and the
+  total bodies. `ExportEntries` already wants exactly this shape; today it is
+  extracted from a general JSON document.
+* The Rust seed (`compiler/src/interface.rs`) writes the sections instead of
+  `JsonValue::write_canonical`, and `iface_hash` covers the section bytes
+  directly instead of a blanked projection, which removes the text surgery
+  `blank-field-string`/`empty-array-field` performs today.
+* The fixed point requires the seed, the library provider and all three stages
+  to agree on the new bytes, so it is a coordinated bump, not an incremental
+  one. Nothing here should be started before the demand-driven load in
+  section 12 item 4 lands, because both touch the same reader.
+
+### 2.7 One encoded global list per interface (2026-11-11)
+
+Section 2.5 ended by naming the law closure as the next item: 7.72M blocks,
+9.7% of the fixed cost, spent in `law-export-present` re-encoding every
+export identity of every interface on each query. That is now one pass at
+load.
+
+`law-global` asks, once per law occurrence, whether a name is exported by
+some interface in a dependency closure. It walked every row of every
+reachable interface and called `interface-global` on the row's identity:
+that function re-spells the identity into its module-qualified global, which
+allocates a character list and a fresh string. So the closure paid one
+encoding per row per query.
+
+`ExportEntries` now carries those globals already encoded, beside the name
+rows: every export identity and every private method identity, encoded once
+when the interface is loaded. `export-present-in` scans that list with
+`string-compare`. A list, not a `HashMap`, because 2.5 measured hash sets as
+a pessimisation here: the prelude's `Hash String` folds `nat-mul` over the
+bytes, so a probe costs more than the short compares it would replace.
+
+Interleaved A/B on the stage links, three runs per arm in both orders, child
+CPU:
+
+| input | blocks before | blocks after | bytes before | bytes after | CPU before | CPU after |
+| --- | --- | --- | --- | --- | --- | --- |
+| two-line program | 53,096,378 | 49,115,764 (-7.5%) | 1.306 GB | 1.193 GB (-8.7%) | 1.22 s | 1.13 s (-7.1%) |
+| toolkit bundle | 427,414,470 | 423,433,856 (-0.9%) | 10.107 GB | 9.993 GB (-1.1%) | 9.74 s | 9.58 s (-1.6%) |
+
+Both rows lose the same 3,980,614 blocks, and that is the shape of the fix:
+the work was per compile, not per line. The closure runs over the loaded
+interface set, so the two-line program paid all of it (-7.5% of its blocks);
+the toolkit bundle's own checking is 374M blocks, and the same saving is
+under 1% of its total.
+
+Verified: stage 2 and stage 3 reach the fixed point and the fib, precedence
+and refusal smokes pass on all four stages; one frozen source of the compiler
+emitted through the pre-change and the post-change stage 2 gives a
+byte-identical `compiler.ll` and the same 46 `.cinchif` files, so the change
+is not observable in what the compiler emits; the 12 example programs, the
+fib and classes smokes and the toolkit and compiler bundles agree in exit
+code, output, diagnostics and emitted IR across the two compilers (30 cases,
+no disagreements).
+
+The remaining cost in this path is the closure's membership test itself:
+`export-present-in` still walks every loaded interface and scans the
+`reachable` name list per interface per law. That is a set problem
+`name-set`/`name-in` cannot solve with a hash map (2.5), so the next step is
+to shrink the candidate list once per verification rather than per query.
+
 ## 3. The query graph (rustc, Salsa, Shake)
 
 The single largest structural gap. Today a build rechecks whatever the
@@ -739,6 +787,32 @@ profile paying for itself on the chain's largest single compile; the cold
 seed and producer builds mean the two totals are not directly comparable,
 and the marginal cost at the top of a chain is one instrumented link plus
 one training run per stage.
+
+### Checking that the profile changes only the binary (2026-11-11)
+
+A stage binary that rejects a program its plain sibling accepts would be
+worse than the 10% the profile buys, so the divergence was looked for
+directly. One Stage2 module, linked five ways and run on the 3,966-line
+toolkit workload: `-O0`, `-O1`, `-O2`, `-O3` and `-fprofile-generate` all
+exit 0 with an empty diagnostics file, so neither the optimization level nor
+instrumentation changes what the checker decides. A `-fsanitize=undefined`
+link of the same module runs the workload with no report, which is the
+weakest of these checks but the only one that looks at undefined behaviour
+rather than at agreement.
+
+The profile-use Stage3 and a plain `-O2` link of the same Stage3 IR then
+agree over a 30-case corpus (the 12 example programs, the fib and classes
+smokes, the toolkit bundle and the compiler bundle itself), in check mode and
+in `--emit-ir` mode: exit code, stdout, stderr, the diagnostics file and the
+emitted IR are equal in every case. One frozen source of the compiler emitted
+twice through each binary gives the same `compiler.ll` four times over.
+
+Two things to know when repeating this. The corpus has to be frozen: an
+earlier run of the same comparison reported a difference that turned out to
+be the lane's stage 1 bundle being rewritten by another build between the two
+arms, so the arms had read different sources. And a profile-use compile of a
+module depends on the path it is given (section 8), so the arms must be
+handed one shared path or their objects differ for that reason alone.
 
 ### Alternative allocators: measured, no win (2026-11-10)
 
