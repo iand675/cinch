@@ -665,9 +665,9 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
     assert_eq!(common::read_output(&dir, &format!("output-{dictionary_index}.status")), "0", "dictionary ABI: {}", common::read_output(&dir, &format!("output-{dictionary_index}.diagnostics")));
     let mut dictionary_ir = common::read_output(&dir, &format!("output-{dictionary_index}.ll"))
         .replace("define i32 @main(i32 %argc, ptr %argv)", "define i32 @cinch_program_main(i32 %argc, ptr %argv)");
-    let encode = |name: &str| name.chars().map(|ch| format!("{}_", ch as u32)).collect::<String>();
+    let encode = |name: &str| cinch::interface::module_global("Main", name);
     for (source, bridge) in [("getRaw", "raw"), ("getTagged", "tagged"), ("getObject", "object"), ("getFunction", "function"), ("getShared", "shared")] {
-        let symbol = format!("cinch.typed.m.{}.{}", encode("Main"), encode(source));
+        let symbol = format!("cinch.typed.{}", encode(source));
         dictionary_ir.push_str(&format!("\ndefine i64 @cinch_abi_{bridge}() {{\nentry:\n  %value = call i64 @\"{symbol}\"()\n  ret i64 %value\n}}\n"));
     }
     dictionary_ir.push_str("\ndefine i64 @cinch_abi_dict_shape(i64 %index) {\nentry:\n  %slot = getelementptr i64, ptr @cinch.typed.layouts, i64 %index\n  %value = load i64, ptr %slot\n  ret i64 %value\n}\n");
@@ -739,10 +739,10 @@ int main(void) {
     let ir = common::read_output(&dir, "output.ll");
     assert!(ir.contains("define i32 @main(i32 %argc, ptr %argv)"));
     let mut ir = ir.replace("define i32 @main(i32 %argc, ptr %argv)", "define i32 @cinch_program_main(i32 %argc, ptr %argv)");
-    let encode = |name: &str| name.chars().map(|ch| format!("{}_", ch as u32)).collect::<String>();
-    let symbol = format!("cinch.typed.m.{}.{}", encode("Main"), encode("makePair"));
+    let encode = |name: &str| cinch::interface::module_global("Main", name);
+    let symbol = format!("cinch.typed.{}", encode("makePair"));
     ir.push_str(&format!("\ndefine i64 @cinch_abi_pair() {{\nentry:\n  %pair = call i64 @\"{symbol}\"()\n  ret i64 %pair\n}}\n"));
-    let generic_symbol = format!("cinch.typed.m.{}.{}", encode("Main"), encode("makeGeneric"));
+    let generic_symbol = format!("cinch.typed.{}", encode("makeGeneric"));
     ir.push_str(&format!("\ndefine i64 @cinch_abi_generic() {{\nentry:\n  %value = call i64 @\"{generic_symbol}\"()\n  ret i64 %value\n}}\n"));
     ir.push_str("\ndefine i64 @cinch_abi_layout(i64 %index) {\nentry:\n  %slot = getelementptr i64, ptr @cinch.typed.layouts, i64 %index\n  %word = load i64, ptr %slot\n  ret i64 %word\n}\n");
     std::fs::write(dir.join("abi.ll"), ir).unwrap();

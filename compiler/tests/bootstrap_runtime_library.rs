@@ -3,10 +3,7 @@
 mod common;
 use std::process::Command;
 
-fn global(module: &str, name: &str) -> String {
-    let encode = |s: &str| s.chars().map(|c| format!("{}_", c as u32)).collect::<String>();
-    format!("m.{}.{}", encode(module), encode(name))
-}
+fn global(module: &str, name: &str) -> String { cinch::interface::module_global(module, name) }
 fn symbol(module: &str, name: &str) -> String { format!("cinch.typed.{}", global(module, name)) }
 
 

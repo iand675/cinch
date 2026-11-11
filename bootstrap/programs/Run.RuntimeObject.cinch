@@ -12,6 +12,7 @@ module Main where
   import Bootstrap.Resolve (resolve-program-with)
   import Bootstrap.Report (render-diagnostics)
   import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Text.Json (parse-json)
   import Text.Show (nat-to-string, int-to-string)
   import Algebra.Semigroup
   import Data.Path (path-from-string)
@@ -61,7 +62,9 @@ module Main where
     Ok interfaces -> case (fs-read (path-from-string "provider.o"), fs-read (path-from-string "provider.abi.json"), fs-read (path-from-string "target.txt")) of
       (Ok code, Ok metadata, Ok target-bytes) -> case string-from-bytes target-bytes of
         None -> 8
-        Some expected-triple -> case parse-runtime-object expected-triple interfaces code metadata of
-          Err message -> case fs-write (path-from-string "admission.diagnostics") (string-to-bytes message) of Ok unit -> 8; Err error -> 9
-          Ok provider -> run interfaces provider
+        Some expected-triple -> case parse-json "provider.abi.json" metadata of
+          Parsed artifact Nil -> case parse-runtime-object expected-triple interfaces code artifact of
+            Err message -> case fs-write (path-from-string "admission.diagnostics") (string-to-bytes message) of Ok unit -> 8; Err error -> 9
+            Ok provider -> run interfaces provider
+          other -> 8
       other -> 8

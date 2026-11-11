@@ -1,36 +1,10 @@
 // Canonical default clauses carry lexical binders and the defining identities
 // selected by the checker. The importing compiler rechecks the body at the
 // method contract.
-use crate::interface::{JsonValue as DefaultJson, MethodDefault};
+use crate::interface::{interface_global, JsonValue as DefaultJson, MethodDefault};
 
 fn default_node(tag: &str, items: impl IntoIterator<Item = DefaultJson>) -> DefaultJson {
     DefaultJson::Arr(std::iter::once(tag.into()).chain(items).collect())
-}
-
-/// The identity spelling every interface, object and symbol name agrees on
-/// (`bootstrap/Bootstrap.Nominal.cinch`): `[A-Za-z0-9_]` is itself, and every
-/// other scalar is the lowercase two-digit hex of each of its UTF-8 bytes,
-/// introduced by `$`. `$` is outside the plain class, so it spells `$24`.
-/// `$` always starts an escape and a component separator is never inside an
-/// escape, which makes the spelling injective and reversible.
-fn encode_identity(identity: &str, encoded: &mut String) {
-    use std::fmt::Write;
-    for character in identity.chars() {
-        if character.is_ascii_alphanumeric() || character == '_' {
-            encoded.push(character);
-        } else {
-            let mut buffer = [0; 4];
-            for byte in character.encode_utf8(&mut buffer).as_bytes() {
-                write!(encoded, "${byte:02x}").expect("writing to String cannot fail");
-            }
-        }
-    }
-}
-
-fn default_global(identity: &str) -> String {
-    let mut encoded = String::from("i.");
-    encode_identity(identity, &mut encoded);
-    encoded
 }
 
 impl Checker {
@@ -144,7 +118,7 @@ impl Checker {
                             .get(idx)
                             .is_some_and(|(name, _)| name == &value.name)
                 })?;
-                Some(default_global(&format!(
+                Some(interface_global(&format!(
                     "{}.{}.{}",
                     signature.module, signature.name, value.name
                 )))
@@ -155,7 +129,7 @@ impl Checker {
             | ValueKind::Prim(_)
                 if value.module != "<builtin>" =>
             {
-                Some(default_global(&format!("{}.{}", value.module, value.name)))
+                Some(interface_global(&format!("{}.{}", value.module, value.name)))
             }
             _ => None,
         }
@@ -298,7 +272,7 @@ impl Checker {
                 let identity = if kind.module == "<builtin>" {
                     kind.name
                 } else {
-                    default_global(&kind.identity)
+                    interface_global(&kind.identity)
                 };
                 Some(default_node("TName", [identity.into()]))
             }

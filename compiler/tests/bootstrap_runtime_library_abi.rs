@@ -2,10 +2,7 @@
 mod common;
 use cinch::lsp::{parse_json, Json};
 use std::process::Command;
-fn global(name: &str) -> String {
-    let encode = |s: &str| s.chars().map(|c| format!("{}_", c as u32)).collect::<String>();
-    format!("m.{}.{}", encode("Library"), encode(name))
-}
+fn global(name: &str) -> String { cinch::interface::module_global("Library", name) }
 fn fixture_sources(dir: &std::path::Path) -> std::collections::BTreeMap<std::ffi::OsString, Vec<u8>> {
     std::fs::read_dir(dir).unwrap().map(|item| item.unwrap().path())
         .filter(|p| p.is_file() && p.extension().is_some_and(|e| e == "cinch"))

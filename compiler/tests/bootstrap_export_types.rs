@@ -71,6 +71,8 @@ fn checked_schemes_have_portable_definition_owned_syntax() {
         let checked = cinch::driver::check_sources(&source, "cinch-exported-type.cinch");
         assert!(checked.is_ok(), "Native readback {name}: {scheme}\n{checked:?}\nProject: {}", dir.display());
     }
+    // Every row `Run.ExportType.cinch` writes, including the identity
+    // escapes and the sigil identifiers.
     assert_eq!(report.lines().count(), 33, "{report}");
     common::cleanup(&dir);
 }

@@ -42,9 +42,8 @@ fn compiler_emit_mode_uses_the_typed_runtime_backend_and_preserves_refusals() {
     std::fs::write(dir.join("input.source"), "module Main where\n  add :: Int -> Int -> Int\n  add x y = x + y\n  returning :: Int -> Int -> Int\n  returning x = \\y -> x + y\n  getPartial :: Int -> Int\n  getPartial = add 18446744073709551616\n  getOver :: Int -> Int -> Int\n  getOver = returning\n  main :: Int\n  main = if getPartial 2 > 0 && getOver 2 3 == 5 then 0 else 1\n").unwrap();
     assert_eq!(invoke(&["--emit-ir", "input.source", "output.ll"]).status.code(), Some(0), "{}", common::read_output(&dir, "output.ll.diagnostics"));
     let mut ir = common::read_output(&dir, "output.ll").replace("define i32 @main(i32 %argc, ptr %argv)", "define i32 @cinch_program_main(i32 %argc, ptr %argv)");
-    let encode = |name: &str| name.chars().map(|ch| format!("{}_", ch as u32)).collect::<String>();
     for (source, bridge) in [("getPartial", "cinch_abi_partial"), ("getOver", "cinch_abi_over")] {
-        let symbol = format!("cinch.typed.m.{}.{}", encode("Main"), encode(source));
+        let symbol = format!("cinch.typed.{}", cinch::interface::module_global("Main", source));
         ir.push_str(&format!("\ndefine i64 @{bridge}() {{\nentry:\n  %value = call i64 @\"{symbol}\"()\n  ret i64 %value\n}}\n"));
     }
     ir.push_str("\ndefine i64 @cinch_abi_shape(i64 %index) {\nentry:\n  %slot = getelementptr i64, ptr @cinch.typed.layouts, i64 %index\n  %value = load i64, ptr %slot\n  ret i64 %value\n}\n");

@@ -36,6 +36,52 @@ pub const RUNTIME_ABI_VERSION: u32 = 8;
 pub const LANGUAGE_VERSION: &str = "draft-0.2+amendments";
 const CALLING_CONVENTION: &str = "uniform-word, curried apply stub";
 
+/// Append `identity` in the spelling every interface, object and symbol name
+/// agrees on (`bootstrap/Bootstrap.Nominal.cinch`): `[A-Za-z0-9_]` is itself,
+/// and every other scalar is the lowercase two-digit hex of each of its UTF-8
+/// bytes, introduced by `$`. `$` is outside the plain class, so it spells
+/// `$24`. `$` always starts an escape and a component separator is never
+/// inside an escape, which makes the spelling injective and reversible.
+pub fn encode_identity_into(identity: &str, encoded: &mut String) {
+    use std::fmt::Write;
+    for character in identity.chars() {
+        if character.is_ascii_alphanumeric() || character == '_' {
+            encoded.push(character);
+        } else {
+            let mut buffer = [0; 4];
+            for byte in character.encode_utf8(&mut buffer).as_bytes() {
+                write!(encoded, "${byte:02x}").expect("writing to String cannot fail");
+            }
+        }
+    }
+}
+
+/// The same spelling as [`encode_identity_into`], as a fresh string.
+pub fn encode_identity(identity: &str) -> String {
+    let mut encoded = String::new();
+    encode_identity_into(identity, &mut encoded);
+    encoded
+}
+
+/// The interface-global spelling: `i.` then the encoded identity, so a
+/// reference is distinguishable from the source definition it names.
+pub fn interface_global(identity: &str) -> String {
+    let mut encoded = String::from("i.");
+    encode_identity_into(identity, &mut encoded);
+    encoded
+}
+
+/// The member identity of `name` in `module`: `m.` then both components in
+/// the shared spelling. This is the global every emitted worker is named
+/// from, and the spelling object roots select units by.
+pub fn module_global(module: &str, name: &str) -> String {
+    let mut encoded = String::from("m.");
+    encode_identity_into(module, &mut encoded);
+    encoded.push('.');
+    encode_identity_into(name, &mut encoded);
+    encoded
+}
+
 /// A reference to an imported module's interface identity.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct IfaceRef {
