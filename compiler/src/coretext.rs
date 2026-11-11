@@ -827,7 +827,17 @@ impl<'a> Printer<'a> {
                 .child(Node::atom(self.local(*id)))
                 .mark(format!("@class({})", class_text(*class)))
                 .child(self.expr(body)),
-            Core::Release { block, moved, rest, body } => {
+            Core::Reuse { token, ctor, args } => {
+                let mut arglist = Node::list("args");
+                for a in args {
+                    arglist = arglist.child(self.expr(a));
+                }
+                Node::list("reuse")
+                    .child(Node::atom(self.local(*token)))
+                    .child(Node::atom(ident(&ctor.0)))
+                    .child(arglist)
+            }
+            Core::Release { block, moved, rest, token, body } => {
                 let mut movedlist = Node::list("moved");
                 for (id, _) in moved {
                     movedlist = movedlist.child(Node::atom(self.local(*id)));
@@ -836,11 +846,14 @@ impl<'a> Printer<'a> {
                 for (id, _) in rest {
                     restlist = restlist.child(Node::atom(self.local(*id)));
                 }
-                Node::list("release")
+                let mut node = Node::list("release")
                     .child(Node::atom(self.local(*block)))
                     .child(movedlist)
-                    .child(restlist)
-                    .child(self.expr(body))
+                    .child(restlist);
+                if let Some(t) = token {
+                    node = node.mark(format!("@token({})", self.local(*t)));
+                }
+                node.child(self.expr(body))
             }
             Core::Quote { holes, body, .. } => {
                 let mut holelist = Node::list("holes");
@@ -1335,6 +1348,12 @@ fn render_body(node: &Node) -> String {
 fn walk_units(body: &Core, f: &mut impl FnMut(&str)) {
     match body {
         Core::Global(id, _) | Core::Ctor(id, _) => f(&id.0),
+        Core::Reuse { ctor, args, .. } => {
+            f(&ctor.0);
+            for arg in args {
+                walk_units(arg, f);
+            }
+        }
         Core::Foreign(unit) => f(unit),
         Core::InstDict(id, args, _) => {
             f(&id.0);
@@ -2028,7 +2047,7 @@ fn rank(name: &str) -> u8 {
 
 /// The `@` marks a node may carry: its ownership class, its instantiation
 /// vector, and an alternative's weight.
-const NODE_MARKS: &[&str] = &["class", "classes", "weight", "frame"];
+const NODE_MARKS: &[&str] = &["class", "classes", "weight", "frame", "token"];
 
 // -------------------------------------------------------------- verification
 
@@ -2590,10 +2609,18 @@ impl<'a> Checker<'a> {
             }
             "release" => {
                 self.binding(tail, 0, scope, unit, path, errors);
+                // The token is the node's own binder: it names the cell the
+                // unique path keeps for the body's reuse.
+                let token = marks.iter().find_map(|mark| {
+                    mark.strip_prefix("@token(").and_then(|rest| rest.strip_suffix(')')).map(str::to_string)
+                });
                 for (index, child) in tail.iter().enumerate().skip(1) {
                     let child_path = child_path(head, index, path);
                     if index == 3 {
+                        let before = scope.len();
+                        scope.extend(token.iter().cloned());
                         self.expr(child, scope, unit, &child_path, errors);
+                        scope.truncate(before);
                         continue;
                     }
                     if let Node::List { tail: names, .. } = child {
@@ -2607,6 +2634,28 @@ impl<'a> Checker<'a> {
                                 }
                             }
                         }
+                    }
+                }
+                return;
+            }
+            "reuse" => {
+                let token = atom_at(tail, 0, unit, path, errors);
+                if let Some(token) = token {
+                    if !scope.iter().any(|bound| bound == token) {
+                        errors.push(
+                            Error::new(unit, path, format!("`{token}` is out of scope"))
+                                .coded(code::UNBOUND_LOCAL),
+                        );
+                    }
+                }
+                if let Some(ctor) = atom_at(tail, 1, unit, path, errors) {
+                    if !self.declared.contains(ctor) {
+                        errors.push(Error::new(unit, path, format!("`{}` is not a unit of this file", unquote(ctor))));
+                    }
+                }
+                if let Some(Node::List { tail: args, .. }) = tail.get(2) {
+                    for (index, arg) in args.iter().enumerate() {
+                        self.expr(arg, scope, unit, &child_path("reuse", index + 2, path), errors);
                     }
                 }
                 return;
@@ -2800,6 +2849,9 @@ fn child_path(head: &str, index: usize, path: &str) -> String {
         ("lam", 2) => "body".to_string(),
         ("dup", 0) | ("drop", 0) => "name".to_string(),
         ("dup", 1) | ("drop", 1) => "body".to_string(),
+        ("reuse", 0) => "token".to_string(),
+        ("reuse", 1) => "ctor".to_string(),
+        ("reuse", 2) => "args".to_string(),
         ("release", 0) => "block".to_string(),
         ("release", 1) => "moved".to_string(),
         ("release", 2) => "rest".to_string(),

@@ -21536,6 +21536,11 @@ impl Checker {
             // Reference counting is inserted after this evaluator's
             // programs are built; it never sees a count operation.
             Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => self.eval_core(cx, body, frame)?,
+            Core::Reuse { .. } => {
+                return Err(Error::plain(
+                    "internal error: a cell reuse reached compile-time evaluation",
+                ))
+            }
             // The Core simplifier introduces join points after staging, so
             // a compile-time body never carries one.
             Core::Join { .. } | Core::Jump { .. } => {

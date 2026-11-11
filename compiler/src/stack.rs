@@ -830,7 +830,7 @@ impl<'a> Scan<'a> {
                 self.go(&f.body, role, owner, tail);
                 return;
             }
-            Core::Release { block, moved, rest, body } => {
+            Core::Release { block, moved, rest, body, .. } => {
                 self.uses_of(block.0).death += 1;
                 // A `Release` field is a pattern binder; if a `let` binder
                 // ever names one, it was stored in a block: not this pass's

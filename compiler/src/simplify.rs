@@ -472,12 +472,22 @@ fn occurrences(e: &Core, in_join: bool, out: &mut HashMap<LocalId, Occ>) {
             occurrences(body, in_join, out);
             return;
         }
-        Core::Release { block, moved, rest, body } => {
+        Core::Release { block, moved, rest, token, body } => {
             read(block, out);
             for (x, _) in moved.iter().chain(rest.iter()) {
                 read(x, out);
             }
+            if let Some(t) = token {
+                read(t, out);
+            }
             occurrences(body, in_join, out);
+            return;
+        }
+        Core::Reuse { token, args, .. } => {
+            read(token, out);
+            for a in args {
+                occurrences(a, in_join, out);
+            }
             return;
         }
         Core::App(head, args) => {
@@ -955,12 +965,21 @@ fn free_locals_in(e: &Core, out: &mut Vec<LocalId>, heads: bool) {
                 use_local(*x, bound, out);
                 go(body, bound, out, heads);
             }
-            Core::Release { block, moved, rest, body } => {
+            Core::Release { block, moved, rest, token, body } => {
                 use_local(*block, bound, out);
                 for (l, _) in moved.iter().chain(rest) {
                     use_local(*l, bound, out);
                 }
+                if let Some(t) = token {
+                    use_local(*t, bound, out);
+                }
                 go(body, bound, out, heads);
+            }
+            Core::Reuse { token, args, .. } => {
+                use_local(*token, bound, out);
+                for a in args {
+                    go(a, bound, out, heads);
+                }
             }
             Core::BoxInit(l, v, _) | Core::LazyInit(l, v) | Core::RefSet(l, v, _) => {
                 go(v, bound, out, heads);
@@ -2581,12 +2600,21 @@ fn rename_binders(e: &mut Core, renames: &mut HashMap<LocalId, LocalId>, fresh: 
             rename(x, renames);
             rename_binders(body, renames, fresh);
         }
-        Core::Release { block, moved, rest, body } => {
+        Core::Release { block, moved, rest, token, body } => {
             rename(block, renames);
             for (x, _) in moved.iter_mut().chain(rest.iter_mut()) {
                 rename(x, renames);
             }
+            if let Some(t) = token {
+                rename(t, renames);
+            }
             rename_binders(body, renames, fresh);
+        }
+        Core::Reuse { token, args, .. } => {
+            rename(token, renames);
+            for a in args {
+                rename_binders(a, renames, fresh);
+            }
         }
         Core::BoxInit(x, v, _) | Core::RefSet(x, v, _) | Core::LazyInit(x, v) => {
             rename(x, renames);

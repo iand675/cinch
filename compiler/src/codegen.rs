@@ -6367,6 +6367,11 @@ fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
         }
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => collect_prims(d, out),
         Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => collect_prims(body, out),
+        Core::Reuse { args, .. } => {
+            for a in args {
+                collect_prims(a, out);
+            }
+        }
         Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
             if let Core::App(f, _) = e {
                 collect_prims(f, out);
@@ -6440,7 +6445,18 @@ fn collect_binders(e: &Core, out: &mut Vec<LocalId>) {
             }
         }
         Core::Demand(d, _) => collect_binders(d, out),
-        Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => collect_binders(body, out),
+        Core::Dup(_, _, body) | Core::Drop(_, _, body) => collect_binders(body, out),
+        Core::Release { body, token, .. } => {
+            if let Some(t) = token {
+                out.push(*t);
+            }
+            collect_binders(body, out);
+        }
+        Core::Reuse { args, .. } => {
+            for a in args {
+                collect_binders(a, out);
+            }
+        }
         Core::LazyAlloc => {}
         Core::LazyInit(_, t) => collect_binders(t, out),
         Core::BoxAlloc => {}
@@ -7043,8 +7059,9 @@ impl CoreEmitter<'_, '_> {
                 self.emit_count(e, *x, *class)?;
                 self.emit_expr(body)
             }
-            Core::Release { block, moved, rest, body } => {
-                self.emit_release(*block, moved, rest)?;
+            Core::Reuse { token, ctor, args } => self.emit_reuse(*token, &ctor.0, args),
+            Core::Release { block, moved, rest, token, body } => {
+                self.emit_release(*block, moved, rest, *token)?;
                 self.emit_expr(body)
             }
         }
@@ -7084,12 +7101,30 @@ impl CoreEmitter<'_, '_> {
     /// a uniquely held block hands its moved fields over, drops the rest
     /// and is freed without visiting its fields; any other block dups the
     /// moved fields and is dropped.
-    fn emit_release(&mut self, block: LocalId, moved: &[(LocalId, Class)], rest: &[(LocalId, Class)]) -> Result<()> {
+    fn emit_release(
+        &mut self,
+        block: LocalId,
+        moved: &[(LocalId, Class)],
+        rest: &[(LocalId, Class)],
+        token: Option<LocalId>,
+    ) -> Result<()> {
         for x in std::iter::once(&block).chain(moved.iter().chain(rest).map(|(l, _)| l)) {
             if !self.bound.contains(x) {
                 return err(format!("count operation on unknown local {}", x.0));
             }
         }
+        if let Some(t) = token {
+            if !self.bound.contains(&t) {
+                return err(format!("count operation on unknown local {}", t.0));
+            }
+        }
+        // The token's slot first: both paths write it before the body runs.
+        let tslot = token.map(|t| self.slot(t));
+        let cold = |this: &mut Self| {
+            if let Some(slot) = &tslot {
+                this.b.line(&format!("store i64 0, ptr {slot}"));
+            }
+        };
         if self.frame_site(block).is_some() {
             // A frame block is never freed and has no count to test, so its
             // death is the unique path of a drop specialisation without the
@@ -7106,6 +7141,7 @@ impl CoreEmitter<'_, '_> {
                 let v = self.load_local(*r);
                 rc_op(self.b, self.reg.rc_debug, true, &v, *c);
             }
+            cold(self);
             return Ok(());
         }
         let w = self.load_local(block);
@@ -7118,6 +7154,7 @@ impl CoreEmitter<'_, '_> {
         };
         if !self.b.reclaim || self.reg.rc_debug {
             shared(self, &w);
+            cold(self);
             return Ok(());
         }
         let (lunique, lshared, ljoin) = (self.b.label(), self.b.label(), self.b.label());
@@ -7129,13 +7166,87 @@ impl CoreEmitter<'_, '_> {
             let v = self.load_local(*r);
             rc_op(self.b, false, true, &v, *c);
         }
-        self.b.line(&format!("call void @cinch_free(i64 {w})"));
+        match &tslot {
+            // The cell is the reuse's, so the block is not freed: its
+            // payload is empty and its header still counts one owner.
+            Some(slot) => self.b.line(&format!("store i64 {w}, ptr {slot}")),
+            None => self.b.line(&format!("call void @cinch_free(i64 {w})")),
+        }
         self.b.line(&format!("br label %{ljoin}"));
         self.b.start(&lshared);
         shared(self, &w);
+        cold(self);
         self.b.line(&format!("br label %{ljoin}"));
         self.b.start(&ljoin);
         Ok(())
+    }
+
+    /// `Core::Reuse`: write `ctor`'s fields into the cell the token names
+    /// when the `Release` that bound it found the block uniquely held, and
+    /// into a fresh block otherwise. The cell's payload was emptied and
+    /// its counted fields released by that `Release`, and every payload
+    /// word is written here (the reused constructor has the same word
+    /// count), so no stale reference survives; the header keeps its count
+    /// of one and its kind and takes the new constructor's layout.
+    fn emit_reuse(&mut self, token: LocalId, ctor: &str, args: &[Core]) -> Result<String> {
+        if !self.bound.contains(&token) {
+            return err(format!("reuse of unknown local {}", token.0));
+        }
+        let (_, fields) = self
+            .reg
+            .ctors
+            .get(ctor)
+            .copied()
+            .ok_or_else(|| crate::Error::plain(format!("reuse of unknown constructor {ctor}")))?;
+        if fields != args.len() {
+            return err(format!(
+                "internal error: reuse of {ctor} passes {} fields to {fields}",
+                args.len()
+            ));
+        }
+        let desc = self.reg.ctor_desc(ctor)?;
+        let mut vals = Vec::with_capacity(args.len());
+        for a in args {
+            vals.push(self.emit_expr(a)?);
+        }
+        let slot = self.slot(token);
+        let t = self.b.reg();
+        self.b.line(&format!("{t} = load i64, ptr {slot}"));
+        let (lcold, lhot, ljoin) = (self.b.label(), self.b.label(), self.b.label());
+        let reusing = self.b.reg();
+        self.b.line(&format!("{reusing} = icmp ne i64 {t}, 0"));
+        self.b.line(&format!("br i1 {reusing}, label %{lhot}, label %{lcold}"));
+        self.b.start(&lcold);
+        let fresh = self.b.reg();
+        self.b.line(&ctor_alloc_call(&fresh, 8 * fields, desc));
+        self.b.line(&format!("br label %{ljoin}"));
+        self.b.start(&lhot);
+        let cell = self.b.reg();
+        self.b.line(&format!("{cell} = inttoptr i64 {t} to ptr"));
+        let field = block::ctor_layout_field(desc);
+        let h = block::header(block::RC_FRESH, block::KIND_CTOR, field) as i64;
+        // The header sits one word before the payload (and the escaped
+        // descriptor's own word one word before that).
+        let hp = self.b.gep_dyn(&cell, "-8");
+        self.b.line(&format!("store i64 {h}, ptr {hp}"));
+        if field == block::LAYOUT_BIG {
+            // The escaped descriptor's own word describes the payload; it
+            // is rewritten with the cell's new constructor.
+            let ep = self.b.gep_dyn(&cell, "-16");
+            self.b.line(&format!("store i64 {desc}, ptr {ep}"));
+        }
+        self.b.line(&format!("br label %{ljoin}"));
+        self.b.start(&ljoin);
+        let pointer = self.b.reg();
+        self.b.line(&format!(
+            "{pointer} = phi ptr [ {fresh}, %{lcold} ], [ {cell}, %{lhot} ]"
+        ));
+        for (i, v) in vals.iter().enumerate() {
+            self.b.store_at(&pointer, 8 * i, v);
+        }
+        let w = self.b.reg();
+        self.b.line(&format!("{w} = ptrtoint ptr {pointer} to i64"));
+        Ok(w)
     }
 
     /// The frame site of the binder `x`, when the stack allocation pass
@@ -7411,8 +7522,13 @@ impl CoreEmitter<'_, '_> {
                 self.emit_count(e, *x, *class)?;
                 self.emit_to(body, dest)
             }
-            Core::Release { block, moved, rest, body } => {
-                self.emit_release(*block, moved, rest)?;
+            Core::Reuse { token, ctor, args } => {
+                let w = self.emit_reuse(*token, &ctor.0, args)?;
+                dest.settle(self.b, &w);
+                Ok(())
+            }
+            Core::Release { block, moved, rest, token, body } => {
+                self.emit_release(*block, moved, rest, *token)?;
                 self.emit_to(body, dest)
             }
             Core::If(c, t, f) => {
@@ -9371,6 +9487,9 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
     match e {
         Core::Join { .. } | Core::Jump { .. } => {
             return err("internal error: a join point reached a quotation's reified body")
+        }
+        Core::Reuse { .. } => {
+            return err("internal error: a cell reuse reached a quotation's reified body")
         }
         Core::Int(v) => {
             q_imm(out, quote_op::INT);

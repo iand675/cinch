@@ -1968,7 +1968,34 @@ pub enum Core {
     /// and the block is freed without visiting its fields; otherwise each
     /// moved field is dupped and the block dropped, which is exactly
     /// `Dup` of every moved field followed by `Drop` of the block.
-    Release { block: LocalId, moved: Vec<(LocalId, Class)>, rest: Vec<(LocalId, Class)>, body: Box<Core> },
+    ///
+    /// `token` makes the same node Lean's `reset`: the local it names (a
+    /// `Raw` word, so no count operation sees it) is bound to the block's
+    /// own word on the unique path, where the block is kept instead of
+    /// freed, and to 0 otherwise. The body then holds one `Reuse` of that
+    /// token, which writes a new constructor into the cell.
+    Release {
+        block: LocalId,
+        moved: Vec<(LocalId, Class)>,
+        rest: Vec<(LocalId, Class)>,
+        token: Option<LocalId>,
+        body: Box<Core>,
+    },
+    /// Reuse a dying constructor's cell for a new constructor (Lean 4's
+    /// `reuse`, `src/Lean/Compiler/IR/ResetReuse.lean`; the same construct
+    /// as Idris 2's RefC drop-and-reuse): allocate `ctor` from `args`, in
+    /// the cell `token` names when it is one, and in a fresh block when it
+    /// is 0 (the `Release` that bound the token found the block shared).
+    ///
+    /// The cell is kept alive by the `Release` that bound the token, so
+    /// only that pairing is legal: the token is never counted, never
+    /// stored, and is read exactly once by the `Reuse` the same `Release`
+    /// guards. Every payload word of the cell is written, which is why the
+    /// reused constructor has exactly the dying block's payload word
+    /// count; the block's header keeps its count of one and its kind and
+    /// takes the new constructor's layout, so a later drop sees the
+    /// constructor that is actually there.
+    Reuse { token: LocalId, ctor: GlobalId, args: Vec<Core> },
     /// A typed quotation template under construction (staging): the
     /// template carrying `SpliceHole` placeholders plus the elaborated
     /// splice expressions, evaluated when the quote is constructed
@@ -3585,7 +3612,17 @@ fn tail_groups(program: &Program) -> Vec<(TailGroup, Option<usize>)> {
             Core::BoxInit(_, v, _) => all_calls(v, fns, insts, foreigns, out),
             Core::RefSet(_, v, _) => all_calls(v, fns, insts, foreigns, out),
             Core::LazyInit(_, t) => all_calls(t, fns, insts, foreigns, out),
-            Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => all_calls(body, fns, insts, foreigns, out),
+            Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => {
+                all_calls(body, fns, insts, foreigns, out)
+            }
+            Core::Reuse { ctor, args, .. } => {
+                if fns.contains_key(&ctor.0) {
+                    out.push(ctor.0.clone());
+                }
+                for a in args {
+                    all_calls(a, fns, insts, foreigns, out);
+                }
+            }
             Core::If(c, t, fe) => {
                 all_calls(c, fns, insts, foreigns, out);
                 all_calls(&t.body, fns, insts, foreigns, out);
@@ -3833,6 +3870,14 @@ fn calls_walk(
         | Core::Var(_) | Core::Global(..) | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_)
         | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc
         | Core::SyntaxLit(..) | Core::StrLit(_) => {}
+        Core::Reuse { ctor, args, .. } => {
+            if callees.contains(&ctor.0) {
+                out.push(CallSite { callee: ctor.0.clone(), tail: false });
+            }
+            for a in args {
+                calls_walk(a, false, fns, insts, foreigns, callees, out);
+            }
+        }
         Core::Quote { holes, body, .. } => {
             for h in holes {
                 calls_walk(h, false, fns, insts, foreigns, callees, out);
@@ -4817,10 +4862,19 @@ pub fn walk_locals(e: &Core, f: &mut impl FnMut(LocalId)) {
             f(*l);
             walk_locals(body, f);
         }
-        Core::Release { block, moved, rest, body } => {
+        Core::Release { block, moved, rest, token, body } => {
             f(*block);
             moved.iter().chain(rest).for_each(|(l, _)| f(*l));
+            if let Some(t) = token {
+                f(*t);
+            }
             walk_locals(body, f);
+        }
+        Core::Reuse { token, args, .. } => {
+            f(*token);
+            for a in args {
+                walk_locals(a, f);
+            }
         }
         Core::If(c, t, fe) => {
             walk_locals(c, f);
@@ -4871,6 +4925,16 @@ fn use_range(e: &Core, l: LocalId) -> (usize, usize) {
         | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
         | Core::StrLit(_) => (0, 0),
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => use_range(d, l),
+        Core::Reuse { token, args, .. } => {
+            let mut parts: Vec<(usize, usize)> = Vec::new();
+            if *token == l {
+                return (0, 0);
+            }
+            for a in args {
+                parts.push(use_range(a, l));
+            }
+            seq(&parts)
+        }
         Core::InstDict(_, args, _) | Core::App(_, args) => {
             let mut parts: Vec<(usize, usize)> = Vec::new();
             if let Core::App(h, _) = e {
@@ -5045,10 +5109,19 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
                 note(*l, map, next);
                 assign(body, map, next);
             }
-            Core::Release { block, moved, rest, body } => {
+            Core::Release { block, moved, rest, token, body } => {
                 note(*block, map, next);
                 moved.iter().chain(rest).for_each(|(l, _)| note(*l, map, next));
+                if let Some(t) = token {
+                    note(*t, map, next);
+                }
                 assign(body, map, next);
+            }
+            Core::Reuse { token, args, .. } => {
+                note(*token, map, next);
+                for a in args {
+                    assign(a, map, next);
+                }
             }
             Core::If(c, t, fe) => {
                 assign(c, map, next);
@@ -5148,10 +5221,21 @@ pub(crate) fn rename_core_locals(e: &Core, map: &HashMap<LocalId, LocalId>) -> C
         Core::BoxClear(v, c) => Core::BoxClear(Box::new(rw(v)), *c),
         Core::Dup(l, c, body) => Core::Dup(*map.get(l).unwrap_or(l), *c, Box::new(rw(body))),
         Core::Drop(l, c, body) => Core::Drop(*map.get(l).unwrap_or(l), *c, Box::new(rw(body))),
-        Core::Release { block, moved, rest, body } => {
+        Core::Release { block, moved, rest, token, body } => {
             let m = |fields: &[(LocalId, Class)]| fields.iter().map(|(l, c)| (*map.get(l).unwrap_or(l), *c)).collect();
-            Core::Release { block: *map.get(block).unwrap_or(block), moved: m(moved), rest: m(rest), body: Box::new(rw(body)) }
+            Core::Release {
+                block: *map.get(block).unwrap_or(block),
+                moved: m(moved),
+                rest: m(rest),
+                token: token.map(|t| *map.get(&t).unwrap_or(&t)),
+                body: Box::new(rw(body)),
+            }
         }
+        Core::Reuse { token, ctor, args } => Core::Reuse {
+            token: *map.get(token).unwrap_or(token),
+            ctor: ctor.clone(),
+            args: args.iter().map(rw).collect(),
+        },
         Core::If(c, t, fe) => Core::If(
             Box::new(rw(c)),
             CBranch { weight: t.weight, body: Box::new(rw(&t.body)) },
@@ -5321,11 +5405,29 @@ fn instantiate(
             Core::Drop(l, c, body) => {
                 Core::Drop(*ren.get(l).unwrap_or(l), *c, Box::new(go(body, holes, binds, ren, next)))
             }
-            Core::Release { block, moved, rest, body } => {
+            Core::Release { block, moved, rest, token, body } => {
                 let m = |fields: &[(LocalId, Class)]| fields.iter().map(|(l, c)| (*ren.get(l).unwrap_or(l), *c)).collect();
                 let (moved, rest) = (m(moved), m(rest));
-                Core::Release { block: *ren.get(block).unwrap_or(block), moved, rest, body: Box::new(go(body, holes, binds, ren, next)) }
+                // The token is the node's own binder, so it is fresh in the
+                // copied code exactly as a `let` binder is.
+                let token = token.map(|t| (t, fresh(t, ren, next)));
+                let body = go(body, holes, binds, ren, next);
+                if let Some((original, _)) = token {
+                    ren.remove(&original);
+                }
+                Core::Release {
+                    block: *ren.get(block).unwrap_or(block),
+                    moved,
+                    rest,
+                    token: token.map(|(_, fresh)| fresh),
+                    body: Box::new(body),
+                }
             }
+            Core::Reuse { token, ctor, args } => Core::Reuse {
+                token: *ren.get(token).unwrap_or(token),
+                ctor: ctor.clone(),
+                args: args.iter().map(|a| go(a, holes, binds, ren, next)).collect(),
+            },
             Core::If(c, t, fe) => Core::If(
                 Box::new(go(c, holes, binds, ren, next)),
                 CBranch {
@@ -5955,6 +6057,7 @@ fn has_alloc(e: &Core) -> bool {
             | Core::BoxGet(..) | Core::BoxClear(..) | Core::Demand(..) | Core::Quote { .. }
             | Core::DeclsQuote { .. } => *found = true,
             Core::Prim(PrimOp::Delay) => *found = true,
+            Core::Reuse { .. } => *found = true,
             Core::App(head, _) if matches!(&**head, Core::Ctor(id, _) if id.0 == MUTABLE_CELL) => *found = true,
             Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
             | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
@@ -6022,6 +6125,11 @@ fn scan_calls(e: &Core, f: &mut impl FnMut(&GlobalId)) {
         | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..) | Core::StrLit(_)
         | Core::Var(_) => {}
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => scan_calls(d, f),
+        Core::Reuse { args, .. } => {
+            for a in args {
+                scan_calls(a, f);
+            }
+        }
         Core::InstDict(_, args, _) | Core::App(_, args) => {
             if let Core::App(h, _) = e {
                 scan_calls(h, f);
@@ -6092,6 +6200,11 @@ fn scan_memo(e: &Core, n: &mut usize) {
         | Core::Var(_) => {}
         Core::DictProj(d, ..) | Core::Proj(d, _) => scan_memo(d, n),
         Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => scan_memo(body, n),
+        Core::Reuse { args, .. } => {
+            for a in args {
+                scan_memo(a, n);
+            }
+        }
         Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
             for a in args {
                 scan_memo(a, n);
@@ -6136,6 +6249,11 @@ fn weights_ok(e: &Core) -> bool {
     let mut ok = true;
     fn go(e: &Core, ok: &mut bool) {
         match e {
+            Core::Reuse { args, .. } => {
+                for a in args {
+                    go(a, ok);
+                }
+            }
             Core::If(c, t, fe) => {
                 if t.weight.is_some() != fe.weight.is_some() {
                     *ok = false;
@@ -6213,9 +6331,20 @@ fn scope_ok(e: &Core, nparams: usize) -> bool {
                 ok
             }
             Core::Dup(l, _, body) | Core::Drop(l, _, body) => bound.contains(l) && go(body, bound),
-            Core::Release { block, moved, rest, body } => {
-                bound.contains(block) && moved.iter().chain(rest).all(|(l, _)| bound.contains(l)) && go(body, bound)
+            Core::Release { block, moved, rest, token, body } => {
+                if !(bound.contains(block) && moved.iter().chain(rest).all(|(l, _)| bound.contains(l))) {
+                    return false;
+                }
+                if let Some(t) = token {
+                    bound.insert(*t);
+                    let ok = go(body, bound);
+                    bound.remove(t);
+                    ok
+                } else {
+                    go(body, bound)
+                }
             }
+            Core::Reuse { token, args, .. } => bound.contains(token) && args.iter().all(|a| go(a, bound)),
             Core::RefSet(l, v, _) => bound.contains(l) && go(v, bound),
             Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
                 args.iter().all(|a| go(a, bound))
@@ -6342,6 +6471,7 @@ fn body_impure(e: &Core) -> bool {
             // as opaque to prevent motion or duplication across a write.
             Core::RefSet(..) | Core::Proj(_, ProjField { mutable: true, .. }) => *bad = true,
             Core::Ctor(id, _) if id.0 == MUTABLE_CELL => *bad = true,
+            Core::Reuse { .. } => {}
             Core::Prim(op) => {
                 if !prim_is_pure(*op) {
                     *bad = true;
@@ -7228,6 +7358,7 @@ pub(crate) fn child_slots(e: &mut Core) -> Vec<&mut Core> {
         }
         Core::BoxInit(_, v, _) => out.push(&mut **v),
         Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => out.push(&mut **body),
+        Core::Reuse { args, .. } => out.extend(args.iter_mut()),
         Core::RefSet(_, v, _) => out.push(&mut **v),
         Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
             for a in args {
@@ -7853,6 +7984,11 @@ fn each_child<'a>(e: &'a Core, visit: &mut impl FnMut(&'a Core)) {
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => visit(d),
         Core::BoxInit(_, v, _) => visit(v),
         Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => visit(body),
+        Core::Reuse { args, .. } => {
+            for a in args {
+                visit(a);
+            }
+        }
         Core::RefSet(_, v, _) => visit(v),
         Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
             for a in args {
@@ -8072,7 +8208,17 @@ fn share_scan<'a>(e: &'a Core, nodes: &mut Vec<ShareNode>, refs: &mut Vec<&'a Co
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     share_head(e, &mut hasher);
     let mut size = 1;
-    let mut shareable = !matches!(e, Core::Quote { .. } | Core::DeclsQuote { .. } | Core::SpliceVal(_) | Core::SyntaxLit(..) | Core::StrLit(_));
+    let mut shareable = !matches!(
+        e,
+        Core::Quote { .. }
+            | Core::DeclsQuote { .. }
+            | Core::SpliceVal(_)
+            | Core::SyntaxLit(..)
+            | Core::StrLit(_)
+            // A reuse writes one specific cell, so two equal-looking nodes
+            // are not interchangeable.
+            | Core::Reuse { .. }
+    );
     each_operand(e, &mut |child| {
         let c = share_scan(child, nodes, refs, classes);
         size += nodes[c].size;
@@ -8101,12 +8247,14 @@ fn share_head(e: &Core, h: &mut impl std::hash::Hasher) {
         Core::Proj(_, field) => format!("{field:?}").hash(h),
         Core::InstDict(id, args, cs) => (id, args.len(), cs).hash(h),
         Core::App(_, args) => args.len().hash(h),
+        Core::Reuse { ctor, args, .. } => (ctor, args.len()).hash(h),
         Core::Lam { fn_id, env, classes } => (fn_id, env.len(), classes).hash(h),
         Core::Let(_, c, ..) | Core::Demand(_, c) | Core::BoxInit(_, _, c) | Core::BoxGet(_, c) | Core::BoxClear(_, c)
         | Core::RefSet(_, _, c) | Core::Dup(_, c, _) | Core::Drop(_, c, _) => c.hash(h),
-        Core::Release { moved, rest, .. } => {
+        Core::Release { moved, rest, token, .. } => {
             moved.iter().map(|(_, c)| c).collect::<Vec<_>>().hash(h);
             rest.iter().map(|(_, c)| c).collect::<Vec<_>>().hash(h);
+            token.is_some().hash(h);
         }
         Core::If(_, t, f) => (t.weight, f.weight).hash(h),
         Core::Case { alts, .. } => {

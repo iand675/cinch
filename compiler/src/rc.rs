@@ -103,7 +103,8 @@ fn insert_with(mut program: Program, profile: &crate::core::TargetProfile, close
     if !profile.reclaim {
         return Ok(program);
     }
-    let (modes, prims) = if closed { borrow_modes(&program) } else { Default::default() };
+    let ctors = Ctors::of(&program);
+    let (modes, prims) = if closed { borrow_modes(&program, &ctors) } else { Default::default() };
     program.lent = modes.iter().filter(|(k, _)| prims.contains(*k)).map(|(k, m)| (k.clone(), m.clone())).collect();
     // The whole mode map reaches the stack allocation pass, which reads a
     // lent reference as one the callee cannot store or return
@@ -114,7 +115,7 @@ fn insert_with(mut program: Program, profile: &crate::core::TargetProfile, close
             continue;
         }
         let borrowed = borrowed_params(&modes, f);
-        let body = transform(f, &modes, &borrowed);
+        let body = transform(f, &modes, &borrowed, &ctors);
         if cfg!(debug_assertions) {
             verify(f, &body, &modes, &borrowed).map_err(|m| {
                 if std::env::var_os("CINCH_RC_TRACE").is_some() {
@@ -157,7 +158,29 @@ fn borrowed_params(modes: &Modes, f: &FnDef) -> Set {
 /// symbol) takes part the same way, starting from the parameters its
 /// runtime operation only reads: its wrapper releases the others on
 /// return. Returns the modes and the primitive units among them.
-fn borrow_modes(program: &Program) -> (Modes, std::collections::HashSet<String>) {
+/// The parameters that must be owned whatever [`borrow_modes`] would infer:
+/// a parameter a `case` matches on whose arm could take a cell reuse. Lean
+/// reaches the same rule from the other side (`OwnReason.isForced` for a
+/// reset target, `PropagateBorrow`), and without it the two passes cancel:
+/// a borrowed scrutinee never reaches the unique path a reuse needs.
+fn reuse_scrutinees(body: &Core, ctors: &Ctors, out: &mut Set) {
+    if let Core::Case { scrut, alts } = body {
+        if let Core::Var(p) = &**scrut {
+            for a in alts {
+                if let CPat::Con { tag, fields, .. } = &a.pat {
+                    if reuse_allocation_anywhere(&a.body, fields.len(), *tag, ctors) {
+                        out.insert(p.0);
+                    }
+                }
+            }
+        }
+    }
+    for k in crate::core::child_slots_imm(body) {
+        reuse_scrutinees(k, ctors, out);
+    }
+}
+
+fn borrow_modes(program: &Program, ctors: &Ctors) -> (Modes, std::collections::HashSet<String>) {
     let arity: HashMap<&str, usize> = program.fns.iter().map(|f| (f.id.0.as_str(), f.arity())).collect();
     let mut excluded: std::collections::HashSet<String> = std::collections::HashSet::new();
     if let Some(main) = &program.main {
@@ -234,6 +257,10 @@ fn borrow_modes(program: &Program) -> (Modes, std::collections::HashSet<String>)
             let names: HashMap<usize, usize> = mine.iter().map(|p| (*p, *p)).collect();
             let mut owned = Set::new();
             owned_uses(&f.body, &names, &modes, cx, &mut owned);
+            // A reuse target is owned by construction (Lean's forced
+            // ownership rule for a reset target).
+            reuse_scrutinees(&f.body, ctors, &mut owned);
+            owned.retain(|p| mine.contains(p));
             if !owned.is_empty() {
                 let m = modes.get_mut(&f.id.0).expect("a unit with borrowed parameters");
                 for p in &owned {
@@ -522,6 +549,11 @@ fn binder_classes(params: &[Class], body: &Core) -> HashMap<usize, Class> {
                     out.insert(x.0, concrete(*c));
                 }
             }
+            Core::Release { token, .. } => {
+                if let Some(t) = token {
+                    out.insert(t.0, Class::Raw);
+                }
+            }
             Core::Case { alts, .. } => {
                 for a in alts {
                     match &a.pat {
@@ -562,8 +594,132 @@ fn binder_classes(params: &[Class], body: &Core) -> HashMap<usize, Class> {
     out
 }
 
-fn transform(f: &FnDef, modes: &Modes, borrowed: &Set) -> Core {
-    transform_body(&param_classes(f), &f.body, true, modes, borrowed)
+/// What the reuse insertion reads about one constructor unit.
+#[derive(Clone)]
+struct CtorFact {
+    /// The runtime field count. A constructor without a boundary layout
+    /// plan allocates exactly one payload word per field, so this is also
+    /// its payload word count.
+    fields: usize,
+    /// The constructor has a boundary layout plan (attribute annotations
+    /// specification section 4.3): its payload words are its recorded C
+    /// layout, not its fields, so its cells are not interchangeable with
+    /// a uniform constructor's.
+    planned: bool,
+    /// The qualified data type whose constructors share a tag space.
+    data: Option<String>,
+}
+
+/// A program's constructors: by unit name, and by data type and tag.
+///
+/// A `case` arm names its block by tag alone, so the block's payload word
+/// count is only knowable through the data type of the constructor the
+/// arm is being compared with. Requiring that lookup to succeed is what
+/// makes the reuse's word-for-word overwrite a proof rather than a guess.
+struct Ctors {
+    by_unit: HashMap<String, CtorFact>,
+    by_data: HashMap<String, Vec<(usize, CtorFact)>>,
+}
+
+impl Ctors {
+    fn of(program: &Program) -> Ctors {
+        let mut by_unit: HashMap<String, CtorFact> = HashMap::new();
+        let mut by_data: HashMap<String, Vec<(usize, CtorFact)>> = HashMap::new();
+        for f in &program.fns {
+            let Some((tag, fields)) = f.ctor else {
+                continue;
+            };
+            let planned = program.plans.contains_key(&f.id.0)
+                || program.plans.contains_key(crate::repr::base_unit(&f.id.0).as_ref());
+            let fact = CtorFact { fields, planned, data: f.repr.data.clone() };
+            if let Some(d) = &f.repr.data {
+                by_data.entry(d.clone()).or_default().push((tag, fact.clone()));
+            }
+            by_unit.insert(f.id.0.clone(), fact);
+        }
+        Ctors { by_unit, by_data }
+    }
+
+    /// The dying block's payload word count, when the arm's tag provably
+    /// names a uniform constructor of `data` with `fields` fields. Only
+    /// then does the block have exactly `fields` payload words, which is
+    /// what the reuse overwrites.
+    fn payload_words(&self, data: &str, tag: usize, fields: usize) -> Option<usize> {
+        let ctor = self.by_data.get(data)?.iter().find(|(t, _)| *t == tag)?.1.clone();
+        (!ctor.planned && ctor.fields == fields).then_some(fields)
+    }
+}
+
+/// Rewrite the first constructor allocation on a spine into a reuse of the
+/// cell the dying `block` leaves behind, or `None`.
+///
+/// The spine is what a `Release` body evaluates without branching: `let`
+/// values and the count operations around them. A reuse under a branch
+/// could be skipped on some path, and the cell the release kept alive
+/// would leak, so nothing else is searched. One reuse per release: the
+/// token is read exactly once.
+fn insert_reuse(e: &Core, token: usize, words: usize, tag: usize, ctors: &Ctors) -> Option<Core> {
+    if let Some(r) = reuse_allocation(e, token, words, tag, ctors) {
+        return Some(r);
+    }
+    match e {
+        Core::Let(x, c, v, b) => {
+            // The value is evaluated first, so its allocation is the
+            // earlier one: reuse it and leave the continuation alone.
+            if let Some(v2) = insert_reuse(v, token, words, tag, ctors) {
+                return Some(Core::Let(*x, *c, Box::new(v2), b.clone()));
+            }
+            let b2 = insert_reuse(b, token, words, tag, ctors)?;
+            Some(Core::Let(*x, *c, v.clone(), Box::new(b2)))
+        }
+        Core::Dup(x, c, b) => {
+            insert_reuse(b, token, words, tag, ctors).map(|b2| Core::Dup(*x, *c, Box::new(b2)))
+        }
+        Core::Drop(x, c, b) => {
+            insert_reuse(b, token, words, tag, ctors).map(|b2| Core::Drop(*x, *c, Box::new(b2)))
+        }
+        _ => None,
+    }
+}
+
+/// Whether any constructor allocation reachable in `e` could be a reuse of a
+/// block of `words` payload words with tag `tag` (the borrow inference's
+/// ownership question, which ignores whether the spine makes the reuse
+/// legal).
+fn reuse_allocation_anywhere(e: &Core, words: usize, tag: usize, ctors: &Ctors) -> bool {
+    if reuse_allocation(e, usize::MAX, words, tag, ctors).is_some() {
+        return true;
+    }
+    crate::core::child_slots_imm(e)
+        .into_iter()
+        .any(|k| reuse_allocation_anywhere(k, words, tag, ctors))
+}
+
+/// The reuse of one saturated constructor allocation, when its cell is
+/// interchangeable with the dying block's.
+fn reuse_allocation(e: &Core, token: usize, words: usize, tag: usize, ctors: &Ctors) -> Option<Core> {
+    let Core::App(head, args) = e else {
+        return None;
+    };
+    let Core::Ctor(id, _) = &**head else {
+        return None;
+    };
+    // A mutable cell's address is observable through the borrow that
+    // names it, so it is never built in another value's storage.
+    if id.0 == crate::core::MUTABLE_CELL {
+        return None;
+    }
+    let fact = ctors.by_unit.get(&id.0)?;
+    if fact.planned || fact.fields != words || args.len() != words {
+        return None;
+    }
+    let data = fact.data.as_deref()?;
+    ctors.payload_words(data, tag, words)?;
+    Some(Core::Reuse { token: LocalId(token), ctor: id.clone(), args: args.clone() })
+}
+
+fn transform(f: &FnDef, modes: &Modes, borrowed: &Set, ctors: &Ctors) -> Core {
+    transform_body(&param_classes(f), &f.body, true, modes, borrowed, ctors)
 }
 
 /// The count operations of a body whose parameters have the classes
@@ -572,14 +728,30 @@ fn transform(f: &FnDef, modes: &Modes, borrowed: &Set) -> Core {
 /// runtime evaluator runs the operations the pass places there exactly
 /// as code generation runs them in a unit, and it has no form for drop
 /// specialisation, so `specialize` is off there.
-fn transform_body(params: &[Class], body: &Core, specialize: bool, modes: &Modes, borrowed: &Set) -> Core {
+fn transform_body(
+    params: &[Class],
+    body: &Core,
+    specialize: bool,
+    modes: &Modes,
+    borrowed: &Set,
+    ctors: &Ctors,
+) -> Core {
     let UnitFacts { classes: class, written } = UnitFacts::of(params, body);
     let mut next = params.len();
     crate::core::walk_locals(body, &mut |l| next = next.max(l.0 + 1));
     for k in class.keys() {
         next = next.max(k + 1);
     }
-    let mut pass = Pass { class, written, fv: HashMap::new(), alias: HashMap::new(), next, specialize, modes };
+    let mut pass = Pass {
+        class,
+        written,
+        fv: HashMap::new(),
+        alias: HashMap::new(),
+        next,
+        specialize,
+        modes,
+        ctors,
+    };
     let owned: Set = (0..params.len()).filter(|i| pass.counted(*i) && !borrowed.contains(i)).collect();
     pass.go(body, &owned, &Set::new())
 }
@@ -598,6 +770,8 @@ struct Pass<'m> {
     specialize: bool,
     /// The callees' borrowed parameters ([`borrow_modes`]).
     modes: &'m Modes,
+    /// The program's constructors ([`Ctors`]), for reuse insertion.
+    ctors: &'m Ctors,
     /// Binders written through ([`UnitFacts`]).
     written: Set,
 }
@@ -782,7 +956,7 @@ impl Pass<'_> {
                 Core::Quote {
                     template: template.clone(),
                     holes: self.seq(&es, owned, live),
-                    body: body.as_ref().map(|b| Box::new(transform_body(&[], b, false, self.modes, &Set::new()))),
+                    body: body.as_ref().map(|b| Box::new(transform_body(&[], b, false, self.modes, &Set::new(), self.ctors))),
                 }
             }
             Core::Let(x, c, v, b) if let_alias(*x, *c, v, &self.class, &self.written).is_some() => {
@@ -991,7 +1165,7 @@ impl Pass<'_> {
         let mut out = Vec::with_capacity(alts.len());
         for a in alts {
             let body = match &a.pat {
-                CPat::Con { fields, .. } => {
+                CPat::Con { tag, fields, .. } => {
                     let nb = self.need(&a.body);
                     let used: Vec<usize> =
                         fields.iter().map(|x| x.0).filter(|x| self.counted(*x) && nb.contains(x)).collect();
@@ -1018,7 +1192,28 @@ impl Pass<'_> {
                             .filter(|x| self.counted(*x) && !used.contains(x))
                             .map(with_class)
                             .collect();
-                        Core::Release { block: LocalId(s), moved, rest, body: Box::new(body) }
+                        // A constructor allocation on the body's spine can
+                        // be built in this block's cell instead of a fresh
+                        // block: the block is uniquely held here (that is
+                        // this arm's condition), and the reuse hands it
+                        // the new constructor's layout (Lean 4's
+                        // reset/reuse pair).
+                        let words = fields.len();
+                        match insert_reuse(&body, self.next, words, *tag, self.ctors) {
+                            Some(body) => {
+                                let token = self.fresh(Class::Raw);
+                                Core::Release {
+                                    block: LocalId(s),
+                                    moved,
+                                    rest,
+                                    token: Some(LocalId(token)),
+                                    body: Box::new(body),
+                                }
+                            }
+                            None => {
+                                Core::Release { block: LocalId(s), moved, rest, token: None, body: Box::new(body) }
+                            }
+                        }
                     } else if self.counted(s) && !owned.contains(&s) {
                         // A borrowed scrutinee (a borrowed parameter, or a
                         // field of one) lives for the whole call, so its
@@ -1331,6 +1526,11 @@ impl Verifier<'_> {
                 Ok(true)
             }
             Core::Lam { env: args, .. } | Core::InstDict(_, args, _) => self.all(args, st),
+            // A reuse stores one owned reference per argument into the
+            // cell, exactly as a constructor allocation does. Its token is
+            // a `Raw` word the enclosing `Release` bound, so there is no
+            // reference to account for.
+            Core::Reuse { args, .. } => self.all(args, st),
             Core::Quote { holes, body, .. } => {
                 if let Some(b) = body {
                     verify_body(&[], b, self.modes, &Set::new()).map_err(|m| format!("in a quotation body: {m}"))?;
