@@ -3080,8 +3080,119 @@ module Bootstrap.RuntimeIr where
         None -> None
       None -> None
     None -> None
+  -- A case dispatches once when every alternative is a plain constructor
+  -- test: the tag is read once and one switch selects the arm, so an arm
+  -- costs the same wherever it sits. Guards, refutable nested fields,
+  -- repeated tags and mixed shapes keep the chain, whose source order then
+  -- decides which arm runs.
+  data CaseClass where
+    UnsetClass :: CaseClass
+    HeaderClass :: CaseClass
+    ImmediateClass :: CaseClass
+    MixedClass :: CaseClass
+  data CaseDispatch where
+    -- The switch tests the header tag. Its payload is the switch's case
+    -- list, whose labels derive from the base name and the arm's position.
+    HeaderDispatch :: String -> CaseDispatch
+    -- The switch tests the value itself: the Bool and decision kernels
+    -- already hold their tag as the word.
+    ImmediateDispatch :: String -> CaseDispatch
+    -- The alternatives are tested in source order, one at a time.
+    ChainDispatch :: CaseDispatch
+  data ArmPlan where
+    -- The switch selects this tag, and the arm binds its fields from the
+    -- cell the tag selected.
+    TagArm :: String -> ArmPlan
+    -- The switch tests this constant against the value, and the arm binds
+    -- nothing: no field of such a pattern survives erasure.
+    WordArm :: String -> ArmPlan
+    NoArm :: ArmPlan
+  -- One case's join: where the arms deliver their words, where an unmatched
+  -- tag goes, the switch's label base, the scrutinee's type, and the word
+  -- every arm releases once it holds its own result.
+  data SwitchJoin where
+    SwitchJoin :: String -> String -> String -> UType -> String -> SwitchJoin
+  -- A pattern that cannot fail once the switch has selected its arm, so the
+  -- arm needs no test of its own.
+  irrefutable-pattern :: CorePattern -> Bool
+  irrefutable-pattern pattern = case pattern of
+    CPVar sp ty id name -> True
+    CPWild sp ty -> True
+    CPAs sp ty id name inner -> irrefutable-pattern inner
+    CPTuple sp ty fields -> irrefutable-fields fields
+    other -> False
+  irrefutable-fields :: CorePattern -> Bool
+  irrefutable-fields fields = case fields of
+    CPDone sp -> True
+    CPField sp (CPProof at ty id name) rest -> irrefutable-fields rest
+    CPField sp first rest -> irrefutable-pattern first && irrefutable-fields rest
+    other -> False
+  -- The tag a pattern names, when a switch can test it. The constant is the
+  -- one this alternative's own pattern tests, never a neighbouring one's.
+  arm-plan :: Writer -> CorePattern -> ArmPlan
+  arm-plan w pattern = if not (word-type (writer-context w) (pattern-type pattern)) then NoArm
+    else case pattern of
+      CPConstructor sp ty name actuals sc fields ->
+        if decision-word-type ty && (same name "b.Yes" || same name "b.No") && erased-decision-fields fields then
+          WordArm (if same name "b.Yes" then "0" else "1")
+        else if named ty "Bool" && (same name "True" || same name "False") then
+          WordArm (if same name "True" then "1" else "0")
+        else case constructor name (writer-data w) of
+          Some (owner, tag, c) -> if list-length (core-constructor-fields c) <= 16 && tag < 16777216 && irrefutable-fields fields then TagArm (nat-to-string tag) else NoArm
+          None -> NoArm
+      other -> NoArm
+  -- The dispatch a case can use. The switch's case list is fixed before any
+  -- arm is emitted, so the switch can name labels the arms have not yet
+  -- produced.
+  case-dispatch :: Writer -> CoreTerm -> String -> CaseDispatch
+  case-dispatch w alternatives base = case dispatch-spine w alternatives UnsetClass Nil "" base 0 of
+    (HeaderClass, entries) -> HeaderDispatch entries
+    (ImmediateClass, entries) -> ImmediateDispatch entries
+    other -> ChainDispatch
+  dispatch-spine :: Writer -> CoreTerm -> CaseClass -> List String -> String -> String -> Nat -> (CaseClass, String)
+  dispatch-spine w alternatives so-far tags entries base index = case alternatives of
+    CAlternativesEnd sp -> (so-far, entries)
+    CAlternative sp pattern body rest -> case pattern of
+      CPVar at ty id name -> dispatch-default w body rest so-far entries
+      CPWild at ty -> dispatch-default w body rest so-far entries
+      other -> if row-guarded body then (MixedClass, entries) else case arm-plan w pattern of
+        TagArm tag -> dispatch-arm w rest HeaderClass tag so-far tags entries base index
+        WordArm tag -> dispatch-arm w rest ImmediateClass tag so-far tags entries base index
+        NoArm -> (MixedClass, entries)
+    other -> (MixedClass, entries)
+  dispatch-default :: Writer -> CoreTerm -> CoreTerm -> CaseClass -> String -> (CaseClass, String)
+  dispatch-default w body rest so-far entries = case rest of
+    -- A default alternative captures every remaining tag, so only the last
+    -- one can be the switch's default label.
+    CAlternativesEnd sp -> (if row-guarded body then MixedClass else so-far, entries)
+    other -> (MixedClass, entries)
+  dispatch-arm :: Writer -> CoreTerm -> CaseClass -> String -> CaseClass -> List String -> String -> String -> Nat -> (CaseClass, String)
+  dispatch-arm w rest class tag so-far tags entries base index =
+    if tag-listed tag tags || not (compatible-class so-far class) then (MixedClass, entries)
+      else dispatch-spine w rest class (Cons tag tags)
+        (cat [entries, "\n  i64 ", tag, ", label %", base, ".", nat-to-string index]) base (index + 1)
+  -- A repeated tag would make the switch ill formed, and the chain's first
+  -- test is the one that runs.
+  tag-listed :: String -> List String -> Bool
+  tag-listed tag tags = case tags of Nil -> False; Cons first rest -> same tag first || tag-listed tag rest
+  compatible-class :: CaseClass -> CaseClass -> Bool
+  compatible-class so-far next = case so-far of
+    UnsetClass -> True
+    HeaderClass -> case next of HeaderClass -> True; other -> False
+    ImmediateClass -> case next of ImmediateClass -> True; other -> False
+    other -> False
   case-value :: List CoreDefinition -> List Local -> Writer -> UType -> String -> CoreTerm -> (Writer, String)
   case-value definitions locals w ty value alternatives =
+    let (one, base) = fresh w "alt" in
+    case case-dispatch one alternatives base of
+      HeaderDispatch entries -> switch-value definitions locals one ty value True base entries alternatives
+      ImmediateDispatch entries -> switch-value definitions locals one ty value False base entries alternatives
+      ChainDispatch -> case-chain definitions locals one ty value alternatives
+  -- The chain tests one alternative at a time and stores the taken arm's
+  -- word in the join's slot. Any shape reaches a slot, guarded or not, so
+  -- this is the fallback for everything a single dispatch cannot take.
+  case-chain :: List CoreDefinition -> List Local -> Writer -> UType -> String -> CoreTerm -> (Writer, String)
+  case-chain definitions locals w ty value alternatives =
     let (one, slot) = fresh w "%slot" in
     let (two, joined) = fresh one "casejoin" in
     let finished = case-rows definitions locals (line two (cat ["  ", slot, " = alloca i64"])) ty value slot joined alternatives in
@@ -3098,21 +3209,126 @@ module Bootstrap.RuntimeIr where
             let next = line (line stored (cat ["  br label %", joined])) (cat [failed, ":"]) in
             case-rows definitions locals next ty value slot joined rest
     other -> line (refuse w (Span 0 0 1 1) "malformed case alternative spine") "  unreachable"
+  -- One switch for the whole case, then one block per arm. Each arm leaves
+  -- through a block of its own, so the join names every predecessor and
+  -- becomes a phi rather than a slot.
+  switch-value :: List CoreDefinition -> List Local -> Writer -> UType -> String -> Bool -> String -> String -> CoreTerm -> (Writer, String)
+  switch-value definitions locals w ty value header base entries alternatives =
+    let (one, missed) = fresh w "switchmiss" in
+    let (two, joined) = fresh one "casejoin" in
+    let join = SwitchJoin joined missed base ty value in
+    if header then (case constructor-tag w value of
+      (loaded, tag) -> switch-arms definitions locals (line loaded (cat ["  switch i64 ", tag, ", label %", missed, " [", entries, "\n]"])) join alternatives 0 "" False)
+    else switch-arms definitions locals (line w (cat ["  switch i64 ", value, ", label %", missed, " [", entries, "\n]"])) join alternatives 0 "" False
+  switch-arms :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> CoreTerm -> Nat -> String -> Bool -> (Writer, String)
+  switch-arms definitions locals w join alternatives index incoming defaulted = case join of
+    SwitchJoin joined missed base ty value -> case alternatives of
+      CAlternativesEnd sp -> if defaulted then switch-join w join incoming
+        else switch-join (line (line w (cat [missed, ":"])) "  unreachable") join incoming
+      CAlternative sp pattern body rest -> case pattern of
+        CPVar at pty id name -> switch-default-arm definitions (Cons (Borrowed id pty value) locals) w join body rest index incoming
+        CPWild at pty -> switch-default-arm definitions locals w join body rest index incoming
+        other -> case arm-plan w pattern of
+          TagArm tag -> switch-tag-arm definitions locals w join pattern body rest index incoming defaulted
+          WordArm tag -> switch-word-arm definitions locals w join body rest index incoming defaulted
+          NoArm -> (line (refuse w sp "case alternative disagrees with the dispatch it was chosen for") "  unreachable", incoming)
+      other -> (line (refuse w (Span 0 0 1 1) "malformed case alternative spine") "  unreachable", incoming)
+  switch-join :: Writer -> SwitchJoin -> String -> (Writer, String)
+  switch-join w join incoming = case join of
+    SwitchJoin joined missed base ty value -> let (ready, result) = fresh (line w (cat [joined, ":"])) "%v" in
+      (line ready (cat ["  ", result, " = phi i64 ", incoming]), result)
+  -- A default arm captures the scrutinee whole, so it needs no cell.
+  switch-default-arm :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> CoreTerm -> CoreTerm -> Nat -> String -> (Writer, String)
+  switch-default-arm definitions locals w join body rest index incoming = case join of
+    SwitchJoin joined missed base ty value ->
+      let (one, out) = fresh w "armout" in
+      let entry = line one (cat [missed, ":"]) in
+      case guarded-expression definitions locals entry missed body of
+        (done, result) -> switch-leave definitions locals done join out result rest index incoming True
+  -- A constructor arm reached by the switch: its fields are read from the
+  -- cell the tag selected. Every field pattern is irrefutable, so no field
+  -- can reach the miss block.
+  switch-tag-arm :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> CorePattern -> CoreTerm -> CoreTerm -> Nat -> String -> Bool -> (Writer, String)
+  switch-tag-arm definitions locals w join pattern body rest index incoming defaulted = case join of
+    SwitchJoin joined missed base ty value -> case pattern of
+      CPConstructor sp aty name actuals sc fields ->
+        let (one, out) = fresh w "armout" in
+        let entry = line one (cat [base, ".", nat-to-string index, ":"]) in
+        let (pointed, pointer) = fresh entry "%ptr" in
+        let cell = line pointed (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"]) in
+        case match-fields fields pointer 0 missed cell of
+          (bound, bindings) -> case guarded-expression definitions (bindings <> locals) bound missed body of
+            (done, result) -> switch-leave definitions locals done join out result rest index incoming defaulted
+      other -> (line (refuse w (Span 0 0 1 1) "dispatched arm is not a constructor pattern") "  unreachable", incoming)
+  switch-word-arm :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> CoreTerm -> CoreTerm -> Nat -> String -> Bool -> (Writer, String)
+  switch-word-arm definitions locals w join body rest index incoming defaulted = case join of
+    SwitchJoin joined missed base ty value ->
+      let (one, out) = fresh w "armout" in
+      let entry = line one (cat [base, ".", nat-to-string index, ":"]) in
+      case guarded-expression definitions locals entry missed body of
+        (done, result) -> switch-leave definitions locals done join out result rest index incoming defaulted
+  -- Deliver one arm's word to the join. The arm's own block names the join's
+  -- predecessor, so the join reaches it without a slot.
+  switch-leave :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> String -> String -> CoreTerm -> Nat -> String -> Bool -> (Writer, String)
+  switch-leave definitions locals w join out result rest index incoming defaulted = case join of
+    SwitchJoin joined missed base ty value ->
+      let released = count-op False ty value w in
+      let left = line (line released (cat ["  br label %", out])) (cat [out, ":"]) in
+      switch-arms definitions locals (line left (cat ["  br label %", joined])) join rest (index + 1)
+        (cat [incoming, if index == 0 then "" else ", ", "[ ", result, ", %", out, " ]"]) defaulted
+  -- A word an arm contributes without emitting code and without a reference
+  -- operation. Only then may a select choose between the arms: an operation
+  -- emitted for both would run for the arm not taken.
+  static-word :: List Local -> Writer -> CoreTerm -> Option String
+  static-word locals w term = case term of
+    CUnit sp ty -> if static-carrier (writer-context w) ty "0" then Some "0" else None
+    CChar sp ty text -> if named ty "Char" then (case char-word text of
+      Some word -> if static-carrier (writer-context w) ty word then Some word else None
+      None -> None) else None
+    CInt sp ty text -> if number ty then (case immediate-literal (named ty "Nat") text of
+      Some word -> if static-carrier (writer-context w) ty word then Some word else None
+      None -> None) else if raw-integer ty then (if static-carrier (writer-context w) ty text then Some text else None) else None
+    CUse sp ty name role actuals -> if named ty "Bool" && same name "True" then (if static-carrier (writer-context w) ty "1" then Some "1" else None)
+      else if named ty "Bool" && same name "False" then (if static-carrier (writer-context w) ty "0" then Some "0" else None) else None
+    CLocal sp ty id name Nil -> case local id locals of
+      Some (declared, word) -> if static-carrier (writer-context w) declared word then Some word else None
+      None -> None
+    other -> None
+  -- A word needs no reference operation when its carrier is an immediate, or
+  -- when the word is a constant, which is never a block.
+  static-carrier :: RuntimeContext -> UType -> String -> Bool
+  static-carrier context ty word = case word-class context ty of
+    Some 0 -> True
+    Some code -> constant-word word
+    None -> False
   branch :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> CoreTerm -> (Writer, String)
   branch definitions locals w sp test yes no =
     let (tested, condition) = expression definitions locals w test in
-    let (one, slot) = fresh tested "%slot" in
-    let (two, predicate) = fresh one "%v" in
-    let (three, left) = fresh two "yes" in
-    let (four, right) = fresh three "no" in
-    let (five, end) = fresh four "join" in
-    let split = line (line (line five (cat ["  ", slot, " = alloca i64"])) (cat ["  ", predicate, " = icmp ne i64 ", condition, ", 0"])) (cat ["  br i1 ", predicate, ", label %", left, ", label %", right]) in
+    branch-diamond definitions locals tested condition yes no
+  -- Both arms are already words, so one select chooses between them and the
+  -- branch disappears.
+  branch-select :: Writer -> String -> String -> String -> (Writer, String)
+  branch-select w condition left right =
+    let (one, predicate) = fresh w "%v" in
+    let (two, result) = fresh one "%v" in
+    (line (line two (cat ["  ", predicate, " = icmp ne i64 ", condition, ", 0"])) (cat ["  ", result, " = select i1 ", predicate, ", i64 ", left, ", i64 ", right]), result)
+  -- An arm that needs code of its own gets a block, and each arm leaves
+  -- through a block of its own so the join is a phi.
+  branch-diamond :: List CoreDefinition -> List Local -> Writer -> String -> CoreTerm -> CoreTerm -> (Writer, String)
+  branch-diamond definitions locals w condition yes no =
+    let (one, predicate) = fresh w "%v" in
+    let (two, left) = fresh one "yes" in
+    let (three, right) = fresh two "no" in
+    let (four, left-out) = fresh three "yesout" in
+    let (five, right-out) = fresh four "noout" in
+    let (six, end) = fresh five "join" in
+    let split = line (line six (cat ["  ", predicate, " = icmp ne i64 ", condition, ", 0"])) (cat ["  br i1 ", predicate, ", label %", left, ", label %", right]) in
     let (first, a) = expression definitions locals (line split (cat [left, ":"])) yes in
-    let middle = line (line (line first (cat ["  store i64 ", a, ", ptr ", slot])) (cat ["  br label %", end])) (cat [right, ":"]) in
+    let middle = line (line (line (line first (cat ["  br label %", left-out])) (cat [left-out, ":"])) (cat ["  br label %", end])) (cat [right, ":"]) in
     let (second, b) = expression definitions locals middle no in
-    let joined = line (line (line second (cat ["  store i64 ", b, ", ptr ", slot])) (cat ["  br label %", end])) (cat [end, ":"]) in
+    let joined = line (line (line (line second (cat ["  br label %", right-out])) (cat [right-out, ":"])) (cat ["  br label %", end])) (cat [end, ":"]) in
     let (ready, result) = fresh joined "%v" in
-    (line ready (cat ["  ", result, " = load i64, ptr ", slot]), result)
+    (line ready (cat ["  ", result, " = phi i64 [ ", a, ", %", left-out, " ], [ ", b, ", %", right-out, " ]"]), result)
   -- A knot slot is an owned block, irrespective of its stored value's
   -- representation. Closures retain the slot and read it on invocation.
   knot-slot-type :: UType -> UType -> UType
@@ -3542,7 +3758,54 @@ module Bootstrap.RuntimeIr where
     line released (cat ["  br label %", failed])
 
   tail-rows :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> UType -> String -> CoreTerm -> Writer
-  tail-rows definitions locals roots context w ty value alternatives = case alternatives of
+  tail-rows definitions locals roots context w ty value alternatives =
+    let (one, base) = fresh w "alt" in
+    case case-dispatch one alternatives base of
+      HeaderDispatch entries -> tail-switch definitions locals roots context one ty value True base entries alternatives
+      ImmediateDispatch entries -> tail-switch definitions locals roots context one ty value False base entries alternatives
+      ChainDispatch -> tail-chain definitions locals roots context one ty value alternatives
+  -- The tail case dispatches once too: an arm returns from its own block, so
+  -- an unmatched tag reaches the default arm, or no continuation at all.
+  tail-switch :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> UType -> String -> Bool -> String -> String -> CoreTerm -> Writer
+  tail-switch definitions locals roots context w ty value header base entries alternatives =
+    let (one, missed) = fresh w "tailmiss" in
+    if header then (case constructor-tag w value of
+      (loaded, tag) -> tail-switch-arms definitions locals roots context (line loaded (cat ["  switch i64 ", tag, ", label %", missed, " [", entries, "\n]"])) ty value base missed alternatives 0 False)
+    else tail-switch-arms definitions locals roots context (line w (cat ["  switch i64 ", value, ", label %", missed, " [", entries, "\n]"])) ty value base missed alternatives 0 False
+  tail-switch-arms :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> UType -> String -> String -> String -> CoreTerm -> Nat -> Bool -> Writer
+  tail-switch-arms definitions locals roots context w ty value base missed alternatives index defaulted = case alternatives of
+    CAlternativesEnd sp -> if defaulted then w
+      else line (line w (cat [missed, ":"])) "  unreachable"
+    CAlternative sp pattern body rest -> case pattern of
+      CPVar at pty id name -> tail-switch-default definitions (Cons (Borrowed id pty value) locals) roots context w ty value base missed body rest
+      CPWild at pty -> tail-switch-default definitions locals roots context w ty value base missed body rest
+      other -> case arm-plan w pattern of
+        TagArm tag -> tail-switch-tag definitions locals roots context w ty value base missed pattern body rest index
+        WordArm tag -> tail-switch-word definitions locals roots context w ty value base missed body rest index
+        NoArm -> line (refuse w sp "case alternative disagrees with the dispatch it was chosen for") "  unreachable"
+    other -> line (refuse w (Span 0 0 1 1) "malformed case alternative spine") "  unreachable"
+  tail-switch-default :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> UType -> String -> String -> String -> CoreTerm -> CoreTerm -> Writer
+  tail-switch-default definitions locals roots context w ty value base missed body rest =
+    let owned = Cons (Discard ty value) roots in
+    tail-switch-arms definitions locals roots context
+      (tail-result definitions locals owned context (line w (cat [missed, ":"])) missed body) ty value base missed rest 0 True
+  tail-switch-tag :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> UType -> String -> String -> String -> CorePattern -> CoreTerm -> CoreTerm -> Nat -> Writer
+  tail-switch-tag definitions locals roots context w ty value base missed pattern body rest index = case pattern of
+    CPConstructor sp aty name actuals sc fields ->
+      let entry = line w (cat [base, ".", nat-to-string index, ":"]) in
+      let (pointed, pointer) = fresh entry "%ptr" in
+      let cell = line pointed (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"]) in
+      case match-fields fields pointer 0 missed cell of
+        (bound, bindings) -> let owned = Cons (Discard ty value) roots in
+          tail-switch-arms definitions (bindings <> locals) roots context (tail-result definitions (bindings <> locals) owned context bound missed body) ty value base missed rest (index + 1) False
+    other -> line (refuse w (Span 0 0 1 1) "dispatched arm is not a constructor pattern") "  unreachable"
+  tail-switch-word :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> UType -> String -> String -> String -> CoreTerm -> CoreTerm -> Nat -> Writer
+  tail-switch-word definitions locals roots context w ty value base missed body rest index =
+    let owned = Cons (Discard ty value) roots in
+    tail-switch-arms definitions locals roots context
+      (tail-result definitions locals owned context (line w (cat [base, ".", nat-to-string index, ":"])) missed body) ty value base missed rest (index + 1) False
+  tail-chain :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> UType -> String -> CoreTerm -> Writer
+  tail-chain definitions locals roots context w ty value alternatives = case alternatives of
     CAlternativesEnd end -> line w "  unreachable"
     CAlternative sp pattern body rest ->
       let (one, failed) = fresh w "nexttailalt" in
@@ -3550,7 +3813,7 @@ module Bootstrap.RuntimeIr where
         (matched, bindings) ->
           let owned = Cons (Discard ty value) roots in
           let done = tail-result definitions (bindings <> locals) owned context matched failed body in
-          tail-rows definitions locals roots context (line done (cat [failed, ":"])) ty value rest
+          tail-chain definitions locals roots context (line done (cat [failed, ":"])) ty value rest
     other -> line (refuse w (Span 0 0 1 1) "malformed case alternative spine") "  unreachable"
 
   start-tail-worker :: String -> Nat -> Nat -> Writer -> Writer
