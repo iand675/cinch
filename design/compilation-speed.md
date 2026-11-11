@@ -31,7 +31,8 @@ Self-host compute on this machine, one job, `-O2` links unless stated.
 | Stage1 compiles Stage2 | 9 min | the largest single compile in the chain |
 | Stage2 compiles Stage3 | 6.5 min | |
 | Full Stage0 to Stage3 chain | 20 min at the start of the day; 335 s now (warm seed, PGO, sharded links) | measured 2026-11-11 on 18 cores |
-| Cinch-built Stage2 checks the 4K-line toolkit | 11 s at `-O2`, 21 s at `-O0`; 15 s now with the interface fixes | |
+| Cinch-built Stage3 checks the 4K-line toolkit | 49 s at the start of the day, 7.45 s now | median of 3, 2026-11-11 |
+| Cinch-built Stage3 checks its own 40K-line source | 585 s at the start of the day, 71 s now | median of 2 |
 
 Phase split of a Stage2 self-compile at `-O2` (from stack samples, one per
 11 s, before and after the quadratic-pass removal):
