@@ -1429,6 +1429,61 @@ instead of the loaded interface list; the owner-prefix test still passed
 the same index the production path builds, and keeps its reversed-order
 half. No compiler change: the assertion was right and the call was stale.
 
+### 10.5 One dispatch per case, phi joins, select arms (2026-11-11)
+
+The stage-2 module had **one** `switch i64` and 19,313 alternatives reached
+through `nextalt`/`nexttailalt` chains: `case-value` and `tail-rows` tested
+one alternative at a time, so an N-alternative case read the scrutinee's
+header N times and dispatched in source order, and every join was an
+`alloca` slot. Three lowerings changed, all in `Bootstrap.RuntimeIr`:
+
+* the case classifies its alternatives first and, when every one of them is
+  a plain constructor test of one data type, reads the tag once and emits
+  one `switch`. Guards, refutable nested fields, repeated tags, mixed
+  shapes and decision kernels keep the chain, where source order is what
+  decides which arm runs;
+* a switch arm delivers its word from a block of its own, so the join names
+  one predecessor per arm and is a `phi`; `branch` does the same. Only the
+  chain keeps the slot, because a failed guard or field test must reach the
+  alternative after it;
+* `select` replaces a diamond when both arms are words that need no code.
+
+Census of the compiler's own module, before and after:
+
+| construct | before | after |
+| --- | --- | --- |
+| lines | 981,414 | 841,609 |
+| `switch i64` | 1 | 5,261 |
+| `select i1` | 0 | 0 |
+| `br i1` | 43,355 | 24,373 |
+| `= alloca` | 13,688 | 6,539 |
+| `= phi i64` | 17,815 | 18,159 |
+| `call` | 133,042 | 134,210 |
+| chain alternatives | 19,313 | 5,777 |
+
+The select buys nothing on this corpus: no value-position `if` in the
+compiler's own source has two arms that are literals, immediates or
+constants, so it fires zero times. It is kept because the shape is
+reachable from source (a probe program emits `select i1` and computes the
+right answer) and it costs one line to check. Calls rise 0.9% because the
+tag read that the chain open-coded per alternative is now a shared worker.
+
+Timings on this machine, interleaved pairs, loaded (the quiet figures in
+section 1 are 7.45 s and 71 s): the toolkit check 11.37 s to 10.40 s
+(-8.6%, three pairs), the self check 155.5 s to 114.9 s (-25.9%, one pair).
+The stage-3 binary is 20,678,888 bytes against 20,703,496 (-0.1%). The
+stage-2 and stage-3 modules, executables and interfaces are byte identical
+to each other, and `bootstrap.py check` reaches the fixed point.
+
+One bug this surfaced and had to fix: the decision kernel's case compared
+the scrutinee against 0 and 1, which is not a decision's word (a decision
+is a produced constructor, so its word is a block address). Naming those
+constants as switch cases asserted the comparison could match, and the
+case's miss block is `unreachable`, so the optimiser was free to assume an
+impossible tag. `named-polymorphic-proof` returned 1 instead of 42, and
+the instrumented stage-1 link trapped on a freed block. Decision cases
+stay on the chain now.
+
 ## 11. Benchmark corpus and metrics
 
 The corpus is edits, not programs. Each entry is a case in
