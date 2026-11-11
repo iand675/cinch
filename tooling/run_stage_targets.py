@@ -9,7 +9,7 @@ against the pinned library object and runtime. --all selects every test target
 that uses the shared selectors. Writes one log per target and DIR/summary.json.
 This is a development runner; tooling/verify_stage3.py is the audited gate.
 """
-import argparse, json, os, re, subprocess, sys, concurrent.futures as cf
+import argparse, fcntl, json, os, re, subprocess, sys, concurrent.futures as cf
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -95,6 +95,19 @@ def main():
         a.targets = all_targets(a.tree)
     if not a.targets:
         p.error('name targets or pass --all')
+    # Hold this tree's stage lock for the whole run, so a rebuild cannot
+    # replace the compiler under the suite (that produced two void runs on
+    # 2026-11-11: targets failing with a missing stage binary or a Core shape
+    # that existed for a few minutes). bootstrap.py takes the same lock
+    # exclusively and refuses rather than blocking.
+    lock_path = a.tree / 'build' / 'bootstrap' / '.lock'
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    suite_lock = lock_path.open('a')
+    try:
+        fcntl.flock(suite_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        sys.stderr.write('refusing to measure: a build holds ' + str(lock_path) + '\n')
+        return 3
     a.out.mkdir(parents=True, exist_ok=True)
     a.cargo_target = a.cargo_target or a.tree / 'compiler' / 'target'
     env = setup(a.stage, a.out.resolve(), a.tree)

@@ -972,7 +972,13 @@ def main() -> int:
             # a lock another process needs.
             build_slots.hold(owner=f"{args.command} stage{args.stage} {BUILD}")
             stage_lock = (BUILD / ".lock").open("a")
-            fcntl.flock(stage_lock, fcntl.LOCK_EX)
+            try:
+                fcntl.flock(stage_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                raise BootstrapError(
+                    "a test suite holds this tree's stage lock "
+                    f"({BUILD / '.lock'}); wait for tooling/run_stage_targets.py to finish, "
+                    "or build with CINCH_BOOTSTRAP_BUILD set to another directory")
             global FROZEN_SOURCES
             FROZEN_SOURCES = collect_compiler_sources()
         if args.command == "build":
