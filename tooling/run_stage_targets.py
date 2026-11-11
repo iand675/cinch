@@ -37,6 +37,13 @@ def setup(stage, out, tree):
 
 
 def run(target, env, out, cargo_target):
+    import build_slots
+
+    with build_slots.slot(owner=f"target {target}"):
+        return run_in_slot(target, env, out, cargo_target)
+
+
+def run_in_slot(target, env, out, cargo_target):
     fixtures = out / 'fixtures' / target
     fixtures.mkdir(parents=True, exist_ok=True)
     log = out / f'{target}.log'

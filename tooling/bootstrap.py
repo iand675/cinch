@@ -168,9 +168,14 @@ def run(command: list[str | Path], cwd: Path, log: Path, *, append: bool = False
 
 
 def default_jobs() -> int:
-    # Half the cores: the stage compilers themselves are not parallel, and a
-    # shard compile saturates a core.
-    return max(1, (os.cpu_count() or 2) // 2)
+    # The stage compilers themselves are not parallel and a shard compile
+    # saturates a core, so a stage's own parallelism is bounded by the build
+    # slots (tooling/build_slots.py): several lanes may build at once, and
+    # each one uses a share of the cores rather than all of them.
+    import build_slots
+
+    cores = os.cpu_count() or 2
+    return max(1, min(cores // 2, max(1, cores // build_slots.slot_count())))
 
 
 def resolve_jobs(flag: int | None) -> int:
@@ -953,6 +958,12 @@ def main() -> int:
         # Serialize mutations of the stage cache; ordinary cargo test runs
         # use independent snapshots and do not hold this lock.
         if args.command != "status":
+            import build_slots
+
+            # Bound the number of heavy builds across every lane before this
+            # tree's own stage lock, so a lane waiting for a slot never holds
+            # a lock another process needs.
+            build_slots.hold(owner=f"{args.command} stage{args.stage} {BUILD}")
             stage_lock = (BUILD / ".lock").open("a")
             fcntl.flock(stage_lock, fcntl.LOCK_EX)
             global FROZEN_SOURCES
