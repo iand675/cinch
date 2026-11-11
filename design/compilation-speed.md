@@ -808,11 +808,24 @@ the remaining 1.84 billion compares are attributed to their callers the same
 way, the next lever is another index, not an interned representation.
 
 Remaining compares are concentrated: after the index the same census gives
-1,836,320,953 compares (4.8 bytes examined each), so the ids above did not
+1,836,320,953 compares (4.8 bytes examined each), so the fix above did not
 remove all of the count. The profile's unnamed frames (Cinch functions
 inlined into `resolve-context` at compiler build time) hide which pass owns
 them; a compiler built with inlining off would name them, and that is the
 measurement this section leaves open.
+
+**The pin, and what is not yet in the chain.** The fast path lives in
+`compiler/runtime/src/abi.rs`, so it reaches a stage compiler only when the
+library pin moves, and every number above came from builds whose locks
+pointed at a revision containing it. On current main that bump does not
+land: with both locks moved to a revision containing main's compiler
+sources, stage 1's profile training dies with SIGBUS (exit -10) after 1.3 s,
+three times out of three, while main's own pin (`bb1ad9b4`, source hash
+`8974df6b`) builds green end to end. The locks are therefore left at main's
+values: the compare and the index are in the tree, the index takes effect
+now (it is compiler source), and the compare takes effect at the next bump.
+The numbers above were taken on the pre-rebase main (f158d5c4's line), which
+trained fine; they are not re-taken on the rebased tree.
 
 ## 3. The query graph (rustc, Salsa, Shake)
 
