@@ -2406,8 +2406,14 @@ module Bootstrap.RuntimeIr where
         (case recursive-locals sp (capture-types saved) saved group body planned of
           (ready, bound) -> case expression definitions (bound <> locals) ready body of
             (done, result) -> (drop-locals bound done, result))
-  -- App stubs consume the closure and argv. Saved fields are duplicated
-  -- before the original closure is dropped; argv fields transfer directly.
+  -- App stubs consume the closure and argv. A closure's code word points at
+  -- the `app` dispatcher, which routes a constant argument count to one
+  -- `app.<N>` entry (the `caml_applyN` shape) and anything else to
+  -- `app.many`. Every entry merges the filled words and the incoming words
+  -- into a frame of exactly `arity` words: a static alloca, never a dynamic
+  -- one, because LLVM's AArch64 stack probe mishandles a dynamic alloca once
+  -- a caller inlines the stub. Saved fields are duplicated before the
+  -- original closure is dropped; argv fields transfer directly.
   load-word :: Writer -> String -> String -> (Writer, String)
   load-word w pointer index =
     let (one, slot) = fresh w "%ptr" in
@@ -2426,54 +2432,137 @@ module Bootstrap.RuntimeIr where
   load-arguments :: Nat -> Nat -> String -> Writer -> (Writer, List String)
   load-arguments count index merged w = if count == 0 then (w, Nil) else case load-word w merged (nat-to-string index) of
     (loaded, word) -> case load-arguments (count - 1) (index + 1) merged loaded of (done, words) -> (done, Cons word words)
+  -- One merged frame slot: the closure's saved word while the slot is below
+  -- the filled count, the matching argv word otherwise. The argv address is
+  -- a non-inbounds byte GEP: a slot that selects a saved word still computes
+  -- the pointer it does not load.
+  merge-words :: Writer -> String -> Nat -> Nat -> String -> String -> Writer
+  merge-words w frame index count filled saved-bytes = if index == count then w else
+    let (one, saved) = fresh w "%ptr" in
+    let saved-line = line one (cat ["  ", saved, " = getelementptr i8, ptr %self, i64 ", nat-to-string (24 + index * 8)]) in
+    let (two, offset) = fresh saved-line "%v" in
+    let offset-line = line two (cat ["  ", offset, " = sub i64 ", nat-to-string (index * 8), ", ", saved-bytes]) in
+    let (three, argument) = fresh offset-line "%ptr" in
+    let argument-line = line three (cat ["  ", argument, " = getelementptr i8, ptr %argv, i64 ", offset]) in
+    let (four, has) = fresh argument-line "%v" in
+    let has-line = line four (cat ["  ", has, " = icmp ult i64 ", nat-to-string index, ", ", filled]) in
+    let (five, source) = fresh has-line "%ptr" in
+    let source-line = line five (cat ["  ", source, " = select i1 ", has, ", ptr ", saved, ", ptr ", argument]) in
+    let (six, word) = fresh source-line "%v" in
+    let word-line = line six (cat ["  ", word, " = load i64, ptr ", source]) in
+    let (seven, slot) = fresh word-line "%ptr" in
+    let slot-line = line seven (cat ["  ", slot, " = getelementptr i8, ptr ", frame, ", i64 ", nat-to-string (index * 8)]) in
+    merge-words (line slot-line (cat ["  store i64 ", word, ", ptr ", slot])) frame (index + 1) count filled saved-bytes
+  -- One fresh label per argument count the dispatcher accepts, in order.
+  fresh-labels :: Writer -> String -> Nat -> (Writer, List String)
+  fresh-labels w prefix count = if count == 0 then (w, Nil) else case fresh w prefix of
+    (one, label) -> case fresh-labels one prefix (count - 1) of (done, rest) -> (done, Cons label rest)
+  -- The switch's case list, one `i64 <count>, label %<label>` per entry.
+  case-list :: Nat -> List String -> String
+  case-list index labels = case labels of
+    Nil -> ""
+    Cons label rest -> cat [" i64 ", nat-to-string index, ", label %", label, case-list (index + 1) rest]
+  dispatch-blocks :: String -> Nat -> List String -> Writer -> Writer
+  dispatch-blocks name index labels w = case labels of
+    Nil -> w
+    Cons label rest ->
+      let started = line w (cat [label, ":"]) in
+      let (one, result) = fresh started "%v" in
+      let called = line one (cat ["  ", result, " = call i64 ", symbol (cat [name, ".app.", nat-to-string index]), "(ptr %self, ptr %argv)"]) in
+      dispatch-blocks name (index + 1) rest (line called (cat ["  ret i64 ", result]))
+  -- The `app` dispatcher: one switch on the argument count, then a call to
+  -- the matching per-arity entry. `app.many` handles any count above the
+  -- arity with the same fixed frame and a dynamic excess.
+  app-dispatch :: String -> Nat -> Writer -> Writer
+  app-dispatch name count w =
+    let header = line (line w (cat ["define ", worker-linkage w (cat [name, ".app"]), "i64 ", symbol (cat [name, ".app"]), "(ptr %self, i64 %argc, ptr %argv) {"])) "entry:" in
+    let (labelled, many) = fresh header "appmany" in
+    let (ready, labels) = fresh-labels labelled "appcase" (count + 1) in
+    let switched = line ready (cat ["  switch i64 %argc, label %", many, " [", case-list 0 labels, " ]"]) in
+    let blocks = dispatch-blocks name 0 labels switched in
+    let (final, result) = fresh (line blocks (cat [many, ":"])) "%v" in
+    let called = line final (cat ["  ", result, " = call i64 ", symbol (cat [name, ".app.many"]), "(ptr %self, i64 %argc, ptr %argv)"]) in
+    line (line called (cat ["  ret i64 ", result])) "}"
+  -- The grow half: fewer words than the arity, so build a closure holding
+  -- the whole merged frame (which fits, `total < arity`).
+  app-partial :: String -> List Nat -> Nat -> String -> String -> Writer -> Writer
+  app-partial name classes descriptor total frame w =
+    let arity = list-length classes in
+    let (one, words) = fresh w "%v" in
+    let (two, bytes) = fresh one "%v" in
+    let (three, pointer) = fresh two "%ptr" in
+    let allocated = line (line (line three (cat ["  ", words, " = add i64 ", total, ", 3"])) (cat ["  ", bytes, " = mul i64 ", words, ", 8"])) (cat ["  ", pointer, " = call ptr @cinch_alloc_shaped(i64 ", bytes, ", i64 2, i64 ", nat-to-string descriptor, ")"]) in
+    let prefix = [cat ["ptrtoint (ptr ", symbol (cat [name, ".app"]), " to i64)"], nat-to-string arity, total] in
+    let (four, destination) = fresh (store-fields allocated pointer 0 prefix) "%ptr" in
+    let (five, merged-bytes) = fresh four "%v" in
+    let (six, closure-word) = fresh five "%v" in
+    line (line (line (line (line six (cat ["  ", destination, " = getelementptr i64, ptr ", pointer, ", i64 3"])) (cat ["  ", merged-bytes, " = mul i64 ", total, ", 8"])) (cat ["  call ptr @memcpy(ptr ", destination, ", ptr ", frame, ", i64 ", merged-bytes, ")"])) (cat ["  ", closure-word, " = ptrtoint ptr ", pointer, " to i64"])) (cat ["  ret i64 ", closure-word])
+  -- The saturated call: `frame` holds the merged words and `total` is the
+  -- filled count plus the supplied one, so the excess continues at
+  -- `argv + (arity - filled)` words, inside argv whenever there is one.
+  app-saturate :: String -> List Nat -> String -> String -> String -> String -> Writer -> Writer
+  app-saturate name classes frame filled saved-bytes total w = case load-arguments (list-length classes) 0 frame w of
+    (ready, args) -> case call ready (symbol name) args of
+      (called, result) ->
+        let (one, excess) = fresh called "%v" in
+        let (two, more) = fresh one "%v" in
+        let (three, over-label) = fresh two "overapplied" in
+        let (four, return-label) = fresh three "appreturn" in
+        let saturated = line (line (line (line (line four (cat ["  ", excess, " = sub i64 ", total, ", ", nat-to-string (list-length classes)])) (cat ["  ", more, " = icmp ne i64 ", excess, ", 0"])) (cat ["  br i1 ", more, ", label %", over-label, ", label %", return-label])) (cat [return-label, ":"])) (cat ["  ret i64 ", result]) in
+        let (five, tail-offset) = fresh (line saturated (cat [over-label, ":"])) "%v" in
+        let (six, tail) = fresh five "%ptr" in
+        let (seven, out) = fresh six "%v" in
+        line (line (line (line (line seven (cat ["  ", tail-offset, " = sub i64 ", nat-to-string (list-length classes * 8), ", ", saved-bytes])) (cat ["  ", tail, " = getelementptr i8, ptr %argv, i64 ", tail-offset])) (cat ["  ", out, " = call i64 @__apply(i64 ", result, ", i64 ", excess, ", ptr ", tail, ")"])) (cat ["  ret i64 ", out])) "}"
+  -- One `app.<supplied>` entry: argv holds exactly `supplied` words, so the
+  -- grow copies and the excess count are constants except for the fill.
+  app-entry :: String -> List Nat -> Nat -> Nat -> Writer -> Writer
+  app-entry name classes descriptor supplied w =
+    let arity = list-length classes in
+    let header = line (line w (cat ["define ", worker-linkage w (cat [name, ".app.", nat-to-string supplied]), "i64 ", symbol (cat [name, ".app.", nat-to-string supplied]), "(ptr %self, ptr %argv) {"])) "entry:" in
+    let (loaded, filled) = load-word header "%self" "2" in
+    let (one, total) = fresh loaded "%v" in
+    let total-line = line one (cat ["  ", total, " = add i64 ", filled, ", ", nat-to-string supplied]) in
+    let (two, saved-bytes) = fresh total-line "%v" in
+    let saved-line = line two (cat ["  ", saved-bytes, " = mul i64 ", filled, ", 8"]) in
+    let (three, frame) = fresh saved-line "%ptr" in
+    let frame-line = line three (cat ["  ", frame, " = alloca [", nat-to-string (if arity == 0 then 1 else arity), " x i64]"]) in
+    let merged = merge-words frame-line frame 0 arity filled saved-bytes in
+    let (four, self-word) = fresh (saved-dups classes 0 filled frame merged) "%v" in
+    let released = line (line four (cat ["  ", self-word, " = ptrtoint ptr %self to i64"])) (count-call False self-word) in
+    if supplied == arity then app-saturate name classes frame filled saved-bytes total released else
+      let (five, full) = fresh released "%v" in
+      let (six, partial-label) = fresh five "partial" in
+      let (seven, full-label) = fresh six "saturated" in
+      let split = line (line (line seven (cat ["  ", full, " = icmp uge i64 ", total, ", ", nat-to-string arity])) (cat ["  br i1 ", full, ", label %", full-label, ", label %", partial-label])) (cat [partial-label, ":"]) in
+      let partial = app-partial name classes descriptor total frame split in
+      app-saturate name classes frame filled saved-bytes total (line partial (cat [full-label, ":"]))
+  -- `app.many`: any argument count above the arity, and the dispatcher's
+  -- default case. The frame is still fixed at `arity` words; the excess is
+  -- pushed from argv directly.
+  app-many :: String -> List Nat -> Writer -> Writer
+  app-many name classes w =
+    let arity = list-length classes in
+    let header = line (line w (cat ["define ", worker-linkage w (cat [name, ".app.many"]), "i64 ", symbol (cat [name, ".app.many"]), "(ptr %self, i64 %argc, ptr %argv) {"])) "entry:" in
+    let (loaded, filled) = load-word header "%self" "2" in
+    let (one, total) = fresh loaded "%v" in
+    let total-line = line one (cat ["  ", total, " = add i64 ", filled, ", %argc"]) in
+    let (two, saved-bytes) = fresh total-line "%v" in
+    let saved-line = line two (cat ["  ", saved-bytes, " = mul i64 ", filled, ", 8"]) in
+    let (three, frame) = fresh saved-line "%ptr" in
+    let frame-line = line three (cat ["  ", frame, " = alloca [", nat-to-string (if arity == 0 then 1 else arity), " x i64]"]) in
+    let merged = merge-words frame-line frame 0 arity filled saved-bytes in
+    let (four, self-word) = fresh (saved-dups classes 0 filled frame merged) "%v" in
+    let released = line (line four (cat ["  ", self-word, " = ptrtoint ptr %self to i64"])) (count-call False self-word) in
+    app-saturate name classes frame filled saved-bytes total released
   app-stub :: String -> List Nat -> Writer -> Writer
   app-stub name classes w = case request-shape (Span 0 0 1 1) classes w of
     (planned, descriptor) ->
-      let header = line (line planned (cat ["define ", worker-linkage planned (cat [name, ".app"]), "i64 ", symbol (cat [name, ".app"]), "(ptr %self, i64 %argc, ptr %argv) {"])) "entry:" in
-      let (loaded, filled) = load-word header "%self" "2" in
-      let (one, total) = fresh loaded "%v" in
-      let (two, saved) = fresh one "%ptr" in
-      let (three, merged) = fresh two "%ptr" in
-      let (four, saved-bytes) = fresh three "%v" in
-      let (five, argument-bytes) = fresh four "%v" in
-      let (six, incoming) = fresh five "%ptr" in
-      let copied0 = line six (cat ["  ", total, " = add i64 ", filled, ", %argc"]) in
-      let copied1 = line copied0 (cat ["  ", saved, " = getelementptr i64, ptr %self, i64 3"]) in
-      -- An even word count keeps the dynamic alloca a multiple of 16 bytes,
-      -- so sp stays aligned on AArch64 under optimization.
-      let rounded = line (line copied1 (cat ["  ", total, ".odd = add i64 ", total, ", 1"])) (cat ["  ", total, ".even = and i64 ", total, ".odd, -2"]) in
-      let copied2 = line rounded (cat ["  ", merged, " = alloca i64, i64 ", total, ".even, align 16"]) in
-      let copied3 = line copied2 (cat ["  ", saved-bytes, " = mul i64 ", filled, ", 8"]) in
-      let copied4 = line copied3 (cat ["  ", argument-bytes, " = mul i64 %argc, 8"]) in
-      let copied5 = line copied4 (cat ["  call ptr @memcpy(ptr ", merged, ", ptr ", saved, ", i64 ", saved-bytes, ")"]) in
-      let copied6 = line copied5 (cat ["  ", incoming, " = getelementptr i64, ptr ", merged, ", i64 ", filled]) in
-      let copied = line copied6 (cat ["  call ptr @memcpy(ptr ", incoming, ", ptr %argv, i64 ", argument-bytes, ")"]) in
-      let (seven, self-word) = fresh (saved-dups classes 0 filled merged copied) "%v" in
-      let released = line (line seven (cat ["  ", self-word, " = ptrtoint ptr %self to i64"])) (count-call False self-word) in
-      let (eight, full) = fresh released "%v" in
-      let (nine, partial-label) = fresh eight "partial" in
-      let (ten, full-label) = fresh nine "saturated" in
-      let split = line (line (line ten (cat ["  ", full, " = icmp uge i64 ", total, ", ", nat-to-string (list-length classes)])) (cat ["  br i1 ", full, ", label %", full-label, ", label %", partial-label])) (cat [partial-label, ":"]) in
-      let (eleven, words) = fresh split "%v" in
-      let (twelve, bytes) = fresh eleven "%v" in
-      let (thirteen, pointer) = fresh twelve "%ptr" in
-      let allocated = line (line (line thirteen (cat ["  ", words, " = add i64 ", total, ", 3"])) (cat ["  ", bytes, " = mul i64 ", words, ", 8"])) (cat ["  ", pointer, " = call ptr @cinch_alloc_shaped(i64 ", bytes, ", i64 2, i64 ", nat-to-string descriptor, ")"]) in
-      let prefix = [cat ["ptrtoint (ptr ", symbol (cat [name, ".app"]), " to i64)"], nat-to-string (list-length classes), total] in
-      let (fourteen, destination) = fresh (store-fields allocated pointer 0 prefix) "%ptr" in
-      let (fifteen, merged-bytes) = fresh fourteen "%v" in
-      let (sixteen, closure-word) = fresh fifteen "%v" in
-      let partial-returned = line (line (line (line (line sixteen (cat ["  ", destination, " = getelementptr i64, ptr ", pointer, ", i64 3"])) (cat ["  ", merged-bytes, " = mul i64 ", total, ", 8"])) (cat ["  call ptr @memcpy(ptr ", destination, ", ptr ", merged, ", i64 ", merged-bytes, ")"])) (cat ["  ", closure-word, " = ptrtoint ptr ", pointer, " to i64"])) (cat ["  ret i64 ", closure-word]) in
-      case load-arguments (list-length classes) 0 merged (line partial-returned (cat [full-label, ":"])) of
-        (arguments-ready, args) -> case call arguments-ready (symbol name) args of
-          (called, result) ->
-            let (seventeen, excess) = fresh called "%v" in
-            let (eighteen, more) = fresh seventeen "%v" in
-            let (nineteen, over-label) = fresh eighteen "overapplied" in
-            let (twenty, return-label) = fresh nineteen "appreturn" in
-            let saturated = line (line (line (line (line twenty (cat ["  ", excess, " = sub i64 ", total, ", ", nat-to-string (list-length classes)])) (cat ["  ", more, " = icmp ne i64 ", excess, ", 0"])) (cat ["  br i1 ", more, ", label %", over-label, ", label %", return-label])) (cat [return-label, ":"])) (cat ["  ret i64 ", result]) in
-            let (twenty-one, tail) = fresh (line saturated (cat [over-label, ":"])) "%ptr" in
-            let (twenty-two, out) = fresh twenty-one "%v" in
-            line (line (line (line twenty-two (cat ["  ", tail, " = getelementptr i64, ptr ", merged, ", i64 ", nat-to-string (list-length classes)])) (cat ["  ", out, " = call i64 @__apply(i64 ", result, ", i64 ", excess, ", ptr ", tail, ")"])) (cat ["  ret i64 ", out])) "}"
+      let arity = list-length classes in
+      app-many name classes (app-entries name classes descriptor 0 (app-dispatch name arity planned))
+  app-entries :: String -> List Nat -> Nat -> Nat -> Writer -> Writer
+  app-entries name classes descriptor supplied w =
+    if supplied > list-length classes then w
+    else app-entries name classes descriptor (supplied + 1) (app-entry name classes descriptor supplied w)
   term-fields :: CoreTerm -> Option (List CoreTerm)
   term-fields fields = case fields of
     CArgumentsEnd sp -> Some Nil
