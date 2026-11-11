@@ -979,11 +979,121 @@ pub unsafe extern "C" fn cinch_bytes_copy(dst: i64, src: i64, di: i64, si: i64, 
 
 /// The lexicographic order of two `Bytes` words' contents: -1, 0 or 1,
 /// read in place (no copy, no allocation).
+///
+/// The order is byte order, which is the order of the same bytes read as
+/// one big-endian word, so the common prefix is compared eight bytes at a
+/// time: a name up to one word long costs two loads and one compare, where
+/// `memcmp` costs a call and a dispatch before it reads anything. Two words
+/// over one region are equal without reading a byte. The lengths break a
+/// prefix tie; they never decide the order of two differing prefixes, so
+/// they are read last.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_bytes_compare(a: i64, b: i64) -> i64 {
-    let a = unsafe { as_bytes(a) }.as_slice();
-    let b = unsafe { as_bytes(b) }.as_slice();
-    a.cmp(b) as i64
+    let a = unsafe { as_bytes(a) };
+    let b = unsafe { as_bytes(b) };
+    let x = a.as_slice();
+    let y = b.as_slice();
+    maybe_census(x, y);
+    if std::ptr::eq(x.as_ptr(), y.as_ptr()) && x.len() == y.len() {
+        return 0;
+    }
+    let n = x.len().min(y.len());
+    let mut i = 0;
+    while i + 8 <= n {
+        let ua = u64::from_be_bytes(x[i..i + 8].try_into().unwrap());
+        let ub = u64::from_be_bytes(y[i..i + 8].try_into().unwrap());
+        if ua != ub {
+            return if ua < ub { -1 } else { 1 };
+        }
+        i += 8;
+    }
+    while i < n {
+        let (ba, bb) = (x[i], y[i]);
+        if ba != bb {
+            return if ba < bb { -1 } else { 1 };
+        }
+        i += 1;
+    }
+    match x.len().cmp(&y.len()) {
+        std::cmp::Ordering::Less => -1,
+        std::cmp::Ordering::Equal => 0,
+        std::cmp::Ordering::Greater => 1,
+    }
+}
+
+// TEMPORARY compare census (`CINCH_CMP_CENSUS=1`): removed before the change
+// lands. It answers one question and nothing else, whether the cost of the
+// compare is its width (bytes scanned per call) or its count (calls).
+mod compare_census {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+    use std::sync::LazyLock;
+
+    pub(super) static CALLS: AtomicU64 = AtomicU64::new(0);
+    pub(super) static SAME_REGION: AtomicU64 = AtomicU64::new(0);
+    pub(super) static LEN_EQUAL: AtomicU64 = AtomicU64::new(0);
+    pub(super) static CONTENT_EQUAL: AtomicU64 = AtomicU64::new(0);
+    pub(super) static SCANNED: AtomicU64 = AtomicU64::new(0);
+    pub(super) static MIN_LEN: AtomicU64 = AtomicU64::new(0);
+    pub(super) static WIDE: AtomicU64 = AtomicU64::new(0);
+
+    pub(super) static ENABLED: LazyLock<bool> = LazyLock::new(|| {
+        let on = std::env::var_os("CINCH_CMP_CENSUS").is_some_and(|v| v == "1");
+        if on {
+            crate::sys::atexit(print);
+        }
+        on
+    });
+
+    pub(super) extern "C" fn print() {
+        use crate::heap::Line;
+        let mut line = Line::new();
+        line.push(b"cinch-cmp: calls=");
+        line.num(CALLS.load(Relaxed));
+        line.push(b" same-region=");
+        line.num(SAME_REGION.load(Relaxed));
+        line.push(b" len-equal=");
+        line.num(LEN_EQUAL.load(Relaxed));
+        line.push(b" content-equal=");
+        line.num(CONTENT_EQUAL.load(Relaxed));
+        line.push(b" scanned=");
+        line.num(SCANNED.load(Relaxed));
+        line.push(b" min-len=");
+        line.num(MIN_LEN.load(Relaxed));
+        line.push(b" wide=");
+        line.num(WIDE.load(Relaxed));
+        line.push(b"\n");
+        line.flush();
+    }
+}
+
+#[inline]
+fn maybe_census(x: &[u8], y: &[u8]) {
+    use compare_census as census;
+    use std::sync::atomic::Ordering::Relaxed;
+    if !*census::ENABLED {
+        return;
+    }
+    let n = x.len().min(y.len());
+    census::CALLS.fetch_add(1, Relaxed);
+    census::MIN_LEN.fetch_add(n as u64, Relaxed);
+    if n > 8 {
+        census::WIDE.fetch_add(1, Relaxed);
+    }
+    if x.as_ptr() == y.as_ptr() && x.len() == y.len() {
+        census::SAME_REGION.fetch_add(1, Relaxed);
+        return;
+    }
+    if x.len() == y.len() {
+        census::LEN_EQUAL.fetch_add(1, Relaxed);
+    }
+    let mut i = 0;
+    while i < n && x[i] == y[i] {
+        i += 1;
+    }
+    census::SCANNED.fetch_add(i as u64, Relaxed);
+    if i == n && x.len() == y.len() {
+        census::CONTENT_EQUAL.fetch_add(1, Relaxed);
+    }
 }
 
 /// The data pointer of a `Bytes` word: how buffer contents cross to

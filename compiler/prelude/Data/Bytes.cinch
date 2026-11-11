@@ -109,21 +109,15 @@ module Data.Bytes where
   implicit instance FromList_Bytes :: FromList Bytes U8 where
     from-list xs = bytes-from-u8s xs
 
-  -- Byte-for-byte equality over the whole slice: the lengths agree and
-  -- every byte agrees. The keyed structures need `Eq` beside `Hash`
+  -- Byte-for-byte equality over the backing: the in-place compare answers
+  -- equal when the lengths agree and every byte agrees, reading the common
+  -- prefix a word at a time. The keyed structures need `Eq` beside `Hash`
   -- (Data.HashMap's header): hashing alone cannot decide a digest
   -- collision, so an instance that hashes without comparing is not a
   -- key.
-  bytes-equal-from :: Bytes -> Bytes -> Nat -> Bool
-  bytes-equal-from a b i =
-    if i >= bytes-len a then i >= bytes-len b
-    else if i >= bytes-len b then False
-    else if bytes-get a i == bytes-get b i then bytes-equal-from a b (i + 1)
-    else False
-
   implicit instance Eq_Bytes :: Eq Bytes where
-    (==) x y = bytes-equal-from x y 0
-    (/=) x y = not (bytes-equal-from x y 0)
+    (==) x y = eq-i64 (bytes-compare x y) 0
+    (/=) x y = ne-i64 (bytes-compare x y) 0
 
   -- The digest fold is FNV-1a in a 64-bit word: the accumulator starts at
   -- the offset basis, every byte is mixed in as `(h xor byte) * prime`
