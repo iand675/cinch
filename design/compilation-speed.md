@@ -510,7 +510,8 @@ byte-identical `compiler.ll` and the same 46 `.cinchif` files, so the change
 is not observable in what the compiler emits; the 12 example programs, the
 fib and classes smokes and the toolkit and compiler bundles agree in exit
 code, output, diagnostics and emitted IR across the two compilers (30 cases,
-no disagreements).
+no disagreements), and the law, load, exported-interface, source-instance and
+class-contract targets give identical pass and fail lists through both.
 
 The remaining cost in this path is the closure's membership test itself:
 `export-present-in` still walks every loaded interface and scans the
