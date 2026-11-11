@@ -109,8 +109,14 @@ struct LowerCx {
 }
 
 /// Emit one LLVM module for the program at the build host's target.
+/// Emit one whole module for `program`, every unit it declares.
+///
+/// This is the inspection and test entry point: it emits what the
+/// program contains, reachable from an entry or not, so a caller can
+/// read any unit's body. A whole-program *build* goes through
+/// [`emit_for`], which drops the units no entry point reaches.
 pub fn emit(program: &Program) -> Result<String> {
-    emit_for(&crate::core::TargetProfile::native(), program)
+    Ok(emit_module(&crate::core::TargetProfile::native(), program, false, &[], false)?.ir)
 }
 
 /// Emit one LLVM module for the program at `profile`'s target: a wasm32
@@ -119,7 +125,7 @@ pub fn emit(program: &Program) -> Result<String> {
 /// (primitive types specification section 2), and the cooperative task
 /// ABI (section 7).
 pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Result<String> {
-    Ok(emit_module(profile, program, false, &[])?.ir)
+    Ok(emit_module(profile, program, false, &[], true)?.ir)
 }
 
 /// Emit executable IR for only `modules`; every other module is an external
@@ -130,7 +136,7 @@ pub fn emit_for_modules(
     program: &Program,
     modules: &[String],
 ) -> Result<String> {
-    Ok(emit_module(profile, program, false, modules)?.ir)
+    Ok(emit_module(profile, program, false, modules, false)?.ir)
 }
 
 /// A relocatable library module and its actual physical ABI. Its consumer
@@ -159,7 +165,7 @@ pub fn emit_object_for_modules(
     if program.main.is_some() {
         return err("object emission requires a library program without a process entry");
     }
-    emit_module(profile, program, true, modules)
+    emit_module(profile, program, true, modules, false)
 }
 
 /// The `target datalayout` string for a profile's target, in clang's own
@@ -213,6 +219,7 @@ fn emit_module(
     program: &Program,
     object: bool,
     emit_modules: &[String],
+    prune: bool,
 ) -> Result<EmittedObject> {
     let cx = LowerCx {
         usize_bits: profile.word_size,
@@ -304,7 +311,7 @@ fn emit_module(
         "declare i64 @cinch_nat_mul(i64, i64)",
         "declare i64 @cinch_nat_div(i64, i64)",
         "declare i64 @cinch_nat_rem(i64, i64)",
-        "declare i64 @cinch_nat_cmp(i64, i64)",
+        "declare i64 @cinch_nat_cmp(i64, i64) readnone nounwind willreturn",
         "declare i64 @cinch_nat_from_decimal(ptr, i64)",
         "declare i64 @cinch_int_from_i64(i64)",
         "declare i64 @cinch_int_to_i64(i64)",
@@ -715,10 +722,10 @@ fn emit_module(
     // leaves thousands of external symbols nothing can delete, so the
     // reachable set is computed and the rest is skipped. A module subset or
     // an object keeps everything: a consumer links against it.
-    let reachable = if object || !emit_modules.is_empty() {
-        None
+    let reachable = if prune && !object && emit_modules.is_empty() {
+        Some(reachable_units(&units, &reg, program, main_exit.map(|e| e.0.clone())))
     } else {
-        Some(reachable_units(&units, &reg, main_exit.map(|e| e.0.clone())))
+        None
     };
     for u in &units {
         let primitive = reg.prims.iter().any(|op| op.symbol() == u.name);
@@ -2492,6 +2499,13 @@ fn referenced_symbols(text: &str, units: &HashSet<String>) -> BTreeSet<String> {
             // per-arity entries (`X.app`, `X.clo`). The longest unit name
             // the reference starts with is the unit it belongs to.
             let name = &text[start..end];
+            // An exact unit name wins outright: a prim family unit
+            // (`X.llvm`) is a unit of its own beside its wrapper `X`, and
+            // the prefix rule below would otherwise fold it into the
+            // wrapper and never emit the body the wrapper calls.
+            if units.contains(name) {
+                out.insert(name.to_string());
+            }
             let mut best: Option<&str> = None;
             for unit in units {
                 // A tail worker is `<unit>#w` (`tail_worker`), so `#`
@@ -2732,10 +2746,27 @@ fn assemble_unit(out: &mut String, u: &EmittedUnit, group: Option<String>, linka
 fn reachable_units(
     units: &[EmittedUnit],
     reg: &Registry,
+    program: &Program,
     main: Option<String>,
 ) -> HashSet<String> {
-    let callees: HashMap<&str, &BTreeSet<String>> =
+    let mut callees: HashMap<&str, &BTreeSet<String>> =
         units.iter().map(|u| (u.name.as_str(), &u.scan.refs)).collect();
+    // A `prim` declaration's bodies are separate units (`X.llvm`,
+    // `X.asm`) that its wrapper calls, and a body's `uses` contract may
+    // name another body's symbol, so every family unit of a reached prim
+    // is reached with it. A body this artifact does not select is still
+    // emitted, as it was before pruning: selection is recorded in the
+    // manifest, and an inspection of the IR sees both.
+    let mut families: HashMap<String, BTreeSet<String>> = HashMap::new();
+    for plan in &program.prims {
+        families.insert(
+            plan.unit.clone(),
+            plan.family_units
+                .iter()
+                .map(|(fam, _)| format!("{}.{}", plan.unit, fam))
+                .collect(),
+        );
+    }
     let mut roots: Vec<&str> = Vec::new();
     if let Some(main) = &main {
         roots.push(main.as_str());
@@ -2758,7 +2789,15 @@ fn reachable_units(
                 }
             }
         }
+        if let Some(bodies) = families.get(name) {
+            for body in bodies {
+                if !seen.contains(body.as_str()) && callees.contains_key(body.as_str()) {
+                    stack.push(body.as_str());
+                }
+            }
+        }
     }
+    let _ = &mut callees;
     seen
 }
 
@@ -4207,11 +4246,102 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             }
         }
         Nat(n) => {
-            // Boxed bignum words in and out (runtime ABI): `natCmp`
-            // returns the raw -1/0/1 immediate.
-            let args: Vec<String> = (0..op.arity()).map(|i| format!("i64 %p{i}")).collect();
-            let r = rt_call(b, n.extern_name(), &args);
-            ret(b, &r);
+            // A `Nat` word is `(value << 1) | 1` while the value fits 63
+            // bits, and a bignum pointer otherwise, so the low bit says
+            // which. `add`, `sub` and `cmp` answer their whole result
+            // from the immediate form when both operands are immediate,
+            // which is every `Nat` an `i64` can carry: those cases are
+            // emitted here and only the bignum case calls the runtime.
+            // The arithmetic is exact in 64 bits: `a + b` of two 63-bit
+            // payloads is at most 2^64 - 2, so the encoded sum's low bit
+            // is still the tag, and the shift-back cannot overflow for
+            // any pair whose sum is immediate.
+            match n {
+                crate::core::NatOp::Add | crate::core::NatOp::Sub | crate::core::NatOp::Cmp => {
+                    let both = b.reg();
+                    b.line(&format!("{both} = and i64 %p0, %p1"));
+                    let tag = b.reg();
+                    b.line(&format!("{tag} = and i64 {both}, 1"));
+                    let fast = b.reg();
+                    b.line(&format!("{fast} = icmp ne i64 {tag}, 0"));
+                    let (fast_l, slow_l, done_l) = (b.label(), b.label(), b.label());
+                    b.line(&format!("br i1 {fast}, label %{fast_l}, label %{slow_l}"));
+                    b.line(&format!("{fast_l}:"));
+                    // The block that reaches `done` from the fast side: the
+                    // borrow check of `sub` adds one.
+                    let mut fast_exit = fast_l.clone();
+                    let out = match n {
+                        // `(a >> 1) + (b >> 1)` re-encoded, and the
+                        // reverse for subtraction.
+                        crate::core::NatOp::Add | crate::core::NatOp::Sub => {
+                            let av = b.reg();
+                            b.line(&format!("{av} = lshr i64 %p0, 1"));
+                            let bv = b.reg();
+                            b.line(&format!("{bv} = lshr i64 %p1, 1"));
+                            let sum = b.reg();
+                            let is_sub = matches!(n, crate::core::NatOp::Sub);
+                            let o = if is_sub { "sub" } else { "add" };
+                            b.line(&format!("{sum} = {o} i64 {av}, {bv}"));
+                            // `nat-sub`'s scheme is
+                            // `using (b <= a) => (a :: Nat) -> (b :: Nat)
+                            // -> Nat` (`prelude/Data/Nat.cinch`), so a
+                            // subtraction the checker produced cannot go
+                            // negative. Hand-built Core can, and the runtime
+                            // traps on it, so the borrow still takes the
+                            // slow path: one predictable branch, not a
+                            // second runtime call. `add` of two 63-bit
+                            // payloads never carries out of the encoded
+                            // word.
+                            if is_sub {
+                                let borrow = b.reg();
+                                b.line(&format!("{borrow} = icmp ugt i64 {bv}, {av}"));
+                                let ok = b.label();
+                                b.line(&format!("br i1 {borrow}, label %{slow_l}, label %{ok}"));
+                                b.line(&format!("{ok}:"));
+                                fast_exit = ok.clone();
+                            }
+                            let enc = b.reg();
+                            b.line(&format!("{enc} = shl i64 {sum}, 1"));
+                            let word = b.reg();
+                            b.line(&format!("{word} = or i64 {enc}, 1"));
+                            word
+                        }
+                        // `cmp` is the raw -1/0/1 on the payloads.
+                        _ => {
+                            let av = b.reg();
+                            b.line(&format!("{av} = lshr i64 %p0, 1"));
+                            let bv = b.reg();
+                            b.line(&format!("{bv} = lshr i64 %p1, 1"));
+                            let lt = b.reg();
+                            b.line(&format!("{lt} = icmp ult i64 {av}, {bv}"));
+                            let gt = b.reg();
+                            b.line(&format!("{gt} = icmp ugt i64 {av}, {bv}"));
+                            let neg = b.reg();
+                            b.line(&format!("{neg} = select i1 {lt}, i64 -1, i64 0"));
+                            let res = b.reg();
+                            b.line(&format!("{res} = select i1 {gt}, i64 1, i64 {neg}"));
+                            res
+                        }
+                    };
+                    b.line(&format!("br label %{done_l}"));
+                    b.line(&format!("{slow_l}:"));
+                    let args: Vec<String> = (0..op.arity()).map(|i| format!("i64 %p{i}")).collect();
+                    let slow = rt_call(b, n.extern_name(), &args);
+                    b.line(&format!("br label %{done_l}"));
+                    b.line(&format!("{done_l}:"));
+                    let phi = b.reg();
+                    b.line(&format!("{phi} = phi i64 [ {out}, %{fast_exit} ], [ {slow}, %{slow_l} ]"));
+                    ret(b, &phi);
+                }
+                // A conversion is one runtime call whatever the width,
+                // and the bignum operations have no immediate form to
+                // take (a product overflows the payload at once).
+                _ => {
+                    let args: Vec<String> = (0..op.arity()).map(|i| format!("i64 %p{i}")).collect();
+                    let r = rt_call(b, n.extern_name(), &args);
+                    ret(b, &r);
+                }
+            }
         }
         Int(i) => {
             let args: Vec<String> = (0..op.arity()).map(|i| format!("i64 %p{i}")).collect();
