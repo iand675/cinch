@@ -1,11 +1,11 @@
 {
- "date": "2026-11-10",
+ "date": "2026-11-11",
  "stage": 3,
- "compiler": "main at 43827933 (post inliner fix, pre interface/intern lanes)",
- "targets": 227,
- "fully_passing": 143,
- "tests_passed": 863,
- "tests_failed": 615,
+ "compiler": "main at ecdd626e (ABI 8, parallel builtins, stack allocation with the tail-call rule, Cinch folds/inliner)",
+ "targets": 228,
+ "fully_passing": 140,
+ "tests_passed": 860,
+ "tests_failed": 635,
  "runner": "tooling/run_stage_targets.py --stage 3 --jobs 4 --all",
  "rows": [
   {
@@ -280,9 +280,9 @@
   },
   {
    "target": "bootstrap_load",
-   "exit": 0,
-   "passed": 2,
-   "failed": 0
+   "exit": 101,
+   "passed": 1,
+   "failed": 1
   },
   {
    "target": "bootstrap_machine_values",
@@ -412,15 +412,15 @@
   },
   {
    "target": "bootstrap_runtime_ir",
-   "exit": 0,
-   "passed": 1,
-   "failed": 0
+   "exit": 101,
+   "passed": 0,
+   "failed": 1
   },
   {
    "target": "bootstrap_runtime_library",
-   "exit": 0,
-   "passed": 1,
-   "failed": 0
+   "exit": 101,
+   "passed": 0,
+   "failed": 1
   },
   {
    "target": "bootstrap_runtime_library_abi",
@@ -1081,6 +1081,12 @@
    "exit": 101,
    "passed": 0,
    "failed": 5
+  },
+  {
+   "target": "parallel",
+   "exit": 101,
+   "passed": 0,
+   "failed": 17
   },
   {
    "target": "params",
