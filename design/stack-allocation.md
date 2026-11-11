@@ -441,6 +441,118 @@ speed did not, at this reach. Raising the reach (the returned-block
 population, section 7.2's 42% of refusals) is what would make the volume
 matter, and that is the worker/wrapper queue item, not this pass.
 
+### 7.8 One apply stub per function (2026-11-11)
+
+The fixed-frame stub that retired the dynamic `alloca` (section 1, and
+`compilation-speed.md` section 8) kept the `caml_applyN` shape: a
+dispatcher that switched on `%argc`, one `app.<N>` entry per supplied count
+from zero to the arity, and an `app.many` default. On the compiler's own
+module that is 196 dispatchers, 973 per-supplied entries and 196 `many`
+bodies, 1,365 functions and 2.90 MB of `__TEXT`.
+
+An A/B bisect of the chain measured what it cost. Every arm is a full chain
+build at its revision with PGO on, shard count 3, and one byte-identical
+3,965-line toolkit file (SHA-256 `e29fb240...`), round-robin interleaved, 15
+rounds each:
+
+| comparison | CPU delta | wall |
+| --- | --- | --- |
+| `12c31ad9` to `9f4e4030` (the apply block) | **+0.470 s, +7.45%** | +7.37% |
+| `9f4e4030` to `6e9f9122` (reuse and the later pins) | -0.15%, inside spread | 0% |
+| `6e9f9122` to `c31cb754` (the dense body module) | -0.91% | +0.06% |
+| two-line control, same apply block | **+7.14%** | +6.98% |
+
+The cause is footprint, not instructions. The workload's own emitted IR is
+unchanged (193 to 195 lines). The PGO profile the stage link already trains
+records 54 of those 1,169 apply entries executing at all, 1.16M of 672M
+calls, 0.17%. What the compiler pays for is the IR it writes and retains:
+3.4 to 5.2 s of its own CPU and 44 to 45 MB of peak RSS (90.0 s / 428 MB at
+`12c31ad9` against 93.4 s / 472 MB at `9f4e4030`).
+
+So the cross product goes, and both properties it was introduced for stay:
+no dynamic `alloca`, and a direct saturated call. `@"U.app"` is one entry
+per function, whatever count it is handed:
+
+- read `nf` (the closure's filled count), compute `total = nf + %argc`,
+  branch once on `total >= arity`;
+- **saturated** (the common path, and the only path a fully applied closure
+  takes): merge the `nf` saved words and the `%argc` incoming ones into a
+  static `[arity x i64]` frame, one `select` per slot, drop or free the
+  closure, call the function directly, and push any excess at the result
+  through `__apply` exactly as before;
+- **grow** (`total < arity`): allocate a closure whose payload is the saved
+  words followed by the incoming ones and whose code word is this same stub,
+  and copy both directly with `memcpy`.
+
+Two things fall out of that arrangement and are deliberate. The merge is
+inside the saturated block, because only there does every frame slot have a
+word behind it: the earlier entries merged all `arity` slots before
+branching, and a grow-path slot above `nf + supplied` computed a pointer
+past the end of `argv` (never loaded, but the bounds argument is better made
+than relied on). And the grow path copies the two sources rather than a
+frame, so the frame's only role is the saturated call's argument list. A
+nullary unit needs no frame and no branch at all, so its stub is the
+saturated path alone.
+
+Cost: one `add` and one `icmp` per application, in place of the
+dispatcher's `switch`, and no constant-supplied specialisation. The
+specialisation was the thing that did not pay: 54 of 1,169 entries ever
+executed.
+
+Measured, and the result contradicts the attribution above. The bisect
+compared whole chain builds at two revisions, and `12c31ad9..9f4e4030`
+contains eleven commits, of which the stub is one (`5e8115a7`). The other
+ten are the interface optimisation artifact (`compiler/src/ifaceopt.rs`,
+957 new lines), the simplifier, specialisation, the driver and the seed
+arena. To separate them, two arms were built from the identical base tree
+(`b4854641`, which is `main`) differing only in the two emitter files, so
+the only variable is this collapse. Round-robin, 5 pairs each, one
+byte-identical toolkit file:
+
+| arm | toolkit check CPU (median) | spread | delta from `12c31ad9` |
+| --- | --- | --- | --- |
+| `12c31ad9` (before the fan-out) | 6.05 s | 0.07 | |
+| `ctl` = `b4854641`, the fan-out intact | 6.39 s | 0.16 | +5.62% |
+| `col` = `b4854641` + this collapse | 6.46 s | 0.28 | +5.68% |
+
+`ctl` to `col` is **+0.16%, inside the spread**. The collapse is real and
+exactly as large as intended in the emitted module, and it buys nothing:
+the stage-3 module goes from 7,990 `define`s and 47.66 MB to 6,814 and
+42.44 MB, 1,176 fewer functions and 5.22 MB less text, with stage2 and
+stage3 `compiler.ll` byte equal on both arms. The 5.6% regression that the
+bisect charged to "the apply block" is therefore in the other ten commits,
+not in the stub fan-out: the stub is 1,169 functions of code that the
+profile says executes 54 times out of 672M calls, and removing it moves
+neither the toolkit check nor the compiler's own compile.
+
+That is worth keeping on its own terms. The fan-out was introduced to
+retire the last dynamic `alloca` (section 1), and one entry per function
+retires it too, with 1,176 fewer functions and 5.2 MB less `__TEXT`, no
+per-count specialisation and one `add` plus one `icmp` per application. It
+is also the smaller IR to compile, which is the direction section 7.7 says
+the pass pays in. What it is not is the fix for the 5.6%, and the
+attribution to check next is the interface optimisation artifact and the
+simplifier changes in the same range.
+
+Both emitters carry the change, `compiler/src/codegen.rs` (`stub_def`,
+`stub_grow`) and `bootstrap/Bootstrap.RuntimeIr.cinch` (`app-stub`,
+`saturated-stub`, `app-partial`), and `design/reclamation.md` section 4
+states the ownership rule for the single entry.
+
+Gates, all on the lane chain built into `/tmp/ab/collapse`: the fixed point
+holds (stage2 and stage3 `compiler.ll` byte equal, `cinch` byte equal, every
+`.cinchif` byte equal), `smoke --stage 3` passes all three cases, and the
+toolkit check reports `cinch-leak: live=0 immortal=0 leaked=0`. Of the five
+required test targets, `bootstrap_runtime_emit`,
+`bootstrap_runtime_library_abi`, `bootstrap_runtime_ir` and
+`stack_allocation` pass; `core_output` loses two golden-file tests on a
+`@ticks` difference that the unmodified base tree reproduces, and so do the
+four suite targets that lose a test (`bootstrap_manifest`,
+`bootstrap_parse`, `bootstrap_pipeline`, `syntax_index_evidence`), all
+measured on the `ctl` arm and identical there. The full target suite is 140
+of 233 passing against the recorded 145 of 231, and the five that differ are
+those same pre-existing failures.
+
 ### 7.2 Measured reach
 
 `core emit` with the rules on and with `--no-inline`, refusals by reason

@@ -678,15 +678,14 @@ drop goes as early as possible.
   is passed on in tail position. This is Lean's tail-call preservation rule.
 - **`App` through `__apply`** (dynamic head, partial or over-application).
   `__apply(f, argc, argv)` borrows `f` and takes the arguments owned. The
-  `@"U.app"` dispatcher routes `argc` to one `app.<N>` entry (one per count
-  up to the arity, the `caml_applyN` shape) or to `app.many`, and each
-  entry adapts to the unit's modes:
+  `@"U.app"` stub is one entry per function whatever `argc` is, and it
+  adapts to the unit's modes:
   - *Saturate:* the saved arguments and the incoming ones are merged into a
     fixed `[arity x i64]` frame by one select per word, never a dynamic
     `alloca`. Saved arguments going to owned parameters are dup'd, or moved
     without dup if the closure is unique and consumed. Arguments going to
     borrowed parameters are dropped after the call.
-  - *Grow:* the merged prefix is copied with `memcpy` into a fresh closure
+  - *Grow:* the merged frame is copied with `memcpy` into a fresh closure
     (a count below the arity, so it always fits the frame). Each copied
     object slot needs a dup, unless the old closure is unique, in which case
     the slots are moved and the old block freed.

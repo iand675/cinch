@@ -12,13 +12,13 @@
 //!
 //! * `@"U"`: the function itself, `i64` result, one `i64` parameter per
 //!   argument,
-//! * `@"U.app"`: the apply dispatcher `i64 (ptr %self, i64 %argc, ptr
-//!   %argv)`, which routes a constant argument count to one of the
-//!   per-arity entries `@"U.app.0"` through `@"U.app.<arity>"` (`i64 (ptr
-//!   %self, ptr %argv)`, the `caml_applyN` shape) and any other count to
-//!   `@"U.app.many"`. Every entry merges the closure's saved words with
-//!   the incoming ones into a fixed `[arity x i64]` frame, so no stub
-//!   allocates a dynamic stack region,
+//! * `@"U.app"`: the apply stub `i64 (ptr %self, i64 %argc, ptr %argv)`,
+//!   one entry per function whatever count it is handed. It merges the
+//!   closure's saved words with the incoming ones into a fixed
+//!   `[arity x i64]` frame, so no stub allocates a dynamic stack region,
+//!   then branches once on the merged total: at or above the arity it
+//!   calls the function and pushes any excess words at the result, below
+//!   it it allocates a closure holding the frame,
 //! * `@"U.clo"`: a static zero-filled closure record
 //!   `{ i64 ptrtoint(@"U.app"), i64 arity, i64 0 }`,
 //! * `@"U.blk"` (zero-field constructors): the static ADT block, so repeated
@@ -3018,23 +3018,26 @@ fn clo_def(reg: &Registry, name: &str, arity: usize) -> String {
     )
 }
 
-/// Emit the apply stub family for `@"<name>.app"`.
+/// Emit the apply stub `@"<name>.app"`.
 ///
-/// A closure's code word points at the `app` dispatcher, which routes a
-/// constant argument count to one `app.<N>` entry (the `caml_applyN`
-/// shape: one fixed-frame entry per count it can be handed) and anything
-/// else to `app.many`. Each entry merges the closure's `nf` saved words
-/// with the incoming words into a frame of exactly `arity` words, then
-/// either saturates (call the underlying function, pushing any excess
-/// words at the result) or, when fewer than `arity` words are known,
-/// grows (allocate a closure with more filled arguments).
+/// A closure's code word points at the stub, which is one entry per
+/// function whatever argument count it is handed. It merges the closure's
+/// `nf` saved words with the incoming words into a frame of exactly
+/// `arity` words, then branches once: a total at or above the arity
+/// saturates (call the underlying function, pushing any excess words at
+/// the result), a total below it grows (allocate a closure holding the
+/// merged frame). The `caml_applyN` shape this replaced needed one entry
+/// per supplied count, which is 973 extra functions on the compiler's own
+/// module and 7.4% of the toolkit check's CPU for 54 of those entries
+/// executing at all (`design/stack-allocation.md` section 7.7).
 ///
 /// The frame is a static `[arity x i64]` allocation, never a dynamic
 /// `alloca`: with `"probe-stack"="inline-asm"` LLVM's AArch64 lowering of
 /// a dynamic alloca skips its rounding to the stack alignment, leaves `sp`
 /// misaligned, and the next stack access faults once a caller inlines the
 /// stub. A fixed frame also removes the two dynamic-length `memcpy` calls
-/// the merge used to make.
+/// the merge used to make; the grow path's single copy is from the frame,
+/// so it has no length the entry does not already know.
 ///
 /// Ownership (design/reclamation.md section 4): the stub consumes the
 /// closure and the arguments. The arguments move on, and so do the saved
@@ -3045,53 +3048,82 @@ fn clo_def(reg: &Registry, name: &str, arity: usize) -> String {
 /// call's intermediate result is consumed by the `__apply` that receives
 /// the rest.
 fn stub_def(reg: &Registry, name: &str, arity: usize) -> String {
-    let mut out = String::new();
-    out.push_str(&stub_dispatch(reg, name, arity));
-    for supplied in 0..=arity {
-        out.push_str(&stub_entry(reg, name, arity, supplied));
-    }
-    out.push_str(&stub_many(reg, name, arity));
-    out
-}
-
-/// The `app` dispatcher: one switch on the argument count, then a call to
-/// the matching per-arity entry. `app.many` handles any count above
-/// `arity` with the same fixed frame and a dynamic excess.
-fn stub_dispatch(reg: &Registry, name: &str, arity: usize) -> String {
     let mut b = Builder::new();
     b.rc_debug = reg.rc_debug;
     b.reclaim = reg.reclaim;
-    let many = b.label();
-    let labels: Vec<String> = (0..=arity).map(|_| b.label()).collect();
-    let cases: Vec<String> = labels
-        .iter()
-        .enumerate()
-        .map(|(n, l)| format!("i64 {n}, label %{l}"))
-        .collect();
-    b.line(&format!(
-        "switch i64 %argc, label %{many} [ {} ]",
-        cases.join(" ")
-    ));
-    for (n, l) in labels.iter().enumerate() {
-        b.start(l);
-        let r = b.reg();
-        b.line(&format!(
-            "{r} = call i64 @{}(ptr %self, ptr %argv)",
-            quote(&format!("{name}.app.{n}"))
+    let nf = b.load_at("%self", 16);
+    let total = b.reg();
+    b.line(&format!("{total} = add i64 {nf}, %argc"));
+    if arity == 0 {
+        // Every application of a nullary closure is saturated, so there is
+        // no grow path and no second block to branch to.
+        let nb = b.reg();
+        b.line(&format!("{nb} = mul i64 {nf}, 8"));
+        stub_saturate(&mut b, reg, name, arity, &nf, &nb, &total, "%self");
+        return b.finish(&format!(
+            "define i64 @{}(ptr %self, i64 %argc, ptr %argv)",
+            quote(&format!("{name}.app"))
         ));
-        b.line(&format!("ret i64 {r}"));
     }
-    b.start(&many);
-    let r = b.reg();
-    b.line(&format!(
-        "{r} = call i64 @{}(ptr %self, i64 %argc, ptr %argv)",
-        quote(&format!("{name}.app.many"))
-    ));
-    b.line(&format!("ret i64 {r}"));
+    let full = b.reg();
+    b.line(&format!("{full} = icmp uge i64 {total}, {arity}"));
+    let lpart = b.label();
+    let lcall = b.label();
+    b.line(&format!("br i1 {full}, label %{lcall}, label %{lpart}"));
+    b.start(&lpart);
+    stub_grow(&mut b, reg, name, arity, &nf, &total);
+    b.start(&lcall);
+    let nb = b.reg();
+    b.line(&format!("{nb} = mul i64 {nf}, 8"));
+    let frame = stub_merge_frame(&mut b, arity, &nf, &nb);
+    stub_saturate(&mut b, reg, name, arity, &nf, &nb, &total, &frame);
     b.finish(&format!(
         "define i64 @{}(ptr %self, i64 %argc, ptr %argv)",
         quote(&format!("{name}.app"))
     ))
+}
+
+/// Fewer arguments than the arity: build a closure whose payload is the
+/// `nf` saved words followed by the `argc` incoming ones, and whose code
+/// word is this same stub, so the next application enters it again. No
+/// frame is involved: `total < arity` words are copied straight from the
+/// two sources, which is the only place either copy length is dynamic.
+fn stub_grow(
+    b: &mut Builder,
+    reg: &Registry,
+    name: &str,
+    arity: usize,
+    nf: &str,
+    total: &str,
+) {
+    let words = b.reg();
+    b.line(&format!("{words} = add i64 {total}, 3"));
+    let bytes = b.reg();
+    b.line(&format!("{bytes} = mul i64 {words}, 8"));
+    let new = b.reg();
+    b.line(&shaped_alloc_call(
+        &new,
+        &bytes,
+        block::KIND_CLOSURE,
+        reg.closure_desc(name),
+    ));
+    let cw = b.load_at("%self", 0);
+    b.store_at(&new, 0, &cw);
+    b.store_at(&new, 8, &arity.to_string());
+    b.store_at(&new, 16, total);
+    let nd = b.gep(&new, 24);
+    let saved = b.gep("%self", 24);
+    let nb = b.reg();
+    b.line(&format!("{nb} = mul i64 {nf}, 8"));
+    b.line(&format!("call ptr @memcpy(ptr {nd}, ptr {saved}, i64 {nb})"));
+    let na = b.reg();
+    b.line(&format!("{na} = mul i64 %argc, 8"));
+    let nd2 = b.gep_dyn(&nd, &nb);
+    b.line(&format!("call ptr @memcpy(ptr {nd2}, ptr %argv, i64 {na})"));
+    stub_take_saved(b, reg, name, arity, &nd, nf);
+    let word = b.reg();
+    b.line(&format!("{word} = ptrtoint ptr {new} to i64"));
+    b.line(&format!("ret i64 {word}"));
 }
 
 /// Copy the first `arity` merged words (the closure's `nf` saved words
@@ -3170,87 +3202,6 @@ fn stub_saturate(
         "{res} = call i64 @__apply(i64 {r}, i64 {ex}, ptr {tail})"
     ));
     b.line(&format!("ret i64 {res}"));
-}
-
-/// One `app.<supplied>` entry: `%argv` holds exactly `supplied` words, so
-/// the copies and the excess count are constants except for the saved
-/// prefix. A count equal to the arity always saturates, so that entry has
-/// no grow path at all.
-fn stub_entry(reg: &Registry, name: &str, arity: usize, supplied: usize) -> String {
-    let mut b = Builder::new();
-    b.rc_debug = reg.rc_debug;
-    b.reclaim = reg.reclaim;
-    let nf = b.load_at("%self", 16);
-    let total = b.reg();
-    b.line(&format!("{total} = add i64 {nf}, {supplied}"));
-    let nb = b.reg();
-    b.line(&format!("{nb} = mul i64 {nf}, 8"));
-    if supplied < arity {
-        let full = b.reg();
-        b.line(&format!("{full} = icmp uge i64 {total}, {arity}"));
-        let lpart = b.label();
-        let lcall = b.label();
-        b.line(&format!("br i1 {full}, label %{lcall}, label %{lpart}"));
-
-        // Fewer arguments than the arity: build a closure holding the merge.
-        b.start(&lpart);
-        let words = b.reg();
-        b.line(&format!("{words} = add i64 {total}, 3"));
-        let bytes = b.reg();
-        b.line(&format!("{bytes} = mul i64 {words}, 8"));
-        let new = b.reg();
-        b.line(&shaped_alloc_call(
-            &new,
-            &bytes,
-            block::KIND_CLOSURE,
-            reg.closure_desc(name),
-        ));
-        let cw = b.load_at("%self", 0);
-        b.store_at(&new, 0, &cw);
-        b.store_at(&new, 8, &arity.to_string());
-        b.store_at(&new, 16, &total);
-        let nd = b.gep(&new, 24);
-        let saved = b.gep("%self", 24);
-        b.line(&format!("call ptr @memcpy(ptr {nd}, ptr {saved}, i64 {nb})"));
-        if supplied > 0 {
-            let nd2 = b.gep_dyn(&nd, &nb);
-            b.line(&format!(
-                "call ptr @memcpy(ptr {nd2}, ptr %argv, i64 {})",
-                supplied * 8
-            ));
-        }
-        stub_take_saved(&mut b, reg, name, arity, &nd, &nf);
-        let word = b.reg();
-        b.line(&format!("{word} = ptrtoint ptr {new} to i64"));
-        b.line(&format!("ret i64 {word}"));
-        b.start(&lcall);
-    }
-    let frame = stub_merge_frame(&mut b, arity, &nf, &nb);
-    stub_saturate(&mut b, reg, name, arity, &nf, &nb, &total, &frame);
-    b.finish(&format!(
-        "define i64 @{}(ptr %self, ptr %argv)",
-        quote(&format!("{name}.app.{supplied}"))
-    ))
-}
-
-/// `app.many`: any argument count above `arity`, and the dispatcher's
-/// default case. The frame is still fixed at `arity` words; the excess is
-/// pushed from `argv` directly.
-fn stub_many(reg: &Registry, name: &str, arity: usize) -> String {
-    let mut b = Builder::new();
-    b.rc_debug = reg.rc_debug;
-    b.reclaim = reg.reclaim;
-    let nf = b.load_at("%self", 16);
-    let total = b.reg();
-    b.line(&format!("{total} = add i64 {nf}, %argc"));
-    let nb = b.reg();
-    b.line(&format!("{nb} = mul i64 {nf}, 8"));
-    let frame = stub_merge_frame(&mut b, arity, &nf, &nb);
-    stub_saturate(&mut b, reg, name, arity, &nf, &nb, &total, &frame);
-    b.finish(&format!(
-        "define i64 @{}(ptr %self, i64 %argc, ptr %argv)",
-        quote(&format!("{name}.app.many"))
-    ))
 }
 
 /// The release half of an apply stub: `copy` holds the `nf` saved words
@@ -9027,6 +8978,78 @@ int main(void) {{
         assert_eq!(
             run("over_application", &main_prog(vec![inner, outer], body)),
             42
+        );
+    }
+
+    #[test]
+    fn one_apply_stub_per_unit() {
+        // One entry per function, whatever argument count it is handed: the
+        // `caml_applyN` fan-out (a dispatcher, one entry per supplied count,
+        // and an `app.many`) is 973 extra functions on the compiler's own
+        // module and 7.4% of the toolkit check's CPU for 54 of those entries
+        // executing at all (design/stack-allocation.md section 7.8).
+        let add2 = fndef(
+            "add2",
+            &["a", "b"],
+            app(p(arith(ArithOp::Add)), vec![v(0), v(1)]),
+        );
+        let body = Core::Let(
+            LocalId(10),
+            Class::Raw,
+            Box::new(app(g("add2"), vec![n(20)])),
+            Box::new(app(v(10), vec![n(22)])),
+        );
+        let program = crate::rc::insert(
+            main_prog(vec![add2], body),
+            &crate::core::TargetProfile::native(),
+        )
+        .expect("ownership pass failed");
+        let ir = emit(&program).expect("codegen emit failed");
+        let stubs: Vec<&str> = ir
+            .lines()
+            .filter(|l| l.starts_with("define ") && l.contains(".app"))
+            .collect();
+        // One stub for each unit the program emits (`add2`, the arithmetic
+        // primitive it calls, and `program.main`), and no second entry for
+        // any of them.
+        assert_eq!(
+            stubs.len(),
+            3,
+            "one apply stub per unit, got:\n{}",
+            stubs.join("\n")
+        );
+        assert!(stubs
+            .iter()
+            .any(|s| s.contains("\"add2.app\"(ptr %self, i64 %argc, ptr %argv)")));
+        assert!(!ir.contains(".app.many"), "no `app.many` entry");
+        assert!(!ir.contains(".app.0"), "no per-supplied-count entry");
+        // The grow path copies the two sources directly rather than merging
+        // into the fixed frame: a frame slot past the supplied words would
+        // read `argv` out of bounds. So the merge's selects belong to the
+        // saturated block, after the one saturation branch, and the frame
+        // stays a single static `alloca` in the entry block.
+        let start = ir.find("\"add2.app\"(ptr %self").expect("add2 stub");
+        let body = &ir[start..];
+        let body = &body[..body.find("\n}\n").expect("stub end")];
+        let split = body.find("icmp uge i64").expect("one saturation test");
+        let first_select = body.find("select i1").expect("the frame merge");
+        assert!(
+            split < first_select,
+            "the merge runs on the saturated path only:\n{body}"
+        );
+        assert_eq!(
+            body.matches("alloca [").count(),
+            1,
+            "one static frame, never a dynamic alloca:\n{body}"
+        );
+        assert!(
+            !body.contains("alloca i64, i64"),
+            "no dynamic alloca in a stub:\n{body}"
+        );
+        assert_eq!(
+            body.matches("@memcpy").count(),
+            2,
+            "the grow path's two copies, and nothing else:\n{body}"
         );
     }
 
