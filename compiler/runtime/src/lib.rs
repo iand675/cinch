@@ -142,15 +142,16 @@
 //! the drop machinery of [`rc`] scans by it.
 //!
 //! Static blocks are emitted as `{ header; block }` with the symbol
-//! (`@"U.clo"`, `@"U.blk"`) an alias one word in (two for an escaped
-//! constructor, whose descriptor word comes first); the string-literal
-//! constant carries a header before each of its two blocks. A word with
-//! low bit 1 is an immediate, never a block, and no header code
-//! dereferences it: a `case` reads its scrutinee's header only when some
-//! alternative is a constructor pattern. Pointers from the OS resource
-//! handles (buffer, directory, process, scope and task handles) are not
-//! blocks and have no header: they are freed only by their own close
-//! entry points.
+//! (`@"U.clo#h"`, `@"U.blk#h"`) at the header and every reference to the
+//! block a constant offset into that one object, one word in (two for an
+//! escaped constructor, whose descriptor word comes first); the
+//! string-literal constant carries a header before each of its two
+//! blocks. A word with low bit 1 is an immediate, never a block, and no
+//! header code dereferences it: a `case` reads its scrutinee's header
+//! only when some alternative is a constructor pattern. Pointers from the
+//! OS resource handles (buffer, directory, process, scope and task
+//! handles) are not blocks and have no header: they are freed only by
+//! their own close entry points.
 //!
 //! # Exits
 //!

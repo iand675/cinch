@@ -2293,8 +2293,9 @@ so the embedding sweep stays its own decision.
   interface (slice A1 swaps the backing allocator there).
   `cinch_alloc_raw(size, kind)` writes the header; `cinch_free` really
   deallocates and ignores null, immediates and immortal blocks. Static
-  blocks are `@"U.x#h" = [header, words...]` with `@"U.x"` an alias one word
-  in, so no reference site changed. The stats line appends
+  blocks are `@"U.x#h" = [header, words...]` with every reference a
+  constant offset one word into that object, so no reference site
+  changed. The stats line appends
   `header-blocks= header-bytes= immortal= freed=`. `runtime_abi` is 2. A
   `Cons` cell is 32 bytes until S1b folds the tag into the header. Tests:
   `alloc_accounting` (header blocks counted exactly per cell, immortal

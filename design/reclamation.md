@@ -402,9 +402,12 @@ drift. Where S1 differs from the plan above:
   then stop reading it.
 - One kind beyond the list above: `raw` (13), the unscanned byte buffers
   the Wasm canonical ABI glue lowers into. They are not Cinch values.
-- Static blocks are `{ header; block }` storage `@"U.clo#h"`/`@"U.blk#h"`
-  with `@"U.clo"`/`@"U.blk"` an LLVM alias one word in, so no reference
-  site changed. The string composite is
+- Static blocks are `{ header; block }` storage `@"U.clo#h"`/`@"U.blk#h"`,
+  and every reference is a constant offset one word into that object
+  (two for an escaped descriptor), so no reference site changed. The
+  payload was an LLVM alias at first, which `ld64` may place away from
+  its aliasee: an offset the compiler folds cannot be separated from the
+  header. The string composite is
   `{ hdr; tag; buf_word; hdr; kind; len; data_word; data }` (indices 1,
   4 and 7 are the addressed points).
 - The stats line gains `header-blocks`, `header-bytes`, `immortal` (blocks

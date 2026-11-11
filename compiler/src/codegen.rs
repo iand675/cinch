@@ -18,9 +18,11 @@
 //! * `@"U.blk"` (zero-field constructors): the static ADT block, so repeated
 //!   construction returns one pointer,
 //! * `@"U.clo#h"`/`@"U.blk#h"`: the storage of those two static blocks,
-//!   an immortal block header word followed by the block; `@"U.clo"` and
-//!   `@"U.blk"` are aliases one word in, so a static block is addressed
-//!   like a heap block (runtime ABI, `compiler/runtime/src/block.rs`),
+//!   an immortal block header word followed by the block. The payload is
+//!   a constant offset into that one object ([`static_payload`]), so the
+//!   header and the payload cannot be separated by a linker, and a static
+//!   block is addressed like a heap block (runtime ABI,
+//!   `compiler/runtime/src/block.rs`),
 //! * `@"U.dec<N>"` (mathematical `Nat`/`Int` literals beyond the `i64`
 //!   fast path): the private decimal digit string a bignum literal parses.
 //!
@@ -703,14 +705,14 @@ fn emit_module(
             (object && primitive).then_some("linkonce_odr"),
         );
         if object && reg.arity.contains_key(&u.name) {
-            // Static closure aliases are module-local. Export an accessor
-            // instead of relying on a platform linker to expose an alias
-            // into private storage.
+            // Static closure blocks are module-local. Export an accessor
+            // instead of relying on a platform linker to expose storage
+            // that belongs to this module.
             out.push_str(&format!(
-                "define {}i64 @{}() {{\nentry:\n  ret i64 ptrtoint (ptr @{} to i64)\n}}\n",
+                "define {}i64 @{}() {{\nentry:\n  ret i64 ptrtoint (ptr {} to i64)\n}}\n",
                 if primitive { "linkonce_odr " } else { "" },
                 quote(&format!("{}.object-closure", u.name)),
-                quote(&format!("{}.clo", u.name))
+                static_payload(&format!("{}.clo", u.name), reg.closure_desc(&u.name))
             ));
         }
     }
@@ -2132,9 +2134,9 @@ fn static_ctor_block(sym: &str, desc: u64, words: &[String]) -> String {
 
 /// An immortal static block of a shaped kind with descriptor `desc` and
 /// payload `words`: the storage `@"<sym>#h"` puts the block header first
-/// (an escaped descriptor adds its word before it), and `@"<sym>"` is an
-/// alias at the payload, so every reference to the symbol addresses the
-/// payload exactly as it addresses a heap block's.
+/// (an escaped descriptor adds its word before it). Every reference to the
+/// block goes through [`static_payload`], the constant offset into that one
+/// object, so a static block is addressed exactly as a heap block's is.
 fn static_shaped_block(sym: &str, kind: u8, desc: u64, words: &[String]) -> String {
     let field = block::ctor_layout_field(desc);
     let hdr = block::static_header(kind, field) as i64;
@@ -2143,16 +2145,33 @@ fn static_shaped_block(sym: &str, kind: u8, desc: u64, words: &[String]) -> Stri
         init.push(format!("i64 {}", desc as i64));
     }
     init.push(format!("i64 {hdr}"));
-    let prefix = 8 * init.len();
     init.extend(words.iter().map(|w| format!("i64 {w}")));
     format!(
-        "@{storage} = internal constant [{len} x i64] [{init}]\n\
-         @{sym} = internal alias [{n} x i64], getelementptr inbounds (i8, ptr @{storage}, i64 {prefix})\n\n",
+        "@{storage} = internal constant [{len} x i64] [{init}]\n\n",
         storage = quote(&format!("{sym}#h")),
-        sym = quote(sym),
         len = init.len(),
-        n = words.len(),
         init = init.join(", "),
+    )
+}
+
+/// The payload of the static block `sym` with descriptor `desc`: the
+/// constant offset into the object [`static_shaped_block`] emits.
+///
+/// The block used to carry a second symbol, `@"<sym>"`, a global alias at
+/// the payload. A linker is free to place an alias whose aliasee sits in a
+/// mergeable constant section, and `ld64` does: with the stage module split
+/// across nine objects, five zero-length `.blk` aliases came out at the
+/// address of an unrelated constant while their headers stayed 3 to 12 KB
+/// away. The runtime then read a header that was not there, saw a count
+/// above one, and decremented a constant in `__TEXT` (a `SIGBUS` on Apple,
+/// exit -10). An offset the compiler folds into a relocation against the
+/// one storage symbol cannot be separated from its header by any linker.
+fn static_payload(sym: &str, desc: u64) -> String {
+    let words = if block::ctor_layout_field(desc) == block::LAYOUT_BIG { 2 } else { 1 };
+    format!(
+        "getelementptr inbounds (i8, ptr @{storage}, i64 {offset})",
+        storage = quote(&format!("{sym}#h")),
+        offset = 8 * words,
     )
 }
 
@@ -2647,10 +2666,15 @@ fn build_unit(
             if reg.static_dict(id) {
                 // The factory keeps its symbol and signature for separately
                 // compiled consumers; it hands out the one static block.
+                let desc = reg.dict_desc(info);
                 let mut words = vec![info.method_count.to_string()];
-                words.extend(info.methods.iter().map(|(method, _)| format!("ptrtoint (ptr @{} to i64)", quote(&format!("{method}.clo")))));
-                globals.push_str(&static_shaped_block(&static_dict_name(id), block::KIND_DICT, reg.dict_desc(info), &words));
-                b.line(&format!("ret i64 ptrtoint (ptr @{} to i64)", quote(&static_dict_name(id))));
+                words.extend(info.methods.iter().map(|(method, _)| {
+                    format!("ptrtoint (ptr {} to i64)",
+                            static_payload(&format!("{method}.clo"), reg.closure_desc(method)))
+                }));
+                globals.push_str(&static_shaped_block(&static_dict_name(id), block::KIND_DICT, desc, &words));
+                b.line(&format!("ret i64 ptrtoint (ptr {} to i64)",
+                                static_payload(&static_dict_name(id), desc)));
             } else {
                 mk_body(&mut b, reg, info)
             }
@@ -3420,8 +3444,8 @@ fn ret_option(
     b.start(&lnone);
     let w = b.reg();
     b.line(&format!(
-        "{w} = ptrtoint ptr @{blk} to i64",
-        blk = quote(&format!("{name}.blk"))
+        "{w} = ptrtoint ptr {blk} to i64",
+        blk = static_payload(&format!("{name}.blk"), reg.shape_desc(&[], TAG_NONE))
     ));
     b.line(&format!("ret i64 {w}"));
     b.start(&lsome);
@@ -4995,12 +5019,12 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             b.line(&format!("br i1 {lt}, label %{llt}, label %{lsecond}"));
             b.start(&lsecond);
             b.line(&format!("br i1 {eq}, label %{leq}, label %{lgt}"));
-            for (l, suf) in [(llt, ".lt"), (leq, ".eq"), (lgt, ".gt")] {
+            for (l, suf, tag) in [(llt, ".lt", 0), (leq, ".eq", 1), (lgt, ".gt", 2)] {
                 b.start(&l);
                 let w = b.reg();
                 b.line(&format!(
-                    "{w} = ptrtoint ptr @{blk} to i64",
-                    blk = quote(&format!("{name}{suf}"))
+                    "{w} = ptrtoint ptr {blk} to i64",
+                    blk = static_payload(&format!("{name}{suf}"), reg.shape_desc(&[], tag))
                 ));
                 ret(b, &w);
             }
@@ -5202,8 +5226,8 @@ fn ctor_body(
     if fields == 0 {
         let w = b.reg();
         b.line(&format!(
-            "{w} = ptrtoint ptr @{blk} to i64",
-            blk = quote(&format!("{name}.blk"))
+            "{w} = ptrtoint ptr {blk} to i64",
+            blk = static_payload(&format!("{name}.blk"), desc)
         ));
         b.line(&format!("ret i64 {w}"));
         return;
@@ -6068,8 +6092,8 @@ fn mk_body(b: &mut Builder, reg: &Registry, info: &InstInfo) {
         } else if saved.is_empty() {
             let value = b.reg();
             b.line(&format!(
-                "{value} = ptrtoint ptr @{} to i64",
-                quote(&format!("{method}.clo"))
+                "{value} = ptrtoint ptr {} to i64",
+                static_payload(&format!("{method}.clo"), reg.closure_desc(method))
             ));
             value
         } else {
@@ -6411,15 +6435,15 @@ impl CoreEmitter<'_, '_> {
             self.b.line(&format!("{r} = call i64 @{}()", quote(name)));
         } else {
             self.b.line(&format!(
-                "{r} = ptrtoint ptr @{clo} to i64",
-                clo = quote(&format!("{name}.clo"))
+                "{r} = ptrtoint ptr {clo} to i64",
+                clo = static_payload(&format!("{name}.clo"), self.reg.closure_desc(name))
             ));
         }
         Ok(r)
     }
 
     /// If `f` names a code generation unit, its name and arity.
-    /// `ptrtoint ptr @"U.blk"`, the value of a zero-field constructor and
+    /// The payload of `@"U.blk"`, the value of a zero-field constructor and
     /// the entire body of its unit. The block is a constant, so a use may
     /// come from a unit emitted without the constructor's own unit (an
     /// object build selects roots): the definition is emitted here on first
@@ -6427,13 +6451,13 @@ impl CoreEmitter<'_, '_> {
     /// there.
     fn ctor_block(&mut self, unit: &str) -> Result<String> {
         let symbol = format!("{unit}.blk");
+        let desc = self.reg.ctor_desc(unit)?;
         if self.reg.emitted_blocks.borrow_mut().insert(symbol.clone()) {
-            let desc = self.reg.ctor_desc(unit)?;
             let global = static_ctor_block(&symbol, desc, &[]);
             self.b.global(global);
         }
         let r = self.b.reg();
-        self.b.line(&format!("{r} = ptrtoint ptr @{} to i64", quote(&symbol)));
+        self.b.line(&format!("{r} = ptrtoint ptr {} to i64", static_payload(&symbol, desc)));
         Ok(r)
     }
 
@@ -6709,7 +6733,9 @@ impl CoreEmitter<'_, '_> {
                 if self.reg.static_dict(&id.0) && emitted_symbol(&format!("{id}.mk"), &self.reg.emit_modules) {
                     // The factory is defined here, so its static block is
                     // too: no call, no allocation.
-                    self.b.line(&format!("{r} = ptrtoint ptr @{} to i64", quote(&static_dict_name(&id.0))));
+                    let desc = self.reg.dict_desc(info);
+                    self.b.line(&format!("{r} = ptrtoint ptr {} to i64",
+                                         static_payload(&static_dict_name(&id.0), desc)));
                 } else {
                     self.b.line(&format!(
                         "{r} = call i64 @{}({})",
@@ -9074,7 +9100,7 @@ int main(void) {{
 /// evaluator's decoder (`compiler/runtime/src/eval.rs`) are one
 /// specification: change them together. A program is a prefix-encoded
 /// expression tree of `u64` words; operands are either immediate words
-/// or relocated unit-closure symbols ([`QWord::Clo`]).
+/// or relocated addresses ([`QWord::Addr`]).
 mod quote_op {
     /// `[v]`: a raw word (machine scalar values).
     pub const INT: u64 = 1;
@@ -9139,12 +9165,12 @@ mod quote_op {
     pub const DROP: u64 = 22;
 }
 
-/// One reified word: an immediate, or the relocated closure word of a
-/// code generation unit.
+/// One reified word: an immediate, or a relocated address (a unit's static
+/// closure block, or a lambda's apply stub).
 #[derive(Clone, Debug)]
 enum QWord {
     Imm(u64),
-    Clo(String),
+    Addr(String),
 }
 
 fn q_imm(out: &mut Vec<QWord>, v: u64) {
@@ -9168,15 +9194,16 @@ fn q_clo_name(name: &str) -> String {
 /// A unit used as a value: its closure word, or for a zero-arity unit
 /// (a thunk) the result of applying it (mirroring
 /// [`CoreEmitter::unit_value`]).
-fn reify_unit_value(out: &mut Vec<QWord>, name: &str, arity: usize) {
+fn reify_unit_value(out: &mut Vec<QWord>, reg: &Registry, name: &str, arity: usize) {
+    let clo = static_payload(&q_clo_name(name), reg.closure_desc(name));
     if arity == 0 {
         q_imm(out, quote_op::APP);
         q_imm(out, quote_op::UNITREF);
-        out.push(QWord::Clo(q_clo_name(name)));
+        out.push(QWord::Addr(clo));
         q_imm(out, 0);
     } else {
         q_imm(out, quote_op::UNITREF);
-        out.push(QWord::Clo(q_clo_name(name)));
+        out.push(QWord::Addr(clo));
     }
 }
 
@@ -9338,7 +9365,7 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
                 ));
             }
             q_imm(out, quote_op::LAM);
-            out.push(QWord::Clo(format!("{}.app", fn_id.0)));
+            out.push(QWord::Addr(quote(&format!("{}.app", fn_id.0))));
             q_imm(out, reg.closure_desc(&fn_id.0));
             q_imm(out, arity as u64);
             q_imm(out, env.len() as u64);
@@ -9399,7 +9426,8 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
             }
             q_imm(out, quote_op::APP);
             q_imm(out, quote_op::UNITREF);
-            out.push(QWord::Clo(q_clo_name(&format!("{}.mk", id.0))));
+            out.push(QWord::Addr(static_payload(&q_clo_name(&format!("{}.mk", id.0)),
+                                              reg.closure_desc(&format!("{}.mk", id.0)))));
             q_imm(out, subs.len() as u64);
             for s in subs {
                 reify(out, s, reg)?;
@@ -9439,19 +9467,19 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
         Core::Release { .. } => return err("internal error: a quotation body holds a drop specialisation"),
         Core::Global(g, _) => {
             let arity = reg.arity_of(&g.0)?;
-            reify_unit_value(out, &g.0, arity);
+            reify_unit_value(out, reg, &g.0, arity);
         }
         Core::Ctor(g, _) => {
             let arity = reg.arity_of(&g.0)?;
-            reify_unit_value(out, &g.0, arity);
+            reify_unit_value(out, reg, &g.0, arity);
         }
-        Core::Prim(op) => reify_unit_value(out, &op.symbol(), op.arity()),
+        Core::Prim(op) => reify_unit_value(out, reg, &op.symbol(), op.arity()),
         Core::Foreign(n) => {
             let p = reg
                 .foreigns
                 .get(n)
                 .ok_or_else(|| crate::Error::plain(format!("unknown foreign binding {n}")))?;
-            reify_unit_value(out, n, p.arity());
+            reify_unit_value(out, reg, n, p.arity());
         }
         Core::Quote { .. } | Core::DeclsQuote { .. } | Core::SyntaxLit(..) | Core::StrLit(_) => {
             return err("a quotation body cannot contain staging values \
@@ -9530,7 +9558,7 @@ fn emit_quote_block(e: &mut CoreEmitter, body: &Core, holes: &[Core]) -> Result<
         .iter()
         .map(|w| match w {
             QWord::Imm(v) => format!("i64 {v}"),
-            QWord::Clo(s) => format!("i64 ptrtoint (ptr @{s} to i64)", s = quote(s)),
+            QWord::Addr(p) => format!("i64 ptrtoint (ptr {p} to i64)"),
         })
         .collect();
     e.b.global(format!(
