@@ -695,9 +695,16 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
         shards = write_shards(link_ir, link_ir.parent, JOBS) if JOBS > 1 else None
         shard_objects = object_paths(directory, JOBS) if JOBS > 1 else None
 
-        def link(output: Path, flags: tuple[str, ...]) -> int:
-            """Compile the emitted IR at -O2 and link it into output."""
-            if JOBS > 1:
+        def link(output: Path, flags: tuple[str, ...], sharded: bool = True) -> int:
+            """Compile the emitted IR at -O2 and link it into output.
+
+            The instrumented training link is never sharded: a profile
+            counter block per translation unit makes a sharded
+            -fprofile-generate link crash on its first run (exit -10) while
+            the same link as one unit runs the workload, so the one link
+            whose speed does not matter is built the way that works.
+            """
+            if sharded and JOBS > 1:
                 failure, shard_log = compile_shards(shards, shard_objects, clang, 2, JOBS,
                                                     directory, environment(), flags)
                 with log.open("ab") as stream:
@@ -718,7 +725,7 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
             # link optimizes, and the instrumented binary is training state.
             instrumented = directory / "cinch.instrumented"
             started = time.monotonic()
-            code = link(instrumented, tuple(pgo.generate_flags(directory / "pgo" / "raw")))
+            code = link(instrumented, tuple(pgo.generate_flags(directory / "pgo" / "raw")), sharded=False)
             seconds = time.monotonic() - started
             if code == 0:
                 profile = pgo_train("cinch", sources, ir, instrumented, directory, log,
