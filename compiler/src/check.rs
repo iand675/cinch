@@ -5266,7 +5266,7 @@ impl Checker {
             Ty::Adt(name, args) => {
                 if is_capability_class(name) || name == "Scope" || name == "Copy" { return false; }
                 if name == "Task" { return true; }
-                if matches!(name.as_str(), "Array" | "Tensor" | "Columnar") {
+                if matches!(name.as_str(), "Array" | "Tensor" | "Columnar" | "TVar") {
                     return args.iter().any(|arg| self.value_may_hide_scope(arg, seen, fuel - 1));
                 }
                 seen.push(ty.clone());
@@ -5373,6 +5373,16 @@ impl Checker {
             Ty::Adt(name, args) => {
                 if matches!(name.as_str(), "Array" | "Tensor" | "Columnar") {
                     return args.iter().all(|a| self.structural_usage(a, scope, seen, usage));
+                }
+                // A transactional variable is a handle to a cell every
+                // holder of the handle reads and writes. The handle itself
+                // is duplicable. Across a task boundary the cell's value
+                // is reached from both sides whether the handle is shared
+                // or moved (another copy of it may stay behind), so both
+                // need the value's type to be safe to share.
+                if name == "TVar" {
+                    return usage == StructuralUsage::Copy
+                        || args.iter().all(|a| self.structural_usage(a, scope, &mut Vec::new(), StructuralUsage::Share));
                 }
                 if seen.iter().any(|(n, a)| n == name && a == args) {
                     return true;

@@ -326,6 +326,7 @@ fn emit_module(
         "declare i64 @cinch_array_set(i64, i64, i64)",
         "declare i64 @cinch_array_slice(i64, i64, i64)",
         "declare i64 @cinch_array_append(i64, i64)",
+        "declare i64 @cinch_stm_cell_new(i64, i64)",
         "declare i64 @cinch_tensor_reshape(i64, i64)",
         "declare i64 @cinch_tensor_shape(i64)",
         "declare i64 @cinch_tensor_data(i64)",
@@ -1600,6 +1601,14 @@ fn prim_param_classes(op: PrimOp) -> Vec<Class> {
                 .map(|t| crate::repr::repr_of(t, &params, &SigTypes, &mut |_| {}).subst(&classes))
                 .collect()
         }
+        PrimOp::Stm { op, classes } => {
+            let params = op.params();
+            op.sig()
+                .0
+                .iter()
+                .map(|t| crate::repr::repr_of(t, &params, &SigTypes, &mut |_| {}).subst(&classes))
+                .collect()
+        }
         PrimOp::Delay | PrimOp::Force | PrimOp::ApplyErased | PrimOp::Eval => vec![Class::Obj],
         // The parallel units' parameters: two closures, or the callback and
         // the count / input array. The element classes are immediates in
@@ -1633,6 +1642,7 @@ fn prim_param_classes(op: PrimOp) -> Vec<Class> {
 pub(crate) fn prim_consumes(op: PrimOp, i: usize) -> bool {
     match op {
         PrimOp::Delay | PrimOp::Force | PrimOp::ApplyErased => i == 0,
+        PrimOp::Stm { op, .. } => op.consumes(i),
         PrimOp::Conc(ConcOp::WithScope | ConcOp::Spawn) => i == 1,
         _ => false,
     }
@@ -1648,6 +1658,9 @@ fn prim_payload_classes(op: PrimOp) -> Vec<Class> {
         } else {
             vec![]
         };
+    }
+    if matches!(op, PrimOp::Stm { .. }) {
+        return vec![];
     }
     if op == PrimOp::Conc(ConcOp::IoRead) {
         return vec![Class::Obj];
@@ -4008,6 +4021,26 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             classes,
             packed,
         } => arrays_codegen::emit(b, reg, name, op, array_op, classes, packed),
+        Stm { op: stm_op, classes } => {
+            use crate::stm::StmOp::*;
+            match stm_op {
+                // The cell takes the value's reference and remembers its
+                // class as the scan code of its value word.
+                CellNew => {
+                    let out = rt_call(
+                        b,
+                        "cinch_stm_cell_new",
+                        &["i64 %p0".to_string(), format!("i64 {}", scan_code(classes[0]))],
+                    );
+                    ret(b, &out);
+                }
+                // A cell's word is its address, and a cast or an opened
+                // value word is the word it was given: the unit only
+                // changes what the type checker and the count pass know.
+                CellAddr | CellCast => ret(b, "%p0"),
+                CellOpen => ret(b, "%p1"),
+            }
+        }
         Nat(n) => {
             // Boxed bignum words in and out (runtime ABI): `natCmp`
             // returns the raw -1/0/1 immediate.
@@ -5697,8 +5730,11 @@ fn prim_use_declares(program: &Program, so_far: &str) -> Vec<String> {
                 if !seen.insert(u.symbol.as_str()) {
                     continue;
                 }
-                let declared = format!("@{}(", quote(&u.symbol));
-                if so_far.contains(&declared) {
+                // The preamble spells its runtime declarations bare
+                // (`@cinch_dup(`), a contract's own declaration quoted.
+                let quoted = format!("@{}(", quote(&u.symbol));
+                let bare = format!("@{}(", u.symbol);
+                if so_far.contains(&quoted) || so_far.contains(&bare) {
                     continue;
                 }
                 lines.push(prim_use_declare(u));

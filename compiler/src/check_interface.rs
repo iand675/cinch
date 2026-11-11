@@ -387,7 +387,7 @@ impl Checker {
                 else if parts.as_slice() == ["->"] { "(->)".to_string() }
                 else if parts.as_slice() == ["Io"] { "Io".to_string() }
                 else if parts.len() == 1 && (Scalar::parse(&name).is_some()
-                    || matches!(name.as_str(), "Int" | "Nat" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "Tensor" | "Columnar" | "Later")) { name }
+                    || matches!(name.as_str(), "Int" | "Nat" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "Tensor" | "Columnar" | "TVar" | "Later")) { name }
                 else {
                     let info = self.lookup_type(&parts).ok()?;
                     // Scope and Task are owned kernel type constructors,

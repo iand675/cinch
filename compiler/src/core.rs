@@ -981,6 +981,10 @@ impl ParOp {
 pub enum PrimOp {
     /// Immutable typed arrays, specialized by element representation.
     Array { op: crate::arrays::ArrayOp, classes: [Class; 2], packed: Option<Scalar> },
+    /// Transactional variable cells (`cinch.runtime.stm*`; runtime ABI,
+    /// `cinch_stm_cell_new`), specialized by the value's representation
+    /// (`crate::stm`).
+    Stm { op: crate::stm::StmOp, classes: [Class; 2] },
     /// Mathematical `Nat` operations on opaque runtime words
     /// (`cinch.runtime.nat*`; runtime ABI, `cinch_nat_*`).
     Nat(NatOp),
@@ -1145,6 +1149,13 @@ impl PrimOp {
             }
         }
         if let Some(name) = sym.strip_prefix("cinch.runtime.") {
+            for op in crate::stm::StmOp::ALL {
+                if name == op.name() {
+                    return Some(Self::Stm { op, classes: [Class::Param(0), Class::Param(1)] });
+                }
+            }
+        }
+        if let Some(name) = sym.strip_prefix("cinch.runtime.") {
             return Some(match name {
                 "natAdd" => Nat(NatOp::Add),
                 "natSub" => Nat(NatOp::Sub),
@@ -1246,6 +1257,7 @@ impl PrimOp {
         use PrimOp::*;
         let n = match self {
             Array { op, packed, .. } => return format!("cinch.runtime.{}{}", op.name(), packed.map(|s| s.name()).unwrap_or("")),
+            Stm { op, .. } => return format!("cinch.runtime.{}", op.name()),
             Nat(op) => return format!("cinch.runtime.nat{}", op.name()),
             Int(op) => return format!("cinch.runtime.int{}", op.name()),
             Bytes(op) => return format!("cinch.runtime.bytes{}", op.name()),
@@ -1326,6 +1338,7 @@ impl PrimOp {
         use PrimOp::*;
         match self {
             Array { op, packed, .. } => op.sig(packed).0.len(),
+            Stm { op, .. } => op.sig().0.len(),
             Bound { .. } => 0,
             Nat(NatOp::FromI64 | NatOp::ToI64)
             | Int(IntOp::FromI64 | IntOp::ToI64 | IntOp::Neg | IntOp::FromNat | IntOp::ToNat)
@@ -1389,6 +1402,7 @@ impl PrimOp {
         let res = |t: Ty| Ty::Adt(crate::known::RESULT.into(), vec![i64t.clone(), t]);
         match self {
             Array { op, packed, .. } => op.sig(packed),
+            Stm { op, .. } => op.sig(),
             Nat(NatOp::Add | NatOp::Sub | NatOp::Mul | NatOp::Div | NatOp::Rem) => {
                 (vec![Ty::Nat, Ty::Nat], Ty::Nat)
             }
