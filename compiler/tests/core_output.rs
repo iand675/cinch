@@ -93,11 +93,55 @@ fn dump_source(src: &str, file: &str, stage: Stage, profile: &TargetProfile) -> 
     }
 }
 
+/// Print one corpus file the way the installed command does.
+///
+/// `core emit` is the pipeline the build runs, including specialization,
+/// dead-unit pruning, reference counting, frame allocation and the rewrite
+/// annotations, so a golden produced any other way is a second definition
+/// of the lowered stage. The entry is copied into `scratch` because the
+/// command writes beside it.
+fn dump_via_command(scratch: &Path, name: &str, src: &Path, stage: Stage) -> String {
+    let work = scratch.join(name);
+    let _ = std::fs::remove_dir_all(&work);
+    std::fs::create_dir_all(&work).expect("corpus scratch");
+    let entry = work.join(format!("{name}.cinch"));
+    std::fs::copy(src, &entry).expect("copy corpus source");
+    let out = work.join(format!("{name}.core"));
+    let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_cinch"));
+    command.arg("core").arg("emit").arg(&entry).arg("-o").arg(&out);
+    match stage {
+        Stage::Checked => {
+            command.arg("--stage=checked");
+        }
+        _ => {
+            // The corpus pins the case-of-case rule on one fixture; every
+            // other golden runs the shipped defaults.
+            if name.starts_with("joins") {
+                command.arg("--case-of-case");
+            }
+        }
+    }
+    let output = command.output().expect("run cinch core emit");
+    assert!(
+        output.status.success(),
+        "{name}: core emit failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    std::fs::read_to_string(&out).expect("emitted corpus dump")
+}
+
 #[test]
 fn golden_files_regenerate_byte_for_byte() {
-    let profile = TargetProfile::native();
+    // The golden is the command line's output, not an approximation of it:
+    // `core emit` owns the pipeline (specialization, pruning, counting,
+    // frame allocation and the rewrite annotations), and this test drives
+    // that command so the corpus and `core_emit_writes_the_golden_file`
+    // cannot diverge again.
     let update = std::env::var_os("CINCH_UPDATE_CORE").is_some();
     let dir = core_dir();
+    let scratch = std::env::temp_dir().join(format!("cinch_core_golden_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&scratch);
+    std::fs::create_dir_all(&scratch).expect("scratch dir");
     let mut names: Vec<String> = std::fs::read_dir(&dir)
         .expect("tests/core")
         .filter_map(|entry| {
@@ -115,23 +159,12 @@ fn golden_files_regenerate_byte_for_byte() {
         "the corpus covers dictionaries, evidence, indices, ownership, rewrites, prims and quotes"
     );
     for name in names {
-        let src_path = dir.join(format!("{name}.cinch"));
-        let src = std::fs::read_to_string(&src_path).expect("golden source");
+        let src = dir.join(format!("{name}.cinch"));
         let stage = golden_stage(&name);
-        let text = std::thread::Builder::new()
-            .stack_size(128 * 1024 * 1024)
-            .spawn({
-                let src = src.clone();
-                let name = name.clone();
-                let profile = profile.clone();
-                move || dump_source(&src, &format!("{name}.cinch"), stage, &profile)
-            })
-            .expect("spawn")
-            .join()
-            .expect("golden thread");
+        let text = dump_via_command(&scratch, &name, &src, stage);
         // The printer is deterministic: the same program prints the same
         // bytes, so a golden file is a fixed point rather than a sample.
-        let again = dump_source(&src, &format!("{name}.cinch"), stage, &profile);
+        let again = dump_via_command(&scratch, &name, &src, stage);
         assert_eq!(text, again, "{name}: printing twice changed the text");
         // Every golden file verifies: the reader checks the printed grammar.
         if let Err(errors) = coretext::verify(&text) {

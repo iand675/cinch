@@ -2,30 +2,31 @@ core 1
 module Main
 target aarch64-apple-darwin opt-level 0
 source sha256:c1925910f5993a5591361a716ea65985299f78b39a44fb0e9e7af24967a60f3e
-@ticks 1907
+@ticks 1344
 global Algebra.Monoid.Sum
 unit Main.main :: Int
   @frame(1 slot, 16 bytes)
   @stage(lowered)
-  body (let t2 @class(owned)
+  body (let t3 @class(owned)
     (let t0 @class(owned)
       (app (ctor Algebra.Monoid.Sum 0 1) @frame(f0)
         (app (prim cinch.runtime.natAdd) (nat "1") (nat "2")))
       (case (local t0)
         ((con 0 (t1 @class(owned)))
-          (release t0
+          (release t0 @token(t2)
             (moved t1)
             (rest)
-            (app (ctor Algebra.Monoid.Sum 0 1)
-              (app (prim cinch.runtime.natAdd) (local t1) (nat "3")))))))
-    (case (local t2)
-      ((con 0 (t3 @class(owned)))
-        (release t2
-          (moved t3)
+            (reuse t2
+              Algebra.Monoid.Sum
+              (args (app (prim cinch.runtime.natAdd) (local t1) (nat "3"))))))))
+    (case (local t3)
+      ((con 0 (t4 @class(owned)))
+        (release t3
+          (moved t4)
           (rest)
           (if
             (app (prim cinch.prim.eqI64)
-              (app (prim cinch.runtime.natCmp) (local t3) (nat "6"))
+              (app (prim cinch.runtime.natCmp) (local t4) (nat "6"))
               (int 0))
             (int 0)
             (int 1))))))

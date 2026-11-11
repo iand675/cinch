@@ -2,12 +2,14 @@ core 1
 module Main
 target aarch64-apple-darwin opt-level 0
 source sha256:70fe8f7127382b8daccf825dc0a6e0dd0219a33632ff47f28e050dd42ac005f0
-@ticks 1894
+@ticks 1330
 unit Main.main :: Int
   @stage(lowered)
-  body (app (prim cinch.runtime.intAdd)
+  body (let t0 @class(owned)
     (app (prim cinch.runtime.intFromI64) (app (global Main.peek-word) (int 0)))
-    (app (prim cinch.runtime.intFromI64) (app (global Main.peek-word) (int 0))))
+    (let t1 @class(owned)
+      (app (prim cinch.runtime.intFromI64) (app (global Main.peek-word) (int 0)))
+      (app (prim cinch.runtime.intAdd) (local t0) (local t1))))
 end
 unit Main.main.exit :: -
   @stage(lowered)
