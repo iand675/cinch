@@ -243,11 +243,51 @@ itself is not unfolded at all.
 ## 8 How this is measured
 
 Per callee before and after: call count in the emitted IR, by demangled
-name. Program-wide: IR lines, `cinch_alloc_ctor` sites, simplifier tick
-count, toolkit check and self-check wall and CPU time in interleaved pairs,
-and the linked binary size. The seed is measured first because its oracle
-is cheap (it compiles the compiler in about 25 s) and because its program
-contains the prelude bodies, so the class's effect is visible there without
-a build change. The self-hosted side is measured on `stage2/compiler.ll`
-with the switch on and off, and any class that grows the IR more than it
-saves is reported and left off.
+name. Program-wide: IR lines, `cinch_alloc_ctor` sites, count operations,
+and emit wall and CPU time in interleaved pairs. The seed is measured first
+because its oracle is cheap (it emits the compiler in about 15 s) and
+because its program contains the prelude bodies, so the class's effect is
+visible there without a build change.
+
+Seed, same tree and same binary family, only `simplify.rs` differs:
+
+| callee | before | after |
+|---|---|---|
+| `Data.Machine.Eq_I64.==` | 1245 | 1 |
+| `Data.Nat.Eq_Nat.==` | 1815 | 1 |
+| `Data.Nat.Add_Nat.+` | 2253 | 1 |
+| `Data.Bool.not` | 32 | 0 |
+| `Data.String.string-compare` | 784 | 784 |
+
+The one remaining call per unit is its own apply bridge. IR 6,203,083 to
+6,241,065 lines (+0.6 %), allocations unchanged at 794. Every removed
+wrapper becomes one `cinch.prim.*` call, which is `linkonce_odr` and
+inlined by the backend, so `Bool.not` at a site is one `xor` after the
+backend's inline, not before it. Emit wall, three interleaved pairs: base
+15.04, 16.76, 16.02 s; new 17.59, 11.98, 13.60 s, with CPU medians of 12.9
+and 12.5 s. The spread exceeds the effect, which is expected: the inliner
+is a small pass over a 1.6 M node program.
+
+Self-hosted, the compiler's own bundle through
+`--emit-ir-with-interfaces`, switch off then on:
+
+| policy | lines | units | calls | allocations | dup+drop |
+|---|---|---|---|---|---|
+| switch off | 983,827 | 6646 | 191,395 | 15,085 | 132,651 |
+| old `--inline` | 988,982 | 6573 | 192,252 | 15,187 | 133,946 |
+| class, cap 40, decisions, ctor uses | 1,019,467 | 6204 | 204,930 | 17,122 | 143,297 |
+| class, cap 12, no ctor use, no decision | 991,124 | 6445 | 194,509 | 15,182 | 135,535 |
+
+The wide class cost more than it saved: +3.6 % IR and 2,038 more allocation
+sites, because a constructor use read as a chain link and the 40 node cap
+copied twenty node bodies with calls in both branches. The narrow class is
+still a loss on this module: +0.74 % lines, +97 allocation sites and 2,884
+more count operations, for 201 pruned units. It therefore stays behind the
+switch, off by default, and the seed keeps the class on because its program
+holds the bodies the class exists for.
+
+The named residuals do not move on the self-hosted side at any setting:
+`Eq_I64.==` 726, `string-compare` 651, `Eq_Nat.==` 587, `Bool.not` 413,
+`Nat.Add` 328, `Semigroup_List@O.mk` 856. They are calls into the pinned
+library object, whose interfaces carry no bodies, so there is nothing for
+an inliner to unfold (section 6).
