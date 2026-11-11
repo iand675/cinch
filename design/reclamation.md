@@ -678,17 +678,21 @@ drop goes as early as possible.
   is passed on in tail position. This is Lean's tail-call preservation rule.
 - **`App` through `__apply`** (dynamic head, partial or over-application).
   `__apply(f, argc, argv)` borrows `f` and takes the arguments owned. The
-  `@"U.app"` stub adapts to the unit's modes:
-  - *Saturate:* the saved arguments are copied to an `alloca`
-    (`codegen.rs:1293-1316`). Saved arguments going to owned parameters are
-    dup'd, or moved without dup if the closure is unique and consumed.
-    Arguments going to borrowed parameters are dropped after the call.
-  - *Grow:* the old closure's saved arguments are copied with `memcpy`
-    (`codegen.rs:1269-1291`). Each copied object slot needs a dup, unless
-    the old closure is unique, in which case the slots are moved and the old
-    block freed.
-  - *Over-apply:* the intermediate closure from the first call is owned, so
-    it is dropped after the `__apply` on it (`codegen.rs:1331-1334`).
+  `@"U.app"` dispatcher routes `argc` to one `app.<N>` entry (one per count
+  up to the arity, the `caml_applyN` shape) or to `app.many`, and each
+  entry adapts to the unit's modes:
+  - *Saturate:* the saved arguments and the incoming ones are merged into a
+    fixed `[arity x i64]` frame by one select per word, never a dynamic
+    `alloca`. Saved arguments going to owned parameters are dup'd, or moved
+    without dup if the closure is unique and consumed. Arguments going to
+    borrowed parameters are dropped after the call.
+  - *Grow:* the merged prefix is copied with `memcpy` into a fresh closure
+    (a count below the arity, so it always fits the frame). Each copied
+    object slot needs a dup, unless the old closure is unique, in which case
+    the slots are moved and the old block freed.
+  - *Over-apply:* the excess words are pushed from `argv + (arity - filled)`,
+    not from past the fixed frame, and the intermediate closure from the
+    first call is owned, so it is dropped after the `__apply` on it.
 - **`Lam { fn_id, env }`.** The env elements are owned uses that move into
   the closure. The lifted function receives env as its leading parameters
   (`core.rs:1662-1663`). Those parameters are borrowed from the closure

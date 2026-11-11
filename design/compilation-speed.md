@@ -1012,15 +1012,35 @@ of it, and Stage1 trains its own. Link cost is one extra instrumented build
 per source revision.
 
 ThinLTO across the compiler module and the library object links and halves
-the binary (15.9 MB to 11.9 MB) but the result faults at run time in the
-stack probe (`ldr xzr, [sp]`) inside an inlined caller. That is the same
-AArch64 `probe-stack` interaction with dynamic allocas found earlier: our IR
-rounds every dynamic alloca to 16 bytes and marks it `align 16`, so the
-fault is either an LLVM defect on a path we have not isolated or a site that
-still bypasses the rounding. It is worth one investigation because LTO also
-removes the cross-module call cost to the library's string and `Nat`
-routines, which the profiles put at 14% of the compiler's time. Until then,
-LTO stays off.
+the binary, but an earlier result faulted at run time in the stack probe
+(`ldr xzr, [sp]`) inside an inlined caller. That was attributed to the
+AArch64 `probe-stack` interaction with the apply stub's dynamic alloca, the
+only dynamic `alloca` the emitted module contained.
+
+Measured 2026-11-11. At the revision before the stub change (`fe8d5206`,
+whose module still has 196 dynamic allocas) both `clang -O2 -flto=thin` and
+`clang -O2 -flto` link the stage-3 IR, the library object and the runtime,
+and the result runs `--check` on the toolkit bundle and on the compiler's
+own 40K-line bundle with exit 0. The recorded fault is therefore not
+reproducible at that revision, and `a9a9a638` (static blocks addressed by a
+constant offset) is the real fix for the SIGBUS that the note above blamed
+on this site. The apply stub change removes the suspected site regardless:
+the emitted module now has zero dynamic allocas, so whatever an LTO caller
+inlines sees only static, probed frames. A ThinLTO link of the new module
+builds a 12.3 MB binary against 11.5 MB for the same link at `fe8d5206`, and
+it runs the same two checks with exit 0.
+
+The cost is module size. One fixed-frame entry per argument count turns 196
+stubs into 1,365 functions (196 dispatchers, 973 per-arity entries, 196
+`many` bodies) and grows the stage-3 module from 40.4 MB to 46.2 MB (+14%),
+which the sharded `-O2` stage link absorbs. The linked binary grows less:
+ThinLTO builds 12.3 MB against 11.5 MB at `fe8d5206`, and full LTO 11.9 MB
+against 11.1 MB, and all four binaries run both checks. Check time did not
+move outside the spread: interleaved pairs at one held build slot, six for
+the toolkit and four for the self-check, measured the toolkit at a median
+-1.8% CPU (best pair -2.1%) and the self-check at -0.5% CPU median with its
+best pair 0.7% slower. The survey's 1 to 4% is real on the toolkit and is
+not visible on the self-check.
 
 ### Profile-guided stage links (implemented 2026-11-10)
 
