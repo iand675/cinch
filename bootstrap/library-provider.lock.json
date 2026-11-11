@@ -1,7 +1,7 @@
 {
-  "description": "ABI 8 library producer at the tail-call frame fix.",
-  "revision": "12a9bd37fa6b89bfdbfaa43756685072579beb72",
+  "description": "ABI 8 library producer at the readable identity spelling.",
+  "revision": "9e2814f315207d37f776d6c3a726ceb18d88df31",
   "runtime_abi": 8,
   "schema": 1,
-  "source_sha256": "04b19fbb67148ab74b97324fc8034621288f315e8bf1721c9ba10fa17cb5adae"
+  "source_sha256": "53efa6b78465ba142c25dd7e4aa07b2f6ea813417f9ddfa7f3b419635c2b07e9"
 }

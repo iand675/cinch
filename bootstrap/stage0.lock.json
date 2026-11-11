@@ -1,9 +1,9 @@
 {
-  "description": "ABI 8 Native seed at the tail-call frame fix, empty patch.",
+  "description": "ABI 8 Native seed at the readable identity spelling; empty patch.",
   "patch": "bootstrap/seed/stage0.patch",
   "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "revision": "12a9bd37fa6b89bfdbfaa43756685072579beb72",
+  "revision": "9e2814f315207d37f776d6c3a726ceb18d88df31",
   "runtime_abi": 8,
   "schema": 1,
-  "source_sha256": "04b19fbb67148ab74b97324fc8034621288f315e8bf1721c9ba10fa17cb5adae"
+  "source_sha256": "53efa6b78465ba142c25dd7e4aa07b2f6ea813417f9ddfa7f3b419635c2b07e9"
 }
