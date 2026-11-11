@@ -447,8 +447,9 @@ fn specialize_with_roots(program: &Program, report: &mut OptReport, roots: &[Obj
         }
     }
 
-    let mut out = program.clone();
-    out.fns.clear();
+    // Both unit lists are rebuilt below from the collector's decisions, so
+    // the skeleton avoids copying every body only to drop it.
+    let mut out = program.skeleton();
     let empty = BTreeSet::new();
     for f in &program.fns {
         if cx.generic(&f.id.0).is_some() {
@@ -486,7 +487,6 @@ fn specialize_with_roots(program: &Program, report: &mut OptReport, roots: &[Obj
         }
     }
 
-    out.instances.clear();
     for inst in &program.instances {
         let Some(ivs) = cx.inst_copies.get(&inst.id.0) else {
             // An unreached dictionary whose methods are all monomorphic

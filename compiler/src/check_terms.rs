@@ -8521,13 +8521,16 @@ impl Checker {
                                     n.span,
                                 )?;
                             }
-                            let mut a = r.clone();
-                            a.pats = r.pats[1..].to_vec();
+                            // Consuming column 0 moves the row instead of
+                            // copying it: the remaining patterns shift down
+                            // and the environment is not cloned.
+                            let mut a = r;
+                            a.pats.remove(0);
                             defaults.push(a);
                         }
                         ast::Pat::Wild(_) => {
-                            let mut a = r.clone();
-                            a.pats = r.pats[1..].to_vec();
+                            let mut a = r;
+                            a.pats.remove(0);
                             defaults.push(a);
                         }
                         ast::Pat::Int(v, _) | ast::Pat::Sym(v, _) => {
@@ -8545,8 +8548,8 @@ impl Checker {
                                 literals.push((v.clone(), node));
                             }
                             self.mark_consumed(&mut r, &col0);
-                            let mut a = r.clone();
-                            a.pats = r.pats[1..].to_vec();
+                            let mut a = r;
+                            a.pats.remove(0);
                             lit_rows.push((v.clone(), a));
                         }
                         other => {
@@ -8663,8 +8666,11 @@ impl Checker {
                             return Err(Error::at(other.span(), "pattern does not match type Bool"));
                         }
                     };
-                    let mut a = r.clone();
-                    a.pats = r.pats[1..].to_vec();
+                    // Consuming column 0 moves the row instead of copying it:
+                    // the remaining patterns shift down and the environment
+                    // is not cloned.
+                    let mut a = r;
+                    a.pats.remove(0);
                     match tag {
                         Some(true) => {
                             self.mark_consumed(&mut a, &col0);
@@ -8775,13 +8781,16 @@ impl Checker {
                                     n.span,
                                 )?;
                             }
-                            let mut a = r.clone();
-                            a.pats = r.pats[1..].to_vec();
+                            // Consuming column 0 moves the row instead of
+                            // copying it: the remaining patterns shift down
+                            // and the environment is not cloned.
+                            let mut a = r;
+                            a.pats.remove(0);
                             var_rows.push(a);
                         }
                         ast::Pat::Wild(_) => {
-                            let mut a = r.clone();
-                            a.pats = r.pats[1..].to_vec();
+                            let mut a = r;
+                            a.pats.remove(0);
                             var_rows.push(a);
                         }
                         ast::Pat::Con(p, args, span) => {
@@ -9151,13 +9160,16 @@ impl Checker {
                                     name.span,
                                 )?;
                             }
-                            let mut a = r.clone();
-                            a.pats = r.pats[1..].to_vec();
+                            // Consuming column 0 moves the row instead of
+                            // copying it: the remaining patterns shift down
+                            // and the environment is not cloned.
+                            let mut a = r;
+                            a.pats.remove(0);
                             var_rows.push(a);
                         }
                         ast::Pat::Wild(_) => {
-                            let mut a = r.clone();
-                            a.pats = r.pats[1..].to_vec();
+                            let mut a = r;
+                            a.pats.remove(0);
                             var_rows.push(a);
                         }
                         ast::Pat::Tuple(pats, span) => {
@@ -9325,13 +9337,16 @@ impl Checker {
                                     name.span,
                                 )?;
                             }
-                            let mut a = r.clone();
-                            a.pats = r.pats[1..].to_vec();
+                            // Consuming column 0 moves the row instead of
+                            // copying it: the remaining patterns shift down
+                            // and the environment is not cloned.
+                            let mut a = r;
+                            a.pats.remove(0);
                             var_rows.push(a);
                         }
                         ast::Pat::Wild(_) => {
-                            let mut a = r.clone();
-                            a.pats = r.pats[1..].to_vec();
+                            let mut a = r;
+                            a.pats.remove(0);
                             var_rows.push(a);
                         }
                         ast::Pat::Tuple(pats, span) => {
@@ -9472,7 +9487,9 @@ impl Checker {
                     self.bind_syntax_local(&mut r.env, &n, *l, Scheme::mono(t), None, n.span)?;
                 }
             }
-            r.pats = r.pats[1..].to_vec();
+            // Shift the consumed pattern off in place: the remaining ones
+            // move, they are not copied.
+            r.pats.remove(0);
         }
         self.compile_rows(
             rows,

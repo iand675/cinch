@@ -89,12 +89,31 @@ pub fn check_coherence(ifaces: &[Iface]) -> Result<(), CoherenceError> {
     Ok(())
 }
 
+/// Is `identity` inside `module`'s namespace (the byte after it is `.`)?
+/// The ownership walks below test every module of the set against every
+/// identity, so the separator test avoids allocating a qualified prefix per
+/// candidate.
+fn under_module(identity: &str, module: &str) -> bool {
+    identity.len() > module.len()
+        && identity.starts_with(module)
+        && identity.as_bytes()[module.len()] == b'.'
+}
+
+/// The contract hash of every module in a closed interface set, one entry per
+/// module. `verify_chain` checks every import edge against its provider's
+/// hash, and that hash is a pure function of the provider's contract
+/// projection, so one computation per provider answers every consumer of it.
+pub fn contract_hashes(ifaces: &[Iface]) -> BTreeMap<&str, String> {
+    ifaces.iter().map(|f| (f.module.as_str(), f.iface_hash())).collect()
+}
+
 /// Verify that every import records exactly the interface identity of the
 /// artifact provided for it: the "checked against" chain (design note,
 /// section 2.2). A mismatch means stale metadata.
 pub fn verify_chain(ifaces: &[Iface]) -> Result<(), CoherenceError> {
     let by_module: BTreeMap<&str, &Iface> =
         ifaces.iter().map(|f| (f.module.as_str(), f)).collect();
+    let hashes = contract_hashes(ifaces);
     let mut actual_definitions = BTreeMap::new();
     for f in ifaces {
         let mut reachable = std::collections::BTreeSet::new();
@@ -113,11 +132,12 @@ pub fn verify_chain(ifaces: &[Iface]) -> Result<(), CoherenceError> {
                         f.module, imp.module
                     )))
                 }
-                Some(dep) => {
-                    if dep.iface_hash() != imp.iface_hash {
+                Some(_) => {
+                    let actual = &hashes[imp.module.as_str()];
+                    if actual != &imp.iface_hash {
                         return Err(CoherenceError(format!(
                             "{} was checked against {} at {}, but the loaded interface is {}",
-                            f.module, imp.module, imp.iface_hash, dep.iface_hash()
+                            f.module, imp.module, imp.iface_hash, actual
                         )));
                     }
                 }
@@ -125,7 +145,7 @@ pub fn verify_chain(ifaces: &[Iface]) -> Result<(), CoherenceError> {
         }
         for instance in &f.exports.instances {
             for body in &instance.method_bodies {
-                let owner = |identity: &str| by_module.keys().filter(|module| identity.starts_with(&format!("{module}."))).max_by_key(|module| module.len()).copied();
+                let owner = |identity: &str| by_module.keys().filter(|module| under_module(identity, module)).max_by_key(|module| module.len()).copied();
                 if owner(&instance.id) != Some(f.module.as_str()) || owner(&body.implementation) != Some(f.module.as_str()) {
                     return Err(CoherenceError(format!("method body {} is not owned by its declaring dictionary module {}", body.implementation, f.module)));
                 }
@@ -135,7 +155,7 @@ pub fn verify_chain(ifaces: &[Iface]) -> Result<(), CoherenceError> {
             .chain(f.exports.instances.iter().flat_map(|instance| &instance.method_bodies).map(|body| &body.total_body));
         for graph in graphs {
             for definition in graph.definitions() {
-                let owner = by_module.keys().filter(|module| definition.identity.starts_with(&format!("{module}."))).max_by_key(|module| module.len());
+                let owner = by_module.keys().filter(|module| under_module(&definition.identity, module)).max_by_key(|module| module.len());
                 if owner.is_none_or(|owner| !reachable.contains(owner)) {
                     return Err(CoherenceError(format!("total body dependency {} is outside the checked module closure of {}", definition.identity, f.module)));
                 }
@@ -146,7 +166,7 @@ pub fn verify_chain(ifaces: &[Iface]) -> Result<(), CoherenceError> {
         }
         for value in &f.exports.values {
             let Some(ordering) = value.keyed_ordering else { continue };
-            let owner = by_module.keys().filter(|module| value.symbol.starts_with(&format!("{module}.")))
+            let owner = by_module.keys().filter(|module| under_module(&value.symbol, module))
                 .max_by_key(|module| module.len()).copied();
             let defining = owner.filter(|owner| reachable.contains(owner))
                 .and_then(|owner| by_module.get(owner))

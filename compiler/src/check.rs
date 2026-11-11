@@ -3615,6 +3615,24 @@ fn value_index_id(value: &ValueInfo) -> String {
     }
 }
 
+/// Does `value` carry the identity `head` names (`module.name`)?
+///
+/// The index lookups search the qualified table for one head, so building
+/// each candidate's identity would allocate once per candidate visited;
+/// joining module and name is byte equality, compared here without it.
+fn value_names_head(value: &ValueInfo, head: &str) -> bool {
+    match value.kind {
+        ValueKind::Prim(PrimOp::Bytes(BytesOp::Len)) => head == BYTE_LENGTH_INDEX,
+        _ => {
+            let module = value.module.as_str();
+            head.len() == module.len() + 1 + value.name.len()
+                && head.starts_with(module)
+                && head.as_bytes()[module.len()] == b'.'
+                && head[module.len() + 1..] == value.name
+        }
+    }
+}
+
 fn index_value_label(value: &ValueInfo) -> String {
     match value.kind {
         ValueKind::Prim(PrimOp::Bytes(BytesOp::Len)) => "byte-length".into(),
@@ -5866,12 +5884,12 @@ impl Checker {
         match self.uni.resolve_idx(term) {
             ITerm::LocalValue(local) => Ok(self.local_tys.get(&local).map(|ty| self.uni.zonk(ty))),
             ITerm::Inst(call) => match &call.head {
-                IndexHead::Function(head) => self.qualified.values().find(|value| value_index_id(value) == *head)
+                IndexHead::Function(head) => self.qualified.values().find(|value| value_names_head(value, head))
                     .map(|value| self.instantiated_index_type(&value.scheme, &call, span)).transpose(),
                 _ => Ok(None),
             },
             ITerm::Fn(head) if head == BYTE_LENGTH_INDEX => Ok(Some(Ty::fun(Ty::Bytes, Ty::Nat))),
-            ITerm::Fn(head) => Ok(self.qualified.values().find(|value| value_index_id(value) == head)
+            ITerm::Fn(head) => Ok(self.qualified.values().find(|value| value_names_head(value, &head))
                 .and_then(|value| Self::closed_index_signature(&value.scheme))),
             ITerm::App(head, args) => {
                 let mut carrier = self.index_function_carrier(&head, span)?;
@@ -5947,7 +5965,7 @@ impl Checker {
                         self.check_executable(head, span)?;
                         let mut arguments = dictionaries;
                         for (value, carrier) in call.runtime_values() { arguments.push(self.reify_index_value(value, names, carrier, span)?); }
-                        if let Some(value) = self.qualified.values().find(|value| value_index_id(value) == *head) {
+                        if let Some(value) = self.qualified.values().find(|value| value_names_head(value, head)) {
                             if let ValueKind::Method { idx, .. } = value.kind {
                                 if arguments.is_empty() { return Err(Error::at(span, "index method has no checked dictionary")); }
                                 let dictionary = arguments.remove(0);

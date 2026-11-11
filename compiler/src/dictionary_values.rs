@@ -120,7 +120,12 @@ pub(crate) fn lower(program: &mut Program) -> Result<()> {
         let mut best: Option<(usize, usize)> = None;
         for (index, factory) in factories.iter().enumerate() {
             for method in &factory.methods {
-                if (f.id.0 == *method || f.id.0.starts_with(&format!("{method}."))) && best.is_none_or(|(_, len)| method.len() > len) {
+                // The owner test is a prefix plus separator, not a qualified prefix built
+                // per candidate: this walk is units times methods.
+                let under = f.id.0.len() > method.len()
+                    && f.id.0.starts_with(method.as_str())
+                    && f.id.0.as_bytes()[method.len()] == b'.';
+                if (f.id.0 == *method || under) && best.is_none_or(|(_, len)| method.len() > len) {
                     best = Some((index, method.len()));
                 }
             }

@@ -519,6 +519,103 @@ The remaining cost in this path is the closure's membership test itself:
 `name-set`/`name-in` cannot solve with a hash map (2.5), so the next step is
 to shrink the candidate list once per verification rather than per query.
 
+
+### 2.8 What `check` was recomputing (2026-11-11)
+
+A 4,157-sample profile of `cinch check` on the 40,052-line compiler bundle
+put 6.2% of the run inside `Iface::iface_hash` under `verify_chain`, 8.1%
+in `std::fmt::format` (4.4% of it in `value_index_id`, 2.7% in the
+dictionary-value owner walk), 3.4% in `FnDef::clone` plus 2.7% dropping the
+units it had just cloned, and 39% inclusive in `specialize::optimize_with`,
+19% in `core::optimize` and 15% in `simplify::simplify`, the optimizer that
+`check` runs in full even though it emits nothing. Three of those were
+recomputation rather than work.
+
+**The chain check hashed every edge.** `verify_chain` recomputed the
+provider's contract hash once per import edge. The compiler bundle's
+interface set has 868 edges over 105 modules, so the same 105 documents were
+canonicalized and hashed 868 times. The hash is a pure function of the
+provider's contract, so `interface::contract_hashes` computes it once per
+module and every edge compares against that; `analysis::chain_ok` had copied
+the loop and now shares the same treatment. The tamper check is unchanged:
+each provider's content is still hashed from the document that was parsed,
+and a mismatch still fails with the same message.
+
+**The ownership walks formatted a prefix per candidate.** `value_index_id`
+and the method-body ownership loops in `verify_chain` built `format!("{module}.{name}")`
+for every candidate they tested, so a linear scan allocated once per element
+visited; `dictionary_values::lower` did it for every (unit, method) pair.
+`value_names_head` and `under_module` compare the two halves in place, and
+`lower` tests the prefix plus its separator, which is the same predicate
+without the allocation.
+
+**Whole programs were cloned to be emptied.** `specialize_with_roots` began
+with `program.clone()` and then cleared both unit lists; `core::optimize`
+cloned the whole program and then cloned each unit again for the driver and
+once more for the driver's calling-unit field, four body copies per unit.
+`Program::skeleton` copies every non-unit field with both lists empty, the
+driver borrows its rule table, its instance table and the calling unit, its
+rule application copies the rule reference instead of the rules (a deep
+`Core` copy per visited node), a folded `case` moves the chosen alternative
+instead of copying it twice, and the simplifier's `let` no longer clones its
+constructor binding to test it. Four body copies per unit became two: the
+unfolding table's and the emitted unit's.
+
+**The row stripper copied the row.** Consuming column 0 in the match
+compiler cloned the alternative (its environment and every remaining
+pattern) and then replaced the pattern list. The row is owned there, so it
+moves and `remove(0)` shifts the rest down.
+
+**What the second thread is for.** `__ulock_wait` is 5.2% of the samples,
+and every one of them is the main thread in `pthread_join` waiting for the
+worker that runs `check_laws`; the worker is 5% of the samples itself. That
+is the join, not allocator contention, which corrects the sentence above
+about the arena lock. A CPU profile does not count it as work, so what it
+measures is imbalance: the lever is to give the worker more than the law
+check, not to remove a lock.
+
+Measured as interleaved pairs in both orders, child CPU (`user + sys`),
+each step against its own parent (so the absolute numbers differ between
+rows: the machine carries other lanes' builds):
+
+| Step | median | best |
+| --- | --- | --- |
+| hash once per provider module | 6.64 s to 6.44 s (-3.0%) | 6.17 s to 6.01 s |
+| whole-program clones removed | 5.94 s to 5.75 s (-3.2%) | 5.32 s to 5.20 s |
+| prefixes not formatted per candidate | 5.63 s to 5.22 s (-7.3%) | 5.41 s to 4.96 s |
+| row consumption moves the row | 5.77 s to 5.63 s (-2.4%) | 5.44 s to 5.33 s |
+| the four together | 5.97 s to 4.95 s (-17.1%) | 5.57 s to 4.86 s |
+
+The whole change against the tree before it, eleven interleaved pairs per
+workload (nine for `emit-ir`):
+
+| Workload | before | after |
+| --- | --- | --- |
+| `check`, 40,052-line compiler bundle | 6.67 s median, 6.17 s best | 5.33 s (-20.1%), 5.16 s (-16.4%) |
+| `check`, 3,966-line toolkit | 0.59 s median, 0.53 s best | 0.36 s (-39.0%), 0.35 s (-34.0%) |
+| `emit-ir`, compiler bundle | 8.88 s median, 8.39 s best | 7.94 s (-10.6%), 7.65 s (-9.1%) |
+
+The toolkit gains most because its run is mostly the fixed cost: the
+interface chain check and elaboration of the prelude, which is where the
+hash and format work was. `emit-ir` gains least because its time is the
+optimizer and the emitter, and only the whole-program clones and the
+per-node rule copy reach those.
+
+`compiler.ll` stays `e488d5979fbe9921f1cdb643e80c8da9` and every `.cinchif`
+and the manifest are byte-identical across the change, compared on the full
+emit artifact tree.
+
+One candidate from the same profile was tried and dropped: `simplify::pass`
+and the other child walkers collect their children into a `Vec` per node,
+and `core::each_child_mut` removes that allocation. Measured over eleven
+pairs it did not pay (5.00 s median to 4.97 s, 4.88 s best to 4.86 s), so
+it is not in the tree; `child_slots` stays.
+
+`Iface::iface_hash` still clones the interface and re-serializes it, which
+`to_json` could avoid by borrowing its overrides. After the dedup that is
+one hash per module instead of one per edge, under 1% of the run, so the
+rewrite waits for a slice where the hash is measured again.
+
 ## 3. The query graph (rustc, Salsa, Shake)
 
 The single largest structural gap. Today a build rechecks whatever the

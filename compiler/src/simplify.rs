@@ -477,17 +477,18 @@ fn pass(
                 Some(_) => None,
                 None => ctor_app(value, tables).map(|_| (**value).clone()),
             };
+            let is_bound = bound.is_some();
             if let Some(w) = alias {
                 scope.alias.insert(*l, w);
             }
-            if let Some(v) = bound.clone() {
+            if let Some(v) = bound {
                 scope.ctor.insert(*l, v);
             }
             pass(body, scope, tables, classes, opts, fresh, t);
             if alias.is_some() {
                 scope.alias.remove(&*l);
             }
-            if bound.is_some() {
+            if is_bound {
                 scope.ctor.remove(&*l);
             }
         }
@@ -2082,6 +2083,16 @@ pub struct PruneReport {
     pub removed_nodes: usize,
 }
 
+/// Whether `unit` is the root `name` itself or a unit derived from it. A
+/// derivation continues with a separator: `@` for a representation variant,
+/// `.` for a member or companion symbol, `#` for a tail worker.
+fn derived_from(unit: &str, name: &str) -> bool {
+    unit.len() >= name.len()
+        && unit.starts_with(name)
+        && (unit.len() == name.len()
+            || matches!(unit.as_bytes()[name.len()], b'@' | b'.' | b'#'))
+}
+
 /// Remove every unit no live unit can reach, with the program's real roots
 /// (`keep`, in addition to the ones the program itself names): an object or
 /// package build's emitted modules and its object roots.
@@ -2116,12 +2127,21 @@ pub fn prune(program: &mut Program, keep: &[String]) -> PruneReport {
             root(&f.id.0, &mut live, &mut work);
         }
     }
+    // A root also covers every unit derived from it: a representation
+    // variant (`name@RT`, the copy the object roots' class vectors name),
+    // a member or companion symbol (`name.clo`, `name.app`,
+    // `name.object-closure`), and a tail worker (`name#tail`). Missing the
+    // `@` variants is what left a demanded unit out of the object.
+    let mut names: Vec<&str> = program.fns.iter().map(|f| f.id.0.as_str()).collect();
+    names.sort_unstable();
     for name in keep {
-        root(name, &mut live, &mut work);
-        let prefix = format!("{name}.");
-        for f in &program.fns {
-            if f.id.0.starts_with(&prefix) {
-                root(&f.id.0.clone(), &mut live, &mut work);
+        let start = names.partition_point(|unit| *unit < name.as_str());
+        for unit in &names[start..] {
+            if !unit.starts_with(name.as_str()) {
+                break;
+            }
+            if derived_from(unit, name) {
+                root(unit, &mut live, &mut work);
             }
         }
     }

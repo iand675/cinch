@@ -3190,6 +3190,30 @@ pub struct Program {
     pub borrowed: std::collections::BTreeMap<String, Vec<bool>>,
 }
 
+impl Program {
+    /// Every non-unit field copied, with no functions and no dictionaries.
+    /// A pass that rebuilds both lists from scratch takes this instead of
+    /// cloning units it will only discard.
+    pub fn skeleton(&self) -> Program {
+        Program {
+            total_bodies: self.total_bodies.clone(),
+            fns: Vec::new(),
+            instances: Vec::new(),
+            main: self.main.clone(),
+            rewrites: self.rewrites.clone(),
+            plans: self.plans.clone(),
+            foreigns: self.foreigns.clone(),
+            prims: self.prims.clone(),
+            laws: self.laws.clone(),
+            lent: self.lent.clone(),
+            frame: self.frame.clone(),
+            stack: self.stack.clone(),
+            inline: self.inline.clone(),
+            borrowed: self.borrowed.clone(),
+        }
+    }
+}
+
 /// A checked rewrite rule. `pattern` is the elaborated form of the rule's
 /// `match` term, whose occurrences of the pattern variables (the rule's
 /// `forall` and `using` binders, by [`LocalId`]) are the match holes;
@@ -6444,9 +6468,9 @@ struct Driver<'a> {
     /// `size_of` of every body in `defs`, kept in step with it, so an
     /// unfolding decision does not walk the callee's whole body per call.
     def_sizes: &'a HashMap<String, usize>,
-    instances: Vec<InstanceDef>,
-    rules: Vec<RewriteRule>,
-    caller: FnDef,
+    instances: &'a [InstanceDef],
+    rules: &'a [RewriteRule],
+    caller: &'a FnDef,
     stack: Vec<String>,
     sites: Vec<OptSite>,
     fused: Vec<String>,
@@ -6459,7 +6483,7 @@ struct Driver<'a> {
     residual_limit: usize,
 }
 
-impl Driver<'_> {
+impl<'a> Driver<'a> {
     fn site(&mut self, kind: &str, stop: Option<String>) {
         self.sites.push(OptSite {
             fn_id: self.caller.id.0.clone(),
@@ -6785,8 +6809,11 @@ impl Driver<'_> {
     /// and its barriers hold; the template's weights replace the target's
     /// entirely (attribute annotations specification section 2.4).
     fn try_rules(&mut self, e: &mut Core) -> bool {
-        let rules: Vec<RewriteRule> = self.rules.clone();
-        for rule in &rules {
+        // The rule table is shared with the caller and never mutated here, so
+        // the reference is copied out instead of the rules (whose patterns
+        // and templates are whole Core trees) being cloned per node.
+        let rules: &'a [RewriteRule] = self.rules;
+        for rule in rules {
             let holes: std::collections::HashSet<LocalId> =
                 rule.holes.iter().copied().collect();
             let mut binds: HashMap<LocalId, Core> = HashMap::new();
@@ -6878,22 +6905,28 @@ impl Driver<'_> {
                     if !self.spend_fuel() {
                         return;
                     }
-                    let alt = alts[i].clone();
-                    let mut out = *alt.body.clone();
-                    match &alt.pat {
-                        CPat::Con { fields: fs, classes, .. } => {
-                            for (slot, f) in fs.iter().enumerate() {
-                                if let Some(val) = fields.get(slot) {
-                                    let c = classes.get(slot).copied().unwrap_or(Class::Raw);
-                                    out = Core::Let(*f, c, Box::new(val.clone()), Box::new(out));
+                    // The chosen alternative is read in place: cloning it whole
+                    // and then cloning its body again copied the residual three
+                    // times (alternative, body, and the field values it names).
+                    let out = {
+                        let alt = &alts[i];
+                        let mut out = (*alt.body).clone();
+                        match &alt.pat {
+                            CPat::Con { fields: fs, classes, .. } => {
+                                for (slot, f) in fs.iter().enumerate() {
+                                    if let Some(val) = fields.get(slot) {
+                                        let c = classes.get(slot).copied().unwrap_or(Class::Raw);
+                                        out = Core::Let(*f, c, Box::new(val.clone()), Box::new(out));
+                                    }
                                 }
                             }
+                            CPat::Var(l, c) => {
+                                out = Core::Let(*l, *c, Box::new((**scrut).clone()), Box::new(out));
+                            }
+                            CPat::Wild => {}
                         }
-                        CPat::Var(l, c) => {
-                            out = Core::Let(*l, *c, Box::new((**scrut).clone()), Box::new(out));
-                        }
-                        CPat::Wild => {}
-                    }
+                        out
+                    };
                     *e = out;
                     self.changed = true;
                     self.site("case-fold", None);
@@ -7655,12 +7688,14 @@ pub fn optimize(program: &Program, profile: &TargetProfile) -> Result<(Program, 
         measure: profile.measure,
         fuel: profile.fuel,
     };
-    let mut out = program.clone();
+    let mut out = program.skeleton();
+    out.instances = program.instances.clone();
     let mut report = OptReport::default();
     let mut new_fns: Vec<FnDef> = Vec::new();
     for fi in 0..program.fns.len() {
-        let orig = program.fns[fi].clone();
+        let orig = &program.fns[fi];
         if orig.prim.is_some() || orig.ctor.is_some() {
+            out.fns.push(orig.clone());
             continue;
         }
         let base_size = size_of(&orig.body).max(1);
@@ -7669,9 +7704,9 @@ pub fn optimize(program: &Program, profile: &TargetProfile) -> Result<(Program, 
             cx: &cx,
             defs: &defs,
             def_sizes: &def_sizes,
-            instances: program.instances.clone(),
-            rules: program.rewrites.clone(),
-            caller: orig.clone(),
+            instances: &program.instances,
+            rules: &program.rewrites,
+            caller: orig,
             stack: Vec::new(),
             sites: Vec::new(),
             fused: Vec::new(),
@@ -7716,22 +7751,26 @@ pub fn optimize(program: &Program, profile: &TargetProfile) -> Result<(Program, 
             }
         }
         body = renumber_core(&body, orig.params.len());
-        match verify_residual(&orig, &body) {
+        // A rejected residual leaves the unit's checked body in place, as
+        // the pre-specialization program had it.
+        let kept = match verify_residual(orig, &body) {
             Ok(()) => {
-                out.fns[fi].body = body;
                 report.rechecked.push(orig.id.0.clone());
+                body
             }
             Err(why) => {
                 report.discarded.push(format!("{}: {why}", orig.id.0));
+                orig.body.clone()
             }
-        }
+        };
         report.sites.extend(drv.sites);
         report.fused.extend(drv.fused);
-        for f in drv.new_fns {
-            new_fns.push(f);
-        }
-        defs.insert(out.fns[fi].id.0.clone(), out.fns[fi].clone());
-        def_sizes.insert(out.fns[fi].id.0.clone(), size_of(&out.fns[fi].body));
+        new_fns.extend(drv.new_fns);
+        let mut updated = orig.clone();
+        updated.body = kept;
+        defs.insert(updated.id.0.clone(), updated.clone());
+        def_sizes.insert(updated.id.0.clone(), size_of(&updated.body));
+        out.fns.push(updated);
     }
     out.fns.extend(new_fns);
     // The justification identities the rules relied on (supercompilation

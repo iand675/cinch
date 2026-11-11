@@ -5020,6 +5020,38 @@ pub fn driver_with_profile_opts(
                 }
             }
         }
+        // Every unit an exported interface names. A consumer resolves a
+        // unit through the identity its interface publishes, so a package
+        // object that declares the value must define it even when no root
+        // demands it in this build; `prune` drops names no unit carries.
+        // A whole-program artifact has no consumer to resolve against, and
+        // keeping its interface names would only add unreachable units.
+        if mode == Mode::EmitObject {
+            for iface in &ifaces {
+                for value in &iface.exports.values {
+                    roots.push(value.symbol.clone());
+                    if let Some(graph) = &value.total_body {
+                        for definition in graph.definitions() {
+                            roots.push(definition.identity.clone());
+                        }
+                    }
+                }
+                for signature in &iface.exports.signatures {
+                    for method in &signature.methods {
+                        roots.extend(method.exports.iter().cloned());
+                    }
+                }
+                for instance in &iface.exports.instances {
+                    roots.push(instance.id.clone());
+                    for body in &instance.method_bodies {
+                        roots.push(body.implementation.clone());
+                    }
+                }
+                for unit in &iface.units {
+                    roots.push(unit.name.clone());
+                }
+            }
+        }
         let pruned = crate::simplify::prune(&mut program, &roots);
         opt.simplify.pruned = pruned.removed;
         opt.simplify.pruned_nodes = pruned.removed_nodes;

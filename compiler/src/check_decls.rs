@@ -9377,7 +9377,7 @@ impl Checker {
                         self.eval_core(cx, &core, &mut arguments)?
                     }
                     IndexHead::Function(head) => {
-                        let method = self.qualified.values().find(|value| value_index_id(value) == *head)
+                        let method = self.qualified.values().find(|value| value_names_head(value, head))
                             .and_then(|value| match value.kind { ValueKind::Method { idx, .. } => Some(idx), _ => None });
                         let function = if let Some(slot) = method {
                             if arguments.is_empty() { return Err(Error::plain("index method has no checked dictionary")); }

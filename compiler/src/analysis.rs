@@ -945,12 +945,16 @@ impl Analysis {
         for f in &ifaces {
             by_module.entry(f.module.as_str()).or_insert(f);
         }
+        let mut hashes: BTreeMap<&str, String> = BTreeMap::new();
+        for (module, iface) in &by_module {
+            hashes.insert(module, iface.iface_hash());
+        }
         for f in &ifaces {
             for imp in &f.imports {
-                match by_module.get(imp.module.as_str()) {
+                match hashes.get(imp.module.as_str()) {
                     None => return false,
-                    Some(dep) => {
-                        if dep.iface_hash() != imp.iface_hash {
+                    Some(actual) => {
+                        if actual != &imp.iface_hash {
                             return false;
                         }
                     }
