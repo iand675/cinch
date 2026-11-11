@@ -223,7 +223,7 @@ fn body_owners_keep_longest_dot_boundary_prefixes_for_utf8_identities() {
         ("Ö.深.Nested.value", "Ö.深.Nested"), ("Ö.深x.value", "Ö"),
     ];
     let checks = cases.iter().map(|(identity, owner)| format!(
-        "same (body-node-owner (string-concat {} suffix) loaded \"\") {} && same (body-node-owner (string-concat {} suffix) (reverse loaded) \"\") {}",
+        "same (body-node-owner prefixes (string-concat {} suffix) \"\") {} && same (body-node-owner reversed (string-concat {} suffix) \"\") {}",
         quote(identity), quote(owner), quote(identity), quote(owner),
     )).collect::<Vec<_>>().join(" &&\n          ");
     let program = format!(r#"module Main where
@@ -237,13 +237,18 @@ fn body_owners_keep_longest_dot_boundary_prefixes_for_utf8_identities() {
     Err error -> 90
     Ok input -> case load-interface-set [{interfaces}] of
       Err error -> 91
-      Ok loaded -> let suffix = string-repeat (bytes-len input) "λ" in
+      Ok loaded -> let prefixes = prefixes-of (index-interfaces loaded) in
+        let reversed = prefixes-of (index-interfaces (reverse loaded)) in
+        let suffix = string-repeat (bytes-len input) "λ" in
         if {checks} then 0 else 1
 "#);
-    // Expose the private lookup only in this test's owned module copy.
-    // Production exports and admission paths retain their existing boundary.
+    // Expose the private lookup and the index that feeds it only in this
+    // test's owned module copy. Production exports and admission paths
+    // retain their existing boundary.
     let loader = include_str!("../../bootstrap/Bootstrap.Load.cinch").replacen(
-        "  export ImportedValue", "  export body-node-owner\n  export ImportedValue", 1,
+        "  export ImportedValue",
+        "  export body-node-owner\n  export index-interfaces\n  export prefixes-of\n  export ImportedValue",
+        1,
     );
     let dir = common::project("owner_prefixes", &[
         ("Bootstrap.Ast.cinch", include_str!("../../bootstrap/Bootstrap.Ast.cinch")),

@@ -2713,6 +2713,13 @@ module Bootstrap.RuntimeIr where
   other-local-use id term = case term of
     CLocal sp ty key name actuals -> key == id
     CCase sp ty value alternatives -> case-local-use id value || other-local-use id alternatives
+    -- A closure rebuilds its environment from captures, and a deferred
+    -- constructor carries no word to capture. A use inside one is therefore
+    -- never the scrutinee deferral is admitted for, even when it is that
+    -- closure's case scrutinee.
+    CLambda sp ty pattern body -> term-uses id term
+    CRecursiveFunctions sp ty members body -> term-uses id term
+    CRecursiveValues sp ty region members body -> term-uses id term
     other -> other-local-use-any id (runtime-term-children term)
   case-local-use :: Nat -> CoreTerm -> Bool
   case-local-use id value = case value of
@@ -3736,8 +3743,10 @@ module Bootstrap.RuntimeIr where
   -- Only selected roots have external linkage. Generated helpers and the
   -- closure dispatcher stay local; descriptor namespaces still require a
   -- compatible provider layout prefix. Physical ABI metadata is separate.
+  -- The inliner is opt-in, as it is for a program: the plain entries emit
+  -- every worker the roots reach, and a `-mode` entry takes the flag.
   emit-runtime-library-with-object :: CheckedProgram -> Option RuntimeObject -> List (String, List Nat) -> Result (List Diagnostic) String
-  emit-runtime-library-with-object checked provider roots = emit-runtime-library-with-object-mode True checked provider roots
+  emit-runtime-library-with-object checked provider roots = emit-runtime-library-with-object-mode False checked provider roots
   emit-runtime-library-with-object-mode :: Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat) -> Result (List Diagnostic) String
   emit-runtime-library-with-object-mode inlining checked provider roots =
     let typed = checked-elaboration checked in
@@ -3960,14 +3969,14 @@ module Bootstrap.RuntimeIr where
   -- checked export identities. The pipeline owns that source-name authority.
   -- These are physical unit/layout facts, not a completed object manifest.
   emit-runtime-library-artifact-with-object :: CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, List Nat, Json)
-  emit-runtime-library-artifact-with-object checked provider roots = case emit-runtime-library-artifact True True checked provider roots of
+  emit-runtime-library-artifact-with-object checked provider roots = case emit-runtime-library-artifact True False checked provider roots of
     Err errors -> Err errors
     Ok (ir, words, units, facts) -> Ok (ir, words, units)
   -- A closed dependency object never installs a shorter layout table from a
   -- global constructor. The final consumer registers its complete compatible
   -- prefix, including this object's actual descriptors, once before use.
   emit-runtime-library-object-with-object :: CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, List Nat, Json, Json)
-  emit-runtime-library-object-with-object checked provider roots = emit-runtime-library-artifact False True checked provider roots
+  emit-runtime-library-object-with-object checked provider roots = emit-runtime-library-artifact False False checked provider roots
   -- The inlining switch is the plan's first field: a measured run takes the
   -- same library with the copies turned off.
   emit-runtime-library-object-with-object-mode :: Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, List Nat, Json, Json)
@@ -3999,9 +4008,10 @@ module Bootstrap.RuntimeIr where
   emit-runtime-program-with-object-mode inlining checked provider = emit-runtime-program-counting-mode inlining False checked provider
   -- A debug-counting program routes its own count operations through the
   -- runtime's checked entries; a linked provider object keeps the counts
-  -- it was compiled with.
+  -- it was compiled with. The inliner is opt-in, so the plain entry emits
+  -- every worker a root reaches and a `-mode` entry takes the flag.
   emit-runtime-program-counting :: Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
-  emit-runtime-program-counting debug checked provider = emit-runtime-program-counting-mode True debug checked provider
+  emit-runtime-program-counting debug checked provider = emit-runtime-program-counting-mode False debug checked provider
   emit-runtime-program-counting-mode :: Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
   emit-runtime-program-counting-mode inlining debug checked provider =
     let typed = checked-elaboration checked in
