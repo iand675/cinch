@@ -1,7 +1,7 @@
 {
-  "description": "ABI 9 library producer with the bump arena and static blocks addressed by offset.",
-  "revision": "a9a9a638659df5cba5a7c007e7b063dedf05dd4a",
+  "description": "ABI 9 library producer with the fixed-frame apply stub family.",
+  "revision": "2a9ab730099fa6ff5492458267cc45bbcdbda48e",
   "runtime_abi": 9,
   "schema": 1,
-  "source_sha256": "d55f97792290c33ea56547d47747520e0b477000fddc078202fb0489ddc44a5b"
+  "source_sha256": "6045db1ff2370bbbb87b87c206dcb11e4531af4c46f7f678c1f7c9c4f213a574"
 }
