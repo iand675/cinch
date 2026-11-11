@@ -204,6 +204,15 @@ def pgo_dir() -> Path:
     return BUILD / "pgo"
 
 
+def seed_flags() -> list[str]:
+    """Extra flags for the seed's own build (`CINCH_SEED_FLAGS`).
+
+    Part of the stage-1 cache key: a flag that changes the produced compiler
+    must invalidate it.
+    """
+    return os.environ.get("CINCH_SEED_FLAGS", "").split()
+
+
 def pgo_workload() -> tuple[Path, str]:
     """The training bundle and its digest, written once per workload text."""
     data = pgo.workload_source(ROOT)
@@ -544,7 +553,7 @@ def build_stage(stage: int) -> Path:
     runtime = build_seed_runtime()
     inputs = {"protocol": PROTOCOL, "host": HOST, "source_sha256": source_hash(files),
               "builder_sha256": file_hash(builder), "built_by_stage": stage - 1,
-              "shard_count": JOBS,
+              "shard_count": JOBS, "seed_flags": seed_flags(),
               "seed_runtime_profile": "release", "seed_runtime_sha256": file_hash(runtime)}
     directory = BUILD / f"stage{stage}"
     compiler = directory / "cinch"
@@ -577,8 +586,7 @@ def build_stage(stage: int) -> Path:
     if PGO:
         record.unlink(missing_ok=True)
         append = shlex.join(pgo.generate_flags(directory / "pgo" / "raw"))
-    seed_flags = os.environ.get("CINCH_SEED_FLAGS", "").split()
-    code = run([builder, "build", sources / "Main.cinch", "-o", compiler, "--opt-level", "2", *seed_flags],
+    code = run([builder, "build", sources / "Main.cinch", "-o", compiler, "--opt-level", "2", *seed_flags()],
                sources, log, env_extra=stage_link_environment(append, record if PGO else None))
     if code == 0 and PGO:
         # The seed's instrumented link is inside the seed's own command, so
