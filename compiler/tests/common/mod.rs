@@ -133,6 +133,10 @@ pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
     }
     std::fs::write(dir.join("Bootstrap.Index.cinch"), include_str!("../../../bootstrap/Bootstrap.Index.cinch"))
         .expect("shared index syntax dependency");
+    std::fs::write(dir.join("Bootstrap.CoreBody.cinch"), include_str!("../../../bootstrap/Bootstrap.CoreBody.cinch"))
+        .expect("dense body codec dependency");
+    std::fs::write(dir.join("Bootstrap.Total.cinch"), include_str!("../../../bootstrap/Bootstrap.Total.cinch"))
+        .expect("checked total-body dependency");
     if files.iter().any(|(name, _)| matches!(*name, "Bootstrap.Core.cinch" | "Bootstrap.Global.cinch" | "Bootstrap.Typing.cinch" | "Bootstrap.Check.cinch" | "Bootstrap.Infer.cinch" | "Bootstrap.Dictionary.cinch" | "Bootstrap.Instance.cinch")) {
         for (name, source) in [
             ("Bootstrap.Load.cinch", include_str!("../../../bootstrap/Bootstrap.Load.cinch")),
@@ -146,8 +150,6 @@ pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
         std::fs::write(dir.join("Bootstrap.Guarded.cinch"), include_str!("../../../bootstrap/Bootstrap.Guarded.cinch"))
             .expect("checked guarded-body dependency");
     }
-    std::fs::write(dir.join("Bootstrap.Total.cinch"), include_str!("../../../bootstrap/Bootstrap.Total.cinch"))
-        .expect("checked total-body dependency");
     if files.iter().any(|(name, _)| matches!(*name, "Bootstrap.Core.cinch" | "Bootstrap.Check.cinch" | "Bootstrap.Infer.cinch" | "Bootstrap.Dictionary.cinch" | "Bootstrap.TotalSemantics.cinch")) {
         std::fs::write(dir.join("Bootstrap.Proof.cinch"), include_str!("../../../bootstrap/Bootstrap.Proof.cinch"))
             .expect("shared proof checker dependency");
@@ -181,6 +183,7 @@ pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
             ("Bootstrap.Dictionary.cinch", include_str!("../../../bootstrap/Bootstrap.Dictionary.cinch")),
             ("Bootstrap.Infer.cinch", include_str!("../../../bootstrap/Bootstrap.Infer.cinch")),
             ("Bootstrap.Parse.cinch", include_str!("../../../bootstrap/Bootstrap.Parse.cinch")),
+            ("Bootstrap.CoreBody.cinch", include_str!("../../../bootstrap/Bootstrap.CoreBody.cinch")),
         ] {
             std::fs::write(dir.join(name), src).expect("checker dependency");
         }

@@ -2,6 +2,9 @@
 -- links and runs, retaining the ladder's original four-path interface.
 -- --compile-only links without executing the artifact. --check accepts a
 -- source and diagnostics base path and stops after the frontend checks.
+-- --emit-bodies accepts a source and output path, checks it, and writes the
+-- dense typed Core body document (types in a side table) for every checked
+-- definition; it writes no interfaces.
 -- Either mode accepts --interfaces MANIFEST before the source paths.
 -- --inline copies small units into their call sites. It is off by default:
 -- measured on the ladder it removes 30 workers and 0.9 % more IR, and the
@@ -16,7 +19,7 @@ module Main where
 
   import Bootstrap.Driver (read-argv)
   import Bootstrap.Report (render-diagnostic)
-  import Bootstrap.Pipeline (PipelineMode, CheckOnly, EmitOnly, EmitWithInterfaces, InterfacesOnly, ObjectOnly, compile-source-library-object, CompileOnly, CompileAndRun, compile-source-mode, compile-source-with-manifest-mode, compile-source-with-object, compile-source-with-object-interfaces, four-words, pipeline-bad-args)
+  import Bootstrap.Pipeline (PipelineMode, CheckOnly, BodiesOnly, EmitOnly, EmitWithInterfaces, InterfacesOnly, ObjectOnly, compile-source-library-object, CompileOnly, CompileAndRun, compile-source-mode, compile-source-with-manifest-mode, compile-source-with-object, compile-source-with-object-interfaces, four-words, pipeline-bad-args)
   import Bootstrap.Pipeline (run-source-with-object)
   import Data.Path (path-from-string)
 
@@ -28,6 +31,8 @@ module Main where
     Cons flag rest ->
       if string-compare flag "--check" == 0 then
         if selected then pipeline-bad-args else run-options CheckOnly manifest object-config debug inlining True rest
+      else if string-compare flag "--emit-bodies" == 0 then
+        if selected then pipeline-bad-args else run-options BodiesOnly manifest object-config debug inlining True rest
       else if string-compare flag "--compile-only" == 0 then
         if selected then pipeline-bad-args else run-options CompileOnly manifest object-config debug inlining True rest
       else if string-compare flag "--emit-ir" == 0 then
@@ -84,6 +89,9 @@ module Main where
     CheckOnly -> case ws of
       Cons source (Cons diagnostics Nil) -> run-source mode manifest object-config debug inlining source diagnostics diagnostics diagnostics
       other -> pipeline-bad-args
+    BodiesOnly -> case (debug, ws) of
+      (False, Cons source (Cons out Nil)) -> run-source mode manifest object-config debug inlining source out out out
+      other -> pipeline-bad-args
     other -> case four-words ws of
       None -> pipeline-bad-args
       Some (source, ir, exe, report) -> run-source mode manifest object-config debug inlining source ir exe report
@@ -101,6 +109,7 @@ module Main where
   emits-code :: PipelineMode -> Bool
   emits-code mode = case mode of
     CheckOnly -> False
+    BodiesOnly -> False
     InterfacesOnly -> False
     other -> True
 

@@ -3,6 +3,7 @@
 module Main where
 
   import Bootstrap.Core
+  import Bootstrap.CoreBody (dense-definition-document, dense-verbose-definition, dense-definition-of-document)
   import Bootstrap.Infer
   import Bootstrap.Type
   import Bootstrap.Dictionary (resolve-dictionary-definition, resolve-dictionary-term)
@@ -12,6 +13,7 @@ module Main where
   import Effect.Fs (fs-read, fs-write)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Text.Lex (Span)
+  import Text.Json (canonical-bytes)
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -194,6 +196,22 @@ module Main where
   many-bodies :: List CoreDefinition -> Bool
   many-bodies definitions = case definitions of Nil -> True; Cons definition rest -> many-body definition && many-bodies rest
 
+  body-round-trip :: CoreDefinition -> Bool
+  body-round-trip definition = let dense = dense-definition-document definition in
+    case dense-definition-of-document dense of
+      Some decoded -> bytes-compare (canonical-bytes (dense-definition-document decoded)) (canonical-bytes dense) == 0 && core-definition-closed decoded
+      None -> False
+  body-round-trips :: List CoreDefinition -> Bool
+  body-round-trips definitions = case definitions of
+    Nil -> True
+    Cons definition rest -> body-round-trip definition && body-round-trips rest
+  body-bytes :: Bool -> List CoreDefinition -> Nat
+  body-bytes dense definitions = case definitions of
+    Nil -> 0
+    Cons definition rest -> bytes-len (canonical-bytes (if dense then dense-definition-document definition else dense-verbose-definition definition)) + body-bytes dense rest
+  bodies-ok :: List CoreDefinition -> Bool
+  bodies-ok definitions = list-length definitions > 0 && body-round-trips definitions && body-bytes True definitions <= body-bytes False definitions
+
   verify :: Bytes -> Elaboration -> Bool
   verify mode result = if matches mode "rejected" then
     list-length (elaboration-errors result) > 0 && list-length (elaboration-core result) == 0 && list-length (elaboration-bindings result) == 0 && list-length (elaboration-data result) == 0
@@ -206,6 +224,7 @@ module Main where
        else if matches mode "guard" then guard-core (elaboration-core result)
        else if matches mode "and" || matches mode "or" then boolean-core mode (elaboration-core result)
        else if matches mode "many" then list-length (elaboration-core result) == 1501 && many-bodies (elaboration-core result)
+       else if matches mode "bodies" then bodies-ok (elaboration-core result)
        else if matches mode "shadow" then shadow-core (elaboration-core result)
        else if matches mode "as" then as-core (elaboration-core result)
        else if matches mode "scope" then scope-invariants (list-length (elaboration-core result))

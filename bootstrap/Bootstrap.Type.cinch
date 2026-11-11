@@ -14,6 +14,7 @@ module Bootstrap.Type where
   import Algebra.Semigroup
 
   export Kind, KType, KProp, KRegion, KEffect, KRow, KFun, KValue, kind-equal, kind-text
+  export same-shape, carrier-tree, read-carrier-tree, kind-tree, read-kind-tree
   export valid-kind, map-kind-types, value-kind, value-carrier
   export arrow-constructor-kind, type-application, refinement-view, refinement-formals
   export ArrowUsage, UsageZero, UsageOne, UsageAffine, UsageMany, parse-arrow-usage, arrow-usage-text, UUsageArrow, arrow-shape, erased-value-arrow

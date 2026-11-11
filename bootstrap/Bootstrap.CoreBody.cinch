@@ -1,0 +1,1203 @@
+-- Dense, typed Core bodies for interface transport and storage.
+--
+-- A checked body currently carries a UType in every node: in memory that is
+-- one word per node pointing at a type tree the elaboration built anyway,
+-- but in a document it is the whole type tree again at every occurrence.
+-- This module writes the transport form: every distinct UType a definition
+-- mentions appears once in a "types" side table, and every node, pattern,
+-- evidence row and scheme refers to it by position. A body read back has the
+-- zero span: a consumer of another module's body cannot blame that module's
+-- source, and the dense form is for storage and transport, not diagnostics.
+--
+-- Schema 1:
+--   {"schema": 1,
+--    "types": [carrier tree, ...],
+--    "body": {"name": string,
+--             "scheme": {"params": [[id, name, kind, implicit], ...],
+--                        "requirements": [[name, type], ...],
+--                        "body": type},
+--             "openings": [[id, type], ...],
+--             "givens": [[name, type], ...],
+--             "private": [[id, kind], ...],
+--             "clauses": [{"patterns": [pattern, ...], "body": term}, ...]}}
+-- A type position is a table index in the dense form. `dense-verbose-body`
+-- writes the same shape with a carrier tree in every position and an empty
+-- table, which is the counterfactual a size measurement compares against;
+-- the reader accepts only the dense form.
+module Bootstrap.CoreBody where
+
+  import Bootstrap.Core
+  import Bootstrap.Index
+  import Bootstrap.Type
+  import Bootstrap.Proof
+  import Bootstrap.Total (total-identity)
+  import Data.Json
+  import Data.Nat (nat-to-int, nat-from-int)
+  import Text.Lex (Span)
+  import Text.Json (canonical-bytes)
+  import Algebra.Semigroup
+
+  export dense-definition-document, dense-verbose-definition, dense-definition-of-document
+  export dense-claims, dense-claims-of-document, dense-claims-verified
+
+  dense-zero :: Span
+  dense-zero = Span 0 0 0 0
+
+  dense-same :: String -> String -> Bool
+  dense-same a b = string-compare a b == 0
+
+  dense-list :: List Json -> Json
+  dense-list items = case items of Nil -> JArrEnd; Cons first rest -> JArr first (dense-list rest)
+
+  dense-node :: String -> List Json -> Json
+  dense-node tag fields = JArr (JStr tag) (dense-list fields)
+
+  dense-text :: Json -> Option String
+  dense-text doc = case doc of JStr value -> Some value; other -> None
+
+  dense-bool :: Json -> Option Bool
+  dense-bool doc = case doc of JBool value -> Some value; other -> None
+
+  dense-natural :: Json -> Option Nat
+  dense-natural doc = case doc of JNum n -> if n < 0 then None else Some (nat-from-int n); other -> None
+
+  dense-number :: Json -> Option Int
+  dense-number doc = case doc of JNum n -> Some n; other -> None
+
+  dense-items :: Json -> Option (List Json)
+  dense-items doc = case doc of
+    JArrEnd -> Some Nil
+    JArr first rest -> case dense-items rest of Some more -> Some (Cons first more); None -> None
+    other -> None
+
+  -- A digest only filters the structural comparison: it never decides
+  -- equality, so equal types with different digests merely lose a shared
+  -- table row. Every constructor contributes its tag, its payload lengths
+  -- and its children, which is enough to separate the common shapes.
+  dense-mix :: Nat -> Nat -> Nat -> Nat
+  dense-mix tag left right = tag * 1000003 + left * 31 + right
+
+  dense-type-digest :: UType -> Nat
+  dense-type-digest ty = case ty of
+    UPropLit value -> if value then 2 else 3
+    UCompare relation left right -> dense-mix 5 (string-length relation) (dense-mix 7 (dense-type-digest left) (dense-type-digest right))
+    UPropAnd left right -> dense-mix 11 (dense-type-digest left) (dense-type-digest right)
+    UPropOr left right -> dense-mix 13 (dense-type-digest left) (dense-type-digest right)
+    UPropNot body -> dense-mix 17 (dense-type-digest body) 0
+    UPropNonZero body -> dense-mix 19 (dense-type-digest body) 0
+    UPropNotNull body -> dense-mix 23 (dense-type-digest body) 0
+    UPropNonZeroPending body -> dense-mix 29 (dense-type-digest body) 0
+    URequire predicates body -> dense-mix 31 (dense-type-digest predicates) (dense-type-digest body)
+    URefine id name carrier predicate -> dense-mix 37 (string-length name) (dense-mix 41 (dense-type-digest carrier) (dense-type-digest predicate))
+    URefineFormer name ids body -> dense-mix 43 (string-length name) (dense-type-digest body)
+    UCon name kind -> dense-mix 47 (string-length name) (dense-kind-digest kind)
+    UBound id name kind -> dense-mix 53 id (dense-kind-digest kind)
+    URigid id name level kind -> dense-mix 59 (id + level) (dense-kind-digest kind)
+    UMeta id kind -> dense-mix 61 id (dense-kind-digest kind)
+    UIndex carrier value -> dense-mix 67 (dense-type-digest carrier) (dense-index-digest value)
+    UIndexForget value -> dense-mix 71 (dense-type-digest value) 0
+    UIndexByteLength value -> dense-mix 73 (dense-type-digest value) 0
+    UIndexBorrowRead value -> dense-mix 79 (dense-type-digest value) 0
+    UIndexList element fields -> dense-mix 83 (dense-type-digest element) (dense-type-digest fields)
+    UIndexCall function args -> dense-mix 89 (string-length (total-identity function)) (dense-type-digest args)
+    UIndexPromote value -> dense-mix 97 (dense-type-digest value) 0
+    UIndexMath op left right -> dense-mix 101 (string-length op) (dense-mix 103 (dense-type-digest left) (dense-type-digest right))
+    UPi id name domain row result -> dense-mix 107 (string-length name) (dense-mix 109 (dense-type-digest domain) (dense-mix 113 (dense-type-digest row) (dense-type-digest result)))
+    UApp f x -> dense-mix 127 (dense-type-digest f) (dense-type-digest x)
+    UFun a b -> dense-mix 131 (dense-type-digest a) (dense-type-digest b)
+    UFunEff a row b -> dense-mix 137 (dense-type-digest a) (dense-mix 139 (dense-type-digest row) (dense-type-digest b))
+    UUsageArrow usage arrow -> dense-mix 149 (string-length (arrow-usage-text usage)) (dense-type-digest arrow)
+    UProofFun a row b -> dense-mix 151 (dense-type-digest a) (dense-mix 157 (dense-type-digest row) (dense-type-digest b))
+    URow labels -> dense-mix 163 (dense-type-digest labels) 0
+    URowJoin a b -> dense-mix 167 (dense-type-digest a) (dense-type-digest b)
+    UTuple fields -> dense-mix 173 (dense-type-digest fields) 0
+    UArg first rest -> dense-mix 179 (dense-type-digest first) (dense-type-digest rest)
+    UEnd -> 181
+    UError -> 191
+
+  dense-kind-digest :: Kind -> Nat
+  dense-kind-digest kind = case kind of
+    KType -> 193
+    KProp -> 197
+    KRegion -> 199
+    KEffect -> 211
+    KRow -> 223
+    KFun a b -> dense-mix 227 (dense-kind-digest a) (dense-kind-digest b)
+    KValue payload -> 229
+
+  dense-index-digest :: IndexTerm -> Nat
+  dense-index-digest term = case term of
+    IInteger n -> 233
+    IBound id name -> dense-mix 239 id (string-length name)
+    IRigid id name level -> dense-mix 241 (id + level) (string-length name)
+    IGlobal name -> dense-mix 251 (string-length name) 0
+    IMeta id -> dense-mix 257 id 0
+    IApply f x -> dense-mix 263 (dense-index-digest f) (dense-index-digest x)
+    ILambda id name body -> dense-mix 269 id (string-length name + dense-index-digest body)
+    IAdd a b -> dense-mix 271 (dense-index-digest a) (dense-index-digest b)
+    ISubtract a b -> dense-mix 277 (dense-index-digest a) (dense-index-digest b)
+    IMultiply a b -> dense-mix 281 (dense-index-digest a) (dense-index-digest b)
+
+  -- The table is oldest first, so an index means the same thing for the
+  -- whole document even as new types are appended.
+  dense-table-add :: (Nat, UType) -> List (Nat, UType) -> List (Nat, UType)
+  dense-table-add entry table = table <> [entry]
+
+  dense-type-lookup :: UType -> Nat -> Nat -> List (Nat, UType) -> Option Nat
+  dense-type-lookup ty digest index table = case table of
+    Nil -> None
+    Cons (stored, candidate) rest ->
+      if stored == digest && same-shape candidate ty then Some index
+      else dense-type-lookup ty digest (index + 1) rest
+
+  dense-type-doc :: Bool -> UType -> List (Nat, UType) -> (Json, List (Nat, UType))
+  dense-type-doc dense ty table = if dense then
+    let digest = dense-type-digest ty in
+    case dense-type-lookup ty digest 0 table of
+      Some index -> (JNum (nat-to-int index), table)
+      None -> (JNum (nat-to-int (list-length table)), dense-table-add (digest, ty) table)
+    else (carrier-tree ty, table)
+
+  dense-type-docs :: Bool -> List UType -> List (Nat, UType) -> (Json, List (Nat, UType))
+  dense-type-docs dense types table = case types of
+    Nil -> (JArrEnd, table)
+    Cons first rest -> let (doc, t1) = dense-type-doc dense first table in
+      let (more, t2) = dense-type-docs dense rest t1 in
+      (JArr doc more, t2)
+
+  dense-quants :: List Quant -> Json
+  dense-quants qs = case qs of
+    Nil -> JArrEnd
+    Cons q rest ->
+      let entry = JArr (JNum (nat-to-int (quant-id q))) (JArr (JStr (quant-name q)) (JArr (kind-tree (quant-kind q)) (JArr (JBool (quant-implicit q)) JArrEnd)))
+      in JArr entry (dense-quants rest)
+
+  dense-requirements :: Bool -> List Requirement -> List (Nat, UType) -> (Json, List (Nat, UType))
+  dense-requirements dense requirements table = case requirements of
+    Nil -> (JArrEnd, table)
+    Cons requirement rest ->
+      let (doc, t1) = dense-type-doc dense (requirement-type requirement) table in
+      let (more, t2) = dense-requirements dense rest t1 in
+      (JArr (JArr (JStr (requirement-name requirement)) (JArr doc JArrEnd)) more, t2)
+
+  dense-scheme :: Bool -> Scheme -> List (Nat, UType) -> (Json, List (Nat, UType))
+  dense-scheme dense scheme table = let (requirements, t1) = dense-requirements dense (scheme-requirements scheme) table in
+    let (body, t2) = dense-type-doc dense (scheme-body scheme) t1 in
+    (JObj "params" (dense-quants (scheme-params scheme)) (JObj "requirements" requirements (JObj "body" body JObjEnd)), t2)
+
+  dense-openings :: Bool -> List (Nat, UType) -> List (Nat, UType) -> (Json, List (Nat, UType))
+  dense-openings dense openings table = case openings of
+    Nil -> (JArrEnd, table)
+    Cons (id, ty) rest ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (more, t2) = dense-openings dense rest t1 in
+      (JArr (JArr (JNum (nat-to-int id)) (JArr doc JArrEnd)) more, t2)
+
+  dense-givens :: Bool -> List CoreGiven -> List (Nat, UType) -> (Json, List (Nat, UType))
+  dense-givens dense givens table = case givens of
+    Nil -> (JArrEnd, table)
+    Cons (CGiven s name ty) rest ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (more, t2) = dense-givens dense rest t1 in
+      (JArr (JArr (JStr name) (JArr doc JArrEnd)) more, t2)
+
+  dense-private :: List (Nat, Kind) -> Json
+  dense-private private = case private of
+    Nil -> JArrEnd
+    Cons (id, kind) rest -> JArr (JArr (JNum (nat-to-int id)) (JArr (kind-tree kind) JArrEnd)) (dense-private rest)
+
+  dense-proof :: Proof -> Json
+  dense-proof warrant = case warrant of
+    Trivial -> dense-node "proof-trivial" Nil
+    Conjunction first second -> dense-node "proof-conjunction" [dense-proof first, dense-proof second]
+    Refutation certificate -> dense-node "proof-refutation" [dense-certificate certificate]
+
+  dense-certificate :: Certificate -> Json
+  dense-certificate certificate = case certificate of
+    Farkas rows -> dense-node "certificate-farkas" [dense-citations rows]
+    Split citation first second -> dense-node "certificate-split" [dense-citation citation, dense-certificate first, dense-certificate second]
+
+  dense-citations :: List (Int, Citation) -> Json
+  dense-citations rows = case rows of
+    Nil -> JArrEnd
+    Cons (weight, citation) rest -> JArr (JArr (JNum weight) (JArr (dense-citation citation) JArrEnd)) (dense-citations rest)
+
+  dense-citation :: Citation -> Json
+  dense-citation citation = case citation of
+    Hypothesis goal assumption -> dense-node "citation-hypothesis" [JNum (nat-to-int goal), JNum (nat-to-int assumption)]
+    NegatedGoal assumption -> dense-node "citation-negated-goal" [JNum (nat-to-int assumption)]
+    Alternative depth conjunct -> dense-node "citation-alternative" [JNum (nat-to-int depth), JNum (nat-to-int conjunct)]
+
+  dense-given :: Bool -> CoreGiven -> List (Nat, UType) -> (Json, List (Nat, UType))
+  dense-given dense given table = case given of
+    CGiven s name ty ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      (dense-node "given" [JStr name, doc], t1)
+
+  dense-evidences :: Bool -> List CoreEvidence -> List (Nat, UType) -> (Json, List (Nat, UType))
+  dense-evidences dense evidences table = case evidences of
+    Nil -> (JArrEnd, table)
+    Cons evidence rest -> let (doc, t1) = dense-evidence dense evidence table in
+      let (more, t2) = dense-evidences dense rest t1 in
+      (JArr doc more, t2)
+
+  dense-evidence :: Bool -> CoreEvidence -> List (Nat, UType) -> (Json, List (Nat, UType))
+  dense-evidence dense evidence table = case evidence of
+    CENeeded s ty scope ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (givens, t2) = dense-givens dense scope t1 in
+      (dense-node "evidence-needed" [doc, givens], t2)
+    CEGiven s ty name -> let (doc, t1) = dense-type-doc dense ty table in (dense-node "evidence-given" [doc, JStr name], t1)
+    CEInstance s ty name actuals arguments ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (types, t2) = dense-type-docs dense actuals t1 in
+      let (args, t3) = dense-evidence dense arguments t2 in
+      (dense-node "evidence-instance" [doc, JStr name, types, args], t3)
+    CEArgument s first rest -> let (a, t1) = dense-evidence dense first table in
+      let (b, t2) = dense-evidence dense rest t1 in
+      (dense-node "evidence-argument" [a, b], t2)
+    CEArgumentsEnd s -> (dense-node "evidence-end" Nil, table)
+
+  dense-patterns :: Bool -> List CorePattern -> List (Nat, UType) -> (Json, List (Nat, UType))
+  dense-patterns dense patterns table = case patterns of
+    Nil -> (JArrEnd, table)
+    Cons pattern rest -> let (doc, t1) = dense-pattern dense pattern table in
+      let (more, t2) = dense-patterns dense rest t1 in
+      (JArr doc more, t2)
+
+  dense-pattern :: Bool -> CorePattern -> List (Nat, UType) -> (Json, List (Nat, UType))
+  dense-pattern dense pattern table = case pattern of
+    CPWild s ty -> let (doc, t1) = dense-type-doc dense ty table in (dense-node "wild-pattern" [doc], t1)
+    CPVar s ty id name ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      (dense-node "variable-pattern" [doc, JNum (nat-to-int id), JStr name], t1)
+    CPProof s ty id name ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      (dense-node "proof-pattern" [doc, JNum (nat-to-int id), JStr name], t1)
+    CPErasedValue s ty id name ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      (dense-node "erased-pattern" [doc, JNum (nat-to-int id), JStr name], t1)
+    CPAs s ty id name inner ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (innerDoc, t2) = dense-pattern dense inner t1 in
+      (dense-node "as-pattern" [doc, JNum (nat-to-int id), JStr name, innerDoc], t2)
+    CPConstructor s ty name actuals constructor fields ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (actualDocs, t2) = dense-type-docs dense actuals t1 in
+      let (constructorDoc, t3) = dense-type-doc dense constructor t2 in
+      let (fieldsDoc, t4) = dense-pattern dense fields t3 in
+      (dense-node "constructor-pattern" [doc, JStr name, actualDocs, constructorDoc, fieldsDoc], t4)
+    CPInt s ty text -> let (doc, t1) = dense-type-doc dense ty table in (dense-node "int-pattern" [doc, JStr text], t1)
+    CPString s ty text -> let (doc, t1) = dense-type-doc dense ty table in (dense-node "string-pattern" [doc, JStr text], t1)
+    CPChar s ty text -> let (doc, t1) = dense-type-doc dense ty table in (dense-node "char-pattern" [doc, JStr text], t1)
+    CPTuple s ty fields ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (fieldsDoc, t2) = dense-pattern dense fields t1 in
+      (dense-node "tuple-pattern" [doc, fieldsDoc], t2)
+    CPField s first rest -> let (a, t1) = dense-pattern dense first table in
+      let (b, t2) = dense-pattern dense rest t1 in
+      (dense-node "field-pattern" [a, b], t2)
+    CPDone s -> (dense-node "done-pattern" Nil, table)
+
+  dense-handler-openings :: Bool -> List (Nat, UType) -> List (Nat, UType) -> (Json, List (Nat, UType))
+  dense-handler-openings dense openings table = case openings of
+    Nil -> (JArrEnd, table)
+    Cons (key, ty) rest ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (more, t2) = dense-handler-openings dense rest t1 in
+      (JArr (JArr (JNum (nat-to-int key)) (JArr doc JArrEnd)) more, t2)
+
+  dense-term :: Bool -> CoreTerm -> List (Nat, UType) -> (Json, List (Nat, UType))
+  dense-term dense term table = case term of
+    CUse s ty name role actuals ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (types, t2) = dense-type-docs dense actuals t1 in
+      (dense-node "use" [doc, JStr name, JStr role, types], t2)
+    CLocal s ty id name actuals ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (types, t2) = dense-type-docs dense actuals t1 in
+      (dense-node "local" [doc, JNum (nat-to-int id), JStr name, types], t2)
+    CProofRef s ty id name ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      (dense-node "proof-reference" [doc, JNum (nat-to-int id), JStr name], t1)
+    CProofRefl s ty -> let (doc, t1) = dense-type-doc dense ty table in (dense-node "proof-reflexive" [doc], t1)
+    CProofSearch s ty decide warrant ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      (dense-node "proof-search" [doc, JBool decide, dense-proof warrant], t1)
+    CQualifiedUse s ty name role actuals evidence ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (types, t2) = dense-type-docs dense actuals t1 in
+      let (proofs, t3) = dense-evidences dense evidence t2 in
+      (dense-node "qualified-use" [doc, JStr name, JStr role, types, proofs], t3)
+    CMethod s ty name owner slot actuals evidence ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (types, t2) = dense-type-docs dense actuals t1 in
+      let (proofs, t3) = dense-evidences dense evidence t2 in
+      (dense-node "method" [doc, JStr name, JStr owner, JNum (nat-to-int slot), types, proofs], t3)
+    CInt s ty text -> let (doc, t1) = dense-type-doc dense ty table in (dense-node "int" [doc, JStr text], t1)
+    CString s ty text -> let (doc, t1) = dense-type-doc dense ty table in (dense-node "string" [doc, JStr text], t1)
+    CChar s ty text -> let (doc, t1) = dense-type-doc dense ty table in (dense-node "char" [doc, JStr text], t1)
+    CUnit s ty -> let (doc, t1) = dense-type-doc dense ty table in (dense-node "unit" [doc], t1)
+    CApply s ty function argument ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (f, t2) = dense-term dense function t1 in
+      let (x, t3) = dense-term dense argument t2 in
+      (dense-node "apply" [doc, f, x], t3)
+    CApplyEff s ty row function argument ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (rowDoc, t2) = dense-type-doc dense row t1 in
+      let (f, t3) = dense-term dense function t2 in
+      let (x, t4) = dense-term dense argument t3 in
+      (dense-node "apply-effect" [doc, rowDoc, f, x], t4)
+    CErasedApply s ty row function witness ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (rowDoc, t2) = dense-type-doc dense row t1 in
+      let (f, t3) = dense-term dense function t2 in
+      let (w, t4) = dense-term dense witness t3 in
+      (dense-node "erased-apply" [doc, rowDoc, f, w], t4)
+    CDecision s ty predicate condition ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (predicateDoc, t2) = dense-type-doc dense predicate t1 in
+      let (c, t3) = dense-term dense condition t2 in
+      (dense-node "decision" [doc, predicateDoc, c], t3)
+    CScope s ty region evidence callback ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (regionDoc, t2) = dense-type-doc dense region t1 in
+      let (e, t3) = dense-evidence dense evidence t2 in
+      let (c, t4) = dense-term dense callback t3 in
+      (dense-node "scope" [doc, regionDoc, e, c], t4)
+    CMemoScope s ty region body ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (regionDoc, t2) = dense-type-doc dense region t1 in
+      let (b, t3) = dense-term dense body t2 in
+      (dense-node "memo-scope" [doc, regionDoc, b], t3)
+    CSpawn s ty token body ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (a, t2) = dense-term dense token t1 in
+      let (b, t3) = dense-term dense body t2 in
+      (dense-node "spawn" [doc, a, b], t3)
+    CJoin s ty token body ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (a, t2) = dense-term dense token t1 in
+      let (b, t3) = dense-term dense body t2 in
+      (dense-node "join" [doc, a, b], t3)
+    CWith s ty given value body ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (givenDoc, t2) = dense-given dense given t1 in
+      let (v, t3) = dense-term dense value t2 in
+      let (b, t4) = dense-term dense body t3 in
+      (dense-node "with" [doc, givenDoc, v, b], t4)
+    CHandler s ty returned operations ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (a, t2) = dense-term dense returned t1 in
+      let (b, t3) = dense-term dense operations t2 in
+      (dense-node "handler" [doc, a, b], t3)
+    CHandle s ty label residual body handled ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (labelDoc, t2) = dense-type-doc dense label t1 in
+      let (residualDoc, t3) = dense-type-doc dense residual t2 in
+      let (b, t4) = dense-term dense body t3 in
+      let (h, t5) = dense-term dense handled t4 in
+      (dense-node "handle" [doc, labelDoc, residualDoc, b, h], t5)
+    CHandlerOperation s slot openings row closure rest ->
+      let (openingsDoc, t1) = dense-handler-openings dense openings table in
+      let (rowDoc, t2) = dense-type-doc dense row t1 in
+      let (c, t3) = dense-term dense closure t2 in
+      let (r, t4) = dense-term dense rest t3 in
+      (dense-node "handler-operation" [JNum (nat-to-int slot), openingsDoc, rowDoc, c, r], t4)
+    CHandlerEnd s -> (dense-node "handler-end" Nil, table)
+    CLambda s ty pattern body ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (patternDoc, t2) = dense-pattern dense pattern t1 in
+      let (b, t3) = dense-term dense body t2 in
+      (dense-node "lambda" [doc, patternDoc, b], t3)
+    CLet s ty id name scheme right body ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (schemeDoc, t2) = dense-scheme dense scheme t1 in
+      let (r, t3) = dense-term dense right t2 in
+      let (b, t4) = dense-term dense body t3 in
+      (dense-node "let" [doc, JNum (nat-to-int id), JStr name, schemeDoc, r, b], t4)
+    CRecursiveFunctions s ty members body ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (m, t2) = dense-term dense members t1 in
+      let (b, t3) = dense-term dense body t2 in
+      (dense-node "recursive-functions" [doc, m, b], t3)
+    CRecursiveValues s ty region members body ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (regionDoc, t2) = dense-type-doc dense region t1 in
+      let (m, t3) = dense-term dense members t2 in
+      let (b, t4) = dense-term dense body t3 in
+      (dense-node "recursive-values" [doc, regionDoc, m, b], t4)
+    CRecursiveBinding id name value rest ->
+      let (v, t1) = dense-term dense value table in
+      let (r, t2) = dense-term dense rest t1 in
+      (dense-node "recursive-binding" [JNum (nat-to-int id), JStr name, v, r], t2)
+    CRecursiveBindingsEnd -> (dense-node "recursive-bindings-end" Nil, table)
+    CIf s ty condition yes no ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (c, t2) = dense-term dense condition t1 in
+      let (y, t3) = dense-term dense yes t2 in
+      let (n, t4) = dense-term dense no t3 in
+      (dense-node "if" [doc, c, y, n], t4)
+    CCase s ty value alternatives ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (v, t2) = dense-term dense value t1 in
+      let (a, t3) = dense-term dense alternatives t2 in
+      (dense-node "case" [doc, v, a], t3)
+    CTuple s ty fields ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (f, t2) = dense-term dense fields t1 in
+      (dense-node "tuple" [doc, f], t2)
+    CPrimitive s ty operation arguments ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (a, t2) = dense-term dense arguments t1 in
+      (dense-node "primitive" [doc, JStr operation, a], t2)
+    CProved s ty warrant body ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (b, t2) = dense-term dense body t1 in
+      (dense-node "proved" [doc, dense-proof warrant, b], t2)
+    CRefine s ty warrant body ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (b, t2) = dense-term dense body t1 in
+      (dense-node "refine" [doc, dense-proof warrant, b], t2)
+    CRefineProof s ty witness body ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (w, t2) = dense-term dense witness t1 in
+      let (b, t3) = dense-term dense body t2 in
+      (dense-node "refine-proof" [doc, w, b], t3)
+    CForget s ty body ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (b, t2) = dense-term dense body t1 in
+      (dense-node "forget" [doc, b], t2)
+    CRequire s ty body ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (b, t2) = dense-term dense body t1 in
+      (dense-node "require" [doc, b], t2)
+    CDischarge s ty proofs body ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (b, t2) = dense-term dense body t1 in
+      (dense-node "discharge" [doc, dense-proofs proofs, b], t2)
+    CGuard s ty condition body ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (c, t2) = dense-term dense condition t1 in
+      let (b, t3) = dense-term dense body t2 in
+      (dense-node "guard" [doc, c, b], t3)
+    CArgument s value rest ->
+      let (v, t1) = dense-term dense value table in
+      let (r, t2) = dense-term dense rest t1 in
+      (dense-node "argument" [v, r], t2)
+    CArgumentsEnd s -> (dense-node "arguments-end" Nil, table)
+    CAlternative s pattern body rest ->
+      let (p, t1) = dense-pattern dense pattern table in
+      let (b, t2) = dense-term dense body t1 in
+      let (r, t3) = dense-term dense rest t2 in
+      (dense-node "alternative" [p, b, r], t3)
+    CAlternativesEnd s -> (dense-node "alternatives-end" Nil, table)
+    CError s -> (dense-node "error" Nil, table)
+
+  dense-proofs :: List Proof -> Json
+  dense-proofs proofs = case proofs of
+    Nil -> JArrEnd
+    Cons first rest -> JArr (dense-proof first) (dense-proofs rest)
+
+  dense-clauses :: Bool -> List CoreClause -> List (Nat, UType) -> (Json, List (Nat, UType))
+  dense-clauses dense clauses table = case clauses of
+    Nil -> (JArrEnd, table)
+    Cons (MkCoreClause s patterns body) rest ->
+      let (patternDocs, t1) = dense-patterns dense patterns table in
+      let (bodyDoc, t2) = dense-term dense body t1 in
+      let (more, t3) = dense-clauses dense rest t2 in
+      (JArr (JObj "patterns" patternDocs (JObj "body" bodyDoc JObjEnd)) more, t3)
+
+  dense-carrier-jsons :: List (Nat, UType) -> Json
+  dense-carrier-jsons table = case table of
+    Nil -> JArrEnd
+    Cons (digest, ty) rest -> JArr (carrier-tree ty) (dense-carrier-jsons rest)
+
+  dense-body-object :: String -> Json -> Json -> Json -> Json -> Json -> Json
+  dense-body-object name scheme openings givens private clauses =
+    JObj "name" (JStr name) (JObj "scheme" scheme (JObj "openings" openings (JObj "givens" givens (JObj "private" private (JObj "clauses" clauses JObjEnd)))))
+
+  dense-definition-doc :: Bool -> CoreDefinition -> Json
+  dense-definition-doc dense definition = case definition of
+    MkCoreDefinition s name scheme openings givens private clauses ->
+      let (schemeDoc, t1) = dense-scheme dense scheme Nil in
+      let (openingsDoc, t2) = dense-openings dense openings t1 in
+      let (givensDoc, t3) = dense-givens dense givens t2 in
+      let (clausesDoc, t4) = dense-clauses dense clauses t3 in
+      let body = dense-body-object name schemeDoc openingsDoc givensDoc (dense-private private) clausesDoc in
+      JObj "schema" (JNum 1) (JObj "types" (if dense then dense-carrier-jsons t4 else JArrEnd) (JObj "body" body JObjEnd))
+
+  dense-definition-document :: CoreDefinition -> Json
+  dense-definition-document definition = dense-definition-doc True definition
+
+  dense-verbose-definition :: CoreDefinition -> Json
+  dense-verbose-definition definition = dense-definition-doc False definition
+
+  -- The production form checks its own reader: a document is returned only
+  -- when decoding it and re-encoding the result reproduces the same bytes.
+  dense-claims-verified :: List CoreDefinition -> Option Json
+  dense-claims-verified definitions = case dense-claim-list definitions of
+    Some docs -> Some (dense-list docs)
+    None -> None
+
+  dense-claim-list :: List CoreDefinition -> Option (List Json)
+  dense-claim-list definitions = case definitions of
+    Nil -> Some Nil
+    Cons definition rest ->
+      let doc = dense-definition-document definition in
+      (case (dense-definition-of-document doc, dense-claim-list rest) of
+        (Some decoded, Some more) -> if dense-document-equal doc decoded then Some (Cons doc more) else None
+        other -> None)
+
+  dense-document-equal :: Json -> CoreDefinition -> Bool
+  dense-document-equal doc decoded = bytes-compare (canonical-bytes (dense-definition-document decoded)) (canonical-bytes doc) == 0
+
+  -- A source module's definitions as one document, so a consumer decodes
+  -- each definition and no table is shared across module boundaries.
+  dense-claims :: List CoreDefinition -> Json
+  dense-claims definitions = dense-list (dense-claim-docs definitions)
+
+  dense-claim-docs :: List CoreDefinition -> List Json
+  dense-claim-docs definitions = case definitions of
+    Nil -> Nil
+    Cons definition rest -> Cons (dense-definition-document definition) (dense-claim-docs rest)
+
+  -- ---------------------------------------------------------- the reader
+
+  dense-field :: String -> Json -> Json
+  dense-field name doc = case doc of
+    JObj key value rest -> if dense-same name key then value else dense-field name rest
+    other -> JNull
+
+  dense-at :: Nat -> List UType -> Option UType
+  dense-at index types = case types of
+    Nil -> None
+    Cons first rest -> if index == 0 then Some first else dense-at (index - 1) rest
+
+  dense-type-of :: List UType -> Json -> Option UType
+  dense-type-of types doc = case dense-natural doc of
+    Some index -> dense-at index types
+    None -> None
+
+  dense-type-list :: List UType -> Json -> Option (List UType)
+  dense-type-list types doc = case dense-items doc of
+    Some items -> dense-type-list-from types items
+    None -> None
+
+  dense-type-list-from :: List UType -> List Json -> Option (List UType)
+  dense-type-list-from types items = case items of
+    Nil -> Some Nil
+    Cons first rest -> case (dense-type-of types first, dense-type-list-from types rest) of
+      (Some ty, Some more) -> Some (Cons ty more)
+      other -> None
+
+  dense-quants-of :: Json -> Option (List Quant)
+  dense-quants-of doc = case dense-items doc of
+    Some items -> dense-quants-from items
+    None -> None
+
+  dense-quants-from :: List Json -> Option (List Quant)
+  dense-quants-from items = case items of
+    Nil -> Some Nil
+    Cons first rest -> case (dense-quant-of first, dense-quants-from rest) of
+      (Some quant, Some more) -> Some (Cons quant more)
+      other -> None
+
+  dense-quant-of :: Json -> Option Quant
+  dense-quant-of doc = case doc of
+    JArr idDoc (JArr nameDoc (JArr kindDoc (JArr implicitDoc JArrEnd))) ->
+      (case (dense-natural idDoc, dense-text nameDoc, read-kind-tree kindDoc, dense-bool implicitDoc) of
+        (Some id, Some name, Some kind, Some only) -> Some (MkQuant id name kind only)
+        other -> None)
+    other -> None
+
+  dense-requirements-of :: List UType -> Json -> Option (List Requirement)
+  dense-requirements-of types doc = case dense-items doc of
+    Some items -> dense-requirements-from types items
+    None -> None
+
+  dense-requirements-from :: List UType -> List Json -> Option (List Requirement)
+  dense-requirements-from types items = case items of
+    Nil -> Some Nil
+    Cons first rest -> case first of
+      JArr nameDoc (JArr typeDoc JArrEnd) ->
+        (case (dense-text nameDoc, dense-type-of types typeDoc, dense-requirements-from types rest) of
+          (Some name, Some ty, Some more) -> Some (Cons (MkRequirement name ty) more)
+          other -> None)
+      other -> None
+    other -> None
+
+  dense-scheme-of :: List UType -> Json -> Option Scheme
+  dense-scheme-of types doc =
+    (case (dense-quants-of (dense-field "params" doc), dense-requirements-of types (dense-field "requirements" doc), dense-type-of types (dense-field "body" doc)) of
+      (Some qs, Some rs, Some ty) -> Some (qualified qs rs ty)
+      other -> None)
+
+  dense-openings-of :: List UType -> Json -> Option (List (Nat, UType))
+  dense-openings-of types doc = case dense-items doc of
+    Some items -> dense-openings-from types items
+    None -> None
+
+  dense-openings-from :: List UType -> List Json -> Option (List (Nat, UType))
+  dense-openings-from types items = case items of
+    Nil -> Some Nil
+    Cons first rest -> case first of
+      JArr idDoc (JArr typeDoc JArrEnd) ->
+        (case (dense-natural idDoc, dense-type-of types typeDoc, dense-openings-from types rest) of
+          (Some id, Some ty, Some more) -> Some (Cons (id, ty) more)
+          other -> None)
+      other -> None
+    other -> None
+
+  dense-givens-of :: List UType -> Json -> Option (List CoreGiven)
+  dense-givens-of types doc = case dense-items doc of
+    Some items -> dense-givens-from types items
+    None -> None
+
+  dense-givens-from :: List UType -> List Json -> Option (List CoreGiven)
+  dense-givens-from types items = case items of
+    Nil -> Some Nil
+    Cons first rest -> case first of
+      JArr nameDoc (JArr typeDoc JArrEnd) ->
+        (case (dense-text nameDoc, dense-type-of types typeDoc, dense-givens-from types rest) of
+          (Some name, Some ty, Some more) -> Some (Cons (CGiven dense-zero name ty) more)
+          other -> None)
+      other -> None
+    other -> None
+
+  dense-private-of :: Json -> Option (List (Nat, Kind))
+  dense-private-of doc = case dense-items doc of
+    Some items -> dense-private-from items
+    None -> None
+
+  dense-private-from :: List Json -> Option (List (Nat, Kind))
+  dense-private-from items = case items of
+    Nil -> Some Nil
+    Cons first rest -> case first of
+      JArr idDoc (JArr kindDoc JArrEnd) ->
+        (case (dense-natural idDoc, read-kind-tree kindDoc, dense-private-from rest) of
+          (Some id, Some kind, Some more) -> Some (Cons (id, kind) more)
+          other -> None)
+      other -> None
+    other -> None
+
+  dense-proof-of :: Json -> Option Proof
+  dense-proof-of doc = case doc of
+    JArr (JStr tag) rest ->
+      if dense-same tag "proof-trivial" then (case rest of JArrEnd -> Some Trivial; other -> None)
+      else if dense-same tag "proof-conjunction" then (case rest of
+        JArr first (JArr second JArrEnd) ->
+          (case (dense-proof-of first, dense-proof-of second) of
+            (Some a, Some b) -> Some (Conjunction a b)
+            other -> None)
+        other -> None)
+      else if dense-same tag "proof-refutation" then (case rest of
+        JArr certificate JArrEnd -> (case dense-certificate-of certificate of Some actual -> Some (Refutation actual); None -> None)
+        other -> None)
+      else None
+    other -> None
+
+  dense-certificate-of :: Json -> Option Certificate
+  dense-certificate-of doc = case doc of
+    JArr (JStr tag) rest ->
+      if dense-same tag "certificate-farkas" then (case rest of
+        JArr rows JArrEnd -> (case dense-citations-of rows of Some actual -> Some (Farkas actual); None -> None)
+        other -> None)
+      else if dense-same tag "certificate-split" then (case rest of
+        JArr citation (JArr first (JArr second JArrEnd)) ->
+          (case (dense-citation-of citation, dense-certificate-of first, dense-certificate-of second) of
+            (Some c, Some a, Some b) -> Some (Split c a b)
+            other -> None)
+        other -> None)
+      else None
+    other -> None
+
+  dense-citations-of :: Json -> Option (List (Int, Citation))
+  dense-citations-of doc = case dense-items doc of
+    Some items -> dense-citations-from items
+    None -> None
+
+  dense-citations-from :: List Json -> Option (List (Int, Citation))
+  dense-citations-from items = case items of
+    Nil -> Some Nil
+    Cons first rest -> case first of
+      JArr weightDoc (JArr citationDoc JArrEnd) ->
+        (case (dense-number weightDoc, dense-citation-of citationDoc, dense-citations-from rest) of
+          (Some weight, Some citation, Some more) -> Some (Cons (weight, citation) more)
+          other -> None)
+      other -> None
+    other -> None
+
+  dense-citation-of :: Json -> Option Citation
+  dense-citation-of doc = case doc of
+    JArr (JStr tag) rest ->
+      if dense-same tag "citation-hypothesis" then (case rest of
+        JArr goal (JArr assumption JArrEnd) ->
+          (case (dense-natural goal, dense-natural assumption) of
+            (Some a, Some b) -> Some (Hypothesis a b)
+            other -> None)
+        other -> None)
+      else if dense-same tag "citation-negated-goal" then (case rest of
+        JArr assumption JArrEnd -> (case dense-natural assumption of Some a -> Some (NegatedGoal a); None -> None)
+        other -> None)
+      else if dense-same tag "citation-alternative" then (case rest of
+        JArr depth (JArr conjunct JArrEnd) ->
+          (case (dense-natural depth, dense-natural conjunct) of
+            (Some a, Some b) -> Some (Alternative a b)
+            other -> None)
+        other -> None)
+      else None
+    other -> None
+
+  dense-given-of :: List UType -> Json -> Option CoreGiven
+  dense-given-of types doc = case doc of
+    JArr (JStr tag) (JArr nameDoc (JArr typeDoc JArrEnd)) ->
+      if dense-same tag "given" then
+        (case (dense-text nameDoc, dense-type-of types typeDoc) of
+          (Some name, Some ty) -> Some (CGiven dense-zero name ty)
+          other -> None)
+      else None
+    other -> None
+
+  dense-evidences-of :: List UType -> Json -> Option (List CoreEvidence)
+  dense-evidences-of types doc = case dense-items doc of
+    Some items -> dense-evidences-from types items
+    None -> None
+
+  dense-evidences-from :: List UType -> List Json -> Option (List CoreEvidence)
+  dense-evidences-from types items = case items of
+    Nil -> Some Nil
+    Cons first rest -> case (dense-evidence-of types first, dense-evidences-from types rest) of
+      (Some evidence, Some more) -> Some (Cons evidence more)
+      other -> None
+
+  dense-evidence-of :: List UType -> Json -> Option CoreEvidence
+  dense-evidence-of types doc = case doc of
+    JArr (JStr tag) rest ->
+      if dense-same tag "evidence-needed" then (case rest of
+        JArr typeDoc (JArr givensDoc JArrEnd) ->
+          (case (dense-type-of types typeDoc, dense-givens-of types givensDoc) of
+            (Some ty, Some givens) -> Some (CENeeded dense-zero ty givens)
+            other -> None)
+        other -> None)
+      else if dense-same tag "evidence-given" then (case rest of
+        JArr typeDoc (JArr nameDoc JArrEnd) ->
+          (case (dense-type-of types typeDoc, dense-text nameDoc) of
+            (Some ty, Some name) -> Some (CEGiven dense-zero ty name)
+            other -> None)
+        other -> None)
+      else if dense-same tag "evidence-instance" then (case rest of
+        JArr typeDoc (JArr nameDoc (JArr actualsDoc (JArr argumentsDoc JArrEnd))) ->
+          (case (dense-type-of types typeDoc, dense-text nameDoc, dense-type-list types actualsDoc, dense-evidence-of types argumentsDoc) of
+            (Some ty, Some name, Some actuals, Some arguments) -> Some (CEInstance dense-zero ty name actuals arguments)
+            other -> None)
+        other -> None)
+      else if dense-same tag "evidence-argument" then (case rest of
+        JArr first (JArr restDoc JArrEnd) ->
+          (case (dense-evidence-of types first, dense-evidence-of types restDoc) of
+            (Some a, Some b) -> Some (CEArgument dense-zero a b)
+            other -> None)
+        other -> None)
+      else if dense-same tag "evidence-end" then (case rest of JArrEnd -> Some (CEArgumentsEnd dense-zero); other -> None)
+      else None
+    other -> None
+
+  dense-patterns-of :: List UType -> Json -> Option (List CorePattern)
+  dense-patterns-of types doc = case doc of
+    JArrEnd -> Some Nil
+    JArr first rest -> (case (dense-pattern-of types first, dense-patterns-of types rest) of
+      (Some pattern, Some more) -> Some (Cons pattern more)
+      other -> None)
+    other -> None
+
+  dense-pattern-of :: List UType -> Json -> Option CorePattern
+  dense-pattern-of types doc = case doc of
+    JArr (JStr tag) rest ->
+      if dense-same tag "wild-pattern" then (case rest of
+        JArr typeDoc JArrEnd -> (case dense-type-of types typeDoc of Some ty -> Some (CPWild dense-zero ty); None -> None)
+        other -> None)
+      else if dense-same tag "variable-pattern" then (case rest of
+        JArr typeDoc (JArr idDoc (JArr nameDoc JArrEnd)) ->
+          (case (dense-type-of types typeDoc, dense-natural idDoc, dense-text nameDoc) of
+            (Some ty, Some id, Some name) -> Some (CPVar dense-zero ty id name)
+            other -> None)
+        other -> None)
+      else if dense-same tag "proof-pattern" then (case rest of
+        JArr typeDoc (JArr idDoc (JArr nameDoc JArrEnd)) ->
+          (case (dense-type-of types typeDoc, dense-natural idDoc, dense-text nameDoc) of
+            (Some ty, Some id, Some name) -> Some (CPProof dense-zero ty id name)
+            other -> None)
+        other -> None)
+      else if dense-same tag "erased-pattern" then (case rest of
+        JArr typeDoc (JArr idDoc (JArr nameDoc JArrEnd)) ->
+          (case (dense-type-of types typeDoc, dense-natural idDoc, dense-text nameDoc) of
+            (Some ty, Some id, Some name) -> Some (CPErasedValue dense-zero ty id name)
+            other -> None)
+        other -> None)
+      else if dense-same tag "as-pattern" then (case rest of
+        JArr typeDoc (JArr idDoc (JArr nameDoc (JArr innerDoc JArrEnd))) ->
+          (case (dense-type-of types typeDoc, dense-natural idDoc, dense-text nameDoc, dense-pattern-of types innerDoc) of
+            (Some ty, Some id, Some name, Some inner) -> Some (CPAs dense-zero ty id name inner)
+            other -> None)
+        other -> None)
+      else if dense-same tag "constructor-pattern" then (case rest of
+        JArr typeDoc (JArr nameDoc (JArr actualsDoc (JArr constructorDoc (JArr fieldsDoc JArrEnd)))) ->
+          (case (dense-type-of types typeDoc, dense-text nameDoc, dense-type-list types actualsDoc, dense-type-of types constructorDoc, dense-pattern-of types fieldsDoc) of
+            (Some ty, Some name, Some actuals, Some constructor, Some fields) -> Some (CPConstructor dense-zero ty name actuals constructor fields)
+            other -> None)
+        other -> None)
+      else if dense-same tag "int-pattern" then (case rest of
+        JArr typeDoc (JArr textDoc JArrEnd) ->
+          (case (dense-type-of types typeDoc, dense-text textDoc) of
+            (Some ty, Some text) -> Some (CPInt dense-zero ty text)
+            other -> None)
+        other -> None)
+      else if dense-same tag "string-pattern" then (case rest of
+        JArr typeDoc (JArr textDoc JArrEnd) ->
+          (case (dense-type-of types typeDoc, dense-text textDoc) of
+            (Some ty, Some text) -> Some (CPString dense-zero ty text)
+            other -> None)
+        other -> None)
+      else if dense-same tag "char-pattern" then (case rest of
+        JArr typeDoc (JArr textDoc JArrEnd) ->
+          (case (dense-type-of types typeDoc, dense-text textDoc) of
+            (Some ty, Some text) -> Some (CPChar dense-zero ty text)
+            other -> None)
+        other -> None)
+      else if dense-same tag "tuple-pattern" then (case rest of
+        JArr typeDoc (JArr fieldsDoc JArrEnd) ->
+          (case (dense-type-of types typeDoc, dense-pattern-of types fieldsDoc) of
+            (Some ty, Some fields) -> Some (CPTuple dense-zero ty fields)
+            other -> None)
+        other -> None)
+      else if dense-same tag "field-pattern" then (case rest of
+        JArr first (JArr restDoc JArrEnd) ->
+          (case (dense-pattern-of types first, dense-pattern-of types restDoc) of
+            (Some a, Some b) -> Some (CPField dense-zero a b)
+            other -> None)
+        other -> None)
+      else if dense-same tag "done-pattern" then (case rest of JArrEnd -> Some (CPDone dense-zero); other -> None)
+      else None
+    other -> None
+
+  dense-handler-openings-of :: List UType -> Json -> Option (List (Nat, UType))
+  dense-handler-openings-of types doc = case dense-items doc of
+    Some items -> dense-handler-openings-from types items
+    None -> None
+
+  dense-handler-openings-from :: List UType -> List Json -> Option (List (Nat, UType))
+  dense-handler-openings-from types items = case items of
+    Nil -> Some Nil
+    Cons first rest -> case first of
+      JArr keyDoc (JArr typeDoc JArrEnd) ->
+        (case (dense-natural keyDoc, dense-type-of types typeDoc, dense-handler-openings-from types rest) of
+          (Some key, Some ty, Some more) -> Some (Cons (key, ty) more)
+          other -> None)
+      other -> None
+    other -> None
+
+  dense-term-of :: List UType -> Json -> Option CoreTerm
+  dense-term-of types doc = case doc of
+    JArr (JStr tag) rest -> dense-tagged-term types tag rest
+    other -> None
+
+  dense-tagged-term :: List UType -> String -> Json -> Option CoreTerm
+  dense-tagged-term types tag rest =
+    if dense-same tag "use" then (case rest of
+      JArr typeDoc (JArr nameDoc (JArr roleDoc (JArr actualsDoc JArrEnd))) ->
+        (case (dense-type-of types typeDoc, dense-text nameDoc, dense-text roleDoc, dense-type-list types actualsDoc) of
+          (Some ty, Some name, Some role, Some actuals) -> Some (CUse dense-zero ty name role actuals)
+          other -> None)
+      other -> None)
+    else if dense-same tag "local" then (case rest of
+      JArr typeDoc (JArr idDoc (JArr nameDoc (JArr actualsDoc JArrEnd))) ->
+        (case (dense-type-of types typeDoc, dense-natural idDoc, dense-text nameDoc, dense-type-list types actualsDoc) of
+          (Some ty, Some id, Some name, Some actuals) -> Some (CLocal dense-zero ty id name actuals)
+          other -> None)
+      other -> None)
+    else if dense-same tag "proof-reference" then (case rest of
+      JArr typeDoc (JArr idDoc (JArr nameDoc JArrEnd)) ->
+        (case (dense-type-of types typeDoc, dense-natural idDoc, dense-text nameDoc) of
+          (Some ty, Some id, Some name) -> Some (CProofRef dense-zero ty id name)
+          other -> None)
+      other -> None)
+    else if dense-same tag "proof-reflexive" then (case rest of
+      JArr typeDoc JArrEnd -> (case dense-type-of types typeDoc of Some ty -> Some (CProofRefl dense-zero ty); None -> None)
+      other -> None)
+    else if dense-same tag "proof-search" then (case rest of
+      JArr typeDoc (JArr decideDoc (JArr proofDoc JArrEnd)) ->
+        (case (dense-type-of types typeDoc, dense-bool decideDoc, dense-proof-of proofDoc) of
+          (Some ty, Some decide, Some warrant) -> Some (CProofSearch dense-zero ty decide warrant)
+          other -> None)
+      other -> None)
+    else if dense-same tag "qualified-use" then (case rest of
+      JArr typeDoc (JArr nameDoc (JArr roleDoc (JArr actualsDoc (JArr evidenceDoc JArrEnd)))) ->
+        (case (dense-type-of types typeDoc, dense-text nameDoc, dense-text roleDoc, dense-type-list types actualsDoc, dense-evidences-of types evidenceDoc) of
+          (Some ty, Some name, Some role, Some actuals, Some evidence) -> Some (CQualifiedUse dense-zero ty name role actuals evidence)
+          other -> None)
+      other -> None)
+    else if dense-same tag "method" then (case rest of
+      JArr typeDoc (JArr nameDoc (JArr ownerDoc (JArr slotDoc (JArr actualsDoc (JArr evidenceDoc JArrEnd))))) ->
+        (case (dense-type-of types typeDoc, dense-text nameDoc, dense-text ownerDoc, dense-natural slotDoc, dense-type-list types actualsDoc, dense-evidences-of types evidenceDoc) of
+          (Some ty, Some name, Some owner, Some slot, Some actuals, Some evidence) -> Some (CMethod dense-zero ty name owner slot actuals evidence)
+          other -> None)
+      other -> None)
+    else if dense-same tag "int" then (case rest of
+      JArr typeDoc (JArr textDoc JArrEnd) ->
+        (case (dense-type-of types typeDoc, dense-text textDoc) of
+          (Some ty, Some text) -> Some (CInt dense-zero ty text)
+          other -> None)
+      other -> None)
+    else if dense-same tag "string" then (case rest of
+      JArr typeDoc (JArr textDoc JArrEnd) ->
+        (case (dense-type-of types typeDoc, dense-text textDoc) of
+          (Some ty, Some text) -> Some (CString dense-zero ty text)
+          other -> None)
+      other -> None)
+    else if dense-same tag "char" then (case rest of
+      JArr typeDoc (JArr textDoc JArrEnd) ->
+        (case (dense-type-of types typeDoc, dense-text textDoc) of
+          (Some ty, Some text) -> Some (CChar dense-zero ty text)
+          other -> None)
+      other -> None)
+    else if dense-same tag "unit" then (case rest of
+      JArr typeDoc JArrEnd -> (case dense-type-of types typeDoc of Some ty -> Some (CUnit dense-zero ty); None -> None)
+      other -> None)
+    else if dense-same tag "apply" then dense-two-term types "apply" rest
+    else if dense-same tag "spawn" then dense-two-term types "spawn" rest
+    else if dense-same tag "join" then dense-two-term types "join" rest
+    else if dense-same tag "apply-effect" then (case rest of
+      JArr typeDoc (JArr rowDoc (JArr firstDoc (JArr secondDoc JArrEnd))) ->
+        (case (dense-type-of types typeDoc, dense-type-of types rowDoc, dense-term-of types firstDoc, dense-term-of types secondDoc) of
+          (Some ty, Some row, Some f, Some x) -> Some (CApplyEff dense-zero ty row f x)
+          other -> None)
+      other -> None)
+    else if dense-same tag "erased-apply" then (case rest of
+      JArr typeDoc (JArr rowDoc (JArr firstDoc (JArr secondDoc JArrEnd))) ->
+        (case (dense-type-of types typeDoc, dense-type-of types rowDoc, dense-term-of types firstDoc, dense-term-of types secondDoc) of
+          (Some ty, Some row, Some f, Some x) -> Some (CErasedApply dense-zero ty row f x)
+          other -> None)
+      other -> None)
+    else if dense-same tag "decision" then (case rest of
+      JArr typeDoc (JArr predicateDoc (JArr conditionDoc JArrEnd)) ->
+        (case (dense-type-of types typeDoc, dense-type-of types predicateDoc, dense-term-of types conditionDoc) of
+          (Some ty, Some predicate, Some condition) -> Some (CDecision dense-zero ty predicate condition)
+          other -> None)
+      other -> None)
+    else if dense-same tag "scope" then (case rest of
+      JArr typeDoc (JArr regionDoc (JArr evidenceDoc (JArr callbackDoc JArrEnd))) ->
+        (case (dense-type-of types typeDoc, dense-type-of types regionDoc, dense-evidence-of types evidenceDoc, dense-term-of types callbackDoc) of
+          (Some ty, Some region, Some evidence, Some callback) -> Some (CScope dense-zero ty region evidence callback)
+          other -> None)
+      other -> None)
+    else if dense-same tag "memo-scope" then (case rest of
+      JArr typeDoc (JArr regionDoc (JArr bodyDoc JArrEnd)) ->
+        (case (dense-type-of types typeDoc, dense-type-of types regionDoc, dense-term-of types bodyDoc) of
+          (Some ty, Some region, Some body) -> Some (CMemoScope dense-zero ty region body)
+          other -> None)
+      other -> None)
+    else if dense-same tag "with" then (case rest of
+      JArr typeDoc (JArr givenDoc (JArr valueDoc (JArr bodyDoc JArrEnd))) ->
+        (case (dense-type-of types typeDoc, dense-given-of types givenDoc, dense-term-of types valueDoc, dense-term-of types bodyDoc) of
+          (Some ty, Some given, Some value, Some body) -> Some (CWith dense-zero ty given value body)
+          other -> None)
+      other -> None)
+    else if dense-same tag "handler" then (case rest of
+      JArr typeDoc (JArr returnedDoc (JArr operationsDoc JArrEnd)) ->
+        (case (dense-type-of types typeDoc, dense-term-of types returnedDoc, dense-term-of types operationsDoc) of
+          (Some ty, Some returned, Some operations) -> Some (CHandler dense-zero ty returned operations)
+          other -> None)
+      other -> None)
+    else if dense-same tag "handle" then (case rest of
+      JArr typeDoc (JArr labelDoc (JArr residualDoc (JArr bodyDoc (JArr handledDoc JArrEnd)))) ->
+        (case (dense-type-of types typeDoc, dense-type-of types labelDoc, dense-type-of types residualDoc, dense-term-of types bodyDoc, dense-term-of types handledDoc) of
+          (Some ty, Some label, Some residual, Some body, Some handled) -> Some (CHandle dense-zero ty label residual body handled)
+          other -> None)
+      other -> None)
+    else if dense-same tag "handler-operation" then (case rest of
+      JArr slotDoc (JArr openingsDoc (JArr rowDoc (JArr closureDoc (JArr restDoc JArrEnd)))) ->
+        (case (dense-natural slotDoc, dense-handler-openings-of types openingsDoc, dense-type-of types rowDoc, dense-term-of types closureDoc, dense-term-of types restDoc) of
+          (Some slot, Some openings, Some row, Some closure, Some rest) -> Some (CHandlerOperation dense-zero slot openings row closure rest)
+          other -> None)
+      other -> None)
+    else if dense-same tag "handler-end" then (case rest of JArrEnd -> Some (CHandlerEnd dense-zero); other -> None)
+    else if dense-same tag "lambda" then (case rest of
+      JArr typeDoc (JArr patternDoc (JArr bodyDoc JArrEnd)) ->
+        (case (dense-type-of types typeDoc, dense-pattern-of types patternDoc, dense-term-of types bodyDoc) of
+          (Some ty, Some pattern, Some body) -> Some (CLambda dense-zero ty pattern body)
+          other -> None)
+      other -> None)
+    else if dense-same tag "let" then (case rest of
+      JArr typeDoc (JArr idDoc (JArr nameDoc (JArr schemeDoc (JArr rightDoc (JArr bodyDoc JArrEnd))))) ->
+        (case (dense-type-of types typeDoc, dense-natural idDoc, dense-text nameDoc, dense-scheme-of types schemeDoc, dense-term-of types rightDoc, dense-term-of types bodyDoc) of
+          (Some ty, Some id, Some name, Some scheme, Some right, Some body) -> Some (CLet dense-zero ty id name scheme right body)
+          other -> None)
+      other -> None)
+    else if dense-same tag "recursive-functions" then (case rest of
+      JArr typeDoc (JArr membersDoc (JArr bodyDoc JArrEnd)) ->
+        (case (dense-type-of types typeDoc, dense-term-of types membersDoc, dense-term-of types bodyDoc) of
+          (Some ty, Some members, Some body) -> Some (CRecursiveFunctions dense-zero ty members body)
+          other -> None)
+      other -> None)
+    else if dense-same tag "recursive-values" then (case rest of
+      JArr typeDoc (JArr regionDoc (JArr membersDoc (JArr bodyDoc JArrEnd))) ->
+        (case (dense-type-of types typeDoc, dense-type-of types regionDoc, dense-term-of types membersDoc, dense-term-of types bodyDoc) of
+          (Some ty, Some region, Some members, Some body) -> Some (CRecursiveValues dense-zero ty region members body)
+          other -> None)
+      other -> None)
+    else if dense-same tag "recursive-binding" then (case rest of
+      JArr idDoc (JArr nameDoc (JArr valueDoc (JArr restDoc JArrEnd))) ->
+        (case (dense-natural idDoc, dense-text nameDoc, dense-term-of types valueDoc, dense-term-of types restDoc) of
+          (Some id, Some name, Some value, Some rest) -> Some (CRecursiveBinding id name value rest)
+          other -> None)
+      other -> None)
+    else if dense-same tag "recursive-bindings-end" then (case rest of JArrEnd -> Some CRecursiveBindingsEnd; other -> None)
+    else if dense-same tag "if" then (case rest of
+      JArr typeDoc (JArr conditionDoc (JArr yesDoc (JArr noDoc JArrEnd))) ->
+        (case (dense-type-of types typeDoc, dense-term-of types conditionDoc, dense-term-of types yesDoc, dense-term-of types noDoc) of
+          (Some ty, Some condition, Some yes, Some no) -> Some (CIf dense-zero ty condition yes no)
+          other -> None)
+      other -> None)
+    else if dense-same tag "case" then (case rest of
+      JArr typeDoc (JArr valueDoc (JArr alternativesDoc JArrEnd)) ->
+        (case (dense-type-of types typeDoc, dense-term-of types valueDoc, dense-term-of types alternativesDoc) of
+          (Some ty, Some value, Some alternatives) -> Some (CCase dense-zero ty value alternatives)
+          other -> None)
+      other -> None)
+    else if dense-same tag "tuple" then (case rest of
+      JArr typeDoc (JArr fieldsDoc JArrEnd) ->
+        (case (dense-type-of types typeDoc, dense-term-of types fieldsDoc) of
+          (Some ty, Some fields) -> Some (CTuple dense-zero ty fields)
+          other -> None)
+      other -> None)
+    else if dense-same tag "primitive" then (case rest of
+      JArr typeDoc (JArr operationDoc (JArr argumentsDoc JArrEnd)) ->
+        (case (dense-type-of types typeDoc, dense-text operationDoc, dense-term-of types argumentsDoc) of
+          (Some ty, Some operation, Some arguments) -> Some (CPrimitive dense-zero ty operation arguments)
+          other -> None)
+      other -> None)
+    else if dense-same tag "proved" then (case rest of
+      JArr typeDoc (JArr proofDoc (JArr bodyDoc JArrEnd)) ->
+        (case (dense-type-of types typeDoc, dense-proof-of proofDoc, dense-term-of types bodyDoc) of
+          (Some ty, Some warrant, Some body) -> Some (CProved dense-zero ty warrant body)
+          other -> None)
+      other -> None)
+    else if dense-same tag "refine" then (case rest of
+      JArr typeDoc (JArr proofDoc (JArr bodyDoc JArrEnd)) ->
+        (case (dense-type-of types typeDoc, dense-proof-of proofDoc, dense-term-of types bodyDoc) of
+          (Some ty, Some warrant, Some body) -> Some (CRefine dense-zero ty warrant body)
+          other -> None)
+      other -> None)
+    else if dense-same tag "refine-proof" then (case rest of
+      JArr typeDoc (JArr witnessDoc (JArr bodyDoc JArrEnd)) ->
+        (case (dense-type-of types typeDoc, dense-term-of types witnessDoc, dense-term-of types bodyDoc) of
+          (Some ty, Some witness, Some body) -> Some (CRefineProof dense-zero ty witness body)
+          other -> None)
+      other -> None)
+    else if dense-same tag "forget" then (case rest of
+      JArr typeDoc (JArr bodyDoc JArrEnd) ->
+        (case (dense-type-of types typeDoc, dense-term-of types bodyDoc) of
+          (Some ty, Some body) -> Some (CForget dense-zero ty body)
+          other -> None)
+      other -> None)
+    else if dense-same tag "require" then (case rest of
+      JArr typeDoc (JArr bodyDoc JArrEnd) ->
+        (case (dense-type-of types typeDoc, dense-term-of types bodyDoc) of
+          (Some ty, Some body) -> Some (CRequire dense-zero ty body)
+          other -> None)
+      other -> None)
+    else if dense-same tag "discharge" then (case rest of
+      JArr typeDoc (JArr proofsDoc (JArr bodyDoc JArrEnd)) ->
+        (case (dense-type-of types typeDoc, dense-proofs-of proofsDoc, dense-term-of types bodyDoc) of
+          (Some ty, Some proofs, Some body) -> Some (CDischarge dense-zero ty proofs body)
+          other -> None)
+      other -> None)
+    else if dense-same tag "guard" then (case rest of
+      JArr typeDoc (JArr conditionDoc (JArr bodyDoc JArrEnd)) ->
+        (case (dense-type-of types typeDoc, dense-term-of types conditionDoc, dense-term-of types bodyDoc) of
+          (Some ty, Some condition, Some body) -> Some (CGuard dense-zero ty condition body)
+          other -> None)
+      other -> None)
+    else if dense-same tag "argument" then (case rest of
+      JArr valueDoc (JArr restDoc JArrEnd) ->
+        (case (dense-term-of types valueDoc, dense-term-of types restDoc) of
+          (Some value, Some more) -> Some (CArgument dense-zero value more)
+          other -> None)
+      other -> None)
+    else if dense-same tag "arguments-end" then (case rest of JArrEnd -> Some (CArgumentsEnd dense-zero); other -> None)
+    else if dense-same tag "alternative" then (case rest of
+      JArr patternDoc (JArr bodyDoc (JArr restDoc JArrEnd)) ->
+        (case (dense-pattern-of types patternDoc, dense-term-of types bodyDoc, dense-term-of types restDoc) of
+          (Some pattern, Some body, Some more) -> Some (CAlternative dense-zero pattern body more)
+          other -> None)
+      other -> None)
+    else if dense-same tag "alternatives-end" then (case rest of JArrEnd -> Some (CAlternativesEnd dense-zero); other -> None)
+    else if dense-same tag "error" then (case rest of JArrEnd -> Some (CError dense-zero); other -> None)
+    else None
+
+  -- Two term children after the node's type: apply, spawn and join.
+  dense-two-term :: List UType -> String -> Json -> Option CoreTerm
+  dense-two-term types kind rest = case rest of
+    JArr typeDoc (JArr firstDoc (JArr secondDoc JArrEnd)) ->
+      (case (dense-type-of types typeDoc, dense-term-of types firstDoc, dense-term-of types secondDoc) of
+        (Some ty, Some first, Some second) ->
+          if dense-same kind "apply" then Some (CApply dense-zero ty first second)
+          else if dense-same kind "spawn" then Some (CSpawn dense-zero ty first second)
+          else Some (CJoin dense-zero ty first second)
+        other -> None)
+    other -> None
+
+  dense-proofs-of :: Json -> Option (List Proof)
+  dense-proofs-of doc = case dense-items doc of
+    Some items -> dense-proofs-from items
+    None -> None
+
+  dense-proofs-from :: List Json -> Option (List Proof)
+  dense-proofs-from items = case items of
+    Nil -> Some Nil
+    Cons first rest -> case (dense-proof-of first, dense-proofs-from rest) of
+      (Some warrant, Some more) -> Some (Cons warrant more)
+      other -> None
+
+  dense-clauses-of :: List UType -> Json -> Option (List CoreClause)
+  dense-clauses-of types doc = case doc of
+    JArrEnd -> Some Nil
+    JArr first rest ->
+      (case (dense-patterns-of types (dense-field "patterns" first), dense-term-of types (dense-field "body" first), dense-clauses-of types rest) of
+        (Some patterns, Some body, Some more) -> Some (Cons (MkCoreClause dense-zero patterns body) more)
+        other -> None)
+    other -> None
+
+  dense-definition-of :: List UType -> Json -> Option CoreDefinition
+  dense-definition-of types body =
+    (case (dense-text (dense-field "name" body), dense-scheme-of types (dense-field "scheme" body), dense-openings-of types (dense-field "openings" body), dense-givens-of types (dense-field "givens" body), dense-private-of (dense-field "private" body), dense-clauses-of types (dense-field "clauses" body)) of
+      (Some name, Some scheme, Some openings, Some givens, Some private, Some clauses) ->
+        Some (MkCoreDefinition dense-zero name scheme openings givens private clauses)
+      other -> None)
+
+  dense-carriers-of :: List Json -> Option (List UType)
+  dense-carriers-of items = case items of
+    Nil -> Some Nil
+    Cons first rest -> case (read-carrier-tree first, dense-carriers-of rest) of
+      (Some ty, Some more) -> Some (Cons ty more)
+      other -> None
+
+  dense-definition-of-document :: Json -> Option CoreDefinition
+  dense-definition-of-document doc =
+    (case dense-natural (dense-field "schema" doc) of
+      Some version -> if version /= 1 then None else
+        (case dense-items (dense-field "types" doc) of
+          Some items -> (case dense-carriers-of items of
+            Some types -> dense-definition-of types (dense-field "body" doc)
+            None -> None)
+          None -> None)
+      None -> None)
+
+  dense-claims-of-document :: Json -> Option (List CoreDefinition)
+  dense-claims-of-document doc = case doc of
+    JArr first rest -> (case (dense-definition-of-document first, dense-claims-of-document rest) of
+      (Some definition, Some more) -> Some (Cons definition more)
+      other -> None)
+    JArrEnd -> Some Nil
+    other -> None

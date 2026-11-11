@@ -827,6 +827,75 @@ now (it is compiler source), and the compare takes effect at the next bump.
 The numbers above were taken on the pre-rebase main (f158d5c4's line), which
 trained fine; they are not re-taken on the rebased tree.
 
+### 2.11 Dense Core bodies: types in a side table (2026-11-11)
+
+Every checked `CoreTerm` node carries its `UType`, and `CorePattern`, the
+evidence rows and `Scheme` do the same. That is the right shape for
+elaboration: the checker reads the type from the node it is already
+matching. It is the wrong shape for a body that leaves the compiler. A
+document that writes the type at each node writes the whole type tree at
+each node, while the compiler's own definitions repeat a small vocabulary:
+5,324 definitions hold 106,695 distinct table entries, 20 per definition,
+against far more nodes.
+
+`bootstrap/Bootstrap.CoreBody.cinch` writes the transport form. One type
+table per definition, deduplicated by structure (`same-shape`, with a cheap
+digest as a filter and the structural comparison as the decision), and every
+node, instantiation argument, pattern, constructor type, scheme, requirement
+and evidence row refers to it by position. Spans are not written: a consumer
+of another module's body cannot blame that module's source, and a decoded
+body carries `Span 0 0 0 0`. The reader takes a document back to a
+`CoreDefinition`. Production checks its own reader: `--emit-bodies` decodes
+every definition it writes and refuses the artifact unless re-encoding
+reproduces the same canonical bytes.
+
+Measured on the compiler's own checked definitions (stage3, whole bundle):
+
+| quantity | value |
+| --- | --- |
+| checked definitions | 5,324 |
+| type table entries | 106,695 (20.0 per definition) |
+| dense document | 34,037,775 bytes |
+| the same bodies with the type tree at every occurrence | 65,210,394 bytes |
+
+The side table writes 52.2% of the bytes the per-node form writes, 47.8%
+fewer. Check, encode, decode, re-encode, verify and write all of them takes
+75.4 s and 76.8 s real, 73.1 s and 74.8 s user, on the stage3 binary.
+`--check` on the same bundle takes 85.1 s and 96.9 s real, 83.0 s and 93.1 s
+user, but it also exports and writes every module interface while the body
+path writes one document and no interfaces, so the pair bounds the codec
+rather than isolating it. Two runs produce byte-identical documents.
+
+Self-check A/B, the same bundle, three interleaved pairs, main's stage3
+against this tree's stage3:
+
+| pair | main stage3 real / user | this stage3 real / user |
+| --- | --- | --- |
+| 1 | 86.30 / 83.71 | 91.61 / 84.92 |
+| 2 | 95.30 / 88.60 | 99.57 / 91.77 |
+| 3 | 91.67 / 87.91 | 96.09 / 88.34 |
+
+Median user CPU is 87.91 s against 88.34 s (+0.5%); median real is 91.67 s
+against 96.09 s, inside the spread of single runs on a machine carrying
+other lanes. The check is unchanged.
+
+**Why the node field stays a `UType`.** Moving the type out of the node in
+memory was measured and rejected for this work. A `Nat` index in range is an
+immediate word in the same block slot the `UType` pointer occupies, so the
+node does not shrink; what the node retains is one pointer either way. The
+representation change would also need a type table that survives suite
+rollback: `Store` is snapshotted and rolled back whole, so a table inside it
+can lose entries that terms already reference, and the table would have to be
+threaded through `Infer`, `Typing`, `RuntimeIr` and `Core` beside it, across
+about 1,100 constructor and type-read sites. The transport form gets the
+measured win, 52.2% of the bytes and no per-node type at a module boundary,
+without those risks. A dense in-memory node is a separate change with its own
+evidence, and the node-size fact above is the first thing it has to answer.
+
+The artifact is a separate file today, the typed counterpart of the Rust
+writer's `.cinchopt` bodies. Carrying it inside `.cinchif` is the interface
+format item in section 12.
+
 ## 3. The query graph (rustc, Salsa, Shake)
 
 The single largest structural gap. Today a build rechecks whatever the
@@ -1741,7 +1810,9 @@ Metrics, reported per edit and per clean build:
    remaining out-of-line helper call.
 5. **Interface format.** Sectioned or indexed `.cinchif` decoding, plus an
    optimization section (size, arity, inline guidance). Needs a schema
-   version bump and a producer rebuild.
+   version bump and a producer rebuild. Dense typed bodies with the type
+   side table are produced today by `--emit-bodies` (section 2.11); they
+   wait here for the sectioned format.
 6. **The frontend is now the critical path.** Stage2's build spends 200.7 s
    of 245.8 s in the single-threaded frontend, so per-declaration query
    reuse with fingerprints and early cutoff (section 3) and a parallel

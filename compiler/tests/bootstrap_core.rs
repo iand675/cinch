@@ -36,6 +36,7 @@ fn typed_terms_retain_instantiation_patterns_and_polymorphic_scope() {
         ("and", "module Main where\n  identity :: forall a. a -> a\n  identity x = x\n  main :: Int\n  main = if False && identity True then 0 else 1\n", None),
         ("or", "module Main where\n  identity :: forall a. a -> a\n  identity x = x\n  main :: Int\n  main = if True || identity False then 0 else 1\n", None),
         ("rejected", "module Main where\n  main :: Int\n  main = if 1 && True then 0 else 1\n", Some("type mismatch")),
+        ("bodies", "module Main where\n  data Box a where\n    Box :: a -> Box a\n  unbox :: forall a. Box a -> a\n  unbox (Box x) = x\n  main :: Int\n  main = let b = Box 1 in case unbox b of n -> if n > 0 then n else 0\n", None),
     ];
     // Bigger than an individual compiler module, with fresh inference cells
     // in every body. The source is still supplied only after compilation.
@@ -44,6 +45,7 @@ fn typed_terms_retain_instantiation_patterns_and_polymorphic_scope() {
         many.push_str(&format!("  f{index} :: Int -> Int\n  f{index} x = x + 0\n"));
     }
     cases.push(("many", many.as_str(), None));
+    cases.push(("bodies", many.as_str(), None));
     for (index, (mode, source, diagnostic)) in cases.into_iter().enumerate() {
         std::fs::write(dir.join("case.txt"), mode).unwrap();
         std::fs::write(dir.join("source.cinch"), source).unwrap();
