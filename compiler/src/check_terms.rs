@@ -249,8 +249,9 @@ impl Checker {
                 }) {
                     return Err(Error::at(
                         args[0].span(),
-                        format!(
-                            "region escape: a task handle or scope of region {s} leaves its `withScope` in {res} (concurrency specification, section 2)"
+                        crate::diagnostic!(
+                            "region escape: a task handle or scope of region {s} leaves its `withScope` in {} (concurrency specification, section 2)",
+                            res
                         ),
                     ));
                 }
@@ -472,7 +473,7 @@ impl Checker {
                 let elem = self.uni.fresh();
                 let out = self.uni.fresh();
                 let f = self.parallel_callback(env, &args[0], &elem, &out, "parMap")?;
-                let xs_ty = Ty::Adt("List".to_string().into(), vec![elem.clone()]);
+                let xs_ty = Ty::Adt(crate::known::LIST.into(), vec![elem.clone()]);
                 let xs = self.check(env, &args[1], &xs_ty)?;
                 // The input array is one block every participant reads, so
                 // its element type must be shareable (section 2.3). The
@@ -482,7 +483,7 @@ impl Checker {
                 if !self.share_safe(&actual, &env.dicts) {
                     return Err(Error::at(
                         args[1].span(),
-                        format!(
+                        crate::diagnostic!(
                             "parMap's element type must be Share: {} is stored in the shared input array, which every participant reads (design/parallel-evaluation.md section 2.3)",
                             actual
                         ),
@@ -502,7 +503,7 @@ impl Checker {
                 let array_out = Ty::Adt("Array".to_string().into(), vec![out.clone()]);
                 let to_value = self.prelude_value("Data.Array", "array-to-list")?;
                 let to = self.value_use(&to_value, span, env)?;
-                let list_out = Ty::Adt("List".to_string().into(), vec![out.clone()]);
+                let list_out = Ty::Adt(crate::known::LIST.into(), vec![out.clone()]);
                 self.apply_known(to, mapped, &array_out, &list_out, span)
             }
         }
@@ -798,7 +799,7 @@ impl Checker {
             }
             e
         };
-        let list_ty = Ty::Adt("List".into(), vec![elem.clone()]);
+        let list_ty = Ty::Adt(crate::known::LIST.into(), vec![elem.clone()]);
         let nil = self
             .lookup_value(Some(&prelude), "Nil")
             .map_err(|e| Error::at(span, e.message))?;
@@ -878,7 +879,7 @@ impl Checker {
             None => None,
         };
         let ec = self.check(env, end, &a)?;
-        let list_ty = Ty::Adt("List".into(), vec![a.clone()]);
+        let list_ty = Ty::Adt(crate::known::LIST.into(), vec![a.clone()]);
         let doms: Vec<Ty> = if step.is_some() {
             vec![a.clone(), a.clone(), a.clone()]
         } else {
@@ -1052,10 +1053,10 @@ impl Checker {
                 if self.compile_time {
                     return Ok((
                         ECore::StrLit(s.clone()),
-                        Ty::Adt("String".into(), Vec::new()),
+                        Ty::Adt(crate::known::STRING.into(), Vec::new()),
                     ));
                 }
-                Ok((self.string_const(s), Ty::Adt("String".into(), Vec::new())))
+                Ok((self.string_const(s), Ty::Adt(crate::known::STRING.into(), Vec::new())))
             }
             ast::Term::Char(s, span) => {
                 Ok((ECore::Int(char_literal_word(s, *span)?), Ty::Prim(Scalar::Char)))
@@ -1255,7 +1256,7 @@ impl Checker {
                         other => {
                             return Err(Error::at(
                                 a.span(),
-                                format!("cannot apply a value of type {other}"),
+                                crate::diagnostic!("cannot apply a value of type {}", other),
                             ));
                         }
                     };
@@ -1532,8 +1533,9 @@ impl Checker {
                 let view = self.refine_view(&vty).ok_or_else(|| {
                     Error::at(
                         *span,
-                        format!(
-                            "`forget` gives up conjuncts of a refinement's predicate, but this is {vty} (a plain container carries no predicate; `unrefine` projects a refined value to its container)"
+                        crate::diagnostic!(
+                            "`forget` gives up conjuncts of a refinement's predicate, but this is {} (a plain container carries no predicate; `unrefine` projects a refined value to its container)",
+                            vty
                         ),
                     )
                 })?;
@@ -1596,16 +1598,18 @@ impl Checker {
                 let tv = self.refine_view(&t).ok_or_else(|| {
                     Error::at(
                         target.span(),
-                        format!(
-                            "`narrow` strengthens to a refinement (`refined P T` or a named refinement), but this is {t} (the transparent constructor builds a refined value from its container)"
+                        crate::diagnostic!(
+                            "`narrow` strengthens to a refinement (`refined P T` or a named refinement), but this is {} (the transparent constructor builds a refined value from its container)",
+                            t
                         ),
                     )
                 })?;
                 let sv = self.refine_view(&vty).ok_or_else(|| {
                     Error::at(
                         value.span(),
-                        format!(
-                            "`narrow` moves along the refinement lattice, but this value is at the plain container {vty} (the transparent constructor builds a refined value from its container; weakening along the lattice is implicit)"
+                        crate::diagnostic!(
+                            "`narrow` moves along the refinement lattice, but this value is at the plain container {} (the transparent constructor builds a refined value from its container; weakening along the lattice is implicit)",
+                            vty
                         ),
                     )
                 })?;
@@ -1770,9 +1774,9 @@ impl Checker {
                     other => {
                         return Err(Error::at(
                             *span,
-                            format!(
-                                "cannot project field {} from a value of type {other}",
-                                field.text
+                            crate::diagnostic!(
+                                "cannot project field {} from a value of type {}",
+                                field.text, other
                             ),
                         ));
                     }
@@ -1783,13 +1787,14 @@ impl Checker {
                 let fields = info.fields.ok_or_else(|| {
                     Error::at(
                         *span,
-                        format!(
-                            "{rec_name} is not a record; field projection needs a record type"
+                        crate::diagnostic!(
+                            "{} is not a record; field projection needs a record type",
+                            crate::spelling::Nominal(&rec_name)
                         ),
                     )
                 })?;
                 let idx = fields.iter().position(|f| f == &field.text).ok_or_else(|| {
-                    Error::at(field.span, format!("unknown record field {} on {rec_name}", field.text))
+                    Error::at(field.span, crate::diagnostic!("unknown record field {} on {}", field.text, crate::spelling::Nominal(&rec_name)))
                 })?;
                 // Erased fields occupy no runtime slot: the block stores
                 // the others in declaration order (core specification
@@ -1798,7 +1803,7 @@ impl Checker {
                 let runtime_idx =
                     info.field_erased[..idx].iter().filter(|e| !**e).count();
                 let v = self.qualified.get(&(info.module.clone(), info.name.clone())).cloned()
-                    .ok_or_else(|| Error::at(*span, format!("unknown constructor for {rec_name}")))?;
+                    .ok_or_else(|| Error::at(*span, crate::diagnostic!("unknown constructor for {}", crate::spelling::Nominal(&rec_name))))?;
                 let field_ty = match &v.kind {
                     ValueKind::Ctor { field_tys, ty_params, .. } => {
                         let mut map = HashMap::new();
@@ -1808,7 +1813,7 @@ impl Checker {
                         Self::subst_ty(&field_tys[idx], &map)
                     }
                     _ => {
-                        return Err(Error::at(*span, format!("{rec_name} has no constructor")));
+                        return Err(Error::at(*span, crate::diagnostic!("{} has no constructor", crate::spelling::Nominal(&rec_name))));
                     }
                 };
                 if erased {
@@ -1936,7 +1941,7 @@ impl Checker {
                         other => {
                             return Err(Error::at(
                                 *span,
-                                format!(
+                                crate::diagnostic!(
                                     "record constructor {} has type {}, which takes no field {f}",
                                     v.name, other
                                 ),
@@ -2655,8 +2660,9 @@ impl Checker {
                     other => {
                         return Err(Error::at(
                             t.span(),
-                            format!(
-                                "a name splice must produce a `Name`, `Sym` or `Syntax`, but this one produces {other}"
+                            crate::diagnostic!(
+                                "a name splice must produce a `Name`, `Sym` or `Syntax`, but this one produces {}",
+                                other
                             ),
                         ))
                     }
@@ -2682,8 +2688,9 @@ impl Checker {
             Ty::Adt(name, args) if name == "Name" && args.is_empty() => Ok((core, ty)),
             other => Err(Error::at(
                 span,
-                format!(
-                    "a splice or macro invocation in a template must produce `Code t`, `Syntax`, `Name` or `Sym`, but this one produces {other}"
+                crate::diagnostic!(
+                    "a splice or macro invocation in a template must produce `Code t`, `Syntax`, `Name` or `Sym`, but this one produces {}",
+                    other
                 ),
             )),
         }
@@ -2792,7 +2799,7 @@ impl Checker {
     fn check_must_use_discard(&mut self, discarded: &Ty, span: ast::Span) -> Result<()> {
         let t = self.uni.zonk(discarded);
         if let Ty::Adt(n, _) = &t {
-            if n == "Result" {
+            if n == crate::known::RESULT {
                 return Err(Error::at(
                     span,
                     "discarding a `Result`-typed expression without `ignore`: check the outcome or discard it on purpose (`ignore e`; the return-value discipline of JPL rule 7, decision D114)",
@@ -2909,7 +2916,7 @@ impl Checker {
                     )),
                     other => Err(Error::at(
                         args[0].span(),
-                        format!("demand expects a Lazy cell, got {other}"),
+                        crate::diagnostic!("demand expects a Lazy cell, got {}", other),
                     )),
                 }
             }
@@ -2922,8 +2929,9 @@ impl Checker {
                 let base = self.refine_base(&ty).ok_or_else(|| {
                     Error::at(
                         args[0].span(),
-                        format!(
-                            "`unrefine` projects a refinement to its container, but this is {ty} (a refinement value IS its container value)"
+                        crate::diagnostic!(
+                            "`unrefine` projects a refinement to its container, but this is {} (a refinement value IS its container value)",
+                            ty
                         ),
                     )
                 })?;
@@ -3143,8 +3151,9 @@ impl Checker {
             other => {
                 return Err(Error::at(
                     args[0].span(),
-                    format!(
-                        "`refSet` writes through an exclusive `Mut` borrow, but this is {other} (a `Ref` borrow is read-only; use `mutBorrow` for a writable location)"
+                    crate::diagnostic!(
+                        "`refSet` writes through an exclusive `Mut` borrow, but this is {} (a `Ref` borrow is read-only; use `mutBorrow` for a writable location)",
+                        other
                     ),
                 ))
             }
@@ -3208,12 +3217,14 @@ impl Checker {
             match ty {
                 Ty::Adt(n, args) if n == "Dec" && args.len() == 1 => match &args[0] {
                     Ty::Prp(p) => Ok((**p).clone()),
-                    other => Err(Error::plain(format!(
-                        "`decide` produces `Dec p`, not `Dec {other}`"
+                    other => Err(Error::plain(crate::diagnostic!(
+                        "`decide` produces `Dec p`, not `Dec {}`",
+                        other
                     ))),
                 },
-                other => Err(Error::plain(format!(
-                    "`decide` produces `Dec p`, not `{other}`"
+                other => Err(Error::plain(crate::diagnostic!(
+                    "`decide` produces `Dec p`, not `{}`",
+                    other
                 ))),
             }
         }
@@ -3406,8 +3417,9 @@ impl Checker {
             other => {
                 return Err(Error::at(
                     span,
-                    format!(
-                        "obligation status: unsupported: `decide` compares `Nat`, `Int`, and machine integers, not {other}"
+                    crate::diagnostic!(
+                        "obligation status: unsupported: `decide` compares `Nat`, `Int`, and machine integers, not {}",
+                        other
                     ),
                 ))
             }
@@ -3542,16 +3554,16 @@ impl Checker {
         let value = self.resolve_var(op, op.span()).ok()?;
         // Imports may rename an operator. Facts follow the resolved method,
         // never the spelling the caller chose for it.
-        let (cmp, class_module) = match value.name.as_str() {
-            "<" => (IdxCmp::Lt, "Relation.Ord"),
-            "<=" => (IdxCmp::Le, "Relation.Ord"),
-            ">" => (IdxCmp::Gt, "Relation.Ord"),
-            ">=" => (IdxCmp::Ge, "Relation.Ord"),
-            "==" => (IdxCmp::Eq, "Relation.Eq"),
-            "/=" => (IdxCmp::Ne, "Relation.Eq"),
+        let (cmp, class) = match value.name.as_str() {
+            "<" => (IdxCmp::Lt, crate::known::ORD),
+            "<=" => (IdxCmp::Le, crate::known::ORD),
+            ">" => (IdxCmp::Gt, crate::known::ORD),
+            ">=" => (IdxCmp::Ge, crate::known::ORD),
+            "==" => (IdxCmp::Eq, crate::known::EQ),
+            "/=" => (IdxCmp::Ne, crate::known::EQ),
             _ => return None,
         };
-        (value.module == class_module && matches!(value.kind, ValueKind::Method { .. })).then_some(cmp)
+        (value.module == crate::known::split(class).0 && matches!(value.kind, ValueKind::Method { .. })).then_some(cmp)
     }
 
     /// A comparison condition (`i < n`, `d == 0`, ...) whose operator is
@@ -3865,7 +3877,7 @@ impl Checker {
                 let names = self.term_names(env, &it)?;
                 Some(Reading { kind: ReadingKind::Value(it, names), end })
             })
-        } else if matches!(&ty, Ty::Adt(n, _) if n == "Ordering") {
+        } else if matches!(&ty, Ty::Adt(n, _) if n == crate::known::ORDERING) {
             self.ordering_reading(env, scrut, &c, end)
         } else {
             None
@@ -3883,10 +3895,10 @@ impl Checker {
         let [k, x, y] = args.as_slice() else { return None };
         let ECore::App(helper, arguments) = core else { return None };
         let ECore::Global(id, _) = &**helper else { return None };
-        if id.0 != "Relation.Ord.comparing" { return None; }
+        if id.0 != crate::known::COMPARING { return None; }
         let [ECore::Hole(want), key, _, _] = arguments.as_slice() else { return None };
         let want = self.wants.iter().find(|entry| entry.id == *want)?;
-        if want.class.class != self.signature_key("Relation.Ord", "Ord") { return None; }
+        if want.class.class != crate::known::ORD { return None; }
         let [carrier] = want.class.args.as_slice() else { return None };
         let carrier = self.uni.zonk(carrier);
         if !fact_numeric(&carrier) { return None; }
@@ -4274,7 +4286,7 @@ impl Checker {
                         other => {
                             return Err(Error::at(
                                 a.span(),
-                                format!("cannot apply a value of type {other}"),
+                                crate::diagnostic!("cannot apply a value of type {}", other),
                             ))
                         }
                     };
@@ -4303,7 +4315,7 @@ impl Checker {
                         other => {
                             return Err(Error::at(
                                 a.span(),
-                                format!("cannot apply a value of type {other}"),
+                                crate::diagnostic!("cannot apply a value of type {}", other),
                             ))
                         }
                     };
@@ -4391,8 +4403,9 @@ impl Checker {
                     other => {
                         return Err(Error::at(
                             a.span(),
-                            format!(
-                                "the refinement's witness is a proposition, not {other}"
+                            crate::diagnostic!(
+                                "the refinement's witness is a proposition, not {}",
+                                other
                             ),
                         ))
                     }
@@ -4816,7 +4829,7 @@ impl Checker {
         }
         if matches!(value.kind, ValueKind::TopFn) && !self.logical.contains(&target) {
             return Err(Error::at(span,
-                format!("an evidence former must belong to the checked, total logical fragment: {}.{} has type {} and is computational", value.module, value.name, value.scheme.ty)));
+                crate::diagnostic!("an evidence former must belong to the checked, total logical fragment: {}.{} has type {} and is computational", value.module, value.name, value.scheme.ty)));
         }
         Ok(())
     }
@@ -4948,9 +4961,9 @@ impl Checker {
                             }
                             other => Err(Error::at(
                                 term.span(),
-                                format!(
-                                    "`{}` has type {other}, which is not a proposition",
-                                    p.name.text
+                                crate::diagnostic!(
+                                    "`{}` has type {}, which is not a proposition",
+                                    p.name.text, other
                                 ),
                             )),
                         };
@@ -4990,7 +5003,7 @@ impl Checker {
                     )),
                     other => Err(Error::at(
                         term.span(),
-                        format!("`{}` has type {other}, which is not a proposition", v.name),
+                        crate::diagnostic!("`{}` has type {}, which is not a proposition", v.name, other),
                     )),
                 }
             }
@@ -5069,8 +5082,9 @@ impl Checker {
                                 other => {
                                     return Err(Error::at(
                                         a.span(),
-                                        format!(
-                                            "an evidence argument states a proposition, but this one has type {other}"
+                                        crate::diagnostic!(
+                                            "an evidence argument states a proposition, but this one has type {}",
+                                            other
                                         ),
                                     ))
                                 }
@@ -5099,7 +5113,7 @@ impl Checker {
                         other => {
                             return Err(Error::at(
                                 a.span(),
-                                format!("too many evidence arguments ({other} is not a function)"),
+                                crate::diagnostic!("too many evidence arguments ({} is not a function)", other),
                             ))
                         }
                     }
@@ -5107,7 +5121,7 @@ impl Checker {
                 match self.uni.zonk(&ty) {
                     Ty::Prp(q) => {
                         self.unify_prop_reduced(&q, prop).map_err(|m| {
-                            Error::at(*span, format!("{m}: this term proves `{q}`, not `{prop}`"))
+                            Error::at(*span, crate::diagnostic!("{}: this term proves `{}`, not `{}`", m, q, prop))
                         })?;
                         // The reference stays visible to the termination
                         // and cycle checks; proof bodies are erased before
@@ -5130,7 +5144,7 @@ impl Checker {
                     }
                     other => Err(Error::at(
                         *span,
-                        format!("this proof former does not prove a proposition ({other})"),
+                        crate::diagnostic!("this proof former does not prove a proposition ({})", other),
                     )),
                 }
             }
@@ -5275,11 +5289,18 @@ impl Checker {
                 return Ok(ECore::Unit);
             }
         }
-        let facts = evidence.items.iter().map(|(name, q, _, _)| format!("{name}: {q}"))
-            .chain(evidence.refined.iter().map(ToString::to_string))
-            .collect::<Vec<_>>().join("; ");
-        Err(Error::at(span, format!(
-            "tactic plan `{plan}` could not prove `{prop}`; scoped facts: [{facts}]"
+        // The scoped facts are a variable-length list, so they are one
+        // `Spell` argument rather than a string built ahead of the
+        // message: a name ambiguous across a fact and the goal is
+        // written in full, exactly as in the rest of the message.
+        Err(Error::at(span, crate::diagnostic!(
+            "tactic plan `{plan}` could not prove `{}`; scoped facts: [{}]",
+            prop,
+            crate::spelling::Facts {
+                items: &evidence.items,
+                refined: &evidence.refined,
+                separator: "; ",
+            }
         )))
     }
 
@@ -5904,8 +5925,9 @@ impl Checker {
                     other => {
                         return Err(Error::at(
                             span,
-                            format!(
-                                "`NonZero` decides numeric values, not `{other}` (a wrong predicate for this value is refused naming the predicate)"
+                            crate::diagnostic!(
+                                "`NonZero` decides numeric values, not `{}` (a wrong predicate for this value is refused naming the predicate)",
+                                other
                             ),
                         ))
                     }
@@ -5924,8 +5946,9 @@ impl Checker {
                 let Ty::Adt(name, _) = oty else {
                     return Err(Error::at(
                         span,
-                        format!(
-                            "`NotNull` decides list-shaped values, not `{oty}` (a wrong predicate for this value is refused naming the predicate)"
+                        crate::diagnostic!(
+                            "`NotNull` decides list-shaped values, not `{}` (a wrong predicate for this value is refused naming the predicate)",
+                            oty
                         ),
                     ));
                 };
@@ -5950,7 +5973,7 @@ impl Checker {
                 // backing field).
                 let list = match oty {
                     Ty::Adt(name, args)
-                        if name != "String"
+                        if name != crate::known::STRING
                             && self.list_shaped(name) =>
                     {
                         let _ = args;
@@ -5964,7 +5987,7 @@ impl Checker {
                 }
                 let bytes = match oty {
                     Ty::Bytes => operand,
-                    Ty::Adt(name, _) if name == "String" => ECore::Proj(
+                    Ty::Adt(name, _) if name == crate::known::STRING => ECore::Proj(
                         Box::new(operand),
                         ProjField::slot(0, Class::Raw),
                         Ty::Bytes,
@@ -5972,8 +5995,9 @@ impl Checker {
                     other => {
                         return Err(Error::at(
                             span,
-                            format!(
-                                "`Ascii` decides text values (`String`) and lists of chars, not `{other}` (a wrong predicate for this value is refused naming the predicate)"
+                            crate::diagnostic!(
+                                "`Ascii` decides text values (`String`) and lists of chars, not `{}` (a wrong predicate for this value is refused naming the predicate)",
+                                other
                             ),
                         ))
                     }
@@ -5993,8 +6017,9 @@ impl Checker {
                 let Ty::Adt(name, _) = oty else {
                     return Err(Error::at(
                         span,
-                        format!(
-                            "`Ordered` decides lists of numerics, not `{oty}` (a wrong predicate for this value is refused naming the predicate)"
+                        crate::diagnostic!(
+                            "`Ordered` decides lists of numerics, not `{}` (a wrong predicate for this value is refused naming the predicate)",
+                            oty
                         ),
                     ));
                 };
@@ -6092,8 +6117,9 @@ impl Checker {
         let (Some(nil_tag), Some(cons_tag)) = (empty, cons) else {
             return Err(Error::at(
                 span,
-                format!(
-                    "`Ascii` decides a list of chars (an empty constructor and an element-tail constructor), and {type_name} is not that shape (a wrong predicate for this value is refused naming the predicate)"
+                crate::diagnostic!(
+                    "`Ascii` decides a list of chars (an empty constructor and an element-tail constructor), and {} is not that shape (a wrong predicate for this value is refused naming the predicate)",
+                    crate::spelling::Nominal(type_name)
                 ),
             ));
         };
@@ -6163,8 +6189,9 @@ impl Checker {
         let (Some(nil_tag), Some(cons_tag)) = (empty, cons) else {
             return Err(Error::at(
                 span,
-                format!(
-                    "`Ordered` decides lists of numerics (an empty constructor and an element-tail constructor), and {type_name} is not that shape (a wrong predicate for this value is refused naming the predicate)"
+                crate::diagnostic!(
+                    "`Ordered` decides lists of numerics (an empty constructor and an element-tail constructor), and {} is not that shape (a wrong predicate for this value is refused naming the predicate)",
+                    crate::spelling::Nominal(type_name)
                 ),
             ));
         };
@@ -6252,8 +6279,9 @@ impl Checker {
         let (Some(nil_tag), Some(cons_tag)) = (empty, cons) else {
             return Err(Error::at(
                 span,
-                format!(
-                    "`length` measures a list spine (an empty constructor and an element-tail constructor) or a byte buffer, and {type_name} is not that shape (a wrong measure for this value is refused naming the measure)"
+                crate::diagnostic!(
+                    "`length` measures a list spine (an empty constructor and an element-tail constructor) or a byte buffer, and {} is not that shape (a wrong measure for this value is refused naming the measure)",
+                    crate::spelling::Nominal(type_name)
                 ),
             ));
         };
@@ -6409,7 +6437,7 @@ impl Checker {
                 let form = if is_mut { "Mut r a" } else { "Ref r a" };
                 return Err(Error::at(
                     span,
-                    format!("borrow against {other}: expected a {form}"),
+                    crate::diagnostic!("borrow against {}: expected a {form}", other),
                 ));
             }
         };
@@ -6595,7 +6623,7 @@ impl Checker {
                 other => {
                     return Err(Error::at(
                         p.span(),
-                        format!("lambda parameter against non-function type {other}"),
+                        crate::diagnostic!("lambda parameter against non-function type {}", other),
                     ));
                 }
             };
@@ -6624,7 +6652,7 @@ impl Checker {
                         other => {
                             return Err(Error::at(
                                 *pat_span,
-                                format!("the unit pattern `()` cannot match {other}"),
+                                crate::diagnostic!("the unit pattern `()` cannot match {}", other),
                             ))
                         }
                     }
@@ -6784,7 +6812,7 @@ impl Checker {
                         let gid = self.install_length_test(&name, t.span())?;
                         Ok(app_spine(ECore::Global(gid, Vec::new()), vec![ac]))
                     }
-                    other => Err(Error::at(arg.span(), format!("length index operand needs Bytes or a list-shaped carrier, got {other}"))),
+                    other => Err(Error::at(arg.span(), crate::diagnostic!("length index operand needs Bytes or a list-shaped carrier, got {}", other))),
                 };
 
             }
@@ -7046,7 +7074,7 @@ impl Checker {
                 other => {
                     return Err(Error::at(
                         span,
-                        format!("internal error: implicit argument of type {other} is not an index value"),
+                        crate::diagnostic!("internal error: implicit argument of type {} is not an index value", other),
                     ))
                 }
             };
@@ -8073,7 +8101,7 @@ impl Checker {
                     other => {
                         return Err(Error::at(
                             *span,
-                            format!("pattern does not match type {other}"),
+                            crate::diagnostic!("pattern does not match type {}", other),
                         ));
                     }
                 };
@@ -8562,7 +8590,7 @@ impl Checker {
                             if matches!(p0, ast::Pat::Sym(..)) != matches!(inner_ty, Ty::Sym) {
                                 return Err(Error::at(
                                     p0.span(),
-                                    format!("pattern does not match type {inner_ty}"),
+                                    crate::diagnostic!("pattern does not match type {}", inner_ty),
                                 ));
                             }
                             let node = self.literal_const(&inner_ty, v, p0.span())?;
@@ -8577,7 +8605,7 @@ impl Checker {
                         other => {
                             return Err(Error::at(
                                 other.span(),
-                                format!("pattern does not match type {inner_ty}"),
+                                crate::diagnostic!("pattern does not match type {}", inner_ty),
                             ));
                         }
                     }
@@ -8846,7 +8874,7 @@ impl Checker {
                                     CtorMatch::Unknown(msg) => {
                                         return Err(Error::at(
                                             *span,
-                                            format!(
+                                            crate::diagnostic!(
                                                 "cannot match constructor {} against {}: the index equation {msg} has no solution here (this slice does not refine rigid indices; reshape the type or dispatch through `decide`)",
                                                 v.name, ty0
                                             ),
@@ -8857,7 +8885,7 @@ impl Checker {
                             if parts_by_tag[tag].is_none() {
                                 return Err(Error::at(
                                     *span,
-                                    format!(
+                                    crate::diagnostic!(
                                         "impossible arm: constructor {} cannot build {} (the indices refute it), so this arm can never match",
                                         v.name, ty0
                                     ),
@@ -8942,7 +8970,7 @@ impl Checker {
                         other => {
                             return Err(Error::at(
                                 other.span(),
-                                format!("pattern does not match type {ty0}"),
+                                crate::diagnostic!("pattern does not match type {}", ty0),
                             ));
                         }
                     }
@@ -9146,7 +9174,7 @@ impl Checker {
                     // value (an impossible scrutinee type).
                     return Err(Error::at(
                         ctx_span,
-                        format!("no constructor of {} can build this value (the indices refute them all)", ty0),
+                        crate::diagnostic!("no constructor of {} can build this value (the indices refute them all)", ty0),
                     ));
                 }
                 // Branch weights (attribute annotations specification
@@ -9214,7 +9242,7 @@ impl Checker {
                         other => {
                             return Err(Error::at(
                                 other.span(),
-                                format!("pattern does not match type {ty0}"),
+                                crate::diagnostic!("pattern does not match type {}", ty0),
                             ));
                         }
                     }
@@ -9261,7 +9289,7 @@ impl Checker {
             )),
             Ty::App(h, _) => Err(Error::at(
                 ctx_span,
-                format!("cannot pattern match on a value of applied abstract type {h}"),
+                crate::diagnostic!("cannot pattern match on a value of applied abstract type {}", h),
             )),
             Ty::Former(f) => Err(Error::at(
                 ctx_span,
@@ -9269,19 +9297,19 @@ impl Checker {
             )),
             Ty::Fun(a, _, _, b) => Err(Error::at(
                 ctx_span,
-                format!("cannot pattern match on a function value ({a} -> {b})"),
+                crate::diagnostic!("cannot pattern match on a function value ({} -> {})", a, b),
             )),
             Ty::Thunk { inner, .. } => Err(Error::at(
                 ctx_span,
-                format!("cannot pattern match on a thunk (Thunk _ {inner}); force it first"),
+                crate::diagnostic!("cannot pattern match on a thunk (Thunk _ {}); force it first", inner),
             )),
             Ty::Later(inner) => Err(Error::at(
                 ctx_span,
-                format!("cannot pattern match on a Later ({inner}); force it first"),
+                crate::diagnostic!("cannot pattern match on a Later ({}); force it first", inner),
             )),
             Ty::Lazy { inner, .. } => Err(Error::at(
                 ctx_span,
-                format!("cannot pattern match on a memo cell (Lazy _ _ {inner}); demand it first"),
+                crate::diagnostic!("cannot pattern match on a memo cell (Lazy _ _ {}); demand it first", inner),
             )),
             Ty::Ref(_, _) | Ty::Mut(_, _) => Err(Error::at(
                 ctx_span,
@@ -9412,7 +9440,7 @@ impl Checker {
                         other => {
                             return Err(Error::at(
                                 other.span(),
-                                format!("pattern does not match type {ty0}"),
+                                crate::diagnostic!("pattern does not match type {}", ty0),
                             ));
                         }
                     }
@@ -9472,11 +9500,11 @@ impl Checker {
             )),
             Ty::Idx(t) => Err(Error::at(
                 ctx_span,
-                format!("cannot pattern match on the index value {t}"),
+                crate::diagnostic!("cannot pattern match on the index value {}", t),
             )),
             Ty::Prp(p) => Err(Error::at(
                 ctx_span,
-                format!("cannot pattern match on the proposition {p} (evidence is erased)"),
+                crate::diagnostic!("cannot pattern match on the proposition {} (evidence is erased)", p),
             )),
         }
     }
@@ -9669,7 +9697,7 @@ impl Checker {
                     self.record_quote_constructor(p, &value);
                     return Ok(value);
                 }
-                return Err(Error::at(span, format!("captured constructor `{}` does not belong to {}", scope.spelling(), info.identity)));
+                return Err(Error::at(span, crate::diagnostic!("captured constructor `{}` does not belong to {}", scope.spelling(), crate::spelling::Nominal(&info.identity))));
             }
         }
         if p.segments.last().is_some_and(|name| name.resolved_binding().is_none())
@@ -9800,7 +9828,7 @@ impl Checker {
             if idx_ground(&za) && idx_ground(&zb) {
                 return Ok(CtorMatch::Refuted);
             }
-            return Ok(CtorMatch::Unknown(format!("{za} vs {zb}")));
+            return Ok(CtorMatch::Unknown(crate::diagnostic!("{} vs {}", za, zb)));
         }
         // An inversion guess like `?k + 1 = 0` solves with `?k := -1`,
         // which is not a natural number: the constructor is impossible.
@@ -10400,7 +10428,7 @@ impl Checker {
                 if pred_implies(&iv.pred, &ev.pred) {
                     return Ok(());
                 }
-                return Err(format!(
+                return Err(crate::diagnostic!(
                     "a `{}` value does not flow to `{}`: the implication table cannot derive `{}` implies `{}` (weakening is implicit and free where implication is decidable; strengthen with `narrow` and a `Dec`, or weaken by ascription to a point the table derives)",
                     inferred, expected, iv.pred, ev.pred
                 ));
@@ -10488,7 +10516,7 @@ impl Checker {
                         other => {
                             return Err(Error::at(
                                 span,
-                                format!("cannot apply a value of type {other}"),
+                                crate::diagnostic!("cannot apply a value of type {}", other),
                             ))
                         }
                     };
@@ -10617,7 +10645,7 @@ impl Checker {
                 other => {
                     return Err(Error::at(
                         span,
-                        format!("effect operation {} is applied to too many arguments ({other})", v.name),
+                        crate::diagnostic!("effect operation {} is applied to too many arguments ({})", v.name, other),
                     ))
                 }
             };
@@ -10704,9 +10732,9 @@ impl Checker {
                 other => {
                     return Err(Error::at(
                         span,
-                        format!(
-                            "effect operation {} is applied to too many arguments ({other})",
-                            v.name
+                        crate::diagnostic!(
+                            "effect operation {} is applied to too many arguments ({})",
+                            v.name, other
                         ),
                     ))
                 }
@@ -11033,7 +11061,7 @@ impl Checker {
             Ty::Fun(_, _, _, res) => Ok(*res),
             other => Err(Error::at(
                 span,
-                format!("internal error: the provider's pure has type {other}"),
+                crate::diagnostic!("internal error: the provider's pure has type {}", other),
             )),
         }
     }
@@ -11114,7 +11142,7 @@ impl Checker {
             other => {
                 return Err(Error::at(
                     sspan,
-                    format!("internal error: the provider's bind has type {other}"),
+                    crate::diagnostic!("internal error: the provider's bind has type {}", other),
                 ))
             }
         };
@@ -11125,18 +11153,18 @@ impl Checker {
                 other => {
                     return Err(Error::at(
                         sspan,
-                        format!("internal error: the provider's bind continues with {other}"),
+                        crate::diagnostic!("internal error: the provider's bind continues with {}", other),
                     ))
                 }
             },
             other => {
                 return Err(Error::at(
                     sspan,
-                    format!("internal error: the provider's bind takes {other}"),
+                    crate::diagnostic!("internal error: the provider's bind takes {}", other),
                 ))
             }
         };
-        let kind = if select_provider(&self.seq_binders, sspan)?.class == "DirectSequencing" {
+        let kind = if select_provider(&self.seq_binders, sspan)?.class == crate::known::DIRECT_SEQUENCING {
             ContKind::Once
         } else {
             // A short-circuiting provider may skip the continuation.
@@ -11376,7 +11404,7 @@ impl Checker {
                     other => {
                         return Err(Error::at(
                             p.span(),
-                            format!("clause for {op_name} has too many patterns ({other})"),
+                            crate::diagnostic!("clause for {op_name} has too many patterns ({})", other),
                         ))
                     }
                 };
@@ -11515,7 +11543,7 @@ impl Checker {
             other => {
                 return Err(Error::at(
                     span,
-                    format!("handle expects a handler value, got {other}"),
+                    crate::diagnostic!("handle expects a handler value, got {}", other),
                 ))
             }
         };
@@ -11606,12 +11634,14 @@ impl Checker {
         span: ast::Span,
     ) -> Result<(ECore, Ty)> {
         let class = select_provider(&self.seq_binders, span)?;
-        let path = ast::ConPath {
-            segments: vec![ast::Name::new(class.class.clone(), span)],
-        };
+        // The selection is a class key, the declaring identity: it is
+        // looked up as one, never re-resolved as a spelling in this scope.
         let sig = self
-            .lookup_sig(&path)
-            .map_err(|e| Error::at(span, e.message))?;
+            .class_sigs
+            .get(&class.class)
+            .and_then(|sigs| sigs.first())
+            .cloned()
+            .ok_or_else(|| Error::at(span, crate::diagnostic!("unknown signature {}", crate::spelling::Nominal(&class.class))))?;
         let mname = match kind {
             ast::SeqKind::Pure => "pure",
             ast::SeqKind::Bind => "bind",
@@ -11625,7 +11655,7 @@ impl Checker {
             .ok_or_else(|| {
                 Error::at(
                     span,
-                    format!("sequencing provider {} has no {mname} method", class.class),
+                    crate::diagnostic!("sequencing provider {} has no {mname} method", crate::spelling::Nominal(&class.class)),
                 )
             })?;
         let (ty, ctx, _, ptys) = self.instantiate_at(&mscheme);
@@ -11728,7 +11758,7 @@ impl Checker {
             self.instance_list.iter().find(|i| i.module == *module && i.name == *name).cloned()
         }) else { return Ok(None); };
         if !inst.method_obligs.is_empty() {
-            return Err(Error::at(path.span(), Self::method_oblig_refusal(&inst, &inst.target.to_string())));
+            return Err(Error::at(path.span(), Self::method_oblig_refusal(&inst, &inst.target)));
         }
         let actuals: Vec<Ty> = inst.params.iter().map(|_| self.uni.fresh()).collect();
         let substitution: HashMap<String, Ty> = inst.params.iter().cloned().zip(actuals.iter().cloned()).collect();
@@ -11781,8 +11811,9 @@ impl Checker {
                 other => {
                     return Err(Error::at(
                         span,
-                        format!(
-                            "a capability's argument is a runtime identity, got {other}"
+                        crate::diagnostic!(
+                            "a capability's argument is a runtime identity, got {}",
+                            other
                         ),
                     ))
                 }
@@ -11798,9 +11829,9 @@ impl Checker {
             other => {
                 return Err(Error::at(
                     span,
-                    format!(
-                        "supply {} must have type `Io r` or another checked signature, got {other}",
-                        name.text
+                    crate::diagnostic!(
+                        "supply {} must have type `Io r` or another checked signature, got {}",
+                        name.text, other
                     ),
                 ))
             }

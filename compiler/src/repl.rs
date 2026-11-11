@@ -66,7 +66,7 @@ impl RuntimePrint {
             Ty::Unit => Some(RuntimePrint::Unit),
             Ty::Bytes => Some(RuntimePrint::Bytes),
             Ty::Prim(Scalar::Char) => Some(RuntimePrint::Show),
-            Ty::Adt(name, _) if name == "String" || name.ends_with(".String") => Some(RuntimePrint::Show),
+            Ty::Adt(name, _) if name == crate::known::STRING => Some(RuntimePrint::Show),
             Ty::Fun(..) | Ty::Pi { .. } => None,
             Ty::Param(_) | Ty::Region(_) | Ty::Meta(_) | Ty::Sort(_) | Ty::Prp(_) | Ty::Idx(_) => {
                 None

@@ -367,6 +367,8 @@ compiler/
     check.rs               types, unification, elaboration
     check_terms.rs         term checking and pattern-match compilation
     check_decls.rs         declarations and program assembly
+    known.rs               the library types and classes the compiler names, by identity
+    spelling.rs            how a diagnostic writes a nominal name
     core.rs                core IR and the runtime ABI
     codegen.rs             LLVM IR text
     store.rs               the content-keyed artifact cache

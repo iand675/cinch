@@ -1653,7 +1653,7 @@ fn prim_payload_classes(op: PrimOp) -> Vec<Class> {
         return vec![Class::Obj];
     }
     match prim_sig(op).map(|(_, t)| t) {
-        Some(crate::types::Ty::Adt(name, args)) if name == "Option" || name == "Result" => {
+        Some(crate::types::Ty::Adt(name, args)) if name == crate::known::OPTION || name == crate::known::RESULT => {
             args.iter().map(sig_class).collect()
         }
         _ => Vec::new(),
@@ -1742,9 +1742,9 @@ fn unit_param_classes(p: &Program, reg: &Registry) -> HashMap<String, Vec<Class>
 /// (`Layouts::shape_desc`) with the same tags, so a program that declares
 /// the types otherwise is refused rather than miscompiled.
 const BUILT_TYPES: [(&str, &[u64]); 3] = [
-    ("Data.Core.Option", &[0, 1]),
-    ("Data.Core.Result", &[1, 1]),
-    ("Data.Ordering.Ordering", &[0, 0, 0]),
+    (crate::known::OPTION, &[0, 1]),
+    (crate::known::RESULT, &[1, 1]),
+    (crate::known::ORDERING, &[0, 0, 0]),
 ];
 
 /// The prelude tags of the built types.
@@ -2048,7 +2048,7 @@ fn ctor_block_word(b: &mut Builder, desc: u64, fields: &[String]) -> String {
 /// The prelude `String` block (`StrBuf`, one field) over the `Bytes`
 /// word `bytes`: the canonical ABI's wrapped byte payloads.
 fn string_block_word(b: &mut Builder, reg: &Registry, bytes: &str) -> String {
-    let desc = match reg.ctor_descs.get("Data.String.StrBuf") {
+    let desc = match reg.ctor_descs.get(crate::known::STRING_BUFFER) {
         Some(d) => *d,
         None => reg.shape_desc(&[Class::Obj], 0),
     };

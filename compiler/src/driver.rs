@@ -1332,44 +1332,6 @@ pub fn parse_prelude(adapters: &[crate::interface::WitAdapter]) -> Result<Prelud
             .filter(|m| m.name.text == "Prelude"),
     );
     modules.append(&mut late);
-    // Established primitive signatures refer to the embedded family's
-    // intrinsic type identities. Mark the actual declarations, never a
-    // module/file spelling that source code could imitate. Distinct base
-    // types with the same spelling also retain their separate owners.
-    fn intrinsic_decl(
-        decl: &mut crate::ast::Decl,
-        owner: &str,
-        counts: &mut HashMap<String, usize>,
-        mark: bool,
-    ) {
-        use crate::ast::Decl;
-        let name = match decl {
-            Decl::Attributed { inner, .. } => return intrinsic_decl(inner, owner, counts, mark),
-            Decl::Data(d) => &mut d.name,
-            Decl::Record(r) | Decl::Codata(r) => &mut r.name,
-            Decl::Refine(r) => &mut r.name,
-            Decl::OpaqueType(o) => &mut o.name,
-            _ => return,
-        };
-        if mark {
-            let identity = if counts[&name.text] == 1 {
-                name.text.clone()
-            } else {
-                format!("{owner}.{}", name.text)
-            };
-            name.mark_intrinsic_type(owner, identity);
-        } else {
-            *counts.entry(name.text.clone()).or_default() += 1;
-        }
-    }
-    let mut type_counts = HashMap::new();
-    for mark in [false, true] {
-        for module in &mut modules {
-            for decl in &mut module.decls {
-                intrinsic_decl(decl, &module.name.text, &mut type_counts, mark);
-            }
-        }
-    }
     Ok(PreludeSources {
         modules,
         fixities,

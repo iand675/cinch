@@ -217,8 +217,9 @@ pub fn verify_chain(ifaces: &[Iface]) -> Result<(), CoherenceError> {
             let defining = owner.filter(|owner| reachable.contains(owner))
                 .and_then(|owner| by_module.get(owner))
                 .and_then(|interface| interface.exports.values.iter().find(|row| row.symbol == value.symbol));
-            let ordinal = by_module.get("Relation.Ord").filter(|_| reachable.contains("Relation.Ord"))
-                .and_then(|interface| interface.exports.signatures.iter().find(|row| row.identity == "Relation.Ord.Ord"));
+            let ord_module = crate::known::split(crate::known::ORD).0;
+            let ordinal = by_module.get(ord_module).filter(|_| reachable.contains(ord_module))
+                .and_then(|interface| interface.exports.signatures.iter().find(|row| row.identity == crate::known::ORD));
             if !defining.is_some_and(|row| row.keyed_ordering == Some(ordering) && row.resolved == value.resolved)
                 || !ordinal.is_some_and(|signature| [ordering.less_slot, ordering.greater_slot].iter()
                     .all(|slot| signature.methods.iter().any(|method| method.slot == *slot)))

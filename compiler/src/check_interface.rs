@@ -656,7 +656,7 @@ impl Checker {
         let refinement = info.refine.as_ref()?;
         let Ty::Adt(identity, arguments) = &refinement.base else { return None };
         let list = self.known_type(identity)?;
-        if list.module != "Data.Core" || list.name != "List" || !self.list_shaped(identity) {
+        if list.identity != crate::known::LIST || !self.list_shaped(identity) {
             return None;
         }
         let [element] = arguments.as_slice() else { return None };
@@ -669,7 +669,7 @@ impl Checker {
         if !matches!(&**value, ITerm::Var(name) if name == &refinement.binder) { return None }
         Some(crate::interface::RefinementExport {
             binder: refinement.binder.clone(),
-            carrier: format!("Data.Core.List {element}"),
+            carrier: format!("{} {element}", crate::known::LIST),
             predicate: refinement.pred.to_string(),
         })
     }
@@ -695,7 +695,8 @@ impl Checker {
             self.qualified_types.get(&(module.clone(), name.clone()))
                 .is_some_and(|info| self.resolved_list_refinement(info).is_some())
         }) {
-            references.insert(("Data.Core".to_string(), "List".to_string()));
+            let (module, name) = crate::known::split(crate::known::LIST);
+            references.insert((module.to_string(), name.to_string()));
         }
         let mut nominals = Vec::new();
         for (module, name) in &references {

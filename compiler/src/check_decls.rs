@@ -304,6 +304,21 @@ fn erased_ty(t: &Ty) -> bool {
     matches!(t, Ty::Prp(_) | Ty::Sort(_))
 }
 
+/// The identity of a type the WIT adapter vocabulary names by its surface
+/// spelling (`crate::interface::SurfaceTy`). The vocabulary is generated
+/// source inside the facade, so a name is either one of the four base
+/// types the generator spells (`surface` in `interface.rs`), which have
+/// their own homes, or a type the vocabulary itself declares there.
+fn vocabulary_identity(name: &str, facade: &str) -> String {
+    match name {
+        "String" => crate::known::STRING.to_string(),
+        "List" => crate::known::LIST.to_string(),
+        "Option" => crate::known::OPTION.to_string(),
+        "Result" => crate::known::RESULT.to_string(),
+        declared => format!("{facade}.{declared}"),
+    }
+}
+
 /// Builtin type names: machine scalars, the compile-time-only staging
 /// types, the boundary pointer roles (foreign function interface
 /// specification section 3), the C ABI spellings (section 2), and the
@@ -994,7 +1009,7 @@ impl Checker {
                     nat.clone(),
                     Mult::Many,
                     closed(vec![arg("IO", "r"), plain("Diverge")]),
-                    Ty::Adt("Option".to_string().into(), vec![bytes.clone()]),
+                    Ty::Adt(crate::known::OPTION.into(), vec![bytes.clone()]),
                 ),
             },
             ConcOp::IoRead,
@@ -1075,7 +1090,7 @@ impl Checker {
         let thunk = |row: &str, result: &Ty| {
             Ty::fun_mult(Ty::Unit, Mult::Many, open(row), result.clone())
         };
-        let list = |t: &Ty| Ty::Adt("List".to_string().into(), vec![t.clone()]);
+        let list = |t: &Ty| Ty::Adt(crate::known::LIST.into(), vec![t.clone()]);
         let array = |t: &Ty| Ty::Adt("Array".to_string().into(), vec![t.clone()]);
         let mut reg = |this: &mut Self, name: &str, scheme: Scheme, op: ParOp| {
             let info = ValueInfo {
@@ -1226,12 +1241,12 @@ impl Checker {
     /// module's qualified names (a bare function name stays the user's
     /// to define), and the stream observations are word-level host
     /// imports carrying section 6's degraded observation type.
-    fn install_wit_api(&mut self, adapters: &[crate::interface::WitAdapter]) -> Result<()> {
+    fn install_wit_api(&mut self, adapters: &[crate::interface::WitAdapter], facade: &str) -> Result<()> {
         use crate::core::{AbiClass, AbiParam, ForeignPlan};
         use crate::interface::SurfaceTy;
         use crate::types::{EffLabel, EffRow, Mult, RowTail, Ty};
 
-        fn surface_ty(s: &SurfaceTy) -> Ty {
+        fn surface_ty(s: &SurfaceTy, facade: &str) -> Ty {
             match s {
                 SurfaceTy::Named(n) => match n.as_str() {
                     "Bool" => Ty::Bool,
@@ -1245,16 +1260,19 @@ impl Checker {
                                 return Ty::Prim(sc);
                             }
                         }
-                        Ty::Adt(other.to_string().into(), Vec::new())
+                        Ty::Adt(vocabulary_identity(other, facade).into(), Vec::new())
                     }
                 },
                 SurfaceTy::Borrow(t) => {
-                    Ty::Ref("region".to_string().into(), Box::new(surface_ty(t)))
+                    Ty::Ref("region".to_string().into(), Box::new(surface_ty(t, facade)))
                 }
                 SurfaceTy::App(f, args) => {
-                    Ty::Adt(f.clone().into(), args.iter().map(surface_ty).collect())
+                    Ty::Adt(
+                        vocabulary_identity(f, facade).into(),
+                        args.iter().map(|argument| surface_ty(argument, facade)).collect(),
+                    )
                 }
-                SurfaceTy::Tuple(ts) => Ty::Tuple(ts.iter().map(surface_ty).collect()),
+                SurfaceTy::Tuple(ts) => Ty::Tuple(ts.iter().map(|item| surface_ty(item, facade)).collect()),
             }
         }
 
@@ -1270,10 +1288,10 @@ impl Checker {
             for b in &ad.bindings {
                 let unit = format!("cinch.wit.{}.{}", ad.module, b.name);
                 let arity = b.params.len();
-                let mut ty = surface_ty(&b.result);
+                let mut ty = surface_ty(&b.result, facade);
                 for p in b.params.iter().rev() {
                     let mult = if p.consume { Mult::One } else { Mult::Many };
-                    ty = Ty::fun_mult(surface_ty(&p.ty), mult, effects.clone(), ty);
+                    ty = Ty::fun_mult(surface_ty(&p.ty, facade), mult, effects.clone(), ty);
                 }
                 let borrows = b.params.iter().any(|p| matches!(p.ty, SurfaceTy::Borrow(_)));
                 let mut region_params: Vec<String> = Vec::new();
@@ -1399,7 +1417,7 @@ impl Checker {
                 // `future` values). The word-level host imports use the
                 // runtime's block convention: the host or embedder shim
                 // produces the safe words.
-                self.install_stream_api()?;
+                self.install_stream_api(facade)?;
             }
         }
         Ok(())
@@ -1407,7 +1425,7 @@ impl Checker {
 
     /// The stream observation values of the adapter vocabulary
     /// (WebAssembly and WASI specification section 6).
-    fn install_stream_api(&mut self) -> Result<()> {
+    fn install_stream_api(&mut self, facade: &str) -> Result<()> {
         use crate::core::{AbiClass, AbiParam, ForeignPlan};
         use crate::types::{EffLabel, EffRow, RowTail, Ty};
         let a = Ty::Param("a".to_string().into());
@@ -1418,11 +1436,11 @@ impl Checker {
             ],
             tail: RowTail::Closed,
         };
-        let stream_a = Ty::Adt("WasiStream".to_string().into(), vec![a.clone()]);
-        let future_a = Ty::Adt("WasiFuture".to_string().into(), vec![a.clone()]);
-        let stream_err = Ty::Adt("StreamError".to_string().into(), Vec::new());
-        let opt_a = Ty::Adt("Option".to_string().into(), vec![a.clone()]);
-        let result_ty = |e: Ty, o: Ty| Ty::Adt("Result".to_string().into(), vec![e, o]);
+        let stream_a = Ty::Adt(vocabulary_identity("WasiStream", facade).into(), vec![a.clone()]);
+        let future_a = Ty::Adt(vocabulary_identity("WasiFuture", facade).into(), vec![a.clone()]);
+        let stream_err = Ty::Adt(vocabulary_identity("StreamError", facade).into(), Vec::new());
+        let opt_a = Ty::Adt(crate::known::OPTION.into(), vec![a.clone()]);
+        let result_ty = |e: Ty, o: Ty| Ty::Adt(crate::known::RESULT.into(), vec![e, o]);
         let entries: Vec<(&str, &str, Ty, usize)> = vec![
             (
                 "wasiStreamRead",
@@ -1554,7 +1572,7 @@ impl Checker {
             });
         }
         let adt = |name: &str, args: Vec<Ty>| Ty::Adt(name.to_string().into(), args);
-        let str_ty = adt("String", Vec::new());
+        let str_ty = adt(crate::known::STRING, Vec::new());
         let secret_ty = adt("Secret", Vec::new());
         let decls_ty = adt("Declarations", Vec::new());
         let io_ty = adt("IoCap", Vec::new());
@@ -1655,7 +1673,7 @@ impl Checker {
                     Mult::Many,
                     EffRow::pure(),
                     Ty::fun_mult(
-                        adt("List", vec![str_ty.clone()]),
+                        adt(crate::known::LIST, vec![str_ty.clone()]),
                         Mult::Many,
                         io_eff(&["StageProcess"]),
                         str_ty.clone(),
@@ -1867,7 +1885,7 @@ impl Checker {
             ),
             (
                 "Syntax", "items", "syntax-items", StageOp::SyntaxItems,
-                Vec::new(), Ty::fun(adt("Syntax", Vec::new()), adt("List", vec![adt("Syntax", Vec::new())])),
+                Vec::new(), Ty::fun(adt("Syntax", Vec::new()), adt(crate::known::LIST, vec![adt("Syntax", Vec::new())])),
             ),
             (
                 "Syntax", "specializeDeclarationType", "syntax-specialize-declaration-type", StageOp::SyntaxSpecializeDeclarationType,
@@ -1903,7 +1921,7 @@ impl Checker {
             ("Syntax", "functionType", "syntax-function-type", StageOp::SyntaxFunctionType,
                 Vec::new(), Ty::fun(adt("TypeSyntax", Vec::new()), Ty::fun(adt("TypeSyntax", Vec::new()), adt("TypeSyntax", Vec::new())))),
             ("Syntax", "tupleType", "syntax-tuple-type", StageOp::SyntaxTupleType,
-                Vec::new(), Ty::fun(adt("List", vec![adt("TypeSyntax", Vec::new())]), adt("TypeSyntax", Vec::new()))),
+                Vec::new(), Ty::fun(adt(crate::known::LIST, vec![adt("TypeSyntax", Vec::new())]), adt("TypeSyntax", Vec::new()))),
             ("Syntax", "specializeType", "syntax-specialize-type", StageOp::SyntaxSpecializeType,
                 Vec::new(), Ty::fun(adt("Name", Vec::new()), Ty::fun(adt("TypeSyntax", Vec::new()), Ty::fun(adt("Declarations", Vec::new()), adt("Declarations", Vec::new()))))),
             ("Syntax", "addConstructor", "syntax-add-constructor", StageOp::SyntaxAddConstructor,
@@ -1915,7 +1933,7 @@ impl Checker {
             ("Syntax", "packCode", "syntax-pack-code", StageOp::SyntaxPackCode,
                 vec!["a".into()], Ty::fun(adt("Code", vec![a.clone()]), adt("PackedCode", Vec::new()))),
             ("Syntax", "tupleCode", "syntax-tuple-code", StageOp::SyntaxTupleCode,
-                vec!["a".into()], Ty::fun(adt("List", vec![adt("PackedCode", Vec::new())]), adt("Code", vec![a.clone()]))),
+                vec!["a".into()], Ty::fun(adt(crate::known::LIST, vec![adt("PackedCode", Vec::new())]), adt("Code", vec![a.clone()]))),
             (
                 "Syntax",
                 "recordDeclaration",
@@ -2514,8 +2532,8 @@ impl Checker {
         let step_gid = GlobalId("<builtin>.vecStreamStep".to_string());
         // The step form's constructors live with their type
         // (Data.Producer after the prelude split).
-        let done_gid = GlobalId("Data.Producer.Done".to_string());
-        let yield_gid = GlobalId("Data.Producer.Yield".to_string());
+        let done_gid = GlobalId(crate::known::STEP_DONE.to_string());
+        let yield_gid = GlobalId(crate::known::STEP_YIELD.to_string());
         let step_walk = crate::core::Core::Case {
             scrut: Box::new(crate::core::Core::Var(LocalId(0))),
             alts: vec![
@@ -2551,7 +2569,7 @@ impl Checker {
         );
         let ref_ty = Ty::Ref("region".to_string().into(), Box::new(vec_ty.clone()));
         let step_ty = Ty::Adt(
-            "Step".to_string().into(),
+            crate::known::STEP.into(),
             vec![ref_ty.clone(), Ty::Param("a".to_string().into())],
         );
         let step_value = ValueInfo {
@@ -2791,8 +2809,9 @@ impl Checker {
                     other => {
                         return Err(Error::at(
                             *span,
-                            format!(
-                                "a `proof` declaration states a proposition, but this one has type {other}"
+                            crate::diagnostic!(
+                                "a `proof` declaration states a proposition, but this one has type {}",
+                                other
                             ),
                         ))
                     }
@@ -3551,7 +3570,7 @@ impl Checker {
                         if Self::subst_ty(&plain, &rename) != expected.ty {
                             return Err(Error::at(
                                 f.span,
-                                format!(
+                                crate::diagnostic!(
                                     "intrinsic {} has type {}, but is declared {}",
                                     f.symbol, expected.ty, s.ty
                                 ),
@@ -3559,7 +3578,7 @@ impl Checker {
                         }
                         if let Some(rv) = promised {
                             self.check_intrinsic_promise(op, &s.ty, &rv)
-                                .map_err(|m| Error::at(f.span, format!("intrinsic {} is declared {}, but {m}", f.symbol, s.ty)))?;
+                                .map_err(|m| Error::at(f.span, crate::diagnostic!("intrinsic {} is declared {}, but {}", f.symbol, s.ty, m)))?;
                         }
                         let rendered = render_scheme(&s);
                         let kind = if matches!(op, PrimOp::Array { .. }) {
@@ -3989,9 +4008,9 @@ impl Checker {
                             other => {
                                 return Err(Error::at(
                                     c.name.span,
-                                    format!(
-                                        "constructor {} must return {} applied to its parameters, got {other}",
-                                        c.name.text, data.name.text
+                                    crate::diagnostic!(
+                                        "constructor {} must return {} applied to its parameters, got {}",
+                                        c.name.text, data.name.text, other
                                     ),
                                 ))
                             }
@@ -4216,8 +4235,9 @@ impl Checker {
                     {
                         return Err(Error::at(
                             r.base.span(),
-                            format!(
-                                "a refinement's container is a named type or one of the refinement's type parameters (the runtime representation IS the container), not {base}"
+                            crate::diagnostic!(
+                                "a refinement's container is a named type or one of the refinement's type parameters (the runtime representation IS the container), not {}",
+                                base
                             ),
                         ));
                     }
@@ -4440,9 +4460,9 @@ impl Checker {
                         if f.erased && !matches!(t, Ty::Prp(_)) {
                             return Err(Error::at(
                                 f.name.span,
-                                format!(
-                                    "an `erased` field is evidence: its type must be a proposition, but `{}` has type {t}",
-                                    f.name.text
+                                crate::diagnostic!(
+                                    "an `erased` field is evidence: its type must be a proposition, but `{}` has type {}",
+                                    f.name.text, t
                                 ),
                             ));
                         }
@@ -4884,7 +4904,7 @@ impl Checker {
                                 idx,
                             },
                         };
-                        if SEQ_CLASSES.contains(&sig.name.text.as_str()) {
+                        if SEQ_CLASSES.contains(&self.signature_key(&module, &sig.name.text).as_str()) {
                             // The three sequencing providers all have
                             // `pure`/`bind` methods: they share the value
                             // namespace, and the first registered answers
@@ -4957,9 +4977,9 @@ impl Checker {
                                 other => {
                                     return Err(Error::at(
                                         lname.span,
-                                        format!(
-                                            "a class law states a proposition (an `Eq` equation over the class's methods), but `{lname}` concludes with {other}",
-                                            lname = lname.text
+                                        crate::diagnostic!(
+                                            "a class law states a proposition (an `Eq` equation over the class's methods), but `{}` concludes with {}",
+                                            lname.text, other
                                         ),
                                     ))
                                 }
@@ -5028,7 +5048,8 @@ impl Checker {
                     let tk = TypeKind {
                         data_family: false,
                         module: module.clone(),
-                        name: sig.name.text.clone(), identity: sig.name.text.clone(),
+                        name: sig.name.text.clone(),
+                        identity: self.signature_key(&module, &sig.name.text),
                         arity: info.params.len(),
                         param_kinds: info.param_kinds.clone(),
                         ctors: Vec::new(),
@@ -5553,7 +5574,7 @@ impl Checker {
                         if !self.copy_structural::<LocalId>(&t, &[], &mut Vec::new()) {
                             return Err(Error::at(
                                 p.span,
-                                format!(
+                                crate::diagnostic!(
                                     "a module parameter is shared by every definition of the module, so {} needs `Copy` evidence (ownership and usage design section 3); a signature-typed parameter is a dictionary",
                                     t
                                 ),
@@ -5803,7 +5824,7 @@ impl Checker {
             .get(&class)
             .and_then(|ss| ss.first())
             .cloned()
-            .ok_or_else(|| Error::plain(format!("unknown signature {class}")))?;
+            .ok_or_else(|| Error::plain(crate::diagnostic!("unknown signature {}", crate::spelling::Nominal(&class))))?;
 
         // Make this instance visible to its own method bodies even when it is
         // not `implicit`.
@@ -5941,7 +5962,7 @@ impl Checker {
                 if !self.uni.conv_eq(&s.ty, &ty) {
                     return Err(Error::at(
                         sname.span,
-                        format!(
+                        crate::diagnostic!(
                             "the signature of `{mname}` in instance {} has type {}, but the class method at this instance has type {}",
                             inst.name.text, s.ty, ty
                         ),
@@ -6042,7 +6063,7 @@ impl Checker {
             if !seen.contains(&e.name.text) {
                 return Err(Error::at(
                     e.span,
-                    format!("{} is not a method of {class}", e.name.text),
+                    crate::diagnostic!("{} is not a method of {}", e.name.text, crate::spelling::Nominal(&class)),
                 ));
             }
         }
@@ -6166,10 +6187,10 @@ impl Checker {
             }
             (Some(_), other) => Err(Error::at(
                 other.span(),
-                format!(
+                crate::diagnostic!(
                     "module parameter {} is a dictionary of signature {}; supply an instance of it by name",
                     p.name,
-                    p.class.as_ref().map(|c| c.to_string()).unwrap_or_default()
+                    p.class.as_ref().map(|c| crate::diagnostic!("{}", c)).unwrap_or_default()
                 ),
             )),
             (None, ast::ModuleArg::Name { quals, name }) => {
@@ -6192,7 +6213,7 @@ impl Checker {
                 if cands > 0 {
                     return Err(Error::at(
                         span,
-                        format!(
+                        crate::diagnostic!(
                             "instance {} is a dictionary, but module parameter {} is a value of type {}",
                             name.text, p.name, p.ty
                         ),
@@ -6259,10 +6280,10 @@ impl Checker {
         // it likes: an instance whose methods carry obligations over
         // their own arguments cannot be one.
         if !self.instance_list[idx].method_obligs.is_empty() {
-            let wanted_s = self.uni.zonk(wanted).to_string();
+            let wanted = self.uni.zonk(wanted);
             return Err(Error::at(
                 span,
-                Self::method_oblig_refusal(&self.instance_list[idx], &wanted_s),
+                Self::method_oblig_refusal(&self.instance_list[idx], &wanted),
             ));
         }
         if self.instance_list[idx].base {
@@ -6295,7 +6316,7 @@ impl Checker {
             self.uni.rollback_to(trial);
             return Err(Error::at(
                 span,
-                format!(
+                crate::diagnostic!(
                     "instance {iname} implements {}, which does not match module parameter type {}",
                     self.instance_list[idx].target, self.uni.zonk(wanted)
                 ),
@@ -7489,7 +7510,7 @@ impl Checker {
                 other => {
                     return Err(Error::at(
                         eqs[0].span,
-                        format!("{name} has more parameters than its signature ({other})"),
+                        crate::diagnostic!("{name} has more parameters than its signature ({})", other),
                     ));
                 }
             }
@@ -8515,8 +8536,9 @@ impl Checker {
                 _ => return Err(shape_err("the conclusion is an `Eq` equation")),
             },
             other => {
-                return Err(shape_err(&format!(
-                    "the evidence concludes with a proposition, not {other}"
+                return Err(shape_err(&crate::diagnostic!(
+                    "the evidence concludes with a proposition, not {}",
+                    other
                 )))
             }
         };
@@ -8730,10 +8752,10 @@ impl Checker {
                     }
                     return Err(Error::at(
                         ob.span,
-                        format!(
+                        crate::diagnostic!(
                             "instance `{}` breaks class law `{}.{}` at sample values ({}): left `{}`, right `{}` (primitive operations and inline target IR specification section 5)",
                             scope,
-                            ob.class,
+                            crate::spelling::Nominal(&ob.class),
                             ob.law,
                             sample_text,
                             law_value_render(&l),
@@ -9970,8 +9992,9 @@ impl Checker {
                 if actual != expected {
                     return Err(Error::at(
                         u.span,
-                        format!(
-                            "the migration must have type `{expected}`, but it is declared `{actual}` (runtime evolution specification section 3)"
+                        crate::diagnostic!(
+                            "the migration must have type `{}`, but it is declared `{}` (runtime evolution specification section 3)",
+                            expected, actual
                         ),
                     ));
                 }
@@ -10572,7 +10595,7 @@ impl Checker {
                 other => {
                     return Err(Error::at(
                         a.span(),
-                        format!("the justification takes no further arguments (remaining type {other})"),
+                        crate::diagnostic!("the justification takes no further arguments (remaining type {})", other),
                     ))
                 }
             };
@@ -10595,7 +10618,7 @@ impl Checker {
             other => {
                 return Err(Error::at(
                     span,
-                    format!("the justification must state a proposition, but has type {other}"),
+                    crate::diagnostic!("the justification must state a proposition, but has type {}", other),
                 ))
             }
         }
@@ -10647,15 +10670,17 @@ impl Checker {
                 Ty::Int => false,
                 Ty::Fun(dom, _, _, cod) => {
                     if **dom != Ty::Unit || **cod != Ty::Int {
-                        return Err(Error::plain(format!(
-                            "main must have type Int or Unit ->{{e}} Int in the bootstrap slice, got {main_ty}"
+                        return Err(Error::plain(crate::diagnostic!(
+                            "main must have type Int or Unit ->{{e}} Int in the bootstrap slice, got {}",
+                            main_ty
                         )));
                     }
                     true
                 }
                 other => {
-                    return Err(Error::plain(format!(
-                        "main must have type Int or Unit ->{{e}} Int in the bootstrap slice, got {other}"
+                    return Err(Error::plain(crate::diagnostic!(
+                        "main must have type Int or Unit ->{{e}} Int in the bootstrap slice, got {}",
+                        other
                     )))
                 }
             };
@@ -10754,8 +10779,9 @@ impl Checker {
             if !is_prim_abi_ty(a) {
                 return Err(Error::at(
                     p.span,
-                    format!(
-                        "a prim body receives its arguments as machine scalars in the declared ABI (foreign function interface specification section 2), not {a}"
+                    crate::diagnostic!(
+                        "a prim body receives its arguments as machine scalars in the declared ABI (foreign function interface specification section 2), not {}",
+                        a
                     ),
                 ));
             }
@@ -10764,8 +10790,9 @@ impl Checker {
         if !is_prim_abi_ty(&res) {
             return Err(Error::at(
                 p.span,
-                format!(
-                    "a prim body returns the declared result shape: a machine scalar (foreign function interface specification section 2), not {res}"
+                crate::diagnostic!(
+                    "a prim body returns the declared result shape: a machine scalar (foreign function interface specification section 2), not {}",
+                    res
                 ),
             ));
         }
@@ -10802,8 +10829,9 @@ impl Checker {
                     if !is_prim_abi_ty(d) {
                         return Err(Error::at(
                             u.span,
-                            format!(
-                                "a `uses` entry states a machine ABI: its parameters are machine scalars (primitive operations and inline target IR specification section 4), not {d}; the fragment calls the symbol directly and nothing marshals a pointer or an aggregate"
+                            crate::diagnostic!(
+                                "a `uses` entry states a machine ABI: its parameters are machine scalars (primitive operations and inline target IR specification section 4), not {}; the fragment calls the symbol directly and nothing marshals a pointer or an aggregate",
+                                d
                             ),
                         ));
                     }
@@ -10826,8 +10854,9 @@ impl Checker {
                         } else {
                             return Err(Error::at(
                                 u.span,
-                                format!(
-                                    "a `uses` entry states a machine ABI: its result is a machine scalar or `Unit` (primitive operations and inline target IR specification section 4), not {other}"
+                                crate::diagnostic!(
+                                    "a `uses` entry states a machine ABI: its result is a machine scalar or `Unit` (primitive operations and inline target IR specification section 4), not {}",
+                                    other
                                 ),
                             ));
                         },
@@ -10875,8 +10904,9 @@ impl Checker {
             Ty::Prim(Scalar::Usize) | Ty::Prim(Scalar::Isize) => format!("i{}", self.usize_bits),
             Ty::Bool => "i8".into(),
             other => {
-                return Err(Error::plain(format!(
-                    "internal error: {other} is not a prim ABI type"
+                return Err(Error::plain(crate::diagnostic!(
+                    "internal error: {} is not a prim ABI type",
+                    other
                 )))
             }
         })
@@ -11326,7 +11356,7 @@ impl Checker {
                         if t.ty != s.ty {
                             return Err(Error::at(
                                 f.span,
-                                format!(
+                                crate::diagnostic!(
                                     "a foreign export's type is exactly the target function's type: `{}` is declared {}",
                                     f.name.text, t.ty
                                 ),
@@ -11473,9 +11503,9 @@ impl Checker {
             if !foreign_abi.sret {
                 return Err(Error::at(
                     f.span,
-                    format!(
+                    crate::diagnostic!(
                         "a foreign result cannot be an aggregate: `{}` follows the platform's by-value struct ABI, which this slice does not guess (foreign function interface specification section 2: reject unsupported layouts); return through an `Out` cell or an `Owned` pointer, or spell the by-value crossing `#[sret]`",
-                        result.ty
+                        cur
                     ),
                 ));
             }
@@ -11662,8 +11692,9 @@ impl Checker {
                         Ty::Prim(_) | Ty::Ptr { .. } => {}
                         Ty::Adt(n, _) if self.lookup_known_type(n).map(|t| t.opaque).unwrap_or(false) => {}
                         other => {
-                            return Err(Error::plain(format!(
-                                "an `Out` cell is one word: its pointee is a machine scalar, a pointer role, or an opaque handle (`Out {other}` is an out-parameter over an aggregate in this slice)"
+                            return Err(Error::plain(crate::diagnostic!(
+                                "an `Out` cell is one word: its pointee is a machine scalar, a pointer role, or an opaque handle (`Out {}` is an out-parameter over an aggregate in this slice)",
+                                other
                             )))
                         }
                     }
@@ -11673,7 +11704,7 @@ impl Checker {
             Ty::Adt(n, _) => {
                 let info = self
                     .lookup_known_type(n)
-                    .map_err(|_| Error::plain(format!("{ty} has no C representation")))?;
+                    .map_err(|_| Error::plain(crate::diagnostic!("{} has no C representation", ty)))?;
                 if info.opaque {
                     // The opaque-handle role (section 3).
                     p.class = AbiClass::Ptr;
@@ -11687,14 +11718,15 @@ impl Checker {
                     .get(&(info.module.clone(), info.name.clone()))
                     .cloned()
                 else {
-                    return Err(Error::plain(format!(
-                        "the recorded layout of {ty} is `uniform-word` (no representation attribute), which has no C representation at the boundary (foreign function interface specification section 2: only `#[repr(C)]`, `#[repr(packed)]` and `#[repr(transparent)]` aggregates cross; boxed aggregates and fixed-discriminant data are rejected instead of guessed)"
+                    return Err(Error::plain(crate::diagnostic!(
+                        "the recorded layout of {} is `uniform-word` (no representation attribute), which has no C representation at the boundary (foreign function interface specification section 2: only `#[repr(C)]`, `#[repr(packed)]` and `#[repr(transparent)]` aggregates cross; boxed aggregates and fixed-discriminant data are rejected instead of guessed)",
+                        ty
                     )));
                 };
                 if layout.repr == "uniform-word" || layout.discriminant.is_some() {
-                    return Err(Error::plain(format!(
-                        "the recorded layout of {ty} is `{}`, which has no C representation at the boundary (foreign function interface specification section 2: a source-language type name is not an ABI specification; this slice rejects fixed-discriminant data and boxed aggregates instead of guessing)",
-                        layout.repr
+                    return Err(Error::plain(crate::diagnostic!(
+                        "the recorded layout of {} is `{}`, which has no C representation at the boundary (foreign function interface specification section 2: a source-language type name is not an ABI specification; this slice rejects fixed-discriminant data and boxed aggregates instead of guessing)",
+                        ty, layout.repr
                     )));
                 }
                 // `repr(transparent)` passes through as its field
@@ -11703,14 +11735,15 @@ impl Checker {
                     let v = self
                         .qualified
                         .get(&(info.module.clone(), info.name.clone()))
-                        .ok_or_else(|| Error::plain(format!("{ty} has no constructor")))?;
+                        .ok_or_else(|| Error::plain(crate::diagnostic!("{} has no constructor", ty)))?;
                     let inner = match &v.kind {
                         ValueKind::Ctor { field_tys, .. } if field_tys.len() == 1 => {
                             field_tys[0].clone()
                         }
                         _ => {
-                            return Err(Error::plain(format!(
-                                "{ty} is `repr(transparent)` over something other than one fixed field"
+                            return Err(Error::plain(crate::diagnostic!(
+                                "{} is `repr(transparent)` over something other than one fixed field",
+                                ty
                             )))
                         }
                     };
@@ -11719,8 +11752,9 @@ impl Checker {
                     return Ok(inner_p);
                 }
                 if layout.fields.is_empty() {
-                    return Err(Error::plain(format!(
-                        "the recorded layout of {ty} has no fields to marshal"
+                    return Err(Error::plain(crate::diagnostic!(
+                        "the recorded layout of {} has no fields to marshal",
+                        ty
                     )));
                 }
                 // An aggregate parameter crosses by const-pointer to a
@@ -11728,12 +11762,12 @@ impl Checker {
                 let v = self
                     .qualified
                     .get(&(info.module.clone(), info.name.clone()))
-                    .ok_or_else(|| Error::plain(format!("{ty} has no constructor")))?;
+                    .ok_or_else(|| Error::plain(crate::diagnostic!("{} has no constructor", ty)))?;
                 let (field_tys, field_erased, tag) = match &v.kind {
                     ValueKind::Ctor { field_tys, field_erased, tag, .. } => {
                         (field_tys.clone(), field_erased.clone(), *tag)
                     }
-                    _ => return Err(Error::plain(format!("{ty} has no constructor"))),
+                    _ => return Err(Error::plain(crate::diagnostic!("{} has no constructor", ty))),
                 };
                 p.class = AbiClass::Aggregate;
                 p.width = layout.size;
@@ -11745,7 +11779,7 @@ impl Checker {
                         continue;
                     }
                     let f = layout.fields.get(slot).ok_or_else(|| {
-                        Error::plain(format!("internal error: no layout fact for {ty} field {slot}"))
+                        Error::plain(crate::diagnostic!("internal error: no layout fact for {} field {slot}", ty))
                     })?;
                     p.fields.push(FieldAccess {
                         offset: f.offset,
@@ -11757,8 +11791,9 @@ impl Checker {
                 }
                 Ok(p)
             }
-            other => Err(Error::plain(format!(
-                "{other} has no C representation: language-native closures, dictionaries, vectors, dependent pairs and proofs have no implicit C representation (foreign function interface specification section 2)"
+            other => Err(Error::plain(crate::diagnostic!(
+                "{} has no C representation: language-native closures, dictionaries, vectors, dependent pairs and proofs have no implicit C representation (foreign function interface specification section 2)",
+                other
             ))),
         }
     }
@@ -16966,8 +17001,9 @@ impl Checker {
                     if !known {
                         return Err(Error::at(
                             inst.span,
-                            format!(
-                                "`Preserves ({method})` names a method of {class}, but the class has no such method"
+                            crate::diagnostic!(
+                                "`Preserves ({method})` names a method of {}, but the class has no such method",
+                                crate::spelling::Nominal(&class)
                             ),
                         ));
                     }
@@ -16987,7 +17023,7 @@ impl Checker {
                 let Some(midx) = midx else {
                     return Err(Error::at(
                         mname.span,
-                        format!("`{}` is not a method of {class}", mname.text),
+                        crate::diagnostic!("`{}` is not a method of {}", mname.text, crate::spelling::Nominal(&class)),
                     ));
                 };
                 if method_obligs.iter().any(|(i, _, _)| *i == midx) {
@@ -17120,8 +17156,9 @@ impl Checker {
                     )
                     .is_ok();
                 if conflict {
-                    return Err(Error::plain(format!(
-                        "ambiguous instance for {class_a}: {name_a} and {name_b} have unifiable targets"
+                    return Err(Error::plain(crate::diagnostic!(
+                        "ambiguous instance for {}: {name_a} and {name_b} have unifiable targets",
+                        crate::spelling::Nominal(&class_a)
                     )));
                 }
             }
@@ -17305,7 +17342,7 @@ impl Checker {
                             }
                         }
                         if let Ty::Adt(n, _) = res {
-                            if n == "Result" {
+                            if n == crate::known::RESULT {
                                 iface.must_use.push(local.clone());
                             }
                         }
@@ -18101,24 +18138,6 @@ fn check_program_multi_full_prepared_impl(
             *c.editor_references.get_mut() = Some(Vec::new());
             c.editor_modules = modules.iter().map(|module| module.name.text.clone()).collect();
         }
-        let mut embedded_signatures: HashMap<String, Vec<String>> = HashMap::new();
-        for module in prelude {
-            for declaration in &module.decls {
-                let mut declaration = declaration;
-                while let ast::Decl::Attributed { inner, .. } = declaration {
-                    declaration = inner;
-                }
-                if let ast::Decl::Signature(signature) = declaration {
-                    embedded_signatures.entry(signature.name.text.clone()).or_default()
-                        .push(module.name.text.clone());
-                }
-            }
-        }
-        for (name, owners) in embedded_signatures {
-            if let [owner] = owners.as_slice() {
-                c.legacy_class_sites.insert((owner.clone(), name));
-            }
-        }
         c.defer_generated_headers = modules.iter().chain(prelude).any(|module| module.decls.iter().any(|decl| {
             let mut decl = decl;
             while let ast::Decl::Attributed { inner, .. } = decl { decl = inner; }
@@ -18144,7 +18163,7 @@ fn check_program_multi_full_prepared_impl(
         // family is the standard library, not flight code.
         c.jpl_target = profile.jpl;
         c.jpl_user_modules = modules.iter().map(|m| m.name.text.clone()).collect();
-        c.install_wit_api(wit)?;
+        c.install_wit_api(wit, &prelude_name)?;
         c.stage_mode = scx.mode;
         c.module_files = scx.files.clone();
         c.fold_scx = Some(scx.clone());
@@ -19563,24 +19582,26 @@ impl Checker {
             let ty = match &declared {
                 Some(s) => s.ty.clone(),
                 None => match converter {
-                    "json" => Ty::Adt("Json".into(), Vec::new()),
-                    "txt" => Ty::Adt("String".into(), Vec::new()),
+                    "json" => Ty::Adt(crate::known::JSON.into(), Vec::new()),
+                    "txt" => Ty::Adt(crate::known::STRING.into(), Vec::new()),
                     _ => Ty::Bytes,
                 },
             };
             let body = match converter {
                 "bytes" => {
                     if self.uni.zonk(&ty) != Ty::Bytes {
-                        return Err(fail(format!(
-                            "the `bytes` converter produces a Bytes value, not {ty}"
+                        return Err(fail(crate::diagnostic!(
+                            "the `bytes` converter produces a Bytes value, not {}",
+                            ty
                         )));
                     }
                     ECore::ConstBytes(bytes.clone())
                 }
                 "txt" => {
-                    if self.uni.zonk(&ty) != Ty::Adt("String".into(), Vec::new()) {
-                        return Err(fail(format!(
-                            "the `txt` converter produces a String value, not {ty}"
+                    if self.uni.zonk(&ty) != Ty::Adt(crate::known::STRING.into(), Vec::new()) {
+                        return Err(fail(crate::diagnostic!(
+                            "the `txt` converter produces a String value, not {}",
+                            ty
                         )));
                     }
                     ECore::ConstString {
@@ -19654,7 +19675,7 @@ impl Checker {
         let unit = |n: &str, arg: ECore| -> ECore { app_spine(pctor(n), vec![arg]) };
         if let Ty::Adt(name, args) = ty {
             match (name.as_str(), args.as_slice()) {
-                ("Json", []) => {
+                (crate::known::JSON, []) => {
                     return Ok(match v {
                         JsonVal::Null => pctor("JNull"),
                         JsonVal::Bool(b) => unit("JBool", ECore::Bool(*b)),
@@ -19696,13 +19717,13 @@ impl Checker {
                         }
                     });
                 }
-                ("String", []) => {
+                (crate::known::STRING, []) => {
                     return match v {
                         JsonVal::Str(s) => Ok(self.string_const(s)),
                         _ => Err(format!("a JSON string is required for String")),
                     };
                 }
-                ("List", [t]) => {
+                (crate::known::LIST, [t]) => {
                     let xs = match v {
                         JsonVal::Arr(xs) => xs,
                         _ => return Err(format!("a JSON array is required for List")),
@@ -19715,7 +19736,7 @@ impl Checker {
                     }
                     return Ok(spine);
                 }
-                ("Option", [t]) => {
+                (crate::known::OPTION, [t]) => {
                     return match v {
                         JsonVal::Null => Ok(pctor("None")),
                         _ => {
@@ -19776,7 +19797,7 @@ impl Checker {
                     }
                 }
             }
-            return Err(format!("the `json` converter cannot produce the type {ty}"));
+            return Err(crate::diagnostic!("the `json` converter cannot produce the type {}", ty));
         }
         match (v, ty) {
             (JsonVal::Str(s), Ty::Bytes) => Ok(ECore::ConstBytes(s.as_bytes().to_vec())),
@@ -19810,7 +19831,7 @@ impl Checker {
                 let w = self.literal_word(t, d, span).map_err(|e| e.message)?;
                 Ok(ECore::Int(w))
             }
-            _ => Err(format!("the `json` converter cannot produce the type {ty}")),
+            _ => Err(crate::diagnostic!("the `json` converter cannot produce the type {}", ty)),
         }
     }
 
@@ -19839,7 +19860,8 @@ impl Checker {
     /// out a string's backing); its home is fixed compiler input (the
     /// prelude split put it in `Data.String`).
     fn string_ctor_id(&self) -> crate::core::GlobalId {
-        let key = ("Data.String".to_string(), "StrBuf".to_string());
+        let (module, name) = crate::known::split(crate::known::STRING_BUFFER);
+        let key = (module.to_string(), name.to_string());
         assert!(
             self.qualified.contains_key(&key),
             "the prelude declares the string representation constructor"
@@ -24105,13 +24127,10 @@ impl Checker {
             error: None,
         };
         if !residual.is_empty() {
-            out.eval_error = Some(format!(
+            let unresolved: Vec<ClassApp> = residual.iter().map(|w| self.uni.zonk_class(&w.class)).collect();
+            out.eval_error = Some(crate::diagnostic!(
                 "the expression's constraints are unresolved in this scope ({})",
-                residual
-                    .iter()
-                    .map(|w| self.uni.zonk_class(&w.class).to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ")
+                crate::spelling::Listed(&unresolved, ", ")
             ));
             return Ok(out);
         }

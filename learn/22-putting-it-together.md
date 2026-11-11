@@ -134,7 +134,7 @@ Three failures you will hit while extending this project, each copied from a rea
 | `Err (Orders.ZeroQuantity price)` with `OrderError` but not `ZeroQuantity` in the export list | ``constructor ZeroQuantity is not exported by Orders`` |
 | `Positive 0 (decide (0 > 0))` | ``the discharge `0 > 0` is disproved: no refined value can be constructed here (a failed check must not produce evidence)`` |
 | `ioWrite` in a function without the capability | ``no Io r capability in scope; supply one lexically with `with (io = ...) in` or `f @{io = ...}`, or take it in a `using` clause`` |
-| `total n = positive n` at result type `Positive` | ``type mismatch: expected Option Main.Positive, got Main.Positive`` |
+| `total n = positive n` at result type `Positive` | ``type mismatch: expected Option Positive, got Positive`` |
 
 # Extend it in stages
 

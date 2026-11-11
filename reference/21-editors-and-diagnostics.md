@@ -54,7 +54,7 @@ Every message below was produced by compiling a file in this section. The table 
 | Unknown name | `unknown name quad` | No declaration is visible under that name in this scope. |
 | Unknown type | `unknown type Nope` | A type name in a signature is not declared or imported. |
 | Missing module | `module Nonexistent.Module is imported, but Nonexistent.Module.cinch does not exist` | The import has no source to read. The full message continues with the sibling-file rule. |
-| No instance | `no instance for Main.Pretty Main.Color` | A class constraint has no matching instance. |
+| No instance | `no instance for Pretty Color` | A class constraint has no matching instance. |
 | Effect row | `effect rows do not match: {} vs {IO r#844 \| ?r894}` | The body performs effects its declared row does not admit. See the note below on the leaked metavariables. |
 | Multiplicity | `multiplicity %1: x must be used exactly once on every path, but is never used` | The use count violates the declared multiplicity. |
 | Proof obligation | ``the obligation `n > 0` needs `Dec` evidence or a branch fact at this use`` | A refinement predicate is not discharged at the use. |
@@ -164,7 +164,7 @@ Add the missing alternative, or match a value that cannot be `Green`.
 
 A `signature` whose class has no instance for the type used:
 
-<!-- cinch:reject contains="no instance for Main.Pretty Main.Color" -->
+<!-- cinch:reject contains="no instance for Pretty Color" -->
 ```cinch
 module Main where
 
@@ -185,7 +185,7 @@ main = 0
 ```
 
 ```text
-cinch: 13:9: no instance for Main.Pretty Main.Color (in Main.cinch)
+cinch: 13:9: no instance for Pretty Color (in Main.cinch)
 ```
 
 Write `implicit instance PrettyColor :: Pretty Color where` beside the type, or add the constraint to `use` and let the caller supply it.

@@ -58,9 +58,9 @@ impl Checker {
         let [dictionary, key, left, right] = parameters.as_slice() else { return None };
         let (less, when_less, otherwise) = ordering_if(body)?;
         let (greater, when_greater, when_equal) = ordering_if(otherwise)?;
-        if !ordering_constructor(when_less, "Data.Ordering.LT")
-            || !ordering_constructor(when_greater, "Data.Ordering.GT")
-            || !ordering_constructor(when_equal, "Data.Ordering.EQ")
+        if !ordering_constructor(when_less, crate::known::ORDERING_LT)
+            || !ordering_constructor(when_greater, crate::known::ORDERING_GT)
+            || !ordering_constructor(when_equal, crate::known::ORDERING_EQ)
         {
             return None;
         }
@@ -218,9 +218,9 @@ impl Checker {
         for (certificate, span, module) in self.used_comparisons.borrow().iter() {
             for arithmetic in &certificate.arithmetic { self.check_arithmetic_certificate(arithmetic, *span, module)?; }
             if self.read_selected_comparison(&certificate.dictionary, certificate.slot, &certificate.carrier) != Some(certificate.comparison) {
-                return Err(Error::at(*span, format!(
-                    "a refinement obligation cites a comparison fact whose actual selected implementation {} at slot {} does not establish {:?} over {} (in {module})",
-                    certificate.dictionary.0, certificate.slot, certificate.comparison, certificate.carrier)));
+                return Err(Error::at(*span, crate::diagnostic!(
+                    "a refinement obligation cites a comparison fact whose actual selected implementation {} at slot {} does not establish {} over {} (in {})",
+                    certificate.dictionary.0, certificate.slot, format!("{:?}", certificate.comparison), certificate.carrier, module)));
             }
         }
         for (certificate, span, module) in self.used_runtime_arithmetic.borrow().iter() {
@@ -231,7 +231,7 @@ impl Checker {
 
     fn check_arithmetic_certificate(&self, certificate: &ArithmeticCertificate, span: ast::Span, module: &str) -> Result<()> {
         if !self.read_selected_arithmetic(&certificate.dictionary, certificate.slot, &certificate.carrier, certificate.operation) {
-            return Err(Error::at(span, format!("a dependent index or refinement obligation cites runtime arithmetic whose actual selected implementation {} at slot {} does not establish {:?} over {} (in {module})", certificate.dictionary.0, certificate.slot, certificate.operation, certificate.carrier)));
+            return Err(Error::at(span, crate::diagnostic!("a dependent index or refinement obligation cites runtime arithmetic whose actual selected implementation {} at slot {} does not establish {} over {} (in {})", certificate.dictionary.0, certificate.slot, format!("{:?}", certificate.operation), certificate.carrier, module)));
         }
         Ok(())
     }
@@ -639,7 +639,7 @@ impl Checker {
         let [(_, order)] = scheme.ctx.as_slice() else { return None };
         let input = Ty::Param(input.clone().into());
         let key = Ty::Param(key.clone().into());
-        if order.class != self.signature_key("Relation.Ord", "Ord") || order.args.as_slice() != std::slice::from_ref(&key)
+        if order.class != crate::known::ORD || order.args.as_slice() != std::slice::from_ref(&key)
             || !scheme.con_params.is_empty() || !scheme.idx_params.is_empty() || !scheme.val_params.is_empty()
             || !scheme.prop_params.is_empty() || !scheme.evidence_params.is_empty() || !scheme.region_params.is_empty()
             || !scheme.row_params.is_empty() || !scheme.obligs.is_empty()
@@ -650,12 +650,11 @@ impl Checker {
         let (domain, codomain) = ordering_arrow(project)?;
         let (first, rest) = ordering_arrow(rest)?;
         let (second, result) = ordering_arrow(rest)?;
-        // The embedded Ordering type can have a short internal key. The
-        // portable declaration and the checked branch constructors carry its
-        // real nominal identity.
+        // The checked result and the portable declaration both name the
+        // base `Ordering` by its nominal identity.
         if domain != &input || codomain != &key || first != &input || second != &input
-            || !matches!(result, Ty::Adt(_, args) if args.is_empty())
-            || !resolved.nominals.iter().any(|nominal| nominal.kind == "data" && nominal.identity == "Data.Ordering.Ordering")
+            || !matches!(result, Ty::Adt(name, args) if name == crate::known::ORDERING && args.is_empty())
+            || !resolved.nominals.iter().any(|nominal| nominal.kind == "data" && nominal.identity == crate::known::ORDERING)
         {
             return None;
         }

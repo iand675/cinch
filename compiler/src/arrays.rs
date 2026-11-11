@@ -95,9 +95,9 @@ impl ArrayOp {
         let array = |t| app("Array", t);
         let tensor = |t| app("Tensor", t);
         let col = |t| app("Columnar", t);
-        let opt = |t| app("Option", t);
+        let opt = |t| app(crate::known::OPTION, t);
         match self {
-            Self::FromList => (vec![app("List", a.clone())], array(a)),
+            Self::FromList => (vec![app(crate::known::LIST, a.clone())], array(a)),
             Self::Replicate => (vec![Ty::Nat, a.clone()], array(a)),
             Self::Len => (vec![array(a)], Ty::Nat),
             Self::Get => (vec![array(a.clone()), Ty::Nat], opt(a)),

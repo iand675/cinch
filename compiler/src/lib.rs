@@ -20,6 +20,7 @@ pub mod interface;
 pub mod intern;
 #[cfg(feature = "jit")]
 pub mod jit;
+pub mod known;
 pub mod layout;
 pub mod lexer;
 pub mod lsp;
@@ -32,6 +33,7 @@ pub mod repl_tui;
 pub mod repr;
 pub mod simplify;
 pub mod specialize;
+pub mod spelling;
 pub mod stack;
 pub mod store;
 pub mod types;

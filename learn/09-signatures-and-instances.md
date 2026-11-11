@@ -173,16 +173,18 @@ Each message below is copied from a real run. Variable identities such as `a#844
 
 | Symptom | Message |
 | --- | --- |
-| the type does not state the class its body uses | `cinch: 13:18: no instance for Main.Score a#844 (in Main.cinch)` |
-| no instance exists for the concrete type | `cinch: 12:13: no instance for Main.Score Main.Ticket (in Main.cinch)` |
-| the instance exists but lacks `implicit` | `cinch: 15:13: no instance for Main.Score Main.Ticket (in Main.cinch)` |
-| two implicit instances match | `cinch: 18:13: ambiguous instances for Main.Score Main.Ticket (in Main.cinch)` |
+| the type does not state the class its body uses | `cinch: 13:18: no instance for Score a#844 (in Main.cinch)` |
+| no instance exists for the concrete type | `cinch: 12:13: no instance for Score Ticket (in Main.cinch)` |
+| the instance exists but lacks `implicit` | `cinch: 15:13: no instance for Score Ticket (in Main.cinch)` |
+| two implicit instances match | `cinch: 18:13: ambiguous instances for Score Ticket (in Main.cinch)` |
 | a required class is missing from `using` | `cinch: 6:14: no instance for Semigroup a#844 (in Main.cinch)` |
 | the operator's module was not imported | `cinch: Main.cinch: 5:19: there is no fixity declared for the operator` followed by the operator name |
 
 The first and second rows have the same wording because the checker reaches the same state from both directions: at that position it needs a dictionary and has none. Reading the line and column tells you which requirement was left unmet.
 
-<!-- cinch:reject contains="ambiguous instances for Main.Score Main.Ticket" -->
+A class is named by its bare name because this message names only one `Score` and one `Ticket`. Two declarations that share a bare name are both written in full in the same message, so a program with its own `Score` beside this one would read `Main.Score Main.Ticket`. The identity itself is always the qualified `Owner.Name`; only the printed spelling depends on what else the message names.
+
+<!-- cinch:reject contains="ambiguous instances for Score Ticket" -->
 ```cinch
 module Main where
   signature Score a where

@@ -69,8 +69,9 @@ impl DictionaryResolver<'_> {
         if is_capability_class(&wanted_z.class) {
             return Err(Error::at(
                 span,
-                format!(
-                    "no {wanted_z} capability in scope; supply one lexically with `with (io = ...) in` or `f @{{io = ...}}`, or take it in a `using` clause"
+                crate::diagnostic!(
+                    "no {} capability in scope; supply one lexically with `with (io = ...) in` or `f @{{io = ...}}`, or take it in a `using` clause",
+                    wanted_z
                 ),
             ));
         }
@@ -89,31 +90,32 @@ impl DictionaryResolver<'_> {
                 } else {
                     Err(Error::at(
                         span,
-                        format!(
-                            "no Copy evidence for {t} (copying needs a Copy type or a `using (copy :: Copy a)` constraint)"
+                        crate::diagnostic!(
+                            "no Copy evidence for {} (copying needs a Copy type or a `using (copy :: Copy a)` constraint)",
+                            t
                         ),
                     ))
                 };
             }
             return Err(Error::at(
                 span,
-                format!("Copy expects exactly one type argument, got {wanted_z}"),
+                crate::diagnostic!("Copy expects exactly one type argument, got {}", wanted_z),
             ));
         }
         // Collection literals default their container when nothing else
         // determines it (surface grammar local amendments section 10):
         // `[..]` unconstrained is a `List`, `{..}` a `Map`.
-        if class == "FromList" && wanted_z.args.len() == 2 {
+        if class == crate::known::FROM_LIST && wanted_z.args.len() == 2 {
             if matches!(self.uni.zonk(&wanted_z.args[0]), Ty::Meta(_)) {
-                let list = Ty::Adt("List".into(), vec![wanted_z.args[1].clone()]);
+                let list = Ty::Adt(crate::known::LIST.into(), vec![wanted_z.args[1].clone()]);
                 self.uni
                     .unify(&wanted_z.args[0], &list)
                     .map_err(|m| Error::at(span, m))?;
             }
-        } else if class == "FromMap" && wanted_z.args.len() == 3 {
+        } else if class == crate::known::FROM_MAP && wanted_z.args.len() == 3 {
             if matches!(self.uni.zonk(&wanted_z.args[0]), Ty::Meta(_)) {
                 let map = Ty::Adt(
-                    "Map".into(),
+                    crate::known::MAP.into(),
                     vec![wanted_z.args[1].clone(), wanted_z.args[2].clone()],
                 );
                 self.uni
@@ -244,8 +246,9 @@ impl DictionaryResolver<'_> {
             self.uni.commit(outer);
             return Err(Error::at(
                 span,
-                format!(
-                    "no instance for {wanted_z}{}",
+                crate::diagnostic!(
+                    "no instance for {}{}",
+                    wanted_z,
                     undetermined_hint(&self.uni, &wanted_z)
                 ),
             ));
@@ -287,18 +290,21 @@ impl DictionaryResolver<'_> {
             // winner (the coherence rule, D119 extended).
             let a = &self.checker.resolution_instances()[matches[classes[0][0]].idx];
             let b = &self.checker.resolution_instances()[matches[classes[1][0]].idx];
-            let point = wanted_z
+            let refinement = wanted_z
                 .args
                 .iter()
                 .find_map(|t| self.checker.refine_view(t))
-                .map(|v| v.pred.to_string())
-                .unwrap_or_else(|| wanted_z.to_string());
+                .map(|v| v.pred);
+            let point: &dyn crate::spelling::Spell = match &refinement {
+                Some(pred) => pred,
+                None => &wanted_z,
+            };
             self.uni.commit(outer);
             return Err(Error::at(
                 span,
-                format!(
-                    "coherence: instances `{}` (head {}) and `{}` (head {}) are incomparable constrained instances, and both match this refinement ({point}) (the coherence rule: a use at a common refinement needs one most-specific instance; state one head with a predicate implying the other)",
-                    a.name, a.target, b.name, b.target
+                crate::diagnostic!(
+                    "coherence: instances `{}` (head {}) and `{}` (head {}) are incomparable constrained instances, and both match this refinement ({}) (the coherence rule: a use at a common refinement needs one most-specific instance; state one head with a predicate implying the other)",
+                    a.name, a.target, b.name, b.target, point
                 ),
             ));
         } else {
@@ -404,7 +410,7 @@ impl DictionaryResolver<'_> {
                             let cz = self.uni.zonk_class(&c);
                             return Err(Error::at(
                                 span,
-                                Checker::method_oblig_refusal(si, &cz.to_string()),
+                                Checker::method_oblig_refusal(si, &cz),
                             ));
                         }
                     }
@@ -424,8 +430,9 @@ impl DictionaryResolver<'_> {
                     let cz = self.uni.zonk_class(&c);
                     return Err(Error::at(
                         span,
-                        format!(
-                            "ambiguous instances for {cz}{}",
+                        crate::diagnostic!(
+                            "ambiguous instances for {}{}",
+                            cz,
                             undetermined_hint(&self.uni, &cz)
                         ),
                     ));

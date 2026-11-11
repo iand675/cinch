@@ -1379,14 +1379,14 @@ impl PrimOp {
     pub fn sig(self) -> (Vec<Ty>, Ty) {
         use PrimOp::*;
         let prim = |s: Scalar| Ty::Prim(s);
-        let opt = |t: Ty| Ty::Adt("Option".to_string().into(), vec![t]);
+        let opt = |t: Ty| Ty::Adt(crate::known::OPTION.into(), vec![t]);
         let u32t = prim(Scalar::U32);
         let i64t = prim(Scalar::I64);
         // The net and piped-child units present their boundary word as
         // the prelude `Result`: `Err` (tag 0) over the POSITIVE named
         // error code when that word is negative, `Ok` (tag 1) over the
         // success payload otherwise.
-        let res = |t: Ty| Ty::Adt("Result".to_string().into(), vec![i64t.clone(), t]);
+        let res = |t: Ty| Ty::Adt(crate::known::RESULT.into(), vec![i64t.clone(), t]);
         match self {
             Array { op, packed, .. } => op.sig(packed),
             Nat(NatOp::Add | NatOp::Sub | NatOp::Mul | NatOp::Div | NatOp::Rem) => {
@@ -1502,7 +1502,7 @@ impl PrimOp {
             FClass { ty, .. } => (vec![prim(ty)], Ty::Bool),
             TotalOrder { ty } => (
                 vec![prim(ty), prim(ty)],
-                Ty::Adt("Ordering".to_string().into(), vec![]),
+                Ty::Adt(crate::known::ORDERING.into(), vec![]),
             ),
             CharToU32 => (vec![prim(Scalar::Char)], u32t),
             U32ToChar => (vec![u32t], opt(prim(Scalar::Char))),
@@ -8717,7 +8717,7 @@ mod tests {
         }
         .sig();
         assert_eq!(args, vec![Ty::Prim(Scalar::U8), Ty::Prim(Scalar::U8)]);
-        assert_eq!(res, Ty::Adt("Option".into(), vec![Ty::Prim(Scalar::U8)]));
+        assert_eq!(res, Ty::Adt(crate::known::OPTION.into(), vec![Ty::Prim(Scalar::U8)]));
         let (_, res) = PrimOp::Arith {
             ty: Scalar::U8,
             op: ArithOp::Add,
@@ -8726,10 +8726,10 @@ mod tests {
         .sig();
         assert_eq!(res, Ty::Prim(Scalar::U8));
         let (_, res) = PrimOp::TotalOrder { ty: Scalar::F64 }.sig();
-        assert_eq!(res, Ty::Adt("Ordering".into(), vec![]));
+        assert_eq!(res, Ty::Adt(crate::known::ORDERING.into(), vec![]));
         let (args, res) = PrimOp::U32ToChar.sig();
         assert_eq!(args, vec![Ty::Prim(Scalar::U32)]);
-        assert_eq!(res, Ty::Adt("Option".into(), vec![Ty::Prim(Scalar::Char)]));
+        assert_eq!(res, Ty::Adt(crate::known::OPTION.into(), vec![Ty::Prim(Scalar::Char)]));
     }
 
     /// The legacy wrapping-64 `cinch.prim.*Int` family is retired: its

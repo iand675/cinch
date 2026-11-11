@@ -14,6 +14,7 @@
 //!   that are not free in the environment.
 
 use crate::intern::Interned;
+use crate::spelling::{Spell, Spelling};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -936,6 +937,14 @@ impl ITerm {
 
 impl fmt::Display for ITerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.spell(f, Spelling::Identity)
+    }
+}
+
+/// Function and constructor heads are written by identity in every
+/// spelling; the types embedded in an instantiation follow the spelling.
+impl Spell for ITerm {
+    fn spell(&self, f: &mut fmt::Formatter<'_>, s: Spelling<'_>) -> fmt::Result {
         match self {
             ITerm::Var(n) => write!(f, "{n}"),
             ITerm::LocalValue(local) => write!(f, "@value[{}]", local.0),
@@ -956,27 +965,27 @@ impl fmt::Display for ITerm {
                     IndexHead::Marker => write!(f, "Copy-evidence")?,
                     IndexHead::DeclarationPending(id) => write!(f, "<declaration-evidence:{id}>")?,
                 }
-                for ty in call.embedded_types() { write!(f, " @({ty})")?; }
-                for dictionary in &call.dictionaries { write!(f, " @{{{dictionary}}}")?; }
-                for argument in &call.arguments { write!(f, " @{}({})", argument.kind(), argument.as_type())?; }
+                for ty in call.embedded_types() { write!(f, " @({})", s.of(&ty))?; }
+                for dictionary in &call.dictionaries { write!(f, " @{{{}}}", s.of(dictionary))?; }
+                for argument in &call.arguments { write!(f, " @{}({})", argument.kind(), s.of(&argument.as_type()))?; }
                 Ok(())
             }
-            ITerm::Lam(x, body) => write!(f, "(\\{x} -> {body})"),
+            ITerm::Lam(x, body) => write!(f, "(\\{x} -> {})", s.of(&**body)),
             ITerm::App(head, args) => {
                 if matches!(&**head, ITerm::Fn(n) if n.starts_with("<builtin>.")) {
-                    write!(f, "{head}")?;
+                    write!(f, "{}", s.of(&**head))?;
                     for a in args {
-                        write!(f, " {a}")?;
+                        write!(f, " {}", s.of(a))?;
                     }
                     return Ok(());
                 }
-                write!(f, "({head}")?;
+                write!(f, "({}", s.of(&**head))?;
                 for a in args {
-                    write!(f, " {a}")?;
+                    write!(f, " {}", s.of(a))?;
                 }
                 write!(f, ")")
             }
-            ITerm::Bin(op, a, b) => write!(f, "({a} {op} {b})"),
+            ITerm::Bin(op, a, b) => write!(f, "({} {op} {})", s.of(&**a), s.of(&**b)),
         }
     }
 }
@@ -2634,13 +2643,19 @@ impl PTerm {
 
 impl fmt::Display for PTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.spell(f, Spelling::Identity)
+    }
+}
+
+impl Spell for PTerm {
+    fn spell(&self, f: &mut fmt::Formatter<'_>, s: Spelling<'_>) -> fmt::Result {
         match self {
-            PTerm::Cmp(op, a, b) => write!(f, "{a} {op} {b}"),
-            PTerm::Eq(a, b) => write!(f, "Eq {a} {b}"),
-            PTerm::Not(p) => write!(f, "Not ({p})"),
-            PTerm::And(a, b) => write!(f, "({a} && {b})"),
-            PTerm::Or(a, b) => write!(f, "({a} || {b})"),
-            PTerm::Pred(pf, a) => write!(f, "{pf} {a}"),
+            PTerm::Cmp(op, a, b) => write!(f, "{} {op} {}", s.of(a), s.of(b)),
+            PTerm::Eq(a, b) => write!(f, "Eq {} {}", s.of(a), s.of(b)),
+            PTerm::Not(p) => write!(f, "Not ({})", s.of(p)),
+            PTerm::And(a, b) => write!(f, "({} && {})", s.of(a), s.of(b)),
+            PTerm::Or(a, b) => write!(f, "({} || {})", s.of(a), s.of(b)),
+            PTerm::Pred(pf, a) => write!(f, "{pf} {}", s.of(a)),
             PTerm::Lit(value) => f.write_str(if *value { "True" } else { "False" }),
             PTerm::Var(n) => write!(f, "{n}"),
             PTerm::MVar(m) => write!(f, "?p{m}"),
@@ -3355,8 +3370,17 @@ fn needs_parens_as_argument(t: &Ty) -> bool {
     }
 }
 
+/// `Display` writes every nominal by its identity: the rendering an
+/// interface, a Core dump and every other machine-read text carries. A
+/// diagnostic renders through `diagnostic!` instead (`crate::spelling`).
 impl fmt::Display for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.spell(f, Spelling::Identity)
+    }
+}
+
+impl Spell for Ty {
+    fn spell(&self, f: &mut fmt::Formatter<'_>, s: Spelling<'_>) -> fmt::Result {
         match self {
             Ty::Int => write!(f, "Int"),
             Ty::Nat => write!(f, "Nat"),
@@ -3364,7 +3388,7 @@ impl fmt::Display for Ty {
             Ty::Unit => write!(f, "Unit"),
             Ty::Bytes => write!(f, "Bytes"),
             Ty::Sym => write!(f, "Sym"),
-            Ty::Prim(s) => write!(f, "{s}"),
+            Ty::Prim(scalar) => write!(f, "{scalar}"),
             Ty::Param(p) => write!(f, "{p}"),
             Ty::Region(r) => write!(f, "{r}"),
             Ty::Meta(MetaId(m)) => write!(f, "?m{m}"),
@@ -3380,28 +3404,28 @@ impl fmt::Display for Ty {
                     while free.contains(&binder) { binder.push_str("-r"); }
                     let p = p.subst("$it", &ITerm::Var(binder.into()));
                     return if needs_parens_as_argument(base) {
-                        write!(f, "refined ({p}) ({base})")
+                        write!(f, "refined ({}) ({})", s.of(&p), s.of(base))
                     } else {
-                        write!(f, "refined ({p}) {base}")
+                        write!(f, "refined ({}) {}", s.of(&p), s.of(base))
                     };
                 }
-                write!(f, "{t}")?;
+                s.nominal(f, t)?;
                 for a in args {
                     if needs_parens_as_argument(a) {
-                        write!(f, " ({a})")?;
+                        write!(f, " ({})", s.of(a))?;
                     } else {
-                        write!(f, " {a}")?;
+                        write!(f, " {}", s.of(a))?;
                     }
                 }
                 Ok(())
             }
             Ty::App(h, args) => {
-                write!(f, "({h}")?;
+                write!(f, "({}", s.of(h))?;
                 for a in args {
                     if needs_parens_as_argument(a) {
-                        write!(f, " ({a})")?;
+                        write!(f, " ({})", s.of(a))?;
                     } else {
-                        write!(f, " {a}")?;
+                        write!(f, " {}", s.of(a))?;
                     }
                 }
                 write!(f, ")")
@@ -3420,46 +3444,46 @@ impl fmt::Display for Ty {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
-                    write!(f, "{a}")?;
+                    write!(f, "{}", s.of(a))?;
                 }
                 write!(f, ")")
             }
             // A result refinement naming arguments by position prints
             // with those arguments named (`(a0 :: I64) -> refined (r ==
             // a0) Nat`), the form it was written in.
-            Ty::Fun(..) if mentions_positional_result(self) => write!(f, "{}", name_positional(self, 0)),
+            Ty::Fun(..) if mentions_positional_result(self) => write!(f, "{}", s.of(&name_positional(self, 0))),
             Ty::Fun(a, m, e, b) => match (m, e.is_pure()) {
-                (Mult::Many, true) => write!(f, "({a} -> {b})"),
-                (Mult::Many, false) => write!(f, "({a} ->{e} {b})"),
-                (_, true) => write!(f, "({a} {m} -> {b})"),
-                (_, false) => write!(f, "({a} {m} ->{e} {b})"),
+                (Mult::Many, true) => write!(f, "({} -> {})", s.of(a), s.of(b)),
+                (Mult::Many, false) => write!(f, "({} ->{e} {})", s.of(a), s.of(b)),
+                (_, true) => write!(f, "({} {m} -> {})", s.of(a), s.of(b)),
+                (_, false) => write!(f, "({} {m} ->{e} {})", s.of(a), s.of(b)),
             },
-            Ty::Thunk { eff, inner } => write!(f, "Thunk {eff} {inner}"),
-            Ty::Later(inner) => write!(f, "Later {inner}"),
-            Ty::Lazy { eff, region, inner } => write!(f, "Lazy {eff} {region} {inner}"),
-            Ty::Ref(region, inner) => write!(f, "Ref {region} {inner}"),
-            Ty::Mut(region, inner) => write!(f, "Mut {region} {inner}"),
+            Ty::Thunk { eff, inner } => write!(f, "Thunk {eff} {}", s.of(inner)),
+            Ty::Later(inner) => write!(f, "Later {}", s.of(inner)),
+            Ty::Lazy { eff, region, inner } => write!(f, "Lazy {eff} {region} {}", s.of(inner)),
+            Ty::Ref(region, inner) => write!(f, "Ref {region} {}", s.of(inner)),
+            Ty::Mut(region, inner) => write!(f, "Mut {region} {}", s.of(inner)),
             Ty::Ptr { role, pointee } => match pointee.as_ref() {
                 Ty::Ptr { .. } | Ty::Fun(..) | Ty::Pi { .. } | Ty::Sigma { .. } => {
-                    write!(f, "{role} ({pointee})")
+                    write!(f, "{role} ({})", s.of(pointee))
                 }
-                other => write!(f, "{role} {other}"),
+                other => write!(f, "{role} {}", s.of(other)),
             },
             Ty::Handler { label, input, output, eff, resumption } => {
-                write!(f, "(handle {label} {input} => {output} adding {eff} resuming {resumption})")
+                write!(f, "(handle {label} {} => {} adding {eff} resuming {resumption})", s.of(input), s.of(output))
             }
-            Ty::Sort(s) => write!(f, "{s}"),
-            Ty::Idx(t) => write!(f, "{t}"),
-            Ty::Prp(p) => write!(f, "{p}"),
+            Ty::Sort(sort) => write!(f, "{sort}"),
+            Ty::Idx(t) => write!(f, "{}", s.of(t)),
+            Ty::Prp(p) => write!(f, "{}", s.of(p)),
             Ty::Pi { var, dom, mult, eff, cod } => {
                 if *mult == Mult::Many && eff.is_pure() {
-                    write!(f, "(({var} :: {dom}) -> {cod})")
+                    write!(f, "(({var} :: {}) -> {})", s.of(dom), s.of(cod))
                 } else {
-                    write!(f, "(({var} :: {dom}) {mult} ->{eff} {cod})")
+                    write!(f, "(({var} :: {}) {mult} ->{eff} {})", s.of(dom), s.of(cod))
                 }
             }
             Ty::Sigma { var, dom, cod } => {
-                write!(f, "(Sigma ({var} :: {dom}). {cod})")
+                write!(f, "(Sigma ({var} :: {}). {})", s.of(dom), s.of(cod))
             }
         }
     }
@@ -3520,14 +3544,22 @@ pub struct ClassApp {
     pub args: Vec<Ty>,
 }
 
+/// `Display` writes the class key and every argument by identity; a
+/// diagnostic renders through `diagnostic!` (`crate::spelling`).
 impl fmt::Display for ClassApp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.class)?;
+        self.spell(f, Spelling::Identity)
+    }
+}
+
+impl Spell for ClassApp {
+    fn spell(&self, f: &mut fmt::Formatter<'_>, s: Spelling<'_>) -> fmt::Result {
+        s.nominal(f, &self.class)?;
         for a in &self.args {
             if needs_parens_as_argument(a) {
-                write!(f, " ({a})")?;
+                write!(f, " ({})", s.of(a))?;
             } else {
-                write!(f, " {a}")?;
+                write!(f, " {}", s.of(a))?;
             }
         }
         Ok(())
@@ -4248,8 +4280,8 @@ impl Unifier {
         }
         if matches!(t, ITerm::MVar(other) if other == id) { return Ok(()); }
         if self.idx_occurs(id, &t) {
-            return Err(format!(
-                "cannot construct infinite index: ?i{id} in {t}"
+            return Err(crate::diagnostic!(
+                "cannot construct infinite index: ?i{} in {}", id, t
             ));
         }
         let old = self.set_index(id, Some(t));
@@ -4265,8 +4297,8 @@ impl Unifier {
         }
         if matches!(p, PTerm::MVar(other) if other == id) { return Ok(()); }
         if self.prop_occurs(id, &p) {
-            return Err(format!(
-                "cannot construct infinite proposition: ?p{id} in {p}"
+            return Err(crate::diagnostic!(
+                "cannot construct infinite proposition: ?p{} in {}", id, p
             ));
         }
         let old = self.set_prop(id, Some(p));
@@ -4291,7 +4323,7 @@ impl Unifier {
             Ok(())
         } else {
             self.rollback_to(snapshot);
-            Err(format!(
+            Err(crate::diagnostic!(
                 "index mismatch: {} vs {}",
                 self.resolve_idx(a),
                 self.resolve_idx(b)
@@ -4343,7 +4375,7 @@ impl Unifier {
                 if a.eq(&b) {
                     Ok(())
                 } else {
-                    Err(format!("index mismatch: {a} vs {b}"))
+                    Err(crate::diagnostic!("index mismatch: {} vs {}", a, b))
                 }
             }
         }
@@ -4363,7 +4395,7 @@ impl Unifier {
             Ok(())
         } else {
             self.rollback_to(snapshot);
-            Err(format!(
+            Err(crate::diagnostic!(
                 "propositions do not match: {} vs {}",
                 self.resolve_prop(a),
                 self.resolve_prop(b)
@@ -4399,7 +4431,7 @@ impl Unifier {
                 if a.eq(&b) {
                     Ok(())
                 } else {
-                    Err(format!("propositions do not match: {a} vs {b}"))
+                    Err(crate::diagnostic!("propositions do not match: {} vs {}", a, b))
                 }
             }
         }
@@ -4983,7 +5015,7 @@ impl Unifier {
         // to distinct heads.
         if h1 == h2 {
             if xs.len() != ys.len() {
-                return Err(format!(
+                return Err(crate::diagnostic!(
                     "type mismatch: expected {}, got {}",
                     self.zonk(a),
                     self.zonk(b)
@@ -5002,7 +5034,7 @@ impl Unifier {
                 let k = ys.len() - xs.len();
                 let image = Ty::apply_spine(h2.clone(), ys[..k].to_vec());
                 if self.occurs(*m, &image) {
-                    return Err(format!(
+                    return Err(crate::diagnostic!(
                         "cannot construct infinite type: {} in {}",
                         m_display(*m),
                         self.zonk(&image)
@@ -5018,7 +5050,7 @@ impl Unifier {
                 let k = xs.len() - ys.len();
                 let image = Ty::apply_spine(h1.clone(), xs[..k].to_vec());
                 if self.occurs(*m, &image) {
-                    return Err(format!(
+                    return Err(crate::diagnostic!(
                         "cannot construct infinite type: {} in {}",
                         m_display(*m),
                         self.zonk(&image)
@@ -5030,7 +5062,7 @@ impl Unifier {
             }
         }
         if xs.len() != ys.len() {
-            return Err(format!(
+            return Err(crate::diagnostic!(
                 "type mismatch: expected {}, got {}",
                 self.zonk(a),
                 self.zonk(b)
@@ -5061,7 +5093,7 @@ impl Unifier {
                     }
                 }
                 if self.occurs(*m, t) {
-                    return Err(format!(
+                    return Err(crate::diagnostic!(
                         "cannot construct infinite type: {} in {}",
                         m_display(*m),
                         self.zonk(t)
@@ -5097,7 +5129,7 @@ impl Unifier {
             // reclamation specification, section 2): a `Later` is a
             // guarded observation modality, a `Thunk` an affine deferred
             // computation, and neither converts to the other.
-            (Ty::Later(_), Ty::Thunk { .. }) | (Ty::Thunk { .. }, Ty::Later(_)) => Err(format!(
+            (Ty::Later(_), Ty::Thunk { .. }) | (Ty::Thunk { .. }, Ty::Later(_)) => Err(crate::diagnostic!(
                 "type mismatch: expected {}, got {} (Later and Thunk are distinct types; a Later is a guarded observation, not a deferred computation)",
                 self.zonk(&a),
                 self.zonk(&b)
@@ -5121,7 +5153,7 @@ impl Unifier {
             // released by its matching deallocator).
             (Ty::Ptr { role: r1, pointee: p1 }, Ty::Ptr { role: r2, pointee: p2 }) => {
                 if r1 != r2 {
-                    return Err(format!(
+                    return Err(crate::diagnostic!(
                         "pointer role mismatch: expected {}, got {} (a boundary pointer carries exactly one role; raw, borrow, owned, out and nullable roles never convert into each other)",
                         self.zonk(&a),
                         self.zonk(&b)
@@ -5147,7 +5179,7 @@ impl Unifier {
                 },
             ) => {
                 if l1.head != l2.head {
-                    return Err(format!(
+                    return Err(crate::diagnostic!(
                         "type mismatch: expected {}, got {}",
                         self.zonk(&a),
                         self.zonk(&b)
@@ -5157,7 +5189,7 @@ impl Unifier {
                     (Some(x), Some(y)) => self.unify_regions(x, y)?,
                     (None, None) => {}
                     _ => {
-                        return Err(format!(
+                        return Err(crate::diagnostic!(
                             "type mismatch: expected {}, got {}",
                             self.zonk(&a),
                             self.zonk(&b)
@@ -5202,7 +5234,7 @@ impl Unifier {
             (Ty::Ptr { .. }, other) | (other, Ty::Ptr { .. })
                 if !matches!(other, Ty::Ptr { .. } | Ty::Meta(_)) =>
             {
-                Err(format!(
+                Err(crate::diagnostic!(
                     "type mismatch: expected {}, got {} (a boundary pointer role is never constructed from an integer or another non-pointer; foreign function interface specification section 3)",
                     self.zonk(&a),
                     self.zonk(&b)
@@ -5215,7 +5247,7 @@ impl Unifier {
                 if self.conv_eq(&a, &b) {
                     Ok(())
                 } else {
-                    Err(format!("type mismatch: expected {}, got {}", self.zonk(&a), self.zonk(&b)))
+                    Err(crate::diagnostic!("type mismatch: expected {}, got {}", self.zonk(&a), self.zonk(&b)))
                 }
             }
         }

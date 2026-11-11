@@ -221,7 +221,7 @@ Returning the payload instead of the optional value reports `cinch: 5:19: type m
 Forgetting `Ok` in a `Result` function reports the whole result type:
 
 ```text
-cinch: 6:15: type mismatch: expected Nat, got Result Main.Failure Nat (in Main.cinch)
+cinch: 6:15: type mismatch: expected Nat, got Result Failure Nat (in Main.cinch)
 ```
 
 Dividing by a plain `Nat` reports the predicate that is missing, in the same shape as the subtraction obligation from chapter 5:

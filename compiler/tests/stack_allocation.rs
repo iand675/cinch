@@ -595,6 +595,9 @@ fn consuming_callee() -> FnDef {
             block: LocalId(0),
             moved: vec![],
             rest: vec![],
+            // No token: the `Release` finds the block unshared and keeps it
+            // alive itself.
+            token: None,
             body: Box::new(Core::Int(0)),
         },
     )

@@ -267,7 +267,7 @@ module Main where
     _ -> 1
 ```
 
-A value that does not satisfy the predicate is refused when it is constructed: `integer literal 0 is not a Main.Positive: its predicate `0 < 0` is false (a refined value needs its predicate to hold)`. Refinement machinery is in [refinements](06-refinements.md).
+A value that does not satisfy the predicate is refused when it is constructed: `integer literal 0 is not a Positive: its predicate `0 < 0` is false (a refined value needs its predicate to hold)`. Refinement machinery is in [refinements](06-refinements.md).
 
 Aliasing a type constructor is not available, and the attempt names the two declaration forms that do exist:
 

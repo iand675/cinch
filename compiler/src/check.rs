@@ -1213,10 +1213,11 @@ impl<'a> LowerCx<'a> {
         }
         crate::repr::repr_of(&z, self.tparams, self.ck, &mut |t| match t {
             Ty::Meta(_) => {}
-            _ => self.bug(format!(
-                "no representation class for {t} in {} (type parameters {:?})",
+            _ => self.bug(crate::diagnostic!(
+                "no representation class for {} in {} (type parameters {})",
+                t,
                 self.unit_name(),
-                self.tparams
+                format!("{:?}", self.tparams)
             )),
         })
     }
@@ -1827,36 +1828,13 @@ struct TypeKind {
     refine: Option<RefineInfo>,
 }
 
+/// The nominal identity of a source-declared type: its declaring module
+/// and its name. It depends on nothing else, so adding, removing or
+/// renaming another declaration anywhere never changes it, and a project
+/// that ships its own source for a base module name declares the same
+/// identities the embedded copy does.
 fn nominal_identity(module: &str, name: &ast::Name) -> String {
-    if let Some(identity) = name.intrinsic_type_identity(module) { return identity.into(); }
-    // Intrinsic aliases name specific logical definitions, not every
-    // type in a familiar module. Keep those definitions stable when a
-    // source provider replaces its embedded copy. The registry itself is
-    // built only from the compiler-owned family, never caller source.
-    static INTRINSICS: std::sync::OnceLock<HashMap<(String, String), String>> = std::sync::OnceLock::new();
-    let intrinsic = INTRINSICS.get_or_init(|| {
-        fn collect(decl: &ast::Decl, owner: &str, out: &mut HashMap<(String, String), String>) {
-            let name = match decl {
-                ast::Decl::Attributed { inner, .. } => return collect(inner, owner, out),
-                ast::Decl::Data(d) => &d.name,
-                ast::Decl::Record(r) | ast::Decl::Codata(r) => &r.name,
-                ast::Decl::Refine(r) => &r.name,
-                ast::Decl::OpaqueType(o) => &o.name,
-                _ => return,
-            };
-            if let Some(identity) = name.intrinsic_type_identity(owner) {
-                out.insert((owner.into(), name.text.clone()), identity.into());
-            }
-        }
-        let family = crate::driver::parse_prelude(&[]).expect("embedded family parses before nominal checking");
-        let mut out = HashMap::new();
-        for module in family.modules {
-            for decl in &module.decls { collect(decl, &module.name.text, &mut out); }
-        }
-        out
-    });
-    intrinsic.get(&(module.into(), name.text.clone())).cloned()
-        .unwrap_or_else(|| format!("{module}.{}", name.text))
+    format!("{module}.{}", name.text)
 }
 
 #[derive(Clone)]
@@ -2187,7 +2165,11 @@ struct HandlerExtent {
 }
 
 /// Compiler-known sequencing provider class heads.
-const SEQ_CLASSES: [&str; 3] = ["DirectSequencing", "ResultSequencing", "OptionSequencing"];
+const SEQ_CLASSES: [&str; 3] = [
+    crate::known::DIRECT_SEQUENCING,
+    crate::known::RESULT_SEQUENCING,
+    crate::known::OPTION_SEQUENCING,
+];
 
 /// The maximum `let`/`letrec` nesting the elaborator recurses into.
 /// A deeper nesting gets the named let-nesting depth-limit diagnostic
@@ -2203,13 +2185,13 @@ const LET_DEPTH_LIMIT: usize = 128;
 /// ambiguous.
 fn select_provider(binders: &[ClassApp], span: ast::Span) -> Result<ClassApp> {
     match binders {
-        [] => Ok(ClassApp { class: "DirectSequencing".into(), args: Vec::new() }),
+        [] => Ok(ClassApp { class: crate::known::DIRECT_SEQUENCING.into(), args: Vec::new() }),
         [one] => Ok(one.clone()),
         many => Err(Error::at(
             span,
-            format!(
+            crate::diagnostic!(
                 "two active sequencing providers in one selection scope are ambiguous ({}); bind one explicitly",
-                many.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(", ")
+                crate::spelling::Listed(many, ", ")
             ),
         )),
     }
@@ -2798,7 +2780,7 @@ pub(crate) fn conc_task_ty(s: &str, x: &Ty, v: &Ty) -> Ty {
 
 /// The prelude `Result e a`: a task body's outcome and a join's result.
 pub(crate) fn conc_result_ty(e: &Ty, v: &Ty) -> Ty {
-    Ty::Adt("Result".into(), vec![e.clone(), v.clone()])
+    Ty::Adt(crate::known::RESULT.into(), vec![e.clone(), v.clone()])
 }
 
 // ---------------------------------------------------------------- the checker
@@ -2920,9 +2902,6 @@ struct Checker {
     /// Semantic dictionary families use the declaring signature identity.
     /// The bare-name registry above is only for lexical name lookup.
     class_sigs: HashMap<String, Vec<SigInfo>>,
-    /// Stable legacy keys belong to the actual embedded declarations,
-    /// never to arbitrary new declarations in a replaced module.
-    legacy_class_sites: HashSet<(String, String)>,
     qualified_sigs: HashMap<(String, String), SigInfo>,
     /// Checked defaults by defining module, class, and method.
     method_defaults: HashMap<(String, String, String), crate::interface::MethodDefault>,
@@ -3137,8 +3116,9 @@ struct Checker {
     /// Source binders retain declaration order and implicitness for
     /// interface kind metadata; the converted TypeKind supplies kinds.
     interface_binders: HashMap<(String, String), Vec<ast::TypeBinder>>,
-    /// Captured while checking each source signature, before nominal
-    /// definition identities disappear from the legacy `Ty` spelling.
+    /// Captured while checking each source signature: the contract text
+    /// keeps the binders and references the source wrote, which the
+    /// checked scheme alone does not carry.
     interface_source_schemes: HashMap<(String, String), DefinitionScheme>,
     interface_method_schemes: HashMap<GlobalId, Scheme>,
     interface_total_bodies: std::collections::BTreeMap<String, crate::total::PendingDefinition>,
@@ -3731,7 +3711,6 @@ impl Checker {
             qualified_types: HashMap::new(),
             sigs: HashMap::new(),
             class_sigs: HashMap::new(),
-            legacy_class_sites: HashSet::new(),
             qualified_sigs: HashMap::new(),
             method_defaults: HashMap::new(),
             class_law_contracts: HashMap::new(),
@@ -3997,7 +3976,7 @@ impl Checker {
         if regions.iter().any(|r| *r == g.region) {
             return Err(Error::at(
                 span,
-                format!(
+                crate::diagnostic!(
                     "region escape: a borrow, memo cell or Eval effect of region {} leaves its scope in {}",
                     g.region, t
                 ),
@@ -5508,7 +5487,7 @@ impl Checker {
     /// refined value.
     fn literal_refined(&self, ty: &Ty, digits: &str, span: ast::Span) -> Result<ECore> {
         let not_numeric = || {
-            Error::at(span, format!("integer literal cannot have type {ty}"))
+            Error::at(span, crate::diagnostic!("integer literal cannot have type {}", ty))
         };
         // Anonymous and named refinements already carry the actual checked
         // binder in their view. Looking it up only in the named-type table
@@ -5528,14 +5507,16 @@ impl Checker {
             ObligStatus::Checked => Ok(k),
             ObligStatus::Disproved => Err(Error::at(
                 span,
-                format!(
-                    "integer literal {digits} is not a {ty}: its predicate `{stmt}` is false (a refined value needs its predicate to hold)"
+                crate::diagnostic!(
+                    "integer literal {} is not a {}: its predicate `{}` is false (a refined value needs its predicate to hold)",
+                    digits, ty, stmt
                 ),
             )),
             _ => Err(Error::at(
                 span,
-                format!(
-                    "integer literal {digits} at {ty}: its predicate `{stmt}` cannot be decided at compile time (construct the value with `decide` and the transparent constructor)"
+                crate::diagnostic!(
+                    "integer literal {} at {}: its predicate `{}` cannot be decided at compile time (construct the value with `decide` and the transparent constructor)",
+                    digits, ty, stmt
                 ),
             )),
         }
@@ -5610,7 +5591,7 @@ impl Checker {
             }
             other => Err(Error::at(
                 span,
-                format!("integer literal cannot have type {other}"),
+                crate::diagnostic!("integer literal cannot have type {}", other),
             )),
         }
     }
@@ -6448,9 +6429,9 @@ impl Checker {
     fn known_type(&self, identity: &str) -> Option<&TypeKind> {
         // Dictionary families use the declaring signature's identity, just as
         // ordinary nominal types use their defining owner below. A local data
-        // carrier such as `Main.Bits` cannot collide with legacy class `Bits`.
-        // Looking up a
-        // checked identity must not depend on insertion-site source imports.
+        // carrier such as `Main.Bits` never collides with the class
+        // `Algebra.Bits.Bits`. Looking up a checked identity must not depend
+        // on insertion-site source imports.
         if let Some(signature) = self.class_sigs.get(identity).and_then(|rows| rows.first()) {
             return self.qualified_types.get(&(signature.module.clone(), signature.name.clone()));
         }
@@ -6558,7 +6539,11 @@ impl Checker {
                 self.qualified_sigs
                     .get(&(m.clone(), name.to_string()))
                     .cloned()
-                    .ok_or_else(|| Error::plain(format!("unknown signature {m}.{name}")))
+                    .ok_or_else(|| Error::plain(crate::diagnostic!(
+                        "unknown signature {}.{}",
+                        crate::spelling::Nominal(&m),
+                        name
+                    )))
             }
             [] => Err(Error::plain("an empty signature path names no signature")),
         }
@@ -6576,13 +6561,12 @@ impl Checker {
         }).collect()
     }
 
+    /// The class key of a signature: its declaring module and its name,
+    /// the same rule `nominal_identity` gives a type. The `<builtin>`
+    /// classes (`Copy`, `Share`, `Io`) have no declaring source and keep
+    /// their bare keys.
     fn signature_key(&self, module: &str, name: &str) -> String {
-        // Embedded families keep the compiler-known keys used by primitive
-        // operators and collection literals. A source replacement of such a
-        // family keeps that same definition site. Other modules cannot join
-        // a family merely by reusing its spelling.
-        if module == "<builtin>" || self.legacy_class_sites.contains(&(module.to_string(), name.to_string()))
-        {
+        if module == "<builtin>" {
             name.to_string()
         } else {
             format!("{module}.{name}")
@@ -7000,19 +6984,20 @@ impl Checker {
                 }
                 Err(Error::at(
                     span,
-                    format!("{t} is a type constructor (`Type -> Type`), but a fully applied type is expected here"),
+                    crate::diagnostic!("{} is a type constructor (`Type -> Type`), but a fully applied type is expected here", t),
                 ))
             }
             (ParamKind::Type, ParamKind::Con(n)) => Err(Error::at(
                 span,
-                format!(
-                    "{t} is a fully applied type, but a type constructor of kind `Type -> {rest}Type` is expected here",
-                    rest = "Type -> ".repeat(n.saturating_sub(1))
+                crate::diagnostic!(
+                    "{} is a fully applied type, but a type constructor of kind `Type -> {}Type` is expected here",
+                    t,
+                    "Type -> ".repeat(n.saturating_sub(1))
                 ),
             )),
             _ => Err(Error::at(
                 span,
-                format!("type {t} does not have the kind expected here"),
+                crate::diagnostic!("type {} does not have the kind expected here", t),
             )),
         }
     }
@@ -7026,7 +7011,7 @@ impl Checker {
             Ty::Adt(..) | Ty::Param(..) | Ty::App(..) | Ty::Former(..) | Ty::Meta(..) => {
                 Ok(Ty::apply1(f, a))
             }
-            other => Err(Error::at(span, format!("cannot apply non-type-constructor {other}"))),
+            other => Err(Error::at(span, crate::diagnostic!("cannot apply non-type-constructor {}", other))),
         }
     }
 
@@ -7301,7 +7286,7 @@ impl Checker {
         if self.int_view(&carrier).is_some() || matches!(carrier, Ty::Meta(_)) {
             return Ok(());
         }
-        Err(Error::at(span, format!("numeric index needs an integer carrier, got {carrier}")))
+        Err(Error::at(span, crate::diagnostic!("numeric index needs an integer carrier, got {}", carrier)))
     }
 
     fn check_captured_index_carrier(
@@ -7338,7 +7323,7 @@ impl Checker {
             && !compatible(&mut scratch, &self.numeric_index_read_carrier(&actual)) {
             return Err(Error::at(
                 span,
-                format!("captured index `{name}` has kind {actual}, expected {expected}"),
+                crate::diagnostic!("captured index `{}` has kind {}, expected {}", name, actual, expected),
             ));
         }
         Ok(())
@@ -7490,7 +7475,7 @@ impl Checker {
                 other => {
                     return Err(Error::at(
                         span,
-                        format!("index applies non-function carrier {other}"),
+                        crate::diagnostic!("index applies non-function carrier {}", other),
                     ))
                 }
             };
@@ -7547,7 +7532,7 @@ impl Checker {
                 {
                     return Err(Error::at(
                         arg.span(),
-                        format!("index literal needs a numeric carrier, got {domain}"),
+                        crate::diagnostic!("index literal needs a numeric carrier, got {}", domain),
                     ));
                 }
                 if domain == Ty::Nat && digits.starts_with('-') {
@@ -7707,7 +7692,7 @@ impl Checker {
                     break;
                 }
                 let request = &remaining[0];
-                return Err(Error::at(request.span, format!("ambiguous index dictionary for {}", resolver.uni.zonk_class(&request.class))));
+                return Err(Error::at(request.span, crate::diagnostic!("ambiguous index dictionary for {}", resolver.uni.zonk_class(&request.class))));
             }
             pending = remaining;
         }
@@ -7827,7 +7812,7 @@ impl Checker {
         let carrier = self.refine_base(&carrier).unwrap_or(carrier);
         let supported = self.length_measure_carrier(&carrier);
         if !supported {
-            return Err(Error::at(argument.span(), format!("length index operand needs Bytes or a list-shaped carrier, got {carrier}")));
+            return Err(Error::at(argument.span(), crate::diagnostic!("length index operand needs Bytes or a list-shaped carrier, got {}", carrier)));
         }
         Ok(Some(carrier))
     }
@@ -8027,7 +8012,7 @@ impl Checker {
                 Some(other) => {
                     return Err(Error::at(
                         span,
-                        format!("index applies non-function carrier {other}"),
+                        crate::diagnostic!("index applies non-function carrier {}", other),
                     ))
                 }
                 None => (kind.clone(), None, None),
@@ -8406,8 +8391,9 @@ impl Checker {
                             } else {
                                 Err(Error::at(
                                     span,
-                                    format!(
-                                        "a comparison or index equality is an admitted predicate over numeric values (bounded numeric comparisons and index equalities) or over the baked measures of the binder (`length xs > 100`), not over `{other}` as written (the structural vocabulary decides container values: `NotNull`, `NonZero`, `Ascii`, `Ordered`)"
+                                    crate::diagnostic!(
+                                        "a comparison or index equality is an admitted predicate over numeric values (bounded numeric comparisons and index equalities) or over the baked measures of the binder (`length xs > 100`), not over `{}` as written (the structural vocabulary decides container values: `NotNull`, `NonZero`, `Ascii`, `Ordered`)",
+                                        other
                                     ),
                                 ))
                             }
@@ -8474,9 +8460,9 @@ impl Checker {
                 let Ty::Adt(name, args) = base else {
                     return Err(Error::at(
                         span,
-                        format!(
-                            "`{pf}` decides {}, not `{base}` (a wrong predicate for this refinement's container is refused naming the predicate)",
-                            pf.operand_note()
+                        crate::diagnostic!(
+                            "`{}` decides {}, not `{}` (a wrong predicate for this refinement's container is refused naming the predicate)",
+                            pf, pf.operand_note(), base
                         ),
                     ));
                 };
@@ -8496,7 +8482,7 @@ impl Checker {
             }
             PredFn::Ascii => match base {
                 Ty::Bytes => true,
-                Ty::Adt(name, _) if name == "String" => true,
+                Ty::Adt(name, _) if name == crate::known::STRING => true,
                 // A list of chars: every char is below 128 (the
                 // byte-range fact `Ascii` implies).
                 Ty::Adt(name, args) => {
@@ -8511,9 +8497,9 @@ impl Checker {
         } else {
             Err(Error::at(
                 span,
-                format!(
-                    "`{pf}` decides {}, not `{base}` (a wrong predicate for this refinement's container is refused naming the predicate)",
-                    pf.operand_note()
+                crate::diagnostic!(
+                    "`{}` decides {}, not `{}` (a wrong predicate for this refinement's container is refused naming the predicate)",
+                    pf, pf.operand_note(), base
                 ),
             ))
         }
@@ -10135,7 +10121,7 @@ impl Checker {
                     let (dom, eff, cod, binder) = match uni.zonk(&ty) {
                         Ty::Fun(d, _, e, c) => (*d, e, *c, None),
                         Ty::Pi { var, dom, eff, cod, .. } => (*dom, eff, *cod, Some(var)),
-                        other => return Err(Error::at(span, format!("byte-length index applies non-function carrier {other}; check its arity"))),
+                        other => return Err(Error::at(span, crate::diagnostic!("byte-length index applies non-function carrier {}; check its arity", other))),
                     };
                     if !eff.is_pure() { return Err(Error::at(span, "byte-length index operand application must be pure")); }
                     let actual = self.length_index_type(a, Some(&dom), env, uni, span)?;
@@ -10988,8 +10974,9 @@ impl Checker {
                 let wanted_z = self.uni.zonk_class(&w.class);
                 return Err(Error::at(
                     w.span,
-                    format!(
-                        "ambiguous instances for {wanted_z}{}",
+                    crate::diagnostic!(
+                        "ambiguous instances for {}{}",
+                        wanted_z,
                         undetermined_hint(&self.uni, &wanted_z)
                     ),
                 ));
@@ -11347,7 +11334,7 @@ impl Checker {
             }
             return Err(Error::at(
                 w.span,
-                Self::method_oblig_refusal(inst, &self.uni.zonk_class(&w.class).to_string()),
+                Self::method_oblig_refusal(inst, &self.uni.zonk_class(&w.class)),
             ));
         }
         Ok(())
@@ -11355,7 +11342,7 @@ impl Checker {
 
     /// The refusal for an indirect use of an instance whose methods
     /// carry obligations over their own arguments.
-    fn method_oblig_refusal(inst: &InstanceInfo, wanted: &str) -> String {
+    fn method_oblig_refusal(inst: &InstanceInfo, wanted: &dyn crate::spelling::Spell) -> String {
         let stated: Vec<String> = inst
             .method_obligs
             .iter()
@@ -11363,9 +11350,10 @@ impl Checker {
                 format!("`{m}` needs {}", ps.iter().map(|p| format!("`{}`", Self::positional_display(p))).collect::<Vec<_>>().join(", "))
             })
             .collect();
-        format!(
-            "instance `{}` serves {wanted} here, but its methods carry obligations over their own arguments ({}): such a method must be applied directly to its arguments, where the obligation discharges; it cannot be used as a value or passed as a dictionary to generic code",
+        crate::diagnostic!(
+            "instance `{}` serves {} here, but its methods carry obligations over their own arguments ({}): such a method must be applied directly to its arguments, where the obligation discharges; it cannot be used as a value or passed as a dictionary to generic code",
             inst.name,
+            wanted,
             stated.join("; ")
         )
     }

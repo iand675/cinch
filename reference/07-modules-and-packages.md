@@ -495,13 +495,13 @@ cinch: 10:3: instance Twice_Box2 does not define method twice2 (in Inst2.cinch)
 Implicit instances are collected over the loaded import closure, not only over the importer's own selections. Importing a module with any selection makes its exported implicit instances reachable, and so does importing a module that imports it. Using a method with no reachable instance names the class and the target:
 
 ```text
-cinch: 5:13: no instance for Tone.Tone Tone.Shade (in Main.cinch)
+cinch: 5:13: no instance for Tone Shade (in Main.cinch)
 ```
 
 Two reachable implicit instances for the same class and target are ambiguous, and the diagnostic is at the use, not at either declaration:
 
 ```text
-cinch: 7:13: ambiguous instances for Tone.Tone Tone.Shade (in Main.cinch)
+cinch: 7:13: ambiguous instances for Tone Shade (in Main.cinch)
 ```
 
 That is why several implementations of one class are written as plain `instance`, which resolution never selects by accident, and chosen explicitly by name at a module argument (`import Tally (StepUp) as Up`).

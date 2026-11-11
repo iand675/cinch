@@ -13,7 +13,6 @@ pub struct Name {
     // Checker transformations clone syntax before resolving patterns. All
     // copies of this lexical node must retain the same checked binding.
     resolved: Arc<OnceLock<ResolvedName>>,
-    intrinsic_type: Option<Arc<IntrinsicTypeName>>,
     local: Option<LocalBinding>,
     scoped: Option<Arc<ScopedReference>>,
     declaration: Option<LocalBinding>,
@@ -44,16 +43,9 @@ impl std::fmt::Debug for LocalBinding {
     }
 }
 
-#[derive(Debug)]
-struct IntrinsicTypeName {
-    owner: String,
-    spelling: String,
-    identity: String,
-}
-
 impl Name {
     pub fn new(text: impl Into<String>, span: Span) -> Self {
-        Name { text: text.into(), span, resolved: Arc::new(OnceLock::new()), intrinsic_type: None, local: None, scoped: None, declaration: None }
+        Name { text: text.into(), span, resolved: Arc::new(OnceLock::new()), local: None, scoped: None, declaration: None }
     }
 
     /// Identity of a lexical syntax node, preserved through checker clones.
@@ -100,22 +92,8 @@ impl Name {
         let _ = self.resolved.set(ResolvedName { kind, module: module.into(), name: name.into() });
     }
 
-    /// Only the embedded-family parser marks an actual intrinsic
-    /// declaration. A module spelling, file name or copied reference is
-    /// insufficient, and moving the declaration changes its owner.
-    pub(crate) fn mark_intrinsic_type(&mut self, owner: &str, identity: String) {
-        self.intrinsic_type = Some(Arc::new(IntrinsicTypeName {
-            owner: owner.into(), spelling: self.text.clone(), identity,
-        }));
-    }
-
-    pub(crate) fn intrinsic_type_identity(&self, owner: &str) -> Option<&str> {
-        self.intrinsic_type.as_ref().filter(|id| id.owner == owner && id.spelling == self.text)
-            .map(|id| id.identity.as_str())
-    }
-
     fn resolved(text: String, span: Span, kind: RefKind, module: String, name: String) -> Self {
-        Self { text, span, resolved: Arc::new(OnceLock::from(ResolvedName { kind, module, name })), intrinsic_type: None, local: None, scoped: None, declaration: None }
+        Self { text, span, resolved: Arc::new(OnceLock::from(ResolvedName { kind, module, name })), local: None, scoped: None, declaration: None }
     }
 }
 
