@@ -1282,6 +1282,48 @@ expected to pay only once occurrence analysis and `case-of-case` produce the
 shapes they fold, so they are kept rather than widened with further special
 cases.
 
+### 10.4 Three regressions the folds and the inliner left (2026-11-11)
+
+The Stage3 suite after the ABI 8 landings was 140 of 228 targets and 860
+tests against a baseline of 143 and 863. All three lost tests were in the
+Cinch backend, and two of them shared one root cause.
+
+**The inliner was on in the plain emitter entries.** The transform ships
+off (`--inline` turns it on; the commit that admitted it measured it as
+not paying on this corpus) and the CLI passes the flag, but
+`emit-runtime-program-counting`, `emit-runtime-library-with-object` and
+the two library artifact entries passed `True` themselves. Those are
+the entries a Cinch program calls, so every test that emitted through a
+program rather than the driver inlined: `bootstrap_runtime_ir` lost the
+physical symbols `Main.getFunction` and friends that its C bridges name,
+and `bootstrap_runtime_library` lost `Library.helper` (an internal worker
+the test asserts, because a library object must keep every worker its
+roots reach). A library source of 3-node units is exactly the shape the
+40-node limit copies, so the loss was total, not incidental. Every plain
+entry now passes `False`; only `-mode` entries take the flag, which is
+what the stage build already did through the CLI default, so the ladder
+itself never saw the copies and the regressions showed only in targets
+that call a plain entry.
+
+**Deferral crossed a closure boundary.** `DeferredConstructor` was
+admitted when the binder's single use was a case scrutinee anywhere in the
+let body, including inside a `lambda` or a recursive group. Those rebuild
+their environment from `captures-from`, which drops a deferred constructor
+(it has no word to capture), so the case inside the closure found no local
+and emission refused with `runtime local is absent from its lexical
+scope`. `task-immutable-adt-capture` is the shape: `let value = Box n in
+withScope $ \s -> spawn s (\() -> case value of ...)`. Admission now
+treats a use free in a closure boundary term as an ordinary use, so the
+binder is built where the let is and captured by value. The transform's
+reach on the ladder is unchanged (it still fires zero times there).
+
+**The load fixture outlived its signature.** Section 2.5 changed
+`body-node-owner` to take the prefix table (`List (String, Nat, Bytes)`)
+instead of the loaded interface list; the owner-prefix test still passed
+`loaded`. The fixture now builds `(prefixes-of (index-interfaces loaded))`,
+the same index the production path builds, and keeps its reversed-order
+half. No compiler change: the assertion was right and the call was stale.
+
 ## 11. Benchmark corpus and metrics
 
 The corpus is edits, not programs. Each entry is a case in
