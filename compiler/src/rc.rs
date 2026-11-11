@@ -53,7 +53,7 @@
 //! owned binder is not consumed exactly once: a compiler-bug trap at
 //! compile time (design/no-faults.md).
 
-use crate::core::{CAlt, CBranch, CPat, Core, FnDef, LocalId, Program};
+use crate::core::{CAlt, CBranch, CPat, Core, FnDef, GlobalId, LocalId, Program};
 use crate::repr::Class;
 use std::collections::{BTreeSet, HashMap};
 use std::rc::Rc;
@@ -687,7 +687,7 @@ fn insert_reuse(e: &Core, token: usize, words: usize, tag: usize, ctors: &Ctors)
 /// ownership question, which ignores whether the spine makes the reuse
 /// legal).
 fn reuse_allocation_anywhere(e: &Core, words: usize, tag: usize, ctors: &Ctors) -> bool {
-    if reuse_allocation(e, usize::MAX, words, tag, ctors).is_some() {
+    if compatible_ctor(e, words, tag, ctors).is_some() {
         return true;
     }
     crate::core::child_slots_imm(e)
@@ -695,9 +695,12 @@ fn reuse_allocation_anywhere(e: &Core, words: usize, tag: usize, ctors: &Ctors) 
         .any(|k| reuse_allocation_anywhere(k, words, tag, ctors))
 }
 
-/// The reuse of one saturated constructor allocation, when its cell is
-/// interchangeable with the dying block's.
-fn reuse_allocation(e: &Core, token: usize, words: usize, tag: usize, ctors: &Ctors) -> Option<Core> {
+/// The constructor and fields of a saturated allocation whose cell is
+/// interchangeable with a dying block of `words` payload words matched at
+/// `tag`, if any. The proof is that the block's tag names, inside the same
+/// data type, an unplanned constructor of the same field count: then both
+/// payloads are exactly `words` words, which is what the reuse overwrites.
+fn compatible_ctor<'a>(e: &'a Core, words: usize, tag: usize, ctors: &Ctors) -> Option<(&'a GlobalId, &'a Vec<Core>)> {
     let Core::App(head, args) = e else {
         return None;
     };
@@ -713,9 +716,14 @@ fn reuse_allocation(e: &Core, token: usize, words: usize, tag: usize, ctors: &Ct
     if fact.planned || fact.fields != words || args.len() != words {
         return None;
     }
-    let data = fact.data.as_deref()?;
-    ctors.payload_words(data, tag, words)?;
-    Some(Core::Reuse { token: LocalId(token), ctor: id.clone(), args: args.clone() })
+    ctors.payload_words(fact.data.as_deref()?, tag, words)?;
+    Some((id, args))
+}
+
+/// The reuse of one compatible allocation, reading the cell `token` names.
+fn reuse_allocation(e: &Core, token: usize, words: usize, tag: usize, ctors: &Ctors) -> Option<Core> {
+    let (ctor, args) = compatible_ctor(e, words, tag, ctors)?;
+    Some(Core::Reuse { token: LocalId(token), ctor: ctor.clone(), args: args.clone() })
 }
 
 fn transform(f: &FnDef, modes: &Modes, borrowed: &Set, ctors: &Ctors) -> Core {

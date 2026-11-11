@@ -859,6 +859,57 @@ A `Bytes` concat that owns a unique left operand can `realloc` in place
 `402`, `444` and `530`, `concurrency.rs:200` and `225`, `effects.rs:206`,
 `evolution.rs:393`, and `optimizer.rs:535`.
 
+**Implemented: a `Release` token and `Core::Reuse`** (`compiler/src/rc.rs`,
+`compiler/src/codegen.rs`). The pair above is now in the compiler under the
+names Lean and Idris use for it. `Release` (the existing drop specialisation)
+gains an optional token: its unique path releases the unused fields, keeps the
+cell and binds the block word to the token, and its shared path binds 0. A
+`Core::Reuse` on the same spine writes the new constructor's fields into that
+cell, rewrites the header's count, kind and layout, and stores every payload
+word; on a 0 token it allocates instead. Both paths merge at one join, so the
+store sequence exists once.
+
+Two properties the implementation leans on, and one rule it had to add:
+
+- Insertion runs in the count pass, *after* the inliner has settled, so the
+  specializer's unrolled copies and a unit's residual body each get their own
+  pair. `Release` is never removed, only redirected: any shape whose
+  compatibility cannot be proven keeps the original release and free.
+- Compatibility is a static proof, not a word-count guess. A `case` arm names
+  its block by tag alone, so the pass requires the arm's tag to resolve, inside
+  the *new* constructor's data type, to an unplanned constructor of the same
+  field count. Both payloads are then exactly that many words, which is what
+  makes the word-for-word overwrite safe. Boundary layouts
+  (`repr(C)`/`packed`/`transparent`/`repr(u8)`) and `<builtin>.MutCell` are
+  excluded: a planned payload is not its fields, and a mutable cell's address is
+  observable through the borrow that names it.
+- Borrow inference forces a parameter owned when it is the scrutinee of a
+  `case` an arm of which could reuse (`reuse_scrutinees`). This is Lean's
+  `OwnReason.isForced` rule for a reset target, and without it the two passes
+  cancel: a borrowed scrutinee never reaches the unique path, so the residual
+  unit of a recursive rebuild silently reuses nothing.
+
+Measured on a 1000-cell `Cons` rebuild over 40 rounds: 41,000 heap blocks to
+1,000 (every rebuild cell reused, one allocation per build), `live=0`,
+`leaked=0`.
+
+The two checks in section 1.2, run by a Stage1 built with the working-tree
+compiler against a Stage1 built with the compiler at the parent revision, five
+interleaved pairs on the toolkit and three on the self-check, constructor
+blocks and bytes from `CINCH_ALLOC_KINDS=1` and the leak line on every run:
+
+| Workload | Constructor blocks | Constructor bytes | Wall (median of the pairs) |
+| --- | --- | --- | --- |
+| Toolkit (3,971 lines) | 219,236,816 to 198,245,454 (-9.6%) | 4.71 GB to 4.24 GB (-9.9%) | 73.35 s to 69.34 s (-5.5%) |
+| Self-check (41,110 lines) | 915,859,217 to 816,189,321 (-10.9%) | 20.28 GB to 17.86 GB (-11.9%) | 486.40 s to 478.47 s (-1.7%) |
+
+Every run of both arms exited 0 with no diagnostics and `live=0 immortal=0
+leaked=0`. The wall gain is much smaller than the allocation gain because
+allocation and dropping are one line item of the profile (section 1.2: 22% and
+9% before the size-class heap), and the self-check spends more of its time in
+the checker than the toolkit does, which is why it collects a larger share of
+its blocks as reuse and a smaller share of its time.
+
 **Static uniqueness.** A `%1` or `%aff` binder is never used twice, so the
 pass inserts no dup for it. A dropped `%aff` binder gets exactly one drop.
 But linearity is not uniqueness. A `%1` parameter can receive a value the
