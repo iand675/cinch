@@ -48,6 +48,20 @@ Types may depend on ordinary values, not only compile-time literals. Evaluating 
 
 Inductive definitions MUST satisfy a sound positivity discipline. Recursive logical definitions MUST satisfy a sound termination discipline. Pattern coverage MUST account for indices and impossible constructors. General recursion is available only in a computation form whose divergence is explicit and which cannot fabricate logical evidence.
 
+Data declarations of one module form mutually recursive groups. Declaration order within a module MUST NOT decide whether a data type may name another: the module's data declarations resolve as one block, and the positivity discipline is applied to each strongly connected group of the reference graph rather than to a declaration in isolation. Two declarations that name each other, and a longer cycle, are therefore admitted when every occurrence in the cycle is strictly positive.
+
+For a group `G` (a strongly connected component of the module's data reference graph; a declaration that lies on no cycle is the one-member group `{T}`), each constructor field type `t` of each member MUST satisfy:
+
+1. An occurrence of a member `S` of `G` is allowed only strictly positively: `t` is `S a1 ... an` and no `ai` mentions any member of `G`.
+2. `t` may be an arrow or dependent function `(x :: A) -> B` or `Pi`, or a dependent pair `Sigma (x :: A). B`, or a tuple, or a `Thunk`/`Lazy`/`Later` payload. The codomain (the pair's components, the tuple's components, the payload) is judged with the same polarity; a function's or dependent function's domain is a negative position, so a member occurrence there is refused.
+3. An occurrence of a member of `G` in a negative position is refused.
+4. An occurrence of a member of `G` inside any other type constructor is refused, because that former's positivity preservation is not established (see the open decisions). This covers nesting inside a type parameter (`List T`), inside a handler's input or output, and inside a member's own arguments.
+5. A borrow (`Ref`) or mutable borrow (`Mut`) is a pointer, not a component: a type behind one is not a structural occurrence, so a member occurrence there is admitted and is not judged by these rules.
+
+A cycle that passes through a type former that is not a data declaration of the module (a refinement, a record, codata, an opaque type, a signature, or an imported type) is not a group this discipline covers, so it stays refused: those declarations resolve only against names declared before them. This draft's surface has no type synonyms; when one is added, a cycle through a synonym MUST be refused unless the synonym is expanded before the group is formed.
+
+The positivity discipline of this section is a requirement on the accepted language. An implementation that cannot establish a rule MUST refuse the declaration rather than admit it optimistically.
+
 ```haskell
 data Vec (n :: Nat) (a :: Type) where
   Nil :: Vec 0 a

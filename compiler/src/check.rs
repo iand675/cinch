@@ -2936,6 +2936,10 @@ struct Checker {
     defer_generated_headers: bool,
     deferred_headers: HashMap<(String, String), (ast::Decl, Vec<ast::Attribute>)>,
     declaration_bindings: HashMap<(ast::LocalBinding, ast::RefKind), (String, String)>,
+    /// The strongly connected group of data declarations a positivity check
+    /// covers, by `(module, name)` (core specification section 2, mutual
+    /// inductive groups). A non-recursive declaration's group is itself.
+    data_groups: HashMap<(String, String), Vec<String>>,
     provisional_declarations: bool,
     declaration_needs_headers: Cell<bool>,
     declaration_pending: Cell<usize>,
@@ -3732,6 +3736,7 @@ impl Checker {
             defer_generated_headers: false,
             deferred_headers: HashMap::new(),
             declaration_bindings: HashMap::new(),
+            data_groups: HashMap::new(),
             provisional_declarations: false,
             declaration_needs_headers: Cell::new(false),
             declaration_pending: Cell::new(0),

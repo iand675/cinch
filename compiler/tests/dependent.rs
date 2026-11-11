@@ -302,7 +302,227 @@ module Main where
     );
 }
 
+// ------------------------------------------------------------ mutual data groups
+
+#[test]
+fn mutual_data_two_declaration_cycle_runs() {
+    // Two data declarations that name each other, written with `Stmt`
+    // after `Expr`. The module's data declarations resolve as one block and
+    // the cycle is strictly positive on both sides (core specification
+    // section 2, mutual inductive groups). The occurrences are direct: a
+    // group member nested inside another type constructor (`List Stmt`)
+    // stays refused until positivity-preserving nesting is decided.
+    expect_ok(
+        "mutual-two",
+        r#"
+module Main where
+  data Expr where
+    Lit :: Nat -> Expr
+    Block :: Stmt -> Expr
+
+  data Stmt where
+    Eval :: Expr -> Stmt
+    Seq :: Stmt -> Stmt -> Stmt
+    Skip :: Stmt
+
+  count :: Expr -> Nat
+  count e = case e of
+    Lit n -> 1
+    Block s -> countStmt s
+
+  countStmt :: Stmt -> Nat
+  countStmt s = case s of
+    Eval e -> count e
+    Seq a b -> countStmt a + countStmt b
+    Skip -> 0
+
+  main :: Int
+  main = if count (Block (Seq (Eval (Lit 7)) Skip)) == 1 then 0 else 1
+"#,
+        0,
+    );
+}
+
+#[test]
+fn mutual_data_three_declaration_cycle_runs() {
+    // A three-declaration cycle, written in the order `A`, `C`, `B` so the
+    // middle declaration of the cycle refers both backwards and forwards.
+    expect_ok(
+        "mutual-three",
+        r#"
+module Main where
+  data A where
+    AHere :: Nat -> A
+    AToB :: B -> A
+
+  data C where
+    CToA :: A -> C
+    CEnd :: C
+
+  data B where
+    BToC :: C -> B
+
+  depth :: A -> Nat
+  depth a = case a of
+    AHere n -> n
+    AToB b -> depthB b
+
+  depthB :: B -> Nat
+  depthB b = case b of
+    BToC c -> depthC c
+
+  depthC :: C -> Nat
+  depthC c = case c of
+    CToA a -> depth a + 1
+    CEnd -> 0
+
+  main :: Int
+  main = if depth (AToB (BToC (CToA (AHere 4)))) == 5 then 0 else 1
+"#,
+        0,
+    );
+}
+
+#[test]
+fn mutual_data_cycle_through_a_record_runs() {
+    // A record is a data declaration with one constructor, so it is a group
+    // member like any other and the cycle `A -> Wrap -> A` is judged as one
+    // block. The occurrence in `Wrap.inner` is the field type itself.
+    expect_ok(
+        "mutual-record",
+        r#"
+module Main where
+  data A where
+    AHere :: Nat -> A
+    AToR :: Wrap -> A
+
+  record Wrap where
+    inner :: A
+
+  depth :: A -> Nat
+  depth a = case a of
+    AHere n -> n
+    AToR w -> depth w.inner + 1
+
+  main :: Int
+  main = if depth (AToR (Wrap { inner = AHere 4 })) == 5 then 0 else 1
+"#,
+        0,
+    );
+}
+
+#[test]
+fn mutual_data_rejections_remain() {
+    // Nothing widened: a negative occurrence inside a cycle, a group
+    // occurrence nested inside another type constructor, a negative
+    // occurrence in a record that is part of the cycle, and a cycle
+    // through a type declaration that is not a data declaration (this
+    // surface has no type synonyms, so a refinement is the analogous
+    // former) all stay refused.
+    expect_err(
+        "mutual-negative",
+        r#"
+module Main where
+  data A where
+    AHere :: A
+    AToB :: (B -> A) -> A
+
+  data B where
+    BToA :: A -> B
+
+  main :: Int
+  main = 0
+"#,
+        "positivity",
+    );
+    expect_err(
+        "mutual-nested",
+        r#"
+module Main where
+  data A where
+    AHere :: A
+    AToB :: List B -> A
+
+  data B where
+    BToA :: A -> B
+
+  main :: Int
+  main = 0
+"#,
+        "positivity",
+    );
+    expect_err(
+        "mutual-record-negative",
+        r#"
+module Main where
+  data A where
+    AHere :: A
+    AToR :: Wrap -> A
+
+  record Wrap where
+    f :: A -> A
+
+  main :: Int
+  main = 0
+"#,
+        "positivity",
+    );
+    expect_err(
+        "mutual-through-refinement",
+        r#"
+module Main where
+  data A where
+    AHere :: A
+    AToR :: R -> A
+
+  type R = refine (x :: A) with x == x
+
+  main :: Int
+  main = 0
+"#,
+        "unknown type R",
+    );
+}
+
 // ------------------------------------------------------------ acceptance probe 01
+
+#[test]
+fn mutual_data_accepts_a_forward_reference_without_a_cycle() {
+    // A declaration order that is not a cycle: `P` names `Q` written
+    // later, and `Q` names `P` back, which is a cycle of two. `R` names
+    // `Q` and nothing names `R`, so `R`'s group is itself.
+    expect_ok(
+        "forward-no-cycle",
+        r#"
+module Main where
+  data R where
+    RHere :: Nat -> R
+    RQ :: Q -> R
+
+  data P where
+    PHere :: Nat -> P
+    PQ :: Q -> P
+
+  data Q where
+    QNil :: Q
+    QCons :: P -> Q
+
+  size :: P -> Nat
+  size p = case p of
+    PHere n -> n
+    PQ q -> sizeQ q
+
+  sizeQ :: Q -> Nat
+  sizeQ q = case q of
+    QNil -> 0
+    QCons p -> size p + 1
+
+  main :: Int
+  main = if size (PQ (QCons (PHere 2))) == 3 then 0 else 1
+"#,
+        0,
+    );
+}
 
 #[test]
 fn acceptance_probe_01_bounded_index_runs() {

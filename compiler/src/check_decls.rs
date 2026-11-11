@@ -71,25 +71,38 @@ fn prim_result_promise(op: PrimOp) -> Option<(PTerm, Option<PTerm>)> {
 }
 
 /// The positivity discipline (core specification section 2; roadmap gap
-/// A1): the type being declared may occur in a constructor field only
-/// strictly positively, as the field type itself or in the codomain of an
-/// arrow. Negative occurrences and nesting inside other type constructors
-/// are rejected: positivity-preserving nesting is an open design point
+/// A1): a data declaration may occur in a constructor field only strictly
+/// positively, as the field type itself or in the codomain of an arrow.
+/// Negative occurrences and nesting inside other type constructors are
+/// rejected: positivity-preserving nesting is an open design point
 /// (dependent core kernel design, section 5).
-fn check_positivity(
-    family: &str,
+///
+/// `group` is the declaration's strongly connected group in its module
+/// (`data_sccs`): itself when it is not recursive, every member of the
+/// cycle when data declarations are mutually recursive. A group is checked
+/// as one block, so a member may occur in another member's constructor and
+/// the occurrence is judged against the whole group.
+fn check_group_positivity(
+    group: &[String],
     field: &str,
     ty: &Ty,
     ctor: &ast::Name,
     span: ast::Span,
 ) -> Result<()> {
-    fn go(family: &str, field: &str, ctor: &ast::Name, ty: &Ty, span: ast::Span, positive: bool) -> Result<()> {
+    // A one-member group reads exactly as before, so a non-recursive
+    // declaration's diagnostic keeps naming the type alone.
+    let label = if group.len() == 1 {
+        group[0].clone()
+    } else {
+        format!("the recursive group {{{}}}", group.join(", "))
+    };
+    fn go(group: &[String], label: &str, field: &str, ctor: &ast::Name, ty: &Ty, span: ast::Span, positive: bool) -> Result<()> {
         let bad = |what: &str| {
             Err(Error::at(
                 span,
                 format!(
                     "{} occurs {} in field `{}` of constructor {}; the positivity discipline only allows direct recursive occurrences ({} is not supported in this slice)",
-                    family,
+                    label,
                     what,
                     field,
                     ctor.text,
@@ -99,19 +112,19 @@ fn check_positivity(
         };
         match ty {
             Ty::Adt(n, args) => {
-                if n == family {
+                if group.iter().any(|m| m.as_str() == n.as_str()) {
                     if !positive {
                         return bad("negatively");
                     }
                     for a in args {
-                        if ty_mentions(a, family) {
+                        if mentions_group(a, group) {
                             return bad("nested inside its own arguments");
                         }
                     }
                     Ok(())
                 } else {
                     for a in args {
-                        if ty_mentions(a, family) {
+                        if mentions_group(a, group) {
                             return bad("nested inside another type constructor");
                         }
                     }
@@ -122,16 +135,16 @@ fn check_positivity(
             // positive. A dependent pair is a product: both sides are
             // positive.
             Ty::Fun(a, _, _, b) | Ty::Pi { dom: a, cod: b, .. } => {
-                go(family, field, ctor, a, span, !positive)?;
-                go(family, field, ctor, b, span, positive)
+                go(group, label, field, ctor, a, span, !positive)?;
+                go(group, label, field, ctor, b, span, positive)
             }
             Ty::Sigma { dom, cod, .. } => {
-                go(family, field, ctor, dom, span, positive)?;
-                go(family, field, ctor, cod, span, positive)
+                go(group, label, field, ctor, dom, span, positive)?;
+                go(group, label, field, ctor, cod, span, positive)
             }
             Ty::Tuple(items) => {
                 for i in items {
-                    go(family, field, ctor, i, span, positive)?;
+                    go(group, label, field, ctor, i, span, positive)?;
                 }
                 Ok(())
             }
@@ -140,12 +153,124 @@ fn check_positivity(
                 // reading as a product component. A `Later` payload is a
                 // guarded future observation (core language specification
                 // section 9), read the same way.
-                go(family, field, ctor, inner, span, positive)
+                go(group, label, field, ctor, inner, span, positive)
+            }
+            // A handler carries its input and output by value, so a group
+            // occurrence inside one is a structural occurrence, and the
+            // handler former is not established as positivity-preserving:
+            // it counts as nesting inside another type constructor.
+            Ty::Handler { input, output, .. } => {
+                if mentions_group(input, group) || mentions_group(output, group) {
+                    return bad("nested inside another type constructor");
+                }
+                Ok(())
             }
             _ => Ok(()),
         }
     }
-    go(family, field, ctor, ty, span, true)
+    go(group, &label, field, ctor, ty, span, true)
+}
+
+/// Does this type mention any member of the group?
+fn mentions_group(t: &Ty, group: &[String]) -> bool {
+    group.iter().any(|m| ty_mentions(t, m))
+}
+
+/// The data type names a source type expression names without a module
+/// qualifier, in `module`. The declaration-order-free resolution this
+/// slice adds covers data declarations of one module, so a qualified name
+/// (`Other.T`) and a captured-scope name are not references to it.
+fn data_type_references(ty: &ast::Type, module: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut ty = ty.clone();
+    ty.visit_mut(&mut |node| {
+        let ast::Type::Con(path, _) = node else { return };
+        let parts = path.parts();
+        let local = match parts.as_slice() {
+            [name] => {
+                let segment = &path.segments[0];
+                match segment.resolved_binding() {
+                    Some(resolved) => resolved.module() == module && resolved.name() == *name,
+                    None => segment.scoped_reference().is_none(),
+                }
+            }
+            [owner, name] => *owner == module && !name.is_empty(),
+            _ => false,
+        };
+        let Some(name) = parts.last() else { return };
+        if local && !out.iter().any(|n| n == name) {
+            out.push(name.to_string());
+        }
+    });
+    out
+}
+
+/// Strongly connected components of a graph given as adjacency lists
+/// (Tarjan, iterative: the graphs are declaration counts, and recursion
+/// would be the only depth limit). Components come out in reverse
+/// topological order and each component's members are sorted.
+fn strongly_connected(edges: &[Vec<usize>]) -> Vec<Vec<usize>> {
+    #[derive(Clone, Copy)]
+    struct Node {
+        index: usize,
+        low: usize,
+        on_stack: bool,
+    }
+    let n = edges.len();
+    let mut nodes: Vec<Option<Node>> = vec![None; n];
+    let mut stack: Vec<usize> = Vec::new();
+    let mut next_index = 0usize;
+    let mut out: Vec<Vec<usize>> = Vec::new();
+    // (node, next edge position to consider)
+    let mut frames: Vec<(usize, usize)> = Vec::new();
+    for root in 0..n {
+        if nodes[root].is_some() {
+            continue;
+        }
+        nodes[root] = Some(Node { index: next_index, low: next_index, on_stack: true });
+        next_index += 1;
+        stack.push(root);
+        frames.push((root, 0));
+        while let Some(&mut (node, ref mut cursor)) = frames.last_mut() {
+            if *cursor < edges[node].len() {
+                let to = edges[node][*cursor];
+                *cursor += 1;
+                match nodes[to] {
+                    None => {
+                        nodes[to] = Some(Node { index: next_index, low: next_index, on_stack: true });
+                        next_index += 1;
+                        stack.push(to);
+                        frames.push((to, 0));
+                    }
+                    Some(other) if other.on_stack => {
+                        let low = nodes[node].unwrap().low.min(other.index);
+                        nodes[node] = Some(Node { low, ..nodes[node].unwrap() });
+                    }
+                    Some(_) => {}
+                }
+            } else {
+                frames.pop();
+                let finished = nodes[node].unwrap();
+                if let Some(&mut (parent, _)) = frames.last_mut() {
+                    let low = nodes[parent].unwrap().low.min(finished.low);
+                    nodes[parent] = Some(Node { low, ..nodes[parent].unwrap() });
+                }
+                if finished.low == finished.index {
+                    let mut component: Vec<usize> = Vec::new();
+                    while let Some(top) = stack.pop() {
+                        nodes[top] = Some(Node { on_stack: false, ..nodes[top].unwrap() });
+                        component.push(top);
+                        if top == node {
+                            break;
+                        }
+                    }
+                    component.sort_unstable();
+                    out.push(component);
+                }
+            }
+        }
+    }
+    out
 }
 
 /// Does this type mention the name (as a type constructor head, a type
@@ -2828,6 +2953,166 @@ impl Checker {
         Err(Error::plain("module export surfaces did not stabilize"))
     }
 
+    /// A nominal declaration's parameters and their kinds: a kind
+    /// annotation classifies each one as a type parameter or an index value
+    /// (`data Vec (n :: Nat) (a :: Type)`); an un-annotated parameter is a
+    /// type parameter (dependent core kernel design, section 5).
+    fn nominal_params(&mut self, params: &[ast::TypeBinder]) -> Result<(Vec<String>, Vec<ParamKind>)> {
+        let mut names: Vec<String> = Vec::new();
+        let mut kinds: Vec<ParamKind> = Vec::new();
+        for b in params {
+            let k = match &b.ann {
+                Some(ann) => self.binder_kind(ann, &names)?,
+                None => ParamKind::Type,
+            };
+            names.push(b.name.text.clone());
+            kinds.push(k);
+        }
+        Ok((names, kinds))
+    }
+
+    /// The strongly connected group of data declarations a positivity check
+    /// covers, as nominal identities. A declaration that is not part of a
+    /// cycle is its own group.
+    fn data_group(&self, module: &str, name: &ast::Name) -> Vec<String> {
+        self.data_groups
+            .get(&(module.to_string(), name.text.clone()))
+            .cloned()
+            .unwrap_or_else(|| vec![nominal_identity(module, name)])
+    }
+
+    /// Register every data and record declaration head of this module
+    /// before any constructor or field type converts, and record each
+    /// declaration's strongly connected group.
+    ///
+    /// Two data declarations may therefore name each other in any textual
+    /// order; the module's data and record declarations resolve as one
+    /// block, and the positivity check judges each declaration's group as a
+    /// whole (core specification section 2, mutual inductive groups). A
+    /// record is a data declaration with one constructor, so it is a member
+    /// of a group like any other. Resolution stays module-local: codata, a
+    /// refinement, an opaque type or a signature declaration written later
+    /// is still not visible to an earlier declaration, and a qualified name
+    /// still resolves through the imports.
+    fn predeclare_nominal_heads(
+        &mut self,
+        module: &str,
+        flat: &[(Vec<ast::Attribute>, ast::Decl)],
+    ) -> Result<()> {
+        /// One pre-registered head: what the name resolves to before its
+        /// own declaration is collected.
+        struct Head<'a> {
+            name: &'a ast::Name,
+            params: &'a [ast::TypeBinder],
+            /// The type names the declaration's body mentions.
+            references: Vec<String>,
+            data_family: bool,
+            fields: Option<Vec<String>>,
+            field_erased: Vec<bool>,
+        }
+        let mut heads: Vec<Head> = Vec::new();
+        for (_, d) in flat {
+            match d {
+                ast::Decl::Data(data) => {
+                    let mut references = Vec::new();
+                    for c in &data.ctors {
+                        references.extend(data_type_references(&c.ty, module));
+                    }
+                    heads.push(Head {
+                        name: &data.name,
+                        params: &data.params,
+                        references,
+                        data_family: true,
+                        fields: None,
+                        field_erased: Vec::new(),
+                    });
+                }
+                ast::Decl::Record(rec) => {
+                    let mut references = Vec::new();
+                    for f in &rec.fields {
+                        references.extend(data_type_references(&f.ty, module));
+                    }
+                    heads.push(Head {
+                        name: &rec.name,
+                        params: &rec.params,
+                        references,
+                        data_family: false,
+                        fields: Some(rec.fields.iter().map(|f| f.name.text.clone()).collect()),
+                        field_erased: rec.fields.iter().map(|f| f.erased).collect(),
+                    });
+                }
+                _ => {}
+            }
+        }
+        if heads.is_empty() {
+            return Ok(());
+        }
+        let index: HashMap<&str, usize> = heads
+            .iter()
+            .enumerate()
+            .map(|(i, h)| (h.name.text.as_str(), i))
+            .collect();
+        let mut edges: Vec<Vec<usize>> = vec![Vec::new(); heads.len()];
+        for (from, h) in heads.iter().enumerate() {
+            for reference in &h.references {
+                let Some(&to) = index.get(reference.as_str()) else { continue };
+                if !edges[from].contains(&to) {
+                    edges[from].push(to);
+                }
+            }
+        }
+        for component in strongly_connected(&edges) {
+            if component.len() == 1 && !edges[component[0]].contains(&component[0]) {
+                continue;
+            }
+            let members: Vec<String> = component
+                .iter()
+                .map(|&i| nominal_identity(module, heads[i].name))
+                .collect();
+            for &i in &component {
+                self.data_groups
+                    .insert((module.to_string(), heads[i].name.text.clone()), members.clone());
+            }
+        }
+        for h in heads {
+            if Scalar::parse(&h.name.text).is_some() || builtin_type_name(&h.name.text) {
+                // The collecting branch refuses a builtin redefinition by
+                // name; registering it first would shadow the builtin for
+                // the rest of the module.
+                continue;
+            }
+            // A name this module already declares is a duplicate; the
+            // pre-pass is the first thing this module's collection does,
+            // so this is the same rule the per-declaration branches state.
+            if self
+                .types
+                .get(&h.name.text)
+                .map(|l| l.iter().any(|t| t.module == module))
+                .unwrap_or(false)
+            {
+                return Err(Error::at(h.name.span, format!("duplicate type {}", h.name.text)));
+            }
+            let (params, param_kinds) = self.nominal_params(h.params)?;
+            self.types
+                .entry(h.name.text.clone())
+                .or_default()
+                .push(TypeKind {
+                    data_family: h.data_family,
+                    module: module.to_string(),
+                    name: h.name.text.clone(),
+                    identity: nominal_identity(module, h.name),
+                    arity: params.len(),
+                    param_kinds,
+                    ctors: Vec::new(),
+                    fields: h.fields,
+                    field_erased: h.field_erased,
+                    opaque: false,
+                    refine: None,
+                });
+        }
+        Ok(())
+    }
+
     fn collect_module(
         &mut self,
         m: &ast::Module,
@@ -2984,6 +3269,12 @@ impl Checker {
                 }
             });
         }
+
+        // Every data and record head in the module registers before any
+        // constructor or field type converts, so those declarations may
+        // name each other in any textual order (mutual inductive groups,
+        // core specification section 2).
+        self.predeclare_nominal_heads(&module, &flat)?;
 
         for (decl_attrs, d) in &flat {
             // A parameterized module carries its parameters into every
@@ -3554,42 +3845,22 @@ impl Checker {
                             format!("{} is a builtin primitive type and cannot be redefined", data.name.text),
                         ));
                     }
-                    if self
-                        .types
-                        .get(&data.name.text)
-                        .map(|l| l.iter().any(|t| t.module == module))
-                        .unwrap_or(false)
-                    {
-                        return Err(Error::at(data.name.span, format!("duplicate type {}", data.name.text)));
-                    }
                     // Parameters: a kind annotation classifies each one as
                     // a type parameter or an index value (`data Vec (n ::
                     // Nat) (a :: Type)`); an un-annotated parameter is a
                     // type parameter (dependent core kernel design,
                     // section 5).
-                    let mut params: Vec<String> = Vec::new();
-                    let mut param_kinds: Vec<ParamKind> = Vec::new();
-                    for b in &data.params {
-                        let k = match &b.ann {
-                            Some(ann) => self.binder_kind(ann, &params)?,
-                            None => ParamKind::Type,
-                        };
-                        params.push(b.name.text.clone());
-                        param_kinds.push(k);
-                    }
+                    let (params, param_kinds) = self.nominal_params(&data.params)?;
                     let mut ctors: Vec<(String, usize)> = Vec::new();
-                    // Register the type before converting constructor types,
-                    // which may mention the type being declared.
-                    self.types.entry(data.name.text.clone()).or_default().push(TypeKind {
-                        data_family: true,
-                        module: module.clone(),
-                        name: data.name.text.clone(), identity: nominal_identity(&module, &data.name),
-                        arity: params.len(),
-                        param_kinds: param_kinds.clone(),
-                        ctors: Vec::new(),
-                        fields: None,
-                        field_erased: Vec::new(), opaque: false, refine: None,
-                    });
+                    // The head is already registered: every data and record
+                    // head in the module was registered before any
+                    // constructor type converted, so a data declaration may
+                    // name one written later (`predeclare_nominal_heads`). A
+                    // duplicate name was refused there.
+                    debug_assert!(self
+                        .types
+                        .get(&data.name.text)
+                        .is_some_and(|l| l.iter().any(|t| t.module == module)));
                     for (tag, c) in data.ctors.iter().enumerate() {
                         self.validate_attr_site(&c.attrs, AttrSite::Ctor)?;
                         self.kind_constraints.borrow_mut().clear();
@@ -3727,9 +3998,13 @@ impl Checker {
                         }
                         // Positivity (core specification section 2; the
                         // positivity discipline applies to ordinary
-                        // `data` too, roadmap gap A1).
+                        // `data` too, roadmap gap A1). The group is this
+                        // declaration's strongly connected group: a
+                        // mutually recursive cycle is checked as one
+                        // block.
+                        let group = self.data_group(&module, &data.name);
                         for (fname, fty, _) in &fields {
-                            check_positivity(&nominal_identity(&module, &data.name), fname, fty, &c.name, c.ty.span())?;
+                            check_group_positivity(&group, fname, fty, &c.name, c.ty.span())?;
                         }
                         if fields.iter().any(|(_, ty, mult)| *mult == Mult::Zero && !erased_ty(ty)) {
                             return Err(Error::at(
@@ -4098,24 +4373,15 @@ impl Checker {
                     if matches!(rec.name.text.as_str(), "Array" | "Tensor" | "Columnar") {
                         return Err(Error::at(rec.name.span, format!("{} is a builtin primitive type and cannot be redefined", rec.name.text)));
                     }
-                    if self
+                    // The head is already registered, with its parameter
+                    // kinds, field names and field erasure
+                    // (`predeclare_nominal_heads`); a duplicate name was
+                    // refused there.
+                    debug_assert!(self
                         .types
                         .get(&rec.name.text)
-                        .map(|l| l.iter().any(|t| t.module == module))
-                        .unwrap_or(false)
-                    {
-                        return Err(Error::at(rec.name.span, format!("duplicate type {}", rec.name.text)));
-                    }
-                    let mut params: Vec<String> = Vec::new();
-                    let mut param_kinds: Vec<ParamKind> = Vec::new();
-                    for b in &rec.params {
-                        let k = match &b.ann {
-                            Some(ann) => self.binder_kind(ann, &params)?,
-                            None => ParamKind::Type,
-                        };
-                        params.push(b.name.text.clone());
-                        param_kinds.push(k);
-                    }
+                        .is_some_and(|l| l.iter().any(|t| t.module == module)));
+                    let (params, param_kinds) = self.nominal_params(&rec.params)?;
                     let mut field_names: Vec<String> = Vec::new();
                     let mut field_erased: Vec<bool> = Vec::new();
                     let mut field_reprs: Vec<ReprSpec> = Vec::new();
@@ -4153,18 +4419,6 @@ impl Checker {
                         field_names.push(f.name.text.clone());
                         field_erased.push(f.erased);
                     }
-                    // Register the type before converting field types, which
-                    // may mention the record being declared.
-                    self.types.entry(rec.name.text.clone()).or_default().push(TypeKind {
-                        data_family: false,
-                        module: module.clone(),
-                        name: rec.name.text.clone(), identity: nominal_identity(&module, &rec.name),
-                        arity: params.len(),
-                        param_kinds: param_kinds.clone(),
-                        ctors: Vec::new(),
-                        fields: Some(field_names.clone()),
-                        field_erased: field_erased.clone(), opaque: false, refine: None,
-                    });
                     // A record's fields see the parameters and the earlier
                     // fields: `erased bound :: length bytes <= limit`
                     // mentions both (core specification section 5).
@@ -4172,6 +4426,17 @@ impl Checker {
                     let mut field_tys = Vec::new();
                     for f in &rec.fields {
                         let t = self.conv_type(&f.ty, &vars)?;
+                        // A record is a data declaration with one
+                        // constructor, so its fields obey the same
+                        // group positivity discipline (core specification
+                        // section 2).
+                        check_group_positivity(
+                            &self.data_group(&module, &rec.name),
+                            &f.name.text,
+                            &t,
+                            &rec.name,
+                            f.span,
+                        )?;
                         if f.erased && !matches!(t, Ty::Prp(_)) {
                             return Err(Error::at(
                                 f.name.span,
@@ -4398,7 +4663,7 @@ impl Checker {
                     let mut obs_tys = Vec::new();
                     for f in &rec.fields {
                         let t = self.conv_type(&f.ty, &vars)?;
-                        check_positivity(&nominal_identity(&module, &rec.name), &f.name.text, &t, &rec.name, f.span)?;
+                        check_group_positivity(&[nominal_identity(&module, &rec.name)], &f.name.text, &t, &rec.name, f.span)?;
                         obs_tys.push(t);
                         vars.push(f.name.text.clone());
                     }
