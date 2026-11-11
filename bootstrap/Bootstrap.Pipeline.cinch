@@ -450,8 +450,9 @@ module Bootstrap.Pipeline where
   -- manifest embeds them) and what the scope allocates is their rendering,
   -- which nothing reads once the bytes are written. So the scope can hold
   -- its own churn and free it wholesale, and no word it served outlives it.
-  -- `CINCH_ARENA=0` makes both entries no-ops, so the same build measures
-  -- the same phase with every block back on the counted heap.
+  -- `CINCH_ARENA=1` enables the scope; unset makes both entries no-ops,
+  -- so the same build measures the same phase with every block back on
+  -- the counted heap.
   write-source-artifacts :: forall r. using (io :: Io r) => String -> Bytes -> CheckedProgram -> List LoadedInterface -> List (String, Json) ->{IO r, Diverge} Unit
   write-source-artifacts name src checked admitted replaced = case export-interfaces checked admitted src of
     Err message -> ()

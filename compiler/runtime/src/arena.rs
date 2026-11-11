@@ -66,10 +66,13 @@
 //!
 //! # Environment
 //!
-//! `CINCH_ARENA=0` makes [`cinch_arena_new`] return the null handle, so
-//! the program's arena scopes become no-ops and every block comes from
-//! the counted heap: the same build measured with the mechanism off.
-//! Unset, or any other value, enters a real arena.
+//! The mechanism is off unless a program asks for it: `CINCH_ARENA=1`
+//! makes [`cinch_arena_new`] enter a real arena, and unset (or any other
+//! value) makes it return the null handle, so the program's arena scopes
+//! are no-ops and every block comes from the counted heap. Off is the
+//! default because a new allocation strategy should be asked for, and
+//! because it is what makes "the mechanism is present but unused" a
+//! measurable arm of the same build.
 //!
 //! # Statistics
 //!
@@ -149,14 +152,15 @@ const ON: u8 = 1;
 const OFF: u8 = 2;
 static ENABLED: AtomicU8 = AtomicU8::new(UNREAD);
 
-/// Whether arena entry allocates anything. `CINCH_ARENA=0` says no; the
-/// read happens on the first [`cinch_arena_new`] and allocates nothing.
+/// Whether arena entry allocates anything. `CINCH_ARENA=1` says yes and
+/// the default says no; the read happens on the first
+/// [`cinch_arena_new`] and allocates nothing.
 fn enabled() -> bool {
     match ENABLED.load(Relaxed) {
         ON => true,
         OFF => false,
         _ => {
-            let on = crate::heap::env_bytes(c"CINCH_ARENA") != Some(b"0");
+            let on = crate::heap::env_bytes(c"CINCH_ARENA") == Some(b"1");
             ENABLED.store(if on { ON } else { OFF }, Relaxed);
             on
         }
@@ -183,7 +187,7 @@ pub fn stats() -> (u64, u64, u64, u64) {
 /// thread's arena into another thread's allocations.
 ///
 /// [`ENTERED`] is the fast path: while no thread in the process has an
-/// arena (the ordinary case, and the `CINCH_ARENA=0` arm), the check is
+/// arena (the default, and the disabled arm), the check is
 /// one relaxed load of a word no thread writes. Once any arena is
 /// entered, every allocation pays the thread-local read and compares the
 /// pointed-to arena, which is the mechanism's cost while it operates.
@@ -352,7 +356,7 @@ pub unsafe fn leave(arena: *mut Arena) {
 }
 
 /// Enter a fresh arena whose first chunk is at least `bytes` bytes and
-/// return its handle, or 0 when `CINCH_ARENA=0` (every scope then a
+/// return its handle, or 0 unless `CINCH_ARENA=1` (every scope is then a
 /// no-op and every block a heap block). A negative size is a
 /// compiler-bug trap.
 ///

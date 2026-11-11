@@ -90,13 +90,13 @@ fn a_scoped_arena_carries_a_program_list_and_leaves_nothing_behind() {
         "the counted heap keeps no share of the list ({heap_cells} cells against {arena_cells}):\n{stderr}"
     );
 
-    let disabled = run_with(&exe, "0");
+    let disabled = run_with(&exe, "");
     assert_eq!(disabled.status.code(), Some(0), "the disabled arm runs the same program");
     let stderr = String::from_utf8_lossy(&disabled.stderr);
     assert_eq!(
         kind_blocks(&stderr, "cinch-arena-kind:", "ctor"),
         0,
-        "CINCH_ARENA=0 enters no arena:\n{stderr}"
+        "the default enters no arena:\n{stderr}"
     );
     assert!(
         kind_blocks(&stderr, "cinch-alloc-kind:", "ctor") >= 1000,

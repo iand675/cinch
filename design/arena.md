@@ -529,10 +529,16 @@ leak of roughly a quarter of the `Bytes` traffic of the phase it wraps.
   `Bootstrap.Builtin.platform-intrinsic` for the self-hosted compiler, and in
   `Bootstrap.RuntimeIr.declarations-counting`. The namespace is reserved
   (D73), so a program reaches them only by spelling the intrinsic.
-* `CINCH_ARENA=0` makes `cinch_arena_new` return 0, so every scope is a no-op
-  and every block is a heap block: one build, two arms.
+* The mechanism is off by default: `CINCH_ARENA=1` enters a real arena and
+  unset makes `cinch_arena_new` return 0, so every scope is a no-op and every
+  block is a heap block. One build therefore has both arms, and the shipped
+  default carries no allocation cost at all.
 
 ### 8.4 The phase, and the numbers
+
+The arms below were measured before the default flipped: at that time unset
+meant entered. 8.6 separates the two costs the numbers mix, and states the
+shipped default.
 
 The phase is interface serialization, entered after `export-interfaces`
 (the `Json` documents are built before it and the manifest embeds them) and
@@ -600,3 +606,62 @@ mechanism, so an arena needs no new kind, no new mark, and no change to any
 count path. Second, an arena block that owns a heap block is a leak unless
 teardown releases children; a runtime arena without that walk is not
 shippable, and the leak check finds it in one run.
+
+### 8.6 What the mechanism costs when it is not used
+
+The hook is in `block::allocate_block`, on the path of every constructor,
+closure and dictionary allocation, so the question that decides whether this
+lands is what the hook costs when no arena is ever entered. The shipped
+default is now off (`CINCH_ARENA=1` is the only value that enters one), which
+makes that the ordinary configuration.
+
+Two stage-3 binaries, same machine, no census variables, interleaved pairs,
+`/usr/bin/time -l`, stage3 `--check`:
+
+| workload | pairs | pre-change CPU (spread) | with the hook CPU (spread) | delta |
+| --- | --- | --- | --- | --- |
+| toolkit, arena never entered | 5 | 6.64 s (1.25) | 6.57 s (0.65) | -1.05% |
+| toolkit, arena entered | 5 | 6.06 s (0.11) | 6.14 s (0.17) | +1.32% |
+| self-check, arena entered | 3 | 62.27 s (5.93) | 62.48 s (10.00) | +0.34% |
+
+The first row is the hook alone: 264 million blocks, 236 million of them
+constructor cells, and the two spreads overlap. The second and third rows add
+the arena's own work and are dominated by it (the toolkit phase is +3.8% when
+on, section 8.4). Wall follows CPU in every row to within 0.2 percentage
+points. Peak resident set is unchanged when the arena is not entered (40.1 MB
+in both toolkit arms) and doubles when it is (84.8 MB).
+
+So: the unused mechanism is inside noise, and the whole mechanism including
+its one phase is inside the self-check's spread. The pre-change binary was
+built from `f158d5c4` with its own pin into a separate `CINCH_BOOTSTRAP_BUILD`,
+same flags, and both builds are PGO'd; the profile keys differ
+(`14534dc6e637`/`2938100e49d0` against `ea93e7dd4a49`/`9fc4075e675d`) because
+the sources differ, and each was trained on the same workload by the same
+builder, so neither arm is an unoptimised build. A `--no-pgo` cross-check
+would need two more chains and was not run.
+
+Two caveats on the numbers. The self-check spread is 10% to 16%, so only the
+toolkit rows carry signal, and its 0.34% is reported as "inside the spread",
+not as a measurement of a difference. And the pairs were taken with other
+lanes possibly running: `tooling/build_slots.py` did not exist yet, so nothing
+excluded a neighbour's build from a pair; the interleaving is what makes the
+comparison usable, and a quiet-machine rerun is the honest next step for the
+self-check row.
+
+**A separate finding from the rebase, not about this change.** Main's slot
+semaphore changed the default stage link from one translation unit to
+`min(cores/2, cores/slots)`, which on this machine is `-j 3`. With `-j 3` the
+stage-1 profile *training* run of the instrumented link exits `-10` (SIGBUS)
+after about 2.4 s, reproducibly, and no stage builds; with `-j 1` every stage
+trains and links. The same instrumented binary linked as one translation unit
+runs the training workload in 6.8 s and exits 0, so the fault is in the
+sharded instrumented link or in its profile dump, not in the compiler's work
+and not in this arena. The chain gates in 8.7 were taken with `-j 1`.
+
+### 8.7 The chain gate on the rebased tree
+
+`tooling/bootstrap.py build --stage 3 -j 1`, exit 0. Stage2 against stage3:
+`compiler.ll` identical, `cinch` identical, 46 `.cinchif` identical.
+`smoke --stage 3`: fib, precedence and refusal pass. Leak check on a check of
+the toolkit bundle: `cinch-leak: live=0 immortal=0 leaked=0` with
+`CINCH_ARENA` unset and with `CINCH_ARENA=1`.

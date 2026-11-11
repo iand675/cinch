@@ -285,8 +285,8 @@
 //!   constructor cells and closure and dictionary blocks come from its
 //!   chunks with `RC_IMMORTAL` headers, so their `dup` and `drop` do
 //!   nothing, and leave returns the chunks wholesale. The handle is a
-//!   machine word (never a block), 0 when `CINCH_ARENA=0` disables the
-//!   mechanism. Only a scope whose result is a machine scalar or a value
+//!   machine word (never a block), 0 unless `CINCH_ARENA=1` enables the
+//!   mechanism (off by default). Only a scope whose result is a machine scalar or a value
 //!   of a kind the arena does not serve may hold one: a word pointing
 //!   into an arena's chunks must not be reachable after leave.
 //!

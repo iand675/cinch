@@ -1,7 +1,7 @@
 {
   "description": "ABI 9 library producer with the bump arena in the runtime and its intrinsics.",
-  "revision": "e3705d4f78bb5de5168f540e519e8bacc5a214fe",
+  "revision": "e237aa3b3dc0cd6e5d49d994b3d7f3a152960625",
   "runtime_abi": 9,
   "schema": 1,
-  "source_sha256": "0ebe3caf1980c0a7884730eba5265aa84a20c950598022f7bac324e0fae2c38a"
+  "source_sha256": "196b39fa78244ddcd094aafd17a4529aeb44d386d162e3d19d1ab86460fbc595"
 }
