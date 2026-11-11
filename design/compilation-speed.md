@@ -30,8 +30,8 @@ Self-host compute on this machine, one job, `-O2` links unless stated.
 | Clang, Stage1 IR at `-O2` | 55 s | 23 s IR optimization, 31 s machine code generation |
 | Stage1 compiles Stage2 | 9 min | the largest single compile in the chain |
 | Stage2 compiles Stage3 | 6.5 min | |
-| Full Stage0 to Stage3 chain | 20 min | cold, with the library provider |
-| Cinch-built Stage2 checks the 4K-line toolkit | 11 s at `-O2`, 21 s at `-O0` | |
+| Full Stage0 to Stage3 chain | 20 min at the start of the day; 335 s now (warm seed, PGO, sharded links) | measured 2026-11-11 on 18 cores |
+| Cinch-built Stage2 checks the 4K-line toolkit | 11 s at `-O2`, 21 s at `-O0`; 15 s now with the interface fixes | |
 
 Phase split of a Stage2 self-compile at `-O2` (from stack samples, one per
 11 s, before and after the quadratic-pass removal):
