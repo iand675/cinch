@@ -31,7 +31,7 @@ TOOLKIT = ("Lex", "Scan", "Parse", "Json", "Builder")
 PROTOCOL = 4
 HOST = {"system": platform.system(), "machine": platform.machine()}
 FROZEN_SOURCES = None
-RUNTIME_ABIS = (5, 6, 7)
+RUNTIME_ABIS = (5, 6, 7, 8)
 # Parallel clang jobs for the stage link. 1 keeps the single-module
 # translation unit; above 1 the module is sharded (see tooling/shard_ir.py).
 JOBS = 1
@@ -577,7 +577,8 @@ def build_stage(stage: int) -> Path:
     if PGO:
         record.unlink(missing_ok=True)
         append = shlex.join(pgo.generate_flags(directory / "pgo" / "raw"))
-    code = run([builder, "build", sources / "Main.cinch", "-o", compiler, "--opt-level", "2"],
+    seed_flags = os.environ.get("CINCH_SEED_FLAGS", "").split()
+    code = run([builder, "build", sources / "Main.cinch", "-o", compiler, "--opt-level", "2", *seed_flags],
                sources, log, env_extra=stage_link_environment(append, record if PGO else None))
     if code == 0 and PGO:
         # The seed's instrumented link is inside the seed's own command, so
