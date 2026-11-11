@@ -467,7 +467,8 @@ fn the_lowered_dump_marks_the_frame_decision_and_verifies() {
 // scrutinee read into a `Drop` rather than a `Dup`.
 
 use cinch::core::{
-    CAlt, CPat, Core, FnDef, FnHints, FnMeta, GlobalId, InstanceDef, LocalId, Program, UnitRepr,
+    CAlt, CBranch, CPat, Core, FnDef, FnHints, FnMeta, GlobalId, InstanceDef, LocalId, Program,
+    UnitRepr,
 };
 
 fn test_gid(name: &str) -> GlobalId {
@@ -600,6 +601,9 @@ fn consuming_callee() -> FnDef {
 }
 
 /// `let p = MkPair in <tail>`: one block, handed to `Main.first` by `tail`.
+/// `<tail>` is the unit's result, so a bare [`call_first`] there is a call in
+/// tail position; [`bind`] puts the same call in a `let` value, which it is
+/// not.
 fn consumed_argument(tail: Core) -> Program {
     let body = Core::Let(
         LocalId(0),
@@ -625,6 +629,11 @@ fn call_first() -> Core {
     Core::App(Box::new(Core::Global(test_gid("Main.first"), vec![])), vec![Core::Var(LocalId(0))])
 }
 
+/// `let r = <v> in r`: the same value, one `let` away from tail position.
+fn bind(v: Core) -> Core {
+    Core::Let(LocalId(7), Class::Raw, Box::new(v), Box::new(Core::Var(LocalId(7))))
+}
+
 fn local_allocated(p: &mut Program, widen: Widen) -> bool {
     let opts = Options { widen, ..Options::default() };
     cinch::stack::allocate(p, &cinch::core::TargetProfile::native(), &opts);
@@ -634,7 +643,7 @@ fn local_allocated(p: &mut Program, widen: Widen) -> bool {
 #[test]
 fn a_frame_block_passed_to_a_consuming_owned_parameter_takes_a_slot() {
     for widen in [Widen::All, Widen::Consume] {
-        let mut p = consumed_argument(call_first());
+        let mut p = consumed_argument(bind(call_first()));
         assert!(local_allocated(&mut p, widen), "{widen:?}: the consumed argument has no frame slot: {:?}", p.stack);
         // The callee needs the runtime's frame arms even though it builds
         // no frame block of its own.
@@ -646,18 +655,58 @@ fn a_frame_block_passed_to_a_consuming_owned_parameter_takes_a_slot() {
     }
 }
 
+/// The callee's frame replaces the caller's in a tail call: a `musttail`
+/// call for a saturated call whose signature matches, a jump to the loop
+/// header for a self tail call. The callee's own spills then land in the
+/// caller's slot, so the argument it was handed describes a block the callee
+/// has already overwritten. Nothing in the argument's position, ownership or
+/// read-only-ness can make that safe, so every tail-call argument stays on
+/// the heap.
+#[test]
+fn a_frame_block_passed_to_a_tail_call_stays_on_the_heap() {
+    // A consumed owned parameter: the transfer the widening admits. Every
+    // form that keeps tail position is the same call in the emitted code
+    // (`CoreEmitter::emit_to` settles each into one destination), so each
+    // one must be refused: the unit's body, a count operation's body, and
+    // an `If` branch.
+    let count_use = Core::Dup(LocalId(0), Class::Obj, Box::new(call_first()));
+    let branch_use = Core::If(
+        Box::new(Core::Bool(true)),
+        CBranch::new(call_first()),
+        CBranch::new(Core::Int(0)),
+    );
+    for tail in [call_first(), count_use, branch_use] {
+        for widen in [Widen::All, Widen::Consume] {
+            let mut p = consumed_argument(tail.clone());
+            assert!(
+                !local_allocated(&mut p, widen),
+                "{widen:?}: a tail-call argument took a frame slot: {:?}",
+                p.frame
+            );
+            assert_eq!(p.stack.refused.get("escapes"), Some(&1), "{widen:?}: {:?}", p.stack);
+            assert!(p.stack.receives_frame.is_empty(), "{widen:?}: {:?}", p.stack);
+        }
+    }
+    // A lent parameter: a read, which the rule admits in any other
+    // position, and which the same frame reuse makes just as unsafe here.
+    let mut p = consumed_argument(call_first());
+    p.borrowed.insert("Main.first".to_string(), vec![true]);
+    assert!(!local_allocated(&mut p, Widen::None), "a lent tail-call argument took a frame slot: {:?}", p.frame);
+    assert_eq!(p.stack.refused.get("escapes"), Some(&1), "{:?}", p.stack);
+}
+
 #[test]
 fn a_frame_block_passed_to_a_borrowed_or_unconsuming_parameter_stays_on_the_heap() {
     // The rule as it was before the widening: a pass to a callee's
     // parameter is an escape.
-    let mut p = consumed_argument(call_first());
+    let mut p = consumed_argument(bind(call_first()));
     assert!(!local_allocated(&mut p, Widen::None), "the disabled rule admitted the pass: {:?}", p.frame);
     assert_eq!(p.stack.refused.get("escapes"), Some(&1), "{:?}", p.stack);
     assert!(p.stack.receives_frame.is_empty(), "{:?}", p.stack);
     // A callee that does not consume its parameter (it returns it) leaves
     // the block reachable from its caller's caller, so the pass refuses
     // even with the widening on.
-    let mut p = consumed_argument(call_first());
+    let mut p = consumed_argument(bind(call_first()));
     for f in p.fns.iter_mut() {
         if f.id.0 == "Main.first" {
             f.body = Core::Var(LocalId(0));
@@ -670,9 +719,13 @@ fn a_frame_block_passed_to_a_borrowed_or_unconsuming_parameter_stays_on_the_heap
 #[test]
 fn a_frame_block_parameter_that_is_lent_is_not_a_consumption() {
     // A borrowed parameter is not the callee's to release: the caller's
-    // own drop still is, so the transfer is already admissible and the
-    // receiver needs no frame arms.
-    let mut p = consumed_argument(Core::Drop(LocalId(0), Class::Obj, Box::new(call_first())));
+    // own drop still is, so the transfer is admissible in a non-tail call
+    // and the receiver needs no frame arms.
+    let mut p = consumed_argument(Core::Drop(
+        LocalId(0),
+        Class::Obj,
+        Box::new(bind(call_first())),
+    ));
     p.borrowed.insert("Main.first".to_string(), vec![true]);
     assert!(local_allocated(&mut p, Widen::None), "{:?}", p.frame);
     assert!(p.stack.receives_frame.is_empty(), "{:?}", p.stack);

@@ -44,7 +44,9 @@ proportional to the volume.
   outlive the frame that made it.
 - **Tail calls.** A self tail call reuses the frame, and the runtime caps
   the stack, so a frame-allocated block inside a loop is safe exactly when
-  it does not escape the iteration.
+  it does not escape the iteration. The same frame reuse is why no frame
+  block may cross a call in tail position at all (section 7.6): the callee's
+  frame, not the caller's, owns that memory once the call is made.
 
 ## 3. The analysis
 
@@ -53,10 +55,11 @@ dictionary that captures) is **frame-eligible** when every use of the value
 is within the allocating activation:
 
 1. It is not returned, not stored into a field of a value that escapes, not
-   stored through `RefSet`, not passed to `spawn` or a foreign call, and not
-   captured by a closure that escapes. Formally: not part of the
-   activation's escape set, computed bottom up with the same lattice the RC
-   pass already uses for ownership.
+   stored through `RefSet`, not passed to `spawn` or a foreign call, not
+   passed as an argument of a call in tail position (the callee's frame
+   replaces this activation's, section 7.6), and not captured by a closure
+   that escapes. Formally: not part of the activation's escape set, computed
+   bottom up with the same lattice the RC pass already uses for ownership.
 2. Every reference is dropped or moved within the activation. A block whose
    last use is inside a loop iteration is eligible per iteration only if the
    value is not live across the back edge; the pass therefore places the
@@ -244,7 +247,10 @@ pass cannot see:
   stores it, returns it or passes it on (`Facts::consumed`, one scan per
   unit). The callee's own drop is then the release. A parameter the callee
   forwards is not consumed by this rule, so forwarding stays refused: that
-  would need a fixpoint over summaries.
+  would need a fixpoint over summaries. The call must not be in tail
+  position, because the callee's frame replaces the caller's there (section
+  7.6): the argument would arrive describing a slot the callee has already
+  spilled over.
 - **A frame block stored in a field of another frame block**
   (`escapes:field`). Admissible when the enclosing block is itself
   frame-bound, which makes the decision a fixpoint: start with no frame
@@ -335,6 +341,66 @@ release is a fixed list of drops plus one header store per block, where it
 was a fixed list of drops). The runtime walk only runs for a block whose
 origin the unit cannot see, which is the population `consume` opened (31
 refusals).
+
+### 7.6 A tail call's frame replaces the caller's (item 5, closed)
+
+The consume transfer was unsound in tail position, and it broke the
+bootstrap. `CINCH_STACK_WIDEN=consume` alone reproduces it; `store` alone and
+`none` both produce byte-identical IR for stage2 and converge, which
+isolated the transfer without a bisect over the pass.
+
+The trigger is the compiler's own `Bootstrap.Type.type-text`, compiled by the
+seed with both widenings on. It builds a two-word `Cons` cell in a frame slot
+and passes it to `Data.String.string-concat-all`, a call in tail position
+with a matching signature, so code generation emits `musttail`:
+
+```
+  %t1521 = alloca [4 x i64], align 16
+  ...
+  store i64 %t1514, ptr %t1524          ; the cell's payload
+  store i64 %t1520, ptr %t1525
+  %t1528 = load i64, ptr %t1527
+  %t1529 = musttail call i64 @"Data.String.string-concat-all"(i64 %t1528)
+```
+
+`string-concat-all` consumes its parameter: it patterns it, releases the
+cell and forwards the tail to `concat-from`. But `musttail` means the callee's
+frame *replaces* the caller's, so the callee's own spills and slots land in
+`type-text`'s slot memory, which is where the cell it was handed lives. It
+reads a clobbered header and payload, and the release walk reaches a word
+that is not a block:
+
+```
+cinchruntime: compiler bug: reference count operation on a freed or corrupt block
+  cinchruntime::rc::release
+  cinch_drop_slow
+  Data.String.string-concat-all
+  Bootstrap.Type.mismatch-message
+  Bootstrap.Type.unify-pi#tail
+  Bootstrap.Dictionary.check-instance-pairs
+```
+
+A self tail call is the same hazard by a different route: code generation
+turns it into a jump to the unit's loop header, which re-executes the unit's
+own slot writes, so an argument handed across the back edge is overwritten by
+the next iteration's allocation.
+
+The fix is in the scan, not the lowering: `Scan` now threads tail position
+(`Let`, `Dup`, `Drop`, `Release`, an `If` branch, a `case` alternative body
+and a `Join`'s two bodies preserve it, exactly the forms
+`CoreEmitter::emit_to` settles into one destination) and classifies every
+argument of a call in that position as `Role::TailCall`, an escape. That
+covers the lent case too: a borrowed parameter is a read, and a read of a
+slot the callee has already spilled over is no better than a transfer.
+Neither the ownership lattice nor `Facts::consumed` can see the frame
+substitution, because both are properties of the callee's body, not of where
+the call sits.
+
+The regression test is `a_frame_block_passed_to_a_tail_call_stays_on_the_heap`
+in `compiler/tests/stack_allocation.rs`: the same Core program the widening's
+test uses, with the call as the unit's result rather than a `let` value, for
+a consumed and for a lent parameter. It takes a slot before this change and
+is refused as `escapes:tail-call` after it.
 
 ### 7.2 Measured reach
 

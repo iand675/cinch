@@ -20,9 +20,10 @@
 //!    `Release` that ends it, a pass to a callee's owned parameter the
 //!    callee consumes, or a store into a field of a block that is itself
 //!    frame-bound. Anything else escapes the activation: a returned value,
-//!    a field of a heap block, a call argument whose callee may keep it, a
-//!    `spawn` argument, a jump argument, a projection's container, a
-//!    closure environment slot, or a `RefSet`/`BoxInit`/`LazyInit` store;
+//!    a field of a heap block, a call argument whose callee may keep it, an
+//!    argument of a call in tail position, a `spawn` argument, a jump
+//!    argument, a projection's container, a closure environment slot, or a
+//!    `RefSet`/`BoxInit`/`LazyInit` store;
 //! 2. the binder is `Dup`ped only when its payload holds no counted word. A
 //!    second reference would outlive the payload's release, and a frame
 //!    block has no count to make one reference's drop a no-op; with
@@ -36,6 +37,18 @@
 //!    ([`DEFAULT_FRAME_LIMIT`] by default);
 //! 5. the binder's class is counted (`Obj`/`TObj`), because an uncounted
 //!    binder has no `Drop` for the payload release to hang on.
+//!
+//! Tail position is excluded from every transfer, and that is not a
+//! conservative nicety. Code generation emits a saturated call in tail
+//! position as a `musttail` call when the callee's signature matches the
+//! caller's (mutual tail recursion) and as a jump to the loop header when
+//! the callee is the unit itself ([`crate::codegen`], decision D104). Both
+//! forms hand the callee *this* frame: the callee's spills and its own
+//! frame slots occupy the caller's slot memory. An argument that points
+//! into the caller's frame is therefore overwritten by the callee as soon
+//! as it runs, before it can read or release the block, which is a slot
+//! whose header the callee has already rewritten. A call in any other
+//! position gets a frame of its own, below the caller's, and is safe.
 //!
 //! Rule 1 is what the ownership lattice gives us for free: after
 //! `crate::rc::insert` every owned binder is consumed exactly once on every
@@ -740,6 +753,12 @@ enum Role {
     Store,
     /// A cell a value is written through.
     Write,
+    /// An argument of a call in tail position. The callee's frame replaces
+    /// the caller's (`musttail`, or a self tail call's jump to the loop
+    /// header), so the slot holding this value is about to be overwritten
+    /// by the callee's own spills: never a frame block, whatever the
+    /// parameter's ownership says.
+    TailCall,
 }
 
 /// The reference scan of one unit: every local's uses under one round's
@@ -770,9 +789,10 @@ impl<'a> Scan<'a> {
         Scan { facts, frames, widen, uses: BTreeMap::new(), consumers: BTreeMap::new(), callee: None }
     }
 
-    /// Scan the unit's whole body.
+    /// Scan the unit's whole body. The body is the unit's result, so it
+    /// sits in tail position.
     fn unit(&mut self, body: &Core) {
-        self.go(body, Role::Value, None);
+        self.go(body, Role::Value, None, true);
     }
 
     /// Accumulate every local's reference uses in `e`. `role` is the
@@ -781,12 +801,35 @@ impl<'a> Scan<'a> {
     /// argument instead of an escape. `owner` names the binder of the block
     /// this value is stored into, when the scan knows it: a `let` whose
     /// value is a constructor allocation passes its own binder to that
-    /// allocation's fields.
-    fn go(&mut self, e: &Core, role: Role, owner: Option<usize>) {
+    /// allocation's fields. `tail` says whether `e` is the value the unit
+    /// returns on this path: only the forms code generation's tail position
+    /// passes through keep it (`Let`, `Dup`, `Drop`, `Release`, an `If`
+    /// branch, a `case` alternative body and a `Join`'s two bodies:
+    /// `CoreEmitter::emit_to` settles all of them into the same
+    /// destination).
+    fn go(&mut self, e: &Core, role: Role, owner: Option<usize>, tail: bool) {
         match e {
             Core::Var(x) => self.note(x.0, role, owner),
-            Core::Dup(x, ..) => self.uses_of(x.0).duplicated += 1,
-            Core::Drop(x, ..) => self.uses_of(x.0).death += 1,
+            // A count operation's body is the value the whole expression
+            // has, so it keeps the position, tail included: code generation
+            // emits the count and then settles the body into the same
+            // destination (`CoreEmitter::emit_to`).
+            Core::Dup(x, _, body) => {
+                self.uses_of(x.0).duplicated += 1;
+                self.go(body, role, owner, tail);
+                return;
+            }
+            Core::Drop(x, _, body) => {
+                self.uses_of(x.0).death += 1;
+                self.go(body, role, owner, tail);
+                return;
+            }
+            Core::If(c, t, f) => {
+                self.go(c, Role::Value, None, false);
+                self.go(&t.body, role, owner, tail);
+                self.go(&f.body, role, owner, tail);
+                return;
+            }
             Core::Release { block, moved, rest, body } => {
                 self.uses_of(block.0).death += 1;
                 // A `Release` field is a pattern binder; if a `let` binder
@@ -795,14 +838,14 @@ impl<'a> Scan<'a> {
                 for (x, _) in moved.iter().chain(rest) {
                     self.note(x.0, Role::Store, None);
                 }
-                self.go(body, role, owner);
+                self.go(body, role, owner, tail);
                 return;
             }
             Core::Case { scrut, alts } => {
-                self.go(scrut, Role::Scrutinee, None);
+                self.go(scrut, Role::Scrutinee, None, false);
                 for a in alts {
                     // An alternative's body is the case's value.
-                    self.go(&a.body, role, owner);
+                    self.go(&a.body, role, owner, tail);
                 }
                 return;
             }
@@ -811,77 +854,102 @@ impl<'a> Scan<'a> {
             // written rather than read (`Demand`, `BoxGet`, `BoxClear`), and
             // no frame block is one: those stay escapes.
             Core::Proj(d, _) | Core::DictProj(d, ..) => {
-                self.go(d, Role::Project, None);
+                self.go(d, Role::Project, None, false);
             }
             Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => {
-                self.go(d, Role::Value, None);
+                self.go(d, Role::Value, None, false);
             }
             Core::RefSet(x, v, _) | Core::BoxInit(x, v, _) | Core::LazyInit(x, v) => {
                 self.note(x.0, Role::Write, None);
-                self.go(v, Role::Store, None);
+                self.go(v, Role::Store, None, false);
             }
             Core::Let(x, c, v, body) => {
                 // A constructor allocation's arguments are its block's
                 // fields, so a reference stored in one is a store into the
                 // binder `x` (`eligible` admits it when `x` is frame-bound).
                 let alloc = matches!(&**v, Core::App(h, _) if matches!(&**h, Core::Ctor(..)));
-                self.go(v, Role::Value, alloc.then_some(x.0));
-                self.go(body, role, owner);
+                self.go(v, Role::Value, alloc.then_some(x.0), false);
+                self.go(body, role, owner, tail);
                 return;
             }
             Core::App(h, args) => {
                 let ctor = matches!(&**h, Core::Ctor(..));
-                let modes = callee_modes(self.facts, h).filter(|m| m.len() == args.len());
-                let consumed = self
-                    .widen
-                    .consumes()
-                    .then(|| callee_consumes(self.facts, h))
-                    .flatten()
-                    .filter(|c| c.len() == args.len());
-                self.go(h, Role::Head, None);
+                // A call in tail position hands its frame to the callee:
+                // code generation emits a `musttail` call for a saturated
+                // call whose signature matches the caller's, and a self
+                // tail call is a jump to the loop header, which re-executes
+                // this unit's own slot writes. Either way the argument the
+                // callee receives would be overwritten by the callee's
+                // spills as soon as it runs, so no argument of a tail call
+                // is a transfer: the block stays on the heap. A call in any
+                // other position gets a frame of its own, below this one,
+                // and keeps the two transfers.
+                let (modes, consumed) = if tail || ctor {
+                    (None, None)
+                } else {
+                    (
+                        callee_modes(self.facts, h).filter(|m| m.len() == args.len()),
+                        self.widen
+                            .consumes()
+                            .then(|| callee_consumes(self.facts, h))
+                            .flatten()
+                            .filter(|c| c.len() == args.len()),
+                    )
+                };
+                self.go(h, Role::Head, None, false);
                 for (i, a) in args.iter().enumerate() {
                     if ctor {
                         // The fields of the allocation this value is: the
                         // binder the last `let` passed down.
-                        self.go(a, Role::Field, owner);
+                        self.go(a, Role::Field, owner, false);
                         continue;
                     }
-                    if modes.is_some_and(|m| m[i]) {
-                        self.go(a, Role::Lent, None);
+                    if tail {
+                        self.go(a, Role::TailCall, None, false);
+                    } else if modes.is_some_and(|m| m[i]) {
+                        self.go(a, Role::Lent, None, false);
                     } else if consumed.is_some_and(|c| c[i]) {
                         if let Core::Global(g, _) = &**h {
                             self.callee = Some(g.0.clone());
                         }
-                        self.go(a, Role::Consumed, None);
+                        self.go(a, Role::Consumed, None, false);
                         self.callee = None;
                     } else {
-                        self.go(a, Role::Arg, None);
+                        self.go(a, Role::Arg, None, false);
                     }
                 }
                 return;
             }
             Core::InstDict(_, args, _) => {
                 for a in args {
-                    self.go(a, Role::Arg, None);
+                    self.go(a, Role::Arg, None, false);
                 }
+                return;
+            }
+            // A join is a block, not a call: its body and its continuation
+            // both settle into this expression's destination, so a tail
+            // call in either is a tail call in the emitted code.
+            Core::Join { body, rest, .. } => {
+                self.go(body, role, owner, tail);
+                self.go(rest, role, owner, tail);
                 return;
             }
             Core::Lam { env, .. } => {
                 for a in env {
-                    self.go(a, Role::Capture, None);
+                    self.go(a, Role::Capture, None, false);
                 }
                 return;
             }
             Core::Jump { args, .. } => {
                 for a in args {
-                    self.go(a, Role::Arg, None);
+                    self.go(a, Role::Arg, None, false);
                 }
                 return;
             }
             // A quotation's retained body is a code unit of its own.
             Core::Quote { holes, .. } => {
                 for h in holes {
-                    self.go(h, Role::Value, None);
+                    self.go(h, Role::Value, None, false);
                 }
                 return;
             }
@@ -890,7 +958,7 @@ impl<'a> Scan<'a> {
         // A part of a compound value is an ordinary value position: the
         // role belongs to the whole.
         for k in crate::core::child_slots_imm(e) {
-            self.go(k, Role::Value, None);
+            self.go(k, Role::Value, None, false);
         }
     }
 
@@ -952,6 +1020,7 @@ fn role_name(role: Role) -> &'static str {
         Role::Project => "project",
         Role::Store => "store",
         Role::Write => "write",
+        Role::TailCall => "tail-call",
     }
 }
 
