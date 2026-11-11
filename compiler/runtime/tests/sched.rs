@@ -376,7 +376,7 @@ fn overflow() {
 static WAIT_ENDED: AtomicI64 = AtomicI64::new(-1);
 
 fn stm_sleepers() -> u64 {
-    let state = cinch_stm_state() as usize + STATE_SLEEPERS_OFFSET;
+    let state = cinch_stm_state(0) as usize + STATE_SLEEPERS_OFFSET;
     unsafe { &*(state as *const AtomicU64) }.load(SeqCst)
 }
 
