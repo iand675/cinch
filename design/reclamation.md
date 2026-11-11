@@ -891,7 +891,11 @@ Two properties the implementation leans on, and one rule it had to add:
 
 Measured on a 1000-cell `Cons` rebuild over 40 rounds: 41,000 heap blocks to
 1,000 (every rebuild cell reused, one allocation per build), `live=0`,
-`leaked=0`.
+`leaked=0`. At 4,000 rounds, where the rebuild is the whole program: 4,001,000
+header blocks to 1,000, and wall time 1,233.9 ms to 15.1 ms (median of five
+interleaved pairs, 82x). That is the upper bound the mechanism can reach when
+every dying cell has a same-shaped successor; the two real workloads below
+collect the smaller share their checker time allows.
 
 The two checks in section 1.2, run by a Stage1 built with the working-tree
 compiler against a Stage1 built with the compiler at the parent revision, five
