@@ -1,7 +1,7 @@
 {
-  "description": "ABI 8 library producer at the deterministic parallel builtins.",
-  "revision": "13e42e35b0dfcf57aa92d83ece85c3d79e33e30a",
+  "description": "ABI 8 library producer at the tail-call frame fix.",
+  "revision": "12a9bd37fa6b89bfdbfaa43756685072579beb72",
   "runtime_abi": 8,
   "schema": 1,
-  "source_sha256": "158765fc4467b59cc68eab9c475a26d979d5e76a7e7f222d07b24149b8211cf9"
+  "source_sha256": "04b19fbb67148ab74b97324fc8034621288f315e8bf1721c9ba10fa17cb5adae"
 }

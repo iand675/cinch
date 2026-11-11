@@ -1,9 +1,9 @@
 {
-  "description": "ABI 8 Native seed at the deterministic parallel builtins; empty patch.",
+  "description": "ABI 8 Native seed at the tail-call frame fix, empty patch.",
   "patch": "bootstrap/seed/stage0.patch",
   "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "revision": "13e42e35b0dfcf57aa92d83ece85c3d79e33e30a",
+  "revision": "12a9bd37fa6b89bfdbfaa43756685072579beb72",
   "runtime_abi": 8,
   "schema": 1,
-  "source_sha256": "158765fc4467b59cc68eab9c475a26d979d5e76a7e7f222d07b24149b8211cf9"
+  "source_sha256": "04b19fbb67148ab74b97324fc8034621288f315e8bf1721c9ba10fa17cb5adae"
 }
