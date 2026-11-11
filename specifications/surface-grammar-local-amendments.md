@@ -125,6 +125,20 @@ decision record in `compiler/CONFORMANCE.md` where applicable.
 
 # 8 Identifiers, dashes, and minus
 
+- Identifiers may continue with `!` or `?` after their first character,
+  in any position and in any run (`print!`, `empty?`, `read!?`, `a!b`);
+  a sigil is an identifier character for the dash glue below and for
+  the minus contract (`x!-y` is one name, `x!-1` subtracts). Neither
+  sigil starts an identifier, so in symbol position a `!` or `?` is an
+  operator run as before (`!=`, `?`, `(!)`), and keywords compare whole
+  spellings (`if?` is a name, `if` is reserved) (D422).
+- A `!` tight before a token tree opener (`(`, `[`, `{`) is not part of
+  the name: that is `macro_call`'s bang, so `name!(...)` invokes a macro
+  and a name ending in `!` invokes by spelling one more bang
+  (`print!!(...)`). Documented consequence: because a sigil binds
+  rightwards into the name, an operator beginning with one needs a
+  space before it (`x != y` is the operator; `x!=y` is the name `x!`
+  then `=`).
 - Identifiers may contain dashes: a `-` tight on both sides between
   identifier characters is identifier glue (`int-digits-into`, `x-y`).
   Digits do not continue an identifier, so `1-2` and `x-1` are
@@ -278,6 +292,24 @@ they amend its normative EBNF.
 - **Cinch naming (D278-D281), 2026-10-28.** The language is Cinch:
   sources `.cinch`, interfaces `.cinchif`, runtime externs `cinch_*`;
   section 8's intrinsic symbols are `cinch.prim.*`.
+- **Sigil identifiers (D422), 2026-11-11.** Section 8 admits `!` and `?`
+  as identifier continuation characters: after the first character, in
+  any position and any run (`print!`, `empty?`, `read!?`, `a!b`), never
+  as the first character, so a sigil in symbol position is still an
+  operator run (`!=`, `?`, `(!)`) and the reserved punctuation is
+  unchanged. A `!` tight before `(`, `[` or `{` stays `macro_call`'s
+  bang, so `name!(...)` invokes a macro and `print!!(...)` invokes the
+  macro `print!`. Keywords compare whole spellings, so `if?` is a name
+  and `if` is reserved. Because a sigil binds rightwards, an operator
+  beginning with one needs a space before it (`x != y` operates;
+  `x!=y` is the name `x!` then `=`). Identity spelling is unchanged
+  (`print!` is `print$21`, `empty?` is `empty$3f`), and the Core text
+  format already admits `$` in a name segment. Both lexers, the
+  tree-sitter scanner, the five editor syntaxes and the Core spelling
+  table pin the rule
+  (`compiler/tests/syntax_sigil_identifiers.rs`,
+  `compiler/tests/bootstrap_lexer.rs`,
+  `compiler/tests/bootstrap_export_types.rs`).
 
 # 15 Default method implementations
 

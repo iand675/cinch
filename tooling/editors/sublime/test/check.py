@@ -23,6 +23,7 @@ import yaml
 
 HERE = pathlib.Path(__file__).resolve().parent
 SYNTAX = HERE.parent / "CinchCore.sublime-syntax"
+SURFACE = HERE.parent / "Cinch.sublime-syntax"
 
 failures = []
 
@@ -131,5 +132,74 @@ def main():
     return 0
 
 
+PLACEHOLDER = re.compile(r"\{\{(\w+)\}\}")
+
+
+def expand(pattern, variables):
+    """`{{name}}` variables replaced, the way Sublime expands them."""
+    missing = [name for name in PLACEHOLDER.findall(pattern) if name not in variables]
+    if missing:
+        failures.append(f"undefined variable {missing}")
+    return PLACEHOLDER.sub(lambda m: variables.get(m.group(1), ""), pattern)
+
+
+def first_rule(doc, text, block="main"):
+    """The scope Sublime assigns at the start of `text`.
+
+    A context's rules are tried in order and an `include` is inlined where
+    it appears, so the first rule (in that flattened order) whose `match`
+    or `begin` pattern matches at the position wins.
+    """
+    variables = doc.get("variables", {})
+    contexts = doc.get("contexts", {})
+    for rule in contexts.get(block, []):
+        if "include" in rule:
+            hit = first_rule(doc, text, rule["include"])
+            if hit is not None:
+                return hit
+            continue
+        pattern = rule.get("begin") or rule.get("match")
+        if pattern is None:
+            continue
+        if re.match(expand(pattern, variables), text):
+            return rule.get("scope") or rule.get("name")
+    return None
+
+
+def surface():
+    """The surface syntax's sigil names (amendment section 8).
+
+    `!` and `?` continue a name after its first character and never start
+    one, so `empty?` and `print!` highlight as names, `if?` is a name while
+    `if` stays a keyword, and a spaced `!=` is an operator run.
+    """
+    doc = yaml.safe_load(SURFACE.read_text(encoding="utf-8"))
+    check("surface scope", doc.get("scope"), "source.cinch")
+    check("surface file_extensions", doc.get("file_extensions"), ["cinch"])
+
+    for text, scope in [
+        ("empty? x", "variable.other.cinch"),
+        ("print! x", "variable.other.cinch"),
+        ("read!? x", "variable.other.cinch"),
+        ("int-digits-into x", "variable.other.cinch"),
+        ("if? x", "variable.other.cinch"),
+        ("when? x", "variable.other.cinch"),
+        ("if x", "keyword.control.conditional.cinch"),
+        ("when x", "variable.other.contextual.cinch"),
+        ("!= y", "keyword.operator.cinch"),
+        ("= y", "keyword.operator.cinch"),
+        ("'empty?", "constant.other.symbol.cinch"),
+        ("''Empty?", "entity.name.type.cinch"),
+        ("Empty? x", "entity.name.type.cinch"),
+    ]:
+        check(f"surface {text!r}", first_rule(doc, text), scope)
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    status = main()
+    surface()
+    if failures:
+        print(f"\n{len(failures)} check(s) failed")
+        sys.exit(1)
+    print("\nsurface checks passed")
+    sys.exit(status)

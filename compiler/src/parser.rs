@@ -5093,9 +5093,21 @@ mod tests {
     fn not_supported_terms_are_named() {
         let e = err("module T where\n  f = 1.5\n");
         assert!(e.contains("float literals are not supported"), "{e}");
-        // A macro invocation needs a balanced token tree.
-        let e = err("module T where\n  f = m! x\n");
+        // A macro invocation needs a balanced token tree. A spaced `!` is
+        // the bang operator, so nothing is absorbed into the name.
+        let e = err("module T where\n  f = m ! x\n");
         assert!(e.contains("needs a balanced token tree"), "{e}");
+        // Tight, the `!` continues the name (D422): this applies the value
+        // `m!` to `x`, it is not a macro invocation.
+        let p = ok("module T where\n  f = m! x\n");
+        match eq_body(&p.module, "f") {
+            Term::App(head, args, _) => {
+                let Term::Var(path) = &**head else { panic!("expected a variable head") };
+                assert_eq!(path.name.text, "m!");
+                assert_eq!(args.len(), 1);
+            }
+            other => panic!("expected an application, got {other:?}"),
+        }
     }
 
     #[test]

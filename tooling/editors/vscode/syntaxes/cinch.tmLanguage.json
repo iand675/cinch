@@ -45,10 +45,10 @@
           "name": "constant.character.cinch",
           "match": "'([^'\\\\]|\\\\[\\\\\"'nrt]|\\\\u\\{[0-9A-Fa-f]+\\})'"
         },
-        { "name": "entity.name.type.cinch", "match": "''[A-Z][A-Za-z0-9_']*" },
+        { "name": "entity.name.type.cinch", "match": "''[A-Z][A-Za-z0-9_'!?]*" },
         {
           "name": "constant.other.symbol.cinch",
-          "match": "'[A-Za-z_][A-Za-z0-9_']*(?:-[A-Za-z_'][A-Za-z0-9_']*)*"
+          "match": "'[A-Za-z_][A-Za-z0-9_'!?]*(?:-[A-Za-z_'!?][A-Za-z0-9_'!?]*)*"
         },
         {
           "name": "constant.numeric.cinch",
@@ -71,34 +71,34 @@
       "patterns": [
         {
           "name": "keyword.control.import.cinch",
-          "match": "\\b(module|import|export|as)\\b"
+          "match": "\\b(module|import|export|as)\\b(?![A-Za-z0-9_'!?-])"
         },
         {
           "name": "storage.type.declaration.cinch",
-          "match": "\\b(data|record|codata|effect|signature|instance|implicit|opaque|type|foreign|ccall|component|prim|law|contract|rewrite|target|upgrade|generate|infix|infixl|infixr|proof|spec|stage|corec|macro)\\b"
+          "match": "\\b(data|record|codata|effect|signature|instance|implicit|opaque|type|foreign|ccall|component|prim|law|contract|rewrite|target|upgrade|generate|infix|infixl|infixr|proof|spec|stage|corec|macro)\\b(?![A-Za-z0-9_'!?-])"
         },
         {
           "name": "keyword.other.cinch",
-          "match": "\\b(forall|Sigma|using|in|let|letrec|where|of)\\b"
+          "match": "\\b(forall|Sigma|using|in|let|letrec|where|of)\\b(?![A-Za-z0-9_'!?-])"
         },
         {
           "name": "keyword.control.conditional.cinch",
-          "match": "\\b(if|then|else|case)\\b"
+          "match": "\\b(if|then|else|case)\\b(?![A-Za-z0-9_'!?-])"
         },
-        { "name": "keyword.control.loop.cinch", "match": "\\b(do)\\b" },
+        { "name": "keyword.control.loop.cinch", "match": "\\b(do)\\b(?![A-Za-z0-9_'!?-])" },
         {
           "name": "keyword.control.cinch",
-          "match": "\\b(handle|with|match|replace|require|justify|to)\\b"
+          "match": "\\b(handle|with|match|replace|require|justify|to)\\b(?![A-Za-z0-9_'!?-])"
         },
         {
           "name": "keyword.other.contract.cinch",
-          "match": "\\b(safety|liveness|recurrence|stability|always|eventually|recur|stable|assume)\\b"
+          "match": "\\b(safety|liveness|recurrence|stability|always|eventually|recur|stable|assume)\\b(?![A-Za-z0-9_'!?-])"
         },
-        { "name": "storage.modifier.cinch", "match": "\\b(erased|own)\\b" },
-        { "name": "keyword.control.flow.cinch", "match": "\\b(return|resume)\\b" },
+        { "name": "storage.modifier.cinch", "match": "\\b(erased|own)\\b(?![A-Za-z0-9_'!?-])" },
+        { "name": "keyword.control.flow.cinch", "match": "\\b(return|resume)\\b(?![A-Za-z0-9_'!?-])" },
         {
           "name": "variable.other.contextual.cinch",
-          "match": "\\b(handler|unsafe|when|uses|immarg|for|migrate|related|attributes|replaceable|specialized|llvm|wasm|asm|clr|jvm)\\b"
+          "match": "\\b(handler|unsafe|when|uses|immarg|for|migrate|related|attributes|replaceable|specialized|llvm|wasm|asm|clr|jvm)\\b(?![A-Za-z0-9_'!?-])"
         }
       ]
     },
@@ -113,10 +113,10 @@
     },
     "identifiers": {
       "patterns": [
-        { "name": "entity.name.type.cinch", "match": "\\b[A-Z][A-Za-z0-9_']*\\b" },
+        { "name": "entity.name.type.cinch", "match": "(?<![A-Za-z0-9_'!?])[A-Z][A-Za-z0-9_'!?]*" },
         {
           "name": "variable.other.cinch",
-          "match": "\\b[a-z_][A-Za-z0-9_']*(?:-[A-Za-z_'][A-Za-z0-9_']*)*\\b"
+          "match": "(?<![A-Za-z0-9_'!?])[a-z_][A-Za-z0-9_'!?]*(?:-[A-Za-z_'!?][A-Za-z0-9_'!?]*)*"
         }
       ]
     }

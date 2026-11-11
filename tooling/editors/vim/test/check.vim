@@ -92,6 +92,20 @@ call s:CheckGroup('type arrow', '^unit Main\.map', '->', 'cinchCoreOperator')
 call s:CheckGroup('paren', '(case (local', '(', 'cinchCoreParen')
 call s:CheckGroup('comment', '^-- Core', '--', 'cinchCoreComment')
 
+" The surface syntax's sigil names (amendment section 8): `!` and `?`
+" continue a name, never start one, and leave a keyword spelling alone.
+enew
+execute 'edit ' . fnameescape(s:test . '/fixture.cinch')
+call s:Check('surface filetype', &filetype, 'cinch')
+call s:Check('iskeyword sigils', [stridx(&iskeyword, '!') >= 0, stridx(&iskeyword, '?') >= 0], [1, 1])
+call s:CheckGroup('empty? name', '^  empty? ::', 'empty?', 'cinchIdentifier')
+call s:CheckGroup('print! name', '^  print! ::', 'print!', 'cinchIdentifier')
+call s:CheckGroup('read!? name', '^  read!? ::', 'read!?', 'cinchIdentifier')
+call s:CheckGroup('if? is a name', '^  if? ::', 'if?', 'cinchIdentifier')
+call s:CheckGroup('when? is a name', '^  when? ::', 'when?', 'cinchIdentifier')
+call s:CheckGroup('bare if is a keyword', 'main = if ', 'if ', 'cinchConditional')
+call s:CheckGroup('spaced bang run', 'spaced = 1 ', '!=', 'cinchOperator')
+
 " The signature path: a file with the `core 1` first line and no `.core`
 " extension still gets the filetype. `:filetype detect` only re-runs the
 " `filetypedetect` group, and ftdetect files define their own groups, so the

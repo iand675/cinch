@@ -252,6 +252,11 @@ def main():
         )
         check(f"{directory} comment", config.get("line_comments"), ["-- "])
         suffixes.extend(config.get("path_suffixes", []))
+        # `!` and `?` continue a name (amendment section 8), so the surface
+        # language's word motions must not split `empty?` or `print!`.
+        if config.get("grammar") == "cinch":
+            words = config.get("word_characters", [])
+            check(f"{directory} sigil word chars", ["!" in words, "?" in words], [True, True])
         for query in QUERY_FILES:
             qpath = ROOT / directory / query
             check(f"{directory}/{query}", qpath.is_file(), True)

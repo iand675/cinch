@@ -254,16 +254,32 @@ fn is_symbol_char(c: char) -> bool {
     matches!(c, '!' | '#' | '%' | '&' | '*' | '+' | '/' | '<' | '=' | '>' | '?' | '@' | '^' | '|' | '~' | ':' | '-')
 }
 
-/// Identifier characters (`lex_word`'s set): ASCII alphanumeric, `_`, `'`.
+/// Identifier characters (`lex_word`'s set): ASCII alphanumeric, `_`, `'`,
+/// and the sigils `!` and `?`. A sigil never starts a word (the dispatch
+/// tests a letter or `_` first), so `!` and `?` in symbol position are
+/// still operator runs (`!=`, `?`, `(!)`).
+///
+/// `is_ident_char` is also the "this character continues an identifier"
+/// test the minus contract uses: a word ending in a sigil ends the word
+/// like any other (`x!-3` subtracts, `x! -3` signs a literal).
 fn is_ident_char(c: char) -> bool {
-    c.is_ascii_alphanumeric() || c == '_' || c == '\''
+    c.is_ascii_alphanumeric() || c == '_' || c == '\'' || c == '!' || c == '?'
 }
 
 /// The identifier characters a dash may glue onto inside a word. Digits do
 /// not continue an identifier across a dash (surface grammar local
 /// amendments section 8), so `x-1` is subtraction while `x-y` is one name.
+/// A sigil is a continuation character, so it glues like a letter.
 fn is_dash_glue_char(c: char) -> bool {
-    c.is_ascii_alphabetic() || c == '_' || c == '\''
+    c.is_ascii_alphabetic() || c == '_' || c == '\'' || c == '!' || c == '?'
+}
+
+/// Is a `!` with `next` after it the macro invocation's bang rather than
+/// part of the name? `name!(...)`, `name![...]` and `name!{...}` are macro
+/// calls (surface syntax `macro_call`), so a `!` tight before a token tree
+/// opener ends the word.
+fn is_macro_bang(c: char, next: Option<char>) -> bool {
+    c == '!' && matches!(next, Some('(') | Some('[') | Some('{'))
 }
 
 /// Characters that end an expression and so keep a following `-` in
@@ -1082,13 +1098,18 @@ impl Lexer {
         })
     }
 
-    /// The identifier spelling at the cursor (`lex_word`'s shape:
-    /// ident characters with dash glue), without the keyword lookup.
+    /// The identifier spelling at the cursor (`lex_word`'s shape: ident
+    /// characters with dash glue, including the sigils `!` and `?`), without
+    /// the keyword lookup. The first character is taken by the caller, so a
+    /// sigil can only continue a word, never start one.
     fn scan_ident(&mut self) -> String {
         let mut w = String::new();
         loop {
             match self.peek() {
                 Some(c) if is_ident_char(c) => {
+                    if !w.is_empty() && is_macro_bang(c, self.peek_at(1)) {
+                        break;
+                    }
                     w.push(c);
                     self.bump();
                 }
@@ -1155,6 +1176,141 @@ mod tests {
         assert_eq!(
             kinds("module Foo where"),
             vec![Tok::Module, Tok::ConId("Foo".into()), Tok::Where, Tok::Eof]
+        );
+    }
+
+    #[test]
+    fn sigils_continue_identifiers_but_never_start_one() {
+        // `!` and `?` continue an identifier after its first character,
+        // in any position and in any run (amendment section 8).
+        assert_eq!(
+            kinds("print! empty? read!? a!b x! y? Empty? _?_"),
+            vec![
+                Tok::VarId("print!".into()),
+                Tok::VarId("empty?".into()),
+                Tok::VarId("read!?".into()),
+                Tok::VarId("a!b".into()),
+                Tok::VarId("x!".into()),
+                Tok::VarId("y?".into()),
+                Tok::ConId("Empty?".into()),
+                Tok::VarId("_?_".into()),
+                Tok::Eof
+            ]
+        );
+        // A sigil at the start of a token is still an operator run.
+        assert_eq!(
+            kinds("!x ?y != z"),
+            vec![
+                Tok::Bang,
+                Tok::VarId("x".into()),
+                Tok::Op("?".into()),
+                Tok::VarId("y".into()),
+                Tok::Op("!=".into()),
+                Tok::VarId("z".into()),
+                Tok::Eof
+            ]
+        );
+    }
+
+    #[test]
+    fn sigil_identifiers_keep_the_operator_contract() {
+        // `x!=y` is the name `x!` then `=` (the documented consequence:
+        // an operator beginning with a sigil needs a space before it).
+        assert_eq!(
+            kinds("x!=y x != y"),
+            vec![
+                Tok::VarId("x!".into()),
+                Tok::Equals,
+                Tok::VarId("y".into()),
+                Tok::VarId("x".into()),
+                Tok::Op("!=".into()),
+                Tok::VarId("y".into()),
+                Tok::Eof
+            ]
+        );
+        // `(!)` is a parenthesised operator, not a name.
+        assert_eq!(
+            kinds("(!) ? :"),
+            vec![
+                Tok::LParen,
+                Tok::Bang,
+                Tok::RParen,
+                Tok::Op("?".into()),
+                Tok::Op(":".into()),
+                Tok::Eof
+            ]
+        );
+    }
+
+    #[test]
+    fn sigil_identifiers_are_not_keywords() {
+        // The keyword lookup compares whole spellings, so a sigil after
+        // a keyword spelling leaves an ordinary identifier.
+        assert_eq!(
+            kinds("if? if"),
+            vec![Tok::VarId("if?".into()), Tok::If, Tok::Eof]
+        );
+    }
+
+    #[test]
+    fn bang_before_a_token_tree_is_a_macro_invocation() {
+        // `name!(...)`, `name![...]`, `name!{...}` are macro calls, so a
+        // `!` tight before an opener ends the word; a `!` anywhere else
+        // belongs to it.
+        assert_eq!(
+            kinds("f!(x) g![y] h!{z} f! x"),
+            vec![
+                Tok::VarId("f".into()),
+                Tok::Bang,
+                Tok::LParen,
+                Tok::VarId("x".into()),
+                Tok::RParen,
+                Tok::VarId("g".into()),
+                Tok::Bang,
+                Tok::LBracket,
+                Tok::VarId("y".into()),
+                Tok::RBracket,
+                Tok::VarId("h".into()),
+                Tok::Bang,
+                Tok::LBrace,
+                Tok::VarId("z".into()),
+                Tok::RBrace,
+                Tok::VarId("f!".into()),
+                Tok::VarId("x".into()),
+                Tok::Eof
+            ]
+        );
+        // A name that ends in `!` invokes as a macro by spelling one
+        // more bang: `f!!(x)`.
+        assert_eq!(
+            kinds("f!!(x)"),
+            vec![
+                Tok::VarId("f!".into()),
+                Tok::Bang,
+                Tok::LParen,
+                Tok::VarId("x".into()),
+                Tok::RParen,
+                Tok::Eof
+            ]
+        );
+    }
+
+    #[test]
+    fn sigil_words_glue_dashes_and_end_the_minus_context() {
+        // A sigil is a continuation character, so it glues across a dash
+        // like a letter; a word ending in a sigil ends the word for the
+        // minus contract, exactly like a letter would.
+        assert_eq!(
+            kinds("x!-y x!-1 x! -3"),
+            vec![
+                Tok::VarId("x!-y".into()),
+                Tok::VarId("x!".into()),
+                Tok::Op("-".into()),
+                Tok::Int("1".into()),
+                Tok::VarId("x!".into()),
+                Tok::Int("-3".into()),
+                Tok::Eof
+            ]
         );
     }
 

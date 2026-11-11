@@ -749,6 +749,30 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   missing; `run` stays host only. An unknown triple is refused with the
   supported list. `compiler/src/driver.rs` (`profile_of_triple`,
   `cross_runtime`), `compiler/src/codegen.rs`, `compiler/tests/targets.rs`.
+- **D422 (sigil identifiers, user direction)**: `!` and `?` continue an
+  identifier after its first character, in any position and in any run
+  (`print!`, `empty?`, `read!?`, `a!b`), and neither ever starts one, so
+  a sigil in symbol position is still an operator run (`!=`, `?`, `(!)`)
+  and the reserved punctuation is unchanged. The keyword table compares
+  whole spellings, so `if?` is an identifier while `if` stays reserved.
+  A `!` immediately followed by a token tree opener (`(`, `[`, `{`) is
+  not taken: that spelling is the macro invocation's bang (surface
+  syntax `macro_call`), so `name!(...)` keeps invoking a macro and a
+  name ending in `!` invokes by spelling one more bang (`print!!(...)`).
+  Documented consequence: an operator beginning with a sigil needs a
+  space before it, because the sigil binds rightwards into the name
+  (`x != y` is the operator; `x!=y` is the name `x!` then `=`).
+  Identity spelling is unchanged: `!` and `?` are not plain identity
+  characters, so `print!` is `print$21` and `empty?` is `empty$3f`, and
+  the Core text format already admits `$` in a name segment.
+  `compiler/src/lexer.rs` (`is_ident_char`, `is_dash_glue_char`,
+  `is_macro_bang`, `scan_ident`), `compiler/prelude/Text/Lex.cinch`
+  (`is-ident-char`, `is-dash-glue-char`, `is-macro-bang`,
+  `scan-ident-acc`), `tooling/tree-sitter-cinch/src/scanner.c`,
+  `compiler/tests/syntax_sigil_identifiers.rs`,
+  `compiler/tests/bootstrap_lexer.rs`,
+  `compiler/tests/bootstrap_export_types.rs`. Spec: surface syntax
+  amendments, and surface grammar local amendments section 8.
 - **D221-D227 (P18 continuation, reported)**: `unsafe` is a per-body
   prefix (`unsafe <family> { ... }`) with `unsafe prim ... where` sugar
   folding into bodies at parse, recognized contextually so `unsafe`

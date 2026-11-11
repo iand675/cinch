@@ -4,9 +4,11 @@ A source file goes through five stages before it is checked: `compiler/src/lexer
 
 # Identifiers
 
-A value name starts with an ASCII lowercase letter or `_` and continues with ASCII letters, digits, `_`, and `'`. A constructor, type, or module name starts with an ASCII uppercase letter and continues the same way. An operator name is a run of symbol characters or a value name in parentheses, `(<+>)`.
+A value name starts with an ASCII lowercase letter or `_` and continues with ASCII letters, digits, `_`, `'`, `!` and `?`. A constructor, type, or module name starts with an ASCII uppercase letter and continues the same way. An operator name is a run of symbol characters or a value name in parentheses, `(<+>)`.
 
-A dash joins two parts into one name when it is tight on both sides and the character after it is alphabetic, `_`, or `'`. Digits do not continue a name across a dash. The rule is decided inside the lexer, so it applies before any meaning is attached to the spelling.
+`!` and `?` continue a name in any position and in any run, so `print!`, `empty?` and `read!?` are names; neither ever starts one, so a `!` or `?` in symbol position is still an operator run (`!=`, `?`, `(!)`). Because a sigil binds rightwards into the name, an operator that begins with one needs a space before it. A `!` tight before `(`, `[` or `{` is the macro call's bang instead, so `name!(...)` invokes a macro and a value named `print!` is invoked as `print!!(...)`.
+
+A dash joins two parts into one name when it is tight on both sides and the character after it is alphabetic, `_`, `'`, `!`, or `?`. Digits do not continue a name across a dash. The rule is decided inside the lexer, so it applies before any meaning is attached to the spelling.
 
 | Spelling | Interpretation |
 | --- | --- |
@@ -16,6 +18,11 @@ A dash joins two parts into one name when it is tight on both sides and the char
 | `x-y'` | One name: `'` continues the name after the dash. |
 | `_x` | A name. `_` alone is the pattern wildcard, not a name. |
 | `x'` | A name: an apostrophe continues an identifier. |
+| `empty?` | One name: `?` continues it and ends it. |
+| `print!` | One name: `!` continues it and ends it. |
+| `read!?` | One name: a run of sigils belongs to the name. |
+| `x!=y` | The name `x!`, then `=`, then `y`: a sigil binds into the name. |
+| `x != y` | An operator expression: a spaced `!` run is still an operator. |
 | `café` | Not an identifier: identifiers are ASCII. |
 
 This program defines a value named `x-y` and also uses the three-part subtraction `x - y`. It exits 0 only if `x-y` is one name holding 9 and `x - y` is 100 minus 1:

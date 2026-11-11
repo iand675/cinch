@@ -42,7 +42,7 @@ The EBNF consumes explicit `{`, `;` and `}` tokens after a deterministic layout 
 
 An implicit block must indent farther than its enclosing implicit block. An explicit delimiter shields enclosing layout while it is open; layout blocks begun inside it still use their own indentation. Closing `)`, `]` or an explicit `}` first closes implicit blocks opened inside that delimiter. End of file closes remaining implicit blocks. `in` closes the nearest applicable implicit `let` block and any nested implicit blocks; it must not cross an unmatched explicit delimiter. A `let` statement in `do` has no `in` and closes by indentation. Use explicit braces for empty blocks or a form the layout rule cannot express. There is no parser-error-based insertion rule.
 
-Comments are `--` to end of line and nestable `{- ... -}` blocks. Tabs are rejected in indentation. Line endings normalize to LF. Identifiers are ASCII in this draft; string and character contents are Unicode scalar values. Strings support `\\`, `\"`, `\'`, `\n`, `\r`, `\t`, and `\u{HEX}` with a valid scalar. Comment recognition has priority over symbol identifiers. Reserved punctuation is matched longest first, including `::`, `->`, `<-`, `=>`, `[|`, `|]`, `$(` and multiplicities. Dot is qualification or projection, never decimal punctuation except inside a numeric token. `f(x)` parses as applying `f` to `x`; `f(x,y)` supplies one tuple argument, not two curried arguments.
+Comments are `--` to end of line and nestable `{- ... -}` blocks. Tabs are rejected in indentation. Line endings normalize to LF. Identifiers are ASCII in this draft, and `!` and `?` continue an identifier after its first character while never starting one (D422: `print!`, `empty?`, `read!?`); string and character contents are Unicode scalar values. Strings support `\\`, `\"`, `\'`, `\n`, `\r`, `\t`, and `\u{HEX}` with a valid scalar. Comment recognition has priority over symbol identifiers. Reserved punctuation is matched longest first, including `::`, `->`, `<-`, `=>`, `[|`, `|]`, `$(` and multiplicities. Dot is qualification or projection, never decimal punctuation except inside a numeric token. `f(x)` parses as applying `f` to `x`; `f(x,y)` supplies one tuple argument, not two curried arguments.
 
 All quoted alphabetic terminals in the EBNF are reserved. `async`, `await`, `pure`, `spawn`, `join`, `delay`, `force`, `borrow` and `mutBorrow` are ordinary library names, not control syntax. Bare `_` is a pattern wildcard or elaboration hole; a hole cannot survive a deployable build.
 
@@ -194,8 +194,8 @@ pattern_field = var_id, "=", pattern ;
 
 con_path = con_id, { ".", con_id } ;
 var_path = { con_id, "." }, var_id ;
-var_id = ? ASCII lowercase or underscore followed by letters, digits, underscores or apostrophes; not a keyword or lone underscore ? ;
-con_id = ? ASCII uppercase followed by letters, digits, underscores or apostrophes ? ;
+var_id = ? ASCII lowercase or underscore followed by letters, digits, underscores, apostrophes, "!" or "?"; a sigil continues a name but never starts one, and a "!" tight before a token tree opener is the macro call's bang (D422); not a keyword or lone underscore ? ;
+con_id = ? ASCII uppercase followed by letters, digits, underscores, apostrophes, "!" or "?" (D422) ? ;
 operator = ? nonempty symbol identifier, or backtick-delimited value path; excludes reserved punctuation; dollar may continue an operator run (`<$>`) but not start one ? ;
 literal = integer | float | string | character ;
 integer = ? decimal digits, or 0x hexadecimal digits; internal single underscores allowed ? ;
@@ -278,6 +278,23 @@ section 1.
   externs `cinch_*`, the staticlib `cinchruntime`, and the reserved
   namespaces `cinch.prim.*`/`cinch.runtime.*`. Artifact names in this
   chapter read with those names.
+- **Sigil identifiers (D422), 2026-11-11.** `var_id` and `con_id`
+  continue with `!` and `?` after their first character, in any position
+  and in any run (`print!`, `empty?`, `read!?`, `a!b`), so the predicate
+  names and builder suffixes of other languages are spellable. Neither
+  sigil starts an identifier: in symbol position a `!` or `?` is an
+  operator run as before, so `!=`, `?` and `(!)` and the reserved
+  punctuation are unchanged. A `!` tight before a token tree opener
+  (`(`, `[`, `{`) is not taken: that spelling is `macro_call`'s bang, so
+  `name!(...)` keeps invoking a macro and a name ending in `!` invokes
+  by spelling one more bang (`print!!(...)`). Keywords are whole
+  spellings, so `if?` is an identifier while `if` stays reserved.
+  Documented consequence: because a sigil binds rightwards into the
+  name, an operator that begins with one needs a space before it
+  (`x != y` is the operator; `x!=y` is the name `x!` followed by `=`).
+  Identity spelling is unchanged: `!` and `?` are not plain identity
+  characters, so the interface spelling is `print$21` and `empty$3f`
+  (`compiler/tests/bootstrap_export_types.rs`).
 
 [Documentation overview](../overview.md)
 

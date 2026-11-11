@@ -25,9 +25,15 @@ syntax keyword cinchContextual handler unsafe when uses immarg for
       \ llvm wasm asm clr jvm
 syntax keyword cinchTodo contained TODO FIXME XXX NOTE
 
+" `!` and `?` continue a name after its first character and never start one
+" (`empty?`, `print!`, `read!?`; surface grammar local amendments section
+" 8). `iskeyword` gains both so `\<`/`\>` and `syntax keyword` boundaries
+" agree with the lexer: `if?` is one name, `if` is still a keyword.
+setlocal iskeyword+=!,?
+
 " Type and constructor names.
-syntax match cinchConstructor "\<[A-Z][A-Za-z0-9_']*"
-syntax match cinchIdentifier "[a-z_][A-Za-z0-9_']*\%(-[A-Za-z_'][A-Za-z0-9_']*\)*"
+syntax match cinchConstructor "\<[A-Z][A-Za-z0-9_'!?]*"
+syntax match cinchIdentifier "[a-z_][A-Za-z0-9_'!?]*\%(-[A-Za-z_'!?][A-Za-z0-9_'!?]*\)*"
 
 " Comments win over symbol runs; `{- -}` nests.
 syntax region cinchComment start="--" end="$" contains=cinchTodo
@@ -36,8 +42,8 @@ syntax region cinchComment start="{-" end="-}" contains=cinchComment,cinchTodo
 " Literals. A tick, one character, tick is a Char and wins; `'foo` is a
 " Sym literal and `''T` a type Name (D123).
 syntax match cinchChar "'\%([^'\\]\|\\\\[\\\"'nrt]\|\\\\u{[0-9A-Fa-f]\+}\)'"
-syntax match cinchSymbol "'[A-Za-z_][A-Za-z0-9_']*\%(-[A-Za-z_'][A-Za-z0-9_']*\)*"
-syntax match cinchTypeName "''[A-Za-z_][A-Za-z0-9_']*"
+syntax match cinchSymbol "'[A-Za-z_][A-Za-z0-9_'!?]*\%(-[A-Za-z_'!?][A-Za-z0-9_'!?]*\)*"
+syntax match cinchTypeName "''[A-Za-z_][A-Za-z0-9_'!?]*"
 syntax region cinchString start=+"+ skip=+\\\\\|\\"+ end=+"+
       \ contains=cinchEscape
 syntax match cinchEscape contained "\\\\\|\\\"\|\\'\|\\n\|\\r\|\\t\|\\\\u{[0-9A-Fa-f]\+}"

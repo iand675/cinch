@@ -343,8 +343,9 @@ either way.
   LSP `languageId`s `cinch` and `cinch-core`).
 - `languages/cinch/config.toml`: file suffix `cinch`, `-- ` line
   comments, nested `{- ... -}` block comments, brackets that do not
-  fire inside strings or raw text, `'` as a word character (it is an
-  identifier character), and `.` as a completion query character.
+  fire inside strings or raw text, `'`, `!` and `?` as word characters
+  (they continue an identifier, so `empty?` and `print!` are one word
+  to motions and completion), and `.` as a completion query character.
 - `languages/cinch-core/config.toml`: file suffix `core`, `-- ` line
   comments, no block comments, `(`/`)` and `{`/`}` brackets, and `$`,
   `.` and `-` as word characters (they are canonical-name characters).

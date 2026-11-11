@@ -6,7 +6,10 @@ block_comment = { start = "{-", prefix = "", end = "-}", tab_size = 0 }
 tab_size = 2
 hard_tabs = false
 autoclose_before = ")]},"
-word_characters = ["'"]
+# `!` and `?` continue a name after its first character (surface grammar
+# local amendments section 8), so word motions and completion treat
+# `empty?` and `print!` as one word.
+word_characters = ["'", "!", "?"]
 completion_query_characters = ["."]
 
 # `not_in` names come from overrides.scm, not from grammar node names.

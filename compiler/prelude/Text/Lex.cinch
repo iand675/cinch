@@ -486,14 +486,32 @@ module Text.Lex where
     || eq-char c 'Z'
 
   -- Identifier characters (`lex_word`'s set): ASCII alphanumeric, `_`,
-  -- `'`.
+  -- `'`, and the sigils `!` and `?`. A sigil never starts a word (the
+  -- dispatch tests a letter or `_` first), so `!` and `?` in symbol
+  -- position are still operator runs (`!=`, `?`, `(!)`). This is also
+  -- the "continues an identifier" test the minus contract uses: a word
+  -- ending in a sigil ends the word like any other.
   is-ident-char :: Char -> Bool
-  is-ident-char c = is-alpha-char c || is-ascii-digit c || eq-char c '_' || eq-char c '\''
+  is-ident-char c =
+    is-alpha-char c || is-ascii-digit c || eq-char c '_' || eq-char c '\''
+    || eq-char c '!' || eq-char c '?'
 
   -- The characters a dash may glue onto inside a word (amendment
-  -- section 8: digits do not continue an identifier across a dash).
+  -- section 8: digits do not continue an identifier across a dash). A
+  -- sigil is a continuation character, so it glues like a letter.
   is-dash-glue-char :: Char -> Bool
-  is-dash-glue-char c = is-alpha-char c || eq-char c '_' || eq-char c '\''
+  is-dash-glue-char c =
+    is-alpha-char c || eq-char c '_' || eq-char c '\'' || eq-char c '!'
+    || eq-char c '?'
+
+  -- Is a `!` with `next` after it the macro invocation's bang rather
+  -- than part of the name? `name!(...)`, `name![...]` and
+  -- `name!{...}` are macro calls, so a `!` tight before a token tree
+  -- opener ends the word (the compiler's `is_macro_bang`).
+  is-macro-bang :: Char -> Option Char -> Bool
+  is-macro-bang c next = case next of
+    Some d -> eq-char c '!' && (eq-char d '(' || eq-char d '[' || eq-char d '{')
+    None -> False
 
   -- Characters that end an expression and keep a following `-` in
   -- operator position (amendment section 8).
@@ -594,7 +612,11 @@ module Text.Lex where
     ErrAt :: Span -> LexErrorKind -> TokenStep
 
   -- The identifier spelling at the cursor (`lex_word`'s shape: ident
-  -- characters with dash glue), without the keyword lookup.
+  -- characters with dash glue, including the sigils `!` and `?`),
+  -- without the keyword lookup. The first character is taken by the
+  -- loop, so a sigil can only continue a word, never start one, and a
+  -- `!` tight before a token tree opener stays the macro invocation's
+  -- bang.
   scan-ident :: Scan -> PairScan
   scan-ident s = scan-ident-acc s Nil
 
@@ -602,7 +624,10 @@ module Text.Lex where
   scan-ident-acc s acc = case peek-char s of
     None -> Pair s (reverse acc)
     Some c ->
-      if is-ident-char c then scan-ident-acc (skip-char s) (Cons c acc)
+      if is-ident-char c then
+        if (not (is-nil-chars acc)) && is-macro-bang c (peek-at s 1) then
+          Pair s (reverse acc)
+        else scan-ident-acc (skip-char s) (Cons c acc)
       else if eq-char c '-' then
         case peek-at s 1 of
           Some d | is-dash-glue-char d -> scan-ident-acc (skip-char s) (Cons '-' acc)

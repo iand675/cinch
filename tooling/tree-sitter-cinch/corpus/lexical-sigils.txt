@@ -1,0 +1,79 @@
+==========================================
+sigil identifiers: `empty?` and `print!` are names
+==========================================
+module M where
+  f = empty? xs print!
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier))
+            (variable
+              (identifier))
+            (variable
+              (identifier))))))))
+
+==========================================
+sigil identifiers: a spaced `!=` is still an operator run
+==========================================
+module M where
+  f = a != b
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier)))
+          (operator)
+          (application
+            (variable
+              (identifier))))))))
+
+==========================================
+sigil identifiers: the bang before a token tree opens a macro call
+==========================================
+module M where
+  f = print!!(a)
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (macro_invocation
+              (variable
+                (identifier))
+              (bang)
+              (token_tree))))))))

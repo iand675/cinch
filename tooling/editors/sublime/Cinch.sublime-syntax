@@ -8,9 +8,15 @@ file_extensions: [cinch]
 scope: source.cinch
 
 variables:
-  ident_char: '[A-Za-z0-9_''-]'
-  dash_ident: '[a-z_][A-Za-z0-9_''-]*'
-  con_ident: '[A-Z][A-Za-z0-9_''-]*'
+  # `!` and `?` continue a name after its first character and never start
+  # one (`empty?`, `print!`, `read!?`; surface grammar local amendments
+  # section 8), so they are identifier characters like a letter here.
+  ident_char: '[A-Za-z0-9_''!?-]'
+  dash_ident: '[a-z_][A-Za-z0-9_''!?-]*'
+  con_ident: '[A-Z][A-Za-z0-9_''!?-]*'
+  # A keyword is a whole word: a sigil right after it makes a name
+  # (`if?` is a variable, `if` alone is the keyword).
+  kw_guard: '(?![A-Za-z0-9_''!?-])'
 
 contexts:
   main:
@@ -73,26 +79,26 @@ contexts:
           pop: true
 
   keywords:
-    - match: '\b(module|import|export|as)\b'
+    - match: '\b(module|import|export|as)\b{{kw_guard}}'
       scope: keyword.control.import.cinch
-    - match: '\b(data|record|codata|effect|signature|instance|implicit|opaque|type|foreign|ccall|component|prim|law|contract|rewrite|target|upgrade|generate|infix|infixl|infixr|proof|spec|stage|corec|macro)\b'
+    - match: '\b(data|record|codata|effect|signature|instance|implicit|opaque|type|foreign|ccall|component|prim|law|contract|rewrite|target|upgrade|generate|infix|infixl|infixr|proof|spec|stage|corec|macro)\b{{kw_guard}}'
       scope: storage.type.declaration.cinch
-    - match: '\b(forall|Sigma|using|in|let|letrec|where|of)\b'
+    - match: '\b(forall|Sigma|using|in|let|letrec|where|of)\b{{kw_guard}}'
       scope: keyword.other.cinch
-    - match: '\b(if|then|else|case)\b'
+    - match: '\b(if|then|else|case)\b{{kw_guard}}'
       scope: keyword.control.conditional.cinch
-    - match: '\b(do)\b'
+    - match: '\b(do)\b{{kw_guard}}'
       scope: keyword.control.loop.cinch
-    - match: '\b(handle|with|match|replace|require|justify|to)\b'
+    - match: '\b(handle|with|match|replace|require|justify|to)\b{{kw_guard}}'
       scope: keyword.control.cinch
-    - match: '\b(safety|liveness|recurrence|stability|always|eventually|recur|stable|assume)\b'
+    - match: '\b(safety|liveness|recurrence|stability|always|eventually|recur|stable|assume)\b{{kw_guard}}'
       scope: keyword.other.contract.cinch
-    - match: '\b(erased|own)\b'
+    - match: '\b(erased|own)\b{{kw_guard}}'
       scope: storage.modifier.cinch
-    - match: '\b(return|resume)\b'
+    - match: '\b(return|resume)\b{{kw_guard}}'
       scope: keyword.control.flow.cinch
     # Contextual words (usable as identifiers elsewhere; D221-D227).
-    - match: '\b(handler|unsafe|when|uses|immarg|for|migrate|related|attributes|replaceable|specialized|llvm|wasm|asm|clr|jvm)\b'
+    - match: '\b(handler|unsafe|when|uses|immarg|for|migrate|related|attributes|replaceable|specialized|llvm|wasm|asm|clr|jvm)\b{{kw_guard}}'
       scope: variable.other.contextual.cinch
 
   operators:

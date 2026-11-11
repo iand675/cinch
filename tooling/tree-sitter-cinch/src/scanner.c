@@ -387,13 +387,15 @@ static bool is_symbol_char(char c) {
 
 static bool is_ident_char(char c) {
   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-         (c >= '0' && c <= '9') || c == '_' || c == '\'';
+         (c >= '0' && c <= '9') || c == '_' || c == '\'' || c == '!' ||
+         c == '?';
 }
 
-/* Digits do not continue an identifier across a dash (D128). */
+/* Digits do not continue an identifier across a dash (D128). A sigil is
+   a continuation character, so it glues like a letter. */
 static bool is_dash_glue_char(char c) {
   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' ||
-         c == '\'';
+         c == '\'' || c == '!' || c == '?';
 }
 
 static bool is_expr_end_char(char c) {
@@ -705,12 +707,22 @@ static bool scan_string(Scanner *s, TSLexer *lexer) {
 }
 
 /* `lex_word` from the current position: identifier characters plus dash
-   glue. */
+   glue, including the sigils `!` and `?`. The first character is taken
+   by the caller (a word never starts with a sigil), and a `!` tight
+   before a token tree opener is the macro invocation's bang (`x!(...)`),
+   so it ends the word there and `bang_pending` turns the opener into a
+   TOKEN_TREE as the compiler's parser does. */
 static void scan_word_rest(Scanner *s, TSLexer *lexer, char *word,
                            size_t *len) {
   for (;;) {
     char c = peekc(lexer);
-    if (is_ident_char(c)) {
+    if (c == '!') {
+      take(s, lexer, false); /* cut before the bang stays marked */
+      char next = peekc(lexer);
+      if (next == '(' || next == '[' || next == '{') return;
+      if (*len + 1 < MAX_WORD) word[(*len)++] = '!';
+      mark(s, lexer);
+    } else if (is_ident_char(c)) {
       if (*len + 1 < MAX_WORD) word[(*len)++] = c;
       take(s, lexer, false);
       mark(s, lexer);

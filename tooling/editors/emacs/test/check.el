@@ -94,4 +94,33 @@
                (and (nth 4 (syntax-ppss (+ (match-beginning 0) 5))) t)
                nil))
 
+  ;; The surface syntax's sigil names (amendment section 8): `!` and `?`
+  ;; continue a name after its first character, never start one, and leave
+  ;; a keyword spelling alone (`if?` is a name, `if` is a keyword).
+  (unless (featurep 'cinch-mode)
+    (load (expand-file-name "../cinch-mode.el" test) nil t))
+
+  (with-temp-buffer
+    (insert-file-contents (expand-file-name "fixture.cinch" test))
+    (cinch-mode)
+    (font-lock-ensure)
+
+    (cc-report "surface major mode" major-mode 'cinch-mode)
+    (cc-report "surface auto-mode-alist"
+               (cdr (assoc "\\.cinch\\'" auto-mode-alist))
+               'cinch-mode)
+    (cc-report "surface comment-start" comment-start "-- ")
+    (cc-report "empty? name" (cc-face-at "^  \\(empty\\?\\) ::" 1)
+               'font-lock-variable-name-face)
+    (cc-report "print! name" (cc-face-at "^  \\(print!\\) ::" 1)
+               'font-lock-variable-name-face)
+    (cc-report "read!? name" (cc-face-at "^  \\(read!\\?\\) ::" 1)
+               'font-lock-variable-name-face)
+    (cc-report "if? is a name" (cc-face-at "^  \\(if\\?\\) ::" 1)
+               'font-lock-variable-name-face)
+    (cc-report "bare if is a keyword" (cc-face-at "main = \\(if\\) " 1)
+               'font-lock-keyword-face)
+    (cc-report "spaced bang run" (cc-face-at "spaced = 1 \\(!=\\) 2" 1)
+               'font-lock-variable-name-face))
+
   (kill-emacs (if (> failures 0) 1 0)))

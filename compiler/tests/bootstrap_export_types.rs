@@ -35,6 +35,10 @@ fn checked_schemes_have_portable_definition_owned_syntax() {
             "spelling" => { assert_eq!(scheme, "i.Bootstrap$2eInfer$2eBootstrap$2eInfer$2eadd$2derror"); continue; }
             "escaped-spelling" => { assert_eq!(scheme, "i.Data$2eSym$2e$24"); continue; }
             "scalar-spelling" => { assert_eq!(scheme, "i.Data$2eSym$2e$e2$86$92"); continue; }
+            // `!` and `?` are not plain identity characters, so the
+            // spelling is the lowercase hex of each byte: `$21` and `$3f`.
+            "bang-spelling" => { assert_eq!(scheme, "Main.print!"); continue; }
+            "question-spelling" => { assert_eq!(scheme, "i.Main$2eempty$3f"); continue; }
             "alpha-stable" => { assert_eq!(scheme, "yes"); continue; }
             "unsolved" | "escaped" | "malformed-identity" | "independent-row-tails" | "proof-domain-not-proposition" | "proof-row-not-effects" | "early-proof-precondition" => {
                 assert!(scheme.starts_with("ERROR:"), "{name}: {scheme}"); continue;
@@ -67,6 +71,6 @@ fn checked_schemes_have_portable_definition_owned_syntax() {
         let checked = cinch::driver::check_sources(&source, "cinch-exported-type.cinch");
         assert!(checked.is_ok(), "Native readback {name}: {scheme}\n{checked:?}\nProject: {}", dir.display());
     }
-    assert_eq!(report.lines().count(), 27, "{report}");
+    assert_eq!(report.lines().count(), 33, "{report}");
     common::cleanup(&dir);
 }

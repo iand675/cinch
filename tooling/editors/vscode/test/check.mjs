@@ -176,6 +176,40 @@ check(
   true,
 );
 
+// The surface grammar's sigil names (surface grammar local amendments
+// section 8): `!` and `?` continue a name after its first character, never
+// start one, and a keyword is a whole spelling.
+// Resolve a scope the way the grammar's own top-level `patterns` order does:
+// the first include whose first rule matches at the position wins.
+const surfaceScope = (text) => {
+  for (const entry of surfaceGrammar.patterns) {
+    const context = surfaceGrammar.repository[entry.include.slice(1)];
+    for (const rule of context.patterns ?? []) {
+      if (typeof rule.match !== 'string') continue;
+      const found = new RegExp(rule.match).exec(text);
+      if (found && found.index === 0) return rule.name;
+    }
+  }
+  return undefined;
+};
+
+for (const [text, scope] of [
+  ['empty? x', 'variable.other.cinch'],
+  ['print! x', 'variable.other.cinch'],
+  ['read!? x', 'variable.other.cinch'],
+  ['int-digits-into x', 'variable.other.cinch'],
+  ['if? x', 'variable.other.cinch'],
+  ['when? x', 'variable.other.cinch'],
+  ['if x', 'keyword.control.conditional.cinch'],
+  ['when x', 'variable.other.contextual.cinch'],
+  ['!= y', 'keyword.operator.cinch'],
+  ['Empty? x', 'entity.name.type.cinch'],
+  ["'empty?", 'constant.other.symbol.cinch'],
+  ["''Empty?", 'entity.name.type.cinch'],
+]) {
+  check(`surface ${text}`, surfaceScope(text), scope);
+}
+
 if (failures.length > 0) {
   console.log(`\n${failures.length} check(s) failed`);
   process.exit(1);

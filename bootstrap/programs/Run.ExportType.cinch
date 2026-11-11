@@ -53,6 +53,8 @@ module Main where
     row "spelling" (Ok (interface-global "Bootstrap.Infer.Bootstrap.Infer.add-error")) <>
     row "escaped-spelling" (Ok (interface-global "Data.Sym.$")) <>
     row "scalar-spelling" (Ok (interface-global "Data.Sym.→")) <>
+    row "bang-spelling" (export-global "m.Main.print$21") <>
+    row "question-spelling" (Ok (interface-global "Main.empty?")) <>
     row "unsolved" (export-scheme (mono (UMeta 7 KType))) <>
     row "escaped" (export-scheme (mono (URigid 3 "escaped" 1 KType))) <>
     row "malformed-identity" (export-global "m.A-Token") <>

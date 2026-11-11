@@ -16,6 +16,13 @@
     (modify-syntax-entry ?} "){4nb" table)
     (modify-syntax-entry ?_ "w" table)
     (modify-syntax-entry ?' "w" table)
+    ;; `!` and `?` continue a name after its first character and never
+    ;; start one (surface grammar local amendments section 8): `empty?`,
+    ;; `print!` and `read!?` are single words, so `\_<`/`\_>` boundaries
+    ;; and `regexp-opt`'s keyword boundaries agree with the lexer (`if?`
+    ;; is a name, `if` is still a keyword).
+    (modify-syntax-entry ?! "w" table)
+    (modify-syntax-entry ?? "w" table)
     table)
   "Syntax table for `cinch-mode'.")
 
@@ -46,15 +53,19 @@
    (cons (regexp-opt cinch-conditional-words 'symbols) 'font-lock-keyword-face)
    (cons (regexp-opt cinch-contextual-words 'symbols) 'font-lock-variable-name-face)
    ;; dash identifiers glue tight (`int-digits-into` is one name)
-   '("\\<[a-z_][A-Za-z0-9_']*\\(?:-[A-Za-z_'][A-Za-z0-9_']*\\)*\\>" . font-lock-variable-name-face)
-   '("\\<[A-Z][A-Za-z0-9_']*\\>" . font-lock-type-face)
+   '("\\_<[a-z_][A-Za-z0-9_'!?]*\\(?:-[A-Za-z_'!?][A-Za-z0-9_'!?]*\\)*\\_>" . font-lock-variable-name-face)
+   '("\\_<[A-Z][A-Za-z0-9_'!?]*\\_>" . font-lock-type-face)
    ;; tick syntax (D123): 'a' is a Char, 'foo a Sym, ''T a type Name
    '("'\\([^'\\]\\|\\\\[\\\\\"'nrt]\\|\\\\u{[0-9A-Fa-f]+}\\)'" . font-lock-string-face)
-   '("''[A-Za-z_][A-Za-z0-9_']*" . font-lock-type-face)
-   '("'[A-Za-z_][A-Za-z0-9_']*\\(?:-[A-Za-z_'][A-Za-z0-9_']*\\)*" . font-lock-constant-face)
+   '("''[A-Za-z_][A-Za-z0-9_'!?]*" . font-lock-type-face)
+   '("'[A-Za-z_][A-Za-z0-9_'!?]*\\(?:-[A-Za-z_'!?][A-Za-z0-9_'!?]*\\)*" . font-lock-constant-face)
    '("\\_<-?[0-9][0-9_]*\\(?:\\.[0-9][0-9_]*\\)?\\(?:[eE][+-]?[0-9]+\\)?\\_>" . font-lock-constant-face)
    '("#\\[[A-Za-z_][A-Za-z0-9_.-]*" . font-lock-preprocessor-face)
-   '("\\_<\\(?:[!#$%&*+/<=>?@^|~:-]\\|\\$\\)+\\_>" . font-lock-variable-name-face))
+   ;; Symbol runs. The guards `\\_<`/`\\_>` are wrong here because `!` and
+   ;; `?` are word constituents now: `\\_>` holds between `!` and `=`, so
+   ;; `!=` would fontify as `!` alone. The class cannot start inside a name
+   ;; (a name match starts earlier and wins), so no guard is needed.
+   '("\\(?:[!#$%&*+/<=>?@^|~:-]\\|\\$\\)+" . font-lock-variable-name-face))
   "Font-lock rules for `cinch-mode'.")
 
 ;;;###autoload

@@ -53,6 +53,12 @@ const ATTRS: &str = "module M where\n  #[inline]\n  f :: Nat -> Nat\n  #[weight(
 /// `Char` literal form.
 const TICKS: &str = "module M where\n  f :: Nat -> Nat\n  f n = n\n  'a'\n  'name\n  ''Nat\n  'b\n  g :: Nat -> Nat\n  g n = n\n";
 
+/// A synthetic source exercising the sigil identifier rule (amendment
+/// section 8): `!` and `?` continue a name in any position and in any run,
+/// never start one, end the minus context like a letter, and a `!` tight
+/// before a token tree stays the macro invocation's bang.
+const SIGILS: &str = "module M where\n  print! :: Int -> Int\n  print! x = x\n  empty? :: List Int -> Bool\n  empty? xs = case xs of Nil -> True; Cons _ _ -> False\n  read!? :: Int -> Int\n  read!? x = x\n  if? :: Int -> Bool\n  if? n = n == 0\n  bang :: Int\n  bang = x!\n  probe! :: Int\n  probe!=3\n  spaced :: Bool\n  spaced = 1 != 2\n  macro-call :: Int\n  macro-call = id!(1)\n  named-bang :: Int\n  named-bang = id! 2 + (!)\n  sigil-dash :: Int\n  sigil-dash = x!-y\n";
+
 /// Escape a spelling's `\` and newline characters as `\\` and `\n`,
 /// matching `Text.Lex.render-token` (one token per rendered line).
 fn escape_spelling(s: &str) -> String {
@@ -238,6 +244,7 @@ fn bounded_corpus(root: &Path) -> Vec<(String, String)> {
     }
     corpus.push(("synthetic-attrs.cinch".into(), ATTRS.to_string()));
     corpus.push(("synthetic-ticks.cinch".into(), TICKS.to_string()));
+    corpus.push(("synthetic-sigils.cinch".into(), SIGILS.to_string()));
     corpus
 }
 
@@ -254,6 +261,7 @@ fn whole_corpus(root: &Path) -> Vec<(String, String)> {
     }
     corpus.push(("synthetic-attrs.cinch".into(), ATTRS.to_string()));
     corpus.push(("synthetic-ticks.cinch".into(), TICKS.to_string()));
+    corpus.push(("synthetic-sigils.cinch".into(), SIGILS.to_string()));
     corpus.sort_by(|a, b| a.0.cmp(&b.0));
     corpus
 }

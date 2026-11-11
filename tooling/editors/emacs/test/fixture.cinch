@@ -1,0 +1,15 @@
+module Main where
+  empty? :: List Int -> Bool
+  empty? xs = case xs of Nil -> True; Cons _ _ -> False
+  print! :: Int -> Int
+  print! x = x
+  read!? :: Int -> Int
+  read!? x = x
+  if? :: Int -> Bool
+  if? n = n == 0
+  when? :: Int -> Int
+  when? n = n
+  main :: Int
+  main = if if? 0 then print! (read!? 41) else 0
+  spaced :: Bool
+  spaced = 1 != 2
