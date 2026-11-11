@@ -396,11 +396,50 @@ Neither the ownership lattice nor `Facts::consumed` can see the frame
 substitution, because both are properties of the callee's body, not of where
 the call sits.
 
+Threading the flag through every tail-preserving form is the part that has to
+be exhaustive, and the first version of the fix was not: `Dup` and `Drop` had
+an arm that recorded the count and then fell through to the generic child
+walk, which resets the position to an ordinary value, and `If` had no arm at
+all. Rebuilding the chain from that version moved every call site in
+`type-text` out of the frame except one, which then crashed the same way at
+`Data.String.concat-from`: the slot was a cell allocated inside a count
+operation's body, and the argument read as a consumption because the scan
+never saw the tail. The flag is therefore threaded from the unit body through
+each form's body explicitly, and the regression test covers the plain body,
+a `Dup` body and an `If` branch, so a form that stops preserving the flag
+fails the test rather than the bootstrap.
+
 The regression test is `a_frame_block_passed_to_a_tail_call_stays_on_the_heap`
 in `compiler/tests/stack_allocation.rs`: the same Core program the widening's
-test uses, with the call as the unit's result rather than a `let` value, for
-a consumed and for a lent parameter. It takes a slot before this change and
-is refused as `escapes:tail-call` after it.
+test uses, with the call as the unit's result rather than a `let` value, under
+each of those forms, for a consumed and for a lent parameter. It takes a slot
+before this change and is refused as `escapes:tail-call` after it.
+
+### 7.7 Measured: what the pass buys after the tail-call fix
+
+Both binaries below are Stage1, the one compiler in the chain the pass lowers
+(the seed builds it; Stage2 and later are built by the Cinch compiler, which
+does not implement the pass yet). `--no-stack-alloc` in `CINCH_SEED_FLAGS`
+builds the same source without frame slots, so the comparison is the
+compiler's own code:
+
+| Workload (Stage1) | Pass | Blocks | Bytes | CPU (user+sys) |
+| --- | --- | --- | --- | --- |
+| toolkit check, 3,966 lines | on | 336,133,037 | 7.38 GB | 8.04 s, 7.55 s |
+| toolkit check | off | 350,516,475 | 7.73 GB | 7.73 s, 7.26 s |
+| self-compile, 40,266 lines | on | 3,089,819,009 | 71.16 GB | 106.9 s |
+| self-compile | off | 3,133,383,640 | 72.24 GB | 110.1 s |
+
+The pass removes 4.1% of the blocks and 4.6% of the bytes on the toolkit
+check, and 1.4% and 1.5% on the self-compile, all with `live=0` and
+`immortal=0` in the allocation summary, so the volume leaves the heap rather
+than becoming a leak. The CPU it buys is not established: the toolkit check
+came out 4% slower and 4% faster in its two interleaved pairs (the on binary
+is 26.8 MB against 22.8 MB, so it pays for its fewer allocations in instruction
+footprint), and the self-compile's single pair is 3% faster on. Volume moved;
+speed did not, at this reach. Raising the reach (the returned-block
+population, section 7.2's 42% of refusals) is what would make the volume
+matter, and that is the worker/wrapper queue item, not this pass.
 
 ### 7.2 Measured reach
 
