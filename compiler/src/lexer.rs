@@ -1606,4 +1606,19 @@ mod tests {
         assert_eq!(toks[4].span, toks[5].span);
         assert_ne!(toks[1].span, toks[2].span);
     }
+
+    #[test]
+    fn a_position_interns_resolves_and_renders_as_before() {
+        let a = Span::new(7, 3);
+        let b = Span::new(7, 3);
+        // Equality is the position's, not the table slot's: the parser
+        // compares token spans, and interning is what keeps that meaningful.
+        assert_eq!(a, b);
+        assert_eq!((a.line(), a.col()), (7, 3));
+        assert_ne!(a, Span::new(7, 4));
+        // The table id never reaches a rendering: the debug and display
+        // forms name the position, so no artefact built from them moves.
+        assert_eq!(format!("{a:?}"), "Span { line: 7, col: 3 }");
+        assert_eq!(format!("{a}"), "7:3");
+    }
 }

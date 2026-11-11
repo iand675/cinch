@@ -896,6 +896,103 @@ The artifact is a separate file today, the typed counterpart of the Rust
 writer's `.cinchopt` bodies. Carrying it inside `.cinchif` is the interface
 format item in section 12.
 
++++++++ wyzzvwks 976238be "Record what the span table bought, and why Cinch keeps its Span" (rebased revision)
+### 2.12 Source positions in a dense table (2026-11-11)
+
+Section 3 asks for spans in a side table and out of fingerprints. The seed's
+frontend carries a `Span` in every syntax node and in every `ast::Name`,
+though no pass reads a position except to render a diagnostic. The table is
+in the tree; this section records what it bought and what it did not.
+
+**What changed.** `lexer::Span` is a four-byte handle into one dense table,
+with an entry per distinct `(line, column)` pair. The line index is a map and
+not a vector because the frontend parses files behind synthetic line bands
+(`BAND_WIDTH` apart in `analysis.rs`), so line numbers are sparse. The table
+interns, it does not merely index: the parser compares tokens' spans (a `$(`
+pair shares one), so two positions must be equal exactly when their line and
+their column are, and a fresh id per construction would have broken that.
+Reads are memoized per thread, because the layout and analysis passes read the
+current token's position several times in a row. Generated spans keep their
+old encoding, a marker column indexing the expansion arena, so expansion
+provenance renders exactly as before.
+
+**Diagnostics are byte-identical.** Three programs (a type error, an unknown
+name, and a parse error at end of input) report `3:10`, `3:10` and `4:1`
+character for character before and after. `Debug` and `Display` for `Span`
+render the position and never the id, so nothing built from either moves:
+the `Debug` form is spelled exactly as the derive wrote it.
+
+**Node size and time: nothing.** Measured with `size_of` on the base revision
+and on the tree with the table:
+
+| type | before | after |
+| --- | --- | --- |
+| `Span` | 8 | 4 |
+| `ast::Term` | 296 | 296 |
+| `ast::Type` | 272 | 272 |
+| `ast::Pat` | 88 | 88 |
+| `ast::Name` | 72 | 72 |
+| `ast::Decl` | 1320 | 1312 |
+
+The four bytes a node gives up fall into alignment padding: the enums are
+eight-aligned and their widest variants end on an eight-byte boundary either
+way. Only `Decl`, whose widest variant ends four-aligned, loses eight bytes.
+Child CPU on the 41,286-line compiler bundle, interleaved pairs in both
+orders: 6.88 s, 7.31 s and 7.23 s before against 7.19 s, 7.20 s and 7.22 s
+after, which is the run-to-run spread. On the two-line program the table
+costs about 0.02 s of the 0.31 s baseline, the interning lock and the
+interned lookup of one position per token.
+
+So the table separates provenance from structure, and that is all it does
+here. It removes no bytes and no time from the seed.
+
+**Fingerprints.** Declaration identity was already span-free: `surface_rows`
+reads the interface contract and `body_rows` debugs `FnDef`, and neither
+carries a position (`compiler/src/incremental.rs`). A new test in
+`compiler/tests/incremental.rs` pins it: inserting two comment lines and a
+blank line into `Base.cinch` moves every following position and leaves every
+declaration's `decl_hash` unchanged, while the module's own hash moves,
+because a module's body hash is its source text.
+
+**Why the Cinch compiler was left alone.** The self-hosted AST and Core carry
+a `Span` per constructor argument (141 in `Bootstrap.Ast`, 82 in
+`Bootstrap.Core`), and the shape of the change is large: 459 `POk` results in
+`Bootstrap.Parse` carry the token stream the table would have to ride along
+with, 32 `span-join` and 3 `span-here` sites construct a new position, and
+103 `sp-of` reads would each turn into an id. A pure language has no place to
+put the table except threaded through `Ps`, the parser's result type, and
+then carried in `Program` into every rung that renders a diagnostic. But the
+size argument that motivated the seed's table does not hold there, and this
+is the part worth recording:
+
+- A Cinch node is a word array, so its span slot is one word whether it holds
+  a `Span` pointer or a `Nat` id. The block does not shrink. That is the same
+  measurement that decided the seed's table, where the widest variants are
+  set by their payload and not by provenance.
+- The 40-byte `Span` block that a leaf node points at is already shared: the
+  parser passes the token's own `Span` value into every node the token
+  starts, so no allocation happens per leaf. A composite span
+  (`span-join`) is one fresh block per construct, and a table would hold one
+  row per distinct composite span, which is the same count. There is no
+  allocation to remove.
+- What the id buys is indirection: every render, and every
+  `span-start`/`span-end` comparison, gains a table lookup, and the table
+  itself must be threaded through the parser, the program and the
+  diagnostics.
+
+The measured cost of a `Span` in the self-hosted compiler is therefore one
+word in a block, the same word an id would use, plus an indirection. The
+change is not worth 223 constructor arguments and the parser's threading
+until a node carries provenance it does not need on the hot path, which is
+the case the seed has and Cinch does not.
+The open question is a different one: `Bootstrap.RuntimeIr` and
+`Bootstrap.Infer` construct `Span 0 0 1 1` at 114 sites, most of them in
+functions entered once per Core node, and each construction allocates. That
+is a sharing problem (one value instead of one per call), not a side-table
+problem, and it wants a census first: the ABI 9 bump arena means
+`CINCH_ALLOC_KINDS` no longer sees these blocks, so the census has to be
+taken per layout id in the runtime rather than per size class.
+
 ## 3. The query graph (rustc, Salsa, Shake)
 
 The single largest structural gap. Today a build rechecks whatever the
@@ -1708,7 +1805,7 @@ impossible tag. `named-polymorphic-proof` returned 1 instead of 42, and
 the instrumented stage-1 link trapped on a freed block. Decision cases
 stay on the chain now.
 
-### 2.11 The 2026-11-11 round, in the order it landed
+### 2.13 The 2026-11-11 round, in the order it landed
 
 Nine landings changed the shape of the compiler rather than tuning it. The
 numbers below are the ones each lane measured on its own gate, not a single
