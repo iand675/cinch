@@ -592,9 +592,77 @@ than the whole-program build of the same bundle, and neither defines nor
 calls a wrapper unit: the whole-program build had already inlined them, and
 the artifact build reaches the same residual.
 
+### When the artifact is written, and what it costs
+
+Writing is default only for `--emit-object`, the mode that produces a
+library for someone else: its consumer may read the artifacts, and the cost
+is small against a library build. Every other mode writes them only with
+`--emit-interface-optimisations`, so a check of a user program pays
+nothing. Measured on the 46 module compiler bundle (105 interfaces, 65 with
+a class body):
+
+| item | value |
+| --- | --- |
+| `.cinchif` bytes | 3,500,263 |
+| `.cinchopt` files / bytes | 65 / 202,025 (5.8 per cent of the contracts) |
+| class pass (`unfoldable_names`) | 96 ms |
+| build and encode all 65 | 179 ms |
+| total added to a compile that writes them | 275 ms |
+
+Reading is opt-in and cannot be default today: the Rust driver loads no
+interface set of its own (it embeds the prelude and consumes packages as
+sources), so there is no manifest to read implicitly. A user with a prebuilt
+library passes `--interface-optimisations <manifest>`; the manifest is the
+same `[module, iface_hash, path]` list the library already publishes, and
+each row's sibling `.cinchopt` is read only if it is present. A row without
+one behaves exactly as before.
+
 The self-hosted compiler's inliner (`Bootstrap.RuntimeIr.cinch`) is not a
-consumer yet. Its bodies are `CoreTerm`s with `UType` annotations on every
-node, and the artifact would have to transport those types (or the consumer
-would have to re-elaborate the body); that codec is the next step for the
-stage chain, and it is what turns the 3,561 calls in
-`build/bootstrap/stage2/compiler.ll` into unfoldable ones.
+consumer yet; section 15 sizes that gap.
+
+## 15 The self-hosted gap, sized
+
+The stage chain's inliner is `Bootstrap.RuntimeIr.cinch`, which works on
+`CoreTerm`: every node carries at least one `UType`, and some carry two
+(`CApplyEff`, `CErasedApply`, `CDecision`) or a `Scheme` (`CLet`). The
+artifact's bodies are untyped, so a consumer either gets types in the
+artifact or infers them. Here is what each costs, counted from the base
+library the Rust seed actually produces (`emit-object` on
+`CinchBaseObject` with the pinned roots):
+
+| count | value |
+| --- | --- |
+| modules with a class body | 31 |
+| class units | 401 |
+| Core nodes in those bodies | 2,721 (6.8 per unit) |
+| artifact bytes, all 31 modules | 78,416 |
+| `Data.Machine` alone | 216 units, 1,136 nodes, 34,653 bytes |
+| `Data.Machine` source types | 820 foreign declarations, 372 distinct type texts, 1,618 distinct type nodes |
+
+**Transport.** Every node needs an annotation, so a per-node type tree is
+2,721 trees; at the class's average of about two type nodes and about 18
+bytes per encoded type node that is roughly 98 KB, more than doubling the
+78 KB artifact. A per-module type table does better: the distinct types
+across the base library are on the order of 1,000 type nodes (18 KB), plus
+a two-byte index per node (5.4 KB), so about 23 KB, a 30 per cent increase.
+It also needs a `UType` codec in Cinch and, because the Rust seed's `Core`
+carries no types at all, a Cinch producer that writes the section.
+
+**Re-elaboration.** Zero artifact bytes and no producer change: the
+untyped body the Rust seed already writes is enough, because the consumer
+has the schemes. `Bootstrap.Contracts.interface-headers` already parses
+every interface scheme with `Text.Parse.parse-scheme`, and
+`Bootstrap.Infer` (6,964 lines) already instantiates and unifies. A new
+entry point would walk the admitted `CoreTerm` forms (17 constructors),
+look up each callee's scheme, instantiate it at the unit's concrete types
+and unify the argument against the parameter, producing the annotated term
+the emitter wants. That is about 300 to 500 lines, once, at load, over
+401 small bodies; a body that fails to infer is skipped.
+
+Re-elaboration is therefore the smaller of the two by every measure that
+matters here: 0 bytes instead of +23 to +98 KB, no producer change instead
+of a Cinch producer mode plus a type codec, at the price of a bounded
+inference entry point in the consumer. The artifact's reader already skips
+a body whose encoding it cannot decode rather than refusing the module, so
+a future typed form and this inference form can coexist while both are
+implemented.

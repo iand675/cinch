@@ -1106,6 +1106,9 @@ impl Session {
             // session's interfaces is still a hard error here.
             &crate::driver::DriverOptions::default(),
                     &crate::driver::LinkPlan::default(),
+            // An incremental session writes interfaces for its store, not
+            // a library's unfoldings for a consumer.
+            false,
         )?;
         report.chain_ok = self.chain_ok();
 

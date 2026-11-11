@@ -2578,25 +2578,39 @@ fn write_artifacts(
     wit: &[crate::interface::WitAdapter],
     opts: &DriverOptions,
     link_plan: &LinkPlan,
+    write_optimisations: bool,
 ) -> Result<()> {
     std::fs::create_dir_all(out_dir)
         .map_err(|e| Error::plain(format!("{}: {e}", out_dir.display())))?;
-    let unfoldable = crate::simplify::unfoldable_names(program);
+    // The optimisation artifact (`crate::ifaceopt`): the unfoldable bodies
+    // of this module's small units, keyed by the interface identity written
+    // below. The class pass and the encoding are only paid for when this
+    // compile is a library producer (or the caller asked), so a check of a
+    // user program does not run them.
+    let unfoldable = if write_optimisations {
+        Some(crate::simplify::unfoldable_names(program))
+    } else {
+        None
+    };
     for iface in ifaces {
         let p = out_dir.join(format!("{}.cinchif", iface.module));
         std::fs::write(&p, iface.to_json())
             .map_err(|e| Error::plain(format!("{}: {e}", p.display())))?;
-        // The optimisation artifact (`crate::ifaceopt`): the unfoldable
-        // bodies of this module's small units, keyed by the interface
-        // identity just written. A module with no such body writes no
-        // artifact, so absence means "nothing to inline".
-        let optimisation = crate::ifaceopt::for_module_in(iface, program, &unfoldable);
         let opt_path = out_dir.join(format!("{}.cinchopt", iface.module));
-        if optimisation.bodies.is_empty() {
-            let _ = std::fs::remove_file(&opt_path);
-        } else {
-            std::fs::write(&opt_path, optimisation.to_json())
-                .map_err(|e| Error::plain(format!("{}: {e}", opt_path.display())))?;
+        match &unfoldable {
+            None => {
+                let _ = std::fs::remove_file(&opt_path);
+            }
+            Some(class) => {
+                let optimisation = crate::ifaceopt::for_module_in(iface, program, class);
+                if optimisation.bodies.is_empty() {
+                    let _ = std::fs::remove_file(&opt_path);
+                } else {
+                    std::fs::write(&opt_path, optimisation.to_json()).map_err(|e| {
+                        Error::plain(format!("{}: {e}", opt_path.display()))
+                    })?;
+                }
+            }
         }
     }
     let mut modules: Vec<(&str, String)> = ifaces
@@ -4015,6 +4029,12 @@ pub struct DriverOptions {
     /// call sites. The units those artifacts describe are not emitted by
     /// this compilation, so the caller links the object they describe.
     pub interface_optimisations: Option<PathBuf>,
+    /// `--emit-interface-optimisations`: write the `.cinchopt` artifacts
+    /// beside this compile's `.cinchif`s. An object build writes them by
+    /// default, because it is a library producer and its consumer may read
+    /// them; every other mode writes them only when asked, so a check does
+    /// not pay for an artifact it has no consumer for.
+    pub emit_interface_optimisations: bool,
     /// `--case-of-case`: run the case-of-case rule (off by default; the join
     /// node, its introduction and its printing stay on either way).
     pub case_of_case: bool,
@@ -5156,6 +5176,7 @@ pub fn driver_with_profile_opts(
         &adapters,
         opts,
         &link_plan,
+        opts.emit_interface_optimisations || mode == Mode::EmitObject,
     )?;
     if mode == Mode::Check {
         // A check reaches no later stage, so `--dump-core=owned` and

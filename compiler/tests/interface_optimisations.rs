@@ -322,13 +322,23 @@ fn cross_object_census_and_unfolding() {
 
     let mut foreign: Vec<FnDef> = Vec::new();
     let mut bodies = 0usize;
+    let start = std::time::Instant::now();
     let class = cinch::simplify::unfoldable_names(&program);
-    for iface in ifaces.iter().filter(|i| !local.contains(&i.module)) {
+    let class_ms = start.elapsed();
+    let start = std::time::Instant::now();
+    let mut bytes = 0usize;
+    for iface in ifaces.iter() {
         let artifact = cinch::ifaceopt::for_module_in(iface, &program, &class);
+        if local.contains(&iface.module) {
+            continue;
+        }
         bodies += artifact.bodies.len();
+        bytes += artifact.to_json().len();
         foreign.extend(foreign_defs(&artifact));
     }
-    println!("artifact units: {bodies}");
+    let write_ms = start.elapsed();
+    println!("class pass: {} ms, artifact build+encode: {} ms", class_ms.as_millis(), write_ms.as_millis());
+    println!("artifact units: {bodies}, bytes: {bytes}");
     println!("cross-object calls before: {}", calls_to(&program, &prefix_refs));
     println!("nodes before: {}", count_nodes(&program));
 

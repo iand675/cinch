@@ -122,6 +122,20 @@ impl Optimisation {
     }
 
     pub fn from_json(text: &str) -> Result<Optimisation, ParseError> {
+        Self::parse(text, false)
+    }
+
+    /// [`from_json`] for a consumer: a body whose encoding this reader does
+    /// not understand is skipped, not fatal. The artifact is an optional
+    /// optimisation input, so a producer that knows more node kinds than
+    /// this reader must not make the module unusable; the bodies this
+    /// reader can spell are still inlined. Structural faults (schema,
+    /// runtime ABI, a malformed row) are still refused.
+    pub fn from_json_lenient(text: &str) -> Result<Optimisation, ParseError> {
+        Self::parse(text, true)
+    }
+
+    fn parse(text: &str, skip_undecodable: bool) -> Result<Optimisation, ParseError> {
         let doc = parse_json(text)?;
         let o = doc.as_object()?;
         let schema = field_num(o, "schema")?;
@@ -154,8 +168,15 @@ impl Optimisation {
                     params.len()
                 )));
             }
-            let body = decode_core(field(r, "body")?)?;
+            let body = match decode_core(field(r, "body")?) {
+                Ok(body) => body,
+                Err(_) if skip_undecodable => continue,
+                Err(error) => return Err(error),
+            };
             if free_locals(&body).iter().any(|l| l.0 >= arity) {
+                if skip_undecodable {
+                    continue;
+                }
                 return Err(ParseError::from(format!(
                     "optimisation body {unit} reads a local outside its parameters"
                 )));
@@ -866,7 +887,7 @@ pub fn load_manifest(path: &std::path::Path) -> crate::Result<ForeignTable> {
         }
         let opt_text = std::fs::read_to_string(&opt_path)
             .map_err(|e| crate::Error::plain(format!("{}: {e}", opt_path.display())))?;
-        let artifact = Optimisation::from_json(&opt_text)
+        let artifact = Optimisation::from_json_lenient(&opt_text)
             .map_err(|e| crate::Error::plain(format!("{}: {e}", opt_path.display())))?;
         if artifact.module != module {
             return Err(crate::Error::plain(format!(

@@ -48,6 +48,8 @@ flags:
               `__apply` call instead of a direct call to the method unit
   --no-inline  leave every call in place instead of copying a small
               callee's body to its site (the rule is on by default)
+  --emit-interface-optimisations  write the .cinchopt unfoldings beside this
+              compile's .cinchif files (emit-object does so by default)
   --interface-optimisations <manifest>  read the .cinchopt unfoldings beside
               each manifest row's .cinchif and inline those units at this
               program's call sites; the units are not emitted here, so link
@@ -307,6 +309,7 @@ fn main() {
                     }
                 }
             }
+            "--emit-interface-optimisations" => opts.emit_interface_optimisations = true,
             "--no-stack-alloc" => opts.no_stack_alloc = true,
             "--stack-frame-limit" => {
                 i += 1;
