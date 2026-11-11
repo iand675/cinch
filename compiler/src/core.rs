@@ -3295,8 +3295,8 @@ pub struct PrimBodyPlan {
     pub when: Option<String>,
     /// Immediate parameter indices (`immarg`).
     pub immarg: Vec<u64>,
-    /// The `uses` contracts: external symbol and its declared type.
-    pub uses: Vec<(String, String)>,
+    /// The `uses` contracts the fragment may call.
+    pub uses: Vec<PrimUseContract>,
     /// Justification identities this body cites (the tier is per-`prim`:
     /// the weakest body governs).
     pub assumptions: Vec<String>,
@@ -3310,6 +3310,24 @@ pub struct PrimBodyPlan {
     pub trust_id: String,
     /// The containment validation result (specification section 4).
     pub validation: String,
+}
+
+/// One `uses` contract of a `prim` body (primitive operations and
+/// inline target IR specification section 4): an external symbol the
+/// fragment may call, the contract as written, and the machine shapes the
+/// emitted module declares. A fragment calls the symbol directly, so the
+/// contract states the C ABI each position crosses as: one machine scalar
+/// per parameter slot, and a machine scalar or no value (`Unit`, a `void`
+/// return). Nothing here marshals a pointer or an aggregate.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PrimUseContract {
+    pub symbol: String,
+    /// The contract as written, for the manifest and diagnostics.
+    pub ty: String,
+    /// The parameter slots, in order.
+    pub args: Vec<PrimAbiTy>,
+    /// The result shape, `None` for `Unit` (the symbol returns nothing).
+    pub result: Option<PrimAbiTy>,
 }
 
 /// A `prim` ABI scalar (primitive operations and inline target IR

@@ -3178,6 +3178,12 @@ struct Checker {
     /// checked, in class-vector order (its hoisted lambdas and `letrec`
     /// members share them).
     cur_tparams: Vec<String>,
+    /// The regions the enclosing signatures quantify: a caller names each
+    /// one and supplies the place it lives in, so it outlives every body
+    /// checked under it. `borrow` builds a value in the body and cannot
+    /// carry one (ownership and usage design, section 4); nested
+    /// definitions inherit the enclosing entries.
+    caller_regions: Vec<String>,
     /// An instance method's parameter list, set by the instance check for
     /// the method's own `check_equations` call: the instance's parameters
     /// then the method's own.
@@ -3825,6 +3831,7 @@ impl Checker {
             local_cls: HashMap::new(),
             local_origin: HashMap::new(),
             cur_tparams: Vec::new(),
+            caller_regions: Vec::new(),
             method_tparams: None,
             gen_locals: HashMap::new(),
             gen_defs: HashMap::new(),
@@ -3957,6 +3964,17 @@ impl Checker {
         let n = self.region_counter.get();
         self.region_counter.set(n + 1);
         format!("r#{n}")
+    }
+
+    /// The source spelling of a rigid region name of the definition being
+    /// checked, for diagnostics: the parameters' identities are fresh
+    /// (`region#3`) and the source named them once.
+    fn source_region_name(&self, rigid: &str) -> Option<String> {
+        self.body_annotation_scope
+            .regions
+            .iter()
+            .find(|(_, r)| r.as_str() == rigid)
+            .map(|(name, _)| name.clone())
     }
 
     /// Discharge a memo group at scope end: its `Eval` label leaves the

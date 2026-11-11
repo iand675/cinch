@@ -2623,7 +2623,7 @@ fn write_artifacts(
         let uses: Vec<String> = body
             .uses
             .iter()
-            .map(|(n, t)| format!("{n} :: {t}"))
+            .map(|u| format!("{} :: {}", u.symbol, u.ty))
             .collect();
         let validations: Vec<String> = p
             .bodies

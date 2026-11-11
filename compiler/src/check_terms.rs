@@ -6413,7 +6413,29 @@ impl Checker {
                 ));
             }
         };
-        let _ = region;
+        // A borrow of a place the body builds is a borrow of that place's
+        // own scope, so it can never have a region the signature
+        // quantifies: the caller names that region and supplies the place
+        // it lives in, and the caller's place outlives this body while
+        // this body's temporary does not. `Ref r a` in a declared type is
+        // therefore inhabited only by a value the caller passed in, never
+        // by one this body lends itself (ownership and usage design,
+        // section 4).
+        let resolved = self.uni.resolve_region(region.as_str());
+        if let Some(caller) = self
+            .caller_regions
+            .iter()
+            .find(|r| self.uni.resolve_region(r.as_str()) == resolved)
+        {
+            let form = if is_mut { "mutBorrow" } else { "borrow" };
+            let shown = self.source_region_name(caller).unwrap_or_else(|| caller.clone());
+            return Err(Error::at(
+                span,
+                format!(
+                    "region escape: `{form}` lends a place this body constructs, but the region `{shown}` comes from the signature: the caller names it and supplies the place in it, so a borrow at that region must outlive the call and a place built here does not (ownership and usage design, section 4); a declared borrow is inhabited by a place the caller passes in"
+                ),
+            ));
+        }
         self.check_misaligned_place(env, &args[0], is_mut)?;
         let value = self.check(env, &args[0], &inner)?;
         if is_mut { self.make_mutable_cell(value, inner, span) } else { Ok(value) }

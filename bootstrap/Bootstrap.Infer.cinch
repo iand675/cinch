@@ -4687,6 +4687,38 @@ module Bootstrap.Infer where
         other -> bind-value-parameters rest pairs env st)
       None -> (env, add-error zero "quantified value is missing its checked opening" st)
   check-definition :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> Span -> String -> List (List Pat, Expr) -> Store -> (Option CoreDefinition, Store)
+  -- The regions a signature quantifies: its opened region parameters. The
+  -- caller names each one and supplies the place in it, so a place this
+  -- body builds cannot outlive it (ownership and usage design, section 4).
+  caller-region-ids :: List (Nat, UType) -> List Nat
+  caller-region-ids pairs = case pairs of
+    Nil -> Nil
+    Cons (_, URigid id name level KRegion) more -> Cons id (caller-region-ids more)
+    Cons (_, other) more -> caller-region-ids more
+  -- A borrow at a caller region lends a place the body constructs, which
+  -- dies with the call: no checked value may contain one, wherever the
+  -- value puts it (`Ref r a` in a declared type is inhabited by a place
+  -- the caller passes in).
+  caller-borrow-in-term :: List Nat -> CoreTerm -> Bool
+  caller-borrow-in-term regions term = case term of
+    CPrimitive sp ty operation args -> (case borrow-type-parts ty of
+      Some (mutable, region, carrier) -> (if same operation "borrow" || same operation "mut-borrow" then caller-region-of region regions else False) || caller-borrow-in-terms regions (term-children term)
+      None -> caller-borrow-in-terms regions (term-children term))
+    other -> caller-borrow-in-terms regions (term-children term)
+  caller-borrow-in-terms :: List Nat -> List CoreTerm -> Bool
+  caller-borrow-in-terms regions terms = case terms of
+    Nil -> False
+    Cons first rest -> caller-borrow-in-term regions first || caller-borrow-in-terms regions rest
+  caller-region-of :: UType -> List Nat -> Bool
+  caller-region-of region regions = case region of
+    URigid id name level KRegion -> contains-meta id regions
+    other -> False
+  clauses-caller-borrow-free :: List Nat -> List CoreClause -> Bool
+  clauses-caller-borrow-free regions clauses = case clauses of
+    Nil -> True
+    Cons (MkCoreClause sp patterns body) rest -> not (caller-borrow-in-term regions body) && clauses-caller-borrow-free regions rest
+  caller-borrow-error :: Span -> Store -> Store
+  caller-borrow-error sp st = add-error sp "region escape: the body lends a place it constructs, but the region comes from the signature: the caller names it and supplies the place in it, so a borrow at that region must outlive the call and a place built here does not (ownership and usage design, section 4); a declared borrow is inhabited by a place the caller passes in" st
   check-definition classes kinds families env sp name cs st = check-definition-with-annotations classes kinds families env sp name cs Nil st
   open-annotation-locals :: List (String, UType) -> List (Nat, UType) -> List (String, UType)
   open-annotation-locals annotations pairs = case annotations of
@@ -4711,13 +4743,14 @@ module Bootstrap.Infer where
           let (value-env, value-store) = bind-value-parameters (scheme-params (checked-scheme b)) pairs (bind-annotation-values annotation-locals env) ss in
           let (bound, givens, sg) = bind-requirements sp requirements value-env value-store in
           let (clauses, checked) = check-clauses classes kinds families bound locals ty Nil cs sg in
+          let returned = if clauses-caller-borrow-free (caller-region-ids pairs) clauses then checked else caller-borrow-error sp checked in
           let count = case cs of Nil -> 0; Cons (ps, body) rest -> list-length ps in
           let types = domains ty in
           let same-arity = clauses-full-arity cs count && count <= list-length types in
           let covered = case cs of
-                Nil -> add-error sp "a function declaration has no clauses" checked
-                other -> if same-arity then ensure-equation-coverage sp families env (take-types count types) cs (check-overlap cs Nil checked)
-                  else add-error sp "function clauses disagree with their declared arity" checked in
+                Nil -> add-error sp "a function declaration has no clauses" returned
+                other -> if same-arity then ensure-equation-coverage sp families env (take-types count types) cs (check-overlap cs Nil returned)
+                  else add-error sp "function clauses disagree with their declared arity" returned in
           (Some (MkCoreDefinition sp name (checked-scheme b) pairs givens Nil clauses), restore-level level covered)
   take-types :: Nat -> List UType -> List UType
   take-types count types = if count == 0 then Nil else case types of Nil -> Nil; Cons ty rest -> Cons ty (take-types (count - 1) rest)

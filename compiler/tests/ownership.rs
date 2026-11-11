@@ -477,6 +477,68 @@ module Main where
 }
 
 #[test]
+fn borrow_of_a_body_temporary_cannot_have_a_caller_region() {
+    // The signature quantifies `region`, so the caller names it and
+    // supplies the place that lives in it. `borrow` lends a place the
+    // body builds, and that place dies with the call, so no value with a
+    // caller region can hold one: the result type is inhabited by a
+    // place the caller passes in (ownership and usage design, section 4).
+    expect_err(
+        "borrowed-temporary-escapes",
+        r#"
+module Main where
+  data List2 a where
+    Nil2 :: List2 a
+    Cons2 :: a -> List2 a -> List2 a
+
+  bad :: forall region. Ref region (List2 Nat)
+  bad = borrow (Cons2 1 Nil2)
+
+  main :: Int
+  main = 0
+"#,
+        &["region escape", "signature", "borrow"],
+    );
+    // The same hole through a `Mut` borrow: the copied sum is a temporary
+    // too, even though its operand is a caller parameter.
+    expect_err(
+        "mut-borrowed-temporary-escapes",
+        r#"
+module Main where
+  bad :: forall region. Mut region Nat -> Ref region Nat
+  bad m = borrow (copyOut m + 1)
+
+  main :: Int
+  main = 0
+"#,
+        &["region escape", "borrow"],
+    );
+}
+
+#[test]
+fn borrows_from_caller_regions_still_check() {
+    // A borrow built where the region is not the signature's is a
+    // temporary inside the callee's own scope, and a borrow the caller
+    // passes in is reborrowed nowhere: what the rule forbids is only a
+    // body-made place wearing a caller region.
+    expect_ok(
+        "caller-region-borrow",
+        r#"
+module Main where
+  peek :: forall region. Ref region Nat -> Nat
+  peek b = copyOut b + 1
+
+  twice :: forall region. Ref region Nat -> Nat
+  twice p = peek p + peek p
+
+  main :: Int
+  main = if twice (borrow 7) == 16 then (if peek (borrow 41) == 42 then 0 else 2) else 1
+"#,
+        0,
+    );
+}
+
+#[test]
 fn borrow_matching_yields_field_borrows() {
     // The core notation table's `first`: matching a borrowed value binds
     // references to the fields, and the result may be a borrow of the

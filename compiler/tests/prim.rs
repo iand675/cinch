@@ -11,7 +11,7 @@ mod common;
 
 use cinch::check::StageMode;
 use cinch::core::TargetProfile;
-use cinch::driver::{check_sources, target_profile, DriverOptions, Mode};
+use cinch::driver::{self, check_sources, target_profile, DriverOptions, Mode};
 use common::source_frontend::{check_sources_profile, run_source};
 use std::path::PathBuf;
 
@@ -59,6 +59,23 @@ fn body_of(ir: &str, unit: &str) -> String {
 /// `needle`.
 fn expect_err(name: &str, src: &str, needle: &str) {
     match common::source_frontend::check_sources(src, name) {
+        Ok(_) => panic!("{name}: expected an error containing {needle:?}, but the program checked"),
+        Err(e) => {
+            let msg = e.to_string();
+            assert!(
+                msg.contains(needle),
+                "{name}: error {msg:?} does not contain {needle:?}"
+            );
+        }
+    }
+}
+
+/// Assert that the Rust checker fails with a message containing
+/// `needle`. The `uses` contract rule is the bootstrap compiler's own:
+/// the self-hosted Cinch checker refuses a `uses` entry before it reaches
+/// any shape rule, so the rule is asserted against the driver directly.
+fn expect_err_driver(name: &str, src: &str, needle: &str) {
+    match driver::check_sources(src, name) {
         Ok(_) => panic!("{name}: expected an error containing {needle:?}, but the program checked"),
         Err(e) => {
             let msg = e.to_string();
@@ -142,6 +159,91 @@ module Main where
 "#;
     let code = run_source(src).expect("the prim reproduces the intrinsic's inline lowering");
     assert_eq!(code, 0);
+}
+
+#[test]
+fn uses_contracts_declare_their_symbols_and_link() {
+    // A fragment calls its external symbols directly, so the module states
+    // the contract's machine signature and the calls resolve at link time
+    // (primitive operations and inline target IR specification section 4).
+    // The contract is the C ABI, not the marshalling shape of a `foreign
+    // import`: `I64` crosses as `i64` here, and a `Unit` result as `void`.
+    let src = r#"
+module Main where
+  prim allocRoundTrip :: I64 -> I64 where
+    unsafe llvm {
+      %p = call ptr @malloc(i64 %0)
+      call void @free(ptr %p)
+      ret i64 0
+    } uses (malloc :: I64 -> I64), (free :: I64 -> Unit)
+
+  main :: Int
+  main = if allocRoundTrip 16 == 0 then 0 else 1
+"#;
+    let ir = ir_of("uses", src);
+    assert!(
+        ir.contains("declare i64 @\"malloc\"(i64)"),
+        "the malloc contract is not declared: {ir}"
+    );
+    assert!(
+        ir.contains("declare void @\"free\"(i64)"),
+        "the free contract is not declared: {ir}"
+    );
+    // The Rust checker and code generator carry the contract end to end.
+    // The self-hosted Cinch checker refuses a `uses` entry until its
+    // foreign contracts land, so it can never emit a module whose fragment
+    // calls an undeclared symbol; that refusal is what the stage frontends
+    // reach here, and it is named rather than silent.
+    match common::external_frontend::configured().expect("frontend selection") {
+        Some(_) => {
+            let refusal = common::source_frontend::check_sources(src, "<test>")
+                .expect_err("the uses entry is refused")
+                .to_string();
+            assert!(
+                refusal.contains("uses") || refusal.contains("elaboration"),
+                "the refusal does not name the unimplemented `uses` contract: {refusal}"
+            );
+        }
+        None => {
+            let code = run_source(src).expect("the prim with uses compiles, links and runs");
+            assert_eq!(code, 0);
+        }
+    }
+}
+
+#[test]
+fn uses_entries_state_a_machine_abi() {
+    // The declared shape has to match what a prim can hold: the fragment
+    // calls the symbol directly, so a pointer or an aggregate would cross
+    // unmarshalled (specification section 4).
+    expect_err_driver(
+        "uses-aggregate",
+        r#"
+module Main where
+  prim bad :: U32 -> U32 where
+    unsafe llvm {
+      ret i32 %0
+    } uses (takes :: Bytes -> U32)
+
+  main :: Int
+  main = 0
+"#,
+        "machine scalar",
+    );
+    expect_err_driver(
+        "uses-result",
+        r#"
+module Main where
+  prim bad :: U32 -> U32 where
+    unsafe llvm {
+      ret i32 %0
+    } uses (takes :: U32 -> Bytes)
+
+  main :: Int
+  main = 0
+"#,
+        "machine scalar or `Unit`",
+    );
 }
 
 // --------------------------------------------- containment validation

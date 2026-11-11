@@ -46,7 +46,8 @@ defines operations.
 ```
 prim_decl  ::= "prim" name "::" type "where" INDENT { target_body } DEDENT
 target_body ::= target_ir "{" fragment "}" { "when" clause }
-                [ "justify" expr ] [ "uses" ( name "::" type ), ... ]
+                [ "justify" expr ]
+                [ "uses" "(" name "::" type ")" { "," "(" name "::" type ")" } ]
                 [ "immarg" 0, 1, ... ]
 target_ir  ::= "llvm" | "wasm" | "asm" | "clr" | "jvm" | name
 clause     ::= atom | "not" "(" atom ")"
@@ -112,6 +113,15 @@ about proving semantics:
   paths beyond a declared failure mode. In particular a `prim` body
   MUST NOT smuggle a foreign call that would bypass the foreign
   chapter's contracts.
+- **`uses` states a machine ABI, and the module declares it**: a
+  `uses` entry's type is one arrow spine over machine scalars, with a
+  machine scalar or `Unit` result (a `void` return), and it is
+  monomorphic and unconstrained. A fragment calls the symbol directly,
+  so nothing at the boundary marshals a pointer or an aggregate, and
+  the emitted module MUST carry a `declare` for the symbol at exactly
+  that shape: the contract is what makes the fragment's call link, so a
+  contract the module does not declare is an unusable declaration, not
+  an assumption.
 - **No unwind**: panics or exceptions MUST NOT leave the body (the
   foreign chapter's rule applies unchanged; the defined failure mode is
   a declared fault).

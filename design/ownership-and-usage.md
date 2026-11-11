@@ -65,6 +65,19 @@ names, as in the core notation table. Rules:
    escaping closures (the memo/thunk machinery already tracks `Eval r` labels
    the same way; a borrow carries its region in the type, which is what makes
    the escape check local).
+   A region a signature quantifies is the caller's: the caller names it and
+   supplies the place that lives in it, so that place outlives the call. A
+   `borrow` in the body lends a place the body builds, which dies with the
+   call, so a body-made borrow cannot have a caller region at all, whether or
+   not the value escapes. `Ref r a` in a declared type is therefore inhabited
+   by a place the caller passes in (a parameter's own borrow, a field
+   reference bound by matching one), never by one the body lends itself. The
+   rule is checked where the borrow is elaborated, against the definition's
+   own region quantifiers, and again over the checked body at the definition
+   boundary; a region that is not a signature parameter (a memo group, a
+   scope binder) is unaffected, and a borrow at an instantiated region (what
+   a callee's `forall` becomes at a call) stays a temporary inside the
+   caller's own scope.
 3. `Mut r a` is unique: no other borrow of the same region may exist while
    it is live. The bootstrap enforces uniqueness lexically (at most one live
    `Mut r` per region in scope, and no `Ref r` while it is live), which is

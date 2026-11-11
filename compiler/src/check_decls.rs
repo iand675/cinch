@@ -7258,7 +7258,9 @@ impl Checker {
             self.stage_definition_scopes.insert(id.0.clone(), (scheme.clone(), Scheme::mono(Ty::Unit)));
         }
         let saved_tparams = std::mem::take(&mut self.body_tparams);
+        let saved_regions = self.caller_regions.len();
         let result = self.check_equations_inner(name, id, scheme, eqs, extra_dicts, annotation_aliases);
+        self.caller_regions.truncate(saved_regions);
         self.body_tparams = saved_tparams;
         self.code_quantifiers = saved;
         self.body_annotation_scope = saved_annotations;
@@ -7297,6 +7299,14 @@ impl Checker {
         self.quantified_value_locals.extend(quantified_values.iter().map(|(_, local)| *local));
         let (ty, ctx, map) = self.rigidify_with_value_locals(scheme, &quantified_values);
         self.body_annotation_scope = map.clone();
+        // The definition's own region quantifiers are caller regions for
+        // its body: the caller names each and supplies the place it lives
+        // in (ownership and usage design, section 4).
+        for name in &scheme.region_params {
+            if let Some(rigid) = map.regions.get(name) {
+                self.caller_regions.push(rigid.clone());
+            }
+        }
         if let Some(aliases) = annotation_aliases {
             for (name, actual) in aliases {
                 self.body_annotation_scope.types.insert(name,
@@ -10762,6 +10772,95 @@ impl Checker {
         Ok((args, res))
     }
 
+    /// The machine ABI one `uses` contract states (primitive operations
+    /// and inline target IR specification section 4). A fragment calls the
+    /// symbol directly, so the contract has to be exactly what the
+    /// emitted `declare` states: a plain arrow spine, one machine scalar
+    /// per parameter slot, and a machine scalar or `Unit` result. Each
+    /// element is the interface record and the ABI shape the declaration
+    /// renders from.
+    fn prim_use_abi(
+        &self,
+        p: &ast::PrimDecl,
+        u: &ast::PrimUse,
+        ty: &Ty,
+    ) -> Result<(
+        Vec<(crate::interface::ForeignParam, crate::core::PrimAbiTy)>,
+        Option<(crate::interface::ForeignParam, crate::core::PrimAbiTy)>,
+    )> {
+        let mut args: Vec<(crate::interface::ForeignParam, crate::core::PrimAbiTy)> = Vec::new();
+        let mut cur = ty;
+        loop {
+            match cur {
+                Ty::Fun(d, m, _, b) => {
+                    if *m == Mult::Zero {
+                        return Err(Error::at(
+                            u.span,
+                            "a `uses` entry's parameters occupy machine ABI slots (primitive operations and inline target IR specification section 4)",
+                        ));
+                    }
+                    if !is_prim_abi_ty(d) {
+                        return Err(Error::at(
+                            u.span,
+                            format!(
+                                "a `uses` entry states a machine ABI: its parameters are machine scalars (primitive operations and inline target IR specification section 4), not {d}; the fragment calls the symbol directly and nothing marshals a pointer or an aggregate"
+                            ),
+                        ));
+                    }
+                    args.push(self.prim_use_slot(d));
+                    cur = b;
+                }
+                Ty::Pi { .. } => {
+                    return Err(Error::at(
+                        u.span,
+                        "a `uses` entry states a machine ABI: its type is one arrow spine of machine scalars, not a dependent one (primitive operations and inline target IR specification section 4)",
+                    ));
+                }
+                other => {
+                    return Ok((
+                        args,
+                        if matches!(other, Ty::Unit) {
+                            None
+                        } else if is_prim_abi_ty(other) {
+                            Some(self.prim_use_slot(other))
+                        } else {
+                            return Err(Error::at(
+                                u.span,
+                                format!(
+                                    "a `uses` entry states a machine ABI: its result is a machine scalar or `Unit` (primitive operations and inline target IR specification section 4), not {other}"
+                                ),
+                            ));
+                        },
+                    ))
+                }
+            }
+        }
+    }
+
+    /// One `uses` contract slot: the interface record and the ABI shape.
+    fn prim_use_slot(&self, ty: &Ty) -> (crate::interface::ForeignParam, crate::core::PrimAbiTy) {
+        let shape = prim_abi_shape(ty, self.usize_bits);
+        let (width, signed) = match shape {
+            crate::core::PrimAbiTy::Int { bits, signed } => (u64::from(bits) / 8, signed),
+            crate::core::PrimAbiTy::F32 => (4, true),
+            crate::core::PrimAbiTy::F64 => (8, true),
+        };
+        (
+            crate::interface::ForeignParam {
+                ty: ty.to_string(),
+                class: "scalar".to_string(),
+                role: "value".to_string(),
+                allocator: String::new(),
+                nullable: false,
+                width,
+                align: width,
+                signed,
+                offsets: Vec::new(),
+            },
+            shape,
+        )
+    }
+
     /// The LLVM type spelling of a prim ABI scalar (the family's
     /// fragment grammar speaks these widths).
     fn prim_abi_word(&self, ty: &Ty) -> Result<String> {
@@ -10798,7 +10897,7 @@ impl Checker {
         arg_tys: &[Ty],
         res_ty: &Ty,
         pure: bool,
-    ) -> Result<(String, Vec<(String, String)>)> {
+    ) -> Result<(String, Vec<crate::core::PrimUseContract>)> {
         let family = b.family.text.as_str();
         match family {
             "llvm" | "asm" | "wasm" => {}
@@ -10823,7 +10922,7 @@ impl Checker {
         // recorded like foreign imports; the reserved intrinsic
         // namespaces stay reserved for them too (decision D73).
         let mut use_names: Vec<String> = Vec::new();
-        let mut use_renders: Vec<(String, String)> = Vec::new();
+        let mut use_contracts: Vec<crate::core::PrimUseContract> = Vec::new();
         for u in &b.uses {
             let us = self.conv_scheme(&u.ty)?;
             if !us.params.is_empty() || !us.ctx.is_empty() {
@@ -10843,8 +10942,23 @@ impl Checker {
                     ),
                 ));
             }
+            // The contract is a machine ABI, the same envelope a `prim`
+            // body declares for itself (section 2): a plain arrow spine,
+            // one machine scalar per slot, and a machine scalar or
+            // `Unit` result. The fragment calls the symbol directly, so
+            // nothing here can marshal a pointer or an aggregate.
+            let (use_args, use_result) = self.prim_use_abi(p, u, &us.ty)?;
             use_names.push(u.name.text.clone());
-            use_renders.push((u.name.text.clone(), render_scheme(&us)));
+            use_contracts.push(crate::core::PrimUseContract {
+                symbol: u.name.text.clone(),
+                ty: render_scheme(&us),
+                args: use_args.iter().map(|(_, shape)| shape.clone()).collect(),
+                result: use_result.as_ref().map(|(_, shape)| shape.clone()),
+            });
+            let mut use_params = Vec::new();
+            for (arg, _) in &use_args {
+                use_params.push(arg.clone());
+            }
             self.module_foreign.push((
                 module.to_string(),
                 crate::interface::ForeignExport {
@@ -10855,18 +10969,10 @@ impl Checker {
                     effects: String::new(),
                     notes: format!("prim `{}` `uses` contract", p.name.text),
                     kind: "prim-use".to_string(),
-                    params: Vec::new(),
-                    result: crate::interface::ForeignParam {
-                        ty: String::new(),
-                        class: "unit".to_string(),
-                        role: "value".to_string(),
-                        allocator: String::new(),
-                        nullable: false,
-                        width: 0,
-                        align: 1,
-                        signed: false,
-                        offsets: Vec::new(),
-                    },
+                    params: use_params,
+                    result: use_result
+                        .map(|(param, _)| param)
+                        .unwrap_or_else(prim_use_void),
                     deallocator: String::new(),
                 },
             ));
@@ -10909,7 +11015,7 @@ impl Checker {
                     .to_string()
             }
         };
-        Ok((validation, use_renders))
+        Ok((validation, use_contracts))
     }
 
     /// One `when` clause of a body (primitive operations and inline
@@ -23546,6 +23652,21 @@ const IO_SYMS: &[&str] = &[
 /// Is this type a prim ABI scalar (the declared ABI's widths)?
 fn is_prim_abi_ty(ty: &Ty) -> bool {
     matches!(ty, Ty::Prim(_) | Ty::Bool)
+}
+
+/// The interface record of a `uses` contract that returns no value.
+fn prim_use_void() -> crate::interface::ForeignParam {
+    crate::interface::ForeignParam {
+        ty: "Unit".to_string(),
+        class: "unit".to_string(),
+        role: "value".to_string(),
+        allocator: String::new(),
+        nullable: false,
+        width: 0,
+        align: 1,
+        signed: false,
+        offsets: Vec::new(),
+    }
 }
 
 /// The declared effect row of a `prim` type is the body's entire

@@ -521,6 +521,18 @@ fn emit_module(
         out.push('\n');
     }
 
+    // `prim` `uses` contracts (primitive operations and inline target IR
+    // specification section 4): a fragment calls its external symbols
+    // directly, so the module states exactly the machine signature the
+    // contract gives, and the fragment's call type-checks at link time.
+    let prim_use_declares = prim_use_declares(program, &out);
+    if !prim_use_declares.is_empty() {
+        for line in prim_use_declares {
+            out.push_str(&line);
+        }
+        out.push('\n');
+    }
+
     if !emit_modules.is_empty() {
         let mut declared: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
         for f in &program.fns {
@@ -5466,6 +5478,47 @@ fn ffi_fault_block(b: &mut Builder, fault: &str) {
         FFI_NULL_MSG.len()
     ));
     b.line("unreachable");
+}
+
+/// The `declare` line of one `uses` contract: the C ABI the contract
+/// states, in the machine scalar spelling the fragment calls it with
+/// (`void` where the contract returns `Unit`).
+fn prim_use_declare(u: &crate::core::PrimUseContract) -> String {
+    let params = u
+        .args
+        .iter()
+        .map(abi_word)
+        .collect::<Vec<_>>()
+        .join(", ");
+    let ret = match &u.result {
+        Some(t) => abi_word(t),
+        None => "void".to_string(),
+    };
+    format!("declare {ret} @{}({params})\n", quote(&u.symbol))
+}
+
+/// One `declare` per `uses` symbol in the program, deduped in program
+/// order. A symbol the module already declares or defines is skipped: the
+/// runtime preamble's helpers, a foreign binding's symbol and another
+/// contract's symbol are one declaration each.
+fn prim_use_declares(program: &Program, so_far: &str) -> Vec<String> {
+    let mut seen: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+    let mut lines = Vec::new();
+    for p in &program.prims {
+        for b in &p.bodies {
+            for u in &b.uses {
+                if !seen.insert(u.symbol.as_str()) {
+                    continue;
+                }
+                let declared = format!("@{}(", quote(&u.symbol));
+                if so_far.contains(&declared) {
+                    continue;
+                }
+                lines.push(prim_use_declare(u));
+            }
+        }
+    }
+    lines
 }
 
 /// The native spelling of one by-value aggregate crossing (the plan
