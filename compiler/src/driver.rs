@@ -13,6 +13,12 @@ use std::path::{Path, PathBuf};
 #[path = "incremental.rs"]
 pub mod incremental;
 
+/// The query graph (design/compilation-speed.md section 3): demand-driven
+/// queries with recorded dependencies, early cutoff by fingerprint,
+/// negative lookups as dependencies, and interface-first pipelining.
+#[path = "query.rs"]
+pub mod query;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
     Check,

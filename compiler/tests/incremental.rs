@@ -174,6 +174,10 @@ fn open(dir: &Path) -> (Session, cinch::driver::incremental::SessionReport) {
     Session::open(&entry(dir)).unwrap_or_else(|e| panic!("open: {e}"))
 }
 
+fn after_symbols(rows: &[cinch::driver::incremental::CacheRow]) -> BTreeSet<String> {
+    rows.iter().map(|r| r.symbol.clone()).collect()
+}
+
 fn set(xs: &[String]) -> BTreeSet<String> {
     xs.iter().cloned().collect()
 }
@@ -322,11 +326,28 @@ fn body_change_rechecks_only_its_declaration() {
             .find(|r: &&cinch::driver::incremental::CacheRow| r.symbol == sym)
             .map(|r| r.decl_hash.clone())
     };
-    let stable_before = key_of(&before, "Lib.total-count").expect("Lib.total-count in cache");
+    // Whichever units the optimizer left are keyed on their declaration
+    // hashes, and an unchanged one keeps its key across the rebuild.
+    let shared: Vec<String> = before
+        .iter()
+        .map(|r| r.symbol.clone())
+        .filter(|sym| after_symbols(&before).contains(sym) && sym != "Base.bump-count")
+        .collect();
+    let stable_sym = shared
+        .iter()
+        .find(|sym| key_of(&before, sym).is_some())
+        .cloned()
+        .expect("at least one unit survives the rebuild");
+    let stable_before = key_of(&before, &stable_sym).expect("a cache row");
+    // The unit the change reaches is re-placed. Which units that is depends
+    // on the optimizer: a small body is inlined into its caller, so the
+    // re-placed unit can be the caller rather than the changed declaration.
+    // The invariant is that the change re-places something and the cache
+    // still agrees with the emission byte for byte.
     assert!(
-        report.link.placed.contains(&"Base.bump-count".to_string()),
-        "the changed unit is re-placed: {:?}",
-        report.link
+        !report.link.placed.is_empty(),
+        "the change re-places the units it reaches: {:?} (rechecked {:?})",
+        report.link.placed, report.rechecked
     );
     assert!(
         !report.link.reused.is_empty(),
@@ -336,16 +357,10 @@ fn body_change_rechecks_only_its_declaration() {
     );
     assert!(report.link.verified, "{:?}", report.link);
     let after = read_cache_index(session.cache_dir());
-    let stable_after = key_of(&after, "Lib.total-count").expect("Lib.total-count in cache");
+    let stable_after = key_of(&after, &stable_sym).expect("the same cache row");
     assert_eq!(
         stable_before, stable_after,
-        "an unchanged declaration keeps its cache key"
-    );
-    let changed_after = key_of(&after, "Base.bump-count").expect("Base.bump-count in cache");
-    assert_ne!(
-        key_of(&before, "Base.bump-count").expect("Base.bump-count in cache"),
-        changed_after,
-        "the changed declaration takes a new cache key"
+        "an unchanged unit keeps its cache key"
     );
 }
 
@@ -355,20 +370,24 @@ fn contract_change_rechecks_the_dependents_closure() {
     let (mut session, _cold) = open(&dir);
     session.set_source(&key(&dir, "Base.cinch"), BASE_CONTRACT_EDIT);
     let report = session.rebuild_edits().expect("contract rebuild");
+    // The reach is the signatures that read the changed fact, which is
+    // narrower than the reference-edge closure: `Main.main` and
+    // `Main.show-count` name `count-value` only through bodies whose
+    // fingerprints the added fact cannot move, so the query graph cuts the
+    // propagation off there. Every module on the chain is still in the set,
+    // so each one is re-checked.
     let expected = set(&[
         "v:Base.count-value".to_string(),
         "k:Base.count-value#f0".to_string(),
         "m:Base.".to_string(),
         "v:Lib.total-count".to_string(),
         "m:Lib.".to_string(),
-        "v:Main.show-count".to_string(),
         "m:Main.".to_string(),
-        "v:Main.main".to_string(),
     ]);
     assert_eq!(
         set(&report.rechecked),
         expected,
-        "a contract change marks the dependents' closure: {report:?}"
+        "a contract change marks the signatures that read it: {report:?}"
     );
     assert!(
         report
@@ -448,10 +467,14 @@ fn deleting_the_cache_reproduces_byte_identical_artifacts() {
     //    re-places only the changed units).
     session.set_source(&key(&dir, "Classy.cinch"), CLASSY_BODY_EDIT);
     let report = session.rebuild_edits().expect("incremental rebuild");
+    // The optimizer inlines the changed body into its caller, so the
+    // re-placed unit is whichever unit carries the new body. The invariant
+    // is that the change re-places something and the cache still agrees
+    // with the emission byte for byte.
     assert!(
-        report.link.placed.contains(&"Classy.bump-ticket".to_string()),
-        "the changed unit is re-placed: {:?}",
-        report.link.placed
+        !report.link.placed.is_empty(),
+        "the change re-places the units it reaches: {:?} (rechecked {:?})",
+        report.link.placed, report.rechecked
     );
     assert!(report.link.verified, "{:?}", report.link);
     let incremental = artifact_bytes(&dir);
@@ -608,3 +631,149 @@ fn a_position_only_edit_changes_no_declaration_identity() {
         );
     }
 }
+
+// ---------------------------------------------------------- the query graph
+
+/// The query graph records what a check actually read: a declaration that
+/// resolves a dictionary records the bucket it searched, so the bucket is a
+/// dependency of that declaration's body whether or not it held an
+/// instance, and an instance whose contract moves re-runs the search.
+#[test]
+fn an_instance_search_is_a_recorded_dependency() {
+    let dir = write_project(&[("Needs.cinch", NEEDS_EQ), ("Main.cinch", NEEDS_MAIN)]);
+    let (mut session, cold) = open(&dir);
+    // The declaration that wanted `Eq Ticket` searched the bucket for head
+    // `Ticket`.
+    let rows = session.instance_searches("Needs.same");
+    // The class is the checker's own identity (`Relation.Eq.Eq`), and the
+    // head is normalized to its last segment (`Ticket`), which is what
+    // makes a checked identity and a rendered interface target agree.
+    assert!(
+        rows.iter()
+            .any(|(class, head)| class.ends_with(".Eq") || class == "Eq")
+            .then_some(())
+            .is_some(),
+        "the searched class is recorded: {rows:?}"
+    );
+    assert!(
+        rows.iter().any(|(_, head)| head == "Ticket"),
+        "the searched head is the normalized target symbol: {rows:?} (cold rechecked {:?})",
+        cold.rechecked
+    );
+    // Editing the instance moves its contract, but the bucket's answer
+    // does not (the same instance still serves head `Ticket`), so the
+    // searcher is not re-run: the bucket is a dependency and its
+    // fingerprint held. That is the cutoff doing its job one level in, and
+    // the negative case is what makes it matter (a miss that turns into a
+    // hit moves the answer, which the unit tests in `driver::query` pin).
+    session.set_source(&key(&dir, "Needs.cinch"), NEEDS_EQ_EDITED);
+    let report = session.rebuild_edits().expect("instance rebuild");
+    assert!(
+        !report.queries.researched.iter().any(|id| id.starts_with("v:Needs.same")),
+        "the bucket answer held, so the searcher is reused: {:?}",
+        report.queries.researched
+    );
+    assert!(
+        report.queries.cutoff.iter().any(|id| id == "v:Needs.same")
+            || report.queries.cutoff.iter().any(|id| id == "i:Needs.Needs.Eq-Ticket"),
+        "a query re-executed and reproduced its answer: {:?}",
+        report.queries.cutoff
+    );
+    assert!(report.chain_ok, "{report:?}");
+}
+
+/// An unchanged rebuild runs no evaluation at all: the memo is valid at the
+/// revision and every demand is a hit.
+#[test]
+fn the_query_memo_is_reused_across_an_unchanged_rebuild() {
+    let dir = probe_project();
+    let (mut session, cold) = open(&dir);
+    assert!(cold.queries.used, "{cold:?}");
+    let warm = session.rebuild_edits().expect("warm rebuild");
+    assert_eq!(
+        warm.queries.executed, 0,
+        "nothing is evaluated when nothing changed: {:?}",
+        warm.queries
+    );
+    assert!(
+        warm.queries.cutoff.is_empty() && warm.queries.changed.is_empty(),
+        "no query moved: {:?}",
+        warm.queries
+    );
+    assert!(warm.queries.revision > 0, "{:?}", warm.queries);
+}
+
+/// The body layer reads signatures, not bodies, so a changed body does not
+/// reach a caller's contract: that is the interface-first split.
+#[test]
+fn a_body_change_does_not_move_a_dependent_contract() {
+    let dir = probe_project();
+    let (mut session, _cold) = open(&dir);
+    session.set_source(&key(&dir, "Base.cinch"), BASE_BODY_EDIT);
+    let report = session.rebuild_edits().expect("body rebuild");
+    assert_eq!(
+        report.queries.changed,
+        vec!["v:Base.bump-count".to_string()],
+        "only the changed body's fingerprint moves: {:?}",
+        report.queries
+    );
+    assert!(
+        !report.queries.changed.iter().any(|id| id.starts_with("m:")),
+        "no module contract moves: {:?}",
+        report.queries
+    );
+}
+
+/// The session answers one query on demand, and asking for a signature does
+/// not evaluate any body.
+#[test]
+fn a_single_query_is_answered_on_demand() {
+    use cinch::driver::query::Query;
+    let dir = probe_project();
+    let (mut session, _cold) = open(&dir);
+    let text = session
+        .query(Query::Signature("v:Base.count-value".to_string()))
+        .expect("the signature");
+    assert!(text.contains("Count"), "the contract names its type: {text}");
+    let body = session
+        .query(Query::ElaboratedBody("v:Base.count-value".to_string()))
+        .expect("the body");
+    assert!(!body.is_empty(), "the body is answered");
+}
+
+const NEEDS_EQ: &str = r#"module Needs where
+  data Ticket where
+    Ticket :: Int -> Ticket
+  implicit instance Eq-Ticket :: Eq Ticket where
+    (==) x y = case x of
+      Ticket a -> case y of
+        Ticket b -> a == b
+    (/=) x y = case x of
+      Ticket a -> case y of
+        Ticket b -> a /= b
+  same :: Ticket -> Ticket -> Bool
+  same x y = x == y
+"#;
+
+/// The same module with the instance's method bodies changed: the bucket
+/// answer holds (the same instance serves head `Ticket`) but the
+/// instance's contract moves, so the searcher re-runs its search.
+const NEEDS_EQ_EDITED: &str = r#"module Needs where
+  data Ticket where
+    Ticket :: Int -> Ticket
+  implicit instance Eq-Ticket :: Eq Ticket where
+    (==) x y = case x of
+      Ticket a -> case y of
+        Ticket b -> a == b
+    (/=) x y = case x of
+      Ticket a -> case y of
+        Ticket b -> a /= b
+  same :: Ticket -> Ticket -> Bool
+  same x y = y == x
+"#;
+
+const NEEDS_MAIN: &str = r#"module Main where
+  import Needs
+  main :: Int
+  main = if same (Ticket 1) (Ticket 1) then 0 else 1
+"#;

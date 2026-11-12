@@ -5851,6 +5851,15 @@ impl Checker {
     }
 
     fn check_instance(&mut self, module: &str, inst: &ast::InstDecl) -> Result<()> {
+        // An instance's method bodies are the instance declaration's own
+        // work, so the searches they perform are its dependencies.
+        let saved_declaration = self.enter_declaration(&format!("{module}.{}", inst.name.text));
+        let result = self.check_instance_inner(module, inst);
+        self.current_declaration = saved_declaration;
+        result
+    }
+
+    fn check_instance_inner(&mut self, module: &str, inst: &ast::InstDecl) -> Result<()> {
         let params: Vec<String> = inst.params.iter().map(|p| p.text.clone()).collect();
         let (class, args) = self.class_app_of(&inst.target, &params)?;
         let sig = self
@@ -7314,7 +7323,13 @@ impl Checker {
         }
         let saved_tparams = std::mem::take(&mut self.body_tparams);
         let saved_regions = self.caller_regions.len();
+        // The instance searches this check performs are the declaration's
+        // dependencies (design/compilation-speed.md section 3): a negative
+        // lookup recorded here has to invalidate when a matching instance
+        // is added later.
+        let saved_declaration = self.enter_declaration(&id.0);
         let result = self.check_equations_inner(name, id, scheme, eqs, extra_dicts, annotation_aliases);
+        self.current_declaration = saved_declaration;
         self.caller_regions.truncate(saved_regions);
         self.body_tparams = saved_tparams;
         self.code_quantifiers = saved;
@@ -17986,6 +18001,45 @@ pub fn check_program_multi_full(
     Ok((program, ifaces, report, diags))
 }
 
+/// [`check_program_multi_full`] with the instance-search rows the checks
+/// recorded: `(declaration unit, class, head symbol)`, one row per bucket
+/// consulted, whether or not it held an instance.
+///
+/// These are the query graph's negative-lookup dependencies
+/// (design/compilation-speed.md section 3). The plain entry discards
+/// them, so no existing caller's behaviour, interface, or manifest
+/// changes; the incremental session is the one consumer that files them.
+pub fn check_program_multi_full_recorded(
+    prelude: &[ast::Module],
+    modules: &[ast::Module],
+    source_hashes: &HashMap<String, String>,
+    scx: &StagingCx,
+    wit: &[crate::interface::WitAdapter],
+    profile: &crate::core::TargetProfile,
+) -> Result<(
+    Program,
+    Vec<crate::interface::Iface>,
+    StageReport,
+    Vec<Diagnostic>,
+    Vec<(String, String, String)>,
+)> {
+    let (prepared, ifaces, mut report, diags, _) = check_program_multi_full_prepared_impl(
+        prelude,
+        modules,
+        source_hashes,
+        scx,
+        wit,
+        profile,
+        None,
+        None,
+        &HashMap::new(),
+    )?;
+    let (mut program, _references, safety_records, searches) = prepared.finish_recorded()?;
+    report.safety = verify_safety_groups(&safety_records, &program)?;
+    contract_facts(&safety_records, &mut program);
+    Ok((program, ifaces, report, diags, searches))
+}
+
 /// A probe expression for [`check_program_multi_full_probe`]: the REPL's
 /// `:type` and expression evaluation (P21), evaluated in `module`'s scope
 /// against the checked program.
@@ -18026,6 +18080,12 @@ pub(crate) struct PreparedCheck {
     prelude_name: String,
     checked_references: Vec<CheckedReference>,
     safety_records: Vec<SafetyRecord>,
+    /// The instance-search buckets the checks consulted, as
+    /// `(declaration unit, class, head)`. These are the query graph's
+    /// negative-lookup dependencies (design/compilation-speed.md
+    /// section 3): a row is present whether the search found an instance
+    /// or not.
+    instance_searches: Vec<(String, String, String)>,
 }
 
 impl PreparedCheck {
@@ -18065,9 +18125,29 @@ impl PreparedCheck {
 
     /// Fold the checked state into the ordinary program representation.
     pub(crate) fn finish(self) -> Result<(Program, Vec<CheckedReference>, Vec<SafetyRecord>)> {
+        let (program, references, safety, _) = self.finish_recorded()?;
+        Ok((program, references, safety))
+    }
+
+    /// [`PreparedCheck::finish`] with the instance-search rows the checks
+    /// recorded (design/compilation-speed.md section 3): the query graph
+    /// files them as the negative-lookup dependencies they are.
+    pub(crate) fn finish_recorded(
+        self,
+    ) -> Result<(
+        Program,
+        Vec<CheckedReference>,
+        Vec<SafetyRecord>,
+        Vec<(String, String, String)>,
+    )> {
         let mut checker = self.checker;
         let program = checker.finish(&self.scx.entry_modules, &self.prelude_name)?;
-        Ok((program, self.checked_references, self.safety_records))
+        Ok((
+            program,
+            self.checked_references,
+            self.safety_records,
+            self.instance_searches,
+        ))
     }
 }
 
@@ -18520,12 +18600,14 @@ fn check_program_multi_full_prepared_impl(
         None => None,
     };
     let checked_references = c.editor_references.get_mut().take().unwrap_or_default();
+    let instance_searches = c.take_instance_searches();
     let prepared = PreparedCheck {
         checker: c,
         scx: scx.clone(),
         prelude_name,
         checked_references,
         safety_records,
+        instance_searches,
     };
     Ok((prepared, ifaces, report, diags, probe_out))
 }

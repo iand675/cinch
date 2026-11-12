@@ -132,6 +132,19 @@ impl DictionaryResolver<'_> {
         // let the winner be replayed on exactly the store its trial saw.
         let outer = self.uni.snapshot();
         let (mut fresh_types, mut fresh_props) = (0usize, 0usize);
+        // The searched bucket is a dependency (design/compilation-speed.md
+        // section 3, "negative lookups are dependencies"): record it before
+        // the trials so a search that finds nothing is recorded exactly
+        // like one that finds a candidate. The head comes from the wanted
+        // class application; an undetermined head records `*`, which makes
+        // the dependency coarser rather than absent.
+        let bucket_head = wanted_z
+            .args
+            .first()
+            .map(|t| self.uni.zonk(t).to_string())
+            .and_then(|t| crate::driver::query::head_symbol(&t))
+            .unwrap_or_else(|| "*".to_string());
+        self.checker.record_instance_search(&class, &bucket_head);
         if let Some(idxs) = self.checker.resolution_class_indices(&class) {
             for i in idxs {
                 if !self.checker.resolution_instances()[i].implicit && Some(i) != self.checker.self_instance

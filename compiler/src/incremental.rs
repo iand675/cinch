@@ -377,6 +377,112 @@ fn hash_of(text: &str) -> String {
     interface::content_hash(text)
 }
 
+/// [`surface_rows`] as the query graph reads it: the contract projection
+/// of one item, which is what `Query::Signature` answers with.
+pub fn surface_text(iface: &Iface, id: &str) -> String {
+    surface_rows(iface, id)
+}
+
+/// The span-free body text of one item over a function list: the units
+/// the item owns (its own symbol, its methods under it, and its hoisted
+/// closures), which is what `Query::ElaboratedBody` answers with.
+pub fn body_text(module: &str, id: &str, fns: &[FnDef]) -> String {
+    let name = name_of_id(id);
+    if !name.starts_with(&format!("{module}.")) && name != module {
+        return String::new();
+    }
+    let prefix = format!("{name}.");
+    let owned: Vec<&FnDef> = fns
+        .iter()
+        .filter(|f| f.id.0 == name || f.id.0.starts_with(&prefix))
+        .collect();
+    body_rows(&owned)
+}
+
+/// The total-body rows an item's contract projection carries: the
+/// `ProofClosure` query's answer. A value export's `total_body` and an
+/// instance's method bodies are the primitive definitions whose
+/// totality the interface states, so they are what a proof consumer
+/// reads.
+pub fn proof_text(iface: &Iface, id: &str) -> String {
+    let bare = name_of_id(id);
+    let local = bare
+        .strip_prefix(&format!("{}.", iface.module))
+        .unwrap_or(bare);
+    let mut out = String::new();
+    for v in &iface.exports.values {
+        if v.name != local {
+            continue;
+        }
+        if let Some(graph) = &v.total_body {
+            let mut rows: Vec<String> = graph
+                .definitions()
+                .map(|d| format!("{}={:?}", d.identity, d.body))
+                .collect();
+            rows.sort();
+            out.push_str(&rows.join("\n"));
+        }
+    }
+    for i in &iface.exports.instances {
+        if i.id != local {
+            continue;
+        }
+        let mut rows: Vec<String> = Vec::new();
+        for body in &i.method_bodies {
+            for d in body.total_body.definitions() {
+                rows.push(format!("{}={:?}", d.identity, d.body));
+            }
+        }
+        rows.sort();
+        out.push_str(&rows.join("\n"));
+    }
+    out
+}
+
+/// Every item id a module's interface declares, without the module node.
+pub fn item_ids_from(iface: &Iface, module: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for v in &iface.exports.values {
+        out.push(item_id(ItemKind::Value, module, &v.name));
+    }
+    for t in &iface.exports.types {
+        out.push(item_id(ItemKind::Type, module, &t.name));
+        for c in &t.ctors {
+            out.push(item_id(ItemKind::Value, module, &c.name));
+        }
+    }
+    for s in &iface.exports.signatures {
+        out.push(item_id(ItemKind::Class, module, &s.name));
+    }
+    for i in &iface.exports.instances {
+        out.push(item_id(ItemKind::Instance, module, &i.id));
+    }
+    out
+}
+
+/// The normalized head symbol of an instance's checked identity. The
+/// identity is spelled `<Module>.<instance name>`; the head is the
+/// instance's target type, which the interface's export row carries, so
+/// this reads it from there and falls back to the instance's own name.
+pub fn instance_head(
+    identity: &str,
+    modules: &BTreeMap<String, crate::driver::query::ModuleView<'_>>,
+) -> String {
+    for view in modules.values() {
+        for i in &view.iface.exports.instances {
+            if i.id == identity {
+                if let Some(head) = crate::driver::query::head_symbol(&i.target) {
+                    return head;
+                }
+            }
+        }
+    }
+    // An instance whose target does not start with an identifier serves
+    // every head: `"*"` keeps the bucket coarse rather than dropping the
+    // candidate.
+    "*".to_string()
+}
+
 // ============================================================ reference extraction
 
 /// The declared surface of one declaration: the type/contract references
@@ -716,7 +822,36 @@ pub struct SessionReport {
     /// never guesses.
     pub full_rebuild: bool,
     pub link: LinkReport,
+    /// What the query graph found this rebuild: the queries that
+    /// re-executed and changed, the ones that re-executed and produced
+    /// the fingerprint they had (the early cutoffs), the declarations
+    /// whose instance searches have to run again, and the counts.
+    pub queries: QueryReport,
     pub timings: Timings,
+}
+
+/// The query graph's part of a rebuild report.
+#[derive(Clone, Debug, Default)]
+pub struct QueryReport {
+    /// Items whose contract, body, or proof-closure fingerprint moved.
+    pub changed: Vec<String>,
+    /// Items that re-executed and produced the fingerprint they had
+    /// before, so their dependents were reused.
+    pub cutoff: Vec<String>,
+    /// Declarations whose instance searches consulted a bucket whose
+    /// answer moved, including the negative lookups that found nothing.
+    pub researched: Vec<String>,
+    /// Queries evaluated from scratch.
+    pub executed: usize,
+    /// Stale entries proven valid by their dependencies' fingerprints.
+    pub verified: usize,
+    /// Entries already valid at the revision.
+    pub hits: usize,
+    /// The revision the memo is at.
+    pub revision: u64,
+    /// The graph was consulted for the dirty set (false on a cold build,
+    /// which has no prior state to compare against).
+    pub used: bool,
 }
 
 /// The persistent recompilation session (INCR equivalent).
@@ -760,6 +895,13 @@ pub struct Session {
     staging_inputs: Vec<StageInput>,
     stage_mode: StageMode,
     graph: Option<ItemGraph>,
+    /// The instance-search buckets each declaration's check consulted,
+    /// keyed by declaration unit: the query graph's negative-lookup
+    /// dependencies (design/compilation-speed.md section 3). A row is
+    /// present whether the search found an instance or not.
+    searches: BTreeMap<String, Vec<(String, String)>>,
+    /// The query graph of the current checked state (built on demand).
+    queries: Option<crate::driver::query::Engine<crate::driver::query::Value>>,
     /// The assembled program IR of the last artifact build (the LINK
     /// artifact, also written to `build/<entry>.ll`).
     ir: Option<String>,
@@ -830,6 +972,8 @@ impl Session {
             staging_inputs: Vec::new(),
             stage_mode: StageMode::Refresh,
             graph: None,
+            searches: BTreeMap::new(),
+            queries: None,
             ir: None,
         };
         session.out_dir = session.root.join("build");
@@ -868,6 +1012,41 @@ impl Session {
     /// The assembled program IR of the last artifact build.
     pub fn ir_artifact(&self) -> Option<&str> {
         self.ir.as_deref()
+    }
+
+    /// Demand one query of the current state and return its value's text
+    /// (`""` for an instance answer). This is the query graph's read path:
+    /// a front end that wants one signature or one unit's IR asks for it
+    /// and nothing else is recomputed.
+    pub fn query(&mut self, key: crate::driver::query::Query) -> Result<String> {
+        // The engine moves out of the session for the demand, so the state
+        // can borrow the session immutably while the engine is mutably
+        // held here.
+        let mut engine = self
+            .queries
+            .take()
+            .ok_or_else(|| Error::plain("the session has no query graph yet: build it first"))?;
+        let mut units: BTreeMap<String, String> = BTreeMap::new();
+        if let Some(ir) = &self.ir {
+            if let Ok(split) = split_ir(ir) {
+                for (symbol, text) in split.units {
+                    units.insert(symbol, text);
+                }
+            }
+        }
+        let inline: BTreeMap<String, String> = BTreeMap::new();
+        let result = {
+            let mut state = self.query_state(units, inline);
+            crate::driver::query::get(&mut engine, &mut state, &key)
+        };
+        self.queries = Some(engine);
+        Ok(result?.text().unwrap_or_default().to_string())
+    }
+
+    /// The instance buckets a declaration's check consulted, as
+    /// `(class, head)`: the query graph's negative-lookup dependencies.
+    pub fn instance_searches(&self, decl: &str) -> Vec<(String, String)> {
+        self.searches.get(decl).cloned().unwrap_or_default()
     }
 
     /// The build directory (artifact home).
@@ -962,6 +1141,17 @@ impl Session {
                 }
             }
             report.chain_ok = self.chain_ok();
+            // The memo is still valid at the revision: report the state it
+            // is in rather than claiming the graph was not consulted. An
+            // unchanged rebuild is exactly the case the memo exists for, so
+            // its counts are zero executions and no moved query.
+            if let Some(engine) = &self.queries {
+                report.queries = QueryReport {
+                    used: true,
+                    revision: engine.revision(),
+                    ..QueryReport::default()
+                };
+            }
             report.timings.total_ms = since_ms(t_total);
             self.write_rebuild_manifest(&report)?;
             return Ok(report);
@@ -1034,7 +1224,7 @@ impl Session {
             if full {
                 break;
             }
-            let closure = self.graph_dirty(&changes)?;
+            let closure = self.query_dirty(&changes)?;
             if closure == dirty {
                 break;
             }
@@ -1046,7 +1236,7 @@ impl Session {
         report.full_rebuild = full;
 
         // 4. The dirty set is the report's `rechecked`.
-        dirty = self.graph_dirty(&changes)?;
+        dirty = self.query_dirty(&changes)?;
         report.rechecked = dirty.iter().cloned().collect();
 
         // 5. Merge the checked state into the canonical program, then
@@ -1112,6 +1302,13 @@ impl Session {
         )?;
         report.chain_ok = self.chain_ok();
 
+        // 7b. The query graph over the state this rebuild produced. The
+        //     demand re-executes what a re-checked module invalidated and
+        //     verifies the rest by fingerprint, so the report states what
+        //     the change actually reached (`queries.changed`) and what it
+        //     did not have to (`queries.cutoff`).
+        report.queries = self.refresh_queries(&checked, &opt_program.inline)?;
+
         // 8. Kept and retyped: everything else, split by whether the
         //    checker re-typed it in a slice run.
         let retyped: BTreeSet<String> = checked
@@ -1148,6 +1345,215 @@ impl Session {
         Ok(g.dirty_closure(changes))
     }
 
+    /// The dirty set of a change set from the query graph: everything that
+    /// recorded a read of something the change moved. This is the
+    /// precision win over [`Session::graph_dirty`]: that closure follows
+    /// the reference edges the source spells, so a changed declaration
+    /// reaches every declaration that names it; this one follows the reads
+    /// the evaluations actually performed, so an item that names a changed
+    /// declaration only from a body whose fingerprint the change cannot
+    /// move stays clean, and an item whose instance search consulted a
+    /// bucket whose answer moved becomes dirty even though no reference
+    /// edge connects the two.
+    ///
+    /// The fallback is deliberate and named: a query the state cannot
+    /// answer, or a state the session has not built yet, falls back to the
+    /// edge closure, so a bug here costs time and never a stale build.
+    fn query_dirty(&mut self, changes: &[(String, ChangeKind)]) -> Result<BTreeSet<String>> {
+        if self.queries.is_none() {
+            return self.graph_dirty(changes);
+        }
+        let mut seeds: BTreeSet<crate::driver::query::Query> = BTreeSet::new();
+        for (id, kind) in changes {
+            match kind {
+                ChangeKind::Body => {
+                    seeds.insert(crate::driver::query::Query::ElaboratedBody(id.clone()));
+                }
+                ChangeKind::Surface | ChangeKind::Added | ChangeKind::Removed => {
+                    seeds.insert(crate::driver::query::Query::Signature(id.clone()));
+                }
+            }
+        }
+        let engine = match self.queries.as_ref() {
+            Some(e) => e,
+            None => return self.graph_dirty(changes),
+        };
+        let mut stale = engine.stale_from(&seeds);
+        stale.extend(seeds);
+        let mut out: BTreeSet<String> = BTreeSet::new();
+        for q in stale {
+            if let Some(item) = q.item() {
+                out.insert(item.to_string());
+            }
+        }
+        Ok(out)
+    }
+
+    /// Assemble the query state from the current checked state: the module
+    /// views, the reference dependencies, the search rows, and the
+    /// per-unit emission. The state borrows `self`, so it is built, used
+    /// for one round, and dropped.
+    fn query_state(
+        &self,
+        units: BTreeMap<String, String>,
+        inline: BTreeMap<String, String>,
+    ) -> crate::driver::query::QueryState<'_> {
+        let mut modules: BTreeMap<String, crate::driver::query::ModuleView<'_>> =
+            BTreeMap::new();
+        let mut order = self.prelude_order.clone();
+        order.extend(self.order.iter().cloned());
+        for m in &order {
+            let Some(state) = self.states.get(m) else { continue };
+            let Some(iface) = &state.iface else { continue };
+            modules.insert(
+                m.clone(),
+                crate::driver::query::ModuleView {
+                    source_hash: &state.source_hash,
+                    iface,
+                    fns: &state.fns,
+                },
+            );
+        }
+        // The reference dependencies are the item graph's edges, which are
+        // built from the parsed reference sites.
+        let mut deps: BTreeMap<String, crate::driver::query::Deps> = BTreeMap::new();
+        if let Some(g) = &self.graph {
+            for e in g.edges() {
+                let entry = deps.entry(e.from.clone()).or_default();
+                match e.kind {
+                    EdgeKind::Surface => entry.surface.push(e.to.clone()),
+                    EdgeKind::Body => entry.body.push(e.to.clone()),
+                }
+            }
+        }
+        for d in deps.values_mut() {
+            d.surface.sort();
+            d.surface.dedup();
+            d.body.sort();
+            d.body.dedup();
+        }
+        let program = Program {
+            total_bodies: crate::total::CheckedGraph::empty(),
+            fns: Vec::new(),
+            instances: self.merged_instance_rows(),
+            main: None,
+            rewrites: Vec::new(),
+            plans: BTreeMap::new(),
+            foreigns: BTreeMap::new(),
+            prims: Vec::new(),
+            laws: Vec::new(),
+            lent: Default::default(),
+            frame: Default::default(),
+            stack: Default::default(),
+            borrowed: Default::default(),
+            inline: Default::default(),
+        };
+        let mut state = crate::driver::query::QueryState::of(
+            modules,
+            &program,
+            deps,
+            self.searches.clone(),
+        );
+        // The contract fact nodes' own text, which is what their
+        // signatures answer with.
+        if let Some(g) = &self.graph {
+            for item in g.items() {
+                if item.kind == ItemKind::Contract {
+                    state
+                        .facts
+                        .insert(item.id.clone(), item.facts.join("\n"));
+                }
+            }
+        }
+        state.set_emission(units, inline);
+        state
+    }
+
+    /// Demand the query graph over the state this rebuild produced, and
+    /// report what it found. Every module the checker re-typed is forced:
+    /// its source input may be identical (a recheck of a dependent whose
+    /// context changed) while its checked state is new, and a fingerprint
+    /// comparison against an input that did not move would otherwise keep
+    /// a value the fresh check replaced. The prior fingerprint is kept
+    /// through the recomputation, so a recheck that reproduces the value
+    /// still reports a cutoff.
+    fn refresh_queries(
+        &mut self,
+        checked: &BTreeSet<String>,
+        inline_facts: &BTreeMap<String, crate::simplify::InlineFacts>,
+    ) -> Result<QueryReport> {
+        // The item graph supplies the reference dependencies. It is built
+        // on demand and kept, because the query state reads its edges.
+        let g = self.build_graph()?;
+        self.graph = Some(g);
+        let mut units: BTreeMap<String, String> = BTreeMap::new();
+        if let Some(ir) = &self.ir {
+            if let Ok(split) = split_ir(ir) {
+                for (symbol, text) in split.units {
+                    units.insert(symbol, text);
+                }
+            }
+        }
+        // The optimizer's per-unit facts, straight from the simplifier: how
+        // many sites it inlined into each unit and how many nodes those
+        // copies added. These are what `OptSummary` answers with.
+        let inline: BTreeMap<String, String> = inline_facts
+            .iter()
+            .map(|(unit, f)| {
+                let mut callees = f.callees.clone();
+                callees.sort();
+                callees.dedup();
+                (
+                    unit.clone(),
+                    format!("sites={} nodes={} callees={}", f.sites, f.nodes, callees.join(",")),
+                )
+            })
+            .collect();
+        let mut engine = self
+            .queries
+            .take()
+            .unwrap_or_else(crate::driver::query::Engine::new);
+        let analysis = {
+            let mut state = self.query_state(units, inline);
+            // The forced set: every item of every module the checker ran
+            // over, at both layers, because both were recomputed.
+            let forced: Vec<crate::driver::query::Query> = checked
+                .iter()
+                .flat_map(|m| {
+                    let mut keys = vec![crate::driver::query::Query::source(m)];
+                    for id in self.item_ids_of(m) {
+                        keys.push(crate::driver::query::Query::Signature(id.clone()));
+                        keys.push(crate::driver::query::Query::ElaboratedBody(id));
+                    }
+                    keys
+                })
+                .collect();
+            engine.force(forced);
+            crate::driver::query::analyze(&mut engine, &mut state)?
+        };
+        let out = QueryReport {
+            changed: analysis.changed.iter().cloned().collect(),
+            cutoff: analysis.cutoff.iter().cloned().collect(),
+            researched: analysis.researched.iter().cloned().collect(),
+            executed: analysis.report.executed,
+            verified: analysis.report.verified,
+            hits: analysis.report.hits,
+            revision: analysis.report.revision,
+            used: true,
+        };
+        self.queries = Some(engine);
+        Ok(out)
+    }
+
+    /// The instance rows the query state's buckets are built from.
+    fn merged_instance_rows(&self) -> Vec<InstanceDef> {
+        let mut out: Vec<InstanceDef> = Vec::new();
+        for state in self.states.values() {
+            out.extend(state.instances.iter().cloned());
+        }
+        out
+    }
+
     /// The module a rendered item id belongs to.
     fn module_of_item(&self, id: &str) -> Option<String> {
         let name = name_of_id(id);
@@ -1171,7 +1577,16 @@ impl Session {
         let Some(iface) = &state.iface else {
             return out;
         };
-        out.extend(self.item_ids_from_iface(iface, module));
+        let items = self.item_ids_from_iface(iface, module);
+        // The contract fact nodes: one per assertion, temporal contract,
+        // or law row of a definition (the P20/P28 facts). They are items
+        // in the graph, so they are items of the module.
+        for id in &items {
+            for (ix, _) in contract_facts_of(iface, id).iter().enumerate() {
+                out.push(contract_id(name_of_id(id), &format!("f{ix}")));
+            }
+        }
+        out.extend(items);
         out
     }
 
@@ -1225,6 +1640,11 @@ impl Session {
         checked: &mut BTreeSet<String>,
         changes: &mut Vec<(String, ChangeKind)>,
     ) -> Result<(f64, f64, bool)> {
+        // The cached item graph describes the checked state this call is
+        // about to replace, and the object cache's declaration hashes read
+        // it. Dropping it here is what keeps a cached graph from ever
+        // answering about a state it was not built from.
+        self.graph = None;
         let t0 = std::time::Instant::now();
         let adapters = self.wit.clone();
         let prelude: PreludeSources = parse_prelude(&adapters)?;
@@ -1275,14 +1695,36 @@ impl Session {
             entry_modules: self.entry_modules.clone(),
             schema_tool: std::env::var("CINCH_SCHEMA_TOOL").ok(),
         };
-        let (program, ifaces, report, _diags) = crate::check::check_program_multi_full(
-            &prelude.modules,
-            &modules,
-            &hashes,
-            &scx,
-            &adapters,
-            &self.profile,
-        )?;
+        let (program, ifaces, report, _diags, searches) =
+            crate::check::check_program_multi_full_recorded(
+                &prelude.modules,
+                &modules,
+                &hashes,
+                &scx,
+                &adapters,
+                &self.profile,
+            )?;
+        // The instance-search buckets this run consulted, as the query
+        // graph's negative-lookup dependencies: `(declaration unit,
+        // class, head)`. The rows cover the whole slice, so they replace
+        // the modules the run covered and leave every other module's rows
+        // alone.
+        let covered_now: BTreeSet<String> = slice.iter().cloned().collect();
+        self.searches.retain(|decl, _| {
+            owner_module(decl, &self.all_modules)
+                .map(|m| !covered_now.contains(&m))
+                .unwrap_or(true)
+        });
+        for (decl, class, head) in searches {
+            self.searches
+                .entry(decl)
+                .or_default()
+                .push((class, head));
+        }
+        for rows in self.searches.values_mut() {
+            rows.sort();
+            rows.dedup();
+        }
         let check_ms = since_ms(t1);
 
         // Group the run's rows per module (longest module prefix; the
@@ -1522,6 +1964,36 @@ impl Session {
         for id in &old_ids {
             if !new_ids.contains(id) {
                 changes.push((id.clone(), ChangeKind::Removed));
+            }
+        }
+        // A contract fact node is an item whose identity is the fact, so a
+        // fact that appears, changes, or leaves is a change like any other
+        // (a contract change is exactly this case).
+        let facts_of = |iface: &Iface| -> Vec<String> {
+            let mut out = Vec::new();
+            for id in self.item_ids_from_iface(iface, module) {
+                for (ix, fact) in contract_facts_of(iface, &id).iter().enumerate() {
+                    out.push(format!(
+                        "{}\x01{}",
+                        contract_id(name_of_id(&id), &format!("f{ix}")),
+                        fact
+                    ));
+                }
+            }
+            out
+        };
+        let old_facts = facts_of(prior);
+        let new_facts = facts_of(fresh);
+        for f in &new_facts {
+            if !old_facts.contains(f) {
+                let id = f.split('\x01').next().unwrap_or(f).to_string();
+                changes.push((id, ChangeKind::Added));
+            }
+        }
+        for f in &old_facts {
+            if !new_facts.contains(f) {
+                let id = f.split('\x01').next().unwrap_or(f).to_string();
+                changes.push((id, ChangeKind::Removed));
             }
         }
         let mut all_ids = new_ids.clone();
@@ -2242,6 +2714,19 @@ impl Session {
             ("chain_ok", report.chain_ok.into()),
             ("full_rebuild", report.full_rebuild.into()),
             (
+                "queries",
+                J::obj([
+                    ("used", report.queries.used.into()),
+                    ("changed", (&report.queries.changed).into()),
+                    ("cutoff", (&report.queries.cutoff).into()),
+                    ("researched", (&report.queries.researched).into()),
+                    ("executed", (report.queries.executed as u64).into()),
+                    ("verified", (report.queries.verified as u64).into()),
+                    ("hits", (report.queries.hits as u64).into()),
+                    ("revision", report.queries.revision.into()),
+                ]),
+            ),
+            (
                 "link",
                 J::obj([
                     ("placed", (&report.link.placed).into()),
@@ -2535,15 +3020,21 @@ fn split_ir(ir: &str) -> Result<SplitIr> {
             symbol,
         });
     }
-    // Unit names: the `.clo` global names them (every unit emits one).
+    // Unit names: every unit emits a `define` of its own symbol. The
+    // closure global (`.clo`) was the earlier anchor, but codegen omits the
+    // closure and its stub for a unit that is never taken as a value, so a
+    // program that only ever calls its functions directly emits none: the
+    // anchor has to be the definition, which every emitted unit has.
     let mut clo_units: Vec<String> = Vec::new();
     for c in &chunks {
-        if c.kind == 2 {
-            if let Some(u) = c.symbol.strip_suffix(".clo") {
-                clo_units.push(u.to_string());
-            }
+        if c.kind == 1 && !c.symbol.is_empty() {
+            clo_units.push(c.symbol.clone());
         }
     }
+    // A unit's mixed-arity worker (`X#tail`) is part of `X`, not a unit of
+    // its own: the `define` above names it, and leaving it in the anchor
+    // list would split one unit into two blocks.
+    clo_units.retain(|u| !u.contains("#tail"));
     clo_units.sort();
     clo_units.dedup();
     let owner_of = |symbol: &str, kind: u8| -> Option<String> {
@@ -2566,14 +3057,23 @@ fn split_ir(ir: &str) -> Result<SplitIr> {
         }
         best
     };
-    // Group chunks into contiguous unit blocks.
+    // Group chunks into contiguous unit blocks. A chunk no unit owns (the
+    // module-level tables codegen emits between units: `__cinch_layouts`,
+    // the FFI tables) rides with the block it follows, because the
+    // assembler writes the preamble, then the unit texts in order, then the
+    // tail: a chunk dropped from the middle would be silently lost, and a
+    // chunk attached to a block makes its bytes part of that unit's object
+    // hash, so a change to the table re-places exactly that one unit.
+    // Leading unowned chunks stay in the preamble, which the assembler
+    // copies verbatim.
     let mut blocks: Vec<(String, Vec<usize>)> = Vec::new();
     for (i, c) in chunks.iter().enumerate() {
         let owner = owner_of(&c.symbol, c.kind);
         match (owner, blocks.last_mut()) {
             (Some(o), Some((bo, ix))) if *bo == o => ix.push(i),
             (Some(o), _) => blocks.push((o, vec![i])),
-            (None, _) => {}
+            (None, Some((_, ix))) => ix.push(i),
+            (None, None) => {}
         }
     }
     // Each block must cover exactly one unit's chunks, including its
@@ -2585,20 +3085,22 @@ fn split_ir(ir: &str) -> Result<SplitIr> {
             ok = false;
         }
         let mut has_define = false;
-        let mut has_clo = false;
         for &i in ix {
             let c = &chunks[i];
             if c.kind == 1 && c.symbol == *u {
                 has_define = true;
             }
-            if c.kind == 2 && c.symbol == format!("{u}.clo") {
-                has_clo = true;
-            }
-            if owner_of(&c.symbol, c.kind).as_deref() != Some(u.as_str()) {
+            // A chunk no unit owns is a module-level table riding with
+            // the block it follows (see the grouping above); anything else
+            // must belong to the block's own unit.
+            if c.kind != 0
+                && owner_of(&c.symbol, c.kind).is_some()
+                && owner_of(&c.symbol, c.kind).as_deref() != Some(u.as_str())
+            {
                 ok = false;
             }
         }
-        if !has_define || !has_clo {
+        if !has_define {
             ok = false;
         }
     }
@@ -2607,6 +3109,9 @@ fn split_ir(ir: &str) -> Result<SplitIr> {
     }
     // Assembly keeps only the preamble, the unit blocks and the tail, so a
     // chunk between the first and the last block that no unit owns would
+    // be silently dropped; fall back to a blob instead.
+    // Assembly keeps only the preamble, the unit blocks and the tail, so a
+    // chunk between the first and the last block that no block claims would
     // be silently dropped; fall back to a blob instead.
     let in_blocks: BTreeSet<usize> = blocks.iter().flat_map(|(_, ix)| ix.iter().copied()).collect();
     if let (Some(lo), Some(hi)) = (in_blocks.iter().next(), in_blocks.iter().next_back()) {

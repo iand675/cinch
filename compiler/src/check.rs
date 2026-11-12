@@ -3266,6 +3266,15 @@ struct Checker {
     proof_goal_site: Option<ast::Span>,
     editor_references: RefCell<Option<Vec<CheckedReference>>>,
     editor_modules: HashSet<String>,
+    /// The instance-search buckets the checks so far consulted, as
+    /// `(declaration, class, head symbol)` (design/compilation-speed.md
+    /// section 3, "negative lookups are dependencies"). A row is recorded
+    /// whether or not the search found an instance: the miss is the
+    /// dependency that has to invalidate when a matching instance is
+    /// added, and it is the only place that fact exists.
+    instance_searches: RefCell<Vec<(String, String, String)>>,
+    /// The declaration whose check is running, for the rows above.
+    current_declaration: String,
     scoped_type_env: RefCell<Vec<Env>>,
     /// Checked source-header value binders, before runtime locals exist.
     /// Captured references use their authoritative Env path instead.
@@ -3870,6 +3879,8 @@ impl Checker {
             proof_goal_site: None,
             editor_references: RefCell::new(None),
             editor_modules: HashSet::new(),
+            instance_searches: RefCell::new(Vec::new()),
+            current_declaration: String::new(),
             scoped_type_env: RefCell::new(Vec::new()),
             index_carriers: RefCell::new(Vec::new()),
             index_lambda_binders: RefCell::new(Vec::new()),
@@ -6373,6 +6384,39 @@ impl Checker {
             slot += 1;
         }
         Some(FieldShape::Inline { size: layout.size, tag, fields })
+    }
+
+    /// Record that the current declaration's check consulted the instance
+    /// bucket `(class, head)`, whether or not it found anything. The
+    /// declaration is the unit the checker is elaborating; a search with
+    /// no enclosing declaration (a probe, a law's sample evaluation) is
+    /// recorded against the empty name and belongs to no item.
+    pub(crate) fn record_instance_search(&self, class: &str, head: &str) {
+        self.instance_searches.borrow_mut().push((
+            self.current_declaration.clone(),
+            class.to_string(),
+            head.to_string(),
+        ));
+    }
+
+    /// Name the declaration whose check is starting. Returns the enclosing
+    /// declaration's name, which the caller restores when its check ends
+    /// (a staged unit compiled on demand nests inside its caller, and the
+    /// rows it records belong to the outer declaration).
+    pub(crate) fn enter_declaration(&mut self, decl: &str) -> String {
+        std::mem::replace(&mut self.current_declaration, decl.to_string())
+    }
+
+    /// The search rows recorded so far, drained: the caller files them
+    /// with the checked program.
+    pub(crate) fn take_instance_searches(&mut self) -> Vec<(String, String, String)> {
+        std::mem::take(self.instance_searches.get_mut())
+    }
+
+    /// The search rows the checks so far recorded, as the query graph
+    /// files them: declaration item id to its `(class, head)` buckets.
+    pub(crate) fn instance_search_rows(&self) -> Vec<(String, String, String)> {
+        self.instance_searches.borrow().clone()
     }
 
     fn record_editor_reference(&self, span: ast::Span, kind: ast::RefKind, owner: &str, name: &str) {

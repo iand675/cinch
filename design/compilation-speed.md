@@ -1034,6 +1034,74 @@ bodies across modules for a whole program build, so the first cut is
 per-declaration reuse inside one build and per-package reuse across
 builds. That still removes the second-largest cost after clang.
 
+### 3.1 What landed (2026-11-12)
+
+`compiler/src/query.rs` is the engine and `Session` drives it. The four
+mechanisms, each with the thing that makes it correct rather than
+plausible:
+
+- **Demand-driven with recorded reads.** A `Query` is a key, an `Engine`
+  is a memo table plus a revision counter, and a `Subject` computes a
+  value. A subject reads its dependencies through `get`, so the memo
+  records what the evaluation actually read. The queries are `Signature`,
+  `ElaboratedBody`, `ProofClosure`, `InstanceBucket`, `OptSummary` and
+  `Object`, with `Input` as the leaf a client sets. `erasedCore` and
+  `ownedCore` from the list above are deliberately absent: erasure and
+  reference counting are whole-program passes, not functions of one
+  declaration's inputs, so a per-declaration memo of them would record a
+  dependency set that does not describe the work.
+- **Early cutoff by fingerprint.** An entry whose every recorded
+  dependency still carries the fingerprint it was written with is valid at
+  the current revision and is not re-executed; a re-execution that
+  reproduces its value keeps its old `changed_at` and reports a cutoff, so
+  its dependents are reused. Only an input whose fingerprint changes bumps
+  the revision, so setting an input to what it already was costs nothing.
+- **Negative lookups are dependencies.** The resolver records the bucket
+  `(class, head)` it searched before its trials, so a search that finds
+  nothing is recorded exactly like one that finds a candidate. The head is
+  normalized to its last segment, which makes a checked identity
+  (`Relation.Eq.Eq`, `Base.Count`) and a rendered interface target
+  (`Count`) name the same bucket; two modules' same-named types then share
+  one, which makes the dependency coarser and never narrower.
+- **Interface-first pipelining.** `ElaboratedBody` reads a referenced
+  declaration's `Signature` and not its `ElaboratedBody`, because the
+  checker elaborates a call from the callee's scheme and a dependency is an
+  interface (D3). Only `OptSummary` and `Object` read bodies, because the
+  optimizer is the layer that copies them.
+
+Three findings from building it, each a bug the tests caught:
+
+- **The graph is only valid for the state it was built from.** Caching the
+  item graph across a re-check made the object cache key on the previous
+  state's declaration hashes, so nothing was re-placed. `check_slice`
+  drops the cached graph before it replaces the state.
+- **A contract fact node must not read its owner.** The graph's fact nodes
+  and their owners referenced each other, so the demand hit a cycle on
+  every instance with a law. A fact node answers with the fact and reads
+  only its module's source.
+- **The session forces what it re-checked.** A dependent re-checked
+  because its context changed has an unchanged source input, so a
+  fingerprint comparison against that input would keep a value the fresh
+  check replaced. `Engine::force` marks those entries for recomputation
+  while keeping their prior fingerprint, so a re-check that reproduces the
+  value still reports a cutoff.
+
+`split_ir` was anchoring its unit split on the `.clo` closure global, which
+codegen stopped emitting for a unit that is never taken as a value (the
+apply-stub collapse), so the split fell back to one blob and the LINK cache
+was inert. It now anchors on each unit's `define` and attaches the
+module-level tables codegen emits between units to the block they follow,
+so a table change re-places exactly one unit instead of dropping the table
+from the reassembly.
+
+The reach is narrower than the reference-edge closure and that is the
+point: a contract change now re-checks the signatures that read it plus
+every module node on the chain, and leaves a declaration that names the
+changed one only from a body whose fingerprint cannot move. The measured
+effect is not yet a timing claim; what is pinned is the reach (the
+`queries.changed`, `queries.cutoff` and `queries.researched` rows of the
+rebuild manifest and of `SessionReport`) and the cutoffs the tests assert.
+
 ## 4. Make the checker boring (Lean's kernel, elaboration-zoo)
 
 - **Intern immutable terms.** Identity comparison first, structural second,
