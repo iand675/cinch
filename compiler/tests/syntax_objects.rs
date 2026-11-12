@@ -1709,6 +1709,28 @@ fn run_quote(expression: &str, expected: i32) {
     assert_eq!(code, expected, "quotation {expression:?}");
 }
 
+/// A quotation bound to a stage declaration and spliced by name evaluates
+/// end to end: `$(quoted)` resolves the declaration anywhere in the module,
+/// fills the template, and the filled code is checked where it lands. It is
+/// the only form that proves the lookup sees the module rather than the
+/// walk's remaining suffix.
+#[test]
+fn named_quotation_declaration_splices_into_generated_declarations() {
+    let source = r#"module Main where
+  helper :: Int
+  helper = 40
+  stage quoted :: Code Int
+  stage quoted = [| helper + 2 |]
+  generate do
+    emit (quoteDecls where
+      answer :: Int
+      answer = $(quoted))
+  main :: Int
+  main = answer
+"#;
+    assert_eq!(run_source(source).unwrap(), 42);
+}
+
 #[test]
 fn child_terms_do_not_export_bindings_to_siblings() {
     for child in [

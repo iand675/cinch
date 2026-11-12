@@ -447,20 +447,29 @@ module Bootstrap.Stage where
   -- it. The template is read from the checked surface at each splice that
   -- names it, which is why nothing has to survive here.
   expand-declaration :: CheckedProgram -> String -> List Decl -> Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
-  expand-declaration checked owner declarations declaration fuel = case declaration of
+  expand-declaration checked owner module-decls declaration fuel = case declaration of
     DMacro site body -> Ok (Nil, fuel)
     DStage site body -> Ok (Nil, fuel)
-    DGenerate site actions -> expand-actions checked owner (MkExpandScope declarations Nil) (decls-of actions) fuel
-    DSig site name ty -> if quotation-signature-of name declarations then Ok (Nil, fuel) else Ok ([declaration], fuel)
+    DGenerate site actions -> expand-actions checked owner (MkExpandScope module-decls Nil) (decls-of actions) fuel
+    DSig site name ty -> if quotation-signature-of name module-decls then Ok (Nil, fuel) else Ok ([declaration], fuel)
     other -> Ok ([declaration], fuel)
 
 
-  expand-declarations :: CheckedProgram -> String -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
-  expand-declarations checked owner declarations fuel = case declarations of
+  -- Two declaration lists with different jobs, named for those jobs so the
+  -- record's fields alone cannot save a caller from handing the walk's
+  -- remainder to the lookup.
+  --
+  --   `module-decls` is the module's WHOLE declaration list, carried
+  --   unchanged through every recursion, because the template lookup resolves
+  --   a name anywhere in the module. A suffix would answer a different
+  --   question and miss a declaration the walk has already passed.
+  --   `declarations` is only the walk's remaining work.
+  expand-declarations :: CheckedProgram -> String -> List Decl -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
+  expand-declarations checked owner module-decls declarations fuel = case declarations of
     Nil -> Ok (Nil, fuel)
-    Cons first rest -> case expand-declaration checked owner declarations first fuel of
+    Cons first rest -> case expand-declaration checked owner module-decls first fuel of
       Err errors -> Err errors
-      Ok (local, remaining) -> case expand-declarations checked owner rest remaining of
+      Ok (local, remaining) -> case expand-declarations checked owner module-decls rest remaining of
         Err errors -> Err errors
         Ok (more, done) -> Ok (local <> more, done)
 
@@ -473,7 +482,7 @@ module Bootstrap.Stage where
         Ok modules -> let site = program-span program in case resolve (MkProgram site (Cons (quotation-scope site) modules)) of
           (resolved, Nil) -> case check-and-retain resolved of
             Err errors -> Err errors
-            Ok checked -> case expand-declarations checked owner declarations fuel of
+            Ok checked -> case expand-declarations checked owner declarations declarations fuel of
               Err errors -> Err errors
               Ok (body, remaining) -> let site = module-span current in Ok (MkModule site owner (decl-spine site body), remaining)
           (resolved, errors) -> Err errors
