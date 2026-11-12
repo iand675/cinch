@@ -2136,6 +2136,39 @@ the price of the 990M constructor blocks a self-check allocates. Backlog item
 11 was aimed at the stub on the strength of the wrong attribution and is
 replaced by the item the corrected profile supports.
 
+**The tail-position case, and why there is no second rule.** The one site the
+census called the worst offender is
+`Bootstrap.Infer.guarded-recursive-reference`, which binds
+`guarded-recursive-reference` itself at 5 of its 7 arguments and applies it 15
+times, off the spine. A rule for "a binder of known arity read exactly once as
+a tail call's head" would be the same shape with the spine condition replaced
+by tail position. It has no population, and the reason is visible in the site
+itself: the binder is read 15 times, not once, and its uses supply 1 or 2
+arguments against a shortfall of 2, so every use is still a partial
+application and the shared closure is exactly what those 15 uses want.
+
+That is the whole population of under-applied let-bound partial applications
+in the compiler source, 9 sites, and none of them wants a second rule:
+
+| uses | given / arity | caller -> callee |
+|---|---|---|
+| 15 | 5 / 7 | `Bootstrap.Infer.guarded-recursive-reference` -> itself, args 1 or 2 |
+| 10 | 2 / 4 | `Bootstrap.Core.rewrite-structure` -> `rewrite-equal`, args 2 |
+| 4 | 1 / 2 | `Bootstrap.Infer.check-rewrite-citation` -> `map-term-types`, args 1 |
+| 3 | 1 / 2 | `Bootstrap.Infer.retain-checked-rewrite` -> `map-term-types`, args 1 |
+| 1 | 3 / 4 | `Bootstrap.Interface.blank-field-string` -> `bytes-splice` |
+| 1 | 1 / 2 | `Bootstrap.Interface.fnv-from` -> `fnv-step` |
+| 1 | 2 / 3 | `Text.Parse.line-text-at` -> `bytes-slice` |
+| 0 | 2 / 3 | `Bootstrap.Export.method-default` -> `portable-default-export-global` |
+| 0 | 2 / 3 | `Bootstrap.Export.signature-pass` -> `portable-default-export-global` |
+
+The four with one use are the rule's population, and the two with no use are
+dead binders the occurrence rule already removes. The five shared ones would
+need a rule that turned one shared closure into N saturated calls, which is
+code growth for a saving that only exists where the shared closure was
+actually being released, and the profile says the release path is not where
+the stub is.
+
 ### 2.13 The 2026-11-11 round, in the order it landed
 
 Nine landings changed the shape of the compiler rather than tuning it. The
