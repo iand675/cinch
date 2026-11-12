@@ -748,6 +748,16 @@ fn emit_module(
     } else {
         None
     };
+    // A unit needs its apply stub and static closure only when something
+    // takes it as a value, which shows up as a reference to `<unit>.clo`
+    // or `<unit>.app`. `refs` already records those, so the set is one
+    // pass over the units. A program that only ever calls its functions
+    // directly emits no stubs at all, and a stub is the largest single
+    // piece of a small unit's output.
+    let mut closure_taken: HashSet<String> = HashSet::new();
+    for u in &units {
+        closure_taken.extend(u.scan.closures_taken.iter().cloned());
+    }
     for u in &units {
         let primitive = reg.prims.iter().any(|op| op.symbol() == u.name);
         if !emitted_symbol(&u.name, emit_modules) && !primitive {
@@ -764,6 +774,16 @@ fn emit_module(
             u,
             group,
             (object && primitive).then_some("linkonce_odr"),
+            // An object is a link-time artifact: any consumer may take
+            // any of its exported functions as a value, and the module
+            // cannot see those uses. Its `object-closure` accessor is
+            // emitted for every unit for the same reason, so the closure
+            // and its apply stub are kept whether or not this module
+            // takes them. A whole program is closed, so there a unit
+            // whose closure nothing names needs neither, and `prune`
+            // false (`emit`, the inspection entry point) keeps every unit
+            // whole.
+            object || !prune || closure_taken.contains(&u.name),
         );
         if object && reg.arity.contains_key(&u.name) {
             // Static closure blocks are module-local. Export an accessor
@@ -2332,6 +2352,11 @@ struct UnitScan {
     /// follow these too: a program that takes a constructor as a value
     /// calls nothing, yet needs that constructor's `.blk`.
     refs: BTreeSet<String>,
+    /// The units whose `.clo` or `.app` this body names, before `refs`
+    /// folds an artifact name into the unit it belongs to. A unit whose
+    /// closure nobody takes needs no apply stub, which is the largest
+    /// single piece of a small unit's output.
+    closures_taken: BTreeSet<String>,
 }
 
 /// The memory class of one unit (the `memory(...)` function attribute).
@@ -2491,6 +2516,24 @@ fn callee_symbol(line: &str) -> Option<String> {
     }
     let end = rest.find('(')?;
     Some(rest[..end].to_string())
+}
+
+/// The units whose closure artifact (`.clo` or `.app`) `text` names.
+///
+/// Kept separate from [`referenced_symbols`], which resolves an artifact
+/// name to the unit it belongs to and so cannot say whether the unit was
+/// used as a value or merely called.
+fn closures_named(text: &str, units: &HashSet<String>) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    for unit in units {
+        for suffix in [".clo", ".app"] {
+            let needle = format!("{unit}{suffix}");
+            if text.contains(&needle) {
+                out.insert(unit.clone());
+            }
+        }
+    }
+    out
 }
 
 /// Every module unit `text` names, in any position.
@@ -2770,7 +2813,13 @@ fn dedupe_static_blocks(text: &str) -> String {
     out
 }
 
-fn assemble_unit(out: &mut String, u: &EmittedUnit, group: Option<String>, linkage: Option<&str>) {
+fn assemble_unit(
+    out: &mut String,
+    u: &EmittedUnit,
+    group: Option<String>,
+    linkage: Option<&str>,
+    closure_taken: bool,
+) {
     out.push_str(&u.globals);
     // The function attribute group precedes metadata attachments on the
     // `define` line (`define ... #4 !immarg !0 {`).
@@ -2794,12 +2843,18 @@ fn assemble_unit(out: &mut String, u: &EmittedUnit, group: Option<String>, linka
     out.push_str(&u.allocas);
     out.push_str(&u.code);
     out.push_str("}\n\n");
-    let stub = match linkage {
-        Some(linkage) => with_linkage(&u.stub, linkage),
-        None => u.stub.clone(),
-    };
-    out.push_str(&stub);
-    out.push_str(&u.clo);
+    // The apply stub and the static closure are only reachable through a
+    // use of the unit as a value. A unit called directly and never passed
+    // as a function needs neither, and the stub is the largest single
+    // piece of a small unit's output.
+    if closure_taken {
+        let stub = match linkage {
+            Some(linkage) => with_linkage(&u.stub, linkage),
+            None => u.stub.clone(),
+        };
+        out.push_str(&stub);
+        out.push_str(&u.clo);
+    }
 }
 
 /// The units a whole program can reach from its entry points.
@@ -3022,6 +3077,10 @@ fn build_unit(
     scan.refs.extend(referenced_symbols(&body_text, reg.unit_symbols()));
     scan.refs.extend(referenced_symbols(&unit_globals, reg.unit_symbols()));
     scan.refs.extend(scan.callees.iter().cloned());
+    scan.closures_taken
+        .extend(closures_named(&body_text, reg.unit_symbols()));
+    scan.closures_taken
+        .extend(closures_named(&unit_globals, reg.unit_symbols()));
     // A worker is never a first-class value: closures and the apply
     // stub reach it through the unit's own symbol.
     let worker = matches!(body, UnitBody::TailWorker(_));
