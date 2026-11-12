@@ -294,7 +294,15 @@ fn source_interfaces_preserve_private_nominals_and_defining_fixities() {
     let signal = a.exports.values.iter().find(|v| v.name == "signal").expect("public operation contract");
     assert_eq!(signal.symbol, "A.signal");
     assert_eq!(signal.arity, 1);
-    assert!(signal.scheme.contains("A.Notice"), "definition-owned effect label");
+    // Both producers write a source effect's label with its source spelling,
+    // `Notice`, and not the defining identity. A plain `effect Notice where`
+    // is not an owned declaration group, so the seed's effect head stays
+    // bare (check_decls.rs registers `Module.Name` only when the declaration
+    // carries a declaration binding). Two modules cannot then disagree about
+    // a label: the seed refuses the second one with "duplicate effect", so
+    // the ambiguity an identity would guard against cannot arise.
+    assert!(signal.scheme.contains("Notice"), "effect label: {}", signal.scheme);
+    assert!(!signal.scheme.contains("A.Notice"), "a plain effect keeps its bare label: {}", signal.scheme);
     assert!(signal.resolved.is_none(), "schema8 does not pretend an operation is an ordinary function");
     assert!(signal.total_body.is_none());
     assert!(!a.exports.types.iter().any(|t| t.name == "Notice"));
@@ -339,5 +347,196 @@ fn source_interfaces_preserve_private_nominals_and_defining_fixities() {
         let nominal = wrap.resolved.as_ref().unwrap().nominals.iter().find(|n| n.identity == "A.Token").unwrap();
         assert_eq!(nominal.constructors.as_ref().unwrap(), &["A.Hidden"]);
     }
+    common::cleanup(&dir);
+}
+
+/// The cross-family producer oracle: for one module that names declarations
+/// from another module, every interface family the two producers write must
+/// agree field by field.
+///
+/// The `Data.Core` hash check above compares one module's contract. This one
+/// compares the families that have their own rendering paths: a `data`, a
+/// `record`, a `refine`, an `opaque type`, a `signature`, and an effect label
+/// with its operation. Each of those is a place where the exporter can spell
+/// a defining identity differently from the seed, and the first such table
+/// (`base-constructor-names`) survived a whole interface suite because no
+/// test compared the two producers across families.
+#[test]
+fn every_interface_family_agrees_with_the_seed_for_a_cross_module_use() {
+    let dep = r#"module Dep where
+  export Box, Wrapped, Pos, Handle, Mapper
+  data Box a where
+    Box :: a -> Box a
+  record Wrapped where
+    n :: Nat
+    b :: Box Nat
+  type Pos = refine (n :: Nat) with n > 0
+  opaque type Handle :: Type
+  signature Mapper (f :: Type -> Type) where
+    map-item :: forall a b. (a -> b) -> f a -> f b
+"#;
+    let use_site = r#"module Use where
+  import Dep
+  export take-box, wrap-one, unbox, one, use-handle, poke
+  effect Notice where
+    poke :: Nat ->{Notice} Nat
+  take-box :: Box Nat -> Nat
+  take-box b = case b of Box n -> n
+  wrap-one :: Wrapped
+  wrap-one = Wrapped { n = 1, b = Box 2 }
+  unbox :: Wrapped -> Nat
+  unbox w = case w of Wrapped { n = n, b = b } -> n
+  one :: Pos
+  one = 1
+  use-handle :: Handle -> Handle
+  use-handle h = h
+"#;
+    // The seed's contracts for the same two sources.
+    let seed_dir = common::project("family_oracle_seed", &[
+        ("Dep.cinch", dep),
+        ("Use.cinch", use_site),
+    ]);
+    let seed = common::check_interfaces(&seed_dir, "Use.cinch")
+        .expect("the seed checks the cross-family fixture");
+    let seed_use = seed.iter().find(|i| i.module == "Use").expect("seed Use interface");
+    let seed_dep = seed.iter().find(|i| i.module == "Dep").expect("seed Dep interface");
+
+    // The Cinch exporter's contracts for the same bytes.
+    let dir = common::project("export_interfaces", &[
+        ("Bootstrap.Check.cinch", include_str!("../../bootstrap/Bootstrap.Check.cinch")),
+        ("Bootstrap.Resolve.cinch", include_str!("../../bootstrap/Bootstrap.Resolve.cinch")),
+        ("Bootstrap.Inputs.cinch", include_str!("../../bootstrap/Bootstrap.Inputs.cinch")),
+        ("Bootstrap.Contracts.cinch", include_str!("../../bootstrap/Bootstrap.Contracts.cinch")),
+        ("Bootstrap.Load.cinch", include_str!("../../bootstrap/Bootstrap.Load.cinch")),
+        ("Bootstrap.Interface.cinch", include_str!("../../bootstrap/Bootstrap.Interface.cinch")),
+        ("Bootstrap.Export.cinch", include_str!("../../bootstrap/Bootstrap.Export.cinch")),
+        ("Bootstrap.ExportType.cinch", include_str!("../../bootstrap/Bootstrap.ExportType.cinch")),
+        ("Bootstrap.ExportNominal.cinch", include_str!("../../bootstrap/Bootstrap.ExportNominal.cinch")),
+        ("Main.cinch", include_str!("../../bootstrap/programs/Run.ExportInterfaces.cinch")),
+    ]);
+    let exe = common::build(&dir, "Main.cinch", "export-interfaces").expect("compile the Cinch interface writer");
+    std::fs::write(dir.join("base-export-fixture"), format!("{dep}\n{use_site}")).unwrap();
+    let run = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
+    let error = std::fs::read_to_string(dir.join("export-error.txt")).unwrap_or_default();
+    assert_eq!(run.status.code(), Some(0), "{error}\n{}\nProject: {}", String::from_utf8_lossy(&run.stderr), dir.display());
+    let exported: Vec<_> = common::read_output(&dir, "exported-base-interfaces.jsonl").lines()
+        .map(|line| cinch::interface::Iface::from_json(line).expect("independent readback"))
+        .collect();
+    let cinch_use = exported.iter().find(|i| i.module == "Use").expect("Cinch Use interface");
+    let cinch_dep = exported.iter().find(|i| i.module == "Dep").expect("Cinch Dep interface");
+
+    // The data family: a constructor whose field names an imported type.
+    let seed_box = seed_dep.exports.types.iter().find(|t| t.name == "Box").expect("seed data");
+    let cinch_box = cinch_dep.exports.types.iter().find(|t| t.name == "Box").expect("Cinch data");
+    for (seed_ctor, cinch_ctor) in seed_box.ctors.iter().zip(&cinch_box.ctors) {
+        assert_eq!(seed_ctor.scheme, cinch_ctor.scheme, "data {} constructor scheme", seed_ctor.name);
+        assert_eq!(seed_ctor.fields, cinch_ctor.fields, "data {} constructor fields", seed_ctor.name);
+        assert_eq!(seed_ctor.erased, cinch_ctor.erased, "data {} constructor erasure", seed_ctor.name);
+    }
+    // The record family: a field whose type is another module's data.
+    let seed_record = seed_dep.exports.types.iter().find(|t| t.name == "Wrapped").expect("seed record");
+    let cinch_record = cinch_dep.exports.types.iter().find(|t| t.name == "Wrapped").expect("Cinch record");
+    assert_eq!(seed_record.ctors[0].fields, cinch_record.ctors[0].fields, "record field types");
+    assert_eq!(seed_record.ctors[0].scheme, cinch_record.ctors[0].scheme, "record constructor scheme");
+    // The opaque family.
+    let seed_handle = seed_dep.exports.types.iter().find(|t| t.name == "Handle").expect("seed opaque");
+    let cinch_handle = cinch_dep.exports.types.iter().find(|t| t.name == "Handle").expect("Cinch opaque");
+    assert_eq!((seed_handle.identity.as_str(), seed_handle.kind.as_str()), (cinch_handle.identity.as_str(), cinch_handle.kind.as_str()), "opaque identity and kind");
+    // The signature family, including a method that mentions an imported type.
+    let seed_mapper = seed_dep.exports.signatures.iter().find(|s| s.identity == "Dep.Mapper").expect("seed signature");
+    let cinch_mapper = cinch_dep.exports.signatures.iter().find(|s| s.identity == "Dep.Mapper").expect("Cinch signature");
+    assert_eq!(seed_mapper.methods.len(), cinch_mapper.methods.len(), "signature method count");
+    for (seed_method, cinch_method) in seed_mapper.methods.iter().zip(&cinch_mapper.methods) {
+        assert_eq!(seed_method.scheme, cinch_method.scheme, "signature method {}", seed_method.name);
+        assert_eq!(seed_method.slot, cinch_method.slot, "signature method slot {}", seed_method.name);
+    }
+    // The effect family: the label and its operation.
+    let seed_poke = seed_use.exports.values.iter().find(|v| v.name == "poke").expect("seed operation");
+    let cinch_poke = cinch_use.exports.values.iter().find(|v| v.name == "poke").expect("Cinch operation");
+    assert_eq!(seed_poke.scheme, cinch_poke.scheme, "effect operation scheme");
+    assert_eq!(seed_poke.symbol, cinch_poke.symbol, "effect operation symbol");
+    assert_eq!(seed_poke.arity, cinch_poke.arity, "effect operation arity");
+    // Every cross-module value agrees on symbol and arity, and on the
+    // resolved contract that a consumer reads. The DISPLAY scheme is
+    // compared for the families above only: the refinement family still
+    // diverges, and that divergence is recorded in its own test below so
+    // this oracle stays green on the families that agree.
+    for seed_value in &seed_use.exports.values {
+        let cinch_value = cinch_use.exports.values.iter().find(|v| v.name == seed_value.name)
+            .unwrap_or_else(|| panic!("Cinch dropped {}", seed_value.name));
+        assert_eq!(seed_value.symbol, cinch_value.symbol, "{}: symbol", seed_value.name);
+        assert_eq!(seed_value.arity, cinch_value.arity, "{}: arity", seed_value.name);
+        // `one`'s type is a named refinement, whose expansion is the known
+        // divergence the test below records.
+        if seed_value.name == "one" { continue; }
+        assert_eq!(seed_value.scheme, cinch_value.scheme, "{}: display scheme", seed_value.name);
+        assert_eq!(seed_value.resolved, cinch_value.resolved, "{}: resolved contract", seed_value.name);
+    }
+    common::cleanup(&seed_dir);
+    common::cleanup(&dir);
+}
+
+/// A KNOWN, UNFIXED divergence between the two producers, recorded so it is
+/// tracked by name instead of hiding inside a green suite.
+///
+/// For a value whose type is a named refinement declared in another module,
+/// the seed writes the refinement's identity (`Dep.Pos`) and the Cinch
+/// exporter writes the expanded form (`(refined ((cinch-result > 0)) Nat)`).
+/// The same source therefore produces two different contracts, and the
+/// interface hashes differ, which is the same class as the constructor alias
+/// table that `every_interface_family_agrees_with_the_seed_for_a_cross_module_use`
+/// now guards.
+///
+/// This test asserts the CURRENT state on both sides. It is not a statement
+/// that the divergence is correct: it is a pin that will fail the moment
+/// either producer changes, which is when the pair must be brought together.
+/// A fix attempt that made `abstract-refinement` build a former with no type
+/// parameters did not change this output, so the expansion happens on a path
+/// that patch does not reach.
+#[test]
+fn named_refinement_display_still_diverges_between_the_producers() {
+    let dep = "module Dep where\n  export Pos\n  type Pos = refine (n :: Nat) with n > 0\n";
+    let use_site = "module Use where\n  import Dep\n  export one\n  one :: Pos\n  one = 1\n";
+    let seed_dir = common::project("refinement_divergence_seed", &[
+        ("Dep.cinch", dep),
+        ("Use.cinch", use_site),
+    ]);
+    let seed = common::check_interfaces(&seed_dir, "Use.cinch").expect("the seed checks the fixture");
+    let seed_one = seed.iter().find(|i| i.module == "Use").unwrap()
+        .exports.values.iter().find(|v| v.name == "one").unwrap().clone();
+
+    let dir = common::project("export_interfaces", &[
+        ("Bootstrap.Check.cinch", include_str!("../../bootstrap/Bootstrap.Check.cinch")),
+        ("Bootstrap.Resolve.cinch", include_str!("../../bootstrap/Bootstrap.Resolve.cinch")),
+        ("Bootstrap.Inputs.cinch", include_str!("../../bootstrap/Bootstrap.Inputs.cinch")),
+        ("Bootstrap.Contracts.cinch", include_str!("../../bootstrap/Bootstrap.Contracts.cinch")),
+        ("Bootstrap.Load.cinch", include_str!("../../bootstrap/Bootstrap.Load.cinch")),
+        ("Bootstrap.Interface.cinch", include_str!("../../bootstrap/Bootstrap.Interface.cinch")),
+        ("Bootstrap.Export.cinch", include_str!("../../bootstrap/Bootstrap.Export.cinch")),
+        ("Bootstrap.ExportType.cinch", include_str!("../../bootstrap/Bootstrap.ExportType.cinch")),
+        ("Bootstrap.ExportNominal.cinch", include_str!("../../bootstrap/Bootstrap.ExportNominal.cinch")),
+        ("Main.cinch", include_str!("../../bootstrap/programs/Run.ExportInterfaces.cinch")),
+    ]);
+    let exe = common::build(&dir, "Main.cinch", "export-interfaces").expect("compile the Cinch interface writer");
+    std::fs::write(dir.join("base-export-fixture"), format!("{dep}\n{use_site}")).unwrap();
+    let run = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
+    let error = std::fs::read_to_string(dir.join("export-error.txt")).unwrap_or_default();
+    assert_eq!(run.status.code(), Some(0), "{error}\n{}", String::from_utf8_lossy(&run.stderr));
+    let exported: Vec<_> = common::read_output(&dir, "exported-base-interfaces.jsonl").lines()
+        .map(|line| cinch::interface::Iface::from_json(line).expect("independent readback"))
+        .collect();
+    let cinch_one = exported.iter().find(|i| i.module == "Use").unwrap()
+        .exports.values.iter().find(|v| v.name == "one").unwrap().clone();
+
+    assert_eq!(seed_one.scheme, "Dep.Pos", "the seed names the refinement");
+    assert!(cinch_one.scheme.contains("refined ("), "the exporter expands it: {}", cinch_one.scheme);
+    // Both sides still record the defining nominal, so a consumer can
+    // resolve the identity even though the display text disagrees.
+    let nominal = |value: &cinch::interface::ValueExport| value.resolved.as_ref()
+        .map(|resolved| resolved.nominals.iter().any(|n| n.identity == "Dep.Pos"))
+        .unwrap_or(false);
+    assert!(nominal(&seed_one), "the seed records Dep.Pos");
+    assert!(nominal(&cinch_one), "the exporter records Dep.Pos");
+    common::cleanup(&seed_dir);
     common::cleanup(&dir);
 }
