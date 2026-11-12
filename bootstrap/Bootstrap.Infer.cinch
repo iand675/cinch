@@ -2905,11 +2905,12 @@ module Bootstrap.Infer where
           None -> fresh-meta KType st in
     case quote-splice-types classes kinds families env locals body fresh of
       Err message -> term-error sp message fresh
-      -- The template is checked, but building the `Code` value from it is the
-      -- expander's job: a quotation is compile-time data with no runtime
-      -- representation, so the elaborator has no term to hand the backend.
-      -- Bootstrap.Stage reads the template off the probe declaration.
-      Ok (holes, checked) -> (CError sp, add-error sp "a quotation is built by the stage expander, which does not construct this one yet" checked)
+      -- The template is checked, but a quotation is compile-time data with no
+      -- runtime representation, so there is no term to hand the backend. The
+      -- expander reads the template off the checked surface and fills its
+      -- splices where the code lands, so the placeholder never reaches
+      -- emission: a stage declaration is dropped from the runtime program.
+      Ok (holes, checked) -> (CError sp, checked)
   -- Every splice in a template, in the order the template writes them. A
   -- splice whose expression is not `Code t` is refused by name, and so is one
   -- whose stage differs from the quotation's.
