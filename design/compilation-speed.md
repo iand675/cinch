@@ -2090,32 +2090,34 @@ the source (5 of them applied exactly once in head position) and 1 in the
 toolkit. The census counts source-level sites; the rule's 28 include the
 inliner's copies, which is why the two differ.
 
-**Its effect on the two workloads is zero, and that is the finding.** With
-`--no-saturate-partial` as the other arm and a fresh `CINCH_STORE` per arm,
-the lowered Core differs in 15 compiler units and 1 toolkit unit, and the
-emitted module does not differ at all: 7,022 defines, 1,481 `__apply` calls
-and 135 closure records on both arms of the compiler source, 9 defines and
-the same two apply sites on both arms of the toolkit, and the allocation
-census is identical. Every site the rule rewrites is either inside a unit the
-inliner's copies and the dead-unit sweep remove before emission, or a shape
-code generation already collapses. The rule is therefore a Core-level
-simplification with no measured win on these workloads; it stays because the
-refusal conditions are pinned by tests and a future workload with the shape
-gets the merge, not because it moved a number.
+**What it moves, on the emitted module.** Both arms with a fresh
+`CINCH_STORE` each, `--no-saturate-partial` as the other arm:
 
-The census also reversed the priority the backlog implied. On a 1 kHz sample
-of the toolkit check (7,040 working samples), `cinch_drop` is **14.4%** of
-the time and 14.43 points of that is the apply stub's release path, while
-`cinch_alloc_shaped` (every closure and dictionary record) is **0.2%** and
-`__apply` itself is **0.1%**. A closure is cheap to make and the stub's
-dup-branch-free-or-decrement sequence is not, so a rule that removes records
-without removing a stub call buys footprint, and this compiler is not memory
-bound (190 MB peak on a 27.5 GB self-check). That ordering stands on its own
-terms, but it does not rescue `saturate-partial`: the sites the rule reaches
-are already removed before emission, so the stub calls it would delete are
-not in the artifact either way. Read the rule as a Core-level cleanup whose
-refusals are pinned, not as a performance landing, and read the stub's
-ownership sequence (backlog item 11) as the actual work in this area.
+|measure|rule on|rule off|delta|
+|---|---|---|---|
+|compiler source `__apply` calls|1,481|1,512|-31|
+|compiler source app stubs|196|199|-3|
+|compiler source defines|7,022|7,025|-3|
+|compiler source IR bytes|193,065,157|193,085,299|-20 KB|
+|toolkit `__apply` calls|2|2|0|
+|toolkit defines|9|9|0|
+
+The 31 deleted applications are the census's sites plus the inliner's copies
+of them: `Bootstrap.Interface.fnv-from` alone drops 6, and nine more units
+drop 2 each, including `Text.Parse.line-text-at` and
+`Text.Json.scan-literal-at`. Three apply stubs then lose their last taker
+(`Bootstrap.Interface.fnv-step.app`, `Text.Lex.bytes-slice.app`,
+`cinch.runtime.natCmp.app`), which is where the three defines go. The toolkit
+arm is byte identical: its 6 rewrites are all inside units the dead-unit
+sweep removes before emission, so the rule reaches no emitted site there.
+
+That is a real but small deletion, and it is the closure item's whole
+residue: 31 of 1,512 applications, 2.1%. It is worth keeping for the reason
+the profile gives, since each deleted application removes a record, an
+`__apply` and the stub's dup-branch-free-or-decrement sequence, but the
+measured time is inside the spread of this machine and should not be quoted
+as a speedup. The stub's ownership sequence (backlog item 11) is the part of
+this area that is still 14.4% of a toolkit check.
 
 ### 2.13 The 2026-11-11 round, in the order it landed
 
