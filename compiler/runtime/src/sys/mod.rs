@@ -73,10 +73,16 @@
 pub(crate) mod linux;
 #[cfg(target_os = "macos")]
 pub(crate) mod darwin;
+#[cfg(target_os = "unknown")]
+pub(crate) mod wasm;
 
-#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+#[cfg(not(any(
+    target_os = "linux",
+    target_os = "macos",
+    target_os = "unknown"
+)))]
 compile_error!(
-    "the syscall layer has backends for linux and darwin only; \
+    "the syscall layer has backends for linux, darwin and freestanding wasm; \
      another target needs its own module here (design/base-as-a-package.md section 5)"
 );
 
@@ -84,6 +90,8 @@ compile_error!(
 use linux as back;
 #[cfg(target_os = "macos")]
 use darwin as back;
+#[cfg(target_os = "unknown")]
+use wasm as back;
 
 #[cfg(test)]
 mod tests;

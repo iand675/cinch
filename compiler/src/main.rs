@@ -69,9 +69,11 @@ flags:
   --rebuild   recompute a package-store entry that fails verification
               instead of failing the compile with the reason
   --target <triple>  the target to compile for: aarch64-apple-darwin,
-              x86_64-apple-darwin, x86_64-unknown-linux-gnu, or
-              aarch64-unknown-linux-gnu (check and emit-ir work for all of
-              them here; build needs the target's runtime archive)
+              x86_64-apple-darwin, x86_64-unknown-linux-gnu,
+              aarch64-unknown-linux-gnu, or wasm32-unknown-unknown (check
+              and emit-ir work for all of them here; build needs the
+              target's runtime archive, which for wasm32 is
+              cargo build --target wasm32-unknown-unknown in compiler/runtime)
   --runtime-archive <path>  the cinchruntime archive built for a foreign
               --target, which a cross build links
   --target-version <version>  the platform version package conditions see

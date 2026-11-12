@@ -4566,6 +4566,7 @@ pub const SUPPORTED_TARGETS: &[&str] = &[
     "x86_64-apple-darwin",
     "x86_64-unknown-linux-gnu",
     "aarch64-unknown-linux-gnu",
+    "wasm32-unknown-unknown",
 ];
 
 /// The components one supported triple names: architecture, operating
@@ -4577,6 +4578,7 @@ fn triple_components(triple: &str) -> Option<(&'static str, &'static str, &'stat
         "x86_64-apple-darwin" => ("x86_64", "darwin", "libSystem"),
         "x86_64-unknown-linux-gnu" => ("x86_64", "linux", "glibc"),
         "aarch64-unknown-linux-gnu" => ("aarch64", "linux", "glibc"),
+        "wasm32-unknown-unknown" => ("wasm32", "unknown", "none"),
         _ => return None,
     })
 }
@@ -4595,14 +4597,21 @@ fn profile_of_triple(triple: &str) -> Result<crate::core::TargetProfile> {
             SUPPORTED_TARGETS.join(", ")
         )));
     };
+    if arch == "wasm32" {
+        // The freestanding Wasm target: its own constructor already sets
+        // the 32-bit word, the Wasm triple and the artifact shape.
+        let mut profile = crate::core::TargetProfile::wasm32(crate::core::ArtifactProfile::CoreWasm);
+        profile.name = triple.to_string();
+        return Ok(profile);
+    }
     let mut profile = crate::core::TargetProfile::native();
     profile.name = triple.to_string();
     profile.triple = triple.to_string();
     profile.os = os.to_string();
     profile.arch = arch.to_string();
     profile.libc = libc.to_string();
-    // Every supported triple is 64-bit and little-endian; a 32-bit or
-    // big-endian target joins the table with its own values here.
+    // Every native triple in the table is 64-bit and little-endian; a
+    // 32-bit or big-endian one joins with its own values here.
     profile.word_size = 64;
     profile.endian = "little".to_string();
     Ok(profile)

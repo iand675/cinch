@@ -579,10 +579,16 @@ pub mod evolution;
 mod int;
 mod limbs;
 mod nat;
+/// Sockets are an operating-system surface a freestanding target does
+/// not have.
+#[cfg(not(target_os = "unknown"))]
 pub mod net;
 pub mod par;
 pub mod park;
 pub mod platform;
+/// A pseudo-terminal is an operating-system surface a freestanding target
+/// does not have.
+#[cfg(not(target_os = "unknown"))]
 pub mod pty;
 pub mod rc;
 pub mod sched;

@@ -108,6 +108,15 @@ struct LowerCx {
     native: bool,
 }
 
+impl LowerCx {
+    /// The LLVM type of a `size_t`-width value on this target: the type
+    /// a length, an index or an allocation size crosses in when it is
+    /// sized by the target rather than by the language.
+    fn size_ty(&self) -> &'static str {
+        if self.usize_bits == 32 { "i32" } else { "i64" }
+    }
+}
+
 /// Emit one LLVM module for the program at the build host's target.
 /// Emit one whole module for `program`, every unit it declares.
 ///
@@ -227,6 +236,7 @@ fn emit_module(
         native: profile.artifact == crate::core::ArtifactProfile::Native,
     };
     let mut reg = Registry::build(program)?;
+    reg.pointer_bytes = (profile.word_size / 8) as usize;
     reg.rc_debug = profile.rc_debug;
     reg.reclaim = profile.reclaim;
     reg.emit_modules = emit_modules.to_vec();
@@ -288,7 +298,7 @@ fn emit_module(
             if let Some(desc) = reg.ctor_descs.get(name).copied() {
                 let symbol = format!("{name}.blk");
                 if reg.emitted_blocks.borrow_mut().insert(symbol.clone()) {
-                    out.push_str(&static_ctor_block(&symbol, desc, &[]));
+                    out.push_str(&static_ctor_block(reg.pointer_bytes, &symbol, desc, &[]));
                 }
             }
         }
@@ -298,7 +308,12 @@ fn emit_module(
     out.push_str("declare ptr @cinch_alloc_shaped(i64, i64, i64)\n");
     out.push_str("declare void @cinch_layouts_register(ptr, i64)\n");
     out.push_str("declare i64 @cinch_exit_check(i64)\n");
-    out.push_str("declare ptr @memcpy(ptr, ptr, i64)\n");
+    // `memcpy`'s length is `size_t`, the target's pointer width, so a
+    // 32-bit module declares it `i32` and its calls pass `i32` (a
+    // 64-bit declaration makes wasm-ld reject the module: the runtime's
+    // own `memcpy` is `(i32, i32, i32)`).
+    let size_ty = if cx.size_ty() == "i32" { "i32" } else { "i64" };
+    out.push_str(&format!("declare ptr @memcpy(ptr, ptr, {size_ty})\n"));
     // The count entry points (`compiler/runtime/src/rc.rs`, design/reclamation.md
     // sections 4 and 8): the slow paths of an inline dup or drop (the
     // zero crossing, and the atomic counts of blocks shared across tasks),
@@ -547,7 +562,10 @@ fn emit_module(
     // marshalling wrapper per import, and one C-callable entry per
     // export.
     if !program.foreigns.is_empty() {
-        out.push_str("declare void @llvm.memset.p0.i64(ptr, i8, i64, i1)\n");
+        let size_ty = if cx.size_ty() == "i32" { "i32" } else { "i64" };
+        out.push_str(&format!(
+            "declare void @llvm.memset.p0.{size_ty}(ptr, i8, {size_ty}, i1)\n"
+        ));
         out.push_str(&format!(
             "@__cinch_ffi_nn = internal constant [{} x i8] c\"{}\"\n",
             FFI_NULL_MSG.len(),
@@ -768,7 +786,13 @@ fn emit_module(
                 continue;
             }
         }
-        let group = reg.attr_group(u.hints, &u.lang_facts, &classes[&u.name], cx.native);
+        let group = reg.attr_group(
+            u.hints,
+            &u.lang_facts,
+            &classes[&u.name],
+            cx.native,
+            profile.arch == "wasm32",
+        );
         assemble_unit(
             &mut out,
             u,
@@ -974,6 +998,10 @@ struct Registry {
     /// Each unit's parameter classes (concrete after the collector): the
     /// classes of the words a closure over the unit saves.
     unit_params: HashMap<String, Vec<Class>>,
+    /// The target's pointer width in bytes: a static initializer can
+    /// hold a pointer only at this width, because a linker relocates the
+    /// address, not a widened copy of it.
+    pointer_bytes: usize,
     /// Count operations call the out-of-line runtime entries
     /// ([`crate::core::TargetProfile::rc_debug`]).
     rc_debug: bool,
@@ -1250,10 +1278,20 @@ impl Registry {
         lang: &UnitLang,
         class: &UnitClass,
         native: bool,
+        wasm: bool,
     ) -> Option<String> {
         let mut attrs: Vec<String> = Vec::new();
         if native {
             attrs.push("\"probe-stack\"=\"inline-asm\"".to_string());
+        }
+        // WebAssembly's tail calls are outside the MVP: a `musttail` call
+        // (which a `D104` group produces when the callee's signature
+        // matches the caller's) does not assemble without the feature.
+        // It is a per-function attribute, not a module directive, and
+        // every function carries it because a callee without it is not a
+        // legal `musttail` target.
+        if wasm {
+            attrs.push("\"target-features\"=\"+tail-call\"".to_string());
         }
         // Cinch has no unwinding: a definition cannot resume past a
         // callee that does not return. The one hole is a foreign call,
@@ -2245,8 +2283,22 @@ fn ctor_tag(b: &mut Builder, p: &str, escapes: bool) -> String {
 
 /// An immortal static constructor block with descriptor `desc` and
 /// payload `words` (`static_shaped_block`).
-fn static_ctor_block(sym: &str, desc: u64, words: &[String]) -> String {
-    static_shaped_block(sym, block::KIND_CTOR, desc, words)
+fn static_ctor_block(pointer_bytes: usize, sym: &str, desc: u64, words: &[StaticWord]) -> String {
+    static_shaped_block(pointer_bytes, sym, block::KIND_CTOR, desc, words)
+}
+
+/// One word of a static block's payload.
+enum StaticWord {
+    /// A word whose value the compiler knows.
+    Int(i64),
+    /// A word holding a pointer: the address the linker relocates.
+    Ptr(String),
+}
+
+impl StaticWord {
+    fn int(v: usize) -> Self {
+        StaticWord::Int(v as i64)
+    }
 }
 
 /// An immortal static block of a shaped kind with descriptor `desc` and
@@ -2254,20 +2306,70 @@ fn static_ctor_block(sym: &str, desc: u64, words: &[String]) -> String {
 /// (an escaped descriptor adds its word before it). Every reference to the
 /// block goes through [`static_payload`], the constant offset into that one
 /// object, so a static block is addressed exactly as a heap block's is.
-fn static_shaped_block(sym: &str, kind: u8, desc: u64, words: &[String]) -> String {
+///
+/// A word holding a pointer is spelled at the target's own pointer width.
+/// A linker relocates an address, not a widened copy of one, so
+/// `i64 ptrtoint (ptr @f to i64)` is not a constant a 32-bit Wasm module
+/// can initialise storage with (`unsupported expression in static
+/// initializer`). Where the pointer is 4 bytes the payload is emitted as
+/// `[2n x i32]`, each word its low half then its high half: the bytes are
+/// the same on a little-endian target, so the runtime reads the block
+/// unchanged, and the pointer occupies the half the linker can fill.
+fn static_shaped_block(
+    pointer_bytes: usize,
+    sym: &str,
+    kind: u8,
+    desc: u64,
+    words: &[StaticWord],
+) -> String {
     let field = block::ctor_layout_field(desc);
     let hdr = block::static_header(kind, field) as i64;
-    let mut init: Vec<String> = Vec::new();
+    let mut init: Vec<StaticWord> = Vec::new();
     if field == block::LAYOUT_BIG {
-        init.push(format!("i64 {}", desc as i64));
+        init.push(StaticWord::Int(desc as i64));
     }
-    init.push(format!("i64 {hdr}"));
-    init.extend(words.iter().map(|w| format!("i64 {w}")));
+    init.push(StaticWord::Int(hdr));
+    init.extend(words.iter().map(|w| match w {
+        StaticWord::Int(v) => StaticWord::Int(*v),
+        StaticWord::Ptr(p) => StaticWord::Ptr(p.clone()),
+    }));
+    if pointer_bytes == 4 {
+        // The halves: a value splits into its low and high 32 bits, and a
+        // pointer is its own 32-bit address followed by a zero high half
+        // (the address is below 4 GiB by construction, so the high half
+        // is never a sign extension).
+        let mut halves: Vec<String> = Vec::with_capacity(init.len() * 2);
+        for w in &init {
+            match w {
+                StaticWord::Int(v) => {
+                    halves.push(format!("i32 {}", *v as u64 as u32 as i32));
+                    halves.push(format!("i32 {}", ((*v as u64) >> 32) as u32 as i32));
+                }
+                StaticWord::Ptr(p) => {
+                    halves.push(format!("i32 ptrtoint (ptr {p} to i32)"));
+                    halves.push("i32 0".to_string());
+                }
+            }
+        }
+        return format!(
+            "@{storage} = internal constant [{len} x i32] [{init}], align 8\n\n",
+            storage = quote(&format!("{sym}#h")),
+            len = halves.len(),
+            init = halves.join(", "),
+        );
+    }
+    let items: Vec<String> = init
+        .iter()
+        .map(|w| match w {
+            StaticWord::Int(v) => format!("i64 {v}"),
+            StaticWord::Ptr(p) => format!("i64 ptrtoint (ptr {p} to i64)"),
+        })
+        .collect();
     format!(
         "@{storage} = internal constant [{len} x i64] [{init}]\n\n",
         storage = quote(&format!("{sym}#h")),
-        len = init.len(),
-        init = init.join(", "),
+        len = items.len(),
+        init = items.join(", "),
     )
 }
 
@@ -2304,7 +2406,7 @@ fn static_payload(sym: &str, desc: u64) -> String {
 fn ensure_static_ctor(b: &mut Builder, reg: &Registry, name: &str, desc: u64) {
     let symbol = format!("{name}.blk");
     if reg.emitted_blocks.borrow_mut().insert(symbol.clone()) {
-        b.global(static_ctor_block(&symbol, desc, &[]));
+        b.global(static_ctor_block(b.pointer_bytes, &symbol, desc, &[]));
     }
 }
 
@@ -2990,6 +3092,7 @@ fn build_unit(
     body: UnitBody,
 ) -> Result<EmittedUnit> {
     let mut b = Builder::new();
+    b.pointer_bytes = reg.pointer_bytes;
     b.rc_debug = reg.rc_debug;
     b.reclaim = reg.reclaim;
     // The counted parameters a primitive or foreign wrapper only lends to
@@ -3019,6 +3122,7 @@ fn build_unit(
             // `LT`/`EQ`/`GT`), `Some` is a fresh `{ value }` block.
             if op.returns_option() {
                 globals.push_str(&static_ctor_block(
+                    reg.pointer_bytes,
                     &format!("{name}.blk"),
                     reg.shape_desc(&[], TAG_NONE),
                     &[],
@@ -3027,6 +3131,7 @@ fn build_unit(
             if op.returns_ordering() {
                 for (suf, tag) in [(".lt", 0), (".eq", 1), (".gt", 2)] {
                     globals.push_str(&static_ctor_block(
+                        reg.pointer_bytes,
                         &format!("{name}{suf}"),
                         reg.shape_desc(&[], tag),
                         &[],
@@ -3049,7 +3154,7 @@ fn build_unit(
             if *fields == 0
                 && reg.emitted_blocks.borrow_mut().insert(format!("{name}.blk"))
             {
-                globals.push_str(&static_ctor_block(&format!("{name}.blk"), desc, &[]));
+                globals.push_str(&static_ctor_block(reg.pointer_bytes, &format!("{name}.blk"), desc, &[]));
             }
             ctor_body(&mut b, reg, name, desc, *fields, reg.plan_of(name));
         }
@@ -3059,12 +3164,17 @@ fn build_unit(
                 // The factory keeps its symbol and signature for separately
                 // compiled consumers; it hands out the one static block.
                 let desc = reg.dict_desc(info);
-                let mut words = vec![info.method_count.to_string()];
+                let mut words = vec![StaticWord::int(info.method_count)];
                 words.extend(info.methods.iter().map(|(method, _)| {
-                    format!("ptrtoint (ptr {} to i64)",
-                            static_payload(&format!("{method}.clo"), reg.closure_desc(method)))
+                    StaticWord::Ptr(static_payload(&format!("{method}.clo"), reg.closure_desc(method)))
                 }));
-                globals.push_str(&static_shaped_block(&static_dict_name(id), block::KIND_DICT, desc, &words));
+                globals.push_str(&static_shaped_block(
+                    reg.pointer_bytes,
+                    &static_dict_name(id),
+                    block::KIND_DICT,
+                    desc,
+                    &words,
+                ));
                 b.line(&format!("ret i64 ptrtoint (ptr {} to i64)",
                                 static_payload(&static_dict_name(id), desc)));
             } else {
@@ -3172,13 +3282,14 @@ fn fn_header(
 fn clo_def(reg: &Registry, name: &str, arity: usize) -> String {
     let app = quote(&format!("{name}.app"));
     static_shaped_block(
+        reg.pointer_bytes,
         &format!("{name}.clo"),
         block::KIND_CLOSURE,
         reg.closure_desc(name),
         &[
-            format!("ptrtoint (ptr @{app} to i64)"),
-            arity.to_string(),
-            "0".to_string(),
+            StaticWord::Ptr(format!("@{app}")),
+            StaticWord::int(arity),
+            StaticWord::int(0),
         ],
     )
 }
@@ -3214,6 +3325,7 @@ fn clo_def(reg: &Registry, name: &str, arity: usize) -> String {
 /// the rest.
 fn stub_def(reg: &Registry, name: &str, arity: usize) -> String {
     let mut b = Builder::new();
+    b.pointer_bytes = reg.pointer_bytes;
     b.rc_debug = reg.rc_debug;
     b.reclaim = reg.reclaim;
     let nf = b.load_at("%self", 16);
@@ -3280,11 +3392,17 @@ fn stub_grow(
     let saved = b.gep("%self", 24);
     let nb = b.reg();
     b.line(&format!("{nb} = mul i64 {nf}, 8"));
-    b.line(&format!("call ptr @memcpy(ptr {nd}, ptr {saved}, i64 {nb})"));
+    // `memcpy` takes a `size_t`, so the byte count crosses at the target's
+    // pointer width: on a 32-bit target the word is narrowed here, where
+    // the count is a byte length of a payload that fits one.
+    let sz = b.size_ty();
+    let nbs = b.to_size(nb.clone());
+    b.line(&format!("call ptr @memcpy(ptr {nd}, ptr {saved}, {sz} {nbs})"));
     let na = b.reg();
     b.line(&format!("{na} = mul i64 %argc, 8"));
+    let nas = b.to_size(na.clone());
     let nd2 = b.gep_dyn(&nd, &nb);
-    b.line(&format!("call ptr @memcpy(ptr {nd2}, ptr %argv, i64 {na})"));
+    b.line(&format!("call ptr @memcpy(ptr {nd2}, ptr %argv, {sz} {nas})"));
     stub_take_saved(b, reg, name, arity, &nd, nf);
     let word = b.reg();
     b.line(&format!("{word} = ptrtoint ptr {new} to i64"));
@@ -3554,6 +3672,9 @@ struct Builder {
     /// section 4). Such a body returns from many places; each releases
     /// them after the extern call and before returning.
     ret_drops: Vec<(String, Class)>,
+    /// The target's pointer width in bytes (`Registry::pointer_bytes`): a
+    /// static initializer holding a pointer is spelled at this width.
+    pointer_bytes: usize,
     rc_debug: bool,
     /// Ownership operations are emitted at all (the program reclaims).
     reclaim: bool,
@@ -3576,9 +3697,30 @@ impl Builder {
             blk: 0,
             dec: 0,
             ret_drops: Vec::new(),
+            // The build host's pointer is the default; an emitter that
+            // knows the target overrides it beside `rc_debug`.
+            pointer_bytes: std::mem::size_of::<usize>(),
             rc_debug: false,
             reclaim: false,
             terminated: false,
+        }
+    }
+
+    /// The LLVM type of a `size_t`-width value on this target
+    /// ([`LowerCx::size_ty`], which the emitter copies here).
+    fn size_ty(&self) -> &'static str {
+        if self.pointer_bytes == 4 { "i32" } else { "i64" }
+    }
+
+    /// `v`, a word-width value, narrowed to the `size_t` width when the
+    /// target's is narrower (the same register on a 64-bit target).
+    fn to_size(&mut self, v: String) -> String {
+        if self.pointer_bytes == 4 {
+            let w = self.reg();
+            self.line(&format!("{w} = trunc i64 {v} to i32"));
+            w
+        } else {
+            v
         }
     }
 
@@ -7103,7 +7245,7 @@ impl CoreEmitter<'_, '_> {
         let symbol = format!("{unit}.blk");
         let desc = self.reg.ctor_desc(unit)?;
         if self.reg.emitted_blocks.borrow_mut().insert(symbol.clone()) {
-            let global = static_ctor_block(&symbol, desc, &[]);
+            let global = static_ctor_block(self.reg.pointer_bytes, &symbol, desc, &[]);
             self.b.global(global);
         }
         let r = self.b.reg();

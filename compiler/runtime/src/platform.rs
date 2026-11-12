@@ -90,6 +90,7 @@
 //! The exports are `#[unsafe(no_mangle)]` `cinch_*` externs verified
 //! with `nm` by the tests below (the standing runtime rule).
 
+#[cfg(not(target_os = "unknown"))]
 use std::collections::BTreeMap;
 use std::sync::{LazyLock, OnceLock};
 use std::time::Instant;
@@ -218,6 +219,7 @@ unsafe fn buf_slice<'a>(h: i64) -> Option<&'a [u8]> {
 
 /// A handle's bytes decoded as a path (raw OS bytes; not necessarily
 /// UTF-8, though the prelude builds them from text).
+#[cfg(not(target_os = "unknown"))]
 unsafe fn buf_path(h: i64) -> Option<std::path::PathBuf> {
     use std::os::unix::ffi::OsStringExt;
     unsafe { buf_slice(h) }.map(|b| std::path::PathBuf::from(std::ffi::OsString::from_vec(b.to_vec())))
@@ -256,6 +258,7 @@ pub extern "C" fn cinch_clock_wall_ns() -> i64 {
 /// Atomically rename `from` to `to` (POSIX `rename`: the target sees
 /// the whole old or the whole new content, never a partial): 0, or
 /// the negated error code.
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_fs_rename(from: i64, to: i64) -> i64 {
     let (Some(f), Some(t)) = (unsafe { buf_path(from) }, unsafe { buf_path(to) }) else {
@@ -269,6 +272,7 @@ pub unsafe extern "C" fn cinch_fs_rename(from: i64, to: i64) -> i64 {
 
 /// The kind of the file at `path`: 0 file, 1 directory, 2 other, or
 /// the negated error code.
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_fs_meta_kind(path: i64) -> i64 {
     let Some(p) = (unsafe { buf_path(path) }) else {
@@ -289,6 +293,7 @@ pub unsafe extern "C" fn cinch_fs_meta_kind(path: i64) -> i64 {
 }
 
 /// The size of the file at `path` in bytes, or the negated error code.
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_fs_meta_size(path: i64) -> i64 {
     let Some(p) = (unsafe { buf_path(path) }) else {
@@ -302,6 +307,7 @@ pub unsafe extern "C" fn cinch_fs_meta_size(path: i64) -> i64 {
 
 /// Open the directory at `path` for listing: a directory handle word,
 /// or the negated error code.
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_fs_dir_open(path: i64) -> i64 {
     let Some(p) = (unsafe { buf_path(path) }) else {
@@ -316,6 +322,7 @@ pub unsafe extern "C" fn cinch_fs_dir_open(path: i64) -> i64 {
 /// The next directory entry's file name into `out` (replacing its
 /// contents): 1 with an entry, 0 at the end of the listing, or the
 /// negated error code.
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_fs_dir_next(dir: i64, out: i64) -> i64 {
     use std::os::unix::ffi::OsStringExt;
@@ -337,6 +344,7 @@ pub unsafe extern "C" fn cinch_fs_dir_next(dir: i64, out: i64) -> i64 {
 }
 
 /// Release a directory handle.
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_fs_dir_close(dir: i64) -> i64 {
     if dir == 0 {
@@ -348,6 +356,7 @@ pub unsafe extern "C" fn cinch_fs_dir_close(dir: i64) -> i64 {
 
 /// The path a `Bytes` word names (the intrinsic boundary: a boxed
 /// `Bytes` block, `textSha256`'s shape, not a word-buffer handle).
+#[cfg(not(target_os = "unknown"))]
 unsafe fn bytes_path(word: i64) -> std::path::PathBuf {
     use std::os::unix::ffi::OsStringExt;
     let b = unsafe { crate::abi::as_bytes(word) };
@@ -358,6 +367,7 @@ unsafe fn bytes_path(word: i64) -> std::path::PathBuf {
 /// `parents` is nonzero (`mkdir -p`: an existing directory is success):
 /// 0, or the negated error code. Without `parents` a missing parent or
 /// an existing `path` is the error the OS reports (`AlreadyExists`).
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_fs_mkdir(path: i64, parents: i64) -> i64 {
     let p = unsafe { bytes_path(path) };
@@ -379,6 +389,7 @@ pub unsafe extern "C" fn cinch_fs_mkdir(path: i64, parents: i64) -> i64 {
 /// itself, so a link is NEVER followed to remove its target, and the
 /// recursive path (`remove_dir_all`) does not follow the links it walks
 /// either.
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_fs_remove(path: i64, recursive: i64) -> i64 {
     let p = unsafe { bytes_path(path) };
@@ -404,6 +415,7 @@ pub unsafe extern "C" fn cinch_fs_remove(path: i64, recursive: i64) -> i64 {
 /// The platform temp directory as a fresh `Bytes` path (`std::env::
 /// temp_dir`'s choice: `$TMPDIR`, else `/tmp`). The Cinch side composes
 /// unique names under it; the path is not created here.
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_fs_temp_dir() -> i64 {
     use std::os::unix::ffi::OsStrExt;
@@ -419,6 +431,7 @@ pub extern "C" fn cinch_fs_temp_dir() -> i64 {
 /// the negated error code for a negative `n` or a failed read. The
 /// source is `/dev/urandom` (a character device that never blocks once
 /// seeded; the runtime carries no external crate).
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_random_bytes(n: i64) -> i64 {
     use std::io::Read;
@@ -440,6 +453,7 @@ pub extern "C" fn cinch_random_bytes(n: i64) -> i64 {
 /// `kill` result (0, or -1 on failure), which the Cinch side maps to its
 /// named error. A `pid` outside the `i32` range is `InvalidArgument`.
 /// The call itself is `crate::sys::kill`.
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_signal_send(pid: i64, sig: i64) -> i64 {
     let (Ok(pid), Ok(sig)) = (i32::try_from(pid), i32::try_from(sig)) else {
@@ -523,6 +537,7 @@ pub extern "C" fn cinch_argv_get(i: i64) -> i64 {
 
 /// The stack reserved for the program's code when `CINCH_STACK_SIZE` is
 /// unset: 1 GiB.
+#[cfg(not(target_os = "unknown"))]
 pub const DEFAULT_STACK_SIZE: usize = 1 << 30;
 
 /// The stack reserved for every thread that runs program code as deep as
@@ -530,6 +545,7 @@ pub const DEFAULT_STACK_SIZE: usize = 1 << 30;
 /// workers): `CINCH_STACK_SIZE=<n>[K|M|G]`, else
 /// [`DEFAULT_STACK_SIZE`]. An unparsable or zero value keeps the default;
 /// a size below [`crate::stack::MIN_STACK_BYTES`] is raised to it.
+#[cfg(not(target_os = "unknown"))]
 pub(crate) fn program_stack_bytes() -> usize {
     crate::heap::env_bytes(c"CINCH_STACK_SIZE")
         .and_then(crate::heap::parse_limit)
@@ -567,6 +583,7 @@ pub(crate) fn program_stack_bytes() -> usize {
 /// transaction's `retry`) this thread runs the program's tasks, and with
 /// a budget of one thread (`CINCH_THREADS=1`) it is the only thread that
 /// does.
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_run_main(entry: extern "C" fn() -> i64) -> i64 {
     let size = program_stack_bytes();
@@ -587,6 +604,18 @@ pub extern "C" fn cinch_run_main(entry: extern "C" fn() -> i64) -> i64 {
     }
 }
 
+/// Run the program's entry unit `entry` and answer its result word.
+///
+/// A freestanding target has one thread, no OS to reserve a stack from and
+/// no scheduler to run program tasks on, so `entry` runs on the module's
+/// own stack directly. Nothing here guards the stack either: an overflow is
+/// the embedder's trap, not an exit code this code could produce.
+#[cfg(target_os = "unknown")]
+#[unsafe(no_mangle)]
+pub extern "C" fn cinch_run_main(entry: extern "C" fn() -> i64) -> i64 {
+    entry()
+}
+
 // ---------------------------------------------------------------------------
 // Processes
 // ---------------------------------------------------------------------------
@@ -594,6 +623,7 @@ pub extern "C" fn cinch_run_main(entry: extern "C" fn() -> i64) -> i64 {
 /// A subprocess being assembled or run: the program, its arguments,
 /// its `KEY=VALUE` environment additions, its stdin payload, and the
 /// captured stdout.
+#[cfg(not(target_os = "unknown"))]
 struct Proc {
     program: std::path::PathBuf,
     args: Vec<std::ffi::OsString>,
@@ -605,6 +635,7 @@ struct Proc {
 }
 
 /// Borrow a process handle.
+#[cfg(not(target_os = "unknown"))]
 unsafe fn proc<'a>(h: i64) -> Option<&'a mut Proc> {
     if h == 0 {
         return None;
@@ -614,6 +645,7 @@ unsafe fn proc<'a>(h: i64) -> Option<&'a mut Proc> {
 
 /// Begin assembling a subprocess of the program at `prog`: a process
 /// handle word, or the negated error code.
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_proc_new(prog: i64) -> i64 {
     let Some(p) = (unsafe { buf_path(prog) }) else {
@@ -633,6 +665,7 @@ pub unsafe extern "C" fn cinch_proc_new(prog: i64) -> i64 {
 
 /// Append one argument: 0, or the negated error code. (Only valid
 /// before `cinch_proc_run`.)
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_proc_arg(h: i64, arg: i64) -> i64 {
     use std::os::unix::ffi::OsStringExt;
@@ -648,6 +681,7 @@ pub unsafe extern "C" fn cinch_proc_arg(h: i64, arg: i64) -> i64 {
 
 /// Add one environment entry from a `KEY=VALUE` buffer (the first `=`
 /// separates; a value may contain `=`): 0, or the negated error code.
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_proc_env(h: i64, kv: i64) -> i64 {
     use std::os::unix::ffi::OsStringExt;
@@ -672,6 +706,7 @@ pub unsafe extern "C" fn cinch_proc_env(h: i64, kv: i64) -> i64 {
 
 /// Append to the subprocess's stdin payload (written and closed when
 /// it runs): 0, or the negated error code.
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_proc_stdin(h: i64, data: i64) -> i64 {
     let (Some(p), Some(d)) = (unsafe { proc(h) }, unsafe { buf_slice(data) }) else {
@@ -687,6 +722,7 @@ pub unsafe extern "C" fn cinch_proc_stdin(h: i64, data: i64) -> i64 {
 /// Run the subprocess with real pipes: 0 once it has STARTED (its
 /// stdout pipe is drained by `cinch_proc_read_out`), or the negated
 /// error code. The child inherits this process's stderr.
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_proc_run(h: i64) -> i64 {
     let Some(p) = (unsafe { proc(h) }) else {
@@ -727,6 +763,7 @@ pub unsafe extern "C" fn cinch_proc_run(h: i64) -> i64 {
 /// (the child closed its stdout or exited), or the negated error code.
 /// Repeated calls after the drain report the remaining output (empty
 /// once taken).
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_proc_read_out(h: i64, out: i64) -> i64 {
     let (Some(p), Some(o)) = (unsafe { proc(h) }, unsafe { buf(out) }) else {
@@ -756,6 +793,7 @@ pub unsafe extern "C" fn cinch_proc_read_out(h: i64, out: i64) -> i64 {
 /// raw signal case: there is no exit status to report then). Both the
 /// one-shot `cinch_proc_wait` and the piped ABI's `cinch_process_wait`
 /// report through this, so one convention spans the two.
+#[cfg(not(target_os = "unknown"))]
 pub(crate) fn exit_code(status: &std::process::ExitStatus) -> i64 {
     match status.code() {
         Some(code) => i64::from(code),
@@ -776,6 +814,7 @@ pub(crate) fn exit_code(status: &std::process::ExitStatus) -> i64 {
 /// Wait for the subprocess and report its exit code through
 /// [`exit_code`] (0..=255; a signal death reports 128 + the signal
 /// number), or the negated error code when it was never run.
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_proc_wait(h: i64) -> i64 {
     let Some(p) = (unsafe { proc(h) }) else {
@@ -792,6 +831,7 @@ pub unsafe extern "C" fn cinch_proc_wait(h: i64) -> i64 {
 
 /// Release a process handle; a still-running child is killed and
 /// reaped first (no zombies left behind).
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_proc_free(h: i64) -> i64 {
     if h == 0 {
@@ -813,6 +853,7 @@ pub unsafe extern "C" fn cinch_proc_free(h: i64) -> i64 {
 /// A live child of the piped-process ABI: the child itself, the three
 /// stdio pipes the caller reads and writes, and the exit code once a
 /// `cinch_process_wait` has reaped it.
+#[cfg(not(target_os = "unknown"))]
 struct PipedChild {
     child: std::process::Child,
     stdin: Option<std::process::ChildStdin>,
@@ -822,11 +863,13 @@ struct PipedChild {
 }
 
 /// The live piped children, by handle word.
+#[cfg(not(target_os = "unknown"))]
 static PIPES: LazyLock<std::sync::Mutex<BTreeMap<i64, PipedChild>>> =
     LazyLock::new(|| std::sync::Mutex::new(BTreeMap::new()));
 
 /// The next child handle word. Handles are handed out once and never
 /// reused, so a stale handle is invalid rather than another child's.
+#[cfg(not(target_os = "unknown"))]
 static PIPES_NEXT: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(1);
 
 /// The child table: one lock over the entries (the invariant is
@@ -834,6 +877,7 @@ static PIPES_NEXT: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::
 /// operation of one child holds it, so the operations of one child are
 /// sequenced against each other and against another child's; the
 /// language-side capability is what sequences a caller's own use.
+#[cfg(not(target_os = "unknown"))]
 fn pipes() -> std::sync::MutexGuard<'static, BTreeMap<i64, PipedChild>> {
     PIPES.lock().unwrap_or_else(|e| e.into_inner())
 }
@@ -845,6 +889,7 @@ fn pipes() -> std::sync::MutexGuard<'static, BTreeMap<i64, PipedChild>> {
 /// `-c\0echo hi\0` is `echo hi`). `crate::pty`'s spawn shares it (one
 /// NUL-separated argument encoding spans the process and terminal
 /// families).
+#[cfg(not(target_os = "unknown"))]
 pub(crate) unsafe fn nul_words(word: i64) -> std::result::Result<Vec<std::ffi::OsString>, i64> {
     use std::os::unix::ffi::OsStringExt;
     let bytes = unsafe { crate::abi::as_bytes(word) }.as_slice();
@@ -870,6 +915,7 @@ pub(crate) unsafe fn nul_words(word: i64) -> std::result::Result<Vec<std::ffi::O
 /// for an entry without a separator or with an empty key. An empty word
 /// adds nothing, so the child inherits this process's environment.
 /// `crate::pty`'s spawn shares it.
+#[cfg(not(target_os = "unknown"))]
 pub(crate) unsafe fn env_words(
     word: i64,
 ) -> std::result::Result<Vec<(std::ffi::OsString, std::ffi::OsString)>, i64> {
@@ -913,6 +959,7 @@ pub(crate) unsafe fn env_words(
 /// `cinch_process_close_stdin` for the end of input). The child does
 /// NOT inherit this process's stdout or stderr, which is what the
 /// one-shot set above cannot do.
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_process_spawn(command: i64, args: i64, cwd: i64, env: i64) -> i64 {
     use std::os::unix::ffi::OsStringExt;
@@ -970,6 +1017,7 @@ pub unsafe extern "C" fn cinch_process_spawn(command: i64, args: i64, cwd: i64, 
 /// blocking call); a handle closed underneath the write drops it, which
 /// closes the pipe. The peer-closed `SIGPIPE` hazard is `crate::net`'s
 /// note.
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_process_write_stdin(h: i64, data: i64) -> i64 {
     use std::io::Write;
@@ -990,6 +1038,7 @@ pub unsafe extern "C" fn cinch_process_write_stdin(h: i64, data: i64) -> i64 {
 /// Close the child's stdin, which is how the child sees the end of its
 /// input: 0, or the negated error code for a handle that is not live.
 /// Closing twice is 0: the caller's intent (a closed stdin) still holds.
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_process_close_stdin(h: i64) -> i64 {
     let mut table = pipes();
@@ -1008,6 +1057,7 @@ pub extern "C" fn cinch_process_close_stdin(h: i64) -> i64 {
 /// caller already took to its end keeps answering empty (the pipe is at
 /// its end, which is not an error), and `max` is both the allocation
 /// and the read cap.
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_process_read(h: i64, which: i64, max: i64) -> i64 {
     use std::io::Read;
@@ -1049,6 +1099,7 @@ pub unsafe extern "C" fn cinch_process_read(h: i64, which: i64, max: i64) -> i64
 /// wait blocks, so a caller drains the output pipes it needs before it
 /// waits (a child writing into a full pipe nobody reads is the caller's
 /// deadlock, the refusal `Effect.Process`'s header names).
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_process_wait(h: i64) -> i64 {
     let mut table = pipes();
@@ -1073,6 +1124,7 @@ pub unsafe extern "C" fn cinch_process_wait(h: i64) -> i64 {
 /// 0, or the negated error code for a handle that is not live; closing
 /// twice is the second case, an error rather than a no-op (the handle
 /// word is gone).
+#[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_process_close(h: i64) -> i64 {
     match pipes().remove(&h) {

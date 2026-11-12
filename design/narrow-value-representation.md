@@ -190,6 +190,64 @@ wasm, and build the core (`block`, `rc`, `arena`, `bytes`, `nat`, `heap`)
 against a wasm `sys` that answers `getenv` from the WASI environment and
 nothing else.
 
+### The wasm slice, taken
+
+The runtime builds and a real program runs, so this is measured end to
+end rather than assumed: `cinch emit-ir --target wasm32-unknown-unknown`,
+clang, `wasm-ld`, and Node executing the module. `main = 0`,
+`fib 20 == 6765`, a 100000-iteration accumulator, and `map`/`replicate`/
+`length` over a named function all answer 0.
+
+What it took, in the order the compiler and the runtime refused:
+
+- **Gating by item, not by section.** `platform.rs`'s OS surface is
+  ~37 items (filesystem, signals, processes, piped children, the thread
+  and stack reservation). Wrapping each section in a `mod` and
+  re-exporting it hid `env_words`/`nul_words`/`exit_code` from `pty.rs`
+  and `program_stack_bytes` from `par.rs`; gating the individual items
+  leaves every path a native build uses untouched.
+- **A freestanding `sys` backend.** `mmap_reserve`/`mprotect` are the
+  small-object allocator's only OS dependency, and they map exactly onto
+  WebAssembly's reserve/commit split: `memory.grow` extends linear
+  memory by whole pages and is contiguous by construction, so a
+  reservation *is* a growth and a commit is already done. Everything
+  else answers `ENOSYS`; `exit` traps, because a freestanding module has
+  no process to leave.
+- **A reservation the host will grant.** The allocator's list started at
+  64 GiB, which no wasm host gives (`memory.grow` answers -1; Node caps
+  around 1 GiB). A failed reservation leaves the allocator with no range
+  at all, so every allocation goes to the `Exhausted` exit. The
+  freestanding list is 256/64/16 MiB.
+- **`musttail` needs the tail-call feature.** A `D104` group emits
+  `musttail`, which WebAssembly has outside the MVP, and the assembler
+  refuses it without the feature. It is a per-function attribute
+  (`"target-features"="+tail-call"`), not a module directive, and every
+  function carries it because a callee without it is not a legal
+  `musttail` target.
+- **A static initializer holds a pointer at the pointer width.** A
+  linker relocates an address, not a widened copy of one, so
+  `i64 ptrtoint (ptr @f to i64)` in a constant is refused
+  (`unsupported expression in static initializer`). A closure's code
+  word is exactly that. Where the pointer is 4 bytes the block storage
+  is emitted `[2n x i32]` (each word its low half then its high half),
+  which is the same bytes on a little-endian target, so the runtime
+  reads the block unchanged.
+- **`memcpy`/`memset` take a `size_t`.** The declarations and the call
+  sites both carried an `i64` length, which wasm-ld reports as a
+  signature mismatch against the runtime's own `(i32, i32, i32)`
+  `memcpy` and which traps at run time.
+
+One bug remains open and is narrowed to a single case: `map` (and any
+recursive higher-order list function) over a closure **with saved
+words** traps in the runtime's `release` while dropping the closure,
+after the closure is applied once. The same closure applied directly,
+through `apply1`, or dropped and re-applied is correct; the same shape
+written out by hand is correct; a closure with no saved words through
+`map` is correct; and the whole thing is correct on a native target. So
+it is a wasm32 miscompile in one narrow path rather than a wrong
+representation, and it needs a wasm-level debugger rather than more
+guessing.
+
 ### The limit of what is verifiable here
 
 This host is aarch64 macOS. `cargo check --target i686-unknown-linux-gnu`
@@ -198,6 +256,13 @@ running need an i686 Linux toolchain that is not present. So the i686
 path is compile-verified and not execution-verified, and the design note
 says so rather than implying a test that does not exist. Adding the
 target to `SUPPORTED_TARGETS` needs that toolchain first.
+
+wasm32 is different: the toolchain is here. clang assembles
+`--target=wasm32-unknown-unknown`, `wasm-ld` links, and Node runs the
+module, so `wasm32-unknown-unknown` is in `SUPPORTED_TARGETS` and every
+claim above was observed rather than inferred. The runtime's wasm backend
+itself cannot be unit-tested from this host (it only compiles for the
+wasm target), so its proof is the end-to-end run, not a `#[test]`.
 
 ## 7 Open questions
 

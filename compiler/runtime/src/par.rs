@@ -130,6 +130,19 @@ pub fn budget() -> usize {
     }
 }
 
+/// The machine's own parallelism, or nothing where the question does not
+/// apply: a freestanding target has one thread and no operating system to
+/// ask.
+#[cfg(not(target_os = "unknown"))]
+fn available_parallelism() -> Option<usize> {
+    std::thread::available_parallelism().ok().map(usize::from)
+}
+
+#[cfg(target_os = "unknown")]
+fn available_parallelism() -> Option<usize> {
+    None
+}
+
 /// `CINCH_THREADS` when it is a positive decimal count, else the
 /// available parallelism, clamped to `1..=MAX_PARTICIPANTS`.
 fn default_budget() -> usize {
@@ -137,8 +150,12 @@ fn default_budget() -> usize {
         let s = std::str::from_utf8(v).ok()?;
         s.parse::<usize>().ok().filter(|&n| n > 0)
     });
+    // A freestanding target has one thread: the module's own. Asking for
+    // a count would need an operating system, and there is nothing to
+    // spawn anyway, so the pool stays at one participant and every
+    // parallel builtin takes its sequential reading.
     from_env
-        .or_else(|| std::thread::available_parallelism().ok().map(usize::from))
+        .or_else(|| available_parallelism())
         .unwrap_or(1)
         .clamp(1, MAX_PARTICIPANTS)
 }
@@ -484,6 +501,7 @@ fn parallel_participant() -> Option<&'static Participant> {
 }
 
 /// Start workers until `want` exist.
+#[cfg(not(target_os = "unknown"))]
 #[cold]
 fn start_workers(want: usize) {
     let _g = lock(&POOL.spawn);
@@ -500,6 +518,11 @@ fn start_workers(want: usize) {
         POOL.started.store(index + 1, Release);
     }
 }
+
+/// A freestanding target starts no workers: the budget is one, so nothing
+/// ever asks for a second participant.
+#[cfg(target_os = "unknown")]
+fn start_workers(_want: usize) {}
 
 /// A worker thread's life: look for work, run it, sleep when there is
 /// none; wait while retired.

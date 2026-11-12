@@ -80,7 +80,17 @@ const COMMIT_CHUNK: usize = 4 << 20;
 /// The range sizes tried at reservation, largest first. The largest is
 /// eight times the default heap cap; past the range, small requests fall
 /// back to the system allocator.
+///
+/// A freestanding WebAssembly module reserves by growing linear memory,
+/// and a host caps how far it will grow: Node refuses past about 1 GiB
+/// (`memory.grow` answers -1), so a 64 GiB reservation fails outright and
+/// the allocator has no range at all. The list therefore states what such
+/// a host can actually give, and the last entry is small enough that any
+/// conforming host grants it.
+#[cfg(not(target_os = "unknown"))]
 const RESERVATIONS: [usize; 3] = [64 << 30, 16 << 30, 4 << 30];
+#[cfg(target_os = "unknown")]
+const RESERVATIONS: [usize; 3] = [256 << 20, 64 << 20, 16 << 20];
 /// Empty pages a heap keeps for itself before pooling the rest.
 const CACHED_PAGES: usize = 8;
 

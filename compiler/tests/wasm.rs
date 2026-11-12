@@ -472,3 +472,62 @@ module GlueProbe where
     assert!(manifest.contains("\"ret_area\":{\"align\":4,\"cases\":2,\"size\":12}"), "{manifest}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// The freestanding target's pointer width reaches the places a module
+/// spells a target-sized value (WebAssembly and WASI specification
+/// section 2): a static initializer holds a pointer at the target's own
+/// width, and `memcpy`/`memset` take a `size_t`.
+///
+/// A linker relocates an address, not a widened copy of one, so an
+/// `i64 ptrtoint` in a static initializer is not a constant a 32-bit
+/// Wasm module can initialise storage with (`unsupported expression in
+/// static initializer`, which clang refuses). The block storage is
+/// therefore `[2n x i32]`: each word its low half then its high half,
+/// the same bytes on a little-endian target, with the pointer in the
+/// half the linker can fill.
+#[test]
+fn static_blocks_and_size_typed_calls_follow_the_pointer_width() {
+    let src = r#"
+module Wide where
+  import Data.List
+  double :: Int -> Int
+  double x = x * 2
+  n :: Int
+  n = length (map double (replicate 2 5))
+  main :: Int
+  main = if n == 2 then 0 else 1
+"#;
+    let program = cinch::driver::check_sources_profile(
+        src,
+        "<test>",
+        &TargetProfile::wasm32(ArtifactProfile::CoreWasm),
+    )
+    .expect("the program checks at wasm32");
+    let ir = cinch::codegen::emit_for(
+        &TargetProfile::wasm32(ArtifactProfile::CoreWasm),
+        &program,
+    )
+    .expect("wasm32 IR emission");
+
+    // A closure's code word is a relocated address, so the storage that
+    // holds one is the i32-pair form, not `[n x i64]`.
+    assert!(
+        ir.contains("x i32] [i32 ") && ir.contains("ptrtoint (ptr @"),
+        "a static block holding a pointer is emitted at the pointer width"
+    );
+    assert!(
+        !ir.contains("i64 ptrtoint (ptr @") || !ir.contains("internal constant [1 x i64] [i64 0, i64 262656]"),
+        "no static initializer widens a relocated pointer to i64"
+    );
+    // `memcpy`'s length is `size_t`.
+    assert!(
+        ir.contains("declare ptr @memcpy(ptr, ptr, i32)"),
+        "a 32-bit target declares memcpy's length at its pointer width:\n{ir}"
+    );
+    // The tail call a `D104` group produces needs WebAssembly's tail-call
+    // feature, which is a per-function attribute.
+    assert!(
+        ir.contains("\"target-features\"=\"+tail-call\""),
+        "every function carries the tail-call feature so musttail assembles"
+    );
+}
