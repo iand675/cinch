@@ -2823,6 +2823,24 @@ lexical dictionary continuation has a separate focused gate; its first
 Rust build found a class lookup argument type mismatch, now repaired for
 that rerun. None of this establishes a stage-2 self-build.
 
+## Frontend strictness the seed lacks
+
+Two refusals in the self-hosted frontend are stricter than the seed's. Both
+are in the safe direction (they refuse a program the seed accepts, never the
+reverse), so they are recorded rather than fixed.
+
+- A module that re-exports the same name from two imports is refused:
+  `the name stage-quotation-module is imported from both Bootstrap.Nominal and
+  Bootstrap.Nominal: rename one (a selection like import Bootstrap.Nominal
+  (stage-quotation-module as ...)) or leave one out (import Bootstrap.Nominal
+  hiding (stage-quotation-module))`. The seed accepts the duplicate. The
+  remedy is to export the name from one module and read it from there, which
+  is how `Bootstrap.Nominal` now owns the stage code identity.
+- A data type declared after a type that mentions it is refused:
+  `forward data reference needs SCC positivity checking`. The seed accepts the
+  same ordering. The remedy is to declare the carried type first, which is
+  why `StageTemplate` precedes `StageValue` in `Bootstrap.StageEval`.
+
 ## Next implementation sequence
 
 1. Preserve the connected loader, kernel contracts and module scope tests.
