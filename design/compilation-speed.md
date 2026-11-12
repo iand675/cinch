@@ -1938,9 +1938,13 @@ a known constructor), 43,685 `budget` (the two-percent program-growth budget
 is exhausted), 14,932 `size` (the growth term exceeds the allowance), and
 10,378 `recursive`. Every site the sweep considered lands in exactly one
 bucket, so the manifest says what the rule did rather than leaving it to be
-inferred from two IR line counts. `CINCH_INLINE_TRACE` prints the per
-candidate size, benefit, `certain` and `folds` flags and the per-copy caller
-and callee.
+inferred from two IR line counts. The block is written by the seed's
+`write_artifacts` beside the existing `simplifier` block, so it appears in a
+compile the seed performs; the self-hosted compiler writes its own manifest
+from `Bootstrap.Manifest.cinch`, which carries neither block, and adding them
+there is a separate change to a file this round did not touch.
+`CINCH_INLINE_TRACE` prints the per candidate size, benefit, `certain` and
+`folds` flags and the per-copy caller and callee.
 
 **What the refusals say about the model.** `fold` dominating is the honest
 result: the largest single class of bodies in this program is a dictionary
