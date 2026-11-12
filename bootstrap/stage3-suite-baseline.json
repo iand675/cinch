@@ -1,11 +1,11 @@
 {
- "date": "2026-11-11",
+ "date": "2026-11-12",
  "stage": 3,
- "compiler": "main at 93fc5399: ABI 9 with the bump arena off, static blocks addressed by offset, fixed-frame apply stub, reset/reuse, dense body transport, GHC inlining inputs, resolver index and compare fast path",
- "targets": 231,
+ "compiler": "main at afc5e9c2 plus the parser table row: ABI 9, bump arena off, static blocks by offset and one per module, Nat immediate carry check, one apply stub per function, reset/reuse, dense body transport, GHC inlining inputs, self-hosted import hiding",
+ "targets": 233,
  "fully_passing": 145,
- "tests_passed": 879,
- "tests_failed": 634,
+ "tests_passed": 890,
+ "tests_failed": 654,
  "runner": "tooling/run_stage_targets.py --stage 3 --jobs 4 --all",
  "rows": [
   {
@@ -161,8 +161,8 @@
   {
    "target": "bootstrap_export_interfaces",
    "exit": 101,
-   "passed": 0,
-   "failed": 1
+   "passed": 1,
+   "failed": 2
   },
   {
    "target": "bootstrap_export_types",
@@ -587,8 +587,8 @@
   {
    "target": "concurrency",
    "exit": 101,
-   "passed": 19,
-   "failed": 1
+   "passed": 21,
+   "failed": 3
   },
   {
    "target": "conditional_surface",
@@ -1043,7 +1043,7 @@
   {
    "target": "modules",
    "exit": 0,
-   "passed": 12,
+   "passed": 17,
    "failed": 0
   },
   {
@@ -1161,6 +1161,12 @@
    "failed": 1
   },
   {
+   "target": "qualified_identities",
+   "exit": 101,
+   "passed": 2,
+   "failed": 3
+  },
+  {
    "target": "range_facts",
    "exit": 101,
    "passed": 5,
@@ -1255,6 +1261,12 @@
    "exit": 101,
    "passed": 7,
    "failed": 19
+  },
+  {
+   "target": "stm",
+   "exit": 101,
+   "passed": 0,
+   "failed": 14
   },
   {
    "target": "string_literals",
@@ -1379,7 +1391,7 @@
   {
    "target": "targets",
    "exit": 101,
-   "passed": 6,
+   "passed": 7,
    "failed": 5
   },
   {
