@@ -1,0 +1,175 @@
+-- Temporal contracts (core specification section 10): `safety`, `liveness`,
+-- `recurrence` and `stability` claims over a definition, each verified where
+-- its claim is decidable and refused BY NAME where it is not, never silently
+-- unchecked.
+--
+-- This module owns the claim's own vocabulary and the refusals that need
+-- only the source: the kind and its operator, the one formula a contract
+-- states, the assumption rows, and the shape of the parameters the formula
+-- names. The decision procedures that read checked Core (the inductive
+-- invariant over the per-step write log, the footprint a stability fact
+-- survives, the structural bound a recurrence claim needs, the structured
+-- scope a liveness claim names) live in `Bootstrap.Infer`, which is where
+-- the elaboration's write log and definitions are.
+--
+-- The refusals here are the ones the seed states at the same points, with
+-- the same text: a kind that is not one of the four, a clause that is not
+-- one of the five, a formula stated twice, no formula at all, and an
+-- operator that does not match the kind. Every one names the offending word
+-- and the specification section it comes from.
+
+module Bootstrap.Temporal where
+
+  import Text.Lex (Span)
+  import Bootstrap.Ast (Decl, ContractClause, ContractFormula, ContractAssume, ContractAssumed, contract-clause-span, expr-span, Expr)
+  import Algebra.Semigroup
+
+  export ContractKind, Safety, Liveness, Recurrence, Stability
+  export contract-kind, contract-kind-keyword, contract-kind-operator
+  export check-contract-shape, contract-clause-names, contract-formula-clause
+  export contract-assumption-rows, contract-formula-row, contract-renders-formula
+  export contract-clause-operator, contract-clause-word
+
+  -- The temporal kind a contract claims (core specification section 10:
+  -- the language distinguishes safety, liveness, recurrence and
+  -- stability).
+  data ContractKind where
+    Safety :: ContractKind
+    Liveness :: ContractKind
+    Recurrence :: ContractKind
+    Stability :: ContractKind
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+
+  cat :: List String -> String
+  cat parts = string-concat-all parts
+
+  -- The kind a written keyword names, or none.
+  contract-kind :: String -> Option ContractKind
+  contract-kind word =
+    if same word "safety" then Some Safety
+    else if same word "liveness" then Some Liveness
+    else if same word "recurrence" then Some Recurrence
+    else if same word "stability" then Some Stability
+    else None
+
+  contract-kind-keyword :: ContractKind -> String
+  contract-kind-keyword k = case k of
+    Safety -> "safety"
+    Liveness -> "liveness"
+    Recurrence -> "recurrence"
+    Stability -> "stability"
+
+  -- The formula operator the kind states (the notation of core
+  -- specification section 10: `always (P)`, `eventually (Q)`, and the
+  -- recurrence and stability spellings).
+  contract-kind-operator :: ContractKind -> String
+  contract-kind-operator k = case k of
+    Safety -> "always"
+    Liveness -> "eventually"
+    Recurrence -> "recur"
+    Stability -> "stable"
+
+  -- The clause vocabulary, as written.
+  contract-clause-word :: String -> Bool
+  contract-clause-word word =
+    same word "always" || same word "eventually" || same word "recur"
+    || same word "stable" || same word "assume"
+
+  -- The operator a formula clause states.
+  contract-clause-operator :: ContractClause -> Option String
+  contract-clause-operator clause = case clause of
+    ContractFormula s op body -> Some op
+    ContractAssume s body -> None
+    ContractAssumed s text -> None
+
+  -- Every clause word in written order (the parser keeps them as written,
+  -- so the refusal can name the second formula or the mismatched operator).
+  contract-clause-names :: List ContractClause -> List String
+  contract-clause-names clauses = case clauses of
+    Nil -> Nil
+    Cons first rest -> (case first of
+      ContractFormula s op body -> Cons op Nil
+      ContractAssume s body -> Cons "assume" Nil
+      ContractAssumed s text -> Cons "assume" Nil) <> contract-clause-names rest
+
+  -- The formula clauses, in written order.
+  contract-formula-clause :: List ContractClause -> Option (Span, String, Expr)
+  contract-formula-clause clauses = case clauses of
+    Nil -> None
+    Cons first rest -> case first of
+      ContractFormula s op body -> Some (s, op, body)
+      other -> contract-formula-clause rest
+
+  -- The stated assumptions as the manifest and interface rows spell them
+  -- (`assume (P)` for a stated fact, `assume "text"` for a named one), in
+  -- written order.
+  contract-assumption-rows :: List ContractClause -> List String
+  contract-assumption-rows clauses = case clauses of
+    Nil -> Nil
+    Cons first rest -> case first of
+      ContractFormula s op body -> contract-assumption-rows rest
+      ContractAssume s body -> Cons (cat ["assume (", contract-renders-formula body, ")"]) (contract-assumption-rows rest)
+      ContractAssumed s text -> Cons (cat ["assume \"", text, "\""]) (contract-assumption-rows rest)
+
+  -- The formula as the report and manifest rows spell it:
+  -- `<operator> (<rendered formula>)`.
+  contract-formula-row :: ContractKind -> Expr -> String
+  contract-formula-row k body = cat [contract-kind-operator k, " (", contract-renders-formula body, ")"]
+
+  -- A formula term rendered back to source notation, so a row reads the way
+  -- the contract was written. The rendering keeps the operands' own
+  -- spelling: an application is prefix, an operator chain is infix, and
+  -- anything else falls back to its head name, which is all a row needs.
+  contract-renders-formula :: Expr -> String
+  contract-renders-formula e = case e of
+    EVar s name -> name
+    ECon s name args -> name
+    ELitInt s text -> text
+    ELitStr s text -> cat ["\"", text, "\""]
+    ELitChar s text -> text
+    EUnit s -> "()"
+    ENeg s inner -> cat ["-", contract-renders-formula inner]
+    EApp s (EVar at op) arg -> cat [op, " ", contract-renders-argument arg]
+    EApp s f a -> cat [contract-renders-formula f, " ", contract-renders-argument a]
+    EBin s op left right -> cat [contract-renders-formula left, " ", op, " ", contract-renders-formula right]
+    EAnn s inner ty -> contract-renders-formula inner
+    EProject s value label -> cat [contract-renders-formula value, ".", label]
+    other -> "<formula>"
+
+  contract-renders-argument :: Expr -> String
+  contract-renders-argument e = case e of
+    EVar s name -> name
+    ECon s name args -> name
+    ELitInt s text -> text
+    ELitStr s text -> cat ["\"", text, "\""]
+    ELitChar s text -> text
+    EUnit s -> "()"
+    ENeg s inner -> cat ["-", contract-renders-argument inner]
+    EProject s value label -> cat [contract-renders-formula value, ".", label]
+    other -> cat ["(", contract-renders-formula other, ")"]
+
+  -- The contract's shape, decided from the source alone (core specification
+  -- section 10). Each refusal is the seed's: it names the offending word
+  -- and says what the contract must state instead. A contract that passes
+  -- here still has to be verified against its definition.
+  check-contract-shape :: Span -> String -> List ContractClause -> Result String (ContractKind, Expr)
+  check-contract-shape span keyword clauses = case contract-kind keyword of
+    None -> Err (cat ["`", keyword, "` is not a temporal contract kind; expected `safety`, `liveness`, `recurrence` or `stability` (core specification section 10)"])
+    Some kind -> case contract-formula-clause clauses of
+      None -> Err (cat ["a `", contract-kind-keyword kind, "` temporal contract states its formula: `", contract-kind-operator kind, " = (P)` (core specification section 10)"])
+      Some (at, op, body) -> if not (contract-clause-word op) then
+        Err (cat ["`", op, "` is not a contract clause; expected `always`, `eventually`, `recur`, `stable` or `assume` (core specification section 10)"])
+        else if not (same op (contract-kind-operator kind)) then
+          Err (cat ["a `", contract-kind-keyword kind, "` temporal contract states `", contract-kind-operator kind, " = (P)`, not `", op, " = (...)` (core specification section 10: the language distinguishes safety, liveness, recurrence and stability)"])
+          else if contract-formula-count clauses > 1 then
+            Err (cat ["duplicate `", op, "` formula: a temporal contract states exactly one formula (core specification section 10)"])
+            else Ok (kind, body)
+
+  contract-formula-count :: List ContractClause -> Nat
+  contract-formula-count clauses = case clauses of
+    Nil -> 0
+    Cons first rest -> (case first of
+      ContractFormula s op body -> 1
+      other -> 0) + contract-formula-count rest

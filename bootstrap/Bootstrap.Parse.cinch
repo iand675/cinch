@@ -809,6 +809,7 @@ module Bootstrap.Parse where
     else if string-compare w "proof" == 0 then parse-marked-decl DProof toks src fix
     else if string-compare w "corec" == 0 then parse-marked-decl DCorec toks src fix
     else if string-compare w "generate" == 0 then parse-generate-decl toks src fix
+    else if string-compare w "contract" == 0 then parse-contract toks src fix
     else if string-compare w "infix" == 0 then parse-fixity toks
     else if string-compare w "infixl" == 0 then parse-fixity toks
     else if string-compare w "infixr" == 0 then parse-fixity toks
@@ -1625,6 +1626,108 @@ module Bootstrap.Parse where
         else PBad
       Nil -> PBad
     PBad -> PBad
+
+  -- `contract <kind> <name> for <def> where { <op> = (P); assume = (P) |
+  -- "text"; ... }`: a temporal contract over a definition (core
+  -- specification section 10). The kind word, the clause words and the
+  -- `for` of `contract ... for <def>` are contextual, not reserved, so
+  -- they arrive as ordinary identifiers and every one of them is a name a
+  -- program may still use elsewhere. The clause vocabulary is kept as
+  -- written: whether the kind is one of the four, whether a clause name is
+  -- one of the five, whether a formula is stated exactly once and whether
+  -- its operator matches the kind are all decided where the contract
+  -- attaches to its definition, so each refusal names the offending word
+  -- rather than the declaration.
+  parse-contract :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-contract toks src fix = case toks of
+    Cons start rest -> contract-kind-word (sp-of start) rest src fix
+    Nil -> PBad
+
+  contract-kind-word :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  contract-kind-word sp toks src fix = case toks of
+    Cons kind-token after-kind -> case lt-token kind-token of
+      TVar kind -> case parse-value-name after-kind of
+        PBad -> PBad
+        POk name after-name -> contract-for sp kind name after-name src fix
+      other -> PBad
+    Nil -> PBad
+
+  contract-for :: Span -> String -> String -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  contract-for sp kind name toks src fix = case toks of
+    Cons for-token after-for -> if is-var-t (lt-token for-token) "for" then
+      contract-subject sp kind name after-for src fix else PBad
+    Nil -> PBad
+
+  contract-subject :: Span -> String -> String -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  contract-subject sp kind name toks src fix = case parse-value-name toks of
+    PBad -> PBad
+    POk subject after-subject -> case expect-word-t after-subject "where" of
+      PBad -> PBad
+      POk _ after-where -> contract-block sp kind name subject after-where src fix
+
+  contract-block :: Span -> String -> String -> String -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  contract-block sp kind name subject toks src fix = case expect-punct-t toks "{" of
+    PBad -> PBad
+    POk _ opened -> case contract-clauses opened src fix Nil of
+      PBad -> PBad
+      POk clauses closed -> contract-finish sp kind name subject clauses closed
+
+  contract-finish :: Span -> String -> String -> String -> List ContractClause -> List LToken -> Ps Decl
+  contract-finish sp kind name subject clauses toks =
+    if at-boundary toks then POk (DContract sp kind name subject clauses) toks else PBad
+
+  is-var-t :: Token -> String -> Bool
+  is-var-t t s = case t of
+    TVar x -> string-compare x s == 0
+    _ -> False
+
+  -- The clauses of a contract's block, separated by `;` and closed by `}`.
+  contract-clauses :: List LToken -> Bytes -> List (String, Fix) -> List ContractClause -> Ps (List ContractClause)
+  contract-clauses toks src fix acc = case toks of
+    Nil -> PBad
+    Cons t rest -> case lt-token t of
+      TPunct p ->
+        if string-compare p ";" == 0 then contract-clauses rest src fix acc
+        else if string-compare p "}" == 0 then POk (reverse acc) rest
+        else contract-clause-step toks src fix acc
+      TEOF -> POk (reverse acc) toks
+      _ -> contract-clause-step toks src fix acc
+
+  contract-clause-step :: List LToken -> Bytes -> List (String, Fix) -> List ContractClause -> Ps (List ContractClause)
+  contract-clause-step toks src fix acc = case parse-contract-clause toks src fix of
+    POk clause rest -> contract-clauses rest src fix (Cons clause acc)
+    PBad -> PBad
+
+  -- `<clause> = (P)`, or `assume = "text"` for a stated environmental
+  -- assumption. The clause word is recorded as written.
+  parse-contract-clause :: List LToken -> Bytes -> List (String, Fix) -> Ps ContractClause
+  parse-contract-clause toks src fix = case toks of
+    Cons name-token rest -> case lt-token name-token of
+      TVar name -> case expect-punct-t rest "=" of
+        PBad -> PBad
+        POk _ after-equals -> case after-equals of
+          Cons value-token after-value -> case lt-token value-token of
+            TStr text ->
+              if string-compare name "assume" == 0 then
+                POk (ContractAssumed (sp-of name-token) (bytes-to-string text)) after-value
+              else PBad
+            _ -> case parse-contract-clause-term (sp-of name-token) name after-equals src fix of
+              POk clause done -> POk clause done
+              PBad -> PBad
+          Nil -> PBad
+      other -> PBad
+    Nil -> PBad
+
+  parse-contract-clause-term :: Span -> String -> List LToken -> Bytes -> List (String, Fix) -> Ps ContractClause
+  parse-contract-clause-term sp name toks src fix = case expect-punct-t toks "(" of
+    PBad -> PBad
+    POk _ opened -> case parse-expr opened src fix of
+      PBad -> PBad
+      POk body after-body -> case expect-punct-t after-body ")" of
+        PBad -> PBad
+        POk _ closed ->
+          if string-compare name "assume" == 0 then POk (ContractAssume sp body) closed
+          else POk (ContractFormula sp name body) closed
 
   -- instance Name params :: Type where { members }
   parse-instance :: List LToken -> Bytes -> List (String, Fix) -> Bool -> Ps Decl

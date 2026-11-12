@@ -252,6 +252,10 @@ module Bootstrap.Infer where
       DPrim s name ty bodies -> True
       DProof s body -> True
       DRewrite s name syntax -> True
+      -- A temporal contract's formulas are compared over the definition's
+      -- parameters (core specification section 10), which is typed work:
+      -- the module goes through inference so the contract is verified.
+      DContract s keyword name subject clauses -> True
       DExternal s name kind (Some ty) metadata -> needs-type ty || (case resolved-text metadata of Some text -> True; other -> False)
       DFun s name clauses -> clauses-need clauses
       other -> False) || needs-decls rest
@@ -2183,6 +2187,10 @@ module Bootstrap.Infer where
       DOpaque s name params kind -> register rows classes kinds rest env st
       DRefine s name params binder predicate -> register rows classes kinds rest env st
       DExport s text items -> register rows classes kinds rest env st
+      -- A temporal contract binds no value: it is verified after the
+      -- definition it names has been elaborated (its write log and its
+      -- recursion), which is the pass `temporal-contracts` runs.
+      DContract s keyword name subject clauses -> register rows classes kinds rest env st
       other -> register rows classes kinds rest env (add-error (decl-span d) (unsupported-decl d) st)
   storage-observation-body :: Nat -> UType -> Option UType
   storage-observation-body remaining ty = if remaining == 0 then Some ty else

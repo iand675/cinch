@@ -461,6 +461,26 @@ module Bootstrap.Ast where
   data RewriteSyntax where
     MkRewriteSyntax :: Bool -> List TypeParam -> TypeExpr -> Expr -> Expr -> Option Expr -> RewriteJustification -> RewriteSyntax
 
+  -- One clause of a `contract` declaration's block (core specification
+  -- section 10): the temporal formula, whose operator matches the
+  -- contract's kind, and the stated assumptions a contract carries when it
+  -- relies on the environment.
+  data ContractClause where
+    -- `<operator> = (P)`: the temporal formula.
+    ContractFormula :: Span -> String -> Expr -> ContractClause
+    -- `assume = (P)`: a stated assumed fact (a safety contract's
+    -- establishment is one).
+    ContractAssume :: Span -> Expr -> ContractClause
+    -- `assume = "text"`: a stated environmental assumption (scheduler,
+    -- dependency, crash, network, fairness).
+    ContractAssumed :: Span -> String -> ContractClause
+
+  contract-clause-span :: ContractClause -> Span
+  contract-clause-span c = case c of
+    ContractFormula s op body -> s
+    ContractAssume s body -> s
+    ContractAssumed s text -> s
+
   data Decl where
     DSource :: Span -> String -> Json -> Decl
     DInterface :: Span -> String -> String -> Json -> Decl
@@ -497,6 +517,13 @@ module Bootstrap.Ast where
     DGenerate :: Span -> Decl -> Decl
     DStageEmit :: Span -> Decl -> Decl
     DStageBranch :: Span -> Expr -> Decl -> Decl -> Decl
+    -- `contract <kind> <name> for <def> where { ... }`: a temporal contract
+    -- over a definition (core specification section 10), one of `safety`,
+    -- `liveness`, `recurrence` or `stability`. The kind keyword is kept as
+    -- written; its operator (`always`, `eventually`, `recur`, `stable`) is
+    -- the kind's own, so the parser has already refused a formula whose
+    -- operator disagrees with it.
+    DContract :: Span -> String -> String -> String -> List ContractClause -> Decl
     DDecl :: Span -> Decl -> Decl -> Decl
     DDeclsEnd :: Span -> Decl
     DUnmodeled :: Span -> String -> Decl
@@ -542,6 +569,7 @@ module Bootstrap.Ast where
     DGenerate s actions -> s
     DStageEmit s template -> s
     DStageBranch s condition yes no -> s
+    DContract s kind name subject clauses -> s
     DDecl s x rest -> s
     DDeclsEnd s -> s
     DUnmodeled s text -> s
@@ -580,6 +608,9 @@ module Bootstrap.Ast where
     DGenerate s actions -> None
     DStageEmit s template -> None
     DStageBranch s condition yes no -> None
+    -- A contract declares no name of its own: it attaches to the definition
+    -- it names, and that definition declares the name.
+    DContract s kind name subject clauses -> None
 
   -- -------------------------------------------------------- modules, programs
 
@@ -801,6 +832,18 @@ module Bootstrap.Ast where
     DGenerate s actions -> decl-unmodeled-count actions
     DStageEmit s template -> decl-unmodeled-count template
     DStageBranch s condition yes no -> expr-unmodeled-count condition + decl-unmodeled-count yes + decl-unmodeled-count no
+    DContract s kind name subject clauses -> contract-clauses-unmodeled clauses
+
+  contract-clauses-unmodeled :: List ContractClause -> Nat
+  contract-clauses-unmodeled clauses = case clauses of
+    Nil -> 0
+    Cons c rest -> contract-clause-unmodeled c + contract-clauses-unmodeled rest
+
+  contract-clause-unmodeled :: ContractClause -> Nat
+  contract-clause-unmodeled c = case c of
+    ContractFormula s op body -> expr-unmodeled-count body
+    ContractAssume s body -> expr-unmodeled-count body
+    ContractAssumed s text -> 0
 
   prim-bodies-unmodeled :: List PrimBody -> Nat
   prim-bodies-unmodeled bodies = case bodies of

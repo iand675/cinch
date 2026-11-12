@@ -667,6 +667,9 @@ module Bootstrap.Eval where
     DMacro s body -> Cons (MkDiagnostic rung s "a macro declaration requires compile-time expansion") Nil
     DStage s body -> Cons (MkDiagnostic rung s "a stage declaration requires compile-time checking") Nil
     DGenerate s actions -> Cons (MkDiagnostic rung s "a generate block requires compile-time expansion") Nil
+    -- A contract declares no value the interpreter binds, so it needs no
+    -- evaluation. It is checked where its definition is elaborated.
+    DContract s keyword name subject clauses -> Nil
     DUnmodeled s text -> Cons (MkDiagnostic rung s (string-concat "unmodeled declaration: " text)) Nil
     other -> Nil
 

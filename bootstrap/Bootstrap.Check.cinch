@@ -971,6 +971,10 @@ module Bootstrap.Check where
     DGenerate s actions -> fail s "a generate block requires compile-time expansion"
     DStageEmit s template -> fail s "emit requires a generate block"
     DStageBranch s condition yes no -> fail s "a staged branch requires a generate block"
+    -- A temporal contract is verified by the elaboration that owns the
+    -- definition's checked Core and its per-step write log, so this
+    -- untyped rung has nothing to check it against.
+    DContract s keyword name subject clauses -> fail s "a temporal contract needs the checked write log of the definition it names"
     DDecl s x rest -> (check-decl tops x) <> (check-decl tops rest)
     DDeclsEnd s -> Nil
     DUnmodeled s text -> fail s (string-concat "unmodeled declaration: " text)
