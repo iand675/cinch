@@ -161,17 +161,46 @@ module Bootstrap.Stage where
       other -> False
     other -> False
 
-  stage-declarations :: Bool -> List String -> List Decl -> Result (List Diagnostic) (List Decl)
-  stage-declarations owner runtime declarations = case declarations of
+  -- Whether `name` is a quotation-bodied stage declaration in `all`. A
+  -- signature and its definition are separate marked declarations, so the
+  -- signature is recognised by the definition's name rather than its own
+  -- shape.
+  quotation-signature-of :: String -> List Decl -> Bool
+  quotation-signature-of name all = case all of
+    Nil -> False
+    Cons first rest -> case first of
+      DStage site body -> if quotation-bodied body then same (definition-name body) name else quotation-signature-of name rest
+      other -> quotation-signature-of name rest
+
+  -- The name a marked declaration defines, whether it is the definition
+  -- itself or its signature: both are `DStage`-wrapped, and both carry the
+  -- same bare name before resolution.
+  definition-name :: Decl -> String
+  definition-name declaration = case declaration of
+    DStage site (DFun at name clauses) -> name
+    DStage site (DSig at name ty) -> name
+    DFun site name clauses -> name
+    DSig site name ty -> name
+    other -> empty-string
+
+  -- `all` is the module's whole declaration list, so a signature can see
+  -- whether a quotation-bodied definition of the same name exists. A stage
+  -- declaration and its signature are separate marked declarations, and both
+  -- have to leave the stage namespace together: the template is checked where
+  -- the code lands, so neither the body nor the signature is stage code.
+  stage-declarations :: Bool -> List String -> List Decl -> List Decl -> Result (List Diagnostic) (List Decl)
+  stage-declarations owner runtime all declarations = case declarations of
     Nil -> Ok Nil
-    Cons first rest -> case stage-declarations owner runtime rest of
+    Cons first rest -> case stage-declarations owner runtime all rest of
       Err errors -> Err errors
       Ok tail -> case first of
         -- A macro declaration is compile-time only: it names no runtime
         -- value in any module, so the runtime program keeps no trace of it.
         DMacro site body -> Ok tail
         DStage site body -> if not owner then Ok tail
-          else if quotation-bodied body then Ok tail else Ok (Cons body tail)
+          else if quotation-bodied body then Ok tail
+          else if quotation-signature-of (definition-name body) all then Ok tail
+          else Ok (Cons body tail)
         DGenerate site actions -> if owner then (case generator-probes (decls-of actions) of
           Err errors -> Err errors
           Ok probes -> Ok (probes <> tail)) else Ok tail
@@ -184,7 +213,7 @@ module Bootstrap.Stage where
   stage-modules owner modules = case modules of
     Nil -> Ok Nil
     Cons first rest -> let name = module-name first in let body = module-decls first in
-      case (stage-declarations (same owner name) (runtime-value-names body) body, stage-modules owner rest) of
+      case (stage-declarations (same owner name) (runtime-value-names body) body body, stage-modules owner rest) of
         (Ok declarations, Ok tail) -> let site = module-span first in
           let visible = if same owner name then Cons (DImport site stage-quotation-module Nil None Nil Nil Nil) declarations else declarations in
           Ok (Cons (MkModule site name (decl-spine site visible)) tail)
@@ -283,24 +312,26 @@ module Bootstrap.Stage where
   -- off the checked surface: the same program the checker accepted, with the
   -- declaration the splice names. The template is then filled and re-checked
   -- where the code lands, which is the discipline the seed states.
-  surface-template :: CheckedProgram -> String -> Option Expr
-  surface-template checked name = case checked-surface checked of
-    MkProgram site modules -> module-template name modules
-
-  module-template :: String -> List Module -> Option Expr
-  module-template name modules = case modules of
-    Nil -> None
-    Cons first rest -> case declarations-template name (module-decls first) of
-      Some body -> Some body
-      None -> module-template name rest
+  -- The template comes from the module's OWN declarations, not from the
+  -- stage namespace: a quotation-bodied declaration is deliberately kept out
+  -- of that namespace, because its template is not stage code. Both the
+  -- declaration and the splice carry the same spelling here, because the
+  -- expansion runs over the declarations before resolution renames them.
+  surface-template :: String -> List Decl -> Option Expr
+  surface-template name declarations = declarations-template name declarations
 
   declarations-template :: String -> List Decl -> Option Expr
   declarations-template name declarations = case declarations of
     Nil -> None
     Cons first rest -> case first of
-      DStage site (DFun at owner clauses) -> if same owner name then clause-template clauses
+      DStage site body -> if same (definition-name body) name then clause-template-of body
         else declarations-template name rest
       other -> declarations-template name rest
+
+  clause-template-of :: Decl -> Option Expr
+  clause-template-of declaration = case declaration of
+    DFun site name clauses -> clause-template clauses
+    other -> None
 
   -- A quotation body is the declaration's whole right-hand side: a single
   -- clause with no patterns whose body is the quotation.
@@ -315,12 +346,12 @@ module Bootstrap.Stage where
   -- the surface supplies; or it is a stage computation whose value is code,
   -- which the evaluator runs and reifies. A splice that is none of these is
   -- refused by name.
-  expand-clause :: CheckedProgram -> String -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
-  expand-clause checked owner body fuel = case body of
+  expand-clause :: CheckedProgram -> String -> List Decl -> List Decl -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
+  expand-clause checked owner module-decls template-decls body fuel = case body of
     ESplice site expression -> case expression of
       EQuote at template -> expand-quotation checked owner template fuel
       other -> case splice-reference other of
-        Some name -> case surface-template checked name of
+        Some name -> case surface-template name module-decls of
           Some template -> expand-quotation checked owner template fuel
           None -> splice-value checked owner site expression fuel
         None -> splice-value checked owner site expression fuel
@@ -339,46 +370,46 @@ module Bootstrap.Stage where
       Ok (StageCode template, remaining) -> Ok (template-body template, remaining)
       Ok other -> stage-error site "splice did not produce checked code"
 
-  expand-clauses :: CheckedProgram -> String -> List (List Pat, Expr) -> Nat -> Result (List Diagnostic) (List (List Pat, Expr), Nat)
-  expand-clauses checked owner clauses fuel = case clauses of
+  expand-clauses :: CheckedProgram -> String -> List Decl -> List Decl -> List (List Pat, Expr) -> Nat -> Result (List Diagnostic) (List (List Pat, Expr), Nat)
+  expand-clauses checked owner module-decls template-decls clauses fuel = case clauses of
     Nil -> Ok (Nil, fuel)
-    Cons (patterns, body) rest -> case expand-clause checked owner body fuel of
+    Cons (patterns, body) rest -> case expand-clause checked owner module-decls template-decls body fuel of
       Err errors -> Err errors
-      Ok (term, remaining) -> case expand-clauses checked owner rest remaining of
+      Ok (term, remaining) -> case expand-clauses checked owner module-decls template-decls rest remaining of
         Err errors -> Err errors
         Ok (more, done) -> Ok (Cons (patterns, term) more, done)
 
-  expand-template-declaration :: CheckedProgram -> String -> Decl -> Nat -> Result (List Diagnostic) (Decl, Nat)
-  expand-template-declaration checked owner declaration fuel = case declaration of
-    DFun site name body -> case expand-clauses checked owner body fuel of
+  expand-template-declaration :: CheckedProgram -> String -> List Decl -> List Decl -> Decl -> Nat -> Result (List Diagnostic) (Decl, Nat)
+  expand-template-declaration checked owner module-decls template-decls declaration fuel = case declaration of
+    DFun site name body -> case expand-clauses checked owner module-decls template-decls body fuel of
       Err errors -> Err errors
       Ok (value, remaining) -> Ok (DFun site name value, remaining)
     other -> Ok (declaration, fuel)
 
-  expand-template :: CheckedProgram -> String -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
-  expand-template checked owner declarations fuel = case declarations of
+  expand-template :: CheckedProgram -> String -> List Decl -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
+  expand-template checked owner module-decls template-decls fuel = case template-decls of
     Nil -> Ok (Nil, fuel)
-    Cons first rest -> case expand-template-declaration checked owner first fuel of
+    Cons first rest -> case expand-template-declaration checked owner module-decls template-decls first fuel of
       Err errors -> Err errors
-      Ok (value, remaining) -> case expand-template checked owner rest remaining of
+      Ok (value, remaining) -> case expand-template checked owner module-decls rest remaining of
         Err errors -> Err errors
         Ok (more, done) -> Ok (Cons value more, done)
 
-  expand-action :: CheckedProgram -> String -> Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
-  expand-action checked owner action fuel = case action of
-    DStageEmit site template -> expand-template checked owner (decls-of template) fuel
+  expand-action :: CheckedProgram -> String -> List Decl -> Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
+  expand-action checked owner module-decls action fuel = case action of
+    DStageEmit site template -> expand-template checked owner module-decls (decls-of template) fuel
     DStageBranch site condition yes no -> case evaluate-probe checked owner site fuel of
       Err errors -> Err errors
-      Ok (StageBoolean selected, remaining) -> expand-action checked owner (if selected then yes else no) remaining
+      Ok (StageBoolean selected, remaining) -> expand-action checked owner module-decls (if selected then yes else no) remaining
       Ok other -> stage-error site "checked generator branch did not produce Bool"
     other -> stage-error (decl-span action) "invalid compile-time generator action"
 
-  expand-actions :: CheckedProgram -> String -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
-  expand-actions checked owner actions fuel = case actions of
+  expand-actions :: CheckedProgram -> String -> List Decl -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
+  expand-actions checked owner module-decls actions fuel = case actions of
     Nil -> Ok (Nil, fuel)
-    Cons first rest -> case expand-action checked owner first fuel of
+    Cons first rest -> case expand-action checked owner module-decls first fuel of
       Err errors -> Err errors
-      Ok (generated, remaining) -> case expand-actions checked owner rest remaining of
+      Ok (generated, remaining) -> case expand-actions checked owner module-decls rest remaining of
         Err errors -> Err errors
         Ok (more, done) -> Ok (generated <> more, done)
 
@@ -390,25 +421,10 @@ module Bootstrap.Stage where
   expand-declaration checked owner declarations declaration fuel = case declaration of
     DMacro site body -> Ok (Nil, fuel)
     DStage site body -> if quotation-bodied body then Ok (Nil, fuel) else Ok (Nil, fuel)
-    DGenerate site actions -> expand-actions checked owner (decls-of actions) fuel
-    DSig site name ty -> if quotation-signature name declarations then Ok (Nil, fuel) else Ok ([declaration], fuel)
+    DGenerate site actions -> expand-actions checked owner declarations (decls-of actions) fuel
+    DSig site name ty -> if quotation-signature-of name declarations then Ok (Nil, fuel) else Ok ([declaration], fuel)
     other -> Ok ([declaration], fuel)
 
-  -- Whether a signature names a quotation-bodied stage declaration.
-  quotation-signature :: String -> List Decl -> Bool
-  quotation-signature name declarations = case declarations of
-    Nil -> False
-    Cons first rest -> case first of
-      DStage site body -> if quotation-bodied body then same (definition-name body) name else quotation-signature name rest
-      other -> quotation-signature name rest
-
-  -- The name a quotation-bodied stage declaration defines: the marked
-  -- declaration's own function, which is what its signature names.
-  definition-name :: Decl -> String
-  definition-name declaration = case declaration of
-    DStage site (DFun at name clauses) -> name
-    DFun site name clauses -> name
-    other -> empty-string
 
   expand-declarations :: CheckedProgram -> String -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
   expand-declarations checked owner declarations fuel = case declarations of
