@@ -2067,7 +2067,7 @@ module Bootstrap.Parse where
       TPunct p ->
         if string-compare p "(" == 0 then parse-paren-expr (sp-of t) rest src fix
         else if string-compare p "[" == 0 then parse-list-expr (sp-of t) rest src fix
-        else if string-compare p "[|" == 0 then parse-unmodeled-atom toks src "|]"
+        else if string-compare p "[|" == 0 then parse-quotation (sp-of t) rest src fix
         else if string-compare p "$" == 0 then parse-splice (sp-of t) rest src fix
         else if string-compare p "\\" == 0 then parse-lam (sp-of t) rest src fix
         else PBad
@@ -2082,6 +2082,16 @@ module Bootstrap.Parse where
         else PBad
       _ -> PBad
     Nil -> PBad
+
+  -- `[| e |]`: the body is an ordinary expression, so the whole expression
+  -- grammar (including a nested quotation and a splice) applies inside it.
+  -- The span covers both delimiters, as the seed's `Tok::LQuote` arm does.
+  parse-quotation :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Expr
+  parse-quotation start toks src fix = case parse-expr toks src fix of
+    POk body after-body -> case expect-punct-t after-body "|]" of
+      POk close tail -> POk (EQuote (span-join start close) body) tail
+      PBad -> PBad
+    PBad -> PBad
 
   -- The lexer gives both tokens of `$(` the same span so layout can
   -- see the parenthesis. A spaced `$ (` does not start a splice.

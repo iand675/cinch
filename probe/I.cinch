@@ -1,9 +1,0 @@
-module Main where
-  stage quoted :: Code Int
-  stage quoted = quoteNat 7
-  generate do
-    emit (quoteDecls where
-      answer :: Int
-      answer = $(quoted))
-  main :: Int
-  main = answer
