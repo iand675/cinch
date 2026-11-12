@@ -1,0 +1,625 @@
+-- The decision procedures behind temporal contracts (core specification
+-- section 10). `Bootstrap.Temporal` owns the claim's vocabulary and the
+-- refusals that need only the source; this module owns the checks that need
+-- the definition's checked Core: its per-step write log, the footprint a
+-- formula reads, the structural descent a recurrence claim needs, and the
+-- structured scope a liveness claim names.
+--
+-- Every check is decided where it is decidable and refused BY NAME where it
+-- is not, never silently unchecked. A refusal is a `TemporalRefused` whose
+-- text is the seed's own, so a reader gets the same diagnostic from either
+-- frontend.
+--
+-- The parameters a formula may name are the definition's own: the pattern
+-- variables of its clauses, at the identity the checked Core gave them. That
+-- identity is what the write log records, so the formula's footprint and the
+-- body's writes compare without a name table, and a step's post-state is the
+-- written value substituted into the formula's own reading.
+
+module Bootstrap.TemporalCheck where
+
+  import Text.Lex (Span, span-line, span-col)
+  import Text.Show (int-to-string, nat-to-string)
+  import Data.Nat (nat-to-int)
+  import Data.String (unpack, string-char-at, string-length, string-slice)
+  import Text.Scan (string-starts-with)
+  import Data.Char (digit-value, eq-char)
+  import Data.List (list-length)
+  import Algebra.Semigroup
+  import Bootstrap.Type (UType, borrow-type-parts, without-index-levels, empty-store, store-errors, unify)
+  import Bootstrap.Proof (Arithmetic, AInteger, AVariable, APlus, AMinus, ATimes, ACall, AArgument, AArgumentsEnd, Proposition, PTruth, PFalsehood, PCompare, PBoth, PEither, PNegate, Comparison, Less, AtMost, Equal, Unequal, AtLeast, Greater, prove, disproved, proposition-equal)
+  import Bootstrap.Core (mutable-borrow, CoreClause, MkCoreClause, core-clauses, term-children, CoreTerm, CorePattern, CPWild, CPVar, CPProof, CPErasedValue, CPAs, CPConstructor, CPInt, CPString, CPChar, CPTuple, CPField, CPDone, CUse, CQualifiedUse, CLocal, CInt, CString, CChar, CUnit, CApply, CApplyEff, CLambda, CLet, CIf, CCase, CAlternative, CAlternativesEnd, CTuple, CPrimitive, CGuard, CArgument, CArgumentsEnd, CScope, CSpawn, CJoin, core-type, borrow-read-variable, proof-variable)
+
+  export Parameter, MkParameter, parameter-name, parameter-id, parameter-type
+  export TemporalStep, TemporalWrite, TemporalOpaque, TemporalDischarge, TemporalCall
+  export temporal-steps, temporal-parameters, temporal-reads, temporal-definition-steps
+  export temporal-definition-parameters, temporal-recursive, temporal-descent
+  export TemporalVerdict, TemporalVerified, TemporalRefused, verdict-verified, verdict-message
+  export verify-safety, verify-stability, verify-recurrence, verify-liveness
+  export temporal-proposition, temporal-proposition-text, temporal-substitute
+
+  -- One parameter of the definition a contract names: its source name, the
+  -- identity the checked Core gave it, and its type.
+  data Parameter where
+    MkParameter :: String -> Nat -> UType -> Parameter
+
+  parameter-name :: Parameter -> String
+  parameter-name p = case p of MkParameter name id ty -> name
+
+  parameter-id :: Parameter -> Nat
+  parameter-id p = case p of MkParameter name id ty -> id
+
+  parameter-type :: Parameter -> UType
+  parameter-type p = case p of MkParameter name id ty -> ty
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+
+  cat :: List String -> String
+  cat parts = string-concat-all parts
+
+  -- `line:col`, the position a reader navigates to.
+  position :: Span -> String
+  position sp = cat [int-to-string (nat-to-int (span-line sp)), ":", int-to-string (nat-to-int (span-col sp))]
+
+  -- ------------------------------------------------------------- parameters
+
+  -- The parameters a definition's formulas may name: the pattern variables
+  -- of its first clause, at the identity the checked Core gave them. A
+  -- pattern that destructures binds the names it binds, which is exactly what
+  -- a formula over `copyOut m` may mention.
+  temporal-parameters :: List CorePattern -> List Parameter
+  temporal-parameters patterns = case patterns of
+    Nil -> Nil
+    Cons first rest -> pattern-parameters first <> temporal-parameters rest
+
+  pattern-parameters :: CorePattern -> List Parameter
+  pattern-parameters pattern = case pattern of
+    CPVar s ty id name -> Cons (MkParameter name id ty) Nil
+    CPErasedValue s ty id name -> Cons (MkParameter name id ty) Nil
+    CPAs s ty id name inner -> Cons (MkParameter name id ty) (pattern-parameters inner)
+    CPTuple s ty fields -> pattern-parameters fields
+    CPField s field rest -> pattern-parameters field <> pattern-parameters rest
+    other -> Nil
+
+  -- ------------------------------------------------------------------ steps
+  --
+  -- A definition's per-step transition log: the writes its body performs, in
+  -- evaluation order.
+
+  data TemporalStep where
+    -- A direct write: its site, the region written, the value's reading
+    -- (none when the written value has no arithmetic reading).
+    TemporalWrite :: Span -> UType -> Option Arithmetic -> TemporalStep
+    -- A call to the definition itself passing its borrows through: the
+    -- inductive discharge (the callee's contract is this contract).
+    TemporalDischarge :: Span -> TemporalStep
+    -- Any other call that may write.
+    TemporalCall :: Span -> String -> TemporalStep
+    -- An opaque write whose post-state is unknown.
+    TemporalOpaque :: Span -> TemporalStep
+
+  -- The steps of one checked body, given the definition's own identity (a
+  -- recursive call to it is the inductive discharge).
+  temporal-steps :: String -> CoreTerm -> List TemporalStep
+  temporal-steps owner body = step-term owner body
+
+  -- The steps of a whole definition: every clause's body, in written order.
+  temporal-definition-steps :: String -> List CoreClause -> List TemporalStep
+  temporal-definition-steps owner clauses = case clauses of
+    Nil -> Nil
+    Cons (MkCoreClause sp patterns body) rest -> step-term owner body <> temporal-definition-steps owner rest
+
+  -- A definition's first clause's parameters (the scope its formulas read).
+  temporal-definition-parameters :: List CoreClause -> List Parameter
+  temporal-definition-parameters clauses = case clauses of
+    Nil -> Nil
+    Cons (MkCoreClause sp patterns body) rest -> temporal-parameters patterns
+
+  -- Whether the definition calls itself: a recurrence claim needs a cycle.
+  temporal-recursive :: String -> List CoreClause -> Bool
+  temporal-recursive owner clauses = case clauses of
+    Nil -> False
+    Cons (MkCoreClause sp patterns body) rest -> calls-name owner body || temporal-recursive owner rest
+
+  calls-name :: String -> CoreTerm -> Bool
+  calls-name owner term = case callee-name term of
+    Some callee -> same callee owner
+    None -> any-child (\child -> calls-name owner child) term
+
+  any-child :: (CoreTerm -> Bool) -> CoreTerm -> Bool
+  any-child predicate term = any-of predicate (term-children term)
+
+  any-of :: (CoreTerm -> Bool) -> List CoreTerm -> Bool
+  any-of predicate children = case children of
+    Nil -> False
+    Cons first rest -> predicate first || any-of predicate rest
+
+  -- Whether some argument of some self-call is a strict sub-pattern of the
+  -- parameter at its own position: the structural descent a recurrence
+  -- claim's bound comes from. The shape is read from the patterns: a
+  -- constructor pattern at the call's argument position whose own variable
+  -- is passed where the whole parameter was is a descent.
+  temporal-descent :: String -> List CoreClause -> Bool
+  temporal-descent owner clauses = case clauses of
+    Nil -> False
+    Cons (MkCoreClause sp patterns body) rest ->
+      descends-in owner patterns body || temporal-descent owner rest
+
+  descends-in :: String -> List CorePattern -> CoreTerm -> Bool
+  descends-in owner patterns term = case term of
+    CApply sp ty f x -> self-descent owner patterns f x || descends-in owner patterns f || descends-in owner patterns x
+    CApplyEff sp ty row f x -> self-descent owner patterns f x || descends-in owner patterns f || descends-in owner patterns x
+    other -> any-of (descends-in owner patterns) (term-children other)
+
+  -- A self-call whose argument is a variable the clause bound under a
+  -- constructor pattern of the same position: that argument is smaller than
+  -- the parameter it replaces.
+  self-descent :: String -> List CorePattern -> CoreTerm -> CoreTerm -> Bool
+  self-descent owner patterns f x = case callee-name f of
+    Some callee -> if same callee owner then sub-pattern-argument patterns x else False
+    None -> False
+
+  sub-pattern-argument :: List CorePattern -> CoreTerm -> Bool
+  sub-pattern-argument patterns argument = case (patterns, argument) of
+    (Nil, other) -> False
+    (Cons first rest, CArgument sp value more) -> sub-pattern-of first value || sub-pattern-argument rest more
+    other -> False
+
+  sub-pattern-of :: CorePattern -> CoreTerm -> Bool
+  sub-pattern-of pattern argument = case (pattern, argument) of
+    (CPConstructor sp ty name actuals result inner, CLocal at cty id local-name nil) ->
+      pattern-binds inner id
+    (CPConstructor sp ty name actuals result inner, other) -> pattern-binds inner 0 && False
+    other -> False
+
+  pattern-binds :: CorePattern -> Nat -> Bool
+  pattern-binds pattern id = case pattern of
+    CPVar sp ty key name -> key == id
+    CPAs sp ty key name inner -> key == id || pattern-binds inner id
+    CPConstructor sp ty name actuals result inner -> pattern-binds inner id
+    CPTuple sp ty fields -> pattern-binds fields id
+    CPField sp field rest -> pattern-binds field id || pattern-binds rest id
+    other -> False
+
+  step-term :: String -> CoreTerm -> List TemporalStep
+  step-term owner term = case term of
+    CPrimitive sp ty op (CArgument at place (CArgument v value (CArgumentsEnd end))) ->
+      if same op "ref-set" then Cons (TemporalWrite sp (core-type place) (value-reading value)) (step-term owner value)
+      else step-term owner place <> step-term owner value
+    CPrimitive sp ty op (CArgument at place (CArgumentsEnd end)) -> step-term owner place
+    CApply sp ty f x -> call-step owner sp f x
+    CApplyEff sp ty row f x -> call-step owner sp f x
+    CScope sp ty region evidence callback -> step-term owner callback
+    CSpawn sp ty token spawn-body -> step-term owner token <> step-term owner spawn-body
+    CJoin sp ty token handles -> step-term owner token <> step-term owner handles
+    CIf sp ty condition yes no -> step-term owner condition <> step-term owner yes <> step-term owner no
+    CCase sp ty value alternatives -> step-term owner value <> step-alternatives owner alternatives
+    CLet sp ty id name sc rhs body -> step-term owner rhs <> step-term owner body
+    CLambda sp ty pattern body -> Nil
+    CGuard sp ty condition guard-body -> step-term owner condition <> step-term owner guard-body
+    CTuple sp ty fields -> step-term owner fields
+    CArgument sp value rest -> step-term owner value <> step-term owner rest
+    other -> Nil
+
+  step-alternatives :: String -> CoreTerm -> List TemporalStep
+  step-alternatives owner alternatives = case alternatives of
+    CAlternativesEnd sp -> Nil
+    CAlternative sp pattern body rest -> step-term owner body <> step-alternatives owner rest
+    other -> Nil
+
+  -- A call's step. A call to the definition itself whose borrow argument is
+  -- one of the caller's own places passed unchanged is the inductive
+  -- discharge; anything else is a step with no decidable post-state.
+  call-step :: String -> Span -> CoreTerm -> CoreTerm -> List TemporalStep
+  call-step owner sp f x = case callee-name f of
+    Some callee -> if same callee owner then
+      (if borrow-passthrough x then Cons (TemporalDischarge sp) (step-term owner f)
+        else Cons (TemporalCall sp callee) (step-term owner f))
+      else Cons (TemporalCall sp callee) (step-term owner f <> step-term owner x)
+    None -> step-term owner f <> step-term owner x
+
+  callee-name :: CoreTerm -> Option String
+  callee-name term = case term of
+    CUse sp ty name role actuals -> if same role "value" then Some name else None
+    CQualifiedUse sp ty name role actuals evidence -> if same role "value" then Some name else None
+    CApply sp ty f x -> callee-name f
+    CApplyEff sp ty row f x -> callee-name f
+    other -> None
+
+  -- Whether a call argument is a borrow of one of the caller's own places, or
+  -- a value the call simply passes on: the shape that makes a recursive call
+  -- re-establish the same invariant.
+  borrow-passthrough :: CoreTerm -> Bool
+  borrow-passthrough term = case term of
+    CLocal sp ty id name actuals -> True
+    CUnit sp ty -> True
+    CInt sp ty text -> True
+    CArgument sp value rest -> borrow-passthrough value && borrow-passthrough rest
+    CArgumentsEnd sp -> True
+    other -> False
+
+  -- The written value's arithmetic reading, when the value is one the proof
+  -- vocabulary can name (a literal, a parameter, or arithmetic over them).
+  value-reading :: CoreTerm -> Option Arithmetic
+  value-reading term = case term of
+    CInt sp ty text -> literal-reading text
+    CLocal sp ty id name actuals -> Some (proof-variable id)
+    CPrimitive sp ty op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
+      binary-reading op (value-reading first) (value-reading second)
+    CPrimitive sp ty op (CArgument a first (CArgumentsEnd end)) ->
+      if same op "negate" then unary-negation (value-reading first) else None
+    other -> None
+
+  binary-reading :: String -> Option Arithmetic -> Option Arithmetic -> Option Arithmetic
+  binary-reading op first second = case (first, second) of
+    (Some x, Some y) -> if same op "+" then Some (APlus x y)
+      else if same op "-" then Some (AMinus x y)
+      else if same op "*" then Some (ATimes x y)
+      else None
+    other -> None
+
+  unary-negation :: Option Arithmetic -> Option Arithmetic
+  unary-negation value = case value of
+    Some x -> Some (AMinus (AInteger 0) x)
+    None -> None
+
+  -- A decimal integer literal's value, or none. A leading `-` is the sign.
+  literal-reading :: String -> Option Arithmetic
+  literal-reading text = case unpack text of
+    Nil -> None
+    Cons first rest -> if eq-char first '-' then signed-digits rest 0 else unsigned-digits text 0 0
+
+  unsigned-digits :: String -> Nat -> Int -> Option Arithmetic
+  unsigned-digits text index acc = case string-char-at text index of
+    None -> if index == 0 then None else Some (AInteger acc)
+    Some c -> case digit-value c of
+      Some d -> unsigned-digits text (index + 1) (acc * 10 + nat-to-int d)
+      None -> None
+
+  signed-digits :: List Char -> Int -> Option Arithmetic
+  signed-digits chars acc = case chars of
+    Nil -> None
+    Cons c rest -> case digit-value c of
+      Some d -> signed-digits rest (acc * 10 - nat-to-int d)
+      None -> None
+
+  -- --------------------------------------------------------------- readings
+
+  -- The mutable and read-only regions a formula's reading names: the
+  -- footprint of evidence invalidation over mutable state (core
+  -- specification section 5).
+  temporal-reads :: CoreTerm -> (List UType, List UType)
+  temporal-reads term = case term of
+    CPrimitive sp ty op (CArgument at place (CArgumentsEnd end)) ->
+      if same op "copy-out" then borrow-read place else (Nil, Nil)
+    CPrimitive sp ty op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
+      union-reads (temporal-reads first) (temporal-reads second)
+    CApply sp ty f x -> union-reads (temporal-reads f) (temporal-reads x)
+    CApplyEff sp ty row f x -> union-reads (temporal-reads f) (temporal-reads x)
+    other -> (Nil, Nil)
+
+  borrow-read :: CoreTerm -> (List UType, List UType)
+  borrow-read term = case term of
+    CLocal sp ty id name actuals -> case borrow-type-parts ty of
+      Some (True, region, carrier) -> (Cons region Nil, Nil)
+      Some (False, region, carrier) -> (Nil, Cons region Nil)
+      None -> (Nil, Nil)
+    other -> (Nil, Nil)
+
+  union-reads :: (List UType, List UType) -> (List UType, List UType) -> (List UType, List UType)
+  union-reads first second = case (first, second) of
+    ((a, b), (c, d)) -> (a <> c, b <> d)
+
+  -- ------------------------------------------------------------ propositions
+
+  -- The proposition a formula's checked reading states.
+  temporal-proposition :: CoreTerm -> Option Proposition
+  temporal-proposition term = case term of
+    CPrimitive sp ty op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
+      (case (comparison-name op, arithmetic-of first, arithmetic-of second) of
+        (Some relation, Some left, Some right) -> Some (PCompare relation left right)
+        other -> None)
+    other -> None
+
+  arithmetic-of :: CoreTerm -> Option Arithmetic
+  arithmetic-of term = case term of
+    CInt sp ty text -> literal-reading text
+    CLocal sp ty id name actuals -> Some (proof-variable id)
+    CPrimitive sp ty op (CArgument at place (CArgumentsEnd end)) ->
+      if same op "copy-out" then borrow-read-of place else None
+    CPrimitive sp ty op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
+      binary-reading op (arithmetic-of first) (arithmetic-of second)
+    other -> None
+
+  borrow-read-of :: CoreTerm -> Option Arithmetic
+  borrow-read-of term = case term of
+    CLocal sp ty id name actuals -> Some (borrow-read-variable id)
+    other -> None
+
+  comparison-name :: String -> Option Comparison
+  comparison-name op =
+    if same op "<" then Some Less
+    else if same op "<=" then Some AtMost
+    else if same op "==" then Some Equal
+    else if same op "/=" then Some Unequal
+    else if same op ">=" then Some AtLeast
+    else if same op ">" then Some Greater
+    else None
+
+  comparison-text :: Comparison -> String
+  comparison-text c = case c of
+    Less -> "<"
+    AtMost -> "<="
+    Equal -> "=="
+    Unequal -> "/="
+    AtLeast -> ">="
+    Greater -> ">"
+
+  -- A proposition rendered the way the refusal messages spell it, with the
+  -- parameters' source names restored from the definition's table.
+  temporal-proposition-text :: List Parameter -> Proposition -> String
+  temporal-proposition-text params p = case p of
+    PTruth -> "True"
+    PFalsehood -> "False"
+    PCompare relation left right -> cat [arithmetic-text params left, " ", comparison-text relation, " ", arithmetic-text params right]
+    PBoth a b -> cat ["(", temporal-proposition-text params a, " && ", temporal-proposition-text params b, ")"]
+    PEither a b -> cat ["(", temporal-proposition-text params a, " || ", temporal-proposition-text params b, ")"]
+    PNegate a -> cat ["!", temporal-proposition-text params a]
+
+  arithmetic-text :: List Parameter -> Arithmetic -> String
+  arithmetic-text params a = case a of
+    AInteger n -> int-to-string n
+    AVariable name -> evidence-name params name
+    APlus x y -> cat ["(", arithmetic-text params x, " + ", arithmetic-text params y, ")"]
+    AMinus x y -> cat ["(", arithmetic-text params x, " - ", arithmetic-text params y, ")"]
+    ATimes x y -> cat ["(", arithmetic-text params x, " * ", arithmetic-text params y, ")"]
+    ACall name args -> cat [name, "(", arithmetic-text params args, ")"]
+    AArgument first rest -> arithmetic-text params first
+    AArgumentsEnd -> ""
+
+  -- A reading's variable name back to its source spelling: the evidence
+  -- vocabulary names a parameter `#value:<id>` and a borrow read
+  -- `#borrow-read:<id>`, and the definition's table holds the name.
+  evidence-name :: List Parameter -> String -> String
+  evidence-name params name =
+    if string-starts-with "#value:" name then named-by params (after-prefix 7 name) name
+    else if string-starts-with "#borrow-read:" name then named-by params (after-prefix 13 name) name
+    else name
+
+  after-prefix :: Nat -> String -> String
+  after-prefix width text = string-slice text width (string-length text)
+
+  named-by :: List Parameter -> String -> String -> String
+  named-by params digits fallback = case params of
+    Nil -> fallback
+    Cons first rest -> if same (nat-to-string (parameter-id first)) digits then parameter-name first else named-by rest digits fallback
+
+  -- The written value substituted for a parameter's borrow read: the step's
+  -- post-state, which the formula must still satisfy.
+  temporal-substitute :: Nat -> Arithmetic -> Proposition -> Proposition
+  temporal-substitute id value p = case p of
+    PCompare relation left right -> PCompare relation (substitute-arithmetic id value left) (substitute-arithmetic id value right)
+    PBoth a b -> PBoth (temporal-substitute id value a) (temporal-substitute id value b)
+    PEither a b -> PEither (temporal-substitute id value a) (temporal-substitute id value b)
+    PNegate a -> PNegate (temporal-substitute id value a)
+    other -> p
+
+  substitute-arithmetic :: Nat -> Arithmetic -> Arithmetic -> Arithmetic
+  substitute-arithmetic id value a = case a of
+    AVariable name -> if same name (borrow-read-name id) then value else a
+    APlus x y -> APlus (substitute-arithmetic id value x) (substitute-arithmetic id value y)
+    AMinus x y -> AMinus (substitute-arithmetic id value x) (substitute-arithmetic id value y)
+    ATimes x y -> ATimes (substitute-arithmetic id value x) (substitute-arithmetic id value y)
+    ACall name args -> ACall name (substitute-arithmetic id value args)
+    AArgument first rest -> AArgument (substitute-arithmetic id value first) (substitute-arithmetic id value rest)
+    other -> a
+
+  -- The variable name a borrow read of parameter `id` carries (the
+  -- convention the evidence machinery uses, spelled once here).
+  borrow-read-name :: Nat -> String
+  borrow-read-name id = string-concat "#borrow-read:" (nat-to-string id)
+
+  -- ------------------------------------------------------------- the verdict
+
+  -- A verified claim's own argument, or the refusal's message.
+  data TemporalVerdict where
+    TemporalVerified :: String -> TemporalVerdict
+    TemporalRefused :: String -> TemporalVerdict
+
+  verdict-verified :: TemporalVerdict -> Bool
+  verdict-verified v = case v of
+    TemporalVerified result -> True
+    TemporalRefused message -> False
+
+  verdict-message :: TemporalVerdict -> String
+  verdict-message v = case v of
+    TemporalVerified result -> result
+    TemporalRefused message -> message
+
+  -- ---------------------------------------------------------------- safety
+
+  -- `safety`: `always (P)` holds at every step of the definition's
+  -- transitions (core specification section 10). The inductive invariant
+  -- checks its entry condition (the establishment the contract states) and
+  -- every write to the state P reads: a step must leave P true (decided,
+  -- restored, or discharged by the definition's own recursion); a step that
+  -- falsifies P is rejected naming the step; a step the checker cannot decide
+  -- is refused, never trusted.
+  verify-safety :: String -> String -> List Parameter -> Proposition -> List TemporalStep -> List Proposition -> TemporalVerdict
+  verify-safety claim-name display params prop steps assumed =
+    if not (established prop assumed) then
+      TemporalRefused (cat
+        ["temporal safety: the contract `", claim-name, "` on `", display, "` has no establishment for `always (", temporal-proposition-text params prop, ")`: state the entry condition `assume = (", temporal-proposition-text params prop, ")` (core specification section 10: an inductive invariant checks its initial state)"])
+    else safety-steps claim-name display params prop steps
+
+  established :: Proposition -> List Proposition -> Bool
+  established prop assumed = case assumed of
+    Nil -> False
+    Cons first rest -> proposition-equal first prop || established prop rest
+
+  safety-steps :: String -> String -> List Parameter -> Proposition -> List TemporalStep -> TemporalVerdict
+  safety-steps claim-name display params prop steps = case steps of
+    Nil -> TemporalVerified (cat
+      ["verified (the invariant reads only read-only borrow state: no transition of the definition can falsify it)"])
+    Cons first rest -> case first of
+      TemporalWrite sp region value -> case step-region region params of
+        None -> safety-steps claim-name display params prop rest
+        Some subject -> case value of
+          None -> refused-undecidable sp params prop
+          Some written -> case decide-step sp subject written prop params of
+            TemporalVerified result -> safety-steps claim-name display params prop rest
+            TemporalRefused message -> TemporalRefused message
+      TemporalDischarge sp -> safety-steps claim-name display params prop rest
+      TemporalCall sp callee -> TemporalRefused (cat
+        ["temporal safety: refused: the step at ", position sp, " is a call that may write the invariant's state and no contract discharges it (the checker discharges a step only from the definition's own recursion), and an obligation that cannot be established is refused, never trusted (core specification section 10)"])
+      TemporalOpaque sp -> TemporalRefused (cat
+        ["temporal safety: refused: the step at ", position sp, " is an opaque write (an FFI / `RawPtr` write or `eval`) whose post-state is unknown, and an obligation that cannot be established is refused, never trusted (core specification section 10)"])
+
+  refused-undecidable :: Span -> List Parameter -> Proposition -> TemporalVerdict
+  refused-undecidable sp params prop = TemporalRefused (cat
+    ["temporal safety: refused: the step at ", position sp, " leaves the state `", temporal-proposition-text params prop, "`, which the checker cannot decide, and an obligation that cannot be established is refused, never trusted (core specification section 10)"])
+
+  -- The parameter a written region is the borrow of (borrow exclusivity gives
+  -- at most one).
+  step-region :: UType -> List Parameter -> Option Parameter
+  step-region region params = case params of
+    Nil -> None
+    Cons first rest -> case mutable-borrow (parameter-type first) of
+      Some (borrowed, carrier) -> if same-type borrowed region then Some first else step-region region rest
+      None -> step-region region rest
+
+  same-type :: UType -> UType -> Bool
+  same-type a b = case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (empty-store "temporal step")) of Nil -> True; other -> False
+
+  -- One step's post-state obligation: the written value substituted for the
+  -- parameter's borrow read must still satisfy the formula. A closed
+  -- proposition decides; a step that leaves the formula unchanged restores
+  -- it; anything else is refused.
+  decide-step :: Span -> Parameter -> Arithmetic -> Proposition -> List Parameter -> TemporalVerdict
+  decide-step sp subject written prop params =
+    let post = temporal-substitute (parameter-id subject) written prop in
+    if proposition-equal post prop then TemporalVerified "restored"
+    else if proved post then TemporalVerified "decided"
+    else if disproved post then TemporalRefused (cat
+      ["temporal safety: the contract is falsified by the step at ", position sp, ": the write leaves the state `", temporal-proposition-text params post, "` false, so the invariant fails at this transition (core specification section 10)"])
+    else TemporalRefused (cat
+      ["temporal safety: refused: the step at ", position sp, " leaves the state `", temporal-proposition-text params post, "`, which the checker cannot decide, and an obligation that cannot be established is refused, never trusted (core specification section 10)"])
+
+  proved :: Proposition -> Bool
+  proved p = case prove Nil p of Some evidence -> True; None -> False
+
+  -- ------------------------------------------------------------- stability
+
+  -- `stability`: `stable (P)` survives the definition's transitions (core
+  -- specification section 10: the dual of evidence invalidation). A fact
+  -- survives exactly when no write touches its footprint (core specification
+  -- section 5); a touching write kills it naming the step.
+  verify-stability :: String -> String -> List Parameter -> Proposition -> List TemporalStep -> TemporalVerdict
+  verify-stability claim-name display params prop steps = stability-steps claim-name display params prop steps
+
+  stability-steps :: String -> String -> List Parameter -> Proposition -> List TemporalStep -> TemporalVerdict
+  stability-steps claim-name display params prop steps = case steps of
+    Nil -> TemporalVerified (cat
+      ["verified (no write touches the fact's footprint: the definition performs no transition of the state it reads)"])
+    Cons first rest -> case first of
+      TemporalWrite sp region value -> case step-region region params of
+        None -> stability-steps claim-name display params prop rest
+        Some subject -> TemporalRefused (cat
+          ["temporal stability: the contract `", claim-name, "` on `", display, "` dies at the step at ", position sp, ": the write touches the footprint of `stable (", temporal-proposition-text params prop, ")`, so the fact would be invalidated there (evidence invalidation over mutable state; core specification sections 5 and 10)"])
+      TemporalCall sp callee -> TemporalRefused (cat
+        ["temporal stability: the contract `", claim-name, "` on `", display, "` dies at the step at ", position sp, ": the call touches the footprint of `stable (", temporal-proposition-text params prop, ")`, so the fact would be invalidated there (evidence invalidation over mutable state; core specification sections 5 and 10)"])
+      TemporalOpaque sp -> TemporalRefused (cat
+        ["temporal stability: the contract `", claim-name, "` on `", display, "` dies at the step at ", position sp, ": an opaque write touches the footprint of `stable (", temporal-proposition-text params prop, ")`, so the fact would be invalidated there (evidence invalidation over mutable state; core specification sections 5 and 10)"])
+      TemporalDischarge sp -> stability-steps claim-name display params prop rest
+
+  -- ------------------------------------------------------------ recurrence
+
+  -- `recurrence`: `recur (P)` at every cycle of the definition's recursion
+  -- (core specification section 10). The bound is the structural recursion,
+  -- which the totality machinery established for this definition before the
+  -- contract is verified, so `has-descent` is that answer. The witness is a
+  -- step re-establishing P on every cycle.
+  verify-recurrence :: String -> String -> List Parameter -> Proposition -> List TemporalStep -> Bool -> Bool -> TemporalVerdict
+  verify-recurrence claim-name display params prop steps recursive has-descent =
+    if not recursive then
+      TemporalRefused (cat
+        ["temporal recurrence: the contract `", claim-name, "` on `", display, "` has no cycle: the definition does not recurse (core specification section 10: a recurrence claim is over the cycles of a recursion)"])
+    else if not has-descent then
+      TemporalRefused (cat
+        ["temporal recurrence: refused: the recursion of `", display, "` has no structural depth bound (no argument decreases structurally), and a recurrence claim's bound comes from structural recursion (core specification sections 8 and 10): refused, never trusted"])
+    else if not (establishes params prop steps) then
+      TemporalRefused (cat
+        ["temporal recurrence: the contract `", claim-name, "` on `", display, "` is not witnessed: no step of the cycle re-establishes `recur (", temporal-proposition-text params prop, ")` (core specification section 10: a state recurs at every cycle)"])
+    else TemporalVerified "verified (the state recurs at every cycle of the structural recursion)"
+
+  -- Whether some step re-establishes the claim's state: a write whose
+  -- post-state still satisfies the formula.
+  establishes :: List Parameter -> Proposition -> List TemporalStep -> Bool
+  establishes params prop steps = case steps of
+    Nil -> False
+    Cons first rest -> case first of
+      TemporalWrite sp region value -> case (value, step-region region params) of
+        (Some written, Some subject) -> proved (temporal-substitute (parameter-id subject) written prop) || establishes params prop rest
+        (Some written, None) -> proved (temporal-substitute 0 written prop) || establishes params prop rest
+        other -> establishes params prop rest
+      other -> establishes params prop rest
+
+  -- -------------------------------------------------------------- liveness
+
+  -- The structured-concurrency sites a body contains: `withScope`, `spawn`
+  -- and `joinAllOrCancel`. The finite liveness claims read them as their
+  -- subject (core specification section 10; concurrency specification
+  -- section 2).
+  temporal-scope-sites :: CoreTerm -> List String
+  temporal-scope-sites term = case term of
+    CScope sp ty region evidence callback -> Cons "scope" (temporal-scope-sites callback)
+    CSpawn sp ty token spawn-body -> Cons "spawn" (temporal-scope-sites token <> temporal-scope-sites spawn-body)
+    CJoin sp ty token handles -> Cons "join" (temporal-scope-sites token <> temporal-scope-sites handles)
+    CIf sp ty condition yes no -> temporal-scope-sites condition <> temporal-scope-sites yes <> temporal-scope-sites no
+    CCase sp ty value alternatives -> temporal-scope-sites value <> scope-alternatives alternatives
+    CLet sp ty id name sc rhs body -> temporal-scope-sites rhs <> temporal-scope-sites body
+    CGuard sp ty condition guard-body -> temporal-scope-sites condition <> temporal-scope-sites guard-body
+    CTuple sp ty fields -> temporal-scope-sites fields
+    CArgument sp value rest -> temporal-scope-sites value <> temporal-scope-sites rest
+    CApply sp ty f x -> temporal-scope-sites f <> temporal-scope-sites x
+    CApplyEff sp ty row f x -> temporal-scope-sites f <> temporal-scope-sites x
+    other -> Nil
+
+  scope-alternatives :: CoreTerm -> List String
+  scope-alternatives alternatives = case alternatives of
+    CAlternativesEnd sp -> Nil
+    CAlternative sp pattern body rest -> temporal-scope-sites body <> scope-alternatives rest
+    other -> Nil
+
+  -- `liveness`: `eventually (Q)` (core specification section 10). Only the
+  -- finite structured-concurrency obligations verify (`joined`, `cleanup`),
+  -- and only within a `withScope`; an unbounded eventual claim is refused by
+  -- name, because it needs a well-founded progress argument and stated
+  -- fairness assumptions the checker does not derive.
+  verify-liveness :: String -> String -> String -> String -> List String -> List String -> TemporalVerdict
+  verify-liveness claim-name display claim formula assumptions sites =
+    if same claim "unbounded" then
+      TemporalRefused (cat
+        ["temporal liveness: refused: the contract `", claim-name, "` on `", display, "` claims `", formula, "`, an unbounded eventual claim: it needs a well-founded progress argument and stated fairness assumptions, which this checker does not derive (core specification section 10): refused, never trusted. The finite structured-concurrency obligations `eventually = (joined)` and `eventually = (cleanup)` verify within their scope"])
+    else if not (has-any assumptions) then
+      TemporalRefused (cat
+        ["temporal liveness: the contract `", claim-name, "` on `", display, "` states no assumption: a liveness claim relies on the runtime's scheduling and cancellation policies and must state them (concurrency specification section 10; core specification section 10: temporal contracts state their assumptions when relied upon)"])
+    else if not (has-site sites "scope") || not (has-site sites "spawn") then
+      TemporalRefused (cat
+        ["temporal liveness: the contract `", claim-name, "` on `", display, "` has no subject: the bounded claim `", formula, "` needs a structured `withScope` spawn/join in the definition (concurrency specification section 2)"])
+    else if same claim "joined" && not (has-site sites "join") then
+      TemporalRefused (cat
+        ["temporal liveness: the contract `", claim-name, "` on `", display, "` finds no join: the claim `", formula, "` needs a `joinAllOrCancel` in the definition's structured scope (concurrency specification section 2)"])
+    else if same claim "joined" then
+      TemporalVerified "verified from the P12 structured-scope guarantee: every spawned handle is joined before the scope exits, so the join completes within the scope's bound (concurrency specification section 2)"
+    else
+      TemporalVerified "verified from the P12 structured-scope guarantee: the scope's exit runs its spawned tasks' cleanup through the join/cancel discipline (concurrency specification section 2)"
+
+  has-any :: List String -> Bool
+  has-any values = case values of Nil -> False; Cons first rest -> True
+
+  has-site :: List String -> String -> Bool
+  has-site sites name = case sites of
+    Nil -> False
+    Cons first rest -> same first name || has-site rest name

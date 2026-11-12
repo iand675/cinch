@@ -7401,3 +7401,4 @@ module Bootstrap.Infer where
 
   checked-guarded-binding :: CheckedBinding -> Option GuardedBinding
   checked-guarded-binding binding = case binding of MkConditionalBinding name owner slot dictionary head sc guarded -> guarded; other -> None
+

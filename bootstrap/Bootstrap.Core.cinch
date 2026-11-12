@@ -49,6 +49,7 @@ module Bootstrap.Core where
   export scoped-numeric-method-operation
   export ProofScope, make-proof-scope, scoped-prove-refinement, scoped-prove-predicates, scoped-core-predicates, scoped-core-condition, scoped-core-branch, scoped-core-let-fact, scoped-prove-subtraction, scoped-prove-division
   export scoped-refinement-predicate
+  export core-arithmetic, proof-variable, borrow-read-variable, number-sort, bool-type, same-number-sort
   export scoped-core-equation-facts, extend-equation-prefix, pattern-value
   export scoped-total-call-index, scope-bodies, with-body-bindings, core-definition-bodies-closed, seal-definition-with-bodies
   export CoreClause, MkCoreClause, CoreDefinition, MkCoreDefinition

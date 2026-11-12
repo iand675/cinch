@@ -173,3 +173,5 @@ module Bootstrap.Temporal where
     Cons first rest -> (case first of
       ContractFormula s op body -> 1
       other -> 0) + contract-formula-count rest
+
+
