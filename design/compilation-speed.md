@@ -2129,12 +2129,18 @@ inside the entry chain's `.app` stubs, so every frame has a stub somewhere
 above it. Asking which frame *calls* the release entry gives 0.00% from a stub
 on the toolkit and 0.02% on the self-check; the stubs' own bodies are 0.27%
 and 0.10%. The 13.9% is ordinary constructor releasing in the checker's hot
-paths: `Bootstrap.Type.typed-index-carrier` 3.0%, `valid-comparison` 2.2%,
-`carrier-tree` 1.2%, `read-carrier-tree` 1.1%, and on the self-check
-`Bootstrap.Dictionary.matching-heads` 0.4% and `map-kind-types` 0.4%. It is
-the price of the 990M constructor blocks a self-check allocates. Backlog item
-11 was aimed at the stub on the strength of the wrong attribution and is
-replaced by the item the corrected profile supports.
+paths, attributed to the nearest enclosing Cinch unit:
+`Bootstrap.Type.typed-index-carrier` 3.0%, `valid-comparison` 2.2%,
+`carrier-tree` 1.2%, `read-carrier-tree` 1.1%, `valid-typed-math` 0.5%, and on
+the self-check `Bootstrap.Dictionary.matching-heads` 0.4% and
+`map-kind-types` 0.4%. (The same samples attributed to the frame that calls the
+release entry directly put 1.4% in `carrier-tree`, 0.5% in
+`read-carrier-tree` and 0.1% in `valid-comparison`, because most of them are
+called from a short inlined helper; the enclosing-unit view is the one that
+says which code owns the work.) It is the price of the 990M constructor blocks
+a self-check allocates. Backlog item 11 was aimed at the stub on the strength
+of the wrong attribution and is replaced by the item the corrected profile
+supports.
 
 **The tail-position case, and why there is no second rule.** The one site the
 census called the worst offender is
