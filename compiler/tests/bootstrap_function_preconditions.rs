@@ -91,3 +91,44 @@ fn function_preconditions_use_actual_arguments_and_cannot_be_ignored() {
     }
     common::cleanup(&dir);
 }
+
+/// A precondition stated over a byte buffer's length discharges from a guard
+/// of the same shape when the buffer is built in a call and indexed in the
+/// same expression. This is `lib_uri_ipaddr`'s whole failure set
+/// (`Data.IpAddr`'s byte views are exactly this shape), and it is the
+/// smallest form of it: nine lines, one user-declared precondition, no
+/// `bytes-get` involved.
+///
+/// Ignored because the checker cannot yet prove it, and the reason is a
+/// design gap rather than a missing case: `scope-index-valid`
+/// (`bootstrap/Bootstrap.Core.cinch`) demands
+/// `kind-equal (type-kind value) (value-kind carrier)`, and a `Bytes` local's
+/// kind is `KType`, so no index reading is ever recorded for a buffer. The
+/// guard's fact is `i < bytes-len (mk n)` and the callee's obligation is
+/// `i < bytes-len #dependent-argument`, and the recorded-value channel that
+/// would make those two spellings equal cannot hold a container. Four probes
+/// separate this from the branch-fact machinery, which is sound: the same
+/// buffer named on both sides passes, and so does a nested identical guard.
+/// `bootstrap/CHECKPOINT.md` records them.
+///
+/// Unignore this when container values get a definition channel (or
+/// `byte-observation-reading` follows a local to its strict let right-hand
+/// side). The assertion below is the intended behaviour, so it is a red test
+/// the moment someone unignores it without the fix.
+#[test]
+#[ignore = "needs a definition channel for container values: a Bytes local cannot hold an index reading, so bytes-len (mk n) and bytes-len #dependent-argument never compare equal"]
+fn a_guard_over_a_call_built_buffer_discharges_the_same_obligation() {
+    let dir = common::project("precondition_call_built_buffer", &[
+        ("Main.cinch", "module Main where\n  import Data.Bytes\n  import Data.Nat\n\n  get-at :: using (i < bytes-len b) => (b :: Bytes) -> (i :: Nat) -> Nat\n  get-at b i = bytes-get b i\n\n  mk :: Nat -> Bytes\n  mk n = bytes-new n\n\n  g :: Nat -> Nat -> Nat\n  g n i = if i < bytes-len (mk n) then get-at (mk n) i else 0\n\n  main :: Int\n  main = 0\n"),
+    ]);
+    let exe = common::build(&dir, "Main.cinch", "precondition-call-built-buffer")
+        .expect("build the call-built buffer precondition case");
+    let output = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "the guard states the callee's obligation over the same buffer, so it must discharge it: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    common::cleanup(&dir);
+}
