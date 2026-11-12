@@ -156,6 +156,40 @@ them, `ebp` is saved and restored around the trap, and the result
 sign-extends because the kernel's `-errno` convention has to survive a
 32-bit register. `cargo check` for `i686-unknown-linux-gnu` now succeeds.
 
+### wasm32: the front half already works
+
+Measured, not assumed. The compiler emits wasm32 IR through
+`TargetProfile::wasm32` (reachable from the test harness, not yet from
+the CLI), and clang assembles it to a valid module:
+
+```
+w32.o: WebAssembly (wasm) binary module version 0x1 (MVP)
+```
+
+The module declares 10 imports and no exports. Six are the toolchain's
+own (`__linear_memory`, `__indirect_function_table`, `exit`,
+`__stack_pointer`, and the table and memory of a freestanding build);
+the runtime surface a `main = 0` program actually needs is six functions:
+
+| Import | Why |
+| --- | --- |
+| `cinch_int_to_i64` | the `Int` result of `main` |
+| `cinch_drop_slow`, `cinch_drop_mt` | reference counting |
+| `cinch_exit_check` | the exit-status check |
+| `cinch_reclaim_enable` | reclamation |
+| `cinch_layouts_register` | the layout table |
+
+No `open`, no `mmap`, no `pthread`, no signals. So wasm needs a
+**minimal runtime subset**, not a syscall backend: the 26-function `sys`
+contract is what a *native* program reaches, and a wasm program reaches
+six functions of the runtime proper.
+
+That is the shape of the first wasm slice: gate the OS-only modules
+(`pty`, `net`, `task`, `platform`'s unix paths) so they are absent on
+wasm, and build the core (`block`, `rc`, `arena`, `bytes`, `nat`, `heap`)
+against a wasm `sys` that answers `getenv` from the WASI environment and
+nothing else.
+
 ### The limit of what is verifiable here
 
 This host is aarch64 macOS. `cargo check --target i686-unknown-linux-gnu`
