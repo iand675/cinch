@@ -27,7 +27,7 @@ module Bootstrap.Infer where
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Dictionary (resolve-dictionary-definition-with, resolve-dictionary-term-with, resolve-ready-term, check-instance-coherence, check-law-term-evidence, law-context-resolves)
   import Bootstrap.Parse (parse-scheme)
-  import Bootstrap.Nominal (interface-global, resolved-entry-valid, resolved-text, resolved-nominals, qualify-resolved, qualify-refinement-predicate, resolved-measures, global-data-core-cons, global-data-core-list, global-data-core-nil, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-data-string-string, global-stage-code)
+  import Bootstrap.Nominal (interface-global, encode-identity, resolved-entry-valid, resolved-text, resolved-nominals, qualify-resolved, qualify-refinement-predicate, resolved-measures, global-data-core-cons, global-data-core-list, global-data-core-nil, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-data-string-string, global-stage-code)
   import Bootstrap.Report (Diagnostic)
   import Data.Json
   import Text.Lex (Span, span-line, span-col)
@@ -2390,7 +2390,7 @@ module Bootstrap.Infer where
       else (env, add-error sp "decision constructor disagrees with the kernel proof/erasure contract" st)
     other -> (env, add-error sp "unknown kernel decision constructor" st)
   register-decision-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-decision-syntax sp name metadata env st = if has name ["b.unrefine", "b.copyOut", "b.borrow", "b.mutBorrow", "b.refSet", "b.delay", "b.force", "b.demand", "b.Proof.search"] then register-ownership-syntax sp name metadata env st else if task-syntax-name name then register-task-syntax sp name metadata env st
+  register-decision-syntax sp name metadata env st = if has name ["b.unrefine", "b.copyOut", "b.borrow", "b.mutBorrow", "b.refSet", "b.delay", "b.force", "b.demand", "b.Proof.search"] then register-ownership-syntax sp name metadata env st else if task-syntax-name name then register-task-syntax sp name metadata env st else if par-syntax-name name then register-par-syntax sp name metadata env st
     else if not (same name "b.decide") then (env, add-error sp "unknown kernel predicate syntax" st) else
     case builtin-syntax-metadata name of
       Some trusted -> if same-kernel-fields ["name", "operation", "runtime_abi", "first_class", "predicate_kind", "scheme"] metadata trusted then
@@ -2482,6 +2482,35 @@ module Bootstrap.Infer where
         else (CPrimitive sp (later-type carrier) "thunk-delay" (CArgument sp callback (CArgumentsEnd sp)), pure)
   task-syntax-name :: String -> Bool
   task-syntax-name name = has name ["b.withScope", "b.spawn", "b.joinAllOrCancel"]
+  -- The deterministic pure-parallelism builtins (`design/parallel-evaluation.md`
+  -- sections 2.1 to 2.3). Like `spawn` they are kernel syntax rather than
+  -- values: their callbacks are read literally at the call site, so a
+  -- function-typed parameter or a first-class alias cannot be checked.
+  par-syntax-name :: String -> Bool
+  par-syntax-name name = has name ["b.parBoth", "b.parTabulate", "b.parMap"]
+  par-operation :: String -> String
+  par-operation name = if same name "b.parBoth" then "ParBoth"
+    else if same name "b.parTabulate" then "ParTabulate"
+    else "ParMap"
+  -- The source spelling the diagnostics name, matching the seed's messages.
+  par-spelling :: String -> String
+  par-spelling name = if same name "b.parBoth" then "parBoth"
+    else if same name "b.parTabulate" then "parTabulate"
+    else "parMap"
+  register-par-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-par-syntax sp name metadata env st = case builtin-syntax-metadata name of
+    Some trusted -> if same-kernel-fields ["name", "operation", "arity", "runtime_abi", "first_class", "scheme"] metadata trusted then
+      (case lookup-binding name env of None -> (Cons (MkSyntaxBinding name) env, st); Some prior -> (env, add-error sp "duplicate kernel parallel syntax" st))
+      else (env, add-error sp "parallel syntax disagrees with its owned kernel contract" st)
+    None -> (env, add-error sp "unknown kernel parallel syntax" st)
+  par-syntax-head :: List CheckedBinding -> Expr -> Bool
+  par-syntax-head env expr = case application-spine expr Nil of
+    (EVar sp name, args) -> par-syntax-name name && (case lookup-binding name env of Some (MkSyntaxBinding symbol) -> same name symbol; other -> False)
+    other -> False
+  par-syntax-at-head :: List CheckedBinding -> Expr -> Bool
+  par-syntax-at-head env head = case head of
+    EVar sp name -> par-syntax-name name && (case lookup-binding name env of Some (MkSyntaxBinding symbol) -> same name symbol; other -> False)
+    other -> False
   register-task-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-task-syntax sp name metadata env st = case builtin-syntax-metadata name of
     Some trusted -> if same-kernel-fields ["name", "operation", "arity", "variadic", "runtime_abi", "first_class"] metadata trusted then
@@ -2507,7 +2536,7 @@ module Bootstrap.Infer where
     else case builtin-syntax-metadata name of
       Some metadata -> (case field "scheme" metadata of
         JStr text -> (case parse-scheme name (string-to-bytes text) of
-          Parsed ty Nil -> (case make-scheme False classes kinds Nil ty st of
+          Parsed ty Nil -> (case make-scheme False classes kinds Nil (kernel-canonical-type ty) st of
             (expected, prepared) -> checked-kernel-cache sp syntax expected classes kinds prepared)
           other -> add-error sp "invalid owned kernel syntax type" st)
         other -> add-error sp "missing owned kernel syntax type" st)
@@ -2571,6 +2600,8 @@ module Bootstrap.Infer where
             term-error sp "a proof definition can only be used as erased evidence" ss
           MkSyntaxBinding symbol -> if same symbol "b.spawn" then
             term-error sp "spawn must be applied directly to check the task callback" ss
+            else if par-syntax-name symbol then
+              term-error sp (string-concat (par-spelling symbol) " must be applied directly to check its parallel callback (design/parallel-evaluation.md section 4.1)") ss
             else term-error sp "kernel syntax is not a first-class function" ss
           MkMethodBinding method sc owner slot -> (CMethod sp ty name owner slot actuals evidence, ss)
           MkGivenBinding source dict symbol -> (CUse sp ty symbol "dictionary" actuals, ss)
@@ -2991,7 +3022,7 @@ module Bootstrap.Infer where
           else infer-borrow classes kinds families env locals s operation args UError st
         None -> case projection-syntax-head env f of
           Some operation -> infer-projection classes kinds families env locals s operation x st
-          None -> if task-syntax-head env expr then infer-task-application classes kinds families env locals s expr None st else if decision-syntax-head env f then infer-decision classes kinds families env locals s x st else
+          None -> if task-syntax-head env expr then infer-task-application classes kinds families env locals s expr None st else if par-syntax-head env expr then infer-par-application classes kinds families env locals s expr None st else if decision-syntax-head env f then infer-decision classes kinds families env locals s x st else
             (case infer classes kinds families env locals f st of
               (fun, sf) -> apply-argument classes kinds families env locals s fun x sf)
     ELam s ps body -> case infer-lambda classes kinds families env locals ps body (duplicate-names s (patterns-names ps) Nil st) of
@@ -3153,7 +3184,7 @@ module Bootstrap.Infer where
       (head, args) -> case ownership-syntax-head env head of
         Some operation -> if same operation "b.refSet" then infer-ref-set classes kinds families env locals sp args st
           else infer-borrow classes kinds families env locals sp operation args expected st
-        None -> if has-projection-head env head then infer classes kinds families env locals expr st else if task-syntax-at-head env head then infer-task-application classes kinds families env locals sp expr (Some expected) st else if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
+        None -> if has-projection-head env head then infer classes kinds families env locals expr st else if task-syntax-at-head env head then infer-task-application classes kinds families env locals sp expr (Some expected) st else if par-syntax-at-head env head then infer-par-application classes kinds families env locals sp expr (Some expected) st else if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
           case thunk-syntax-operation env head of
             Some operation -> (case (later-parts (normalize st expected), args) of
               (Some carrier, [input]) -> if same operation "b.delay" then check-later-delay classes kinds families env locals sp input carrier st else infer classes kinds families env locals expr st
@@ -4473,6 +4504,197 @@ module Bootstrap.Infer where
       (value, fresh) -> case check classes kinds families env locals first (task-type region failure value) fresh of
         (checked-value, checked) -> case check-task-handles classes kinds families env locals sp region failure rest checked of
           (fields, handles, done) -> (UArg value fields, CArgument sp checked-value handles, done)
+  -- Deterministic pure parallelism (`design/parallel-evaluation.md`
+  -- sections 2.1 to 2.3). Each builtin's meaning is its sequential defining
+  -- equation, so parallelism is permission and never semantics. Four
+  -- obligations are checked here because none can travel through an
+  -- ordinary function type (the seed's `infer_par_app` and
+  -- `parallel_callback` are the reference):
+  --
+  -- - the callback is written literally at the call site, so its captures
+  --   are visible (a function-typed parameter's are not);
+  -- - its effect row is parallel-safe: the closed empty row or `{Diverge}`;
+  -- - each capture is Share, or (in `parBoth` only) moves into the one
+  --   branch that consumes it;
+  -- - `parMap` has array storage, so its element type must be Share.
+  --
+  -- The capture classification runs at the end of the definition, when
+  -- unification has resolved the binder types (`check-parallel-captures`).
+  par-operation-name :: String -> String
+  par-operation-name name = if same name "b.parBoth" then "par-both"
+    else if same name "b.parTabulate" then "par-tabulate"
+    else "par-map"
+  infer-par-application :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Option UType -> Store -> (CoreTerm, Store)
+  infer-par-application classes kinds families env locals sp expr wanted st = case application-spine expr Nil of
+    (EVar at name, args) ->
+      if same name "b.parBoth" then (case args of
+        Cons f (Cons g Nil) -> (case fresh-meta KType st of
+          (a, one) -> case fresh-meta KType one of
+            (b, two) -> case fresh-meta KRow two of
+              (row-f, three) -> case fresh-meta KRow three of
+                (row-g, four) ->
+                  let thunk-f = UFunEff (primitive-type "Unit") row-f a in
+                  let thunk-g = UFunEff (primitive-type "Unit") row-g b in
+                  (case parallel-callback classes kinds families env locals f thunk-f "parBoth" four of
+                    (checked-f, five) -> case parallel-callback classes kinds families env locals g thunk-g "parBoth" five of
+                      (checked-g, six) ->
+                        let result = tuple-type (UArg a (UArg b UEnd)) in
+                        (CPrimitive sp result (par-operation-name name) (CArgument sp checked-f (CArgument sp checked-g (CArgumentsEnd sp))),
+                          case wanted of None -> six; Some expected -> unify sp result expected six)))
+        other -> term-error sp "parBoth takes exactly two callbacks" st)
+      else if same name "b.parTabulate" then (case args of
+        Cons count (Cons f Nil) -> (case check classes kinds families env locals count (primitive-type "Nat") st of
+          (checked-count, one) -> case fresh-meta KType one of
+            (a, two) -> case fresh-meta KRow two of
+              (row, three) ->
+                let callback = UFunEff (primitive-type "Nat") row a in
+                (case parallel-callback classes kinds families env locals f callback "parTabulate" three of
+                  (checked-f, four) ->
+                    let result = UApp (UCon "Array" (KFun KType KType)) a in
+                    (CPrimitive sp result (par-operation-name name) (CArgument sp checked-count (CArgument sp checked-f (CArgumentsEnd sp))),
+                      case wanted of None -> four; Some expected -> unify sp result expected four)))
+        other -> term-error sp "parTabulate takes a count and one callback" st)
+      else (case args of
+        Cons f (Cons xs Nil) -> (case fresh-meta KType st of
+          (elem, one) -> case fresh-meta KType one of
+            (out, two) -> case fresh-meta KRow two of
+              (row, three) ->
+                let callback = UFunEff elem row out in
+                (case parallel-callback classes kinds families env locals f callback "parMap" three of
+                  (checked-f, four) -> case check classes kinds families env locals xs (core-list-type elem) four of
+                    (checked-xs, five) ->
+                      -- `map f xs` = `array-to-list (parMapArray f (array-from-list xs))`,
+                      -- so the runtime never builds list cells (section 4.2).
+                      case par-map-array-call classes env sp elem out checked-f checked-xs five of
+                        (mapped, six) ->
+                          let result = core-list-type out in
+                          let done = (case wanted of None -> six; Some expected -> unify sp result expected six) in
+                          (mapped, done)))
+        other -> term-error sp "parMap takes a callback and one list" st)
+    other -> term-error sp "parallel application needs its canonical kernel operation" st
+  -- `array-from-list xs`, then the array primitive, then `array-to-list`:
+  -- the two conversions are `Data.Array`'s own definitions, built through the
+  -- ordinary call path (`lookup-value` then `apply-checked-runtime`) so their
+  -- `CUse` carries the actuals and role the checked binding declares. A
+  -- program using `parMap` ships `Data.Array` beside its entry (section 4.2).
+  par-map-array-call :: List (String, Kind) -> List CheckedBinding -> Span -> UType -> UType -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
+  par-map-array-call classes env sp elem out callback xs st =
+    let array-in = UApp (UCon "Array" (KFun KType KType)) elem in
+    let array-out = UApp (UCon "Array" (KFun KType KType)) out in
+    case prelude-call classes env sp "Data.Array" "array-from-list" xs st of
+      (Ok converted, one) ->
+        let mapped = CPrimitive sp array-out "par-map" (CArgument sp callback (CArgument sp converted (CArgumentsEnd sp))) in
+        (case prelude-call classes env sp "Data.Array" "array-to-list" mapped one of
+          (Ok listed, two) -> (listed, two)
+          (Err message, two) -> (CError sp, add-error sp message two))
+      (Err message, one) -> (CError sp, add-error sp message one)
+  -- The checked global of a source definition, in the spelling
+  -- `Bootstrap.Resolve.global-name` gives it: `m.` then the encoded module,
+  -- a dot, and the encoded name. `Main.main` is the one exception, and no
+  -- prelude definition is `main`.
+  source-global :: String -> String -> String
+  source-global home name = pack (Cons 'm' (Cons '.' (encode-identity (unpack home) (Cons '.' (encode-identity (unpack name) Nil)))))
+  -- One application of a prelude definition to an already checked argument,
+  -- through the same path an ordinary call takes.
+  prelude-call :: List (String, Kind) -> List CheckedBinding -> Span -> String -> String -> CoreTerm -> Store -> (Result String CoreTerm, Store)
+  prelude-call classes env sp home name argument st =
+    case lookup-binding (source-global home name) env of
+      None -> (Err (string-concat-all ["the prelude's ", home, ".", name, " is unavailable (parMap lowers through it)"]), st)
+      Some binding -> case lookup-value sp (source-global home name) env st of
+        (function, one) -> (case apply-checked-runtime classes sp env function argument one of
+          (applied, two) -> if list-length (store-errors two) > list-length (store-errors one)
+            then (Err (string-concat-all ["parMap could not apply the prelude's ", home, ".", name]), two)
+            else (Ok applied, two))
+
+  -- One parallel callback: checked against `domain ->{e} result`, refused
+  -- unless it is written literally at the call site, and restricted to the
+  -- parallel-safe row. The captures themselves are classified at the end of
+  -- the definition (`Bootstrap.Typing`'s `par-definition-error`), where the
+  -- checked data declarations that decide Share are in scope.
+  parallel-callback :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> String -> Store -> (CoreTerm, Store)
+  parallel-callback classes kinds families env locals arg expected op st =
+    case check classes kinds families env locals arg expected st of
+      (core, checked) ->
+        -- The row rule runs first, as the seed's does: a row-polymorphic
+        -- caller is refused by the row rule even when the callback is also
+        -- a function-typed parameter (section 2.2).
+        case parallel-safe-row (arrow-row-of expected) arg op checked of
+          (ready, False) -> (CError (expr-span arg), ready)
+          (ready, True) -> case parallel-callback-literal core of
+            True -> (core, ready)
+            False -> (CError (expr-span arg), add-error (expr-span arg) (parallel-callback-refusal op arg) ready)
+  -- The performed row of a callback's checked type: the arrow's own row.
+  arrow-row-of :: UType -> UType
+  arrow-row-of ty = case arrow-shape ty of
+    UFunEff domain row result -> row
+    UProofFun predicate row result -> row
+    UPi id name domain row result -> row
+    other -> URow UEnd
+  -- A callback is read literally: a lambda, a global function name, or a
+  -- partial application of a global to arguments. A local binding is not
+  -- admitted here, because its captures are not retained for the check.
+  parallel-callback-literal :: CoreTerm -> Bool
+  parallel-callback-literal core = case core of
+    CLambda sp ty p body -> True
+    CUse sp ty name role actuals -> True
+    CApply sp ty f x -> parallel-callback-head f
+    CApplyEff sp ty row f x -> parallel-callback-head f
+    other -> False
+  parallel-callback-head :: CoreTerm -> Bool
+  parallel-callback-head core = case core of
+    CUse sp ty name role actuals -> True
+    CApply sp ty f x -> parallel-callback-head f
+    CApplyEff sp ty row f x -> parallel-callback-head f
+    other -> False
+  parallel-callback-refusal :: String -> Expr -> String
+  parallel-callback-refusal op arg = string-concat-all [
+    par-spelling-of op, " must be applied directly to a callback written at the call site (a lambda literal, a global function, or a partial application of one)",
+    (case arg of
+      EVar sp name -> string-concat ": " (string-concat name " is a function-typed binding whose captures are unknown")
+      other -> ""),
+    " (design/parallel-evaluation.md section 2.3)"]
+  par-spelling-of :: String -> String
+  par-spelling-of op = if same op "parBoth" then "parBoth" else if same op "parTabulate" then "parTabulate" else "parMap"
+  -- A parallel callback may perform only the parallel-safe row: the closed
+  -- empty row or `{Diverge}` (section 2.2). `Diverge` is admitted because
+  -- the sequential reading already permits it and the caller's row carries
+  -- the label; every other label would make the schedule observable, pin a
+  -- participant, or let a branch hold a resource whose operations are
+  -- single-threaded. An effect handled inside the branch never appears in
+  -- its row, so a branch may install its own handler.
+  parallel-safe-row :: UType -> Expr -> String -> Store -> (Store, Bool)
+  parallel-safe-row row arg op st = case normalize st row of
+    URow UEnd -> (st, True)
+    URow labels -> parallel-safe-labels labels arg op st
+    URowJoin first second -> (case parallel-safe-row first arg op st of
+      (ready, True) -> parallel-safe-row second arg op ready
+      (ready, False) -> (ready, False))
+    -- A row variable that is still rigid belongs to a row-polymorphic
+    -- caller, which cannot supply a parallel callback in this slice: the
+    -- scheduler would have to know the row is parallel-safe (section 2.2).
+    UBound id name KRow -> (add-error (expr-span arg) (parallel-rigid-row-refusal op (UBound id name KRow)) st, False)
+    URigid id name level KRow -> (add-error (expr-span arg) (parallel-rigid-row-refusal op (URigid id name level KRow)) st, False)
+    other -> (parallel-row-refusal (expr-span arg) op other st, False)
+  parallel-safe-labels :: UType -> Expr -> String -> Store -> (Store, Bool)
+  parallel-safe-labels labels arg op st = case labels of
+    UEnd -> (st, True)
+    UArg label rest -> if parallel-safe-label label then parallel-safe-labels rest arg op st
+      else (parallel-row-refusal (expr-span arg) op label st, False)
+    -- A label spine can also end in a row variable, which is the rigid
+    -- case above once it is the whole row.
+    other -> (parallel-row-refusal (expr-span arg) op other st, False)
+  parallel-safe-label :: UType -> Bool
+  parallel-safe-label label = case label of
+    UCon name kind -> same name "Diverge"
+    other -> False
+  parallel-row-refusal :: Span -> String -> UType -> Store -> Store
+  parallel-row-refusal sp op row st = add-error sp (string-concat-all [
+    "a ", op, " callback may perform only the parallel-safe row ({} or {Diverge}), but it performs ", type-text row,
+    ": order, foreign state and thread affinity are not promised across a parallel call (design/parallel-evaluation.md section 2.2)"]) st
+  parallel-rigid-row-refusal :: String -> UType -> String
+  parallel-rigid-row-refusal op row = string-concat-all [
+    "a ", op, " callback's effects must be the empty row or {Diverge}, but its row is ", type-text row,
+    ", whose tail is a rigid row variable: a row-polymorphic caller cannot supply a parallel callback in this slice (design/parallel-evaluation.md section 2.2)"]
   check-do :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> UType -> Store -> (CoreTerm, Store)
   check-do classes kinds families env locals sp statements expected st = case statements of
     EArg at first (EArgsEnd end) -> (case first of
@@ -4993,9 +5215,11 @@ module Bootstrap.Infer where
   check-core-closed globals definitions st = case definitions of
     Nil -> st
     Cons d rest -> check-core-closed globals rest (if not (core-definition-checked-contracts-closed (context-body-context globals) (context-guarded-bodies globals) d) then add-error zero "typed core contains an unresolved scheme or error term" st
-      else case task-definition-error globals d of
+      else case par-definition-error globals d of
         Some (sp, message) -> add-error sp message st
-        None -> if typing-definition-closed globals d then st else add-error zero (string-concat "independent Core typing disagrees with the declaration or term: " (core-name d)) st)
+        None -> case task-definition-error globals d of
+          Some (sp, message) -> add-error sp message st
+          None -> if typing-definition-closed globals d then st else add-error zero (string-concat "independent Core typing disagrees with the declaration or term: " (core-name d)) st)
   check-field-globals :: TypingContext -> List CoreDictionaryField -> Store -> Store
   check-field-globals globals fields st = case fields of Nil -> st; Cons field rest -> check-field-globals globals rest (check-core-closed globals [dictionary-field-definition field] st)
   check-instance-globals :: TypingContext -> List CoreInstance -> Store -> Store

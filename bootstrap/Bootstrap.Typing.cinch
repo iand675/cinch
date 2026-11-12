@@ -11,12 +11,13 @@ module Bootstrap.Typing where
   import Bootstrap.Guarded
   import Bootstrap.Kinds
   import Bootstrap.Proof (Proposition, PNegate)
-  import Bootstrap.Nominal (interface-global, global-data-string-string)
+  import Bootstrap.Nominal (interface-global, global-data-string-string, global-data-core-list)
   import Bootstrap.Builtin (array-type-name)
   import Text.Lex (Span)
   import Algebra.Semigroup
 
   export close-typing-context-with-effects, close-typing-context-with-data, context-effects, task-definition-safe, task-definition-error
+  export par-definition-error
   export TypingContext, close-typing-context, typing-definition-closed, context-bodies, context-guarded-bodies
   export context-body-context, close-typing-context-with-definitions
   export task-source-forwarder, task-forwarder-type
@@ -211,12 +212,49 @@ module Bootstrap.Typing where
         Some (row, result) -> equal-type ty result
         None -> False)
       else same name "negate" && type-is "Int" ty && equal-type ty (core-type first)
-    CArgument sp first (CArgument at second (CArgumentsEnd end)) -> let carrier = core-type first in
-      equal-type carrier (core-type second) && (if has name ["+", "-", "*", "/"] then mathematical carrier && equal-type ty carrier
-        else if has name ["<", "<=", ">", ">="] then integer-carrier carrier && type-is "Bool" ty
-        else if has name ["==", "/="] then comparable carrier && type-is "Bool" ty
-        else False)
+    CArgument sp first (CArgument at second (CArgumentsEnd end)) ->
+      if same name "par-both" then par-both-type ty first second
+      else if same name "par-tabulate" then par-tabulate-type ty first second
+      else if same name "par-map" then par-map-type ty first second
+      else let carrier = core-type first in
+        equal-type carrier (core-type second) && (if has name ["+", "-", "*", "/"] then mathematical carrier && equal-type ty carrier
+          else if has name ["<", "<=", ">", ">="] then integer-carrier carrier && type-is "Bool" ty
+          else if has name ["==", "/="] then comparable carrier && type-is "Bool" ty
+          else False)
     other -> False
+  -- `parBoth f g` = `(f (), g ())`, so the result is the pair of the two
+  -- callbacks' results and each callback is a one-shot thunk over Unit.
+  par-both-type :: UType -> CoreTerm -> CoreTerm -> Bool
+  par-both-type ty f g = case (thunk-function-parts (core-type f), thunk-function-parts (core-type g)) of
+    (Some (row-f, a), Some (row-g, b)) -> equal-type ty (UTuple (UArg a (UArg b UEnd)))
+    other -> False
+  -- `parTabulate n f` = `array-tabulate n f`: one index, one call.
+  par-tabulate-type :: UType -> CoreTerm -> CoreTerm -> Bool
+  par-tabulate-type ty count callback = case task-type-spine ty Nil of
+    (UCon name kind, args) -> if same name "Array" && kind-equal kind (KFun KType KType) then (case args of
+      Cons element Nil -> (case arrow-shape (core-type callback) of
+        UFunEff domain row result -> type-is "Nat" (core-type count) && type-is "Nat" domain && equal-type result element
+        UFun domain result -> type-is "Nat" (core-type count) && type-is "Nat" domain && equal-type result element
+        other -> False)
+      other -> False) else False
+    other -> False
+  -- `parMap f xs` = `map f xs`, lowered as
+  -- `array-to-list (parMapArray f (array-from-list xs))`: the primitive's
+  -- result is the mapped `Array`, and its callback's domain is that array's
+  -- element type (section 4.2).
+  par-map-type :: UType -> CoreTerm -> CoreTerm -> Bool
+  par-map-type ty callback array = case task-type-spine ty Nil of
+    (UCon name kind, args) -> if same name "Array" && kind-equal kind (KFun KType KType) then (case args of
+      Cons element Nil -> (case (arrow-shape (core-type callback), element-of (core-type array)) of
+        (UFunEff domain row result, Some source) -> equal-type domain source && equal-type result element
+        (UFun domain result, Some source) -> equal-type domain source && equal-type result element
+        other -> False)
+      other -> False) else False
+    other -> False
+  element-of :: UType -> Option UType
+  element-of ty = case task-type-spine ty Nil of
+    (UCon name kind, args) -> (case args of Cons element Nil -> Some element; other -> None)
+    other -> None
   argument-terms :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> CoreTerm -> Bool
   argument-terms context scope gamma facts terms = case terms of CArgumentsEnd sp -> True; CArgument sp first rest -> checked-term context scope gamma facts first && argument-terms context scope (proof-after-writes gamma (core-mutable-writes first)) (facts-after-writes gamma facts (core-mutable-writes first)) rest; other -> False
   alternatives-typed :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> CoreTerm -> UType -> CoreTerm -> Bool
@@ -597,8 +635,33 @@ module Bootstrap.Typing where
       use-count-sequence (use-count interrupted id cell) (use-count-choice (Some (0, 0)) (use-count-once interrupted id callback))
     CSpawn sp ty token callback ->
       use-count-after interrupted token (use-count interrupted id token) (use-count-once interrupted id callback)
+    -- A parallel callback runs inside its call and is dropped before the
+    -- call returns, so its body is a one-shot frame: a `%1` capture used
+    -- once there moves into it, and a second branch using the same value is
+    -- the ordinary `used 2 time(s)` (design/parallel-evaluation.md 2.3).
+    CPrimitive sp ty op (CArgument at f (CArgument bt g (CArgumentsEnd end))) | same op "par-both" ->
+      use-count-sequence (use-count-once interrupted id f) (use-count-once interrupted id g)
+    -- `parMap` and `parTabulate` run their callback once per index, so a
+    -- use inside it is unbounded, not one-shot: the parallel capture rule
+    -- reports the move (`par-definition-error`), which is the specific
+    -- refusal section 2.3 states.
+    CPrimitive sp ty op (CArgument at first (CArgument bt second (CArgumentsEnd end))) | same op "par-tabulate" ->
+      use-count-sequence (use-count interrupted id first) (use-count-unbounded id second)
+    CPrimitive sp ty op (CArgument at callback (CArgument bt input (CArgumentsEnd end))) | same op "par-map" ->
+      use-count-sequence (use-count-unbounded id callback) (use-count interrupted id input)
     CHandle sp ty label residual body handled-by -> use-count-list interrupted id [handled-by, body]
     other -> use-count-list interrupted id (runtime-term-children term)
+  -- A many-shot frame: any use inside the callback is unbounded.
+  use-count-unbounded :: Nat -> CoreTerm -> Option (Nat, Nat)
+  use-count-unbounded id callback = case callback of
+    CLambda sp ty p body -> if task-id-present id (task-pattern-ids p) then Some (0, 0) else (if task-id-present id (task-free-ids body) then None else Some (0, 0))
+    other -> use-count False id callback
+  task-free-ids :: CoreTerm -> List Nat
+  task-free-ids body = case task-free Nil body of
+    Nil -> Nil
+    free -> par-free-ids free
+  par-free-ids :: List (Nat, UType) -> List Nat
+  par-free-ids free = case free of Nil -> Nil; Cons (id, ty) rest -> Cons id (par-free-ids rest)
   use-pattern-total :: CorePattern -> Bool
   use-pattern-total p = case p of CPWild sp ty -> True; CPVar sp ty id name -> True; CPAs sp ty id name inner -> use-pattern-total inner; other -> False
   use-count-row :: Bool -> Nat -> CoreTerm -> CoreTerm -> Option (Nat, Nat)
@@ -1166,6 +1229,135 @@ module Bootstrap.Typing where
       Some error -> Some error
       None -> if context-task-forwarder context (core-name d) && task-source-forwarder d then None
         else task-clauses-error context (opening-value-patterns (Span 0 0 1 1) (core-openings d)) opened clauses
+  -- The capture rule for parallel callbacks (design/parallel-evaluation.md
+  -- section 2.3), applied at the definition's end where the checked data
+  -- declarations that decide Share are in scope. The seed's
+  -- `check_parallel_captures` is the reference: a memo cell and a `Mut`
+  -- borrow are refused outright; a `%1`/`%aff` capture may move into one
+  -- `parBoth` branch; every other capture, and every capture of the
+  -- many-shot callbacks, must be Share. The rows were already restricted to
+  -- the parallel-safe row at the call site (`Bootstrap.Infer`'s
+  -- `parallel-safe-row`), so only the captures remain here.
+  par-definition-error :: TypingContext -> CoreDefinition -> Option (Span, String)
+  par-definition-error context d =
+    let declared = scheme-body (core-scheme d) in
+    let additive = has-annotated-parameter declared in
+    par-clauses-error context additive (opening-value-patterns (Span 0 0 1 1) (core-openings d)) declared (core-clauses d)
+  par-clauses-error :: TypingContext -> Bool -> List CorePattern -> UType -> List CoreClause -> Option (Span, String)
+  par-clauses-error context additive prefix declared clauses = case clauses of
+    Nil -> None
+    Cons (MkCoreClause sp patterns body) rest ->
+      let bound = par-bindings prefix patterns Nil in
+      let owned = if additive then par-additive-ids declared patterns else Nil in
+      case par-term-error context owned bound body of
+        Some error -> Some error
+        None -> par-clauses-error context additive prefix declared rest
+  -- The `%1`/`%aff` parameters of this clause, by the binder's position: a
+  -- parallel callback may move such a value into one `parBoth` branch
+  -- (section 2.3). The seed reads the same fact from the binder's effective
+  -- multiplicity (`check_parallel_captures`).
+  par-additive-ids :: UType -> List CorePattern -> List Nat
+  par-additive-ids declared patterns = par-additive-walk declared patterns
+  par-additive-walk :: UType -> List CorePattern -> List Nat
+  par-additive-walk declared patterns = case (declared, patterns) of
+    (UUsageArrow usage arrow, Cons p rest) ->
+      (if transfer-usage usage then par-ids-of p else Nil) <> par-additive-walk arrow rest
+    (UFun domain result, Cons p rest) -> par-additive-walk result rest
+    (UFunEff domain row result, Cons p rest) -> par-additive-walk result rest
+    (UPi id name domain row result, Cons p rest) -> par-additive-walk result rest
+    other -> Nil
+  transfer-usage :: ArrowUsage -> Bool
+  transfer-usage usage = case usage of UsageOne -> True; UsageAffine -> True; other -> False
+  par-ids-of :: CorePattern -> List Nat
+  par-ids-of p = case p of
+    CPVar sp ty id name -> Cons id Nil
+    CPErasedValue sp ty id name -> Cons id Nil
+    CPAs sp ty id name inner -> Cons id Nil
+    other -> Nil
+  par-bindings :: List CorePattern -> List CorePattern -> List (Nat, String, UType) -> List (Nat, String, UType)
+  par-bindings prefix patterns acc = case (prefix, patterns) of
+    (Cons p rest, Cons q more) -> par-bindings rest more (par-binding q (par-binding p acc))
+    (Nil, Cons q more) -> par-bindings Nil more (par-binding q acc)
+    other -> acc
+  par-binding :: CorePattern -> List (Nat, String, UType) -> List (Nat, String, UType)
+  par-binding p acc = case p of
+    CPVar sp ty id name -> Cons (id, name, ty) acc
+    CPErasedValue sp ty id name -> Cons (id, name, ty) acc
+    CPAs sp ty id name inner -> Cons (id, name, ty) acc
+    other -> acc
+  par-term-error :: TypingContext -> List Nat -> List (Nat, String, UType) -> CoreTerm -> Option (Span, String)
+  par-term-error context owned bound term = case term of
+    CPrimitive sp ty op (CArgument at f (CArgument bt g (CArgumentsEnd end))) | same op "par-both" ->
+      first-task-error (par-callback-error context owned bound sp "parBoth" False f)
+        (first-task-error (par-callback-error context owned bound sp "parBoth" False g)
+          (first-task-error (par-term-error context owned bound f) (par-term-error context owned bound g)))
+    -- `parTabulate` takes (count, callback); `parMap` takes
+    -- (callback, array), so the callback is the first argument there.
+    CPrimitive sp ty op (CArgument at first (CArgument bt second (CArgumentsEnd end))) | same op "par-tabulate" ->
+      first-task-error (par-callback-error context owned bound sp "parTabulate" True second)
+        (first-task-error (par-term-error context owned bound first) (par-term-error context owned bound second))
+    CPrimitive sp ty op (CArgument at callback (CArgument bt input (CArgumentsEnd end))) | same op "par-map" ->
+      first-task-error (par-callback-error context owned bound sp "parMap" True callback)
+        (first-task-error (par-term-error context owned bound callback) (par-term-error context owned bound input))
+    CPrimitive sp ty op args -> par-children-error context owned bound (term-children term)
+    CLambda sp ty p body -> par-term-error context owned (par-binding p bound) body
+    CLet sp ty id name sc rhs body -> first-task-error (par-term-error context owned bound rhs) (par-term-error context owned (Cons (id, name, scheme-body sc) bound) body)
+    other -> par-children-error context owned bound (runtime-term-children term)
+  par-children-error :: TypingContext -> List Nat -> List (Nat, String, UType) -> List CoreTerm -> Option (Span, String)
+  par-children-error context owned bound terms = case terms of
+    Nil -> None
+    Cons first rest -> first-task-error (par-term-error context owned bound first) (par-children-error context owned bound rest)
+  -- One callback's captures, classified. A callback that is not a literal
+  -- has no readable captures and was refused at the call site already.
+  par-callback-error :: TypingContext -> List Nat -> List (Nat, String, UType) -> Span -> String -> Bool -> CoreTerm -> Option (Span, String)
+  par-callback-error context owned bound sp op many-shot callback = case callback of
+    CLambda at ty p body -> par-captures-error context owned (Cons (par-pattern-id p, par-pattern-name p, pattern-type p) bound) sp op many-shot (task-free (task-pattern-ids p) body)
+    other -> par-captures-error context owned bound sp op many-shot (task-free Nil callback)
+  par-pattern-id :: CorePattern -> Nat
+  par-pattern-id p = case p of CPVar sp ty id name -> id; other -> 0
+  par-pattern-name :: CorePattern -> String
+  par-pattern-name p = case p of CPVar sp ty id name -> name; other -> ""
+  par-captures-error :: TypingContext -> List Nat -> List (Nat, String, UType) -> Span -> String -> Bool -> List (Nat, UType) -> Option (Span, String)
+  par-captures-error context owned bound sp op many-shot captures = case captures of
+    Nil -> None
+    Cons (id, ty) rest -> case par-capture-error context owned bound sp op many-shot id ty of
+      Some error -> Some error
+      None -> par-captures-error context owned bound sp op many-shot rest
+  par-capture-error :: TypingContext -> List Nat -> List (Nat, String, UType) -> Span -> String -> Bool -> Nat -> UType -> Option (Span, String)
+  par-capture-error context owned bound sp op many-shot id ty =
+    let actual = if task-id-present id (par-ids bound) then par-lookup bound id else ty in
+    let display = par-name bound id ty in
+    if task-type-holds-memo actual then
+      Some (sp, string-concat-all ["a parallel capture cannot be a memo cell: ", display,
+        " holds a `Lazy` cell, which is single-threaded by construction (design/parallel-evaluation.md section 2.3)"])
+    else if task-type-holds-mut actual then
+      Some (sp, string-concat-all ["an exclusive `Mut` borrow cannot enter a parallel callback: ", display,
+        " holds one (design/parallel-evaluation.md section 2.3)"])
+    else if task-shareable context Nil 64 actual then None
+    -- A `%1`/`%aff` capture may move into one `parBoth` branch: the branch
+    -- runs exactly once and consumes it, which the usage check already
+    -- counted (`use-count-once`). The many-shot callbacks run once per
+    -- index, so a move there would consume the value many times.
+    else if not many-shot && task-id-present id owned then None
+    else if many-shot then
+      Some (sp, string-concat-all ["a ", op, " callback runs once per index, so ", display,
+        " cannot move into it: a parallel capture must be Share (design/parallel-evaluation.md section 2.3)"])
+    else
+      Some (sp, string-concat-all ["a parallel capture must be Share, or move into one parBoth branch: ", display,
+        " is shared with a ", op, " callback without shareable evidence (design/parallel-evaluation.md section 2.3)"])
+  par-ids :: List (Nat, String, UType) -> List Nat
+  par-ids bound = case bound of Nil -> Nil; Cons (id, name, ty) rest -> Cons id (par-ids rest)
+  par-lookup :: List (Nat, String, UType) -> Nat -> UType
+  par-lookup bound id = case bound of
+    Nil -> UError
+    Cons (key, name, ty) rest -> if key == id then ty else par-lookup rest id
+  -- The captured binding's own name where the binder is visible, else its
+  -- type, matching the seed's `c.name` in the same three messages.
+  par-name :: List (Nat, String, UType) -> Nat -> UType -> String
+  par-name bound id ty = case bound of
+    Nil -> type-text ty
+    Cons (key, name, carrier) rest -> if key == id then (if string-length name == 0 then type-text ty else name) else par-name rest id ty
+
   task-clauses-error :: TypingContext -> List CorePattern -> UType -> List CoreClause -> Option (Span, String)
   task-clauses-error context prefix declared clauses = case clauses of
     Nil -> None
@@ -1317,3 +1509,4 @@ module Bootstrap.Typing where
             None -> False)
         None -> False)
       None -> False)
+

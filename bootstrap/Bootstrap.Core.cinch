@@ -919,6 +919,25 @@ module Bootstrap.Core where
             Some (row, region, result) -> union-effects (memo-row region) (union-effects (core-effects cell) row)
             None -> UError)
           other -> UError)
+      -- A parallel call performs every callback's latent row, exactly as
+      -- evaluating its defining equation would: `(f (), g ())`,
+      -- `array-tabulate n f`, `map f xs` all invoke the callback.
+      else if string-compare name "par-both" == 0 then
+        (case args of
+          CArgument at f (CArgument bt g (CArgumentsEnd end)) ->
+            union-effects (latent-row (core-type f)) (union-effects (latent-row (core-type g))
+              (union-effects (core-effects f) (core-effects g)))
+          other -> UError)
+      else if string-compare name "par-tabulate" == 0 then
+        (case args of
+          CArgument at count (CArgument bt callback (CArgumentsEnd end)) ->
+            union-effects (latent-row (core-type callback)) (union-effects (core-effects count) (core-effects callback))
+          other -> UError)
+      else if string-compare name "par-map" == 0 then
+        (case args of
+          CArgument at callback (CArgument bt array (CArgumentsEnd end)) ->
+            union-effects (latent-row (core-type callback)) (union-effects (core-effects callback) (core-effects array))
+          other -> UError)
       else core-effects args
     CProved s ty evidence body -> core-effects body
     CRefine s ty evidence body -> core-effects body
@@ -929,6 +948,16 @@ module Bootstrap.Core where
     CGuard s ty condition body -> union-effects (core-effects condition) (core-effects body)
     CArgument s value rest -> union-effects (core-effects value) (core-effects rest)
     CAlternative s pattern body rest -> union-effects (core-effects body) (core-effects rest)
+    other -> URow UEnd
+
+  -- The row a callback performs when it is invoked. A parallel builtin's
+  -- defining equation invokes its callbacks, so the call carries each one's
+  -- latent row; an arrow with no effect syntax is pure.
+  latent-row :: UType -> UType
+  latent-row ty = case arrow-shape ty of
+    UFunEff domain row result -> row
+    UProofFun predicate row result -> row
+    UPi id name domain row result -> row
     other -> URow UEnd
 
   recursive-value-effects :: CoreTerm -> UType -> UType

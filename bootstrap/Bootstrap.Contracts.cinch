@@ -176,6 +176,20 @@ module Bootstrap.Contracts where
       None -> display-type s name kind metadata
     else display-type s name kind metadata
 
+  -- A kernel scheme's `List`, `Option` and `Result` name the prelude's
+  -- defining identities, not a bare alias: the kernel owns those families,
+  -- and the checker compares against the identity (Infer's
+  -- `kernel-canonical-type` states the same rule for its own path).
+  canonical-kernel-type :: TypeExpr -> TypeExpr
+  canonical-kernel-type syntax = case syntax of
+    TName sp name -> if same name "List" || same name "Option" || same name "Result" then TName sp (interface-global (string-concat "Data.Core." name)) else syntax
+    TForall sp qs body -> TForall sp qs (canonical-kernel-type body)
+    TFun sp domain result -> TFun sp (canonical-kernel-type domain) (canonical-kernel-type result)
+    TApp sp head args -> TApp sp (canonical-kernel-type head) (canonical-kernel-arguments args)
+    TTuple sp fields -> TTuple sp (canonical-kernel-arguments fields)
+    other -> syntax
+  canonical-kernel-arguments :: TypeExpr -> TypeExpr
+  canonical-kernel-arguments args = case args of TArg sp ty rest -> TArg sp (canonical-kernel-type ty) (canonical-kernel-arguments rest); other -> args
   syntax-without-scheme :: String -> Bool
   syntax-without-scheme name = case builtin-syntax-metadata name of
     Some owned -> (case field "scheme" owned of JStr text -> False; other -> True)
@@ -187,7 +201,7 @@ module Bootstrap.Contracts where
     if same kind "builtin-syntax" && syntax-without-scheme name then (None, Nil)
     else if same kind "value" || same kind "constructor" || same kind "method" || same kind "builtin" || same kind "builtin-syntax" || same kind "builtin-constructor" then case field "scheme" metadata of
       JStr text -> case parse-scheme name (string-to-bytes text) of
-        Parsed ty Nil -> (Some ty, Nil)
+        Parsed ty Nil -> (Some (canonical-kernel-type ty), Nil)
         other -> (None, Cons (MkDiagnostic "bootstrap.resolve" s (string-concat "cannot parse imported scheme for " name)) Nil)
       other -> (None, Cons (MkDiagnostic "bootstrap.resolve" s (string-concat "missing imported scheme for " name)) Nil)
     else (None, Nil)

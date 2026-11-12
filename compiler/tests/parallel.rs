@@ -558,7 +558,6 @@ module Main where
   import Data.Array
   import Data.Nat
   import Data.Machine
-  import Data.Nat
   import Data.Option
 
   -- A pure, allocation-free unit of work: U64 arithmetic so the loop

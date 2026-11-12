@@ -117,6 +117,7 @@ module Bootstrap.Builtin where
   builtin-bindings =
     [ ("newIO", "b.newIO"), ("Runtime.newIO", "b.newIO")
     , ("withScope", "b.withScope"), ("spawn", "b.spawn"), ("joinAllOrCancel", "b.joinAllOrCancel")
+    , ("parBoth", "b.parBoth"), ("parTabulate", "b.parTabulate"), ("parMap", "b.parMap")
     , ("Scope", "b.Scope"), ("Task", "b.Task")
     , ("ioWrite", "b.ioWrite"), ("ioRead", "b.ioRead")
     , ("ioSleep", "b.ioSleep"), ("pollCancel", "b.pollCancel")
@@ -166,6 +167,21 @@ module Bootstrap.Builtin where
   task-rule :: String -> String -> Int -> Bool -> Decl
   task-rule name operation arity variadic = DExternal (Span 0 0 1 1) (string-concat "b." name) "builtin-syntax" None
     (JObj "name" (JStr name) (JObj "operation" (JStr operation) (JObj "arity" (JNum arity) (JObj "variadic" (JBool variadic) (JObj "runtime_abi" (JNum runtime-abi-int) (JObj "first_class" (JBool False) JObjEnd))))))
+  -- Deterministic pure parallelism (`design/parallel-evaluation.md` sections
+  -- 2.1 and 4.1): three compiler-known values whose meaning is their
+  -- sequential defining equation, so no result depends on the participant
+  -- count or the schedule. Their callbacks are read literally at the call
+  -- site, so like `spawn` they are kernel syntax and never first-class
+  -- values. The scheme is the seed's (`install_parallel_api`): `parBoth`
+  -- gives each branch its own row variable, because rows unify by equality
+  -- and one shared variable would refuse a total branch beside a diverging
+  -- one, which the defining equation `(f (), g ())` admits.
+  par-rule :: String -> String -> String -> Decl
+  par-rule name operation scheme = DExternal (Span 0 0 1 1) (string-concat "b." name) "builtin-syntax" None
+    (JObj "name" (JStr name) (JObj "operation" (JStr operation) (JObj "arity" (JNum 2)
+      (JObj "runtime_abi" (JNum runtime-abi-int) (JObj "first_class" (JBool False)
+        (JObj "scheme" (JStr scheme) JObjEnd))))))
+
   -- The checked data path retains the index and erases the bound field.
   finite-index-declaration :: Decl
   finite-index-declaration =
@@ -187,6 +203,9 @@ module Bootstrap.Builtin where
     , task-rule "withScope" "WithScope" 1 False
     , task-rule "spawn" "Spawn" 2 False
     , task-rule "joinAllOrCancel" "JoinAllOrCancel" 2 True
+    , par-rule "parBoth" "ParBoth" "forall (a :: Type) (b :: Type) (e1 :: Row) (e2 :: Row). (Unit ->{|e1} a) ->{|e2} (Unit ->{|e2} b) ->{|e1} (a, b)"
+    , par-rule "parTabulate" "ParTabulate" "forall (a :: Type) (e :: Row). Nat -> (Nat ->{|e} a) ->{|e} Array a"
+    , par-rule "parMap" "ParMap" "forall (a :: Type) (b :: Type) (e :: Row). (a ->{|e} b) -> Array a ->{|e} Array b"
     , task-rule "unrefine" "Unrefine" 1 False
     , task-rule "copyOut" "CopyOut" 1 False
     , task-rule "borrow" "Borrow" 1 False

@@ -398,9 +398,8 @@ module Bootstrap.Global where
       && source-bodies-match (declaration-bodies globals) (declaration-bodies globals) (source-definition-replace definition definitions) datas (Some (core-name definition))
       && clause-references-with globals (value-local-schemes (opening-value-types (core-openings definition))) (core-givens definition) (core-clauses definition)
     other -> False)
-
-
   declaration-guarded-bodies :: List CoreGlobal -> List GuardedBinding
   declaration-guarded-bodies declarations = case declarations of Nil -> Nil; Cons (GlobalGuardedBody base binding) rest -> Cons binding (declaration-guarded-bodies rest); Cons other rest -> declaration-guarded-bodies rest
   globals-guarded-bodies :: CoreGlobals -> List GuardedBinding
   globals-guarded-bodies globals = case globals of ClosedGlobals declarations definitions datas bodies -> declaration-guarded-bodies declarations
+

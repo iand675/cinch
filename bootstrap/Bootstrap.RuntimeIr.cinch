@@ -3496,7 +3496,10 @@ module Bootstrap.RuntimeIr where
         (ready, value) -> case call ready "@cinch_int_neg" [value] of (done, result) -> (count-op False (core-type input) value done, result))
       else unsupported w sp "unary primitive needs runtime lowering"
     CArgument at first (CArgument bt second (CArgumentsEnd end)) ->
-      if same op "#handler-field" then
+      if same op "par-both" then par-both definitions locals w sp ty first second
+      else if same op "par-tabulate" then par-tabulate definitions locals w sp ty first second
+      else if same op "par-map" then par-map definitions locals w sp ty first second
+      else if same op "#handler-field" then
         (case second of
           CInt offset offset-type slot -> case expression definitions locals w first of
             (ready, frame) -> let (one, pointer) = fresh ready "%ptr" in
@@ -3513,6 +3516,80 @@ module Bootstrap.RuntimeIr where
       else unsupported w sp "primitive carrier needs runtime lowering"
     CArgumentsEnd end -> if same op "decision-true" then (w, "1") else if same op "decision-false" then (w, "0") else unsupported w sp "nullary primitive needs runtime lowering"
     other -> unsupported w sp "primitive arity needs runtime lowering"
+  -- Deterministic pure parallelism (design/parallel-evaluation.md sections
+  -- 2 and 4.3): the units wrap the runtime's work-stealing entries of
+  -- `compiler/runtime/src/par.rs`, or their sequential readings on the
+  -- cooperative backend (`cinch_coop_par_*`). The callback closures are
+  -- borrowed (the caller drops them after the call) and the runtime
+  -- duplicates one reference per invocation, marking at publication.
+  -- Every class here is an immediate baked into the body, so the emission
+  -- depends only on the checked program, never on a schedule.
+  -- The pooled entries. The cooperative (Wasm) backend's sequential
+  -- readings exist in the runtime (`cinch_coop_par_*`) but the self-hosted
+  -- compiler emits one native profile, so it names the pooled entries; the
+  -- artifact profile is the driver's, not this emitter's.
+  par-entry :: String -> String
+  par-entry base = cat ["@cinch_", base]
+  -- The two result words are owned by the caller, and the pair takes the
+  -- two component classes' exact pointer map, so no mask and no shaped-join
+  -- limit apply (section 4.3).
+  par-both :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> CoreTerm -> CoreTerm -> (Writer, String)
+  par-both definitions locals w sp ty f g = case expressions definitions locals w [f, g] of
+    (ready, Cons f-word (Cons g-word Nil)) -> case pair-classes (writer-context w) ty of
+      None -> unsupported ready sp "parBoth result needs its checked pair representation"
+      Some classes ->
+        let (one, out) = fresh ready "%out" in
+        let (two, out-word) = fresh one "%v" in
+        let pointed = line two (cat ["  ", out, " = alloca [2 x i64]"])
+        in let addressed = line pointed (cat ["  ", out-word, " = ptrtoint ptr ", out, " to i64"])
+        in case call addressed (par-entry "par_both") [f-word, g-word, out-word] of
+          (called, _) ->
+            -- The callbacks are borrowed: the caller keeps them alive across
+            -- the call and drops them afterwards (section 3.3).
+            let released = count-op False (core-type f) f-word (count-op False (core-type g) g-word called) in
+            case load-word released out "0" of
+              (first-loaded, first) -> case load-word first-loaded out "1" of
+                (second-loaded, second) -> case request-object-shape sp classes second-loaded of
+                  (planned, descriptor) -> allocate planned descriptor [first, second]
+    (ready, other) -> unsupported ready sp "parBoth takes exactly two callbacks"
+  pair-classes :: RuntimeContext -> UType -> Option (List Nat)
+  pair-classes context ty = case ty of
+    UTuple fields -> (case spine-types fields of
+      Cons first (Cons second Nil) -> class-vector context [first, second]
+      other -> None)
+    other -> None
+  spine-types :: UType -> List UType
+  spine-types fields = case fields of UEnd -> Nil; UArg first rest -> Cons first (spine-types rest); other -> Nil
+  -- `n` crosses as a length (`cinch_nat_to_len`), and the element class as
+  -- the scan code the array constructors take.
+  par-tabulate :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> CoreTerm -> CoreTerm -> (Writer, String)
+  par-tabulate definitions locals w sp ty count callback = case expression definitions locals w count of
+    (counted, count-word) -> case expression definitions locals counted callback of
+      (ready, closure) -> case array-element-class (writer-context w) ty of
+        None -> unsupported ready sp "parTabulate result needs its checked element representation"
+        Some class ->
+          case call ready "@cinch_nat_to_len" [count-word] of
+            (converted, length) -> case call converted (par-entry "par_tabulate") [length, closure, nat-to-string class] of
+              -- The callback is borrowed and dropped after the call.
+              (called, built) -> (count-op False (core-type callback) closure called, built)
+  -- `parMap`'s array primitive: the elaboration has already put
+  -- `array-from-list` in front and `array-to-list` behind it, so the
+  -- runtime never builds list cells.
+  par-map :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> CoreTerm -> CoreTerm -> (Writer, String)
+  par-map definitions locals w sp ty callback array = case expressions definitions locals w [callback, array] of
+    (ready, Cons closure (Cons input Nil)) -> case array-element-class (writer-context w) ty of
+      None -> unsupported ready sp "parMap result needs its checked element representation"
+      Some class -> case call ready (par-entry "par_map_array") [closure, input, nat-to-string class] of
+        -- Both the callback and the input array are borrowed; the caller
+        -- drops them after the call, and owns the result.
+        (called, mapped) -> (count-op False (core-type callback) closure (count-op False (core-type array) input called), mapped)
+    (ready, other) -> unsupported ready sp "parMap takes a callback and one array"
+  -- The element class of an `Array a` result, as the scan code the array
+  -- constructors take.
+  array-element-class :: RuntimeContext -> UType -> Option Nat
+  array-element-class context ty = case ty of
+    UApp (UCon name kind) element -> if same name "Array" && kind-equal kind (KFun KType KType) then word-class context element else None
+    other -> None
   -- The leading lets hold the group's cells until the continuation exits.
   -- Clear their scanned slot in reverse allocation order, breaking cycles
   -- between unforced closures before dropping the owning cell references.
@@ -3957,6 +4034,31 @@ module Bootstrap.RuntimeIr where
           PrimitiveIntrinsicDemand symbol -> workers definitions (primitive-intrinsic-worker symbol claimed)
   declarations :: String
   declarations = declarations-counting False
+  -- The four pooled parallel entries (runtime ABI 8). They are declared
+  -- only when the program contains a parallel primitive, so a program that
+  -- uses none emits the same IR bytes as before the builtins existed
+  -- (design/parallel-evaluation.md section 4.2).
+  par-declarations :: String
+  par-declarations = "declare i64 @cinch_par_both(i64, i64, i64)\ndeclare i64 @cinch_par_tabulate(i64, i64, i64)\ndeclare i64 @cinch_par_map_array(i64, i64, i64)\ndeclare i64 @cinch_par_set_workers(i64)\n"
+  par-used :: List CoreDefinition -> Bool
+  par-used definitions = case definitions of
+    Nil -> False
+    Cons d rest -> definition-par-used d || par-used rest
+  definition-par-used :: CoreDefinition -> Bool
+  definition-par-used d = case core-clauses d of
+    Nil -> False
+    Cons (MkCoreClause sp patterns body) rest -> term-par-used body || definition-par-used (MkCoreDefinition sp (core-name d) (core-scheme d) (core-openings d) (core-givens d) Nil rest)
+  term-par-used :: CoreTerm -> Bool
+  term-par-used term = case term of
+    CPrimitive sp ty op args -> par-operation op || children-par-used (term-children term)
+    CLambda sp ty p body -> term-par-used body
+    other -> children-par-used (runtime-term-children term)
+  children-par-used :: List CoreTerm -> Bool
+  children-par-used terms = case terms of Nil -> False; Cons first rest -> term-par-used first || children-par-used rest
+  par-operation :: String -> Bool
+  par-operation op = same op "par-both" || same op "par-tabulate" || same op "par-map"
+  par-preamble :: List CoreDefinition -> String
+  par-preamble definitions = if par-used definitions then par-declarations else ""
   -- The module prelude. Debug counting swaps only the two count helpers,
   -- so every other declaration and every call site is the same bytes.
   declarations-counting :: Bool -> String
@@ -4202,7 +4304,7 @@ module Bootstrap.RuntimeIr where
     let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty in
     let plan = inline-plan inlining definitions info in
     case settled-workers-with-plan plan definitions roots info of
-      Writer next globals code Nil layouts datas -> Ok (cat [declarations, builder-run globals, layout-table layouts, apply-entry-with-linkage "internal ", builder-run code])
+      Writer next globals code Nil layouts datas -> Ok (cat [declarations, par-preamble definitions, builder-run globals, layout-table layouts, apply-entry-with-linkage "internal ", builder-run code])
       Writer next globals code errors layouts datas -> Err errors
   -- Public ABI bridges and their metadata share this checked physical plan.
   -- The parameter prefix includes eager method values, dictionaries and
@@ -4443,7 +4545,7 @@ module Bootstrap.RuntimeIr where
     case library-bridges definitions roots Nil (settled-workers-with-plan plan definitions selected info) of
       (bridged, units) -> case workers definitions bridged of
         Writer next globals code Nil layouts context ->
-          let ir = cat [declarations, builder-run globals, if register then layout-table layouts else "", apply-entry-with-linkage "internal ", builder-run code] in
+          let ir = cat [declarations, par-preamble definitions, builder-run globals, if register then layout-table layouts else "", apply-entry-with-linkage "internal ", builder-run code] in
           Ok (ir, library-layout-words bridged layouts, units, if register then JObjEnd else library-object-facts (Writer next globals code Nil layouts context))
         Writer next globals code errors layouts context -> Err errors
   emit-runtime-program :: CheckedProgram -> Result (List Diagnostic) String
@@ -4475,5 +4577,5 @@ module Bootstrap.RuntimeIr where
         Some mode -> let plan = inline-plan inlining definitions info in
           let settled = settled-workers-with-plan plan definitions [("main", Nil)] info in
           case (case constructor "main" datas of Some found -> workers definitions (demand-worker "main" Nil (empty-writer-with-plan (writer-program settled) plan)); None -> settled) of
-            Writer next globals code Nil layouts datas -> Ok (cat [declarations-counting debug, builder-run globals, layout-table layouts, apply-entry, builder-run code, entry mode])
+            Writer next globals code Nil layouts datas -> Ok (cat [declarations-counting debug, par-preamble definitions, builder-run globals, layout-table layouts, apply-entry, builder-run code, entry mode])
             Writer next globals code errors layouts datas -> Err errors
