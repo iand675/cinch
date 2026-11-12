@@ -60,10 +60,11 @@ module Bootstrap.Core where
   export CoreGiven, CGiven, CoreEvidence, CENeeded, CEGiven, CEInstance
   export CEArgument, CEArgumentsEnd
   export CQualifiedUse, CMethod, core-givens, given-symbol, given-type, evidence-type
-  export map-givens, map-evidence, map-evidences, scheme-closed
+  export map-givens, map-evidence, map-evidences, scheme-closed, declaration-scheme-closed
   export map-pattern-types, map-term-types, abstract-term, seal-definition, core-definition-closed
+  export core-definition-refusal
 
-  export contract-quants-closed, contract-scheme-closed, core-definition-result-types
+  export contract-quants-closed, contract-scheme-closed, contract-scheme-refusal, core-definition-result-types
   export arrow-result, erasable-value-argument, pattern-result, proof-pattern, proof-patterns, scope-let
   export CoreData, MkCoreData, CoreConstructor, MkCoreConstructor
   export core-data-name, core-data-kind, core-data-params, core-data-constructors
@@ -1403,8 +1404,22 @@ module Bootstrap.Core where
   closed-types types = case types of Nil -> True; Cons ty rest -> closed-type ty && closed-types rest
   requirements-closed :: List Requirement -> Bool
   requirements-closed rs = case rs of Nil -> True; Cons r rest -> closed-type (requirement-type r) && requirements-closed rest
+  -- A value contract: the body is a value type. Operations and constructors
+  -- genuinely need this (`effect-operations-closed`, `constructors-closed`,
+  -- `constructor-pattern-supported`), because a constructor cannot return a
+  -- proposition and an operation cannot perform one.
   scheme-closed :: Scheme -> Bool
   scheme-closed sc = kind-equal (type-kind (scheme-body sc)) KType && closed-quants (scheme-params sc) && closed-type (scheme-body sc) && requirements-closed (scheme-requirements sc)
+  -- A DECLARATION contract: the body is a value type or a proposition.
+  -- `same :: (value :: Bool) -> Eq value value` declares a proof former, so
+  -- its body is a goal rather than a value; the seed accepts exactly that
+  -- shape, and Bootstrap.Kinds' `declared-type` states the same rule. Using
+  -- `scheme-closed` here refused every proof former, which is why an
+  -- `Eq`-valued source function could not reach the global closure.
+  declaration-scheme-closed :: Scheme -> Bool
+  declaration-scheme-closed sc = declared-scheme-body (scheme-body sc) && closed-quants (scheme-params sc) && closed-type (scheme-body sc) && requirements-closed (scheme-requirements sc)
+  declared-scheme-body :: UType -> Bool
+  declared-scheme-body ty = valid-type ty && (if kind-equal (type-kind ty) KType then valid-kind (value-kind ty) else kind-equal (type-kind ty) KProp)
   givens-closed :: List CoreGiven -> Bool
   givens-closed givens = case givens of Nil -> True; Cons given rest -> closed-type (given-type given) && givens-closed rest
   evidence-closed :: CoreEvidence -> Bool
@@ -1459,7 +1474,12 @@ module Bootstrap.Core where
     CUse s ty name role actuals -> closed-runtime-type ty && closed-types actuals
     CLocal s ty id name actuals -> closed-runtime-type ty && closed-types actuals
     CProofRef s ty id name -> False
-    CProofRefl s predicate -> False
+    -- Reflexive evidence is a checked proof term, and a definition whose body
+    -- is `refl` has exactly this shape: `same v = refl` declares a proof
+    -- former. `valid-proof-reference` already accepts it under the same
+    -- predicate, so refusing it here made every such definition fail
+    -- `valid-clauses` before the proof-clause check could see it.
+    CProofRefl s predicate -> reflexive-equality predicate
     CProofSearch s predicate assumption evidence -> False
     CDecision s ty predicate condition -> closed-runtime-type ty && closed-type predicate && valid-type predicate && kind-equal (type-kind predicate) KProp && valid-term condition
     CQualifiedUse s ty name role actuals evidence -> closed-runtime-type ty && closed-types actuals && evidences-closed evidence
@@ -1724,9 +1744,29 @@ module Bootstrap.Core where
     None -> False
   core-definition-checked-contracts-closed :: BodyBindings -> List GuardedBinding -> CoreDefinition -> Bool
   core-definition-checked-contracts-closed checked guards definition = let bodies = body-bindings-members checked in guarded-bindings-closed guards && (case definition of
+    -- A definition's scheme is a DECLARATION contract, so its body may be a
+    -- proposition: `same v = refl` defines a proof former. `scheme-closed`
+    -- would demand a value kind and refuse every proof former here.
     MkCoreDefinition s name sc openings givens private clauses -> let values = opening-value-ids (scheme-params sc) openings in
-      scheme-closed sc && scheme-index-scope Nil sc && givens-closed givens && givens-index-scope values givens && valid-clauses clauses && scoped-clauses values clauses && body-scheme-authorized bodies sc && proof-contract-clauses-checked checked guards (opening-value-types openings) (substitute-bound openings (scheme-body sc)) clauses)
+      declaration-scheme-closed sc && scheme-index-scope Nil sc && givens-closed givens && givens-index-scope values givens && valid-clauses clauses && scoped-clauses values clauses && body-scheme-authorized bodies sc && proof-contract-clauses-checked checked guards (opening-value-types openings) (substitute-bound openings (scheme-body sc)) clauses)
 
+  -- The definition conjunction above folds nine tests into one `Bool`. This
+  -- reports the first that refused, so a refusal names a clause instead of
+  -- the whole definition.
+  core-definition-refusal :: BodyBindings -> List GuardedBinding -> CoreDefinition -> Option String
+  core-definition-refusal checked guards definition = let bodies = body-bindings-members checked in
+    if not (guarded-bindings-closed guards) then Some "a guarded binding is not closed"
+    else case definition of
+      MkCoreDefinition s name sc openings givens private clauses -> let values = opening-value-ids (scheme-params sc) openings in
+        if not (declaration-scheme-closed sc) then Some "the scheme body is neither a value type nor a proposition"
+        else if not (scheme-index-scope Nil sc) then Some "a scheme index is out of scope"
+        else if not (givens-closed givens) then Some "a given is not closed"
+        else if not (givens-index-scope values givens) then Some "a given index is out of scope"
+        else if not (valid-clauses clauses) then Some "a clause pattern or term is invalid"
+        else if not (scoped-clauses values clauses) then Some "a clause body is not scoped"
+        else if not (body-scheme-authorized bodies sc) then Some "the scheme names a body it is not authorized to"
+        else if not (proof-contract-clauses-checked checked guards (opening-value-types openings) (substitute-bound openings (scheme-body sc)) clauses) then Some "a proof clause does not discharge its goal"
+        else None
   -- Operation certificates are rechecked against facts derived from the
   -- retained Core control flow. Display names never identify proof values.
   number-sort :: UType -> Option String
@@ -2470,7 +2510,11 @@ module Bootstrap.Core where
   proof-ordinary-term gamma facts term = case term of
     CDecision sp ty predicate condition -> scoped-decision-valid gamma facts ty predicate condition
     CProofRef s ty id name -> False
-    CProofRefl s predicate -> False
+    -- `refl` discharges a goal whose two sides are definitionally equal, which
+    -- is the one proof term an ordinary body may be: `same v = refl` is the
+    -- canonical proof former, and refusing it here refused every one of them.
+    -- The predicate is the goal itself, so reflexivity is the whole test.
+    CProofRefl s predicate -> reflexive-equality predicate
     CProofSearch s predicate assumption evidence -> False
     CRefine s ty evidence body -> certified-refinement gamma facts ty evidence body
     CRefineProof s ty witness body -> scoped-refinement-proof gamma facts ty witness body
@@ -3036,8 +3080,20 @@ module Bootstrap.Core where
   -- semantics remain separate from these retained contract invariants.
   contract-quants-closed :: List Quant -> Bool
   contract-quants-closed qs = effect-quants-scoped qs Nil && closed-quants qs
+  -- `contract-scheme-closed` is a six-way conjunction, so a refusal names
+  -- nothing. This reports the first clause that refused; the checking form
+  -- stays the one every caller uses.
+  contract-scheme-refusal :: Scheme -> Option String
+  contract-scheme-refusal sc =
+    if not (declaration-scheme-closed sc) then Some "body kind is neither a value type nor a proposition"
+    else if not (valid-type (scheme-body sc)) then Some "body is not a valid type"
+    else if not (scheme-index-scope Nil sc) then Some "an index is out of scope"
+    else if not (contract-quants-closed (scheme-params sc)) then Some "a quantifier is not closed"
+    else if not (effect-type-scope (scheme-params sc) (scheme-body sc)) then Some "an effect row is out of scope"
+    else if not (effect-requirements (scheme-params sc) (scheme-requirements sc)) then Some "a requirement is out of scope"
+    else None
   contract-scheme-closed :: Scheme -> Bool
-  contract-scheme-closed sc = scheme-closed sc && valid-type (scheme-body sc)
+  contract-scheme-closed sc = declaration-scheme-closed sc && valid-type (scheme-body sc)
     && scheme-index-scope Nil sc && contract-quants-closed (scheme-params sc)
     && effect-type-scope (scheme-params sc) (scheme-body sc)
     && effect-requirements (scheme-params sc) (scheme-requirements sc)

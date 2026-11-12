@@ -140,6 +140,28 @@ fn generic_constructor_refinement_keeps_its_type_instantiation() {
     assert_eq!(run_source(source).unwrap(), 42);
 }
 
+/// A declaration whose body is a proposition is a proof former, and the
+/// global closure must accept it. `scheme-closed` demands a value kind of the
+/// body, which is right for a constructor and an operation but wrong for a
+/// declaration: `same :: (v :: Nat) -> Eq v v` returns a goal, and the seed
+/// accepts exactly that. Before the fix every proof former was refused with
+/// "global declaration environment is not closed", so this pins the
+/// distinction between a value contract and a declaration contract.
+#[test]
+fn proposition_valued_declarations_reach_the_global_closure() {
+    let source = r#"module Main where
+  same :: (v :: Nat) -> Eq v v
+  same v = refl
+  claim :: Eq 1 1
+  claim = refl
+  quantified :: forall (v :: Nat). Eq v v
+  quantified = refl
+  main :: Int
+  main = 42
+"#;
+    assert_eq!(run_source(source).unwrap(), 42);
+}
+
 const CAPTURED_FIELD_PROOF: &str = r#"module Main where
   macro hide :: forall a. Syntax -> Name -> Code a
   macro hide source name = let binding = Syntax.newBinding name in Syntax.letIn binding [| False |] (Syntax.capture source)

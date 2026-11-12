@@ -17,6 +17,7 @@ module Bootstrap.Global where
   export globals-body-context, globals-bodies, globals-guarded-bodies, GlobalGuardedBody
   export CoreGlobals, add-global, globals-closed, close-globals, global-definition-closed, globals-declarations
   export close-globals-with-definitions, close-globals-with-source-data
+  export globals-refusal
   export constructor-pattern-supported
 
   data CoreGlobal where
@@ -140,10 +141,50 @@ module Bootstrap.Global where
     Nil -> True
     Cons declaration rest -> let name = global-name declaration in
       string-length name > 0 && not (has-name name names) && schemes-closed (global-schemes declaration) && decision-global declaration && body-declaration-valid declaration
-      && (case base-global declaration of GlobalValue symbol role sc -> role-valid role; GlobalMethod symbol owner slot sc -> string-length owner > 0 && method-self owner sc; GlobalIntrinsicViews symbol views -> intrinsic-views-valid views; other -> False)
+      && global-role-valid declaration
       && globals-seen rest (Cons name names)
   globals-closed :: List CoreGlobal -> Bool
   globals-closed declarations = globals-seen declarations Nil && guarded-bindings-closed (declaration-guarded-bodies declarations) && body-bindings-closed (declaration-bodies declarations) && declarations-body-authorized (declaration-bodies declarations) declarations
+
+  -- `globals-closed` folds four unrelated tests into one `Bool`, so a refusal
+  -- names nothing. These two report the FIRST declaration that fails, in the
+  -- order the folds apply, because the failing name is the whole diagnosis: a
+  -- proposition-valued scheme and an impure constructor are the same `False`
+  -- and need different fixes.
+  globals-refusal :: List CoreGlobal -> Option String
+  globals-refusal declarations = case first-unclosed-global declarations Nil of
+    Some reason -> Some reason
+    None -> if not (guarded-bindings-closed (declaration-guarded-bodies declarations)) then Some "a guarded body is not closed"
+      else if not (body-bindings-closed (declaration-bodies declarations)) then Some "a body binding is not closed"
+      else if not (declarations-body-authorized (declaration-bodies declarations) declarations) then Some "a scheme names a body it is not authorized to"
+      else None
+  first-unclosed-global :: List CoreGlobal -> List String -> Option String
+  first-unclosed-global declarations names = case declarations of
+    Nil -> None
+    Cons declaration rest -> let name = global-name declaration in
+      if string-length name == 0 then Some "a declaration has an empty name"
+      else if has-name name names then Some (string-concat name " is declared twice")
+      else if not (schemes-closed (global-schemes declaration)) then Some (string-concat name (string-concat " (scheme is not a closed contract: " (string-concat (scheme-refusal-of (global-schemes declaration)) ")")))
+      else if not (decision-global declaration) then Some (string-concat name " (decision constructor disagrees with its scheme)")
+      else if not (body-declaration-valid declaration) then Some (string-concat name " (body declaration is invalid)")
+      else if not (global-role-valid declaration) then Some (string-concat name " (role or method owner is invalid)")
+      else first-unclosed-global rest (Cons name names)
+  -- The first scheme of a declaration that is not a closed contract, with the
+  -- clause that refused it.
+  scheme-refusal-of :: List Scheme -> String
+  scheme-refusal-of schemes = case schemes of
+    Nil -> "no scheme refused"
+    Cons sc rest -> case contract-scheme-refusal sc of
+      Some reason -> reason
+      None -> scheme-refusal-of rest
+  -- The role half of the `globals-seen` fold, kept in one place so the fold
+  -- and its reporting form cannot drift apart.
+  global-role-valid :: CoreGlobal -> Bool
+  global-role-valid declaration = case base-global declaration of
+    GlobalValue symbol role sc -> role-valid role
+    GlobalMethod symbol owner slot sc -> string-length owner > 0 && method-self owner sc
+    GlobalIntrinsicViews symbol views -> intrinsic-views-valid views
+    other -> False
   declarations-body-authorized :: List BodyBinding -> List CoreGlobal -> Bool
   declarations-body-authorized bindings declarations = case declarations of
     Nil -> True

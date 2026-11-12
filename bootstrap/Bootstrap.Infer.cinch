@@ -5214,7 +5214,7 @@ module Bootstrap.Infer where
   check-core-closed :: TypingContext -> List CoreDefinition -> Store -> Store
   check-core-closed globals definitions st = case definitions of
     Nil -> st
-    Cons d rest -> check-core-closed globals rest (if not (core-definition-checked-contracts-closed (context-body-context globals) (context-guarded-bodies globals) d) then add-error zero "typed core contains an unresolved scheme or error term" st
+    Cons d rest -> check-core-closed globals rest (if not (core-definition-checked-contracts-closed (context-body-context globals) (context-guarded-bodies globals) d) then add-error zero (string-concat "typed core contains an unresolved scheme or error term: " (string-concat (core-name d) (string-concat ": " (case core-definition-refusal (context-body-context globals) (context-guarded-bodies globals) d of Some reason -> reason; None -> "the conjunction refused without a named clause")))) st
       else case par-definition-error globals d of
         Some (sp, message) -> add-error sp message st
         None -> case task-definition-error globals d of
@@ -5227,9 +5227,12 @@ module Bootstrap.Infer where
   declared-kind-rows :: TypeContext -> List (String, Kind)
   declared-kind-rows context = case context of MkTypeContext kinds aliases active observers effects source-classes -> kinds
   check-global-core :: TypeContext -> List CheckedBinding -> List CoreInstance -> List CoreData -> List CoreDefinition -> Store -> Store
-  check-global-core kinds bindings instances datas definitions st = case close-typing-context-with-definitions (declared-kind-rows kinds) (instance-globals instances (global-bindings (finish-bindings st bindings) Nil)) (context-effects kinds) datas definitions of
-    Some globals -> check-instance-globals globals instances (check-core-closed globals definitions st)
-    None -> add-error zero "global declaration environment is not closed or contains conflicting identities" st
+  check-global-core kinds bindings instances datas definitions st =
+    let rows = declared-kind-rows kinds in
+    let globals = instance-globals instances (global-bindings (finish-bindings st bindings) Nil) in
+    case close-typing-context-with-definitions rows globals (context-effects kinds) datas definitions of
+      Some closed -> check-instance-globals closed instances (check-core-closed closed definitions st)
+      None -> add-error zero (string-concat "global declaration environment is not closed: " (closure-refusal rows globals (context-effects kinds) datas definitions)) st
   -- Reuse the schemes registered and checked above. Re-reading a surface
   -- constructor type here would discard the exact nominal identities.
   checked-constructors :: List (String, TypeExpr) -> List CheckedBinding -> Store -> (List CoreConstructor, Store)

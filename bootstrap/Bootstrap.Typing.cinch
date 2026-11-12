@@ -19,7 +19,7 @@ module Bootstrap.Typing where
   export close-typing-context-with-effects, close-typing-context-with-data, context-effects, task-definition-safe, task-definition-error
   export par-definition-error
   export TypingContext, close-typing-context, typing-definition-closed, context-bodies, context-guarded-bodies
-  export context-body-context, close-typing-context-with-definitions
+  export context-body-context, close-typing-context-with-definitions, closure-refusal
   export task-source-forwarder, task-forwarder-type
   export task-free, task-pattern-ids
   data TypingContext where
@@ -99,6 +99,34 @@ module Bootstrap.Typing where
     if nominal-kinds-closed all && global-types all declarations && effects-registered all declarations Nil effects && task-data-closed all datas then
       (case close-globals-with-source-data declarations definitions datas of Some globals -> Some (CheckedTypingContext all globals effects datas (task-forwarder-names definitions)); None -> None)
     else None
+
+  -- The closure above folds four unrelated clauses into one `None`, so the
+  -- refusal names nothing. This reports the first clause that refused, in the
+  -- order the chain applies, because the failing declaration is the whole
+  -- diagnosis: a proposition-valued scheme and an impure constructor are both
+  -- `False` and need different fixes. The checking form stays the one every
+  -- caller uses; this one only shapes a message.
+  closure-refusal :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> List CoreDefinition -> String
+  closure-refusal kinds declarations effects datas definitions = let all = kernel-effect-kinds <> kinds in
+    if not (nominal-kinds-closed all) then "the nominal kind table is not closed"
+    else if not (global-types all declarations) then (string-concat "a global scheme is ill-formed: " (ill-formed-scheme all declarations))
+    else if not (effects-registered all declarations Nil effects) then "an effect declaration is not registered"
+    else if not (task-data-closed all datas) then "task data is not closed"
+    else case globals-refusal declarations of
+      Some reason -> string-concat "the global reference closure refused: " reason
+      None -> "the source body closure refused: a body binding does not match its definition"
+  -- Which declaration `global-types` rejects, named. A proposition-valued body
+  -- is a legal scheme (`scheme-well-formed` admits `declared-type`), so naming
+  -- it distinguishes that from an impure constructor, which is not legal.
+  ill-formed-scheme :: List (String, Kind) -> List CoreGlobal -> String
+  ill-formed-scheme kinds declarations = case declarations of
+    Nil -> "no declaration names itself"
+    Cons declaration rest ->
+      if global-schemes-well-formed kinds (global-schemes declaration) then
+        (case declaration of
+          GlobalValue name role sc -> if same role "constructor" && not (constructor-pure (scheme-body sc)) then string-concat name " (impure constructor)" else ill-formed-scheme kinds rest
+          other -> ill-formed-scheme kinds rest)
+      else global-name declaration
   wf :: TypingContext -> TypeScope -> UType -> Bool
   wf context scope ty = body-type-authorized (context-bodies context) ty && type-well-formed (context-kinds context) scope ty
   actual-types :: TypingContext -> TypeScope -> List UType -> Bool
@@ -268,8 +296,14 @@ module Bootstrap.Typing where
         let introduced = scoped-core-case-rest-facts gamma facts scrutinee pattern body <> facts in
         alternatives-typed context scope (proof-after-writes gamma writes) (facts-after-writes gamma introduced writes) scrutinee expected rest)
     other -> False
+  -- A term's carrier is a value type or a proposition. `proper-type` alone is
+  -- right for a runtime value and wrong for a proof former's body: `same v =
+  -- refl` has a `Prop` carrier, and demanding `KType` here refused every proof
+  -- former after the definition closure had already accepted it.
+  checked-term-carrier :: UType -> Bool
+  checked-term-carrier ty = proper-type ty || (valid-type ty && kind-equal (type-kind ty) KProp)
   checked-term :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> CoreTerm -> Bool
-  checked-term context scope gamma facts term = proper-type (core-type term) && wf context scope (core-type term) && (case term of
+  checked-term context scope gamma facts term = checked-term-carrier (core-type term) && wf context scope (core-type term) && (case term of
     CUse sp ty name role actuals -> actual-types context scope actuals
     CLocal sp ty id name actuals -> actual-types context scope actuals
     CQualifiedUse sp ty name role actuals evidence -> actual-types context scope actuals && evidences-types context scope evidence
@@ -346,6 +380,10 @@ module Bootstrap.Typing where
     CRequire sp ty body -> (case ty of URequire predicates result -> equal-type result (core-type body) && (case scoped-core-predicates gamma predicates of Some introduced -> checked-term context scope gamma (introduced <> facts) body; None -> False); other -> False)
     CDischarge sp ty certificates body -> equal-type ty (required-body (core-type body)) && checked-term context scope gamma facts body
     CGuard sp ty condition body -> type-is "Bool" (core-type condition) && equal-type ty (core-type body) && checked-term context scope gamma facts condition && checked-term context scope (proof-after-writes gamma (scoped-branch-writes condition True)) (scoped-branch-facts gamma facts condition True) body
+    -- Reflexive evidence is the one proof term an ordinary body may be, and
+    -- its carrier is the goal it discharges. `reflexive-equality` is the whole
+    -- check: the goal's two sides must be definitionally equal.
+    CProofRefl sp predicate -> reflexive-equality predicate
     other -> False)
   task-data-closed :: List (String, Kind) -> List CoreData -> Bool
   task-data-closed kinds datas = case datas of
