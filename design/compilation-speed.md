@@ -2137,8 +2137,11 @@ the self-check `Bootstrap.Dictionary.matching-heads` 0.4% and
 release entry directly put 1.4% in `carrier-tree`, 0.5% in
 `read-carrier-tree` and 0.1% in `valid-comparison`, because most of them are
 called from a short inlined helper; the enclosing-unit view is the one that
-says which code owns the work.) It is the price of the 990M constructor blocks
-a self-check allocates. Backlog item 11 was aimed at the stub on the strength
+says which code owns the work.) The Cinch-built stage-3 binary agrees on the
+self-check, sampled the same way over 60,890 working samples: release entries
+**5.9%**, of which a stub calls **0.02%**, with stub bodies at **0.11%** and
+`__apply` at **0.01%**. It is the price of the 990M constructor blocks a
+self-check allocates. Backlog item 11 was aimed at the stub on the strength
 of the wrong attribution and is replaced by the item the corrected profile
 supports.
 
