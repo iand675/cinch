@@ -1264,10 +1264,22 @@ impl Pass<'_> {
             let body = match &a.pat {
                 CPat::Con { tag, fields, .. } => {
                     let nb = self.need(&a.body);
+                    // The arm reads the block whenever it uses any of its
+                    // fields, counted or not: an `I64` field is read
+                    // through the block just as an `Obj` one is, and an arm
+                    // that reads only scalars is exactly the shape whose
+                    // rebuild can take the cell. `moved` still carries only
+                    // the counted fields, because only those hand a
+                    // reference over.
+                    let mut bound_fields = Set::new();
+                    crate::core::walk_locals(&a.body, &mut |l| {
+                        bound_fields.insert(l.0);
+                    });
+                    let reads_fields = fields.iter().any(|x| bound_fields.contains(&x.0));
                     let used: Vec<usize> =
                         fields.iter().map(|x| x.0).filter(|x| self.counted(*x) && nb.contains(x)).collect();
                     if self.specialize
-                        && !used.is_empty()
+                        && reads_fields
                         && self.class_of(s) == Class::Obj
                         && owned.contains(&s)
                         && !live.contains(&s)

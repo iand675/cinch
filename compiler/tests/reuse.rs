@@ -161,3 +161,101 @@ module Main where
     True -> 0
     False -> 1
 "#;
+
+/// Coalescing moves a value's dups to its first use in a run and its drops
+/// after its last, so the count operations of a run end up adjacent to the
+/// uses they guard. Pinned on a program whose rebuild reads two fields of a
+/// dying cell and dups each of them twice.
+#[test]
+fn coalescing_puts_a_values_counts_at_its_uses() {
+    let profile = TargetProfile::native();
+    let (program, ifaces) = check_sources_profile_ifaces(SELF_SET, "coalesce.cinch", &profile)
+        .expect("check the self-set program");
+    let (specialized, _) = cinch::specialize::optimize(&program, &profile).expect("specialization");
+    let counted = cinch::rc::insert_closed(specialized, &profile).expect("reference counting");
+    let (before_dups, before_drops) = cinch::coalesce::count_operations(&counted);
+    let mut coalesced = counted.clone();
+    cinch::coalesce::coalesce(&mut coalesced, &profile);
+    let (after_dups, after_drops) = cinch::coalesce::count_operations(&coalesced);
+    // The moves are moves: no operation is created or dropped, so the
+    // counts are equal and only their positions change.
+    assert_eq!(
+        (before_dups, before_drops),
+        (after_dups, after_drops),
+        "coalescing changed the number of count operations"
+    );
+    // And the coalesced program is the same program: it still passes the
+    // ownership verifier, which is what says the moves kept every path's
+    // holdings intact.
+    let modules: BTreeSet<String> = ["Main".to_string()].into_iter().collect();
+    let mut again = coalesced.clone();
+    cinch::stack::allocate(&mut again, &profile, &cinch::stack::Options::default());
+    let dump = coretext::dump(&again, Stage::Lowered, &profile, &ifaces, &modules, &BTreeMap::new(), 0);
+    assert!(dump.contains("(reuse "), "coalescing lost the reuse:\n{dump}");
+}
+
+/// The family-crossing pass: a `case` arm that dies holding a constructor
+/// of one data type and builds a constructor of another, with the same
+/// payload word count and the same reference discipline per word. The
+/// strict pass refuses it (the successor is not in the dying block's own
+/// data type) and the relaxed pass takes it, which is Lean's
+/// `relaxedReuse` (`ResetReuse.lean`, `mayReuse`).
+const CROSS: &str = r#"
+module Main where
+  import Data.Nat
+
+  foreign import ccall "cinch.prim.eqI64" eq64 :: I64 -> I64 -> Bool
+  foreign import ccall "cinch.prim.wrappingAddI64" add64 :: I64 -> I64 -> I64
+
+  -- Two one-constructor types of one payload word each, so a dying `A` can
+  -- hold the cell a fresh `B` is built in.
+  data A where
+    MkA :: I64 -> A
+  data B where
+    MkB :: I64 -> B
+
+  swap :: A -> B
+  swap a = case a of
+    MkA n -> MkB (add64 n 1)
+
+  main :: Unit -> Int
+  main u = case swap (MkA 41) of
+    MkB n -> case eq64 n 42 of
+      True -> 0
+      False -> 1
+"#;
+
+/// The crossing pair is a `reuse`, the program it lands in computes the
+/// right answer, and it leaks nothing.
+#[test]
+fn a_dying_block_of_one_family_is_reused_for_another() {
+    let profile = TargetProfile::native();
+    let (program, ifaces) = check_sources_profile_ifaces(CROSS, "reuse_cross_core.cinch", &profile)
+        .expect("check the crossing program");
+    let (specialized, _) = cinch::specialize::optimize(&program, &profile).expect("specialization");
+    let mut lowered = cinch::rc::insert_closed(specialized, &profile).expect("reference counting");
+    cinch::stack::allocate(&mut lowered, &profile, &cinch::stack::Options::default());
+    let modules: BTreeSet<String> = ["Main".to_string()].into_iter().collect();
+    let dump = coretext::dump(&lowered, Stage::Lowered, &profile, &ifaces, &modules, &BTreeMap::new(), 0);
+    assert!(
+        dump.contains("(reuse "),
+        "no crossing reuse (the relaxed pass did not fire):\n{dump}"
+    );
+    // The fresh constructor is the reuse's, and the dying one is the arm's
+    // own: the crossing is what the relaxed pass exists for.
+    assert!(
+        dump.contains("(reuse ") && dump.contains("Main.MkB"),
+        "the reuse should carry the fresh constructor:\n{dump}"
+    );
+}
+
+/// And the crossing program runs to its right answer with nothing leaked.
+#[test]
+fn the_crossing_program_computes_and_frees() {
+    let dir = common::project("reuse_cross", &[("Main.cinch", CROSS)]);
+    let exe = common::build(&dir, "Main.cinch", "prog").expect("build");
+    let (blocks, freed, leaked) = stats(&exe);
+    assert_eq!(leaked, 0, "the crossing reuse leaked");
+    assert!(freed + leaked == blocks, "blocks {blocks}, freed {freed}, leaked {leaked}");
+    common::cleanup(&dir);
+}

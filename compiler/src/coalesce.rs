@@ -71,6 +71,7 @@ pub fn coalesce(program: &mut Program, profile: &crate::core::TargetProfile) {
 }
 
 /// One step of a run: the node, minus the continuation the run carries.
+#[derive(Clone)]
 enum Step {
     /// `let x = v`; `v`'s own runs are already rewritten.
     Let(LocalId, Class, Core),
@@ -193,15 +194,21 @@ fn rebuild(steps: &[Step], tail: Core) -> Core {
             last_use.insert(x, i);
         }
     }
-    let mut dup_class: BTreeMap<usize, Class> = BTreeMap::new();
-    let mut drop_class: BTreeMap<usize, Class> = BTreeMap::new();
+    // The multiplicity is kept, never summed into one operation: a `Dup`
+    // is exactly one reference, so two of them are two references and
+    // emitting one would leave the run holding one less than it took.
+    // Lean sums because its `inc` carries a count; ours does not.
+    let mut dup_class: BTreeMap<usize, (Class, usize)> = BTreeMap::new();
+    let mut drop_class: BTreeMap<usize, (Class, usize)> = BTreeMap::new();
     for s in steps {
         match s {
             Step::Dup(x, c) => {
-                dup_class.entry(x.0).or_insert(*c);
+                let e = dup_class.entry(x.0).or_insert((*c, 0));
+                e.1 += 1;
             }
             Step::Drop(x, c) => {
-                drop_class.entry(x.0).or_insert(*c);
+                let e = drop_class.entry(x.0).or_insert((*c, 0));
+                e.1 += 1;
             }
             Step::Let(..) => {}
         }
@@ -210,16 +217,16 @@ fn rebuild(steps: &[Step], tail: Core) -> Core {
     let mut before: Vec<Vec<(usize, Class)>> = vec![Vec::new(); steps.len()];
     let mut after: Vec<Vec<(usize, Class)>> = vec![Vec::new(); steps.len()];
     let mut stay: Vec<Vec<Step>> = (0..steps.len()).map(|_| Vec::new()).collect();
-    for (x, c) in &dup_class {
+    for (x, (c, n)) in &dup_class {
         match first_use.get(x) {
-            Some(i) => before[*i].push((*x, *c)),
-            None => stay[0].push(Step::Dup(LocalId(*x), *c)),
+            Some(i) => before[*i].extend(std::iter::repeat_n((*x, *c), *n)),
+            None => stay[0].extend(std::iter::repeat_n(Step::Dup(LocalId(*x), *c), *n)),
         }
     }
-    for (x, c) in &drop_class {
+    for (x, (c, n)) in &drop_class {
         match last_use.get(x) {
-            Some(i) => after[*i].push((*x, *c)),
-            None => stay[0].push(Step::Drop(LocalId(*x), *c)),
+            Some(i) => after[*i].extend(std::iter::repeat_n((*x, *c), *n)),
+            None => stay[0].extend(std::iter::repeat_n(Step::Drop(LocalId(*x), *c), *n)),
         }
     }
     for v in before.iter_mut().chain(after.iter_mut()) {
@@ -275,5 +282,122 @@ fn walk(e: &Core, dups: &mut usize, drops: &mut usize) {
                 walk(k, dups, drops);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::{CAlt, CPat, Core, GlobalId};
+
+    fn var(n: usize) -> Core {
+        Core::Var(LocalId(n))
+    }
+
+    fn dup(n: usize, b: Core) -> Core {
+        Core::Dup(LocalId(n), Class::Obj, Box::new(b))
+    }
+
+    fn drop_(n: usize, b: Core) -> Core {
+        Core::Drop(LocalId(n), Class::Obj, Box::new(b))
+    }
+
+    fn app(name: &str, args: Vec<Core>) -> Core {
+        Core::App(Box::new(Core::Global(GlobalId(name.to_string()), Vec::new())), args)
+    }
+
+    /// The order of a run's count operations, as `(dup|drop, local)`.
+    fn order(e: &Core, out: &mut Vec<(char, usize)>) {
+        match e {
+            Core::Dup(x, _, b) => {
+                out.push(('d', x.0));
+                order(b, out);
+            }
+            Core::Drop(x, _, b) => {
+                out.push(('x', x.0));
+                order(b, out);
+            }
+            Core::Let(_, _, v, b) => {
+                order(v, out);
+                order(b, out);
+            }
+            _ => {}
+        }
+    }
+
+    #[test]
+    fn a_dup_moves_to_the_first_use_and_a_drop_after_the_last() {
+        // let a = f (v1)
+        // dup v0
+        // let b = g (v0)
+        // dup v0
+        // drop v0
+        // let c = h (v0)
+        // drop v0
+        //   tail
+        let body = Core::Let(
+            LocalId(10),
+            Class::Raw,
+            Box::new(app("f", vec![var(1)])),
+            Box::new(dup(
+                0,
+                Core::Let(
+                    LocalId(11),
+                    Class::Raw,
+                    Box::new(app("g", vec![var(0)])),
+                    Box::new(dup(
+                        0,
+                        drop_(
+                            0,
+                            Core::Let(
+                                LocalId(12),
+                                Class::Raw,
+                                Box::new(app("h", vec![var(0)])),
+                                Box::new(drop_(0, app("k", vec![var(11)]))),
+                            ),
+                        ),
+                    )),
+                ),
+            )),
+        );
+        let mut before = Vec::new();
+        order(&body, &mut before);
+        assert_eq!(before, vec![('d', 0), ('d', 0), ('x', 0), ('x', 0)]);
+        let after = run(&body);
+        let mut got = Vec::new();
+        order(&after, &mut got);
+        // Both dups now sit before the first use of v0 and both drops
+        // after its last, so the run holds the value across all of it.
+        assert_eq!(got, vec![('d', 0), ('d', 0), ('x', 0), ('x', 0)]);
+        let Core::Let(..) = after else { panic!("the first let is the run's head") };
+        let Core::Dup(..) = nth_body(&after, 0) else {
+            panic!("the dups did not move to the first use: {after:?}");
+        };
+    }
+
+    /// The `n`-th continuation of a `let` spine.
+    fn nth_body(e: &Core, n: usize) -> &Core {
+        let mut cur = e;
+        for _ in 0..n {
+            match cur {
+                Core::Let(_, _, _, b) => cur = b,
+                other => return other,
+            }
+        }
+        match cur {
+            Core::Let(_, _, _, b) => b,
+            other => other,
+        }
+    }
+
+    #[test]
+    fn a_value_with_no_use_in_the_run_keeps_its_counts() {
+        // dup v0 ; drop v0 ; tail: nothing reads v0, so nothing anchors a
+        // move and the pair stays where it was.
+        let body = dup(0, drop_(0, app("k", vec![var(1)])));
+        let after = run(&body);
+        let mut got = Vec::new();
+        order(&after, &mut got);
+        assert_eq!(got, vec![('d', 0), ('x', 0)]);
     }
 }
