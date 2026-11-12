@@ -197,3 +197,24 @@ fact` and drops any entry carrying a write. `mutable-fact-write` should not fire
 (`fact-written` only matches borrow-read variables of mutable locals), so either the entry is
 dropped elsewhere or the guard's fact never entered this env. Print `proof-facts` immediately
 before `discharge-checked-call` and again inside it; that is one more measurement, not a redesign.
+
+**6. The last measurement: the fact is not lost at discharge, it never arrives.** A probe comparing
+`proof-facts env` with `proof-facts (proof-env-after-writes env (call-operand-writes ...))` inside
+`discharge-checked-call` printed nothing on the failing repro, so the two counts are equal and
+`proof-env-after-writes` drops nothing. Together with note 5's `GTRACE` (no `<` fact among the
+hypotheses at the obligation) the conclusion is:
+
+> The guard's branch fact is not in the environment by the time the guarded branch's body is
+> checked, when that body is a call carrying a precondition.
+
+`proof-branch` demonstrably works (note 5), so the loss is between `proof-branch` and the call. The
+next measurement is one line: print `list-length (proof-facts env)` at the entry of `check`'s `EIf`
+case and at the entry of `discharge-checked-call` for the same span. If the count drops between
+them, the branch env is being replaced rather than extended somewhere in the guarded-body path; if
+it does not, the fact is present and `scoped-core-branch` returned `None` for this particular
+condition term (which the `BPROBE fact-introduced` result on prelude code does not rule out for a
+condition whose operands are a local and a byte observation).
+
+Neither repair proposed in note 5 is supported by any measurement so far, and no container-value
+channel is needed: the goal side already reads `#bytes-length:26` correctly. Do not implement one
+until the count comparison above says otherwise.
