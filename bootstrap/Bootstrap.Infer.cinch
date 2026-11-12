@@ -1023,6 +1023,12 @@ module Bootstrap.Infer where
 
   expect-type :: Span -> UType -> Store -> Store
   expect-type sp ty st = if kind-equal (type-kind ty) KType then st else add-error sp "a value type must have kind Type" st
+  -- A declaration's own type is a value type or a proposition: `witness ::
+  -- Eq n n` declares a proof former, and the seed admits it. Everything
+  -- that must be a value still goes through `expect-type`.
+  expect-declared :: Span -> UType -> Store -> Store
+  expect-declared sp ty st = if kind-equal (type-kind ty) KType || kind-equal (type-kind ty) KProp then st
+    else add-error sp "a declaration type must have kind Type or Prop" st
   convert-row :: TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
   convert-row kinds locals row st = case row of
     TRow s labels tail -> case convert-effects kinds locals labels st of
@@ -1203,8 +1209,8 @@ module Bootstrap.Infer where
   scheme-body-from external classes kinds qs ty st = case ty of
     TUsing s bounds body -> case convert-requirements classes kinds (quant-locals qs) bounds Nil st of
       (requirements, sr) -> case convert-contracted external kinds (quant-locals qs) bounds body sr of
-        (out, so) -> (qualified qs requirements out, expect-type s out so)
-    other -> case convert external kinds (quant-locals qs) ty st of (out, so) -> (MkScheme qs out, expect-type (type-expr-span ty) out so)
+        (out, so) -> (qualified qs requirements out, expect-declared s out so)
+    other -> case convert external kinds (quant-locals qs) ty st of (out, so) -> (MkScheme qs out, expect-declared (type-expr-span ty) out so)
   convert-requirements :: List (String, Kind) -> TypeContext -> List (String, UType) -> TypeExpr -> List String -> Store -> (List Requirement, Store)
   convert-requirements classes kinds locals bounds seen st = case bounds of
     TBoundsEnd s -> (Nil, st)
@@ -2968,7 +2974,16 @@ module Bootstrap.Infer where
     ELetRec sp bindings body -> scoped-let sp (infer-recursive-group classes kinds families env locals sp bindings body (Some expected)) st
     other -> (case refinement-view (normalize st expected) of
       URefine id name carrier predicate -> check-refined classes kinds families env locals expr expected carrier st
-      other -> check-unrefined classes kinds families env locals expr expected st)
+      other -> case type-kind other of
+        -- A goal in proposition position takes a proof term, not a value:
+        -- `same value = case value of True -> refl; False -> refl` returns
+        -- `refl` from each branch of a proof former, and the seed elaborates
+        -- that body as evidence. A value expression is still checked the
+        -- ordinary way so a genuine type error keeps its own message.
+        KProp -> case proof-goal classes kinds families env locals expr other st of
+          Some elaborated -> elaborated
+          None -> check-unrefined classes kinds families env locals expr expected st
+        kind -> check-unrefined classes kinds families env locals expr expected st)
   scoped-let :: Span -> (Store -> (CoreTerm, Store)) -> Store -> (CoreTerm, Store)
   scoped-let sp elaborate st =
     let depth = store-let-depth st in
@@ -3471,6 +3486,29 @@ module Bootstrap.Infer where
         other -> term-error at "unowned proof tactic" st)
       else term-error sp "erased argument needs a scoped total proof term" st
     other -> term-error sp "erased argument needs a scoped total proof term" st
+  -- A proof body in goal position. The proof forms are the ones an erased
+  -- argument already accepts (`refl`, a scoped evidence name, a tactic
+  -- search); everything else returns None so the ordinary value checker
+  -- produces its own message for a genuine type error. `case`, `if` and a
+  -- `let` recurse through `check`, which is how a proof former's branches
+  -- each get their own goal.
+  proof-goal :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> Option (CoreTerm, Store)
+  proof-goal classes kinds families env locals expr goal st = case expr of
+    EVar at name -> if same name "b.refl" then
+      (if reflexive-equality (normalize st goal) then Some (CProofRefl at (normalize st goal), st) else None)
+      else (case lookup-binding name env of
+        Some (MkErasedBinding display predicate id origin invalidated) -> (case invalidated of
+          None -> Some (CProofRef at predicate id name, unify at predicate goal st)
+          Some write -> Some (term-error at (stale-evidence-message origin write) st))
+        Some (MkCheckedBinding symbol sc role) | same role "closed-proof" ->
+          Some (CProofRefl at (scheme-body sc), unify at (scheme-body sc) goal st)
+        other -> None)
+    EApp at (EVar name symbol) argument -> if same symbol "b.Proof.search" then
+      (case lookup-binding symbol env of
+        Some (MkSyntaxBinding owned) -> if same owned symbol then Some (search-proof at env goal argument st) else None
+        other -> None)
+      else None
+    other -> None
   tactic-steps-valid :: List String -> Bool
   tactic-steps-valid steps = case steps of
     Nil -> True
@@ -6566,7 +6604,20 @@ module Bootstrap.Infer where
       (case convert-predicate external kinds locals a st of
         (left, sa) -> case convert-predicate external kinds locals b sa of
           (right, sb) -> (if same op "&&" then UPropAnd left right else UPropOr left right, sb))
-      else if has op ["Eq", "<", "<=", "==", "/=", ">=", ">"] then
+      -- `Eq x y` is propositional equality over any checked carrier, not a
+      -- numeric comparison: the seed gives it its own arm and never asks for
+      -- a mathematical carrier, so `Eq value value` at `Bool`, `Nat` or an
+      -- indexed family is a well-formed goal. The `<`/`<=`/`>`/`>=`/`==`/
+      -- `/=` forms below do compare numbers and keep that requirement.
+      else if same op "Eq" then
+        (case merge-predicate-carriers (predicate-carrier locals a) (predicate-carrier locals b) of
+          Some carrier -> (case convert-predicate-index external kinds locals carrier a st of
+            (left, sa) -> case convert-predicate-index external kinds locals carrier b sa of
+              (right, sb) -> let out = UCompare "Eq" left right in (out, if valid-type out then sb else add-error s "ill-sorted proof predicate" sb))
+          None -> (case convert-predicate-index external kinds locals (primitive-type "Int") a st of
+            (left, sa) -> case convert-predicate-index external kinds locals (primitive-type "Int") b sa of
+              (right, sb) -> let out = UCompare "Eq" left right in (out, if valid-type out then sb else add-error s "ill-sorted proof predicate" sb)))
+      else if has op ["<", "<=", "==", "/=", ">=", ">"] then
         (let carrier = predicate-comparison-carrier locals a b in
          if math-carrier carrier then (case convert-predicate-index external kinds locals carrier a st of
            (left, sa) -> case convert-predicate-index external kinds locals carrier b sa of

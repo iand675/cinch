@@ -199,8 +199,14 @@ module Bootstrap.Kinds where
   requirements-well-formed kinds scope requirements = case requirements of Nil -> True; Cons r rest -> type-well-formed kinds scope (requirement-type r) && requirements-well-formed kinds scope rest
   scheme-well-formed :: List (String, Kind) -> TypeScope -> Scheme -> Bool
   scheme-well-formed kinds scope sc = case scheme-type-scope kinds scope (scheme-params sc) of
-    Some bound -> proper-type (scheme-body sc) && type-well-formed kinds bound (scheme-body sc) && requirements-well-formed kinds bound (scheme-requirements sc)
+    -- A declaration's type is a value type or a proposition: `same :: (value
+    -- :: Bool) -> Eq value value` declares a proof former, whose scheme body
+    -- is a goal rather than a value. `proper-type` still governs every
+    -- position that must be a value.
+    Some bound -> declared-type (scheme-body sc) && type-well-formed kinds bound (scheme-body sc) && requirements-well-formed kinds bound (scheme-requirements sc)
     None -> False
+  declared-type :: UType -> Bool
+  declared-type ty = proper-type ty || (valid-type ty && kind-equal (type-kind ty) KProp)
   proper-type :: UType -> Bool
   proper-type ty = valid-type ty && kind-equal (type-kind ty) KType && valid-kind (value-kind ty)
   argument-well-formed :: List (String, Kind) -> TypeScope -> UType -> Bool

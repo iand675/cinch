@@ -917,6 +917,11 @@ module Bootstrap.Resolve where
     DMacro s body -> (Nil, fail s "a macro declaration requires compile-time expansion")
     DStage s body -> (Nil, fail s "a stage declaration requires compile-time checking")
     DGenerate s actions -> (Nil, fail s "a generate block requires compile-time expansion")
+    -- The parser could not model this declaration at all, so the text it
+    -- could not read is the only useful thing to report. Falling through to
+    -- the catch-all below would claim namespace work is missing when the
+    -- real gap is a surface form the parser does not accept yet.
+    DUnmodeled s text -> (Cons d Nil, fail s (string-concat "the parser cannot model this declaration: " text))
     other -> (Cons d Nil, fail (decl-span d) "this declaration requires further namespace elaboration")
 
   rename-prim-bodies :: Visible -> List PrimBody -> (List PrimBody, List Diagnostic)

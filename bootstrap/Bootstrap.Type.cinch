@@ -669,6 +669,9 @@ module Bootstrap.Type where
     UIndexPromote value -> value-kind (UCon "Int" KType)
     UIndexMath op left right -> case typed-index-carrier left of Some carrier -> value-kind carrier; None -> KType
     UApp f x -> case type-kind f of KFun a b -> b; other -> KType
+    -- A dependent function is a proposition exactly when its result is one,
+    -- so a proof former's kind agrees with the goal it produces.
+    UPi id name domain row result -> type-kind result
     URow labels -> KRow
     URowJoin a b -> KRow
     other -> KType
@@ -743,7 +746,12 @@ module Bootstrap.Type where
     UIndexCall function args -> total-call-arguments (total-parameters function) args
     UIndexPromote value -> valid-type value && (case typed-index-carrier value of Some carrier -> promotable-carrier carrier; None -> False)
     UIndexMath op left right -> valid-typed-math op left right
-    UPi id name domain row result -> not (contains-id id (type-free-bound domain)) && carrier-type domain && valid-type row && kind-equal (type-kind row) KRow && carrier-type result
+    -- A dependent function's result is whatever its codomain is: a value
+    -- carrier for `(n :: Nat) -> Vec n Int`, and a proposition for a proof
+    -- former such as `(value :: Bool) -> Eq value value`. Requiring a value
+    -- carrier here refused every dependent function whose result is a goal.
+    UPi id name domain row result -> not (contains-id id (type-free-bound domain)) && carrier-type domain && valid-type row && kind-equal (type-kind row) KRow
+      && (carrier-type result || proposition-type result)
     UApp f x -> valid-type f && valid-type x && (case type-kind f of KFun a b -> kind-equal a (type-kind x); other -> False)
     UFun a b -> valid-type a && valid-type b && kind-equal (type-kind a) KType && kind-equal (type-kind b) KType
     UFunEff a row b -> valid-type a && valid-type row && valid-type b && kind-equal (type-kind a) KType && kind-equal (type-kind row) KRow && kind-equal (type-kind b) KType
