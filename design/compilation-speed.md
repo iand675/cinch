@@ -2272,6 +2272,70 @@ respectively: the 4K-line toolkit bundle checks in 6.13 s (49 s at the
 start of the day) and the 40,681-line compiler bundle in 56.6 s (585 s).
 Both are stage-3 binaries produced by the chain in `build/bootstrap`.
 
+### 2.12a All-nullary types as immediates: the census, and why it does not pay (2026-11-12)
+
+A proposal in circulation said a type whose constructors all have zero
+fields should be a small integer rather than a heap block, worth "1 to 2%".
+The population is real but the premise is wrong: those constructors are
+**already not heap blocks**, so the allocation the proposal would remove was
+removed by the static-block landing of 2026-11-11.
+
+Measured on `main` at `2ac1b62e`, stage-3 compiler, `CINCH_ALLOC_STATS=1`:
+
+|Arm (5000 iterations)|`header-blocks`|
+|---|---|
+|one-field `Some n` rebuilt each step|5001|
+|all-nullary `Ordering` rebuilt each step|0|
+|all-nullary `None` rebuilt each step|0|
+
+The compiler module's own IR proves the mechanism rather than inferring it:
+of 521 distinct descriptors passed to `cinch_alloc_ctor`, **zero** are the
+layout id of any of the 96 nullary static blocks. Every nullary construction
+is `ptrtoint` of a static block in the data section, so it allocates nothing,
+counts nothing and frees nothing. `rc` on such a word reads an immortal
+header and returns.
+
+The population, from the checked interfaces of the 112 modules in the
+library provider and the compiler (`exports.types[].ctors[].fields`):
+
+- 147 types with constructors, 547 constructors.
+- 23 of those types are all-nullary (78 constructors, 14.3%).
+- The compiler's own source (`bootstrap/*.cinch`) declares 7 of them in 30
+  constructors of 513 (5.8%): `PipelineMode` 8, `Comparison` 6,
+  `ObservationPosition` 4, `CaseClass` 4, `ArrowUsage` 4,
+  `TypeSubstitution` 3, `ExportEntries` 1.
+
+What an immediate would actually save, per the compiler module (43.3 MB of
+IR, 5,497 switches, 12,838 arms, 140,952 rc calls):
+
+|Quantity|Count|Share|
+|---|---|---|
+|switches whose scrutinee reads only a header|224|4.07%|
+|arms in those switches|272|2.12%|
+|tag-read preamble bytes attributable to them|271,855|0.63%|
+|rc calls on such a word|1,006|0.71%|
+|static-block definition bytes, all types|1,411,000|3.26%|
+
+So the ceiling is under 1% of the emitted module and 0.71% of rc traffic,
+against a runtime ABI change: a new word class in `compiler/src/repr.rs`
+(224 match sites across 15 files), a fourth pointer-map code (the 2-bit
+field is full: `SCAN_RAW` 0, `SCAN_OBJ` 1, `SCAN_TOBJ` 2, 3 unused, so
+`SCAN_BITS` must widen), a `case` that compares instead of loading a tag,
+and a `runtime_abi` bump from 9 with both locks re-pinned. The narrow-value
+note already says a layout change is an interface change needing exactly
+that, and the survey's own estimate of 1 to 2% was an upper bound that
+assumed the allocations existed.
+
+There is a cheaper, strictly smaller change in the same area, and it is a
+different bug. The self-hosted emitter mints a fresh `@empty-ctorN` per
+construction site (`Bootstrap.RuntimeIr.static-constructor` calls `fresh`),
+while the Rust seed dedupes by symbol (`ensure_static_ctor` inserts into
+`emitted_blocks`). The compiler module therefore holds **7,126 definitions
+for 96 distinct header words**: 7,030 byte-identical duplicates, 699,365
+bytes of definitions (1.61% of the module) recoverable by keying the name on
+the descriptor. That is a self-hosted-emitter change with no ABI, no class
+letter and no lock, and it is worth more than the immediate.
+
 ## 11. Benchmark corpus and metrics
 
 The corpus is edits, not programs. Each entry is a case in
@@ -2380,6 +2444,12 @@ Metrics, reported per edit and per clean build:
 12. **Development codegen tier** (Cranelift or a direct emitter) once the
    backend is the measured bottleneck for edit-compile-run rather than for
    clean builds.
+13. **Deduplicate the self-hosted emitter's static nullary blocks.** 7,126
+   definitions for 96 distinct header words in the compiler module; keying
+   the symbol on the descriptor recovers 699,365 bytes of definitions (1.61%
+   of the module) with no ABI, no class letter and no lock bump. Section
+   2.12a has the counts, and says why the immediate encoding of the same
+   types is not worth its ABI change.
 
 Related designs: `parallel-evaluation.md`, `core-output.md`,
 `incremental-recompilation.md`, `self-hosting.md`, `layouts-and-specialization.md`,
