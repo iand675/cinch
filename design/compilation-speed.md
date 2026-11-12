@@ -2116,7 +2116,12 @@ residue: 31 of 1,512 applications, 2.1%. It is worth keeping for the reason
 the profile gives, since each deleted application removes a record, an
 `__apply` and the stub's dup-branch-free-or-decrement sequence, but the
 measured time is inside the spread of this machine and should not be quoted
-as a speedup. The stub's ownership sequence (backlog item 11) is the part of
+as a speedup. Four interleaved pairs on the compiler source, child CPU from
+`/usr/bin/time`, one binary, one build slot, each arm with its own store:
+median 8.345 s with the rule against 8.360 s without, a difference of -0.18%
+with the arms' own spreads (8.11 to 8.51 against 8.15 to 8.41) wider than the
+gap. The toolkit check is 0.63 to 0.89 s per run in both arms, also inside the
+spread. The stub's ownership sequence (backlog item 11) is the part of
 this area that is still 14.4% of a toolkit check.
 
 ### 2.13 The 2026-11-11 round, in the order it landed
