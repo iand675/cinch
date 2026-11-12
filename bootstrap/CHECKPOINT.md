@@ -117,3 +117,34 @@ namespace elaboration`. `staging` quotations fail because
 `conditional_surface` fails because the staged CLI has no `--target` flag and no
 target-profile concept. `lattice` needs `Ascii` and `Ordered`, which have no
 representation anywhere in the bootstrap while the seed has a whole `PredFn` family.
+
+**4. Three more attempts at the container channel, all rejected by measurement.** Recorded so
+the next person does not repeat them.
+
+- *A `definitions` field on `ProofScope`* carrying `(Nat, CoreTerm)` pairs, with
+  `byte-observation-reading` following a local to its definition. Every construction site was
+  updated and the record compiled, but any run that actually recorded a term failed the closure
+  check with `typed core contains an unresolved scheme or error term` at span `1:1`
+  (`Bootstrap.Infer.cinch:4900`). Disabling the recording made the tree build again, so the
+  trigger is the stored term meeting `core-definition-checked-contracts-closed`, not the record
+  shape; restricting the recorded shapes to closed ones did not help. A `CoreTerm` in the proof
+  scope needs the closure walk to account for it, which is a bigger change than the record.
+- *A container equation through the existing fact channel*: `scoped-core-container-let-fact`
+  emitting `PCompare Equal (byte-length-variable id) reading` for a `Bytes` let, wired into
+  `proof-let-env` in `Bootstrap.Infer` via an exported `let-facts` combinator. It built through
+  stage3, but `lib_uri_ipaddr` stayed 0 of 20, so it is inert on this path.
+- *Replacing `proof-let-env`'s single `scoped-core-let-fact` with the two-channel `let-facts`*
+  broke the prelude at `Bootstrap.Nominal.cinch:58:90` (`NonZero 64`), because two facts
+  prepended in sequence change discharge order. Restoring exact single-fact semantics for the
+  numeric case fixed the prelude and kept the build green, which is why that shape is the one to
+  start from if anyone tries again.
+
+**The remaining gap, stated precisely.** The guard states `#value:i < <reading of (mk n)>`; the
+dependent application states `#value:i < #bytes-length:<dependent-argument>`. Making those meet
+requires the dependent argument's let to carry the same reading the guard used. Both sides go
+through `actual-index`, and the fact channel can express the equation, so the missing piece is
+narrower than "a definition channel for containers": it is that the guard's reading and the
+dependent argument's reading are computed at different times from different terms, and nothing
+currently relates them. Instrument `actual-index` on both sides and print the two `Arithmetic`
+values; if they are already equal the bug is in entailment, and if they differ the fix is to
+make the dependent let reuse the guard's reading rather than recompute it.
