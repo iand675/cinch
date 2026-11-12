@@ -272,6 +272,27 @@ fn emit_module(
     if let Some(layout) = target_datalayout(profile) {
         out.push_str(&format!("target datalayout = \"{layout}\"\n"));
     }
+    // Every zero-field constructor's static block, defined once for the
+    // module. A use may come from a unit that is emitted while the
+    // constructor's own unit is not (an imported constructor, an object
+    // build that selects roots), so the module owns the storage rather than
+    // the site that takes the address. `ctor_block`, `ctor_body` and the
+    // option helper only mint pointers.
+    {
+        let mut names: Vec<&String> = reg.ctors.keys().collect();
+        names.sort();
+        for name in names {
+            if reg.ctors.get(name).map(|(_, fields)| *fields) != Some(0) {
+                continue;
+            }
+            if let Some(desc) = reg.ctor_descs.get(name).copied() {
+                let symbol = format!("{name}.blk");
+                if reg.emitted_blocks.borrow_mut().insert(symbol.clone()) {
+                    out.push_str(&static_ctor_block(&symbol, desc, &[]));
+                }
+            }
+        }
+    }
     out.push_str("declare ptr @cinch_alloc_raw(i64, i64)\n");
     out.push_str("declare ptr @cinch_alloc_ctor(i64, i64)\n");
     out.push_str("declare ptr @cinch_alloc_shaped(i64, i64, i64)\n");
@@ -805,7 +826,7 @@ fn emit_module(
     } else {
         String::new()
     };
-    Ok(EmittedObject { ir: out, abi })
+    Ok(EmittedObject { ir: dedupe_static_blocks(&out), abi })
 }
 
 fn err<T>(msg: impl Into<String>) -> Result<T> {
@@ -2227,6 +2248,22 @@ fn static_payload(sym: &str, desc: u64) -> String {
     )
 }
 
+
+/// Emit a zero-field constructor's static block once, at the site that takes
+/// its address.
+///
+/// The address can be taken from a unit that is never emitted (an object
+/// build selects roots, and an imported constructor's unit belongs to the
+/// library), so the site that mints the pointer owns the definition. The
+/// block is one constant word, so emitting it here costs nothing that the
+/// constructor's own unit would not have paid.
+fn ensure_static_ctor(b: &mut Builder, reg: &Registry, name: &str, desc: u64) {
+    let symbol = format!("{name}.blk");
+    if reg.emitted_blocks.borrow_mut().insert(symbol.clone()) {
+        b.global(static_ctor_block(&symbol, desc, &[]));
+    }
+}
+
 /// The immortal static dictionary of an instance whose `.mk` builds a
 /// constant block ([`Registry::static_dict`]).
 fn static_dict_name(id: &str) -> String {
@@ -2700,6 +2737,39 @@ fn classify_units(units: &[EmittedUnit]) -> HashMap<String, UnitClass> {
 
 /// Assemble one unit's text from its built pieces under the given
 /// attribute group.
+
+/// Drop repeated definitions of the same static block storage.
+///
+/// A zero-field constructor's `@"<sym>.blk#h"` is emitted at the first site
+/// that needs its address, and a module can reach that address from more
+/// than one unit (a constructor unit of its own, a prim wrapper, a
+/// specialised copy). LLVM allows one definition, so the assembler keeps the
+/// first and drops the identical repeats; a *differing* repeat is a bug and
+/// is left for the verifier to refuse.
+fn dedupe_static_blocks(text: &str) -> String {
+    use std::collections::HashSet;
+    let mut seen: HashSet<&str> = HashSet::new();
+    let mut out = String::with_capacity(text.len());
+    for line in text.split_inclusive('\n') {
+        if line.starts_with('@') && line.contains(".blk#h\" = internal constant") {
+            let end = line.find('"').map(|first| {
+                line[first + 1..].find('"').map(|second| first + 1 + second).unwrap_or(first)
+            });
+            match end {
+                Some(last) => {
+                    let symbol = &line[1..last];
+                    if !seen.insert(symbol) {
+                        continue;
+                    }
+                }
+                None => {}
+            }
+        }
+        out.push_str(line);
+    }
+    out
+}
+
 fn assemble_unit(out: &mut String, u: &EmittedUnit, group: Option<String>, linkage: Option<&str>) {
     out.push_str(&u.globals);
     // The function attribute group precedes metadata attachments on the
@@ -3745,6 +3815,7 @@ fn ret_option(
     let lsome = b.label();
     b.line(&format!("br i1 {none_if}, label %{lnone}, label %{lsome}"));
     b.start(&lnone);
+    ensure_static_ctor(b, reg, name, reg.shape_desc(&[], TAG_NONE));
     let w = b.reg();
     b.line(&format!(
         "{w} = ptrtoint ptr {blk} to i64",
@@ -4240,14 +4311,28 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                             // negative. Hand-built Core can, and the runtime
                             // traps on it, so the borrow still takes the
                             // slow path: one predictable branch, not a
-                            // second runtime call. `add` of two 63-bit
-                            // payloads never carries out of the encoded
-                            // word.
+                            // second runtime call. Subtraction cannot go
+                            // negative under `nat-sub`'s `b <= a` scheme,
+                            // so a borrow means hand-built Core and the
+                            // runtime's trap is the answer. Addition *can*
+                            // carry: two 63-bit payloads may sum past
+                            // `2^63 - 1`, and `(sum << 1) | 1` would then
+                            // drop the high bit and report a smaller value
+                            // (the seed's own checker misread `2^63` as
+                            // zero through exactly this path). The carry
+                            // check sends that case to the runtime.
                             if is_sub {
                                 let borrow = b.reg();
                                 b.line(&format!("{borrow} = icmp ugt i64 {bv}, {av}"));
                                 let ok = b.label();
                                 b.line(&format!("br i1 {borrow}, label %{slow_l}, label %{ok}"));
+                                b.line(&format!("{ok}:"));
+                                fast_exit = ok.clone();
+                            } else {
+                                let carry = b.reg();
+                                b.line(&format!("{carry} = icmp ugt i64 {sum}, {}", u64::MAX >> 1));
+                                let ok = b.label();
+                                b.line(&format!("br i1 {carry}, label %{slow_l}, label %{ok}"));
                                 b.line(&format!("{ok}:"));
                                 fast_exit = ok.clone();
                             }
@@ -5639,6 +5724,7 @@ fn ctor_body(
     plan: Option<&crate::core::CtorLayout>,
 ) {
     if fields == 0 {
+        ensure_static_ctor(b, reg, name, desc);
         let w = b.reg();
         b.line(&format!(
             "{w} = ptrtoint ptr {blk} to i64",
