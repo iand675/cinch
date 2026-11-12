@@ -148,3 +148,52 @@ dependent argument's reading are computed at different times from different term
 currently relates them. Instrument `actual-index` on both sides and print the two `Arithmetic`
 values; if they are already equal the bug is in entailment, and if they differ the fix is to
 make the dependent let reuse the guard's reading rather than recompute it.
+
+**5. The two-sided measurement, and what it overturns.** Main asked for the guard's reading and the
+dependent application's reading printed side by side. I built exactly that: a `goal-trace` in
+`Bootstrap.Core` (rendering the goal's core predicate and every hypothesis with `proposition-equal`
+per hypothesis) emitted from `Bootstrap.Infer`'s unproved-call path. On the nine-line repro it
+prints:
+
+```
+GTRACE goal=(#value:22 < #bytes-length:26) hypotheses=[(#value:21 >= 0) eq=no;
+  (#value:22 >= 0) eq=no; (#bytes-length:26 >= 0) eq=no;
+  (#bytes-length:26 <= 9223372036854775807) eq=no]
+```
+
+There is **no guard fact among the hypotheses at all**, so the two readings are never compared. That
+overturns the conclusion recorded above in note 4: the missing piece is not a definition channel for
+container values, and not "the two readings differ". It is that the guard's fact is absent from the
+hypothesis set at the obligation site. Section 4's "remaining gap, stated precisely" is therefore
+wrong and should be read as superseded by this note.
+
+What the same probes still establish, unchanged:
+
+- `proof-branch` does introduce a fact for this shape: an instrumented `scoped-core-branch` call
+  reports `fact-introduced`, and `proof-facts` grows by one, on prelude code.
+- A nested identical guard over a call-built buffer (`if i < bytes-len (mk n) then (if i <
+  bytes-len (mk n) then True else False) else False`) checks clean, so the fact both forms and is
+  usable when the use is a nested guard rather than a call with a precondition.
+- A guard over an intrinsic call (`bytes-new n`) nested inside itself also checks clean.
+- The failing shape differs in exactly one way: the use is a *call whose callee carries a
+  precondition*, so the obligation is discharged by `discharge-checked-call` rather than by
+  `scoped-core-branch`.
+
+So the two candidate repairs, and which the measurement supports:
+
+1. *A container-valued reading channel keyed on the type rather than the kind* (relaxing
+   `scope-index-valid`, `Bootstrap.Core.cinch:1731`). **Not supported.** Nothing in the measurement
+   needs a buffer to hold an index reading; the goal's reading `#bytes-length:26` is already
+   computed correctly from the local.
+2. *A reading attached to the let and followed at the use* (the seed's
+   `IndexSubstitution::LocalValues` in miniature). **Not supported either**, for the same reason: the
+   goal side already reads correctly.
+
+What the measurement does support is a third, narrower repair: find why the guard's
+`MkProofBinding` does not reach `discharge-checked-call`'s `proof-facts evaluated`. The prime
+suspect is `proof-env-after-writes` in `Bootstrap.Infer` (called with
+`call-operand-writes` of the term), since `proof-facts` only admits `MkProofBinding origin None
+fact` and drops any entry carrying a write. `mutable-fact-write` should not fire for a `<` fact
+(`fact-written` only matches borrow-read variables of mutable locals), so either the entry is
+dropped elsewhere or the guard's fact never entered this env. Print `proof-facts` immediately
+before `discharge-checked-call` and again inside it; that is one more measurement, not a redesign.
