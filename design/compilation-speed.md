@@ -1877,6 +1877,35 @@ impossible tag. `named-polymorphic-proof` returned 1 instead of 42, and
 the instrumented stage-1 link trapped on a freed block. Decision cases
 stay on the chain now.
 
+### 2.14 The 2026-11-12 round, and what the two workloads are now
+
+Two numbers hold still enough to be a baseline, both on a quiet machine,
+median of three and two respectively, with the stage-3 binary from the chain
+in `build/bootstrap`: the 4K-line toolkit bundle checks in **6.14 s** and the
+40,681-line compiler bundle in **54.4 s**. The binary is 16.46 MB, against
+20.03 MB at the end of 2026-11-11, because the apply-stub fan-out collapsed
+from 1,365 generated functions to 196.
+
+What landed after section 2.13:
+
+|Landing|Mechanism|Effect|
+|---|---|---|
+|reset and reuse|a `Release` that keeps its cell, a `Reuse` that writes into it, insertion after the inliner, a compatibility proof by tag and field count, and forced ownership of a reuse scrutinee|1000-cell rebuild 41,000 blocks to 1,000 (82x wall); toolkit constructor blocks -9.6%, wall -5.5%; self-check blocks -10.9%, bytes -11.9%|
+|fixed-frame apply stub, collapsed|one `U.app` per function with a static frame and a direct saturated call, replacing 973 per-argument-count entries|1,365 functions to 196, 5.2 MB less IR, 16.46 MB binary; CPU neutral (a controlled pair put the fan-out at +0.16%)|
+|static blocks addressed by offset|payload by constant `getelementptr`, not a linker alias|fixed a miscompile in every multi-object link and the PGO SIGBUS behind it|
+|Nat immediate carry check|`(a >> 1) + (b >> 1)` re-encoded only when the sum fits 63 bits|fixed `2^63` reading as 0, which broke the compiler's own literal parsing|
+|one static block per module|zero-field blocks emitted in the preamble rather than at the first address site|fixed a missing definition in partial modules|
+|self-hosted `hiding`|subtract hidden names from an import's surface|`modules` 17 of 17 through both frontends|
+|interface identity|a constructor family named by its defining identity, no bare-name alias table|the two producers now hash one contract identically|
+
+The apply-stub fan-out is the one landing this round that cost more than it
+bought, and the lesson is worth keeping: it removed 196 dynamic allocas (a
+real property) but generated 973 specialised entry bodies of which 54 ran at
+all, 0.17% of calls, and the block-interleaved comparison that "found" it
+could not tell the stub from eleven other commits. A controlled pair, two
+arms from one base differing only in the stub, put the stub at +0.16%. The
+collapse keeps both properties and the code size it should have had.
+
 ### 2.13 The 2026-11-11 round, in the order it landed
 
 Nine landings changed the shape of the compiler rather than tuning it. The
