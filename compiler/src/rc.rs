@@ -608,6 +608,10 @@ struct CtorFact {
     planned: bool,
     /// The qualified data type whose constructors share a tag space.
     data: Option<String>,
+    /// The class of each runtime field (`Cons` is `[Param(0), Obj]`): the
+    /// reference discipline of each payload word, which is what the
+    /// family-crossing proof compares.
+    classes: Vec<Class>,
 }
 
 /// A program's constructors: by unit name, and by data type and tag.
@@ -631,7 +635,7 @@ impl Ctors {
             };
             let planned = program.plans.contains_key(&f.id.0)
                 || program.plans.contains_key(crate::repr::base_unit(&f.id.0).as_ref());
-            let fact = CtorFact { fields, planned, data: f.repr.data.clone() };
+            let fact = CtorFact { fields, planned, data: f.repr.data.clone(), classes: f.repr.fields.clone() };
             if let Some(d) = &f.repr.data {
                 by_data.entry(d.clone()).or_default().push((tag, fact.clone()));
             }
@@ -640,12 +644,19 @@ impl Ctors {
         Ctors { by_unit, by_data }
     }
 
+    /// The constructor a `case` arm's `tag` names inside `data`, which is
+    /// what the dying block really is: a tag alone does not say, and the
+    /// arm's scrutinee type does.
+    fn at_tag(&self, data: &str, tag: usize) -> Option<&CtorFact> {
+        self.by_data.get(data)?.iter().find(|(t, _)| *t == tag).map(|(_, f)| f)
+    }
+
     /// The dying block's payload word count, when the arm's tag provably
     /// names a uniform constructor of `data` with `fields` fields. Only
     /// then does the block have exactly `fields` payload words, which is
     /// what the reuse overwrites.
     fn payload_words(&self, data: &str, tag: usize, fields: usize) -> Option<usize> {
-        let ctor = self.by_data.get(data)?.iter().find(|(t, _)| *t == tag)?.1.clone();
+        let ctor = self.at_tag(data, tag)?;
         (!ctor.planned && ctor.fields == fields).then_some(fields)
     }
 }
@@ -658,28 +669,55 @@ impl Ctors {
 /// could be skipped on some path, and the cell the release kept alive
 /// would leak, so nothing else is searched. One reuse per release: the
 /// token is read exactly once.
-fn insert_reuse(e: &Core, token: usize, words: usize, tag: usize, ctors: &Ctors) -> Option<Core> {
-    if let Some(r) = reuse_allocation(e, token, words, tag, ctors) {
+fn insert_reuse(
+    e: &Core,
+    token: usize,
+    words: usize,
+    tag: usize,
+    fields: &[LocalId],
+    relaxed: bool,
+    ctors: &Ctors,
+) -> Option<Core> {
+    if let Some(r) = reuse_allocation(e, token, words, tag, fields, relaxed, ctors) {
         return Some(r);
     }
     match e {
         Core::Let(x, c, v, b) => {
             // The value is evaluated first, so its allocation is the
             // earlier one: reuse it and leave the continuation alone.
-            if let Some(v2) = insert_reuse(v, token, words, tag, ctors) {
+            if let Some(v2) = insert_reuse(v, token, words, tag, fields, relaxed, ctors) {
                 return Some(Core::Let(*x, *c, Box::new(v2), b.clone()));
             }
-            let b2 = insert_reuse(b, token, words, tag, ctors)?;
+            let b2 = insert_reuse(b, token, words, tag, fields, relaxed, ctors)?;
             Some(Core::Let(*x, *c, v.clone(), Box::new(b2)))
         }
-        Core::Dup(x, c, b) => {
-            insert_reuse(b, token, words, tag, ctors).map(|b2| Core::Dup(*x, *c, Box::new(b2)))
-        }
-        Core::Drop(x, c, b) => {
-            insert_reuse(b, token, words, tag, ctors).map(|b2| Core::Drop(*x, *c, Box::new(b2)))
-        }
+        Core::Dup(x, c, b) => insert_reuse(b, token, words, tag, fields, relaxed, ctors)
+            .map(|b2| Core::Dup(*x, *c, Box::new(b2))),
+        Core::Drop(x, c, b) => insert_reuse(b, token, words, tag, fields, relaxed, ctors)
+            .map(|b2| Core::Drop(*x, *c, Box::new(b2))),
         _ => None,
     }
+}
+
+/// The payload words the dying block already holds, given the arm's field
+/// binders: `i` is present when the reuse's argument for slot `i` is that
+/// slot's own binder. The cell was never emptied of those words (the
+/// `Release` moved them out to the binders and did not release them), so
+/// writing them back is a store of the word that is already there. Lean
+/// reaches the same conclusion from `oproj` chains (`partitionSelfSets`,
+/// `ExpandResetReuse.lean`); the arm's binders are the same fact in a
+/// cheaper form, because a `case` arm names its fields directly.
+fn already_set(args: &[Core], fields: &[LocalId]) -> Vec<u32> {
+    let mut out = Vec::new();
+    for (i, a) in args.iter().enumerate() {
+        let Core::Var(x) = a else {
+            continue;
+        };
+        if fields.get(i) == Some(x) {
+            out.push(i as u32);
+        }
+    }
+    out
 }
 
 /// Whether any constructor allocation reachable in `e` could be a reuse of a
@@ -687,7 +725,11 @@ fn insert_reuse(e: &Core, token: usize, words: usize, tag: usize, ctors: &Ctors)
 /// ownership question, which ignores whether the spine makes the reuse
 /// legal).
 fn reuse_allocation_anywhere(e: &Core, words: usize, tag: usize, ctors: &Ctors) -> bool {
-    if compatible_ctor(e, words, tag, ctors).is_some() {
+    // Both passes are asked, so the forced-ownership rule covers exactly
+    // what either pass could reuse.
+    if compatible_ctor(e, words, tag, false, ctors).is_some()
+        || compatible_ctor(e, words, tag, true, ctors).is_some()
+    {
         return true;
     }
     crate::core::child_slots_imm(e)
@@ -697,10 +739,28 @@ fn reuse_allocation_anywhere(e: &Core, words: usize, tag: usize, ctors: &Ctors) 
 
 /// The constructor and fields of a saturated allocation whose cell is
 /// interchangeable with a dying block of `words` payload words matched at
-/// `tag`, if any. The proof is that the block's tag names, inside the same
-/// data type, an unplanned constructor of the same field count: then both
-/// payloads are exactly `words` words, which is what the reuse overwrites.
-fn compatible_ctor<'a>(e: &'a Core, words: usize, tag: usize, ctors: &Ctors) -> Option<(&'a GlobalId, &'a Vec<Core>)> {
+/// `tag`, if any.
+///
+/// Two proofs, one per pass. The first (`relaxed` off) requires the
+/// block's tag to name, inside the *same* data type, an unplanned
+/// constructor of the same field count: both payloads are then exactly
+/// `words` words with the same class per word, which is what makes the
+/// word-for-word overwrite safe and the block's later drop see what is
+/// really there. The second (`relaxed` on) is Lean's `relaxedReuse`
+/// (`ResetReuse.lean`, `mayReuse`): the constructors may come from
+/// different data types, and the proof is carried by the word classes
+/// instead. A word class is the reference discipline, so two unplanned
+/// constructors of the same field count whose words agree class for class
+/// leave a cell that drops exactly as it did; `Raw` words are not
+/// references at all, and `Obj`/`TObj` are the counted ones, so a
+/// disagreement there would be a live-reference bug and is refused.
+fn compatible_ctor<'a>(
+    e: &'a Core,
+    words: usize,
+    tag: usize,
+    relaxed: bool,
+    ctors: &Ctors,
+) -> Option<(&'a GlobalId, &'a Vec<Core>)> {
     let Core::App(head, args) = e else {
         return None;
     };
@@ -716,14 +776,43 @@ fn compatible_ctor<'a>(e: &'a Core, words: usize, tag: usize, ctors: &Ctors) -> 
     if fact.planned || fact.fields != words || args.len() != words {
         return None;
     }
-    ctors.payload_words(fact.data.as_deref()?, tag, words)?;
+    let data = fact.data.as_deref()?;
+    let dying = ctors.at_tag(data, tag)?;
+    if !relaxed {
+        ctors.payload_words(data, tag, words)?;
+        return Some((id, args));
+    }
+    // The family-crossing proof: both sides unplanned, the same payload
+    // word count, and a word class agreeing at every slot.
+    if dying.planned || dying.fields != words {
+        return None;
+    }
+    if dying.classes.len() != fact.classes.len() || dying.classes.is_empty() {
+        return None;
+    }
+    if dying.classes.iter().zip(&fact.classes).any(|(a, b)| counted(*a) != counted(*b)) {
+        return None;
+    }
     Some((id, args))
 }
 
 /// The reuse of one compatible allocation, reading the cell `token` names.
-fn reuse_allocation(e: &Core, token: usize, words: usize, tag: usize, ctors: &Ctors) -> Option<Core> {
-    let (ctor, args) = compatible_ctor(e, words, tag, ctors)?;
-    Some(Core::Reuse { token: LocalId(token), ctor: ctor.clone(), args: args.clone() })
+fn reuse_allocation(
+    e: &Core,
+    token: usize,
+    words: usize,
+    tag: usize,
+    fields: &[LocalId],
+    relaxed: bool,
+    ctors: &Ctors,
+) -> Option<Core> {
+    let (ctor, args) = compatible_ctor(e, words, tag, relaxed, ctors)?;
+    Some(Core::Reuse {
+        token: LocalId(token),
+        ctor: ctor.clone(),
+        already_set: already_set(args, fields),
+        args: args.clone(),
+    })
 }
 
 fn transform(f: &FnDef, modes: &Modes, borrowed: &Set, ctors: &Ctors) -> Core {
@@ -1206,8 +1295,19 @@ impl Pass<'_> {
                         // this arm's condition), and the reuse hands it
                         // the new constructor's layout (Lean 4's
                         // reset/reuse pair).
+                        // Two passes, in Lean's order (`ResetReuse.lean`
+                        // runs `insertResetReuseCore` with `relaxedReuse`
+                        // off and then on): the same-family reuse first,
+                        // and only when that finds nothing the
+                        // family-crossing one, so a compatible successor
+                        // of the scrutinee's own type is never passed over
+                        // for one of another type.
                         let words = fields.len();
-                        match insert_reuse(&body, self.next, words, *tag, self.ctors) {
+                        let found = insert_reuse(&body, self.next, words, *tag, fields, false, self.ctors)
+                            .or_else(|| {
+                                insert_reuse(&body, self.next, words, *tag, fields, true, self.ctors)
+                            });
+                        match found {
                             Some(body) => {
                                 let token = self.fresh(Class::Raw);
                                 Core::Release {

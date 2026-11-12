@@ -2009,7 +2009,16 @@ pub enum Core {
     /// count; the block's header keeps its count of one and its kind and
     /// takes the new constructor's layout, so a later drop sees the
     /// constructor that is actually there.
-    Reuse { token: LocalId, ctor: GlobalId, args: Vec<Core> },
+    ///
+    /// `already_set` lists the payload words the kept cell already holds:
+    /// the index `i` is present when `args[i]` is payload word `i` of the
+    /// dying block (a pattern binder of the arm, or a projection of the
+    /// block at slot `i`). On the reused path those stores are skipped,
+    /// because the cell holds exactly that word; a fresh block writes
+    /// every word. This is Lean's `partitionSelfSets`
+    /// (`src/Lean/Compiler/LCNF/ExpandResetReuse.lean`), and the list is
+    /// sorted and deduplicated.
+    Reuse { token: LocalId, ctor: GlobalId, args: Vec<Core>, already_set: Vec<u32> },
     /// A typed quotation template under construction (staging): the
     /// template carrying `SpliceHole` placeholders plus the elaborated
     /// splice expressions, evaluated when the quote is constructed
@@ -5275,10 +5284,11 @@ pub(crate) fn rename_core_locals(e: &Core, map: &HashMap<LocalId, LocalId>) -> C
                 body: Box::new(rw(body)),
             }
         }
-        Core::Reuse { token, ctor, args } => Core::Reuse {
+        Core::Reuse { token, ctor, args, already_set } => Core::Reuse {
             token: *map.get(token).unwrap_or(token),
             ctor: ctor.clone(),
             args: args.iter().map(rw).collect(),
+            already_set: already_set.clone(),
         },
         Core::If(c, t, fe) => Core::If(
             Box::new(rw(c)),
@@ -5467,10 +5477,11 @@ fn instantiate(
                     body: Box::new(body),
                 }
             }
-            Core::Reuse { token, ctor, args } => Core::Reuse {
+            Core::Reuse { token, ctor, args, already_set } => Core::Reuse {
                 token: *ren.get(token).unwrap_or(token),
                 ctor: ctor.clone(),
                 args: args.iter().map(|a| go(a, holes, binds, ren, next)).collect(),
+                already_set: already_set.clone(),
             },
             Core::If(c, t, fe) => Core::If(
                 Box::new(go(c, holes, binds, ren, next)),

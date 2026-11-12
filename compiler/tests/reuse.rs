@@ -111,3 +111,53 @@ fn the_lowered_core_carries_the_reset_pair() {
     assert!(dump.contains("@token("), "no release binds a cell:\n{dump}");
     assert!(dump.contains("(reuse "), "no reuse in the rebuilt list:\n{dump}");
 }
+
+/// A rebuild that keeps a field (`Cons h (step t)`) writes back the word
+/// the cell already holds, so the pair names it (`@kept`): Lean's
+/// `partitionSelfSets`, which the reused path then skips.
+#[test]
+fn a_reuse_of_the_arms_own_binders_skips_its_stores() {
+    let profile = TargetProfile::native();
+    let (program, ifaces) = check_sources_profile_ifaces(SELF_SET, "reuse_kept.cinch", &profile)
+        .expect("check the self-set program");
+    let (specialized, _) = cinch::specialize::optimize(&program, &profile).expect("specialization");
+    let mut lowered = cinch::rc::insert_closed(specialized, &profile).expect("reference counting");
+    cinch::stack::allocate(&mut lowered, &profile, &cinch::stack::Options::default());
+    let modules: BTreeSet<String> = ["Main".to_string()].into_iter().collect();
+    let dump = coretext::dump(&lowered, Stage::Lowered, &profile, &ifaces, &modules, &BTreeMap::new(), 0);
+    assert!(
+        dump.contains("@kept("),
+        "no reuse names a word the cell already holds:\n{dump}"
+    );
+}
+
+/// A copy that keeps its head: the second field is rebuilt, the first is
+/// handed back unchanged, which is the store a self-set skips.
+const SELF_SET: &str = r#"
+module Main where
+  import Data.List
+
+  foreign import ccall "cinch.prim.eqI64" eq64 :: I64 -> I64 -> Bool
+  foreign import ccall "cinch.prim.wrappingSubI64" sub64 :: I64 -> I64 -> I64
+  foreign import ccall "cinch.prim.wrappingAddI64" add64 :: I64 -> I64 -> I64
+
+  build :: I64 -> List I64 -> List I64
+  build n acc = case eq64 n 0 of
+    True -> acc
+    False -> build (sub64 n 1) (Cons n acc)
+
+  step :: List I64 -> List I64
+  step xs = case xs of
+    Nil -> Nil
+    Cons h t -> Cons h (step t)
+
+  count :: List I64 -> I64 -> I64
+  count xs k = case xs of
+    Nil -> k
+    Cons h t -> count t (add64 k 1)
+
+  main :: Unit -> Int
+  main u = case eq64 (count (step (build 1000 Nil)) 0) 1000 of
+    True -> 0
+    False -> 1
+"#;

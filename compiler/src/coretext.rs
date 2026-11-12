@@ -827,15 +827,20 @@ impl<'a> Printer<'a> {
                 .child(Node::atom(self.local(*id)))
                 .mark(format!("@class({})", class_text(*class)))
                 .child(self.expr(body)),
-            Core::Reuse { token, ctor, args } => {
+            Core::Reuse { token, ctor, args, already_set } => {
                 let mut arglist = Node::list("args");
                 for a in args {
                     arglist = arglist.child(self.expr(a));
                 }
-                Node::list("reuse")
+                let mut node = Node::list("reuse")
                     .child(Node::atom(self.local(*token)))
                     .child(Node::atom(ident(&ctor.0)))
-                    .child(arglist)
+                    .child(arglist);
+                if !already_set.is_empty() {
+                    let kept: Vec<String> = already_set.iter().map(|i| i.to_string()).collect();
+                    node = node.mark(format!("@kept({})", kept.join(",")));
+                }
+                node
             }
             Core::Release { block, moved, rest, token, body } => {
                 let mut movedlist = Node::list("moved");

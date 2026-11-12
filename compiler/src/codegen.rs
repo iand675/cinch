@@ -7709,7 +7709,9 @@ impl CoreEmitter<'_, '_> {
                 self.emit_count(e, *x, *class)?;
                 self.emit_expr(body)
             }
-            Core::Reuse { token, ctor, args } => self.emit_reuse(*token, &ctor.0, args),
+            Core::Reuse { token, ctor, args, already_set } => {
+                self.emit_reuse(*token, &ctor.0, args, already_set)
+            }
             Core::Release { block, moved, rest, token, body } => {
                 self.emit_release(*block, moved, rest, *token)?;
                 self.emit_expr(body)
@@ -7838,7 +7840,13 @@ impl CoreEmitter<'_, '_> {
     /// word is written here (the reused constructor has the same word
     /// count), so no stale reference survives; the header keeps its count
     /// of one and its kind and takes the new constructor's layout.
-    fn emit_reuse(&mut self, token: LocalId, ctor: &str, args: &[Core]) -> Result<String> {
+    fn emit_reuse(
+        &mut self,
+        token: LocalId,
+        ctor: &str,
+        args: &[Core],
+        already_set: &[u32],
+    ) -> Result<String> {
         if !self.bound.contains(&token) {
             return err(format!("reuse of unknown local {}", token.0));
         }
@@ -7866,10 +7874,20 @@ impl CoreEmitter<'_, '_> {
         let reusing = self.b.reg();
         self.b.line(&format!("{reusing} = icmp ne i64 {t}, 0"));
         self.b.line(&format!("br i1 {reusing}, label %{lhot}, label %{lcold}"));
+        // A fresh block holds nothing, so the cold path writes every word.
         self.b.start(&lcold);
         let fresh = self.b.reg();
         self.b.line(&ctor_alloc_call(&fresh, 8 * fields, desc));
+        for (i, v) in vals.iter().enumerate() {
+            self.b.store_at(&fresh, 8 * i, v);
+        }
         self.b.line(&format!("br label %{ljoin}"));
+        // The kept cell already holds the words the arm's own binders name
+        // (`already_set`): the `Release` moved them out to those binders and
+        // released nothing, so the word is still there. Skipping those
+        // stores is Lean's `partitionSelfSets`
+        // (`ExpandResetReuse.lean`), and both paths stay straight-line, so
+        // the skip costs no branch per word.
         self.b.start(&lhot);
         let cell = self.b.reg();
         self.b.line(&format!("{cell} = inttoptr i64 {t} to ptr"));
@@ -7885,15 +7903,17 @@ impl CoreEmitter<'_, '_> {
             let ep = self.b.gep_dyn(&cell, "-16");
             self.b.line(&format!("store i64 {desc}, ptr {ep}"));
         }
+        for (i, v) in vals.iter().enumerate() {
+            if !already_set.contains(&(i as u32)) {
+                self.b.store_at(&cell, 8 * i, v);
+            }
+        }
         self.b.line(&format!("br label %{ljoin}"));
         self.b.start(&ljoin);
         let pointer = self.b.reg();
         self.b.line(&format!(
             "{pointer} = phi ptr [ {fresh}, %{lcold} ], [ {cell}, %{lhot} ]"
         ));
-        for (i, v) in vals.iter().enumerate() {
-            self.b.store_at(&pointer, 8 * i, v);
-        }
         let w = self.b.reg();
         self.b.line(&format!("{w} = ptrtoint ptr {pointer} to i64"));
         Ok(w)
@@ -8172,8 +8192,8 @@ impl CoreEmitter<'_, '_> {
                 self.emit_count(e, *x, *class)?;
                 self.emit_to(body, dest)
             }
-            Core::Reuse { token, ctor, args } => {
-                let w = self.emit_reuse(*token, &ctor.0, args)?;
+            Core::Reuse { token, ctor, args, already_set } => {
+                let w = self.emit_reuse(*token, &ctor.0, args, already_set)?;
                 dest.settle(self.b, &w);
                 Ok(())
             }
