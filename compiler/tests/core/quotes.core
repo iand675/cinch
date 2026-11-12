@@ -2,7 +2,7 @@ core 1
 module Main
 target aarch64-apple-darwin opt-level 0
 source sha256:fb94dfaac3aa4d6ec756e277bded14a21827752501be75ff3d111180867a65b5
-@ticks 1330
+@ticks 1609
 unit Main.main :: Int
   @stage(lowered)
   body (int 7)

@@ -2,7 +2,7 @@ core 1
 module Main
 target aarch64-apple-darwin opt-level 0
 source sha256:7b876eff6e15cac8c526d90cf06b9937807611c4461d0a924752e17b55053d16
-@ticks 1332
+@ticks 1611
 unit Main.main :: Int
   @stage(lowered)
   body (let t0 @class(owned)
@@ -10,14 +10,14 @@ unit Main.main :: Int
     (let t1 @class(owned)
       (app (prim cinch.runtime.intAdd) (local t0) (int 1))
       (let t3 @class(owned)
-        (lam (t2) (env (dup t1 @class(owned) (local t1))) (global Main.shadow.lam22))
+        (lam (t2) (env (dup t1 @class(owned) (local t1))) (global Main.shadow.lam89))
         (app (local t3) (local t1)))))
 end
 unit Main.main.exit :: -
   @stage(lowered)
   body (app (prim cinch.runtime.intToI64) (global Main.main))
 end
-unit Main.shadow.lam22 :: -
+unit Main.shadow.lam89 :: -
   @params t0 :: - @owned, t1 :: - @owned
   @stage(lowered)
   body (app (prim cinch.runtime.intAdd) (local t1) (local t0))

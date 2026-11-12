@@ -2,7 +2,7 @@ core 1
 module Main
 target aarch64-apple-darwin opt-level 0
 source sha256:2603dce585732c3d7d7ea92e3247aa2a99ba28c51739c788dc7e24e9dbc0556d
-@ticks 1371
+@ticks 1657
 global Data.Core.None
 global 'Data.Core.Some@T'
 unit Main.main :: Int
