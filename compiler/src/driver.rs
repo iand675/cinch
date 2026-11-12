@@ -5206,6 +5206,13 @@ pub fn driver_with_profile_opts(
     } else {
         crate::rc::insert(program, profile)?
     };
+    // Coalescing comes after counting and after the reuse insertion inside
+    // it, which reads the dups where counting put them (Lean's order:
+    // `expandResetReuse` then `coalesceRC`, `CoalesceRC.lean`). It moves
+    // each value's dups to its first use in a run and its drops after its
+    // last, which shortens the live ranges the backend carries.
+    let mut program = program;
+    crate::coalesce::coalesce(&mut program, profile);
     // Frame allocation comes after counting, where every allocation and
     // every reference is explicit (design/stack-allocation.md): the pass
     // turns a block whose references all die in its activation into a
