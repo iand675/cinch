@@ -2,8 +2,8 @@
   "description": "ABI 9 Native seed with the fixed-frame apply stub family; empty patch.",
   "patch": "bootstrap/seed/stage0.patch",
   "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "revision": "afc5e9c282f0178c174346afa3878da68d887f0c",
+  "revision": "5f1b4ef56cb86aea38da9485f3a6208c51b75ad2",
   "runtime_abi": 9,
   "schema": 1,
-  "source_sha256": "56cc6741ff9876152f5fa99ac041ce81ca2bcb54b7030f8032539e8470efdd20"
+  "source_sha256": "39ae4c443170ef40b987a00f9453343dcfbf7522b01720d3304f251bf86eab15"
 }
