@@ -194,3 +194,54 @@ module Main where
         "a narrowed unit must not emit musttail:\n{body}"
     );
 }
+
+/// A narrowed unit reached through its apply stub converts at the stub.
+///
+/// The stub's frame is a word array, so it cannot pass words straight to a
+/// narrowed signature: it truncates each argument to the callee's proved
+/// width and widens the result back. This is the marshal the design calls
+/// for at the indirect boundary, and it is what makes a narrowed unit safe
+/// to take as a value at all.
+///
+/// The closure is held in a list so the stub is genuinely emitted and
+/// genuinely called; a direct call would inline and prove nothing.
+#[test]
+fn a_narrowed_unit_reached_through_its_stub_converts() {
+    let ir = emit(
+        "<test>",
+        r#"
+module Main where
+  import Data.List
+  tag :: U8 -> U8
+  tag x = if x == 1 then 2 else if x == 2 then 3 else if x == 3 then 4 else if x == 4 then 5 else if x == 5 then 6 else if x == 6 then 7 else if x == 7 then 8 else x
+  fs :: List (U8 -> U8)
+  fs = Cons tag Nil
+  main :: Int
+  main = case fs of
+    Nil -> 1
+    Cons f _ -> if f 7 == 8 then 0 else 1
+"#,
+    );
+    let unit = define_of(&ir, "Main.tag");
+    assert!(
+        unit.contains("i8 noundef %p0"),
+        "the unit crosses narrow:\n{unit}"
+    );
+    let stub = ir
+        .split("@\"Main.tag.app\"(ptr %self")
+        .nth(1)
+        .and_then(|rest| rest.split("\n}\n").next())
+        .expect("Main.tag's apply stub");
+    assert!(
+        stub.contains("trunc i64") && stub.contains("to i8"),
+        "the stub narrows the argument to the callee's width:\n{stub}"
+    );
+    assert!(
+        stub.contains("call i8 @\"Main.tag\"(i8 "),
+        "the stub calls the narrowed signature:\n{stub}"
+    );
+    assert!(
+        stub.contains("zext i8") && stub.contains("to i64"),
+        "the stub widens the result back for the word frame:\n{stub}"
+    );
+}

@@ -3600,21 +3600,47 @@ fn stub_saturate(
     frame: &str,
 ) {
     stub_take_saved(b, reg, name, arity, frame, nf);
+    // The stub's frame is a word array, and the callee may have a narrowed
+    // signature (design/narrow-value-representation.md section 4). The
+    // stub is the one caller that does not know the argument types from
+    // the source, so it converts here: each word narrows to the callee's
+    // proved width, which is exactly the marshal the design calls for at
+    // the indirect boundary.
+    let narrow = reg.narrow_sigs.get(name);
     let mut args = Vec::with_capacity(arity);
     for i in 0..arity {
         let w = b.load_at(frame, i * 8);
-        args.push(format!("i64 {w}"));
+        match narrow.and_then(|(ps, _)| ps.get(i).copied()).unwrap_or(64) {
+            64 => args.push(format!("i64 {w}")),
+            bits => {
+                let ty = narrow_llvm_ty(bits);
+                let n = b.reg();
+                b.line(&format!("{n} = trunc i64 {w} to {ty}"));
+                args.push(format!("{ty} {n}"));
+            }
+        }
     }
+    let ret_bits = narrow.and_then(|(_, r)| *r).unwrap_or(64);
+    let ret_ty = narrow_llvm_ty(ret_bits);
     let r = b.reg();
     if arity == 0 {
-        b.line(&format!("{r} = call i64 @{}()", quote(name)));
+        b.line(&format!("{r} = call {ret_ty} @{}()", quote(name)));
     } else {
         b.line(&format!(
-            "{r} = call i64 @{}({})",
+            "{r} = call {ret_ty} @{}({})",
             quote(name),
             args.join(", ")
         ));
     }
+    // The frame and the excess-word path work in words, so a narrowed
+    // result widens straight back.
+    let r = if ret_bits == 64 {
+        r
+    } else {
+        let w = b.reg();
+        b.line(&format!("{w} = zext {ret_ty} {r} to i64"));
+        w
+    };
     let ex = b.reg();
     b.line(&format!("{ex} = sub i64 {total}, {arity}"));
     let hx = b.reg();
