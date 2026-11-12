@@ -72,3 +72,48 @@ complete Native-assisted validation and actual staged status.
 [integration-matrix-results.json](integration-matrix-results.json) records exact
 coverage and the audit for reused targets. Full logs and frozen snapshots remain
 local. Self-hosting is incomplete; development continues toward the real stages.
+
+## Lane notes: effects and library parity (2026-11-12)
+
+Two changes were committed in a lane and then abandoned after measurement.
+They are recorded here so nobody retries them.
+
+**1. `#dependent-argument` bound as a bare local (rejected).** `Bootstrap.Infer.cinch`,
+`materialize-dependent-view`, bound the fresh `#dependent-argument` local with
+`MkLocalBinding` rather than the strict-let rule. The change was to route it through
+`let-binding` and to widen `Bootstrap.Core.cinch`'s `stable-index-source` to accept a
+pure global application. Neither moved a single test: `lib_uri_ipaddr` stayed 0 of 20
+and the other four targets were bit-identical. The reasoning ("the two readings of one
+buffer never meet") was right about the symptom and wrong about the lever, and it was
+inferred from the diagnostic text rather than observed. Do not retry it.
+
+**2. `lib_uri_ipaddr`'s actual mechanism, observed.** `lib_uri_ipaddr`'s 20 failures are
+one cause. Every failing case builds a byte buffer in a call and indexes it in the same
+expression, and the obligation arrives as `i < bytes-len #dependent-argument` while the
+caller's guard states `i < bytes-len (mk n)`. Four probes settle it:
+
+- `f b i = if i < bytes-len b then bytes-get b i == 0 else False` passes (same local
+  on both sides).
+- `if i < bytes-len (mk n) then (if i < bytes-len (mk n) then ... )` passes: the guard
+  fact does form and is usable, so the branch-fact machinery is sound.
+- `if i < bytes-len (mk n) then get-at (mk n) i` fails, with a *user-declared*
+  `using (i < bytes-len b)` precondition, so this is not about `bytes-get`.
+- Adding an explicit `let c = mk n` changes nothing.
+
+The cause is that `scope-index-valid` (`Bootstrap.Core.cinch`) requires
+`kind-equal (type-kind value) (value-kind carrier)`, so a `Bytes` local's kind is
+`KType` and no index term can ever be recorded for it. A buffer's length therefore
+cannot be carried by the recorded-value channel that makes two spellings of the same
+index compare equal. A fix needs a definition channel for container values (or a
+`byte-observation-reading` rule that follows a local to its strict let RHS), not a
+change to the binding rule. That is a design decision, not a patch.
+
+**3. Larger clusters, for whoever owns them.** `temporal` is 0 of 19 and most of
+`staging` fails because the self-hosted frontend has no `contract` declaration in
+`Bootstrap.Ast.cinch` or `Bootstrap.Parse.cinch` at all, so the declaration reaches
+`Resolve` as `DUnmodeled` and is reported as `this declaration requires further
+namespace elaboration`. `staging` quotations fail because
+`Bootstrap.Parse.cinch:2070` sends `[| ... |]` to `parse-unmodeled-atom`.
+`conditional_surface` fails because the staged CLI has no `--target` flag and no
+target-profile concept. `lattice` needs `Ascii` and `Ordered`, which have no
+representation anywhere in the bootstrap while the seed has a whole `PredFn` family.
