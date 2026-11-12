@@ -40,18 +40,23 @@
 //! never a pointer: it is the immediate `v << 1 | 1`, decoded by one
 //! shift right (logical for `Nat`, arithmetic for `Int`).
 //!
-//! * A `Nat` immediate covers `0 ..= 2^63 - 1`, every value of the 63
-//!   payload bits. That is exactly the non-negative `i64` range, so
-//!   `cinch_nat_from_i64` never allocates.
-//! * An `Int` immediate covers `-2^62 ..= 2^62 - 1`, the 63-bit two's
-//!   complement payload. One tag bit leaves 63 bits, and two's complement
-//!   keeps decoding to a single arithmetic shift and lets the fast paths
-//!   add, subtract and compare decoded values in machine arithmetic.
+//! The payload is sized to the target's `csize` (its pointer width), so
+//! that a proved `Nat` or `Int` can cross a call at that width and extend
+//! back exactly (zero-extended for `Nat`, sign-extended for `Int`).
+//!
+//! * A `Nat` immediate covers `0 ..= 2^(csize-1) - 1`, every payload bit:
+//!   `2^63 - 1` on a 64-bit target, exactly the non-negative `i64` range,
+//!   so there `cinch_nat_from_i64` never allocates; `2^31 - 1` on a 32-bit
+//!   one.
+//! * An `Int` immediate covers `-2^(csize-2) ..= 2^(csize-2) - 1`, the
+//!   two's complement payload (`-2^62 ..= 2^62 - 1` on a 64-bit target,
+//!   `-2^30 ..= 2^30 - 1` on a 32-bit one). Two's complement keeps
+//!   decoding to a single arithmetic shift and lets the fast paths add,
+//!   subtract and compare decoded values in machine arithmetic.
 //!
 //! Every entry point returns the immediate whenever its result is in
 //! range (the canonical form). A bignum block therefore only ever holds a
-//! value outside the immediate range: a `Nat` of at least 2^63, or an
-//! `Int` below -2^62 or above 2^62 - 1. Two words of the same in-range
+//! value outside the immediate range. Two words of the same in-range
 //! value are the same word, and overflow of an immediate operation
 //! promotes to a block, while a block result that falls back in range
 //! (a difference, a quotient, a negation) demotes to the immediate. The

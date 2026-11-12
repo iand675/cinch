@@ -1,6 +1,7 @@
 # Narrow value representation: beyond one word per value
 
-Status: proposal, 2026-11-12. User direction: Cinch must eventually run on
+Status: section 4's first slice implemented, 2026-11-12 (section 6a, "The
+boundary slice, taken"). User direction: Cinch must eventually run on
 microcontrollers, so "every value is a uniform machine word" cannot be the
 only representation. No em dashes.
 
@@ -98,12 +99,18 @@ rule, in order of decreasing certainty:
    as the contract attributes: a fact the analysis cannot support is
    omitted, never guessed.
 
-Mixed-width signatures then need a per-signature apply stub. The current
-"one stub per arity" is what makes `stub_def` simple, and it is what
-`design/stack-allocation.md` section 7.8 measured as worth having (the
-`caml_applyN` fan-out was 973 functions and 7.4% of a check). So the
-narrow path must not regress that: a stub is shared by every function of
-one *signature class vector*, not one arity.
+Mixed-width signatures then need the apply stub to convert, and the
+narrow path must not bring back the per-count fan-out that
+`design/stack-allocation.md` section 7.8 collapsed (the `caml_applyN`
+shape was 973 per-count entries). This section first said "one stub per
+arity" was current; that was stale. Since section 7.8 there is one
+`@"U.app"` per function whose closure is taken, and it calls `U`
+directly, so a narrowed `U`'s conversion lives inside the stub it
+already has and costs no function at all (measured below, "The boundary
+slice, taken"). Sharing one stub across a signature class vector would
+instead need the closure to carry a code pointer and the stub to call
+through it, trading every closure application's direct call for fewer
+functions; the user chose the per-function stub.
 
 ## 5 What this unlocks
 
@@ -272,6 +279,75 @@ claim above was observed rather than inferred. The runtime's wasm backend
 itself cannot be unit-tested from this host (it only compiles for the
 wasm target), so its proof is the end-to-end run, not a `#[test]`.
 
+### The boundary slice, taken
+
+All three parts of section 4's first slice are in, with the uniform word
+settled by the user's decisions of 2026-11-12: a 64-bit scalar stays 8
+unboxed bytes, and a heap slot stays 8 bytes. Polymorphic code moves a
+whole slot (a `List I64` element is 8 bytes), so the uniform word stays
+the slot on every target. The eventual design specialises polymorphic
+code by layout (`List@unboxed_1_bytes` through `List@unboxed_8_bytes`,
+`List@boxed_Maybe`), emitted lazily as section 2 of
+`layouts-and-specialization.md` does for classes; this slice narrows the
+positions a type proves, and leaves that specialisation axis for later.
+
+- **Machine scalars cross at their own width** (`ParamContract::narrow`,
+  `Crossing::Bits`). `U8` is `i8`, `I16` is `i16`, `U32`/`I32`/`F32` are
+  `i32`, on every target. The body is unchanged: the entry widens, every
+  return narrows, and the caller mirrors it.
+- **A word that fits the pointer crosses at `csize`**
+  (`Crossing::Csize`): a counted pointer (an ADT, a closure, `Bytes`, a
+  tuple), a `Nat` and an `Int`. That is the slot on a 64-bit target, so
+  native output is byte-identical to the tree before this slice (61
+  programs including the 44K-line compiler bundle and the toolkit bundle,
+  same SHA-256 through both binaries). On wasm32 it is `i32`: a pointer
+  and a `Nat` zero-extend back into the slot, an `Int` sign-extends.
+- **The immediate payload follows `csize`.** That is what lets a `Nat` or
+  `Int` cross at `csize` at all: a `Nat` immediate is `0..=2^(csize-1)-1`
+  and an `Int` immediate `-2^(csize-2)..=2^(csize-2)-1`, so the encoded
+  word fits and extends back exactly. The runtime's constants derive from
+  `usize::BITS`, `cinch_nat_from_i64` boxes above the bound instead of
+  assuming every `i64` fits, and the compiler's literal folding and the
+  inline `Nat` add's carry check take the same bound from the target. On
+  64-bit targets the numbers are unchanged (`2^63 - 1`, `2^62`).
+- **One registry answer.** The header, every direct call (including a
+  dictionary factory's strict method, a thunk's value, a foreign export's
+  wrapper and another module's declaration) and the apply stub all read
+  `Registry::narrow_sigs`, so none can disagree with the callee. Units
+  whose boundary is fixed by something else keep the word: primitives,
+  constructors, `prim` declarations, widened tail-group members, and
+  `main`, which the runtime calls through an `i64 ()` pointer.
+- **`musttail` survives.** A tail call is `musttail` when the two LLVM
+  prototypes agree (an `Int` and a `Nat` position share `i32`), and a
+  recursive group whose members would narrow to different prototypes
+  keeps the word for all of them, because constant stack is a language
+  guarantee (D104) and a narrower boundary is not.
+
+Two earlier defects surfaced on the way and are fixed: a widened unit's
+worker read the contract directly and would have widened an `i64`
+parameter as an `i8`, and a narrowed call carried `!range` metadata typed
+for the word, which the verifier refuses.
+
+Measured on wasm32, end to end through clang, `wasm-ld` and Node: `fib`,
+`Nat` arithmetic across `2^30`, `2^31`, `2^32` and `2^40`, `Int`
+arithmetic across `-2^30`, a closure mapped over a list of `3 * 10^9`
+values, a 12-deep tree of ADTs, a narrowed `U8` closure through its
+stub, and three mutual tail groups 3,000,000 calls deep all answer 0,
+with and without `--no-inline`. The 44K-line compiler bundle emits 3,802
+narrowed functions for wasm32 and clang assembles the module.
+
+The apply stubs do not fan out:
+
+| module | target | tree | defines | apply stubs | narrowed defines |
+| --- | --- | --- | --- | --- | --- |
+| compiler bundle, 43,959 lines | native | before | 7,128 | 128 | 0 |
+| compiler bundle | native | after | 7,128 | 128 | 0 |
+| compiler bundle | wasm32 | before | 7,091 | 128 | 0 |
+| compiler bundle | wasm32 | after | 7,091 | 128 | 3,802 |
+
+Narrowing adds no function on either target. The wasm32 module is 3.3%
+more IR lines (5.79M to 5.98M), which is the boundary conversions.
+
 ## 7 Open questions
 
 1. **Where does the width live?** `Class` is the reclamation axis. A
@@ -283,11 +359,11 @@ wasm target), so its proof is the end-to-end run, not a `#[test]`.
 3. **How does the FFI boundary interact?** A `repr(C)` narrow struct
    already crosses by value; the question is whether a *bare* `U8`
    parameter should too.
-4. **What is the smallest first slice?** My reading: monomorphic narrow
-   scalars at direct call sites only, with `__apply` still word-based and
-   a marshal at the indirect boundary. That is provable, small, and it
-   delivers the microcontroller case without touching dictionaries or
-   reclamation.
+4. **What is the smallest first slice?** Taken, and wider than this
+   question first proposed: narrow scalars and `csize` positions at every
+   direct call, with `__apply` still word-based and the marshal at the
+   apply stub ("The boundary slice, taken"). It touches neither
+   dictionaries nor reclamation.
 
 ## 8 Not in scope
 

@@ -205,18 +205,28 @@ pub(crate) fn raise(err: Error) -> ! {
 // immediate whenever the value fits (the canonical form), so a box only
 // ever holds a value outside the immediate range and two words of the
 // same small value are the same word.
+//
+// The payload follows the pointer width, not the 8-byte slot a word is
+// stored in. Generated code passes a proved `Nat` or `Int` at the
+// target's `csize` (design/narrow-value-representation.md section 4), so
+// an immediate has to survive that crossing: a `Nat` word zero-extends
+// back into its slot and an `Int` word sign-extends, and both are exact
+// only when the encoded word fits `csize` bits. On a 64-bit target this is
+// the whole slot.
 
-/// The largest `Nat` immediate, `2^63 - 1`: all 63 payload bits. It is
-/// also `i64::MAX`, so every `Nat` an `i64` can carry is an immediate.
-pub(crate) const NAT_IMMEDIATE_MAX: u64 = (1 << 63) - 1;
+/// The largest `Nat` immediate, `2^(csize - 1) - 1`: every payload bit of
+/// a `csize` word. On a 64-bit target it is also `i64::MAX`, so every `Nat`
+/// an `i64` can carry is an immediate.
+pub(crate) const NAT_IMMEDIATE_MAX: u64 = (1 << (usize::BITS - 1)) - 1;
 
-/// The smallest `Int` immediate, `-2^62`.
-pub(crate) const INT_IMMEDIATE_MIN: i64 = -(1 << 62);
+/// The smallest `Int` immediate, `-2^(csize - 2)`.
+pub(crate) const INT_IMMEDIATE_MIN: i64 = -(1 << (usize::BITS - 2));
 
-/// The largest `Int` immediate, `2^62 - 1`. With [`INT_IMMEDIATE_MIN`]
-/// this is the 63-bit two's complement payload, decoded by one arithmetic
-/// shift; a wider range would need a second tag bit.
-pub(crate) const INT_IMMEDIATE_MAX: i64 = (1 << 62) - 1;
+/// The largest `Int` immediate, `2^(csize - 2) - 1`. With
+/// [`INT_IMMEDIATE_MIN`] this is the two's complement payload of a `csize`
+/// word less its tag bit, decoded by one arithmetic shift; a wider range
+/// would need a second tag bit.
+pub(crate) const INT_IMMEDIATE_MAX: i64 = (1 << (usize::BITS - 2)) - 1;
 
 /// Whether a `Nat`/`Int` word is an immediate (and so not a pointer).
 #[inline]
@@ -548,15 +558,16 @@ pub unsafe extern "C" fn cinch_free(word: i64) {
 // Nat
 // ---------------------------------------------------------------------------
 
-/// An `i64` as a `Nat` word (always an immediate). Well-typed code
-/// proves `0 <= v` (`nat-from-i64`'s obligation), so a negative input is
-/// a compiler-bug trap.
+/// An `i64` as a `Nat` word: an immediate on a 64-bit target, where every
+/// non-negative `i64` fits, and a box above [`NAT_IMMEDIATE_MAX`] on a
+/// narrower one. Well-typed code proves `0 <= v` (`nat-from-i64`'s
+/// obligation), so a negative input is a compiler-bug trap.
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_nat_from_i64(v: i64) -> i64 {
     if v < 0 {
         raise(Error::NegativeInput);
     }
-    nat_immediate(v as u64)
+    nat_word_u128(v as u128)
 }
 
 /// The value of a `Nat` word as an `i64`. Well-typed code proves the

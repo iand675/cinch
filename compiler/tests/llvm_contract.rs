@@ -239,34 +239,54 @@ module Main where
   idU8 :: U8 -> U8
   idU8 x = x
 
+  idBool :: Bool -> Bool
+  idBool x = x
+
   idInt :: Int -> Int
   idInt x = x
 
   main :: Int
-  main = if idU8 3 == 3 then if idInt 5 == 5 then 0 else 1 else 2
+  main = if idU8 3 == 3 then if idBool True then if idInt 5 == 5 then 0 else 1 else 3 else 2
 "#,
     );
-    // The bounded result states its range; the unbounded one states
-    // nothing (`Int` words span the `i64` space).
-    let u8_define = define_of(&ir, "Main.idU8");
+    // A word-typed bounded result states its range; the unbounded one
+    // states nothing (`Int` words span the `i64` space).
+    let bool_define = define_of(&ir, "Main.idBool");
     assert!(
-        u8_define.contains("range(i64 0, 256)"),
-        "Main.idU8: a U8 return must carry its range\n{u8_define}\n{ir}"
+        bool_define.contains("range(i64 0, 2)"),
+        "Main.idBool: a Bool return must carry its range\n{bool_define}\n{ir}"
     );
     let int_define = define_of(&ir, "Main.idInt");
     assert!(
         !int_define.contains("range("),
         "Main.idInt: an Int return carries no range\n{int_define}\n{ir}"
     );
-    // The same fact at the call sites.
+    // A `U8` result crosses as an `i8` (design/narrow-value-
+    // representation.md section 4), so its type is the range: the
+    // `[0, 256)` a word would need the attribute for is what the caller's
+    // `zext` of the `i8` already says.
+    let u8_define = define_of(&ir, "Main.idU8");
+    assert!(
+        u8_define.starts_with("define i8 ") && !u8_define.contains("range("),
+        "Main.idU8: a U8 return crosses as i8, which states its range\n{u8_define}\n{ir}"
+    );
+    // The same facts at the call sites.
     let main_body = body_of(&ir, "Main.main");
+    let bool_call = main_body
+        .lines()
+        .find(|l| l.contains("call i64 @\"Main.idBool\"("))
+        .expect("a call to Main.idBool");
+    assert!(
+        bool_call.contains("!range "),
+        "the Bool call site must carry !range\n{bool_call}\n{ir}"
+    );
     let u8_call = main_body
         .lines()
-        .find(|l| l.contains("call i64 @\"Main.idU8\"("))
-        .expect("a call to Main.idU8");
+        .find(|l| l.contains("call i8 @\"Main.idU8\"("))
+        .expect("a call to Main.idU8 at its narrowed type");
     assert!(
-        u8_call.contains("!range "),
-        "the U8 call site must carry !range\n{u8_call}\n{ir}"
+        !u8_call.contains("!range "),
+        "a narrowed call carries no word-typed !range\n{u8_call}\n{ir}"
     );
     let int_call = main_body
         .lines()

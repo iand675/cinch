@@ -2827,15 +2827,35 @@ pub struct ParamContract {
     /// The size the pointer role asserts of its pointee
     /// (`dereferenceable`; 0 asserts none).
     pub pointee_size: u64,
-    /// The width this parameter crosses at, in bits, when the type has a
-    /// fixed narrow layout and the signature is monomorphic here
-    /// (design/narrow-value-representation.md section 4, rule 1).
+    /// The width this parameter crosses at when the analysis proved one
+    /// (design/narrow-value-representation.md section 4).
     ///
     /// `None` is the uniform word: a type variable's instantiation, a
-    /// dictionary, a closure, a boxed `Nat`/`Int`, or any position whose
-    /// width the compiler cannot state. Narrowing is proved, never
-    /// guessed, so an unproved position keeps the word form.
-    pub narrow_bits: Option<u32>,
+    /// dictionary, or any position whose width the compiler cannot state.
+    /// Narrowing is proved, never guessed, so an unproved position keeps
+    /// the word form.
+    pub narrow: Option<Crossing>,
+}
+
+/// The width a proved position crosses a call boundary at.
+///
+/// The uniform word is the 8-byte slot every value is stored in, because a
+/// polymorphic position may hold a 64-bit scalar. A position whose type
+/// says more crosses narrower, and the body below the boundary is
+/// unchanged: the callee widens on entry and narrows on return, and the
+/// caller mirrors it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Crossing {
+    /// A machine scalar of this many bits (`U8`/`I16`/`F32` and their
+    /// siblings), whatever the target.
+    Bits(u32),
+    /// A word whose every value fits the target's pointer width: a
+    /// counted pointer (`Obj`), or a `Nat`/`Int`, whose immediate payload
+    /// is sized to `csize` for exactly this reason. It is the slot on a
+    /// 64-bit target and narrows only where `csize` is smaller. `signed`
+    /// says how the narrowed value extends back into the slot: an `Int`
+    /// immediate sign-extends, a pointer or a `Nat` zero-extends.
+    Csize { signed: bool },
 }
 
 /// One definition's facts for the LLVM contract surface (the plan note
@@ -2863,11 +2883,10 @@ pub struct FnContract {
     /// parameter is validated before first use, so the parameter
     /// contracts restate as `llvm.assume` operand bundles.
     pub checked_params: bool,
-    /// The width the result crosses at, in bits, when the result type has
-    /// a fixed narrow layout and the signature is monomorphic there
-    /// (design/narrow-value-representation.md section 4, rule 1).
-    /// `None` is the uniform word.
-    pub result_narrow_bits: Option<u32>,
+    /// The width the result crosses at when the analysis proved one
+    /// (design/narrow-value-representation.md section 4). `None` is the
+    /// uniform word.
+    pub result_narrow: Option<Crossing>,
 }
 
 /// A record field projection's lowering plan: the runtime field slot,
