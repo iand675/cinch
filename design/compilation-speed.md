@@ -2336,6 +2336,65 @@ bytes of definitions (1.61% of the module) recoverable by keying the name on
 the descriptor. That is a self-hosted-emitter change with no ABI, no class
 letter and no lock, and it is worth more than the immediate.
 
+### 2.12b The static blocks are deduplicated, and borrow inference is unreachable (2026-11-12)
+
+Both halves of the 2.12a recommendation were taken.
+
+**The dedup landed.** `static-constructor` now names a nullary block by its
+descriptor instead of a per-site counter, and `dedupe-globals` keeps the
+first line per symbol, which is the seed's `dedupe_static_blocks` rule
+applied at the same scope. A block's bytes are a pure function of its
+descriptor (header `rc=0`, `kind=1`, layout in bits 48..63, empty payload),
+so descriptor equality is block equality and the name now says so. The
+payload is still reached by the constant `getelementptr` offset into the
+storage symbol, never a global alias, so the multi-object link is unaffected.
+
+|Measure|Before|After|
+|---|---|---|
+|compiler module bytes|43,333,108|42,624,237 (-708,871, -1.64%)|
+|`@empty-ctor` definitions|7,126|96|
+|duplicate definitions (by header word)|7,030|0|
+|stage-3 binary bytes|16,616,808|16,136,280 (-480,528, -2.9%)|
+|definitions vs references|7,126 / 14,252|96 / 96, no dangling, no orphan|
+
+The pass is not free and the cost is stated rather than hidden: it adds
+1,672 rc calls in its own `dedupe-lines` code and removes 1,638 from the
+units whose globals it now sees once, for a net +65 of 140,952 (0.05%)
+against 708,871 bytes saved. The four fixed-point checks hold (IR, binary
+and 47/47 interfaces byte equal), the three smokes pass, the leak line is
+clean, `cargo test --lib` is 274/274, and `reclamation` (15 passed, 4
+failed) and `ownership` (23 passed, 6 failed) match the baseline per test.
+`rc_specialisation` fails one test on unmodified `main` too: it asserts
+`@cinch.rc.dup.obj` names the emitter has not produced since the typed
+helper rename, which is a stale assertion, not this change.
+
+**Borrow inference already exists, and the self-hosted compiler cannot
+reach it.** `compiler/src/rc.rs` has a full whole-program `borrow_modes`
+fixed point (a unit takes part when every caller is a saturated direct
+call, a parameter starts borrowed and becomes owned until the fixed point),
+and `insert_closed` runs it. But `driver.rs` selects it only when the
+compile is closed (`mode != EmitObject && emit_modules.is_empty() &&
+package_objects.is_empty()`), and the bootstrap emits every stage with
+`--emit-ir-with-interfaces --objects`, so the compiler's own module is an
+open compile where every parameter is owned by design. The self-hosted
+emitter has no borrow analysis at all: `count-op` skips only class 0
+(`Raw`) and literal operands, and `Bootstrap.RuntimeIr`'s fourteen "borrow"
+mentions are all `Ref`/`Mut` or extern argument conventions.
+
+So the 60.1% of rc operations that sit on parameters (84,777 of 140,952,
+measured in 2.12a) are not a missing pass in the seed. They are a missing
+pass in `Bootstrap.RuntimeIr`, and 73.5% of the module's units (5,121 of
+6,966) are borrow-eligible under the seed's own rule. `Main.lastOr` is the
+canonical case and the tree's own `rc_specialisation` test asserts it
+should not dup: measured through the self-hosted compiler it does dup its
+list parameter, because nothing there infers a borrow.
+
+The lesson for the next slice: do not port `borrow_modes` to
+`Bootstrap.RuntimeIr` as a first step. It is a whole-program fixed point
+over callers, and the self-hosted emitter is per-unit. The cheap first
+move is the shape the seed already trusts, computed where the caller list
+is known.
+
 ## 11. Benchmark corpus and metrics
 
 The corpus is edits, not programs. Each entry is a case in
@@ -2444,12 +2503,19 @@ Metrics, reported per edit and per clean build:
 12. **Development codegen tier** (Cranelift or a direct emitter) once the
    backend is the measured bottleneck for edit-compile-run rather than for
    clean builds.
-13. **Deduplicate the self-hosted emitter's static nullary blocks.** 7,126
-   definitions for 96 distinct header words in the compiler module; keying
-   the symbol on the descriptor recovers 699,365 bytes of definitions (1.61%
-   of the module) with no ABI, no class letter and no lock bump. Section
-   2.12a has the counts, and says why the immediate encoding of the same
-   types is not worth its ABI change.
+13. **Deduplicate the self-hosted emitter's static nullary blocks. Done
+   (2026-11-12).** Keying the symbol on the descriptor took the compiler
+   module from 7,126 definitions to 96 and from 43,333,108 to 42,624,237
+   bytes, and the stage-3 binary by 480,528. Section 2.12b has the table
+   and the pass's own +65 rc calls.
+14. **Borrow inference in the self-hosted emitter.** The seed has a whole
+   program `borrow_modes` fixed point and `insert_closed` runs it, but the
+   bootstrap compiles with `--objects`, so every stage module is an open
+   compile with every parameter owned; `Bootstrap.RuntimeIr.count-op` skips
+   only `Raw` and literals. 84,777 of 140,952 rc operations (60.1%) sit on
+   parameters and 73.5% of units are borrow-eligible under the seed's own
+   rule. Section 2.12b says why porting the fixed point is the wrong first
+   move and what the cheap one is.
 
 Related designs: `parallel-evaluation.md`, `core-output.md`,
 `incremental-recompilation.md`, `self-hosting.md`, `layouts-and-specialization.md`,
