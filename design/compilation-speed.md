@@ -2088,8 +2088,20 @@ times on the toolkit bundle and 28 on the compiler source** (manifest
 `simplifier.saturate_partial`), against the census's 9 under-applied sites in
 the source (5 of them applied exactly once in head position) and 1 in the
 toolkit. The census counts source-level sites; the rule's 28 include the
-inliner's copies, which is why the two differ. It is not a big number, and it
-is the number that exists.
+inliner's copies, which is why the two differ.
+
+**Its effect on the two workloads is zero, and that is the finding.** With
+`--no-saturate-partial` as the other arm and a fresh `CINCH_STORE` per arm,
+the lowered Core differs in 15 compiler units and 1 toolkit unit, and the
+emitted module does not differ at all: 7,022 defines, 1,481 `__apply` calls
+and 135 closure records on both arms of the compiler source, 9 defines and
+the same two apply sites on both arms of the toolkit, and the allocation
+census is identical. Every site the rule rewrites is either inside a unit the
+inliner's copies and the dead-unit sweep remove before emission, or a shape
+code generation already collapses. The rule is therefore a Core-level
+simplification with no measured win on these workloads; it stays because the
+refusal conditions are pinned by tests and a future workload with the shape
+gets the merge, not because it moved a number.
 
 The census also reversed the priority the backlog implied. On a 1 kHz sample
 of the toolkit check (7,040 working samples), `cinch_drop` is **14.4%** of
