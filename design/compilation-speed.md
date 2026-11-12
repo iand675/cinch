@@ -1945,6 +1945,55 @@ impossible tag. `named-polymorphic-proof` returned 1 instead of 42, and
 the instrumented stage-1 link trapped on a freed block. Decision cases
 stay on the chain now.
 
+### 2.16 The totality retry asked the wrong question (2026-11-12)
+
+`source-total-resolved` retried a name by asking `source-total-from-checked`
+whether the module elaboration had produced that name's total body, and the
+question ran through `elaboration-bindings`, `elaboration-core` and
+`elaboration-data`. Each of those answers `Nil` when the elaboration carries
+any diagnostic, which is the right rule for a caller that may only act on a
+fully accepted elaboration. For the retry it was the wrong one: a module
+elaboration that reports a single error looked as though it had produced
+nothing, so **every** name in the module took the retry path. The pass paid
+one full module elaboration per name, on top of the elaboration that had
+already produced the results, and a module of N names that hit one error cost
+N + 1 elaborations. The comment above the function claimed the retry ran once
+per *failed* name; it ran once per name, and that gap is the whole bug.
+
+The retry now reads the elaboration's own lists through `elaboration-source-*`
+and builds one name-keyed table per pass (`source-total-entries`). A name the
+module elaboration resolved is emitted from that table and never re-derived;
+the unresolved set is read off the same table (`source-total-missing`), so the
+two cannot disagree. `source-total-retry` is a flat pass over exactly those
+names: it cannot nest, and its length is the number of genuine failures rather
+than a function of the module's size. The clean path is byte for byte the same
+work as before, including its allocation profile, because no table is built
+when the elaboration reports nothing.
+
+The loop's shape, with N total candidates and one failing body, in blocks
+(deterministic, unlike wall time on this machine):
+
+|candidates|before|after|saved|
+|---|---|---|---|
+|5|46,762,359|36,327,677|22.3%|
+|10|57,356,987|36,459,274|36.4%|
+|20|79,191,240|37,281,782|52.9%|
+|40|127,426,620|43,143,982|66.1%|
+
+The marginal cost of one more candidate was 2.12 to 2.41 million blocks before
+and 26 thousand to 293 thousand after: the difference between a module
+elaboration and a closure elaboration. On the compiler's own 40,681-line
+bundle the same change is 960,820,794 to 950,513,287 blocks (-1.07%), which is
+the honest size of the win there: that bundle is mostly clean, so most of its
+modules never entered the loop. A five-pair interleaved A/B on the self-check
+scattered 44.0 to 68.6 s and could not resolve anything under about ten
+percent, so the block counts are the evidence and the wall figures are not
+quoted.
+
+Byte identical: `compiler.ll` sha256 `d927b5f28c000823` from both arms on the
+same input, all 179 non-bootstrap `.cinchif` files `cmp`-equal, and an errored
+workload's diagnostics identical.
+
 ### 2.15 One reference table per export (2026-11-12)
 
 `Bootstrap.ExportNominal.binding-reference-names` walked every declaration
