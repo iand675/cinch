@@ -11,9 +11,11 @@ module Bootstrap.ExportNominal where
   import Data.Json
   import Bootstrap.Ast (Decl, DRefine, DSig, DMethod, DFun, DData, DOpaque, DClass, DInstance, DForeign, decls-of, TypeExpr, TName, TIndex, TNegate, TInfix, TFun, TApp, TArg, TArgsEnd, TypeParam, param-name, param-kind, param-implicit, decl-name, type-expr-span)
   import Bootstrap.Contracts (declaration-references)
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Text.Json (json-eq)
 
   export source-refinement, source-abstract-type, binding-refinements, merge-nominals, scheme-nominals, data-nominal, class-nominal, parameter-json, parameter-names
+  export reference-index
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -304,20 +306,54 @@ module Bootstrap.ExportNominal where
               (Err error, other) -> Err error
               (other, Err error) -> Err error
           other -> Err "invalid checked refinement provenance")
-  constructor-reference-names :: String -> List (String, TypeExpr) -> List String
-  constructor-reference-names name constructors = case constructors of
+  -- Every query name a declaration answers for, paired with the references
+  -- the walk below used to emit for it. The order is the walk's order.
+  reference-entries :: Decl -> List (String, List String)
+  reference-entries declaration = case declaration of
+    DClass sp actual params members -> reference-entries-of (decls-of members)
+    DInstance sp flag actual params head-type members ->
+      Cons (actual, declaration-references [DData sp actual params Nil, DSig sp actual head-type])
+        (reference-entries-of (decls-of members))
+    DData sp actual params constructors -> constructor-reference-entries constructors
+    other -> case decl-name declaration of
+      Some actual -> Cons (actual, declaration-references [declaration]) Nil
+      None -> Nil
+  reference-entries-of :: List Decl -> List (String, List String)
+  reference-entries-of declarations = case declarations of
     Nil -> Nil
-    Cons (actual, syntax) rest -> if same name actual then declaration-references [DSig (type-expr-span syntax) actual syntax] else constructor-reference-names name rest
-  binding-reference-names :: String -> List Decl -> List String
-  binding-reference-names name declarations = case declarations of
+    Cons declaration rest -> reference-entries declaration <> reference-entries-of rest
+  -- One entry per distinct constructor name, first occurrence winning: the
+  -- walk this replaces stopped at the first matching constructor.
+  constructor-reference-entries :: List (String, TypeExpr) -> List (String, List String)
+  constructor-reference-entries constructors = constructor-reference-entries-from constructors Nil
+  constructor-reference-entries-from :: List (String, TypeExpr) -> List (String, List String) -> List (String, List String)
+  constructor-reference-entries-from constructors seen = case constructors of
     Nil -> Nil
-    Cons declaration rest -> (case declaration of
-      DClass sp actual params members -> binding-reference-names name (decls-of members)
-      DInstance sp flag actual params head-type members ->
-        (if same actual name then declaration-references [DData sp actual params Nil, DSig sp actual head-type] else Nil) <> binding-reference-names name (decls-of members)
-      DData sp actual params constructors -> constructor-reference-names name constructors
-      other -> case decl-name declaration of
-        Some actual -> if same actual name then declaration-references [declaration] else Nil
-        None -> Nil) <> binding-reference-names name rest
-  binding-refinements :: List Decl -> String -> Result String Json
-  binding-refinements declarations name = referenced-refinements declarations (binding-reference-names name declarations) Nil
+    Cons (actual, syntax) rest ->
+      if entry-present actual seen then constructor-reference-entries-from rest seen
+      else Cons (actual, declaration-references [DSig (type-expr-span syntax) actual syntax])
+        (constructor-reference-entries-from rest (Cons (actual, Nil) seen))
+  entry-present :: String -> List (String, List String) -> Bool
+  entry-present name entries = case entries of
+    Nil -> False
+    Cons (first, refs) rest -> same name first || entry-present name rest
+  -- The reference names of every binding, built once per export instead of
+  -- walked once per exported row. A later entry for a name appends, so each
+  -- name's list keeps declaration order exactly as the walk produced it.
+  reference-index :: List Decl -> HashMap String (List String)
+  reference-index declarations = reference-index-of declarations hash-map-empty
+  reference-index-of :: List Decl -> HashMap String (List String) -> HashMap String (List String)
+  reference-index-of declarations index = case declarations of
+    Nil -> index
+    Cons declaration rest ->
+      reference-index-of rest (reference-index-insert (reference-entries declaration) index)
+  reference-index-insert :: List (String, List String) -> HashMap String (List String) -> HashMap String (List String)
+  reference-index-insert entries index = case entries of
+    Nil -> index
+    Cons (name, refs) rest -> reference-index-insert rest (hash-map-insert name (reference-names-of name index <> refs) index)
+  reference-names-of :: String -> HashMap String (List String) -> List String
+  reference-names-of name index = case hash-map-lookup name index of Some refs -> refs; None -> Nil
+  binding-reference-names :: String -> HashMap String (List String) -> List String
+  binding-reference-names name index = reference-names-of name index
+  binding-refinements :: List Decl -> HashMap String (List String) -> String -> Result String Json
+  binding-refinements declarations index name = referenced-refinements declarations (binding-reference-names name index) Nil

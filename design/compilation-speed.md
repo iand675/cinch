@@ -1877,6 +1877,33 @@ impossible tag. `named-polymorphic-proof` returned 1 instead of 42, and
 the instrumented stage-1 link trapped on a freed block. Decision cases
 stay on the chain now.
 
+### 2.15 One reference table per export (2026-11-12)
+
+`Bootstrap.ExportNominal.binding-reference-names` walked every declaration
+in the module once per exported row, so a module with N declarations and M
+exported rows paid N times M declaration visits. On the 3,965-line toolkit
+check it was the largest hot spot measured in this compiler: **59.3% of the
+working thread's samples**, 2,868 of 4,833, with `Export.export-interfaces`
+at 16.7% above it.
+
+`reference-index` builds one name-keyed table per export and threads it
+through `ExportIndex` to every row function, so a row costs one hash probe.
+The table inverts the walk rather than reordering it: each declaration
+contributes `(query name, references)` entries in the order the walk emitted
+them, and each name's list keeps declaration order. Two first-wins rules are
+preserved exactly, which is what keeps the output identical: a constructor
+name resolves to its first occurrence, and a name two declarations both
+answer for takes the earlier one.
+
+Byte identical: `compiler.ll` sha256 `e2de3fe51fd9cc79` and all 47
+`.cinchif` files `cmp`-equal to the pre-change stage-1 arm's output. The hot
+frame is gone from the profile entirely (2,854 sample lines to 0), and the
+remaining self time is the allocator, the dropper and `cinch_bytes_compare`.
+An interleaved nine-pair A/B, both arms built from the same tree with only
+these two files differing, put CPU at 6.07 s to 5.56 s (-8.4%); the wall
+figures scatter too widely on a machine carrying other lanes to be quoted,
+and the profile is the reliable evidence here.
+
 ### 2.14 The 2026-11-12 round, and what the two workloads are now
 
 Two numbers hold still enough to be a baseline, both on a quiet machine,
