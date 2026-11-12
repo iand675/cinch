@@ -6766,6 +6766,7 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result
         unit: f.id.0.clone(),
         width,
         loop_label: String::new(),
+        loop_meta: crate::loopmeta::LoopMeta::new(f.hints.unroll),
         bound: bound.into_iter().collect(),
         slots: HashMap::new(),
         joins: HashMap::new(),
@@ -7011,6 +7012,9 @@ struct CoreEmitter<'a, 'b> {
     /// The loop header a saturated self tail call jumps to (decision
     /// D104).
     loop_label: String,
+    /// The `#[unroll(N)]` hint's metadata, for the back edges into
+    /// `loop_label` (`crate::loopmeta`).
+    loop_meta: crate::loopmeta::LoopMeta,
     bound: HashSet<LocalId>,
     slots: HashMap<LocalId, String>,
     /// The joins in scope, by id. A `Jump` branches to its join's block and
@@ -8100,7 +8104,12 @@ impl CoreEmitter<'_, '_> {
                             self.b.line(&format!("store i64 {v}, ptr {slot}"));
                         }
                         let loop_label = self.loop_label.clone();
-                        self.b.line(&format!("br label %{loop_label}"));
+                        // The back edge is where LLVM reads the loop's
+                        // unrolling policy (attribute annotations
+                        // specification section 5), so the hint's metadata
+                        // rides this terminator and no other.
+                        let meta = self.loop_meta.suffix(&self.reg.meta_defs, &self.reg.meta_next);
+                        self.b.line(&format!("br label %{loop_label}{meta}"));
                         Ok(())
                     }
                     Some((unit, arity)) if self.reg.tail_sig(&unit, arity).1 == self.width => {

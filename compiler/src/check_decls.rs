@@ -2766,6 +2766,7 @@ impl Checker {
         self.record_fn_hints(
             &fn_key,
             set.inline,
+            set.unroll,
             set.fn_cold,
             *span,
         )?;
@@ -3468,6 +3469,7 @@ impl Checker {
                     self.record_fn_hints(
                         &fn_key,
                         set.inline,
+                        set.unroll,
                         set.fn_cold,
                         eq.span,
                     )?;
@@ -3725,7 +3727,7 @@ impl Checker {
                     // (primitive operations and inline target IR
                     // specification section 7).
                     let unit = fn_id(&module, &p.name.text).0;
-                    self.record_fn_hints(&unit, set.inline, set.fn_cold, p.span)?;
+                    self.record_fn_hints(&unit, set.inline, set.unroll, set.fn_cold, p.span)?;
                     if unit.starts_with("cinch.prim.") || unit.starts_with("cinch.runtime.") {
                         return Err(Error::at(
                             p.name.span,
@@ -5435,6 +5437,24 @@ impl Checker {
                         ));
                     }
                     out.inline = Some(hint);
+                }
+                // `#[unroll(N)]` and `#[unroll disable]` are the loop
+                // hint of section 5: advisory metadata on the loop a
+                // definition's self tail recursion becomes, never a
+                // core-level transformation and never an error when the
+                // definition has no loop.
+                "unroll" => {
+                    if site != AttrSite::FnDecl {
+                        return Err(Error::at(a.span, site.placement_error("unroll")));
+                    }
+                    let hint = unroll_arg(a)?;
+                    if out.unroll.is_some() {
+                        return Err(Error::at(
+                            a.span,
+                            "one function carries one unroll hint: `#[unroll(N)]` and `#[unroll disable]` are one hint family (attribute annotations specification section 5)",
+                        ));
+                    }
+                    out.unroll = Some(hint);
                 }
                 "repr" => {
                     if !matches!(site, AttrSite::TypeDecl | AttrSite::Field) {
@@ -11937,7 +11957,7 @@ fn wrap_eq_body(e: &ast::Equation) -> ast::Term {
 
 // --------------------------------------- attribute annotations (P17)
 
-use crate::core::InlineHint;
+use crate::core::{InlineHint, UnrollHint};
 
 /// Where one `#[...]` list sits (attribute annotations specification
 /// section 1.1); the position decides which families it may carry.
@@ -11973,7 +11993,7 @@ impl AttrSite {
         match family {
             "weight" | "likely" | "unlikely" => match self {
                 AttrSite::FnDecl => format!(
-                    "`#[{family}]` annotates one alternative of a decision point (attribute annotations specification sections 2 and 3); a function declaration carries `#[inline]`, `#[noinline]` and `#[cold]` (section 5), and a weight on a clause is written between the name and its patterns"
+                    "`#[{family}]` annotates one alternative of a decision point (attribute annotations specification sections 2 and 3); a function declaration carries `#[inline]`, `#[noinline]`, `#[unroll(N)]` and `#[cold]` (section 5), and a weight on a clause is written between the name and its patterns"
                 ),
                 _ => format!(
                     "`#[{family}]` annotates a `case` alternative, a function clause, a guard, or an `if` branch (attribute annotations specification sections 2 and 3)"
@@ -11982,6 +12002,9 @@ impl AttrSite {
             "cold" => "`#[cold]` is a weight wrapper on an alternative or a hint on a function declaration (attribute annotations specification sections 3 and 5); this position takes neither".to_string(),
             "inline" => {
                 "`#[inline]` is a hint on a function declaration (attribute annotations specification section 5)".to_string()
+            }
+            "unroll" => {
+                "`#[unroll(N)]` is a hint on a function declaration (attribute annotations specification section 5)".to_string()
             }
             "safety" => "`#[recursion]`, `#[stack]`, `#[no-alloc]`, `#[alloc]`, `#[max-complexity]`, `#[max-lines]`, `#[assert-min]`, `#[checked-params]`, `#[no-macros]`, `#[no-raw-ptr]` and `#[deny-warnings]` attach to a function definition (a signature or a top-level equation; attribute annotations specification section 10)".to_string(),
             "byval" | "sret" => "`#[byval]` and `#[sret]` attach to a `foreign` import or export declaration (the by-value aggregate ABI spelling of design/llvm-contract-attributes.md)".to_string(),
@@ -12015,6 +12038,8 @@ pub(crate) struct AttrSet {
     /// The one weight-family value (the wrappers ARE weights).
     pub weight: Option<u32>,
     pub inline: Option<InlineHint>,
+    /// `#[unroll(N)]` or `#[unroll disable]`: the loop hint of section 5.
+    pub unroll: Option<UnrollHint>,
     /// `#[cold]` at a function declaration: the function-level hint of
     /// section 5.
     pub fn_cold: bool,
@@ -12617,6 +12642,44 @@ fn uint_arg(a: &crate::ast::Attribute) -> Result<u64> {
     raw.parse::<u64>().map_err(|_| {
         Error::at(a.span, "a bound is a natural number representable in 64 bits")
     })
+}
+
+/// Parse `#[unroll(N)]` or `#[unroll disable]` (attribute annotations
+/// specification section 5).
+///
+/// `0` is the count the metadata cannot express (`llvm.loop.unroll.count`
+/// with a zero count is meaningless), so it is the second spelling of
+/// disabling rather than an error: the two forms mean the same thing and a
+/// program that writes either gets the same metadata.
+fn unroll_arg(a: &crate::ast::Attribute) -> Result<UnrollHint> {
+    let raw = arg_text(a.args.as_deref().unwrap_or(""));
+    if raw == "disable" {
+        return Ok(UnrollHint::Disable);
+    }
+    let count: u32 = if !raw.is_empty() && raw.bytes().all(|b| b.is_ascii_digit()) {
+        raw.parse::<u32>().map_err(|_| {
+            Error::at(
+                a.span,
+                "`#[unroll]` takes a count of at most 2147483647: the metadata carries it as a 32-bit integer (attribute annotations specification section 5)",
+            )
+        })?
+    } else {
+        return Err(Error::at(
+            a.span,
+            format!(
+                "`{raw}` is not an unroll hint: `#[unroll]` takes a natural number of iterations or `disable` (`#[unroll(4)]`, `#[unroll(0)]`, `#[unroll(disable)]`; attribute annotations specification section 5)"
+            ),
+        ));
+    };
+    // The property node prints the count as an LLVM `i32`, so a larger
+    // value would not survive the module's own verifier.
+    if count > i32::MAX as u32 {
+        return Err(Error::at(
+            a.span,
+            "`#[unroll]` takes a count of at most 2147483647: the metadata carries it as a 32-bit integer (attribute annotations specification section 5)",
+        ));
+    }
+    Ok(if count == 0 { UnrollHint::Disable } else { UnrollHint::Count(count) })
 }
 
 /// A no-argument assertion: reject any argument.
@@ -16085,16 +16148,17 @@ impl Checker {
 
     /// Record one function declaration's hints (attribute annotations
     /// specification section 5); hints may ride the signature and the
-    /// equations, but one function carries at most one inline hint and
-    /// one `#[cold]`.
+    /// equations, but one function carries at most one inline hint, one
+    /// unroll hint and one `#[cold]`.
     fn record_fn_hints(
         &mut self,
         key: &str,
         inline: Option<InlineHint>,
+        unroll: Option<UnrollHint>,
         cold: bool,
         span: ast::Span,
     ) -> Result<()> {
-        if inline.is_none() && !cold {
+        if inline.is_none() && unroll.is_none() && !cold {
             return Ok(());
         }
         let entry = self.fn_hints.entry(key.to_string()).or_default();
@@ -16108,6 +16172,17 @@ impl Checker {
                 ));
             }
             entry.inline = Some(i);
+        }
+        if let Some(u) = unroll {
+            if entry.unroll.is_some() {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "{key} carries two unroll hints: `#[unroll(N)]` and `#[unroll disable]` are one hint family (attribute annotations specification section 5)"
+                    ),
+                ));
+            }
+            entry.unroll = Some(u);
         }
         if cold {
             if entry.cold {

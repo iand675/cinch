@@ -2717,6 +2717,24 @@ pub enum InlineHint {
     Never,
 }
 
+/// A loop unrolling hint (attribute annotations specification section 5):
+/// `#[unroll(N)]` or `#[unroll disable]` on a function declaration. It is
+/// advisory in the strongest sense: it lowers to LLVM loop metadata on the
+/// loop the function's self tail recursion becomes, and LLVM is free to
+/// ignore it. It never unrolls at the core level, never changes a
+/// program's meaning, and is never an error when the function has no loop
+/// (the metadata has no terminator to attach to and none is emitted).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UnrollHint {
+    /// `#[unroll(N)]` with `N >= 1`: `!llvm.loop.unroll.count` with `N`.
+    /// The parser maps `0` to [`UnrollHint::Disable`], so `Count` is never
+    /// zero.
+    Count(u32),
+    /// `#[unroll disable]` (and its spelling `#[unroll(0)]`):
+    /// `!llvm.loop.unroll.disable`.
+    Disable,
+}
+
 /// The hint attributes recorded on one function (attribute annotations
 /// specification sections 3 and 5). Hints may only affect performance,
 /// never observable behavior: they are erased before the contract
@@ -2727,6 +2745,10 @@ pub struct FnHints {
     /// `#[cold]` on a function declaration: the function is unlikely to
     /// be called (LLVM `cold`).
     pub cold: bool,
+    /// `#[unroll(N)]` / `#[unroll disable]` on a function declaration:
+    /// loop metadata on the loop the definition's self tail recursion
+    /// lowers to ([`crate::loopmeta`]).
+    pub unroll: Option<UnrollHint>,
 }
 
 /// Per-function metadata the optimizer's preservation discipline needs
