@@ -18,7 +18,7 @@ module Bootstrap.RuntimeIr where
   import Algebra.Semigroup
   import Text.Builder
   import Text.Show (nat-to-string, int-to-string)
-  import Text.Scan (string-split-on)
+  import Text.Scan (string-split-on, string-lines, string-unlines, string-index-of, string-take, string-drop, string-starts-with)
   import Text.Lex (Span)
   import Data.Json
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
@@ -2557,6 +2557,17 @@ module Bootstrap.RuntimeIr where
   -- A fieldless value is a static Obj. The header uses rc=0 and kind=1,
   -- with the layout in bits48..63. Escaped blocks put the descriptor
   -- before the header, so the payload address still has the header at -8.
+  --
+  -- The name is the descriptor, not a fresh counter, because a nullary
+  -- block's bytes are a pure function of its descriptor: same descriptor,
+  -- same two or three words. Naming by descriptor makes symbol identity
+  -- mean block identity, which is the rule the Rust seed already uses
+  -- (`dedupe_static_blocks` keeps the first line per symbol, and its
+  -- symbols are one per constructor unit). A per-site name made every
+  -- construction site its own definition: 7,126 definitions for 96
+  -- distinct blocks in the compiler's own module. `dedupe-globals` below
+  -- then drops the repeats, so each block is defined once per module and
+  -- every site references that one definition.
   static-constructor :: Writer -> Nat -> (Writer, String)
   static-constructor w descriptor =
     let escaped = descriptor >= 65535 in
@@ -2565,13 +2576,42 @@ module Bootstrap.RuntimeIr where
     let words = if escaped then "3" else "2" in
     let offset = if escaped then "2" else "1" in
     let prefix = if escaped then cat ["i64 ", nat-to-string descriptor, ", "] else "" in
-    let (named, storage) = fresh w "@empty-ctor" in
+    let storage = cat ["@empty-ctor", nat-to-string descriptor] in
     let block = cat ["[", words, " x i64]"] in
-    let declared = global named (cat [storage, " = private unnamed_addr constant ", block,
+    let declared = global w (cat [storage, " = private unnamed_addr constant ", block,
       " [", prefix, "i64 ", header, ", i64 0], align 8"]) in
     let (ready, result) = fresh declared "%v" in
     (line ready (cat ["  ", result, " = ptrtoint ptr getelementptr inbounds (", block,
       ", ptr ", storage, ", i64 0, i64 ", offset, ") to i64"]), result)
+  -- Drop repeated global definitions, keeping the first line per symbol.
+  -- `static-constructor` names a nullary block by its descriptor, so two
+  -- construction sites emit the same line and this keeps one of them.
+  -- This is the rule the Rust seed's `dedupe_static_blocks` applies, and
+  -- it is safe for the same reason: the line's text is the whole
+  -- definition, so two lines with one name are the same constant. A name
+  -- that appears once (every non-nullary global) is passed through
+  -- unchanged.
+  dedupe-globals :: String -> String
+  dedupe-globals text = string-unlines (dedupe-lines (string-lines text) hash-map-empty)
+  dedupe-lines :: List String -> HashMap String Nat -> List String
+  dedupe-lines lines seen = case lines of
+    Nil -> Nil
+    Cons text rest -> case global-name text of
+      None -> Cons text (dedupe-lines rest seen)
+      Some name -> case hash-map-lookup name seen of
+        Some _ -> dedupe-lines rest seen
+        None -> Cons text (dedupe-lines rest (hash-map-insert name 1 seen))
+  -- The symbol of a nullary static block definition line, which is the
+  -- text from the `@` to the first space (`@empty-ctor<N> = ...`). Every
+  -- other global returns `None` and is passed through, so the filter can
+  -- only ever remove a repeated static block: the seed's
+  -- `dedupe_static_blocks` is scoped the same way, to `.blk#h` lines.
+  global-name :: String -> Option String
+  global-name text = if string-starts-with "@empty-ctor" text
+    then case string-index-of " " text of
+      None -> None
+      Some stop -> Some (string-take stop text)
+    else None
   allocate :: Writer -> Nat -> List String -> (Writer, String)
   allocate w descriptor values = case values of
     Nil -> static-constructor w descriptor
@@ -4304,7 +4344,7 @@ module Bootstrap.RuntimeIr where
     let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty in
     let plan = inline-plan inlining definitions info in
     case settled-workers-with-plan plan definitions roots info of
-      Writer next globals code Nil layouts datas -> Ok (cat [declarations, par-preamble definitions, builder-run globals, layout-table layouts, apply-entry-with-linkage "internal ", builder-run code])
+      Writer next globals code Nil layouts datas -> Ok (cat [declarations, par-preamble definitions, dedupe-globals (builder-run globals), layout-table layouts, apply-entry-with-linkage "internal ", builder-run code])
       Writer next globals code errors layouts datas -> Err errors
   -- Public ABI bridges and their metadata share this checked physical plan.
   -- The parameter prefix includes eager method values, dictionaries and
@@ -4545,7 +4585,7 @@ module Bootstrap.RuntimeIr where
     case library-bridges definitions roots Nil (settled-workers-with-plan plan definitions selected info) of
       (bridged, units) -> case workers definitions bridged of
         Writer next globals code Nil layouts context ->
-          let ir = cat [declarations, par-preamble definitions, builder-run globals, if register then layout-table layouts else "", apply-entry-with-linkage "internal ", builder-run code] in
+          let ir = cat [declarations, par-preamble definitions, dedupe-globals (builder-run globals), if register then layout-table layouts else "", apply-entry-with-linkage "internal ", builder-run code] in
           Ok (ir, library-layout-words bridged layouts, units, if register then JObjEnd else library-object-facts (Writer next globals code Nil layouts context))
         Writer next globals code errors layouts context -> Err errors
   emit-runtime-program :: CheckedProgram -> Result (List Diagnostic) String
@@ -4577,5 +4617,5 @@ module Bootstrap.RuntimeIr where
         Some mode -> let plan = inline-plan inlining definitions info in
           let settled = settled-workers-with-plan plan definitions [("main", Nil)] info in
           case (case constructor "main" datas of Some found -> workers definitions (demand-worker "main" Nil (empty-writer-with-plan (writer-program settled) plan)); None -> settled) of
-            Writer next globals code Nil layouts datas -> Ok (cat [declarations-counting debug, par-preamble definitions, builder-run globals, layout-table layouts, apply-entry, builder-run code, entry mode])
+            Writer next globals code Nil layouts datas -> Ok (cat [declarations-counting debug, par-preamble definitions, dedupe-globals (builder-run globals), layout-table layouts, apply-entry, builder-run code, entry mode])
             Writer next globals code errors layouts datas -> Err errors
