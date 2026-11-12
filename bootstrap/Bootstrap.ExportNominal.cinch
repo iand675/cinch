@@ -15,7 +15,7 @@ module Bootstrap.ExportNominal where
   import Text.Json (json-eq)
 
   export source-refinement, source-abstract-type, binding-refinements, merge-nominals, scheme-nominals, data-nominal, class-nominal, parameter-json, parameter-names
-  export reference-index
+  export declaration-reference-index
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -340,8 +340,8 @@ module Bootstrap.ExportNominal where
   -- The reference names of every binding, built once per export instead of
   -- walked once per exported row. A later entry for a name appends, so each
   -- name's list keeps declaration order exactly as the walk produced it.
-  reference-index :: List Decl -> HashMap String (List String)
-  reference-index declarations = reference-index-of declarations hash-map-empty
+  declaration-reference-index :: List Decl -> HashMap String (List String)
+  declaration-reference-index declarations = reference-index-of declarations hash-map-empty
   reference-index-of :: List Decl -> HashMap String (List String) -> HashMap String (List String)
   reference-index-of declarations index = case declarations of
     Nil -> index

@@ -677,7 +677,7 @@ module Bootstrap.Export where
     ExportIndex :: HashMap String CheckedBinding -> HashMap String CoreData -> HashMap String (List String) -> ExportIndex
   export-index :: Elaboration -> ExportIndex
   export-index typed = ExportIndex (binding-index (elaboration-bindings typed)) (data-index (elaboration-data typed))
-    (reference-index (elaboration-declarations typed))
+    (declaration-reference-index (elaboration-declarations typed))
   binding-index :: List CheckedBinding -> HashMap String CheckedBinding
   binding-index rows = case rows of Nil -> hash-map-empty; Cons row rest -> hash-map-insert (checked-name row) row (binding-index rest)
   data-index :: List CoreData -> HashMap String CoreData
