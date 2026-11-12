@@ -2121,8 +2121,20 @@ as a speedup. Four interleaved pairs on the compiler source, child CPU from
 median 8.345 s with the rule against 8.360 s without, a difference of -0.18%
 with the arms' own spreads (8.11 to 8.51 against 8.15 to 8.41) wider than the
 gap. The toolkit check is 0.63 to 0.89 s per run in both arms, also inside the
-spread. The stub's ownership sequence (backlog item 11) is the part of
-this area that is still 14.4% of a toolkit check.
+spread.
+
+**Where the release path actually is.** This lane first attributed 14.4 points
+of `cinch_drop` to the apply stub, and that was wrong: the whole program runs
+inside the entry chain's `.app` stubs, so every frame has a stub somewhere
+above it. Asking which frame *calls* the release entry gives 0.00% from a stub
+on the toolkit and 0.02% on the self-check; the stubs' own bodies are 0.27%
+and 0.10%. The 13.9% is ordinary constructor releasing in the checker's hot
+paths: `Bootstrap.Type.typed-index-carrier` 3.0%, `valid-comparison` 2.2%,
+`carrier-tree` 1.2%, `read-carrier-tree` 1.1%, and on the self-check
+`Bootstrap.Dictionary.matching-heads` 0.4% and `map-kind-types` 0.4%. It is
+the price of the 990M constructor blocks a self-check allocates. Backlog item
+11 was aimed at the stub on the strength of the wrong attribution and is
+replaced by the item the corrected profile supports.
 
 ### 2.13 The 2026-11-11 round, in the order it landed
 
@@ -2251,14 +2263,16 @@ Metrics, reported per edit and per clean build:
 10. **Parallel phases** using the runtime pool, once section 11's corpus
    says which phases have enough independent work: RuntimeIr emission per
    unit, then inference per definition, then interface export per module.
-11. **The apply stub's ownership sequence** (section 2.15). `cinch_drop`
-   reached from an `.app` stub is 14.4% of a toolkit check, while the closure
-   records it releases are 0.2% and `__apply` itself 0.1%. The stub dups
-   every saved word, branches on uniqueness, then frees or decrements; the
-   saturated path already has every word it needs in the merged frame, so the
-   dups are what to question, not the records. This is the closure item's
-   real residue and it is a `design/reclamation.md` section 4 change, not a
-   Core pass.
+11. **Constructor release in the checker's hot paths** (section 2.15). The
+   release path is 13.9% of a toolkit check and 4.2% of a self-check, called
+   from ordinary code in `Bootstrap.Type` and `Bootstrap.Dictionary`, not from
+   an apply stub (0.00% on the toolkit, 0.02% on the self-check); the stubs'
+   own bodies are 0.27%. So the next item in this area is not a closure pass:
+   it is either reset/reuse capture on the cells `typed-index-carrier` and
+   `valid-comparison` build and drop, or fewer of those cells. Measure the
+   capture rate per unit before writing either. An earlier revision of this
+   item sent the work to the apply stub on a stack-attribution artifact; do
+   not resurrect that reading.
 12. **Development codegen tier** (Cranelift or a direct emitter) once the
    backend is the measured bottleneck for edit-compile-run rather than for
    clean builds.
