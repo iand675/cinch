@@ -209,7 +209,7 @@ module Bootstrap.Infer where
     DForeign s direction abi symbol name ty -> "foreign declarations are not supported in this rung"
     DEffect s name ps ops -> "effect declarations are not supported in this rung"
     DRefine s name ps binder predicate -> "named refinement declarations need proof checking, which is not supported in this rung"
-    DImport s path mods alias members args -> "module imports need interface resolution, which is not supported in this rung"
+    DImport s path mods alias members hidden args -> "module imports need interface resolution, which is not supported in this rung"
     other -> "declaration needs dictionary, effect or dependent elaboration"
   bad :: Span -> String -> Store -> (UType, Store)
   bad sp message st = (UError, add-error sp message st)

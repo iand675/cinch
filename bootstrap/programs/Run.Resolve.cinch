@@ -36,6 +36,13 @@ module Main where
     , ("module A where\n  infixr 6 <+>\n  (<+>) :: Int -> Int -> Int\n  (<+>) a b = a - b\nmodule Facade where\n  import A as Library\n  export Library.(<+>)\nmodule Main where\n  import Facade\n  main :: Int\n  main = 10 <+> 3 <+> 2\n", 9)
     , ("module A where\n  (<+>) :: Int -> Int -> Int\n  (<+>) a b = a - b\nmodule Main where\n  import A\n  main :: Int\n  main = (<+>) 7 2\n", 5)
     , ("module Main where\n  ioWrite :: Int -> Int\n  ioWrite x = x + 1\n  main :: Int\n  main = ioWrite 2\n", 3)
+    -- A hiding list leaves one module's copy of a name out, so the other
+    -- module's copy is the bare name and the rest of the surface still
+    -- arrives.
+    , ("module A where\n  export shared, other\n  shared :: Int\n  shared = 1\n  other :: Int\n  other = 10\nmodule B where\n  export shared\n  shared :: Int\n  shared = 2\nmodule Main where\n  import A hiding (shared)\n  import B\n  main :: Int\n  main = if shared + other == 12 then 0 else 1\n", 0)
+    -- A hidden operator takes its fixity with it: `C`'s `infixr 5` nests
+    -- the chain whichever import comes first.
+    , ("module A where\n  export (<+>)\n  infixl 5 <+>\n  (<+>) :: Int -> Int -> Int\n  (<+>) a b = a * 10 + b\nmodule C where\n  export (<+>)\n  infixr 5 <+>\n  (<+>) :: Int -> Int -> Int\n  (<+>) a b = a - b\nmodule Main where\n  import A hiding ((<+>))\n  import C\n  main :: Int\n  main = if 10 <+> 3 <+> 2 == 9 then 0 else 1\n", 0)
     ]
 
   negative :: List (String, String)
@@ -45,7 +52,12 @@ module Main where
     , (string-concat library "module Main where\n  import A as L\n  main :: Int\n  main = A.add 1\n", "name is not in scope: A.add")
     , (string-concat library "module Main where\n  import A (add as bump)\n  main :: Int\n  main = add 1\n", "name is not in scope: add")
     , (string-concat library "module Main where\n  import A (missing)\n  main :: Int\n  main = 0\n", "A has no exported member: missing")
-    , ("module A where\n  value :: Int\n  value = 1\nmodule B where\n  value :: Int\n  value = 2\nmodule Main where\n  import A\n  import B\n  main :: Int\n  main = 0\n", "name value is imported from both A and B")
+    , ("module A where\n  value :: Int\n  value = 1\nmodule B where\n  value :: Int\n  value = 2\nmodule Main where\n  import A\n  import B\n  main :: Int\n  main = 0\n", "the name `value` is imported from both A and B: rename one (a selection like `import B (value as ...)`) or leave one out (`import B hiding (value)`)")
+    -- A hidden name is out of scope under the module's qualifier as well, and
+    -- the refusal names the hidden spelling rather than the whole reference.
+    , ("module A where\n  export shared\n  shared :: Int\n  shared = 1\nmodule Main where\n  import A hiding (shared)\n  main :: Int\n  main = A.shared\n", "name is not in scope: A.shared")
+    , ("module A where\n  export shared, other\n  shared :: Int\n  shared = 1\n  other :: Int\n  other = 10\nmodule Main where\n  import A hiding (missing)\n  main :: Int\n  main = other\n", "`A` has no member `missing` to hide")
+    , ("module A where\n  export shared, other\n  shared :: Int\n  shared = 1\n  other :: Int\n  other = 10\nmodule Main where\n  import A hiding (shared) (other)\n  main :: Int\n  main = other\n", "an import either selects members or hides them: `import X (a, b)` names what comes in, `import X hiding (a, b)` what stays out")
     , ("module A where\n  import B\nmodule B where\n  import A\nmodule Main where\n  main :: Int\n  main = 0\n", "module import cycle: A -> B -> A")
     , ("module Main where\n  import A\n  main :: Int\n  main = 0\nmodule A where\n  import B\nmodule B where\n  import A\n", "module import cycle: A -> B -> A")
     , ("module Main where\n  import Missing\n  main :: Int\n  main = 0\n", "missing source module or checked interface: Missing")

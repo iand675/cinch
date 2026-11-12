@@ -469,7 +469,11 @@ module Bootstrap.Ast where
     DClass :: Span -> String -> List TypeParam -> Decl -> Decl
     DInstance :: Span -> Bool -> String -> List TypeParam -> TypeExpr -> Decl -> Decl
     DFixity :: Span -> String -> Nat -> List String -> Decl
-    DImport :: Span -> String -> List String -> Option String -> List (String, Option String) -> List Expr -> Decl
+    -- `import X hiding (a, b)`: the whole surface except these members, which
+    -- are then out of scope bare and under the qualifier. Never combined with
+    -- a selection (`members`), so a hidden list is only ever non-empty beside
+    -- an empty selection.
+    DImport :: Span -> String -> List String -> Option String -> List (String, Option String) -> List String -> List Expr -> Decl
     DExport :: Span -> String -> List ExportItem -> Decl
     DRecord :: Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl
     DCodata :: Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl
@@ -516,7 +520,7 @@ module Bootstrap.Ast where
     DClass s n params members -> s
     DInstance s is-implicit name params class-app members -> s
     DFixity s assoc prec ops -> s
-    DImport s path mods alias members args -> s
+    DImport s path mods alias members hidden args -> s
     DExport s text items -> s
     DRecord s n params fields -> s
     DCodata s n params observations -> s
@@ -551,7 +555,7 @@ module Bootstrap.Ast where
     DClass s n params members -> Some n
     DInstance s is-implicit name params class-app members -> Some name
     DFixity s assoc prec ops -> None
-    DImport s path mods alias members args -> Some path
+    DImport s path mods alias members hidden args -> Some path
     DExport s text items -> None
     DRecord s n params fields -> Some n
     DCodata s n params observations -> Some n
@@ -771,7 +775,7 @@ module Bootstrap.Ast where
     DClass s n params members -> params-unmodeled params + decls-unmodeled (decls-of members)
     DInstance s is-implicit name params class-app members -> params-unmodeled params + type-unmodeled-count class-app + decls-unmodeled (decls-of members)
     DFixity s assoc prec ops -> 0
-    DImport s path mods alias members args -> exprs-unmodeled args
+    DImport s path mods alias members hidden args -> exprs-unmodeled args
     DExport s text items -> 0
     DRecord s n params fields -> params-unmodeled params + ctors-unmodeled fields
     DCodata s n params observations -> params-unmodeled params + ctors-unmodeled observations

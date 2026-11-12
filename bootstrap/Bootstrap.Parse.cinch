@@ -359,15 +359,25 @@ module Bootstrap.Parse where
 
   import-selected-fixes :: Decl -> List Module -> List String -> HashMap String (List (String, Fix)) -> FixWalk
   import-selected-fixes d modules seen cache = case d of
-    DImport s path mods alias members args -> case members of
-      Nil -> module-fixes path modules seen cache
+    DImport s path mods alias members hidden args -> case members of
+      Nil -> case module-fixes path modules seen cache of
+        FixWalk surface next cut -> FixWalk (without-fixes hidden surface) next cut
       Cons first rest -> case module-fixes path modules seen cache of
         FixWalk surface next cut -> FixWalk (select-fixes members surface) next cut
     other -> FixWalk Nil cache False
 
+  -- A hidden operator takes its fixity with it: the chain it appears in
+  -- must nest by whatever declaration remains in scope, not by the one the
+  -- import left out.
+  without-fixes :: List String -> List (String, Fix) -> List (String, Fix)
+  without-fixes hidden surface = case surface of
+    Nil -> Nil
+    Cons (name, fix) rest -> if name-seen name hidden then without-fixes hidden rest
+      else Cons (name, fix) (without-fixes hidden rest)
+
   import-bare-fixes :: Decl -> List Module -> List String -> HashMap String (List (String, Fix)) -> FixWalk
   import-bare-fixes d modules seen cache = case d of
-    DImport s path mods (Some alias) Nil args -> FixWalk Nil cache False
+    DImport s path mods (Some alias) Nil hidden args -> FixWalk Nil cache False
     other -> import-selected-fixes d modules seen cache
 
   -- Only the exported operator surface crosses an import. An absent
@@ -419,7 +429,7 @@ module Bootstrap.Parse where
   export-member-fix qualifier name ds modules seen cache = case ds of
     Nil -> FixWalk Nil cache False
     Cons d rest -> case d of
-      DImport s path mods alias members args -> if string-compare qualifier (import-qualifier path alias) == 0 then
+      DImport s path mods alias members hidden args -> if string-compare qualifier (import-qualifier path alias) == 0 then
         (case import-selected-fixes d modules seen cache of
           FixWalk surface next cut -> case find-fix name surface of
             None -> FixWalk Nil next cut
@@ -431,7 +441,7 @@ module Bootstrap.Parse where
   export-module-fix name ds modules seen cache = case ds of
     Nil -> FixWalk Nil cache False
     Cons d rest -> case d of
-      DImport s path mods alias members args -> if string-compare name path == 0 || string-compare name (import-qualifier path alias) == 0 then import-selected-fixes d modules seen cache
+      DImport s path mods alias members hidden args -> if string-compare name path == 0 || string-compare name (import-qualifier path alias) == 0 then import-selected-fixes d modules seen cache
         else export-module-fix name rest modules seen cache
       other -> export-module-fix name rest modules seen cache
 
@@ -1059,13 +1069,73 @@ module Bootstrap.Parse where
     Nil -> POk (reverse acc) Nil
 
   import-tail :: Span -> String -> List String -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
-  import-tail sp path mods toks src fix = case toks of
+  import-tail sp path mods toks src fix = case hiding-clause toks of
+    Some after-hidden -> case hiding-items after-hidden Nil of
+      POk hidden rest -> import-after-hiding sp path mods hidden rest src fix
+      PBad -> PBad
+    None -> case toks of
+      Cons t rest ->
+        if is-punct-t (lt-token t) "(" then case import-items rest src fix Nil of
+          POk items rest2 -> import-alias sp path mods items Nil rest2
+          PBad -> PBad
+        else import-alias sp path mods Nil Nil toks
+      Nil -> import-alias sp path mods Nil Nil Nil
+
+  -- The stream past a hiding clause's list: an import that also selects is
+  -- kept with both halves, because the module check refuses that pairing
+  -- with a message naming both rather than leaving the line unmodeled.
+  -- `import stage` brings in a module's generators, not its names, so it has
+  -- no surface to hide from.
+  import-after-hiding :: Span -> String -> List String -> List String -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  import-after-hiding sp path mods hidden toks src fix = case mods of
+    Cons mode more -> PBad
+    Nil -> import-hiding-tail sp path mods hidden toks src fix
+
+  import-hiding-tail :: Span -> String -> List String -> List String -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  import-hiding-tail sp path mods hidden toks src fix = case toks of
     Cons t rest ->
       if is-punct-t (lt-token t) "(" then case import-items rest src fix Nil of
-        POk items rest2 -> import-alias sp path mods items rest2
+        POk items after -> import-alias sp path mods items hidden after
         PBad -> PBad
-      else import-alias sp path mods Nil toks
-    Nil -> import-alias sp path mods Nil Nil
+      else import-alias sp path mods Nil hidden toks
+    Nil -> import-alias sp path mods Nil hidden Nil
+
+  -- `hiding` is a contextual word: an ordinary name everywhere except
+  -- between an import's module path and the parenthesis that opens its list,
+  -- which is exactly where `hiding-clause` looks.
+  context-word-t :: Token -> String -> Bool
+  context-word-t t wanted = case t of
+    TWord x -> string-compare x wanted == 0
+    TVar x -> string-compare x wanted == 0
+    other -> False
+
+  hiding-clause :: List LToken -> Option (List LToken)
+  hiding-clause toks = case toks of
+    Cons t rest -> if context-word-t (lt-token t) "hiding" then hiding-open rest else None
+    Nil -> None
+
+  hiding-open :: List LToken -> Option (List LToken)
+  hiding-open toks = case toks of
+    Cons open more -> if is-punct-t (lt-token open) "(" then Some more else None
+    Nil -> None
+
+  -- The names a `hiding` clause leaves out. An operator is named
+  -- parenthesized, as in a selection, which `parse-value-name` already
+  -- accepts; the accumulator reverses at the closing parenthesis.
+  hiding-items :: List LToken -> List String -> Ps (List String)
+  hiding-items toks acc = case parse-value-name toks of
+    POk name rest -> hiding-item-end name rest acc
+    PBad -> PBad
+
+  -- A name hidden twice hides nothing more the second time, so it is refused
+  -- rather than silently collapsing.
+  hiding-item-end :: String -> List LToken -> List String -> Ps (List String)
+  hiding-item-end name toks acc = if name-seen name acc then PBad else case toks of
+    Cons t more ->
+      if is-punct-t (lt-token t) "," then hiding-items more (Cons name acc)
+      else if is-punct-t (lt-token t) ")" then POk (reverse (Cons name acc)) more
+      else PBad
+    Nil -> PBad
 
   import-items :: List LToken -> Bytes -> List (String, Fix) -> List (Expr, Option String) -> Ps (List (Expr, Option String))
   import-items toks src fix acc = case parse-atom toks src fix of
@@ -1091,20 +1161,20 @@ module Bootstrap.Parse where
       else PBad
     Nil -> PBad
 
-  import-alias :: Span -> String -> List String -> List (Expr, Option String) -> List LToken -> Ps Decl
-  import-alias sp path mods items toks = case toks of
+  import-alias :: Span -> String -> List String -> List (Expr, Option String) -> List String -> List LToken -> Ps Decl
+  import-alias sp path mods items hidden toks = case toks of
     Cons t rest ->
       if is-word-t (lt-token t) "as" then case parse-path rest of
         POk name rest2 -> case import-argument-items items of
-          Some args -> POk (DImport sp path mods (Some name) Nil args) rest2
+          Some args -> POk (DImport sp path mods (Some name) Nil hidden args) rest2
           None -> PBad
         PBad -> PBad
-      else finish-import-members sp path mods items toks
-    Nil -> finish-import-members sp path mods items Nil
+      else finish-import-members sp path mods items hidden toks
+    Nil -> finish-import-members sp path mods items hidden Nil
 
-  finish-import-members :: Span -> String -> List String -> List (Expr, Option String) -> List LToken -> Ps Decl
-  finish-import-members sp path mods items toks = case import-member-items items of
-    Some members -> POk (DImport sp path mods None members Nil) toks
+  finish-import-members :: Span -> String -> List String -> List (Expr, Option String) -> List String -> List LToken -> Ps Decl
+  finish-import-members sp path mods items hidden toks = case import-member-items items of
+    Some members -> POk (DImport sp path mods None members hidden Nil) toks
     None -> PBad
 
   import-argument-items :: List (Expr, Option String) -> Option (List Expr)

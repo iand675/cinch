@@ -152,7 +152,7 @@ module Bootstrap.Stage where
     Cons first rest -> let name = module-name first in let body = module-decls first in
       case (stage-declarations (same owner name) (runtime-value-names body) body, stage-modules owner rest) of
         (Ok declarations, Ok tail) -> let site = module-span first in
-          let visible = if same owner name then Cons (DImport site stage-quotation-module Nil None Nil Nil) declarations else declarations in
+          let visible = if same owner name then Cons (DImport site stage-quotation-module Nil None Nil Nil Nil) declarations else declarations in
           Ok (Cons (MkModule site name (decl-spine site visible)) tail)
         (Err errors, other) -> Err errors
         (other, Err errors) -> Err errors

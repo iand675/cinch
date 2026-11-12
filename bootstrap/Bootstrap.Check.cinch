@@ -956,7 +956,7 @@ module Bootstrap.Check where
     DClass s n params members -> fail s "class declarations are not supported in this rung"
     DInstance s is-implicit name params class-app members -> fail s "instance declarations are not supported in this rung"
     DFixity s assoc prec ops -> fail s "fixity declarations are not supported in this rung"
-    DImport s path mods alias members args -> fail s "module imports need interface resolution, which is not supported in this rung"
+    DImport s path mods alias members hidden args -> fail s "module imports need interface resolution, which is not supported in this rung"
     DExport s text items -> Nil
     DRecord s n params fields -> fail s "record declarations are not supported in this rung"
     DCodata s n params observations -> fail s "codata declarations require checked observations"

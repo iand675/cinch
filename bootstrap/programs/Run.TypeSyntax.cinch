@@ -124,22 +124,22 @@ module Main where
 
   selected-import-ok :: List Decl -> Bool
   selected-import-ok ds = case find-decl "Data.Example" ds of
-    Some (DImport s path mods None (Cons (first, Some renamed) (Cons (second, None) Nil)) Nil) -> same first "first" && same renamed "local-first" && same second "Second"
+    Some (DImport s path mods None (Cons (first, Some renamed) (Cons (second, None) Nil)) Nil Nil) -> same first "first" && same renamed "local-first" && same second "Second"
     other -> False
 
   applied-import-ok :: List Decl -> Bool
   applied-import-ok ds = case find-decl "Factory" ds of
-    Some (DImport s path mods (Some alias) Nil (Cons (ELitInt s1 number) (Cons (EUnit s2) (Cons (ECon s3 name args) Nil)))) -> same alias "Built" && same number "12" && same name "Data.Example"
+    Some (DImport s path mods (Some alias) Nil Nil (Cons (ELitInt s1 number) (Cons (EUnit s2) (Cons (ECon s3 name args) Nil)))) -> same alias "Built" && same number "12" && same name "Data.Example"
     other -> False
 
   staged-import-ok :: List Decl -> Bool
   staged-import-ok ds = case find-decl "Tools.Build" ds of
-    Some (DImport s path (Cons mode Nil) (Some alias) Nil Nil) -> same mode "stage" && same alias "B"
+    Some (DImport s path (Cons mode Nil) (Some alias) Nil Nil Nil) -> same mode "stage" && same alias "B"
     other -> False
 
   modified-import-ok :: List Decl -> Bool
   modified-import-ok ds = case find-decl "Data.Other" ds of
-    Some (DImport s path (Cons mode Nil) None Nil Nil) -> same mode "replaceable"
+    Some (DImport s path (Cons mode Nil) None Nil Nil Nil) -> same mode "replaceable"
     other -> False
 
   function-ok :: TypeExpr -> Bool

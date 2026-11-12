@@ -130,7 +130,7 @@ module Bootstrap.Resolve where
   own-bindings home ds acc = case ds of
     Nil -> reverse acc
     Cons d rest -> case d of
-      DImport s path mods alias members args -> own-bindings home rest acc
+      DImport s path mods alias members hidden args -> own-bindings home rest acc
       DExport s text items -> own-bindings home rest acc
       DInstance s only name params class-app members -> own-bindings home rest (add-own home name acc)
       DClass s name params members -> own-bindings home rest (own-class-methods home (decls-of members) (add-own home name acc))
@@ -178,7 +178,7 @@ module Bootstrap.Resolve where
   validate-imports all interfaces ds = case ds of
     Nil -> Nil
     Cons d rest -> (case d of
-      DImport s path mods alias members args ->
+      DImport s path mods alias members hidden args ->
         (if has-module path all then Nil else case lookup-scoped path interfaces of
           Some i -> Nil
           None -> fail s (cat ["missing source module or checked interface: ", path]))
@@ -190,7 +190,7 @@ module Bootstrap.Resolve where
   imports-ready ds done = case ds of
     Nil -> True
     Cons d rest -> case d of
-      DImport s path mods alias members args -> case lookup-scoped path done of
+      DImport s path mods alias members hidden args -> case lookup-scoped path done of
         None -> False
         Some ready -> imports-ready rest done
       other -> imports-ready rest done
@@ -210,14 +210,47 @@ module Bootstrap.Resolve where
         Some (MkBinding visible owner symbol) ->
           (Cons (MkBinding (case alias of None -> name; Some renamed -> renamed) owner symbol) others, errors)
 
+  -- A hidden name must be a member of the source's surface: a misspelled one
+  -- would otherwise hide nothing, silently.
+  hidden-errors :: Span -> String -> List String -> List Binding -> List Diagnostic
+  hidden-errors sp path hidden surface = case hidden of
+    Nil -> Nil
+    Cons name rest -> (case lookup-binding name surface of
+      None -> fail sp (cat ["`", path, "` has no member `", name, "` to hide"])
+      Some b -> Nil) <> hidden-errors sp path rest surface
+
+  without-hidden :: List String -> List Binding -> List Binding
+  without-hidden hidden surface = case surface of
+    Nil -> Nil
+    Cons b rest -> if has-name (binding-name b) hidden then without-hidden hidden rest
+      else Cons b (without-hidden hidden rest)
+
+  -- The surface one import contributes. A hidden member is out of the
+  -- surface the view carries, so it is out of scope bare and under the
+  -- qualifier alike: `import A hiding (shared)` leaves `A.shared` unknown
+  -- in exactly the way a name A never exported is unknown, and the refusal
+  -- names the spelling the program used.
+  import-surface :: Span -> String -> List (String, Option String) -> List String -> List Binding -> (List Binding, List Diagnostic)
+  import-surface sp path members hidden surface = case (members, hidden) of
+    (Nil, Nil) -> (surface, Nil)
+    (Cons first more, Nil) -> select-members sp path members surface
+    (Nil, Cons first more) -> (without-hidden hidden surface, hidden-errors sp path hidden surface)
+    -- The pairing is refused. The view still carries the hidden surface, the
+    -- same best-effort a failed selection returns, so the refusal is one
+    -- message about the import rather than that message plus an unknown-name
+    -- cascade from every name the line was meant to bring in.
+    (Cons first more, Cons name rest) ->
+      (without-hidden hidden surface,
+        fail sp "an import either selects members or hides them: `import X (a, b)` names what comes in, `import X hiding (a, b)` what stays out")
+
   import-views :: List Decl -> List Scoped -> (List View, List Diagnostic)
   import-views ds done = case ds of
     Nil -> (Nil, Nil)
     Cons d rest -> case import-views rest done of
       (views, errors) -> case d of
-        DImport s path mods alias members args -> case lookup-scoped path done of
+        DImport s path mods alias members hidden args -> case lookup-scoped path done of
           None -> (views, fail s (cat ["module was not resolved before its importer: ", path]) <> errors)
-          Some (MkScoped home surface body) -> case (case members of Nil -> (surface, Nil); Cons first more -> select-members s path members surface) of
+          Some (MkScoped home surface body) -> case import-surface s path members hidden surface of
             (selected, failures) ->
               (Cons (MkView s path (case alias of None -> short-name path; Some qualifier -> qualifier)
                 (case alias of None -> False; Some qualifier -> case members of Nil -> True; Cons item more -> False) selected) views, failures <> errors)
@@ -240,7 +273,10 @@ module Bootstrap.Resolve where
       MkBinding name home symbol -> case lookup-binding name acc of
         None -> merge-imports sp rest (Cons b acc)
         Some (MkBinding old previous prior) -> case merge-imports sp rest acc of
-          (entries, errors) -> (entries, fail sp (cat ["name ", name, " is imported from both ", previous, " and ", home]) <> errors)
+          -- Both ways out are named, as the seed's refusal does: a selection
+          -- renames one side, and a hiding list leaves one out.
+          (entries, errors) -> (entries, fail sp (cat ["the name `", name, "` is imported from both ", previous, " and ", home
+            , ": rename one (a selection like `import ", home, " (", name, " as ...)`) or leave one out (`import ", home, " hiding (", name, ")`)"]) <> errors)
 
   qualified-imports :: List View -> List Binding
   qualified-imports views = case views of
@@ -357,7 +393,7 @@ module Bootstrap.Resolve where
   first-pending-import :: List Decl -> List Module -> Option String
   first-pending-import declarations remaining = case declarations of
     Nil -> None
-    Cons (DImport sp name mods alias members args) rest ->
+    Cons (DImport sp name mods alias members hidden args) rest ->
       if has-module name remaining then Some name else first-pending-import rest remaining
     Cons other rest -> first-pending-import rest remaining
   cycle-prefix :: String -> List String -> List String
@@ -867,7 +903,7 @@ module Bootstrap.Resolve where
         (exported-symbol, errors) -> (Cons (DForeign s direction abi symbol exported-symbol (rename-type visible Nil ty)) Nil, errors)
     DPrim s name ty bodies -> case rename-prim-bodies visible bodies of
       (renamed, errors) -> ([DPrim s (global-name home name) (rename-type visible Nil ty) renamed], errors)
-    DImport s path mods alias members args -> (Nil, Nil)
+    DImport s path mods alias members hidden args -> (Nil, Nil)
     DExport s text items -> (Nil, Nil)
     DFixity s assoc prec ops -> (Nil, Nil)
     DRewrite s name syntax -> case rename-rewrite visible syntax of
@@ -1193,7 +1229,7 @@ module Bootstrap.Resolve where
   declared-imports :: List Decl -> List String -> List String
   declared-imports declarations seen = case declarations of
     Nil -> reverse seen
-    Cons (DImport sp name mods alias members arguments) rest -> declared-imports rest (if has-name name seen then seen else Cons name seen)
+    Cons (DImport sp name mods alias members hidden arguments) rest -> declared-imports rest (if has-name name seen then seen else Cons name seen)
     Cons other rest -> declared-imports rest seen
   module-imports :: String -> List Module -> Bool -> List Binding -> List Binding -> List Decl -> List String
   module-imports name modules prelude base surface body = declared-imports (module-declarations name modules)
