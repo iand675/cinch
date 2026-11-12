@@ -1,12 +1,12 @@
 {
  "date": "2026-11-12",
  "stage": 3,
- "compiler": "main at afc5e9c2 plus the parser table row: ABI 9, bump arena off, static blocks by offset and one per module, Nat immediate carry check, one apply stub per function, reset/reuse, dense body transport, GHC inlining inputs, self-hosted import hiding",
- "targets": 233,
+ "compiler": "main at c48eeb5b plus a concurrent worker's uncommitted codegen edits (measured with --allow-dirty)",
+ "targets": 234,
  "fully_passing": 145,
- "tests_passed": 890,
- "tests_failed": 654,
- "runner": "tooling/run_stage_targets.py --stage 3 --jobs 4 --all",
+ "tests_passed": 896,
+ "tests_failed": 653,
+ "runner": "tooling/run_stage_targets.py --stage 3 --jobs 4 --all --allow-dirty",
  "rows": [
   {
    "target": "alloc_accounting",
@@ -1259,8 +1259,8 @@
   {
    "target": "staging",
    "exit": 101,
-   "passed": 7,
-   "failed": 19
+   "passed": 8,
+   "failed": 18
   },
   {
    "target": "stm",
@@ -1349,8 +1349,8 @@
   {
    "target": "syntax_proof_patterns",
    "exit": 101,
-   "passed": 1,
-   "failed": 16
+   "passed": 2,
+   "failed": 15
   },
   {
    "target": "syntax_quoted_macro_scope",
@@ -1399,6 +1399,12 @@
    "exit": 101,
    "passed": 1,
    "failed": 19
+  },
+  {
+   "target": "unroll_hint",
+   "exit": 101,
+   "passed": 4,
+   "failed": 1
   },
   {
    "target": "wasm",
