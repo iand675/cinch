@@ -1990,9 +1990,22 @@ scattered 44.0 to 68.6 s and could not resolve anything under about ten
 percent, so the block counts are the evidence and the wall figures are not
 quoted.
 
+The two inner scans the profile put at 13.9% and 13.7% self,
+`source-total-selected-references` and `binding-positions`, are not a separate
+target: both are called once per module elaboration, so they fell with the
+loop that was calling them. `source-total-selected-references` runs inside
+`source-total-preliminary`, and `binding-positions` runs inside
+`binding-names`, which `cache-body-context` calls once per
+`elaborate-module-with-source-bodies`. A 40-candidate workload with one
+failing body went from 21 elaborations to 2, and a six-second sample of the
+working thread fell from 2,687 to 711 samples (-73.5%).
+
 Byte identical: `compiler.ll` sha256 `d927b5f28c000823` from both arms on the
 same input, all 179 non-bootstrap `.cinchif` files `cmp`-equal, and an errored
-workload's diagnostics identical.
+workload's diagnostics identical. The clean path is untouched: a 20-candidate
+module with no failing body costs 42,544,261 blocks before and 42,543,049
+after, a 0.003% difference, while the same module with one failing body goes
+from 79,191,240 to 37,281,782.
 
 ### 2.15 One reference table per export (2026-11-12)
 
