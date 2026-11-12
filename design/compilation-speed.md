@@ -2110,9 +2110,12 @@ the time and 14.43 points of that is the apply stub's release path, while
 `__apply` itself is **0.1%**. A closure is cheap to make and the stub's
 dup-branch-free-or-decrement sequence is not, so a rule that removes records
 without removing a stub call buys footprint, and this compiler is not memory
-bound (190 MB peak on a 27.5 GB self-check). `saturate-partial` is worth
-having because it removes the stub call as well as the record, and it should
-be judged on the stub calls it deletes.
+bound (190 MB peak on a 27.5 GB self-check). That ordering stands on its own
+terms, but it does not rescue `saturate-partial`: the sites the rule reaches
+are already removed before emission, so the stub calls it would delete are
+not in the artifact either way. Read the rule as a Core-level cleanup whose
+refusals are pinned, not as a performance landing, and read the stub's
+ownership sequence (backlog item 11) as the actual work in this area.
 
 ### 2.13 The 2026-11-11 round, in the order it landed
 
