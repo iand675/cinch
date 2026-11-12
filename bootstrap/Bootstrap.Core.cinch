@@ -163,6 +163,8 @@ module Bootstrap.Core where
     UPropNot body -> effect-type-scope qs body
     UPropNonZero body -> effect-type-scope qs body
     UPropNotNull body -> effect-type-scope qs body
+    UPropAscii body -> effect-type-scope qs body
+    UPropOrdered body -> effect-type-scope qs body
     UPropNonZeroPending body -> effect-type-scope qs body
     URequire predicates body -> effect-type-scope qs predicates && effect-type-scope qs body
     UPropLit value -> True
@@ -1143,6 +1145,8 @@ module Bootstrap.Core where
     UPropNot body -> UPropNot (freeze body)
     UPropNonZero body -> UPropNonZero (freeze body)
     UPropNotNull body -> UPropNotNull (freeze body)
+    UPropAscii body -> UPropAscii (freeze body)
+    UPropOrdered body -> UPropOrdered (freeze body)
     UPropNonZeroPending body -> UPropNonZeroPending (freeze body)
     URequire predicates body -> URequire (freeze predicates) (freeze body)
     URefine id name carrier predicate -> URefine id name (freeze carrier) (freeze predicate)
@@ -1183,6 +1187,8 @@ module Bootstrap.Core where
     UPropNot body -> type-metas st body
     UPropNonZero body -> type-metas st body
     UPropNotNull body -> type-metas st body
+    UPropAscii body -> type-metas st body
+    UPropOrdered body -> type-metas st body
     UPropNonZeroPending body -> type-metas st body
     URequire predicates body -> type-metas st predicates <> type-metas st body
     URefine id name carrier predicate -> type-metas st carrier <> type-metas st predicate
@@ -1339,6 +1345,8 @@ module Bootstrap.Core where
     UPropNot body -> valid-type ty && (closed-type body)
     UPropNonZero body -> valid-type ty && (closed-type body)
     UPropNotNull body -> valid-type ty && (closed-type body)
+    UPropAscii body -> valid-type ty && (closed-type body)
+    UPropOrdered body -> valid-type ty && (closed-type body)
     UPropNonZeroPending body -> valid-type ty && (closed-type body)
     URequire predicates body -> valid-type ty && (closed-type predicates && closed-type body)
     UPi id name domain row result -> valid-type ty && closed-type domain && closed-type row && closed-type result
@@ -1517,6 +1525,8 @@ module Bootstrap.Core where
     UPropNot body -> type-index-scope bound rigid body
     UPropNonZero body -> type-index-scope bound rigid body
     UPropNotNull body -> type-index-scope bound rigid body
+    UPropAscii body -> type-index-scope bound rigid body
+    UPropOrdered body -> type-index-scope bound rigid body
     UPropNonZeroPending body -> type-index-scope bound rigid body
     URequire predicates body -> type-index-scope bound rigid predicates && type-index-scope bound rigid body
     URefine id name carrier predicate -> type-index-scope bound rigid carrier && type-index-scope (Cons id bound) rigid predicate
@@ -1826,6 +1836,8 @@ module Bootstrap.Core where
     UPropNonZero a -> borrow-index-regions a
     UPropNonZeroPending a -> borrow-index-regions a
     UPropNotNull a -> borrow-index-regions a
+    UPropAscii a -> borrow-index-regions a
+    UPropOrdered a -> borrow-index-regions a
     UIndexForget a -> borrow-index-regions a
     UIndexByteLength a -> borrow-index-regions a
     UIndexPromote a -> borrow-index-regions a

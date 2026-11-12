@@ -534,7 +534,7 @@ module Bootstrap.Infer where
     -- The prefix `Eq a b` former is the comparison the elaborator reads as
     -- index equality, so both of its operands are in predicate scope.
     TApp sp (TName at name) (TArg s1 x (TArg s2 y (TArgsEnd end))) -> same name "Eq" && refinement-predicate-scope kinds names x && refinement-predicate-scope kinds names y
-    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> (has name ["NonZero", "NotNull"] || byte-length-binding name kinds || (case context-identity-observation name kinds of Some sc -> True; None -> False)) && refinement-predicate-scope kinds names input
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> (has name ["NonZero", "NotNull", "Ascii", "Ordered"] || byte-length-binding name kinds || (case context-identity-observation name kinds of Some sc -> True; None -> False)) && refinement-predicate-scope kinds names input
     other -> False
   validate-refinement :: TypeContext -> Decl -> Store -> Store
   validate-refinement kinds declaration st = case declaration of
@@ -2823,6 +2823,12 @@ module Bootstrap.Infer where
          (value, checked) -> case decision-index sp env carrier value checked of
            (index, done) -> (UPropNonZero index, CPrimitive sp (primitive-type "Bool") "/=" (CArgument sp value (CArgument sp (CInt sp carrier "0") (CArgumentsEnd sp))), done))
     else if same name "NotNull" then decision-not-null classes kinds families env locals sp input st
+    -- `Ascii` and `Ordered` are refinements the checker decides statically
+    -- over constructor forms; a runtime `decide` needs a recursive scan
+    -- whose result is a proof, which this tier does not build yet. Refused
+    -- by name, never guessed at.
+    else if same name "Ascii" then decision-failure sp "`decide (Ascii ...)` needs a checked recursive scan over the value, which this tier does not build: discharge `Ascii` statically (a constructor form) or carry it as a refinement predicate" st
+    else if same name "Ordered" then decision-failure sp "`decide (Ordered ...)` needs a checked recursive scan over the value, which this tier does not build: discharge `Ordered` statically (a constructor form) or carry it as a refinement predicate" st
     else decision-failure sp "unknown executable predicate former" st
   decision-not-null :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Store -> (UType, CoreTerm, Store)
   decision-not-null classes kinds families env locals sp input st = case fresh-meta KType st of
@@ -6496,7 +6502,7 @@ module Bootstrap.Infer where
     TInfix s op a b -> has op ["<", "<=", "==", "/=", ">=", ">", "&&", "||"]
     TName s name -> same name "True" || same name "False"
     TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) -> same name "Eq"
-    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> has name ["NonZero", "NotNull"]
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> has name ["NonZero", "NotNull", "Ascii", "Ordered"]
     other -> False
   predicate-carrier :: List (String, UType) -> TypeExpr -> Option UType
   predicate-carrier locals syntax = case syntax of
@@ -6581,6 +6587,28 @@ module Bootstrap.Infer where
         other -> bad sp "NotNull needs the checked Data.Core.List carrier" st)
       None -> bad sp "NotNull needs a checked local list value" st)
     other -> bad sp "NotNull needs a checked local list value" st
+  -- The two shape predicates decide a container value the same way
+  -- `NotNull` does: the operand is the checked local, its carrier decides
+  -- whether the predicate is admissible over it, and a wrong carrier is
+  -- refused naming the predicate.
+  convert-ascii :: Span -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
+  convert-ascii sp locals syntax st = case syntax of
+    TName at name -> (case lookup-local name locals of
+      Some value -> (case value-carrier (type-kind value) of
+        Some carrier -> if ascii-carrier carrier then (UPropAscii value, st)
+          else bad sp (string-concat-all ["`Ascii` decides text values (`String`) and lists of chars, not `", display-type-text carrier, "` (a wrong predicate for this value is refused naming the predicate)"]) st
+        None -> bad sp "`Ascii` decides text values (`String`) and lists of chars (a wrong predicate for this value is refused naming the predicate)" st)
+      None -> bad sp "`Ascii` needs a checked local text or char-list value" st)
+    other -> bad sp "`Ascii` decides a checked local value" st
+  convert-ordered :: Span -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
+  convert-ordered sp locals syntax st = case syntax of
+    TName at name -> (case lookup-local name locals of
+      Some value -> (case value-carrier (type-kind value) of
+        Some carrier -> if ordered-carrier carrier then (UPropOrdered value, st)
+          else bad sp (string-concat-all ["`Ordered` decides lists of numerics, not `", display-type-text carrier, "` (a wrong predicate for this value is refused naming the predicate)"]) st
+        None -> bad sp "`Ordered` decides lists of numerics (a wrong predicate for this value is refused naming the predicate)" st)
+      None -> bad sp "`Ordered` needs a checked local list value" st)
+    other -> bad sp "`Ordered` decides a checked local value" st
   convert-predicate :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
   convert-predicate external kinds locals syntax st = case syntax of
     TName s name -> if same name "True" || same name "False" then (UPropLit (same name "True"), st) else
@@ -6590,6 +6618,8 @@ module Bootstrap.Infer where
     TApp sp (TName at name) (TArg arg input (TArgsEnd end)) ->
       if same name "Not" then (case convert-predicate external kinds locals input st of (predicate, checked) -> (UPropNot predicate, checked))
       else if same name "NotNull" then convert-not-null sp locals input st
+      else if same name "Ascii" then convert-ascii sp locals input st
+      else if same name "Ordered" then convert-ordered sp locals input st
       else if not (same name "NonZero") then bad sp "unsupported proof predicate former" st
       else let carrier = predicate-comparison-carrier locals input input in
         if math-carrier carrier then (case convert-predicate-index external kinds locals carrier input st of

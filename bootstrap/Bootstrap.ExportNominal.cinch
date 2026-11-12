@@ -110,6 +110,8 @@ module Bootstrap.ExportNominal where
     UPropNonZero value -> type-references value
     UPropNonZeroPending value -> if valid-type ty then type-references value else Err "nominal export contains an invalid NonZero proposition"
     UPropNotNull value -> type-references value
+    UPropAscii value -> type-references value
+    UPropOrdered value -> type-references value
     URow labels -> type-references labels
     URowJoin a b -> combine (type-references a) (type-references b)
     UTuple fields -> type-references fields
@@ -201,6 +203,10 @@ module Bootstrap.ExportNominal where
     TApp sp (TName at name) (TArg arg input (TArgsEnd end)) ->
       if same name "NotNull" then
         (case template-text declarations locals input of Ok value -> Ok (string-concat "NotNull " value); Err error -> Err error)
+      else if same name "Ascii" then
+        (case template-text declarations locals input of Ok value -> Ok (string-concat "Ascii " value); Err error -> Err error)
+      else if same name "Ordered" then
+        (case template-text declarations locals input of Ok value -> Ok (string-concat "Ordered " value); Err error -> Err error)
       else if same name (global-data-core-list) then
         (case template-text declarations locals input of Ok value -> Ok (string-concat "Data.Core.List " value); Err error -> Err error)
       else if same name "NonZero" || same name "#kernel.bytes-length" || primitive-observer name declarations then

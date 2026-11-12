@@ -111,6 +111,8 @@ module Bootstrap.Kinds where
     UPropNot body -> type-level body
     UPropNonZero body -> type-level body
     UPropNotNull body -> type-level body
+    UPropAscii body -> type-level body
+    UPropOrdered body -> type-level body
     UPropNonZeroPending body -> type-level body
     UIndexForget body -> type-level body
     UIndexPromote body -> type-level body
@@ -185,6 +187,8 @@ module Bootstrap.Kinds where
     UPropNot body -> type-well-formed kinds scope body
     UPropNonZero body -> type-well-formed kinds scope body
     UPropNotNull body -> type-well-formed kinds scope body
+    UPropAscii body -> type-well-formed kinds scope body
+    UPropOrdered body -> type-well-formed kinds scope body
     UPropNonZeroPending body -> type-well-formed kinds scope body
     URequire predicates body -> type-well-formed kinds scope predicates && type-well-formed kinds scope body
     UPropLit value -> True

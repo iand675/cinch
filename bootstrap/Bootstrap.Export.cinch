@@ -83,6 +83,8 @@ module Bootstrap.Export where
     UPropNot input -> type-measures input
     UPropNonZero input -> type-measures input
     UPropNotNull input -> type-measures input
+    UPropAscii input -> type-measures input
+    UPropOrdered input -> type-measures input
     UPropNonZeroPending input -> type-measures input
     URequire predicates body -> type-measures predicates <> type-measures body
     URefine id name carrier predicate -> type-measures carrier <> type-measures predicate

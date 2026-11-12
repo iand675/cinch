@@ -453,7 +453,7 @@ module Bootstrap.Resolve where
   rename-predicate visible locals syntax = case syntax of
     TName s name -> if same name "NonZero" then syntax else rename-type visible locals syntax
     TApp s (TName at name) (TArg arg input (TArgsEnd end)) ->
-      if has-name name ["NonZero", "NotNull"] then TApp s (TName at name) (TArg arg (rename-type visible locals input) (TArgsEnd end))
+      if has-name name ["NonZero", "NotNull", "Ascii", "Ordered"] then TApp s (TName at name) (TArg arg (rename-type visible locals input) (TArgsEnd end))
       else rename-type visible locals syntax
     TInfix s op first second -> TInfix s op (rename-predicate visible locals first) (rename-predicate visible locals second)
     other -> rename-type visible locals syntax
@@ -673,7 +673,7 @@ module Bootstrap.Resolve where
   -- refinement constructor in scope. A distinct constructor keeps its
   -- ordinary binding and type.
   branch-predicate-former :: Visible -> String -> Bool
-  branch-predicate-former visible name = has-name name ["NonZero", "NotNull"] && (case visible-lookup name visible of
+  branch-predicate-former visible name = has-name name ["NonZero", "NotNull", "Ascii", "Ordered"] && (case visible-lookup name visible of
     Some binding -> same name "NonZero" && same (binding-symbol binding) (global-algebra-arithmetic-nonzero)
     None -> True)
   branch-literal :: String -> Expr -> Bool
@@ -697,9 +697,9 @@ module Bootstrap.Resolve where
   -- retain their declaration-owned bindings and cannot become decision authority.
   rename-decision-syntax :: Visible -> List String -> Expr -> (Expr, List Diagnostic)
   rename-decision-syntax visible locals syntax = case syntax of
-    ECon sp name arguments -> if has-name name ["NonZero", "NotNull", "Not", "True", "False"] then
+    ECon sp name arguments -> if has-name name ["NonZero", "NotNull", "Ascii", "Ordered", "Not", "True", "False"] then
       (case rename-decision-syntax visible locals arguments of (args, errors) -> (ECon sp name args, errors)) else rename-expr visible locals syntax
-    EApp sp (ECon at name (EArgsEnd end)) input -> if has-name name ["NonZero", "NotNull", "Not"] then
+    EApp sp (ECon at name (EArgsEnd end)) input -> if has-name name ["NonZero", "NotNull", "Ascii", "Ordered", "Not"] then
       (case rename-decision-syntax visible locals input of (argument, errors) -> (EApp sp (ECon at name (EArgsEnd end)) argument, errors)) else rename-expr visible locals syntax
     EApp sp (EVar at name) input -> if same name "Not" then (case rename-decision-syntax visible locals input of (argument, errors) -> (EApp sp (EVar at name) argument, errors)) else rename-expr visible locals syntax
     EBin sp operation first second -> if has-name operation ["+", "-", "*", "<", "<=", ">", ">=", "==", "/=", "&&", "||"] then

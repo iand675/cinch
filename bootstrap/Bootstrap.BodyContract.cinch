@@ -285,6 +285,8 @@ module Bootstrap.BodyContract where
     UPropNot input -> body-type-authorized bindings input
     UPropNonZero input -> body-type-authorized bindings input
     UPropNotNull input -> body-type-authorized bindings input
+    UPropAscii input -> body-type-authorized bindings input
+    UPropOrdered input -> body-type-authorized bindings input
     UPropNonZeroPending input -> body-type-authorized bindings input
     URequire predicates body -> body-type-authorized bindings predicates && body-type-authorized bindings body
     URefine id name carrier predicate -> body-type-authorized bindings carrier && body-type-authorized bindings predicate

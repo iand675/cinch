@@ -18,8 +18,8 @@ module Bootstrap.Type where
   export valid-kind, map-kind-types, value-kind, value-carrier
   export arrow-constructor-kind, type-application, refinement-view, refinement-formals
   export ArrowUsage, UsageZero, UsageOne, UsageAffine, UsageMany, parse-arrow-usage, arrow-usage-text, UUsageArrow, arrow-shape, erased-value-arrow
-  export UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, UPropNotNull, URequire, URefine, URefineFormer, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexBorrowRead, UIndexCall, UIndexList, UIndexMath, UPi, UApp, UFun, UFunEff, UProofFun, URow, URowJoin, UTuple, UArg, UEnd, UError
-  export core-list-type, core-list-element
+  export UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, UPropNotNull, UPropAscii, UPropOrdered, URequire, URefine, URefineFormer, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexBorrowRead, UIndexCall, UIndexList, UIndexMath, UPi, UApp, UFun, UFunEff, UProofFun, URow, URowJoin, UTuple, UArg, UEnd, UError
+  export core-list-type, core-list-element, ascii-carrier, ordered-carrier
   export borrow-constructor-kind, borrow-type-parts, borrow-regions, borrow-region-conflict
   export thunk-kind, thunk-type, thunk-parts
   export later-kind, later-type, later-parts, deferral-parts, later-unrestricted
@@ -71,6 +71,13 @@ module Bootstrap.Type where
     UPropNonZero :: UType -> UType
     UPropNonZeroPending :: UType -> UType
     UPropNotNull :: UType -> UType
+    -- The two container predicates of the closed decidable vocabulary
+    -- that decide over a shape rather than a numeral: every byte of a text
+    -- value below 128 (`Ascii`), every adjacent pair non-decreasing
+    -- (`Ordered`). Both are structural: the checker decides them over
+    -- constructor forms, the runtime decides them under `decide`.
+    UPropAscii :: UType -> UType
+    UPropOrdered :: UType -> UType
     -- Required propositions are part of the type, never a cast to its body.
     URequire :: UType -> UType -> UType
     -- The value binder scopes its predicate only; the runtime carrier is
@@ -222,6 +229,8 @@ module Bootstrap.Type where
     UPropNonZero body -> tree "prop-nonzero" [carrier-tree body]
     UPropNonZeroPending body -> tree "prop-nonzero-pending" [carrier-tree body]
     UPropNotNull body -> tree "prop-not-null" [carrier-tree body]
+    UPropAscii body -> tree "prop-ascii" [carrier-tree body]
+    UPropOrdered body -> tree "prop-ordered" [carrier-tree body]
     URequire predicates body -> tree "required" [carrier-tree predicates, carrier-tree body]
     URefine id name carrier predicate -> tree "refined" [JNum (nat-to-int id), JStr name, carrier-tree carrier, carrier-tree predicate]
     URefineFormer name ids body -> tree "refinement-former" [JStr name, former-id-tree ids, carrier-tree body]
@@ -275,7 +284,7 @@ module Bootstrap.Type where
     JArr (JStr tag) (JArr (JBool value) JArrEnd) -> if same-tag tag "prop-literal" then Some (UPropLit value) else None
     JStr tag -> if same-tag tag "end" then Some UEnd else if same-tag tag "error" then Some UError else None
     JArr (JStr tag) (JArr a JArrEnd) -> case read-carrier-tree a of
-      Some value -> if same-tag tag "row" then Some (URow value) else if same-tag tag "tuple" then Some (UTuple value) else if same-tag tag "prop-not" then Some (UPropNot value) else if same-tag tag "prop-nonzero" then Some (UPropNonZero value) else if same-tag tag "prop-nonzero-pending" then Some (UPropNonZeroPending value) else if same-tag tag "prop-not-null" then Some (UPropNotNull value) else if same-tag tag "index-forget" then Some (UIndexForget value) else if same-tag tag "index-byte-length" then Some (UIndexByteLength value) else if same-tag tag "index-borrow-read" then Some (UIndexBorrowRead value) else if same-tag tag "index-promote" then Some (UIndexPromote value) else None
+      Some value -> if same-tag tag "row" then Some (URow value) else if same-tag tag "tuple" then Some (UTuple value) else if same-tag tag "prop-not" then Some (UPropNot value) else if same-tag tag "prop-nonzero" then Some (UPropNonZero value) else if same-tag tag "prop-nonzero-pending" then Some (UPropNonZeroPending value) else if same-tag tag "prop-not-null" then Some (UPropNotNull value) else if same-tag tag "prop-ascii" then Some (UPropAscii value) else if same-tag tag "prop-ordered" then Some (UPropOrdered value) else if same-tag tag "index-forget" then Some (UIndexForget value) else if same-tag tag "index-byte-length" then Some (UIndexByteLength value) else if same-tag tag "index-borrow-read" then Some (UIndexBorrowRead value) else if same-tag tag "index-promote" then Some (UIndexPromote value) else None
       None -> None
     JArr (JStr tag) (JArr a (JArr b JArrEnd)) ->
       if same-tag tag "con" then (case (a, read-kind-tree b) of (JStr name, Some kind) -> Some (UCon name kind); other -> None)
@@ -340,6 +349,8 @@ module Bootstrap.Type where
     UPropNot body -> UPropNot (opaque-carrier body)
     UPropNonZero body -> UPropNonZero (opaque-carrier body)
     UPropNotNull body -> UPropNotNull (opaque-carrier body)
+    UPropAscii body -> UPropAscii (opaque-carrier body)
+    UPropOrdered body -> UPropOrdered (opaque-carrier body)
     UPropNonZeroPending body -> UPropNonZeroPending (opaque-carrier body)
     URequire predicates body -> URequire (opaque-carrier predicates) (opaque-carrier body)
     URefine id name carrier predicate -> URefine id name (opaque-carrier carrier) (opaque-carrier predicate)
@@ -579,6 +590,8 @@ module Bootstrap.Type where
     UPropNot body -> UPropNot (normalize st body)
     UPropNonZero body -> UPropNonZero (normalize st body)
     UPropNotNull body -> UPropNotNull (normalize st body)
+    UPropAscii body -> UPropAscii (normalize st body)
+    UPropOrdered body -> UPropOrdered (normalize st body)
     UPropNonZeroPending body -> normalize-pending-nonzero (normalize st body)
     URequire predicates body -> URequire (normalize st predicates) (normalize st body)
     URefine id name carrier predicate -> URefine id name (normalize st carrier) (normalize st predicate)
@@ -648,6 +661,8 @@ module Bootstrap.Type where
     UPropNot body -> KProp
     UPropNonZero body -> KProp
     UPropNotNull body -> KProp
+    UPropAscii body -> KProp
+    UPropOrdered body -> KProp
     UPropNonZeroPending body -> KProp
     URequire predicates body -> KType
     URefine id name carrier predicate -> KType
@@ -703,6 +718,18 @@ module Bootstrap.Type where
     other -> None
   not-null-carrier :: UType -> Bool
   not-null-carrier carrier = case core-list-element carrier of Some element -> True; None -> False
+  -- `Ascii` decides text and lists of chars: a `String` carrier, or a list
+  -- whose element is `Char`. `Ordered` decides lists of numerics.
+  ascii-carrier :: UType -> Bool
+  ascii-carrier carrier = case carrier of
+    UCon name KType -> same-tag name "String"
+    other -> case core-list-element carrier of
+      Some element -> same-shape element (UCon "Char" KType)
+      None -> False
+  ordered-carrier :: UType -> Bool
+  ordered-carrier carrier = case core-list-element carrier of
+    Some element -> mathematical-carrier element || promotable-carrier element
+    None -> False
   list-index-field :: UType -> UType -> Bool
   list-index-field expected value = typed-index-admissible value &&
     (case typed-index-carrier value of Some actual -> carrier-equal expected actual; None -> False)
@@ -722,6 +749,12 @@ module Bootstrap.Type where
     UPropNonZeroPending body -> valid-type body && typed-index-admissible body && (case typed-index-carrier body of Some carrier -> pending-nonzero-carrier carrier; None -> False)
     UPropNotNull body -> typed-index-admissible body && (case typed-index-carrier body of
       Some carrier -> not-null-carrier carrier
+      None -> False)
+    UPropAscii body -> typed-index-admissible body && (case typed-index-carrier body of
+      Some carrier -> ascii-carrier carrier
+      None -> False)
+    UPropOrdered body -> typed-index-admissible body && (case typed-index-carrier body of
+      Some carrier -> ordered-carrier carrier
       None -> False)
     URequire predicates body -> proposition-spine predicates && carrier-type body
     URefine id name carrier predicate -> valid-refinement id carrier predicate
@@ -800,6 +833,8 @@ module Bootstrap.Type where
     UPropNot body -> string-concat "not " (type-text body)
     UPropNonZero body -> string-concat "NonZero " (type-text body)
     UPropNotNull body -> string-concat "NotNull " (type-text body)
+    UPropAscii body -> string-concat "Ascii " (type-text body)
+    UPropOrdered body -> string-concat "Ordered " (type-text body)
     UPropNonZeroPending body -> string-concat "NonZero " (type-text body)
     URequire predicates body -> string-concat-all ["required ", type-text predicates, " => ", type-text body]
     URefine id name carrier predicate -> string-concat-all ["refine (", name, " :: ", type-text carrier, ") with ", type-text predicate]
@@ -850,6 +885,8 @@ module Bootstrap.Type where
     UPropNot body -> free-metas st body
     UPropNonZero body -> free-metas st body
     UPropNotNull body -> free-metas st body
+    UPropAscii body -> free-metas st body
+    UPropOrdered body -> free-metas st body
     UPropNonZeroPending body -> free-metas st body
     URequire predicates body -> merge-ids (free-metas st predicates) (free-metas st body)
     URefine id name carrier predicate -> merge-ids (free-metas st carrier) (free-metas st predicate)
@@ -900,6 +937,8 @@ module Bootstrap.Type where
     UPropNot body -> escapes level body
     UPropNonZero body -> escapes level body
     UPropNotNull body -> escapes level body
+    UPropAscii body -> escapes level body
+    UPropOrdered body -> escapes level body
     UPropNonZeroPending body -> escapes level body
     URequire predicates body -> escapes level predicates || escapes level body
     URefine id name carrier predicate -> escapes level carrier || escapes level predicate
@@ -1032,6 +1071,8 @@ module Bootstrap.Type where
     UPropNot body -> case b of UPropNot other -> unify sp body other st; other -> mismatch sp a b st
     UPropNonZero body -> case b of UPropNonZero other -> unify sp body other st; other -> mismatch sp a b st
     UPropNotNull body -> case b of UPropNotNull other -> unify sp body other st; other -> mismatch sp a b st
+    UPropAscii body -> case b of UPropAscii other -> unify sp body other st; other -> mismatch sp a b st
+    UPropOrdered body -> case b of UPropOrdered other -> unify sp body other st; other -> mismatch sp a b st
     UPropNonZeroPending body -> case b of UPropNonZeroPending other -> unify sp body other st; other -> mismatch sp a b st
     URequire predicates body -> case b of URequire ps result -> unify sp body result (unify sp predicates ps st); other -> mismatch sp a b st
     URefine id name carrier predicate -> case refinement-view b of
@@ -1128,6 +1169,8 @@ module Bootstrap.Type where
     (UPropNot a, UPropNot b) -> same-shape a b
     (UPropNonZero a, UPropNonZero b) -> same-shape a b
     (UPropNotNull a, UPropNotNull b) -> same-shape a b
+    (UPropAscii a, UPropAscii b) -> same-shape a b
+    (UPropOrdered a, UPropOrdered b) -> same-shape a b
     (UPropNonZeroPending a, UPropNonZeroPending b) -> same-shape a b
     (URequire a b, URequire c d) -> same-shape a c && same-shape b d
     (URefine id name carrier predicate, URefine key other input condition) -> same-pi (refinement-pi id name carrier predicate) (refinement-pi key other input condition)
@@ -1249,6 +1292,8 @@ module Bootstrap.Type where
     UPropNot body -> UPropNot (transform-type mode pairs body)
     UPropNonZero body -> UPropNonZero (transform-type mode pairs body)
     UPropNotNull body -> UPropNotNull (transform-type mode pairs body)
+    UPropAscii body -> UPropAscii (transform-type mode pairs body)
+    UPropOrdered body -> UPropOrdered (transform-type mode pairs body)
     UPropNonZeroPending body -> normalize-pending-nonzero (transform-type mode pairs body)
     URequire predicates body -> URequire (transform-type mode pairs predicates) (transform-type mode pairs body)
     URefine id name carrier predicate -> substitute-refinement mode pairs id name carrier predicate
@@ -1656,6 +1701,8 @@ module Bootstrap.Type where
     UPropNot body -> if valid-type ty then validate-type-indices sp body (st) else add-error sp "ill-formed proposition or required type" st
     UPropNonZero body -> if valid-type ty then validate-type-indices sp body (st) else add-error sp "ill-formed proposition or required type" st
     UPropNotNull body -> if valid-type ty then validate-type-indices sp body (st) else add-error sp "ill-formed proposition or required type" st
+    UPropAscii body -> if valid-type ty then validate-type-indices sp body (st) else add-error sp "ill-formed proposition or required type" st
+    UPropOrdered body -> if valid-type ty then validate-type-indices sp body (st) else add-error sp "ill-formed proposition or required type" st
     UPropNonZeroPending body -> if valid-type ty then validate-type-indices sp body (st) else add-error sp "ill-formed proposition or required type" st
     URequire predicates body -> if valid-type ty then validate-type-indices sp body (validate-type-indices sp predicates (st)) else add-error sp "ill-formed proposition or required type" st
     URefine id name carrier predicate -> if valid-type ty then validate-type-indices sp predicate (validate-type-indices sp carrier st) else add-error sp "ill-formed refinement type" st
@@ -1771,6 +1818,8 @@ module Bootstrap.Type where
     UPropNot body -> type-all-ids body
     UPropNonZero body -> type-all-ids body
     UPropNotNull body -> type-all-ids body
+    UPropAscii body -> type-all-ids body
+    UPropOrdered body -> type-all-ids body
     UPropNonZeroPending body -> type-all-ids body
     URequire predicates body -> merge-ids (type-all-ids predicates) (type-all-ids body)
     URefine id name carrier predicate -> merge-ids [id] (merge-ids (type-all-ids carrier) (type-all-ids predicate))
@@ -1814,6 +1863,8 @@ module Bootstrap.Type where
     UPropNot body -> type-free-bound body
     UPropNonZero body -> type-free-bound body
     UPropNotNull body -> type-free-bound body
+    UPropAscii body -> type-free-bound body
+    UPropOrdered body -> type-free-bound body
     UPropNonZeroPending body -> type-free-bound body
     URequire predicates body -> merge-ids (type-free-bound predicates) (type-free-bound body)
     URefine id name carrier predicate -> merge-ids (type-free-bound carrier) (remove-id id (type-free-bound predicate))
@@ -1969,6 +2020,8 @@ module Bootstrap.Type where
     UPropNot body -> type-pi-ids body
     UPropNonZero body -> type-pi-ids body
     UPropNotNull body -> type-pi-ids body
+    UPropAscii body -> type-pi-ids body
+    UPropOrdered body -> type-pi-ids body
     UPropNonZeroPending body -> type-pi-ids body
     URequire predicates body -> merge-ids (type-pi-ids predicates) (type-pi-ids body)
     URefine id name carrier predicate -> merge-ids [id] (merge-ids (type-pi-ids carrier) (type-pi-ids predicate))
@@ -2027,6 +2080,8 @@ module Bootstrap.Type where
     UPropNot body -> UPropNot (without-index-levels body)
     UPropNonZero body -> UPropNonZero (without-index-levels body)
     UPropNotNull body -> UPropNotNull (without-index-levels body)
+    UPropAscii body -> UPropAscii (without-index-levels body)
+    UPropOrdered body -> UPropOrdered (without-index-levels body)
     UPropNonZeroPending body -> UPropNonZeroPending (without-index-levels body)
     URequire predicates body -> URequire (without-index-levels predicates) (without-index-levels body)
     URefine id name carrier predicate -> URefine id name (without-index-levels carrier) (without-index-levels predicate)

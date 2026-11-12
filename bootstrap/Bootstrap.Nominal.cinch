@@ -391,7 +391,7 @@ module Bootstrap.Nominal where
     TInfix s op a b -> has op ["<", "<=", "==", "/=", ">=", ">", "&&", "||"]
     TName s name -> same name "True" || same name "False"
     TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) -> same name "Eq"
-    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> has name ["NonZero", "NotNull"]
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> has name ["NonZero", "NotNull", "Ascii", "Ordered"]
     other -> False
   qualify-predicate :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
   qualify-predicate refs locals syntax = case syntax of
@@ -402,7 +402,7 @@ module Bootstrap.Nominal where
     TApp sp (TName at name) (TArg arg input (TArgsEnd end)) ->
       if same name "b.bytesLen" then (case qualify-predicate refs locals input of
         (value, errors) -> (TApp sp (TName at "#kernel.bytes-length") (TArg arg value (TArgsEnd end)), errors))
-      else if has name ["NonZero", "NotNull"] then (case qualify-predicate refs locals input of
+      else if has name ["NonZero", "NotNull", "Ascii", "Ordered"] then (case qualify-predicate refs locals input of
         (value, errors) -> (TApp sp (TName at name) (TArg arg value (TArgsEnd end)), errors))
       else if measure-reference name refs then (case qualify-predicate-args refs locals (TArg arg input (TArgsEnd end)) of
         (arguments, errors) -> (TApp sp (TName at (interface-global name)) arguments, errors))
