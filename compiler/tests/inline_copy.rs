@@ -76,8 +76,19 @@ fn call_callee(arg: Core) -> Core {
     Core::App(Box::new(Core::Global(gid("Data.Path.path-to-string"), vec![])), vec![arg])
 }
 
+/// The threshold model, deliberately. These tests pin the *copy* machinery
+/// (fresh binder ids, simultaneous parameter substitution, a copy that the
+/// ownership verifier accepts) on shapes the benefit model refuses by its
+/// own rule: a decision-bearing body copied to more than one site where the
+/// scrutinee does not fold. That refusal is the benefit model's correct
+/// answer, and it is pinned in `tests/simplify.rs`; here the copy is what is
+/// under test, so the model that admits it is the one selected.
 fn options() -> SimplifyOptions {
-    SimplifyOptions { max_iterations: 1, ..SimplifyOptions::default() }
+    SimplifyOptions {
+        max_iterations: 1,
+        inline_model: cinch::simplify::InlineModel::Threshold,
+        ..SimplifyOptions::default()
+    }
 }
 
 fn run(mut p: Program, opts: &SimplifyOptions) -> (Program, SimplifyReport) {

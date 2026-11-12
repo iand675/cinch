@@ -9,7 +9,7 @@ use cinch::core::{
     CAlt, CBranch, CPat, Class, Core, FnDef, FnHints, FnMeta, GlobalId, InstanceDef, LocalId, Program,
     SimplifyReport, TargetProfile, UnitRepr,
 };
-use cinch::simplify::{simplify, SimplifyOptions};
+use cinch::simplify::{simplify, InlineModel, SimplifyOptions};
 
 fn gid(name: &str) -> GlobalId {
     GlobalId(name.to_string())
@@ -474,6 +474,14 @@ fn dead_let_follows_the_reduction_that_orphaned_it() {
     let _ = TargetProfile::native();
 }
 
+fn benefit_options() -> SimplifyOptions {
+    SimplifyOptions { inline_model: InlineModel::Benefit, ..SimplifyOptions::default() }
+}
+
+fn threshold_options() -> SimplifyOptions {
+    SimplifyOptions { inline_model: InlineModel::Threshold, ..SimplifyOptions::default() }
+}
+
 // ------------------------------------------------- the unfoldable class
 //
 // A declaration exposes its body when the body is cheap by construction: a
@@ -598,7 +606,9 @@ fn a_decision_is_copied_only_where_it_folds() {
         unit("Main.f", vec![Class::Obj], body),
     ]);
     let mut report = SimplifyReport::default();
-    simplify(&mut p, &SimplifyOptions::default(), &mut report);
+    // The threshold model's fold rule, pinned here; the benefit model never
+    // copies a decision it cannot fold and would refuse all three sites.
+    simplify(&mut p, &threshold_options(), &mut report);
     assert_eq!(report.inlined, 1, "only the known-constructor site takes the decision");
 }
 
@@ -852,4 +862,185 @@ fn saturate_partial_refuses_an_already_saturated_value() {
     simplify(&mut p, &options(), &mut report);
     assert_eq!(report.saturate, 0);
     assert!(matches!(&p.fns[1].body, Core::Let(..)));
+}
+
+// ------------------------------------------ the benefit-and-size model
+//
+// The second inlining decision (`InlineModel::Benefit`,
+// `crate::simplify`): a site test compares the code size a copy adds against
+// the work it removes, rather than a body's weighted size against a fixed
+// threshold. These tests pin the four properties the model states, each with
+// the threshold model's answer beside it where the two differ.
+
+/// The small-function floor: a body at or below `small_function_size` is
+/// inlined at every site with no site test, whatever its site count. This is
+/// Flambda 2's `Always_inline`, and it is what removes a four-node primop
+/// wrapper that the threshold model also admits.
+#[test]
+fn benefit_inlines_a_small_body_at_every_site() {
+    use cinch::core::PrimOp;
+    let method = unit(
+        "Data.Machine.Eq_I64.==",
+        vec![Class::Raw, Class::Raw],
+        prim(PrimOp::EqBool, vec![Core::Var(LocalId(0)), Core::Var(LocalId(1))]),
+    );
+    let body = prim(
+        PrimOp::AndBool,
+        vec![
+            call("Data.Machine.Eq_I64.==", vec![Core::Var(LocalId(0)), Core::Var(LocalId(1))]),
+            call("Data.Machine.Eq_I64.==", vec![Core::Var(LocalId(1)), Core::Var(LocalId(0))]),
+        ],
+    );
+    let mut p = program(vec![method, unit("Main.f", vec![Class::Raw, Class::Raw], body)]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &benefit_options(), &mut report);
+    assert_eq!(report.inline_model, "benefit");
+    assert_eq!(report.benefit.inlined, 2, "both sites take the primop body");
+    let text = format!("{:?}", p.fns[1].body);
+    assert!(!text.contains("Data.Machine.Eq_I64.=="), "a call survived: {text}");
+}
+
+/// A body whose duplication removes only the call and adds more instructions
+/// than the call was worth is refused: the model's size test, which the
+/// threshold model also refuses but for a different reason.
+#[test]
+fn benefit_refuses_a_body_that_removes_only_the_call() {
+    use cinch::core::PrimOp;
+    // Ten primops in sequence, none of them removable: `size` is ten, the
+    // benefit is one call, so a site whose growth exceeds the allowance is
+    // refused.
+    let mut value = Core::Var(LocalId(0));
+    for _ in 0..10 {
+        value = prim(PrimOp::NotBool, vec![value]);
+    }
+    let big = unit("Main.big", vec![Class::Raw], value);
+    let body = call("Main.big", vec![Core::Bool(true)]);
+    let mut p = program(vec![big, unit("Main.f", vec![Class::Raw], body)]);
+    let mut report = SimplifyReport::default();
+    let opts = SimplifyOptions {
+        inline_large_size: 100,
+        inline_small_size: 0,
+        inline_size_threshold: 1,
+        ..benefit_options()
+    };
+    simplify(&mut p, &opts, &mut report);
+    assert_eq!(report.benefit.inlined, 0, "the size test refuses it");
+    assert_eq!(report.benefit.refused_size, 1);
+    assert!(matches!(&p.fns[1].body, Core::App(..)), "the call stays");
+}
+
+/// The same body is admitted once the allowance covers its growth, which is
+/// what makes the threshold a knob rather than a shape rule.
+#[test]
+fn benefit_admits_the_same_body_at_a_wider_allowance() {
+    use cinch::core::PrimOp;
+    let mut value = Core::Var(LocalId(0));
+    for _ in 0..10 {
+        value = prim(PrimOp::NotBool, vec![value]);
+    }
+    let big = unit("Main.big", vec![Class::Raw], value);
+    let body = call("Main.big", vec![Core::Bool(true)]);
+    let mut p = program(vec![big, unit("Main.f", vec![Class::Raw], body)]);
+    let mut report = SimplifyReport::default();
+    let opts = SimplifyOptions {
+        inline_large_size: 100,
+        inline_small_size: 0,
+        inline_size_threshold: 20,
+        ..benefit_options()
+    };
+    simplify(&mut p, &opts, &mut report);
+    assert_eq!(report.benefit.inlined, 1);
+}
+
+/// A body over `large_function_size` is refused before any site test, and
+/// the refusal is counted as `large` rather than `size`.
+#[test]
+fn benefit_refuses_a_body_over_the_large_cutoff() {
+    use cinch::core::PrimOp;
+    let mut value = Core::Var(LocalId(0));
+    for _ in 0..20 {
+        value = prim(PrimOp::NotBool, vec![value]);
+    }
+    let big = unit("Main.big", vec![Class::Raw], value);
+    let body = call("Main.big", vec![Core::Bool(true)]);
+    let mut p = program(vec![big, unit("Main.f", vec![Class::Raw], body)]);
+    let mut report = SimplifyReport::default();
+    let opts = SimplifyOptions { inline_large_size: 5, ..benefit_options() };
+    simplify(&mut p, &opts, &mut report);
+    assert_eq!(report.benefit.inlined, 0);
+    assert_eq!(report.benefit.refused_large, 0, "admission refuses it, so no site is considered");
+}
+
+/// A recursive callee is refused at every site and counted as such, which is
+/// the refusal that makes the benefit model's admission safe.
+#[test]
+fn benefit_refuses_a_recursive_callee_at_the_site() {
+    use cinch::core::PrimOp;
+    let mut again = unit("Main.again", vec![Class::Raw], Core::Unit);
+    again.body = call("Main.again", vec![prim(PrimOp::NotBool, vec![Core::Var(LocalId(0))])]);
+    let body = call("Main.again", vec![Core::Bool(true)]);
+    let mut p = program(vec![again, unit("Main.f", vec![Class::Raw], body)]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &benefit_options(), &mut report);
+    assert_eq!(report.benefit.inlined, 0);
+    assert!(report.benefit.refused_recursive + report.benefit.refused_large > 0);
+}
+
+/// A call inside a loop body divides the allowance: the same body that a
+/// straight-line site admits is refused in a tail worker. Each arm has its
+/// own callee, so both have one site and the growth term is the body's own
+/// size.
+#[test]
+fn benefit_discounts_a_site_inside_a_loop_body() {
+    use cinch::core::PrimOp;
+    let chain = |count: usize| {
+        let mut value = Core::Var(LocalId(0));
+        for _ in 0..count {
+            value = prim(PrimOp::NotBool, vec![value]);
+        }
+        value
+    };
+    // Six primops: code size 6, and a copy removes one call (benefit 5), so
+    // the growth is 1. An allowance of 2 admits a straight-line site and,
+    // divided by 4, leaves a loop site 0.
+    let mut p = program(vec![
+        unit("Main.big", vec![Class::Raw], chain(6)),
+        unit("Main.other", vec![Class::Raw], chain(6)),
+        // The tail worker is the shape every source loop lowers to.
+        unit("Main.loop#tail", vec![Class::Raw], call("Main.big", vec![Core::Bool(true)])),
+        unit("Main.straight", vec![Class::Raw], call("Main.other", vec![Core::Bool(true)])),
+    ]);
+    let mut report = SimplifyReport::default();
+    let opts = SimplifyOptions {
+        inline_large_size: 100,
+        inline_small_size: 0,
+        inline_size_threshold: 2,
+        inline_loop_discount: 4,
+        ..benefit_options()
+    };
+    simplify(&mut p, &opts, &mut report);
+    // An inlined copy of a primop chain is itself a `Core::App`, so the test
+    // is whether the callee is still named, not what shape the body has.
+    let loop_inlined = !format!("{:?}", p.fns[2].body).contains("Main.big");
+    let straight_inlined = !format!("{:?}", p.fns[3].body).contains("Main.other");
+    assert!(straight_inlined, "the straight-line site takes the copy: {:?}", p.fns[3].body);
+    assert!(!loop_inlined, "the loop site's allowance is divided: {:?}", p.fns[2].body);
+}
+
+/// The threshold model is still reachable and still reports itself, so the
+/// two arms of a calibration run are the same pass under two decisions.
+#[test]
+fn the_threshold_model_is_selectable_and_reports_itself() {
+    use cinch::core::PrimOp;
+    let method = unit(
+        "Data.Machine.Eq_I64.==",
+        vec![Class::Raw, Class::Raw],
+        prim(PrimOp::EqBool, vec![Core::Var(LocalId(0)), Core::Var(LocalId(1))]),
+    );
+    let body = call("Data.Machine.Eq_I64.==", vec![Core::Var(LocalId(0)), Core::Var(LocalId(1))]);
+    let mut p = program(vec![method, unit("Main.f", vec![Class::Raw, Class::Raw], body)]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &threshold_options(), &mut report);
+    assert_eq!(report.inline_model, "threshold");
+    assert_eq!(report.inlined, 1);
 }

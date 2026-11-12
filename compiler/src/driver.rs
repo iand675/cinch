@@ -2966,6 +2966,24 @@ fn write_artifacts(
         ("pruned", (opt.simplify.pruned as u64).into()),
         ("pruned_nodes", (opt.simplify.pruned_nodes as u64).into()),
     ]);
+    // The inlining decision's own verdict (crate::simplify, benefit model):
+    // which model ran, the sites it inlined, and the sites it refused per
+    // reason. A site lands in exactly one bucket, so the counters say what
+    // the rule did rather than leaving it to be inferred from IR size.
+    let b = &opt.simplify.benefit;
+    let inlining = J::obj([
+        ("model", opt.simplify.inline_model.into()),
+        ("inlined", (b.inlined as u64).into()),
+        ("refused", (b.refused() as u64).into()),
+        ("refused_large", (b.refused_large as u64).into()),
+        ("refused_size", (b.refused_size as u64).into()),
+        ("refused_recursive", (b.refused_recursive as u64).into()),
+        ("refused_value", (b.refused_value as u64).into()),
+        ("refused_scope", (b.refused_scope as u64).into()),
+        ("refused_fold", (b.refused_fold as u64).into()),
+        ("refused_chain", (b.refused_chain as u64).into()),
+        ("refused_budget", (b.refused_budget as u64).into()),
+    ]);
     // Tail-call status of the recursive call-graph groups (surface
     // grammar local amendments section 9; decision D104): "marked" when
     // the group's self and mutual tail calls are jumps or `musttail`
@@ -3154,6 +3172,7 @@ fn write_artifacts(
         ("wasm", wasm),
         ("specialization", specialization),
         ("simplifier", simplifier),
+        ("inlining", inlining),
         ("tail_calls", tail_calls),
         ("literal_folds", literal_folds),
         ("data_imports", data_imports),
@@ -4016,6 +4035,9 @@ pub struct DriverOptions {
     /// taken against the same program with the inliner active
     /// (design/stack-allocation.md section 7).
     pub no_inline: bool,
+    /// `--inline-model <threshold|benefit>`: which site test the inliner
+    /// uses (`crate::simplify::InlineModel`). Default `benefit`.
+    pub inline_model: Option<String>,
     /// `--interface-optimisations <manifest>`: an interface manifest whose
     /// modules' `.cinchopt` unfoldings answer this program's cross-object
     /// call sites. The units those artifacts describe are not emitted by
@@ -4071,6 +4093,11 @@ impl DriverOptions {
             direct_dict_calls: !self.no_direct_dict_calls,
             saturate_partial: !self.no_saturate_partial,
             inline: !self.no_inline,
+            inline_model: match self.inline_model.as_deref() {
+                Some("threshold") => crate::simplify::InlineModel::Threshold,
+                Some("benefit") | None => crate::simplify::InlineModel::Benefit,
+                Some(_) => crate::simplify::InlineModel::Benefit,
+            },
             case_of_case: self.case_of_case,
             ..crate::simplify::SimplifyOptions::default()
         }
@@ -4381,7 +4408,7 @@ cinch core: the annotated Core dump (design/core-output.md)
 usage:
   cinch core emit <file.cinch> [--stage=<name>] [--target <triple>] [-o <out.core>]
                      [--max-simplifier-iterations <n>] [--no-direct-dict-calls]
-                     [--case-of-case] [--no-inline] [--no-stack-alloc]
+                     [--case-of-case] [--no-inline] [--inline-model <threshold|benefit>] [--no-stack-alloc]
                      [--stack-frame-limit <bytes>]
   cinch core verify <file.core>
   cinch core diff <a.core> <b.core>
@@ -4441,6 +4468,16 @@ fn core_emit(args: &[String]) -> i32 {
             "--no-direct-dict-calls" => opts.no_direct_dict_calls = true,
             "--no-saturate-partial" => opts.no_saturate_partial = true,
             "--no-inline" => opts.no_inline = true,
+            "--inline-model" => {
+                i += 1;
+                match args.get(i) {
+                    Some(v) if v == "threshold" || v == "benefit" => opts.inline_model = Some(v.clone()),
+                    _ => {
+                        eprintln!("cinch: --inline-model needs `threshold` or `benefit`");
+                        return 2;
+                    }
+                }
+            }
             "--case-of-case" => opts.case_of_case = true,
             "--no-stack-alloc" => opts.no_stack_alloc = true,
             "--stack-frame-limit" => {

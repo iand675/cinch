@@ -50,6 +50,9 @@ flags:
               closure plus an `__apply` instead of one saturated call
   --no-inline  leave every call in place instead of copying a small
               callee's body to its site (the rule is on by default)
+  --inline-model <threshold|benefit>  which site test the inliner uses: GHC's
+              weighted-size-against-a-threshold, or Flambda 2's benefit
+              against size (the default)
   --emit-interface-optimisations  write the .cinchopt unfoldings beside this
               compile's .cinchif files (emit-object does so by default)
   --interface-optimisations <manifest>  read the .cinchopt unfoldings beside
@@ -304,6 +307,18 @@ fn main() {
             "--no-direct-dict-calls" => opts.no_direct_dict_calls = true,
             "--no-saturate-partial" => opts.no_saturate_partial = true,
             "--no-inline" => opts.no_inline = true,
+            "--inline-model" => {
+                i += 1;
+                match rest.get(i).map(String::as_str) {
+                    Some(v @ ("threshold" | "benefit")) => {
+                        opts.inline_model = Some(v.to_string());
+                    }
+                    _ => {
+                        eprintln!("cinch: --inline-model needs `threshold` or `benefit`");
+                        exit(2);
+                    }
+                }
+            }
             "--interface-optimisations" => {
                 i += 1;
                 match rest.get(i) {

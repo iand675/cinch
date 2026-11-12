@@ -4379,6 +4379,14 @@ pub struct SimplifyReport {
     pub pruned: usize,
     /// The Core nodes those units held: IR the artifact no longer carries.
     pub pruned_nodes: usize,
+    /// Which inlining decision the run used, as the manifest spells it
+    /// (`threshold` or `benefit`).
+    pub inline_model: &'static str,
+    /// The benefit model's site decisions: the sites it inlined and the
+    /// sites it refused, per reason. Every call site the sweep considered
+    /// lands in exactly one bucket, so this is the rule's whole verdict on
+    /// the program rather than the difference between two IR line counts.
+    pub benefit: crate::simplify::BenefitTally,
 }
 
 // -------------------------------------------------- target conditions (`when`)

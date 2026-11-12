@@ -1848,6 +1848,127 @@ expected to pay only once occurrence analysis and `case-of-case` produce the
 shapes they fold, so they are kept rather than widened with further special
 cases.
 
+### 10.5 Benefit-and-size inlining, and what it measured (2026-11-12)
+
+The inliner had one decision: GHC's. A body's weighted size minus the call's
+discount, compared against a fixed threshold, with the unfoldable class
+bypassing the test and per-shape node caps bounding a certain copy
+(section 10.2). This round adds the second decision and makes it the
+default: Flambda 2's benefit against size
+(`middle_end/flambda2/simplify/inlining/call_site_inlining_decision.ml`,
+`terms/code_size_v1.ml`, `terms/removed_operations.ml`, and the survey in
+`local/oxcaml-techniques.md` section 1.1).
+
+**The rule.** Code size is the instruction count the generator emits for a
+node, in Flambda 2's units: an allocation 5 plus one per field, a direct call
+4, an indirect call 6, a C call 10, a primitive 1, a switch 5 per arm, a
+projection 1, a closure 5 plus its environment, a literal or a variable 0.
+The site test is `size * sites - benefit <= threshold`, with `sites` the
+number of duplicated call sites, so the growth term is the body existing once
+per site instead of once. A body at or below `small_function_size` (10) is
+inlined everywhere with no site test, which is Flambda 2's `Always_inline`;
+above `large_function_size` (50) it is not considered at all. The threshold
+is 10 size units. A call site whose enclosing unit is a tail worker
+(`<unit>#tail`, the shape every source loop lowers to) or a member of a
+recursive group divides its allowance by 4, because the copy is entered once
+per iteration and its benefit is paid once. A callee in a recursive group is
+refused at every site.
+
+**Where this model is weaker than Flambda 2, stated rather than papered
+over.** Flambda 2 builds the inlined body in a scratch accumulator,
+simplifies it, and takes the difference of two `Cost_metrics`, so it can
+credit an allocation the copy *deletes*. This pass has no scratch
+simplifier, so the benefit is read off the body and the site and credits only
+what is certain: the call every site removes, the alternatives a
+`known-constructor` fold deletes when the site supplies a constructor for
+every parameter the body decides over, and a projection the same fold turns
+into a field. An allocation is **not** credited, because nothing in this pass
+deletes one: a copy moves it to the site. That is the one term the two
+disagree on, and it makes this rule stricter than Flambda 2 on an
+allocation-bearing body.
+
+**The fold test is about duplication, so it does not apply at a body's only
+site.** A decision-bearing body copied to one site moves its branch into the
+caller and the callee is pruned: one copy of the decision either way. The
+test applies from the second site on, where a non-folding copy would
+duplicate the branch instead of removing it.
+
+**Measured** on the compiler's own bundle (`build/bootstrap/stage1/compiler.cinch`,
+47 sources), `emit-ir`, one binary per arm, a fresh `CINCH_STORE` per arm so
+the package store cannot reproduce one arm's artifact for another:
+
+| arm | binary | IR lines | units | call sites | allocation sites | `rc.unique` |
+|---|---|---|---|---|---|---|
+| inliner off (`--no-inline`) | before | 5,740,641 | 7,138 | 802,693 | 7,686 | 50,048 |
+| GHC thresholds, previous default | before | 5,801,514 | 7,128 | 800,516 | 7,686 | 50,080 |
+| GHC thresholds, same binary | after | 5,801,327 | 7,127 | 800,489 | 7,686 | 50,076 |
+| inert control, six dead 16-byte statics | after | 5,746,754 | 7,179 | 798,339 | 7,670 | 49,463 |
+| benefit and size, new default | after | 5,746,640 | 7,158 | 798,343 | 7,670 | 49,468 |
+
+Two rows carry the result and both are `after`: the GHC-threshold arm and the
+benefit arm are the same binary, the same sources and the same flags apart
+from `--inline-model`, so nothing but the decision differs. Benefit against
+threshold there is **54,687 fewer IR lines (-0.94%), 2,146 fewer call sites
+(-0.27%), 16 fewer allocation sites, and 608 fewer `rc.unique` sites**, at 31
+*more* units (a body the benefit model refuses keeps its own unit, which is
+the right trade when the alternative is duplicating its branch).
+
+The control row is the load bound, not a result. It is the benefit arm's own
+binary and decision with six dead 16-byte statics added to the source, so the
+114-line gap between it and the benefit arm is what a change with no
+behavioural content is worth on this measurement. The benefit arm's 54,687
+lines against threshold are two orders of magnitude larger than that, and the
+repeated benefit emit reproduces to the line, so the line count is a
+deterministic function of the decision and not of the machine.
+
+The allocation-site count is the number to check first. Section 13 of
+`design/inline-unfolding-policy.md` records that no inlining decision in the
+previous round ever duplicated an allocation site, because the model prices
+an allocation at six times a call and the class refuses an allocation-bearing
+body outright. The benefit model has no such refusal (its allocation price is
+the same 5 plus fields), so a duplicated allocation site was the failure this
+rule could have introduced. It did not: the count falls by 16, and the drop
+is the `known-constructor` fold deleting the block a decision's scrutinee was
+built from.
+
+**The counters**, from the artifact manifest's `inlining` block on the
+benefit arm: 5,577 sites inlined; 199,614 refused, of which 130,619
+`fold` (a decision-bearing body at more than one site whose scrutinee is not
+a known constructor), 43,685 `budget` (the two-percent program-growth budget
+is exhausted), 14,932 `size` (the growth term exceeds the allowance), and
+10,378 `recursive`. Every site the sweep considered lands in exactly one
+bucket, so the manifest says what the rule did rather than leaving it to be
+inferred from two IR line counts. `CINCH_INLINE_TRACE` prints the per
+candidate size, benefit, `certain` and `folds` flags and the per-copy caller
+and callee.
+
+**What the refusals say about the model.** `fold` dominating is the honest
+result: the largest single class of bodies in this program is a dictionary
+method that decides over a parameter, and at more than one site the benefit
+term cannot pay for duplicating the branch. Flambda 2 would make the same
+refusal for the same reason. `budget` at 43,685 is the growth budget doing
+its job: with the benefit test admitting more small bodies than the threshold
+test did, the two-percent cap binds, which is why the rule's net effect is
+0.94% smaller rather than the larger figure the per-site decisions alone
+would suggest. `recursive` at 10,378 is the one class the threshold model
+refuses at admission rather than at the site; the benefit model admits a
+recursive body to the table because its size is what a site test reads, and
+refuses every one of its sites here.
+
+**Rejected.** (a) Crediting a moved allocation as a removed one. It is what
+Flambda 2 does and it is what would let the rule admit an
+allocation-bearing body above the small floor; without a scratch simplifier
+that proves the block dies at the site, the credit is an unproven claim, and
+the census (`design/compilation-speed.md` section 2) says constructors are
+85.9% of blocks, so an unproven claim there is the expensive kind. (b) A
+per-site `sites` count. The growth term uses the program-wide site count, so
+a body inlined at three of its four sites is still charged for four; counting
+per site would need a second pass over the program after every copy, which is
+the pass structure the one-budget-per-run design exists to avoid. (c) A
+phase restriction (GHC's `INLINE [1]`). Section 11 of the policy note already
+records that the monotone budget gets what phases get here, and no
+measurement in this round prefers a phase split.
+
 ### 10.4 Three regressions the folds and the inliner left (2026-11-11)
 
 The Stage3 suite after the ABI 8 landings was 140 of 228 targets and 860

@@ -128,6 +128,29 @@ use crate::core::{
 };
 use std::collections::{HashMap, HashSet};
 
+/// Which inlining decision the pass makes at a call site.
+///
+/// Two models, one rule: both answer "may this call be replaced by the
+/// callee's body?", and both are reached through the same admission walk
+/// and the same copy machinery. They differ only in what the site test
+/// compares, which is the whole of the difference between GHC's two
+/// thresholds and Flambda 2's benefit against size.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum InlineModel {
+    /// GHC's shape (design/inline-unfolding-policy.md section 10): the
+    /// body's weighted size minus the call's discount, compared against
+    /// [`SimplifyOptions::inline_use_threshold`], with the unfoldable class
+    /// bypassing the test and the per-shape node caps as the only bound on
+    /// a certain copy.
+    Threshold,
+    /// Flambda 2's shape: an estimate of the work a copy removes (the
+    /// benefit) against the code size the copy adds (the size), so a copy
+    /// that deletes an allocation and a call is admitted even when it is
+    /// larger than the call it replaces, and a copy that deletes nothing is
+    /// refused however small it is.
+    Benefit,
+}
+
 /// The simplifier's budget and switches.
 #[derive(Clone, Debug)]
 pub struct SimplifyOptions {
@@ -153,6 +176,26 @@ pub struct SimplifyOptions {
     pub join_threshold: usize,
     /// Inline a call at the one site that reaches it (`inline`).
     pub inline: bool,
+    /// Which inlining decision the pass uses ([`InlineModel`]).
+    pub inline_model: InlineModel,
+    /// [`InlineModel::Benefit`]'s floor: a body whose code size
+    /// ([`code_size`]) is at most this is inlined at every site with no
+    /// site test. Flambda 2's `small_function_size`, which makes a
+    /// function's declaration `Always_inline`.
+    pub inline_small_size: usize,
+    /// [`InlineModel::Benefit`]'s ceiling: a body larger than this is never
+    /// considered, so no site test runs for it. Flambda 2's
+    /// `large_function_size`.
+    pub inline_large_size: usize,
+    /// [`InlineModel::Benefit`]'s site test: the most a body's duplication
+    /// may grow the program by, in code-size units, after the site's
+    /// benefit. Flambda 2's `threshold`.
+    pub inline_size_threshold: usize,
+    /// [`InlineModel::Benefit`]'s discount for a call site inside a loop
+    /// body (the caller is a tail worker or a member of a recursive
+    /// group): the site test's allowance is divided by this, because a
+    /// copy in a loop body is entered on every iteration.
+    pub inline_loop_discount: usize,
     /// The most a copy may add at a site, on the model's scale (`weighted`
     /// tenths of a node), after the site's discount. GHC's
     /// `-funfolding-use-threshold`, on the same scale.
@@ -201,6 +244,11 @@ impl Default for SimplifyOptions {
             case_of_case: false,
             join_threshold: 20,
             inline: true,
+            inline_model: InlineModel::Benefit,
+            inline_small_size: 10,
+            inline_large_size: 50,
+            inline_size_threshold: 10,
+            inline_loop_discount: 4,
             inline_use_threshold: 90,
             inline_creation_threshold: 750,
             inline_small: 12,
@@ -1670,6 +1718,9 @@ pub fn simplify_with_foreign(
     let mut budget = (program.fns.iter().map(|f| nodes(&f.body)).sum::<usize>() / 50).max(1_000);
     program.inline.clear();
     let mut facts: HashMap<String, InlineFacts> = HashMap::new();
+    // The benefit model's site tally, accumulated over every pass so the
+    // artifact reports the whole run rather than the last pass.
+    let mut benefit = BenefitTally::default();
     for _ in 0..opts.max_iterations {
         ticks.changed = false;
         if opts.inline {
@@ -1683,6 +1734,7 @@ pub fn simplify_with_foreign(
                     let mut body = std::mem::replace(&mut f.body, Core::Unit);
                     let mut here = InlineFacts::default();
                     let mut stack: Vec<String> = Vec::new();
+                    let loop_body = table.is_loop(&f.id.0);
                     inline_unit(
                         &mut body,
                         &table,
@@ -1693,6 +1745,8 @@ pub fn simplify_with_foreign(
                         &mut ticks,
                         &mut stack,
                         0,
+                        loop_body,
+                        &mut benefit,
                         opts,
                     );
                     f.body = body;
@@ -1734,6 +1788,11 @@ pub fn simplify_with_foreign(
     report.duplicated = ticks.duplicated;
     report.inlined = ticks.inline;
     report.inlined_nodes = facts.values().map(|f| f.nodes as usize).sum();
+    report.inline_model = match opts.inline_model {
+        InlineModel::Threshold => "threshold",
+        InlineModel::Benefit => "benefit",
+    };
+    report.benefit = benefit;
     let mut units: Vec<String> = facts.keys().cloned().collect();
     units.sort();
     report.inlined_units = units;
@@ -1791,6 +1850,329 @@ pub fn simplify_with_foreign(
 // Nothing is removed: the callee keeps its body, because other artifacts
 // and the program's interfaces name it.
 
+// ---------------------------------------------- benefit-and-size inlining
+//
+// The second model ([`InlineModel::Benefit`]) is Flambda 2's: the site test
+// compares an estimate of the work the copy removes against the code size
+// the copy adds, rather than a body's size against a fixed threshold
+// (`middle_end/flambda2/simplify/inlining/call_site_inlining_decision.ml`,
+// `terms/code_size_v1.ml`, `terms/removed_operations.ml`). Two things follow
+// from that shape and neither is available to a threshold rule:
+//
+// - An allocation is worth more than it costs. Flambda 2 prices a removed
+//   allocation at 7 and an added one at 5 plus a field, so a copy that
+//   deletes an allocation and a call is admitted even when it is *larger*
+//   than the call it replaces. A threshold rule has no way to say that,
+//   which is why ours prices an allocation at six times a call and refuses
+//   the copy outright.
+// - A copy that removes nothing is refused however small it is. A body of
+//   five primops at a site with no argument discount removes one call and
+//   adds five instructions, so the size grows and the benefit is one call.
+//
+// The model here, on Flambda 2's integer scale:
+//
+// **Code size** ([`code_size`]) is the instruction count the code generator
+// emits for a node, in Flambda 2's units: an allocation is 5 plus one per
+// field, a direct call 4, an indirect call 6, a C call 10, a primitive 1, a
+// switch 5 per arm, a projection 1, a closure 5 plus its environment. A
+// literal or a variable is 0.
+//
+// **Benefit** ([`removed_benefit`]) is the weighted count of operations the
+// copy removes from the program, on Flambda 2's `removed_operations` scale
+// divided by 8 (so the comparison against size is in size units): a removed
+// call 5/8, a removed allocation 7/8, a removed primitive 3/8, a removed
+// branch 5/8, a removed indirect call 4/8. The one addition the earlier
+// survey recorded and this tree can use: a projection whose scrutinee the
+// copy knows to be a constructor application is removed too, because
+// `known-constructor` folds it in the same pass.
+//
+// **The site test** is `size * sites - benefit <= threshold`, where `sites`
+// is the number of duplicated call sites: the body's code exists once per
+// site after the copies and once now, so the growth is `size * (sites - 1)`
+// and the call it removes is already inside `benefit`. A body at or below
+// `small_function_size` skips the test entirely (Flambda 2's
+// `Always_inline`), and a body above `large_function_size` is not considered
+// at all.
+//
+// **Loops and recursion.** A call site whose enclosing unit is a tail worker
+// (`<unit>#tail`, the shape every source loop lowers to) or a member of a
+// recursive group is entered on every iteration, so its copy's cost is paid
+// per iteration and its benefit is paid once: the site test's allowance is
+// divided by `inline_loop_discount`. A callee in a recursive group is not
+// admitted at all, which is the same refusal the threshold model makes and
+// the reason a self-recursive worker never reaches the stack rule.
+//
+// Every site decision is tallied in [`BenefitTally`], so the artifact
+// manifest says how many sites the rule inlined and how many it refused,
+// per reason, rather than leaving the difference between two IR line counts
+// to be inferred.
+
+/// Flambda 2's `removed_operations` weights, divided by 8 so a benefit is
+/// comparable with a code size. The asymmetry is the point: an allocation
+/// is worth 7/8 of a size unit and a primitive 3/8, so deleting an
+/// allocation buys more growth than deleting a primitive does.
+const BENEFIT_CALL: usize = 5;
+const BENEFIT_ALLOCATION: usize = 7;
+const BENEFIT_PRIMITIVE: usize = 3;
+const BENEFIT_BRANCH: usize = 5;
+const BENEFIT_INDIRECT: usize = 4;
+
+/// The site decisions of the benefit model, one bucket per outcome. Every
+/// call site the sweep considers lands in exactly one bucket, so `inlined`
+/// plus the refusals is the site count the rule looked at.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct BenefitTally {
+    /// Sites whose copy the rule admitted.
+    pub inlined: usize,
+    /// Sites refused because the body is larger than
+    /// [`SimplifyOptions::inline_large_size`], so no site test ran.
+    pub refused_large: usize,
+    /// Sites refused because the copy grows the program by more than the
+    /// site's allowance: the size test, which is the rule's ordinary
+    /// refusal.
+    pub refused_size: usize,
+    /// Sites refused because the callee is in a recursive group.
+    pub refused_recursive: usize,
+    /// Sites refused because the callee is a value somewhere, so a copy is
+    /// not a replacement for every reference.
+    pub refused_value: usize,
+    /// Sites refused because the callee is the program's entry unit, or its
+    /// parameter classes are still open, or it carries a quotation or a
+    /// join: the structural refusals the two models share.
+    pub refused_scope: usize,
+    /// Sites refused because a decision-bearing body's scrutinee argument is
+    /// not a known constructor, so the copy would duplicate the branch
+    /// instead of folding it.
+    pub refused_fold: usize,
+    /// Sites refused because the unfolding chain is already
+    /// [`SimplifyOptions::inline_depth`] links long, or the callee is
+    /// already on the stack.
+    pub refused_chain: usize,
+    /// Sites refused because the copy would pass the program-wide growth
+    /// budget.
+    pub refused_budget: usize,
+}
+
+impl BenefitTally {
+    /// Every refusal, summed: the sites the rule looked at that it did not
+    /// inline.
+    pub fn refused(&self) -> usize {
+        self.refused_large
+            + self.refused_size
+            + self.refused_recursive
+            + self.refused_value
+            + self.refused_scope
+            + self.refused_fold
+            + self.refused_chain
+            + self.refused_budget
+    }
+}
+
+/// Why the benefit model left a site alone. One variant per
+/// [`BenefitTally`] bucket, so the tally and the trace cannot disagree.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Refusal {
+    Large,
+    Size,
+    Recursive,
+    Value,
+    Scope,
+    Fold,
+    Chain,
+    Budget,
+}
+
+impl Refusal {
+    fn name(self) -> &'static str {
+        match self {
+            Refusal::Large => "large",
+            Refusal::Size => "size",
+            Refusal::Recursive => "recursive",
+            Refusal::Value => "value",
+            Refusal::Scope => "scope",
+            Refusal::Fold => "fold",
+            Refusal::Chain => "chain",
+            Refusal::Budget => "budget",
+        }
+    }
+
+    fn count(self, tally: &mut BenefitTally) {
+        match self {
+            Refusal::Large => tally.refused_large += 1,
+            Refusal::Size => tally.refused_size += 1,
+            Refusal::Recursive => tally.refused_recursive += 1,
+            Refusal::Value => tally.refused_value += 1,
+            Refusal::Scope => tally.refused_scope += 1,
+            Refusal::Fold => tally.refused_fold += 1,
+            Refusal::Chain => tally.refused_chain += 1,
+            Refusal::Budget => tally.refused_budget += 1,
+        }
+    }
+}
+
+/// The instruction count a node's code costs, in Flambda 2's units
+/// (`terms/code_size_v1.ml`): an allocation 5 plus one per field, a direct
+/// call 4, an indirect call 6, a C call 10, a primitive 1, a switch 5 per
+/// arm, a projection 1, a closure 5 plus its environment. A literal, a
+/// variable and a value binder cost nothing, because the code generator
+/// emits no instruction for them.
+fn code_size(e: &Core, tables: &Tables) -> usize {
+    match e {
+        Core::Int(_)
+        | Core::Bool(_)
+        | Core::Unit
+        | Core::ConstBig { .. }
+        | Core::ConstBytes(_)
+        | Core::ConstString { .. }
+        | Core::ConstSym(_)
+        | Core::StrLit(_)
+        | Core::Var(_)
+        | Core::Global(..)
+        | Core::Ctor(..)
+        | Core::Prim(_)
+        | Core::Foreign(_)
+        | Core::SpliceVal(_)
+        | Core::SyntaxLit(..)
+        | Core::LazyAlloc
+        | Core::BoxAlloc
+        | Core::Fault => 0,
+        // A `let` of a value is the binder's slot, which the occurrence
+        // rules eliminate; what it costs is its right hand side.
+        Core::Let(_, _, value, body) => code_size(value, tables) + code_size(body, tables),
+        Core::App(head, args) => match &**head {
+            // A primop's instruction sequence.
+            Core::Prim(_) => 1 + args.iter().map(|a| code_size(a, tables)).sum::<usize>(),
+            // A real call: the wrapper plus its arguments.
+            Core::Foreign(_) => 10 + args.iter().map(|a| code_size(a, tables)).sum::<usize>(),
+            // A constructor application: one block, five units plus a field
+            // each (a nullary constructor is a static block, so nothing).
+            Core::Ctor(id, _) => {
+                let fields = tables.ctors.get(&id.0).map_or(args.len(), |(_, f)| *f);
+                if fields == 0 {
+                    args.iter().map(|a| code_size(a, tables)).sum()
+                } else {
+                    5 + fields + args.iter().map(|a| code_size(a, tables)).sum::<usize>()
+                }
+            }
+            Core::Global(g, _) if tables.ctors.contains_key(&g.0) => {
+                let fields = tables.ctors.get(&g.0).map_or(args.len(), |(_, f)| *f);
+                if fields == 0 {
+                    args.iter().map(|a| code_size(a, tables)).sum()
+                } else {
+                    5 + fields + args.iter().map(|a| code_size(a, tables)).sum::<usize>()
+                }
+            }
+            // A direct call: four units, which is Flambda 2's price for
+            // `Apply` with a `Direct` call kind.
+            Core::Global(..) => 4 + args.iter().map(|a| code_size(a, tables)).sum::<usize>(),
+            // Anything else is an indirect call through a closure: six
+            // units, plus the closure the head evaluates.
+            other => 6 + code_size(other, tables) + args.iter().map(|a| code_size(a, tables)).sum::<usize>(),
+        },
+        // A closure: five units for the block, plus what its environment
+        // evaluates.
+        Core::Lam { env, .. } => 5 + env.iter().map(|a| code_size(a, tables)).sum::<usize>(),
+        // A switch: five units per arm, plus the scrutinee and the arms.
+        Core::Case { scrut, alts } => {
+            5 * alts.len()
+                + code_size(scrut, tables)
+                + alts.iter().map(|a| code_size(&a.body, tables)).sum::<usize>()
+        }
+        Core::If(condition, then, otherwise) => {
+            5 + code_size(condition, tables) + code_size(&then.body, tables) + code_size(&otherwise.body, tables)
+        }
+        // A load.
+        Core::Proj(inner, _) | Core::DictProj(inner, ..) | Core::Demand(inner, _) => {
+            1 + code_size(inner, tables)
+        }
+        Core::InstDict(..) | Core::Reuse { .. } => 5 + child_slots_imm(e).into_iter().map(|c| code_size(c, tables)).sum::<usize>(),
+        // The remaining nodes are effects whose own instruction sequence is
+        // one unit plus what they carry: a count operation is an atomic on
+        // the header, a store is one store.
+        _ => 1 + child_slots_imm(e).into_iter().map(|c| code_size(c, tables)).sum::<usize>(),
+    }
+}
+
+/// The operations one call site's copy removes from the program, in
+/// eighths of a [`code_size`] unit. The one unconditional term is the call
+/// the copy replaces; the rest is credited only when the site makes it
+/// certain.
+///
+/// This is a lower bound, not Flambda 2's measured benefit. Flambda 2 builds
+/// the inlined body in a scratch accumulator, simplifies it, and takes the
+/// difference of two `Cost_metrics`; this pass has no scratch simplifier, so
+/// the benefit is read off the body and the site instead:
+///
+/// - The call: every site removes one.
+/// - A branch: a body that decides over a parameter is copied only where the
+///   site supplies a constructor for that parameter (the `fold` test), so
+///   `known-constructor` deletes the decision in the pass that follows. Only
+///   the alternatives the fold drops are credited.
+/// - A projection: credited where the body projects a local the fold has
+///   turned into a field.
+/// - An allocation: not credited. A copy moves the allocation to the site,
+///   and nothing in this pass deletes it, so crediting it would admit a copy
+///   that duplicates the allocation at every site. This is exactly the term
+///   Flambda 2 credits (7/8 of a size unit, above its own 5+fields price)
+///   and this model cannot, and it is the one place the two disagree.
+fn site_benefit(body: &Core, tables: &Tables, folds: bool) -> usize {
+    let call = BENEFIT_CALL;
+    if !folds {
+        return call;
+    }
+    call + fold_credit(body, tables)
+}
+
+/// The operations `known-constructor` deletes from `body` once the
+/// parameters it decides over arrive as constructor applications, in
+/// eighths of a size unit: each such decision loses every alternative but
+/// the one its tag selects, and a projection of a local bound to a
+/// constructor application becomes the field itself.
+fn fold_credit(body: &Core, tables: &Tables) -> usize {
+    fn go(e: &Core, bound: &mut HashMap<LocalId, usize>, tables: &Tables, credit: &mut usize) {
+        match e {
+            Core::Let(l, _, value, rest) => {
+                go(value, bound, tables, credit);
+                let inserted = ctor_app(value, tables).map(|tag| {
+                    bound.insert(*l, tag);
+                });
+                go(rest, bound, tables, credit);
+                if inserted.is_some() {
+                    bound.remove(l);
+                }
+            }
+            Core::Case { scrut, alts } => {
+                go(scrut, bound, tables, credit);
+                if let Core::Var(v) = &**scrut {
+                    if bound.contains_key(v) {
+                        *credit += BENEFIT_BRANCH * alts.len().saturating_sub(1);
+                    }
+                }
+                for a in alts {
+                    go(&a.body, bound, tables, credit);
+                }
+            }
+            Core::Proj(inner, _) => {
+                go(inner, bound, tables, credit);
+                if let Core::Var(v) = &**inner {
+                    if bound.contains_key(v) {
+                        *credit += BENEFIT_PRIMITIVE;
+                    }
+                }
+            }
+            _ => {
+                for child in child_slots_imm(e) {
+                    go(child, bound, tables, credit);
+                }
+            }
+        }
+    }
+    let mut bound: HashMap<LocalId, usize> = HashMap::new();
+    let mut credit = 0;
+    go(body, &mut bound, tables, &mut credit);
+    credit
+}
+
 thread_local! {
     /// The unit the sweep is rewriting, for `CINCH_INLINE_TRACE`.
     static CURRENT: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
@@ -1817,6 +2199,18 @@ pub struct InlineFacts {
 struct InlineTable {
     /// Bodies inlined at their single call site, by unit name.
     bodies: HashMap<String, InlineBody>,
+    /// The units whose bodies are loop bodies: a tail worker (`<unit>#tail`,
+    /// the shape every source loop lowers to) or a member of a recursive
+    /// group. A call site inside one of these is entered once per iteration,
+    /// so the benefit model divides its allowance there.
+    loops: HashSet<String>,
+}
+
+impl InlineTable {
+    /// Whether `unit`'s body is a loop body.
+    fn is_loop(&self, unit: &str) -> bool {
+        self.loops.contains(unit)
+    }
 }
 
 struct InlineBody {
@@ -1839,6 +2233,24 @@ struct InlineBody {
     /// nothing; a decision or a chain link can grow, and is bounded by the
     /// budget like every other copy.
     charge: bool,
+    /// The benefit model's code size for this body ([`code_size`]).
+    size: usize,
+    /// The benefit model's estimate of the work a copy removes
+    /// ([`removed_benefit`]).
+    benefit: usize,
+    /// The number of saturated direct call sites the program has for this
+    /// body, which is the `sites` factor in the benefit model's growth
+    /// term. Zero for a body only the foreign table provides.
+    sites: usize,
+    /// Whether the callee is in a recursive group, so the benefit model
+    /// refuses it before any site test. The threshold model refuses it at
+    /// admission; this field exists because the benefit model admits a
+    /// recursive body to the table (its size is what a site test needs) and
+    /// refuses it at the site.
+    recursive: bool,
+    /// Whether the callee is used as a value somewhere in the program, so a
+    /// copy is not a replacement for every reference.
+    valued: bool,
 }
 
 impl InlineTable {
@@ -1913,6 +2325,15 @@ fn inline_table(
     let unfold = unfoldable_units(program, foreign, tables, &recursive);
     let trace = opts_trace();
     let mut table = InlineTable::default();
+    // The loop bodies: a tail worker, and every member of a recursive group.
+    // A call site inside one is entered once per iteration of the loop it
+    // sits in, which is the site fact the benefit model discounts for.
+    table.loops = program
+        .fns
+        .iter()
+        .map(|f| f.id.0.clone())
+        .filter(|name| name.contains("#tail") || recursive.contains(name))
+        .collect();
     for f in program.fns.iter().chain(foreign.iter()) {
         // A `prim` unit's body is inline target IR, not Core, and a ctor unit
         // is admitted only when its body is a static block (a nullary
@@ -1926,17 +2347,21 @@ fn inline_table(
         let admit = candidate(f, program, &tables, &values, &recursive, &unfold, sites, n, opts);
         if trace {
             // Every candidate the sweep considered, with the numbers the
-            // rules decide on: the body's size, its sites, and the locals
-            // the body reads free (exactly its parameters for a body the
-            // copy can be closed over).
+            // rules decide on: the body's node count and code size, its
+            // sites, and the locals the body reads free (exactly its
+            // parameters for a body the copy can be closed over).
             let free: Vec<usize> = copy_free_locals(&f.body).into_iter().map(|l| l.0).collect();
+            let detail = match &admit {
+                Ok(a) => format!(
+                    "admitted (size {}, benefit {}, certain {}, folds {})",
+                    a.size, a.benefit, a.certain, a.folds
+                ),
+                Err(why) => format!("refused ({})", why.name()),
+            };
             eprintln!(
-                "cinch-inline-candidate: {name}: {n} nodes, {sites} site(s), {} parameter(s), free {free:?}: {}",
+                "cinch-inline-candidate: {name}: {n} nodes, {} code size, {sites} site(s), {} parameter(s), free {free:?}: {detail}",
+                code_size(&f.body, &tables),
                 f.arity(),
-                match &admit {
-                    Ok(_) => "admitted".to_string(),
-                    Err(why) => format!("refused ({})", why.name()),
-                }
             );
         }
         if let Ok(admitted) = admit {
@@ -1950,6 +2375,11 @@ fn inline_table(
                     charge: admitted.charge,
                     certain: admitted.certain,
                     weight: admitted.weight,
+                    size: admitted.size,
+                    benefit: admitted.benefit,
+                    sites,
+                    recursive: admitted.recursive,
+                    valued: admitted.valued,
                 },
             );
         }
@@ -2017,6 +2447,21 @@ struct Admitted {
     certain: bool,
     /// The copy's cost on the model's scale (`weighted`).
     weight: usize,
+    /// The benefit model's code size for the body ([`code_size`]).
+    size: usize,
+    /// The benefit model's per-site benefit ([`site_benefit`]).
+    benefit: usize,
+    /// Whether the benefit model may credit a fold at the site: the same
+    /// condition as [`Admitted::fold`], restated because the two models
+    /// treat a non-folding decision differently (the threshold model copies
+    /// it anyway when it is small, the benefit model never does).
+    folds: bool,
+    /// The callee is in a recursive group, so no copy may be made. The
+    /// threshold model refuses it at admission; the benefit model admits the
+    /// body (its size is what the site test reads) and refuses every site.
+    recursive: bool,
+    /// The callee is used as a value somewhere in the program.
+    valued: bool,
 }
 
 fn candidate(
@@ -2037,9 +2482,6 @@ fn candidate(
     if program.main.as_ref().is_some_and(|m| &m.0 == name) {
         return Err(Refused::Entry);
     }
-    if recursive.contains(name) {
-        return Err(Refused::Recursive);
-    }
     // An unresolved parameter class (`Param`, which the collector left in a
     // body no concrete vector reached) would give a bound argument a `Raw`
     // binder while the body reads it as a borrowed case scrutinee, which
@@ -2056,80 +2498,143 @@ fn candidate(
     }
     // A nullary constructor's unit returns a static block, so a copy of it
     // is a constant, not work: it is certain, with no size test. A
-    // constructor with fields allocates per copy, and stays out.
+    // constructor with fields allocates per copy; whether that is worth it
+    // is the site test's question, so it is admitted with its own size and
+    // benefit and refused there if it does not pay.
     if let Some((_, fields)) = f.ctor {
-        return if fields == 0 {
-            Ok(Admitted {
-                params: Vec::new(),
-                cases: Vec::new(),
-                fold: false,
-                charge: false,
-                certain: true,
-                weight: 0,
-            })
-        } else {
-            Err(Refused::Costly)
-        };
+        let size = if fields == 0 { 0 } else { 5 + fields };
+        return Ok(Admitted {
+            params: Vec::new(),
+            cases: Vec::new(),
+            fold: false,
+            charge: fields != 0,
+            certain: fields == 0,
+            weight: weighted(&f.body, tables),
+            size,
+            benefit: BENEFIT_CALL,
+            folds: false,
+            recursive: false,
+            valued: false,
+        });
     }
     let params = || {
         (0..f.arity())
             .map(|i| f.repr.params.get(i).copied().map_or(Class::Raw, concrete))
             .collect()
     };
-    // The class rule: a body cheap by construction is copied to every site
-    // that reaches it, whatever the site count, and even when the unit is
-    // also used as a value (the definition survives, so a value use still
-    // has a code pointer). A certain copy needs no size test at the site,
-    // so the caps below are the only bound on it: a body of pure projections
-    // and primops is small, a body that chains to another unit carries a
-    // call the recursive rule expands, and a decision-bearing body is either
-    // small enough that duplicating the decision costs no more than the
-    // call, or admitted only where the decision folds.
-    if let Some(shape) = unfold.get(name) {
-        if shape.cases == 0 {
-            let cap = if shape.chain { opts.inline_unfold } else { opts.inline_small };
-            if n <= cap {
+    let size = code_size(&f.body, tables);
+    let is_recursive = recursive.contains(name);
+    let valued = values.contains(name);
+    // The class rule is the threshold model's certain copy: a body cheap by
+    // construction, under a per-shape node cap, is copied to every site with
+    // no size test. The benefit model reaches the same conclusion from its
+    // own numbers ([`SimplifyOptions::inline_small_size`]), so this arm is
+    // only taken under the threshold model.
+    if opts.inline_model == InlineModel::Threshold {
+        if let Some(shape) = unfold.get(name) {
+            if shape.cases == 0 {
+                let cap = if shape.chain { opts.inline_unfold } else { opts.inline_small };
+                if n <= cap {
+                    return Ok(Admitted {
+                        params: params(),
+                        cases: Vec::new(),
+                        fold: false,
+                        charge: shape.chain,
+                        certain: true,
+                        weight: weighted(&f.body, tables),
+                        size,
+                        benefit: BENEFIT_CALL,
+                        folds: false,
+                        recursive: is_recursive,
+                        valued,
+                    });
+                }
+            } else if n <= opts.inline_unfold_case {
+                // A decision whose scrutinee is a parameter: small copies go
+                // everywhere (a compare and a branch cost no more than the
+                // call), larger ones only where the scrutinee argument is a
+                // constructor so the copy folds.
+                let mut cases = Vec::new();
+                case_scrutinee_params(&f.body, &mut cases);
+                let fold = n > opts.inline_unfold_small;
                 return Ok(Admitted {
                     params: params(),
-                    cases: Vec::new(),
-                    fold: false,
-                    charge: shape.chain,
+                    cases,
+                    fold,
+                    charge: true,
                     certain: true,
                     weight: weighted(&f.body, tables),
+                    size,
+                    benefit: BENEFIT_CALL,
+                    folds: fold,
+                    recursive: is_recursive,
+                    valued,
                 });
             }
-        } else if n <= opts.inline_unfold_case {
-            // A decision whose scrutinee is a parameter: small copies go
-            // everywhere (a compare and a branch cost no more than the
-            // call), larger ones only where the scrutinee argument is a
-            // constructor so the copy folds.
-            let mut cases = Vec::new();
-            case_scrutinee_params(&f.body, &mut cases);
-            let fold = n > opts.inline_unfold_small;
-            return Ok(Admitted {
-                params: params(),
-                cases,
-                fold,
-                charge: true,
-                certain: true,
-                weight: weighted(&f.body, tables),
-            });
         }
     }
-    // The risky path: a body that is not certain is admitted only when it is
-    // small enough to be worth considering at all (GHC's creation
-    // threshold), and each site then compares its own discount against the
-    // use threshold. A value use is refused here because the copy is no
-    // longer a replacement for every reference, which is the size argument
-    // the class does not need.
+    // The risky path, shared by both models: a body that is not certain is
+    // admitted only when it is small enough to be worth considering at all,
+    // and each site then makes its own decision. A value use is refused
+    // because the copy is no longer a replacement for every reference,
+    // which is the size argument the class does not need.
     let weight = weighted(&f.body, tables);
-    if weight > opts.inline_creation_threshold {
-        return Err(Refused::Large);
+    match opts.inline_model {
+        InlineModel::Threshold => {
+            if weight > opts.inline_creation_threshold {
+                return Err(Refused::Large);
+            }
+            if valued {
+                return Err(Refused::Value);
+            }
+            Ok(Admitted {
+                params: params(),
+                cases: Vec::new(),
+                fold: false,
+                charge: true,
+                certain: false,
+                weight,
+                size,
+                benefit: BENEFIT_CALL,
+                folds: false,
+                recursive: is_recursive,
+                valued,
+            })
+        }
+        // Flambda 2's definition-level classes
+        // (`function_decl_inlining_decision_type.ml`): at or below
+        // `small_function_size` the body is always inlined, above
+        // `large_function_size` it is never considered, and between them a
+        // site test decides.
+        InlineModel::Benefit => {
+            if size > opts.inline_large_size {
+                return Err(Refused::Large);
+            }
+            if valued {
+                return Err(Refused::Value);
+            }
+            let mut cases = Vec::new();
+            case_scrutinee_params(&f.body, &mut cases);
+            let folds = !cases.is_empty();
+            Ok(Admitted {
+                params: params(),
+                cases,
+                // The benefit model never copies a decision it cannot fold:
+                // a duplicated branch is exactly what the benefit term
+                // cannot pay for, because the copy would add arms and remove
+                // no call from inside them.
+                fold: folds,
+                charge: true,
+                certain: size <= opts.inline_small_size,
+                weight,
+                size,
+                benefit: site_benefit(&f.body, tables, folds),
+                folds,
+                recursive: is_recursive,
+                valued,
+            })
+        }
     }
-    if values.contains(name) {
-        return Err(Refused::Value);
-    }
-    Ok(Admitted { params: params(), cases: Vec::new(), fold: false, charge: true, certain: false, weight })
 }
 
 
@@ -2533,27 +3038,32 @@ fn inline_unit(
     t: &mut Ticks,
     stack: &mut Vec<String>,
     depth: usize,
+    // Whether this position is inside a loop body (the enclosing unit is a
+    // tail worker or a member of a recursive group), which divides the
+    // benefit model's allowance at every site below it.
+    loop_body: bool,
+    tally: &mut BenefitTally,
     opts: &SimplifyOptions,
 ) {
     // Children first, so a call nested in an argument is inlined before the
     // call whose argument it is.
     match e {
         Core::App(head, args) => {
-            inline_unit(head, table, tables, fresh, budget, facts, t, stack, depth, opts);
+            inline_unit(head, table, tables, fresh, budget, facts, t, stack, depth, loop_body, tally, opts);
             for a in args {
-                inline_unit(a, table, tables, fresh, budget, facts, t, stack, depth, opts);
+                inline_unit(a, table, tables, fresh, budget, facts, t, stack, depth, loop_body, tally, opts);
             }
         }
         Core::Quote { holes, .. } | Core::DeclsQuote { holes, .. } => {
             // A quotation's retained body is a code unit of its own.
             for h in holes {
-                inline_unit(h, table, tables, fresh, budget, facts, t, stack, depth, opts);
+                inline_unit(h, table, tables, fresh, budget, facts, t, stack, depth, loop_body, tally, opts);
             }
             return;
         }
         _ => {
             for k in child_slots(e) {
-                inline_unit(k, table, tables, fresh, budget, facts, t, stack, depth, opts);
+                inline_unit(k, table, tables, fresh, budget, facts, t, stack, depth, loop_body, tally, opts);
             }
         }
     }
@@ -2568,42 +3078,92 @@ fn inline_unit(
     // end. Independent of it, the depth cap bounds a long acyclic chain and
     // the node budget bounds the program-wide growth.
     if depth >= opts.inline_depth || stack.iter().any(|name| name == &g.0) {
+        tally.refused_chain += 1;
+        return;
+    }
+    // A callee in a recursive group is refused at every site: its body
+    // reaches itself, so a copy would be a copy of a function that calls
+    // itself, and the stack rule alone would let the chain grow to the depth
+    // cap. The threshold model also refuses it at admission; this test is
+    // what makes the benefit model's admission safe.
+    if callee.recursive {
+        tally.refused_recursive += 1;
         return;
     }
     // A decision-bearing body is copied only where the decision folds: a
     // copy with an unknown scrutinee would duplicate the branch instead of
-    // removing it.
+    // removing it. The test is about *duplication*, so it does not apply at
+    // a body's only site: there the branch moves into the caller and the
+    // callee is pruned, which is one copy of the decision either way.
+    // Under the benefit model the fold is also what the benefit term
+    // credits, so the two cannot disagree.
+    let duplicated = callee.sites > 1;
     if callee.fold
+        && duplicated
         && !callee.cases.iter().all(|i| {
             args.get(*i).is_some_and(|a| known_constructor_value(a, tables))
         })
     {
+        tally.refused_fold += 1;
         return;
     }
-    // The site test (design/inline-unfolding-policy.md section 10): the copy
-    // pays for the call it removes and for every argument that already costs
-    // something, and an interesting argument pays more because the copy will
-    // fold it. What is left is compared with the use threshold.
-    if !callee.certain {
-        let mut discount = 10usize;
-        for a in args.iter() {
-            discount += if trivial_arg(a, tables) {
-                10 * usize::from(interesting_arg(a, tables))
-            } else {
-                10 + 10 * usize::from(interesting_arg(a, tables))
-            };
+    let added = nodes(&callee.body);
+    match opts.inline_model {
+        // The site test (design/inline-unfolding-policy.md section 10): the
+        // copy pays for the call it removes and for every argument that
+        // already costs something, and an interesting argument pays more
+        // because the copy will fold it. What is left is compared with the
+        // use threshold.
+        InlineModel::Threshold => {
+            if !callee.certain {
+                let mut discount = 10usize;
+                for a in args.iter() {
+                    discount += if trivial_arg(a, tables) {
+                        10 * usize::from(interesting_arg(a, tables))
+                    } else {
+                        10 + 10 * usize::from(interesting_arg(a, tables))
+                    };
+                }
+                if callee.weight.saturating_sub(discount) > opts.inline_use_threshold {
+                    tally.refused_size += 1;
+                    return;
+                }
+            }
         }
-        if callee.weight.saturating_sub(discount) > opts.inline_use_threshold {
-            return;
+        // Flambda 2's site test
+        // (`simplify/inlining/call_site_inlining_decision.ml:211-310`):
+        // `size * sites - benefit <= threshold`. The body's code exists once
+        // per site after the copies and once now, so the growth is
+        // `size * sites` against the `size` already there; the call the copy
+        // removes is inside the benefit, so no separate subtraction is
+        // needed. A body at or below `small_function_size` skips the test
+        // (`Always_inline`), and a site inside a loop body divides its
+        // allowance because the copy is entered on every iteration while the
+        // benefit is paid once.
+        InlineModel::Benefit => {
+            if !callee.certain {
+                let growth = callee.size.saturating_mul(callee.sites.max(1));
+                let removed = callee.benefit;
+                let allowance = if loop_body {
+                    opts.inline_size_threshold / opts.inline_loop_discount.max(1)
+                } else {
+                    opts.inline_size_threshold
+                };
+                if growth.saturating_sub(removed) > allowance {
+                    tally.refused_size += 1;
+                    return;
+                }
+            }
         }
     }
-    let added = nodes(&callee.body);
     if callee.charge {
         if added > *budget {
+            tally.refused_budget += 1;
             return;
         }
         *budget -= added;
     }
+    tally.inlined += 1;
     facts.sites += 1;
     facts.nodes += added as u32;
     if opts_trace() {
@@ -2675,7 +3235,7 @@ fn inline_unit(
     // (`Eq_Nat.==` would still name `natCmp` through a second wrapper), and
     // the chain is what the depth cap and the stack bound.
     stack.push(name);
-    inline_unit(&mut copy, table, tables, fresh, budget, facts, t, stack, depth + 1, opts);
+    inline_unit(&mut copy, table, tables, fresh, budget, facts, t, stack, depth + 1, loop_body, tally, opts);
     stack.pop();
     *e = copy;
 }
