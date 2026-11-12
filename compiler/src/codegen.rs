@@ -313,12 +313,12 @@ fn emit_module(
     out.push_str("declare void @cinch_drop_mt(i64)\n");
     out.push_str("declare void @cinch_free(i64)\n");
     out.push_str("declare void @cinch_reclaim_enable()\n");
-    if reg.reclaim && !reg.rc_debug {
-        let frame = reg.any_frame();
-        if frame {
-            out.push_str("declare void @cinch_frame_release(i64)\n");
-        }
-        out.push_str(&rc_helpers(frame));
+    // The count helpers are private to this module and a program that
+    // counts nothing needs none of them, so they are held back until the
+    // units are assembled and then emitted only where a body calls them.
+    let frame = reg.reclaim && !reg.rc_debug && reg.any_frame();
+    if frame {
+        out.push_str("declare void @cinch_frame_release(i64)\n");
     }
     // The runtime ABI's mathematical `Nat`/`Int` and `Bytes` externs
     // (`compiler/runtime/src/lib.rs`); `Nat`/`Int` words are opaque
@@ -796,6 +796,14 @@ fn emit_module(
                 static_payload(&format!("{}.clo", u.name), reg.closure_desc(&u.name))
             ));
         }
+    }
+    // The count helpers a body actually calls. Emitting all four into
+    // every module put roughly 120 lines of unreachable IR into a program
+    // that counts nothing (`main = 0` was 696 lines, 121 of them these).
+    // They are `internal`, so the assembler deleted them anyway: this is
+    // IR size and the assembler's parse, not code size.
+    if reg.reclaim && !reg.rc_debug {
+        out.push_str(&rc_helpers(frame, &out));
     }
     // The C-callable entries (foreign function interface specification
     // section 2).
@@ -4102,19 +4110,28 @@ fn rc_helper_name(drop: bool, class: Class) -> &'static str {
 /// (`cinch_frame_release`) instead of counting. A module that neither
 /// holds nor receives a frame block keeps the exact helper it always had,
 /// which is what leaves `--no-stack-alloc` byte-identical.
-fn rc_helpers(frame: bool) -> String {
+fn rc_helpers(frame: bool, units: &str) -> String {
     let mut out = String::new();
     for class in [Class::Obj, Class::TObj] {
         for drop in [false, true] {
+            // A helper no assembled body calls is not emitted: the
+            // definition would be the only occurrence of its name.
+            let name = rc_helper_name(drop, class);
+            if !units.contains(&format!("@{name}(")) {
+                continue;
+            }
             let mut b = Builder::new();
             b.reclaim = true;
             rc_inline(&mut b, drop, "%w", class, frame);
             b.line("ret void");
-            out.push_str(&format!("define internal void @{}(i64 %w) {{\n{}}}\n", rc_helper_name(drop, class), b.code));
+            out.push_str(&format!("define internal void @{}(i64 %w) {{\n{}}}\n", name, b.code));
         }
     }
     // A drop specialisation's test (`Core::Release`): a nonzero word whose
     // block's thread-local count is exactly one.
+    if !units.contains(&format!("@{RC_UNIQUE}(")) {
+        return out;
+    }
     let mut b = Builder::new();
     let (lblock, lno) = (b.label(), b.label());
     b.line("%z = icmp eq i64 %w, 0");
