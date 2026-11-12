@@ -237,16 +237,24 @@ What it took, in the order the compiler and the runtime refused:
   signature mismatch against the runtime's own `(i32, i32, i32)`
   `memcpy` and which traps at run time.
 
-One bug remains open and is narrowed to a single case: `map` (and any
-recursive higher-order list function) over a closure **with saved
-words** traps in the runtime's `release` while dropping the closure,
-after the closure is applied once. The same closure applied directly,
-through `apply1`, or dropped and re-applied is correct; the same shape
-written out by hand is correct; a closure with no saved words through
-`map` is correct; and the whole thing is correct on a native target. So
-it is a wasm32 miscompile in one narrow path rather than a wrong
-representation, and it needs a wasm-level debugger rather than more
-guessing.
+- **A freestanding module registers its own layout table.** This one
+  cost the most and was the last thing found. `llvm.global_ctors` is how
+  a native process registers the table: libc runs the constructors
+  before `main`. A bare Wasm module has no `_start` and no libc, so
+  nothing ran them, the table stayed empty, and every shaped block
+  answered `shaped block with no registered layout`. The symptom was a
+  trap inside the runtime's `release` on the first `map` over a closure
+  with saved words: five separate wrong theories followed before the
+  message itself was made readable. The Wasm entry now calls the
+  initialiser itself, and a host that also calls `__wasm_call_ctors`
+  runs it twice, which is free because `cinch_layouts_register` is a
+  plain store.
+
+The lesson worth keeping: a trap on a target with no stderr says only
+`unreachable`, so the first move is to make the runtime's message
+readable (an exported buffer `panic_exit` fills, which is what found
+this), not to reason from the stack. Every one of the six items above was
+invisible in review and obvious once the target was actually run.
 
 ### The limit of what is verifiable here
 

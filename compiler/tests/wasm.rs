@@ -531,3 +531,55 @@ module Wide where
         "every function carries the tail-call feature so musttail assembles"
     );
 }
+
+/// A freestanding module registers its own layout table (WebAssembly and
+/// WASI specification section 2).
+///
+/// `llvm.global_ctors` is how a native process registers it: libc runs
+/// the constructors before `main`. A bare Wasm module has no `_start` and
+/// no libc, so nothing ran them, the table stayed empty, and every shaped
+/// block answered `shaped block with no registered layout`. That surfaced
+/// as a trap inside the runtime's `release` on the first `map` over a
+/// closure with saved words, nowhere near the cause.
+///
+/// The Wasm entry therefore calls the initialiser itself. A host that
+/// also calls `__wasm_call_ctors` runs it twice, and
+/// `cinch_layouts_register` is a plain store, so the repeat is free.
+#[test]
+fn the_wasm_entry_registers_the_layout_table_itself() {
+    let src = r#"
+module Wide where
+  import Data.List
+  add-k :: Int -> Int -> Int
+  add-k k x = x + k
+  shifted :: Int -> Int
+  shifted = add-k 3
+  n :: Int
+  n = length (map shifted (replicate 2 5))
+  main :: Int
+  main = if n == 2 then 0 else 1
+"#;
+    let program = cinch::driver::check_sources_profile(
+        src,
+        "<test>",
+        &TargetProfile::wasm32(ArtifactProfile::CoreWasm),
+    )
+    .expect("the program checks at wasm32");
+    let ir = cinch::codegen::emit_for(
+        &TargetProfile::wasm32(ArtifactProfile::CoreWasm),
+        &program,
+    )
+    .expect("wasm32 IR emission");
+    let main = ir
+        .split("define i32 @main()")
+        .nth(1)
+        .expect("a wasm module has the plain main shape");
+    assert!(
+        main.contains("call void @__cinch_layouts_init()"),
+        "the wasm entry registers the layout table itself:\n{main}"
+    );
+    assert!(
+        main.contains("call i64 @") && main.contains("@cinch_exit_check"),
+        "the entry still runs the program and checks its exit:\n{main}"
+    );
+}
