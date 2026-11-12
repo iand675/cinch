@@ -320,11 +320,18 @@ module Bootstrap.Stage where
   surface-template :: String -> List Decl -> Option Expr
   surface-template name declarations = declarations-template name declarations
 
+  -- A stage declaration and its signature are two marked declarations with
+  -- the same name, and the signature comes first. A match that carries no
+  -- template therefore continues the walk rather than ending it, which is
+  -- what finds the definition behind the signature.
   declarations-template :: String -> List Decl -> Option Expr
   declarations-template name declarations = case declarations of
     Nil -> None
     Cons first rest -> case first of
-      DStage site body -> if same (definition-name body) name then clause-template-of body
+      DStage site body -> if same (definition-name body) name then
+        (case clause-template-of body of
+          Some template -> Some template
+          None -> declarations-template name rest)
         else declarations-template name rest
       other -> declarations-template name rest
 
@@ -346,12 +353,34 @@ module Bootstrap.Stage where
   -- the surface supplies; or it is a stage computation whose value is code,
   -- which the evaluator runs and reifies. A splice that is none of these is
   -- refused by name.
-  expand-clause :: CheckedProgram -> String -> List Decl -> List Decl -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
-  expand-clause checked owner module-decls template-decls body fuel = case body of
+  -- The two declaration lists the expander walks, kept apart by name. They
+  -- are both `List Decl`, so a call site that passes them in the wrong order
+  -- type-checks and silently looks a template up in the wrong list; naming
+  -- them in a record makes that impossible and says which one each walk
+  -- iterates.
+  --
+  --   module   the module's own declarations, where a quotation-bodied stage
+  --            declaration and its template live (the lookup reads this);
+  --   template the declaration list of the emit being expanded, which the
+  --            template walk iterates.
+  data ExpandScope where
+    MkExpandScope :: List Decl -> List Decl -> ExpandScope
+
+  scope-module :: ExpandScope -> List Decl
+  scope-module scope = case scope of MkExpandScope module-decls template-decls -> module-decls
+
+  scope-template :: ExpandScope -> List Decl
+  scope-template scope = case scope of MkExpandScope module-decls template-decls -> template-decls
+
+  scope-with-template :: List Decl -> ExpandScope -> ExpandScope
+  scope-with-template template-decls scope = MkExpandScope (scope-module scope) template-decls
+
+  expand-clause :: CheckedProgram -> String -> ExpandScope -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
+  expand-clause checked owner scope body fuel = case body of
     ESplice site expression -> case expression of
       EQuote at template -> expand-quotation checked owner template fuel
       other -> case splice-reference other of
-        Some name -> case surface-template name module-decls of
+        Some name -> case surface-template name (scope-module scope) of
           Some template -> expand-quotation checked owner template fuel
           None -> splice-value checked owner site expression fuel
         None -> splice-value checked owner site expression fuel
@@ -370,46 +399,46 @@ module Bootstrap.Stage where
       Ok (StageCode template, remaining) -> Ok (template-body template, remaining)
       Ok other -> stage-error site "splice did not produce checked code"
 
-  expand-clauses :: CheckedProgram -> String -> List Decl -> List Decl -> List (List Pat, Expr) -> Nat -> Result (List Diagnostic) (List (List Pat, Expr), Nat)
-  expand-clauses checked owner module-decls template-decls clauses fuel = case clauses of
+  expand-clauses :: CheckedProgram -> String -> ExpandScope -> List (List Pat, Expr) -> Nat -> Result (List Diagnostic) (List (List Pat, Expr), Nat)
+  expand-clauses checked owner scope clauses fuel = case clauses of
     Nil -> Ok (Nil, fuel)
-    Cons (patterns, body) rest -> case expand-clause checked owner module-decls template-decls body fuel of
+    Cons (patterns, body) rest -> case expand-clause checked owner scope body fuel of
       Err errors -> Err errors
-      Ok (term, remaining) -> case expand-clauses checked owner module-decls template-decls rest remaining of
+      Ok (term, remaining) -> case expand-clauses checked owner scope rest remaining of
         Err errors -> Err errors
         Ok (more, done) -> Ok (Cons (patterns, term) more, done)
 
-  expand-template-declaration :: CheckedProgram -> String -> List Decl -> List Decl -> Decl -> Nat -> Result (List Diagnostic) (Decl, Nat)
-  expand-template-declaration checked owner module-decls template-decls declaration fuel = case declaration of
-    DFun site name body -> case expand-clauses checked owner module-decls template-decls body fuel of
+  expand-template-declaration :: CheckedProgram -> String -> ExpandScope -> Decl -> Nat -> Result (List Diagnostic) (Decl, Nat)
+  expand-template-declaration checked owner scope declaration fuel = case declaration of
+    DFun site name body -> case expand-clauses checked owner scope body fuel of
       Err errors -> Err errors
       Ok (value, remaining) -> Ok (DFun site name value, remaining)
     other -> Ok (declaration, fuel)
 
-  expand-template :: CheckedProgram -> String -> List Decl -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
-  expand-template checked owner module-decls template-decls fuel = case template-decls of
+  expand-template :: CheckedProgram -> String -> ExpandScope -> Nat -> Result (List Diagnostic) (List Decl, Nat)
+  expand-template checked owner scope fuel = case scope-template scope of
     Nil -> Ok (Nil, fuel)
-    Cons first rest -> case expand-template-declaration checked owner module-decls template-decls first fuel of
+    Cons first rest -> case expand-template-declaration checked owner scope first fuel of
       Err errors -> Err errors
-      Ok (value, remaining) -> case expand-template checked owner module-decls rest remaining of
+      Ok (value, remaining) -> case expand-template checked owner (scope-with-template rest scope) remaining of
         Err errors -> Err errors
         Ok (more, done) -> Ok (Cons value more, done)
 
-  expand-action :: CheckedProgram -> String -> List Decl -> Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
-  expand-action checked owner module-decls action fuel = case action of
-    DStageEmit site template -> expand-template checked owner module-decls (decls-of template) fuel
+  expand-action :: CheckedProgram -> String -> ExpandScope -> Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
+  expand-action checked owner scope action fuel = case action of
+    DStageEmit site template -> expand-template checked owner (scope-with-template (decls-of template) scope) fuel
     DStageBranch site condition yes no -> case evaluate-probe checked owner site fuel of
       Err errors -> Err errors
-      Ok (StageBoolean selected, remaining) -> expand-action checked owner module-decls (if selected then yes else no) remaining
+      Ok (StageBoolean selected, remaining) -> expand-action checked owner scope (if selected then yes else no) remaining
       Ok other -> stage-error site "checked generator branch did not produce Bool"
     other -> stage-error (decl-span action) "invalid compile-time generator action"
 
-  expand-actions :: CheckedProgram -> String -> List Decl -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
-  expand-actions checked owner module-decls actions fuel = case actions of
+  expand-actions :: CheckedProgram -> String -> ExpandScope -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
+  expand-actions checked owner scope actions fuel = case actions of
     Nil -> Ok (Nil, fuel)
-    Cons first rest -> case expand-action checked owner module-decls first fuel of
+    Cons first rest -> case expand-action checked owner scope first fuel of
       Err errors -> Err errors
-      Ok (generated, remaining) -> case expand-actions checked owner module-decls rest remaining of
+      Ok (generated, remaining) -> case expand-actions checked owner scope rest remaining of
         Err errors -> Err errors
         Ok (more, done) -> Ok (generated <> more, done)
 
@@ -420,8 +449,8 @@ module Bootstrap.Stage where
   expand-declaration :: CheckedProgram -> String -> List Decl -> Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
   expand-declaration checked owner declarations declaration fuel = case declaration of
     DMacro site body -> Ok (Nil, fuel)
-    DStage site body -> if quotation-bodied body then Ok (Nil, fuel) else Ok (Nil, fuel)
-    DGenerate site actions -> expand-actions checked owner declarations (decls-of actions) fuel
+    DStage site body -> Ok (Nil, fuel)
+    DGenerate site actions -> expand-actions checked owner (MkExpandScope declarations Nil) (decls-of actions) fuel
     DSig site name ty -> if quotation-signature-of name declarations then Ok (Nil, fuel) else Ok ([declaration], fuel)
     other -> Ok ([declaration], fuel)
 
