@@ -1255,6 +1255,19 @@ impl Registry {
         if native {
             attrs.push("\"probe-stack\"=\"inline-asm\"".to_string());
         }
+        // Cinch has no unwinding: a definition cannot resume past a
+        // callee that does not return. The one hole is a foreign call,
+        // whose unwinding behaviour the compiler does not know, so a unit
+        // that reaches an extern the scan cannot see through does not
+        // claim it.
+        if !class.externs {
+            attrs.push("nounwind".to_string());
+        }
+        // `norecurse` is the call graph's answer, computed once for the
+        // module: a unit outside every cycle cannot call itself back.
+        if !class.recursive {
+            attrs.push("norecurse".to_string());
+        }
         match hints.inline {
             Some(crate::core::InlineHint::Inline) => attrs.push("inlinehint".to_string()),
             Some(crate::core::InlineHint::Always) => attrs.push("alwaysinline".to_string()),
@@ -2391,6 +2404,14 @@ enum MemClass {
 #[derive(Clone, Copy, Debug)]
 struct UnitClass {
     mem: MemClass,
+    /// The unit reaches a foreign call the scan cannot see through, so
+    /// `nounwind` cannot be claimed: an unwinding extern would unwind
+    /// through it.
+    externs: bool,
+    /// `norecurse`: the unit is in no cycle of the call graph. Computed
+    /// from the same `scan.refs` edges the other classes follow, by
+    /// finding the strongly connected components once.
+    recursive: bool,
     /// `speculatable`: no effects and no undefined behavior (no fault
     /// path, no poison source, no opaque call).
     speculatable: bool,
@@ -2752,6 +2773,8 @@ fn classify_units(units: &[EmittedUnit]) -> HashMap<String, UnitClass> {
             u.name.clone(),
             UnitClass {
                 mem,
+                externs: u.scan.externs,
+                recursive: false,
                 speculatable: clean && !u.scan.frees,
                 willreturn: clean && !u.scan.frees,
                 // The scan cannot see through an opaque call, and a
@@ -2770,11 +2793,13 @@ fn classify_units(units: &[EmittedUnit]) -> HashMap<String, UnitClass> {
                     continue;
                 };
                 c.mem = c.mem.max(gc.mem);
+                c.externs = c.externs || gc.externs;
                 c.speculatable = c.speculatable && gc.speculatable;
                 c.willreturn = c.willreturn && (g == &u.name || gc.willreturn);
                 c.nofree = c.nofree && gc.nofree;
             }
             if c.mem != out[&u.name].mem
+                || c.externs != out[&u.name].externs
                 || c.speculatable != out[&u.name].speculatable
                 || c.willreturn != out[&u.name].willreturn
                 || c.nofree != out[&u.name].nofree
