@@ -133,7 +133,11 @@ fn every_supported_triple_builds_a_profile_from_the_triple_alone() {
         let p = profile(triple);
         assert_eq!(&p.triple, triple, "the profile carries the requested triple");
         assert_eq!(p.name, *triple, "the store key names the target, not the host");
-        assert_eq!(p.word_size, 64, "{triple} is a 64-bit target");
+        // wasm32 is the one 32-bit target in the table; every other
+        // triple is 64-bit. The word comes from the triple, never from
+        // the host, which is what this test is about.
+        let words = if triple.starts_with("wasm32") { 32 } else { 64 };
+        assert_eq!(p.word_size, words, "{triple} carries the word width its triple names");
         assert_eq!(p.endian, "little", "{triple} is little-endian");
         assert!(!p.os.is_empty() && !p.arch.is_empty() && !p.libc.is_empty());
     }
