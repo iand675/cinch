@@ -270,6 +270,7 @@ The layout a type gets is part of its interface. Changing a `#[repr]` changes th
 | --- | --- | --- |
 | `#[inline]`, `#[inline(always)]`, `#[inline(never)]`, `#[noinline]` | function declaration | Inlining hint. One hint per function. Refused on a `foreign` declaration: `` `#[inline]` is a hint on a function declaration `` |
 | `#[cold]` | function declaration | Cold-function hint |
+| `#[unroll(N)]`, `#[unroll(disable)]`, `#[unroll(0)]` | function declaration | Unrolling hint on the function's loop, lowering to `llvm.loop.unroll.count` or `llvm.loop.unroll.disable`. Advisory: it never changes meaning and never unrolls at the Core level. Accepted on a function with no loop, which then emits no loop metadata. A count above `i32::MAX` is refused |
 | `#[weight(n)]`, `#[likely]`, `#[unlikely]` | clause, alternative, guard, `if` | Decision-point weight; one weight per alternative |
 | `#[meta(key = "value")]` | any supported position | Nonsemantic metadata, recorded and otherwise ignored |
 | `#[profile "jpl"]`, `#[deny-warnings]` | module header | Module policy |

@@ -364,6 +364,35 @@ function is unlikely to be called (its entry is a cold-section
 candidate); this is the wrapper of section 3 applied to the function
 entry rather than to an alternative.
 
+## 5.1 Unrolling hints
+
+`#[unroll(N)]` and `#[unroll(disable)]` are hint attributes on a
+function declaration:
+
+- `#[unroll(N)]` for a natural number `N` at least 1: unrolling the
+  function's loop `N` times is desirable.
+- `#[unroll(disable)]`, and the accepted spelling `#[unroll(0)]`: the
+  loop should not be unrolled.
+
+The hint is advisory and lowers to LLVM loop metadata on the loop that a
+self-recursive tail call becomes: `llvm.loop.unroll.count` with the
+count, or `llvm.loop.unroll.disable`. The loop node is `distinct` and
+self-referential, as LLVM requires, and every latch of one loop shares
+one node.
+
+The hint MUST NOT change program meaning, and it MUST NOT unroll at the
+Core level: the loop stays a loop in the checked program and the
+decision stays with the optimizer. A function with the attribute and no
+loop is accepted and emits no loop metadata, because the attribute
+constrains how a loop is compiled, not whether one exists. An argument
+that is neither a natural number nor `disable` is refused, naming the
+accepted forms. A count above `i32::MAX` is refused because the metadata
+property is an `i32`.
+
+Like the inline hints, `#[unroll]` is not part of the contract
+projection, and the optimizer's preservation discipline treats it as an
+erasable annotation.
+
 # 6 Macro interaction
 
 Attribute macros (modules specification section 8) MAY introduce,
