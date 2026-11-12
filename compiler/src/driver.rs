@@ -2957,6 +2957,7 @@ fn write_artifacts(
         ("case_merge", (opt.simplify.case_merge as u64).into()),
         ("known_constructor", (opt.simplify.known_ctor as u64).into()),
         ("direct_dict_call", (opt.simplify.dict_call as u64).into()),
+        ("saturate_partial", (opt.simplify.saturate as u64).into()),
         ("case_of_case", (opt.simplify.case_of_case as u64).into()),
         ("joins", (opt.simplify.joins as u64).into()),
         ("duplicated", (opt.simplify.duplicated as u64).into()),
@@ -4008,6 +4009,9 @@ pub struct DriverOptions {
     /// projection plus `__apply` instead of a direct call
     /// (design/compilation-speed.md section 10).
     pub no_direct_dict_calls: bool,
+    /// `--no-saturate-partial`: keep a one-shot partial application as a
+    /// closure and an application (the measurement's other arm).
+    pub no_saturate_partial: bool,
     /// `--no-inline`: leave every call in place, so a measurement can be
     /// taken against the same program with the inliner active
     /// (design/stack-allocation.md section 7).
@@ -4065,6 +4069,7 @@ impl DriverOptions {
         crate::simplify::SimplifyOptions {
             max_iterations: self.max_simplifier_iterations.unwrap_or(4),
             direct_dict_calls: !self.no_direct_dict_calls,
+            saturate_partial: !self.no_saturate_partial,
             inline: !self.no_inline,
             case_of_case: self.case_of_case,
             ..crate::simplify::SimplifyOptions::default()
@@ -4434,6 +4439,7 @@ fn core_emit(args: &[String]) -> i32 {
                 }
             }
             "--no-direct-dict-calls" => opts.no_direct_dict_calls = true,
+            "--no-saturate-partial" => opts.no_saturate_partial = true,
             "--no-inline" => opts.no_inline = true,
             "--case-of-case" => opts.case_of_case = true,
             "--no-stack-alloc" => opts.no_stack_alloc = true,

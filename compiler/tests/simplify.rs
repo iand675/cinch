@@ -601,3 +601,255 @@ fn a_decision_is_copied_only_where_it_folds() {
     simplify(&mut p, &SimplifyOptions::default(), &mut report);
     assert_eq!(report.inlined, 1, "only the known-constructor site takes the decision");
 }
+
+// -------------------------------------------------- saturate-partial
+//
+// `let f = g a b in f c`, with `g`'s arity exactly the combined count,
+// becomes `g a b c`. Each test pins one condition the rule states.
+
+/// A three-argument unit whose body reads all three.
+fn g3() -> FnDef {
+    unit(
+        "Main.g",
+        vec![Class::Obj, Class::Obj, Class::Obj],
+        Core::App(
+            Box::new(Core::App(
+                Box::new(Core::Global(gid("Main.h"), vec![])),
+                vec![Core::Var(LocalId(0)), Core::Var(LocalId(1))],
+            )),
+            vec![Core::Var(LocalId(2))],
+        ),
+    )
+}
+
+fn options() -> SimplifyOptions {
+    // The rule under test is the only one that may fire: no inlining and no
+    // dictionary or decision rewrites. The occurrence analysis stays on,
+    // because `saturate-partial` reads its count; the two occurrence rules
+    // cannot fire on these shapes, since the value of every binder here is a
+    // call and a call is not speculatable.
+    SimplifyOptions {
+        inline: false,
+        direct_dict_calls: false,
+        case_of_case: false,
+        ..SimplifyOptions::default()
+    }
+}
+
+/// `let f = g x y in f z` becomes `g x y z`: one saturated call, no
+/// closure and no application.
+#[test]
+fn saturate_partial_merges_a_one_shot_partial_application() {
+    let body = Core::Let(
+        LocalId(3),
+        Class::Obj,
+        Box::new(Core::App(
+            Box::new(Core::Global(gid("Main.g"), vec![])),
+            vec![Core::Var(LocalId(0)), Core::Var(LocalId(1))],
+        )),
+        Box::new(Core::App(Box::new(Core::Var(LocalId(3))), vec![Core::Var(LocalId(2))])),
+    );
+    let mut p = program(vec![
+        unit("Main.h", vec![Class::Obj, Class::Obj], Core::Var(LocalId(0))),
+        g3(),
+        unit("Main.f", vec![Class::Obj, Class::Obj, Class::Obj], body),
+    ]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &options(), &mut report);
+    assert_eq!(report.saturate, 1, "the rule fires once");
+    let Core::App(head, args) = &p.fns[2].body else { panic!("{:?}", p.fns[2].body) };
+    assert!(matches!(&**head, Core::Global(id, _) if id.0 == "Main.g"), "{head:?}");
+    assert_eq!(args.len(), 3, "the call is saturated");
+}
+
+/// A binder read twice keeps its binding: two applications of one closure
+/// are two applications, and merging them would duplicate the value.
+#[test]
+fn saturate_partial_refuses_a_binder_read_twice() {
+    let call = Core::App(
+        Box::new(Core::Global(gid("Main.g"), vec![])),
+        vec![Core::Var(LocalId(0)), Core::Var(LocalId(1))],
+    );
+    let body = Core::Let(
+        LocalId(3),
+        Class::Obj,
+        Box::new(call),
+        Box::new(Core::App(
+            Box::new(Core::App(
+                Box::new(Core::Global(gid("Main.h"), vec![])),
+                vec![Core::App(Box::new(Core::Var(LocalId(3))), vec![Core::Var(LocalId(2))])],
+            )),
+            vec![Core::App(Box::new(Core::Var(LocalId(3))), vec![Core::Var(LocalId(2))])],
+        )),
+    );
+    let mut p = program(vec![
+        unit("Main.h", vec![Class::Obj, Class::Obj], Core::Var(LocalId(0))),
+        g3(),
+        unit("Main.f", vec![Class::Obj, Class::Obj, Class::Obj], body),
+    ]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &options(), &mut report);
+    assert_eq!(report.saturate, 0);
+    assert!(matches!(&p.fns[2].body, Core::Let(..)));
+}
+
+/// A read under a decision keeps its binding: substituting moves the call
+/// to the read, and a branch that may not be taken would drop it.
+#[test]
+fn saturate_partial_refuses_a_read_under_a_decision() {
+    let body = Core::Let(
+        LocalId(3),
+        Class::Obj,
+        Box::new(Core::App(
+            Box::new(Core::Global(gid("Main.g"), vec![])),
+            vec![Core::Var(LocalId(0)), Core::Var(LocalId(1))],
+        )),
+        Box::new(Core::Case {
+            scrut: Box::new(Core::Var(LocalId(0))),
+            alts: vec![CAlt::new(
+                con(0, &[]),
+                Core::App(Box::new(Core::Var(LocalId(3))), vec![Core::Var(LocalId(2))]),
+            )],
+        }),
+    );
+    let mut p = program(vec![
+        ctor_unit("None", 0, 0),
+        g3(),
+        unit("Main.f", vec![Class::Obj, Class::Obj, Class::Obj], body),
+    ]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &options(), &mut report);
+    assert_eq!(report.saturate, 0);
+    assert!(matches!(&p.fns[2].body, Core::Let(..)));
+}
+
+/// A read that is not an application's head keeps its binding: the value is
+/// wanted, not the call, so the closure has to exist.
+#[test]
+fn saturate_partial_refuses_a_use_that_is_not_the_call_head() {
+    let body = Core::Let(
+        LocalId(3),
+        Class::Obj,
+        Box::new(Core::App(
+            Box::new(Core::Global(gid("Main.g"), vec![])),
+            vec![Core::Var(LocalId(0)), Core::Var(LocalId(1))],
+        )),
+        Box::new(Core::App(
+            Box::new(Core::Global(gid("Main.take"), vec![])),
+            vec![Core::Var(LocalId(3))],
+        )),
+    );
+    let mut p = program(vec![
+        g3(),
+        unit("Main.take", vec![Class::Obj], Core::Unit),
+        unit("Main.f", vec![Class::Obj, Class::Obj, Class::Obj], body),
+    ]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &options(), &mut report);
+    assert_eq!(report.saturate, 0);
+    assert!(matches!(&p.fns[2].body, Core::Let(..)));
+}
+
+/// An over-application stops at saturation: `let f = g x in f y z` with
+/// arity 2 becomes `(g x y) z`, so the closure and its application go and
+/// the excess stays applied to the result.
+#[test]
+fn saturate_partial_stops_at_saturation_and_keeps_the_excess() {
+    let g2 = unit(
+        "Main.g",
+        vec![Class::Obj, Class::Obj],
+        Core::App(
+            Box::new(Core::Global(gid("Main.h"), vec![])),
+            vec![Core::Var(LocalId(0)), Core::Var(LocalId(1))],
+        ),
+    );
+    let body = Core::Let(
+        LocalId(3),
+        Class::Obj,
+        Box::new(Core::App(
+            Box::new(Core::Global(gid("Main.g"), vec![])),
+            vec![Core::Var(LocalId(0))],
+        )),
+        Box::new(Core::App(
+            Box::new(Core::Var(LocalId(3))),
+            vec![Core::Var(LocalId(1)), Core::Var(LocalId(2))],
+        )),
+    );
+    let mut p = program(vec![
+        unit("Main.h", vec![Class::Obj, Class::Obj], Core::Var(LocalId(0))),
+        g2,
+        unit("Main.f", vec![Class::Obj, Class::Obj, Class::Obj], body),
+    ]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &options(), &mut report);
+    assert_eq!(report.saturate, 1);
+    let Core::App(outer, excess) = &p.fns[2].body else { panic!("{:?}", p.fns[2].body) };
+    assert_eq!(excess.len(), 1, "one argument stays applied to the result");
+    let Core::App(inner, args) = &**outer else { panic!("{outer:?}" ) };
+    assert!(matches!(&**inner, Core::Global(id, _) if id.0 == "Main.g"), "{inner:?}");
+    assert_eq!(args.len(), 2, "the inner call is exactly saturated");
+}
+
+/// A merge that would not reach the arity is still a partial application,
+/// so it keeps its closure.
+#[test]
+fn saturate_partial_refuses_a_merge_that_stays_partial() {
+    let body = Core::Let(
+        LocalId(4),
+        Class::Obj,
+        Box::new(Core::App(
+            Box::new(Core::Global(gid("Main.g"), vec![])),
+            vec![Core::Var(LocalId(0))],
+        )),
+        Box::new(Core::App(Box::new(Core::Var(LocalId(4))), vec![Core::Var(LocalId(1))])),
+    );
+    let mut p = program(vec![
+        g3(),
+        unit("Main.f", vec![Class::Obj, Class::Obj, Class::Obj], body),
+    ]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &options(), &mut report);
+    assert_eq!(report.saturate, 0);
+    assert!(matches!(&p.fns[1].body, Core::Let(..)));
+}
+
+/// A dynamic head has no arity to saturate to.
+#[test]
+fn saturate_partial_refuses_a_value_with_no_known_arity() {
+    let body = Core::Let(
+        LocalId(3),
+        Class::Obj,
+        Box::new(Core::App(
+            Box::new(Core::Var(LocalId(0))),
+            vec![Core::Var(LocalId(1))],
+        )),
+        Box::new(Core::App(Box::new(Core::Var(LocalId(3))), vec![Core::Var(LocalId(2))])),
+    );
+    let mut p = program(vec![unit("Main.f", vec![Class::Obj, Class::Obj, Class::Obj], body)]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &options(), &mut report);
+    assert_eq!(report.saturate, 0);
+    assert!(matches!(&p.fns[0].body, Core::Let(..)));
+}
+
+/// A value already saturated is a direct call; there is nothing to merge.
+#[test]
+fn saturate_partial_refuses_an_already_saturated_value() {
+    let body = Core::Let(
+        LocalId(3),
+        Class::Obj,
+        Box::new(Core::App(
+            Box::new(Core::Global(gid("Main.g"), vec![])),
+            vec![Core::Var(LocalId(0)), Core::Var(LocalId(1)), Core::Var(LocalId(2))],
+        )),
+        Box::new(Core::App(Box::new(Core::Var(LocalId(3))), vec![Core::Var(LocalId(0))])),
+    );
+    let mut p = program(vec![
+        g3(),
+        unit("Main.f", vec![Class::Obj, Class::Obj, Class::Obj], body),
+    ]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &options(), &mut report);
+    assert_eq!(report.saturate, 0);
+    assert!(matches!(&p.fns[1].body, Core::Let(..)));
+}

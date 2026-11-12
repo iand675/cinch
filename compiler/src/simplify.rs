@@ -137,6 +137,10 @@ pub struct SimplifyOptions {
     /// Resolve a projection from a known static dictionary to a direct
     /// call (`direct-dict-call`).
     pub direct_dict_calls: bool,
+    /// Merge a partial application applied exactly once into one saturated
+    /// direct call (`saturate-partial`, `--no-saturate-partial` turns it
+    /// off).
+    pub saturate_partial: bool,
     /// Push an outer decision into the alternatives of the decision it
     /// scrutinizes (`case-of-case`, `--case-of-case`). Off by default: on
     /// the self-build corpus it grows Core instead of shrinking it (see the
@@ -188,6 +192,7 @@ impl Default for SimplifyOptions {
         SimplifyOptions {
             max_iterations: 4,
             direct_dict_calls: true,
+            saturate_partial: true,
             // Off by default: measured on the compiler's own bundle it grows
             // Core by about a tenth (3.22M nodes to 3.54M) even with the
             // constructor fold that collapses the decisions it produces, and
@@ -584,6 +589,9 @@ enum Rule {
     CaseMerge,
     KnownConstructor,
     DirectDictCall,
+    /// A partial application applied exactly once, merged into one
+    /// saturated call (`saturate-partial`).
+    SaturatePartial,
     CaseOfCase,
     Inline,
     /// A binding whose one read is in the spine, substituted whatever its
@@ -602,6 +610,7 @@ struct Ticks {
     case_merge: usize,
     known_ctor: usize,
     dict_call: usize,
+    saturate: usize,
     case_of_case: usize,
     joins: usize,
     duplicated: usize,
@@ -619,6 +628,7 @@ impl Ticks {
             Rule::CaseMerge => self.case_merge += 1,
             Rule::KnownConstructor => self.known_ctor += 1,
             Rule::DirectDictCall => self.dict_call += 1,
+            Rule::SaturatePartial => self.saturate += 1,
             Rule::CaseOfCase => self.case_of_case += 1,
             Rule::Inline => self.inline += 1,
             Rule::PreInline => self.pre_inline += 1,
@@ -686,6 +696,8 @@ fn pass(
             Some(Rule::CaseMerge)
         } else if opts.direct_dict_calls && direct_dict_call(e, tables) {
             Some(Rule::DirectDictCall)
+        } else if opts.saturate_partial && saturate_partial(e, occ, tables) {
+            Some(Rule::SaturatePartial)
         } else if opts.case_of_case && case_of_case(e, classes, opts, fresh, t) {
             Some(Rule::CaseOfCase)
         } else {
@@ -1488,6 +1500,126 @@ fn direct_dict_call(e: &mut Core, tables: &Tables) -> bool {
     false
 }
 
+/// `let f = g a b in f c` with `g`'s arity exactly the combined count
+/// becomes `g a b c`: one saturated direct call instead of a closure record
+/// built to be applied once and released.
+///
+/// The shape is what a source partial application lowers to, and each site
+/// it fires on removes a closure block, the `__apply` that consumed it and
+/// the stub's ownership sequence (dup every saved word, branch on
+/// uniqueness, free or decrement). On the compiler's own source the census
+/// finds the shape under-applied at 9 sites, of which 5 apply it exactly
+/// once in head position; the toolkit has 1. The rule is small because the
+/// population is: it is here for the sites that exist, not for a general
+/// arity optimisation.
+///
+/// Four conditions, each of which a refusal test pins:
+///
+/// - The value is an application whose head is a unit with a known arity
+///   (`Global` or `Prim`). A dynamic head has no arity to saturate to.
+/// - The value is under-applied (`given < arity`). A saturated or
+///   over-applied value is already a direct call, and a call site that
+///   supplied too much is handled by the over-application split below.
+/// - The binder is read exactly once, and that read is on the spine (not
+///   under a decision, an `If` branch or a join body). Substituting moves
+///   the value's work to its read, so a read that may not happen would drop
+///   the work, and a read in a join body runs once per jump.
+/// - The single read is an application's head. Any other position wants the
+///   value, not the call, so the closure has to exist.
+///
+/// Over-application stops at saturation: `let f = g a in f b c` with `g`'s
+/// arity 2 becomes `(g a b) c`, so the closure record and its stub call go
+/// and the excess stays applied to the result exactly as before. Fewer than
+/// the arity after the merge is a partial application still, which needs the
+/// closure, so the rule refuses it.
+fn saturate_partial(
+    e: &mut Core,
+    occ: &HashMap<LocalId, Occ>,
+    tables: &Tables,
+) -> bool {
+    let Core::Let(l, _, value, body) = e else { return false };
+    let count = occ.get(l).copied().unwrap_or_default();
+    if count.uses != 1 || count.in_join {
+        return false;
+    }
+    let Core::App(head, given) = &**value else { return false };
+    let (unit, arity) = match &**head {
+        Core::Global(id, _) => (id.clone(), tables.arity.get(&id.0).copied()),
+        Core::Prim(op) => (GlobalId(op.symbol().to_string()), Some(op.arity())),
+        _ => return false,
+    };
+    let Some(arity) = arity else { return false };
+    if given.len() >= arity {
+        return false;
+    }
+    // A value that allocates or runs an effect cannot move to its read:
+    // the substitution would move the work, and in a strict language that
+    // changes when it happens. The head is a unit and the arguments are
+    // evaluated where they are, so what moves is the call, which is why the
+    // spine condition below is the whole of the ordering argument.
+    if !spine_only(body, *l, true) {
+        return false;
+    }
+    let given = given.clone();
+    let mut body = (**body).clone();
+    if !merge_in_head(&mut body, *l, &unit, &given, arity) {
+        return false;
+    }
+    *e = body;
+    true
+}
+
+/// Replace the one application whose head is `l` with the merged call: the
+/// value's own arguments followed by the arguments that application
+/// supplied, up to the callee's arity. Arguments beyond it stay applied to
+/// the result. Answers `false` without touching `e` when the read is not in
+/// head position or the merge would not reach saturation.
+fn merge_in_head(e: &mut Core, l: LocalId, unit: &GlobalId, given: &[Core], arity: usize) -> bool {
+    match e {
+        Core::App(head, args) => {
+            if matches!(&**head, Core::Var(x) if *x == l) {
+                let total = given.len() + args.len();
+                if total < arity {
+                    return false;
+                }
+                let take = arity - given.len();
+                let mut merged: Vec<Core> = given.to_vec();
+                merged.extend(args.drain(..take));
+                let call = Core::App(Box::new(Core::Global(unit.clone(), Vec::new())), merged);
+                *e = if args.is_empty() {
+                    call
+                } else {
+                    Core::App(Box::new(call), std::mem::take(args))
+                };
+                return true;
+            }
+            if merge_in_head(head, l, unit, given, arity) {
+                return true;
+            }
+            for a in args {
+                if merge_in_head(a, l, unit, given, arity) {
+                    return true;
+                }
+            }
+            false
+        }
+        Core::Let(_, _, value, body) => {
+            if merge_in_head(value, l, unit, given, arity) {
+                return true;
+            }
+            merge_in_head(body, l, unit, given, arity)
+        }
+        _ => {
+            for slot in child_slots(e) {
+                if merge_in_head(slot, l, unit, given, arity) {
+                    return true;
+                }
+            }
+            false
+        }
+    }
+}
+
 /// Patterns of two alternatives that share a default: same tag or the
 /// same binder for the same class.
 fn same_pat(a: &CPat, b: &CPat) -> bool {
@@ -1596,6 +1728,7 @@ pub fn simplify_with_foreign(
     report.case_merge = ticks.case_merge;
     report.known_ctor = ticks.known_ctor;
     report.dict_call = ticks.dict_call;
+    report.saturate = ticks.saturate;
     report.case_of_case = ticks.case_of_case;
     report.joins = ticks.joins;
     report.duplicated = ticks.duplicated;

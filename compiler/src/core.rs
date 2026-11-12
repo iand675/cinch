@@ -4345,6 +4345,9 @@ pub struct SimplifyReport {
     /// Static dictionary projections turned into direct calls (rule
     /// `direct-dict-call`).
     pub dict_call: usize,
+    /// Partial applications applied exactly once and merged into one
+    /// saturated direct call (rule `saturate-partial`).
+    pub saturate: usize,
     /// Outer decisions pushed into the decision they scrutinize (rule
     /// `case-of-case`).
     pub case_of_case: usize,

@@ -2035,6 +2035,73 @@ could not tell the stub from eleven other commits. A controlled pair, two
 arms from one base differing only in the stub, put the stub at +0.16%. The
 collapse keeps both properties and the code size it should have had.
 
+### 2.15 Saturating a partial application, and why the closure ticket was empty (2026-11-12)
+
+The backlog carried "stop passing a closure argument a direct call does not
+use, and unbox single-entry closures into parameters", against the 25.3% of
+toolkit value blocks that closures and dictionaries were measured at. A
+census of both workloads on the current tree says that population is gone,
+and says what replaced it.
+
+`CINCH_ALLOC_KINDS=1` on the two workloads, stage-3 binary:
+
+|kind|toolkit blocks|toolkit bytes|self-check blocks|self-check bytes|
+|---|---|---|---|---|
+|ctor|237,651,660|5.149 GB|990,349,234|22.01 GB|
+|closure|10,536,483|437 MB|107,274,312|4.39 GB|
+|nat|2,154,399|69 MB|8,251,694|264 MB|
+|bytes|5,228,985|125 MB|15,265,787|366 MB|
+|dict|0|0|0|0|
+|all|266,237,723|5.890 GB|1,156,781,525|27.46 GB|
+
+Closures are 3.96% of toolkit value blocks and 9.28% of the self-check's,
+and dictionaries are zero on both: the static-dictionary landing removed
+every dictionary allocation, so most of the 25.3% no longer exists as the
+kind the ticket named.
+
+Neither of the ticket's two mechanisms has anything to act on. **A closure
+argument a direct call does not use** needs a unit with a parameter its body
+never reads: 0 of 582 toolkit units, 0 of 6,128 compiler-source units, and 0
+of the 6,833 functions in the emitted module, drop-only parameters included.
+Every direct call passes exactly the callee's arity (1,578 of 1,578 and
+50,062 of 50,062). The reason is structural: parameters are owned, so an
+unused one would still need a `drop`, and the ownership pass leaves that drop
+in the body. **Unboxing a single-entry closure** needs a `Lam` bound by a
+`let` with one occurrence in `App` head position that saturates the callee:
+also 0 on both workloads, because the checker's `specialize-local` already
+substitutes a let-bound function value into its uses. A three-line fixture
+(`let f = add3 x 1 in f 2`) produces the shape, so the detector is sound
+rather than blind.
+
+What does have population is the shape those two were standing in for: a
+partial application applied once. `let f = g a b in f c` with `g`'s arity 3
+builds a closure record only to apply it and release it. The rule
+`saturate-partial` (`compiler/src/simplify.rs`) merges the two applications
+into one saturated direct call, and refuses unless four conditions hold: the
+head is a unit with a known arity, the value is under-applied, the binder is
+read exactly once on the spine, and that read is an application's head. An
+over-application stops at saturation and leaves the excess applied to the
+result; a merge that would stay partial keeps its closure.
+
+The measured population is small and honest about it: the rule fires **6
+times on the toolkit bundle and 28 on the compiler source** (manifest
+`simplifier.saturate_partial`), against the census's 9 under-applied sites in
+the source (5 of them applied exactly once in head position) and 1 in the
+toolkit. The census counts source-level sites; the rule's 28 include the
+inliner's copies, which is why the two differ. It is not a big number, and it
+is the number that exists.
+
+The census also reversed the priority the backlog implied. On a 1 kHz sample
+of the toolkit check (7,040 working samples), `cinch_drop` is **14.4%** of
+the time and 14.43 points of that is the apply stub's release path, while
+`cinch_alloc_shaped` (every closure and dictionary record) is **0.2%** and
+`__apply` itself is **0.1%**. A closure is cheap to make and the stub's
+dup-branch-free-or-decrement sequence is not, so a rule that removes records
+without removing a stub call buys footprint, and this compiler is not memory
+bound (190 MB peak on a 27.5 GB self-check). `saturate-partial` is worth
+having because it removes the stub call as well as the record, and it should
+be judged on the stub calls it deletes.
+
 ### 2.13 The 2026-11-11 round, in the order it landed
 
 Nine landings changed the shape of the compiler rather than tuning it. The
@@ -2162,7 +2229,15 @@ Metrics, reported per edit and per clean build:
 10. **Parallel phases** using the runtime pool, once section 11's corpus
    says which phases have enough independent work: RuntimeIr emission per
    unit, then inference per definition, then interface export per module.
-11. **Development codegen tier** (Cranelift or a direct emitter) once the
+11. **The apply stub's ownership sequence** (section 2.15). `cinch_drop`
+   reached from an `.app` stub is 14.4% of a toolkit check, while the closure
+   records it releases are 0.2% and `__apply` itself 0.1%. The stub dups
+   every saved word, branches on uniqueness, then frees or decrements; the
+   saturated path already has every word it needs in the merged frame, so the
+   dups are what to question, not the records. This is the closure item's
+   real residue and it is a `design/reclamation.md` section 4 change, not a
+   Core pass.
+12. **Development codegen tier** (Cranelift or a direct emitter) once the
    backend is the measured bottleneck for edit-compile-run rather than for
    clean builds.
 

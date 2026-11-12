@@ -46,6 +46,8 @@ flags:
               specialized program (default 4; 0 disables the simplifier)
   --no-direct-dict-calls  keep a static dictionary projection plus its
               `__apply` call instead of a direct call to the method unit
+  --no-saturate-partial  keep a partial application applied once as a
+              closure plus an `__apply` instead of one saturated call
   --no-inline  leave every call in place instead of copying a small
               callee's body to its site (the rule is on by default)
   --emit-interface-optimisations  write the .cinchopt unfoldings beside this
