@@ -300,6 +300,7 @@ fn main() {
                 }
             }
             "--no-direct-dict-calls" => opts.no_direct_dict_calls = true,
+            "--no-saturate-partial" => opts.no_saturate_partial = true,
             "--no-inline" => opts.no_inline = true,
             "--interface-optimisations" => {
                 i += 1;
