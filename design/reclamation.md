@@ -913,6 +913,63 @@ allocation and dropping are one line item of the profile (section 1.2: 22% and
 the checker than the toolkit does, which is why it collects a larger share of
 its blocks as reuse and a smaller share of its time.
 
+**The second half: store skipping, family crossing, and coalescing.** Three
+more of Lean's pieces are in the tree, in Lean's order.
+
+*Store skipping* (`partitionSelfSets`, `ExpandResetReuse.lean`). `Core::Reuse`
+carries `already_set`: the payload words the kept cell already holds, which
+are the ones a `case` arm's own field binders name. The `Release` moved those
+words out to the binders and released nothing, so the cell still holds them,
+and the reused path skips those stores while a fresh block writes every word.
+Lean searches an `oproj` chain for the same fact; the arm's binders are the
+cheaper form, because a `case` arm names its fields directly. Both paths stay
+straight-line, so the skip costs no branch per word.
+
+*Family crossing* (`relaxedReuse`, `ResetReuse.lean`). The insertion runs
+twice: the same-family proof first, and only when that finds nothing the
+crossing one, so a compatible successor of the scrutinee's own type is never
+passed over. The relaxed proof is Lean's `mayReuse`: both constructors
+unplanned, the same payload word count, and a word class agreeing at every
+slot, since a class is the reference discipline and two constructors whose
+words agree drop the cell identically. The forced-ownership rule asks both
+passes, so a scrutinee either pass could reuse is owned.
+
+One gate had to widen for the crossing pass to be worth anything. The release
+branch required a *counted* field to be used, so an arm reading only an `I64`
+field took the plain drop-and-allocate path, which is exactly the shape the
+crossing exists for: `swap (MkA n) = MkB (add64 n 1)` reads one scalar
+through the block and rebuilds a one-word cell. The condition now asks
+whether the arm reads any of the block's fields; `moved` still carries only
+the counted ones.
+
+*Coalescing* (`coalesce.rs`, `CoalesceRC.lean`). Within a straight-line run a
+later dup of a value proves the value never passed through a state where it
+could be freed, so every dup may be issued at its first read, and a drop may
+move later across steps that do not mention the value at all. Our `Core`
+carries no count number, so this is a move and never a sum, and a dup keeps
+its multiplicity. The first version sank every drop past the last mention,
+which is unsound: the counting pass places a drop where a path stops needing
+the value, and a later step may read it again through a borrowed position.
+Three reclamation programs crashed with no leak line, and the ownership
+verifier cannot catch it because it sees the moved program, not the move.
+
+On the compiler's own 43,119-line bundle, one arm built from each side of the
+change, three interleaved pairs, `emit-ir` (the mode that runs the counting
+pass, the reuse insertion and the coalescing, which `check` does not):
+
+|Arm|Reuse pairs|Self-set skips|IR bytes|Wall|CPU|
+|---|---|---|---|---|---|
+|before|6,093|0|193,657,177|408.5 s|401.7 s|
+|after|6,441|3,313|194,520,866|399.0 s|393.7 s|
+
+The crossing pass found 348 more reuse sites (+5.7%), 3,313 of the 6,441
+pairs now skip a store the cell already holds, and the wall time falls 2.3%
+and the CPU 2.0%. The IR grows 0.45% because each reuse now carries two
+straight-line store paths and one join, which is the cost the store skipping
+buys back on the reused side. The 4K-line toolkit bundle is dominated by
+fixed cost (2.0 s either way, 142,521 to 144,753 bytes of IR) and does not
+move.
+
 **Static uniqueness.** A `%1` or `%aff` binder is never used twice, so the
 pass inserts no dup for it. A dropped `%aff` binder gets exactly one drop.
 But linearity is not uniqueness. A `%1` parameter can receive a value the
@@ -1287,7 +1344,7 @@ not depend on the section 2 decision. S0 has landed.
 | S4 | Representation classes: `repr_of(&Ty)`; classes on `Let`, `CPat`, params and env; per-constructor field classes; optimizer preserves them; plus the option-specific front end: A `Tag`/`Untag` coercions; B `Repr a` witnesses; C class vectors and specialiser | `check.rs` (`finalize_fn` `772-791`, `lower` `793-883`), `check_terms.rs` (instantiation sites), `check_decls.rs` (beside `param_contract` `9653`), `core.rs` (nodes, optimizer), `interface.rs` (B: arity) | none | **decision** (the class plumbing part is indep) |
 | S5 | Layout emission: `@__cinch_layouts`; closure ABI per the decision (A: stubs tag/untag, env stored tagged) | `codegen.rs` (`ctor_body` `3071-3113`, `stub_def` `1255-1340`, `Core::Lam` `4350-4368`, `mk_body` `3830-3879`) | S1, S4 | **decision** |
 | S6 | Perceus pass: dup/drop insertion, borrow inference with tail-call preservation, drop specialisation, ownership verifier; codegen of `Dup`/`Drop` fast paths; stub dups in `@"U.app"`; `__cinch_demand` clears the thunk; prim ownership table; **in the same slice**, the contract scan classifies dup as a write and drop as `Callee::Free` (section 11, item 9) | new `compiler/src/rc.rs`, `core.rs` (nodes), `driver.rs:1228`, `1774`, `1860`, `1896`, `codegen.rs` (`classify_callee` `886-901`, attributes `567-588`, `1347-1380`) | S1, S3, S4, S5 | depends |
-| S7 (partly landed) | Drop-reuse (the `Release` token and `Core::Reuse`, section 5) and zero-subdict static dictionaries have landed. Reuse specialisation's remaining half is the store skipping (`partitionSelfSets`) and the union of reuse with the stack frame path, which needs a reuse of a frame block rather than the heap only | `rc.rs`, `codegen.rs` (the release and reuse arms, `emit_reuse`) | S6 | depends |
+| S7 (landed) | Drop-reuse (the `Release` token and `Core::Reuse`, section 5), zero-subdict static dictionaries, the store skipping (`already_set`, Lean's `partitionSelfSets`), the family-crossing pass (`relaxedReuse`), and `coalesceRC` have all landed. What remains is the union of reuse with the stack frame path, which needs a reuse of a frame block rather than the heap only | `rc.rs`, `codegen.rs` (the release and reuse arms, `emit_reuse`), `coalesce.rs` | S6 | depends |
 | S8 | Cycle rules: `Core` escape analysis; knot and memo-group teardown with fault sentinels; `cyclic` leak reporting | `rc.rs`, `codegen.rs:4425-4480` | S6 | indep of A/B/C |
 | S9 | Concurrency: `cinch_mark_mt`, atomic slow paths, spawn hook (thread backend only) | `runtime/src/{task,abi,block}.rs`, `codegen.rs` spawn emission (`242`) | S6 | indep |
 | S10 | wasm canonical glue headers and frees | `codegen.rs:6174-6720` | S1, S6 | indep |
