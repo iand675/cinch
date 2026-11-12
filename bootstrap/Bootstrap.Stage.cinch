@@ -6,6 +6,8 @@ module Bootstrap.Stage where
   import Bootstrap.Check (CheckedProgram, check-and-retain)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Bootstrap.StageEval
+  import Bootstrap.Nominal (stage-quotation-module, stage-code-type-name, global-stage-code)
+  import Bootstrap.Type (Scheme, UType, UApp, UCon, scheme-body)
   import Algebra.Semigroup
   import Data.Int (int-neg)
   import Text.Lex (Span, span-start)
@@ -35,8 +37,10 @@ module Bootstrap.Stage where
   probe site ty body = let name = probe-name site in
     [DSig site name ty, DFun site name [(Nil, body)]]
 
+  -- One identity, spelled `#StageCode` here and `Code` in ordinary source
+  -- (Bootstrap.Nominal owns the spelling and the encoded global).
   quote-type-name :: String
-  quote-type-name = "#StageCode"
+  quote-type-name = stage-code-type-name
 
   quote-type :: Span -> String -> String -> TypeExpr
   quote-type site name carrier = TApp site (TName site name) (type-arg-spine site [TName site carrier])
@@ -60,6 +64,9 @@ module Bootstrap.Stage where
   quotation-scope :: Span -> Module
   quotation-scope site = MkModule site stage-quotation-module (decl-spine site (quotation-declarations site))
 
+  -- The carrier a splice site expects, read off the spliced expression: the
+  -- `t` of a `Code t`, whether the splice names a stage function returning
+  -- one or a quotation built here.
   quotation :: Span -> Expr -> Result (List Diagnostic) String
   quotation site expression = case expression of
     EApp at (EVar fn name) argument ->
@@ -68,6 +75,14 @@ module Bootstrap.Stage where
       else if same name "quoteBool" then Ok "Bool"
       else stage-error site "this splice requires a checked scalar quotation"
     other -> stage-error site "this splice requires a checked scalar quotation"
+
+  -- The carrier a stage declaration's checked type produces: the `t` of its
+  -- `Code t`. The probe's scheme is the declaration's, so this reads the
+  -- type the elaborator assigned rather than guessing from syntax.
+  scheme-code-carrier :: Scheme -> Option UType
+  scheme-code-carrier sc = case scheme-body sc of
+    UApp (UCon name _) carrier -> if same name global-stage-code then Some carrier else None
+    other -> None
 
   template-clause-probes :: List (List Pat, Expr) -> Result (List Diagnostic) (List Decl)
   template-clause-probes clauses = case clauses of
@@ -170,16 +185,88 @@ module Bootstrap.Stage where
       else stage-error site "checked scalar quotation did not produce its declared carrier"
     other -> stage-error site "checked scalar quotation did not produce its declared carrier"
 
+  -- A quotation expands to the code it denotes: its template with every
+  -- splice filled by the value its hole evaluates to. The template is
+  -- re-checked where it lands, so the effects a splice carries stay latent
+  -- here (decision D44) and ordinary checking sees them at the use site.
+  expand-quotation :: CheckedProgram -> String -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
+  expand-quotation checked owner template fuel = case fill-splices checked owner template fuel of
+    Err errors -> Err errors
+    Ok (body, remaining) -> Ok (body, remaining)
+
+  fill-splices :: CheckedProgram -> String -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
+  fill-splices checked owner expression fuel = case expression of
+    ESplice site inner -> case evaluate-splice checked owner site fuel of
+      Err errors -> Err errors
+      Ok (term, remaining) -> Ok (term, remaining)
+    EApp at f x -> case fill-splices checked owner f fuel of
+      Err errors -> Err errors
+      Ok (head, after-head) -> case fill-splices checked owner x after-head of
+        Err errors -> Err errors
+        Ok (argument, remaining) -> Ok (EApp at head argument, remaining)
+    EBin at op a b -> case fill-splices checked owner a fuel of
+      Err errors -> Err errors
+      Ok (left, after-left) -> case fill-splices checked owner b after-left of
+        Err errors -> Err errors
+        Ok (right, remaining) -> Ok (EBin at op left right, remaining)
+    ENeg at x -> case fill-splices checked owner x fuel of
+      Err errors -> Err errors
+      Ok (value, remaining) -> Ok (ENeg at value, remaining)
+    ELam at ps body -> case fill-splices checked owner body fuel of
+      Err errors -> Err errors
+      Ok (renamed, remaining) -> Ok (ELam at ps renamed, remaining)
+    EIf at c a b -> case fill-splices checked owner c fuel of
+      Err errors -> Err errors
+      Ok (condition, after-c) -> case fill-splices checked owner a after-c of
+        Err errors -> Err errors
+        Ok (yes, after-a) -> case fill-splices checked owner b after-a of
+          Err errors -> Err errors
+          Ok (no, remaining) -> Ok (EIf at condition yes no, remaining)
+    EAnn at x ty -> case fill-splices checked owner x fuel of
+      Err errors -> Err errors
+      Ok (value, remaining) -> Ok (EAnn at value ty, remaining)
+    ETuple at xs -> case fill-splices checked owner xs fuel of
+      Err errors -> Err errors
+      Ok (items, remaining) -> Ok (ETuple at items, remaining)
+    EList at xs -> case fill-splices checked owner xs fuel of
+      Err errors -> Err errors
+      Ok (items, remaining) -> Ok (EList at items, remaining)
+    EArg at x rest -> case fill-splices checked owner x fuel of
+      Err errors -> Err errors
+      Ok (value, after-value) -> case fill-splices checked owner rest after-value of
+        Err errors -> Err errors
+        Ok (more, remaining) -> Ok (EArg at value more, remaining)
+    ECon at name args -> case fill-splices checked owner args fuel of
+      Err errors -> Err errors
+      Ok (values, remaining) -> Ok (ECon at name values, remaining)
+    other -> Ok (other, fuel)
+
+  -- One hole: its expression evaluates in the stage, and the value it
+  -- produces is the code the hole stands for.
+  evaluate-splice :: CheckedProgram -> String -> Span -> Nat -> Result (List Diagnostic) (Expr, Nat)
+  evaluate-splice checked owner site fuel = case evaluate-probe checked owner site fuel of
+    Err errors -> Err errors
+    Ok (StageCode template, remaining) -> Ok (template-body template, remaining)
+    Ok (StageQuoted value, remaining) -> Ok (EUnit site, remaining)
+    Ok other -> stage-error site "a splice did not produce checked code"
+
+  -- A splice is one of two things. The expression it names is a quotation
+  -- written here, so its template is filled and re-checked where it lands;
+  -- or it is a stage computation whose value is code, which the evaluator
+  -- runs and reifies. A splice that is neither is refused by name.
   expand-clause :: CheckedProgram -> String -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
   expand-clause checked owner body fuel = case body of
-    ESplice site expression -> case quotation site expression of
-      Err errors -> Err errors
-      Ok carrier -> case evaluate-probe checked owner site fuel of
+    ESplice site expression -> case expression of
+      EQuote at template -> expand-quotation checked owner template fuel
+      other -> case quotation site expression of
         Err errors -> Err errors
-        Ok (StageQuoted value, remaining) -> case literal site carrier value of
+        Ok carrier -> case evaluate-probe checked owner site fuel of
           Err errors -> Err errors
-          Ok term -> Ok (term, remaining)
-        Ok other -> stage-error site "splice did not produce checked code"
+          Ok (StageQuoted value, remaining) -> case literal site carrier value of
+            Err errors -> Err errors
+            Ok term -> Ok (term, remaining)
+          Ok (StageCode template, remaining) -> Ok (template-body template, remaining)
+          Ok other -> stage-error site "splice did not produce checked code"
     other -> Ok (body, fuel)
 
   expand-clauses :: CheckedProgram -> String -> List (List Pat, Expr) -> Nat -> Result (List Diagnostic) (List (List Pat, Expr), Nat)

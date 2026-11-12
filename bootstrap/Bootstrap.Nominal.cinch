@@ -14,6 +14,7 @@ module Bootstrap.Nominal where
   export interface-global, encode-identity, decode-identity, resolved-entry-valid, resolved-nominals
   export resolved-text, qualify-resolved, kernel-type-name, qualify-refinement-predicate, resolved-measures
   export global-data-core-nil, global-data-core-cons, global-data-core-list, global-data-core-result, global-data-core-option, global-data-core-some, global-data-core-none, global-data-core-ok, global-data-core-err, global-data-string-string, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-relation-ord-ord, global-data-ordering-ordering, global-data-ordering-lt, global-data-ordering-eq, global-data-ordering-gt, global-algebra-arithmetic-nonzero, global-data-bool-not
+  export stage-quotation-module, stage-code-type-name, global-stage-code
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -181,6 +182,22 @@ module Bootstrap.Nominal where
   global-algebra-arithmetic-nonzero = "i.Algebra$2eArithmetic$2eNonZero"  -- Algebra.Arithmetic.NonZero
   global-data-bool-not :: String
   global-data-bool-not = "i.Data$2eBool$2enot"  -- Data.Bool.not
+  -- The compile-time code type has ONE identity, spelled two ways: `Code` in
+  -- ordinary source and `#StageCode` inside the synthesized stage module.
+  -- Both resolve to the declaration the expander builds, so a `Code t` a
+  -- stage function returns unifies with a `Code t` a quotation produces.
+  -- Two identities for this notion would let an interface producer and a
+  -- consumer disagree about which type they are naming.
+  --
+  -- The spelling is `global-name` of `#StageCode` in module
+  -- `#stage-quotation`, computed once here so no caller re-derives it:
+  -- `m.` then both components identity-encoded (`#` is `$23`, `-` is `$2d`).
+  stage-quotation-module :: String
+  stage-quotation-module = "#stage-quotation"
+  stage-code-type-name :: String
+  stage-code-type-name = "#StageCode"
+  global-stage-code :: String
+  global-stage-code = "m.$23stage$2dquotation.$23StageCode"
   kernel-type-name :: String -> Bool
   kernel-type-name name = array-type-name name || has name ["Int", "Nat", "Fin", "Bool", "Unit", "()", "(->)", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "F32", "F64", "Ref", "Mut", "Thunk", "Lazy", "Later"]
   nonempty :: Json -> Bool

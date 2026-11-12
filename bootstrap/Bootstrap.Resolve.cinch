@@ -807,6 +807,10 @@ module Bootstrap.Resolve where
       (a, errors) -> case rename-expr visible locals rest of
         (b, more) -> (EArg s a b, errors <> more)
     EArgsEnd s -> (e, Nil)
+    -- A quotation's body is renamed in its own scope, which is what makes
+    -- its free names resolve where the template is written (decision D43).
+    EQuote s body -> case rename-expr visible locals body of
+      (renamed, errors) -> (EQuote s renamed, errors)
     ESplice s expression -> (e, fail s "a splice is only meaningful inside a quotation")
     EUnmodeled s text -> (e, fail s (cat ["unmodeled expression: ", text]))
     other -> (e, fail (expr-span e) "this expression requires further namespace elaboration")

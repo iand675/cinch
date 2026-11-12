@@ -263,6 +263,7 @@ module Bootstrap.Contracts where
     EHandler s label clauses -> type-references label <> expr-references clauses
     EHandlerClause s name pats continuation body rest -> (if same name "return" then Nil else Cons name Nil)
       <> patterns-references pats <> expr-references body <> expr-references rest
+    EQuote s body -> expr-references body
     EArg s x rest -> expr-references x <> expr-references rest
     EBinding s name rhs rest -> expr-references rhs <> expr-references rest
     EAlt s pat rhs rest -> pat-references pat <> expr-references rhs <> expr-references rest

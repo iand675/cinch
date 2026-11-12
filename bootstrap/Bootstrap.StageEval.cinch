@@ -3,6 +3,8 @@
 module Bootstrap.StageEval where
   import Bootstrap.Check (CheckedProgram, checked-elaboration)
   import Bootstrap.Core
+  import Bootstrap.Nominal (stage-quotation-module)
+  import Bootstrap.Ast (Expr)
   import Bootstrap.ExportType (export-global)
   import Bootstrap.Infer (elaboration-core)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
@@ -11,21 +13,43 @@ module Bootstrap.StageEval where
   import Data.Int (int-add, int-sub, int-mul, int-neg)
   import Text.Lex (Span)
 
-  export StageValue, StageInteger, StageBoolean, StageString, StageUnit, StageQuoted, evaluate-stage
-  export stage-quotation-module, stage-quotation-constructor
+  export StageValue, StageInteger, StageBoolean, StageString, StageUnit, StageQuoted, StageCode, evaluate-stage
+  export StageTemplate, MkStageTemplate, template-carrier, template-body
+  export stage-quotation-constructor
 
-  stage-quotation-module :: String
-  stage-quotation-module = "#stage-quotation"
-
+  -- The synthesized stage module and its constructor names come from
+  -- Bootstrap.Nominal, which owns the one code identity both `Code` and
+  -- `#StageCode` resolve to.
   stage-quotation-constructor :: String
   stage-quotation-constructor = "#stage-value"
+
+  -- One quotation's template. The carrier is the `t` of its `Code t`; the
+  -- body is the resolved expression whose splice sites the expander fills
+  -- when the quotation is constructed. Declared before `StageValue`, which
+  -- carries it: a data type cannot mention one declared later.
+  data StageTemplate where
+    MkStageTemplate :: String -> Expr -> StageTemplate
+
+  template-carrier :: StageTemplate -> String
+  template-carrier template = case template of MkStageTemplate carrier body -> carrier
+
+  template-body :: StageTemplate -> Expr
+  template-body template = case template of MkStageTemplate carrier body -> body
 
   data StageValue where
     StageInteger :: Int -> StageValue
     StageBoolean :: Bool -> StageValue
     StageString :: String -> StageValue
     StageUnit :: StageValue
+    -- A checked scalar the stage evaluator computed, reified back into a
+    -- term at its splice site.
     StageQuoted :: StageValue -> StageValue
+    -- A typed quotation (modules specification section 7): its resolved
+    -- template with every splice still in place, and the carrier type it
+    -- produces. The template travels as source because the expander
+    -- re-checks it where the code lands, exactly as the seed retains its
+    -- template beside the reified body.
+    StageCode :: StageTemplate -> StageValue
 
   data StageMatch where
     Match :: List (Nat, StageValue) -> StageMatch

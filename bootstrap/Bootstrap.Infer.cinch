@@ -27,7 +27,7 @@ module Bootstrap.Infer where
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Dictionary (resolve-dictionary-definition-with, resolve-dictionary-term-with, resolve-ready-term, check-instance-coherence, check-law-term-evidence, law-context-resolves)
   import Bootstrap.Parse (parse-scheme)
-  import Bootstrap.Nominal (interface-global, resolved-entry-valid, resolved-text, resolved-nominals, qualify-resolved, qualify-refinement-predicate, resolved-measures, global-data-core-cons, global-data-core-list, global-data-core-nil, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-data-string-string)
+  import Bootstrap.Nominal (interface-global, resolved-entry-valid, resolved-text, resolved-nominals, qualify-resolved, qualify-refinement-predicate, resolved-measures, global-data-core-cons, global-data-core-list, global-data-core-nil, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-data-string-string, global-stage-code)
   import Bootstrap.Report (Diagnostic)
   import Data.Json
   import Text.Lex (Span, span-line, span-col)
@@ -280,6 +280,9 @@ module Bootstrap.Infer where
     EBinding s name rhs rest -> expression-needs rhs || expression-needs rest
     EAlt s p rhs rest -> expression-needs rhs || expression-needs rest
     EGuarded s guard body -> True
+    -- A quotation is built at compile time, so the typed elaborator must
+    -- see it: the legacy scalar path has no `Code` type to give it.
+    EQuote s body -> True
     other -> False
   ctor-needs :: List (String, TypeExpr) -> Bool
   ctor-needs cs = case cs of Nil -> False; Cons (name, ty) rest -> needs-type ty || ctor-needs rest
@@ -403,6 +406,10 @@ module Bootstrap.Infer where
     other -> (head, args)
   convert-type-head :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
   convert-type-head external kinds locals syntax st = case syntax of
+    -- `Code` is the source spelling of the one stage code identity the
+    -- expander's module declares (Bootstrap.Nominal owns the encoding), so a
+    -- `Code t` a signature names unifies with a quotation's `Code t`.
+    TName sp raw | same raw "Code" -> (UCon global-stage-code (KFun KType KType), st)
     TName sp name -> case lookup-type-local name locals of
       Some value -> (value, st)
       None -> case (find-refinement name (context-aliases kinds), context-kind name kinds) of
@@ -557,6 +564,7 @@ module Bootstrap.Infer where
     Cons declaration rest -> validate-refinements kinds rest (validate-refinement kinds declaration st)
   convert :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
   convert external kinds locals ty st = case ty of
+    TName s raw | same raw "Code" -> (UCon global-stage-code (KFun KType KType), st)
     TName s name -> case lookup-type-local name locals of
       Some found -> (found, st)
       None -> if same name "(->)" then (UCon name arrow-constructor-kind, st)
@@ -2878,6 +2886,46 @@ module Bootstrap.Infer where
                 (items, checked) -> (CApply sp result method items, checked))
             other -> term-error sp "collection literal has no checked FromList declaration" shaped)))
 
+  -- A typed quotation `[| e |]` (modules specification section 7) has type
+  -- `Code t`, where `t` is the template's type. The template is checked in a
+  -- closed scope: it may not capture the enclosing locals (decision D43),
+  -- because the code it becomes must be meaningful wherever it lands. Its
+  -- effects stay latent in the code (decision D44) and are checked at
+  -- ordinary rules when the code is spliced into declarations.
+  --
+  -- A splice inside the template is a compile-time hole: its expression is
+  -- elaborated in the enclosing (stage) scope, and its type must be a `Code`
+  -- whose carrier is what the hole stands for.
+  infer-quotation :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Option UType -> Store -> (CoreTerm, Store)
+  infer-quotation classes kinds families env locals sp body expected st =
+    let (element, fresh) = case expected of
+          Some wanted -> (case normalize st wanted of
+            UApp (UCon name _) carrier -> if same name global-stage-code then (carrier, st) else fresh-meta KType st
+            other -> fresh-meta KType st)
+          None -> fresh-meta KType st in
+    case quote-splice-types classes kinds families env locals body fresh of
+      Err message -> term-error sp message fresh
+      -- The template is checked, but building the `Code` value from it is the
+      -- expander's job: a quotation is compile-time data with no runtime
+      -- representation, so the elaborator has no term to hand the backend.
+      -- Bootstrap.Stage reads the template off the probe declaration.
+      Ok (holes, checked) -> (CError sp, add-error sp "a quotation is built by the stage expander, which does not construct this one yet" checked)
+  -- Every splice in a template, in the order the template writes them. A
+  -- splice whose expression is not `Code t` is refused by name, and so is one
+  -- whose stage differs from the quotation's.
+  quote-splice-types :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> Result String (List (Span, String), Store)
+  quote-splice-types classes kinds families env locals body st = quote-splice-walk classes kinds families env locals body Nil st
+
+
+  quote-splice-walk :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> List (Span, String) -> Store -> Result String (List (Span, String), Store)
+  quote-splice-walk classes kinds families env locals expression found st = case expression of
+    ESplice at inner -> (case infer classes kinds families env locals inner st of
+      (term, opened) -> case normalize opened (core-type term) of
+        UApp (UCon name _) carrier -> if same name global-stage-code then Ok (Cons (at, "code") found, opened)
+          else Err (string-concat "a splice must produce `Code t`, but this one produces " (law-domain-text (core-type term)))
+        other -> Err (string-concat "a splice must produce `Code t`, but this one produces " (law-domain-text other)))
+    _ -> Ok (found, st)
+
   refinement-constructor-arguments :: TypeContext -> List TypeParam -> List (String, UType) -> UType -> Store -> (UType, Store)
   refinement-constructor-arguments kinds parameters earlier head st = case parameters of
     Nil -> (head, st)
@@ -2929,6 +2977,7 @@ module Bootstrap.Infer where
         (predicate, test, checked) -> (test, checked))
     ECon s name args -> case lookup-expression-value s kinds name env st of (term, sn) -> infer-arguments classes kinds families env locals term args sn
     EList s args -> infer-collection classes kinds families env locals s args None st
+    EQuote sp body -> infer-quotation classes kinds families env locals sp body None st
     ELitInt s text -> checked-literal s (primitive-type "Int") text st
     ELitStr s text -> (CString s (literal-type kinds "String") text, st)
     ELitChar s text -> (CChar s (primitive-type "Char") text, st)
@@ -3010,6 +3059,7 @@ module Bootstrap.Infer where
             (values, checked) -> (CTuple sp expected values, checked)))
       other -> check-inferred classes kinds families env locals expr expected st)
     EList s args -> infer-collection classes kinds families env locals s args (Some expected) st
+    EQuote sp body -> infer-quotation classes kinds families env locals sp body (Some expected) st
     EIf s condition yes no -> case check classes kinds families env locals condition (primitive-type "Bool") st of
       (c, sc) -> case check classes kinds families (proof-branch (expr-span condition) env c True sc) locals yes expected sc of
         (a, sa) -> case check classes kinds families (proof-branch (expr-span condition) env c False sa) locals no expected sa of
@@ -5993,6 +6043,7 @@ module Bootstrap.Infer where
       EHandle sp body handler-value -> first-guard-error (eager body) (eager handler-value)
       EHandler sp label clauses -> eager clauses
       EHandlerClause sp name patterns continuation body rest -> first-guard-error (eager body) (eager rest)
+      EQuote sp body -> nested flow body
       ESplice sp body -> eager body
       other -> if recursive-call-allowed productive diverges position then None else case first-recursive-reference group (expr-references expression) of
         Some name -> Some (expr-span expression, name)
