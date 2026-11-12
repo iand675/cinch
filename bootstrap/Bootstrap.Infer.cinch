@@ -6717,13 +6717,12 @@ module Bootstrap.Infer where
     Nil -> seen
     Cons first rest -> if has first seen then source-total-closure names declarations rest seen else
       source-total-closure names declarations (source-total-relevant names (source-total-refs first declarations) <> rest) (Cons first seen)
-  source-total-from-checked :: List String -> Elaboration -> List BodyBinding
-  source-total-from-checked names preliminary = case names of
-    Nil -> Nil
-    Cons name rest -> let more = source-total-from-checked rest preliminary in
-      (case export-global name of
-        Ok native -> (case core-source-body (env-body-bindings (elaboration-bindings preliminary)) (elaboration-core preliminary) (elaboration-data preliminary) native of Some binding -> Cons binding more; None -> more)
-        Err error -> more)
+  -- One module elaboration over just the declarations these names need.
+  --
+  -- The retry below runs this once per name that genuinely failed, so the
+  -- selection is a function of the name's own closure and never of the
+  -- module: an attempt cannot see, and so cannot re-pay for, a declaration
+  -- another name already resolved.
   source-total-preliminary :: Result String InterfaceSet -> String -> Module -> List String -> Elaboration
   source-total-preliminary interfaces label m names = let declarations = module-decls m in
     let refs = source-total-selected-references names declarations in
@@ -6732,33 +6731,109 @@ module Bootstrap.Infer where
     -- Source selection keeps the same complete DInterface set.
     elaborate-module-with-source-bodies interfaces False (label <> " total bodies")
       (MkModule (module-span m) (module-name m) (decl-spine (module-span m) (source-total-select names aliases datas declarations)))
-  source-total-individual :: Result String InterfaceSet -> String -> Module -> List String -> List String -> List BodyBinding
-  source-total-individual interfaces label m all names = case names of
+  -- The elaboration's own lists, whatever its diagnostics say.
+  --
+  -- A module elaboration that reports an error still registers a total body
+  -- for every declaration that checked before the failure: check-body-loop
+  -- returns the definitions it accumulated and the store carries the
+  -- bindings. The error-gated accessors above answer Nil instead, which is
+  -- the right rule for a caller that may only act on a fully accepted
+  -- elaboration, and the wrong one for this pass, which is reading exactly
+  -- the results an errored elaboration did produce.
+  elaboration-source-bindings :: Elaboration -> List CheckedBinding
+  elaboration-source-bindings e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations observations rewrites -> bindings
+  elaboration-source-core :: Elaboration -> List CoreDefinition
+  elaboration-source-core e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations observations rewrites -> core
+  elaboration-source-data :: Elaboration -> List CoreData
+  elaboration-source-data e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations observations rewrites -> datas
+  -- The elaboration's readable surface: its bodies keyed by defining
+  -- identity, built once per pass.
+  --
+  -- core-source-body answers one name by scanning the definition list and
+  -- walking the reference graph behind the hit, so asking it per name pays
+  -- the scan again for every name. The scan is what a pass over N names
+  -- cannot afford; the three lists are read off the elaboration once and
+  -- threaded through the per-name read instead.
+  data SourceTotalSurface where
+    MkSourceTotalSurface :: List BodyBinding -> List CoreDefinition -> List CoreData -> SourceTotalSurface
+  source-total-surface :: Elaboration -> SourceTotalSurface
+  source-total-surface checked = MkSourceTotalSurface (env-body-bindings (elaboration-source-bindings checked)) (elaboration-source-core checked) (elaboration-source-data checked)
+  -- One name's total body, read off a surface this pass already built.
+  source-total-checked-body :: String -> SourceTotalSurface -> Option BodyBinding
+  source-total-checked-body name surface = case surface of
+    MkSourceTotalSurface bodies definitions datas -> (case export-global name of
+      Ok native -> core-source-body bodies definitions datas native
+      Err error -> None)
+  -- Every name's body from one surface, in name order, asked for once.
+  --
+  -- The unresolved set and the emitted list are both read off this table, so
+  -- neither re-derives a body the other already has.
+  source-total-entries :: List String -> SourceTotalSurface -> List (String, Option BodyBinding)
+  source-total-entries names surface = case names of
     Nil -> Nil
-    Cons name rest -> let more = source-total-individual interfaces label m all rest in
+    Cons name rest -> Cons (name, source-total-checked-body name surface) (source-total-entries rest surface)
+  source-total-missing :: List (String, Option BodyBinding) -> List String
+  source-total-missing entries = case entries of
+    Nil -> Nil
+    Cons (name, found) rest -> (case found of Some binding -> source-total-missing rest; None -> Cons name (source-total-missing rest))
+  -- The bodies the module elaboration did not produce, one elaboration each.
+  --
+  -- Flat on purpose: an attempt elaborates one name's closure and contributes
+  -- at most that name's body, so the pass cannot nest, and the number of
+  -- elaborations is the number of names that genuinely failed rather than a
+  -- function of the module's size. The attempt keeps its result only when it
+  -- reports no error, which is the rule this pass has always applied to a
+  -- re-elaboration.
+  source-total-retry :: Result String InterfaceSet -> String -> Module -> List String -> List String -> List (String, Option BodyBinding)
+  source-total-retry interfaces label m all names = case names of
+    Nil -> Nil
+    Cons name rest -> let more = source-total-retry interfaces label m all rest in
       let needed = source-total-closure all (module-decls m) [name] Nil in
-      let preliminary = source-total-preliminary interfaces label m needed in
-      (case elaboration-errors preliminary of Nil -> source-total-from-checked [name] preliminary <> more; other -> more)
-  -- The module elaboration's bindings in declaration order, with a name's own
-  -- elaboration standing in only for the names the module elaboration did not
-  -- produce. A module elaboration that reports an error still registers a
-  -- total body for every declaration that checked, so one failed declaration
-  -- costs one extra elaboration per failed name, not one per name: the whole
-  -- module's names were re-elaborated one at a time before this.
-  source-total-resolved :: Result String InterfaceSet -> String -> Module -> List String -> List String -> Elaboration -> List BodyBinding
-  source-total-resolved interfaces label m all names preliminary = case names of
+      let attempt = source-total-preliminary interfaces label m needed in
+      Cons (name, source-total-retry-body name attempt) more
+  source-total-retry-body :: String -> Elaboration -> Option BodyBinding
+  source-total-retry-body name attempt = case elaboration-errors attempt of
+    Nil -> source-total-checked-body name (source-total-surface attempt)
+    other -> None
+  -- A clean elaboration's bodies, in name order.
+  source-total-from-checked :: List String -> SourceTotalSurface -> List BodyBinding
+  source-total-from-checked names surface = case names of
     Nil -> Nil
-    Cons name rest -> let more = source-total-resolved interfaces label m all rest preliminary in
-      case source-total-from-checked [name] preliminary of
-        Cons binding Nil -> Cons binding more
-        other -> source-total-individual interfaces label m all [name] <> more
+    Cons name rest -> let more = source-total-from-checked rest surface in
+      (case source-total-checked-body name surface of Some binding -> Cons binding more; None -> more)
+  -- The entries in name order, a retried body standing in for the name it
+  -- answered for. The retried table is keyed by the same names, in the same
+  -- order, so this is one step per name and not a search.
+  source-total-emit :: List (String, Option BodyBinding) -> List (String, Option BodyBinding) -> List BodyBinding
+  source-total-emit entries retried = case entries of
+    Nil -> Nil
+    Cons (name, found) rest -> case found of
+      Some binding -> Cons binding (source-total-emit rest retried)
+      None -> case retried of
+        Cons (_, replacement) more -> (case replacement of Some binding -> Cons binding (source-total-emit rest more); None -> source-total-emit rest more)
+        Nil -> source-total-emit rest Nil
+  -- The module elaboration's bodies in name order, with a name's own
+  -- elaboration standing in only for the names the module elaboration did
+  -- not produce.
+  source-total-resolved :: Result String InterfaceSet -> String -> Module -> List String -> List (String, Option BodyBinding) -> List BodyBinding
+  source-total-resolved interfaces label m all entries =
+    source-total-emit entries (source-total-retry interfaces label m all (source-total-missing entries))
+  -- A module elaboration that reports no error needs no retry at all: every
+  -- name it resolved is emitted and every name it did not is dropped, which
+  -- is what this pass has always done with a clean elaboration. The retry
+  -- exists only for the errored case, where the elaboration stopped early
+  -- and left names unresolved that a narrower elaboration can still settle,
+  -- so the table that decides who is unresolved is built on that path alone.
   source-total-bodies :: Result String InterfaceSet -> String -> Module -> List (String, Kind) -> TypeContext -> List BodyBinding
   source-total-bodies interfaces label m classes kinds = let declarations = module-decls m in
     let names = source-total-names classes kinds declarations declarations in
     case names of
       Nil -> Nil
       other -> let preliminary = source-total-preliminary interfaces label m names in
-        (case elaboration-errors preliminary of Nil -> source-total-from-checked names preliminary; other -> source-total-resolved interfaces label m names names preliminary)
+        (case elaboration-errors preliminary of
+          Nil -> source-total-from-checked names (source-total-surface preliminary)
+          other -> let entries = source-total-entries names (source-total-surface preliminary) in
+            source-total-resolved interfaces label m names entries)
   add-source-bodies :: List BodyBinding -> TypeContext -> Store -> (TypeContext, Store)
   add-source-bodies bindings kinds st = case bindings of
     Nil -> (kinds, st)
