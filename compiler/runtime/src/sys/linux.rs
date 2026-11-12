@@ -98,9 +98,33 @@ mod nr {
     pub(super) const MPROTECT: i64 = 226;
 }
 
-#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+/// The syscall numbers, from the 32-bit x86 table
+/// (`arch/x86/entry/syscalls/syscall_32.tbl`). It is a table of its own:
+/// `mmap2` is the page-granular mapping (there is no `mmap`), and the
+/// numbers agree with neither 64-bit table.
+#[cfg(target_arch = "x86")]
+mod nr {
+    pub(super) const READ: i64 = 3;
+    pub(super) const WRITE: i64 = 4;
+    pub(super) const CLOSE: i64 = 6;
+    pub(super) const MMAP: i64 = 192;
+    pub(super) const MPROTECT: i64 = 125;
+    pub(super) const MUNMAP: i64 = 91;
+    pub(super) const IOCTL: i64 = 54;
+    pub(super) const GETPID: i64 = 20;
+    pub(super) const KILL: i64 = 37;
+    pub(super) const RT_SIGSUSPEND: i64 = 179;
+    pub(super) const EXIT_GROUP: i64 = 252;
+    pub(super) const OPENAT: i64 = 295;
+}
+
+#[cfg(not(any(
+    target_arch = "x86_64",
+    target_arch = "aarch64",
+    target_arch = "x86"
+)))]
 compile_error!(
-    "the Linux syscall numbers are pinned for x86_64 and aarch64 only; \
+    "the Linux syscall numbers are pinned for x86_64, aarch64 and x86 only; \
      another architecture needs its own column in this table"
 );
 
@@ -164,6 +188,48 @@ unsafe fn syscall(n: i64, a1: i64, a2: i64, a3: i64, a4: i64, a5: i64, a6: i64) 
         );
     }
     ret
+}
+
+/// The `int 0x80` trap: number in `eax`, arguments in `ebx`, `ecx`,
+/// `edx`, `esi`, `edi`, `ebp`, result in `eax`.
+///
+/// The sixth argument register is `ebp`, which the compiler keeps as the
+/// frame pointer, so the trap saves and restores it around the call: the
+/// kernel reads the argument from `ebp` and the frame pointer is put back
+/// before any code that could need it runs. Every register is 32 bits, so
+/// the words are truncated on the way in and sign-extended on the way
+/// out, which is what the kernel's `-errno` convention needs to survive.
+///
+/// # Safety
+///
+/// The number and the arguments must be a call this process may make,
+/// with pointer arguments pointing at memory the kernel may read or
+/// write as that call requires.
+#[cfg(target_arch = "x86")]
+unsafe fn syscall(n: i64, a1: i64, a2: i64, a3: i64, a4: i64, a5: i64, a6: i64) -> i64 {
+    let ret: i32;
+    // `esi` cannot be an inline-asm operand on i686 (LLVM reserves it), so
+    // the two registers it shares with the frame pointer travel through
+    // memory: the trap loads them after the compiler has finished with
+    // them.
+    let through_memory: [i32; 2] = [a4 as i32, a6 as i32];
+    unsafe {
+        core::arch::asm!(
+            "push ebp",
+            "mov ebp, [{args} + 4]",
+            "mov esi, [{args}]",
+            "int 0x80",
+            "pop ebp",
+            args = in(reg) through_memory.as_ptr(),
+            inlateout("eax") n as i32 => ret,
+            in("ebx") a1 as i32,
+            in("ecx") a2 as i32,
+            in("edx") a3 as i32,
+            in("edi") a5 as i32,
+            options(nostack, preserves_flags)
+        );
+    }
+    i64::from(ret)
 }
 
 /// The kernel's convention, made `sys`'s: a result in `-4095..=-1` is
