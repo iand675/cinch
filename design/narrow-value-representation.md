@@ -124,6 +124,47 @@ one *signature class vector*, not one arity.
 - The measured apply-stub win must survive: no return to per-arity
   fan-out.
 
+## 6a What the survey found
+
+Measured on `main` before any change:
+
+- **The word is `i64` on every target, including 32-bit ones.** A wasm32
+  module emits `define i64 @"Main.main"` and `inttoptr i64 %f to ptr`.
+  The datalayout says `p:32:32`, so the pointer truncates on the way to
+  a real pointer. clang accepts this at `-O2`: it is correct, not
+  merely tolerated.
+- **So the `Nat`/`Int` immediate encoding is not a live bug.** Its
+  `(1 << 63) - 1` payload claim is consistent with a word that is
+  actually `i64`. It becomes wrong only once the word itself becomes 32
+  bits.
+- **Therefore the word width and the encoding are one change.** Making
+  the word 32 bits while the tag still claims 63 payload bits would be
+  the bug. They must move together.
+- **The runtime refuses rather than miscompiles.** Building for
+  `wasm32-unknown-unknown` fails on the syscall layer having no wasm
+  backend; `i686-unknown-linux-gnu` failed on the syscall numbers being
+  pinned for x86_64 and aarch64. That honesty is why the targeted route
+  works: each step is forced by a specific refusal.
+
+### The first slice, taken
+
+The i686 syscall column is in. The trap is `int 0x80`, whose sixth
+argument register is `ebp`, the frame pointer; `esi` cannot be an
+inline-asm operand on i686 at all because LLVM reserves it. Both travel
+through memory and the trap loads them once the compiler is done with
+them, `ebp` is saved and restored around the trap, and the result
+sign-extends because the kernel's `-errno` convention has to survive a
+32-bit register. `cargo check` for `i686-unknown-linux-gnu` now succeeds.
+
+### The limit of what is verifiable here
+
+This host is aarch64 macOS. `cargo check --target i686-unknown-linux-gnu`
+type-checks the whole crate, so the code is known to compile; linking and
+running need an i686 Linux toolchain that is not present. So the i686
+path is compile-verified and not execution-verified, and the design note
+says so rather than implying a test that does not exist. Adding the
+target to `SUPPORTED_TARGETS` needs that toolchain first.
+
 ## 7 Open questions
 
 1. **Where does the width live?** `Class` is the reclamation axis. A
