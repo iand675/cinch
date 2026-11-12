@@ -613,3 +613,129 @@ module Main where
     }
     common::cleanup(&dir);
 }
+
+/// An imported ADT whose field is another module's ADT is a shareable
+/// capture.
+///
+/// `Share` is structural, so the judgement needs the constructor fields of
+/// every type a capture reaches, including a type reached only through
+/// another type's field. The seed resolves such a type through the loaded
+/// interface. The self-hosted compiler does not: its reference set is
+/// computed once, before anything is materialized, so a type named only by a
+/// materialized type's field stays unmaterialized and the walk finds no
+/// declaration for it. That divergence is pinned here from the seed's side,
+/// so the bootstrap has a test to converge on; the bootstrap-side assertion
+/// is `an_imported_field_type_is_named_in_the_refusal` in this file's
+/// companion test, which records the diagnostic it produces until the closure
+/// lands.
+#[test]
+fn an_imported_adt_field_is_a_shareable_capture() {
+    let dir = common::project(
+        "parallel-imported-adt-field",
+        &[
+            ("Data.Array.cinch", ARRAY_SOURCE),
+            (
+                "Lib.cinch",
+                r#"
+module Lib where
+  data Span where
+    Span :: Nat -> Span
+  data Node where
+    Leaf :: Span -> Node
+"#,
+            ),
+            (
+                "Main.cinch",
+                r#"
+module Main where
+  import Data.Array
+  import Lib (Node)
+
+  width :: Node -> Nat
+  width n = 1
+
+  table :: Node -> Nat
+  table n = array-length (parTabulate 1 (\i -> width n))
+
+  main :: Int
+  main = 0
+"#,
+            ),
+        ],
+    );
+    let built = common::build(&dir, "Main.cinch", "program");
+    assert!(
+        built.is_ok(),
+        "an imported shareable ADT was refused as a parallel capture: {:?}",
+        built.err()
+    );
+    common::cleanup(&dir);
+}
+
+/// The bootstrap's refusal names the type it could not read; the seed's does
+/// not, and that divergence is the point of this test.
+///
+/// The generic message says the rule. A reader who sees only "a parallel
+/// capture must be Share" cannot tell whether the type is genuinely mutable
+/// or whether the compiler simply had no declaration to read. The
+/// self-hosted compiler now says which type and why
+/// (`Bootstrap.Typing.par-blocker-clause`); the seed still says only the rule.
+/// This test drives the bootstrap frontend and asserts the improved message,
+/// so the seed's message is a recorded divergence rather than an untested
+/// difference.
+///
+/// The frontend is selected by `CINCH_TEST_COMPILER`, the same selector
+/// `tooling/run_stage_targets.py` sets. With no selector this test is a
+/// no-op rather than a failure, because the seed cannot satisfy it by
+/// construction.
+#[test]
+fn the_bootstrap_refusal_names_the_unreadable_type() {
+    if std::env::var_os("CINCH_TEST_COMPILER").is_none() {
+        eprintln!("skipping: set CINCH_TEST_COMPILER to a bootstrap frontend to assert this");
+        return;
+    }
+    let dir = common::project(
+        "parallel-capture-names-type",
+        &[
+            ("Data.Array.cinch", ARRAY_SOURCE),
+            (
+                "Lib.cinch",
+                r#"
+module Lib where
+  data Sealed where
+    MkSealed :: Bytes -> Sealed
+"#,
+            ),
+            (
+                "Main.cinch",
+                r#"
+module Main where
+  import Data.Array
+  import Lib (Sealed)
+
+  width :: Sealed -> Nat
+  width s = 1
+
+  table :: Sealed -> Nat
+  table s = array-length (parTabulate 1 (\i -> width s))
+
+  main :: Int
+  main = 0
+"#,
+            ),
+        ],
+    );
+    let message = match common::build(&dir, "Main.cinch", "program") {
+        Ok(_) => panic!("a Sealed capture built, but its Bytes field is not Share"),
+        Err(message) => message,
+    };
+    assert!(
+        message.contains("a parallel capture must be Share"),
+        "the refusal lost the rule: {message:?}"
+    );
+    assert!(
+        message.contains("has no checked declaration in this module"),
+        "the refusal does not say the declaration was unavailable: {message:?}"
+    );
+    common::cleanup(&dir);
+}

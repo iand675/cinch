@@ -1379,10 +1379,50 @@ module Bootstrap.Typing where
     else if not many-shot && task-id-present id owned then None
     else if many-shot then
       Some (sp, string-concat-all ["a ", op, " callback runs once per index, so ", display,
-        " cannot move into it: a parallel capture must be Share (design/parallel-evaluation.md section 2.3)"])
+        " cannot move into it: a parallel capture must be Share (design/parallel-evaluation.md section 2.3)",
+        par-blocker-clause context actual])
     else
       Some (sp, string-concat-all ["a parallel capture must be Share, or move into one parBoth branch: ", display,
-        " is shared with a ", op, " callback without shareable evidence (design/parallel-evaluation.md section 2.3)"])
+        " is shared with a ", op, " callback without shareable evidence (design/parallel-evaluation.md section 2.3)",
+        par-blocker-clause context actual])
+  -- The reason a type is not Share, named. The generic refusal above says
+  -- the rule; this says which type in the walk failed and why, so a reader
+  -- can act on it. A type that never became a `CoreData` is the case that
+  -- used to be silent: an imported declaration contributes a nominal row,
+  -- not a constructor table, so the structural walk has no fields to read
+  -- and answers False without naming anything. Empty when the walk failed
+  -- for a reason this does not explain, so the message never guesses.
+  par-blocker-clause :: TypingContext -> UType -> String
+  par-blocker-clause context ty = case task-blocker context Nil 64 ty of
+    None -> ""
+    Some message -> string-concat "; " message
+  task-blocker :: TypingContext -> List UType -> Nat -> UType -> Option String
+  task-blocker context seen fuel ty = if fuel == 0 then None else if task-seen-type ty seen then None else
+    case task-type-spine ty Nil of
+      (UCon name kind, args) -> case task-data name (context-data context) of
+        None -> Some (string-concat-all ["the type ", type-text ty,
+          " has no checked declaration in this module, so its constructor fields cannot be read: ",
+          "an imported type contributes a nominal row only, and a parallel capture needs the ",
+          "field types of every constructor (design/parallel-evaluation.md section 2.3)"])
+        Some d -> task-blocker-constructors context (Cons ty seen) (fuel - 1)
+          (task-actuals (core-data-params d) args) (core-data-constructors d)
+      other -> None
+  -- The innermost field type the walk could not read. A capture is refused
+  -- because of a type the module never declared, so naming the outer type
+  -- alone ("Store") would still leave a reader guessing which field is at
+  -- fault; this reports the field's own type.
+  task-blocker-constructors :: TypingContext -> List UType -> Nat -> List (Nat, UType) -> List CoreConstructor -> Option String
+  task-blocker-constructors context seen fuel pairs constructors = case constructors of
+    Nil -> None
+    Cons constructor rest -> case task-blocker-fields context seen fuel pairs (core-constructor-fields constructor) of
+      Some message -> Some message
+      None -> task-blocker-constructors context seen fuel pairs rest
+  task-blocker-fields :: TypingContext -> List UType -> Nat -> List (Nat, UType) -> List UType -> Option String
+  task-blocker-fields context seen fuel pairs fields = case fields of
+    Nil -> None
+    Cons first rest -> case task-blocker context seen fuel (substitute-bound pairs first) of
+      Some message -> Some message
+      None -> task-blocker-fields context seen fuel pairs rest
   par-ids :: List (Nat, String, UType) -> List Nat
   par-ids bound = case bound of Nil -> Nil; Cons (id, name, ty) rest -> Cons id (par-ids rest)
   par-lookup :: List (Nat, String, UType) -> Nat -> UType
