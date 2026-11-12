@@ -1,7 +1,7 @@
 {
   "description": "ABI 9 library producer with the fixed-frame apply stub family.",
-  "revision": "5f1b4ef56cb86aea38da9485f3a6208c51b75ad2",
+  "revision": "1a7d1b98047089ec72e13dbc45e89e1b9bdef9f8",
   "runtime_abi": 9,
   "schema": 1,
-  "source_sha256": "39ae4c443170ef40b987a00f9453343dcfbf7522b01720d3304f251bf86eab15"
+  "source_sha256": "05a31ef4cfdcbc0e855331efb234b3bbddc6cf4c8437999b66b5b9c984f30fff"
 }
