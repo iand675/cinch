@@ -2827,6 +2827,15 @@ pub struct ParamContract {
     /// The size the pointer role asserts of its pointee
     /// (`dereferenceable`; 0 asserts none).
     pub pointee_size: u64,
+    /// The width this parameter crosses at, in bits, when the type has a
+    /// fixed narrow layout and the signature is monomorphic here
+    /// (design/narrow-value-representation.md section 4, rule 1).
+    ///
+    /// `None` is the uniform word: a type variable's instantiation, a
+    /// dictionary, a closure, a boxed `Nat`/`Int`, or any position whose
+    /// width the compiler cannot state. Narrowing is proved, never
+    /// guessed, so an unproved position keeps the word form.
+    pub narrow_bits: Option<u32>,
 }
 
 /// One definition's facts for the LLVM contract surface (the plan note
@@ -2854,6 +2863,11 @@ pub struct FnContract {
     /// parameter is validated before first use, so the parameter
     /// contracts restate as `llvm.assume` operand bundles.
     pub checked_params: bool,
+    /// The width the result crosses at, in bits, when the result type has
+    /// a fixed narrow layout and the signature is monomorphic there
+    /// (design/narrow-value-representation.md section 4, rule 1).
+    /// `None` is the uniform word.
+    pub result_narrow_bits: Option<u32>,
 }
 
 /// A record field projection's lowering plan: the runtime field slot,

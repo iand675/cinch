@@ -972,6 +972,12 @@ struct Registry {
     /// plan note's item 3), from the primitive signatures and the
     /// checked definitions' result types.
     ranges: HashMap<String, (i64, i64)>,
+    /// The width each unit's parameters and result cross at, when
+    /// narrowing is proved for that position
+    /// (design/narrow-value-representation.md section 4). A unit absent
+    /// here crosses entirely in words, which is every unit a proof did
+    /// not reach.
+    narrow_sigs: HashMap<String, (Vec<u32>, Option<u32>)>,
     /// Constructor units' `(tag, fields)` by unit name (the block words
     /// `ctor_body` writes; a string constant emits the same shape).
     ctors: HashMap<String, (usize, usize)>,
@@ -1490,6 +1496,25 @@ impl Registry {
             };
             if let Some(r) = r {
                 reg.ranges.insert(f.id.0.clone(), r);
+            }
+        }
+        // The narrowed boundary signatures, from the same contract the
+        // header is built from, so a call site and its callee cannot
+        // disagree about a position's width.
+        for f in &p.fns {
+            if f.prim.is_some() {
+                continue;
+            }
+            let params: Vec<u32> = f
+                .meta
+                .contract
+                .params
+                .iter()
+                .map(|p| p.narrow_bits.unwrap_or(64))
+                .collect();
+            let ret = f.meta.contract.result_narrow_bits;
+            if ret.is_some() || params.iter().any(|&w| w != 64) {
+                reg.narrow_sigs.insert(f.id.0.clone(), (params, ret));
             }
         }
         reg.tail_width = crate::core::tail_widths(p);
@@ -2565,6 +2590,12 @@ struct EmittedUnit {
     globals: String,
     /// The `define` header without its function attribute group.
     header: String,
+    /// The width each parameter crosses at, in bits, when narrowing is
+    /// proved for that position (design/narrow-value-representation.md
+    /// section 4). Empty means every parameter is one word.
+    narrow_params: Vec<u32>,
+    /// The width the result crosses at, in bits, when narrowing is proved.
+    narrow_ret: Option<u32>,
     allocas: String,
     code: String,
     stub: String,
@@ -3124,6 +3155,8 @@ fn build_unit(
     };
     let mut ret_range: Option<(i64, i64)> = None;
     let mut noundef_params: Vec<bool> = Vec::new();
+    let mut narrow_params: Vec<u32> = Vec::new();
+    let mut narrow_ret: Option<u32> = None;
     match &body {
         UnitBody::Prim(op) => {
             // A primitive that returns `Option` or `Ordering` boxes its
@@ -3204,6 +3237,30 @@ fn build_unit(
             lang.checked_params = f.meta.contract.checked_params;
             ret_range = f.meta.contract.result_range;
             noundef_params = f.meta.contract.params.iter().map(|p| p.noundef).collect();
+            // The width each position crosses at, when the analysis proved
+            // one (design/narrow-value-representation.md section 4). A
+            // position the contract does not narrow stays the word.
+            // A widened unit's own symbol is a one-call wrapper into a
+            // word-typed worker, and the worker's body returns a word, so
+            // neither narrows: the worker exists to give every member of
+            // a tail-call group one signature, and `musttail` needs that
+            // signature to be the caller's exactly.
+            let widened = reg.tail_width.contains_key(name);
+            // A wrapper whose body is a primitive operation returns the
+            // primitive's word (`prim_body` ends in `ret i64`), and a
+            // primitive's signature is its declared ABI rather than
+            // something the checker proved, so it never narrows either.
+            let prim_wrapped = f.prim.is_some();
+            if !widened && !prim_wrapped && matches!(body, UnitBody::Fn(_)) {
+                narrow_params = f
+                    .meta
+                    .contract
+                    .params
+                    .iter()
+                    .map(|p| p.narrow_bits.unwrap_or(64))
+                    .collect();
+                narrow_ret = f.meta.contract.result_narrow_bits;
+            }
             match (&body, reg.tail_width.get(name)) {
                 (UnitBody::Fn(_), Some(&width)) => {
                     let params: Vec<String> = (0..arity).map(|i| format!("%p{i}")).collect();
@@ -3219,7 +3276,14 @@ fn build_unit(
             }
         }
     }
-    let header = fn_header(name, arity, ret_range, &noundef_params);
+    let header = fn_header(
+        name,
+        arity,
+        ret_range,
+        &noundef_params,
+        &narrow_params,
+        narrow_ret,
+    );
     // The unit's own globals carry its static blocks and closure
     // descriptors, which name the units a body reaches as data rather
     // than by calling them.
@@ -3245,6 +3309,8 @@ fn build_unit(
         hints,
         globals: unit_globals,
         header,
+        narrow_params,
+        narrow_ret,
         allocas: b.allocas,
         code: b.code,
         stub: if worker {
@@ -3267,24 +3333,99 @@ fn fn_header(
     arity: usize,
     ret_range: Option<(i64, i64)>,
     noundef_params: &[bool],
+    narrow_params: &[u32],
+    narrow_ret: Option<u32>,
 ) -> String {
+    // A parameter crosses at its proved width when the type has a fixed
+    // narrow layout and the signature is monomorphic there
+    // (design/narrow-value-representation.md section 4). `narrow_params`
+    // is parallel to the parameters; a position it does not name, or
+    // names as 64, stays one word.
     let params: Vec<String> = (0..arity)
         .map(|i| {
-            if noundef_params.get(i).copied().unwrap_or(false) {
-                format!("i64 noundef %p{i}")
+            let ty = narrow_llvm_ty(narrow_params.get(i).copied().unwrap_or(64));
+            let nd = if noundef_params.get(i).copied().unwrap_or(false) {
+                " noundef"
             } else {
-                format!("i64 %p{i}")
-            }
+                ""
+            };
+            format!("{ty}{nd} %p{i}")
         })
         .collect();
-    let ret = match ret_range {
+    let ret = match (narrow_ret, ret_range) {
+        // A narrow result states its range in its own type, so `range`
+        // rides the narrowed value rather than the word. The bounds must
+        // fit that type: `U32`'s exclusive upper bound is 2^32, which an
+        // `i32` cannot spell, and the narrowed type itself already
+        // implies the whole range, so the attribute is dropped rather
+        // than emitted malformed.
+        (Some(w), Some((lo, hi)))
+            if lo < hi && range_fits(lo, hi, w) =>
+        {
+            format!("range({} {lo}, {hi}) {}", narrow_llvm_ty(w), narrow_llvm_ty(w))
+        }
+        (Some(w), _) => narrow_llvm_ty(w).to_string(),
         // The `range` return attribute states the result's value-word
         // range (the plan note's item 3): never the empty range `[a, a)`
         // the verifier rejects.
-        Some((lo, hi)) if lo < hi => format!("range(i64 {lo}, {hi}) i64"),
-        _ => "i64".to_string(),
+        (None, Some((lo, hi))) if lo < hi => format!("range(i64 {lo}, {hi}) i64"),
+        (None, _) => "i64".to_string(),
     };
     format!("define {ret} @{}({})", quote(name), params.join(", "))
+}
+
+/// Whether `[lo, hi)` says something the narrowed type does not already.
+///
+/// Two ways it does not, and LLVM refuses both:
+///
+/// * a bound the type cannot spell (`U32`'s exclusive upper bound is
+///   2^32, which an `i32` cannot hold), and
+/// * a range covering the whole type (`I8`'s `[-128, 128)`), which the
+///   verifier reads as "the empty set but limits aren't 0".
+///
+/// The narrowed type already implies both facts, so dropping the
+/// attribute loses nothing.
+fn range_fits(lo: i64, hi: i64, bits: u32) -> bool {
+    if bits >= 64 {
+        return true;
+    }
+    let (tmin, tmax) = match bits {
+        8 => (-128i64, 255i64),
+        16 => (-32768, 65535),
+        _ => (i32::MIN as i64, u32::MAX as i64),
+    };
+    if !(tmin..=tmax).contains(&lo) || !(tmin..=tmax).contains(&hi) {
+        return false;
+    }
+    // The whole type: every value it can hold is already in range, so the
+    // attribute says nothing. The exclusive upper bound is the type's
+    // maximum plus one, which is why it can exceed `tmax` above.
+    let exclusive_max = match bits {
+        8 => 128i64,
+        16 => 32768,
+        _ => 2147483648,
+    };
+    let signed_min = match bits {
+        8 => -128i64,
+        16 => -32768,
+        _ => -2147483648,
+    };
+    let whole = lo == signed_min && hi == exclusive_max;
+    !whole
+}
+
+/// The LLVM type a value of `bits` crosses at: the word's own type for
+/// 64, the narrower integer otherwise. A 32-bit narrow position is an
+/// integer even for `F32`, because the parameter carries the scalar's
+/// *bits* across the boundary and the body reads them as it always has
+/// (the same convention [`int_ty`] documents for the value word).
+fn narrow_llvm_ty(bits: u32) -> &'static str {
+    match bits {
+        8 => "i8",
+        16 => "i16",
+        32 => "i32",
+        _ => "i64",
+    }
 }
 
 /// The unit's static closure `@"<name>.clo"`, `{ app; arity; 0 }`, with
@@ -6917,6 +7058,7 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result
         reg,
         unit: f.id.0.clone(),
         width,
+        ret_bits: f.meta.contract.result_narrow_bits.unwrap_or(64),
         loop_label: String::new(),
         loop_meta: crate::loopmeta::LoopMeta::new(f.hints.unroll),
         bound: bound.into_iter().collect(),
@@ -6925,9 +7067,31 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result
         frame: reg.frame.get(&f.id.0),
         frame_bases: HashMap::new(),
     };
+    // A narrowed parameter arrives at its own width and the body reads a
+    // word, so the entry widens it once (design/narrow-value-representation
+    // .md section 4: the compiler boxes at the expanding edge, and
+    // everything below the edge keeps the word it always had). `zext` and
+    // `sext` are the same bits for a value the type's range already
+    // bounds; `zext` is used because the word convention keeps unsigned
+    // scalars zero-extended and a signed scalar's sign extension is a
+    // no-op on the bits a narrow type can hold.
     for i in 0..f.arity() {
         let slot = e.slot(LocalId(i));
-        e.b.line(&format!("store i64 %p{i}, ptr {slot}"));
+        let bits = f
+            .meta
+            .contract
+            .params
+            .get(i)
+            .and_then(|p| p.narrow_bits)
+            .unwrap_or(64);
+        if bits == 64 {
+            e.b.line(&format!("store i64 %p{i}, ptr {slot}"));
+        } else {
+            let ty = narrow_llvm_ty(bits);
+            let w = e.b.reg();
+            e.b.line(&format!("{w} = zext {ty} %p{i} to i64"));
+            e.b.line(&format!("store i64 {w}, ptr {slot}"));
+        }
     }
     // P20's `#[checked-params]` row re-states as `llvm.assume` operand
     // bundles at the entry (design/llvm-contract-attributes.md item 4):
@@ -7161,6 +7325,10 @@ struct CoreEmitter<'a, 'b> {
     /// widened worker): the tail-call rules compare callee tail
     /// signatures against it (decision D104).
     width: usize,
+    /// The width the unit's result crosses at, when narrowing is proved:
+    /// `Dest::Ret` narrows the word to it (design/narrow-value-
+    /// representation.md section 4).
+    ret_bits: u32,
     /// The loop header a saturated self tail call jumps to (decision
     /// D104).
     loop_label: String,
@@ -7207,9 +7375,19 @@ impl Dest {
     /// Store `v` and leave for the destination. The destination of a
     /// value that was never produced is not reached: a terminating
     /// expression leaves the block closed and the caller skips this.
-    fn settle(&self, b: &mut Builder, v: &str) {
+    fn settle(&self, b: &mut Builder, v: &str, bits: &u32) {
         match self {
-            Dest::Ret => b.line(&format!("ret i64 {v}")),
+            Dest::Ret => {
+                if *bits == 64 {
+                    b.line(&format!("ret i64 {v}"));
+                } else {
+                    // The body computes a word; the narrowed signature
+                    // hands back the low bits the type is bounded to.
+                    let w = b.reg();
+                    b.line(&format!("{w} = trunc i64 {v} to {}", narrow_llvm_ty(*bits)));
+                    b.line(&format!("ret {} {w}", narrow_llvm_ty(*bits)));
+                }
+            }
             Dest::Slot { slot, label } => {
                 b.line(&format!("store i64 {v}, ptr {slot}"));
                 b.line(&format!("br label %{label}"));
@@ -8108,15 +8286,64 @@ impl CoreEmitter<'_, '_> {
                     _ => String::new(),
                 };
                 // A widened callee is called in its worker directly,
-                // without the wrapper's extra frame.
+                // without the wrapper's extra frame. A worker is
+                // word-typed by construction (it exists to give every
+                // member of a tail-call group one signature), so a
+                // narrowed call never goes to one.
                 let (sym, width) = self.reg.tail_sig(&unit, arity);
+                let narrow = if width == arity {
+                    self.reg.narrow_sigs.get(&unit)
+                } else {
+                    None
+                };
+                let Some((params, ret)) = narrow else {
+                    let r = self.b.reg();
+                    self.b.line(&format!(
+                        "{r} = call i64 @{}({}){rng}",
+                        quote(&sym),
+                        padded_args(&vals, width)
+                    ));
+                    return Ok(r);
+                };
+                // The callee's signature is narrow at some position: hand
+                // each argument over at its proved width and take the
+                // result back as a word, which is what the body of the
+                // caller works in (the mirror of the callee's own entry
+                // widening).
+                let mut args_ty: Vec<String> = Vec::with_capacity(vals.len());
+                for (i, v) in vals.iter().enumerate() {
+                    let bits = params.get(i).copied().unwrap_or(64);
+                    if bits == 64 {
+                        args_ty.push(format!("i64 {v}"));
+                    } else {
+                        let ty = narrow_llvm_ty(bits);
+                        let w = self.b.reg();
+                        self.b.line(&format!("{w} = trunc i64 {v} to {ty}"));
+                        args_ty.push(format!("{ty} {w}"));
+                    }
+                }
                 let r = self.b.reg();
-                self.b.line(&format!(
-                    "{r} = call i64 @{}({}){rng}",
-                    quote(&sym),
-                    padded_args(&vals, width)
-                ));
-                return Ok(r);
+                match ret {
+                    Some(bits) if *bits != 64 => {
+                        let ty = narrow_llvm_ty(*bits);
+                        self.b.line(&format!(
+                            "{r} = call {ty} @{}({}){rng}",
+                            quote(&sym),
+                            args_ty.join(", ")
+                        ));
+                        let w = self.b.reg();
+                        self.b.line(&format!("{w} = zext {ty} {r} to i64"));
+                        return Ok(w);
+                    }
+                    _ => {
+                        self.b.line(&format!(
+                            "{r} = call i64 @{}({}){rng}",
+                            quote(&sym),
+                            args_ty.join(", ")
+                        ));
+                        return Ok(r);
+                    }
+                }
             }
         }
         let fv = self.emit_expr(f)?;
@@ -8194,7 +8421,7 @@ impl CoreEmitter<'_, '_> {
             }
             Core::Reuse { token, ctor, args, already_set } => {
                 let w = self.emit_reuse(*token, &ctor.0, args, already_set)?;
-                dest.settle(self.b, &w);
+                dest.settle(self.b, &w, &self.ret_bits);
                 Ok(())
             }
             Core::Release { block, moved, rest, token, body } => {
@@ -8284,7 +8511,20 @@ impl CoreEmitter<'_, '_> {
                         self.b.line(&format!("br label %{loop_label}{meta}"));
                         Ok(())
                     }
-                    Some((unit, arity)) if self.reg.tail_sig(&unit, arity).1 == self.width => {
+                    Some((unit, arity))
+                        if self.reg.tail_sig(&unit, arity).1 == self.width
+                            // `musttail` needs the callee's prototype to be
+                            // the caller's exactly, parameters included. A
+                            // narrowed signature is not the word prototype,
+                            // so a narrowed unit takes the ordinary call:
+                            // the frame is not reused, which is the honest
+                            // cost of a parameter that is not one word
+                            // (design/narrow-value-representation.md
+                            // section 4).
+                            && self.ret_bits == 64
+                            && !self.reg.narrow_sigs.contains_key(&unit)
+                            && !self.reg.narrow_sigs.contains_key(&self.unit) =>
+                    {
                         // Same prototype as the caller, so `musttail` is
                         // legal: the callee's frame replaces ours.
                         let mut vals = Vec::with_capacity(args.len());
@@ -8303,7 +8543,18 @@ impl CoreEmitter<'_, '_> {
                     }
                     _ => {
                         let v = self.emit_app(f, args)?;
-                        self.b.line(&format!("ret i64 {v}"));
+                        // The unit's own result narrowing applies here too:
+                        // a body that is one application returns through
+                        // this arm, and a narrowed `define` must return its
+                        // narrowed type on every path.
+                        if self.ret_bits == 64 {
+                            self.b.line(&format!("ret i64 {v}"));
+                        } else {
+                            let ty = narrow_llvm_ty(self.ret_bits);
+                            let w = self.b.reg();
+                            self.b.line(&format!("{w} = trunc i64 {v} to {ty}"));
+                            self.b.line(&format!("ret {ty} {w}"));
+                        }
                         Ok(())
                     }
                 }
@@ -8313,7 +8564,7 @@ impl CoreEmitter<'_, '_> {
                 // A terminating expression (the fault path, or a value that
                 // was delivered elsewhere) leaves nothing to settle.
                 if !self.b.terminated {
-                    dest.settle(self.b, &v);
+                    dest.settle(self.b, &v, &self.ret_bits);
                 }
                 Ok(())
             }
@@ -11422,6 +11673,10 @@ fn prim_impl_unit(reg: &Registry, plan: &PrimPlan, idx: usize, asm: bool) -> Res
         hints: crate::core::FnHints::default(),
         globals: String::new(),
         header,
+        // A `prim` unit's signature is its declared ABI, never narrowed:
+        // the fragment it holds was written for those exact types.
+        narrow_params: Vec::new(),
+        narrow_ret: None,
         allocas: String::new(),
         code,
         stub: String::new(),
@@ -11475,7 +11730,9 @@ fn prim_wrapper_unit(
         name: name.clone(),
         hints: f.hints.clone(),
         globals: String::new(),
-        header: fn_header(name, plan.arity, None, &vec![true; plan.arity]),
+        header: fn_header(name, plan.arity, None, &vec![true; plan.arity], &[], None),
+        narrow_params: Vec::new(),
+        narrow_ret: None,
         allocas: b.allocas,
         code: b.code,
         stub: stub_def(reg, name, plan.arity),

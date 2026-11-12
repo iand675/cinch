@@ -7771,6 +7771,7 @@ impl Checker {
             sig_tys.push(self.uni.zonk(&rest));
             if erased_suffix.is_none() {
                 meta.contract.result_range = sig_tys.last().and_then(|t| t.value_range());
+                meta.contract.result_narrow_bits = sig_tys.last().and_then(narrow_param_bits);
             }
             let mut pcs = vec![crate::core::ParamContract::default(); param_ids.len()];
             for (i, l) in value_params.iter().enumerate() {
@@ -11651,6 +11652,7 @@ impl Checker {
     /// section 4.2: a reference asserts alignment).
     fn param_contract(&self, t: &Ty) -> crate::core::ParamContract {
         let mut c = crate::core::ParamContract::default();
+        c.narrow_bits = narrow_param_bits(t);
         match t {
             Ty::Prim(_) | Ty::Bool => c.noundef = true,
             Ty::Ptr { role, pointee } => {
@@ -11959,6 +11961,40 @@ impl Checker {
         }
         let foreigns = self.foreign_plans.iter().cloned().collect();
         (plans, foreigns)
+    }
+}
+
+/// The width a parameter of type `t` crosses at, when narrowing is proved
+/// (design/narrow-value-representation.md section 4, rule 1).
+///
+/// A machine scalar whose runtime word is wider than its value is the
+/// case that matters: `U8`/`I16`/`F32` and their signed and unsigned
+/// siblings pay a full word for a byte, a halfword or 32 bits. Three
+/// things keep the word instead, and each is a real boundary rather than
+/// a missed optimisation:
+///
+/// * `I64`/`U64`/`F64`/`Usize`/`Isize` are already the word, so there is
+///   nothing to narrow.
+/// * `Char` has a 21-bit range but a 32-bit value, and the prelude's
+///   `Char` operations are specified over the word; narrowing it would
+///   change a specified representation rather than save a word.
+/// * `Bool` is specified as `0`/`1` in a word and its `range` attribute
+///   already tells LLVM the fact; a one-bit parameter would need an ABI
+///   rule this slice does not have.
+///
+/// Everything else (a type variable's instantiation, `Nat`/`Int`, a
+/// dictionary, a closure, a pointer role, an ADT) answers `None`: the
+/// uniform word, because the width is not a property of the declared
+/// type alone.
+fn narrow_param_bits(t: &Ty) -> Option<u32> {
+    let Ty::Prim(s) = t else {
+        return None;
+    };
+    match s {
+        crate::types::Scalar::I8 | crate::types::Scalar::U8 => Some(8),
+        crate::types::Scalar::I16 | crate::types::Scalar::U16 => Some(16),
+        crate::types::Scalar::I32 | crate::types::Scalar::U32 | crate::types::Scalar::F32 => Some(32),
+        _ => None,
     }
 }
 
