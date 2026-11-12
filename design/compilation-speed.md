@@ -1904,6 +1904,40 @@ these two files differing, put CPU at 6.07 s to 5.56 s (-8.4%); the wall
 figures scatter too widely on a machine carrying other lanes to be quoted,
 and the profile is the reliable evidence here.
 
+### 2.15 Two hot spots removed, and one that was layout noise
+
+Three findings from profiling the checker and the allocator, in the order they
+were made.
+
+**The export reference walk, removed.** `ExportNominal.binding-reference-names`
+walked every declaration in the module once per exported row, which is the
+product of the declaration count and the row count. It was **59.3% of self
+samples** on the toolkit check. The fix builds one name-keyed table per export
+and inverts the walk, so a row costs one hash probe; the table keeps the walk's
+own emission order and its two first-wins rules, so the output is byte
+identical and the frame is gone from the profile. Toolkit check **-8.4%**
+(interleaved pairs, both arms from the same tree).
+
+**The totality fallback, still open.** `source-total-bodies` is **50.2%
+inclusive** on the self-check: when the preliminary elaboration reports any
+error, `source-total-resolved` retries one name at a time and each retry
+re-elaborates the whole selected module, reaching 110 nested frames. Its inner
+scans are `source-total-selected-references` 13.9% and `binding-positions`
+13.7%. A lane is on it.
+
+**The allocator accounting was not the cost.** The survey predicted 2 to 3% from
+inlining the allocation fast path. Measured here: `cinch_alloc_ctor` 1.4% of
+samples, `allocate_block` 1.5%, drop and release 6.6%. Eliding the accounting
+looked like 4.7% until a **control arm** was built: the same runtime with a
+96-byte dead static added, no other change, bought **4% of the median**. All
+the accounting arms, including one that batched the counters and produced byte
+identical stats, sat in that band. The honest reading is that exact accounting
+costs nothing measurable once layout is controlled, and the counters are
+already per-thread (`Counter::of` writes the thread's own `Tally`, no atomics,
+no shared line), so there was nothing to amortise. The lesson generalises: on
+this tree a micro A/B on the runtime is indistinguishable from recompilation
+layout unless it includes an inert control arm.
+
 ### 2.14 The 2026-11-12 round, and what the two workloads are now
 
 Two numbers hold still enough to be a baseline, both on a quiet machine,
