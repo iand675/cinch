@@ -784,6 +784,13 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   modules imported whole that export one name must not force a
   selection list. `compiler/src/parser.rs`, `check_decls.rs`
   (`ImportView`), `tooling/tree-sitter-cinch`, `tests/modules.rs`.
+  The self-hosted frontend implements the same rule: `DImport` carries
+  the hidden names, `Bootstrap.Resolve` subtracts them from the surface
+  an import view contributes, so a hidden member is out of scope bare
+  and under the qualifier alike and the refusal names the spelling the
+  program used (`bootstrap/Bootstrap.Ast.cinch`,
+  `bootstrap/Bootstrap.Parse.cinch`, `bootstrap/Bootstrap.Resolve.cinch`,
+  `bootstrap/programs/Run.Resolve.cinch`).
 - **D424 (STM: algorithm in source)**: `Effect.Stm` is Cinch source
   over `prim` bodies in inline LLVM IR; the runtime owns only the
   `KIND_TVAR` cell (the one block whose scanned slot is rewritten in
