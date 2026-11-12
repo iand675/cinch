@@ -42,6 +42,17 @@ fn source_interfaces_preserve_private_nominals_and_defining_fixities() {
     let actual_core = base_interfaces.iter().find(|i| i.module == "Data.Core").unwrap();
     let native_core = native_base.iter().find(|i| i.module == "Data.Core").unwrap();
     assert_eq!(actual_core.iface_hash(), native_core.iface_hash(), "canonical source interface for Data.Core");
+    // A constructor's display scheme names its family by the defining
+    // identity, exactly as a value's scheme does (design/base-as-a-package.md,
+    // "Identity comes from the declaring module"). A base-family exception
+    // here made this producer disagree with the seed's, so replacing an
+    // embedded home with its own source changed that home's identity and
+    // every consumer of it was refused as stale.
+    for constructor in &actual_core.exports.types[0].ctors {
+        assert!(constructor.scheme.contains("Data.Core.List"), "{}: {}", constructor.name, constructor.scheme);
+        assert!(constructor.fields.iter().all(|field| !field.split([' ', '(', ')']).any(|word| word == "List")),
+            "{}: a bare family name reached a field list: {:?}", constructor.name, constructor.fields);
+    }
     let actual_ordering = base_interfaces.iter().find(|i| i.module == "Data.Ordering").unwrap();
     let native_ordering = native_base.iter().find(|i| i.module == "Data.Ordering").unwrap();
     for (actual, reference) in actual_ordering.exports.types[0].ctors.iter().zip(&native_ordering.exports.types[0].ctors) {

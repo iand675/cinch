@@ -149,37 +149,16 @@ module Bootstrap.ExportType where
     UEnd -> True
     UArg first rest -> ordinary-type first && ordinary-tuple rest
     other -> False
-  -- Public constructor spellings of the pinned base family, from the
-  -- defining declarations in its embedded package. These aliases format
-  -- metadata only. Resolved contracts keep their full defining identity.
-  base-constructor-names :: List (String, String)
-  base-constructor-names =
-    [("Data.Target.AVX2_256", "AVX2_256"), ("Algebra.Monoid.All", "All"), ("Algebra.Monoid.Any", "Any"),
-    ("Data.Ascii.Ascii", "Ascii"), ("Data.Target.CapAvailable", "CapAvailable"), ("Effect.Process.Child", "Child"),
-    ("Effect.Process.Command", "Command"), ("Data.Compose.Compose", "Compose"), ("Effect.Io.Config", "Config"),
-    ("Effect.Io.ConfigError", "ConfigError"), ("Data.Const.Const", "Const"), ("Relation.Ord.Down", "Down"),
-    ("Algebra.Monoid.Dual", "Dual"), ("Effect.Clock.Duration", "Duration"), ("Data.Target.EightLanes", "EightLanes"),
-    ("Algebra.Monoid.Endo", "Endo"), ("Effect.Fs.FileKind", "FileKind"), ("Effect.Fs.FileMeta", "FileMeta"),
-    ("Algebra.Monoid.First", "First"), ("Effect.Fs.FsError", "FsError"), ("Data.HashMap.HashMap", "HashMap"),
-    ("Data.Identity.Identity", "Identity"), ("Algebra.Arithmetic.InRange", "InRange"), ("Data.Json.Json", "Json"),
-    ("Text.Codec.JsonDecodeError", "JsonDecodeError"), ("Algebra.Monoid.Last", "Last"), ("Data.Core.List", "List"),
-    ("Effect.Concurrent.LoadError", "LoadError"), ("Data.Map.Map", "Map"), ("Data.Target.NEON64", "NEON64"),
-    ("Data.NonEmpty.NonEmpty", "NonEmpty"), ("Algebra.Arithmetic.NonZero", "NonZero"), ("Data.Core.Option", "Option"),
-    ("Data.Ordering.Ordering", "Ordering"), ("Data.Path.Path", "Path"), ("Effect.Process.ProcessError", "ProcessError"),
-    ("Data.Producer.Producer", "Producer"), ("Algebra.Monoid.Product", "Product"), ("Effect.Concurrent.Request", "Request"),
-    ("Data.Core.Result", "Result"), ("Data.Target.ScalableShape", "ScalableShape"), ("Data.Set.Set", "Set"),
-    ("Data.Sorted.Sorted", "Sorted"), ("Data.HashMap.Spine", "Spine"), ("Data.Producer.Step", "Step"),
-    ("Effect.Process.Stream", "Stream"), ("Data.String.String", "String"), ("Algebra.Monoid.Sum", "Sum"),
-    ("Data.Producer.TakeSt", "TakeSt"), ("Effect.Clock.Timeout", "Timeout")]
-  constructor-name :: String -> List (String, String) -> String
-  constructor-name identity names = case names of
-    Nil -> identity
-    Cons (owner, spelling) rest -> if same owner identity then spelling else constructor-name identity rest
+  -- A constructor's display scheme names every nominal by its defining
+  -- identity, exactly as a value's scheme does (design/base-as-a-package.md,
+  -- "Identity comes from the declaring module"). There is no base-family
+  -- exception: rewriting `Data.Core.List` to `List` here made this producer
+  -- disagree with the seed's, so a source-identical replacement of an
+  -- embedded home changed that home's interface hash and every consumer of
+  -- it was refused as stale.
   constructor-type :: List (Nat, String) -> UType -> Result String String
   constructor-type scope ty = case ty of
-    UCon name kind -> case export-global name of
-      Err error -> Err error
-      Ok identity -> Ok (constructor-name identity base-constructor-names)
+    UCon name kind -> export-global name
     UApp f x -> join [constructor-type scope f, Ok " ", case x of
       UApp g y -> join [Ok "(", constructor-type scope x, Ok ")"]
       other -> constructor-type scope x]
