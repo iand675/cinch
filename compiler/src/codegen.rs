@@ -842,7 +842,10 @@ fn emit_module(
     // of attribute annotations specification section 3.1).
     out.push_str(&reg.finish_meta());
     let abi = if object {
-        reg.object_abi(program, profile, &out, emit_modules)?
+        // The recorded identity is the identity of what is written, so the
+        // dedupe happens before it: a hash over the pre-dedupe text would
+        // disagree with the file on disk.
+        reg.object_abi(program, profile, &dedupe_static_blocks(&out), emit_modules)?
     } else {
         String::new()
     };
