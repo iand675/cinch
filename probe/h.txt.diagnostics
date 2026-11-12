@@ -1,0 +1,2 @@
+bootstrap.check:2:14: unknown type constructor or unbound type variable: Bogus
+bootstrap.check:2:14: type constructor is applied to too many arguments

@@ -1,0 +1,5 @@
+module Main where
+  stage x :: Bogus Int
+  stage x = 1
+  main :: Int
+  main = 0

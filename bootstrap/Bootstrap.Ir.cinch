@@ -760,5 +760,6 @@ module Bootstrap.Ir where
     EBindingsEnd s -> "binding spine end"
     EAlt s p body rest -> "alternative spine"
     EAltsEnd s -> "alternative spine end"
+    EQuote s body -> "quotation"
     ESplice s expression -> "quotation splice"
     EUnmodeled s text -> "unmodeled expression"

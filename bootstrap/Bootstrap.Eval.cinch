@@ -570,6 +570,7 @@ module Bootstrap.Eval where
     ELocalEnd sp -> fail sp "a local binding entry requires its enclosing group"
     EAlt s p body rest -> fail s "unsupported expression: alternative spine cell"
     EAltsEnd s -> fail s "unsupported expression: alternative spine end"
+    EQuote s body -> fail s "a quotation requires the typed checker"
     ESplice s expression -> fail s "a splice requires a compile-time quotation"
     EUnmodeled s text -> fail s (string-concat "unmodeled expression: " text)
 

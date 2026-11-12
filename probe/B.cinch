@@ -1,0 +1,11 @@
+module Main where
+  helper :: Int
+  helper = 40
+  stage quoted :: Code Int
+  stage quoted = [| helper + 2 |]
+  generate do
+    emit (quoteDecls where
+      answer :: Int
+      answer = $(quoted))
+  main :: Int
+  main = answer

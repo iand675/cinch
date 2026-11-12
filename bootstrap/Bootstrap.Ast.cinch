@@ -297,6 +297,13 @@ module Bootstrap.Ast where
     EBindingsEnd :: Span -> Expr
     EAlt :: Span -> Pat -> Expr -> Expr -> Expr
     EAltsEnd :: Span -> Expr
+    -- `[| e |]`: a typed quotation, a `Code t` value built at compile time
+    -- from the template `e` (modules specification, section 7). The template
+    -- is checked in a closed scope (decision D43) and its effects stay
+    -- latent in the code (decision D44).
+    EQuote :: Span -> Expr -> Expr
+    -- `$( e )`: a typed hole in a quotation template, filled at quote
+    -- construction with the `Code` value of `e`.
     ESplice :: Span -> Expr -> Expr
     EUnmodeled :: Span -> String -> Expr
 
@@ -380,6 +387,7 @@ module Bootstrap.Ast where
     EBindingsEnd s -> s
     EAlt s p body rest -> s
     EAltsEnd s -> s
+    EQuote s body -> s
     ESplice s expression -> s
     EUnmodeled s text -> s
 
@@ -713,6 +721,7 @@ module Bootstrap.Ast where
     EAlt s p body rest -> pat-unmodeled-count p + expr-unmodeled-count body + expr-unmodeled-count rest
     EAltsEnd s -> 0
     EUnmodeled s text -> 1
+    EQuote s body -> expr-unmodeled-count body
     ESplice s expression -> expr-unmodeled-count expression
 
   exprs-unmodeled :: List Expr -> Nat
@@ -919,6 +928,7 @@ module Bootstrap.Ast where
     EAlt part0 part1 part2 part3 -> JArr (JStr "EAlt") (JArr (source-identity-pat part1) (JArr (source-identity-expr part2) (JArr (source-identity-expr part3) (JArrEnd))))
     EAltsEnd part0 -> JArr (JStr "EAltsEnd") (JArrEnd)
     EUnmodeled part0 part1 -> JArr (JStr "EUnmodeled") (JArr (JStr part1) (JArrEnd))
+    EQuote part0 part1 -> JArr (JStr "EQuote") (JArr (source-identity-expr part1) JArrEnd)
     ESplice part0 part1 -> JArr (JStr "ESplice") (JArr (source-identity-expr part1) JArrEnd)
 
   source-identity-pats :: List Pat -> Json

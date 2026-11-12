@@ -1,0 +1,15 @@
+module #stage-quotation where
+  export Code, #stage-value, #stage-code
+  data Code a where
+    #stage-value :: a -> Code a
+    #stage-code :: Nat -> Code a
+module Main where
+  import #stage-quotation
+  stage quoted :: Code Int
+  stage quoted = #stage-code 7
+  generate do
+    emit (quoteDecls where
+      answer :: Int
+      answer = 1)
+  main :: Int
+  main = answer

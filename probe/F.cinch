@@ -1,0 +1,7 @@
+module Main where
+  macro cap :: Code Int
+  macro cap = [| x |]
+  use :: Int -> Int
+  use x = cap!()
+  main :: Int
+  main = use 1

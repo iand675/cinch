@@ -471,6 +471,7 @@ module Bootstrap.Check where
     ELocalEnd sp -> (TyHole, fail sp "a local binding entry requires its enclosing group")
     EAlt s p body rest -> (TyHole, fail s "unsupported expression: alternative spine cell")
     EAltsEnd s -> (TyHole, fail s "unsupported expression: alternative spine end")
+    EQuote s body -> (TyHole, fail s "a quotation requires the typed checker")
     ESplice s expression -> (TyHole, fail s "a splice requires a compile-time quotation")
     EUnmodeled s text -> (TyHole, fail s (string-concat "unmodeled expression: " text))
 

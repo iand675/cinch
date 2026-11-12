@@ -1,0 +1,7 @@
+module Main where
+  data A where
+    MkA :: B -> A
+  data B where
+    MkB :: A -> B
+  main :: Int
+  main = 0
