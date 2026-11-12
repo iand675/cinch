@@ -218,3 +218,27 @@ condition whose operands are a local and a byte observation).
 Neither repair proposed in note 5 is supported by any measurement so far, and no container-value
 channel is needed: the goal side already reads `#bytes-length:26` correctly. Do not implement one
 until the count comparison above says otherwise.
+
+**7. `Ascii`/`Ordered`: what landed and the exact remaining boundary.** Two commits landed:
+`Resolve Ascii and Ordered as structural predicate formers`, and `Carry Ascii and Ordered as
+structural predicates`. Together they give both names a `UType` representation
+(`UPropAscii`/`UPropOrdered`, mirrored on `UPropNotNull` at all 41 consumer sites), a carrier
+validity rule matching the seed's `PredFn::Ascii`/`Ordered` rules (`Type.cinch`, `ascii-carrier`
+and `ordered-carrier`: `String`/`Bytes`/`List Char` for `Ascii`, `List Nat`/`List Int` for
+`Ordered`), and a `convert-structural` path from a refinement or proof predicate to that
+representation.
+
+Verified effect: `type JustAscii = refine (xs :: List Char) with Ascii xs` now checks its
+declaration and its predicate, where before it failed at resolve with `unknown name: Ascii`. The
+target counts are unchanged (`lattice` 1 of 23, all five targets at baseline) because every
+`lattice` test also needs the runtime `decide` witness.
+
+The boundary, precisely: `decide (Ascii xs)` fails with `erased argument needs a scoped total proof
+term`, because `decision-unary` (`Bootstrap.Infer.cinch`) has no procedure for `Ascii`/`Ordered`.
+The seed does not write one in source either: it *generates* a recursive test
+(`install_ascii_char_test`, `install_ascii_test`, `install_ordered_test`,
+`compiler/src/check_terms.rs:5960-6030`), installing a synthetic global that walks the list's
+constructor spine comparing each element. This frontend has no such generator, and the `decide`
+path deliberately carries no list-pattern `case` elaboration, so adding the procedure means
+building a test-installing generator, not adding a case. That is the next slice and it is the only
+thing standing between the two landed commits and `lattice`'s 10 `Ascii`/`Ordered` tests.

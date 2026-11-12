@@ -3339,6 +3339,8 @@ module Bootstrap.Infer where
     UPropNonZero body -> "NonZero " <> obligation-text body
     UPropNonZeroPending body -> "NonZero " <> obligation-text body
     UPropNotNull body -> "NotNull " <> obligation-text body
+    UPropAscii body -> "Ascii " <> obligation-text body
+    UPropOrdered body -> "Ordered " <> obligation-text body
     UIndexForget value -> obligation-text value
     UIndexPromote value -> obligation-text value
     UIndexByteLength value -> string-concat-all ["(Data.Bytes.bytes-len ", obligation-text value, ")"]
@@ -3372,6 +3374,8 @@ module Bootstrap.Infer where
     UPropNot body -> UPropNot (relocate-local-index binding new-level body)
     UPropNonZero body -> UPropNonZero (relocate-local-index binding new-level body)
     UPropNotNull body -> UPropNotNull (relocate-local-index binding new-level body)
+    UPropAscii body -> UPropAscii (relocate-local-index binding new-level body)
+    UPropOrdered body -> UPropOrdered (relocate-local-index binding new-level body)
     UPropNonZeroPending body -> UPropNonZeroPending (relocate-local-index binding new-level body)
     URequire predicates body -> URequire (relocate-local-index binding new-level predicates) (relocate-local-index binding new-level body)
     URefine id name carrier predicate -> URefine id name (relocate-local-index binding new-level carrier) (relocate-local-index binding new-level predicate)
@@ -6941,28 +6945,20 @@ module Bootstrap.Infer where
         other -> bad sp "NotNull needs the checked Data.Core.List carrier" st)
       None -> bad sp "NotNull needs a checked local list value" st)
     other -> bad sp "NotNull needs a checked local list value" st
-  -- The two shape predicates decide a container value the same way
-  -- `NotNull` does: the operand is the checked local, its carrier decides
-  -- whether the predicate is admissible over it, and a wrong carrier is
-  -- refused naming the predicate.
-  convert-ascii :: Span -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
-  convert-ascii sp locals syntax st = case syntax of
+  -- A structural predicate over a checked local: the value's carrier is
+  -- already known, so the former is built at that carrier and `valid-type`
+  -- decides whether the carrier is one the predicate decides (the seed's
+  -- PredFn carrier rules: `Ascii` for text and char lists, `Ordered` for
+  -- numeric lists). A wrong carrier is refused naming the predicate.
+  convert-structural :: Span -> List (String, UType) -> TypeExpr -> String -> (UType -> UType) -> Store -> (UType, Store)
+  convert-structural sp locals syntax label former st = case syntax of
     TName at name -> (case lookup-local name locals of
-      Some value -> (case value-carrier (type-kind value) of
-        Some carrier -> if ascii-carrier carrier then (UPropAscii value, st)
-          else bad sp (string-concat-all ["`Ascii` decides text values (`String`) and lists of chars, not `", display-type-text carrier, "` (a wrong predicate for this value is refused naming the predicate)"]) st
-        None -> bad sp "`Ascii` decides text values (`String`) and lists of chars (a wrong predicate for this value is refused naming the predicate)" st)
-      None -> bad sp "`Ascii` needs a checked local text or char-list value" st)
-    other -> bad sp "`Ascii` decides a checked local value" st
-  convert-ordered :: Span -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
-  convert-ordered sp locals syntax st = case syntax of
-    TName at name -> (case lookup-local name locals of
-      Some value -> (case value-carrier (type-kind value) of
-        Some carrier -> if ordered-carrier carrier then (UPropOrdered value, st)
-          else bad sp (string-concat-all ["`Ordered` decides lists of numerics, not `", display-type-text carrier, "` (a wrong predicate for this value is refused naming the predicate)"]) st
-        None -> bad sp "`Ordered` decides lists of numerics (a wrong predicate for this value is refused naming the predicate)" st)
-      None -> bad sp "`Ordered` needs a checked local list value" st)
-    other -> bad sp "`Ordered` decides a checked local value" st
+      Some value -> let predicate = former value in
+        if valid-type predicate then (predicate, st)
+        else bad sp (string-concat-all ["`", label, "` decides text values (`String`), lists of chars and lists of numerics, not `", display-type-text value, "` (a wrong predicate for this refinement's container is refused naming the predicate)"]) st
+      None -> bad sp (string-concat-all ["`", label, "` needs a checked local value"]) st)
+    other -> bad sp (string-concat-all ["`", label, "` needs a checked local value"]) st
+
   convert-predicate :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
   convert-predicate external kinds locals syntax st = case syntax of
     TName s name -> if same name "True" || same name "False" then (UPropLit (same name "True"), st) else
@@ -6972,8 +6968,8 @@ module Bootstrap.Infer where
     TApp sp (TName at name) (TArg arg input (TArgsEnd end)) ->
       if same name "Not" then (case convert-predicate external kinds locals input st of (predicate, checked) -> (UPropNot predicate, checked))
       else if same name "NotNull" then convert-not-null sp locals input st
-      else if same name "Ascii" then convert-ascii sp locals input st
-      else if same name "Ordered" then convert-ordered sp locals input st
+      else if same name "Ascii" then convert-structural sp locals input "Ascii" UPropAscii st
+      else if same name "Ordered" then convert-structural sp locals input "Ordered" UPropOrdered st
       else if not (same name "NonZero") then bad sp "unsupported proof predicate former" st
       else let carrier = predicate-comparison-carrier locals input input in
         if math-carrier carrier then (case convert-predicate-index external kinds locals carrier input st of

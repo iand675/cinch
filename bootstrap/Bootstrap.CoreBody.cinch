@@ -86,8 +86,8 @@ module Bootstrap.CoreBody where
     UPropNot body -> dense-mix 17 (dense-type-digest body) 0
     UPropNonZero body -> dense-mix 19 (dense-type-digest body) 0
     UPropNotNull body -> dense-mix 23 (dense-type-digest body) 0
-    UPropAscii body -> dense-mix 47 (dense-type-digest body) 0
-    UPropOrdered body -> dense-mix 53 (dense-type-digest body) 0
+    UPropAscii body -> dense-mix 283 (dense-type-digest body) 0
+    UPropOrdered body -> dense-mix 293 (dense-type-digest body) 0
     UPropNonZeroPending body -> dense-mix 29 (dense-type-digest body) 0
     URequire predicates body -> dense-mix 31 (dense-type-digest predicates) (dense-type-digest body)
     URefine id name carrier predicate -> dense-mix 37 (string-length name) (dense-mix 41 (dense-type-digest carrier) (dense-type-digest predicate))
