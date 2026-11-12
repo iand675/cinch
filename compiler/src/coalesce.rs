@@ -38,18 +38,19 @@
 //! # The two moves
 //!
 //! A `Dup` of `x` is placed immediately before the earliest step of the run
-//! that mentions `x`. When the run holds several `Dup`s of the same value
-//! the earliest placement takes them all (they are one position), which is
-//! the sum Lean writes. A `Drop` of `x` is placed immediately after the
-//! latest step that mentions `x`, so a run holding several `Drop`s of one
-//! value ends with all of them together.
+//! that reads `x`. When the run holds several `Dup`s of the same value they
+//! move together and keep their multiplicity, because a `Dup` is one
+//! reference and emitting one fewer would leave the run holding one less
+//! than it took. A `Drop` of `x` moves later, but only across steps that do
+//! not mention `x` at all: the counting pass puts a drop where a path stops
+//! needing the value, which can be before a later step reads it again, and
+//! sinking a drop past such a read would release a reference the read
+//! borrows.
 //!
-//! Both moves preserve the run's meaning step by step. Between the earliest
-//! and the latest mention of `x` the value is held either way, so no
-//! intervening operation can free it; before the earliest mention a `Dup`
-//! only adds a reference to a value that is still held by whoever the run
-//! inherited it from, and after the latest mention a `Drop` only releases a
-//! reference nobody can observe again.
+//! Both moves preserve the run's meaning step by step. Before the earliest
+//! read a `Dup` only adds a reference to a value that is still held by
+//! whoever the run inherited it from, and a `Drop` that crosses only steps
+//! free of its value releases a reference nobody can observe.
 
 use crate::core::{CAlt, CBranch, Core, LocalId, Program};
 use crate::repr::Class;
@@ -177,76 +178,117 @@ fn uses(step: &Step) -> Vec<usize> {
     }
 }
 
-/// Rebuild a run, placing each value's `Dup`s before its first use and its
-/// `Drop`s after its last.
+/// Rebuild a run, moving a value's `Dup`s earlier and its `Drop`s later,
+/// but never across a step that reads the value.
 ///
-/// A value with no use in the run keeps its counts where they are: without
-/// a use there is nothing to move relative to, and moving a count of a
-/// value nobody reads would be a change with no argument behind it. That
-/// is also what keeps the pass sound, because the anchor of a move is
-/// always a step that stays put.
+/// The counting pass places a `Drop` at the point a path stops needing the
+/// value, which can be before a later step that mentions it, so "after the
+/// last mention" is the wrong anchor: sinking a drop past a use would
+/// release a reference a step after it still borrows. The anchor is
+/// therefore the last step before the drop that reads the value, and the
+/// move is confined to the gap of steps that do not mention it at all.
+/// That gap is exactly the freedom the coalescing argument licenses: within
+/// it no operation can observe the count.
 fn rebuild(steps: &[Step], tail: Core) -> Core {
-    let mut first_use: BTreeMap<usize, usize> = BTreeMap::new();
-    let mut last_use: BTreeMap<usize, usize> = BTreeMap::new();
-    for (i, s) in steps.iter().enumerate() {
-        for x in uses(s) {
-            first_use.entry(x).or_insert(i);
-            last_use.insert(x, i);
+    // Each step's mentions, so a move can be checked against them.
+    let mut mentions: Vec<Vec<usize>> = Vec::with_capacity(steps.len());
+    for s in steps {
+        let mut v = uses(s);
+        match s {
+            Step::Dup(x, _) | Step::Drop(x, _) => v.push(x.0),
+            Step::Let(..) => {}
+        }
+        mentions.push(v);
+    }
+    // Where a value's first `Dup` may go: the first step that reads it.
+    // Only `Let` values are read, so a step with no read of its own is not
+    // an anchor.
+    let mut dup_target: BTreeMap<usize, usize> = BTreeMap::new();
+    for (x, _) in steps.iter().filter_map(|s| match s {
+        Step::Dup(x, c) => Some((x.0, *c)),
+        _ => None,
+    }) {
+        if dup_target.contains_key(&x) {
+            continue;
+        }
+        if let Some(i) = steps.iter().position(|s| uses(s).contains(&x)) {
+            dup_target.insert(x, i);
         }
     }
-    // The multiplicity is kept, never summed into one operation: a `Dup`
-    // is exactly one reference, so two of them are two references and
-    // emitting one would leave the run holding one less than it took.
-    // Lean sums because its `inc` carries a count; ours does not.
-    let mut dup_class: BTreeMap<usize, (Class, usize)> = BTreeMap::new();
-    let mut drop_class: BTreeMap<usize, (Class, usize)> = BTreeMap::new();
+    // A `Drop` stays where it is unless the steps after it, up to the next
+    // step that mentions the value, are all free of it: then it may move
+    // past them.
+    let mut drop_target: BTreeMap<usize, usize> = BTreeMap::new();
+    for (i, s) in steps.iter().enumerate() {
+        let Step::Drop(x, _) = s else { continue };
+        let mut to = i;
+        for (j, m) in mentions.iter().enumerate().skip(i + 1) {
+            if m.contains(&x.0) {
+                break;
+            }
+            if matches!(steps[j], Step::Let(..)) {
+                to = j;
+            }
+        }
+        // Several drops of one value keep their order relative to each
+        // other by moving to the same place in reverse.
+        drop_target.insert(i, to);
+    }
+    let mut dup_class: BTreeMap<usize, Class> = BTreeMap::new();
+    let mut drop_class: BTreeMap<usize, Class> = BTreeMap::new();
     for s in steps {
         match s {
             Step::Dup(x, c) => {
-                let e = dup_class.entry(x.0).or_insert((*c, 0));
-                e.1 += 1;
+                dup_class.entry(x.0).or_insert(*c);
             }
             Step::Drop(x, c) => {
-                let e = drop_class.entry(x.0).or_insert((*c, 0));
-                e.1 += 1;
+                drop_class.entry(x.0).or_insert(*c);
             }
             Step::Let(..) => {}
         }
     }
-    // Where each count goes, and which counts stay put.
-    let mut before: Vec<Vec<(usize, Class)>> = vec![Vec::new(); steps.len()];
-    let mut after: Vec<Vec<(usize, Class)>> = vec![Vec::new(); steps.len()];
+    let mut before: Vec<Vec<(usize, Class)>> = (0..steps.len()).map(|_| Vec::new()).collect();
+    let mut after: Vec<Vec<(usize, Class)>> = (0..steps.len()).map(|_| Vec::new()).collect();
     let mut stay: Vec<Vec<Step>> = (0..steps.len()).map(|_| Vec::new()).collect();
-    for (x, (c, n)) in &dup_class {
-        match first_use.get(x) {
-            Some(i) => before[*i].extend(std::iter::repeat_n((*x, *c), *n)),
-            None => stay[0].extend(std::iter::repeat_n(Step::Dup(LocalId(*x), *c), *n)),
+    let mut dup_count: BTreeMap<usize, usize> = BTreeMap::new();
+    for s in steps {
+        if let Step::Dup(x, c) = s {
+            let e = dup_class.entry(x.0).or_insert(*c);
+            let _ = e;
+            *dup_count.entry(x.0).or_insert(0) += 1;
         }
     }
-    for (x, (c, n)) in &drop_class {
-        match last_use.get(x) {
-            Some(i) => after[*i].extend(std::iter::repeat_n((*x, *c), *n)),
-            None => stay[0].extend(std::iter::repeat_n(Step::Drop(LocalId(*x), *c), *n)),
+    for (x, n) in &dup_count {
+        match dup_target.get(x) {
+            Some(i) => before[*i].extend(std::iter::repeat_n((*x, dup_class[x]), *n)),
+            None => stay[0].extend(std::iter::repeat_n(Step::Dup(LocalId(*x), dup_class[x]), *n)),
         }
     }
-    for v in before.iter_mut().chain(after.iter_mut()) {
+    let mut drop_at: Vec<Vec<(usize, Class)>> = (0..steps.len()).map(|_| Vec::new()).collect();
+    for (i, s) in steps.iter().enumerate() {
+        if let Step::Drop(x, c) = s {
+            match drop_target.get(&i) {
+                Some(to) if *to != i => drop_at[*to].push((x.0, *c)),
+                _ => stay[i].push(Step::Drop(*x, *c)),
+            }
+        }
+    }
+    for v in before.iter_mut().chain(after.iter_mut()).chain(drop_at.iter_mut()) {
         v.sort();
     }
     let mut body = tail;
     for i in (0..steps.len()).rev() {
-        // The step that ends at this position, in reverse: the counts
-        // placed after it, then the step, then the counts placed before it.
-        for (x, c) in after[i].iter().rev() {
+        for (x, c) in drop_at[i].iter().rev() {
             body = Core::Drop(LocalId(*x), *c, Box::new(body));
         }
         if let Step::Let(x, c, v) = &steps[i] {
             body = Core::Let(*x, *c, Box::new(v.clone()), Box::new(body));
         }
         for s in stay[i].iter().rev() {
-            if let Step::Dup(x, c) = s {
-                body = Core::Dup(*x, *c, Box::new(body));
-            } else if let Step::Drop(x, c) = s {
-                body = Core::Drop(*x, *c, Box::new(body));
+            match s {
+                Step::Dup(x, c) => body = Core::Dup(*x, *c, Box::new(body)),
+                Step::Drop(x, c) => body = Core::Drop(*x, *c, Box::new(body)),
+                Step::Let(..) => {}
             }
         }
         for (x, c) in before[i].iter().rev() {
@@ -326,7 +368,7 @@ mod tests {
     }
 
     #[test]
-    fn a_dup_moves_to_the_first_use_and_a_drop_after_the_last() {
+    fn a_dup_moves_to_the_first_use_and_keeps_its_multiplicity() {
         // let a = f (v1)
         // dup v0
         // let b = g (v0)
@@ -388,6 +430,41 @@ mod tests {
             Core::Let(_, _, _, b) => b,
             other => other,
         }
+    }
+
+    #[test]
+    fn a_drop_does_not_cross_a_step_that_reads_the_value() {
+        // let a = f (v0)          <- v0 is read here
+        // drop v0
+        // let b = g (v1)          <- free of v0, so the drop may pass it
+        // let c = h (v0)          <- reads v0 again: the drop must stay
+        //   above this step
+        let body = Core::Let(
+            LocalId(10),
+            Class::Raw,
+            Box::new(app("f", vec![var(0)])),
+            Box::new(drop_(
+                0,
+                Core::Let(
+                    LocalId(11),
+                    Class::Raw,
+                    Box::new(app("g", vec![var(1)])),
+                    Box::new(Core::Let(
+                        LocalId(12),
+                        Class::Raw,
+                        Box::new(app("h", vec![var(0)])),
+                        Box::new(app("k", vec![var(12)])),
+                    )),
+                ),
+            )),
+        );
+        let after = run(&body);
+        // The drop moved past the `g` step and no further: reading v0 after
+        // it would be a use of a released reference.
+        let text = format!("{after:?}");
+        let drop_at = text.find("Drop(LocalId(0)").expect("the drop survives");
+        let h_at = text.find("\"h\"").expect("the h call survives");
+        assert!(drop_at < h_at, "the drop crossed the step that reads v0: {text}");
     }
 
     #[test]
