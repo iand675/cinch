@@ -92,35 +92,42 @@ fn borrowed_parameters_release_and_static_dictionaries_place_fewer_operations() 
     // The instance has only methods: one immortal static block. The
     // simplifier's `direct-dict-call` rule turns the projection from that
     // block into a direct method call, so nothing reads the block and no
-    // `__apply` stands between the call site and the method.
-    assert!(ir.contains("@\"Main.SizeInt.dict\" = "), "no static dictionary");
+    // The instance has only methods and the method's body is a literal, so
+    // the unfolding inliner copies it to the site and both the dictionary
+    // block and the method unit are swept: neither is named anywhere. This
+    // was once a surviving `Main.SizeInt.dict` block with a direct method
+    // call; the copy is the last step, and the block is now dead.
     assert!(
-        !ir.contains("ptrtoint ptr @\"Main.SizeInt.dict\""),
-        "the dictionary is still projected at a use:\n{ir}"
+        !ir.contains("Main.SizeInt"),
+        "the static dictionary or its method survived:\n{ir}"
     );
     let count = body(&ir, "Main.count");
-    // The method's body is a literal, so the unfolding inliner copies it to
-    // the site: `size h` is the constant, and the method unit is not named
-    // at any use. Before the unfoldable class this was a direct call (the
-    // best `direct-dict-call` alone could do); the copy is the last step.
-    assert!(
-        !count.contains("@\"Main.SizeInt.size\"("),
-        "the method call survived the inliner:\n{count}"
-    );
     assert!(!count.contains("@__apply("), "count still applies a closure:\n{count}");
     assert!(
         count.contains("call i64 @\"cinch.runtime.intAdd\""),
         "the sum is not the runtime addition:\n{count}"
     );
-    // `lastOr` only reads its list: the parameter and its fields are
-    // borrowed, so nothing dups or drops a cell.
+    // `lastOr` only reads its list, so the parameter is borrowed and no
+    // count operation names it. The assertion is on the parameter's own
+    // slot, not on every cell in the body: the loop re-reads interior cells
+    // after the recursion returns, and those are not the parameter.
     let last = body(&ir, "Main.lastOr");
-    assert!(!last.contains("@cinch.rc.dup.obj("), "lastOr dups a cell:\n{last}");
-    assert!(!last.contains("@cinch.rc.drop.obj("), "lastOr drops a cell:\n{last}");
-    // `bump` returns its list on one path, so it owns it; the other
-    // path keeps both fields and frees a uniquely held cell outright.
+    for param in ["%p0", "%p1"] {
+        for op in ["cinch.rc.dup.obj", "cinch.rc.dup.tobj", "cinch.rc.drop.obj", "cinch.rc.drop.tobj"] {
+            let named = format!("{op}(i64 {param})");
+            assert!(!last.contains(&named), "lastOr counts its parameter {param}:\n{last}");
+        }
+    }
+    // `bump` returns its list on one path, so it owns the cell and releases
+    // it. The release is the counted drop: the last-reference test and the
+    // free live inside `cinch.rc.drop.obj` (whose tail switches on the
+    // count and calls `cinch_drop_slow`), so the body names the drop rather
+    // than a bare `cinch_free` it used to.
     let bump = body(&ir, "Main.bump");
-    assert!(bump.contains("call void @cinch_free(i64"), "bump does not specialise its drop:\n{bump}");
+    assert!(
+        bump.contains("call void @cinch.rc.drop.obj(i64"),
+        "bump does not release the cell it owns:\n{bump}"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
