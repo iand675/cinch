@@ -1,12 +1,12 @@
 {
  "date": "2026-11-12",
  "stage": 3,
- "compiler": "main at c48eeb5b plus a concurrent worker's uncommitted codegen edits (measured with --allow-dirty)",
+ "compiler": "main at b9f35d04 (query graph, export reference table, totality flat retry, reuse store skipping, parallel builtins, quotation splice)",
  "targets": 234,
  "fully_passing": 145,
- "tests_passed": 896,
- "tests_failed": 653,
- "runner": "tooling/run_stage_targets.py --stage 3 --jobs 4 --all --allow-dirty",
+ "tests_passed": 925,
+ "tests_failed": 631,
+ "runner": "tooling/run_stage_targets.py --stage 3 --jobs 3 --all",
  "rows": [
   {
    "target": "alloc_accounting",
@@ -1091,8 +1091,8 @@
   {
    "target": "parallel",
    "exit": 101,
-   "passed": 0,
-   "failed": 17
+   "passed": 16,
+   "failed": 1
   },
   {
    "target": "params",
@@ -1205,7 +1205,7 @@
   {
    "target": "reuse",
    "exit": 101,
-   "passed": 1,
+   "passed": 5,
    "failed": 1
   },
   {
@@ -1343,8 +1343,8 @@
   {
    "target": "syntax_objects",
    "exit": 101,
-   "passed": 19,
-   "failed": 58
+   "passed": 26,
+   "failed": 52
   },
   {
    "target": "syntax_proof_patterns",
@@ -1409,7 +1409,7 @@
   {
    "target": "wasm",
    "exit": 101,
-   "passed": 6,
+   "passed": 8,
    "failed": 5
   }
  ]
