@@ -608,18 +608,28 @@ one-bit tag costs a pointer to a shared static block
 
 #### 11.4 Narrow fields cost a word each, so the waste compounds
 
-Measured, all with 1000-element lists, seed, native:
+Measured, seed, native. The element column is the block a value of that
+type occupies; the cell column is the `Cons` that holds it.
 
-|Element type|Element block|Cell|Total for 1000|
+|Element type|Element block|Cell|Bytes of information per element block|
 |---|---|---|---|
-|`Nat`|none (inline word)|24 B|24,000 B|
-|`Bit` (nullary)|shared static|24 B|24,000 B|
-|`Wrap` = `W U8`|16 B (one word for one byte)|24 B|24,016 B|
-|`P8` = `MkP8 U8 U8`|24 B (two words for two bytes)|24 B|48,000 B|
-|`P4` = `MkP4 U8 U8 U8 U8`|40 B (four words for four bytes)|24 B|64,000 B|
+|`Nat`|none (inline word)|24 B|8 of 8 used (63-bit payload)|
+|`Bit` (nullary)|shared static, 8 B|24 B|1 bit of 8 bytes|
+|`Wrap` = `W U8`|16 B (`i64 8` payload)|24 B|1 byte of 8|
+|`P8` = `MkP8 U8 U8`|24 B (`i64 16`)|24 B|2 bytes of 16|
+|`P4` = `MkP4 U8 U8 U8 U8`|40 B (`i64 32`)|24 B|4 bytes of 32|
 
-`MkP8`'s IR is `cinch_alloc_ctor(i64 16, ...)` with two `store i64`: 16
-payload bytes for 2 bytes of information. `MkP4` is `i64 32`, four stores.
+The whole-program counts, which is where the waste shows, for a list of
+1000 elements with distinct element blocks: `MkP8` gives
+`blocks=2000 bytes=48000` (1000 cells at 24 plus 1000 elements at 24), and
+`MkP4` gives `blocks=2000 bytes=64000` (24,000 plus 40,000). `MkP8`'s IR
+is `cinch_alloc_ctor(i64 16, ...)` with two `store i64`: 16 payload bytes
+for 2 bytes of information. `MkP4` is `i64 32`, four stores.
+
+A `W U8` built once and shared (`replicate 1000 (W min-bound-u8)`) is
+`blocks=1001 bytes=24016`, which is the same 16-byte element and shows
+that the census counts *allocations*, so a shared element is counted once.
+That distinction matters for reading any of these numbers.
 
 #### 11.5 On the real compiler, 62% of constructor sites are two words
 
@@ -659,19 +669,25 @@ census and the IR rather than claimed as a wasm census.
 
 #### 11.7 What a 4-byte slot would buy (arithmetic on the measured sizes)
 
-With a `csize` slot on a 32-bit target (4 bytes for a `Nat`, 4 for the
-tail pointer), a `Cons` payload is 8 bytes and the cell 16:
+Two different projections follow, and they must not be mixed. **Slot
+model**: each field gets a `csize` slot (4 bytes on 32-bit), no packing.
+**Packing model**: fields pack into as few words as their widths need.
 
-|Case|Today|4-byte slot, 32-bit|Change|
+Slot model, 32-bit (4 bytes for a `Nat`, 4 for the tail pointer), so a
+`Cons` payload is 8 bytes and the cell 16:
+
+|Case|Today|Slot model|Change|
 |---|---|---|---|
 |`List Nat`, 1000 cells|24,000 B|16,000 B|-33%|
 |`List Bit`, 1000 cells|24,000 B|16,000 B|-33%|
-|`MkP4` element block|40 B|24 B|-40%|
+|`MkP4` element block (4 fields at 4 B)|40 B|24 B|-40%|
 |`List Nat`, 200,000 cells (measured `blocks=200000 bytes=4800000`)|4,800,000 B|3,200,000 B|-33%|
 
-With a 1-byte slot and byte packing, `MkP4` is 8 + 4 = 12 bytes (-70%) and
-a `List U8` cell on 32-bit is 8 + 1 padded to 4 + 4 = 16 bytes (-33%).
-Packing is a later stage; these two lines are arithmetic, not measurements.
+With byte packing, `MkP4` is a 4-byte payload, which `round_payload`
+rounds up to 8, so the block is 8 + 8 = 16 bytes (-60%), and a `List U8`
+cell on 32-bit is 8 + 1 rounded to 8, plus a 4-byte pointer padded to 8,
+so 16 bytes (-33%). Packing is stage 1; these two lines are arithmetic on
+the measured sizes, not measurements.
 
 **On a 64-bit target the same change buys almost nothing for a list**, and
 this is the finding that decides the staging. The tail pointer is 8 bytes
@@ -1268,9 +1284,13 @@ separate stage.
 - No change to the static block rule: a static block's payload is still
   reached by a constant offset (`static_payload`), and the dedup landing
   (`dedupe_static_blocks`, the `blk#h` rule) is unaffected because a
-  narrow payload is still one `[n x i64]` constant. A 12-byte payload is
-  emitted as two words with the last one padded, which is the same bytes a
-  linker would produce and keeps the `getelementptr` offset integral.
+  narrow payload is still one `[n x i64]` constant. The case that actually
+  arises is the nullary constructor of a type whose slot is 1 byte
+  (12.3.2): `Bit`'s `On` and `Off` become one-word storage holding one
+  byte, which `static_shaped_block` already emits as
+  `[1 x i64]` and which keeps the `getelementptr` offset at `8 * 1`. On a
+  32-bit target the storage is `[2 x i32]` halves, the rule
+  `narrow-value-representation.md` records for every static block there.
 
 #### 14.6 The reader on the other side
 
@@ -1406,10 +1426,25 @@ interface row all read.
 **Why it is first.** It is the only stage that needs no name, no interface
 row and no `runtime_abi` change: the block is still word-granular, so the
 pointer map, `round_payload`, `free` and `Scan` are untouched. It is also
-the stage with the largest measured win on a real shape: `MkP4` is 40 bytes
-today (measured, 11.4) and 16 packed (`8 header + 4 payload`, rounded), a
-60% reduction on 100,000-element lists (measured: `blocks=100000
-bytes=2400000`, 24 bytes each).
+the stage with the largest measured win on a real shape. A list of 1000
+distinct `MkP4` values, seed, native:
+
+|Kind|Measurement|
+|---|---|
+|`Cons` cells|`upto=24 blocks=1000 bytes=24000`|
+|`MkP4` elements|`upto=40 blocks=1000 bytes=40000`|
+|total `ctor`|`blocks=2000 bytes=64000`|
+
+`MkP4` is 40 bytes today and 16 packed (`8 header + 4 payload`, rounded),
+so the element half of that 64,000 bytes falls to 16,000 and the program's
+constructor bytes fall by 37.5%. The list spine does not move, which is
+11.7's point restated at the level of one program.
+
+One correction worth recording, because it is the mistake a measurement
+like this invites: `replicate 100000 x` shares one element block, so a
+census of it counts 100,000 `Cons` cells and one `MkP4`
+(`blocks=100001 bytes=2400040`). The element saving only shows on distinct
+elements, which is what the table above builds.
 
 **The measurement that decides it.** `CINCH_ALLOC_STATS=1
 CINCH_ALLOC_KINDS=1` over the compiler bundle's own check, comparing the
