@@ -3710,6 +3710,24 @@ fn link(ir_path: &Path, out: &Path) -> Result<()> {
     link_with(ir_path, out, &[], &LinkPlan::default())
 }
 
+/// How a link reaches a runnable artifact, which is decided by what the
+/// target provides underneath the program.
+#[derive(Clone, Copy, Default)]
+enum LinkFlavor<'a> {
+    /// The host's own target: clang's default triple, the runtime archive
+    /// built here, and the platform's system libraries.
+    #[default]
+    Host,
+    /// Another target with a C library: clang's driver links it, so it
+    /// needs the triple and the runtime archive built for that target.
+    Cross(&'a str),
+    /// A freestanding target (no C library, no start files). clang's
+    /// driver has nothing to find there: it would ask for `crt1.o` and
+    /// `-lc`, and `wasm32-unknown-unknown` has neither. clang therefore
+    /// only assembles the module and the target's own linker links it.
+    Freestanding(&'a str),
+}
+
 /// Where a link's two target-dependent inputs come from: the cinch
 /// runtime archive, and the triple the assembler and linker build for.
 /// The host's own target needs neither spelled out (the archive is built
@@ -3717,12 +3735,20 @@ fn link(ir_path: &Path, out: &Path) -> Result<()> {
 /// both. `opt_level` is the `--opt-level` clang optimizes the program at.
 #[derive(Clone, Copy, Default)]
 struct LinkTarget<'a> {
-    /// The triple to hand clang with `-target`; `None` for the host.
-    triple: Option<&'a str>,
-    /// `--runtime-archive`: the archive built for `triple`.
+    /// Which of the three links this is.
+    flavor: LinkFlavor<'a>,
+    /// `--runtime-archive`: the archive built for the target.
     archive: Option<&'a Path>,
     /// `-O<n>` for clang; 0 is clang's own default and is not spelled.
     opt_level: u8,
+}
+
+/// Does this target have a C library and start files under it? A target
+/// without either cannot use clang's driver to link, because the driver's
+/// last step is to find the C runtime, and the honest report of that
+/// absence is a different link rather than an error about `crt1.o`.
+fn is_freestanding(profile: &crate::core::TargetProfile) -> bool {
+    profile.arch == "wasm32" && profile.libc == "none"
 }
 
 /// The link inputs one compile needs: a foreign target hands clang its
@@ -3733,14 +3759,17 @@ fn link_target<'a>(
     opts: &'a DriverOptions,
 ) -> LinkTarget<'a> {
     let opt_level = opts.opt_level.unwrap_or(0);
-    if is_foreign(profile) {
-        LinkTarget {
-            triple: Some(profile.triple.as_str()),
-            archive: opts.runtime_archive.as_deref(),
-            opt_level,
-        }
+    let flavor = if is_freestanding(profile) {
+        LinkFlavor::Freestanding(profile.triple.as_str())
+    } else if is_foreign(profile) {
+        LinkFlavor::Cross(profile.triple.as_str())
     } else {
-        LinkTarget { opt_level, ..LinkTarget::default() }
+        LinkFlavor::Host
+    };
+    LinkTarget {
+        flavor,
+        archive: opts.runtime_archive.as_deref(),
+        opt_level,
     }
 }
 
@@ -3754,6 +3783,9 @@ fn link_for(
     plan: &LinkPlan,
     target: &LinkTarget<'_>,
 ) -> Result<()> {
+    if let LinkFlavor::Freestanding(triple) = target.flavor {
+        return link_freestanding(ir_path, out, objects, plan, triple, target);
+    }
     let mut cmd = std::process::Command::new(clang());
     cmd.arg(ir_path);
     if target.opt_level > 0 {
@@ -3766,12 +3798,12 @@ fn link_for(
     // from truncating it under this link. A cross link reads an archive
     // the caller produced, so it takes no lock.
     let _guard;
-    match target.triple {
-        None => {
+    match target.flavor {
+        LinkFlavor::Host => {
             cmd.arg(ensure_runtime()?);
             _guard = runtime_lock(true);
         }
-        Some(triple) => {
+        LinkFlavor::Cross(triple) | LinkFlavor::Freestanding(triple) => {
             cmd.arg(cross_runtime(triple, target.archive)?);
             cmd.arg("-target").arg(triple);
             _guard = None;
@@ -3798,13 +3830,13 @@ fn link_for(
         // supply: an assembler and linker for the target. Naming it here
         // is what turns clang's "unable to create target" or its
         // truncated ELF complaint into an instruction.
-        let hint = match target.triple {
-            Some(triple) => format!(
+        let hint = match target.flavor {
+            LinkFlavor::Cross(triple) => format!(
                 "\ncross linking for `{triple}` also needs a linker that produces that \
                  target's objects; CINCH_CLANG names a clang that has one (this run used `{}`)",
                 clang()
             ),
-            None => String::new(),
+            _ => String::new(),
         };
         return Err(Error::plain(format!(
             "{} failed to link {}{}{hint}",
@@ -3820,6 +3852,301 @@ fn link_for(
     Ok(())
 }
 
+/// The clang major version a freestanding link requires: the emitted IR
+/// carries `range(...)` attributes on the units whose result is known to
+/// be a small integer, and LLVM 20 is the first release that parses them.
+/// An older clang reports `expected type` on the first one, which reads
+/// like corrupt IR rather than an old assembler.
+pub const FREESTANDING_CLANG_MAJOR: u32 = 20;
+
+/// The clang a freestanding link assembles with, and the version it
+/// reported. `CINCH_CLANG` still names the compiler; this only reads the
+/// version back so a refusal can name the compiler it found.
+pub fn freestanding_clang() -> Result<(String, Option<u32>)> {
+    let clang = clang();
+    let output = std::process::Command::new(&clang)
+        .arg("-dM")
+        .arg("-E")
+        .arg("-x")
+        .arg("c")
+        .arg(if cfg!(windows) { "NUL" } else { "/dev/null" })
+        .output()
+        .map_err(|e| Error::plain(format!(
+            "target wasm32-unknown-unknown: assembling needs clang, and `{clang}` did not run: {e}; \
+             CINCH_CLANG names the clang to use"
+        )))?;
+    let text = String::from_utf8_lossy(&output.stdout);
+    let major = text
+        .lines()
+        .find_map(|line| line.strip_prefix("#define __clang_major__ "))
+        .and_then(|value| value.trim().parse().ok());
+    Ok((clang, major))
+}
+
+/// Link a freestanding target: clang assembles the module, and the
+/// target's own linker links the object with the runtime archive.
+///
+/// The split is forced by what the target has. clang's driver finishes
+/// every link by finding the C runtime (`crt1.o`, `-lc`), and a
+/// freestanding target has none, so asking the driver to link reports a
+/// missing C library that no flag can supply. Assembling is a different
+/// question: the module is self-contained, and clang is the only tool
+/// that reads it.
+///
+/// `wasm-ld` is found the way clang's driver finds it: beside clang when
+/// the toolchain ships one (`-print-prog-name` answers a path), and
+/// otherwise on `PATH`. A missing linker is refused by name with the
+/// three ways to supply one, because the alternative is clang's
+/// `posix_spawn failed` with no hint of what was missing.
+fn link_freestanding(
+    ir_path: &Path,
+    out: &Path,
+    objects: &[&str],
+    plan: &LinkPlan,
+    triple: &str,
+    target: &LinkTarget<'_>,
+) -> Result<()> {
+    let (clang, major) = freestanding_clang()?;
+    if let Some(major) = major {
+        if major < FREESTANDING_CLANG_MAJOR {
+            return Err(Error::plain(format!(
+                "target `{triple}`: `{clang}` reports clang {major}, and assembling the emitted \
+                 module needs clang {FREESTANDING_CLANG_MAJOR} or newer, because the IR carries \
+                 `range(...)` attributes that older LLVM rejects as `expected type`; \
+                 CINCH_CLANG names a newer clang (Apple clang 21 and LLVM 20 both read them)"
+            )));
+        }
+    }
+    let archive = cross_runtime(triple, target.archive)?;
+    // The object clang assembles: beside the output, so a build directory
+    // keeps the pair and a scratch directory takes both away.
+    let object = out.with_extension("o");
+    let mut assemble = std::process::Command::new(&clang);
+    assemble.arg(ir_path);
+    if target.opt_level > 0 {
+        assemble.arg(format!("-O{}", target.opt_level));
+    }
+    assemble
+        .arg("-target")
+        .arg(triple)
+        .arg("-c")
+        .arg("-o")
+        .arg(&object);
+    let output = assemble
+        .output()
+        .map_err(|e| Error::plain(format!("failed to run {clang}: {e}")))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(Error::plain(format!(
+            "{clang} failed to assemble {} for `{triple}`: {}",
+            ir_path.display(),
+            stderr.trim()
+        )));
+    }
+    let linker = freestanding_linker(&clang)?;
+    let mut link = std::process::Command::new(&linker);
+    // A freestanding module has no `_start`, so the linker must not look
+    // for one, and nothing else exports the program's entry points, so
+    // the module exports them all.
+    link.arg("--no-entry").arg("--export-all");
+    link.arg(&object);
+    for o in objects {
+        link.arg(o);
+    }
+    link.arg(&archive);
+    link.arg("-o").arg(out);
+    for word in plan.words() {
+        link.arg(word);
+    }
+    let output = link
+        .output()
+        .map_err(|e| Error::plain(format!("failed to run {}: {e}", linker.display())))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(Error::plain(format!(
+            "{} failed to link {} for `{triple}`: {}",
+            linker.display(),
+            ir_path.display(),
+            stderr.trim()
+        )));
+    }
+    // The object is an intermediate of the link, and the IR beside it is
+    // the build's own record; a `build` keeps the IR and drops the object.
+    let _ = std::fs::remove_file(&object);
+    Ok(())
+}
+
+/// The JavaScript a freestanding `run` executes the module with: load the
+/// bytes, instantiate with no imports satisfied, call the module's `main`,
+/// and exit with what it returned.
+///
+/// The module's imports are its host boundary. A freestanding target
+/// answers every operating-system call itself (`ENOSYS`), so a program
+/// that runs at all imports nothing, and one that does import something is
+/// asking for a host the target does not promise. Naming the import is the
+/// honest answer there: a stub that returned a plausible value would run
+/// the program against a machine that does not exist.
+const WASM_HOST_JS: &str = r#"import fs from 'node:fs';
+const module = await WebAssembly.compile(fs.readFileSync(process.argv[2]));
+const imports = {};
+for (const want of WebAssembly.Module.imports(module)) {
+  if (want.kind !== 'function') {
+    console.error(`cinch: the module imports ${want.module}.${want.name} (${want.kind}), which a freestanding target does not provide`);
+    process.exit(70);
+  }
+  imports[want.module] ??= {};
+  imports[want.module][want.name] = (...args) => {
+    console.error(`cinch: the module called ${want.module}.${want.name}(${args.join(', ')}), which a freestanding target does not provide`);
+    process.exit(70);
+  };
+}
+const instance = await WebAssembly.instantiate(module, imports);
+const main = instance.exports.main;
+if (typeof main !== 'function') {
+  console.error('cinch: the module exports no main');
+  process.exit(70);
+}
+process.exit(main());
+"#;
+
+/// Execute a freestanding Wasm module under Node, which is the host that
+/// runs one on this machine. The exit status is the module's `main`
+/// result, so a program's exit code means here what it means natively.
+fn run_wasm_module(module: &Path, profile: &crate::core::TargetProfile) -> Result<i32> {
+    let node = std::env::var("CINCH_NODE").unwrap_or_else(|_| "node".to_string());
+    let host = module.with_extension("host.mjs");
+    std::fs::write(&host, WASM_HOST_JS)
+        .map_err(|e| Error::plain(format!("{}: {e}", host.display())))?;
+    let output = std::process::Command::new(&node)
+        .arg(&host)
+        .arg(module)
+        .output()
+        .map_err(|e| Error::plain(format!(
+            "target `{}`: `run` executes a freestanding module under Node, and `{node}` did not \
+             run: {e}; CINCH_NODE names the Node executable",
+            profile.triple
+        )))?;
+    // Node's own diagnostics (a trap, a refused import) are the reason the
+    // program did not produce a status, so they are the message.
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if !stderr.trim().is_empty() {
+        eprint!("{stderr}");
+    }
+    match output.status.code() {
+        Some(code) => Ok(code),
+        None => Err(Error::plain(format!(
+            "target `{}`: `{node}` did not report an exit status for {}",
+            profile.triple,
+            module.display()
+        ))),
+    }
+}
+
+/// The linker a freestanding link uses, from `CINCH_WASM_LD` or the same
+/// search clang's driver performs: the toolchain's own `wasm-ld` when
+/// `-print-prog-name` answers a path, else `PATH`.
+pub fn freestanding_linker(clang: &str) -> Result<PathBuf> {
+    if let Some(named) = std::env::var_os("CINCH_WASM_LD").filter(|p| !p.is_empty()) {
+        let named = PathBuf::from(named);
+        if named.is_file() {
+            return Ok(named);
+        }
+        return Err(Error::plain(format!(
+            "CINCH_WASM_LD names {}, and that is not a file",
+            named.display()
+        )));
+    }
+    // A toolchain that ships the linker beside clang answers with a path.
+    // One that does not answers the bare name, which is clang's way of
+    // saying it expects the linker on `PATH`.
+    if let Ok(output) = std::process::Command::new(clang)
+        .arg("-print-prog-name=wasm-ld")
+        .output()
+    {
+        if output.status.success() {
+            let answer = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !answer.is_empty() && answer != "wasm-ld" && Path::new(&answer).is_file() {
+                return Ok(PathBuf::from(answer));
+            }
+        }
+    }
+    if let Some(found) = search_path("wasm-ld") {
+        return Ok(found);
+    }
+    Err(Error::plain(format!(
+        "target wasm32-unknown-unknown: `{clang}` assembles the module, but no `wasm-ld` links \
+         it; install LLVM's binary utilities so `wasm-ld` is on PATH (nixpkgs `llvmPackages.bintools` \
+         provides it), or set CINCH_WASM_LD to a `wasm-ld`"
+    )))
+}
+
+/// The first `name` on `PATH` that is a file, which is the search every
+/// tool that execs by bare name performs.
+fn search_path(name: &str) -> Option<PathBuf> {
+    let path = std::env::var_os("PATH")?;
+    std::env::split_paths(&path)
+        .map(|dir| dir.join(name))
+        .find(|candidate| candidate.is_file())
+}
+
+/// The runtime archive a freestanding target links, built here when
+/// `--runtime-archive` does not name one.
+///
+/// The host archive is built on demand the same way (`ensure_runtime`),
+/// and a freestanding build is a build of this same tree: the runtime
+/// crate compiles for the target without a C toolchain under it, so the
+/// compiler can produce the archive it is about to link rather than
+/// telling the caller to run cargo first. A target whose Rust support is
+/// not installed fails that build, and the flag remains the way to
+/// supply an archive from elsewhere.
+fn ensure_freestanding_runtime(triple: &str) -> Result<PathBuf> {
+    let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime");
+    let target_dir = runtime.join("target");
+    let archive = target_dir.join(triple).join("release/libcinchruntime.a");
+    let _guard = runtime_lock(false);
+    // The same freshness rule the host archive uses: a stale archive
+    // silently drops the newer `cinch_*` entry points.
+    let mut newest_src = std::time::SystemTime::UNIX_EPOCH;
+    let mut stack = vec![runtime.join("src"), runtime.join("Cargo.toml")];
+    while let Some(p) = stack.pop() {
+        if p.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(&p) {
+                for e in entries.flatten() {
+                    stack.push(e.path());
+                }
+            }
+        } else if let Ok(m) = std::fs::metadata(&p).and_then(|m| m.modified()) {
+            newest_src = newest_src.max(m);
+        }
+    }
+    let fresh = std::fs::metadata(&archive)
+        .and_then(|m| m.modified())
+        .map(|m| m >= newest_src)
+        .unwrap_or(false);
+    if fresh {
+        return Ok(archive);
+    }
+    let status = std::process::Command::new("cargo")
+        .args(["build", "--release", "--manifest-path"])
+        .arg(runtime.join("Cargo.toml"))
+        .arg("--target-dir")
+        .arg(&target_dir)
+        .arg("--target")
+        .arg(triple)
+        .status()
+        .map_err(|e| Error::plain(format!(
+            "target `{triple}`: building the runtime archive needs cargo, and it did not run: {e}"
+        )))?;
+    if !status.success() || !archive.exists() {
+        return Err(Error::plain(format!(
+            "target `{triple}`: building compiler/runtime for `{triple}` failed; install that \
+             Rust target (rustup target add {triple}) or pass --runtime-archive \
+             <path>/libcinchruntime.a built for `{triple}`"
+        )));
+    }
+    Ok(archive)
+}
+
 /// The runtime archive a cross link needs, from `--runtime-archive`: the
 /// archive is read, required to be a static library, and its first
 /// object is required to belong to the target's architecture. The host's
@@ -3827,13 +4154,23 @@ fn link_for(
 /// a pile of undefined `cinch_*` symbols instead of the one fact that
 /// explains them.
 fn cross_runtime(triple: &str, archive: Option<&Path>) -> Result<PathBuf> {
-    let Some(path) = archive else {
-        return Err(Error::plain(format!(
-            "target `{triple}`: a cross build links the compiler runtime built for that target, \
-             and none was named; pass --runtime-archive <path>/libcinchruntime.a built for \
-             `{triple}` (cargo build --manifest-path compiler/runtime/Cargo.toml \
-             --target {triple} produces one)"
-        )));
+    // A freestanding target's archive is one this tree can build, so a
+    // build without the flag produces it rather than refusing.
+    let built;
+    let path = match archive {
+        Some(path) => path,
+        None if triple_components(triple).is_some_and(|(arch, _, libc)| arch == "wasm32" && libc == "none") => {
+            built = ensure_freestanding_runtime(triple)?;
+            &built
+        }
+        None => {
+            return Err(Error::plain(format!(
+                "target `{triple}`: a cross build links the compiler runtime built for that target, \
+                 and none was named; pass --runtime-archive <path>/libcinchruntime.a built for \
+                 `{triple}` (cargo build --manifest-path compiler/runtime/Cargo.toml \
+                 --target {triple} produces one)"
+            )));
+        }
     };
     let bytes = std::fs::read(path).map_err(|e| {
         Error::plain(format!(
@@ -3905,6 +4242,11 @@ fn first_object_arch(bytes: &[u8]) -> Option<&'static str> {
 /// One object's architecture from its header: an ELF64 little-endian
 /// machine word or a 64-bit little-endian Mach-O CPU type.
 fn object_arch(object: &[u8]) -> Option<&'static str> {
+    // A Wasm module: the magic, the version, and nothing else that varies
+    // by target. `wasm32` is the only architecture the format has.
+    if object.starts_with(b"\0asm") {
+        return Some("wasm32");
+    }
     if object.starts_with(b"\x7fELF") && object.len() >= 20 {
         // Class 2 is 64-bit and data 1 is little-endian; the four
         // supported targets are all of them.
@@ -4858,14 +5200,28 @@ pub fn driver_with_profile_opts(
     // `run` builds a binary and executes it here, so a program for
     // another target has nothing to run on: refuse before any work
     // instead of failing later inside the linker or, worse, executing a
-    // foreign binary the host cannot start.
-    if mode == Mode::Run && is_foreign(profile) {
+    // foreign binary the host cannot start. A freestanding Wasm module is
+    // the exception, and only because the host can carry it: Node loads
+    // the module and calls its `main`, which is the entry a freestanding
+    // module has instead of a process.
+    if mode == Mode::Run && is_foreign(profile) && !is_freestanding(profile) {
         let host = crate::core::TargetProfile::native();
         return Err(Error::plain(format!(
             "target `{}`: `run` executes the program on this host, whose target is `{}`, and \
              a binary built for `{}` does not run here; use `cinch build --target {} \
              --runtime-archive <path>` and copy the artifact to the target",
             profile.triple, host.triple, profile.triple, profile.triple
+        )));
+    }
+    // A Wasm module has no command line and no process, so `run` refuses
+    // the words it could not deliver rather than dropping them.
+    if mode == Mode::Run && is_freestanding(profile) && !opts.program_args.is_empty() {
+        return Err(Error::plain(format!(
+            "target `{}`: a freestanding Wasm module has no command line, so `run` cannot pass \
+             {} program argument{}; pass them to the host that loads the module instead",
+            profile.triple,
+            opts.program_args.len(),
+            if opts.program_args.len() == 1 { "" } else { "s" }
         )));
     }
     let mut emit_modules = opts.emit_modules.clone();
@@ -5310,11 +5666,20 @@ pub fn driver_with_profile_opts(
         Mode::Run => {
             let tmp = scratch_dir("run")?;
             let ir_path = tmp.join("program.ll");
-            let exe = tmp.join("program");
+            // A freestanding target's artifact is a module, not an
+            // executable: the `.wasm` suffix is what says so, and what a
+            // host loads.
+            let exe = tmp.join(if is_freestanding(profile) { "program.wasm" } else { "program" });
             std::fs::write(&ir_path, ir)
                 .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
             let objects = object_paths(&opts.package_objects);
             let refs: Vec<&str> = objects.iter().map(String::as_str).collect();
+            if is_freestanding(profile) {
+                link_for(&ir_path, &exe, &refs, &link_plan, &link_target(profile, opts))?;
+                let code = run_wasm_module(&exe, profile)?;
+                let _ = std::fs::remove_dir_all(&tmp);
+                return Ok(code);
+            }
             link_for(&ir_path, &exe, &refs, &link_plan, &LinkTarget { opt_level: opts.opt_level.unwrap_or(0), ..LinkTarget::default() })?;
             // The program's own command line (the CLI's forwarded
             // words): the entry glue captures them, so the built

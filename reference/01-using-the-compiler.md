@@ -134,8 +134,8 @@ The first word of `cinch doc` with no further argument prints `cinch doc: expect
 | `--package-object <path>` | `build`, `run` | Links one separately produced package object. |
 | `--opt-level <0\|1\|2\|3>` | `build`, `run`, `emit-object` | The optimization level clang assembles the emitted IR at, passed as `-O<n>`. `build` and `run` default to 0, which compiles fastest; `emit-object` defaults to 2, because a library object is assembled once and linked into every consumer. Reference counting is emitted as calls to small helpers private to each module, which an optimizing level inlines. Any other value, or the flag in another mode, exits 2. |
 | `--rebuild` | `check`, `emit-ir`, `emit-object`, `build`, `run` | Forces a rewrite of this compile's package-store entry. |
-| `--target <triple>` | `check`, `emit-ir`, `emit-object`, `build`, `run` | Sets the target. Four triples are accepted: `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu`, and `aarch64-unknown-linux-gnu`. Any of them checks and emits IR on any host, and the emitted module states that target's `target triple` and `target datalayout`, because layout and `when arch` body selection follow the target. The profile's operating system, architecture, C library, word size, and byte order come from the triple, never from the host, and the profile is named after the triple so the package store key and the artifact manifest identify the same target on every host. Any other triple is refused with the list of the four. A cross `build` needs `--runtime-archive`; `run` stays on the host's own target. |
-| `--runtime-archive <path>` | `build` | The `libcinchruntime.a` built for a foreign `--target`, which the cross build links. The archive is read before the link: a path that does not exist, a file that is not a static archive, and an archive whose objects belong to another architecture are each refused by name. Without it a cross `build` fails naming the flag and the triple. A link for a target other than the host also passes `-target` to the assembler and linker, so the cross toolchain has to be one that produces that target's objects (`CINCH_CLANG` names it). |
+| `--target <triple>` | `check`, `emit-ir`, `emit-object`, `build`, `run` | Sets the target. Five triples are accepted: `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, and `wasm32-unknown-unknown`. Any of them checks and emits IR on any host, and the emitted module states that target's `target triple` and `target datalayout`, because layout and `when arch` body selection follow the target. The profile's operating system, architecture, C library, word size, and byte order come from the triple, never from the host, and the profile is named after the triple so the package store key and the artifact manifest identify the same target on every host. Any other triple is refused with the list of the five. A cross `build` needs `--runtime-archive`, except for `wasm32-unknown-unknown`, whose freestanding runtime archive this tree builds on demand (`cargo build --target wasm32-unknown-unknown` in `compiler/runtime` produces the same file). `run` executes on the host: a native target runs its executable directly, and `wasm32-unknown-unknown` runs its module under Node, so a program's exit code means the same thing under both. Every other foreign target refuses `run`, because the host cannot start its binary. |
+| `--runtime-archive <path>` | `build`, `run` | The `libcinchruntime.a` built for a foreign `--target`, which the cross build links. The archive is read before the link: a path that does not exist, a file that is not a static archive, and an archive whose objects belong to another architecture are each refused by name (a Wasm object is read as `wasm32`, so a host archive offered for the wasm32 target is refused before the link rather than inside it). Without it a cross `build` fails naming the flag and the triple, except for `wasm32-unknown-unknown`, whose archive the build produces itself. A link for a target other than the host also passes `-target` to the assembler and linker, so the cross toolchain has to be one that produces that target's objects (`CINCH_CLANG` names it). |
 | `--target-version <version>` | the same modes | States the target platform version that a package manifest's `os_version` conditions are evaluated against. A condition with no version refuses rather than reading the host's. |
 | `--print-link-plan` | the same modes | Reports every contribution to the final link with the package that asked for it, before anything is linked. |
 | `--allow-raw-link <name>` | the same modes | Consents to one package's raw link words, the flag form of the root manifest's `raw_link`. |
@@ -195,10 +195,19 @@ cinch: -O2: No such file or directory (os error 2)
 cinch check Main.cinch -O2             # exits 0, the word is a program argument nobody reads
 cinch run Main.cinch -O2               # the program receives one argument
 cinch build Main.cinch -o prog --target wasm32   # exits 1, refused by name
-cinch: unknown target `wasm32`: cross compilation supports exactly these triples: aarch64-apple-darwin, x86_64-apple-darwin, x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu
+cinch: unknown target `wasm32`: cross compilation supports exactly these triples: aarch64-apple-darwin, x86_64-apple-darwin, x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, wasm32-unknown-unknown
 ```
 
-`--target` is a flag, so it is consumed wherever it appears, and `wasm32` on its own is not one of the four triples.
+`--target` is a flag, so it is consumed wherever it appears, and `wasm32` on its own is not one of the five triples: the target needs its operating system and C library components named, and `wasm32-unknown-unknown` is the freestanding one.
+
+A `build` for `wasm32-unknown-unknown` produces a module rather than a host executable, and `run` executes it under Node:
+
+```sh
+cinch build --target wasm32-unknown-unknown Main.cinch -o prog.wasm
+cinch run --target wasm32-unknown-unknown Main.cinch    # exits with the program's `main` result
+```
+
+Two tools beyond a native toolchain are needed, and each refusal names what is missing: clang 20 or newer (the emitted IR carries `range(...)` attributes older LLVM rejects as `expected type`), and `wasm-ld` (found beside clang, then on `PATH`, or named by `CINCH_WASM_LD`).
 
 A flag that expects a value and does not get one is a usage error, exit 2:
 
@@ -311,7 +320,7 @@ The format is a checked artifact, not a debug print, so a fact the stage does no
 
 # Cross compilation
 
-`--target` selects one of four triples. `check` and `emit-ir` work on any host for all four: the target profile comes from the triple, the emitted module carries that target's `target triple` and `target datalayout`, and a `prim` body whose `when` names the target's architecture is the one selected. A program that imports `Prim.Sys.Linux` therefore emits the aarch64 syscall bodies under one target and the x86_64 bodies under the other:
+`--target` selects one of five triples. `check` and `emit-ir` work on any host for all five: the target profile comes from the triple, the emitted module carries that target's `target triple` and `target datalayout`, and a `prim` body whose `when` names the target's architecture is the one selected. `wasm32-unknown-unknown` is the fifth, and the one `build` links without a prebuilt archive. A program that imports `Prim.Sys.Linux` therefore emits the aarch64 syscall bodies under one target and the x86_64 bodies under the other:
 
 ```sh
 cinch emit-ir Main.cinch --target aarch64-unknown-linux-gnu | grep -E 'target (triple|datalayout)'
@@ -516,7 +525,7 @@ Running that program with three words exits 3, with none exits 0, and with `-- -
 
 There is no optimization-level flag, no `--watch`, and no foreign-object flag on `build` or `run`; `build` and `run` take dependency objects only through `--package-object`. `-o` takes one path. `jit` is not part of the default build: this build prints `cinch: this build was compiled without the jit feature` and exits 2, and `cargo build --features jit` is what enables it.
 
-<span class="support-tag support-tag--partial">Partial</span> **cross compilation.** `--target` selects one of four triples, and `check`, `emit-ir`, and `emit-object` work for all of them on any host. `build` needs two things this repository does not ship prebuilt: a `libcinchruntime.a` for the target, which `--runtime-archive` names, and a cross linker, which `CINCH_CLANG` has to point at. `run` stays on the host's own target. There is no bundle or distribution workflow on top of the produced artifact yet.
+<span class="support-tag support-tag--partial">Partial</span> **cross compilation.** `--target` selects one of five triples, and `check`, `emit-ir`, and `emit-object` work for all of them on any host. `build` needs two things this repository does not ship prebuilt: a `libcinchruntime.a` for the target, which `--runtime-archive` names, and a cross linker, which `CINCH_CLANG` has to point at. `wasm32-unknown-unknown` is the exception on both counts: the freestanding runtime archive is built from this tree's own runtime crate, and the link uses `clang -c` plus `wasm-ld` rather than clang's driver. `run` executes a native target's executable and a `wasm32-unknown-unknown` module under Node; every other foreign target refuses `run` because the host cannot start its binary. There is no bundle or distribution workflow on top of the produced artifact yet.
 
 <span class="support-tag support-tag--planned">Coming soon</span> **portable distribution and target workflows.** Source builds and the native commands above are usable today. Target-profile APIs, component adapters, and runtime update mechanisms do not yet form a CLI for distributing cross-target bundles.
 

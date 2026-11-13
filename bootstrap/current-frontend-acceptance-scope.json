@@ -1,7 +1,7 @@
 {
   "compiler_source_sha256": "5f2f855665956b76117ea128547ecbdf841f988a487b64ff38b983b24dd38ec4",
   "created_at": "2026-11-05T21:15:53.061292+00:00",
-  "current_total_targets": 105,
+  "current_total_targets": 106,
   "full_goal_complete": false,
   "interface_api_targets": [
     "interface_anonymous_contracts",
@@ -35,7 +35,8 @@
     "bootstrap_library_object",
     "bootstrap_runtime_library",
     "bootstrap_runtime_library_abi",
-    "bootstrap_source_projection"
+    "bootstrap_source_projection",
+    "wasm_target"
   ],
   "original_target_count": 100,
   "original_targets": [
@@ -235,7 +236,8 @@
     "folded_literal_ownership",
     "interface_byte_observations",
     "lib_hashmap_real",
-    "primitive_length_identity"
+    "primitive_length_identity",
+    "wasm_target"
   ],
   "prevented_naive_detection_omissions": [
     "bootstrap_buffer_aliases",

@@ -51,24 +51,39 @@ module Main where
   main = 0
 ```
 
-# The CLI builds for the host only
+# The CLI builds for the target `--target` names
 
-There is no target flag and no environment variable that selects a profile. `cinch check`, `emit-ir`, `emit-object`, `build`, and `run` all use the native target profile. Two behaviors follow, and both surprise people:
+`--target <triple>` selects the profile, and every mode reads it: `check`, `emit-ir`, `emit-object`, `build`, and `run`. Five triples are accepted.
 
+| Triple | `arch` | `os` | `libc` | `build` links with |
+| --- | --- | --- | --- | --- |
+| `aarch64-apple-darwin` | `aarch64` | `darwin` | `libSystem` | clang's driver |
+| `x86_64-apple-darwin` | `x86_64` | `darwin` | `libSystem` | clang's driver |
+| `x86_64-unknown-linux-gnu` | `x86_64` | `linux` | `glibc` | clang's driver |
+| `aarch64-unknown-linux-gnu` | `aarch64` | `linux` | `glibc` | clang's driver |
+| `wasm32-unknown-unknown` | `wasm32` | `unknown` | `none` | `clang -c` then `wasm-ld` |
+
+`check` and `emit-ir` work for every one of them on any host, because the module header, the type widths, and `when arch` body selection read the target rather than the host. The emitted module states the target's `target triple` and `target datalayout`, so `cinch emit-ir --target aarch64-unknown-linux-gnu Main.cinch` on a Mac produces a Linux module.
+
+A `build` for a target other than the host links the cinch runtime built for that target, which `--runtime-archive` names. The one exception is `wasm32-unknown-unknown`, whose archive this tree builds itself: the runtime crate compiles for that target with no C toolchain under it, so `cinch build --target wasm32-unknown-unknown Main.cinch -o prog.wasm` needs no flag once the Rust target is installed.
+
+The freestanding target links differently, and the difference is the target's, not a flag's. clang's driver finishes every link by finding the C runtime, and `wasm32-unknown-unknown` has no `crt1.o` and no `-lc`, so the driver assembles the module with `clang -c` and the target's own linker (`wasm-ld --no-entry --export-all`) links it against the runtime archive. Two tools are therefore needed beyond a native toolchain, and both are named when absent:
+
+- clang 20 or newer. The emitted IR carries `range(...)` attributes on the units whose result is a known small integer, and older LLVM rejects them with `expected type`. Apple clang 21 and LLVM 20 both read them; the wasi-sdk's clang 18 does not. `CINCH_CLANG` names the compiler, and a refusal states the version it found and the version it needs.
+- `wasm-ld`. It is found the way clang's driver finds it: the toolchain's own copy when `clang -print-prog-name=wasm-ld` answers a path, and otherwise on `PATH`. `CINCH_WASM_LD` names one directly. nixpkgs `llvmPackages.bintools` provides it.
+
+`run` executes the result on the host that can carry it. A native target runs its executable directly. `wasm32-unknown-unknown` runs its module under Node, which loads the module, calls the exported `main`, and exits with what it returned, so a program's exit code means the same thing under both. Node is named in the refusal when it is absent, and `CINCH_NODE` names a different one. A freestanding module has no command line, so `run` refuses program arguments for that target rather than dropping them. Every other foreign target still refuses to `run` here, because the host cannot start its binary.
+
+`TargetProfile::wasm32` narrows `Usize` to 32 bits, so a literal that fits the host is refused for the Wasm profile:
+
+```sh
+cinch check --target wasm32-unknown-unknown Main.cinch
+cinch: 3:7: integer literal 4294967296 is out of range for Usize (in Main.cinch)
 ```
-$ cinch build --target wasm32 Main.cinch
-cinch: --target: No such file or directory (os error 2)
-```
 
-A word before the entry file is taken as the entry file. A word after it is not a flag, so it is absorbed into the program argument list and silently ignored:
+That refusal is the profile's, not the backend's: it happens in checking, before any IR exists.
 
-```
-$ cinch build Main.cinch -o prog --target wasm32
-$ file prog
-prog: Mach-O 64-bit executable arm64
-```
-
-The build succeeds and the output is a host executable. Do not read a zero exit status as evidence of cross-compilation. Cross-target artifacts come from the Rust API: `cinch::codegen::emit_for(&TargetProfile::wasm32(ArtifactProfile::CoreWasm), &program)` emits Wasm IR, and the `wasm` suite asserts that the character of that IR includes `target triple = "wasm32-unknown-unknown"`. `TargetProfile::wasm32` also narrows `Usize` to 32 bits, so a literal that fits the host is refused for the Wasm profile with `out of range for Usize`.
+The `wasm_target` suite builds each program in the matrix this section describes, links it, and runs it under Node, so the artifact and its answer are both asserted rather than the IR text alone.
 
 # Platform proof obligations
 
