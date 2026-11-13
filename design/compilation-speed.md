@@ -2520,6 +2520,141 @@ over callers, and the self-hosted emitter is per-unit. The cheap first
 move is the shape the seed already trusts, computed where the caller list
 is known.
 
+### 2.17 Two-tier interface rows: measured, and why the tail is not skippable (2026-11-13)
+
+The survey's last interface-format item was per-name lazy decode: split each
+`.cinchif` row into a small always-decoded tier (name, fingerprint, kind) and
+a tail decoded on first use, so a consumer that never asks about a name never
+pays for its scheme, its nominals or its body pointer. It was estimated at
+1 to 3% of the toolkit check and more on the fixed cost of reading a small
+interface. The counts say the shape of the estimate is wrong even where its
+magnitude is right: the toolkit figure is too high (the ceiling is 0.65%),
+the fixed-cost figure is real but for a different reason (7.5%, and it is an
+encoding saving, not a decode tier), and nothing is ever lazily decoded,
+because the load is the first consumer of every row. The change was not
+landed; this section is the measurement that replaced it.
+
+**Half the fixed cost is the JSON scan, before any row is looked at.** The
+two-line program against the 64-interface base manifest allocates 34,679,671
+blocks; against an empty manifest, 480. Two arms bracket where that goes.
+Replacing every export section with an empty list, in the same 64 modules
+with the same imports, gives 1,321,605 blocks, so 96.2% of the cost above
+the empty-manifest floor is the export rows (their bytes being parsed plus
+everything done with them) and 3.8% is the 64 module envelopes, their import
+edges and the dependency chain check. Separately, padding `abi.symbols`
+(which `strings-p` validates structurally and no consumer reads) at three
+sizes gives the marginal price of a JSON byte:
+
+| padding per module | manifest bytes | blocks | blocks per added byte |
+|---|---|---|---|
+| none (control) | 1,735,532 | 34,679,671 | |
+| 1,024 bytes | 1,801,308 | 35,339,696 | 10.0 |
+| 2,048 bytes | 1,866,790 | 35,994,751 | 10.0 |
+| 4,096 bytes | 1,997,910 | 37,306,092 | 10.0 |
+
+At 10.0 blocks per byte, the base set's 1,735,532 bytes are 17,355,320
+blocks, exactly 50.0% of the fixed cost. So **half of reading an interface
+set is `parse-json` scanning and building a tree, and the other half is
+everything the load does with it.** No row tiering touches the first half.
+
+**A JSON reader cannot skip a tail.** Two padding arms of the same 256 KiB,
+both valid documents:
+
+| arm | shape | manifest bytes | blocks | blocks per added byte |
+|---|---|---|---|---|
+| control | 64 base interfaces, unmodified | 1,735,532 | 34,679,671 | |
+| `strpad256k` | 256 KiB as one long string in `assumptions.primitives` | 18,513,031 | 202,541,466 | 10.0 |
+| `treepad256k` | 256 KiB as 4,000 small objects in `exports.foreign` | 19,399,503 | 227,449,089 | 10.9 |
+
+The padding is per module, so these are +16.8 MB of manifest, not +256 KiB;
+the rate is what matters. One long string is the *cheapest* possible JSON
+payload and it still costs 10.0 blocks per byte: `Text.Json.parse-json`
+builds a `Json` value for the document it is given and has no skip path,
+because there is no length-prefixed section to jump over. A tree of small
+objects costs 10.9, so 0.9 blocks per byte is the tree-building premium and
+the other 10.0 is the scan. Any two-tier encoding that stays inside one JSON
+document pays the whole scan; any encoding that moves a tail out of the
+document breaks the identity rule (`iface-contract` blanks three regions of
+the artifact's own bytes and hashes the rest), which is the schema bump
+section 2.6 already priced. So a "lazily decoded tail" in JSON is not a
+saving: it is the same bytes, the same scan, plus a decision per row.
+
+**Per-section attribution, measured on the real reader.** Each arm below
+empties one section of every document and re-settles every interface hash and
+every `imports[].iface_hash` so the dependency chain check still passes (an
+arm that fails it exits 7 at the envelope and measures nothing). Two-line
+program, `--check`, `CINCH_ALLOC_STATS=1`:
+
+| arm | interface bytes | blocks | delta vs control |
+|---|---|---|---|
+| control | 1,735,532 | 34,679,671 | |
+| `foreign` (empty) | 1,419,179 | 30,493,453 | -4,186,214 |
+| `instances` (empty) | 1,627,379 | 30,218,585 | -4,461,086 |
+| `types` (empty) | 1,630,823 | 32,653,326 | -2,026,345 |
+| `ctors` (empty) | 1,664,372 | 33,229,755 | -1,449,916 |
+| `symbols` (empty) | 1,631,633 | 33,582,792 | -1,096,879 |
+| `laws` (empty) | 1,724,666 | 34,543,324 | -136,347 |
+| `assumptions` (empty) | 1,707,606 | 34,307,419 | -372,252 |
+| `layouts` (empty) | 1,726,029 | 34,542,443 | -137,228 |
+| `schemes` (values, emptied to `"X"`) | 1,566,221 | invalid (exit 7) | |
+| `resolved` (nulled where legal) | 1,332,032 | invalid (exit 4) | |
+
+The two arms that a per-name lazy decode would target, `schemes` and
+`resolved`, cannot even be emptied: `values-valid` requires a non-empty
+scheme, and the checker needs `resolved` for every imported value it
+elaborates. `foreign` and `instances` are the two sections worth real blocks,
+and neither is per-name: `envelope-valid` walks `exports.foreign` as
+`objects-p`, and the instance tables are indexed whole by class and target.
+
+**The demand is not sparse.** Of the base set's 3,008 exported rows, 243
+(8.1%) have a name that appears literally in the toolkit bundle, which is the
+generous upper bound on "names a consumer asks about". But the load validates
+every row regardless: `values-valid`, `types-valid`, `signatures-valid` and
+`instances-valid` each fold over the whole section, and `accepted-interface`
+builds six row tables and two name lists before any consumer asks for
+anything. A tail that is decoded on first use would therefore be decoded at
+load for 100% of rows, because the load's own admission checks are the first
+user. The one consumer that is genuinely per-name, `loaded-entry`, is already
+a hash probe over tables built once.
+
+**What the split could still buy, and why it is not worth the bump.**
+Flattening each row from an object with repeated keys to a positional array
+with trailing nulls dropped is a real encoding saving, and it is what a
+two-tier row would look like:
+
+| set | modules | bytes | rows as arrays | delta |
+|---|---|---|---|---|
+| base (fixed cost) | 64 | 1,735,532 | 1,474,996 | -15.0% |
+| toolkit | 57 | 761,287 | 597,398 | -21.5% |
+| compiler | 49 | 1,961,983 | 1,886,426 | -3.9% |
+
+This one *does* show up in the block counts, because a byte saved is a byte
+not scanned: at the measured 10.0 blocks per byte, the base set's -260,536
+bytes are about 2.6M blocks, 7.5% of the fixed cost, and the toolkit's
+-163,889 bytes about 1.64M blocks, 0.65% of its 251.5M-block check. That is
+a real but small win, and it is the whole of what the two-tier idea can
+deliver: it is an *encoding* saving, not a decode tier, and it needs the
+schema bump and a producer rebuild for under 1% of the workload the survey
+named. The one duplicated field worth removing outright is
+`resolved.scheme`, which repeats the row's own `scheme` verbatim. On the base
+set that is 2,513 of 2,746 resolved rows and 104,630 bytes, 6.0% of the
+whole set: 2,081 of 2,265 value rows (69,433 bytes), 336 signature-method
+rows (32,463 bytes) and 145 constructor rows (2,734 bytes). The compiler's
+own set duplicates 107,007 bytes the same way. That is the same free 6% for
+whoever next bumps the version, and `resolved-text` already reads the field
+through `field "scheme" (field "resolved" metadata)`, so dropping it is a
+writer change plus one accessor, not a reader redesign.
+
+**Conclusion.** Two-tier rows with a per-name lazy tail do not pay, and the
+reason is structural rather than a matter of tuning: the reader is a
+whole-document JSON parser with no skip path, the identity rule requires the
+whole document to be canonical JSON, and the load validates every row before
+any consumer can ask for one. The levers this measurement leaves are the
+ones sections 2.6 and 2.11 already named (a sectioned binary format, priced
+as a coordinated schema bump) and the `resolved.scheme` duplicate, which is
+6% of the base set for free at the next bump. Section 12 item 5 is updated
+to say so.
+
 ## 11. Benchmark corpus and metrics
 
 The corpus is edits, not programs. Each entry is a case in
@@ -2592,7 +2727,15 @@ Metrics, reported per edit and per clean build:
    optimization section (size, arity, inline guidance). Needs a schema
    version bump and a producer rebuild. Dense typed bodies with the type
    side table are produced today by `--emit-bodies` (section 2.11); they
-   wait here for the sectioned format.
+   wait here for the sectioned format. **The per-name lazy tier is measured
+   and does not pay** (section 2.17): the reader is a whole-document JSON
+   parser with no skip path, the identity rule needs the document canonical
+   as a whole, and the load validates every row before any consumer asks for
+   one, so a "lazy" tail is decoded at load for 100% of rows. What that
+   measurement leaves here is the sectioned binary format it already named,
+   and `resolved.scheme` (which duplicates the row's own `scheme` for 2,513
+   of 2,746 resolved rows, 6.0% of the base set) as a free saving for the
+   next bump.
 6. **The frontend is now the critical path.** Stage2's build spends 200.7 s
    of 245.8 s in the single-threaded frontend, so per-declaration query
    reuse with fingerprints and early cutoff (section 3) and a parallel
@@ -2641,7 +2784,6 @@ Metrics, reported per edit and per clean build:
    parameters and 73.5% of units are borrow-eligible under the seed's own
    rule. Section 2.12b says why porting the fixed point is the wrong first
    move and what the cheap one is.
-
 Related designs: `parallel-evaluation.md`, `core-output.md`,
 `incremental-recompilation.md`, `self-hosting.md`, `layouts-and-specialization.md`,
 `inline-target-ir.md`, `reclamation.md`, `supercompilation-and-jit.md`.
