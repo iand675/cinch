@@ -21,11 +21,24 @@ pub struct Request {
     pub program_args: Vec<String>,
 }
 
-/// The profile the selected compiler implements without flags: the build
-/// host's native target with reference counting on, because its runtime
+/// The profile the selected compiler implements for one `--target` value:
+/// the triple's own profile when one is named, else the build host's native
+/// target. Reference counting is on because the selected compiler's runtime
 /// emission counts every block.
-fn implemented_profile() -> TargetProfile {
-    TargetProfile { reclaim: true, ..TargetProfile::native() }
+///
+/// Derived through `cinch::driver::target_profile`, never listed by hand,
+/// because a triple-built profile names the TRIPLE (`aarch64-apple-darwin`)
+/// while `TargetProfile::native()` names itself `native64`. Comparing a
+/// triple-built profile against `native()` therefore refused even the host's
+/// own triple on the `name` field alone, which is what made every
+/// target-profile probe report "external frontend lacks target profile".
+fn implemented_profile(triple: Option<&str>) -> Result<TargetProfile, String> {
+    let profile = cinch::driver::target_profile(&DriverOptions {
+        target: triple.map(str::to_string),
+        ..DriverOptions::default()
+    })
+    .map_err(|error| error.to_string())?;
+    Ok(TargetProfile { reclaim: true, ..profile })
 }
 
 /// The request for a compile under `stage` and `profile`, or the options the
@@ -36,7 +49,10 @@ pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) ->
     if stage != StageMode::Refresh {
         return Err(format!("external frontend lacks compile-time I/O stage mode {stage:?}"));
     }
-    let host = implemented_profile();
+    // The profile the selected compiler builds for this target. A triple it
+    // does not support has no profile at all, and the refusal is the CLI's
+    // own: the triple is passed through and the compiler names its set.
+    let host = implemented_profile(Some(profile.triple.as_str()))?;
     // Destructured whole, so a new profile field fails to compile here
     // until the selector decides how the selected compiler meets it.
     let TargetProfile {
@@ -71,9 +87,18 @@ pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) ->
         lacking.push("rc_debug (library objects)");
     }
     if !lacking.is_empty() {
-        return Err(format!("external frontend lacks target profile `{name}`: it differs from the host profile in {}", lacking.join(", ")));
+        return Err(format!("external frontend lacks target profile `{name}`: it differs from the profile it implements for `{}` in {}", host.triple, lacking.join(", ")));
     }
-    let flags = if *rc_debug { vec!["--rc-debug".to_owned()] } else { Vec::new() };
+    // The CLI names the target it was asked for; without the flag it builds
+    // the host's own target, which is the same profile.
+    let mut flags = Vec::new();
+    if host.triple != TargetProfile::native().triple {
+        flags.push("--target".to_owned());
+        flags.push(host.triple.clone());
+    }
+    if *rc_debug {
+        flags.push("--rc-debug".to_owned());
+    }
     Ok(Request { flags, program_args: Vec::new() })
 }
 
@@ -86,11 +111,20 @@ pub fn options_request(mode: Mode, opts: &DriverOptions) -> Result<Request, Stri
         core_only, program_args, max_simplifier_iterations, no_direct_dict_calls, ..
     } = opts;
     let mut lacking = Vec::new();
-    // The selected compiler compiles for the build host only; naming the
-    // host's own triple asks for exactly that.
+    // `--target` is a flag the selected compiler accepts for every triple it
+    // supports, and it builds that triple's own profile. A triple it does
+    // not support is the compiler's own refusal, named in its words, so the
+    // selector asks for it rather than inventing a message.
+    let mut target_flags = Vec::new();
     if let Some(triple) = target {
-        if *triple != implemented_profile().triple {
-            lacking.push(format!("--target {triple}"));
+        match implemented_profile(Some(triple.as_str())) {
+            Ok(profile) => {
+                if profile.triple != TargetProfile::native().triple {
+                    target_flags.push("--target".to_owned());
+                    target_flags.push(triple.clone());
+                }
+            }
+            Err(message) => lacking.push(message),
         }
     }
     for (option, requested) in [
@@ -122,7 +156,7 @@ pub fn options_request(mode: Mode, opts: &DriverOptions) -> Result<Request, Stri
     }
     // The program's words reach only a program the compile runs.
     let program_args = if mode == Mode::Run { program_args.clone() } else { Vec::new() };
-    Ok(Request { flags: Vec::new(), program_args })
+    Ok(Request { flags: target_flags, program_args })
 }
 
 pub fn configured() -> Result<Option<Frontend>, String> {
