@@ -956,3 +956,154 @@ appears in symbols a human reads.
 |`runtime_abi` (`RUNTIME_ABI_VERSION = 9`)|gates the layout algorithm and the runtime's ABI|bumped, because a 16-bit index into a table of a different shape, and a new pointer-map code, are runtime ABI|
 |`Span` interned handle (`sym.rs`)|identity by pointer for a name|not applicable: a layout is not a value, and interning it would make identity depend on process state|
 |`object_abi`'s `layout_words` prefix|concatenation agreement across objects|replaced for *new* layouts by name-keyed collection at link; the prefix rule stays as the mechanism for a provider's existing rows|
+
+### 13 Where specialisation happens, lazily
+
+#### 13.1 The pipeline today, and the two places a layout is decided
+
+Reading `specialize.rs`, `core.rs::optimize` and `codegen.rs`, the order is:
+
+```
+check + lower      classes attached to binders and fields (repr_of)
+core::optimize     simplifier, inliner, dead-unit elimination
+specialize         collector: one copy per reached class vector,
+                   constructors copied per vector, names minted by spec_name
+rc::insert         dup/drop from the class vectors
+codegen            Registry::build -> Layouts::lay_out_constructors,
+                   which assigns the 16-bit indices
+```
+
+Two facts about that order decide the whole design:
+
+1. **The collector runs before codegen and has the type information.**
+   `specialize_with_roots` walks a worklist of `(unit, class vector)` pairs
+   starting from roots and copies bodies, substituting classes. A layout
+   vector is the same walk with a second component, and it must happen
+   *there*, not in codegen, because codegen has already lost the types
+   (`check.rs::lower` drops them; `UnitRepr` keeps classes but not layouts).
+2. **Codegen assigns indices after every copy exists.** `Layouts::place`
+   walks `p.fns` in `BTreeMap` order and bumps `next`. So by the time an
+   index is assigned, the set of blocks is closed, and a layout request
+   that arrives during emission cannot be honoured. That is the ordering
+   constraint the brief asks about.
+
+#### 13.2 What triggers a request, and what must be ordered
+
+A specialised layout is requested when the collector reaches an
+instantiation whose element slot is not `boxed_obj`. Concretely, the
+request set is built by the same drain loop that builds the copy set:
+
+```
+request(D, v) where v is a layout vector:
+   for each constructor unit C of D at v:
+     for each field f of C:
+        slot(f.ty at v) -> a layout name L
+        request_layout(L)          -- idempotent, memoised by name
+```
+
+The ordering fact is subtler than "collect first", and the code says so.
+`Registry::shape_desc` **is** called during emission, from `ctor_body`,
+from the tuple and prelude-constructor helpers, from primitive results and
+from the canonical-ABI lift (`codegen.rs:2269`, `2280`, `4343`, `5399`,
+`6441`, `6900`). So a layout can be created after the unit that requested
+it has been emitted, and that is fine, because:
+
+> **The layout *table* is emitted after every unit body, so a request that
+> arrives during emission is honoured. What must be decided before
+> emission is only what an emitted body has already read.**
+
+`Layouts::finish` is what emits `@__cinch_layouts`, and it runs after
+`Registry::build` and after every body (`emit_module` builds the table from
+`layouts.words()` at the end). A body reads a *descriptor word* at emission
+time, so the descriptor for its own block must be stable when it is
+emitted; the table entry for that descriptor may be written later.
+
+There is exactly one decision that a late request can invalidate, and the
+code already refuses it: whether **any** block may carry an escaped
+descriptor, which changes every emitted tag read from `id & mask` to a
+branch. `Layouts.escaped` is fixed before emission (`lay_out_constructors`
+sets it for a canonical-ABI program), and a shape that escapes after that
+sets `late_escape`, which `finish` turns into the refusal
+`"a constructor shape escaped after the tag reads were emitted without
+escapes"`. That is the ordering rule stated as code: *the escape decision
+is pre-emission; everything else is not.*
+
+For a specialised layout the same rule applies with one addition. A
+specialised slot changes a block's *size*, and size is read at emission by
+`ctor_alloc_call` (`cinch_alloc_ctor(i64 <bytes>, ...)`). So the size must
+be decided before the constructor unit that builds the block is emitted,
+which the collector guarantees because constructor units are in its
+worklist. A layout requested later than that is a request for an
+*anonymous shape* (a tuple, a primitive result, a lifted aggregate), which
+is never specialised: those blocks keep one word per field, which is what
+they have today. That is the refusal in 15.2, and it is a consequence of
+the ordering rather than a separate policy.
+
+Two further cases, and their answers:
+
+- **A foreign call whose result is a specialised block.** The foreign
+  plan's `CtorLayout` (`check.rs::LayoutRecipe`, `ForeignPlan.canon`) is
+  computed during checking, so the size is known before the collector.
+  No late request.
+- **A quote or `eval` that builds a block at run time.** The evaluator
+  builds blocks through `shape_desc` with the classes it is given, and a
+  runtime-built block cannot be specialised, because its layout would have
+  to be chosen at run time. It stays `boxed_obj`, the same answer as
+  `#[no-alloc]` code: an allocation whose layout is not static is not
+  specialised.
+
+#### 13.3 How it is memoised, and what the memo key is
+
+The memo is keyed by the **layout name**, not by the type and not by the
+index:
+
+```
+layouts: BTreeMap<LayoutName, LayoutRow>
+LayoutRow { size: u32, align: u32, map: Vec<SlotClass> }
+```
+
+Two properties follow and both are needed:
+
+- **Idempotence across a whole program.** `List Nat` requested from three
+  call sites is one row, one name, one index.
+- **Determinism across builds.** A `BTreeMap` iterated in name order gives
+  the same index assignment for the same set of names, so two builds of the
+  same program emit the same table. That is what makes the fixed point
+  (`stage2/compiler.ll` byte equal to `stage3/compiler.ll`) hold for a
+  change that touches layouts, and it is the property the current counter
+  does *not* have: the counter is deterministic for one program but its
+  value depends on emission order, so any change that reorders types
+  renumbers the table.
+
+The store caches the row by name in the module's interface, so a consumer
+reads it rather than recomputing it. That is the same shape as
+`Iface.layouts` today (`AbiLayout`), extended from `repr` facts to slot
+rows.
+
+#### 13.4 What is not memoised, deliberately
+
+The *decision* that a body is copied at a layout vector is not memoised
+across programs, for the reason Part I section 2 gives for classes: the set
+of reached vectors is a property of the whole program from `main`, so
+caching it would cache a whole-program answer in a per-module artifact. A
+library object records the layout rows it *defines* (a fact about the
+module) and the ones it *demands* (a fact about its own bodies, which
+becomes the `object_roots`-style demand list a consumer satisfies).
+
+#### 13.5 Interaction with the expanding-edge rule of Part I section 4
+
+Part I section 4 says an expanding edge whose wrapper is laid out inline
+boxes the wrapper. That rule now has a second job: it is also what keeps
+the layout request set finite when layouts are specialised. The argument is
+the same one, applied to names rather than classes:
+
+- A 1-edge whose wrapper is `boxed_obj` leaves the name unchanged
+  (`List (List a)` is `boxed_obj` whatever `a` is), so it cannot generate a
+  new name.
+- A 1-edge whose wrapper is inline changes the name, and the expanding-cycle
+  check refuses to follow it (it boxes at that edge), so the chain of names
+  is finite.
+
+So the finiteness proof Part I section 4 gives for layouts is exactly the
+finiteness proof for *names*, which is a stronger result than the section
+claimed and worth recording: the same Tarjan pass justifies both.
