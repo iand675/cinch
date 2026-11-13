@@ -287,9 +287,17 @@ unboxed bytes, and a heap slot stays 8 bytes. Polymorphic code moves a
 whole slot (a `List I64` element is 8 bytes), so the uniform word stays
 the slot on every target. The eventual design specialises polymorphic
 code by layout (`List@unboxed_1_bytes` through `List@unboxed_8_bytes`,
-`List@boxed_Maybe`), emitted lazily as section 2 of
+`List@boxed_obj`), emitted lazily as section 2 of
 `layouts-and-specialization.md` does for classes; this slice narrows the
 positions a type proves, and leaves that specialisation axis for later.
+That axis is now specified: Part II of `layouts-and-specialization.md`
+(sections 11 to 16, 2026-11-13) fixes the name grammar, the total
+`slot(T, P)` function that decides a width, the interface row, and the
+staged plan. Two of its findings bear directly on this note: the block
+header has no spare bits, so a sub-word slot cannot be described by a
+header field (section 14.4 there), and the memory win is a 32-bit-target
+win, because on 64 bit the tail pointer forces 8-byte alignment and a
+`Nat` needs its 63-bit immediate (section 11.7 there).
 
 - **Machine scalars cross at their own width** (`ParamContract::narrow`,
   `Crossing::Bits { bits, signed }`). `U8` is `i8`, `I16` is `i16`,
