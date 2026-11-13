@@ -1093,6 +1093,99 @@ landing was already the larger win. The `huge-module` workload is sized at
 separately so this curve shows up as a column rather than hiding in a
 total.
 
+### 2.19 The total-core table: what actually moved, and what did not (2026-11-13)
+
+Section 11.1 named three sites for the four worst axes: the total-core
+gather per definition (`definitions`, `entries`, `modules`), the arity
+appends in `total-core-signature`/`-parameters`/`-flatten` (`typevars`), and
+a per-lookup linear scan (`imports`). Two of the three were fixed here and
+the third was measured and found not to be the site. The numbers below are
+`experiments/cx-sweep/` on this lane's stage-3 binary, same sizes, median of
+three interleaved repeats, same control.
+
+| axis | n | blocks before | blocks after | `k` before | `k` after |
+|---|---|---|---|---|---|
+| definitions | 25/50/100/200 | 71.7M/84.7M/131.6M/313.9M | 71.7M/85.0M/132.9M/315.9M | 1.94 | **1.92** |
+| modules | 8/16/32/64 | 67.6M/74.5M/120.4M/515.1M | 67.6M/74.4M/117.2M/424.4M | 3.08 | **2.82** |
+| entries | 8/16/32/64 | 70.6M/81.6M/121.9M/275.4M | 70.7M/81.9M/123.1M/280.9M | 1.92 | **1.93** |
+| typevars | 8/16/32/64 | 66.4M/66.4M/66.7M/68.0M | 66.4M/66.4M/66.7M/68.0M | 2.24 | **2.24** |
+
+The control reproduced at 6.01 blocks/byte, exponent 0.998, so the harness
+is still reading interface bytes and nothing else.
+
+**What was fixed.** Three changes, all in `Bootstrap.Core`, all output
+neutral:
+
+1. **`total-core-insert`/`-merge` replaced by one ordered pass.** The gather
+   built the table with a sorted insertion per row, so a closure of k rows
+   cost k insertions into a list of up to k rows. `total-core-table` now
+   orders the collected rows once with a stable merge sort over the identity
+   text and applies the duplicate rule in a single adjacency pass. Stability
+   is what makes this output-neutral: the sorted insertion kept the FIRST
+   row of an identity group, and a stable sort keeps the first gathered row
+   in that same position. A group whose canonical bytes disagree still
+   refuses the table. The gather itself accumulates reversed and flips once,
+   so the walk is linear rather than a merge per reference.
+2. **`TotalCoreIndex`.** `total-core-gather` walked the definition list
+   linearly once per reference, so a closure of k rows over d definitions
+   cost k*d name comparisons before a row was built. One `HashMap` per
+   gather turns each walk into a probe. The index answers exactly what the
+   walk answered, including `None` for an absent name.
+3. **Arity appends.** `total-core-signature`, `total-core-parameters` and
+   `total-core-flatten` appended a singleton per arrow or lambda, so arity
+   `a` cost `a^2/2` conses. Each conses and reverses once. `-parameters`
+   checks identity freshness with a membership scan over the reversed
+   accumulator rather than reversing inside the loop, which would have
+   reintroduced the quadratic term.
+
+**What moved, and by how much.** `modules` is the axis the table change was
+for: 3.08 to 2.82, and 515.1M to 424.4M blocks at n=64, an 18% cut at the
+largest point. That is the sorted-insertion term leaving. `definitions`
+moved 1.94 to 1.92 and `entries` 1.92 to 1.93, both inside the noise of
+this axis: the insertion term was not what dominated them.
+
+**What did not move, and why.** `typevars` is unchanged at 2.24, and the
+arity fix is measurably not its site. The arity appends are real but tiny:
+at n=64 the whole axis delta is 1.6M blocks against a 66M floor, and
+reversing the appends moved it by under 100K. The axis' actual growth was
+found by measuring further out and sampling:
+
+| n | blocks | IR lines |
+|---|---|---|
+| 64 | 68.0M | 336 |
+| 128 | 75.8M | 464 |
+| 256 | 128.6M | 720 |
+| 512 | 515.1M | 1232 |
+
+`ir` grows at about 0.65 while blocks grow at about 2.8 between 256 and 512,
+which is the frontend-defect signature, and a 40 s sample of the n=512 run
+puts 98% of the work after `emit-object-client` in `Bootstrap.RuntimeIr`:
+`switch-value` 3654 samples, `tail-switch` 2479, `case-value` 3672. The
+emitted `wide` symbol is the tell: `specialized-name` (`RuntimeIr.cinch:352`)
+builds `name <> ".r" <> class-text classes`, and `class-text` renders one
+digit per type parameter. A signature quantifying n variables therefore
+mangles to a name O(n) long, and that name is rebuilt per occurrence by
+`cat`, which is `string-concat-all`. So the axis measures string building
+over a name whose length is the axis variable, squared by the number of
+occurrences. It is an emitter naming-scheme cost, not a totality-table cost,
+and it is a separate ticket: the fix is to hash or index the specialization
+vector rather than spell it into the symbol, which changes emitted symbol
+names and therefore needs its own byte-identity argument.
+
+**What remains superlinear.** `definitions` and `entries` still sit at about
+1.9 with the insertion term gone. The profile at n=200 puts
+`check-global-core` at 16% of `elaborate-module` with `core-total-function`
+9.5% and `total-core-row` 9.6% under it, and the frame counts scale at about
+x44 to x87 from n=25 to n=200 while the module total scales x25. That is
+the re-gather: `bodies-match` (`Bootstrap.Global.cinch:206`) asks
+`core-source-function` once per binding, and each call rebuilds the closure
+table from scratch. The representation change that removes it is a table
+built once per `(bindings, definitions)` pair and probed by identity, which
+is a new type threaded through `bodies-match`, `global-definition-closed`
+and `core-source-function`; it is not a local edit and was left out of this
+round rather than half-done. `modules` inherits the same term and would
+fall with it.
+
 ## 3. The query graph (rustc, Salsa, Shake)
 
 The single largest structural gap. Today a build rechecks whatever the
