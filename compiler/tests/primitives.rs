@@ -774,6 +774,67 @@ module Main where
     );
 }
 
+#[test]
+fn a_narrow_comparison_nested_under_a_conjunction_keeps_its_sign() {
+    // A regression for a miscompile, not a test of the language: the
+    // comparison conjunct `(-2 :: I8) < (1 :: I8)` is a *signed*
+    // comparison whose operands cross a narrowed boundary.
+    //
+    // `I8`'s `Ord` instance is a real unit (`Data.Machine.Ord_I8.<`)
+    // with `i8` parameters, so the slot word it reads has to be the
+    // sign-extended `-2`. It used to be zero-extended to `254`, which
+    // made the comparison false and the program answer `2`.
+    //
+    // The nesting is what made it visible: alone the conjunct folded
+    // through `cinch.prim.ltI8`, and under a `True` guard the whole
+    // `if` folded, so only a guard that is itself a conjunction of narrow
+    // comparisons left the comparison to run through the narrowed unit.
+    // All three shapes are pinned here so the folding that hid it stays
+    // covered.
+    for (name, src) in [
+        (
+            "unguarded",
+            r#"
+module Main where
+  main :: Int
+  main = if (-2 :: I8) < (1 :: I8) && min-bound-i8 < (0 :: I8) then 0 else 2
+"#,
+        ),
+        (
+            "under a True guard",
+            r#"
+module Main where
+  main :: Int
+  main = if True then (if (-2 :: I8) < (1 :: I8) && min-bound-i8 < (0 :: I8) then 0 else 2) else 1
+"#,
+        ),
+        (
+            "under a narrow conjunction guard",
+            r#"
+module Main where
+  main :: Int
+  main =
+    if (3 :: U8) == 3 && (255 :: U8) > (0 :: U8) then
+      if (-2 :: I8) < (1 :: I8) && min-bound-i8 < (0 :: I8) then 0 else 2
+    else 1
+"#,
+        ),
+        (
+            "a signed and an unsigned width in one guard",
+            r#"
+module Main where
+  main :: Int
+  main =
+    if (-2 :: I16) < (1 :: I16) && (65535 :: U16) > (0 :: U16) then
+      if (-300 :: I32) < (7 :: I32) && (4000000000 :: U32) > (1 :: U32) then 0 else 4
+    else 3
+"#,
+        ),
+    ] {
+        run_ok(name, src, 0);
+    }
+}
+
 // ------------------------------------------------------------ CLI smoke
 
 #[test]

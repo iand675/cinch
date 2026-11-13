@@ -2847,8 +2847,12 @@ pub struct ParamContract {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Crossing {
     /// A machine scalar of this many bits (`U8`/`I16`/`F32` and their
-    /// siblings), whatever the target.
-    Bits(u32),
+    /// siblings), whatever the target. `signed` says how the narrowed
+    /// value extends back into the slot, exactly as it does for
+    /// [`Crossing::Csize`]: a signed scalar's canonical word is
+    /// sign-extended (`I8`'s `-2` is `-2`, not `254`), an unsigned
+    /// scalar's and a float's bits zero-extend.
+    Bits { bits: u32, signed: bool },
     /// A word whose every value fits the target's pointer width: a
     /// counted pointer (`Obj`), or a `Nat`/`Int`, whose immediate payload
     /// is sized to `csize` for exactly this reason. It is the slot on a

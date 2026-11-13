@@ -11996,12 +11996,19 @@ fn crossing(t: &Ty, types: &dyn crate::repr::TypeReprs) -> Option<crate::core::C
     use crate::core::Crossing;
     use crate::types::Scalar;
     match t {
-        Ty::Prim(s) => match s {
-            Scalar::I8 | Scalar::U8 => Some(Crossing::Bits(8)),
-            Scalar::I16 | Scalar::U16 => Some(Crossing::Bits(16)),
-            Scalar::I32 | Scalar::U32 | Scalar::F32 => Some(Crossing::Bits(32)),
-            _ => None,
-        },
+        // `signed` rides the crossing because the word convention is
+        // sign-extended for a signed scalar and zero-extended for an
+        // unsigned one (or a float's bits), so the boundary has to know
+        // which way to extend back into the slot.
+        Ty::Prim(s) => {
+            let bits = match s {
+                Scalar::I8 | Scalar::U8 => 8,
+                Scalar::I16 | Scalar::U16 => 16,
+                Scalar::I32 | Scalar::U32 | Scalar::F32 => 32,
+                _ => return None,
+            };
+            Some(Crossing::Bits { bits, signed: s.is_signed() })
+        }
         Ty::Nat => Some(Crossing::Csize { signed: false }),
         Ty::Int => Some(Crossing::Csize { signed: true }),
         // No type parameters are named, so a type variable is not `Obj`

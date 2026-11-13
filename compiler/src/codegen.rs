@@ -3434,8 +3434,12 @@ fn narrow_llvm_ty(bits: u32) -> &'static str {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Cross {
     bits: u32,
-    /// Sign-extend back into the slot (an `Int`), rather than
-    /// zero-extend (a pointer, a `Nat`, a machine scalar's bits).
+    /// Sign-extend back into the slot, rather than zero-extend. The
+    /// canonical word of a signed value is sign-extended (`I8`'s `-2`
+    /// holds `-2` in the slot, which is what `slt` and the primitives
+    /// read), so an `Int` and a signed machine scalar sign-extend; a
+    /// pointer, a `Nat` and an unsigned scalar zero-extend, and a float
+    /// zero-extends its bits.
     sext: bool,
 }
 
@@ -3447,7 +3451,7 @@ impl Cross {
     fn of(n: Option<crate::core::Crossing>, pointer_bytes: usize) -> Cross {
         use crate::core::Crossing;
         match n {
-            Some(Crossing::Bits(bits)) => Cross { bits, sext: false },
+            Some(Crossing::Bits { bits, signed }) => Cross { bits, sext: signed },
             Some(Crossing::Csize { signed }) if pointer_bytes < 8 => {
                 Cross { bits: pointer_bytes as u32 * 8, sext: signed }
             }
@@ -7181,10 +7185,12 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result
     // slot word, so the entry widens it once (design/narrow-value-
     // representation.md section 4: the compiler boxes at the expanding
     // edge, and everything below the edge keeps the word it always had).
-    // A machine scalar zero-extends, because the word convention keeps
-    // unsigned scalars zero-extended and a signed scalar's sign extension
-    // is a no-op on the bits a narrow type can hold; a `csize` `Int`
-    // sign-extends, because a negative immediate's slot word does.
+    // The extension direction is the one the word convention already
+    // uses for that type, so the slot holds the same value the body would
+    // have seen had the position never narrowed: a signed machine scalar
+    // and a `csize` `Int` sign-extend (`-2 :: I8` is `-2` in the slot,
+    // not `254`), while an unsigned scalar, a float's bits, a pointer and
+    // a `Nat` zero-extend.
     for i in 0..f.arity() {
         let slot = e.slot(LocalId(i));
         let w = cross(i).widen(e.b, &format!("%p{i}"));
@@ -10125,7 +10131,7 @@ int main(void) {{
         // prototypes differ, so neither member narrows.
         let differ = main_prog(
             vec![
-                narrowed(member("T.ping", "T.pong", 0), Crossing::Bits(8)),
+                narrowed(member("T.ping", "T.pong", 0), Crossing::Bits { bits: 8, signed: false }),
                 narrowed(member("T.pong", "T.ping", 1), nat),
             ],
             app(g("T.ping"), vec![n(10)]),
