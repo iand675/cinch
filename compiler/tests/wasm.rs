@@ -302,7 +302,13 @@ module GlueProbe where
         ir.contains("define void @\"example:codec@0.1.0/decoder#decode\""),
         "the world export gets its canonical trampoline"
     );
-    assert!(ir.contains("call i64 @\"Decoder.decode\""), "the trampoline forwards to the implementation");
+    // On wasm32 the implementation's buffer, its `U32` limit and its
+    // `Result` all cross at 32 bits (design/narrow-value-
+    // representation.md section 4), and the trampoline calls it there.
+    assert!(
+        ir.contains("call i32 @\"Decoder.decode\"(i32 "),
+        "the trampoline forwards to the implementation at its narrowed boundary"
+    );
     // The host profile refuses the canonical glue (D99: the canonical
     // ABI is the wasm32 shape).
     let err = cinch::codegen::emit_for(&TargetProfile::native(), &program)
