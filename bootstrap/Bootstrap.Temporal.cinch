@@ -26,7 +26,7 @@ module Bootstrap.Temporal where
     , EVar, ECon, ERecord, ERecordField, EProject, ELitInt, ELitFloat, ELitStr, ELitChar, EUnit, ETuple, EList, EApp, EBin, ENeg
     , ELam, ELet, ELetScope, ELocalGroup, ELetRec, ELocalStrict, ELocalSignature, ELocalMemo, ELocalEnd, EIf, ECase, EGuarded, EAnn
     , EForall, EUsing, EBind, EDo, EHandle, EHandler, EHandlerClause, EHandlerEnd, EWith, EArg, EArgsEnd, EBinding, EBindingsEnd
-    , EAlt, EAltsEnd, EQuote, ESplice, EUnmodeled)
+    , EAlt, EAltsEnd, EQuote, ESplice, EMacroCall, EUnmodeled)
   import Algebra.Semigroup
 
   export ContractKind, Safety, Liveness, Recurrence, Stability

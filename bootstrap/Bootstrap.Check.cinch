@@ -473,6 +473,7 @@ module Bootstrap.Check where
     EAltsEnd s -> (TyHole, fail s "unsupported expression: alternative spine end")
     EQuote s body -> (TyHole, fail s "a quotation requires the typed checker")
     ESplice s expression -> (TyHole, fail s "a splice requires a compile-time quotation")
+    EMacroCall s path tokens -> (TyHole, fail s "a macro invocation requires compile-time expansion")
     EUnmodeled s text -> (TyHole, fail s (string-concat "unmodeled expression: " text))
 
   infer-tuple-fields :: List (String, Ty) -> List Expr -> (Ty, List Diagnostic)
@@ -975,6 +976,10 @@ module Bootstrap.Check where
     -- definition's checked Core and its per-step write log, so this
     -- untyped rung has nothing to check it against.
     DContract s keyword name subject clauses -> fail s "a temporal contract needs the checked write log of the definition it names"
+    -- A target-selected declaration is checked as the declaration it wraps.
+    -- Pruning against the active profile happens before this rung sees it,
+    -- so a clause that survived here is one the build satisfies.
+    DConditional s clauses inner -> check-decl tops inner
     DDecl s x rest -> (check-decl tops x) <> (check-decl tops rest)
     DDeclsEnd s -> Nil
     DUnmodeled s text -> fail s (string-concat "unmodeled declaration: " text)

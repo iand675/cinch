@@ -561,6 +561,9 @@ module Bootstrap.Ir where
     -- A contract emits no code: it is a claim about the definition it
     -- names, verified before lowering.
     DContract s keyword name subject clauses -> Nil
+    -- A target-selected declaration lowers as the declaration it wraps;
+    -- pruning already removed the ones this target does not satisfy.
+    DConditional s clauses inner -> decl-refusal fns ds inner
     DUnmodeled s text -> Cons (diag s "an unmodeled declaration is not in the fragment") Nil
     other -> Nil
 
@@ -765,4 +768,5 @@ module Bootstrap.Ir where
     EAltsEnd s -> "alternative spine end"
     EQuote s body -> "quotation"
     ESplice s expression -> "quotation splice"
+    EMacroCall s path tokens -> "macro invocation"
     EUnmodeled s text -> "unmodeled expression"

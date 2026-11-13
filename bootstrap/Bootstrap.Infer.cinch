@@ -319,6 +319,10 @@ module Bootstrap.Infer where
     -- A quotation is built at compile time, so the typed elaborator must
     -- see it: the legacy scalar path has no `Code` type to give it.
     EQuote s body -> True
+    -- A macro call is gone by the time the elaborator runs: expansion
+    -- replaced it with the code the macro produced, and that code is what
+    -- decides whether the typed path is needed.
+    EMacroCall s path tokens -> False
     other -> False
   ctor-needs :: List (String, TypeExpr) -> Bool
   ctor-needs cs = case cs of Nil -> False; Cons (name, ty) rest -> needs-type ty || ctor-needs rest
@@ -3050,6 +3054,9 @@ module Bootstrap.Infer where
     ECon s name args -> case lookup-expression-value s kinds name env st of (term, sn) -> infer-arguments classes kinds families env locals term args sn
     EList s args -> infer-collection classes kinds families env locals s args None st
     EQuote sp body -> infer-quotation classes kinds families env locals sp body None st
+    -- A macro call reaches the elaborator only when expansion did not run,
+    -- so it is refused by name rather than typed as anything.
+    EMacroCall sp path tokens -> term-error sp "a macro invocation requires compile-time expansion" st
     ELitInt s text -> checked-literal s (primitive-type "Int") text st
     ELitStr s text -> (CString s (literal-type kinds "String") text, st)
     ELitChar s text -> (CChar s (primitive-type "Char") text, st)
@@ -3132,6 +3139,7 @@ module Bootstrap.Infer where
       other -> check-inferred classes kinds families env locals expr expected st)
     EList s args -> infer-collection classes kinds families env locals s args (Some expected) st
     EQuote sp body -> infer-quotation classes kinds families env locals sp body (Some expected) st
+    EMacroCall sp path tokens -> term-error sp "a macro invocation requires compile-time expansion" st
     EIf s condition yes no -> case check classes kinds families env locals condition (primitive-type "Bool") st of
       (c, sc) -> case check classes kinds families (proof-branch (expr-span condition) env c True sc) locals yes expected sc of
         (a, sa) -> case check classes kinds families (proof-branch (expr-span condition) env c False sa) locals no expected sa of
@@ -6318,6 +6326,11 @@ module Bootstrap.Infer where
       EHandlerClause sp name patterns continuation body rest -> first-guard-error (eager body) (eager rest)
       EQuote sp body -> nested flow body
       ESplice sp body -> eager body
+      -- The call's own name is not a value reference, so it is no
+      -- recursive reference either. Reaching here means expansion did not
+      -- run, and the elaborator refuses the call by name; the walker must
+      -- not invent a guard verdict for it.
+      EMacroCall sp path tokens -> None
       other -> if recursive-call-allowed productive diverges position then None else case first-recursive-reference group (expr-references expression) of
         Some name -> Some (expr-span expression, name)
         None -> None

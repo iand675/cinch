@@ -771,10 +771,16 @@ module Bootstrap.Parse where
   -- Declarations.
   -- ------------------------------------------------------------------
 
+  -- `when <atom> ... <declaration>` prefixes a declaration the target
+  -- selects (modules specification section 11), the way an attribute
+  -- prefixes the declaration it annotates. The clause is read as the atom
+  -- it is, not as "the rest of the line", so `when os darwin x :: T` needs
+  -- no separator between the clause and the declaration.
   parse-decl :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
   parse-decl toks src fix = case toks of
     Cons t rest -> case lt-token t of
-      TWord w -> decl-by-word w toks src fix
+      TWord w -> if string-compare w "when" == 0 then parse-conditional-decl toks src fix
+        else decl-by-word w toks src fix
       TVar s -> if string-compare s "unsafe" == 0 then
         (case rest of Cons keyword more -> if is-word-t (lt-token keyword) "prim" then parse-prim True rest src fix else parse-sig-or-eq toks src fix; Nil -> PBad)
         else parse-sig-or-eq toks src fix
@@ -783,6 +789,69 @@ module Bootstrap.Parse where
         else PBad
       _ -> PBad
     Nil -> PBad
+
+  -- The `when` prefix: one atom per `when`, then the declaration they
+  -- select. The whole run is one `DConditional` whose clause list is the
+  -- conjunction, so `when os darwin when arch aarch64 x :: T` is one
+  -- declaration under two atoms.
+  parse-conditional-decl :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-conditional-decl toks src fix = case parse-when-atoms toks Nil of
+    POk atoms rest -> case parse-decl rest src fix of
+      POk inner tail -> POk (DConditional (span-join (list-start-span toks) (decl-span inner)) atoms inner) tail
+      PBad -> PBad
+    PBad -> PBad
+
+  parse-when-atoms :: List LToken -> List Expr -> Ps (List Expr)
+  parse-when-atoms toks acc = case toks of
+    Cons t rest ->
+      if is-word-t (lt-token t) "when" then case parse-when-atom rest of
+        POk atom tail -> parse-when-atoms tail (Cons atom acc)
+        PBad -> PBad
+      else POk (reverse acc) toks
+    Nil -> POk (reverse acc) Nil
+
+  -- One atom: `not (<atom>)`, or `<head> <argument>` where the argument is
+  -- a name or an integer. The vocabulary is validated by the checker, not
+  -- here, so a clause the source misspells reaches the refusal that names
+  -- the whole vocabulary.
+  parse-when-atom :: List LToken -> Ps Expr
+  parse-when-atom toks = case toks of
+    Cons t rest ->
+      if is-word-t (lt-token t) "not" then case rest of
+        Cons open inner -> if is-punct-t (lt-token open) "(" then (case parse-when-atom inner of
+          POk atom (Cons close tail) -> if is-punct-t (lt-token close) ")" then
+            POk (EApp (span-join (sp-of t) (sp-of close)) (EVar (sp-of t) "not") atom) tail
+            else PBad
+          other -> PBad)
+          else when-atom-of (sp-of t) t rest
+        Nil -> PBad
+      else when-atom-of (sp-of t) t rest
+    Nil -> PBad
+
+  -- The atom's argument is a bare name or an integer; `word-size 64` is the
+  -- only atom whose argument is not a name, and a triple such as
+  -- `aarch64-apple-darwin` is one name, because the lexer glues a dashed
+  -- word. The head may be a word, a variable or a constructor, because the
+  -- clause vocabulary is the checker's business.
+  when-atom-of :: Span -> LToken -> List LToken -> Ps Expr
+  when-atom-of sp head rest = case (when-atom-head (lt-token head), rest) of
+    (Some name, Cons argument more) -> case lt-token argument of
+      TVar value -> POk (when-atom-atom sp name (sp-of argument) (EVar (sp-of argument) value)) more
+      TCon value -> POk (when-atom-atom sp name (sp-of argument) (EVar (sp-of argument) value)) more
+      TWord value -> POk (when-atom-atom sp name (sp-of argument) (EVar (sp-of argument) value)) more
+      TInt digits -> POk (when-atom-atom sp name (sp-of argument) (ELitInt (sp-of argument) digits)) more
+      other -> PBad
+    other -> PBad
+
+  when-atom-head :: Token -> Option String
+  when-atom-head tok = case tok of
+    TWord name -> Some name
+    TVar name -> Some name
+    TCon name -> Some name
+    other -> None
+
+  when-atom-atom :: Span -> String -> Span -> Expr -> Expr
+  when-atom-atom sp head at argument = EApp (span-join sp at) (EVar sp head) argument
 
   decl-by-word :: String -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
   decl-by-word w toks src fix =
@@ -1167,7 +1236,7 @@ module Bootstrap.Parse where
     Cons t rest ->
       if is-word-t (lt-token t) "as" then case parse-path rest of
         POk name rest2 -> case import-argument-items items of
-          Some args -> POk (DImport sp path mods (Some name) Nil hidden args) rest2
+          Some args -> import-when-clauses (DImport sp path mods (Some name) Nil hidden args) rest2
           None -> PBad
         PBad -> PBad
       else finish-import-members sp path mods items hidden toks
@@ -1175,8 +1244,19 @@ module Bootstrap.Parse where
 
   finish-import-members :: Span -> String -> List String -> List (Expr, Option String) -> List String -> List LToken -> Ps Decl
   finish-import-members sp path mods items hidden toks = case import-member-items items of
-    Some members -> POk (DImport sp path mods None members hidden Nil) toks
+    Some members -> import-when-clauses (DImport sp path mods None members hidden Nil) toks
     None -> PBad
+
+  -- An import's `when` clauses come after its path (and its alias, selection
+  -- or hiding list), so the import is finished before they are read. A false
+  -- clause makes the import contribute nothing at all: no names, no module
+  -- dependency, nothing in the checked interface. No clause returns the
+  -- import bare, so every unconditional import is unchanged.
+  import-when-clauses :: Decl -> List LToken -> Ps Decl
+  import-when-clauses decl toks = case parse-when-atoms toks Nil of
+    POk Nil rest -> POk decl rest
+    POk atoms rest -> POk (DConditional (decl-span decl) atoms decl) rest
+    PBad -> PBad
 
   import-argument-items :: List (Expr, Option String) -> Option (List Expr)
   import-argument-items items = case items of
@@ -2152,8 +2232,86 @@ module Bootstrap.Parse where
           TVar name -> if string-compare name "_" == 0 then PBad else parse-postfix (EProject (span-join (expr-span value) (sp-of label)) value name) more src fix
           other -> PBad)
         Nil -> PBad)
+      else if is-punct-t (lt-token t) "!" then parse-macro-call value rest
       else POk value toks
     Nil -> POk value toks
+
+  -- `name!(tokens)`, `name![tokens]`, `name!{tokens}`: a macro invocation
+  -- (grammar: `macro_call = var_path, "!", token_tree`). Only a name invokes
+  -- a macro, and the argument is one balanced token tree, which the
+  -- expander reads; the parse does not interpret it. The lexer already ends
+  -- the word before a bang that is tight against a tree opener, so `f!(x)`
+  -- reaches here as `TVar "f"` then `TPunct "!"`, while a name that itself
+  -- ends in `!` needs one more bang to invoke (`f!!(x)`).
+  parse-macro-call :: Expr -> List LToken -> Ps Expr
+  parse-macro-call value toks = case toks of
+    Cons opener rest -> case expr-name value of
+      None -> PBad
+      Some name -> (case parse-token-tree opener rest of
+        POk tree after -> POk (EMacroCall (span-join (expr-span value) (list-end-span tree)) name tree) after
+        PBad -> PBad)
+    Nil -> PBad
+
+  -- The name a macro invocation invokes: a bare or dotted reference, as
+  -- the grammar's `var_path` spells it. Anything else is not a macro name,
+  -- so the bang has no production here and the caller's alternative wins.
+  expr-name :: Expr -> Option String
+  expr-name e = case e of
+    EVar s name -> Some name
+    other -> None
+
+  -- One balanced token tree: the opening delimiter through its matching
+  -- close, with nested delimiters balanced. The tree is macro input and is
+  -- not parsed here (grammar: `token_tree`). The caller passes the opener
+  -- already peeked, and the result includes it.
+  parse-token-tree :: LToken -> List LToken -> Ps (List LToken)
+  parse-token-tree opener toks = case tree-closes (lt-token opener) of
+    None -> PBad
+    Some close -> tree-tokens close (Cons opener toks) Nil
+
+  -- Is this token any tree closer? A close that matches nothing owed means
+  -- the tree's delimiters disagree with the source's, which is a failure.
+  is-any-tree-close :: Token -> Bool
+  is-any-tree-close tok = case tok of
+    TPunct p -> string-compare p ")" == 0 || string-compare p "]" == 0
+      || string-compare p "}" == 0 || string-compare p "|]" == 0
+    other -> False
+
+  -- The delimiter that closes `open`, or none when `open` does not open a
+  -- tree. `[|` and `$(` each open a run that their own token closes, which
+  -- is what keeps a quotation or a splice inside a macro argument balanced.
+  tree-closes :: Token -> Option String
+  tree-closes tok = case tok of
+    TPunct p -> if string-compare p "(" == 0 then Some ")"
+      else if string-compare p "[" == 0 then Some "]"
+      else if string-compare p "{" == 0 then Some "}"
+      else if string-compare p "[|" == 0 then Some "|]"
+      else if string-compare p "$(" == 0 then Some ")"
+      else None
+    other -> None
+
+  -- Collect the tree's tokens from `pending`, which already holds the
+  -- opener, until the last closer is popped. `open` holds the closers still
+  -- owed, innermost first, so every nested opener pushes its own and a
+  -- close that does not match the innermost is a failure rather than a
+  -- silent truncation.
+  tree-tokens :: String -> List LToken -> List LToken -> Ps (List LToken)
+  tree-tokens close pending acc = tree-scan (Cons close Nil) pending acc
+
+  tree-scan :: List String -> List LToken -> List LToken -> Ps (List LToken)
+  tree-scan owed pending acc = case pending of
+    Nil -> PBad
+    Cons t rest -> let tok = lt-token t in
+      case tree-closes tok of
+        Some inner -> tree-scan (Cons inner owed) rest (Cons t acc)
+        None -> case owed of
+          Nil -> POk (reverse (Cons t acc)) rest
+          Cons wanted more ->
+            if is-punct-t tok wanted then (case more of
+              Nil -> POk (reverse (Cons t acc)) rest
+              other -> tree-scan more rest (Cons t acc))
+            else if is-any-tree-close tok then PBad
+            else tree-scan owed rest (Cons t acc)
   parse-atom-base :: List LToken -> Bytes -> List (String, Fix) -> Ps Expr
   parse-atom-base toks src fix = case toks of
     Cons t rest -> case lt-token t of

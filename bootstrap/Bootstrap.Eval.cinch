@@ -572,6 +572,7 @@ module Bootstrap.Eval where
     EAltsEnd s -> fail s "unsupported expression: alternative spine end"
     EQuote s body -> fail s "a quotation requires the typed checker"
     ESplice s expression -> fail s "a splice requires a compile-time quotation"
+    EMacroCall s path tokens -> fail s "a macro invocation requires compile-time expansion"
     EUnmodeled s text -> fail s (string-concat "unmodeled expression: " text)
 
   -- ------------------------------------------------- the top-level environment
@@ -670,6 +671,9 @@ module Bootstrap.Eval where
     -- A contract declares no value the interpreter binds, so it needs no
     -- evaluation. It is checked where its definition is elaborated.
     DContract s keyword name subject clauses -> Nil
+    -- A target-selected declaration is whatever it wraps: pruning already
+    -- dropped the ones the active profile does not select.
+    DConditional s clauses inner -> decl-unmodeleds inner
     DUnmodeled s text -> Cons (MkDiagnostic rung s (string-concat "unmodeled declaration: " text)) Nil
     other -> Nil
 

@@ -30,8 +30,11 @@
 
 module Bootstrap.Ast where
 
-  import Text.Lex (Span, span-start, span-end, span-line, span-col)
+  import Text.Lex (Span, span-start, span-end, span-line, span-col, LToken, Token, lt-token, lt-virtual
+    , TVar, TCon, TOp, TInt, TFloat, TStr, TChar, TWord, TPunct, TAttr, TPrimFrag, TTickName, TTickType, TEOF)
   import Data.Json (Json, JArr, JArrEnd, JStr, JBool, JNull)
+  import Data.String (string-from-bytes, empty-string)
+  import Text.Show (nat-to-string)
   import Algebra.Semigroup
 
   -- ------------------------------------------------------------------ spans
@@ -305,6 +308,12 @@ module Bootstrap.Ast where
     -- `$( e )`: a typed hole in a quotation template, filled at quote
     -- construction with the `Code` value of `e`.
     ESplice :: Span -> Expr -> Expr
+    -- `name!(tokens)`: a macro invocation with a balanced token tree
+    -- argument (grammar: `macro_call = var_path, "!", token_tree`). The
+    -- tree is macro input, not a term: it becomes a term only when the
+    -- expander runs the macro and splices the code it produced. `path` is
+    -- the written spelling of the macro's name, before resolution.
+    EMacroCall :: Span -> String -> List LToken -> Expr
     EUnmodeled :: Span -> String -> Expr
 
   expr-spine :: Span -> List Expr -> Expr
@@ -389,6 +398,7 @@ module Bootstrap.Ast where
     EAltsEnd s -> s
     EQuote s body -> s
     ESplice s expression -> s
+    EMacroCall s path tokens -> s
     EUnmodeled s text -> s
 
   -- ------------------------------------------------------------ declarations
@@ -524,6 +534,13 @@ module Bootstrap.Ast where
     -- the kind's own, so the parser has already refused a formula whose
     -- operator disagrees with it.
     DContract :: Span -> String -> String -> String -> List ContractClause -> Decl
+    -- `when <atom> ... <declaration>`: the declaration exists only on the
+    -- targets its clause list selects (modules specification section 11).
+    -- The atoms are the conjunction, and an `import X when <atom>` is the
+    -- same wrapper around the `DImport`, so one pruning pass handles both.
+    -- Where a clause does not hold the name is absent from the interface,
+    -- from the module's exports and from code generation.
+    DConditional :: Span -> List Expr -> Decl -> Decl
     DDecl :: Span -> Decl -> Decl -> Decl
     DDeclsEnd :: Span -> Decl
     DUnmodeled :: Span -> String -> Decl
@@ -564,6 +581,7 @@ module Bootstrap.Ast where
     DPrim s name ty bodies -> s
     DProof s body -> s
     DCorec s body -> s
+    DConditional s clauses inner -> s
     DMacro s body -> s
     DStage s body -> s
     DGenerate s actions -> s
@@ -603,6 +621,7 @@ module Bootstrap.Ast where
     DUnmodeled s text -> None
     DProof s body -> decl-name body
     DCorec s body -> decl-name body
+    DConditional s clauses inner -> decl-name inner
     DMacro s body -> None
     DStage s body -> None
     DGenerate s actions -> None
@@ -754,6 +773,10 @@ module Bootstrap.Ast where
     EUnmodeled s text -> 1
     EQuote s body -> expr-unmodeled-count body
     ESplice s expression -> expr-unmodeled-count expression
+    -- A macro call models its own form completely: the argument is a
+    -- token tree the expander consumes, not an expression this rung owes
+    -- a model of.
+    EMacroCall s path tokens -> 0
 
   exprs-unmodeled :: List Expr -> Nat
   exprs-unmodeled es = case es of
@@ -827,6 +850,7 @@ module Bootstrap.Ast where
     DUnmodeled s text -> 1
     DProof s body -> decl-unmodeled-count body
     DCorec s body -> decl-unmodeled-count body
+    DConditional s clauses inner -> exprs-unmodeled clauses + decl-unmodeled-count inner
     DMacro s body -> decl-unmodeled-count body
     DStage s body -> decl-unmodeled-count body
     DGenerate s actions -> decl-unmodeled-count actions
@@ -972,12 +996,44 @@ module Bootstrap.Ast where
     EAltsEnd part0 -> JArr (JStr "EAltsEnd") (JArrEnd)
     EUnmodeled part0 part1 -> JArr (JStr "EUnmodeled") (JArr (JStr part1) (JArrEnd))
     EQuote part0 part1 -> JArr (JStr "EQuote") (JArr (source-identity-expr part1) JArrEnd)
+    -- A macro call's identity is its name and its argument's token
+    -- spellings: two calls are the same source when both agree, which is
+    -- what the default-clause and interface identity comparisons need.
+    EMacroCall part0 part1 part2 -> JArr (JStr "EMacroCall") (JArr (JStr part1) (JArr (source-identity-tokens part2) JArrEnd))
     ESplice part0 part1 -> JArr (JStr "ESplice") (JArr (source-identity-expr part1) JArrEnd)
 
   source-identity-pats :: List Pat -> Json
   source-identity-pats values = case values of Nil -> JArrEnd; Cons first rest -> JArr (source-identity-pat first) (source-identity-pats rest)
   source-identity-names :: List String -> Json
   source-identity-names values = case values of Nil -> JArrEnd; Cons first rest -> JArr (JStr first) (source-identity-names rest)
+  -- A token tree's identity is the tokens' own spelling. A layout-inserted
+  -- token is not in the source, so it cannot distinguish two spellings.
+  source-identity-tokens :: List LToken -> Json
+  source-identity-tokens values = case values of
+    Nil -> JArrEnd
+    Cons first rest -> if lt-virtual first then source-identity-tokens rest
+      else JArr (JStr (token-identity-spelling (lt-token first))) (source-identity-tokens rest)
+
+  -- The spelling a token contributes to a source identity. Every token
+  -- kind that can appear in a macro argument has one; the layout and
+  -- fragment kinds are spelled by nothing, so they add the empty string,
+  -- which two identical trees agree on.
+  token-identity-spelling :: Token -> String
+  token-identity-spelling t = case t of
+    TVar s -> s
+    TCon s -> s
+    TOp s -> s
+    TInt s -> s
+    TFloat s -> s
+    TStr b -> case string-from-bytes b of Some s -> s; None -> empty-string
+    TChar n -> nat-to-string n
+    TWord s -> s
+    TPunct s -> s
+    TAttr s -> s
+    TPrimFrag s -> s
+    TTickName s -> s
+    TTickType s -> s
+    TEOF -> empty-string
   source-identity-optional :: Option String -> Json
   source-identity-optional value = case value of None -> JNull; Some name -> JStr name
   source-clauses-document :: List (List Pat, Expr) -> Json

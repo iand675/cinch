@@ -811,6 +811,11 @@ module Bootstrap.Resolve where
     -- its free names resolve where the template is written (decision D43).
     EQuote s body -> case rename-expr visible locals body of
       (renamed, errors) -> (EQuote s renamed, errors)
+    -- A macro call is expanded before resolution, so a surviving call means
+    -- the expander did not reach it. Its name is not a value reference and
+    -- must not be renamed: the expander resolves it against the macros in
+    -- scope, and renaming here would give it a global the macro never had.
+    EMacroCall s path tokens -> (e, fail s (cat ["macro invocation `", path, "!` was not expanded"]))
     ESplice s expression -> (e, fail s "a splice is only meaningful inside a quotation")
     EUnmodeled s text -> (e, fail s (cat ["unmodeled expression: ", text]))
     other -> (e, fail (expr-span e) "this expression requires further namespace elaboration")
@@ -940,6 +945,11 @@ module Bootstrap.Resolve where
     -- the catch-all below would claim namespace work is missing when the
     -- real gap is a surface form the parser does not accept yet.
     DUnmodeled s text -> (Cons d Nil, fail s (string-concat "the parser cannot model this declaration: " text))
+    -- A target-selected declaration is renamed as the declaration it
+    -- wraps. The wrapper itself names no value, so it adds no binding; the
+    -- clause atoms are compile-time predicates over the profile, not terms.
+    DConditional s clauses inner -> case rename-decl home visible declarations inner of
+      (renamed, errors) -> ([DConditional s clauses (decl-spine s renamed)], errors)
     other -> (Cons d Nil, fail (decl-span d) "this declaration requires further namespace elaboration")
 
   -- Whether this module declares a value of `name` a contract can attach to:
