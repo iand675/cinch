@@ -268,9 +268,22 @@ module Bootstrap.TemporalCheck where
       same op "negate" || same op "+" || same op "-" || same op "*"
     CPrimitive sp ty op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
       same op "+" || same op "-" || same op "*"
+    -- Arithmetic over a checked interface is the prelude's `Arithmetic`
+    -- method, not the primitive: the same expression that reads `CPrimitive`
+    -- without a manifest reads as a method application with one.
+    CApply sp ty f x -> arithmetic-method f
+    CApplyEff sp ty row f x -> arithmetic-method f
     CArgument sp value rest -> borrow-passthrough value && borrow-passthrough rest
     CArgumentsEnd sp -> True
     other -> False
+
+  arithmetic-method :: CoreTerm -> Bool
+  arithmetic-method head = operator-matches (method-operation head) ["+", "-", "*"]
+
+  operator-matches :: String -> List String -> Bool
+  operator-matches name names = case names of
+    Nil -> False
+    Cons first rest -> same name first || operator-matches name rest
 
   -- The written value's arithmetic reading, when the value is one the proof
   -- vocabulary can name (a literal, a parameter, or arithmetic over them).
@@ -282,6 +295,11 @@ module Bootstrap.TemporalCheck where
       binary-reading op (value-reading first) (value-reading second)
     CPrimitive sp ty op (CArgument a first (CArgumentsEnd end)) ->
       if same op "negate" then unary-negation (value-reading first) else None
+    -- Arithmetic through a checked interface's method: the same expression
+    -- reads as a primitive without a manifest and as a method application
+    -- with one.
+    CApply sp ty (CApply at partial head first) second ->
+      binary-reading (method-operation head) (value-reading first) (value-reading second)
     other -> None
 
   binary-reading :: String -> Option Arithmetic -> Option Arithmetic -> Option Arithmetic
@@ -377,17 +395,17 @@ module Bootstrap.TemporalCheck where
     CMethod sp ty name owner slot actuals evidence -> method-comparison-name name
     CQualifiedUse sp ty name role actuals evidence -> method-comparison-name name
     CUse sp ty name role actuals -> method-comparison-name name
-    CApply sp ty f x -> method-comparison term
+    CApply sp ty f x -> method-comparison f
     other -> None
 
   method-comparison-name :: String -> Option Comparison
   method-comparison-name name =
-    if string-starts-with name "i.Relation$2eOrd$2eOrd$2e$3c" then Some Less
-    else if string-starts-with name "i.Relation$2eOrd$2eOrd$2e$3c$3d" then Some AtMost
-    else if string-starts-with name "i.Relation$2eOrd$2eOrd$2e$3e" then Some Greater
-    else if string-starts-with name "i.Relation$2eOrd$2eOrd$2e$3e$3d" then Some AtLeast
-    else if string-starts-with name "i.Relation$2eEq$2eEq$2e$3d$3d" then Some Equal
-    else if string-starts-with name "i.Relation$2eEq$2eEq$2e$2f$3d" then Some Unequal
+    if string-starts-with "i.Relation$2eOrd$2eOrd$2e$3c$3d" name then Some AtMost
+    else if string-starts-with "i.Relation$2eOrd$2eOrd$2e$3c" name then Some Less
+    else if string-starts-with "i.Relation$2eOrd$2eOrd$2e$3e$3d" name then Some AtLeast
+    else if string-starts-with "i.Relation$2eOrd$2eOrd$2e$3e" name then Some Greater
+    else if string-starts-with "i.Relation$2eEq$2eEq$2e$3d$3d" name then Some Equal
+    else if string-starts-with "i.Relation$2eEq$2eEq$2e$2f$3d" name then Some Unequal
     else None
 
   arithmetic-of :: CoreTerm -> Option Arithmetic
@@ -408,14 +426,18 @@ module Bootstrap.TemporalCheck where
     CMethod sp ty name owner slot actuals evidence -> method-operation-name name
     CQualifiedUse sp ty name role actuals evidence -> method-operation-name name
     CUse sp ty name role actuals -> method-operation-name name
-    CApply sp ty f x -> method-operation term
+    CApply sp ty f x -> method-operation f
     other -> ""
 
+  -- The arithmetic operator a method's own symbol names. The prelude gives
+  -- each operator its own class (`Algebra.Arithmetic.Add`, `Sub`, `Mul`),
+  -- so the identity carries the class name and then the operator's own
+  -- encoded spelling.
   method-operation-name :: String -> String
   method-operation-name name =
-    if string-starts-with name "i.Algebra$2eArithmetic$2eArithmetic$2e$2b" then "+"
-    else if string-starts-with name "i.Algebra$2eArithmetic$2eArithmetic$2e$2d" then "-"
-    else if string-starts-with name "i.Algebra$2eArithmetic$2eArithmetic$2e$2a" then "*"
+    if string-starts-with "i.Algebra$2eArithmetic$2eAdd$2e$2b" name then "+"
+    else if string-starts-with "i.Algebra$2eArithmetic$2eSub$2e$2d" name then "-"
+    else if string-starts-with "i.Algebra$2eArithmetic$2eMul$2e$2a" name then "*"
     else ""
 
   borrow-read-of :: CoreTerm -> Option Arithmetic
