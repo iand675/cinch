@@ -154,10 +154,15 @@ module Bootstrap.Resolve where
     Some b -> entries
     None -> Cons (MkBinding name home name) entries
 
+  -- A class member is visible under its label whether it is still in source
+  -- form (`DSig`, which `rename-class-members` turns into a `DMethod`) or
+  -- already resolved. The kernel's classes are declared after renaming, so
+  -- they arrive as `DMethod` and would otherwise contribute no name.
   own-class-methods :: String -> List Decl -> List Binding -> List Binding
   own-class-methods home ds acc = case ds of
     Nil -> acc
     Cons (DSig s name ty) rest -> own-class-methods home rest (add-own home name acc)
+    Cons (DMethod s label symbol ty) rest -> own-class-methods home rest (add-own home label acc)
     Cons other rest -> own-class-methods home rest acc
 
   own-ctors :: String -> List (String, TypeExpr) -> List Binding -> List Binding
