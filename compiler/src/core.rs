@@ -4388,6 +4388,16 @@ pub struct SimplifyReport {
     pub case_merge: usize,
     /// Decisions reduced by a known constructor (rule `known-constructor`).
     pub known_ctor: usize,
+    /// Decisions on a known constructor application whose arguments are
+    /// computed, folded because every field binder the fold substitutes is
+    /// read at most once (rule `known-constructor`'s read-order half).
+    pub known_ctor_once: usize,
+    /// Record field projections of a known constructor application turned
+    /// into the field itself (rule `projection`).
+    pub projection: usize,
+    /// Join points whose body reads a local from the enclosing scope,
+    /// lifted under the release-point test (rule `join-scope`).
+    pub join_scope: usize,
     /// Static dictionary projections turned into direct calls (rule
     /// `direct-dict-call`).
     pub dict_call: usize,
