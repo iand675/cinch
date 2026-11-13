@@ -3,9 +3,9 @@
 -- creation and decision evidence here, before checker elaboration.
 module Bootstrap.Builtin where
 
-  import Bootstrap.Ast (Decl, TypeExpr, DExternal, DData, DClass, DMethod, MkTypeParam, TName, TInfix, TApp, TArg, TArgsEnd, TFun, TBound, TBoundsEnd, TUnmodeled, decl-spine)
+  import Bootstrap.Ast (Decl, TypeExpr, Program, MkProgram, MkModule, DExternal, DData, MkTypeParam, TName, TInfix, TApp, TArg, TArgsEnd, TFun, TBound, TBoundsEnd, TUnmodeled, decl-spine, decls-of)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
-  import Bootstrap.Parse (parse-scheme)
+  import Bootstrap.Parse (parse-program, parse-scheme)
   import Data.Json
   import Text.Lex (Span)
   import Text.Parse (ParseOutcome, Parsed, Failed)
@@ -262,38 +262,28 @@ module Bootstrap.Builtin where
     else if slot == 2 then "par-map"
     else ""
 
-  -- The signature and its methods, as declarations the checker elaborates
-  -- through its ordinary class path. The class has no parameters: there is
-  -- one runtime per program, selected by the dictionary, so `Parallelism`
-  -- takes no argument.
+  -- The signature and its methods, parsed from source text by the same
+  -- reader a user's module uses. This is deliberate: a class member's
+  -- contract must be the AST the class path expects (`DSig` with the
+  -- parser's own `TForall`/`TQuantifier` shape), and building that AST by
+  -- hand from `parse-scheme` output produced a contract whose leading
+  -- arrows were lost at registration. Parsing a whole `signature` block
+  -- keeps the two paths identical by construction.
   parallelism-declarations :: List Decl
-  parallelism-declarations =
-    Cons (DClass (Span 0 0 1 1) parallelism-name Nil
-      (decl-spine (Span 0 0 1 1) (parallelism-method-declarations parallelism-methods)))
-      Nil
+  parallelism-declarations = case parse-program "parallelism" parallelism-source of
+    Parsed (MkProgram sp modules) Nil -> case modules of
+      Cons (MkModule ms name decls) Nil -> decls-of decls
+      other -> Nil
+    other -> Nil
 
-  -- A resolved source method (`DMethod`): the visible label, the kernel
-  -- binding the checker registers it under, and the checked contract. The
-  -- checker's class path only accepts resolved members here
-  -- (`source signature member needs checked method elaboration` otherwise),
-  -- and the kernel is the module that owns them.
-  parallelism-method-declarations :: List (String, String) -> List Decl
-  parallelism-method-declarations methods = case methods of
-    Nil -> Nil
-    Cons (name, scheme) rest ->
-      Cons (DMethod (Span 0 0 1 1) name (parallelism-method-symbol name) (parallelism-scheme name scheme))
-        (parallelism-method-declarations rest)
-
-  parallelism-method-symbol :: String -> String
-  parallelism-method-symbol name = string-concat "b." name
-
-  -- The scheme text is the builtin's own, parsed by the same reader an
-  -- imported interface uses, so the method contract cannot drift from the
-  -- lowering's expectation.
-  parallelism-scheme :: String -> String -> TypeExpr
-  parallelism-scheme name text = case parse-scheme name (string-to-bytes text) of
-    Parsed ty Nil -> ty
-    other -> TUnmodeled (Span 0 0 1 1) (string-concat "parallelism method scheme: " name)
+  parallelism-source :: Bytes
+  parallelism-source = string-to-bytes (string-concat-all [
+    "module Parallelism where\n",
+    "  signature Parallelism where\n",
+    "    both :: forall (a :: Type) (b :: Type) (e :: Row). (Unit ->{|e} a) -> (Unit ->{|e} b) ->{|e} (a, b)\n",
+    "    tabulate :: forall (a :: Type) (e :: Row). Nat -> (Nat ->{|e} a) ->{|e} Array a\n",
+    "    mapArray :: forall (a :: Type) (b :: Type) (e :: Row). (a ->{|e} b) -> Array a ->{|e} Array b\n",
+    "    workers :: Nat -> Unit\n"])
 
   -- The checked data path retains the index and erases the bound field.
   finite-index-declaration :: Decl
