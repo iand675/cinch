@@ -67,6 +67,71 @@ module Main where
     );
 }
 
+/// The direction a narrowed position extends back into the slot is the
+/// one the word convention already uses for its type, so a value that
+/// crossed a boundary is the value the body would have seen had the
+/// position never narrowed.
+///
+/// This is the half of the rule the width alone cannot state, and getting
+/// it wrong is silent: `I8`'s `-2` zero-extended is `254`, which every
+/// signed comparison then reads as a large positive number.
+#[test]
+fn a_narrowed_position_extends_the_way_its_type_stores_its_word() {
+    // A signed scalar's canonical word is sign-extended, so its narrowed
+    // parameter sign-extends; an unsigned scalar's is zero-extended.
+    for (ty, ext) in [("I8", "sext"), ("I16", "sext"), ("I32", "sext")] {
+        let ir = emit(
+            "<test>",
+            &format!(
+                r#"
+module Main where
+  f :: {ty} -> Nat -> Nat
+  f x n = if n == 0 then 0 else 1 + f x (n - 1)
+  main :: Int
+  main = if f (-1) 3 == 3 then 0 else 1
+"#
+            ),
+        );
+        let body = ir
+            .split(&format!("@\"Main.f\"("))
+            .nth(1)
+            .and_then(|rest| rest.split("\n}\n").next())
+            .unwrap_or_else(|| panic!("Main.f's body for {ty}"));
+        assert!(
+            body.contains(&format!("{ext} ")) && body.contains("%p0 to i64"),
+            "{ty} extends its parameter with {ext}:\n{body}"
+        );
+        assert!(
+            !body.contains(&format!("zext i8 %p0")) && !body.contains("zext i16 %p0")
+                && !body.contains("zext i32 %p0"),
+            "{ty} must not zero-extend its parameter:\n{body}"
+        );
+    }
+    for (ty, ext) in [("U8", "zext"), ("U16", "zext"), ("U32", "zext")] {
+        let ir = emit(
+            "<test>",
+            &format!(
+                r#"
+module Main where
+  f :: {ty} -> Nat -> Nat
+  f x n = if n == 0 then 0 else 1 + f x (n - 1)
+  main :: Int
+  main = if f 1 3 == 3 then 0 else 1
+"#
+            ),
+        );
+        let body = ir
+            .split(&format!("@\"Main.f\"("))
+            .nth(1)
+            .and_then(|rest| rest.split("\n}\n").next())
+            .unwrap_or_else(|| panic!("Main.f's body for {ty}"));
+        assert!(
+            body.contains(&format!("{ext} ")) && body.contains("%p0 to i64"),
+            "{ty} extends its parameter with {ext}:\n{body}"
+        );
+    }
+}
+
 /// Every width the rule names is narrowed, and every width it does not
 /// stays a word.
 #[test]
