@@ -44,6 +44,38 @@ fn attrs_of(ir: &str, unit: &str) -> String {
         .to_string()
 }
 
+/// The unit name a `define` line defines (`@"a b"(` or `@ab(`).
+fn unit_name_of(line: &str) -> Option<String> {
+    let (_, after) = line.split_once('@')?;
+    if let Some(rest) = after.strip_prefix('"') {
+        let end = rest.find('"')?;
+        return Some(rest[..end].to_string());
+    }
+    let end = after.find('(')?;
+    Some(after[..end].to_string())
+}
+
+/// The body of one unit's define, or `None` when the unit is not
+/// emitted (a pruned or inlined unit).
+fn body_of_opt(ir: &str, unit: &str) -> Option<String> {
+    let quoted = format!("@\"{unit}\"(");
+    let bare = format!("@{unit}(");
+    let mut lines = ir.lines();
+    while let Some(l) = lines.next() {
+        if l.starts_with("define ") && (l.contains(&quoted) || l.contains(&bare)) {
+            let mut body = String::new();
+            for l in lines.by_ref() {
+                if l == "}" {
+                    return Some(body);
+                }
+                body.push_str(l);
+                body.push('\n');
+            }
+        }
+    }
+    None
+}
+
 /// The body of one unit's define (its lines between `{` and `}`).
 fn body_of(ir: &str, unit: &str) -> String {
     let quoted = format!("@\"{unit}\"(");
@@ -760,4 +792,171 @@ module Main where
 "#,
         "a compiler intrinsic marshals no aggregate",
     );
+}
+
+// ---------------------------- `norecurse` is a proved fact (the SCC walk)
+
+#[test]
+fn norecurse_is_absent_from_units_that_reach_themselves() {
+    // A self-recursive unit and a mutually recursive pair: neither may
+    // claim `norecurse`, because each can call itself back. The attribute
+    // is the whole point of a "cannot happen anywhere" claim, so the two
+    // units are emitted rather than inlined (`#[inline(never)]`) and the
+    // recursion is real in the IR.
+    let ir = ir_of(
+        "norecurse-recursive",
+        r#"
+module Main where
+  data List3 a where
+    Nil3 :: List3 a
+    Cons3 :: a -> List3 a -> List3 a
+
+  len3 :: forall a. List3 a -> Nat
+  len3 xs = case xs of
+    Nil3 -> 0
+    Cons3 _ rest -> 1 + len3 rest
+
+  ping :: List3 Nat -> Nat
+  ping xs = case xs of
+    Nil3 -> 0
+    Cons3 _ rest -> pong rest
+
+  pong :: List3 Nat -> Nat
+  pong xs = case xs of
+    Nil3 -> 1
+    Cons3 _ rest -> ping rest
+
+  main :: Int
+  main = if len3 (Cons3 (1 :: Nat) Nil3) == 1 then 0 else 1
+"#,
+    );
+    // Every emitted unit that calls itself, directly or through a partner,
+    // must not carry `norecurse`. The check is over the IR rather than a
+    // named unit so a renamed or specialized symbol cannot slip past it.
+    let mut checked = 0;
+    for line in ir.lines() {
+        if !line.starts_with("define ") {
+            continue;
+        }
+        let Some(name) = unit_name_of(line) else { continue };
+        let Some(body) = body_of_opt(&ir, &name) else { continue };
+        let calls_self = body
+            .lines()
+            .any(|l| l.contains(&format!("@{name}(")) || l.contains(&format!("\"{name}\"(")));
+        if !calls_self {
+            continue;
+        }
+        checked += 1;
+        let attrs = attrs_of(&ir, &name);
+        assert!(
+            !attrs.contains("norecurse"),
+            "{name} calls itself and must not claim norecurse, got {attrs:?}\n{ir}"
+        );
+    }
+    assert!(
+        checked > 0,
+        "the probe must emit at least one self-calling unit\n{ir}"
+    );
+}
+
+#[test]
+fn norecurse_is_claimed_on_a_non_recursive_unit() {
+    // The other direction: a unit outside every cycle still claims it, so
+    // the fix narrows the attribute rather than dropping it.
+    let ir = ir_of(
+        "norecurse-plain",
+        r#"
+module Main where
+  #[inline(never)]
+  plain :: U8 -> U8
+  plain x = x
+
+  main :: Int
+  main = if plain 7 == 7 then 0 else 1
+"#,
+    );
+    let attrs = attrs_of(&ir, "Main.plain");
+    assert!(
+        attrs.contains("norecurse"),
+        "Main.plain: a non-recursive unit claims norecurse, got {attrs:?}\n{ir}"
+    );
+}
+
+// ------------------------- `noreturn` from the lowered control flow
+
+#[test]
+fn a_body_with_no_returning_path_claims_noreturn() {
+    // `spin` diverges in its own body; `die` returns only after a call to
+    // `spin`. Both never return, and the attribute has to reach the
+    // second one through the call graph, not just the local walk.
+    let ir = ir_of(
+        "noreturn",
+        r#"
+module Main where
+  spin :: forall a b. a ->{Diverge} b
+  spin x = spin x
+
+  die :: I64 ->{Diverge} I64
+  die n = spin n
+
+  foreign export ccall "fix_die" die :: I64 ->{Diverge} I64
+
+  main :: Int
+  main = 0
+"#,
+    );
+    // `emit` keeps every unit and does not specialize, so the unit keeps
+    // its source name here; `emit-ir` over a program with an export
+    // specializes it to `Main.spin@RR`.
+    let attrs = attrs_of(&ir, "Main.spin");
+    assert!(
+        attrs.contains("noreturn"),
+        "Main.spin: a diverging body claims noreturn, got {attrs:?}\n{ir}"
+    );
+    let attrs = attrs_of(&ir, "Main.die");
+    assert!(
+        attrs.contains("noreturn"),
+        "Main.die: a unit that returns only through a noreturn callee claims noreturn, got {attrs:?}\n{ir}"
+    );
+}
+
+#[test]
+fn a_returning_unit_never_claims_noreturn() {
+    // The soundness direction. A `{Diverge}` row is a permission, not a
+    // proof: a definition may declare it and still return. The attribute
+    // restates the lowered control flow, so a body with a live `ret` must
+    // not claim it, and it must not claim `willreturn` either unless the
+    // totality row proves it.
+    let ir = ir_of(
+        "noreturn-sound",
+        r#"
+module Main where
+  pick :: Bool -> U8 -> U8 -> U8
+  pick b x y = if b then x else y
+
+  main :: Int
+  main = if pick True 1 2 == 1 then 0 else 1
+"#,
+    );
+    let attrs = attrs_of(&ir, "Main.pick");
+    assert!(
+        !attrs.contains("noreturn"),
+        "Main.pick: a returning unit claims noreturn in {attrs:?}\n{ir}"
+    );
+    // No unit in the module may claim both, and no unit may claim
+    // `noreturn` while its body has a reachable `ret`.
+    for line in ir.lines() {
+        if !line.starts_with("define ") {
+            continue;
+        }
+        let Some(name) = unit_name_of(line) else { continue };
+        let attrs = attrs_of(&ir, &name);
+        if !attrs.contains("noreturn") {
+            continue;
+        }
+        assert!(
+            !attrs.contains("willreturn"),
+            "{name} claims both noreturn and willreturn in {attrs:?}\n{ir}"
+        );
+    }
 }

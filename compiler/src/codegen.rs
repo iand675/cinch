@@ -1359,6 +1359,18 @@ impl Registry {
         if class.nofree && (!lang.def || lang.no_alloc) {
             attrs.push("nofree".to_string());
         }
+        // `noreturn` restates the lowered control flow: no reachable block
+        // returns. A returning unit cannot claim it, and `willreturn` and
+        // `noreturn` are mutually exclusive by construction (one says
+        // every path returns, the other says none does), so the two
+        // cannot both be emitted for one unit.
+        debug_assert!(
+            !(class.noreturn && class.willreturn),
+            "a unit cannot both return and never return"
+        );
+        if class.noreturn {
+            attrs.push("noreturn".to_string());
+        }
         if attrs.is_empty() {
             return None;
         }
@@ -2577,9 +2589,18 @@ struct UnitClass {
     /// `nounwind` cannot be claimed: an unwinding extern would unwind
     /// through it.
     externs: bool,
-    /// `norecurse`: the unit is in no cycle of the call graph. Computed
-    /// from the same `scan.refs` edges the other classes follow, by
-    /// finding the strongly connected components once.
+    /// `norecurse`: the unit is in no cycle of the call graph and reaches
+    /// no indirect application. Computed from the same `scan.callees`
+    /// edges the other classes follow, by finding the strongly connected
+    /// components once.
+    ///
+    /// An indirect application is a cycle the edge set cannot see: the
+    /// callee is a word, and a unit's own apply stub calls it back
+    /// (`<unit>.app` applies the closure, and an over-application pushes
+    /// the excess words through `__apply` at the result). So a unit that
+    /// reaches `__apply`, directly or through a callee, may call itself
+    /// with nothing in the graph saying so, and it is recursive for this
+    /// attribute's purpose.
     recursive: bool,
     /// `speculatable`: no effects and no undefined behavior (no fault
     /// path, no poison source, no opaque call).
@@ -2590,6 +2611,17 @@ struct UnitClass {
     /// `nofree`: nothing in the body (or its callees) can deallocate
     /// (the scan cannot see through an opaque call).
     nofree: bool,
+    /// `noreturn`: no path through the body reaches a `ret`. Every
+    /// block reachable from `entry` ends in `unreachable`, in a call the
+    /// module marks `noreturn` (`cinch_panic`, `__cinch_blackhole`,
+    /// `exit`), or in a branch, and the walk finds no live return.
+    ///
+    /// This is a property of the lowered control flow, not of the
+    /// declared effect row: a `{Diverge}` row says the definition *may*
+    /// not return, so a divergent row is not evidence. What is evidence
+    /// is that the emitted body has no returning path at all, which is
+    /// exactly what the attribute asserts.
+    noreturn: bool,
 }
 
 /// The language-level facts gating one unit's contract attributes.
@@ -2923,12 +2955,172 @@ fn scan_body(text: &str, units: &HashSet<String>, extra: Option<&str>) -> UnitSc
     scan
 }
 
+/// Whether the lowered body has no returning path, for `noreturn`.
+///
+/// The proof is a reachability walk over the body's own blocks: start at
+/// `entry`, follow every successor of every reachable terminator, and ask
+/// whether any reachable block ends in `ret`. A body whose every
+/// reachable path ends in `unreachable` (or in a call the module marks
+/// `noreturn`, which the emitter always follows with `unreachable`)
+/// never returns, so the attribute restates the control flow rather than
+/// a claim about it.
+///
+/// The walk reads the emitted text because that is the artifact the
+/// attribute describes. `Builder` already guarantees every block is
+/// terminated (`start` clears the flag and `line` sets it on a
+/// terminator), so a successor set is complete: a `br` names all of its
+/// targets, a `switch` names every case and its default, and a `ret` or
+/// `unreachable` names none.
+fn body_never_returns(text: &str) -> bool {
+    use std::collections::HashMap;
+    // One entry per block: the successors its terminator names, and
+    // whether that terminator is a return.
+    let mut succ: HashMap<&str, Vec<&str>> = HashMap::new();
+    let mut returns: HashMap<&str, bool> = HashMap::new();
+    // The emitted body starts in `entry`, and `Builder::finish` writes
+    // that label explicitly. A body with no further labels is one block,
+    // so `entry` is the current block from the first line: an
+    // instruction before any label belongs to it.
+    let mut current: &str = "entry";
+    succ.entry("entry").or_default();
+    returns.entry("entry").or_insert(false);
+    for line in text.lines() {
+        let line = line.trim();
+        if let Some(label) = line.strip_suffix(':') {
+            // A label opens a block. Register it even when it has no
+            // terminator, so a branch to it cannot be mistaken for a
+            // missing block.
+            current = label;
+            succ.entry(label).or_default();
+            returns.entry(label).or_insert(false);
+            continue;
+        }
+        let block = current;
+        if line.starts_with("ret ") || line == "ret void" {
+            returns.insert(block, true);
+        }
+        if line.starts_with("br label %") {
+            if let Some((_, target)) = line.split_once("label %") {
+                succ.entry(block).or_default().push(target);
+            }
+        } else if line.starts_with("br i1") || line.starts_with("switch ") {
+            for part in line.split("label %").skip(1) {
+                let target = part.split(|c: char| c == ',' || c.is_whitespace()).next();
+                if let Some(target) = target {
+                    succ.entry(block).or_default().push(target);
+                }
+            }
+        }
+    }
+    // Reachability from the entry block.
+    let mut seen: HashSet<&str> = HashSet::new();
+    let mut stack: Vec<&str> = vec!["entry"];
+    while let Some(block) = stack.pop() {
+        if !seen.insert(block) {
+            continue;
+        }
+        if returns.get(block).copied().unwrap_or(false) {
+            // A live return: some input reaches it.
+            return false;
+        }
+        if let Some(next) = succ.get(block) {
+            stack.extend(next.iter().copied());
+        }
+    }
+    true
+}
+
+/// The units that may call themselves back, for `norecurse`.
+///
+/// Two edge kinds make a unit recursive, and both have to be followed:
+///
+/// * a direct call to a unit that reaches it back (a cycle of the call
+///   graph), which is the strongly connected component test, and
+/// * an indirect application (`__apply`/`__cinch_demand`) anywhere in the
+///   unit's reachable closure. The callee is a word, so the graph has no
+///   edge to follow, and a unit's own apply stub closes the loop: the
+///   stub applies the closure and an over-application pushes the excess
+///   words at the result through `__apply`. A unit that reaches an
+///   indirect call therefore may re-enter itself with nothing in the edge
+///   set saying so.
+///
+/// The answer is the transitive closure of both, computed once. Every
+/// other class in [`UnitClass`] is a "must hold everywhere" property and
+/// a fixed point over the direct edges is enough; this one is a "cannot
+/// happen anywhere" property, so a cycle (or an invisible edge) anywhere
+/// below the unit is what makes it false.
+fn recursive_units(units: &[EmittedUnit]) -> HashSet<String> {
+    // The direct edges, restricted to units this module defines: a call
+    // to a symbol outside the set cannot reach back into it.
+    let defined: HashSet<&str> = units.iter().map(|u| u.name.as_str()).collect();
+    let edges: HashMap<&str, Vec<&str>> = units
+        .iter()
+        .map(|u| {
+            let mut out: Vec<&str> = u
+                .scan
+                .callees
+                .iter()
+                .map(String::as_str)
+                .filter(|g| defined.contains(g))
+                .collect();
+            out.sort_unstable();
+            (u.name.as_str(), out)
+        })
+        .collect();
+    let indirect: HashSet<&str> = units
+        .iter()
+        .filter(|u| u.scan.indirect)
+        .map(|u| u.name.as_str())
+        .collect();
+    // A unit is recursive when it reaches itself, or when it reaches a
+    // unit that makes an indirect call. Both are reachability questions
+    // over the same edges, so one search per unit answers both.
+    let mut out: HashSet<String> = HashSet::new();
+    for u in units {
+        let start = u.name.as_str();
+        let mut seen: HashSet<&str> = HashSet::new();
+        let mut stack: Vec<&str> = edges.get(start).cloned().unwrap_or_default();
+        let mut recursive = false;
+        while let Some(n) = stack.pop() {
+            if n == start {
+                // A cycle back to the start: the unit calls itself.
+                recursive = true;
+                break;
+            }
+            if !seen.insert(n) {
+                continue;
+            }
+            if indirect.contains(n) {
+                // Something below this unit applies a closure, and the
+                // closure may be this unit's own.
+                recursive = true;
+                break;
+            }
+            if let Some(next) = edges.get(n) {
+                stack.extend(next.iter().copied());
+            }
+        }
+        if recursive {
+            out.insert(u.name.clone());
+        }
+    }
+    out
+}
+
 /// The call-graph fixed point over the built units: every claim is
 /// transitive through direct calls, and `willreturn` excludes only the
 /// unit's own recursion (the rows gate which definitions restate the
 /// scan's facts at claim time).
 fn classify_units(units: &[EmittedUnit]) -> HashMap<String, UnitClass> {
     let mut out: HashMap<String, UnitClass> = HashMap::new();
+    let recursive = recursive_units(units);
+    // A unit whose body has no returning path at all. This is the local
+    // half of `noreturn`; the call-graph half is a call to a callee that
+    // itself never returns, which the fixed point below folds in.
+    let local_noreturn: HashMap<&str, bool> = units
+        .iter()
+        .map(|u| (u.name.as_str(), body_never_returns(&format!("{}{}", u.allocas, u.code))))
+        .collect();
     for u in units {
         let mem = if u.scan.writes {
             MemClass::ReadWrite
@@ -2938,18 +3130,24 @@ fn classify_units(units: &[EmittedUnit]) -> HashMap<String, UnitClass> {
             MemClass::None
         };
         let clean = !u.scan.faults && !u.scan.poison && !u.scan.indirect && !u.scan.externs;
+        // A body with no returning path contradicts both claims: it does
+        // not return, so `willreturn` is false, and `speculatable` is
+        // false too because executing it is not a finite, side-effect
+        // free step the optimizer may repeat or sink.
+        let returns = !local_noreturn[u.name.as_str()];
         out.insert(
             u.name.clone(),
             UnitClass {
                 mem,
                 externs: u.scan.externs,
-                recursive: false,
-                speculatable: clean && !u.scan.frees,
-                willreturn: clean && !u.scan.frees,
+                recursive: recursive.contains(&u.name),
+                speculatable: clean && !u.scan.frees && returns,
+                willreturn: clean && !u.scan.frees && returns,
                 // The scan cannot see through an opaque call, and a
                 // fault path's `noreturn` never frees observably: only
                 // a body free of both can claim `nofree`.
                 nofree: !u.scan.frees && !u.scan.faults && !u.scan.externs && !u.scan.indirect,
+                noreturn: local_noreturn[u.name.as_str()],
             },
         );
     }
@@ -2966,12 +3164,18 @@ fn classify_units(units: &[EmittedUnit]) -> HashMap<String, UnitClass> {
                 c.speculatable = c.speculatable && gc.speculatable;
                 c.willreturn = c.willreturn && (g == &u.name || gc.willreturn);
                 c.nofree = c.nofree && gc.nofree;
+                // A body that would return only after a callee returns
+                // never returns when that callee never does. This is the
+                // one direction the local walk cannot see: the walk stops
+                // at the call, so the callee's answer has to fold in.
+                c.noreturn = c.noreturn || gc.noreturn;
             }
             if c.mem != out[&u.name].mem
                 || c.externs != out[&u.name].externs
                 || c.speculatable != out[&u.name].speculatable
                 || c.willreturn != out[&u.name].willreturn
                 || c.nofree != out[&u.name].nofree
+                || c.noreturn != out[&u.name].noreturn
             {
                 out.insert(u.name.clone(), c);
                 changed = true;
