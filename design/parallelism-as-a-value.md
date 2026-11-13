@@ -11,17 +11,27 @@ site or the compiler.
 
 ```text
 signature Parallelism where
-  both    :: forall a b e1 e2.
-             (Unit ->{|e1} a) ->{|e2} (Unit ->{|e2} b) ->{|e1} (a, b)
+  both    :: forall a b e.
+             (Unit ->{|e} a) -> (Unit ->{|e} b) ->{|e} (a, b)
   tabulate :: forall a e. Nat -> (Nat ->{|e} a) ->{|e} Array a
   mapArray :: forall a b e. (a ->{|e} b) -> Array a ->{|e} Array b
   workers :: Nat -> Unit
 ```
 
-`both` keeps the two-branch scheme the builtin had: each branch gets its own
-row variable, because rows unify by equality and one shared variable would
-refuse a total branch beside a diverging one, which the defining equation
-`(f (), g ())` admits.
+`both` states **one** row variable, shared by the two branches and the
+result. This is measured, not preferred. The builtin's two-variable scheme
+(`e1` for one branch, `e2` for the other, result `{|e1}`) works only because
+kernel syntax has a bespoke rule; as a method it fails at the call site with
+`cannot join distinct row variables e1#1021 and e2#1022` (2026-11-13, seed).
+Rows unify by equality, so two row variables in one call have nothing to
+join them.
+
+The case the two-variable scheme existed for, a diverging branch beside a
+total one, still works: the parallel-safe row rule admits `Diverge`, the
+caller's own row carries it, and the shared variable simply resolves to it.
+Measured with the test suite's own program
+(`spin :: Unit ->{Diverge} Nat` beside `nat-to-int 1`), which the seed
+accepts under this scheme.
 
 The host instance is `HostParallelism`, declared implicit. Its four methods
 lower to today's `cinch_par_both`, `cinch_par_tabulate`,
