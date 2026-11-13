@@ -2963,6 +2963,194 @@ Metrics, reported per edit and per clean build:
   totality, infer, Core checks, export, RuntimeIr, clang) with clang's
   `-ftime-trace` JSON for the backend split.
 
+### 11.1 The complexity sweep: every axis, one exponent each (2026-11-13)
+
+Section 2.18 found one superlinear axis by accident, while sizing a shard
+workload. One axis found by luck is not a sweep, so
+`experiments/cx-sweep/` measures all of them: ten axes from small to large,
+four points each, one exponent per axis, plus a control whose law is already
+known.
+
+**Method.** One command generates every program, runs the stage-3 compiler
+over each point with `CINCH_ALLOC_STATS=1`, and fits an exponent. Blocks are
+the primary signal because they are load independent: this machine runs
+several lanes at once, so a wall-clock slope across a sweep is a slope through
+somebody else's build. Wall clock is recorded and reported secondarily.
+
+Three fits are reported per axis, because they disagree for a reason:
+
+| column | model | what it is |
+|---|---|---|
+| `k` | `floor + a*n^k`, floor free | the exponent to read |
+| `delta` | `a*n^k` over `blocks(n) - blocks(n_min)` | the naive fit |
+| `bytes` | log-log of allocated bytes | is the growth allocation-shaped |
+| `ir` | log-log of emitted IR lines | is the growth output-shaped |
+
+The fixed floor is about 66M blocks (the base interface set, the manifest, the
+runtime ABI), so `delta` subtracts a point that already contains some growth
+and therefore reads high. `k` fits the floor instead, by gridding over the
+exponent alone: for a fixed exponent the model is linear in `(floor, a)` and
+those come from the normal equations exactly. The residual is measured in
+**linear** units. A log-space objective cannot see a term worth 2% of the
+total and reports an exponent of 0 for exactly the axes whose growth is small
+but real; `string` and `identifier` are where that decided the verdict.
+
+**The control.** Padding one symbol in the provider's interface set by 1024 to
+8192 bytes, re-settling every dependency identity, and running `--check` on a
+two-line program:
+
+| pad per module | set bytes | blocks | delta blocks | delta bytes | blocks/byte |
+|---|---|---|---|---|---|
+| none (control) | 1,735,532 | 30,467,266 | | | |
+| 1,024 | 1,801,195 | 30,862,695 | 395,429 | 65,663 | 6.02 |
+| 2,048 | 1,866,689 | 31,255,480 | 788,214 | 131,157 | 6.01 |
+| 4,096 | 1,997,747 | 32,041,652 | 1,574,386 | 262,215 | 6.00 |
+| 8,192 | 2,259,945 | 33,615,182 | 3,147,916 | 524,413 | 6.00 |
+
+6.01 blocks per interface byte (median), exponent 0.998. The `delta bytes`
+column is the whole set's growth, which is the pad times the interface count,
+so dividing the pad into the delta would report a rate 64 times too small.
+That is the law section 2.18
+published after the `Text.Json` string fast path (6.0; the pre-fix law is 10.0,
+and the harness accepts either so it can be run on a tree that predates the
+fix). The control is what makes the rest of the table credible: a harness that
+could not reproduce a known slope could not be trusted on an unknown one.
+
+**The table** (stage-3 binary, median of three interleaved repeats per point):
+
+| axis | n | blocks | `k` | r2 | `delta` | `bytes` | `ir` | verdict |
+|---|---|---|---|---|---|---|---|---|
+| definitions | 25 / 50 / 100 / 200 | 71.7M / 84.7M / 131.6M / 313.9M | **1.94** | 1.000 | 2.11 | 0.66 | 0.78 | superlinear |
+| modules | 8 / 16 / 32 / 64 | 67.6M / 74.5M / 120.4M / 515.1M | **3.08** | 1.000 | 3.01 | 0.89 | 0.48 | superlinear |
+| entries | 8 / 16 / 32 / 64 | 70.6M / 81.6M / 121.9M / 275.4M | **1.92** | 1.000 | 2.11 | 0.62 | 0.77 | superlinear |
+| typevars | 8 / 16 / 32 / 64 | 66.4M / 66.4M / 66.7M / 68.0M | **2.24** | 1.000 | 2.29 | 0.01 | 0.19 | superlinear |
+| depth | 32 / 64 / 128 / 256 | 67.2M / 69.5M / 76.8M / 101.2M | **1.72** | 1.000 | 1.92 | 0.23 | 0.33 | superlinear |
+| constructors | 8 / 16 / 32 / 64 | 66.4M / 66.5M / 66.8M / 67.7M | **1.64** | 1.000 | 1.85 | 0.01 | 0.42 | superlinear |
+| imports | 8 / 16 / 32 / 64 | 66.6M / 68.0M / 71.8M / 83.9M | **1.61** | 1.000 | 1.82 | 0.11 | 0.48 | superlinear |
+| patterns | 16 / 32 / 64 / 128 | 65.7M / 65.7M / 65.8M / 66.1M | **1.10** | 1.000 | 1.46 | 0.00 | 0.67 | linear |
+| string | 256 / 512 / 1024 / 2048 | 66.4M / 66.4M / 66.5M / 66.5M | **1.00** | 1.000 | 1.40 | 0.01 | 0.00 | linear |
+| identifier | 64 / 128 / 256 / 512 | 65.6M / 65.7M / 65.7M / 65.8M | **0.99** | 1.000 | 1.40 | 0.00 | 0.00 | linear |
+
+`ir` near 1 with `k` near 2 is the signature of a frontend defect: the module
+grows its output linearly and the compiler spends quadratically to produce it.
+`ir` near 0 with `k` near 1 is a cost that is real but not in the output at all
+(a long identifier or string literal is one constant either way).
+
+**The sites.** Each superlinear axis was attributed by sampling the running
+compiler over one point of the axis
+(`experiments/cx-sweep/profile.py`), then reading the named code.
+
+1. **`definitions`, `entries` (k 1.94, 1.92): the total-core table, rebuilt
+   once per definition.** The call chain, with lines:
+
+   ```
+   Bootstrap.Infer.cinch:5282   check-global-core
+     -> Bootstrap.Typing.cinch:98  close-typing-context-with-definitions
+        -> Bootstrap.Global.cinch:197 close-globals-with-source-data
+           -> Bootstrap.Global.cinch:206 bodies-match          (per binding)
+              -> Bootstrap.Core.cinch:3569 core-source-function
+                 -> Bootstrap.Core.cinch:3509 core-total-function
+                    -> Bootstrap.Core.cinch:3497 total-core-gather   (builds the WHOLE table)
+                       -> Bootstrap.Core.cinch:3488 total-core-insert (sorted insert)
+   ```
+
+   `total-core-gather` walks the reachable definition closure and builds the
+   whole table; `core-total-function` is called **once per binding** from
+   `bodies-match`, so `n` definitions cost `n` gathers over a table of up to
+   `n` rows, and each row is inserted into a sorted `List Json`. Sampling
+   `definitions` at n=200 puts `total-core-merge` at 32% of
+   `elaborate-module`, `total-core-row` at 13% and `core-total-function` at
+   11%: the gather and its insertion are half the frontend on that axis.
+
+   Lane `dasl-quad-core` replaces the sorted insertion with one merge sort
+   (`total-core-merge` becomes an append at `Core.cinch:3532`). That removes
+   the insertion term only: measured against its stage-3 binary, `definitions`
+   falls from `k` 1.94 to 1.76, and the axis is still superlinear because the
+   **re-gather per definition** remains. Proposed fix, for a lane that owns
+   it: build the table once per module and look rows up by identity, the way
+   `InterfaceSet` already keeps its bodies (`Bootstrap.Load.cinch:82`,
+   `CheckedInterfaceSet members bodies`), or memoize `core-total-function` on
+   `(module, definitions)`; either turns `n` gathers into one.
+2. **`modules` (k 3.08): the same table, compounded by per-module interface
+   reloading.** A chained module set grows the definition closure that each
+   module's `check-global-core` gathers over, so the `n^2` above becomes `n^3`
+   when the module count and the closure size grow together. Sampling at n=64
+   puts 31% of `elaborate-module` under `check-global-core`, with
+   `total-core-merge` at 28% and `total-core-row` at 6.5% (the same three
+   frames as `definitions`, with the merge share rising as the closure grows).
+   Same fix as (1), plus the observation that
+   `validate-interface-set` runs its full `verify-nominal-set` and
+   `verify-body-set` walk per module (each of which calls `reachable-modules`
+   from scratch), which is the `n^2` part of the interface half.
+3. **`typevars` (k 2.24) and `constructors` (k 1.64): quadratic appends in
+   one signature's arity.** Both axes have a tiny absolute delta (1.6M and
+   1.3M blocks at the largest point, against a 66M floor), so `k` is fitted
+   from a term that is 2% of the total: the exponent is real, the constant is
+   small, and neither would show up in a whole-build time.
+
+   **`typevars` is not attributed by a profile, and this is the honest
+   limit of this sweep.** The point runs in 1.9 s and the interesting window
+   is a few hundred milliseconds; every sampling window tried (0.8 to 2.2 s
+   after start) landed in the interface load or after the run, and none
+   symbolised an `elaborate-module` subtree. The site is therefore named from
+   the code, and reads as one line:
+
+   ```
+   Bootstrap.Core.cinch:3354  total-core-signature ty parameters
+     UFun domain result -> ... total-core-signature result (parameters <> [sort])
+   ```
+
+   `parameters <> [sort]` is an append of a singleton onto an accumulating
+   list, once per arrow, so a signature of arity `a` costs `a^2/2` conses to
+   build a list of `a` sorts. `total-core-parameters` (`Core.cinch:3365`)
+   does the same for the scope list, and `total-core-flatten`
+   (`Core.cinch:3375`) for the pattern list. Proposed fix, a one-liner each:
+   accumulate with `Cons sort parameters` and `reverse` once at the `other`
+   arm, or carry a count instead of a list.
+
+   `constructors` is attributed: `ir` grows at 0.42 while blocks grow at
+   1.64, so the per-constructor cost is not the emitted code. The same
+   `total-core-signature` and `total-core-parameters` appends run once per
+   constructor's scheme, so the two axes share a site.
+4. **`depth` (k 1.72), `constructors` (1.64), `imports` (1.61): recursive
+   walks with a per-level constant.** `depth` at n=256 samples through
+   `check-body-loop -> check-definition -> check-required -> check-inferred ->
+   apply-open-argument -> proof-env-after-term -> map-term-types`, and a
+   second sample shows `proof-application` (`Bootstrap.Core.cinch:2578`)
+   recursing with the stack indent growing level by level to the depth of the
+   term. `proof-application` calls `proof-term`, `child-writes` and
+   `application-type` on both subterms at every level, so a spine of depth `d`
+   costs `d` levels of that fan-out; `ir` at 0.33 says most of that work
+   produces no output. `imports` grows through `overlay-interface`
+   (`Bootstrap.Pipeline.cinch:286`) and `unshadowed-interfaces`
+   (`Bootstrap.Resolve.cinch:1144`), both linear scans per lookup over a list
+   that grows with the import count.
+
+**Linear, nothing to fix.** `patterns` (1.10) is `check-alternatives`'
+single pass plus `ensure-match-coverage`'s matrix, which is linear in the
+number of alternatives for a literal scrutinee. `string` (1.00) and
+`identifier` (0.99) are a single constant's worth of bytes: the lexer records
+a span and the emitter writes one constant, and 2048 bytes of literal costs
+123K blocks over 256 bytes (0.06 blocks per byte, three orders below the
+interface law's 6.0). That is the right answer for those axes, and measuring
+them is how the sweep shows it is not simply reporting every axis as
+superlinear.
+
+**What the other lane's fix changed.** Re-running `definitions` and `modules`
+against `dasl-quad-core`'s stage-3 binary: `definitions` falls from `k` 1.94
+to 1.76 and `modules` from 3.08 to 2.83, with the same sizes. The insertion
+term is gone; the re-gather term is not, which is why neither axis reaches
+linear and why item 1 above is a separate ticket from that lane's.
+
+**The four already-known items, checked.**
+
+| item | state, and what was measured |
+|---|---|
+| `total-core-insert` (sorted insertion) | claimed by `dasl-quad-core`, and the claim is good: `definitions` `k` falls 1.94 to 1.76 and `modules` 3.08 to 2.83 on its stage-3 binary. The axis is **still superlinear** afterwards, so the insertion was not the only term |
+| `total-core-definition` (linear search per reference) | still present (`Core.cinch:3379`) and still linear per call. It is the constant inside `total-core-gather`, called once per reference, so it sets the price of each of the `n` gathers rather than contributing an exponent of its own |
+| `ExportNominal`'s reference table | not on any superlinear path measured. `declaration-reference-index` (`ExportNominal.cinch:343`) is one `HashMap` build per module; `insert-nominal` (`:282`) sorts within one scheme's nominal closure, which none of the ten axes grows. No sample of `definitions` or `modules` contains an `ExportNominal` frame at all |
+| `source-total-bodies` | not implicated. No sample of `definitions` or `modules` contains a `source-total-bodies` frame; both axes are dominated by `check-global-core` and the `total-core` gather, which is upstream of it |
+
 ## 12. Backlog, in evidence order
 
 1. **PGO for the stage compilers. Done (2026-11-10).** `tooling/bootstrap.py`
