@@ -89,7 +89,26 @@ pub(super) fn emit(
             let (sym, args) = match op {
                 Set => {
                     let i = nat(b, 1);
-                    ("cinch_array_set", vec![arg(0), format!("i64 {i}"), arg(2)])
+                    // The entries differ only in whether the write may happen
+                    // in place, and the borrow inference already decided that
+                    // per unit: `Program::lent` holds an entry only for a unit
+                    // with at least one borrowed parameter, and its bool is
+                    // true for borrowed. A unit that does not borrow its array
+                    // parameter is one whose callers hand the reference over,
+                    // so it takes the in-place entry; a borrowing unit keeps
+                    // the copying one. Both entries share the same count
+                    // contract, so this choice is invisible to source.
+                    let borrowed = reg
+                        .lent
+                        .get(name)
+                        .and_then(|m| m.first().copied())
+                        .unwrap_or(false);
+                    let sym = if borrowed {
+                        "cinch_array_set"
+                    } else {
+                        "cinch_array_set_inplace"
+                    };
+                    (sym, vec![arg(0), format!("i64 {i}"), arg(2)])
                 }
                 Slice => {
                     let i = nat(b, 1);

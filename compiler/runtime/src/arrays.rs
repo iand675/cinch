@@ -191,6 +191,70 @@ pub unsafe extern "C" fn cinch_array_set(a: i64, i: i64, value: i64) -> i64 {
     out
 }
 
+/// Whether the caller's word is the only reference to this block: a fresh
+/// single-threaded count of one. Immortal blocks (statics, interned cells,
+/// arena blocks) are shared by definition and atomic counts (`-n`) mean more
+/// than one thread reached the block, so neither is exclusive.
+unsafe fn exclusive(word: i64) -> bool {
+    let p = word as usize as *const u8;
+    block::rc(unsafe { block::read_header(p) }) == block::RC_FRESH
+}
+
+/// Write `value` at `i` in place when this block is the caller's only
+/// reference, for a call site the code generator selected because the array
+/// operand is consumed there (`design/arraylist.md` section 2.5). The result is
+/// `None` (0) when `i` is out of bounds.
+///
+/// # The contract is the copying entry's
+///
+/// Both entries borrow the array argument and return an owned reference, which
+/// is what the wrapping unit imposes: `prim_consumes` does not list the array
+/// operations, so `ret_drops` releases every counted parameter at `ret`. This
+/// entry therefore `cinch_dup`s the block for its result, exactly as
+/// [`cinch_array_set`] gets an owned result from a fresh block. The only
+/// difference between them is whether the write allocates.
+///
+/// # Why the count is checked rather than asserted
+///
+/// The code generator selects this entry where it proved the array operand is
+/// consumed, but consumption is a property of the reference, not of the block:
+/// a program may hold two words for one array and consume one of them, which
+/// is correct code with a count of two at this call. A trap would fire on a
+/// good program, so the count is a runtime fact the entry acts on. One means no
+/// other word can observe the write, so it happens in place; above one some
+/// other word can, so it copies, which is the same result the copying entry
+/// produces.
+///
+/// # What it does to the counts
+///
+/// In place: the slot takes its own reference to `value` (`keep`) before the
+/// displaced element's reference is released, so writing a value the slot
+/// already holds cannot free it before it is stored, and the result's
+/// reference is taken with `cinch_dup`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_array_set_inplace(a: i64, i: i64, value: i64) -> i64 {
+    if unsafe { cinch_array_has(a, i) } == 0 {
+        return 0;
+    }
+    let f = unsafe { format(a) };
+    if exclusive(a) {
+        let old = unsafe { read(a, i) };
+        unsafe { write(a, i, keep(value, f)) };
+        if counted(f) {
+            unsafe { rc::cinch_drop(old) };
+        }
+        unsafe { rc::cinch_dup(a) };
+        return a;
+    }
+    let n = unsafe { cinch_array_len(a) };
+    let out = unsafe { array(n, f) };
+    for j in 0..n {
+        let v = if i == j { value } else { unsafe { read(a, j) } };
+        unsafe { write(out, j, keep(v, f)) };
+    }
+    out
+}
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_array_append(a: i64, b: i64) -> i64 {
     let an = unsafe { cinch_array_len(a) };
@@ -293,7 +357,15 @@ pub unsafe extern "C" fn cinch_tensor_get(a: i64, i: i64) -> i64 {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_tensor_set(a: i64, i: i64, value: i64) -> i64 {
-    let data = unsafe { cinch_array_set(field(a, block::KIND_TENSOR, 0), i, value) };
+    // `tensor-set` is persistent: the original tensor keeps its element. The
+    // data field is borrowed from `a`, so an update that saw a count of one
+    // would write in place and change `a`. Holding a reference of our own
+    // across the call makes the count two, so the update copies, and that
+    // reference is released again below.
+    let borrowed = unsafe { field(a, block::KIND_TENSOR, 0) };
+    unsafe { rc::cinch_dup(borrowed) };
+    let data = unsafe { cinch_array_set(borrowed, i, value) };
+    unsafe { rc::cinch_drop(borrowed) };
     if data == 0 {
         return 0;
     }
@@ -401,6 +473,7 @@ pub unsafe extern "C" fn cinch_columnar_get(a: i64, i: i64) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::heap;
 
     unsafe fn naturals(values: &[i64]) -> i64 {
         let a = unsafe { array(values.len() as i64, 2) };
@@ -553,6 +626,99 @@ mod tests {
             rc::cinch_drop(b);
             rc::cinch_drop(empty);
             rc::cinch_drop(one);
+        }
+    }
+
+    /// The in-place entry allocates nothing when the reference it was handed
+    /// is the only one, so a fill loop over a freshly built array is O(n)
+    /// blocks rather than O(n^2). Its result is its own reference, so the
+    /// count is one before and after.
+    #[test]
+    fn set_inplace_writes_in_place_and_keeps_the_count_at_one() {
+        unsafe {
+            let values: Vec<i64> = (0..8).map(|i| abi::cinch_nat_from_i64(i)).collect();
+            let a = cinch_array_replicate(8, values[0], 2);
+            let before = heap::stats().0;
+            for (i, value) in values.iter().enumerate() {
+                let written = cinch_array_set_inplace(a, i as i64, *value);
+                assert_eq!(written, a, "an exclusive array is written in place");
+                // The entry dups for its result and the caller drops that
+                // reference, so one reference survives.
+                rc::cinch_drop(written);
+                assert_eq!(block::rc(block::read_header(a as usize as *const u8)), 1);
+            }
+            assert_eq!(heap::stats().0 - before, 0, "in-place writes allocate nothing");
+            for (i, value) in values.iter().enumerate() {
+                assert_eq!(cinch_array_get(a, i as i64), *value);
+            }
+            rc::cinch_drop(a);
+        }
+    }
+
+    /// Consumption is a property of the reference, not of the block: a program
+    /// may consume one of two words for one array. That call sees a count above
+    /// one, so the entry copies, and the other word keeps the old contents.
+    #[test]
+    fn set_inplace_copies_when_another_reference_exists() {
+        unsafe {
+            let values: Vec<i64> = (0..4).map(|i| abi::cinch_nat_from_i64(i)).collect();
+            let a = cinch_array_replicate(4, values[0], 2);
+            rc::cinch_dup(a);
+            let copied = cinch_array_set_inplace(a, 1, values[3]);
+            assert_ne!(copied, a, "a second reference forces the copy");
+            assert_eq!(cinch_array_get(a, 1), values[0]);
+            assert_eq!(cinch_array_get(copied, 1), values[3]);
+            rc::cinch_drop(copied);
+            rc::cinch_drop(a);
+            rc::cinch_drop(a);
+        }
+    }
+
+    /// The in-place branch balances counted elements: the slot's new reference
+    /// is taken before the displaced element's is released, so a write of the
+    /// value already there cannot free it.
+    #[test]
+    fn set_inplace_balances_counts_for_counted_elements() {
+        unsafe {
+            let first = abi::cinch_bytes_new(2);
+            let second = abi::cinch_bytes_new(2);
+            let a = cinch_array_replicate(3, first, 1);
+            assert_eq!(block::rc(block::read_header(first as usize as *const u8)), 4);
+            let out = cinch_array_set_inplace(a, 1, second);
+            assert_eq!(out, a);
+            rc::cinch_drop(out);
+            assert_eq!(block::rc(block::read_header(a as usize as *const u8)), 1);
+            assert_eq!(block::rc(block::read_header(first as usize as *const u8)), 3);
+            assert_eq!(block::rc(block::read_header(second as usize as *const u8)), 2);
+            let same = cinch_array_set_inplace(a, 0, first);
+            assert_eq!(same, a);
+            rc::cinch_drop(same);
+            assert_eq!(block::rc(block::read_header(first as usize as *const u8)), 3);
+            rc::cinch_drop(a);
+            rc::cinch_drop(first);
+            rc::cinch_drop(second);
+        }
+    }
+
+    /// `tensor-set` hands its tensor's borrowed data field to an array update,
+    /// so it must hold a reference across the call: without that the update
+    /// sees a count of one, writes in place, and the original tensor changes
+    /// under its owner.
+    #[test]
+    fn tensor_set_leaves_the_original_tensor_alone() {
+        unsafe {
+            let data = naturals(&[0, 1, 2, 3]);
+            let dims = naturals(&[2, 2]);
+            let matrix = cinch_tensor_reshape(dims, data);
+            assert_ne!(matrix, 0);
+            let changed = cinch_tensor_set(matrix, 3, abi::cinch_nat_from_i64(90));
+            assert_ne!(changed, 0);
+            assert_eq!(cinch_tensor_get(matrix, 3), abi::cinch_nat_from_i64(3));
+            assert_eq!(cinch_tensor_get(changed, 3), abi::cinch_nat_from_i64(90));
+            rc::cinch_drop(changed);
+            rc::cinch_drop(matrix);
+            rc::cinch_drop(dims);
+            rc::cinch_drop(data);
         }
     }
 

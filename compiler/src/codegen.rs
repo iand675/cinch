@@ -366,6 +366,7 @@ fn emit_module(
         "declare i64 @cinch_array_has(i64, i64)",
         "declare i64 @cinch_array_get(i64, i64)",
         "declare i64 @cinch_array_set(i64, i64, i64)",
+        "declare i64 @cinch_array_set_inplace(i64, i64, i64)",
         "declare i64 @cinch_array_slice(i64, i64, i64)",
         "declare i64 @cinch_array_append(i64, i64)",
         "declare i64 @cinch_stm_cell_new(i64, i64)",
