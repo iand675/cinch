@@ -3803,11 +3803,13 @@ fn link_for(
             cmd.arg(ensure_runtime()?);
             _guard = runtime_lock(true);
         }
-        LinkFlavor::Cross(triple) | LinkFlavor::Freestanding(triple) => {
+        LinkFlavor::Cross(triple) => {
             cmd.arg(cross_runtime(triple, target.archive)?);
             cmd.arg("-target").arg(triple);
             _guard = None;
         }
+        // Returned above: clang's driver is not what links this one.
+        LinkFlavor::Freestanding(_) => unreachable!("the freestanding link returns before this"),
     }
     cmd.arg("-o").arg(out);
     for word in plan.words() {

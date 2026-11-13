@@ -208,7 +208,7 @@ Emitting that glue requires a Wasm artifact profile. The host profile refuses, a
 cinch: the canonical ABI glue for example:feed@0.1.0/feeder#decode is defined for the wasm32 target (WebAssembly and WASI specification section 4); emit under a Wasm artifact profile
 ```
 
-Since the CLI cannot select a Wasm profile, a program with a `.wit` file beside it checks and does not build. Parsing WIT and building an adapter is also not a promise of component-model interoperability: an adapter records a lowering for the types it admits, and a shape it cannot marshal is reported as a named gap (`more than 16 flattened parameters (the parameter area crossing is not marshalled yet)` is the current example).
+`--target wasm32-unknown-unknown` is how the CLI selects a Wasm profile, so a program with a `.wit` file beside it now builds: the adapter's core module links into the freestanding module like any other unit. What is still absent is the component wrapping, so the artifact is a core module that exports the adapter's core signature, not a `.wasm` component. Parsing WIT and building an adapter is also not a promise of component-model interoperability: an adapter records a lowering for the types it admits, and a shape it cannot marshal is reported as a named gap (`more than 16 flattened parameters (the parameter area crossing is not marshalled yet)` is the current example).
 
 WASI streams map to external handles, not to the language's codata `Stream`. The generated vocabulary declares `WasiStream a`, `WasiFuture a`, and `StreamError`, and the three observations are foreign imports with divergence:
 
@@ -220,10 +220,10 @@ WASI streams map to external handles, not to the language's codata `Stream`. The
 
 They carry no productive `Stream a` guarantee: end of stream, scheduling, and decode failure are observable outcomes you handle.
 
-<span class="support-tag support-tag--planned">Coming soon</span> **component emission and execution.** There is no component artifact on disk, no Wasm linker step, and no CLI path that produces either. The WIT parser, the canonical-ABI planner, and the adapter vocabulary exist and are exercised; the packaging and instantiation workflow is specified in the [WebAssembly and WASI specification](../specifications/webassembly-and-wasi-specification.md) sections 2 and 8 to 10, and its illustrative API is design material.
+<span class="support-tag support-tag--planned">Coming soon</span> **component emission and execution.** There is no component artifact on disk and no CLI path that produces one. The core module a `.wit` project builds under `--target wasm32-unknown-unknown` is linked by `wasm-ld` like any other freestanding module, but nothing wraps it as a component. The WIT parser, the canonical-ABI planner, and the adapter vocabulary exist and are exercised; the packaging and instantiation workflow is specified in the [WebAssembly and WASI specification](../specifications/webassembly-and-wasi-specification.md) sections 2 and 8 to 10, and its illustrative API is design material.
 
 # Additional backend families
 
 `prim` bodies are per family. `llvm` and admitted `asm` lower today; the `clr` and `jvm` families are reserved and refused by name when used, and the `wasm` family is available to a Wasm profile. A family name in syntax is not backend support. See [inline primitives](15-ffi-layout-and-attributes.md).
 
-Implementation: `core.rs` (`TargetProfile`, `ArtifactProfile`), `codegen.rs` (`emit_for`, reserved symbols), `driver.rs` (manifest `target`/`wasm` sections, artifact admission, `.wit` discovery), `interface.rs` (canonical tables, vocabulary), `arrays.rs` and `arrays_codegen.rs` (the `Vec` surface SIMD owns); suites `wasm.rs`, `optimizer.rs`, `prim.rs`, `arrays.rs`. Prelude: `Data.Target`.
+Implementation: `core.rs` (`TargetProfile`, `ArtifactProfile`), `codegen.rs` (`emit_for`, reserved symbols), `driver.rs` (manifest `target`/`wasm` sections, artifact admission, `.wit` discovery), `interface.rs` (canonical tables, vocabulary), `arrays.rs` and `arrays_codegen.rs` (the `Vec` surface SIMD owns); suites `wasm.rs`, `wasm_target.rs`, `optimizer.rs`, `prim.rs`, `arrays.rs`. Prelude: `Data.Target`.

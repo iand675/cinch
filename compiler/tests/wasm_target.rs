@@ -149,17 +149,13 @@ fn build_case(case: &Case) -> Vec<u8> {
     bytes
 }
 
-/// Run one matrix case, skipping when the toolchain is incomplete.
+/// Run one matrix case.
+///
+/// A case that expects a refusal needs no toolchain: the refusal happens in
+/// checking, before any IR exists, so it runs everywhere. A case that links
+/// skips when the toolchain is incomplete, and says why.
 fn matrix(case: &Case) {
-    if let Some(reason) = missing_toolchain() {
-        eprintln!("skipping {}: {reason}", case.name);
-        return;
-    }
     match case.expect {
-        Expect::Exit(want) => {
-            let got = run_case(case);
-            assert_eq!(got, want, "{}: the module returned {got}", case.name);
-        }
         Expect::Refused(needle) => {
             let dir = project(case.name, case.source);
             let result = common::drive_opts(Mode::Run, &dir, "Main.cinch", None, &wasm_target());
@@ -170,6 +166,14 @@ fn matrix(case: &Case) {
                 "{}: {error} does not contain `{needle}`",
                 case.name
             );
+        }
+        Expect::Exit(want) => {
+            if let Some(reason) = missing_toolchain() {
+                eprintln!("skipping {}: {reason}", case.name);
+                return;
+            }
+            let got = run_case(case);
+            assert_eq!(got, want, "{}: the module returned {got}", case.name);
         }
     }
 }
@@ -614,30 +618,24 @@ fn build_produces_a_wasm_module() {
     assert_eq!(&bytes[4..8], &[1, 0, 0, 0], "not a Wasm version 1 module");
 }
 
-/// `build` writes the IR beside the module, and the module states the
-/// target it was built for. The IR is the artifact's own record of the
-/// cross compile, so a build directory says which target produced what.
+/// `emit-ir` states the target it emitted for, and a freestanding module's
+/// entry takes no `argc`/`argv`, because the target has no command line to
+/// hand it. Emission needs no linker, so this runs everywhere.
 #[test]
-fn build_writes_the_targets_ir_beside_the_module() {
-    if let Some(reason) = missing_toolchain() {
-        eprintln!("skipping build_writes_the_targets_ir_beside_the_module: {reason}");
-        return;
-    }
+fn the_emitted_module_is_the_freestanding_entry() {
     let dir = project("ir-beside", CASES[0].source);
-    let out = dir.join("program.wasm");
-    let result = common::drive_opts(Mode::Build, &dir, "Main.cinch", Some(out.clone()), &wasm_target());
+    let ir_path = dir.join("program.ll");
+    let result = common::drive_opts(Mode::EmitIr, &dir, "Main.cinch", Some(ir_path.clone()), &wasm_target());
     if let Err(error) = result {
         let _ = std::fs::remove_dir_all(&dir);
-        panic!("build failed: {error}");
+        panic!("emit-ir failed: {error}");
     }
-    let ir = std::fs::read_to_string(out.with_extension("ll")).expect("the build's IR");
+    let ir = std::fs::read_to_string(&ir_path).expect("the emitted IR");
     let _ = std::fs::remove_dir_all(&dir);
     assert!(
         ir.contains("target triple = \"wasm32-unknown-unknown\""),
         "the IR does not state the wasm32 target"
     );
-    // A freestanding module's entry takes no `argc`/`argv`, because the
-    // target has no command line to hand it.
     assert!(
         ir.contains("define i32 @main()"),
         "the entry is not the freestanding `main`"
