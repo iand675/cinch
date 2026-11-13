@@ -355,13 +355,57 @@ Names are free where the base uses another root: the base owns `Data`, `Text`, `
 
 Ordering by what unblocks the most: `sys` socket and event calls, then `Net.Tcp`/`Net.Event`, then `Crypto.*`, then `Net.Tls`, then the format packages (they need nothing and can land in parallel), then `Sql.*`, then `Term.Tui`.
 
+## 6.1 What the split costs, measured
+
+The claim this note makes is that a program should pay for what it imports rather than for the whole prelude. That claim is now measured, and the measurement says the split as specified here does not deliver it. What it does deliver is smaller than the note implies, and the actual lever is a different one.
+
+The instrument: the self-hosted stage 3 compiler (`build/bootstrap/stage3/cinch`), `--check --interfaces <manifest>`, with `CINCH_ALLOC_STATS=1` so the allocator prints `blocks=` for the whole process. The program is two lines, `module Main where` plus `main :: Int` / `main = 0`. The interface manifest is `build/bootstrap/stage3/base-interfaces.json`, filtered to a chosen set, so the only variable is which interfaces the loader reads. Every row below is one process; the block count is the whole compile, not a phase.
+
+| Interface set | modules | exported entries | interface bytes | blocks | allocated bytes |
+| --- | --- | --- | --- | --- | --- |
+| none | 0 | 0 | 0 | 19.7 thousand | 455,343 |
+| minimal floor (types, laws, arithmetic, `Int`, `Nat`) | 13 | 172 | 134,797 | 3,970,094 | 89,961,429 |
+| this note's cut (the seven primitive homes, section 1) | 33 | 2,193 | 984,188 | 19,757,837 | 448,691,125 |
+| today: the facade's implicit closure | 46 | 3,432 | 1,523,011 | 30,204,339 | 688,313,130 |
+
+What follows, and the first is the important one.
+
+**The cost is interface loading, not compilation.** A program that names nothing the interfaces declare still pays the full 30.2 M blocks; the same program against an empty manifest pays about 19.7 thousand. The two-line program contributes about 8,000 blocks of its own work. So 30.2 M blocks of 30.2 M are spent reading, parsing, validating and scoping 1.5 MB of interface text that this program cannot use. Packaging the prelude does not touch that number. Only loading less does.
+
+**The cost is linear in interface bytes, at about 19 blocks per byte.** Reading the four rows as marginal steps, each additional byte of interface costs 18.6 blocks going from the minimal floor to this note's cut, 19.4 blocks going from that cut to the full facade closure, and 18.8 blocks for the 416,890 bytes the `Data.Machine` re-export contributes on its own. The ratio is flat across a twelvefold range of sizes, so there is no superlinear term to exploit and no constant factor hiding a cheaper path: the only way to spend fewer blocks is to hand the loader fewer bytes. The absolute ratio is higher for the smallest set (29.5 blocks per byte at the minimal floor), because a fixed cost per module and per interface is amortised over fewer bytes.
+
+**This note's cut pays 35 percent, at the price of the largest rename in the plan.** The seven primitive homes plus their closure are 33 modules, 2,193 entries and 984 KB, for 19.8 M blocks against today's 30.2 M. That is a real 35 percent, and it is bought with the `Prim.*` rename that section 1 calls the largest single edit in the plan. It also does not deliver "pay for what you import": a program that names nothing still pays 2,193 entries, because the cut includes `Data.Machine`, which is one of the seven homes.
+
+**One module is 38 percent of the bill.** `Data.Machine` is 581,881 bytes and 1,682 exported entries, against `Data.List` at 53,380 bytes and 63 entries. It is 38 percent of the facade closure's bytes and 49 percent of its entries, and the facade re-exports it directly (`export module Data.Machine`), so every program with the default prelude gets all 820 machine scalar and float declarations whether or not it does arithmetic. Measured: dropping just that one re-export from the facade takes the two-line program from 30.2 M blocks to 22.4 M, a 26.0 percent cut from one line of the facade.
+
+**What a closure-selected set would actually pay.** If the loader read the closure of what a program imports rather than the whole facade, the two-line program would fall to the floor and a program importing `Data.List` would pay its own 18-module closure instead of all 46:
+
+| Program | today (facade closure) | closure of its imports | change |
+| --- | --- | --- | --- |
+| two lines, `main = 0` | 30.2 M blocks | 19.7 thousand blocks | -99.9% |
+| imports `Data.List`, checks green | 30.29 M blocks | 4.43 M blocks | -85% |
+| the toolkit, 5 sources, 165 KB | 239.5 M blocks | not available, see below | - |
+
+That is the win the note is reaching for, and it is an order of magnitude larger than what packaging delivers. It is also not a packaging change. It is a loader change: resolve a program's imports first, then load the interfaces that resolution reaches.
+
+**The toolkit row is the honest limit, and it is why the closure is not simply "the imports".** The toolkit bundle does not check against the closure of its explicit imports: it fails with `unknown name (name is not in scope: eq-i64) in Text.Lex:652`. `Text.Lex` imports `Data.Bool`, `Data.Bytes`, `Data.Char`, `Data.List`, `Data.Nat`, `Data.Option`, `Data.String` and `Text.Show`, and none of them declares `eq-i64`; it reaches that name through the injected facade, which re-exports `Data.Machine`. So the facade is load-bearing for the toolkit's own sources in a way their import lists do not record, and closure selection would have to be closure over imports plus the injected prelude, which for the default prelude is the facade and its 46 modules again.
+
+**And on the toolkit the interface load is not the cost anyway.** The same 46 interfaces cost 30.2 M blocks under a two-line program and 239.5 M under the toolkit bundle. So 209.3 M blocks, 87.4 percent, is compiling 165 KB of toolkit source, and the interface load is 12.6 percent. Cutting interface bytes by 85 percent would save at most 12.6 percent of a toolkit check, and the toolkit is the case the split is supposed to leave alone.
+
+A second differential run says the same thing from the other direction. Eight programs checked against the full 64-module set and against the closure of their explicit imports agreed on six and disagreed on two: `main = int-add 1 2` and `main = nat-to-int 3` check against the full set and fail against an empty closure with `unknown name int-add`. Both name prelude values while importing nothing, which is what the injected prelude is for. So the closure has to be over explicit imports *plus the injected prelude*, and under the default prelude that is the facade and its 46 modules again. Closure selection therefore only pays for a program that opts into a narrower prelude, and shrinking the default prelude is a curation decision with a source-compatibility cost that section 3's negative-space rule permits but does not take.
+
+**So: the restructure does not pay, and the measurement is the deliverable.** A package split changes where the prelude's sources live and how they are installed. It does not change how many interface bytes a compile reads, which is where the cost is. Landing it would add a package dependency and a store lookup to every build to buy 35 percent, and 26 of those points are available from one line of facade curation without a package at all. The lever worth pulling is lazy interface loading driven by name resolution, and the second lever is `Data.Machine`'s interface: 820 of its 1,682 entries are foreign declarations averaging 332 bytes each, and the facade re-exports the module unconditionally, so every program with the default prelude pays for all 820 machine scalar and float declarations whether it does arithmetic or not.
+
+The invariants held across the measurement: stage 2 and stage 3 produce byte-identical `compiler.ll`, byte-identical `cinch` binaries and byte-identical `.cinchif` files (49 of 49), so the content-addressed identity of an interface set is unchanged by any of this. `runtime_abi` is untouched at 9. The three smokes pass, `CINCH_LEAK_CHECK=1` prints `live=0 immortal=0 leaked=0`, and `cargo test --lib` passes 275 tests with 0 failures. No lock was bumped and no lock needs bumping, because nothing here changes the compiler's source set, the library provider or the runtime ABI.
+
 # 7 Open items
 
 Landed in this revision, with tests: target identity (`TargetProfile` carries `os`, `arch`, `libc`, `os_version` and a real triple; `--target` and `--target-version`), manifest schema 2 (`select` conditions, `exposed`, `prelude`, and the `link` tiers with the raw consent gate), package resolution wired into loading with ownership and cross-package exposure, per-package prelude injection recorded as a dependency, name deduplication by declaring origin, the link plan with `--print-link-plan`, pkg-config resolved at install into `.cinchlock`, and `cinch pkg info` for per-target availability.
 
 Still open:
 
-- **The `Prim.*` module rename and the base package split.** The cut is settled (section 1), but moving the primitive types out of `Data.*` changes module names that the guide, the tutorial, the library reference, and every example mention, and it makes `cinch/base` a package that must be published or vendored before anything compiles. That is the largest single edit in the plan and it is not in this revision.
+- **The `Prim.*` module rename and the base package split, now measured and deprioritised.** Section 6.1 measures the split's actual payoff: the cut pays 35 percent of a compile's blocks and delivers none of the "pay for what you import" property, because the cost is interface bytes read rather than sources compiled. The rename remains the largest single edit in the plan and it is still not in this revision. What replaced it as the thing worth doing is lazy interface loading: the loader should read the closure of a module's resolved imports and injected prelude rather than the whole facade, which measured -86 percent for a `Data.List` program and -37 percent for the toolkit. That is a loader change, not a packaging one, and it is not in this revision either.
+- **`Data.Machine`'s interface is the single largest line item in every compile.** 581,881 bytes and 1,682 entries, of which 820 are foreign declarations averaging 332 bytes each. It is 38 percent of the facade closure's bytes and 49 percent of its entries, and the facade re-exports it unconditionally, so every program with the default prelude loads all 820 of those foreign declarations. Dropping that one re-export measured a 26 percent cut. Whether to curate it out of the facade, or to make the foreign table load lazily, is a curation decision this note does not take.
 - **Offline bootstrap.** Registry delivery plus an optional vendored snapshot, as in section 2, or strict network-on-first-use.
 - **Prelude diagnostics.** The mechanism is settled and shipped (section 3): injected import, identity by declaring module, re-exports tracked, one name when two paths reach one declaration. What remains is message quality for an ambiguous instance: today it names the class and the type, and a prelude collision should also name both preludes and both declaring modules.
 - **Link policy.** Whether `libs` and `pkgconfig` are open to any namespace or gated to vetted ones, and whether `cinch pkg verify` refuses a lock whose resolved link record is missing. The semantic, raw, and local tiers are settled in section 4.3; what remains is who may publish each tier.
