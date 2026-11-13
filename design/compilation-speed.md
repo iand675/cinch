@@ -2655,6 +2655,104 @@ as a coordinated schema bump) and the `resolved.scheme` duplicate, which is
 6% of the base set for free at the next bump. Section 12 item 5 is updated
 to say so.
 
+### 2.18 The interface scan's per-character cons: 10.0 blocks per byte to 6.0 (2026-11-13)
+
+Section 2.17 measured the price of a JSON byte in an interface set at 10.0
+blocks and attributed it to the scan rather than to tree building. This
+section finds the mechanism, removes it, and measures the law again.
+
+**The mechanism.** `Text.Json.scan-string-body` accumulated the body of every
+JSON string as a `List Char`:
+
+```
+scan-string-body s acc = case peek-byte s of
+  ...
+  else case utf8-at (state-src s) (state-off s) of
+    Some pair -> case pair of
+      (c, w) -> scan-string-body (advance-n s w) (Cons c acc)
+```
+
+That is five allocations per character of every string: the cons cell, the
+boxed `Nat` width `w`, the `Char`, the `Some` of `utf8-at`, and the pair
+inside it, plus a `JState` and a `Some` per `peek-byte`. Then `pack (reverse
+acc)` walks the reversed list a second time and encodes every character back
+to UTF-8 into a fresh buffer. Interfaces are mostly string bytes (64-character
+`iface_hash` values, names, schemes, paths), which is why the cost tracked
+bytes rather than entries: at 10.0 blocks per byte and roughly five
+allocations per character, the string bodies are essentially the whole scan.
+
+**The fix.** A string body with no backslash is a span of the source, so the
+scanner records the span and the string is built from one slice. `scan-string-at`
+now runs `scan-string-plain`, which walks the buffer by index (no `JState` per
+byte), refuses exactly what the character scanner refused (a raw control byte,
+an unterminated body, a malformed UTF-8 sequence) at exactly the same span, and
+returns either the end offset or the fact that a backslash appeared. On a
+backslash it falls back to the unchanged `scan-string-body` from the same
+position, so escapes, `\uXXXX`, surrogate pairing and every diagnostic are the
+original code. ASCII bytes step one byte with no decode at all, because
+`utf8-at` answers `(the byte, 1)` there; only a lead byte at 128 or above calls
+`utf8-at`, and it allocates one `Option` and one pair for that scalar.
+
+**The law, three points, measured the same way as 2.17** (`experiments/iface-scan/measure.py`,
+`--check` on a two-line program, `CINCH_ALLOC_STATS=1`, median of three
+interleaved repeats, every identity re-settled after the padding):
+
+| padding per module | manifest bytes | blocks before | blocks after | before | after |
+|---|---|---|---|---|---|
+| none (control) | 1,735,532 | 34,686,730 | 30,490,238 | | |
+| 1,024 bytes | 1,801,195 | 35,343,442 | 30,884,996 | 10.00 | 6.01 |
+| 2,048 bytes | 1,866,689 | 35,998,191 | 31,277,781 | 10.00 | 6.00 |
+| 4,096 bytes | 1,997,747 | 37,308,531 | 32,063,953 | 10.00 | 6.00 |
+
+The law's constant falls from **10.0 to 6.0 blocks per interface byte**, and it
+stays linear (6.01, 6.00, 6.00), so the remaining cost is still proportional to
+bytes. The empty-manifest floor is unchanged (19,891 blocks before, 19,832
+after: noise), so the two-line program's interface load falls from 34,666,839
+to 30,470,406 blocks, **-12.1%** of the whole fixed cost, and 4,196,433 blocks
+in absolute terms.
+
+**What the remaining 6.0 is made of.** The string fast path removed the
+per-character part; what is left is per byte and per node, not per character:
+the `Json` tree the parser builds (one `JStr` block and one `String` block per
+string, one 24-byte or 40-byte cell per array element and object entry), the
+`bytes-slice` copy that `string-from-bytes` then copies again (two copies per
+string, because `bytes-slice` makes a fresh buffer and `string-from-bytes`
+copies again by the wrap/copy discipline), and the escape-free scan's own
+`bytes-get` per byte. A single copy instead of two is the next step and it is
+a `Data.String` API question, not a `Text.Json` one.
+
+**The two other workloads** (`experiments/iface-scan/workloads.py`, the PGO
+training bundle, `Text.{Lex,Scan,Parse,Json,Builder}` plus an importing entry):
+
+| workload | mode | blocks before | blocks after | delta |
+|---|---|---|---|---|
+| toolkit (3,991 lines) | `--check` | 251,512,085 | 249,441,758 | -0.82% |
+| toolkit (3,991 lines) | `--emit-interfaces` | 248,578,674 | 246,508,350 | -0.83% |
+
+The toolkit check barely moves because its per-line checking dominates, exactly
+as section 2.17 found for the same reason: the interface scan is the fixed cost
+of a small compile, not of a large one.
+
+**Semantics held, proven rather than argued.** `scan-string-at`'s two callers
+(`json-string`, `scan-entry-key`) both go through the new scan, and the escape
+path is the original code from the same position. A differential probe over 29
+documents (empty and long ASCII, every named escape, `\uXXXX`, a surrogate
+pair, a lone low surrogate, a lone high surrogate followed by a non-escape,
+raw two-, three- and four-byte UTF-8, a raw tab and a raw NUL, an unterminated
+body, an unterminated body after an escape, an unknown escape, truncated,
+overlong and lone-continuation UTF-8, strings inside objects and arrays, an
+empty key, and trailing junk) produced byte-identical output from the old and
+new scanners, diagnostics included: same spans, same `unexpected` and
+`expecting` lines. The escape-free scan also runs the original scanner's own
+tests in the original order, so every refusal lands on the same byte.
+
+**The same pattern elsewhere, counted, not fixed here.** `Text.Csv`'s field
+scanners (`scan-quoted`, `scan-bare`) accumulate `List Char` and finish with
+`pack (reverse acc)`, and `Text.Csv.print-field` round-trips a whole field
+through `unpack` to decide whether it needs quoting. `Text.Toml` builds a
+`List Nat` per scalar and converts through `bytes-from-list`. Neither is on the
+interface path, so both are reported here rather than changed in this lane.
+
 ## 11. Benchmark corpus and metrics
 
 The corpus is edits, not programs. Each entry is a case in
