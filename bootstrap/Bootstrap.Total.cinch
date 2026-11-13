@@ -4,6 +4,7 @@
 -- These standalone version-1 artifacts are not yet admitted by cinchif.
 module Bootstrap.Total where
   import Data.Json
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Data.Nat (nat-from-int, nat-to-int)
   import Algebra.Semigroup
   import Text.Json (canonical-bytes)
@@ -281,11 +282,24 @@ module Bootstrap.Total where
     Some reachable -> total-owned-rows (field "definitions" doc) reachable
     None -> False)
 
+  -- Every row of `first` must be byte-identical to the row of `second` that
+  -- carries the same identity, and a row `second` does not have is compatible.
+  -- The scan for that row used to restart at the head of `second` for every
+  -- row of `first`, re-extracting each identity it passed: `bodies-match`
+  -- runs this for every pair of body bindings, so the restart is what made
+  -- the body-context check quadratic. The table is built once per call and
+  -- probed per row, which is the same lookup with the same answer.
+  definition-table :: Json -> HashMap String Json
+  definition-table rows = case rows of
+    JArr row rest -> hash-map-insert (text (field "identity" row)) row (definition-table rest)
+    other -> hash-map-empty
   compatible-definitions :: Json -> Json -> Bool
-  compatible-definitions first second = case first of
-    JArr row rest -> (case find (text (field "identity" row)) second of
+  compatible-definitions first second = compatible-rows first (definition-table second)
+  compatible-rows :: Json -> HashMap String Json -> Bool
+  compatible-rows first table = case first of
+    JArr row rest -> (case hash-map-lookup (text (field "identity" row)) table of
       Some prior -> bytes-compare (canonical-bytes row) (canonical-bytes prior) == 0
-      None -> True) && compatible-definitions rest second
+      None -> True) && compatible-rows rest table
     JArrEnd -> True
     other -> False
   total-functions-compatible :: TotalFunction -> TotalFunction -> Bool
