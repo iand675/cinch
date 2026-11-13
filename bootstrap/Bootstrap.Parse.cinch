@@ -52,6 +52,8 @@ module Bootstrap.Parse where
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
 
   export parse-program, parse-program-with, parse-scheme, exported-fixities
+  export macro-argument-groups, parse-tree-term, module-scope-fixes
+  export Ps, POk, PBad, Fix, MkFix, parse-expr
 
   -- ------------------------------------------------------------------
   -- The parser result: a value with the unconsumed token stream, or a
@@ -2310,6 +2312,64 @@ module Bootstrap.Parse where
               other -> tree-scan more rest (Cons t acc))
             else if is-any-tree-close tok then PBad
             else tree-scan owed rest (Cons t acc)
+
+  -- ------------------------------------------------------- macro arguments
+
+  -- The token tree's contents: the opener and its matching close are the
+  -- tree's own delimiters, so a parameter receives what lies between them.
+  tree-content :: List LToken -> List LToken
+  tree-content tokens = case tokens of
+    Cons first rest -> case tree-closes (lt-token first) of
+      Some close -> drop-last-tok rest
+      None -> tokens
+    Nil -> Nil
+
+  drop-last-tok :: List LToken -> List LToken
+  drop-last-tok tokens = case tokens of
+    Nil -> Nil
+    Cons t rest -> case rest of
+      Nil -> Nil
+      Cons _ _ -> Cons t (drop-last-tok rest)
+
+  group-opens :: Token -> Bool
+  group-opens tok = case tree-closes tok of
+    Some close -> True
+    None -> False
+
+  is-comma-t :: Token -> Bool
+  is-comma-t tok = case tok of
+    TPunct p -> string-compare p "," == 0
+    other -> False
+
+  -- The invocation's argument groups, one per macro parameter: the tree's
+  -- contents split on commas outside nested delimiters. An empty tree
+  -- supplies no groups for a nullary macro and one empty group for a unary
+  -- one, which is the distinction the seed's `macro_arg_groups` states.
+  macro-argument-groups :: List LToken -> Nat -> List (List LToken)
+  macro-argument-groups tokens arity = case group-split (tree-content tokens) Nil 0 Nil of
+    Cons only Nil -> if arity == 0 then (if list-length only == 0 then Nil else Cons only Nil) else Cons only Nil
+    groups -> groups
+
+  group-split :: List LToken -> List LToken -> Nat -> List (List LToken) -> List (List LToken)
+  group-split toks current depth acc = case toks of
+    Nil -> reverse (Cons (reverse current) acc)
+    Cons t rest -> let tok = lt-token t in
+      if is-comma-t tok && depth == 0 then group-split rest Nil 0 (Cons (reverse current) acc)
+      else if group-opens tok then group-split rest (Cons t current) (depth + 1) acc
+      else if is-any-tree-close tok then (if depth == 0 then group-split rest (Cons t current) 0 acc
+        else group-split rest (Cons t current) (depth - 1) acc)
+      else group-split rest (Cons t current) depth acc
+
+  -- One argument group as an ordinary expression in the caller's scope and
+  -- fixities. The tree is macro input until here; this is where it becomes
+  -- a term, and the tokens already carry the spans the caller wrote.
+  parse-tree-term :: List LToken -> Bytes -> List (String, Fix) -> Ps Expr
+  parse-tree-term toks src fix = case parse-expr toks src fix of
+    POk e rest -> case rest of
+      Nil -> POk e rest
+      Cons extra more -> PBad
+    PBad -> PBad
+
   parse-atom-base :: List LToken -> Bytes -> List (String, Fix) -> Ps Expr
   parse-atom-base toks src fix = case toks of
     Cons t rest -> case lt-token t of

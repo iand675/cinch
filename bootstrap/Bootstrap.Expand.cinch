@@ -1,0 +1,480 @@
+-- The syntax the macro expander moves: hygienic renaming of the binders a
+-- template introduces, and the substitution that fills a template's
+-- splices with the caller's syntax. Nothing here decides *whether* to
+-- expand a call; `Bootstrap.Stage` owns that policy and calls in.
+--
+-- Hygiene (modules specification section 8): every binder a template
+-- introduces is renamed to an internal spelling no source file can write.
+-- The identifier scanner takes `#` as a symbol character and never an
+-- identifier start, so `#helper$1` can neither be typed by a caller nor
+-- collide with a caller's `helper`. The caller's spliced syntax keeps its
+-- own bindings because a splice body is skipped by the rename and filled
+-- afterwards.
+module Bootstrap.Expand where
+  import Bootstrap.Ast
+  import Bootstrap.Parse (Ps, POk, PBad, Fix, parse-tree-term)
+  import Bootstrap.Report (Diagnostic, MkDiagnostic)
+  import Text.Lex (Span, LToken, Token, lt-span, lt-token, TPunct, TVar, TCon, TOp, TInt, TFloat, TWord)
+  import Text.Show (nat-to-string)
+  import Data.String (empty-string, string-to-bytes)
+  import Algebra.Semigroup
+
+  export term-has-macro-call, decl-has-macro-call, clauses-have-macro-call
+  export hygienic-term
+  export fill-splices
+  export macro-parameters, template-of
+  export expand-error
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+
+  expand-error :: forall a. Span -> String -> Result (List Diagnostic) a
+  expand-error site message = Err [MkDiagnostic "bootstrap.expand" site message]
+
+  cat :: List String -> String
+  cat parts = string-concat-all parts
+
+  -- ------------------------------------------------------------ detection
+
+  -- Does this term contain a macro invocation? A splice body is not
+  -- descended into: a `$( ... )` inside a quotation belongs to the
+  -- enclosing template (modules specification section 8), and the
+  -- quotation is expanded when its own expansion runs.
+  term-has-macro-call :: Expr -> Bool
+  term-has-macro-call e = case e of
+    EMacroCall s path tokens -> True
+    ECon s name args -> term-has-macro-call args
+    ERecord s name fields -> term-has-macro-call fields
+    ERecordField s name value rest -> term-has-macro-call value || term-has-macro-call rest
+    EProject s value name -> term-has-macro-call value
+    ETuple s xs -> term-has-macro-call xs
+    EList s xs -> term-has-macro-call xs
+    EApp s f a -> term-has-macro-call f || term-has-macro-call a
+    EBin s op l r -> term-has-macro-call l || term-has-macro-call r
+    ENeg s x -> term-has-macro-call x
+    ELam s ps body -> term-has-macro-call body
+    ELet s bs body -> term-has-macro-call bs || term-has-macro-call body
+    ELetScope s body -> term-has-macro-call body
+    ELocalGroup s bs body -> term-has-macro-call bs || term-has-macro-call body
+    ELetRec s bs body -> term-has-macro-call bs || term-has-macro-call body
+    ELocalStrict s p value rest -> term-has-macro-call value || term-has-macro-call rest
+    ELocalSignature s name ty rest -> term-has-macro-call rest
+    ELocalMemo s name value rest -> term-has-macro-call value || term-has-macro-call rest
+    EIf s c t f -> term-has-macro-call c || term-has-macro-call t || term-has-macro-call f
+    ECase s scrut alts -> term-has-macro-call scrut || term-has-macro-call alts
+    EGuarded s guard body -> term-has-macro-call guard || term-has-macro-call body
+    EAnn s x ty -> term-has-macro-call x
+    EForall s vs body -> term-has-macro-call body
+    EUsing s bounds body -> term-has-macro-call body
+    EBind s name rhs -> term-has-macro-call rhs
+    EDo s stmts -> term-has-macro-call stmts
+    EHandle s body h -> term-has-macro-call body || term-has-macro-call h
+    EHandler s label clauses -> term-has-macro-call clauses
+    EHandlerClause s name pats continuation body rest -> term-has-macro-call body || term-has-macro-call rest
+    EWith s bs body -> term-has-macro-call bs || term-has-macro-call body
+    EArg s x rest -> term-has-macro-call x || term-has-macro-call rest
+    EBinding s name rhs rest -> term-has-macro-call rhs || term-has-macro-call rest
+    EAlt s p body rest -> term-has-macro-call body || term-has-macro-call rest
+    EQuote s body -> term-has-macro-call body
+    other -> False
+
+  decl-has-macro-call :: Decl -> Bool
+  decl-has-macro-call d = case d of
+    DFun s name clauses -> clauses-have-macro-call clauses
+    DConditional s clauses inner -> decl-has-macro-call inner
+    DProof s inner -> decl-has-macro-call inner
+    DCorec s inner -> decl-has-macro-call inner
+    DDecl s x rest -> decl-has-macro-call x || decl-has-macro-call rest
+    other -> False
+
+  clauses-have-macro-call :: List (List Pat, Expr) -> Bool
+  clauses-have-macro-call clauses = case clauses of
+    Nil -> False
+    Cons (patterns, body) rest -> term-has-macro-call body || clauses-have-macro-call rest
+
+  -- ------------------------------------------------------- macro declarations
+
+  definition-name-of :: Decl -> String
+  definition-name-of declaration = case declaration of
+    DFun s name clauses -> name
+    DSig s name ty -> name
+    other -> empty-string
+
+  -- A `macro` declaration's parameter names, in clause order. The
+  -- signature and the definition are separate marked declarations with the
+  -- same name, so a caller passes the module's whole list and the
+  -- definition behind the signature is what answers.
+  macro-parameters :: String -> List Decl -> List String
+  macro-parameters name declarations = case declarations of
+    Nil -> Nil
+    Cons first rest -> case first of
+      DMacro s body -> if same (definition-name-of body) name then
+        (case body of
+          DFun at n clauses -> first-clause-parameters clauses
+          other -> macro-parameters name rest)
+        else macro-parameters name rest
+      other -> macro-parameters name rest
+
+  first-clause-parameters :: List (List Pat, Expr) -> List String
+  first-clause-parameters clauses = case clauses of
+    Nil -> Nil
+    Cons (patterns, body) rest -> pattern-names-of patterns
+
+  pattern-names-of :: List Pat -> List String
+  pattern-names-of ps = case ps of
+    Nil -> Nil
+    Cons p rest -> pat-name-list p <> pattern-names-of rest
+
+  pat-name-list :: Pat -> List String
+  pat-name-list p = case p of
+    PVar s name -> Cons name Nil
+    PWild s -> Cons "#wild" Nil
+    PAs s name inner -> Cons name (pat-name-list inner)
+    other -> Cons "#pattern" Nil
+
+  -- The template a `macro` declaration's body denotes, when the body is a
+  -- quotation: one clause, no patterns, `[| e |]`. Anything else is a
+  -- compile-time computation whose value the evaluator has to produce.
+  template-of :: String -> List Decl -> Option Expr
+  template-of name declarations = case declarations of
+    Nil -> None
+    Cons first rest -> case first of
+      DMacro s body -> if same (definition-name-of body) name then
+        (case body of
+          DFun at n clauses -> (case clause-template-of clauses of
+            Some template -> Some template
+            None -> template-of name rest)
+          other -> template-of name rest)
+        else template-of name rest
+      other -> template-of name rest
+
+  -- A macro's template is its one clause's whole right-hand side when that
+  -- side is a quotation. The clause's patterns are the macro's parameters,
+  -- not binders of the template, so they do not affect this lookup: `macro
+  -- wrap body = [| 42 |]` and `macro number = [| 42 |]` are both templates.
+  clause-template-of :: List (List Pat, Expr) -> Option Expr
+  clause-template-of clauses = case clauses of
+    Cons (patterns, EQuote at body) Nil -> Some body
+    other -> None
+
+  -- ------------------------------------------------------------- hygiene
+
+  -- The internal spelling a generated binder takes. `#` never starts an
+  -- identifier, so no source file can write this name and no caller
+  -- binding can collide with it.
+  internal-name :: String -> Nat -> String
+  internal-name base serial = cat ["#", base, "$", nat-to-string serial]
+
+  lookup-rename :: String -> List (String, String) -> Option String
+  lookup-rename name renames = case renames of
+    Nil -> None
+    Cons (spelling, renamed) rest -> if same spelling name then Some renamed else lookup-rename name rest
+
+  -- Rename every binder this template introduces. `serial` threads the
+  -- fresh counter so two binders of one spelling never share an internal
+  -- name; `renames` maps the caller-visible spelling to the internal one
+  -- inside the binder's scope.
+  hygienic-term :: Expr -> Nat -> (Expr, Nat)
+  hygienic-term e serial = hygiene e Nil serial
+
+  hygienic-patterns :: List Pat -> List (String, String) -> Nat -> (List Pat, List (String, String), Nat)
+  hygienic-patterns ps renames serial = case ps of
+    Nil -> (Nil, renames, serial)
+    Cons p rest -> case hygienic-pattern p renames serial of
+      (renamed, inner, after) -> case hygienic-patterns rest inner after of
+        (more, final, done) -> (Cons renamed more, final, done)
+
+  hygienic-pattern :: Pat -> List (String, String) -> Nat -> (Pat, List (String, String), Nat)
+  hygienic-pattern p renames serial = case p of
+    PVar s name -> let internal = internal-name name serial in
+      (PVar s internal, Cons (name, internal) renames, serial + 1)
+    PWild s -> (p, renames, serial)
+    PAs s name inner -> let internal = internal-name name serial in
+      case hygienic-pattern inner (Cons (name, internal) renames) (serial + 1) of
+        (renamed, more, after) -> (PAs s internal renamed, more, after)
+    PCon s name args -> case hygienic-pattern args renames serial of
+      (renamed, more, after) -> (PCon s name renamed, more, after)
+    PRecord s name fields -> case hygienic-pattern fields renames serial of
+      (renamed, more, after) -> (PRecord s name renamed, more, after)
+    PRecordField s label value rest -> case hygienic-pattern value renames serial of
+      (renamed-value, more, after) -> case hygienic-pattern rest more after of
+        (renamed-rest, final, done) -> (PRecordField s label renamed-value renamed-rest, final, done)
+    PTuple s args -> case hygienic-pattern args renames serial of
+      (renamed, more, after) -> (PTuple s renamed, more, after)
+    PList s args -> case hygienic-pattern args renames serial of
+      (renamed, more, after) -> (PList s renamed, more, after)
+    PAnn s inner ty -> case hygienic-pattern inner renames serial of
+      (renamed, more, after) -> (PAnn s renamed ty, more, after)
+    PArg s first rest -> case hygienic-pattern first renames serial of
+      (renamed-first, more, after) -> case hygienic-pattern rest more after of
+        (renamed-rest, final, done) -> (PArg s renamed-first renamed-rest, final, done)
+    other -> (p, renames, serial)
+
+  -- The rename walk. A splice body is skipped: it is the caller's syntax,
+  -- not the template's, and it is filled after this walk.
+  hygiene :: Expr -> List (String, String) -> Nat -> (Expr, Nat)
+  hygiene e renames serial = case e of
+    EVar s name -> case lookup-rename name renames of
+      Some internal -> (EVar s internal, serial)
+      None -> (e, serial)
+    ECon s name args -> case hygiene args renames serial of
+      (renamed, after) -> (ECon s name renamed, after)
+    ERecord s name fields -> case hygiene fields renames serial of
+      (renamed, after) -> (ERecord s name renamed, after)
+    ERecordField s label value rest -> case hygiene value renames serial of
+      (renamed-value, more) -> case hygiene rest renames more of
+        (renamed-rest, after) -> (ERecordField s label renamed-value renamed-rest, after)
+    EProject s value name -> case hygiene value renames serial of
+      (renamed, after) -> (EProject s renamed name, after)
+    ETuple s xs -> case hygiene xs renames serial of
+      (renamed, after) -> (ETuple s renamed, after)
+    EList s xs -> case hygiene xs renames serial of
+      (renamed, after) -> (EList s renamed, after)
+    EApp s f a -> case hygiene f renames serial of
+      (renamed-f, more) -> case hygiene a renames more of
+        (renamed-a, after) -> (EApp s renamed-f renamed-a, after)
+    EBin s op l r -> case hygiene l renames serial of
+      (renamed-l, more) -> case hygiene r renames more of
+        (renamed-r, after) -> (EBin s op renamed-l renamed-r, after)
+    ENeg s x -> case hygiene x renames serial of
+      (renamed, after) -> (ENeg s renamed, after)
+    ELam s ps body -> case hygienic-patterns ps renames serial of
+      (renamed-ps, inner, after-ps) -> case hygiene body inner after-ps of
+        (renamed-body, after) -> (ELam s renamed-ps renamed-body, after)
+    ELet s bs body -> case hygiene-bindings bs renames serial of
+      (renamed-bs, inner, after-bs) -> case hygiene body inner after-bs of
+        (renamed-body, after) -> (ELet s renamed-bs renamed-body, after)
+    ELetScope s body -> case hygiene body renames serial of
+      (renamed, after) -> (ELetScope s renamed, after)
+    ELocalGroup s bs body -> case hygiene-bindings bs renames serial of
+      (renamed-bs, inner, after-bs) -> case hygiene body inner after-bs of
+        (renamed-body, after) -> (ELocalGroup s renamed-bs renamed-body, after)
+    ELetRec s bs body -> case recursive-bindings bs renames serial of
+      (renamed-bs, inner, after-bs) -> case hygiene body inner after-bs of
+        (renamed-body, after) -> (ELetRec s renamed-bs renamed-body, after)
+    ELocalStrict s p value rest -> case hygienic-pattern p renames serial of
+      (renamed-p, inner, after-p) -> case hygiene value renames after-p of
+        (renamed-value, more) -> case hygiene rest inner more of
+          (renamed-rest, after) -> (ELocalStrict s renamed-p renamed-value renamed-rest, after)
+    ELocalSignature s name ty rest -> case hygiene rest renames serial of
+      (renamed, after) -> (ELocalSignature s name ty renamed, after)
+    ELocalMemo s name value rest -> case hygiene value renames serial of
+      (renamed-value, more) -> case hygiene rest renames more of
+        (renamed-rest, after) -> (ELocalMemo s name renamed-value renamed-rest, after)
+    EIf s c t f -> case hygiene c renames serial of
+      (renamed-c, a) -> case hygiene t renames a of
+        (renamed-t, b) -> case hygiene f renames b of
+          (renamed-f, after) -> (EIf s renamed-c renamed-t renamed-f, after)
+    ECase s scrut alts -> case hygiene scrut renames serial of
+      (renamed-scrut, more) -> case hygiene-alts alts renames more of
+        (renamed-alts, after) -> (ECase s renamed-scrut renamed-alts, after)
+    EGuarded s guard body -> case hygiene guard renames serial of
+      (renamed-guard, more) -> case hygiene body renames more of
+        (renamed-body, after) -> (EGuarded s renamed-guard renamed-body, after)
+    EAnn s x ty -> case hygiene x renames serial of
+      (renamed, after) -> (EAnn s renamed ty, after)
+    EForall s vs body -> case hygiene body renames serial of
+      (renamed, after) -> (EForall s vs renamed, after)
+    EUsing s bounds body -> case hygiene body renames serial of
+      (renamed, after) -> (EUsing s bounds renamed, after)
+    EBind s name rhs -> case hygiene rhs renames serial of
+      (renamed, after) -> (EBind s name renamed, after)
+    EDo s stmts -> case hygiene stmts renames serial of
+      (renamed, after) -> (EDo s renamed, after)
+    EHandle s body h -> case hygiene body renames serial of
+      (renamed-body, more) -> case hygiene h renames more of
+        (renamed-h, after) -> (EHandle s renamed-body renamed-h, after)
+    EHandler s label clauses -> case hygiene clauses renames serial of
+      (renamed, after) -> (EHandler s label renamed, after)
+    EHandlerClause s name pats continuation body rest -> case hygiene body renames serial of
+      (renamed-body, more) -> case hygiene rest renames more of
+        (renamed-rest, after) -> (EHandlerClause s name pats continuation renamed-body renamed-rest, after)
+    EWith s bs body -> case hygiene-bindings bs renames serial of
+      (renamed-bs, inner, after-bs) -> case hygiene body inner after-bs of
+        (renamed-body, after) -> (EWith s renamed-bs renamed-body, after)
+    EArg s x rest -> case hygiene x renames serial of
+      (renamed-x, more) -> case hygiene rest renames more of
+        (renamed-rest, after) -> (EArg s renamed-x renamed-rest, after)
+    EBinding s name rhs rest -> case hygiene rhs renames serial of
+      (renamed-rhs, more) -> case hygiene rest renames more of
+        (renamed-rest, after) -> (EBinding s name renamed-rhs renamed-rest, after)
+    EAlt s p body rest -> case hygienic-pattern p renames serial of
+      (renamed-p, inner, after-p) -> case hygiene body inner after-p of
+        (renamed-body, more) -> case hygiene rest renames more of
+          (renamed-rest, after) -> (EAlt s renamed-p renamed-body renamed-rest, after)
+    EQuote s body -> case hygiene body renames serial of
+      (renamed, after) -> (EQuote s renamed, after)
+    other -> (e, serial)
+
+  hygiene-bindings :: Expr -> List (String, String) -> Nat -> (Expr, List (String, String), Nat)
+  hygiene-bindings bs renames serial = case bs of
+    EBinding s name rhs rest -> let internal = internal-name name serial in
+      case hygiene rhs renames (serial + 1) of
+        (renamed-rhs, more) -> case hygiene-bindings rest (Cons (name, internal) renames) more of
+          (renamed-rest, inner, after) -> (EBinding s internal renamed-rhs renamed-rest, inner, after)
+    EBindingsEnd s -> (bs, renames, serial)
+    other -> (bs, renames, serial)
+
+  -- A recursive group prebinds every name, so a member sees its siblings
+  -- under their internal spellings and the bodies are walked once the
+  -- whole group's renames are known.
+  recursive-bindings :: Expr -> List (String, String) -> Nat -> (Expr, List (String, String), Nat)
+  recursive-bindings bs renames serial = case prebind bs renames serial of
+    (group-renames, after-prebind) -> walk-recursive bs group-renames after-prebind
+
+  prebind :: Expr -> List (String, String) -> Nat -> (List (String, String), Nat)
+  prebind bs renames serial = case bs of
+    EBinding s name rhs rest -> prebind rest (Cons (name, internal-name name serial) renames) (serial + 1)
+    EBindingsEnd s -> (renames, serial)
+    other -> (renames, serial)
+
+  walk-recursive :: Expr -> List (String, String) -> Nat -> (Expr, List (String, String), Nat)
+  walk-recursive bs group-renames serial = case bs of
+    EBinding s name rhs rest -> case lookup-rename name group-renames of
+      Some internal -> case hygiene rhs group-renames serial of
+        (renamed-rhs, more) -> case walk-recursive rest group-renames more of
+          (renamed-rest, inner, after) -> (EBinding s internal renamed-rhs renamed-rest, inner, after)
+      None -> (bs, group-renames, serial)
+    EBindingsEnd s -> (bs, group-renames, serial)
+    other -> (bs, group-renames, serial)
+
+  hygiene-alts :: Expr -> List (String, String) -> Nat -> (Expr, Nat)
+  hygiene-alts alts renames serial = case alts of
+    EAlt s p body rest -> case hygienic-pattern p renames serial of
+      (renamed-p, inner, after-p) -> case hygiene body inner after-p of
+        (renamed-body, more) -> case hygiene-alts rest renames more of
+          (renamed-rest, after) -> (EAlt s renamed-p renamed-body renamed-rest, after)
+    EAltsEnd s -> (alts, serial)
+    other -> (alts, serial)
+
+  -- One argument group as an ordinary expression in the caller's scope and
+  -- fixities. The tree is macro input until here; this is where it becomes
+  -- a term, and the tokens already carry the spans the caller wrote.
+  parse-group-term :: List LToken -> List (String, Fix) -> Result (List Diagnostic) Expr
+  parse-group-term tokens fix = case parse-tree-term tokens (string-to-bytes "") fix of
+    POk e rest -> case rest of
+      Nil -> Ok e
+      Cons extra more -> expand-error (lt-span extra) (cat ["a macro argument is not one expression: trailing `", token-text (lt-token extra), "`"])
+    PBad -> expand-error (group-span tokens) "a macro argument does not parse as an expression"
+
+  group-span :: List LToken -> Span
+  group-span tokens = case tokens of
+    Cons first rest -> lt-span first
+    Nil -> Span 0 0 1 1
+
+  token-text :: Token -> String
+  token-text tok = case tok of
+    TVar s -> s
+    TCon s -> s
+    TOp s -> s
+    TPunct s -> s
+    TInt s -> s
+    TFloat s -> s
+    TWord s -> s
+    other -> "token"
+
+  -- ---------------------------------------------------------- substitution
+
+  -- Fill the template's splices with the caller's syntax. A splice whose
+  -- expression names one of the macro's parameters takes that parameter's
+  -- group, parsed here and only here: a group the template never splices
+  -- is never read as a term, so an ignored parameter costs nothing. Every
+  -- other splice is left in place for the stage evaluator.
+  fill-splices :: Expr -> List (String, List LToken) -> List (String, Fix) -> Result (List Diagnostic) Expr
+  fill-splices e groups fix = case fill-walk e groups fix of
+    Err errors -> Err errors
+    Ok (filled, leftover) -> Ok filled
+
+  fill-walk :: Expr -> List (String, List LToken) -> List (String, Fix) -> Result (List Diagnostic) (Expr, List (String, List LToken))
+  fill-walk e groups fix = case e of
+    ESplice s expression -> case expression of
+      EVar at name -> case take-group name groups of
+        Some tokens -> case parse-group-term tokens fix of
+          Err errors -> Err errors
+          Ok term -> Ok (term, groups)
+        None -> Ok (e, groups)
+      other -> Ok (e, groups)
+    ECon s name args -> fill-node (ECon s name) args groups fix
+    ERecord s name fields -> fill-node (ERecord s name) fields groups fix
+    EProject s value name -> case fill-walk value groups fix of
+      Err errors -> Err errors
+      Ok (filled, more) -> Ok (EProject s filled name, more)
+    ETuple s xs -> fill-node (ETuple s) xs groups fix
+    EList s xs -> fill-node (EList s) xs groups fix
+    ENeg s x -> case fill-walk x groups fix of
+      Err errors -> Err errors
+      Ok (filled, more) -> Ok (ENeg s filled, more)
+    ELam s ps body -> case fill-walk body groups fix of
+      Err errors -> Err errors
+      Ok (filled, more) -> Ok (ELam s ps filled, more)
+    ELetScope s body -> case fill-walk body groups fix of
+      Err errors -> Err errors
+      Ok (filled, more) -> Ok (ELetScope s filled, more)
+    ELocalSignature s name ty rest -> case fill-walk rest groups fix of
+      Err errors -> Err errors
+      Ok (filled, more) -> Ok (ELocalSignature s name ty filled, more)
+    EAnn s x ty -> case fill-walk x groups fix of
+      Err errors -> Err errors
+      Ok (filled, more) -> Ok (EAnn s filled ty, more)
+    EForall s vs body -> case fill-walk body groups fix of
+      Err errors -> Err errors
+      Ok (filled, more) -> Ok (EForall s vs filled, more)
+    EUsing s bounds body -> case fill-walk body groups fix of
+      Err errors -> Err errors
+      Ok (filled, more) -> Ok (EUsing s bounds filled, more)
+    EBind s name rhs -> case fill-walk rhs groups fix of
+      Err errors -> Err errors
+      Ok (filled, more) -> Ok (EBind s name filled, more)
+    EDo s stmts -> case fill-walk stmts groups fix of
+      Err errors -> Err errors
+      Ok (filled, more) -> Ok (EDo s filled, more)
+    EHandler s label clauses -> case fill-walk clauses groups fix of
+      Err errors -> Err errors
+      Ok (filled, more) -> Ok (EHandler s label filled, more)
+    EQuote s body -> case fill-walk body groups fix of
+      Err errors -> Err errors
+      Ok (filled, more) -> Ok (EQuote s filled, more)
+    EApp s f a -> fill-two (\x y -> EApp s x y) f a groups fix
+    EBin s op l r -> fill-two (\x y -> EBin s op x y) l r groups fix
+    ERecordField s label value rest -> fill-two (\x y -> ERecordField s label x y) value rest groups fix
+    ELocalStrict s p value rest -> fill-two (\x y -> ELocalStrict s p x y) value rest groups fix
+    ELocalMemo s name value rest -> fill-two (\x y -> ELocalMemo s name x y) value rest groups fix
+    EGuarded s guard body -> fill-two (\x y -> EGuarded s x y) guard body groups fix
+    EHandle s body h -> fill-two (\x y -> EHandle s x y) body h groups fix
+    EHandlerClause s name pats continuation body rest -> fill-two (\x y -> EHandlerClause s name pats continuation x y) body rest groups fix
+    EWith s bs body -> fill-two (\x y -> EWith s x y) bs body groups fix
+    EArg s x rest -> fill-two (\x y -> EArg s x y) x rest groups fix
+    EBinding s name rhs rest -> fill-two (\x y -> EBinding s name x y) rhs rest groups fix
+    EAlt s p body rest -> fill-two (\x y -> EAlt s p x y) body rest groups fix
+    EIf s c t f -> case fill-walk c groups fix of
+      Err errors -> Err errors
+      Ok (filled-c, a) -> case fill-walk t a fix of
+        Err errors -> Err errors
+        Ok (filled-t, b) -> case fill-walk f b fix of
+          Err errors -> Err errors
+          Ok (filled-f, after) -> Ok (EIf s filled-c filled-t filled-f, after)
+    ECase s scrut alts -> fill-two (\x y -> ECase s x y) scrut alts groups fix
+    ELocalGroup s bs body -> fill-two (\x y -> ELocalGroup s x y) bs body groups fix
+    ELetRec s bs body -> fill-two (\x y -> ELetRec s x y) bs body groups fix
+    ELet s bs body -> fill-two (\x y -> ELet s x y) bs body groups fix
+    other -> Ok (e, groups)
+
+  fill-node :: (Expr -> Expr) -> Expr -> List (String, List LToken) -> List (String, Fix) -> Result (List Diagnostic) (Expr, List (String, List LToken))
+  fill-node build spine groups fix = case fill-walk spine groups fix of
+    Err errors -> Err errors
+    Ok (filled, more) -> Ok (build filled, more)
+
+  fill-two :: (Expr -> Expr -> Expr) -> Expr -> Expr -> List (String, List LToken) -> List (String, Fix) -> Result (List Diagnostic) (Expr, List (String, List LToken))
+  fill-two build first second groups fix = case fill-walk first groups fix of
+    Err errors -> Err errors
+    Ok (filled-first, more) -> case fill-walk second more fix of
+      Err errors -> Err errors
+      Ok (filled-second, after) -> Ok (build filled-first filled-second, after)
+
+  -- Taking a group consumes it: one parameter fills one splice, so a
+  -- second `$(p)` of the same parameter is the template's mistake rather
+  -- than a silent duplication of the caller's tree.
+  take-group :: String -> List (String, List LToken) -> Option (List LToken)
+  take-group name groups = case groups of
+    Nil -> None
+    Cons (spelling, tokens) rest -> if same spelling name then Some tokens else take-group name rest
