@@ -21,6 +21,7 @@
 module Bootstrap.Temporal where
 
   import Text.Lex (Span)
+  import Text.Scan (string-starts-with)
   import Bootstrap.Ast (Decl, ContractClause, ContractFormula, ContractAssume, ContractAssumed, contract-clause-span, expr-span, Expr
     , EVar, ECon, ERecord, ERecordField, EProject, ELitInt, ELitFloat, ELitStr, ELitChar, EUnit, ETuple, EList, EApp, EBin, ENeg
     , ELam, ELet, ELetScope, ELocalGroup, ELetRec, ELocalStrict, ELocalSignature, ELocalMemo, ELocalEnd, EIf, ECase, EGuarded, EAnn
@@ -128,19 +129,56 @@ module Bootstrap.Temporal where
   -- anything else falls back to its head name, which is all a row needs.
   contract-renders-formula :: Expr -> String
   contract-renders-formula e = case e of
-    EVar s name -> name
-    ECon s name args -> name
+    EVar s name -> source-spelling name
+    ECon s name args -> source-spelling name
     ELitInt s text -> text
     ELitStr s text -> cat ["\"", text, "\""]
     ELitChar s text -> text
     EUnit s -> "()"
     ENeg s inner -> cat ["-", contract-renders-formula inner]
-    EApp s (EVar at op) arg -> cat [op, " ", contract-renders-argument arg]
+    -- An operator application the resolver rewrote (`a < b` becomes the
+    -- prelude method applied twice) reads back as the infix the contract
+    -- was written with. A row is source notation, not a global spelling.
+    EApp s (EApp at (EVar os op) left) right ->
+      if operator-spelling op then
+        cat [contract-renders-formula left, " ", source-spelling op, " ", contract-renders-formula right]
+      else cat [contract-renders-formula (EApp at (EVar os op) left), " ", contract-renders-argument right]
+    EApp s (EVar at op) arg -> cat [source-spelling op, " ", contract-renders-argument arg]
     EApp s f a -> cat [contract-renders-formula f, " ", contract-renders-argument a]
     EBin s op left right -> cat [contract-renders-formula left, " ", op, " ", contract-renders-formula right]
     EAnn s inner ty -> contract-renders-formula inner
     EProject s value label -> cat [contract-renders-formula value, ".", label]
     other -> "<formula>"
+
+  -- Whether a resolved name is one of the operators a formula writes infix.
+  operator-spelling :: String -> Bool
+  operator-spelling name =
+    string-starts-with "i.Relation$2eOrd$2eOrd$2e$3c" name
+    || string-starts-with "i.Relation$2eEq$2eEq$2e$3d$3d" name
+    || string-starts-with "i.Algebra$2eArithmetic$2eAdd$2e$2b" name
+    || string-starts-with "i.Algebra$2eArithmetic$2eSub$2e$2d" name
+    || string-starts-with "i.Algebra$2eArithmetic$2eMul$2e$2a" name
+
+  -- The source spelling of a resolved name: the operator's own text for the
+  -- encoded globals a formula's operators resolve to, and the name itself
+  -- otherwise (a parameter or a call keeps the spelling the contract wrote).
+  source-spelling :: String -> String
+  source-spelling name =
+    if string-starts-with "i.Relation$2eOrd$2eOrd$2e$3c$3d" name then "<="
+    else if string-starts-with "i.Relation$2eOrd$2eOrd$2e$3c" name then "<"
+    else if string-starts-with "i.Relation$2eOrd$2eOrd$2e$3e$3d" name then ">="
+    else if string-starts-with "i.Relation$2eOrd$2eOrd$2e$3e" name then ">"
+    else if string-starts-with "i.Relation$2eEq$2eEq$2e$3d$3d" name then "=="
+    else if string-starts-with "i.Relation$2eEq$2eEq$2e$2f$3d" name then "/="
+    else if string-starts-with "i.Algebra$2eArithmetic$2eAdd$2e$2b" name then "+"
+    else if string-starts-with "i.Algebra$2eArithmetic$2eSub$2e$2d" name then "-"
+    else if string-starts-with "i.Algebra$2eArithmetic$2eMul$2e$2a" name then "*"
+    else if same name "b.copyOut" then "copyOut"
+    else if same name "b.refSet" then "refSet"
+    else if same name "b.borrow" then "borrow"
+    else if same name "b.mutBorrow" then "mutBorrow"
+    else if same name "b.unrefine" then "unrefine"
+    else name
 
   contract-renders-argument :: Expr -> String
   contract-renders-argument e = case e of
