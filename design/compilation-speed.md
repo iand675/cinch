@@ -1075,23 +1075,106 @@ definitions, stage-3 binary, no imports:
 |200|17.02 s|
 |400|77.73 s|
 
-That is quadratic. The profile of the n=200 arm puts 14.1% inclusive in
-`Bootstrap.Infer.check-global-core` and 12.4% in
-`Bootstrap.Core.total-core-row`, with `total-core-merge` 12.2% and
-`total-core-call` 10.6% under it. The mechanism is
-`total-core-insert`: a sorted insertion into a `List Json`, called once per
-definition by `total-core-gather`, so building the total-core table for a
-module of `n` definitions is `n` insertions into a list of up to `n` rows,
-each one re-reading and re-comparing identities. The table is rebuilt per
-module rather than cached, and `core-total-function` calls `total-core-gather`
-again per definition it is asked about.
+That is quadratic, and this section has named three mechanisms for it in
+turn. The first two are superseded; the third is measured.
 
-Nothing here was changed: it is a representation change in
-`Bootstrap.Core`'s total-function table, not a local fix, and the item 11
-landing was already the larger win. The `huge-module` workload is sized at
-200 definitions for that reason, and the sweep records `frontend_s`
-separately so this curve shows up as a column rather than hiding in a
-total.
+**Superseded: the sorted insertion.** `total-core-insert` was a sorted
+insertion into a `List Json`, called once per definition by
+`total-core-gather`, so building the table for `n` definitions was `n`
+insertions into a list of up to `n` rows. Lane `dasl-quad-core` replaced it
+with one merge sort over the gathered rows and **the curve did not move**:
+n=400 stayed at 2.24 billion blocks against 2.25 billion before, a 0.5%
+change. At n=400 the table holds 400 rows, so `n` insertions into an
+`n`-element list is `n^2` comparisons over a 400-element list, which cannot
+be the growth in a run that allocates two billion blocks.
+
+**Superseded: the per-definition closure scan.** With the insertion gone,
+the profile put 52.1% of `elaborate-module` under `check-global-core`, and
+the obvious reading was that `total-core-native-definition`'s linear scan
+of the definition list, run per definition, was the term. A hit census
+refutes it: `total-core-native-definition` is **2.8%** of
+`check-global-core` at n=400. An index over the definitions would buy about
+3%.
+
+**Measured: the all-pairs body-compatibility walk.** Relinking the stage-3
+IR at `-O0` (which reproduces the `-O2` block count exactly, so it is
+faithful; `-O2` inlines the whole loop into `check-global-core` and names
+nothing) attributes `check-global-core` as follows.
+
+|shape|`check-global-core`|`BodyContract.compatible`|`total-core-native-definition`|
+|---|---|---|---|
+|400 definitions, `main = 0`|74.8% of `elaborate-module`|**92.7%**|2.8%|
+|400 definitions, all reachable|68.4% of the run|**92.5%**|2.8%|
+|100 definitions, `main = 0`|17.4%|80.8%|n/a|
+
+The chain is
+
+```
+check-global-core
+  -> check-core-closed                     (per definition)
+     -> core-definition-checked-contracts-closed
+        -> check-body-bindings -> body-bindings-closed      all pairs of bindings
+           -> compatible a rest
+              -> total-functions-compatible
+                 -> graph-views-compatible
+                    -> compatible-definitions               all pairs of rows
+                       -> find (linear scan of the other document)
+                       -> canonical-bytes row                serialise per row
+```
+
+`body-bindings-closed` compares every ordered pair of body bindings once,
+and each pair runs `compatible-definitions`, which for every row of one
+document linearly scanned the other and serialised both rows to bytes. Two
+quadratics multiplied together, with a document serialisation inside the
+inner one.
+
+The census also settles whether the walk repeats per definition, and it
+does not: `BodyContract.compatible` runs **549 times at n=100 and 1449 at
+n=400**, which is `B(B-1)/2` for `B = 33` and `B = 54` to the count. The
+ratio is 2.64, matching the binding model's 2.71 rather than a
+per-definition model's 10.8. So there is one walk, not one per definition,
+and hoisting its verdict out of the loop is a no-op. The fix is the inner
+term only.
+
+**The fix (landed).** `compatible-definitions` builds a `HashMap` from
+identity to row for the second document once per call and probes it per row
+of the first, replacing the restarting linear scan and its repeated
+identity extraction. The map keeps the **first** row of a duplicated
+identity, because `hash-map-insert` replaces on an equal key and the fold
+inserts the head last, which is the row the scan returned. So the same row
+is compared, the same verdict is produced, and a refusal names the same
+definition.
+
+Blocks per definition, before, on this tree's stage-3 binary
+(`--emit-ir`, the sweep's `definitions` generator):
+
+|n|all refs distinct|all refs to one|all dead (`main = 0`)|
+|---|---|---|---|
+|100|1,315,994|888,891|834,570|
+|200|1,569,259|689,318|634,255|
+|400|2,565,916|782,079|726,328|
+
+The middle and right columns are the point: 400 definitions that `main`
+never touches cost 290.5M blocks against 1,026.4M when `main` reads all
+400. Declaring the definitions costs 89% of reading them, so the cost
+tracks the binding count in the closure, not the reference count.
+
+The `huge-module` workload stays at 200 definitions, and the sweep records
+`frontend_s` separately so this curve shows up as a column rather than
+hiding in a total.
+
+**The exponent table.** `experiments/cx-sweep/`, four points per axis, block
+counts, control reproduced at 6.01 blocks per interface byte with an
+exponent of 0.998.
+
+|axis|n|before `k`|after `k`|
+|---|---|---|---|
+|definitions|25 / 50 / 100 / 200|1.94|TBD|
+|modules|8 / 16 / 32 / 64|3.08|TBD|
+|entries|8 / 16 / 32 / 64|1.92|TBD|
+
+Before, in blocks: definitions 71.7M / 84.7M / 131.6M / 313.9M; modules
+67.6M / 74.5M / 120.4M / 515.1M; entries 70.6M / 81.6M / 121.9M / 275.5M.
 
 ## 3. The query graph (rustc, Salsa, Shake)
 
