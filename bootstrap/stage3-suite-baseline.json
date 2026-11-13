@@ -6,7 +6,7 @@
  "fully_passing": 145,
  "tests_passed": 928,
  "tests_failed": 631,
- "runner": "tooling/run_stage_targets.py --stage 3 --jobs 3 --all, with bootstrap_function_preconditions re-run after removing its ignored case",
+ "runner": "tooling/run_stage_targets.py --stage 3 --jobs 3 --all; bootstrap_function_preconditions re-run after its ignored case was removed",
  "rows": [
   {
    "target": "alloc_accounting",
