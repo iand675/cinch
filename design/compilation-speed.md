@@ -1086,12 +1086,14 @@ each one re-reading and re-comparing identities. The table is rebuilt per
 module rather than cached, and `core-total-function` calls `total-core-gather`
 again per definition it is asked about.
 
-Nothing here was changed: it is a representation change in
-`Bootstrap.Core`'s total-function table, not a local fix, and the item 11
-landing was already the larger win. The `huge-module` workload is sized at
-200 definitions for that reason, and the sweep records `frontend_s`
-separately so this curve shows up as a column rather than hiding in a
-total.
+The reading above, that the sorted insertion is the mechanism, is
+**superseded**: the insertion was removed and this curve did not move.
+Section 2.19 has what the table work did and did not buy, and where the
+superlinear term actually is. Do not re-attempt the insertion.
+
+The `huge-module` workload is sized at 200 definitions because of this
+curve, and the sweep records `frontend_s` separately so it shows up as a
+column rather than hiding in a total.
 
 ### 2.19 The total-core table: what actually moved, and what did not (2026-11-13)
 
@@ -1185,6 +1187,24 @@ is a new type threaded through `bodies-match`, `global-definition-closed`
 and `core-source-function`; it is not a local edit and was left out of this
 round rather than half-done. `modules` inherits the same term and would
 fall with it.
+
+**Isolating that term.** The axis sweep moves module size and closure size
+together, so it cannot separate "cost per module" from "cost per reachable
+definition". A differential can. Hold one module of 400 independent
+`Int -> Int` definitions fixed and vary only which definitions `main` names,
+at 400 references either way:
+
+|shape|wall|blocks|
+|---|---|---|
+|400 references over 400 distinct definitions|68.4 s|2,201,049,911|
+|400 references all to one definition|12.1 s|358,157,968|
+|one reference to one definition|9.0 s|300,932,656|
+
+Same module, same reference count, same work in the module's own body: 5.6x
+the time and 6.1x the blocks when the references reach 400 distinct
+definitions instead of one. The cost is per reachable definition multiplied
+by the closure, not per module, which is the shape the re-gather above
+predicts and corroborates its conclusion from `bodies-match` independently.
 
 ## 3. The query graph (rustc, Salsa, Shake)
 
