@@ -25,6 +25,7 @@ builder process itself, which is the frontend time the ladder is paying for.
 from __future__ import annotations
 
 import argparse
+import bisect
 import json
 import os
 import platform
@@ -47,8 +48,13 @@ TOOLKIT = ("Lex", "Scan", "Parse", "Json", "Builder")
 
 # cargo reports its own elapsed time; the stage logs carry it verbatim.
 CARGO_FINISH = re.compile(r"^\s*Finished\b.*?\bin (?:(?P<m>[0-9]+)m ?)?(?P<s>[0-9.]+)s\s*$", re.M)
-# `sample` indents one call-graph level per two columns, starting at four.
-SAMPLE_LINE = re.compile(r"^(?P<indent>\s*)(?:[+!:|]\s+)?(?P<count>[0-9]+)\s+(?P<rest>.*)$")
+# `sample` indents one call-graph level per two columns, starting at four,
+# and draws its group markers (`+`, `!`, `:`, `|`) in the gutter *before*
+# the count: one marker per two columns of indent, so a frame four levels
+# deep reads `      !   | + ! 5763 symbol`. The marker run is therefore part
+# of the indent, not one optional prefix; matching only a single marker
+# drops every frame deeper than the first and silently flattens the graph.
+SAMPLE_LINE = re.compile(r"^(?P<indent>[ +!:|]*?)(?P<count>[0-9]+)\s+(?P<rest>.*)$")
 
 
 def iso_now() -> str:
@@ -273,6 +279,50 @@ def chain(stage: int, jobs: int, build: Path, clean: bool = True) -> list[dict]:
     return rows
 
 
+def symbol_table(binary: Path) -> list[tuple[int, str]] | None:
+    """Every defined text symbol of `binary`, ascending by address.
+
+    `sample` leaves a frame unresolved when its stack walk starts inside a
+    function it cannot name from the symbol table's own extent records: on
+    this tree that was 42% of self samples, all of them real compiler code.
+    The addresses it prints are slide-relative (`load address 0x104dac000 +
+    0x66da58`), so subtracting the slide from the printed base recovers the
+    link-time address `nm` lists.
+    """
+    try:
+        result = subprocess.run(["nm", "-n", str(binary)], capture_output=True, text=True)
+    except OSError:
+        return None
+    if result.returncode != 0:
+        return None
+    symbols = []
+    for line in result.stdout.splitlines():
+        parts = line.split()
+        if len(parts) == 3 and parts[1] in ("t", "T"):
+            try:
+                symbols.append((int(parts[0], 16), parts[2]))
+            except ValueError:
+                continue
+    symbols.sort()
+    return symbols or None
+
+
+def resolve_frame(symbol: str, symbols: list[tuple[int, str]] | None) -> str:
+    """Name an unresolved `sample` frame from its printed load address."""
+    if symbols is None or not symbol.startswith("???"):
+        return symbol
+    match = re.search(r"load address (0x[0-9a-f]+) \+ (0x[0-9a-f]+)", symbol)
+    if match is None:
+        return symbol
+    # The printed pair is the image's in-memory base and the offset inside
+    # it, so the offset is also the link-time address measured from the base
+    # the binary was linked at (the first symbol's page, the Mach-O header).
+    # `nm` lists link-time addresses, so the two agree without the slide.
+    address = int(match.group(2), 16) + (symbols[0][0] & ~0xFFF)
+    index = bisect.bisect_right([a for a, _ in symbols], address) - 1
+    return symbols[index][1].lstrip("_") if index >= 0 else symbol
+
+
 def sample_profile(argv: list[str], *, cwd: Path, seconds: int) -> dict:
     """Sample a running process, then rank self and inclusive symbols."""
     directory = SCRATCH / "sample"
@@ -288,10 +338,10 @@ def sample_profile(argv: list[str], *, cwd: Path, seconds: int) -> dict:
     process.wait()
     if not report.is_file():
         return {"error": (result.stderr or result.stdout).strip()[:400]}
-    return parse_sample(report.read_text(errors="replace"))
+    return parse_sample(report.read_text(errors="replace"), symbols=symbol_table(Path(argv[0])))
 
 
-def parse_sample(text: str, top: int = 15) -> dict:
+def parse_sample(text: str, top: int = 15, symbols: list[tuple[int, str]] | None = None) -> dict:
     """Self and inclusive sample counts from `sample`'s text call graph.
 
     `sample` prints one line per stack position; a node's count is the number
@@ -317,7 +367,12 @@ def parse_sample(text: str, top: int = 15) -> dict:
         # level from column four, and its `+`/`!`/`:` group markers sit to the
         # left of the count instead of inside the indent.
         depth = max(0, (match.start("count") - 4) // 2)
-        symbol = re.split(r"\s{2,}", match.group("rest"))[0].strip()
+        # The frame is the symbol name only; `sample` pads it away from the
+        # `(in image) + offset [address]` suffix with two or more spaces.
+        frame = match.group("rest")
+        symbol = re.split(r"\s{2,}", frame)[0].strip()
+        if symbol.startswith("???"):
+            symbol = resolve_frame(frame, symbols)
         nodes.append({"depth": depth, "count": int(match.group("count")), "symbol": symbol,
                       "children": 0})
     if not nodes:
