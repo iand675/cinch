@@ -220,6 +220,25 @@ count two, so the update copies and the original tensor keeps its element. That
 is a regression test (`tensor_set_leaves_the_original_tensor_alone`), because it
 is exactly what an ownership-selected version must not reintroduce.
 
+**What the selection actually reaches, measured.** The in-place entry fires
+where the array operand is genuinely handed over, and `lent` is a per-unit
+answer, so it does not fire in a recursive fill loop. Two programs show both
+sides:
+
+| program | `Data.Array.array-set@T` emits | why |
+| --- | --- | --- |
+| `M2` (one `array-set` on a top-level array) | `cinch_array_set_inplace` | no `lent` entry, so the unit consumes |
+| `Main.step` (recursive fill loop) | `cinch_array_set` | the array parameter is live across the recursive call, so `lent` marks it borrowed |
+
+So the entry is correct and reachable, but the loop shape this note most wants
+to speed up is exactly the shape `lent` refuses: a tail-recursive accumulator
+is live across its own call, which is a borrow by construction. Removing that
+limit is not a runtime change at all. It needs the decision at the *call site*
+(where `crate::rc` already knows whether it dups the argument) rather than per
+unit, which is a code-generation change of its own and is why part 2's scoped
+region exists: `with-array`'s callback receives the buffer at `%1`, so the loop
+is not a borrow and the entry applies. Section 9 carries this as item 6.
+
 ## 3 The growable sequence
 
 `Data.ArrayList`, backed by a new runtime block kind. The layout:
