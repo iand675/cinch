@@ -661,6 +661,267 @@ The queue, in expected-value order, with the numbers that justify each:
    which deletes the allocation instead of framing it; pin the Tarjan SCC
    analysis with a test.
 
+## 8. The escape census (2026-11-13)
+
+Section 7 measured the pass's reach as slots and refusals by reason. That is
+not enough to decide what to do next: "escapes" covers six different
+positions, and the rule's own checks (`duplicated`, `layout`, `size`) are
+refused before any reference is looked at, so a candidate that is both
+duplicated and returned appears in one column and hides the other. Section 8
+classifies every allocation the pass considers, reports the classes with
+their block counts and payload bytes, and asks of each class what relaxing
+it would buy.
+
+### 8.1 The instrument
+
+`--escape-report` (`CINCH_ESCAPE_REPORT=1` does the same for a caller that
+cannot pass flags) prints the census after frame allocation, and the
+artifact manifest's `stack` row carries it:
+
+```
+$ cinch emit-ir compiler.cinch -o /tmp/compiler.ll --escape-report
+cinch escape census: compiler.cinch (EmitIr): 2389 let-bound allocation(s), ...
+```
+
+`stack.classes` is the binding reason per class (the first check that
+failed, in the rule's order), so its counts sum to `stack.candidates`;
+`stack.positions` counts escape positions independently, so a candidate that
+escapes in two positions appears under both. `stack.payload` is the payload
+bytes the frame slots hold, `stack.largest` and `stack.largest_class` are the
+largest candidate payload and the class that refused it, and
+`stack.partial` is the partial-escape population of section 8.5.
+
+The classes are `Refusal::ALL` in `compiler/src/stack.rs`:
+
+| Class | What it is |
+| --- | --- |
+| `frame` | lowered into the unit's frame |
+| `layout` | a boundary layout (`repr(C)`, `packed`, `transparent`) |
+| `form` | a site the emitter will not lower as one block (an unknown constructor unit, a closure over a unit that does not exist) |
+| `uncounted` | the binder's class is `Raw`, so no `Drop` hangs on the payload's release |
+| `duplicated` | `Dup`ped with a counted payload word |
+| `size` | above the block limit and otherwise eligible |
+| `frame-limit` | the unit's frame would pass its limit and otherwise eligible |
+| `return` | the unit's own result |
+| `value` | a `let` value, an `If` condition, another non-result value position |
+| `field` | a store into a field of a block that is not frame-bound |
+| `call` | an argument of a call the pass cannot see into |
+| `tail-call` | an argument of a call in tail position |
+| `spawn` | an argument of `spawn` |
+| `jump` | an argument of a join's `Jump` |
+| `capture` | a closure's saved word |
+| `write` | a `RefSet`/`BoxInit`/`LazyInit` store, or the cell written through |
+| `head` | the callee of an application |
+
+Reproducing it: `python3 tooling/bootstrap.py build --stage 3` builds the
+seed, then `compiler/target/release/cinch emit-ir <bundle> --escape-report`.
+The two bundles this section reports are `tooling/pgo.py`'s training bundle
+(the five toolkit modules, 3,966 lines, `main = 0`) and
+`tooling/bootstrap.py`'s `collect_compiler_sources` bundle (51 files,
+40,266 lines) for the compiler's own build. `CINCH_NO_PRUNE=1` is the
+measurement the toolkit bundle needs: its `main = 0` reaches nothing, so the
+dead-unit sweep removes the toolkit before the pass sees it.
+
+### 8.2 The table
+
+`emit-ir`, the shipped rules (`CINCH_STACK_WIDEN=all`), pruning as the build
+does it, `--escape-report`:
+
+| Workload | Candidates | Frame | `duplicated` | `return` | `value` | `field` | `call` | `tail-call` | `capture` | `head` | Slots | Payload |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| toolkit bundle, `CINCH_NO_PRUNE=1` | 61 | 1 (1.6%) | 1 (1.6%) | 6 (9.8%) | 8 (13.1%) | 10 (16.4%) | 2 (3.3%) | 10 (16.4%) | 23 (37.7%) | 0 | 1 | 16 B |
+| toolkit driver (the lexer over a source string) | 9 | 0 (0.0%) | 1 (11.1%) | 1 (11.1%) | 0 | 6 (66.7%) | 0 | 1 (11.1%) | 0 | 0 | 0 | 0 B |
+| compiler bundle, 40,266 lines | 2,389 | 1,165 (48.8%) | 494 (20.7%) | 55 (2.3%) | 184 (7.7%) | 326 (13.6%) | 89 (3.7%) | 60 (2.5%) | 4 (0.2%) | 12 (0.5%) | 1,165 | 21,040 B |
+
+Payload bytes per class, same runs:
+
+| Workload | `frame` | `duplicated` | `return` | `value` | `field` | `call` | `tail-call` | `capture` | `head` | Largest |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| toolkit bundle | 16 | 32 | 88 | 144 | 184 | 32 | 240 | 640 | 0 | 56 B |
+| toolkit driver | 0 | 32 | 24 | 0 | 120 | 0 | 56 | 0 | 0 | 56 B |
+| compiler bundle | 21,040 | 8,096 | 864 | 3,056 | 7,464 | 2,472 | 1,176 | 112 | 528 | 88 B |
+
+Escape positions, counted independently (a candidate may hold several), on
+both workloads:
+
+| Position | Toolkit bundle | % | Bytes | Compiler bundle | % | Bytes |
+| --- | --- | --- | --- | --- | --- | --- |
+| `field` | 23 | 37.7% | 392 | 847 | 35.5% | 15,808 |
+| `tail-call` | 17 | 27.9% | 344 | 102 | 4.3% | 1,904 |
+| `value` | 8 | 13.1% | 144 | 188 | 7.9% | 3,216 |
+| `return` | 6 | 9.8% | 88 | 67 | 2.8% | 1,056 |
+| `call` | 4 | 6.6% | 64 | 260 | 10.9% | 5,328 |
+| `capture` | 23 | 37.7% | 640 | 11 | 0.5% | 488 |
+| `head` | 1 | 1.6% | 32 | 15 | 0.6% | 616 |
+
+`spawn`, `jump` and `write` are zero on both workloads: the compiler builds
+no task closures, its joins are all lowered to branches the scan already
+walks, and no `let`-bound block is stored through a `RefSet`, `BoxInit` or
+`LazyInit`.
+
+The independent column is why the class column cannot answer the queue's
+questions alone. `field` is 326 candidates by binding reason and 847
+positions: most field stores sit in candidates that some other check
+refused first (a duplicated payload, a returned holder), so a change to the
+store rule would reach 847 stores but only the 326 candidates whose binding
+reason it is. Both numbers are real, and they answer different questions:
+"how many allocations would this rule move" (binding) and "how many
+references would it admit" (position).
+
+### 8.3 What the classes say
+
+**The size class is empty because nothing is near the limit, not because the
+check is unreachable.** The largest candidate payload on either workload is
+88 bytes (11 words) on the compiler bundle and 56 bytes (7 words) on the
+toolkit, against a 4 KiB block limit and a 16 KiB frame limit.
+Raising `DEFAULT_BLOCK_LIMIT` would buy nothing on either: there is no
+candidate between 88 bytes and 4 KiB, and the `size` class is empty because
+of that, not because the check is unreachable (the `largest` column is what
+says so, which is why the manifest carries it).
+
+The frame limit is slack too, and measured both ways. Raising it to 1 MiB
+leaves the compiler bundle's census identical, class for class, to the
+16 KiB run (1,165 frame, 494 duplicated, and every other row unchanged), so
+no unit's frame is near the limit. Lowering it to 0 moves the compiler
+bundle's 1,165 slots into `frame-limit` (48.8%, 21,040 bytes) and the
+toolkit bundle's single slot likewise, which is the check working and the
+column being the population a limit would buy. `frame-limit` is zero at the
+default on both workloads. Neither limit is a lever on these two programs;
+both are worth keeping as bounds (they are what keeps a pathological unit
+off the stack) but there is nothing to raise, and a per-unit block limit
+would have no population to apply to either.
+
+**The layout class is empty.** No candidate on either workload is a
+`repr(C)`, `packed` or `transparent` constructor. Reproducing recorded
+offsets would be worth zero bytes here, which is why this lane did not
+attempt it: it is a change with a real cost (the code generator's field
+access would need the layout plan at the allocation site, and the frame
+release would need the recorded offsets rather than payload order) against a
+population of zero.
+
+**`duplicated` is the largest single rule-level class on the compiler
+bundle: 494 candidates, 20.7%, 8,096 bytes.** That is the population section
+7.2's queue item 5 named, and it is bigger than the three it guessed at. The
+rule refuses a `Dup`ped binder whose payload holds a counted word, because
+two references need two releases and a frame block has no count to make one
+of them a no-op. The reachable refinement is not "a larger limit" but
+dead-field lookahead: a duplicated block whose counted fields are *dead* on
+every path needs no release at all, so both references can drop it as a
+no-op. This census does not measure how many of the 494 have that shape (it
+would need a liveness pass over the payload), so the next step is to measure
+it before building it, exactly as item 5 said, but now with the size known:
+at most 494 candidates and 8,096 bytes.
+
+**`capture` dominates the toolkit bundle (23 of 61 candidates, 640 bytes)
+and is nearly absent from the compiler bundle (4 binding, 11 positions).**
+A captured word is a closure environment slot, and a frame block's address
+cannot go there: the closure outlives the activation as soon as anything
+stores it. The toolkit's
+combinators are closures over freshly built blocks, which is why the class is
+large there. No widening reaches it: a closure that captures a block is the
+definition of the block escaping.
+
+**`field` is the largest escape position on both workloads** (847
+positions on the compiler bundle, 23 on the toolkit bundle, 6 of 9 on the
+driver). A store into a block that is not itself frame-bound keeps the child
+on the heap. The `store` widening already admits the case where the holder
+is frame-bound, and section 7.5 measured it firing on the shapes it is for
+but not on the compiler workload, because there the holder is returned or
+stored in turn. The population is therefore
+the same one `return` names, seen from the other side: the holder has to
+stop escaping before its fields can be framed.
+
+**`return` is small on the compiler bundle (55 binding, 67 independent) and
+is the class section 7.2 spent its effort on.** The difference between the
+two columns is the point of counting positions independently: 12 of the
+`return` positions are in candidates whose *binding* reason is `duplicated`
+or a store, so a change to the return rule alone would not reach them. The
+worker/wrapper queue item is worth at most 67 candidates and 1,056 bytes on
+this workload, not the 3,220 that section 7.2's first-escape column reported
+(that column counted a candidate once, under whichever escape came first in
+the walk, so it could not separate a returned block from a block that is
+duplicated *and* returned).
+
+### 8.4 What this lane changed
+
+Nothing in the rule. The census is the deliverable, and every class that
+could have justified a change came out either empty (`layout`, `size`,
+`frame-limit`, `spawn`, `jump`, `write`, `uncounted`) or too small to be
+worth a rule (`return` at 2.3% binding, `call` at 3.7%, `head` at 0.5%,
+`capture` at 0.2%). The two classes worth acting on are `duplicated`
+(section 7.2's item 5, now sized at 494 candidates and 8,096 bytes) and the
+partial-escape population below, which is the next lane by the task's own
+ordering.
+
+The size limits are worth keeping and not worth raising. The largest
+candidate is 88 bytes on the compiler bundle and 56 on the toolkit bundle,
+against a 4 KiB block limit and a 16 KiB per-unit frame limit. Measured both
+ways on the compiler bundle: at `--stack-frame-limit 1048576` the census and
+the emitted IR are identical to the 16 KiB run, so no unit is near the
+limit; at `--stack-frame-limit 0` all 1,165 slots move into `frame-limit`
+(48.8%, 21,040 bytes), which is the check working and the column being the
+population a limit would buy. A per-unit block limit would be a rule with no
+population to apply to.
+
+The emitted IR is byte-identical before and after the instrumentation on
+both workloads (`cmp` on the two `emit-ir` outputs), the manifest's `stack`
+row gained `payload`, `classes`, `positions`, `partial`, `largest` and
+`largest_class`, and `refused` keeps its old shape so every existing reader
+(the `stack_allocation` tests included) sees what it saw.
+
+Two caveats for whoever runs the target suite against
+`bootstrap/stage3-suite-baseline.json`. That baseline is dated from commit
+`5fc2d4ee`, which predates `bootstrap/Bootstrap.Expand.cinch`; two targets
+therefore fail for a reason this pass cannot reach, and neither is a
+regression of the census. `bootstrap_parse` reports
+`Bootstrap.Expand` in its measured unmodeled table without the constant
+listing it (the test enumerates modules by hand), and `bootstrap_pipeline`
+fails to build its fixture because the fixture ships no
+`Bootstrap.Expand.cinch`. Re-deriving the baseline against a current
+commit is the fix; it is not this lane's change to make.
+
+### 8.5 The partial-escape population, sized for the next lane
+
+A value whose references are consumed on one branch and escape on another is
+the partial-escape case: the value could stay virtual (a frame slot) on the
+consuming path and be materialised as a heap block only on the escaping
+path. The census counts a candidate as partial when its first escape sits at
+branch path `E` and some path `C` that ends the value does not start with
+`E`, which is exactly "the escape and the consumption are on different
+sides of a decision point".
+
+| Workload | Partial | % of candidates | Bytes |
+| --- | --- | --- | --- |
+| toolkit bundle | 14 | 23.0% | 312 |
+| toolkit driver | 2 | 22.2% | 80 |
+| compiler bundle | 161 | 6.7% | 3,600 |
+
+161 candidates and 3,600 bytes on the compiler bundle, 14 and 312 bytes on
+the toolkit bundle. That is the size of the next lane: a split that keeps
+the value in the frame on the consuming path would move at most those 161
+allocations off the heap, and it costs a copy on every escaping path plus a
+rule for which path owns the release. It is smaller than the `duplicated` population and it
+is a much larger change (the value becomes two values with different
+lifetimes), which is why it is the next lane and not this one.
+
+**Dynamic promotion is not needed and the census says so.** Allocate on the
+stack and copy to the heap if the value escapes at run time needs a barrier
+on every store of a frame pointer into a heap object, and the population it
+would reach is the 161 partial candidates above. The rule-level classes
+(`duplicated` 494, `layout` 0, `size` 0, `uncounted` 0) are not reachable by
+promotion at all: a duplicated payload's problem is a second *release*, not a
+late escape. 6.7% of the candidates, at the price of a write barrier on every
+heap store in the program, is not a trade this census recommends.
+
+What a promotion would have to be, to be complete: the barrier has to catch
+a frame pointer stored into any heap object, which is every `field` store,
+every `capture` and every `write` in the census's position column (847, 11
+and 0 on the compiler bundle). The three positions are already refused by
+the rule, so the promotion would have to add a check to the store path for
+a population the static rule already refuses: it converts a compile-time
+refusal into a run-time copy, and it cannot help the candidates whose
+binding reason is `duplicated` (the majority) at all.
+
 Then the Cinch-side implementation, gated on matching the seed's emitted IR
 for the toolkit bundle.
 

@@ -64,6 +64,11 @@ flags:
               on by default; with it off the IR is the pre-pass IR)
   --stack-frame-limit <bytes>  the most frame bytes one unit may reserve
               (default 16384); the rest of its allocations stay on the heap
+  --escape-report  print the escape census after frame allocation: one row
+              per class (frame-allocated, and every reason an allocation
+              stayed on the heap) with its count, percentage and the payload
+              bytes those allocations carry (CINCH_ESCAPE_REPORT=1 does the
+              same; design/stack-allocation.md section 8)
   --dump-core <stage>  also write build/<entry>.core at that pipeline point:
               checked (solved and elaborated are aliases), owned, or lowered
               (the default stage, and the exact code generation input); a
@@ -341,6 +346,7 @@ fn main() {
                     }
                 }
             }
+            "--escape-report" => opts.escape_report = true,
             "--print-link-plan" => opts.print_link_plan = true,
             "--allow-raw-link" => {
                 i += 1;

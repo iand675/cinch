@@ -4414,6 +4414,11 @@ pub struct DriverOptions {
     /// reserve (default 16 KiB); the rest of its allocations stay on the
     /// heap.
     pub stack_frame_limit: Option<u64>,
+    /// `--escape-report` (`CINCH_ESCAPE_REPORT=1`): print the escape
+    /// census after frame allocation, one row per class with its count,
+    /// its percentage and the payload bytes the refused allocations carry
+    /// (design/stack-allocation.md section 8).
+    pub escape_report: bool,
     /// The words the CLI forwards to the program `Mode::Run` executes:
     /// every argument after the entry file (`cinch run f.cinch a b`, or
     /// everything after `--` verbatim). They land on the built program's
@@ -4435,6 +4440,12 @@ impl DriverOptions {
             // (`CINCH_STACK_WIDEN`); unset is the shipped rule.
             widen: crate::stack::Widen::from_env(),
         }
+    }
+
+    /// Whether the escape census prints: `--escape-report` or
+    /// `CINCH_ESCAPE_REPORT=1` (design/stack-allocation.md section 8).
+    pub fn escape_report(&self) -> bool {
+        self.escape_report || std::env::var_os("CINCH_ESCAPE_REPORT").is_some()
     }
 
     /// The simplifier budget these flags select: the pass cap, whether
@@ -4699,11 +4710,17 @@ impl<'a> CoreDump<'a> {
             );
         }
         if let Some(stack) = stack {
-            // Frame allocation (design/stack-allocation.md): what the pass
-            // put in the frames, and why the rest stayed on the heap.
+            // Frame allocation (design/stack-allocation.md section 8): what
+            // the pass put in the frames, and why the rest stayed on the
+            // heap. `refused` is the rule-level roll-up every earlier
+            // reader expects (one `escapes` row); `classes` is the census,
+            // one row per class with the count and the payload bytes those
+            // allocations carry.
             let mut refused: Vec<(&str, &u64)> =
                 stack.refused.iter().map(|(why, n)| (*why, n)).collect();
             refused.sort();
+            let classes: Vec<(&str, crate::stack::Tally)> =
+                stack.classes.iter().map(|(why, t)| (*why, *t)).collect();
             fields.insert(
                 "stack".to_string(),
                 J::obj([
@@ -4711,6 +4728,7 @@ impl<'a> CoreDump<'a> {
                     ("units", stack.units.into()),
                     ("slots", stack.slots.into()),
                     ("bytes", stack.bytes.into()),
+                    ("payload", stack.payload.into()),
                     ("candidates", stack.candidates.into()),
                     (
                         "refused",
@@ -4718,6 +4736,50 @@ impl<'a> CoreDump<'a> {
                             refused
                                 .into_iter()
                                 .map(|(why, n)| (why.to_string(), (*n).into()))
+                                .collect(),
+                        ),
+                    ),
+                    (
+                        "classes",
+                        J::Obj(
+                            classes
+                                .into_iter()
+                                .map(|(why, t)| {
+                                    (
+                                        why.to_string(),
+                                        J::obj([
+                                            ("count", t.count.into()),
+                                            ("bytes", t.bytes.into()),
+                                        ]),
+                                    )
+                                })
+                                .collect(),
+                        ),
+                    ),
+                    (
+                        "partial",
+                        J::obj([
+                            ("count", stack.partial.count.into()),
+                            ("bytes", stack.partial.bytes.into()),
+                        ]),
+                    ),
+                    ("largest", stack.largest.into()),
+                    ("largest_class", stack.largest_class.into()),
+                    (
+                        "positions",
+                        J::Obj(
+                            stack
+                                .positions
+                                .iter()
+                                .map(|(why, t)| {
+                                    (
+                                        why.to_string(),
+                                        J::obj([
+                                            ("count", t.count.into()),
+                                            ("bytes", t.bytes.into()),
+                                        ]),
+                                    )
+                                })
                                 .collect(),
                         ),
                     ),
@@ -4838,6 +4900,7 @@ fn core_emit(args: &[String]) -> i32 {
             }
             "--case-of-case" => opts.case_of_case = true,
             "--no-stack-alloc" => opts.no_stack_alloc = true,
+            "--escape-report" => opts.escape_report = true,
             "--stack-frame-limit" => {
                 i += 1;
                 match args.get(i).and_then(|n| n.parse::<u64>().ok()) {
@@ -5631,6 +5694,14 @@ pub fn driver_with_profile_opts(
     // here, after specialization, reference counting and frame allocation.
     if dump.wants(crate::coretext::Stage::Lowered) && mode != Mode::Check {
         dump.write_lowered(&program, &opt, &ifaces, &mut core_rows)?;
+    }
+    // The escape census (design/stack-allocation.md section 8): the table
+    // is the deliverable of the pass's measurement, so it prints whenever
+    // the caller asked, at the one point the program's own decision is
+    // final and before any later stage can change it.
+    if opts.escape_report() {
+        let what = format!("{} ({mode:?})", path.display());
+        eprint!("{}", program.stack.table(&what));
     }
     if opts.core_only {
         dump.record(&manifest_path, &core_rows, Some(&program.stack))?;

@@ -208,6 +208,9 @@ pub struct Plan {
     pub slots: Vec<u32>,
     /// The bytes the unit's frame reserves, alignment included.
     pub bytes: u64,
+    /// The payload bytes the slots hold, header and alignment aside: the
+    /// column the census's refused classes are measured in.
+    pub payload: u64,
 }
 
 impl Plan {
@@ -227,40 +230,149 @@ impl Plan {
     }
 }
 
-/// Why a candidate allocation stayed on the heap.
+/// Why a candidate allocation stayed on the heap: the escape census's
+/// classification (design/stack-allocation.md section 8).
+///
+/// The first six variants are the rule's own checks, in the order
+/// [`eligible`] applies them: a candidate that fails one of those would be
+/// frame-allocated if that check alone were relaxed. The rest name the
+/// position of a reference that leaves the allocating activation, which is
+/// the population a wider rule (or a partial-escape split) would have to
+/// reach.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Refusal {
     /// A boundary-layout (`repr(C)`, `repr(packed)`, `repr(transparent)`)
     /// constructor, whose fields do not sit at their payload index.
     Layout,
-    /// A `let`-bound constructor call the emitter would not lower as one
-    /// block (an unknown unit, a boundary offset, or a closure over a unit
-    /// that does not exist).
+    /// A `let`-bound allocation the emitter would not lower as one block (a
+    /// partial application, a nullary constructor, an unknown unit, or a
+    /// closure over a unit that does not exist).
     Form,
-    /// Above [`DEFAULT_BLOCK_LIMIT`] bytes.
-    Size,
+    /// The binder's class is not counted (`Class::Raw`, or a `Class::Param`
+    /// the collector left), so there is no `Drop` for the payload release
+    /// to hang on.
+    Uncounted,
     /// The binder is `Dup`ped and its payload holds a counted word: a
     /// second reference needs a second release of that word, which a frame
     /// block has no count to make a no-op.
     Duplicated,
-    /// A reference leaves the activation (returned, stored, passed,
-    /// captured, projected, or written through).
-    Escapes,
-    /// The unit's frame would pass its limit.
+    /// The payload is above the block limit and nothing else refuses it.
+    Size,
+    /// The unit's frame would pass its limit and nothing else refuses it.
     FrameLimit,
+    /// A reference is the unit's own result.
+    Return,
+    /// A reference is the value of a `let`, or another value position that
+    /// is not the unit's result.
+    Value,
+    /// A reference is stored into a field of a block that is not
+    /// frame-bound.
+    Field,
+    /// A reference is an argument of a call the pass cannot see into.
+    Call,
+    /// A reference is an argument of a call in tail position.
+    TailCall,
+    /// A reference is an argument of `spawn`.
+    Spawn,
+    /// A reference is an argument of a join's `Jump`.
+    Jump,
+    /// A reference is a closure's saved word.
+    Capture,
+    /// A reference is written through a cell (`RefSet`, `BoxInit`,
+    /// `LazyInit`), or names the cell being written.
+    Write,
+    /// A reference is the callee of an application.
+    Head,
 }
 
 impl Refusal {
-    /// The name the manifest and the dump use.
+    /// Every class, in report order: the rule's checks, then the escape
+    /// positions.
+    pub const ALL: [Refusal; 16] = [
+        Refusal::Layout,
+        Refusal::Form,
+        Refusal::Uncounted,
+        Refusal::Duplicated,
+        Refusal::Size,
+        Refusal::FrameLimit,
+        Refusal::Return,
+        Refusal::Value,
+        Refusal::Field,
+        Refusal::Call,
+        Refusal::TailCall,
+        Refusal::Spawn,
+        Refusal::Jump,
+        Refusal::Capture,
+        Refusal::Write,
+        Refusal::Head,
+    ];
+
+    /// The name the census table, the manifest and the dump use.
     pub fn name(self) -> &'static str {
         match self {
             Refusal::Layout => "layout",
             Refusal::Form => "form",
-            Refusal::Size => "size",
+            Refusal::Uncounted => "uncounted",
             Refusal::Duplicated => "duplicated",
-            Refusal::Escapes => "escapes",
+            Refusal::Size => "size",
             Refusal::FrameLimit => "frame-limit",
+            Refusal::Return => "return",
+            Refusal::Value => "value",
+            Refusal::Field => "field",
+            Refusal::Call => "call",
+            Refusal::TailCall => "tail-call",
+            Refusal::Spawn => "spawn",
+            Refusal::Jump => "jump",
+            Refusal::Capture => "capture",
+            Refusal::Write => "write",
+            Refusal::Head => "head",
         }
+    }
+
+    /// The rule-level roll-up the manifest's `refused` row and the design
+    /// note before section 8 use: every escape position is one `escapes`.
+    pub fn coarse(self) -> &'static str {
+        match self {
+            Refusal::Layout
+            | Refusal::Form
+            | Refusal::Uncounted
+            | Refusal::Duplicated
+            | Refusal::Size
+            | Refusal::FrameLimit => self.name(),
+            _ => "escapes",
+        }
+    }
+
+    /// Whether this class is a reference that leaves the activation.
+    pub fn is_escape(self) -> bool {
+        !matches!(
+            self,
+            Refusal::Layout
+                | Refusal::Form
+                | Refusal::Uncounted
+                | Refusal::Duplicated
+                | Refusal::Size
+                | Refusal::FrameLimit
+        )
+    }
+}
+
+/// One census row: how many candidates a class holds and the payload bytes
+/// they would have carried.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Tally {
+    pub count: u64,
+    /// The payload bytes (`words * 8`) of the allocations in the class, the
+    /// header and alignment aside. Zero for a class whose allocation the
+    /// pass could not size (`layout` is sized, `form` and `uncounted` are
+    /// not: a form the pass cannot lower has no known arity).
+    pub bytes: u64,
+}
+
+impl Tally {
+    fn add(&mut self, bytes: u64) {
+        self.count += 1;
+        self.bytes += bytes;
     }
 }
 
@@ -276,10 +388,40 @@ pub struct Report {
     pub slots: u64,
     /// The bytes those slots reserve, alignment included.
     pub bytes: u64,
+    /// The payload bytes those slots hold, header and alignment aside: the
+    /// column the census's refused classes are measured in.
+    pub payload: u64,
     /// Every `let`-bound allocation the pass considered.
     pub candidates: u64,
-    /// The candidates that stayed on the heap, by reason.
+    /// The candidates that stayed on the heap, rolled up to the rule's own
+    /// names (every escape position is one `escapes`).
     pub refused: BTreeMap<&'static str, u64>,
+    /// The census: every class of [`Refusal::ALL`], with the count and the
+    /// payload bytes. `frame` is the class of the candidates the pass
+    /// lowered, so the row counts sum to [`Report::candidates`].
+    ///
+    /// A class here is the *binding* reason: the first check that failed,
+    /// in [`eligible`]'s order. A candidate that fails two checks appears
+    /// once, under the one a change would have to relax first, which is
+    /// what "why did this stay on the heap" means.
+    pub classes: BTreeMap<&'static str, Tally>,
+    /// Every escape position, counted independently: a candidate with an
+    /// escape in two positions appears under both. This is the population
+    /// each widening would reach on its own, which the binding-reason
+    /// column cannot show when the binding reason is a rule-level check
+    /// (a duplicated counted payload that also escapes).
+    pub positions: BTreeMap<&'static str, Tally>,
+    /// The candidates whose references are consumed on one path of a
+    /// branch and escape on another: the population a partial-escape split
+    /// (materialise a heap copy only on the escaping path) would reach.
+    pub partial: Tally,
+    /// The largest candidate payload seen (`words * 8`), and the class it
+    /// was refused by: the fact that says how much a larger block limit
+    /// would buy. When [`Report::largest`] is below `DEFAULT_BLOCK_LIMIT`,
+    /// the `size` class is empty because nothing is that big, not because
+    /// the check is unreachable.
+    pub largest: u64,
+    pub largest_class: &'static str,
     /// The units that were handed a frame block as an owned argument: each
     /// callee whose parameter the pass let a frame allocation flow into.
     /// Code generation gives such a unit the runtime's frame arms even
@@ -287,9 +429,105 @@ pub struct Report {
     pub receives_frame: std::collections::BTreeSet<String>,
 }
 
+/// The census row for the candidates the pass lowered.
+pub const FRAME_CLASS: &str = "frame";
+
 impl Report {
-    fn refuse(&mut self, why: Refusal) {
-        *self.refused.entry(why.name()).or_insert(0) += 1;
+    /// Record every escape a candidate has, by position: the independent
+    /// column.
+    fn positions(&mut self, u: &Uses, bytes: u64) {
+        for (i, why) in Refusal::ALL.iter().enumerate() {
+            if u.escaped[i] > 0 {
+                self.positions.entry(why.name()).or_default().add(bytes);
+            }
+        }
+    }
+
+    fn refuse(&mut self, why: Refusal, bytes: u64) {
+        *self.refused.entry(why.coarse()).or_insert(0) += 1;
+        self.classes.entry(why.name()).or_default().add(bytes);
+        if bytes == self.largest {
+            self.largest_class = why.name();
+        }
+    }
+
+    fn frame(&mut self, bytes: u64) {
+        self.classes.entry(FRAME_CLASS).or_default().add(bytes);
+        if bytes == self.largest {
+            self.largest_class = FRAME_CLASS;
+        }
+    }
+
+    /// The census as a table, for `--escape-report` and
+    /// `CINCH_ESCAPE_REPORT=1`. `what` names the workload the numbers are
+    /// over.
+    pub fn table(&self, what: &str) -> String {
+        let mut out = String::new();
+        let total = self.candidates;
+        let frame = self.classes.get(FRAME_CLASS).copied().unwrap_or_default();
+        let pct = |n: u64| {
+            if total == 0 {
+                0.0
+            } else {
+                100.0 * n as f64 / total as f64
+            }
+        };
+        out.push_str(&format!(
+            "cinch escape census: {what}: {total} let-bound allocation(s), {} in a frame ({:.1}%), {} refused\n",
+            frame.count,
+            pct(frame.count),
+            total - frame.count
+        ));
+        out.push_str("  class                  count     %      bytes\n");
+        out.push_str(&format!(
+            "  {:<20} {:>6} {:>5.1} {:>10}\n",
+            FRAME_CLASS,
+            frame.count,
+            pct(frame.count),
+            frame.bytes
+        ));
+        for why in Refusal::ALL {
+            let t = self.classes.get(why.name()).copied().unwrap_or_default();
+            if t.count == 0 {
+                continue;
+            }
+            out.push_str(&format!(
+                "  {:<20} {:>6} {:>5.1} {:>10}\n",
+                why.name(),
+                t.count,
+                pct(t.count),
+                t.bytes
+            ));
+        }
+        if !self.positions.is_empty() {
+            out.push_str("\n  escape positions (independent: a candidate may hold several)\n");
+            out.push_str("  position               count     %      bytes\n");
+            for why in Refusal::ALL.iter().filter(|r| r.is_escape()) {
+                let t = self.positions.get(why.name()).copied().unwrap_or_default();
+                if t.count == 0 {
+                    continue;
+                }
+                out.push_str(&format!(
+                    "  {:<20} {:>6} {:>5.1} {:>10}\n",
+                    why.name(),
+                    t.count,
+                    pct(t.count),
+                    t.bytes
+                ));
+            }
+        }
+        out.push_str(&format!(
+            "  largest candidate: {} bytes ({}, block limit {DEFAULT_BLOCK_LIMIT}, frame limit applies per unit)\n",
+            self.largest,
+            if self.largest_class.is_empty() { FRAME_CLASS } else { self.largest_class }
+        ));
+        if self.partial.count > 0 {
+            out.push_str(&format!(
+                "  {:<20} {:>6} {:>5.1} {:>10}\n",
+                "of which partial", self.partial.count, pct(self.partial.count), self.partial.bytes
+            ));
+        }
+        out
     }
 }
 
@@ -324,6 +562,7 @@ pub fn allocate(program: &mut Program, profile: &crate::core::TargetProfile, opt
         report.units += 1;
         report.slots += plan.slot_count() as u64;
         report.bytes += plan.bytes;
+        report.payload += plan.payload;
         plans.insert(unit, plan);
     }
     program.stack = report;
@@ -415,7 +654,7 @@ impl Facts {
         (0..f.arity())
             .map(|i| {
                 counted(f.repr.params.get(i).copied().unwrap_or(Class::Raw))
-                    && s.uses.get(&i).is_some_and(|u| u.escapes == 0 && u.duplicated == 0 && u.death > 0)
+                    && s.uses.get(&i).is_some_and(|u| u.escapes() == 0 && u.duplicated == 0 && u.death > 0)
             })
             .collect()
     }
@@ -426,11 +665,41 @@ fn counted(c: Class) -> bool {
     matches!(c, Class::Obj | Class::TObj)
 }
 
+/// One allocation site the pass considers, before the rule's scan.
+///
+/// The census needs three facts about a site the old `Result<Site,
+/// Refusal>` could not carry together: what the block would cost (for the
+/// `size` and `frame-limit` columns), the refusal decided without looking
+/// at any reference (a boundary layout, a form the emitter will not lower,
+/// an uncounted binder), and the site itself when there is one.
+#[derive(Clone, Debug)]
+struct Cand {
+    /// The site, when the pass can size and lower this allocation.
+    site: Option<Site>,
+    /// The refusal the site's own shape decides, before any reference is
+    /// classified.
+    blocked: Option<Refusal>,
+    /// The payload bytes (`words * 8`), header and alignment aside: the
+    /// unit the census's refused columns are measured in.
+    bytes: u64,
+}
+
+impl Cand {
+    /// The site the rule needs, or the refusal that stands in for it.
+    fn site(&self) -> Result<&Site, Refusal> {
+        match (&self.site, self.blocked) {
+            (Some(site), None) => Ok(site),
+            (_, Some(why)) => Err(why),
+            (None, None) => Err(Refusal::Form),
+        }
+    }
+}
+
 /// One unit's plan, and the units it hands a frame block to: those need
 /// the runtime's frame arms even when they build no frame block
 /// themselves (`codegen::Registry::any_frame`).
 fn unit(f: &FnDef, facts: &Facts, opts: &Options, report: &mut Report) -> (Plan, BTreeSet<String>) {
-    let mut cands: BTreeMap<usize, Result<Site, Refusal>> = BTreeMap::new();
+    let mut cands: BTreeMap<usize, Cand> = BTreeMap::new();
     candidates(&f.body, facts, &mut cands);
     let trace = std::env::var_os("CINCH_STACK_TRACE").is_some();
     let mut plan = Plan::default();
@@ -441,55 +710,59 @@ fn unit(f: &FnDef, facts: &Facts, opts: &Options, report: &mut Report) -> (Plan,
     let (frames, scan) = decide(f, &cands, facts, opts);
     for (x, cand) in &cands {
         report.candidates += 1;
+        if cand.bytes > report.largest {
+            report.largest = cand.bytes;
+        }
         // The counted payload words, for the trace's column: what a dup or a
         // drop of the block has to act on, and so what the duplicated rule
         // turns on.
-        let counted_fields = match cand {
-            Ok(site) => site.fields.len(),
-            Err(_) => 0,
-        };
-        let site = match cand {
-            Ok(site) if frames.contains(x) => site,
-            Ok(site) => {
-                // Refused at the fixpoint: either the frame limit's shrink
-                // took it (the rule itself says it is eligible) or the last
-                // round's scan did.
-                let why = eligible(*x, site, &scan).err().unwrap_or(Refusal::FrameLimit);
-                report.refuse(why);
-                if trace {
-                    let detail = scan.uses.get(x).map(|u| u.why).unwrap_or("");
-                    let dups = scan.uses.get(x).map_or(0, |u| u.duplicated);
-                    eprintln!(
-                        "cinch-stack: {} local {x}: refused ({}{detail}, {counted_fields} counted field(s), {dups} dup(s))",
-                        f.id,
-                        why.name()
-                    );
-                }
-                continue;
+        let counted_fields = cand.site.as_ref().map_or(0, |s| s.fields.len());
+        let u = scan.uses.get(x).cloned().unwrap_or_default();
+        if !frames.contains(x) {
+            // The refusal, from the last round's scan: the rule's own check
+            // that failed, or the frame limit's shrink, which is what is
+            // left when every check passes and the slot did not fit.
+            let why = eligible(*x, cand, &scan).err().unwrap_or(Refusal::FrameLimit);
+            report.refuse(why, cand.bytes);
+            report.positions(&u, cand.bytes);
+            // The partial-escape population: a candidate refused *because*
+            // it escapes, whose escape sits on one branch while another
+            // branch consumes it. A candidate refused by a rule-level check
+            // (a duplicated counted payload, a boundary layout) is not this
+            // population: its escape is not what stops it.
+            if why.is_escape() && u.partial() {
+                report.partial.add(cand.bytes);
             }
+            if trace {
+                eprintln!(
+                    "cinch-stack: {} local {x}: refused ({}), {} byte(s), {counted_fields} counted field(s), {} dup(s), {} escape(s){}",
+                    f.id,
+                    why.name(),
+                    cand.bytes,
+                    u.duplicated,
+                    u.escapes(),
+                    if u.partial() { ", partial" } else { "" }
+                );
+            }
+            continue;
+        }
+        let site = match cand.site() {
+            Ok(site) => site,
             Err(why) => {
-                report.refuse(*why);
-                if trace {
-                    let detail = scan.uses.get(x).map(|u| u.why).unwrap_or("");
-                    let dups = scan.uses.get(x).map_or(0, |u| u.duplicated);
-                    eprintln!(
-                        "cinch-stack: {} local {x}: refused ({}{detail}, {counted_fields} counted field(s), {dups} dup(s))",
-                        f.id,
-                        why.name()
-                    );
-                }
+                report.refuse(why, cand.bytes);
                 continue;
             }
         };
         let slot = plan.slots.len() as u32;
         plan.bytes += site.bytes();
+        plan.payload += u64::from(site.words) * 8;
         plan.slots.push(site.words);
         plan.sites.insert(*x, Site { slot, ..site.clone() });
+        report.frame(cand.bytes);
         if let Some(units) = scan.consumers.get(x) {
             receivers.extend(units.iter().cloned());
         }
         if trace {
-            let u = scan.uses.get(x).copied().unwrap_or_default();
             eprintln!(
                 "cinch-stack: {} local {x}: slot {slot}, {} bytes, {counted_fields} counted field(s), \
                  {} consumptions ({}, {} stored, {} in the callee's frame)",
@@ -521,7 +794,7 @@ fn unit(f: &FnDef, facts: &Facts, opts: &Options, report: &mut Report) -> (Plan,
 /// shrink of the fixpoint instead, and the fixpoint is re-run under the
 /// shrunk set, which only removes further binders, so that loop terminates
 /// too.
-fn decide<'f>(f: &FnDef, cands: &BTreeMap<usize, Result<Site, Refusal>>, facts: &'f Facts, opts: &Options) -> (BTreeSet<usize>, Scan<'f>) {
+fn decide<'f>(f: &FnDef, cands: &BTreeMap<usize, Cand>, facts: &'f Facts, opts: &Options) -> (BTreeSet<usize>, Scan<'f>) {
     let (mut frames, _) = fixpoint(f, cands, facts, opts, None);
     loop {
         let cap = budget(cands, &frames, opts);
@@ -537,7 +810,7 @@ fn decide<'f>(f: &FnDef, cands: &BTreeMap<usize, Result<Site, Refusal>>, facts: 
 /// not leave (`cap`).
 fn fixpoint<'f>(
     f: &FnDef,
-    cands: &BTreeMap<usize, Result<Site, Refusal>>,
+    cands: &BTreeMap<usize, Cand>,
     facts: &'f Facts,
     opts: &Options,
     cap: Option<&BTreeSet<usize>>,
@@ -548,8 +821,7 @@ fn fixpoint<'f>(
         scan.unit(&f.body);
         let mut next: BTreeSet<usize> = BTreeSet::new();
         for (x, cand) in cands {
-            let Ok(site) = cand else { continue };
-            if eligible(*x, site, &scan).is_ok() {
+            if eligible(*x, cand, &scan).is_ok() {
                 next.insert(*x);
             }
         }
@@ -567,14 +839,14 @@ fn fixpoint<'f>(
 /// prefix of it that fits the limit: the candidates the frame-limit rule
 /// keeps (`decide`'s shrink).
 fn budget(
-    cands: &BTreeMap<usize, Result<Site, Refusal>>,
+    cands: &BTreeMap<usize, Cand>,
     frames: &BTreeSet<usize>,
     opts: &Options,
 ) -> BTreeSet<usize> {
     let mut bytes = 0;
     let mut kept = BTreeSet::new();
     for x in frames {
-        let Some(Ok(site)) = cands.get(x) else { continue };
+        let Some(site) = cands.get(x).and_then(|c| c.site.as_ref()) else { continue };
         bytes += site.bytes();
         if bytes > opts.frame_limit {
             break;
@@ -585,10 +857,28 @@ fn budget(
 }
 
 /// Why a candidate cannot take a frame slot, given the round's scan: the
-/// rule's checks in the order the report names them. The frame limit is
-/// [`budget`]'s, not this function's.
-fn eligible(x: usize, site: &Site, scan: &Scan<'_>) -> Result<(), Refusal> {
-    let u = scan.uses.get(&x).copied().unwrap_or_default();
+/// rule's checks in the order [`Refusal::ALL`] names them. The frame limit
+/// is [`budget`]'s, not this function's.
+///
+/// The checks are ordered so that each column of the census is the
+/// population *that check alone* refuses: a site whose shape is refused
+/// (`layout`, `form`, `uncounted`, `size`) is never counted as an escape,
+/// and an escape is reported by its position. The order the rule itself
+/// applies them is the same: a block that will not fit its limit is not
+/// frame-allocated whatever its references do, and a duplicated payload
+/// with a counted word is refused before its escapes matter.
+fn eligible(x: usize, cand: &Cand, scan: &Scan<'_>) -> Result<(), Refusal> {
+    if let Some(why) = cand.blocked {
+        return Err(why);
+    }
+    let site = cand.site.as_ref().ok_or(Refusal::Form)?;
+    // A block above the block limit is never a frame block. Reported before
+    // any reference, because the size is the reason and the bytes are the
+    // question the census asks of this class.
+    if u64::from(site.words) * 8 > DEFAULT_BLOCK_LIMIT {
+        return Err(Refusal::Size);
+    }
+    let u = scan.uses.get(&x).cloned().unwrap_or_default();
     // A second reference is harmless only when the payload holds nothing to
     // release: a frame block's dup writes no count (the `RC_FRAME` header
     // is never counted) and its drop frees nothing, so two references
@@ -598,27 +888,40 @@ fn eligible(x: usize, site: &Site, scan: &Scan<'_>) -> Result<(), Refusal> {
     if u.duplicated > 0 && !site.fields.is_empty() {
         return Err(Refusal::Duplicated);
     }
-    if u.escapes > 0 {
-        return Err(Refusal::Escapes);
+    if let Some(why) = u.first() {
+        return Err(why);
     }
     if u.death + u.consumed + u.stored == 0 {
         // No path releases the payload: the binder is dead on every path,
         // or handed to places that cannot release it. Refuse rather than
         // leak the payload.
-        return Err(Refusal::Escapes);
+        return Err(Refusal::Return);
     }
     Ok(())
 }
 
-/// Every `let`-bound allocation in `e` that the pass could lower, keyed by
-/// the binder, with the site or the reason it cannot be one.
-fn candidates(e: &Core, facts: &Facts, out: &mut BTreeMap<usize, Result<Site, Refusal>>) {
+/// Every `let`-bound allocation in `e` the pass considers, keyed by the
+/// binder, with the site or the reason it cannot be one.
+///
+/// A `let` whose value is an allocation expression is a candidate whether
+/// or not the pass can lower it: the census's `uncounted`, `form` and
+/// `layout` columns are exactly the candidates the old rule dropped before
+/// looking at any reference, so they have to reach the report to be
+/// counted at all. A `let` whose value is not an allocation (a `Var`, a
+/// primitive, a string literal) is not a candidate: nothing here allocates
+/// a block.
+fn candidates(e: &Core, facts: &Facts, out: &mut BTreeMap<usize, Cand>) {
     match e {
         Core::Let(x, c, v, body) => {
-            if counted(*c) {
-                if let Some(site) = site_of(v, facts) {
-                    out.insert(x.0, site);
+            if let Some(mut cand) = cand_of(v, facts) {
+                if !counted(*c) {
+                    // No `Drop` hangs on an uncounted binder, so the
+                    // payload has no release to give it: the class is the
+                    // refusal, and it is reported as its own row rather
+                    // than folded into `form`.
+                    cand.blocked = Some(Refusal::Uncounted);
                 }
+                out.insert(x.0, cand);
             }
             candidates(v, facts, out);
             candidates(body, facts, out);
@@ -648,38 +951,57 @@ fn candidates(e: &Core, facts: &Facts, out: &mut BTreeMap<usize, Result<Site, Re
     }
 }
 
-/// The frame site of an allocation expression, or the reason it cannot be
-/// one. `None` means the expression is not an allocation this pass handles
-/// at all (a dictionary, a memo cell, a knot, a boxed number, a string).
-fn site_of(e: &Core, facts: &Facts) -> Option<Result<Site, Refusal>> {
+/// The candidate an allocation expression names, or `None` when the
+/// expression is not an allocation this pass considers at all (a
+/// dictionary, a memo cell, a knot, a boxed number, a string, or a
+/// primitive call).
+fn cand_of(e: &Core, facts: &Facts) -> Option<Cand> {
     match e {
         Core::App(h, args) => {
             let Core::Ctor(g, _) = &**h else { return None };
             let Some((fields, arity, boundary)) = facts.ctors.get(&g.0) else {
-                return Some(Err(Refusal::Form));
+                // A constructor the program does not declare as a unit: the
+                // emitter will not lower it as one block.
+                return Some(Cand { site: None, blocked: Some(Refusal::Form), bytes: 0 });
             };
             // A partial application builds a closure in the apply stub, and
             // a nullary constructor is a static block: neither allocates
-            // this constructor's block here.
+            // this constructor's block here. They are not candidates: there
+            // is no block at this site to move into a frame.
             if args.len() != *arity || args.len() != fields.len() || args.is_empty() {
                 return None;
             }
-            if *boundary {
-                return Some(Err(Refusal::Layout));
-            }
             let words = args.len() as u32;
-            Some(payload(words, 0, fields, Shape::Ctor { ctor: g.clone(), arity: words }))
+            let bytes = u64::from(words) * 8;
+            if *boundary {
+                // A boundary layout records its fields at offsets this
+                // lowering does not reproduce, so the site is sized and
+                // refused.
+                let site = payload(words, 0, fields, Shape::Ctor { ctor: g.clone(), arity: words });
+                return Some(Cand { site: Some(site), blocked: Some(Refusal::Layout), bytes });
+            }
+            let site = payload(words, 0, fields, Shape::Ctor { ctor: g.clone(), arity: words });
+            Some(Cand { site: Some(site), blocked: None, bytes })
         }
         Core::Lam { fn_id, env, .. } => {
-            let params = facts.params.get(&fn_id.0)?;
+            // The closure's size is its three uncounted header words plus
+            // the saved ones, which is known even when the unit the closure
+            // calls does not exist: the census's `form` column still
+            // carries the bytes such a site would have had.
+            let words = 3 + env.len() as u32;
+            let bytes = u64::from(words) * 8;
+            let Some(params) = facts.params.get(&fn_id.0) else {
+                return Some(Cand { site: None, blocked: Some(Refusal::Form), bytes });
+            };
             if env.len() > *facts.arity.get(&fn_id.0).unwrap_or(&0) {
-                return Some(Err(Refusal::Form));
+                return Some(Cand { site: None, blocked: Some(Refusal::Form), bytes });
             }
             // The closure's first three payload words are its code, arity
             // and filled count, all uncounted; the saved words follow.
             let words = 3 + env.len() as u32;
             let saved = &params[..env.len().min(params.len())];
-            Some(payload(words, 3, saved, Shape::Closure { fn_id: fn_id.clone(), env: env.len() as u32 }))
+            let site = payload(words, 3, saved, Shape::Closure { fn_id: fn_id.clone(), env: env.len() as u32 });
+            Some(Cand { site: Some(site), blocked: None, bytes: u64::from(words) * 8 })
         }
         _ => None,
     }
@@ -687,21 +1009,18 @@ fn site_of(e: &Core, facts: &Facts) -> Option<Result<Site, Refusal>> {
 
 /// The site of a block of `words` payload words whose counted payload
 /// words start at word `base` and have the classes in `classes`.
-fn payload(words: u32, base: u32, classes: &[Class], shape: Shape) -> Result<Site, Refusal> {
-    if u64::from(words) * 8 > DEFAULT_BLOCK_LIMIT {
-        return Err(Refusal::Size);
-    }
+fn payload(words: u32, base: u32, classes: &[Class], shape: Shape) -> Site {
     let fields = classes
         .iter()
         .enumerate()
         .filter(|(_, c)| counted(**c))
         .map(|(i, c)| ((base + i as u32) * 8, *c))
         .collect();
-    Ok(Site { slot: 0, words, shape, fields })
+    Site { slot: 0, words, shape, fields }
 }
 
 /// How a binder's references are used, accumulated over the whole unit.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 struct Uses {
     /// References that end the value (`Drop`, `Release`).
     death: u32,
@@ -718,24 +1037,76 @@ struct Uses {
     stored: u32,
     /// `Dup` operations: a second reference exists.
     duplicated: u32,
-    /// References that leave the activation or are stored inside a block
-    /// that is not frame-bound.
-    escapes: u32,
-    /// The first escape's role, for `CINCH_STACK_TRACE`.
-    why: &'static str,
+    /// References that leave the activation, by position: the census's
+    /// escape classes. A class's count is its [`Refusal`]'s, and
+    /// [`Uses::escapes`] sums them.
+    escaped: [u32; Refusal::ALL.len()],
+    /// The first escape's class, for `CINCH_STACK_TRACE` and the census.
+    why: Option<Refusal>,
+    /// The branch choices the first escape sits under: empty at the unit's
+    /// top level, `[1, 0]` inside the second branch's first branch, and so
+    /// on ([`Scan::path`]).
+    escape_path: Option<Vec<u32>>,
+    /// The branch choices of the first few references that end the value
+    /// (`Drop`, `Release`, a consuming owned parameter, a store into a
+    /// frame-bound block). The partial-escape census compares these with
+    /// [`Uses::escape_path`].
+    consume_paths: Vec<Vec<u32>>,
+}
+
+/// How many consumption paths [`Uses`] remembers: the partial-escape test
+/// is a comparison against the first escape's path, and a binder with more
+/// branches than this is reported on the ones it kept.
+const CONSUME_PATHS: usize = 8;
+
+impl Uses {
+    /// Every reference that leaves the activation.
+    fn escapes(&self) -> u32 {
+        self.escaped.iter().sum()
+    }
+
+    /// The first escape's class: the one the census reports.
+    fn first(&self) -> Option<Refusal> {
+        self.why
+    }
+
+    /// Whether this value escapes on one branch and is consumed on
+    /// another: the population a partial-escape split would reach
+    /// (design/stack-allocation.md section 8.5).
+    ///
+    /// The test is the branch paths. The value escapes at some path `E`,
+    /// and there is a path `C` where it is consumed that is not below `E`
+    /// (`C` does not start with `E`): on `C` the escape did not happen, so
+    /// the value could have stayed in the frame there and been copied to
+    /// the heap only on `E`. An unconditional escape has `E` empty, and
+    /// every path starts with the empty path, so it is never partial: that
+    /// is the population no split can help.
+    fn partial(&self) -> bool {
+        let Some(escape) = &self.escape_path else { return false };
+        self.consume_paths.iter().any(|death| !death.starts_with(escape))
+    }
 }
 
 /// Where a subexpression's value goes, so a binder's reference can be
 /// classified: the ownership lattice's positions, spelled out.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Role {
-    /// A value position of the ordinary kind (a unit's result, a `let`
-    /// value, an argument whose callee the pass cannot see).
+    /// A value position of the ordinary kind (a `let` value, an `If`
+    /// condition, a memo demand's cell).
     Value,
+    /// The unit's own result: the value the activation hands back.
+    Return,
     /// A field of the constructor block `(app (ctor C) ... args)`.
     Field,
-    /// An argument of a call the pass cannot see into, or of a join's jump.
+    /// An argument of a call the pass cannot see into.
     Arg,
+    /// An argument of `spawn`: the task runs on its own thread, past the
+    /// end of the allocating activation.
+    Spawn,
+    /// An argument of a join's `Jump`: a block, not a call, but the join's
+    /// parameters are owned exactly as a unit's, and a jump can leave a
+    /// loop the block was built in.
+    Jump,
     /// An argument of a call whose parameter is owned and consumed.
     Consumed,
     /// An argument of a call whose parameter is lent: the callee only reads
@@ -782,17 +1153,37 @@ struct Scan<'a> {
     /// The callee of the consumed argument being scanned, so a reference
     /// inside it records which unit receives the block.
     callee: Option<String>,
+    /// The branch choices from the unit's body to the expression being
+    /// scanned: `0`/`1` for an `If`'s two branches, the alternative's index
+    /// for a `case`. The partial-escape census compares an escape's path
+    /// with a consumption's ([`Uses::partial`]).
+    path: Vec<u32>,
 }
 
 impl<'a> Scan<'a> {
     fn with_frames(facts: &'a Facts, frames: BTreeSet<usize>, widen: Widen) -> Scan<'a> {
-        Scan { facts, frames, widen, uses: BTreeMap::new(), consumers: BTreeMap::new(), callee: None }
+        Scan {
+            facts,
+            frames,
+            widen,
+            uses: BTreeMap::new(),
+            consumers: BTreeMap::new(),
+            callee: None,
+            path: Vec::new(),
+        }
     }
 
     /// Scan the unit's whole body. The body is the unit's result, so it
-    /// sits in tail position.
+    /// sits in tail position and is the value the activation hands back.
     fn unit(&mut self, body: &Core) {
-        self.go(body, Role::Value, None, true);
+        self.go(body, Role::Return, None, true);
+    }
+
+    /// Scan one branch of a decision point: the path records which side.
+    fn branch(&mut self, e: &Core, side: u32, role: Role, owner: Option<usize>, tail: bool) {
+        self.path.push(side);
+        self.go(e, role, owner, tail);
+        self.path.pop();
     }
 
     /// Accumulate every local's reference uses in `e`. `role` is the
@@ -820,18 +1211,18 @@ impl<'a> Scan<'a> {
                 return;
             }
             Core::Drop(x, _, body) => {
-                self.uses_of(x.0).death += 1;
+                self.death(x.0);
                 self.go(body, role, owner, tail);
                 return;
             }
             Core::If(c, t, f) => {
                 self.go(c, Role::Value, None, false);
-                self.go(&t.body, role, owner, tail);
-                self.go(&f.body, role, owner, tail);
+                self.branch(&t.body, 0, role, owner, tail);
+                self.branch(&f.body, 1, role, owner, tail);
                 return;
             }
             Core::Release { block, moved, rest, body, .. } => {
-                self.uses_of(block.0).death += 1;
+                self.death(block.0);
                 // A `Release` field is a pattern binder; if a `let` binder
                 // ever names one, it was stored in a block: not this pass's
                 // value.
@@ -843,9 +1234,9 @@ impl<'a> Scan<'a> {
             }
             Core::Case { scrut, alts } => {
                 self.go(scrut, Role::Scrutinee, None, false);
-                for a in alts {
+                for (i, a) in alts.iter().enumerate() {
                     // An alternative's body is the case's value.
-                    self.go(&a.body, role, owner, tail);
+                    self.branch(&a.body, i as u32, role, owner, tail);
                 }
                 return;
             }
@@ -897,6 +1288,7 @@ impl<'a> Scan<'a> {
                     )
                 };
                 self.go(h, Role::Head, None, false);
+                let spawn = matches!(&**h, Core::Prim(crate::core::PrimOp::Conc(crate::core::ConcOp::Spawn)));
                 for (i, a) in args.iter().enumerate() {
                     if ctor {
                         // The fields of the allocation this value is: the
@@ -904,7 +1296,12 @@ impl<'a> Scan<'a> {
                         self.go(a, Role::Field, owner, false);
                         continue;
                     }
-                    if tail {
+                    if spawn {
+                        // The task's body runs on another thread of the
+                        // scope, after this activation has returned: no
+                        // argument of `spawn` is a transfer.
+                        self.go(a, Role::Spawn, None, false);
+                    } else if tail {
                         self.go(a, Role::TailCall, None, false);
                     } else if modes.is_some_and(|m| m[i]) {
                         self.go(a, Role::Lent, None, false);
@@ -942,7 +1339,7 @@ impl<'a> Scan<'a> {
             }
             Core::Jump { args, .. } => {
                 for a in args {
-                    self.go(a, Role::Arg, None, false);
+                    self.go(a, Role::Jump, None, false);
                 }
                 return;
             }
@@ -969,35 +1366,64 @@ impl<'a> Scan<'a> {
             Role::Scrutinee | Role::Project => self.uses_of(x).scrutinee += 1,
             Role::Lent => self.uses_of(x).lent += 1,
             Role::Consumed => {
-                self.uses_of(x).consumed += 1;
+                let path = self.path.clone();
+                let u = self.uses_of(x);
+                u.consumed += 1;
+                if u.consume_paths.len() < CONSUME_PATHS {
+                    u.consume_paths.push(path);
+                }
                 if let Some(unit) = self.callee.clone() {
                     self.consumers.entry(x).or_default().insert(unit);
                 }
             }
             Role::Field => {
-
                 // A store into a block whose binder this round frame-binds is
                 // a consumption: that block's release drops the field. A
                 // store into any other block keeps the child on the heap,
                 // because nothing proves the holder dies with the
                 // activation.
                 if self.widen.stores() && owner.is_some_and(|p| self.frames.contains(&p)) {
-                    self.uses_of(x).stored += 1;
+                    let path = self.path.clone();
+                    let u = self.uses_of(x);
+                    u.stored += 1;
+                    if u.consume_paths.len() < CONSUME_PATHS {
+                        u.consume_paths.push(path);
+                    }
                 } else {
-                    self.escape(x, "field");
+                    self.escape(x, Refusal::Field);
                 }
             }
-            _ => {
-                self.escape(x, role_name(role))
-            }
+            Role::Return => self.escape(x, Refusal::Return),
+            Role::Value => self.escape(x, Refusal::Value),
+            Role::Arg => self.escape(x, Refusal::Call),
+            Role::TailCall => self.escape(x, Refusal::TailCall),
+            Role::Spawn => self.escape(x, Refusal::Spawn),
+            Role::Jump => self.escape(x, Refusal::Jump),
+            Role::Capture => self.escape(x, Refusal::Capture),
+            Role::Store => self.escape(x, Refusal::Write),
+            Role::Write => self.escape(x, Refusal::Write),
+            Role::Head => self.escape(x, Refusal::Head),
         }
     }
 
-    fn escape(&mut self, x: usize, why: &'static str) {
+    /// Record that a reference of `x` ends the value, on the path the scan
+    /// is on.
+    fn death(&mut self, x: usize) {
+        let path = self.path.clone();
         let u = self.uses_of(x);
-        u.escapes += 1;
-        if u.why.is_empty() {
-            u.why = why;
+        u.death += 1;
+        if u.consume_paths.len() < CONSUME_PATHS {
+            u.consume_paths.push(path);
+        }
+    }
+
+    fn escape(&mut self, x: usize, why: Refusal) {
+        let path = self.path.clone();
+        let u = self.uses_of(x);
+        u.escaped[class_index(why)] += 1;
+        if u.why.is_none() {
+            u.why = Some(why);
+            u.escape_path = Some(path);
         }
     }
 
@@ -1006,22 +1432,10 @@ impl<'a> Scan<'a> {
     }
 }
 
-/// The trace's name for a role an escape sits in.
-fn role_name(role: Role) -> &'static str {
-    match role {
-        Role::Value => "value",
-        Role::Field => "field",
-        Role::Arg => "call",
-        Role::Consumed => "consumed",
-        Role::Lent => "lent",
-        Role::Head => "head",
-        Role::Capture => "capture",
-        Role::Scrutinee => "scrutinee",
-        Role::Project => "project",
-        Role::Store => "store",
-        Role::Write => "write",
-        Role::TailCall => "tail-call",
-    }
+/// The index of a class in [`Refusal::ALL`]: the slot its count occupies
+/// in [`Uses::escaped`].
+fn class_index(why: Refusal) -> usize {
+    Refusal::ALL.iter().position(|r| *r == why).expect("every class is in ALL")
 }
 
 /// The parameter modes of a saturated call's head, when the program's
@@ -1051,7 +1465,7 @@ fn verify(program: &Program, opts: &Options) {
     let facts = Facts::of(program, opts.widen);
     for (unit, plan) in &program.frame {
         let Some(f) = program.fns.iter().find(|f| f.id.0 == *unit) else { continue };
-        let mut cands: BTreeMap<usize, Result<Site, Refusal>> = BTreeMap::new();
+        let mut cands: BTreeMap<usize, Cand> = BTreeMap::new();
         candidates(&f.body, &facts, &mut cands);
         let (frames, scan) = decide(f, &cands, &facts, opts);
         // The plan is exactly the rule's fixpoint: a slot the rule does not
@@ -1066,16 +1480,18 @@ fn verify(program: &Program, opts: &Options) {
         assert_eq!(words, plan.slots, "compiler bug: {unit}: a frame slot is not its binder's payload");
         let bytes: u64 = plan.sites.values().map(|s| s.bytes()).sum();
         assert_eq!(bytes, plan.bytes, "compiler bug: {unit}: the frame bytes are not the slots'");
+        let payload: u64 = plan.sites.values().map(|s| u64::from(s.words) * 8).sum();
+        assert_eq!(payload, plan.payload, "compiler bug: {unit}: the payload is not the slots'");
         for (x, site) in &plan.sites {
-            let u = scan.uses.get(x).copied().unwrap_or_default();
+            let u = scan.uses.get(x).cloned().unwrap_or_default();
             // A second reference is admissible exactly when the payload has
             // no counted word to release twice (the rule `eligible` states),
             // and some path must release the payload.
             assert!(
-                (u.duplicated == 0 || site.fields.is_empty()) && u.escapes == 0,
+                (u.duplicated == 0 || site.fields.is_empty()) && u.escapes() == 0,
                 "compiler bug: {unit}: frame binder {x} escapes ({} dups, {} escapes, {} counted fields)",
                 u.duplicated,
-                u.escapes,
+                u.escapes(),
                 site.fields.len()
             );
             assert!(

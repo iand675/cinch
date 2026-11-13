@@ -165,6 +165,27 @@ fn refused(stack: &serde_json::Value, why: &str) -> u64 {
         .unwrap_or(0)
 }
 
+/// The census's binding-reason count for one class.
+fn class(stack: &serde_json::Value, why: &str) -> u64 {
+    stack
+        .get("classes")
+        .and_then(|r| r.get(why))
+        .and_then(|c| c.get("count"))
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0)
+}
+
+/// The census's binding-reason payload bytes for one class: the column
+/// that says what the refused allocations would have cost.
+fn class_bytes(stack: &serde_json::Value, why: &str) -> u64 {
+    stack
+        .get("classes")
+        .and_then(|r| r.get(why))
+        .and_then(|c| c.get("bytes"))
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0)
+}
+
 #[test]
 fn a_non_escaping_block_is_built_in_its_units_frame() {
     let dir = dir("local");
@@ -403,6 +424,9 @@ fn the_frame_limit_keeps_allocations_on_the_heap() {
     );
     let stack = stack_of(&dir);
     assert!(refused(&stack, "frame-limit") >= 1, "{stack}");
+    // The manifest carries the census's byte column too: the block that the
+    // limit kept on the heap is a pair, so its payload is 16 bytes.
+    assert_eq!(class_bytes(&stack, "frame-limit"), 16, "{stack}");
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -732,4 +756,146 @@ fn a_frame_block_parameter_that_is_lent_is_not_a_consumption() {
     p.borrowed.insert("Main.first".to_string(), vec![true]);
     assert!(local_allocated(&mut p, Widen::None), "{:?}", p.frame);
     assert!(p.stack.receives_frame.is_empty(), "{:?}", p.stack);
+}
+
+// ------------------------------------------------- the escape census
+//
+// Core programs, for the same reason the duplicated rule's are: the census
+// classifies what the pass decides, so the shape under test has to be the
+// shape the pass sees.
+
+/// A unit whose `let` builds a two-word block and returns it: the block
+/// leaves its activation.
+fn returned_block() -> Program {
+    let body = Core::Let(
+        LocalId(0),
+        Class::Obj,
+        Box::new(Core::App(
+            Box::new(Core::Ctor(test_gid("Main.Pair"), vec![])),
+            vec![Core::Int(1), Core::Int(2)],
+        )),
+        Box::new(Core::Var(LocalId(0))),
+    );
+    test_program(vec![
+        test_ctor("Main.Pair", 0, vec![Class::Raw, Class::Raw]),
+        test_unit("Main.builds", vec![], body),
+    ])
+}
+
+/// A unit whose `let` builds a two-word block, matches it, and drops it:
+/// the canonical frame allocation.
+fn consumed_block() -> Program {
+    let body = Core::Let(
+        LocalId(0),
+        Class::Obj,
+        Box::new(Core::App(
+            Box::new(Core::Ctor(test_gid("Main.Pair"), vec![])),
+            vec![Core::Int(1), Core::Int(2)],
+        )),
+        Box::new(Core::Drop(
+            LocalId(0),
+            Class::Obj,
+            Box::new(Core::Case {
+                scrut: Box::new(Core::Var(LocalId(0))),
+                alts: vec![CAlt::new(
+                    CPat::Con { tag: 0, fields: vec![LocalId(1), LocalId(2)], classes: vec![Class::Raw, Class::Raw] },
+                    Core::Int(0),
+                )],
+            }),
+        )),
+    );
+    test_program(vec![
+        test_ctor("Main.Pair", 0, vec![Class::Raw, Class::Raw]),
+        test_unit("Main.builds", vec![], body),
+    ])
+}
+
+#[test]
+fn the_census_partitions_every_candidate() {
+    // Every candidate is in exactly one class, so the class counts sum to
+    // the candidate total: the property that makes the table a breakdown
+    // and not a list of anecdotes.
+    for mut p in [returned_block(), consumed_block()] {
+        cinch::stack::allocate(&mut p, &cinch::core::TargetProfile::native(), &cinch::stack::Options::default());
+        let classes: u64 = p.stack.classes.values().map(|t| t.count).sum();
+        assert_eq!(classes, p.stack.candidates, "{:?}", p.stack);
+    }
+}
+
+#[test]
+fn a_returned_block_is_refused_as_a_return() {
+    let mut p = returned_block();
+    cinch::stack::allocate(&mut p, &cinch::core::TargetProfile::native(), &cinch::stack::Options::default());
+    assert_eq!(p.stack.classes.get("return").map(|t| t.count), Some(1), "{:?}", p.stack);
+    assert_eq!(p.stack.classes.get("frame"), None, "{:?}", p.stack);
+    // The census's byte column is the payload: two words of a two-field
+    // block, no header and no alignment.
+    assert_eq!(p.stack.classes.get("return").map(|t| t.bytes), Some(16), "{:?}", p.stack);
+    assert_eq!(p.stack.positions.get("return").map(|t| t.count), Some(1), "{:?}", p.stack);
+    // The roll-up every earlier reader uses still says `escapes`.
+    assert_eq!(p.stack.refused.get("escapes"), Some(&1), "{:?}", p.stack);
+    // Nothing about this block is partial: it escapes on the only path.
+    assert_eq!(p.stack.partial.count, 0, "{:?}", p.stack);
+}
+
+#[test]
+fn a_consumed_block_is_the_frame_class() {
+    let mut p = consumed_block();
+    cinch::stack::allocate(&mut p, &cinch::core::TargetProfile::native(), &cinch::stack::Options::default());
+    assert_eq!(p.stack.classes.get("frame").map(|t| t.count), Some(1), "{:?}", p.stack);
+    assert_eq!(p.stack.classes.get("frame").map(|t| t.bytes), Some(16), "{:?}", p.stack);
+    // The payload total is the slots' payload, which is what the refused
+    // classes are measured against.
+    assert_eq!(p.stack.payload, 16, "{:?}", p.stack);
+    assert!(p.stack.refused.is_empty(), "{:?}", p.stack);
+    // The largest candidate is this block, and the class that took it is
+    // the frame.
+    assert_eq!(p.stack.largest, 16, "{:?}", p.stack);
+    assert_eq!(p.stack.largest_class, "frame", "{:?}", p.stack);
+}
+
+#[test]
+fn the_frame_limit_class_is_what_a_larger_limit_would_buy() {
+    // The block is otherwise eligible: with the limit at zero, the only
+    // reason it stays on the heap is the limit, which is exactly what the
+    // `frame-limit` row means.
+    let mut p = consumed_block();
+    let opts = cinch::stack::Options { frame_limit: 0, ..cinch::stack::Options::default() };
+    cinch::stack::allocate(&mut p, &cinch::core::TargetProfile::native(), &opts);
+    assert_eq!(p.stack.classes.get("frame-limit").map(|t| t.count), Some(1), "{:?}", p.stack);
+    assert_eq!(p.stack.classes.get("frame-limit").map(|t| t.bytes), Some(16), "{:?}", p.stack);
+    assert_eq!(p.stack.classes.get("frame"), None, "{:?}", p.stack);
+}
+
+#[test]
+fn a_partial_escape_is_counted_as_one() {
+    // One branch returns the block, the other drops it: the value is
+    // consumed on one path and escapes on another, which is the
+    // partial-escape population (design/stack-allocation.md section 8.5).
+    let body = Core::Let(
+        LocalId(0),
+        Class::Obj,
+        Box::new(Core::App(
+            Box::new(Core::Ctor(test_gid("Main.Pair"), vec![])),
+            vec![Core::Int(1), Core::Int(2)],
+        )),
+        Box::new(Core::If(
+            Box::new(Core::Bool(true)),
+            CBranch::new(Core::Var(LocalId(0))),
+            CBranch::new(Core::Drop(LocalId(0), Class::Obj, Box::new(Core::Int(0)))),
+        )),
+    );
+    let mut p = test_program(vec![
+        test_ctor("Main.Pair", 0, vec![Class::Raw, Class::Raw]),
+        test_unit("Main.picks", vec![], body),
+    ]);
+    cinch::stack::allocate(&mut p, &cinch::core::TargetProfile::native(), &cinch::stack::Options::default());
+    assert_eq!(p.stack.classes.get("return").map(|t| t.count), Some(1), "{:?}", p.stack);
+    assert_eq!(p.stack.partial.count, 1, "{:?}", p.stack);
+    assert_eq!(p.stack.partial.bytes, 16, "{:?}", p.stack);
+    // An unconditional escape is not partial: the same block without the
+    // branch is the population no split can help.
+    let mut p = returned_block();
+    cinch::stack::allocate(&mut p, &cinch::core::TargetProfile::native(), &cinch::stack::Options::default());
+    assert_eq!(p.stack.partial.count, 0, "{:?}", p.stack);
 }
