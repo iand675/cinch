@@ -13,7 +13,7 @@ module Bootstrap.Load where
   import Bootstrap.Ast (TypeExpr, portable-law-syntax)
   import Bootstrap.RuntimeAbi (runtime-abi)
   import Bootstrap.Total
-  import Bootstrap.Interface (iface-parse, iface-schema-version, fnv-source-hash)
+  import Bootstrap.Interface (iface-parse, iface-schema-version, iface-hash, fnv-source-hash)
   import Bootstrap.Parse (parse-scheme)
   import Bootstrap.Nominal (interface-global, resolved-entry-valid, resolved-text, resolved-nominals, resolved-measures)
   import Data.Bytes (bytes-compare, bytes-get, bytes-len)
@@ -721,15 +721,26 @@ module Bootstrap.Load where
     else if not (envelope-valid doc) then Err "malformed interface contract envelope"
     else Ok ()
 
+  -- The identity is derived from the artifact's own bytes
+  -- (`Bootstrap.Interface.iface-hash`: `source_hash` and `compiler` blanked,
+  -- `units` cleared, FNV-1a 64 over the result), not by re-serializing the
+  -- parsed document. The two agree by construction: the artifact on disk is
+  -- the canonical printer's output, and blanking a string or clearing an
+  -- array changes neither key order nor any other byte, so the spliced
+  -- source and the reprinted projection have the same bytes. Printing the
+  -- document again cost 1.37 blocks per interface byte on a 581,881-byte
+  -- interface (design/compilation-speed.md section 2.19), which was the
+  -- largest single term in the interface load.
   load-interface :: String -> String -> Bytes -> Result String LoadedInterface
   load-interface expected-name expected-hash src = case iface-parse src of
     None -> Err "interface is not valid JSON"
     Some doc -> case check-contract-envelope expected-name doc of
       Err message -> Err message
-      Ok unit ->
-        let hash = fnv-source-hash (canonical-bytes (contract-projection doc)) in
-        if not (same hash expected-hash) then Err "interface contract identity mismatch"
-        else accepted-interface expected-name hash doc
+      Ok unit -> case iface-hash src doc of
+        None -> Err "interface contract identity mismatch"
+        Some hash ->
+          if not (same hash expected-hash) then Err "interface contract identity mismatch"
+          else accepted-interface expected-name hash doc
 
   -- The contract an interface declaration carries, beside the identity the
   -- load that parsed it derived: the envelope is re-checked, and the pair

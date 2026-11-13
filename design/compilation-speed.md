@@ -1134,6 +1134,59 @@ bodies across modules for a whole program build, so the first cut is
 per-declaration reuse inside one build and per-package reuse across
 builds. That still removes the second-largest cost after clang.
 
+### 2.19 What the 6.00 blocks per interface byte is made of (2026-11-13)
+
+The scanner fix of section 2.18 left the interface law at 6.00, and the
+natural reading was that the remainder is the `Json` tree. It is not: a
+padded byte is a *string content* byte, so the padding arm measures the
+scan and the loader's document work, and it cannot see the node
+representation at all. Separating the two needed single-document probes
+through the Rust seed with `CINCH_ALLOC_STATS=1`:
+
+| probe | bytes | blocks | per byte |
+|---|---|---|---|
+| read only | 581,881 | 25 | 0.00 |
+| `bytes-get` scan | 581,881 | 581,904 | 1.00 |
+| UTF-8 validation | 400,037 | 800,129 | 2.00 |
+| `parse-json` | 581,881 | 1,866,011 | 3.21 |
+| parse plus one `canonical-bytes` | 581,881 | 2,662,373 | 4.58 |
+| `load-interface` | 581,881 | 4,739,206 | 8.14 |
+| one 400 KB string | 400,037 | 800,233 | 2.00 |
+| 12,000 two-field rows | 432,038 | 1,621,735 | 3.75 |
+
+Three findings, in the order they matter.
+
+**A Cinch-level byte loop costs 2.0 blocks per byte and that is the floor.**
+`bytes-get` boxes its result and the loop step boxes a `Nat`, so the closure
+and `nat` marginal columns are 1.00 each (control 2,839,870 to pad4k
+3,102,139 and 1,735,583 to 1,997,796, over 262,215 padded bytes) while
+`bytes` is 0.00. Nothing written in Cinch goes below this; only a runtime
+scan does.
+
+**The loader re-serializes every document.** `load-interface` derives the
+contract identity as `fnv-source-hash (canonical-bytes (contract-projection
+doc))`, so each interface is printed a second time at full size and then
+hashed: 796,362 blocks on a 581,881-byte interface, 1.37 per source byte.
+`Bootstrap.Interface.iface-contract` already does the same job correctly by
+blanking `source_hash`, `compiler` and `units` *in the source bytes* and
+hashing that, so the two paths disagree and the loader's is the expensive
+one. This is the largest single term and it needs no new type.
+
+**Structure costs about 10.5 blocks per node.** The 400 KB string and the
+432 KB of 12,000 rows cost 2.00 and 3.75 per byte respectively; the second
+is 72,002 nodes, so `(1,621,735 - 2.0 * 432,038) / 72,002` is 10.5 blocks
+per node net of its string content. A real interface averages 9.34 bytes per
+node (185,860 nodes over 1,735,532 bytes), so structure is a real share of a
+real interface even though the padding arm is blind to it.
+
+`design/json-representation.md` is the design that follows: an owned source
+buffer, one packed `Bytes` arena of 48-byte slice nodes, children as an
+index range, and the public `Json` type unchanged with the arena behind a new
+`parse-document` the loader is the first customer of. Two facts the design
+depends on were confirmed by probe: `array-set` copies the whole array, so a
+growable arena cannot be an `Array`; and `bytes-set`/`bytes-get` packing four
+bytes per word compiles and runs.
+
 ### 3.1 What landed (2026-11-12)
 
 `compiler/src/query.rs` is the engine and `Session` drives it. The four
