@@ -366,7 +366,7 @@ would have needed a lock bump for `compiler/runtime/src` and
 | `<>` append | already reuses | section 3.1, 2,008 blocks for 2,000 cells |
 | `map` | already reuses | section 3.1, 1,008 blocks for 1,000 cells |
 | `concat` (`join-lists`) | already reuses | nested `<>` reuses every spine: 1,508 for 1,500 |
-| `reverse` with an accumulator | declined | the `Cons` is a call argument, not on the spine (section 3.3); lane `dasl-inplace-reverse` owns it |
+| `reverse` with an accumulator | **now reuses** | was declined (the `Cons` is a call argument); fixed by the argument search in section 11, 1,133 to 1,008 blocks |
 | `sort` | not a reuse pair | merge sort's intermediates are a different shape; 16,804 blocks is the algorithm |
 | `filter` | no sites | 2 call sites in the whole compiler; not worth a mechanism |
 | `Data.HashMap` / `Data.Set` insertion | out of scope for reuse as shaped | path copying is `design/reclamation.md`'s stated next target, not this lane's |
@@ -460,14 +460,190 @@ The measured binary is `build/bootstrap/stage3/cinch`, sha256 `5031a3a42f7929e7`
    case in `design/ownership-and-usage.md` section 7), not where it might
    permit an optimization.
 
-3. **The next win is in the pass, not the language.** Two extensions would
-   collect the measured blockers: reuse through a branch whose alternatives all
-   allocate the same shape (4,609 opportunities, 77.8%), and reuse across a
-   call whose argument is the allocation (1,314, 22.2%, which is `reverse`).
-   Both are `compiler/src/rc.rs` work, and lane `dasl-inplace-reverse` is on the
-   second one.
+3. **The next win is in the pass, not the language, and section 11 takes it.**
+   The two extensions this predicted are implemented: the call-argument search
+   (which fixed `reverse`) and the per-arm branch expansion. They collect 773
+   of the 5,923 opportunities. What remains is the `incompatible` proof doing
+   its job, plus selective callee specialisation (section 11.5), which is not
+   built.
 
 4. **The one language feature that would help is `Unique`, not `%1`.** It is
    the only addition that lets a proven-unique value skip the runtime count
    check. It is a new feature with its own design cost, and this lane's numbers
    say the check is not what is costing us.
+
+---
+
+## 11 The follow-on: making the off-spine shapes reuse (implemented)
+
+Section 10 said the next win is in the pass, not the language. This section
+records the pass change that collects it, measured the same way.
+
+### 11.1 What was added
+
+Two search extensions to `compiler/src/rc.rs`, both keeping the existing
+pairing logic and the existing soundness argument, and both in the one
+mechanism (no second pass):
+
+**Call and jump arguments are on the spine.** A call's arguments are
+evaluated in order after the `Release` bound the token and before the
+transfer, with no branch between them, so a compatible allocation among them
+is reachable on the same path that reached the `Release`. This is the
+`reverse` shape: `reverse-into ys (Cons y acc)` puts the fresh `Cons` in an
+argument of the recursive call. Jump arguments are the same fact (a join's
+parameters are filled in the same order). Landed first by lane
+`dasl-inplace-reverse`; merged here as one mechanism.
+
+**A branch expands the pair per arm.** When no allocation is on the
+straight-line spine, a `case` or `if` gets a copy of the release in each arm,
+and each arm that allocates a compatible constructor binds its own token.
+This is Lean's `expandResetReuse`. The soundness argument is that the arms
+are mutually exclusive, so exactly one runs and one release per arm is
+exactly one release per path: the one-token-one-reuse rule holds per path,
+and nothing is shared across the branch, so no cell can be kept alive on a
+path with no reuse to take it.
+
+Three details the implementation needs and the design should record:
+
+- **Arms need not agree.** An arm that allocates nothing, or allocates an
+  incompatible shape, binds no token, which is the plain drop that arm would
+  have had. Requiring every arm to allocate was the first version and it
+  collected almost nothing (96 sites); relaxing to per-arm independence is
+  what made the change pay. The expansion is applied only when at least one
+  arm takes a pair, because otherwise it duplicates a drop into every arm for
+  no gain.
+- **The moved-field set is per arm.** The single-body release moved the union
+  of the fields the body reads. Duplicating it makes the set per arm, so an
+  arm that reads no counted field of the dying block moves none and drops the
+  block itself.
+- **The tail-call frame rule is untouched.** `stack.rs` runs after `rc.rs` and
+  passes `tail` through a `Release`, so a release pushed into a branch keeps
+  the branch's tail position. A `Reuse` is opaque to that pass: the block it
+  writes is the dying one, which was already classified on its own. The
+  `let x = Cons ... in tailcall x` shape never enters this path.
+
+### 11.2 The census after the change
+
+Same tool, same 44 modules (`tooling/reuse_census.py`):
+
+| Outcome | Before | After | Change |
+| --- | --- | --- | --- |
+| reused | 2,064 | 2,837 | +773 (+37.5%) |
+| opportunity | 5,923 | 5,539 | -384 |
+| no allocation | 8,364 | 8,471 | +107 |
+| incompatible | 1,904 | 1,927 | +23 |
+| total releases | 18,255 | 18,774 | +519 |
+
+By blocker class on the remaining opportunities:
+
+| Blocker | Before | After |
+| --- | --- | --- |
+| `case` | 3,412 | 3,279 |
+| `app` | 1,314 | 1,244 |
+| `if` | 1,197 | 1,000 |
+| `release` (nested) | 0 | 16 |
+
+The release total grew because a duplicated pair is more `Release` nodes than
+the one it replaced, which is the code growth the expansion costs. The
+opportunity count fell less than the reuse count rose because the extra
+releases introduce new sites, some of which are themselves opportunities: the
+per-arm structure moves allocations onto arms' spines, which creates arms
+that now have a reachable allocation but no pair yet.
+
+### 11.3 The block counts, before and after
+
+Same programs, `CINCH_ALLOC_STATS=1`, `CINCH_LEAK_CHECK=1`:
+
+| Shape | Before | After | What it means |
+| --- | --- | --- | --- |
+| `<>`, dead left operand | 2,008 | 2,008 | already reused (section 3.3) |
+| `map` over a dead input | 1,008 | 1,008 | already reused |
+| `a <> b <> c` | 1,508 | 1,508 | already reused |
+| `reverse` with an accumulator | 1,133 | **1,008** | the call-argument fix: the reverse allocates nothing, 1,008 is the build |
+| `if`-shaped rebuild | 2,008 | **1,008** | branch expansion: one pair per branch |
+| nested-`case` rebuild | 2,008 | **1,008** | branch expansion |
+| mixed arms (one allocates, one returns the tail) | 1,008 | 1,008 | unchanged: the non-allocating arm takes the plain drop, so no pair is placed there |
+
+Every run exits 0 with `leaked=0`. The three shapes that already reused are
+unchanged, which is the check that the extension does not disturb the
+straight-line path.
+
+The `if`-shaped rebuild's Core shows the shape the expansion produces:
+
+```text
+(if <condition>
+  (release t0 @token(t5)
+    (moved t1 t2) (rest)
+    (reuse t5 Data.Core.Cons (args (app (global Main.bump) (local t1)) (app (global Main.rebuild) (local t2)))))
+  (release t0 @token(t6)
+    (moved t1 t2) (rest)
+    (reuse t6 @kept(0) Data.Core.Cons (args (local t1) (app (global Main.rebuild) (local t2))))))
+```
+
+Two releases, two tokens, and the second arm skips a store the cell already
+holds (`@kept(0)`), which is the existing store-skipping working per arm.
+
+### 11.4 Considered and not done: a reuse token on the calling convention
+
+An extra `%1` parameter carrying a corpse into a callee would let a callee
+build into a cell its caller just died on. It is rejected: it taxes every call
+site of that callee, needs per-call-site specialisation and interface churn,
+and the three cases it would cover are already covered without it. If the
+corpse is already an argument, the callee's own reuse pass pairs it with a
+birth (case 1, the `reverse` shape, now working). If the corpse is dead
+before the call and is not an argument, it is dead code to eliminate, not a
+value to transport. If the callee is small, inlining makes the pair
+intraprocedural. Only a large, allocation-heavy callee called from a site
+with a fresh corpse would pay for the transport, and the census has no such
+site large enough to justify the convention change.
+
+### 11.5 What is still open
+
+- **`case` at 3,279 remains the largest class.** The arms that still refuse
+  are the ones where no arm allocates a compatible shape, which is the
+  `incompatible` proof doing its job rather than a gap.
+- **Selective callee specialisation** (clone a callee per call site with a
+  reuse slot) is the next mechanism the user described, and it is *not*
+  implemented here. Its order of work is: this shape work first, then the
+  clone with a must-analysis over the clone's entry path, a recursion fact in
+  `borrow_modes`' existing worklist, and a measured "one argument versus one
+  allocation" pair. It is out of scope for this change and nobody should
+  assume it is coming from this lane.
+
+### 11.6 The gates this change passed
+
+| Gate | Result |
+| --- | --- |
+| `cargo test --lib` | 275 passed, 0 failed |
+| `--test reclamation` | 19 passed, 0 failed |
+| `--test rc_specialisation` | 5 passed, 1 failed |
+| `--test simplify` | 41 passed, 0 failed |
+| `--test inline_copy` | 4 passed, 0 failed |
+| `--test core_output` | 21 passed, 0 failed |
+| `--test ownership` | 29 passed, 0 failed |
+
+The four new `rc_specialisation` tests (the `if`-shaped rebuild, the
+nested-`case` rebuild, the refused mixed-arm branch, and the recursive
+branched rebuild in both a plain and an `rc_debug` build) all pass. The one
+failure is
+`borrowed_parameters_release_and_static_dictionaries_place_fewer_operations`,
+which asserts that `Main.SizeInt` is swept from the emitted IR. It is **not
+caused by this change**: it fails identically at commit `f07e60f2`, which
+contains no `branch_reuse` and no argument search, verified by building that
+revision in a separate workspace and running the same test there. It is a
+pre-existing regression from the inliner work between `567b9674` (where it
+passes) and `f07e60f2`.
+
+**Fixed point and the stage numbers are not reported here.** The stage
+rebuild needs the ladder's stage lock, which a sibling lane's test suite held
+for the duration of this work, so the fixed-point comparison and the
+toolkit/self-check block counts on a stage built from this compiler did not
+run. The block counts in section 11.3 are program-level measurements with the
+Rust frontend's `build`, which exercises the same `rc.rs`, so they are valid
+evidence for the mechanism; they are not the stage-level numbers. Anyone
+landing this must run `tooling/bootstrap.py build --stage 3` and report the
+fixed point before it merges, and `compiler/src` is a seed source, so a
+stage0 re-pin is needed.
+
+**Lock bump: needed.** `compiler/src/rc.rs` changed, so the stage0 seed and
+the library provider both need re-pinning. `runtime_abi` did not move.
