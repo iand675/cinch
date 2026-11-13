@@ -3006,6 +3006,110 @@ through `unpack` to decide whether it needs quoting. `Text.Toml` builds a
 `List Nat` per scalar and converts through `bytes-from-list`. Neither is on the
 interface path, so both are reported here rather than changed in this lane.
 
+### 2.20 Where the 161.9 M blocks are: a per-site census, and the two mechanisms it named (2026-11-13)
+
+Sections 2.17 and 2.18 measured the price of an interface byte and removed
+the scan's per-character cons. Both stopped at totals. The runtime's
+`CINCH_ALLOC_STATS` and `CINCH_ALLOC_KINDS` report blocks, bytes, peak,
+block kind and size class, and none of them names a call site, so the
+question "which code allocates this" had no answer from the counter.
+
+**Building the attribution.** Two pieces, both outside the tree. A scratch
+copy of `compiler/runtime` grew per-site counters and two entry points,
+`cinch_alloc_ctor_site` and `cinch_alloc_shaped_site`, that take a site id
+as a trailing argument. An IR rewriter then tagged every allocation call
+site in the stage's three shards and in the library provider's
+`library.ll` with a unique id, recording for each id the enclosing
+function, the kind and the requested size, and the objects were relinked
+at `-O2` against the scratch archive. The rewriter touched 18,171 sites
+(17,179 in the compiler shards, 992 in the library object); 4,647 of them
+ran during a toolkit check. The probe binary allocates nothing of its own,
+so its stats line matches the production binary's within the sites it
+tags, and a run of it reproduces the baseline exactly.
+
+The toolkit check is **161,899,328 blocks and 3,787,031,856 bytes**, byte
+identical across three runs. The tagged sites account for 96,825,587
+blocks and 1,617,757,880 bytes.
+
+**The top ten sites.**
+
+| blocks | bytes | kind | size | function |
+|---|---|---|---|---|
+| 3,759,994 | 120,319,808 | closure | 32 | `Bootstrap.Type.normalize-kind` |
+| 3,729,920 | 59,678,720 | ctor | 16 | `Bootstrap.Nominal.encode-identity` |
+| 3,189,506 | 25,516,048 | ctor | 8 | `Bootstrap.Type.read-kind-tree` |
+| 3,010,076 | 24,080,608 | ctor | 8 | `Bootstrap.Type.index-carrier#tail` |
+| 2,975,692 | 47,611,072 | ctor | 16 | `Bootstrap.Type.normalized-variable` |
+| 2,647,978 | 42,367,648 | ctor | 16 | `Bootstrap.Type.read-carrier-tree` |
+| 2,647,978 | 42,367,648 | ctor | 16 | `Bootstrap.Type.read-carrier-tree` |
+| 2,647,978 | 21,183,824 | ctor | 8 | `Bootstrap.Type.read-carrier-tree` |
+| 2,547,339 | 40,757,424 | ctor | 16 | `Text.Builder.builder-add-string` |
+| 2,489,273 | 39,828,368 | ctor | 16 | `Bootstrap.Type.same-shape#tail` |
+
+Three mechanisms carry those ten and the rest of the tagged total.
+
+1. **The tuple scrutinee.** `case (x, y) of` allocates the pair block
+   before the arms run. Ctor-16 sites in `#tail` functions, which is what
+   that pair looks like, are 55.1 M blocks over 2,666 sites: **52.7%** of
+   everything tagged. `same-shape` alone is 2.49 M of it, `index-carrier`
+   0.98 M, `normalize-value-index` 0.89 M, `former-spine` 0.74 M.
+2. **The `KValue` round trip.** `value-kind` encodes a carrier to a `Json`
+   tree and `value-carrier` parses it back, so every kind observation of a
+   type rebuilds it. `read-carrier-tree`, `read-kind-tree`, `carrier-tree`,
+   `kind-tree` and `tree-fields` together are **~15.5 M blocks, 14.8%**.
+3. **Partial-application closures.** A higher-order argument is a closure
+   allocated at the call. 94 shaped sites, **6.06 M blocks**, of which
+   `normalize-kind`'s `map-kind-types (normalize st)` is 3.76 M and
+   `transform-type`'s is 1.16 M.
+
+**What landed.** `Bootstrap.Type` only, so no lock bump. `same-shape`,
+`same-arrow-usage`, `kind-equal`'s `KValue` arm, `valid-comparison`,
+`valid-typed-math`, `make-index-math` and `read-carrier-tree`'s
+two-element arm now test their constructors as nested cases: the same
+constructors in the same order, with no pair block. `valid-typed-math`'s
+two index terms go through a small `both-index-terms` helper for the same
+reason. `normalize-kind` and `transform-kind` recurse over a `Kind`
+directly instead of going through `map-kind-types` with a partial
+application; `map-kind-types` stays for the callers that pass a named
+function.
+
+| workload | counter | before | after | change |
+|---|---|---|---|---|
+| toolkit check | blocks | 161,899,328 | 148,403,708 | -8.3% |
+| toolkit check | bytes | 3,787,031,856 | 3,375,670,051 | -10.9% |
+| self-check | blocks | 925,134,366 | 851,324,519 | -8.0% |
+| self-check | bytes | 22,986,045,928 | 20,218,116,352 | -12.0% |
+
+Peak live heap is unchanged on both (24,697,268 and 170,815,477), so the
+change removed work rather than retained memory, and both arms repeat
+their counter line byte for byte. Output is byte identical: stage2 and
+stage3 `compiler.ll` equal, binaries equal, every `.cinchif` equal. Three
+smokes pass, `cargo test --lib` is 275 passed, and both workloads print
+`cinch-leak: live=0 immortal=0 leaked=0`.
+
+**What this leaves, in the order the census now gives.**
+
+- **`KValue`'s representation is the top structural item and it is
+  blocked, not merely open.** The type holds a `Json` tree because
+  `Kind` and `UType` are mutually recursive and a forward data reference
+  is refused outright: `Bootstrap.Infer`'s `order-names` reports
+  "forward data reference needs SCC positivity checking" for any
+  constructor that names a later `data` declaration. Until that check
+  exists, `Kind` cannot hold `UType` and the round trip stays. The
+  census prices it: ~15.5 M blocks, 14.8%.
+- **`encode-identity` is 3.73 M blocks and its callers re-encode
+  constants.** `source-global home name` is a pure function of two
+  strings and `Bootstrap.Infer` calls it repeatedly per definition; a
+  memo on the (home, name) pair, or a `Builder` that writes into one
+  buffer instead of consing a `List Char` per character, is the next
+  step there.
+- **`Text.Builder.builder-add-string` is 2.55 M blocks**: one cons per
+  appended piece, and `builder-run` already knows the exact size, so
+  the pieces could be written into the output buffer in one pass.
+- **The tuple scrutinee is only partly removed.** 2,666 sites remain,
+  about 52 M blocks. They are mechanical (`case (a, b) of` becomes two
+  nested cases), so the rest is a sweep, not a design question.
+
 ## 11. Benchmark corpus and metrics
 
 The corpus is edits, not programs. Each entry is a case in
