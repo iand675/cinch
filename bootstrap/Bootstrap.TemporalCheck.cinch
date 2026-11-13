@@ -351,7 +351,37 @@ module Bootstrap.TemporalCheck where
       (case (comparison-name op, arithmetic-of first, arithmetic-of second) of
         (Some relation, Some left, Some right) -> Some (PCompare relation left right)
         other -> None)
+    -- A class method application (`i.Relation.Ord.<` and friends): the
+    -- comparison is named by the method's own symbol, so a formula written
+    -- over a checked interface reads the same proposition a primitive
+    -- comparison does.
+    CApply sp ty (CApply at partial function first) second ->
+      (case (method-comparison function, arithmetic-of first, arithmetic-of second) of
+        (Some relation, Some left, Some right) -> Some (PCompare relation left right)
+        other -> None)
+    CApply sp ty function second -> (case (method-comparison function, arithmetic-of second) of
+      (Some relation, Some right) -> None
+      other -> None)
     other -> None
+
+  -- The comparison a method application's head names, read from the method's
+  -- own symbol (`...$3c` is `<`).
+  method-comparison :: CoreTerm -> Option Comparison
+  method-comparison term = case term of
+    CQualifiedUse sp ty name role actuals evidence -> method-comparison-name name
+    CUse sp ty name role actuals -> method-comparison-name name
+    CApply sp ty f x -> method-comparison term
+    other -> None
+
+  method-comparison-name :: String -> Option Comparison
+  method-comparison-name name =
+    if string-starts-with name "i.Relation$2eOrd$2eOrd$2e$3c" then Some Less
+    else if string-starts-with name "i.Relation$2eOrd$2eOrd$2e$3c$3d" then Some AtMost
+    else if string-starts-with name "i.Relation$2eOrd$2eOrd$2e$3e" then Some Greater
+    else if string-starts-with name "i.Relation$2eOrd$2eOrd$2e$3e$3d" then Some AtLeast
+    else if string-starts-with name "i.Relation$2eEq$2eEq$2e$3d$3d" then Some Equal
+    else if string-starts-with name "i.Relation$2eEq$2eEq$2e$2f$3d" then Some Unequal
+    else None
 
   arithmetic-of :: CoreTerm -> Option Arithmetic
   arithmetic-of term = case term of
@@ -361,7 +391,24 @@ module Bootstrap.TemporalCheck where
       if same op "copy-out" then borrow-read-of place else None
     CPrimitive sp ty op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
       binary-reading op (arithmetic-of first) (arithmetic-of second)
+    CApply sp ty (CApply at partial function first) second ->
+      binary-reading (method-operation function) (arithmetic-of first) (arithmetic-of second)
     other -> None
+
+  -- The arithmetic operator a method application's head names.
+  method-operation :: CoreTerm -> String
+  method-operation term = case term of
+    CQualifiedUse sp ty name role actuals evidence -> method-operation-name name
+    CUse sp ty name role actuals -> method-operation-name name
+    CApply sp ty f x -> method-operation term
+    other -> ""
+
+  method-operation-name :: String -> String
+  method-operation-name name =
+    if string-starts-with name "i.Algebra$2eArithmetic$2eArithmetic$2e$2b" then "+"
+    else if string-starts-with name "i.Algebra$2eArithmetic$2eArithmetic$2e$2d" then "-"
+    else if string-starts-with name "i.Algebra$2eArithmetic$2eArithmetic$2e$2a" then "*"
+    else ""
 
   borrow-read-of :: CoreTerm -> Option Arithmetic
   borrow-read-of term = case term of
@@ -479,10 +526,37 @@ module Bootstrap.TemporalCheck where
   -- is refused, never trusted.
   verify-safety :: String -> String -> List Parameter -> Proposition -> List TemporalStep -> List Proposition -> TemporalVerdict
   verify-safety claim-name display params prop steps assumed =
-    if not (established prop assumed) then
+    if not (reads-borrowed prop params) then
+      TemporalRefused (cat
+        ["temporal safety: the formula `always (", temporal-proposition-text params prop, ")` of the contract `", claim-name, "` reads no borrowed state of `", display, "`: an `always` claim is over the state transitions of core specification section 10 (name a `Mut` or `Ref` parameter)"])
+    else if not (established prop assumed) then
       TemporalRefused (cat
         ["temporal safety: the contract `", claim-name, "` on `", display, "` has no establishment for `always (", temporal-proposition-text params prop, ")`: state the entry condition `assume = (", temporal-proposition-text params prop, ")` (core specification section 10: an inductive invariant checks its initial state)"])
     else safety-steps claim-name display params prop steps
+
+  -- Whether the formula reads a borrowed state: one of its operands is a
+  -- borrow read of a parameter. A formula over immutable data names no
+  -- transition, so an `always` claim about it is refused by name.
+  reads-borrowed :: Proposition -> List Parameter -> Bool
+  reads-borrowed prop params = mentions-borrow-read prop
+
+  mentions-borrow-read :: Proposition -> Bool
+  mentions-borrow-read p = case p of
+    PCompare relation left right -> arithmetic-borrow-read left || arithmetic-borrow-read right
+    PBoth a b -> mentions-borrow-read a || mentions-borrow-read b
+    PEither a b -> mentions-borrow-read a || mentions-borrow-read b
+    PNegate a -> mentions-borrow-read a
+    other -> False
+
+  arithmetic-borrow-read :: Arithmetic -> Bool
+  arithmetic-borrow-read a = case a of
+    AVariable name -> string-starts-with "#borrow-read:" name
+    APlus x y -> arithmetic-borrow-read x || arithmetic-borrow-read y
+    AMinus x y -> arithmetic-borrow-read x || arithmetic-borrow-read y
+    ATimes x y -> arithmetic-borrow-read x || arithmetic-borrow-read y
+    ACall name args -> arithmetic-borrow-read args
+    AArgument first rest -> arithmetic-borrow-read first || arithmetic-borrow-read rest
+    other -> False
 
   established :: Proposition -> List Proposition -> Bool
   established prop assumed = case assumed of
@@ -560,7 +634,11 @@ module Bootstrap.TemporalCheck where
   -- survives exactly when no write touches its footprint (core specification
   -- section 5); a touching write kills it naming the step.
   verify-stability :: String -> String -> List Parameter -> Proposition -> List TemporalStep -> TemporalVerdict
-  verify-stability claim-name display params prop steps = stability-steps claim-name display params prop steps
+  verify-stability claim-name display params prop steps =
+    if not (reads-borrowed prop params) then
+      TemporalRefused (cat
+        ["temporal stability: the formula `stable (", temporal-proposition-text params prop, ")` of the contract `", claim-name, "` reads no borrowed state of `", display, "`: a stability claim is over a borrowed state's footprint (core specification section 10)"])
+    else stability-steps claim-name display params prop steps
 
   stability-steps :: String -> String -> List Parameter -> Proposition -> List TemporalStep -> TemporalVerdict
   stability-steps claim-name display params prop steps = case steps of
