@@ -242,3 +242,59 @@ constructor spine comparing each element. This frontend has no such generator, a
 path deliberately carries no list-pattern `case` elaboration, so adding the procedure means
 building a test-installing generator, not adding a case. That is the next slice and it is the only
 thing standing between the two landed commits and `lattice`'s 10 `Ascii`/`Ordered` tests.
+\\\\\\\        to: sxnvspsz 53566308 "bootstrap: record what the remaining temporal failures need" (rebased revision)
+
+## Lane notes: `contract` declarations in the self-hosted frontend
+
+State landed: `DContract` exists in `Bootstrap.Ast`, the parser reads the
+seed's grammar, `Bootstrap.Resolve` resolves each formula in the target
+definition's own parameter scope, and `Bootstrap.Temporal` /
+`Bootstrap.TemporalCheck` carry the claim vocabulary and the four kinds'
+decision procedures. `temporal` goes from 1 of 20 to 3 of 20 passing, with
+no target worse anywhere in the suite.
+
+### The one mechanism the remaining 17 `temporal` failures need
+
+13 of the 17 fail at the same line:
+
+```
+bootstrap.check:12:15: unbound variable or constructor: i.Relation$2eOrd$2eOrd$2e$3c
+bootstrap.check:11:3: temporal contract `loopInv`: the formula states a comparison proposition
+```
+
+The fixture is the ordinary loop with `always = (copyOut m < 5)`. With no
+interfaces manifest the same program checks, because `<` elaborates to the
+primitive comparison. With the manifest (`--interfaces base-interfaces.json`,
+which is how the test harness drives the compiler) `<` resolves to the
+loaded interface's `Ord` method at its encoded global spelling, and that
+name is not bound in the environment the formula is checked in.
+
+What was tried and what it established:
+
+- Aliasing every global the formula names (`expr-references`, then
+  `global-binding`) into the formula's scope: no effect, because the method
+  is not a top-level binding in `env` at all.
+- Passing the module's `env` unchanged: the same failure, so the binding is
+  absent there too.
+
+The method is reached through the *dictionary* the interface supplies, so the
+fix is to elaborate the formula's comparison through the same dictionary
+resolution a body's comparison uses (`lookup-expression-value` ->
+`resolve-dictionary-term-with`), which needs the interface's dictionary
+binding in scope at the point the contract is verified. That is where the
+next attempt should start.
+
+### The other 4
+
+The remaining four assert the refusal *messages* of the safety, stability and
+liveness rules. They cannot be reached until the formula elaborates at all,
+so they are downstream of the mechanism above.
+
+### Two traps worth recording
+
+- `contract`, `target` and `own` are lexer keywords, so they cannot be used
+  as binder names in the bootstrap modules. Use `subject`, `claim-name`,
+  `borrowed`.
+- A comment line inside a `let` chain in `elaborate-module` breaks the layout
+  block ("must indent farther than its enclosing block"). Fold the chain into
+  one line instead.
