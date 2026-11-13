@@ -74,6 +74,53 @@ pinned library stays byte-identical.
 its entry), which is why `mapArray`'s scheme names `Array` without a defining
 module: the type is primitive from ABI 6 (`array-type-name`).
 
+## 2.1 Why the host instance cannot be written in source
+
+Measured 2026-11-13 under the seed. A source `implicit instance
+HostParallelism :: Parallelism` whose methods forward to `parBoth` /
+`parTabulate` / `parMap` is refused, in three separate ways, one per attempt:
+
+| host body | refusal |
+| --- | --- |
+| `both f g = parBoth f g` | `parBoth must be applied directly to a callback written at the call site: f is a function-typed binding whose captures are unknown` |
+| `both f g = parBoth (\() -> f ()) (\() -> g ())` | `a parallel capture must be Share ...: f is shared with a parBoth callback without shareable evidence` |
+| `tabulate n f = parTabulate n (\i -> f i)` | `a parTabulate callback runs once per index, so f cannot move into it: a parallel capture must be Share` |
+
+The reason is structural, not incidental. An instance method's parameters
+are *bindings*, and the whole point of the callback-form rule is that a
+binding's captures are unknown at the call site. The rules exist to refuse
+exactly the shape an instance method necessarily has. Adding a row variable
+does not help either: with `both :: forall a b e1 e2. (Unit ->{|e1} a) ->
+(Unit ->{|e2} b) ->{|e1} (a, b)`, the instance body's own callback is
+row-polymorphic and the row rule refuses it
+(`its row is {e1#1025}, whose tail is a rigid row variable`).
+
+So the host instance is **kernel-synthesized**: the checker supplies its
+`CoreInstance` and the four method `CoreDefinition`s directly, the same way
+`task-source-forwarder` supplies a forwarder's obligations rather than
+letting source spell them. This is not a weakening: the instance is not a
+call site, and no caller's captures are examined through it. The caller's
+captures are examined at the caller, by the rules keyed on the method
+identity, which is the invariant that matters. What the synthesis removes is
+the possibility of *writing* a forwarding instance in source, and that
+possibility does not exist anyway (the three refusals above).
+
+A **user** instance is unaffected, because a user instance that runs its
+branches concurrently has to perform a parallel-safe effect anyway, and the
+cheap lawful instance is the sequential one:
+
+```text
+implicit instance SerialPool :: Parallelism where
+  both f g = (f (), g ())          -- accepted: no par* call
+  tabulate n f = array-tabulate n f
+  mapArray f xs = array-from-list (map f (array-to-list xs))
+  workers n = ()
+```
+
+Verified accepted and correct under the seed. A user instance that *does*
+want real concurrency writes a `foreign import` or reaches a `par*` builtin,
+and then the rules apply to it exactly as they apply to any caller.
+
 ## 3 The rule keying decision
 
 The three safety rules were keyed on the builtin *name*. They are now keyed

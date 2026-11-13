@@ -6,7 +6,7 @@ module Bootstrap.Resolve where
 
   import Bootstrap.Ast
   import Bootstrap.Nominal (interface-global, kernel-type-name, encode-identity, global-algebra-arithmetic-nonzero, global-data-bool-not, global-data-core-cons, global-data-core-nil)
-  import Bootstrap.Builtin (builtin-bindings, builtin-declarations, finite-index-declaration)
+  import Bootstrap.Builtin (builtin-bindings, builtin-declarations, finite-index-declaration, parallelism-declarations)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-exports, validate-interface-set)
   import Bootstrap.Inputs (embedded-library-home)
@@ -1182,11 +1182,25 @@ module Bootstrap.Resolve where
             other -> imported-record-references reference-set imported-records declarations) in
           let all-references = references <> kernel-references references declarations <> imported-class-references declarations declarations <> record-references in
           let all-reference-set = reference-index all-references in
+          -- The parallel interface is a kernel declaration: a program that
+          -- names `Parallelism` or one of its methods keeps it, exactly as
+          -- a source mention of a prelude family would.
+          let parallel = if parallelism-used all-reference-set then parallelism-declarations else Nil in
           let admitted = if referenced "b.Fin" all-reference-set then Cons finite-index-declaration declarations else declarations in
+          let admitted = admitted <> parallel in
           case materialize-externals all-reference-set admitted Nil of
             (body, errors) -> (MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp (contexts <> body))) Nil), errors)
         (done, errors) -> (p, errors)
       errors -> (p, errors)
+
+  -- A program that names the signature, one of its methods, or the host
+  -- instance keeps the kernel declarations. The instance is named so a
+  -- program that only spells `HostParallelism` still gets its dictionary.
+  parallelism-used :: HashMap String Bool -> Bool
+  parallelism-used references = referenced "Parallelism" references
+    || referenced "b.HostParallelism" references
+    || referenced "both" references || referenced "tabulate" references
+    || referenced "mapArray" references || referenced "workers" references
 
   source-scopes :: List Module -> List Scoped -> List Scoped
   source-scopes modules done = case done of

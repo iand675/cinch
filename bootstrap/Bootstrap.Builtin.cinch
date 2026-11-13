@@ -3,12 +3,15 @@
 -- creation and decision evidence here, before checker elaboration.
 module Bootstrap.Builtin where
 
-  import Bootstrap.Ast (Decl, DExternal, DData, MkTypeParam, TName, TInfix, TApp, TArg, TArgsEnd, TFun, TBound, TBoundsEnd)
+  import Bootstrap.Ast (Decl, TypeExpr, DExternal, DData, DClass, DMethod, MkTypeParam, TName, TInfix, TApp, TArg, TArgsEnd, TFun, TBound, TBoundsEnd, TUnmodeled, decl-spine)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
+  import Bootstrap.Parse (parse-scheme)
   import Data.Json
   import Text.Lex (Span)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
 
   export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, intrinsic-contract, array-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation, platform-intrinsic, total-primitive
+  export parallelism-declarations, parallelism-name, parallelism-method-slot, par-lowering-name
 
   nat-arithmetic-extern :: String -> Option String
   nat-arithmetic-extern symbol =
@@ -176,11 +179,107 @@ module Bootstrap.Builtin where
   -- gives each branch its own row variable, because rows unify by equality
   -- and one shared variable would refuse a total branch beside a diverging
   -- one, which the defining equation `(f (), g ())` admits.
+  --
+  -- `design/parallelism-as-a-value.md`: these three are no longer a
+  -- surface. They are the *lowering* of the host `Parallelism` instance's
+  -- methods, and the only declarations that name a `cinch_par_*` entry.
+  -- The interface a program calls is `parallelism-declarations` below.
   par-rule :: String -> String -> String -> Decl
   par-rule name operation scheme = DExternal (Span 0 0 1 1) (string-concat "b." name) "builtin-syntax" None
     (JObj "name" (JStr name) (JObj "operation" (JStr operation) (JObj "arity" (JNum 2)
       (JObj "runtime_abi" (JNum runtime-abi-int) (JObj "first_class" (JBool False)
         (JObj "scheme" (JStr scheme) JObjEnd))))))
+
+  -- The parallel interface a program calls
+  -- (`design/parallelism-as-a-value.md` sections 1 and 2).
+  --
+  -- `signature Parallelism where ...` with four methods, plus the implicit
+  -- `HostParallelism` instance whose methods lower to `cinch_par_both`,
+  -- `cinch_par_tabulate`, `cinch_par_map_array` and
+  -- `cinch_par_set_workers`. Both are kernel declarations rather than a
+  -- prelude module: the embedded base library is pinned by revision and
+  -- source hash, so a new `compiler/prelude` module would need a lock bump
+  -- this change must not take.
+  --
+  -- The method schemes are the builtins' own. `both` keeps one row variable
+  -- per branch for the reason above; `tabulate` and `mapArray` state one
+  -- row each, so a callback's effects flow out of the call.
+  parallelism-name :: String
+  parallelism-name = "Parallelism"
+  -- `both` states ONE row variable, shared by the two branches and the
+  -- result. That is a measured requirement, not a preference: the builtin's
+  -- two-variable scheme works only because kernel syntax has a bespoke
+  -- rule, and as a method it fails with `cannot join distinct row variables
+  -- e1 and e2` at the call site (2026-11-13). The one-variable form still
+  -- admits the case the two-variable scheme existed for, a diverging branch
+  -- beside a total one, because `Diverge` is admitted by the row rule and
+  -- the caller's own row carries it; measured with the suite's own
+  -- `spin`/`nat-to-int 1` program.
+  parallelism-methods :: List (String, String)
+  parallelism-methods =
+    [ ("both", "forall (a :: Type) (b :: Type) (e :: Row). (Unit ->{|e} a) -> (Unit ->{|e} b) ->{|e} (a, b)")
+    , ("tabulate", "forall (a :: Type) (e :: Row). Nat -> (Nat ->{|e} a) ->{|e} Array a")
+    , ("mapArray", "forall (a :: Type) (b :: Type) (e :: Row). (a ->{|e} b) -> Array a ->{|e} Array b")
+    , ("workers", "Nat -> Unit")
+    ]
+
+  -- The method identity the safety rules key on, before instance selection:
+  -- the declaring signature and the method's slot in it. A like-named
+  -- instance cannot forge this pair, because an instance's target names a
+  -- checked signature and the slots are numbered from that signature's own
+  -- member list (`design/parallelism-as-a-value.md` section 3).
+  parallelism-method-slot :: String -> Option Nat
+  parallelism-method-slot name =
+    if string-compare name "both" == 0 then Some 0
+    else if string-compare name "tabulate" == 0 then Some 1
+    else if string-compare name "mapArray" == 0 then Some 2
+    else if string-compare name "workers" == 0 then Some 3
+    else None
+
+  -- The host instance's lowering, by method slot: which primitive operation
+  -- the instance's method body performs. This is the whole of the
+  -- runtime-ABI coupling now (`design/parallelism-as-a-value.md` sections 1
+  -- and 9): the surface names a method, and only this table names a
+  -- `cinch_par_*` entry. `workers` has no operation: its lowering is a bare
+  -- call, so it maps to the empty string.
+  par-lowering-name :: Nat -> String
+  par-lowering-name slot = if slot == 0 then "par-both"
+    else if slot == 1 then "par-tabulate"
+    else if slot == 2 then "par-map"
+    else ""
+
+  -- The signature and its methods, as declarations the checker elaborates
+  -- through its ordinary class path. The class has no parameters: there is
+  -- one runtime per program, selected by the dictionary, so `Parallelism`
+  -- takes no argument.
+  parallelism-declarations :: List Decl
+  parallelism-declarations =
+    Cons (DClass (Span 0 0 1 1) parallelism-name Nil
+      (decl-spine (Span 0 0 1 1) (parallelism-method-declarations parallelism-methods)))
+      Nil
+
+  -- A resolved source method (`DMethod`): the visible label, the kernel
+  -- binding the checker registers it under, and the checked contract. The
+  -- checker's class path only accepts resolved members here
+  -- (`source signature member needs checked method elaboration` otherwise),
+  -- and the kernel is the module that owns them.
+  parallelism-method-declarations :: List (String, String) -> List Decl
+  parallelism-method-declarations methods = case methods of
+    Nil -> Nil
+    Cons (name, scheme) rest ->
+      Cons (DMethod (Span 0 0 1 1) name (parallelism-method-symbol name) (parallelism-scheme name scheme))
+        (parallelism-method-declarations rest)
+
+  parallelism-method-symbol :: String -> String
+  parallelism-method-symbol name = string-concat "b." name
+
+  -- The scheme text is the builtin's own, parsed by the same reader an
+  -- imported interface uses, so the method contract cannot drift from the
+  -- lowering's expectation.
+  parallelism-scheme :: String -> String -> TypeExpr
+  parallelism-scheme name text = case parse-scheme name (string-to-bytes text) of
+    Parsed ty Nil -> ty
+    other -> TUnmodeled (Span 0 0 1 1) (string-concat "parallelism method scheme: " name)
 
   -- The checked data path retains the index and erases the bound field.
   finite-index-declaration :: Decl
