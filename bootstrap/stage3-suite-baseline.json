@@ -1,12 +1,12 @@
 {
- "date": "2026-11-12",
+ "date": "2026-11-13",
  "stage": 3,
- "compiler": "main at b9f35d04 (query graph, export reference table, totality flat retry, reuse store skipping, parallel builtins, quotation splice)",
+ "compiler": "main at 5fc2d4ee: static block dedup, proposition-valued declaration schemes, benefit-and-size inlining, Ascii and Ordered as structural predicates",
  "targets": 234,
  "fully_passing": 145,
- "tests_passed": 925,
+ "tests_passed": 928,
  "tests_failed": 631,
- "runner": "tooling/run_stage_targets.py --stage 3 --jobs 3 --all",
+ "runner": "tooling/run_stage_targets.py --stage 3 --jobs 3 --all, with bootstrap_function_preconditions re-run after removing its ignored case",
  "rows": [
   {
    "target": "alloc_accounting",
@@ -1091,7 +1091,7 @@
   {
    "target": "parallel",
    "exit": 101,
-   "passed": 16,
+   "passed": 18,
    "failed": 1
   },
   {
@@ -1349,7 +1349,7 @@
   {
    "target": "syntax_proof_patterns",
    "exit": 101,
-   "passed": 2,
+   "passed": 3,
    "failed": 15
   },
   {
