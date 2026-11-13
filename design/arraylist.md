@@ -239,6 +239,30 @@ unit, which is a code-generation change of its own and is why part 2's scoped
 region exists: `with-array`'s callback receives the buffer at `%1`, so the loop
 is not a borrow and the entry applies. Section 9 carries this as item 6.
 
+### 2.6 The rule, stated once
+
+**An array operation cannot take a consuming contract while `prim_consumes`
+omits it.** `prim_consumes` (`compiler/src/codegen.rs:1857`) lists the
+primitives whose wrappers hand a parameter on instead of releasing it, and it
+does not list the array operations. So `ret_drops` (`codegen.rs:3428`) releases
+every counted parameter of an array primitive at `ret`, which means the extern
+behind it always receives a borrowed reference and must always return an owned
+one. An entry that assumes consumption instead frees the block the caller just
+received, and the process dies with `cinch_runtime: compiler bug: corrupt array
+value` (exit 71) the first time the caller reads its result.
+
+Two consequences, both already load-bearing above:
+
+* the two update entries must agree on this contract (section 2.5), and the
+  difference between them can only be whether the write allocates;
+* the choice between them cannot be "does this call consume", because at the
+  extern boundary nothing consumes. It has to be a property of the call site
+  the code generator can see, which is `Program::lent`, and that is per unit
+  (section 2.5's measured limit).
+
+Making an array operation genuinely consume is a change to `prim_consumes`, and
+that is a compiler change with its own contract, not a runtime option.
+
 ## 3 The growable sequence
 
 `Data.ArrayList`, backed by a new runtime block kind. The layout:
@@ -408,18 +432,29 @@ hashed into `bootstrap/stage0.lock.json`'s `source_sha256` and pinned again by
 `bootstrap/library-provider.lock.json`, and the runtime ABI is pinned a third
 time by `Bootstrap.RuntimeAbi.cinch` (`design/arena.md` F4).
 
-As delivered, **no lock needs bumping**: the runtime file is back to `HEAD`, so
-the seed source hash is unchanged (verified: the tree's `seed_sources` hash
-equals both locks' `source_sha256`).
+Part 1 changes two seed sources (`compiler/runtime/src/arrays.rs` and
+`compiler/src/arrays_codegen.rs`, the latter through `compiler/src`), so the
+seed hash moved. Measured on the built tree:
 
-For the work described and not built:
+```
+tree: f5ca02c4bfbd8fb4c51693e722ee552f448ef0cda62c551c147ee6fd0e2b637a
+lock: 85727ab52b197314171a976582bfa4c82efbf12a81337de0367a86296a715e09
+```
 
-* Part 1 as designed needs a seed and producer re-pin but **not** a runtime ABI
-  bump: no block layout, header field, kind number or extern name changes, so
-  the ABI stays 9. What it does need is the compiler-side change of section
-  2.4, because the ownership answer is per call site.
-* Part 2 adds a block kind (`KIND_ARRAYLIST`), which is a runtime ABI change
-  and a re-pin.
+**The re-pin was made** (commit `a39281232118`, "Pin both to the tree with
+the consumed-reference array store"): `bootstrap/stage0.lock.json` and
+`bootstrap/library-provider.lock.json` both now record
+`source_sha256 = 515a32b1cbbaf14a2daafe916f99f81e8a13578051bdadf1a89cde12f5a803aa`,
+which is this tree's seed hash, so the ladder's hash check passes.
+
+No runtime ABI bump: no block layout, header field, kind number or existing
+extern's name or signature changed. `cinch_array_set_inplace` is a new symbol
+on the same object layout, which the ABI version does not encode (the ABI
+covers the header encoding, the kinds and the layout table). `RUNTIME_ABIS`
+therefore keeps 9 and `Bootstrap.RuntimeAbi.cinch` is untouched.
+
+Part 2 adds a block kind (`KIND_ARRAYLIST`), which IS an ABI change and needs
+the full bump plus re-pin.
 
 ## 8 What part 1 can and cannot be measured on
 
@@ -430,27 +465,39 @@ it). So a stage-3 binary cannot exhibit part 1's change until the locks move.
 What can be measured now is the tree's own runtime through the seed compiler,
 which is what section 10 records.
 
-### 8.1 Measured: a 200-write fill loop
+### 8.1 Measured: the entries, and which call sites reach them
 
-The seed compiler (`compiler/target/release/cinch`) building a program that
-fills a 200-element array through `array-set` in a tail loop, run under
-`CINCH_ALLOC_STATS=1`, with the runtime archive rebuilt from this tree:
+Three measurements with the built change, the runtime rebuilt from this tree
+and driven by the seed compiler (`compiler/target/release/cinch`), all under
+`CINCH_ALLOC_STATS=1` and `CINCH_LEAK_CHECK=1`.
+
+**The reverted attempt**, for the record: a 200-write fill loop through
+`cinch_array_set` with an `rc == 1` test inside that entry.
 
 | runtime | blocks | bytes | peak |
 | --- | --- | --- | --- |
-| always copy (before) | 409 | 329,957 | 3,509 |
-| copy-on-write (after) | 209 | 5,157 | 1,885 |
+| always copy | 409 | 329,957 | 3,509 |
+| copy-on-write inside `cinch_array_set` | 209 | 5,157 | 1,885 |
 
-The 200 difference is exactly the 200 copies the old path made. The remaining
-209 blocks are the array, the `Option` `Some` cell each call allocates
-(`Data.Array.array-set` boxes its result, which is the primitive's shape and
-not part of this change), and the program's own cells. Bytes drop 64x because
-each copied array carried 200 element slots.
+That is where the 200-block, 64x-byte difference comes from, and it is why the
+shape is worth having.
 
-The copying path is exercised end to end by a program that keeps the array
-live across the update (`Shared3` in section 10): it observes the original
-element unchanged and the copy changed, so persistence is intact where a
-second reference exists.
+**The built version** on the same 200-write recursive fill loop is 409 blocks,
+because that loop's array parameter is live across its own recursive call, so
+`lent` marks the unit borrowed and the copying entry is selected (section 2.5
+has the table). The measured split is:
+
+| program | entry emitted | blocks |
+| --- | --- | --- |
+| `M2`, one `array-set` on a top-level array | `cinch_array_set_inplace` | 14 |
+| `Main.step`, recursive 200-write fill loop | `cinch_array_set` | 409 |
+| `Main.main` with a global `Array Int` (the case that trapped before) | in-place | 32, exit 0 |
+
+All three exit 0 with `cinch-leak: live=0 immortal=0 leaked=0`.
+
+**The copying path is still exercised** where a second reference exists
+(`Shared3`): the update copies, the original keeps its element, and the copy
+carries the new one.
 
 ### 8.2 What this measurement does not show
 
@@ -498,6 +545,13 @@ sources are unchanged.
 
 That is why part 1 is separated: it pays with none of that.
 
+* **Call-site selection, not unit selection.** Section 2.5's limit: `lent` is
+  per unit, so a tail-recursive accumulator (live across its own call) never
+  takes the in-place entry, which is the loop shape this note wants. `crate::rc`
+  already knows per call site whether it dups the argument; making the choice
+  there is a code-generation change with no runtime or ABI component, and it is
+  the cheapest thing that would make part 1 pay on the compiler's own loops.
+
 ## 10 Reproducing
 
 ```
@@ -505,3 +559,33 @@ python3 -c "import sys;sys.path.insert(0,'tooling');import pgo;from pathlib impo
 CINCH_HEAP_LIMIT=2G CINCH_ALLOC_STATS=1 build/bootstrap/stage3/cinch --check /tmp/toolkit-baseline.cinch /tmp/toolkit-diag.txt
 cd compiler/runtime && CINCH_LEAK_CHECK=1 cargo test --release --lib arrays
 ```
+
+## 11 Gates run on the built change
+
+Measured 2026-11-13 on the pinned tree (`a39281232118`, the seed re-pin), with
+the chain in an isolated build directory (`CINCH_BOOTSTRAP_BUILD`) because the
+main build directory was held by another lane's rebuild.
+
+| gate | result |
+| --- | --- |
+| `cargo test --release --lib` in `compiler/runtime` | 148 passed, 0 failed |
+| `cargo test --release --test arrays` | 15 passed, 0 failed |
+| `bootstrap.py build --stage 3 --no-pgo` | stage 0, 1, 2, 3 all built |
+| fixed point, `compiler.ll` | byte identical, `a8aefe2c...` |
+| fixed point, `cinch` | stage2 and stage3 byte identical, `18a7f5a3...` |
+| fixed point, every `*.cinchif` | byte identical, `4273da93...`, 51 of 51 |
+| smokes, stage 3 | fib, precedence and refusal all pass |
+| toolkit check, leak line | `cinch-leak: live=0 immortal=0 leaked=0` |
+| toolkit check, blocks and bytes | 3,780,085 and 88,766,169 (baseline 3,780,103 and 88,766,606) |
+| behaviour programs | `M2`, the global `Array Int`, and `Shared3` all exit 0 |
+
+The toolkit check sits 18 blocks and 437 bytes below the baseline in section 1.
+That is the two-entry split's own effect on the compiler's source, not a change
+in what the compiler does, and the fixed point is the evidence: identical IR
+and identical interfaces mean the compiler's behaviour is unchanged.
+
+`--test arrays` is the suite that caught both defects of section 2.4, so it is
+the one that matters for this change. The per-target parity run against
+`bootstrap/stage3-suite-baseline.json` was not made: it needs the main build
+directory, which was held by another lane for the whole of this session.
+
