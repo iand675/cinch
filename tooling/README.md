@@ -201,6 +201,29 @@ tooling/profile_build.py targets bootstrap_check lib_json --jobs 4
 - `targets` runs `run_stage_targets.py` at stage 1 and stage 3 and records
   each target's exit code, passed and failed test counts, and wall time (log
   birth to close, so contention between parallel targets is included).
+- `sweep` times `emit-ir` and the sharded `clang -O2` backend at each shard
+  count over the four workload shapes of `design/compilation-speed.md`
+  section 12: `many-small` (40 unconnected modules), `wide-graph` (a root
+  over 40 leaves over 4 shared bases), `deep-chain` (40 modules each
+  importing the last) and `huge-module` (one module of 1,200 definitions).
+  The shard count is a stage input, so both halves are recorded per
+  (workload, K): `frontend_s` is the `emit-ir` run and `backend_s` is
+  `tooling/shard_ir.py`'s split compile of that same module, so the K>1
+  numbers are one program split differently, not a different program.
+
+```sh
+tooling/profile_build.py sweep                       # K = 1, 2, 4, 8
+tooling/profile_build.py sweep --jobs 1 3 9 --workloads huge-module
+```
+
+Reading the sample profile: `parse_sample` reports self and inclusive
+sample counts, and it resolves the frames `sample` leaves as `???` by
+looking the printed load address up in `nm -n` of the sampled binary. A
+frame the caller of a hot leaf does not appear under means the frame was
+dropped, not that it was free: the group markers `sample` draws in the
+gutter (`+`, `!`, `:`, `|`) are one per two columns of indent and are part
+of the depth, and a parser that matches only one marker silently flattens
+the graph.
 
 Only the standard library, `clang` and `sample` are needed. Everything the
 run generates lands in `build/bootstrap-profile` or `build/bootstrap`, both ignored by

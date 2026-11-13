@@ -1579,8 +1579,38 @@ module Bootstrap.Type where
   natural-subtraction-defined carrier a b = index-equal a b ||
     (case (normalize-index carrier a, normalize-index carrier b) of (IInteger x, IInteger y) -> x >= y; other -> False)
 
+  -- The carrier `type-kind` would wrap in `KValue`, without the document
+  -- round trip. The definition it must agree with is
+  -- `value-carrier (type-kind value)`, and the arms below are exactly the
+  -- ones `type-kind` answers with `value-kind carrier`: each returns that
+  -- carrier directly instead of encoding it to a tree and decoding it
+  -- back. The four kind-carrying arms and the `UApp` arm have no carrier
+  -- in hand (their kind is a `Kind`, possibly already a `KValue`), so they
+  -- take the same `value-carrier` step the old definition did.
+  index-carrier :: UType -> Option UType
+  index-carrier value = case value of
+    UCon n k -> value-carrier k
+    UBound id name k -> value-carrier k
+    URigid id name level k -> value-carrier k
+    UMeta id k -> value-carrier k
+    UIndex carrier term -> Some carrier
+    UIndexForget forgotten -> case index-carrier forgotten of
+      Some refined -> case refinement-view refined of URefine id name carrier predicate -> Some carrier; other -> None
+      None -> None
+    UIndexByteLength value -> Some (UCon "Nat" KType)
+    UIndexBorrowRead value -> case borrow-index-parts value of
+      Some (mutable, region, carrier) -> Some carrier
+      None -> None
+    UIndexList element fields -> Some (core-list-type element)
+    UIndexCall function args -> Some (UCon (total-result function) KType)
+    UIndexPromote value -> Some (UCon "Int" KType)
+    UIndexMath op left right -> index-carrier left
+    UApp f x -> case type-kind f of KFun a b -> value-carrier b; other -> None
+    UPi id name domain row result -> index-carrier result
+    other -> None
+
   typed-index-carrier :: UType -> Option UType
-  typed-index-carrier value = value-carrier (type-kind value)
+  typed-index-carrier value = index-carrier value
   borrow-constructor-kind :: Kind
   borrow-constructor-kind = KFun KRegion (KFun KType KType)
   borrow-type-parts :: UType -> Option (Bool, UType, UType)
