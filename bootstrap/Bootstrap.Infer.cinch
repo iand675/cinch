@@ -4677,7 +4677,8 @@ module Bootstrap.Infer where
     UUsageArrow usage arrow -> method-arrow-domain arrow st
     UFunEff domain row result -> (domain, result, st)
     UFun domain result -> (domain, result, st)
-    other -> arrow-parts (Span 0 0 1 1) other st
+    other -> (case arrow-parts (Span 0 0 1 1) other st of
+      (domain, row, result, one) -> (domain, result, one))
   method-arrow-at :: List Nat -> List UType -> List UType
   method-arrow-at positions arrows = case positions of
     Nil -> Nil
