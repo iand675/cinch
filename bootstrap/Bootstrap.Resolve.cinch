@@ -1196,11 +1196,13 @@ module Bootstrap.Resolve where
   -- A program that names the signature, one of its methods, or the host
   -- instance keeps the kernel declarations. The instance is named so a
   -- program that only spells `HostParallelism` still gets its dictionary.
+  -- The references are already resolved (the module was renamed before this
+  -- point), so the kernel's own symbols are what appear here.
   parallelism-used :: HashMap String Bool -> Bool
-  parallelism-used references = referenced "Parallelism" references
+  parallelism-used references = referenced "b.Parallelism" references
     || referenced "b.HostParallelism" references
-    || referenced "both" references || referenced "tabulate" references
-    || referenced "mapArray" references || referenced "workers" references
+    || referenced "b.both" references || referenced "b.tabulate" references
+    || referenced "b.mapArray" references || referenced "b.workers" references
 
   source-scopes :: List Module -> List Scoped -> List Scoped
   source-scopes modules done = case done of

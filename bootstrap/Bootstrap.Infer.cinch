@@ -2547,22 +2547,6 @@ module Bootstrap.Infer where
   par-syntax-head env expr = case application-spine expr Nil of
     (EVar sp name, args) -> par-syntax-name name && (case lookup-binding name env of Some (MkSyntaxBinding symbol) -> same name symbol; other -> False)
     other -> False
-  -- The interface's methods, reached through the ordinary method binding
-  -- (`design/parallelism-as-a-value.md` section 3). This is the second head
-  -- the parallel rules run at: a `both`/`tabulate`/`mapArray` use is a
-  -- method projection, and the rules are keyed on the declaring signature
-  -- and slot rather than on a builtin name. The instance the dictionary
-  -- later selects is irrelevant to the caller's obligations.
-  par-method-head? :: List CheckedBinding -> Expr -> Bool
-  par-method-head? env expr = case par-method-head env expr of Some found -> True; None -> False
-  par-method-head :: List CheckedBinding -> Expr -> Option (String, String, Nat)
-  par-method-head env expr = case application-spine expr Nil of
-    (EVar sp name, args) -> (case lookup-binding name env of
-      Some (MkMethodBinding actual sc owner slot) -> if same name actual then (case par-method-slot owner name slot of
-        Some spelling -> Some (spelling, owner, slot)
-        None -> None) else None
-      other -> None)
-    other -> None
   par-syntax-at-head :: List CheckedBinding -> Expr -> Bool
   par-syntax-at-head env head = case head of
     EVar sp name -> par-syntax-name name && (case lookup-binding name env of Some (MkSyntaxBinding symbol) -> same name symbol; other -> False)
@@ -3078,7 +3062,7 @@ module Bootstrap.Infer where
           else infer-borrow classes kinds families env locals s operation args UError st
         None -> case projection-syntax-head env f of
           Some operation -> infer-projection classes kinds families env locals s operation x st
-          None -> if task-syntax-head env expr then infer-task-application classes kinds families env locals s expr None st else if par-syntax-head env expr then infer-par-application classes kinds families env locals s expr None st else if par-method-head? env expr then par-method-dispatch classes kinds families env locals s expr None st else if decision-syntax-head env f then infer-decision classes kinds families env locals s x st else
+          None -> if task-syntax-head env expr then infer-task-application classes kinds families env locals s expr None st else if par-syntax-head env expr then infer-par-application classes kinds families env locals s expr None st else if decision-syntax-head env f then infer-decision classes kinds families env locals s x st else
             (case infer classes kinds families env locals f st of
               (fun, sf) -> apply-argument classes kinds families env locals s fun x sf)
     ELam s ps body -> case infer-lambda classes kinds families env locals ps body (duplicate-names s (patterns-names ps) Nil st) of
@@ -3240,7 +3224,7 @@ module Bootstrap.Infer where
       (head, args) -> case ownership-syntax-head env head of
         Some operation -> if same operation "b.refSet" then infer-ref-set classes kinds families env locals sp args st
           else infer-borrow classes kinds families env locals sp operation args expected st
-        None -> if has-projection-head env head then infer classes kinds families env locals expr st else if task-syntax-at-head env head then infer-task-application classes kinds families env locals sp expr (Some expected) st else if par-syntax-at-head env head then infer-par-application classes kinds families env locals sp expr (Some expected) st else if par-method-head? env head then par-method-dispatch classes kinds families env locals sp expr (Some expected) st else if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
+        None -> if has-projection-head env head then infer classes kinds families env locals expr st else if task-syntax-at-head env head then infer-task-application classes kinds families env locals sp expr (Some expected) st else if par-syntax-at-head env head then infer-par-application classes kinds families env locals sp expr (Some expected) st else if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
           case thunk-syntax-operation env head of
             Some operation -> (case (later-parts (normalize st expected), args) of
               (Some carrier, [input]) -> if same operation "b.delay" then check-later-delay classes kinds families env locals sp input carrier st else infer classes kinds families env locals expr st
@@ -4584,90 +4568,6 @@ module Bootstrap.Infer where
   par-operation-name name = if same name "b.parBoth" then "par-both"
     else if same name "b.parTabulate" then "par-tabulate"
     else "par-map"
-
-  -- `design/parallelism-as-a-value.md` section 3: the safety rules are
-  -- keyed on the *signature method identity*, which is decided before
-  -- instance selection. A call `both f g` reaches here as an ordinary
-  -- method use, so the head is a `CMethod` (or a `MkMethodBinding` before
-  -- elaboration) whose owner and slot the declaring signature fixed. A
-  -- like-named instance cannot forge that pair: an instance's target names
-  -- a checked signature, and slots are numbered from that signature's own
-  -- member list.
-  par-method-slot :: String -> String -> Nat -> Option String
-  par-method-slot owner name slot =
-    if not (same owner "Parallelism") then None
-    else if slot == 0 && same name "both" then Some "parBoth"
-    else if slot == 1 && same name "tabulate" then Some "parTabulate"
-    else if slot == 2 && same name "mapArray" then Some "parMap"
-    else None
-  -- A call of a `Parallelism` method (`design/parallelism-as-a-value.md`
-  -- section 3). The three safety rules are applied here, at the call site,
-  -- keyed on the declaring signature and slot rather than on a builtin
-  -- name, and the term emitted is an ordinary `CMethod` so the dictionary
-  -- resolves the instance the way it resolves any other method. An instance
-  -- implements the method however it likes; the caller's captures are still
-  -- examined, which is the invariant the reshape rests on.
-  -- The rules run through `parallel-callback`, exactly as the builtin path
-  -- runs them: the callback is checked against an expected arrow, its row is
-  -- tested for the parallel-safe row, and its checked term is tested for the
-  -- literal form. The term the call emits is then the ordinary method
-  -- application, so the dictionary resolves the instance the way it resolves
-  -- any other method and the caller's obligations are unchanged by which
-  -- instance answers.
-  infer-par-method-application :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Option UType -> String -> String -> Nat -> Store -> (CoreTerm, Store)
-  infer-par-method-application classes kinds families env locals sp expr wanted spelling owner slot st =
-    case application-spine expr Nil of
-      (EVar at name, args) ->
-        if same spelling "parBoth" then (case args of
-          Cons f (Cons g Nil) -> (case fresh-meta KType st of
-            (a, one) -> case fresh-meta KType one of
-              (b, two) -> case fresh-meta KRow two of
-                (row, three) ->
-                  let thunk-f = UFunEff (primitive-type "Unit") row a in
-                  let thunk-g = UFunEff (primitive-type "Unit") row b in
-                  (case parallel-callback classes kinds families env locals f thunk-f "parBoth" three of
-                    (checked-f, four) -> case parallel-callback classes kinds families env locals g thunk-g "parBoth" four of
-                      (checked-g, five) -> par-method-term classes kinds families env locals sp expr wanted five))
-          other -> term-error sp "both takes exactly two callbacks" st)
-        else if same spelling "parTabulate" then (case args of
-          Cons count (Cons f Nil) -> (case fresh-meta KType st of
-            (a, one) -> case fresh-meta KRow one of
-              (row, two) ->
-                let callback = UFunEff (primitive-type "Nat") row a in
-                (case parallel-callback classes kinds families env locals f callback "parTabulate" two of
-                  (checked-f, three) -> par-method-term classes kinds families env locals sp expr wanted three))
-          other -> term-error sp "tabulate takes a count and one callback" st)
-        else if same spelling "parMap" then (case args of
-          Cons f (Cons xs Nil) -> (case fresh-meta KType st of
-            (elem, one) -> case fresh-meta KType one of
-              (out, two) -> case fresh-meta KRow two of
-                (row, three) ->
-                  let callback = UFunEff elem row out in
-                  (case parallel-callback classes kinds families env locals f callback "parMap" three of
-                    (checked-f, four) -> par-method-term classes kinds families env locals sp expr wanted four))
-          other -> term-error sp "mapArray takes a callback and one array" st)
-        else term-error sp "unknown parallel method" st
-      other -> term-error sp "parallel method needs its canonical application" st
-  -- Dispatch on the method identity the head resolved to. The pair comes
-  -- from `par-method-head`, which reads the *declaration's* owner and slot,
-  -- so this cannot be reached by a like-named instance.
-  par-method-dispatch :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Option UType -> Store -> (CoreTerm, Store)
-  par-method-dispatch classes kinds families env locals sp expr wanted st = case par-method-head env expr of
-    Some (spelling, owner, slot) -> infer-par-method-application classes kinds families env locals sp expr wanted spelling owner slot st
-    None -> infer classes kinds families env locals expr st
-
-  -- The ordinary method application: `lookup-value` for the method, then the
-  -- arguments. This is the same path a non-parallel method call takes, so
-  -- the emitted `CMethod` carries the actuals and evidence the dictionary
-  -- resolver needs.
-  par-method-term :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Option UType -> Store -> (CoreTerm, Store)
-  par-method-term classes kinds families env locals sp expr wanted st = case application-spine expr Nil of
-    (EVar at name, args) -> (case lookup-value at name env st of
-      (fun, one) -> case wanted of
-        Some expected -> apply-spine classes kinds families env locals fun args
-          (hint-application-result sp (core-type fun) args expected one)
-        None -> apply-spine classes kinds families env locals fun args one)
-    other -> term-error sp "parallel method needs its canonical application" st
 
   infer-par-application :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Option UType -> Store -> (CoreTerm, Store)
   infer-par-application classes kinds families env locals sp expr wanted st = case application-spine expr Nil of
