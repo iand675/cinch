@@ -186,6 +186,28 @@ The next thing to try is to stop injecting the class into `Main`'s body at
 all and register it where `withScope`/`Scope` are registered (`primitive-kinds`
 plus a checked binding), so the class is never re-elaborated as source.
 
+Sharpest bisection so far, and the one to start from:
+
+| class source | result |
+| --- | --- |
+| the user writes `signature Parallelism where both :: <exact kernel text>` in their own module | **works**: `both one one` checks and runs (exit 0) |
+| the same text parsed by `parse-program` and injected into the resolved `Main` body as `DClass`/`DMethod` | collapses: `both` has type `Unit -> (a, b)` |
+
+Same text, same `DMethod` shape, same symbol. The only difference is that a
+user's class lives in `module-decls` and goes through `rename-decls` and
+`own-bindings`, while the injected one is appended to the body afterwards.
+`own-bindings` is what puts a class's members into the visible surface, so
+the injected class contributes no member bindings and `b.both` in the
+checker's environment is whatever the `builtin-bindings` placeholder left,
+not a `MkMethodBinding`. That is why the call site sees a one-argument type
+and why `par-method-head` never matches.
+
+So the fix is to get the class into `module-decls` (or to register its
+members through the same path `own-bindings`/`register-source-methods`
+use), not to change the rule code. The rule code is now correct: it opens
+the method's scheme, skips the `URequire` dictionary prefix the ordinary
+application discharges first, and walks the declared arrow spine.
+
 ## 3 The rule keying decision
 
 The three safety rules were keyed on the builtin *name*. They are now keyed
