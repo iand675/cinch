@@ -9,7 +9,7 @@
 //! say which rule does the work, and the cap is what keeps a rewrite
 //! pair that undoes itself from looping.
 //!
-//! Four rules, in this slice:
+//! Six rules, in this slice:
 //!
 //! - `case-merge`: an outer decision has alternatives whose body is a
 //!   decision on the same local, so the two decisions become one. The
@@ -92,6 +92,22 @@
 //!   one value visible to each other), and when the inner scrutinee is not
 //!   a local (a computed scrutinee would be evaluated again per copy).
 //!
+//! - `known-constructor`'s computed-argument half (off by default; see the
+//!   rule's own documentation and design/compilation-speed.md section 10.6):
+//!   a decision on `Ctor a1 a2` whose arguments are computed is folded by
+//!   rebinding each argument to a fresh local *where the construction stood*,
+//!   in argument order, and substituting the field binders by those locals.
+//!   Nothing moves, so evaluation order is preserved by construction and no
+//!   single-use condition is needed. The rule is sound and removes 5,420 Core
+//!   nodes on the compiler's own bundle, but it makes the inliner duplicate:
+//!   deleting the constructor a body's decision reads stops the body being
+//!   decision-bearing at the site test, which admits a copy the benefit model
+//!   refused before, and two units then reach 57,719 and 37,538 lines. It
+//!   ships off until the inliner credits a fold it enables.
+//! - `projection`: `proj (Ctor a1 a2) k` is `ak` when `ak` is a value. The
+//!   shape is reachable from source and from `case-of-case`; it fires zero
+//!   times on this corpus, where every projection reads a parameter.
+//!
 //! A pass also deletes a `let` whose binder the body no longer mentions
 //! when its value is a value: after a known-constructor reduction the
 //! constructor application that only the decision read has no reader,
@@ -157,6 +173,13 @@ pub struct SimplifyOptions {
     /// The most passes over the program (`--max-simplifier-iterations`,
     /// default 4). Zero disables the simplifier.
     pub max_iterations: u32,
+    /// Fold a decision on a computed-argument constructor application by
+    /// rebinding its arguments where the construction stood
+    /// (`known-constructor`'s computed-argument half).
+    pub known_constructor_computed: bool,
+    /// Replace a record field projection of a constructor application by the
+    /// field itself (`projection`).
+    pub projection: bool,
     /// Resolve a projection from a known static dictionary to a direct
     /// call (`direct-dict-call`).
     pub direct_dict_calls: bool,
@@ -235,6 +258,25 @@ impl Default for SimplifyOptions {
         SimplifyOptions {
             max_iterations: 4,
             direct_dict_calls: true,
+            // Off by default, and the reason is measured rather than
+            // suspected. The fold is sound (see its documentation) and on the
+            // compiler's own bundle it removes 5,420 Core nodes over 2,093
+            // firings, but it changes what the inliner's benefit-and-size model
+            // sees, and two units then explode:
+            //
+            // | arm | Core lines | Bootstrap.Type.read-carrier-tree |
+            // | off | 1,656,750  | 1,519 |
+            // | on  | 1,728,431  | 57,719 |
+            //
+            // `Bootstrap.Ast.default-expression` goes from 1,598 to 37,538 the
+            // same way. The interaction is not a bug in either rule: the fold
+            // deletes the constructor a body's decision reads, so the body
+            // stops being decision-bearing at the site test, which admits a
+            // copy the inliner refused before. That is exactly the "two rules
+            // fighting" case, and until the inliner's credit accounts for it the
+            // rule stays off. Turn it on with `--known-ctor-computed`.
+            known_constructor_computed: false,
+            projection: true,
             saturate_partial: true,
             // Off by default: measured on the compiler's own bundle it grows
             // Core by about a tenth (3.22M nodes to 3.54M) even with the
@@ -642,6 +684,12 @@ enum Rule {
     SaturatePartial,
     CaseOfCase,
     Inline,
+    /// A decision on a computed-argument constructor application, folded by
+    /// rebinding the arguments where the construction stood.
+    KnownConstructorComputed,
+    /// A record field projection of a constructor application, replaced by
+    /// the field.
+    Projection,
     /// A binding whose one read is in the spine, substituted whatever its
     /// size (GHC's `preInlineUnconditionally`).
     PreInline,
@@ -657,6 +705,8 @@ struct Ticks {
     ticks: usize,
     case_merge: usize,
     known_ctor: usize,
+    known_ctor_computed: usize,
+    projection: usize,
     dict_call: usize,
     saturate: usize,
     case_of_case: usize,
@@ -675,6 +725,8 @@ impl Ticks {
         match rule {
             Rule::CaseMerge => self.case_merge += 1,
             Rule::KnownConstructor => self.known_ctor += 1,
+            Rule::KnownConstructorComputed => self.known_ctor_computed += 1,
+            Rule::Projection => self.projection += 1,
             Rule::DirectDictCall => self.dict_call += 1,
             Rule::SaturatePartial => self.saturate += 1,
             Rule::CaseOfCase => self.case_of_case += 1,
@@ -740,6 +792,10 @@ fn pass(
     for _ in 0..8 {
         let fired = if known_constructor(e, scope, tables) {
             Some(Rule::KnownConstructor)
+        } else if opts.known_constructor_computed && known_constructor_computed(e, tables, classes, fresh) {
+            Some(Rule::KnownConstructorComputed)
+        } else if opts.projection && projection(e, tables) {
+            Some(Rule::Projection)
         } else if case_merge(e, scope) {
             Some(Rule::CaseMerge)
         } else if opts.direct_dict_calls && direct_dict_call(e, tables) {
@@ -1520,6 +1576,201 @@ fn known_constructor(e: &mut Core, scope: &Scope, tables: &Tables) -> bool {
     true
 }
 
+/// A decision on a constructor application whose arguments are *computed*,
+/// folded by rebinding the arguments as `let`s where the construction stood.
+///
+/// This is the half of the fold section 10.2 records as missing, and the
+/// formulation that makes it unconditionally sound is not the substitution
+/// one. [`known_constructor`] substitutes a field binder by an argument, which
+/// requires the argument to be a value: substituting a computed argument at
+/// *n* reads would run its work *n* times, and in a strict language it would
+/// also move the work past whatever sits between the construction and the
+/// read. Requiring the field to be read at most once rescues the second
+/// objection but not the first, because a read that a nested decision skips
+/// still drops the work.
+///
+/// So this rule does not substitute at all. It binds each argument to a fresh
+/// local *at the position the construction occupied*, in the argument order,
+/// and substitutes the field binders by those locals:
+///
+/// ```text
+/// let t = Ctor a1 a2 in case t of (con k f1 f2) -> body
+/// let x1 = a1 in let x2 = a2 in body[x1/f1, x2/f2]
+/// ```
+///
+/// The order is preserved by construction: the constructor form evaluates
+/// `a1`, then `a2`, then allocates, then dispatches; the folded form evaluates
+/// `a1`, then `a2`, then `body`. The allocation and the dispatch are what the
+/// rule deletes, and neither is observable. A field read any number of times
+/// costs exactly what it cost before, because `crate::rc` counts a `let`
+/// binder and a pattern binder the same way. Nothing moves, so nothing about
+/// evaluation order has to be argued beyond the argument order.
+///
+/// The rule takes both shapes: the `let`-bound form above, which is what the
+/// checker's lowering produces, and the direct form `case (Ctor a1 a2) of
+/// ...`, which is what `case-of-case` produces when it scrutinizes the value an
+/// inner alternative built.
+///
+/// It refuses when:
+///
+/// - the scrutinee's tag selects a variable or wildcard alternative, which
+///   binds the block itself and so cannot be had without the block;
+/// - the decision is weighted (removing it rescales the weight space, and the
+///   driving pass owns the weighted forms);
+/// - the chosen alternative carries a quotation, whose retained body is a
+///   binding scope of its own;
+/// - the body carries a `Release`, `Reuse` or `Drop`, which means
+///   `crate::rc` has already run and the block this rule deletes has count
+///   operations naming it (`Release` names the block directly);
+/// - the `let`-bound form's binder is read anywhere but the decision's
+///   scrutinee position, so the block has another reader;
+/// - the constructor is identity-bearing (`MutCell`, a thunk or memo cell),
+///   where two evaluations are two cells.
+///
+/// `crate::rc` runs after this pass, so the fresh `let` binders are counted
+/// where they now sit: each argument is one owned binding, exactly as the
+/// constructor's field was.
+fn known_constructor_computed(
+    e: &mut Core,
+    tables: &Tables,
+    classes: &HashMap<LocalId, Class>,
+    fresh: &mut Fresh,
+) -> bool {
+    // The two shapes, and for the `let` form the binder whose block the fold
+    // deletes.
+    let (args, ctor_tag, ctor_name, alts) = match &*e {
+        Core::Case { scrut, alts } => match &**scrut {
+            Core::App(head, args) => match &**head {
+                Core::Ctor(id, _) => {
+                    let Some((tag, _)) = tables.ctors.get(&id.0).copied() else { return false };
+                    (args.clone(), tag, id.0.clone(), alts.clone())
+                }
+                _ => return false,
+            },
+            _ => return false,
+        },
+        Core::Let(x, _, value, body) => {
+            let Core::Case { scrut, alts } = &**body else { return false };
+            let Core::Var(v) = &**scrut else { return false };
+            if v != x {
+                return false;
+            }
+            let Core::App(head, args) = &**value else { return false };
+            let Core::Ctor(id, _) = &**head else { return false };
+            let Some((tag, _)) = tables.ctors.get(&id.0).copied() else { return false };
+            // The block's only reader is the decision this rule deletes.
+            if uses_of(body, *x) != 1 {
+                return false;
+            }
+            (args.clone(), tag, id.0.clone(), alts.clone())
+        }
+        _ => return false,
+    };
+    // A constructor whose every argument is already a value is the plain
+    // fold's population, and it fires first; requiring one computed argument
+    // keeps this rule's counter honest about what it did.
+    if args.iter().all(|a| is_value(a, tables)) {
+        return false;
+    }
+    if alts.is_empty() || alts.iter().any(|a| a.weight.is_some()) {
+        return false;
+    }
+    // The alternative the tag selects, first match in source order: a
+    // constructor alternative for another tag cannot match.
+    let chosen = alts.iter().find(|a| match &a.pat {
+        CPat::Con { tag: t, .. } => *t == ctor_tag,
+        CPat::Var(..) | CPat::Wild => true,
+    });
+    let Some(chosen) = chosen else { return false };
+    // A variable or wildcard alternative binds the block, which is going away.
+    let CPat::Con { fields: binders, classes: field_classes, .. } = &chosen.pat else {
+        return false;
+    };
+    if binders.len() != args.len() {
+        return false;
+    }
+    if carries_quote(&chosen.body) || carries_count_ops(&chosen.body) {
+        return false;
+    }
+    // The identity-bearing constructors, where two evaluations are two cells.
+    if is_identity_bearing(&ctor_name) {
+        return false;
+    }
+    // Bind every argument, in order, to a fresh local of the field binder's
+    // own class, and substitute the binder by it.
+    let mut body = (*chosen.body).clone();
+    let mut binders_out: Vec<(LocalId, Class, Core)> = Vec::with_capacity(args.len());
+    for (i, (binder, arg)) in binders.iter().zip(args.into_iter()).enumerate() {
+        let class = field_classes
+            .get(i)
+            .copied()
+            .or_else(|| classes.get(binder).copied())
+            .unwrap_or(Class::Raw);
+        let local = fresh.local();
+        subst(&mut body, *binder, &Core::Var(local));
+        binders_out.push((local, concrete(class), arg));
+    }
+    let mut out = body;
+    for (local, class, value) in binders_out.into_iter().rev() {
+        out = Core::Let(local, class, Box::new(value), Box::new(out));
+    }
+    *e = out;
+    true
+}
+
+/// Whether a constructor's name marks it identity bearing: a mutable cell or
+/// a thunk, where two constructions are two distinct cells and no rewrite may
+/// move or delete one.
+fn is_identity_bearing(name: &str) -> bool {
+    name == crate::core::MUTABLE_CELL || name.contains("Thunk") || name.contains("Memo")
+}
+
+/// Whether the term carries a count operation or a `Release`/`Reuse`, which
+/// means `crate::rc` has already run: those nodes name binders by identity and
+/// a rewrite that deletes a block must not leave them behind.
+fn carries_count_ops(e: &Core) -> bool {
+    if matches!(e, Core::Dup(..) | Core::Drop(..) | Core::Release { .. } | Core::Reuse { .. }) {
+        return true;
+    }
+    let mut found = false;
+    visit_children(e, &mut |child| {
+        if !found && carries_count_ops(child) {
+            found = true;
+        }
+    });
+    found
+}
+
+/// `proj (Some x) idx` is `x`: a record field read from a constructor
+/// application whose field at that slot is a value.
+///
+/// The projection a constructor's own field read lowers to survives the
+/// known-constructor fold whenever the fold did not reach it (the decision
+/// that read the block is elsewhere, or there is none), and each one is a
+/// load the block never needed. The rule requires the slot to name an actual
+/// field (so the block has that word) and the field to be a value, because a
+/// computed field substituted at the projection's use would move its work
+/// there; that is the same condition the value-only fold states and the same
+/// reason.
+fn projection(e: &mut Core, tables: &Tables) -> bool {
+    let Core::Proj(inner, field) = e else { return false };
+    if field.access.is_some() || field.mutable {
+        return false;
+    }
+    let Core::App(head, args) = &**inner else { return false };
+    let Core::Ctor(id, _) = &**head else { return false };
+    let Some((_, fields)) = tables.ctors.get(&id.0).copied() else { return false };
+    if fields != args.len() || field.slot >= fields {
+        return false;
+    }
+    let Some(arg) = args.get(field.slot) else { return false };
+    if !is_value(arg, tables) {
+        return false;
+    }
+    *e = arg.clone();
+    true
+}
+
 /// `dictproj (instdict I) idx` applied to a static instance's method
 /// arity calls the method unit directly.
 fn direct_dict_call(e: &mut Core, tables: &Tables) -> bool {
@@ -1766,6 +2017,7 @@ pub fn simplify_with_foreign(
             let mut scope = Scope::default();
             let classes = unit_classes(f);
             let mut body = std::mem::replace(&mut f.body, Core::Unit);
+            CURRENT.with(|c| c.borrow_mut().clone_from(&f.id.0));
             let mut occ: HashMap<LocalId, Occ> = HashMap::new();
             if opts.occurrence {
                 occurrences(&body, false, &mut occ);
@@ -1781,6 +2033,8 @@ pub fn simplify_with_foreign(
     report.ticks = ticks.ticks;
     report.case_merge = ticks.case_merge;
     report.known_ctor = ticks.known_ctor;
+    report.known_ctor_once = ticks.known_ctor_computed;
+    report.projection = ticks.projection;
     report.dict_call = ticks.dict_call;
     report.saturate = ticks.saturate;
     report.case_of_case = ticks.case_of_case;

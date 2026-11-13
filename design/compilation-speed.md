@@ -1929,10 +1929,91 @@ introduction, its printing and its verification stay on: they cost
 nothing when no join exists, and `compiler/tests/core/joins.cinch` pins
 them (a join with two jumps) through the flag.
 
-The next lever is the missing half of the fold: a pushed decision on a
-constructor application whose arguments are *computed* would collapse if
-the substitution were allowed when the field is read at most once, which
-needs an evaluation-order argument the pass does not yet state.
+The next lever was the missing half of the fold: a decision on a
+constructor application whose arguments are *computed*. That half is now
+written, sound, measured, and **off by default**, because of what it does
+to the inliner rather than to itself. Section 10.6 has the rule and the
+numbers.
+
+### 10.6 The computed-argument fold, and the inliner it feeds (2026-11-13)
+
+The join node section 10.2 describes is in Core (`Core::Join`/`Core::Jump`,
+`compiler/src/core.rs:1885-1925`) with `case-of-case` built on it, so the
+backlog item's first blocker is gone. What remained was the fold's second
+half: a decision on `Ctor a1 a2` where the arguments are *computed*.
+
+**The rule, and why it is not a substitution.** The obvious form substitutes
+each field binder by its argument, which is why the existing
+`known-constructor` rule demands that every argument be a value: substituting
+a computed argument at *n* reads runs its work *n* times, and in a strict
+language it also moves that work past whatever sits between the construction
+and the read. Requiring the field to be read at most once rescues the second
+objection and not the first, because a read a nested decision skips still
+drops the work.
+
+So the rule does not substitute. It binds each argument to a fresh local at
+the position the construction occupied, in argument order, and substitutes
+the field binders by those locals:
+
+```text
+let t = Ctor a1 a2 in case t of (con k f1 f2) -> body
+let x1 = a1 in let x2 = a2 in body[x1/f1, x2/f2]
+```
+
+The order is preserved by construction: the first form evaluates `a1`, then
+`a2`, then allocates, then dispatches; the second evaluates `a1`, then `a2`,
+then `body`. The allocation and the dispatch are what the rule deletes, and
+neither is observable. A field read any number of times costs what it cost
+before, because `crate::rc` counts a `let` binder and a pattern binder the
+same way. That is why the rule needs no single-use condition, and the
+read-order argument the earlier note asked for is discharged by not moving
+anything rather than by proving a move safe.
+
+It refuses a weighted decision, a variable or wildcard alternative (which
+binds the block), a chosen alternative carrying a quotation or a count
+operation, a `let`-bound form whose binder has another reader, and an
+identity-bearing constructor (`MutCell`, a thunk, a memo cell).
+
+**Population, from the checked-stage dump of the compiler's own bundle**
+(`--stage=checked`, 6,345 units): 981 `let ctor-app then case binder` sites,
+of which 830 have a computed argument and every one of those reads each field
+at most once. The lowered stage has 541, the rest having been folded or
+inlined away.
+
+**What it does on its own, and what it does to the inliner.** Both arms from
+one binary, a fresh `CINCH_STORE` each, `core emit` on
+`build/bootstrap/stage1/compiler.cinch`:
+
+| arm | Core lines | Core nodes | ticks | `read-carrier-tree` | `default-expression` |
+|---|---|---|---|---|---|
+| rule off (shipped default) | 1,656,750 | 1,940,774 | 68,829 | 1,519 | 1,598 |
+| rule on (`--known-ctor-computed`) | 1,728,431 | 1,975,422 | 71,258 | 57,719 | 37,538 |
+
+The fold itself is a win: 2,093 firings, and the per-application node delta
+sums to **-5,420**, with no site larger after than before. The growth is all
+in two units, and the mechanism is not the fold. The fold deletes the
+constructor a body's decision reads, so the body stops being
+decision-bearing at the inliner's site test, and the benefit-and-size model
+then admits a copy it refused before: `Bootstrap.Type.read-carrier-tree`
+reaches 35,662 nodes straight out of the inliner in both arms that run it.
+The inliner's credit does not account for a copy whose decision the fold is
+about to delete, so it prices the copy as if the branch stayed.
+
+That is the "two rules fighting" case in its concrete form, and the choice
+between the two is not a matter of taste: the inliner is the default and
+worth more than 5,420 nodes, so **the fold ships off** (`--known-ctor-computed`
+turns it on) until the inliner credits a fold it enables. The rule, its
+counters (`simplifier.known_constructor_computed`) and its eight tests stay
+in the tree, because the population is real and the rule is the half the
+backlog asked for; what is missing is one term in the inliner.
+
+**A second, smaller rule from the same census.** `proj (Ctor a1 a2) k` is
+`ak` when `ak` is a value (`projection`, on by default). The census finds
+1,154 projection nodes at the lowered stage and 935 at the checked stage, but
+none of them is a projection of a constructor application: the shape is
+reachable from source and from `case-of-case`, not present in this corpus, so
+the rule costs one line and fires zero times here. It is kept for the reason
+section 10.3 keeps its backend twins: the shape exists, and a probe pins it.
 
 ### 10.3 The same folds in the Cinch backend (2026-11-11)
 
@@ -2868,7 +2949,7 @@ Metrics, reported per edit and per clean build:
    above 2% self after the carrier fix; nothing measured here does.
 8. **Finish the GHC-style simplifier** on our Core: case-of-case with join
    points, call-arity and eta, loopification, CPR plus worker/wrapper for
-   single-field constructors, spec-constr and liberate-case. The pass
+<<<<   single-field constructors, spec-constr and liberate-case. The pass
    shape, the tick budget and the first three rewrites (case-merge,
    known-constructor, direct dictionary calls) are in the tree (section
    10.1); case-of-case needs the join node in Core first.
@@ -2885,6 +2966,28 @@ Metrics, reported per edit and per clean build:
    arm. The 14% call population it would have inlined is also already
    smaller than the estimate, because the interface unfoldings removed
    2,833 wrapper calls at the Core level first. Nothing was wired.
+-   single-field constructors, spec-constr and liberate-case. The pass
+-   shape, the tick budget and the first three rewrites (case-merge,
+-   known-constructor, direct dictionary calls) are in the tree (section
+-   10.1); case-of-case needs the join node in Core first.
+   single-field constructors, spec-constr and liberate-case. In the tree:
+   the pass shape, the tick budget and five rewrites (case-merge,
+   known-constructor, direct dictionary calls, saturate-partial,
+   case-of-case with join points) in section 10.1 and 10.2, and the
+   computed-argument fold written and measured but **off by default**
+   because it makes the inliner duplicate (section 10.6). Loopification is
+   already done by code generation, which turns a saturated self tail call
+   into a branch to the unit's loop header (`compiler/src/codegen.rs`, the
+   `loop_label` in the entry block, decision D104); the Core-level version
+   would only restate it. What is genuinely left, in cost order: the
+   inliner term that would let the computed fold ship (section 10.6), CPR
+   plus worker/wrapper for single-field constructors, call-arity and eta,
+   then spec-constr and liberate-case.
+ 9. **LTO across the library boundary**: finish the investigation in section
+    8. It is worth one focused pass because it halves the binary and removes
+    the call cost to the library's string and `Nat` routines (14% of the
+    compiler's profile), but only if the stack-probe fault is understood.
+
 10. **Parallel phases** using the runtime pool, once section 11's corpus
    says which phases have enough independent work: RuntimeIr emission per
    unit, then inference per definition, then interface export per module.
