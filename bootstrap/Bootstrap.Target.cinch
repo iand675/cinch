@@ -32,9 +32,10 @@
 module Bootstrap.Target where
 
   import Bootstrap.Ast
+  import Text.Lex (Span, span-start, span-end, span-line, span-col)
   import Bootstrap.Host (host-triple, host-os, host-arch, host-libc)
   import Data.Char (is-ascii-digit)
-  import Data.List (map, reverse)
+  import Data.List (reverse)
   import Data.Option (Option, None, Some)
   import Data.String (unpack, string-concat, string-concat-all, string-compare)
   import Text.Show (nat-to-string)
@@ -216,8 +217,8 @@ module Bootstrap.Target where
       let head-word = head-name head in
       if string-compare head-word "not" == 0 then lower-negated argument
       else atom-of head-word (argument-text argument)
-    ECon sp head (EArg at argument (EArgsEnd end)) ->
-      atom-of (head-name head) (argument-text argument)
+    ECon sp name (EArg at argument (EArgsEnd end)) ->
+      atom-of name (argument-text argument)
     other -> Err when-vocabulary
 
   -- One atom from its head and argument spelling, with the vocabulary's

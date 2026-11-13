@@ -28,36 +28,36 @@ module Main where
   run-words ws = run-options CompileAndRun None None None False False False ws
 
   run-options :: forall r. using (io :: Io r) => PipelineMode -> Option String -> Option String -> Option String -> Bool -> Bool -> Bool -> List String ->{IO r, Diverge} Int
-  run-options mode manifest object-config target debug inlining selected ws = case ws of
+  run-options mode manifest object-config wanted debug inlining selected ws = case ws of
     Cons flag rest ->
       if string-compare flag "--check" == 0 then
-        if selected then pipeline-bad-args else run-options CheckOnly manifest object-config target debug inlining True rest
+        if selected then pipeline-bad-args else run-options CheckOnly manifest object-config wanted debug inlining True rest
       else if string-compare flag "--emit-bodies" == 0 then
-        if selected then pipeline-bad-args else run-options BodiesOnly manifest object-config target debug inlining True rest
+        if selected then pipeline-bad-args else run-options BodiesOnly manifest object-config wanted debug inlining True rest
       else if string-compare flag "--compile-only" == 0 then
-        if selected then pipeline-bad-args else run-options CompileOnly manifest object-config target debug inlining True rest
+        if selected then pipeline-bad-args else run-options CompileOnly manifest object-config wanted debug inlining True rest
       else if string-compare flag "--emit-ir" == 0 then
-        if selected then pipeline-bad-args else run-options EmitOnly manifest object-config target debug inlining True rest
+        if selected then pipeline-bad-args else run-options EmitOnly manifest object-config wanted debug inlining True rest
       else if string-compare flag "--emit-ir-with-interfaces" == 0 then
-        if selected then pipeline-bad-args else run-options EmitWithInterfaces manifest object-config target debug inlining True rest
+        if selected then pipeline-bad-args else run-options EmitWithInterfaces manifest object-config wanted debug inlining True rest
       else if string-compare flag "--emit-object" == 0 then
-        if selected then pipeline-bad-args else run-options ObjectOnly manifest object-config target debug inlining True rest
+        if selected then pipeline-bad-args else run-options ObjectOnly manifest object-config wanted debug inlining True rest
       else if string-compare flag "--emit-interfaces" == 0 then
-        if selected then pipeline-bad-args else run-options InterfacesOnly manifest object-config target debug inlining True rest
+        if selected then pipeline-bad-args else run-options InterfacesOnly manifest object-config wanted debug inlining True rest
       else if string-compare flag "--rc-debug" == 0 then
-        if debug then pipeline-bad-args else run-options mode manifest object-config target True inlining selected rest
+        if debug then pipeline-bad-args else run-options mode manifest object-config wanted True inlining selected rest
       else if string-compare flag "--inline" == 0 then
-        if inlining then pipeline-bad-args else run-options mode manifest object-config target debug True selected rest
+        if inlining then pipeline-bad-args else run-options mode manifest object-config wanted debug True selected rest
       else if string-compare flag "--interfaces" == 0 then
         case (manifest, rest) of
-          (None, Cons file more) -> run-options mode (Some file) object-config target debug inlining selected more
+          (None, Cons file more) -> run-options mode (Some file) object-config wanted debug inlining selected more
           other -> pipeline-bad-args
       else if string-compare flag "--objects" == 0 then
         case (object-config, rest) of
-          (None, Cons file more) -> run-options mode manifest (Some file) target debug inlining selected more
+          (None, Cons file more) -> run-options mode manifest (Some file) wanted debug inlining selected more
           other -> pipeline-bad-args
       else if string-compare flag "--target" == 0 then
-        case (target, rest) of
+        case (wanted, rest) of
           (None, Cons triple more) -> run-options mode manifest object-config (Some triple) debug inlining selected more
           other -> pipeline-bad-args
       else if string-compare flag "run" == 0 then
@@ -65,7 +65,7 @@ module Main where
           (False, Some contracts, Some provider, Cons runtime (Cons prefix (Cons source words))) ->
             run-source-with-object inlining debug contracts provider runtime prefix source (program-words words)
           other -> pipeline-bad-args
-      else run-selected mode manifest object-config target debug inlining ws
+      else run-selected mode manifest object-config wanted debug inlining ws
     Nil -> pipeline-bad-args
 
   program-words :: List String -> List String
@@ -77,41 +77,41 @@ module Main where
   -- no count operations, so it ignores the flag; a mode that emits code
   -- without a runtime object refuses it.
   run-selected :: forall r. using (io :: Io r) => PipelineMode -> Option String -> Option String -> Option String -> Bool -> Bool -> List String ->{IO r, Diverge} Int
-  run-selected mode manifest object-config target debug inlining ws = case mode of
+  run-selected mode manifest object-config wanted debug inlining ws = case mode of
     ObjectOnly -> case (debug, manifest, object-config, ws) of
       (False, Some contracts, Some provider, Cons source (Cons ir (Cons object (Cons abi (Cons prefix Nil))))) ->
-        case target-profile target of
+        case target-profile wanted of
           Err message -> report-target-refusal (path-from-string ir) message
           Ok profile -> compile-source-library-object-at inlining profile contracts provider source (path-from-string ir) (path-from-string object) (path-from-string abi) prefix
       other -> pipeline-bad-args
     EmitOnly -> case ws of
-      Cons source (Cons ir Nil) -> run-source mode manifest object-config target debug inlining source ir ir ir
+      Cons source (Cons ir Nil) -> run-source mode manifest object-config wanted debug inlining source ir ir ir
       other -> pipeline-bad-args
     EmitWithInterfaces -> case ws of
-      Cons source (Cons ir Nil) -> run-source mode manifest object-config target debug inlining source ir ir ir
+      Cons source (Cons ir Nil) -> run-source mode manifest object-config wanted debug inlining source ir ir ir
       other -> pipeline-bad-args
     InterfacesOnly -> case ws of
-      Cons source (Cons prefix Nil) -> run-source mode manifest object-config target debug inlining source prefix prefix prefix
+      Cons source (Cons prefix Nil) -> run-source mode manifest object-config wanted debug inlining source prefix prefix prefix
       other -> pipeline-bad-args
     CheckOnly -> case ws of
-      Cons source (Cons diagnostics Nil) -> run-source mode manifest object-config target debug inlining source diagnostics diagnostics diagnostics
+      Cons source (Cons diagnostics Nil) -> run-source mode manifest object-config wanted debug inlining source diagnostics diagnostics diagnostics
       other -> pipeline-bad-args
     BodiesOnly -> case (debug, ws) of
-      (False, Cons source (Cons out Nil)) -> run-source mode manifest object-config target debug inlining source out out out
+      (False, Cons source (Cons out Nil)) -> run-source mode manifest object-config wanted debug inlining source out out out
       other -> pipeline-bad-args
     other -> case four-words ws of
       None -> pipeline-bad-args
-      Some (source, ir, exe, report) -> run-source mode manifest object-config target debug inlining source ir exe report
+      Some (source, ir, exe, report) -> run-source mode manifest object-config wanted debug inlining source ir exe report
 
   run-source :: forall r. using (io :: Io r) => PipelineMode -> Option String -> Option String -> Option String -> Bool -> Bool -> String -> String -> String -> String ->{IO r, Diverge} Int
-  run-source mode manifest object-config target debug inlining source ir exe report = case object-config of
+  run-source mode manifest object-config wanted debug inlining source ir exe report = case object-config of
     Some configuration -> (case (mode, manifest) of
-      (EmitOnly, Some file) -> compile-source-object inlining debug target False file configuration source (path-from-string ir)
-      (EmitWithInterfaces, Some file) -> compile-source-object inlining debug target True file configuration source (path-from-string ir)
+      (EmitOnly, Some file) -> compile-source-object inlining debug wanted False file configuration source (path-from-string ir)
+      (EmitWithInterfaces, Some file) -> compile-source-object inlining debug wanted True file configuration source (path-from-string ir)
       other -> pipeline-bad-args)
     None -> if debug && emits-code mode then pipeline-bad-args else case manifest of
-      None -> compile-source-mode inlining target mode source (path-from-string ir) (path-from-string exe) (path-from-string report)
-      Some file -> compile-source-with-manifest-mode inlining target mode file source (path-from-string ir) (path-from-string exe) (path-from-string report)
+      None -> compile-source-mode inlining wanted mode source (path-from-string ir) (path-from-string exe) (path-from-string report)
+      Some file -> compile-source-with-manifest-mode inlining wanted mode file source (path-from-string ir) (path-from-string exe) (path-from-string report)
 
   emits-code :: PipelineMode -> Bool
   emits-code mode = case mode of
