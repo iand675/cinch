@@ -288,6 +288,9 @@ module Bootstrap.Builtin where
     Cons (DClass sp name ps members) rest ->
       Cons (DClass sp parallelism-name ps (decl-spine sp (resolved-members (decls-of members)))) (resolved-class rest)
     Cons other rest -> Cons other (resolved-class rest)
+  parallelism-method-symbol :: String -> String
+  parallelism-method-symbol name = string-concat "b." name
+
   resolved-members :: List Decl -> List Decl
   resolved-members ds = case ds of
     Nil -> Nil
