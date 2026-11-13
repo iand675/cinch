@@ -182,9 +182,18 @@ pub(crate) unsafe fn as_sym<'a>(word: i64) -> &'a crate::sym::SymCell {
 /// Fault through the `cinch_panic` path: write `msg` to stderr and exit 71.
 pub(crate) fn panic_exit(msg: &[u8]) -> ! {
     use std::io::Write;
-    let _ = std::io::stderr().write_all(b"cinchruntime: ");
-    let _ = std::io::stderr().write_all(msg);
-    let _ = std::io::stderr().write_all(b"\n");
+    let mut err = std::io::stderr();
+    let _ = err.write_all(b"cinchruntime: ");
+    let _ = err.write_all(msg);
+    let _ = err.write_all(b"\n");
+    // The trace is opt-in (`CINCH_BACKTRACE=1`): the message above is the
+    // program's contract, and a test that asserts on it must not also
+    // have to expect a stack. The walk itself is the runtime's own frame
+    // chain (`crate::trace`), so it works whether or not the fault path
+    // has CFI.
+    if crate::trace::enabled() {
+        let _ = crate::trace::render(&mut err);
+    }
     std::process::exit(EXIT_PANIC)
 }
 

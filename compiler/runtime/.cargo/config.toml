@@ -1,0 +1,12 @@
+# The fault path walks the frame chain (`src/trace.rs`), and a chain only
+# exists if the frames that make it up keep a frame pointer. This crate is
+# its own workspace root, so the flags live here rather than in a caller's
+# environment: a runtime built without them produces traces that stop at
+# the first Rust frame, which reads as a truncated stack rather than as a
+# misconfiguration.
+#
+# `-Cforce-frame-pointers=yes` makes every Rust frame keep and establish
+# `x29`/`rbp`; `-Cdebuginfo=1` keeps the line tables that let a symbolizer
+# name the runtime frame a Cinch fault came out of.
+[build]
+rustflags = ["-Cforce-frame-pointers=yes", "-Cdebuginfo=1"]

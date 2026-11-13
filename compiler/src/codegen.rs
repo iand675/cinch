@@ -1306,6 +1306,16 @@ impl Registry {
         let mut attrs: Vec<String> = Vec::new();
         if native {
             attrs.push("\"probe-stack\"=\"inline-asm\"".to_string());
+            // A frame pointer on every native unit, so a walk of the
+            // frame chain is possible without unwinding at all: the
+            // failure path (`cinch_panic`, `compiler/runtime/src/abi.rs`)
+            // and any foreign unwinder that would rather read the chain
+            // than parse CFI both need it, and a backtrace that depends
+            // on `.eh_frame` alone cannot name a frame whose CFI the
+            // linker dropped. `all` rather than `non-leaf` because a leaf
+            // that faults (a `cinch_panic` call is not a leaf, but a
+            // `llvm.trap` path is) still has to be walkable.
+            attrs.push("\"frame-pointer\"=\"all\"".to_string());
         }
         // WebAssembly's tail calls are outside the MVP: a `musttail` call
         // (which a `D104` group produces when the callee's signature

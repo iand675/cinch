@@ -605,6 +605,7 @@ pub mod sym;
 pub mod sys;
 pub mod task;
 pub mod text;
+pub mod trace;
 
 pub use error::{Error, Result};
 pub use int::Int;
