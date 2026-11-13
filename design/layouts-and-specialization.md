@@ -1268,3 +1268,86 @@ one storage object, never by a global alias at the payload
 decremented a constant in `__TEXT`). A narrow static block keeps that rule:
 one `@"<sym>.blk#h"` constant of `ceil(payload/8)` words, and the payload
 at `8 * words`.
+
+### 15 Costs and refusals
+
+#### 15.1 What stays boxed, and why each one has to
+
+|Stays `boxed_obj`|Reason|
+|---|---|
+|a type variable in a generic body|12.3.4: the body is shared, so its slots cannot depend on the instantiation|
+|a data type used as an element (`List (List a)`, a tree of trees)|12.3.3: a constructor-applied type is a pointer|
+|a closure, a dictionary, `Bytes`, `String`, `Sym`|they are pointers; there is nothing to narrow|
+|an anonymous shape (a tuple, a primitive result, a lifted ABI aggregate)|13.2: it is created during emission, after the size has to be known, so it keeps one word per field|
+|a multi-constructor type with a tag (`Option U8`, `Result e a`)|the tag has no room in a narrow slot without a second representation of the same value (stage 4)|
+|anything under `#[repr(C)]`, `#[packed]`, `#[repr(unboxed)]`|an explicit layout is a contract; the compiler never changes it (Part I section 3)|
+|a block built by the quote evaluator or `eval`|13.2: its layout would be chosen at run time|
+|an FFI payload|the foreign plan fixes the layout during checking, and it is the C ABI's, not ours|
+
+The list is long on purpose. Every entry is a place where specialising
+would either break a sharing property (the first, which is the one that
+keeps the design lazy) or decide a layout after the point where it is
+read (the fourth). A design that tried to specialise these would be full
+monomorphisation, which Part I section 2 already rejected.
+
+#### 15.2 What a caller that cannot see the instantiation does
+
+Three callers cannot see it, and each has a different answer.
+
+1. **A caller inside the generic body.** It calls
+   `Data.List.map@RO` (class vector only). The *callee* is the one
+   specialised at a layout, and the caller reaches it through a dictionary
+   or a direct call to the copy the collector selected. The caller never
+   names a layout, which is why a generic body's IR does not change when a
+   new layout is introduced: only new copies appear.
+2. **A separately compiled consumer.** It reads the slot rows from the
+   producer's interface (14.6) and calls the symbol the row names. If the
+   producer does not publish the layout the consumer needs, admission
+   refuses with `checked external variant is absent`, the message
+   `bootstrap_runtime_objects.rs` already asserts for a missing class
+   vector. That is a *staleness* answer, not a naming one.
+3. **A consumer compiled for a different target.** Refused before anything
+   else: `profile.triple` is in the object ABI and the store key, and the
+   layout name contains the width, so a 64-bit consumer of a 32-bit object
+   fails on the target check, not on a layout.
+
+#### 15.3 The module-boundary case the brief names
+
+A module boundary where the layout is known only from the interface is the
+normal case, not the hard one, once the name is derived: the consumer has
+the *name* from the symbol and the *descriptor* from the row, and neither
+requires the producer's source. What the consumer cannot do is *recompute*
+the name from a type it cannot see, which is exactly why the name is in the
+symbol and the row rather than in a shared derivation the consumer would
+have to re-run. This is the same choice the object ABI already makes for
+class vectors (`units[].params` is `["R","O","T"]` in the manifest, not
+"re-derive the classes from the scheme").
+
+#### 15.4 What it costs
+
+|Cost|Size|
+|---|---|
+|one extra copy per reached (class vector, layout vector) pair|bounded by `3^k * 5^k` in the worst case but only the reached pairs exist; the measured compiler bundle has 533 distinct layout ids across 191 groups, so the real number is small|
+|one interface row per published layout|about 40 bytes of JSON per row; at 533 rows that is 21 KB, against the 1.7 MB base interface set the two-tier measurement priced at 10 blocks per byte|
+|one table word per layout index|already paid; the table is 22,272 words for the compiler bundle|
+|binary size|grows with the copies used, the same cost class as the class axis|
+|compile time|the collector's worklist grows by the layout component; the drain loop is already there|
+
+The interface cost is the one worth watching, because
+`compilation-speed.md` 2.17 measured that reading interfaces is 50% of the
+fixed cost of a small check and that a JSON byte is 10 blocks. 533 rows is
+a 1.2% increase on the base set, so the slot rows do not disturb that
+measurement. That is the estimate that decides whether the rows can be in
+the always-read tier (stage 2 of 16) or must be lazy.
+
+#### 15.5 Two refusals that must be errors, not warnings
+
+- **A layout requested at a `#[no-alloc]` site.** `#[no-alloc]` is a
+  safety assertion checked per body (`check_decls.rs:14260`, JPL rule 3).
+  A specialised layout does not allocate, so this is not a conflict. But a
+  layout that *forces* a box (an expanding edge inside `#[no-alloc]` code)
+  must be an error, which is the rule Part I section 4 already states.
+- **A `#[repr(C)]` type reached at a specialised instantiation.** The
+  explicit layout wins, and the caller must be told it did not get the
+  narrow layout it asked for. Silently using the C layout would make
+  `List MyCStruct` mean two sizes in one program.
