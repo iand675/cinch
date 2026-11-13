@@ -26,13 +26,14 @@ module Bootstrap.TemporalCheck where
   import Data.Char (digit-value, eq-char)
   import Data.List (list-length)
   import Algebra.Semigroup
-  import Bootstrap.Type (UType, borrow-type-parts, without-index-levels, empty-store, store-errors, unify)
+  import Bootstrap.Type (UType, UApp, borrow-type-parts, without-index-levels, empty-store, store-errors, unify, index-of-type, type-text)
+  import Bootstrap.Index (IndexTerm, IRigid, index-equal)
   import Bootstrap.Proof (Arithmetic, AInteger, AVariable, APlus, AMinus, ATimes, ACall, AArgument, AArgumentsEnd, Proposition, PTruth, PFalsehood, PCompare, PBoth, PEither, PNegate, Comparison, Less, AtMost, Equal, Unequal, AtLeast, Greater, prove, disproved, proposition-equal)
   import Bootstrap.Core (mutable-borrow, CoreClause, MkCoreClause, core-clauses, term-children, CoreTerm, CorePattern, CPWild, CPVar, CPProof, CPErasedValue, CPAs, CPConstructor, CPInt, CPString, CPChar, CPTuple, CPField, CPDone, CUse, CQualifiedUse, CLocal, CInt, CString, CChar, CUnit, CApply, CApplyEff, CLambda, CLet, CIf, CCase, CAlternative, CAlternativesEnd, CTuple, CPrimitive, CGuard, CArgument, CArgumentsEnd, CScope, CSpawn, CJoin, core-type, borrow-read-variable, proof-variable)
 
   export Parameter, MkParameter, parameter-name, parameter-id, parameter-type
   export TemporalStep, TemporalWrite, TemporalOpaque, TemporalDischarge, TemporalCall
-  export temporal-steps, temporal-parameters, temporal-reads, temporal-definition-steps
+  export temporal-steps, temporal-parameters, temporal-reads, temporal-definition-steps, temporal-scope-sites
   export temporal-definition-parameters, temporal-recursive, temporal-descent
   export TemporalVerdict, TemporalVerified, TemporalRefused, verdict-verified, verdict-message
   export verify-safety, verify-stability, verify-recurrence, verify-liveness
@@ -90,7 +91,7 @@ module Bootstrap.TemporalCheck where
   data TemporalStep where
     -- A direct write: its site, the region written, the value's reading
     -- (none when the written value has no arithmetic reading).
-    TemporalWrite :: Span -> UType -> Option Arithmetic -> TemporalStep
+    TemporalWrite :: Span -> Option Nat -> Option Arithmetic -> TemporalStep
     -- A call to the definition itself passing its borrows through: the
     -- inductive discharge (the callee's contract is this contract).
     TemporalDischarge :: Span -> TemporalStep
@@ -184,29 +185,44 @@ module Bootstrap.TemporalCheck where
 
   step-term :: String -> CoreTerm -> List TemporalStep
   step-term owner term = case term of
-    CPrimitive sp ty op (CArgument at place (CArgument v value (CArgumentsEnd end))) ->
-      if same op "ref-set" then Cons (TemporalWrite sp (core-type place) (value-reading value)) (step-term owner value)
-      else step-term owner place <> step-term owner value
-    CPrimitive sp ty op (CArgument at place (CArgumentsEnd end)) -> step-term owner place
+    CPrimitive sp ty op args ->
+      if same op "ref-set" then Cons (TemporalWrite sp (place-identity args) (first-reading args)) (step-terms owner (term-children term))
+      else if same op "memo-demand" then Cons (TemporalOpaque sp) (step-terms owner (term-children term))
+      else step-terms owner (term-children term)
     CApply sp ty f x -> call-step owner sp f x
     CApplyEff sp ty row f x -> call-step owner sp f x
-    CScope sp ty region evidence callback -> step-term owner callback
-    CSpawn sp ty token spawn-body -> step-term owner token <> step-term owner spawn-body
-    CJoin sp ty token handles -> step-term owner token <> step-term owner handles
-    CIf sp ty condition yes no -> step-term owner condition <> step-term owner yes <> step-term owner no
-    CCase sp ty value alternatives -> step-term owner value <> step-alternatives owner alternatives
-    CLet sp ty id name sc rhs body -> step-term owner rhs <> step-term owner body
     CLambda sp ty pattern body -> Nil
-    CGuard sp ty condition guard-body -> step-term owner condition <> step-term owner guard-body
-    CTuple sp ty fields -> step-term owner fields
-    CArgument sp value rest -> step-term owner value <> step-term owner rest
-    other -> Nil
+    other -> step-terms owner (term-children other)
 
-  step-alternatives :: String -> CoreTerm -> List TemporalStep
-  step-alternatives owner alternatives = case alternatives of
-    CAlternativesEnd sp -> Nil
-    CAlternative sp pattern body rest -> step-term owner body <> step-alternatives owner rest
-    other -> Nil
+  -- Every subterm, in the order the Core term carries them. The generic walk
+  -- keeps this walker total: a term it does not name still contributes the
+  -- steps its children perform.
+  step-terms :: String -> List CoreTerm -> List TemporalStep
+  step-terms owner terms = case terms of
+    Nil -> Nil
+    Cons first rest -> step-term owner first <> step-terms owner rest
+
+  -- The local identity of the written place: the parameter the borrow
+  -- names, which is what the formula's own read names too.
+  place-identity :: CoreTerm -> Option Nat
+  place-identity args = case args of
+    CArgument sp first rest -> local-identity first
+    other -> None
+
+  local-identity :: CoreTerm -> Option Nat
+  local-identity term = case term of
+    CLocal sp ty id name actuals -> Some id
+    CPrimitive sp ty op (CArgument at inner (CArgumentsEnd end)) -> local-identity inner
+    CForget sp ty inner -> local-identity inner
+    CRefine sp ty evidence inner -> local-identity inner
+    other -> None
+
+  -- The written value's arithmetic reading: the second argument of a
+  -- `ref-set` spine.
+  first-reading :: CoreTerm -> Option Arithmetic
+  first-reading args = case args of
+    CArgument sp first (CArgument at second rest) -> value-reading second
+    other -> None
 
   -- A call's step. A call to the definition itself whose borrow argument is
   -- one of the caller's own places passed unchanged is the inductive
@@ -214,15 +230,24 @@ module Bootstrap.TemporalCheck where
   call-step :: String -> Span -> CoreTerm -> CoreTerm -> List TemporalStep
   call-step owner sp f x = case callee-name f of
     Some callee -> if same callee owner then
-      (if borrow-passthrough x then Cons (TemporalDischarge sp) (step-term owner f)
-        else Cons (TemporalCall sp callee) (step-term owner f))
-      else Cons (TemporalCall sp callee) (step-term owner f <> step-term owner x)
+      (if borrow-passthrough (application-arguments f x) then Cons (TemporalDischarge sp) Nil
+        else Cons (TemporalCall sp callee) Nil)
+      else Cons (TemporalCall sp callee) (step-term owner x)
     None -> step-term owner f <> step-term owner x
+
+  -- A curried application's argument spine, outermost last: the borrows the
+  -- call actually passes.
+  application-arguments :: CoreTerm -> CoreTerm -> CoreTerm
+  application-arguments f x = case f of
+    CApply at ty inner first -> application-arguments inner (CArgument at first (CArgument at x (CArgumentsEnd at)))
+    CApplyEff at ty row inner first -> application-arguments inner (CArgument at first (CArgument at x (CArgumentsEnd at)))
+    other -> CArgument (Span 0 0 1 1) x (CArgumentsEnd (Span 0 0 1 1))
 
   callee-name :: CoreTerm -> Option String
   callee-name term = case term of
-    CUse sp ty name role actuals -> if same role "value" then Some name else None
-    CQualifiedUse sp ty name role actuals evidence -> if same role "value" then Some name else None
+    CUse sp ty name role actuals -> if same role "constructor" then None else Some name
+    CQualifiedUse sp ty name role actuals evidence -> if same role "constructor" then None else Some name
+    CPrimitive sp ty op args -> Some op
     CApply sp ty f x -> callee-name f
     CApplyEff sp ty row f x -> callee-name f
     other -> None
@@ -232,9 +257,15 @@ module Bootstrap.TemporalCheck where
   -- re-establish the same invariant.
   borrow-passthrough :: CoreTerm -> Bool
   borrow-passthrough term = case term of
+    -- A parameter passed unchanged is the discharge's witness: the callee
+    -- sees the same borrow, so its contract is this contract.
     CLocal sp ty id name actuals -> True
     CUnit sp ty -> True
     CInt sp ty text -> True
+    CPrimitive sp ty op (CArgument at inner (CArgumentsEnd end)) ->
+      same op "negate" || same op "+" || same op "-" || same op "*"
+    CPrimitive sp ty op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
+      same op "+" || same op "-" || same op "*"
     CArgument sp value rest -> borrow-passthrough value && borrow-passthrough rest
     CArgumentsEnd sp -> True
     other -> False
@@ -384,7 +415,7 @@ module Bootstrap.TemporalCheck where
   evidence-name :: List Parameter -> String -> String
   evidence-name params name =
     if string-starts-with "#value:" name then named-by params (after-prefix 7 name) name
-    else if string-starts-with "#borrow-read:" name then named-by params (after-prefix 13 name) name
+    else if string-starts-with "#borrow-read:" name then cat ["copyOut ", named-by params (after-prefix 13 name) name]
     else name
 
   after-prefix :: Nat -> String -> String
@@ -459,20 +490,24 @@ module Bootstrap.TemporalCheck where
     Cons first rest -> proposition-equal first prop || established prop rest
 
   safety-steps :: String -> String -> List Parameter -> Proposition -> List TemporalStep -> TemporalVerdict
-  safety-steps claim-name display params prop steps = case steps of
+  safety-steps claim-name display params prop steps = safety-steps-with claim-name display (cat ["always (", temporal-proposition-text params prop, ")"]) params prop steps
+
+  safety-steps-with :: String -> String -> String -> List Parameter -> Proposition -> List TemporalStep -> TemporalVerdict
+  safety-steps-with claim-name display formula params prop steps = case steps of
     Nil -> TemporalVerified (cat
       ["verified (the invariant reads only read-only borrow state: no transition of the definition can falsify it)"])
     Cons first rest -> case first of
-      TemporalWrite sp region value -> case step-region region params of
-        None -> safety-steps claim-name display params prop rest
+      TemporalWrite sp written value -> case step-region-id written params of
+        None -> TemporalRefused (cat
+          ["temporal safety: refused: the step at ", position sp, " writes state the invariant reads, but the written location names no parameter of the contract, so the obligation cannot be established (core specification section 10)"])
         Some subject -> case value of
           None -> refused-undecidable sp params prop
-          Some written -> case decide-step sp subject written prop params of
-            TemporalVerified result -> safety-steps claim-name display params prop rest
+          Some written -> case decide-step claim-name display formula sp subject written prop params of
+            TemporalVerified result -> safety-steps-with claim-name display formula params prop rest
             TemporalRefused message -> TemporalRefused message
-      TemporalDischarge sp -> safety-steps claim-name display params prop rest
+      TemporalDischarge sp -> safety-steps-with claim-name display formula params prop rest
       TemporalCall sp callee -> TemporalRefused (cat
-        ["temporal safety: refused: the step at ", position sp, " is a call that may write the invariant's state and no contract discharges it (the checker discharges a step only from the definition's own recursion), and an obligation that cannot be established is refused, never trusted (core specification section 10)"])
+        ["temporal safety: refused: the step at ", position sp, " (callee ", callee, ") is a call that may write the invariant's state and no contract discharges it (the checker discharges a step only from the definition's own recursion), and an obligation that cannot be established is refused, never trusted (core specification section 10)"])
       TemporalOpaque sp -> TemporalRefused (cat
         ["temporal safety: refused: the step at ", position sp, " is an opaque write (an FFI / `RawPtr` write or `eval`) whose post-state is unknown, and an obligation that cannot be established is refused, never trusted (core specification section 10)"])
 
@@ -489,6 +524,15 @@ module Bootstrap.TemporalCheck where
       Some (borrowed, carrier) -> if same-type borrowed region then Some first else step-region region rest
       None -> step-region region rest
 
+  -- The parameter a written region belongs to, by the region's own identity:
+  -- the same identity the formula's `copyOut` read names, so a step and a
+  -- formula compare without unifying their carriers.
+  step-region-id :: Option Nat -> List Parameter -> Option Parameter
+  step-region-id written params = case (written, params) of
+    (Some id, Cons first rest) -> if parameter-id first == id then Some first else step-region-id written rest
+    (Some id, Nil) -> None
+    (None, other) -> None
+
   same-type :: UType -> UType -> Bool
   same-type a b = case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (empty-store "temporal step")) of Nil -> True; other -> False
 
@@ -496,13 +540,13 @@ module Bootstrap.TemporalCheck where
   -- parameter's borrow read must still satisfy the formula. A closed
   -- proposition decides; a step that leaves the formula unchanged restores
   -- it; anything else is refused.
-  decide-step :: Span -> Parameter -> Arithmetic -> Proposition -> List Parameter -> TemporalVerdict
-  decide-step sp subject written prop params =
+  decide-step :: String -> String -> String -> Span -> Parameter -> Arithmetic -> Proposition -> List Parameter -> TemporalVerdict
+  decide-step claim-name display formula sp subject written prop params =
     let post = temporal-substitute (parameter-id subject) written prop in
     if proposition-equal post prop then TemporalVerified "restored"
     else if proved post then TemporalVerified "decided"
     else if disproved post then TemporalRefused (cat
-      ["temporal safety: the contract is falsified by the step at ", position sp, ": the write leaves the state `", temporal-proposition-text params post, "` false, so the invariant fails at this transition (core specification section 10)"])
+      ["temporal safety: the contract `", claim-name, "` on `", display, "` is falsified by the step at ", position sp, ": the write leaves the state `", temporal-proposition-text params post, "` false, so `", formula, "` fails at this transition (core specification section 10)"])
     else TemporalRefused (cat
       ["temporal safety: refused: the step at ", position sp, " leaves the state `", temporal-proposition-text params post, "`, which the checker cannot decide, and an obligation that cannot be established is refused, never trusted (core specification section 10)"])
 
@@ -523,8 +567,9 @@ module Bootstrap.TemporalCheck where
     Nil -> TemporalVerified (cat
       ["verified (no write touches the fact's footprint: the definition performs no transition of the state it reads)"])
     Cons first rest -> case first of
-      TemporalWrite sp region value -> case step-region region params of
-        None -> stability-steps claim-name display params prop rest
+      TemporalWrite sp written value -> case step-region-id written params of
+        None -> TemporalRefused (cat
+          ["temporal stability: refused: the step at ", position sp, " writes state the fact reads, but the written location names no parameter of the contract (core specification section 10)"])
         Some subject -> TemporalRefused (cat
           ["temporal stability: the contract `", claim-name, "` on `", display, "` dies at the step at ", position sp, ": the write touches the footprint of `stable (", temporal-proposition-text params prop, ")`, so the fact would be invalidated there (evidence invalidation over mutable state; core specification sections 5 and 10)"])
       TemporalCall sp callee -> TemporalRefused (cat
@@ -559,9 +604,8 @@ module Bootstrap.TemporalCheck where
   establishes params prop steps = case steps of
     Nil -> False
     Cons first rest -> case first of
-      TemporalWrite sp region value -> case (value, step-region region params) of
-        (Some written, Some subject) -> proved (temporal-substitute (parameter-id subject) written prop) || establishes params prop rest
-        (Some written, None) -> proved (temporal-substitute 0 written prop) || establishes params prop rest
+      TemporalWrite sp written value -> case (value, step-region-id written params) of
+        (Some amount, Some subject) -> proved (temporal-substitute (parameter-id subject) amount prop) || establishes params prop rest
         other -> establishes params prop rest
       other -> establishes params prop rest
 

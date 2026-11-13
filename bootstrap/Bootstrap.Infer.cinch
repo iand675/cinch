@@ -34,6 +34,8 @@ module Bootstrap.Infer where
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Algebra.Semigroup
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
+  import Bootstrap.Temporal (ContractKind, Safety, Liveness, Recurrence, Stability, contract-kind-keyword, contract-kind-operator, check-contract-shape, contract-assumption-rows, contract-formula-row, contract-formula-clause, contract-kind)
+  import Bootstrap.TemporalCheck (Parameter, parameter-name, parameter-id, parameter-type, TemporalStep, TemporalOpaque, TemporalVerdict, temporal-definition-steps, temporal-definition-parameters, temporal-recursive, temporal-descent, temporal-proposition, verify-safety, verify-stability, verify-recurrence, verify-liveness, temporal-scope-sites, verdict-verified, verdict-message)
 
   export needs-inference, infer-program, elaborate-program
   export Elaboration, elaboration-errors, elaboration-bindings, elaboration-contexts, elaboration-core, elaboration-law-observations
@@ -41,6 +43,8 @@ module Bootstrap.Infer where
   export CheckedBinding, checked-name, checked-scheme, checked-role, checked-body-binding, checked-guarded-binding, checked-method-matches, checked-conditional-target
   export checked-foreign-plan, checked-intrinsic-symbol
   export elaboration-declarations, elaboration-data, elaboration-effects, elaboration-classes, elaboration-class-context, elaboration-instances
+  export elaboration-temporal, TemporalRow, temporal-row-definition, temporal-row-name, temporal-row-kind
+  export temporal-row-formula, temporal-row-assumptions, temporal-row-result
   export source-class-default-symbol, source-class-default-clauses, portable-default-export-global
 
   -- Surface templates live only in this elaboration context. Checked
@@ -145,28 +149,28 @@ module Bootstrap.Infer where
 
   -- Instance law samples are observations and never proof evidence.
   data Elaboration where
-    MkElaboration :: List Diagnostic -> List CheckedBinding -> List Json -> List CoreDefinition -> List CoreData -> List CoreEffect -> CoreClassContext -> List CoreInstance -> List Decl -> List (String, String, String, String) -> List CheckedRewrite -> Elaboration
+    MkElaboration :: List Diagnostic -> List CheckedBinding -> List Json -> List CoreDefinition -> List CoreData -> List CoreEffect -> CoreClassContext -> List CoreInstance -> List Decl -> List (String, String, String, String) -> List CheckedRewrite -> List TemporalRow -> Elaboration
   elaboration-rewrite-assumptions :: Elaboration -> List (String, String)
   elaboration-rewrite-assumptions e = case e of
-    MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites -> rewrite-assumptions rewrites
+    MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites temporal -> rewrite-assumptions rewrites
     other -> Nil
   elaboration-law-observations :: Elaboration -> List (String, String, String, String)
-  elaboration-law-observations e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites -> observations; other -> Nil
+  elaboration-law-observations e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites temporal -> observations; other -> Nil
   elaboration-errors :: Elaboration -> List Diagnostic
-  elaboration-errors e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations observations rewrites -> errors
+  elaboration-errors e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations observations rewrites temporal -> errors
   elaboration-bindings :: Elaboration -> List CheckedBinding
-  elaboration-bindings e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites -> bindings; other -> Nil
+  elaboration-bindings e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites temporal -> bindings; other -> Nil
   elaboration-contexts :: Elaboration -> List Json
-  elaboration-contexts e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations observations rewrites -> contexts
+  elaboration-contexts e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations observations rewrites temporal -> contexts
   elaboration-core :: Elaboration -> List CoreDefinition
-  elaboration-core e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites -> core; other -> Nil
+  elaboration-core e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites temporal -> core; other -> Nil
 
   -- A retained proof may cite actual helper or instance bodies. Recheck
   -- it against the same checked declaration context, not an empty world.
   -- The standalone Core API deliberately keeps its stricter empty context.
   elaboration-core-contracts-closed :: Elaboration -> Bool
   elaboration-core-contracts-closed result = case result of
-    MkElaboration Nil bindings contexts definitions datas effects descriptions instances declarations observations rewrites ->
+    MkElaboration Nil bindings contexts definitions datas effects descriptions instances declarations observations rewrites temporal ->
       closed-elaboration-definitions (env-body-context bindings) (env-guarded-bindings bindings) definitions
     other -> False
   closed-elaboration-definitions :: BodyBindings -> List GuardedBinding -> List CoreDefinition -> Bool
@@ -177,20 +181,24 @@ module Bootstrap.Infer where
   -- Only a successful elaboration exposes its defining declarations.
   -- Interface provenance comes from these resolved, checked definitions.
   elaboration-declarations :: Elaboration -> List Decl
-  elaboration-declarations e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites -> declarations; other -> Nil
+  elaboration-declarations e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites temporal -> declarations; other -> Nil
 
   elaboration-data :: Elaboration -> List CoreData
-  elaboration-data e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites -> datas; other -> Nil
+  elaboration-data e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites temporal -> datas; other -> Nil
 
   elaboration-effects :: Elaboration -> List CoreEffect
-  elaboration-effects e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites -> effects; other -> Nil
+  elaboration-effects e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites temporal -> effects; other -> Nil
 
   elaboration-classes :: Elaboration -> List CoreClass
-  elaboration-classes e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites -> context-classes descriptions; other -> Nil
+  elaboration-classes e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites temporal -> context-classes descriptions; other -> Nil
   elaboration-class-context :: Elaboration -> CoreClassContext
-  elaboration-class-context e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites -> descriptions; other -> MkCoreClassContext Nil Nil
+  elaboration-class-context e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites temporal -> descriptions; other -> MkCoreClassContext Nil Nil
   elaboration-instances :: Elaboration -> List CoreInstance
-  elaboration-instances e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites -> instances; other -> Nil
+  elaboration-instances e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites temporal -> instances; other -> Nil
+  -- The verified temporal contracts, in declaration order (core
+  -- specification section 10): the interface facts and manifest rows.
+  elaboration-temporal :: Elaboration -> List TemporalRow
+  elaboration-temporal e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations observations rewrites temporal -> temporal
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -6089,7 +6097,8 @@ module Bootstrap.Infer where
     let (datas, sd) = case store-errors nominal-store of Nil -> complete-runtime-data ds classes linked-kinds nominal-data nominal-store; other -> (nominal-data, nominal-store) in
     let finished = case store-errors sd of Nil -> check-data-closed datas (check-global-core linked-kinds env instances datas core sd); other -> sd in
     let retained-classes = case store-errors finished of Nil -> checked-imported-classes rows rows classes linked-kinds descriptions; other -> descriptions in
-    MkElaboration (store-errors finished) (finish-bindings finished env) (contexts ds) core datas effects (MkCoreClassContext classes retained-classes) instances ds law-observations rewrites
+    let (temporal-rows, temporal-store) = check-temporal-contracts (module-name m) classes linked-kinds families env ds core finished in
+    MkElaboration (store-errors temporal-store) (finish-bindings temporal-store env) (contexts ds) core datas effects (MkCoreClassContext classes retained-classes) instances ds law-observations rewrites temporal-rows
 
   -- Records use the ordinary independently checked single-constructor
   -- representation. Labels remain in a DRecord for source provenance;
@@ -6756,11 +6765,11 @@ module Bootstrap.Infer where
   -- elaboration, and the wrong one for this pass, which is reading exactly
   -- the results an errored elaboration did produce.
   elaboration-source-bindings :: Elaboration -> List CheckedBinding
-  elaboration-source-bindings e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations observations rewrites -> bindings
+  elaboration-source-bindings e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations observations rewrites temporal -> bindings
   elaboration-source-core :: Elaboration -> List CoreDefinition
-  elaboration-source-core e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations observations rewrites -> core
+  elaboration-source-core e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations observations rewrites temporal -> core
   elaboration-source-data :: Elaboration -> List CoreData
-  elaboration-source-data e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations observations rewrites -> datas
+  elaboration-source-data e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations observations rewrites temporal -> datas
   -- The elaboration's readable surface: its bodies keyed by defining
   -- identity, built once per pass.
   --
@@ -6855,9 +6864,9 @@ module Bootstrap.Infer where
     Cons first rest -> case context-add-total zero first kinds st of (more, checked) -> add-source-bodies rest more checked
   elaborate-modules :: String -> List Module -> Elaboration
   elaborate-modules label ms = case ms of
-    Nil -> MkElaboration Nil Nil Nil Nil Nil Nil (MkCoreClassContext Nil Nil) Nil Nil Nil Nil
+    Nil -> MkElaboration Nil Nil Nil Nil Nil Nil (MkCoreClassContext Nil Nil) Nil Nil Nil Nil Nil
     Cons m rest -> case (elaborate-module label m, elaborate-modules label rest) of
-      (MkElaboration errors bindings ctx core datas effects descriptions instances declarations observations rewrites, MkElaboration more others scopes other-core other-data other-effects other-classes other-instances other-declarations other-observations other-rewrites) -> MkElaboration (errors <> more) (bindings <> others) (ctx <> scopes) (core <> other-core) (datas <> other-data) (effects <> other-effects) (merge-class-contexts descriptions other-classes) (instances <> other-instances) (declarations <> other-declarations) (observations <> other-observations) (rewrites <> other-rewrites)
+      (MkElaboration errors bindings ctx core datas effects descriptions instances declarations observations rewrites temporal, MkElaboration more others scopes other-core other-data other-effects other-classes other-instances other-declarations other-observations other-rewrites other-temporal) -> MkElaboration (errors <> more) (bindings <> others) (ctx <> scopes) (core <> other-core) (datas <> other-data) (effects <> other-effects) (merge-class-contexts descriptions other-classes) (instances <> other-instances) (declarations <> other-declarations) (observations <> other-observations) (rewrites <> other-rewrites) (temporal <> other-temporal)
   elaborate-program :: String -> Program -> Elaboration
   elaborate-program label p = elaborate-modules label (program-modules p)
   infer-program :: String -> Program -> List Diagnostic
@@ -7402,3 +7411,165 @@ module Bootstrap.Infer where
   checked-guarded-binding :: CheckedBinding -> Option GuardedBinding
   checked-guarded-binding binding = case binding of MkConditionalBinding name owner slot dictionary head sc guarded -> guarded; other -> None
 
+
+
+  -- ============ temporal contracts (core specification section 10) ============
+  --
+  -- A `contract <kind> <name> for <def> where { ... }` claims one temporal
+  -- formula over a definition's state transitions and states the
+  -- assumptions it relies on. `Bootstrap.TemporalCheck` decides each kind
+  -- against the definition's checked Core; this pass supplies that Core, the
+  -- formula's elaboration, and the interface fact and manifest row that
+  -- record the verdict.
+  --
+  -- The formula's scope is the definition's parameters: its pattern
+  -- variables, bound as locals with the carriers its signature gave them, so
+  -- a formula is checked as an ordinary boolean term over them and the
+  -- proposition it reads is over the same identities the write log names.
+
+  data TemporalRow where
+    MkTemporalRow :: String -> String -> String -> String -> List String -> String -> TemporalRow
+
+  temporal-row-definition :: TemporalRow -> String
+  temporal-row-definition r = case r of MkTemporalRow definition name kind formula assumptions result -> definition
+
+  temporal-row-name :: TemporalRow -> String
+  temporal-row-name r = case r of MkTemporalRow definition name kind formula assumptions result -> name
+
+  temporal-row-kind :: TemporalRow -> String
+  temporal-row-kind r = case r of MkTemporalRow definition name kind formula assumptions result -> kind
+
+  temporal-row-formula :: TemporalRow -> String
+  temporal-row-formula r = case r of MkTemporalRow definition name kind formula assumptions result -> formula
+
+  temporal-row-assumptions :: TemporalRow -> List String
+  temporal-row-assumptions r = case r of MkTemporalRow definition name kind formula assumptions result -> assumptions
+
+  temporal-row-result :: TemporalRow -> String
+  temporal-row-result r = case r of MkTemporalRow definition name kind formula assumptions result -> result
+
+  -- The contracts a module declares, in written order.
+  module-contracts :: List Decl -> List (Span, String, String, String, List ContractClause)
+  module-contracts declarations = case declarations of
+    Nil -> Nil
+    Cons (DContract s keyword name subject clauses) rest ->
+      Cons (s, keyword, name, subject, clauses) (module-contracts rest)
+    Cons other rest -> module-contracts rest
+
+  -- The source name of a global identity: everything after its last `.`, so
+  -- a row names `Main.countdown` rather than the encoded global spelling.
+  source-subject :: String -> String
+  source-subject identity = source-subject-from identity 0 0
+
+  source-subject-from :: String -> Nat -> Nat -> String
+  source-subject-from identity index start = case string-char-at identity index of
+    None -> string-slice identity start (string-length identity)
+    Some c -> if eq-char c '.' then source-subject-from identity (index + 1) (index + 1)
+      else source-subject-from identity (index + 1) start
+
+  find-core-definition :: String -> List CoreDefinition -> Option CoreDefinition
+  find-core-definition name core = case core of
+    Nil -> None
+    Cons first rest -> if same name (core-name first) then Some first else find-core-definition name rest
+
+  check-temporal-contracts :: String -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> List CoreDefinition -> Store -> (List TemporalRow, Store)
+  check-temporal-contracts home classes kinds families env declarations core st =
+    temporal-contract-loop home classes kinds families env (module-contracts declarations) core Nil st
+
+  temporal-contract-loop :: String -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (Span, String, String, String, List ContractClause) -> List CoreDefinition -> List TemporalRow -> Store -> (List TemporalRow, Store)
+  temporal-contract-loop home classes kinds families env pending core rows st = case store-errors st of
+    Cons error rest -> (reverse rows, st)
+    Nil -> case pending of
+      Nil -> (reverse rows, st)
+      Cons (s, keyword, name, subject, clauses) rest ->
+        case check-one-temporal-contract home classes kinds families env s keyword name subject clauses core st of
+          (Some row, checked) -> temporal-contract-loop home classes kinds families env rest core (Cons row rows) checked
+          (None, checked) -> temporal-contract-loop home classes kinds families env rest core rows checked
+
+  check-one-temporal-contract :: String -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> Span -> String -> String -> String -> List ContractClause -> List CoreDefinition -> Store -> (Option TemporalRow, Store)
+  check-one-temporal-contract home classes kinds families env s keyword name subject clauses core st =
+    case check-contract-shape s keyword clauses of
+      Err message -> (None, add-error s message st)
+      Ok (kind, body) -> case find-core-definition subject core of
+        None -> (None, add-error s (string-concat-all
+          ["the temporal contract `", name, "` names no definition `", home, ".", subject, "`: a contract attaches to a definition of its own module that the checker elaborates (core specification section 10)"]) st)
+        Some definition -> verify-temporal home classes kinds families env definition s name kind body clauses st
+
+  verify-temporal :: String -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreDefinition -> Span -> String -> ContractKind -> Expr -> List ContractClause -> Store -> (Option TemporalRow, Store)
+  verify-temporal home classes kinds families env definition s name kind body clauses st =
+    let display = string-concat home (string-concat "." (source-subject (core-name definition))) in
+    let parameters = temporal-definition-parameters (core-clauses definition) in
+    let steps = temporal-definition-steps (core-name definition) (core-clauses definition) in
+    let assumptions = contract-assumption-rows clauses in
+    let formula = contract-formula-row kind body in
+    let scope = formula-scope parameters in
+    case (read-formula classes kinds families env scope s name body st, contract-assumed-facts classes kinds families env scope s name clauses st) of
+      ((None, formula-store), other) -> (None, formula-store)
+      ((Some prop, formula-store), (assumed, assumed-store)) ->
+        case store-errors assumed-store of
+          Cons error rest -> (None, assumed-store)
+          Nil -> finish-temporal definition s name kind formula assumptions assumed
+            (temporal-verdict kind name display parameters prop steps definition assumed formula assumptions body) assumed-store
+
+  temporal-verdict :: ContractKind -> String -> String -> List Parameter -> Proposition -> List TemporalStep -> CoreDefinition -> List Proposition -> String -> List String -> Expr -> TemporalVerdict
+  temporal-verdict kind name display parameters prop steps definition assumed formula assumptions body = case kind of
+    Safety -> verify-safety name display parameters prop steps assumed
+    Stability -> verify-stability name display parameters prop steps
+    Recurrence -> verify-recurrence name display parameters prop steps (temporal-recursive (core-name definition) (core-clauses definition)) (temporal-descent (core-name definition) (core-clauses definition))
+    Liveness -> verify-liveness name display (liveness-claim body) formula assumptions (temporal-scope-sites (definition-body (core-clauses definition)))
+
+  -- The locals a formula is checked in: the definition's parameters, bound
+  -- at the identity Core gave them so the reading names the same places the
+  -- write log does.
+  formula-scope :: List Parameter -> List CheckedBinding
+  formula-scope parameters = case parameters of
+    Nil -> Nil
+    Cons first rest -> Cons (MkLocalBinding (parameter-name first) (mono (parameter-type first)) (parameter-id first) 0) (formula-scope rest)
+
+  -- The formula checked as an ordinary boolean term over the parameters, read
+  -- as the comparison proposition it states.
+  read-formula :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List CheckedBinding -> Span -> String -> Expr -> Store -> (Option Proposition, Store)
+  read-formula classes kinds families env scope s name body st =
+    case check classes kinds families (scope <> env) (formula-locals scope) body (primitive-type "Bool") st of
+      (term, checked) -> case temporal-proposition term of
+        Some prop -> (Some prop, checked)
+        None -> (None, add-error s (string-concat-all
+          ["temporal contract `", name, "`: the formula states a comparison proposition (`a < b`, `Eq a b`, ...) (core specification section 10)"]) checked)
+
+  formula-locals :: List CheckedBinding -> List (String, UType)
+  formula-locals scope = case scope of
+    Nil -> Nil
+    Cons (MkLocalBinding name sc id level) rest -> Cons (name, UIndex (scheme-body sc) (IRigid id name level)) (formula-locals rest)
+    Cons other rest -> formula-locals rest
+
+  -- The stated assumed facts (`assume = (P)`), read the same way.
+  contract-assumed-facts :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List CheckedBinding -> Span -> String -> List ContractClause -> Store -> (List Proposition, Store)
+  contract-assumed-facts classes kinds families env scope s name clauses st = assumed-loop classes kinds families env scope s name clauses Nil st
+
+  assumed-loop :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List CheckedBinding -> Span -> String -> List ContractClause -> List Proposition -> Store -> (List Proposition, Store)
+  assumed-loop classes kinds families env scope s name clauses acc st = case clauses of
+    Nil -> (reverse acc, st)
+    Cons first rest -> case first of
+      ContractAssume at body -> case check classes kinds families (scope <> env) (formula-locals scope) body (primitive-type "Bool") st of
+        (term, checked) -> case temporal-proposition term of
+          Some prop -> assumed-loop classes kinds families env scope s name rest (Cons prop acc) checked
+          None -> assumed-loop classes kinds families env scope s name rest acc checked
+      other -> assumed-loop classes kinds families env scope s name rest acc st
+
+  -- A liveness formula's claim: the two finite obligations name themselves,
+  -- and every other formula is an unbounded eventual claim.
+  liveness-claim :: Expr -> String
+  liveness-claim body = case body of
+    EVar s word -> if same word "joined" then "joined" else if same word "cleanup" then "cleanup" else "unbounded"
+    other -> "unbounded"
+
+  definition-body :: List CoreClause -> CoreTerm
+  definition-body clauses = case clauses of
+    Nil -> CUnit (Span 0 0 1 1) (primitive-type "Unit")
+    Cons (MkCoreClause sp patterns body) rest -> CArgument sp body (definition-body rest)
+
+  finish-temporal :: CoreDefinition -> Span -> String -> ContractKind -> String -> List String -> List Proposition -> TemporalVerdict -> Store -> (Option TemporalRow, Store)
+  finish-temporal definition s name kind formula assumptions assumed verdict st =
+    if verdict-verified verdict then
+      (Some (MkTemporalRow (core-name definition) name (contract-kind-keyword kind) formula assumptions (verdict-message verdict)), st)
+    else (None, add-error s (verdict-message verdict) st)
