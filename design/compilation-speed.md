@@ -1163,14 +1163,33 @@ and `nat` marginal columns are 1.00 each (control 2,839,870 to pad4k
 `bytes` is 0.00. Nothing written in Cinch goes below this; only a runtime
 scan does.
 
-**The loader re-serializes every document.** `load-interface` derives the
-contract identity as `fnv-source-hash (canonical-bytes (contract-projection
-doc))`, so each interface is printed a second time at full size and then
-hashed: 796,362 blocks on a 581,881-byte interface, 1.37 per source byte.
-`Bootstrap.Interface.iface-contract` already does the same job correctly by
-blanking `source_hash`, `compiler` and `units` *in the source bytes* and
-hashing that, so the two paths disagree and the loader's is the expensive
-one. This is the largest single term and it needs no new type.
+**The loader re-serialized every document, and the hash is the real term.**
+`load-interface` derived the contract identity as `fnv-source-hash
+(canonical-bytes (contract-projection doc))`, so each interface was printed a
+second time at full size and then hashed: 796,362 blocks on a 581,881-byte
+interface, 1.37 per source byte. `Bootstrap.Interface.iface-contract` already
+does the same job correctly by blanking `source_hash`, `compiler` and `units`
+*in the source bytes* and hashing that, and `load-interface` now calls it.
+Measured as four separate programs on the same interface:
+
+| path | blocks |
+|---|---|
+| parse only | 1,866,011 |
+| parse plus `canonical-bytes` (the old rule) | 2,662,373 |
+| parse plus `iface-contract` | 1,866,191 |
+| parse plus `iface-contract` plus FNV (the new rule) | 3,611,850 |
+
+So the splice is free and the re-print it replaces was 796,362, but
+`fnv-source-hash` is a Cinch byte loop over the whole document and costs
+1,745,659 at the 2.0 per byte floor. That loop is the term worth attacking
+next, and it cannot fall below 2.0 blocks per byte without a runtime
+primitive (an FNV-1a 64 over a `Bytes`), which is a lock bump.
+
+The change landed and moved the absolute cost: the control arm of the
+three-point law fell 30,465,952 to 28,793,147 blocks (-1,672,805, -5.5
+percent) while the marginal law stayed at 6.01, 6.00, 6.00. The law staying
+put is correct rather than disappointing: it is measured on padded string
+content, and this change was never about string content.
 
 **Structure costs about 10.5 blocks per node.** The 400 KB string and the
 432 KB of 12,000 rows cost 2.00 and 3.75 per byte respectively; the second

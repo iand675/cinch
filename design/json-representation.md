@@ -26,13 +26,18 @@ third is not where the money is, and the measurement says so plainly:
 | UTF-8 validation of the same buffer | 2.00 |
 | the JSON scan and node build (`parse-json` alone) | 3.21 |
 | the scan plus one canonical re-serialization | 4.58 |
-| the full `load-interface` including the identity hash | 8.14 |
+| the scan plus the byte-level contract hash | 6.21 |
+| the full `load-interface` (the old re-print rule) | 8.14 |
 | the marginal law the three-point padding measures | 6.00 |
 
 `[MEASURED]`, section 6. So a padded byte is a *string content* byte, and the
-marginal 6.00 is 2.0 of scan plus 4.0 of the loader's own work on the
-document. Node representation is not on that path at all, because padding
-adds one long string and no nodes.
+marginal 6.00 decomposes as the 2.0 scan floor, plus the loader's FNV loop
+over the same bytes at another 2.0, plus the rest of the loader's document
+work. Node representation is not on that path at all, because padding adds
+one long string and no nodes. The identity work was 4.0 of it, and this lane
+took 1.37 of that off (section 3) with the marginal law itself unchanged at
+6.00, which is the honest outcome: the law measures string content and this
+lane's change was never about string content.
 
 That does not make the node representation pointless. It makes the two
 effects separable, and they are separated below:
@@ -95,20 +100,43 @@ fnv-source-hash (canonical-bytes (contract-projection doc))
 `canonical-bytes` prints the whole document back to bytes through a
 `Builder`, and then `fnv-source-hash` hashes those bytes. So every interface
 is printed a second time, at full document size, and then hashed.
-`[MEASURED]`: on the 581,881-byte `Data.Machine.cinchif`, parse alone is
-1,866,011 blocks and parse plus one `canonical-bytes` is 2,662,373, so the
-re-serialization costs 796,362 blocks, 1.37 per source byte.
 
 `Bootstrap.Interface.iface-contract` already does the same job the right way:
 it blanks the three regions *in the source bytes* (`blank-field-string`,
 `empty-array-field`, `bytes-splice`) and hashes that, so no re-print is
-needed. The two paths disagree, and `load-interface` is the expensive one.
+needed. `load-interface` was changed to call it, and then the measurement
+said something the note did not expect. `[MEASURED]` on the 581,881-byte
+`Data.Machine.cinchif`, all four as one program each:
 
-This is the first thing to fix and it is not a representation change at all:
-`load-interface` should call the byte-level `iface-contract` it already has
-beside it. That alone is worth about 1.37 blocks per interface byte of the
-6.00 `[INFERENCE: the probe's ratio applied to the set]`, and it needs no new
-type.
+| path | blocks | marginal |
+| --- | --- | --- |
+| parse only | 1,866,011 | |
+| parse plus `canonical-bytes` (the old rule) | 2,662,373 | +796,362 |
+| parse plus `iface-contract` | 1,866,191 | +180 |
+| parse plus `iface-contract` plus FNV (the new rule) | 3,611,850 | +1,745,839 |
+
+So the byte-level splice is free (180 blocks for three `bytes-splice` calls
+and two needle searches), and the re-print it replaces was 796,362. But
+`fnv-source-hash` over the spliced bytes costs 1,745,659, because it is a
+Cinch-level byte loop over 581 KB at the 2.0 blocks-per-byte floor, and the
+old rule never paid that on the *source*: it paid it on the reprinted bytes,
+which is the same size, so the FNV cost was there too and the table's fourth
+row is not a regression against the first column of the old rule but a
+different split of the same two terms.
+
+The honest reading is therefore narrower than the note first claimed: the
+change removes the 796,362-block re-print and leaves the FNV loop, and the
+FNV loop is the term worth attacking next. It cannot go below 2.0 blocks per
+byte while it is written in Cinch, so it needs a runtime primitive (an
+FNV-1a 64 over a `Bytes`, one call, no per-byte box). That is a runtime
+addition and so a lock bump, which is out of scope here and named in
+section 8.
+
+The change was still worth landing on its own terms: it deletes a second
+implementation of the identity rule (`contract-projection` plus a printer)
+from the load path, and it makes the loader and `Bootstrap.Interface` agree
+by construction rather than by a probe. It is not the large win the note
+promised, and section 9's order is corrected to say so.
 
 ---
 
@@ -240,15 +268,16 @@ preserved.
 ## 6 The measurements this note rests on
 
 All `[MEASURED]`. The three-point law is
-`experiments/iface-scan/measure.py`, stage 3, padding `abi.symbols`:
+`experiments/iface-scan/measure.py`, stage 3, padding `abi.symbols`, before
+and after the identity change of section 3:
 
-| arm | interface bytes | blocks | blocks per byte |
-| --- | --- | --- | --- |
-| empty floor | 0 | 19,814 | |
-| control | 1,735,532 | 30,465,952 | |
-| pad1k | 1,800,195 | 30,860,710 | 6.01 |
-| pad2k | 1,866,689 | 31,253,495 | 6.00 |
-| pad4k | 1,997,747 | 32,039,667 | 6.00 |
+| arm | interface bytes | blocks before | blocks after | blocks per byte (both) |
+| --- | --- | --- | --- | --- |
+| empty floor | 0 | 19,814 | 19,783 | |
+| control | 1,735,532 | 30,465,952 | 28,793,147 | |
+| pad1k | 1,800,195 | 30,860,710 | 29,187,821 | 6.01 |
+| pad2k | 1,866,689 | 31,253,495 | 29,580,606 | 6.00 |
+| pad4k | 1,997,747 | 32,039,667 | 30,366,778 | 6.00 |
 
 Allocation kinds, control and pad4k, so the marginal column is the
 difference:
@@ -269,7 +298,9 @@ The single-document probes, Rust seed, `CINCH_ALLOC_STATS=1`:
 | UTF-8 validation | 400,037 | 800,129 | 2.00 |
 | `parse-json` | 581,881 | 1,866,011 | 3.21 |
 | parse + `canonical-bytes` | 581,881 | 2,662,373 | 4.58 |
-| `load-interface` | 581,881 | 4,739,206 | 8.14 |
+| parse + `iface-contract` | 581,881 | 1,866,191 | 3.21 |
+| parse + `iface-contract` + FNV | 581,881 | 3,611,850 | 6.21 |
+| `load-interface`, old re-print rule | 581,881 | 4,739,206 | 8.14 |
 | string-heavy document (400 KB of one string) | 400,037 | 800,233 | 2.00 |
 | structure-heavy document (12,000 two-field rows) | 432,038 | 1,621,735 | 3.75 |
 
@@ -321,21 +352,65 @@ bundle for every case, and the two outputs must be byte identical.
   named boundary in `Text.Json`'s header stands.
 - **No DOM mutation.** The arena is written during the parse and read after;
   there is no insert or delete. `Json` is immutable and stays so.
-- **No new runtime primitive.** The arena is `Bytes` and the node packing is
-  `bytes-set`/`bytes-get`, so the runtime ABI does not move and neither lock
-  file needs a bump. A SIMD or word-at-a-time scan would go below the 2.0
-  blocks per byte floor, and that is a runtime change with a lock bump, so it
-  is out of scope here and named as the next lever.
+- **No new runtime primitive, so no lock bump in this lane.** The arena is
+  `Bytes` and the node packing is `bytes-set`/`bytes-get`, both existing
+  intrinsics, so the runtime ABI does not move and neither
+  `bootstrap/stage0.lock.json` nor
+  `bootstrap/library-provider.lock.json` needs a bump for what landed here.
+  Everything below the 2.0 blocks-per-byte floor needs a runtime addition and
+  therefore a lock bump, and there are two of them: an FNV-1a 64 over a
+  `Bytes` (section 3, worth about 1.5 M blocks on one interface) and a
+  word-at-a-time or SIMD UTF-8 scan (worth the scan term itself). **Both
+  need the bump reported, not taken.**
 - **No change to the public `Json` type.** Section 5 says why.
 - **No index for lazy field access.** The task in `compilation-speed.md`
   section 3 wants a symbol index so a consumer decodes only what it needs.
   That is the natural next step and it needs this representation first.
 
-## 9 The order the work should land in
+## 9 What landed, and the order the rest should follow
 
-1. `load-interface` calls the byte-level `iface-contract` instead of
-   re-serializing (section 3). No type change, about 1.37 blocks per byte.
-2. The arena and the slice nodes behind `parse-document` (section 4), with
-   `parse-json` as the materializing wrapper.
-3. The loader's call sites move to the node view (section 4.4).
-4. The differential harness (section 7), written before step 2 lands.
+**Landed.** Step 1 (section 3) and step 4 (the harness) are in this tree.
+
+Step 1, `load-interface` reading its identity from the artifact's bytes
+instead of re-printing the document. The three-point law is unchanged at
+6.01, 6.00, 6.00, which is what the analysis predicted: a padded byte is
+string content, so no node or document-representation change can move it.
+The absolute cost moved, and that is the number to read:
+
+| arm | before | after | change |
+| --- | --- | --- | --- |
+| empty floor | 19,814 | 19,783 | -31 |
+| control (64 interfaces, 1,735,532 bytes) | 30,465,952 | 28,793,147 | -1,672,805 (-5.5 percent) |
+| pad4k | 32,039,667 | 30,366,778 | -1,672,889 |
+
+So the two-line program's interface load fell 1.67 M blocks in absolute
+terms, which is the acceptance criterion's second clause, and the marginal
+law is unchanged, which is its first clause read honestly: this change
+cannot move a law that is measured on string content.
+
+Step 4, `experiments/iface-scan/differential.py`: 72 documents, control run
+(reference against itself) 0 mismatches, every case producing a real answer
+including the rendered bundles of the refusals. It is written and green
+before any representation change, which is the order section 7 asks for.
+
+Gates on the landed change: fixed point holds (stage2 and stage3 binaries
+byte equal, `compiler.ll` byte equal, every `stageN/*.cinchif` byte equal),
+three smokes pass, the leak line is `live=0 immortal=0 leaked=0`, and the
+differential probe over `Data.Machine`, `Data.Target` and `Prelude` found
+the old and new identity rules in agreement before the switch.
+
+**The rest, in order.**
+
+2. A runtime FNV-1a 64 over a `Bytes` (section 3). The hash is now the
+   largest term in the load at 1.75 M blocks on one interface, and it cannot
+   fall below 2.0 blocks per byte while it is a Cinch loop. One call, no
+   per-byte box, would remove about 1.5 M of that. This is a runtime
+   addition, so it needs a lock bump (section 8).
+3. The arena and the slice nodes behind `parse-document` (section 4), with
+   `parse-json` as the materializing wrapper. This is what a real interface
+   pays for (10.5 blocks per node, 185,860 nodes) and the padding law is
+   blind to it.
+4. The loader's call sites move to the node view (section 4.4).
+
+The dependency between 2 and 3 is one-way: 2 is independent and cheaper, so
+it goes first.

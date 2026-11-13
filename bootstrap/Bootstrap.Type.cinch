@@ -136,13 +136,14 @@ module Bootstrap.Type where
     UsageAffine -> "%aff"
     UsageMany -> "%many"
 
+  -- Two independent single-constructor tests, not a pair: `case (x, y)`
+  -- would allocate the pair block on every call.
   same-arrow-usage :: ArrowUsage -> ArrowUsage -> Bool
-  same-arrow-usage first second = case (first, second) of
-    (UsageZero, UsageZero) -> True
-    (UsageOne, UsageOne) -> True
-    (UsageAffine, UsageAffine) -> True
-    (UsageMany, UsageMany) -> True
-    other -> False
+  same-arrow-usage first second = case first of
+    UsageZero -> case second of UsageZero -> True; other -> False
+    UsageOne -> case second of UsageOne -> True; other -> False
+    UsageAffine -> case second of UsageAffine -> True; other -> False
+    UsageMany -> case second of UsageMany -> True; other -> False
 
   -- Inspect one arrow's shape while retaining its usage in the owning type.
   arrow-shape :: UType -> UType
@@ -295,10 +296,12 @@ module Bootstrap.Type where
           Some usage -> if computational-arrow arrow then Some (UUsageArrow usage arrow) else None
           None -> None
         other -> None)
-      else case (read-carrier-tree a, read-carrier-tree b) of
-        (Some left, Some right) -> if same-tag tag "app" then Some (UApp left right) else if same-tag tag "fun" then Some (UFun left right)
-          else if same-tag tag "index-list" then Some (UIndexList left right)
-          else if same-tag tag "row-join" then Some (URowJoin left right) else if same-tag tag "arg" then Some (UArg left right) else if same-tag tag "prop-and" then Some (UPropAnd left right) else if same-tag tag "prop-or" then Some (UPropOr left right) else if same-tag tag "required" then Some (URequire left right) else None
+      else case read-carrier-tree a of
+        Some left -> case read-carrier-tree b of
+          Some right -> if same-tag tag "app" then Some (UApp left right) else if same-tag tag "fun" then Some (UFun left right)
+            else if same-tag tag "index-list" then Some (UIndexList left right)
+            else if same-tag tag "row-join" then Some (URowJoin left right) else if same-tag tag "arg" then Some (UArg left right) else if same-tag tag "prop-and" then Some (UPropAnd left right) else if same-tag tag "prop-or" then Some (UPropOr left right) else if same-tag tag "required" then Some (URequire left right) else None
+          other -> None
         other -> None
     JArr (JStr tag) (JArr a (JArr b (JArr c JArrEnd))) ->
       if same-tag tag "index-total-call" then (case (b, read-carrier-tree c) of
@@ -332,7 +335,9 @@ module Bootstrap.Type where
     KEffect -> case b of KEffect -> True; other -> False
     KRow -> case b of KRow -> True; other -> False
     KFun x y -> case b of KFun u v -> kind-equal x u && kind-equal y v; other -> False
-    KValue payload -> case (value-carrier a, value-carrier b) of (Some carrier, Some other) -> carrier-equal carrier other; other -> False
+    KValue payload -> case value-carrier a of
+      Some carrier -> case value-carrier b of Some other -> carrier-equal carrier other; other -> False
+      other -> False
 
   -- Compare carriers by the existing type-conversion rules. Metas are
   -- temporarily rigid: a pure kind equality check must not solve them.
@@ -398,10 +403,23 @@ module Bootstrap.Type where
     KFun a b -> string-concat-all ["(", kind-text a, " -> ", kind-text b, ")"]
     KValue payload -> case value-carrier k of Some carrier -> type-text carrier; None -> "<invalid value carrier>"
 
+  -- The kind arms of the three whole-type maps, written as direct recursion
+  -- over a kind instead of through `map-kind-types f kind`. A higher-order
+  -- argument is a closure allocated at every call, and `normalize-kind` and
+  -- `transform-type` are on the hottest type paths in the checker, so the
+  -- partial application was 3.8 M blocks per toolkit check by itself
+  -- (design/compilation-speed.md section 2.19). Each entry point keeps its
+  -- own name and its own `KValue` decode/encode, so every caller of the old
+  -- function has an exact replacement and no closure is built.
   map-kind-types :: (UType -> UType) -> Kind -> Kind
   map-kind-types f kind = case kind of
     KValue payload -> case value-carrier kind of Some carrier -> value-kind (f carrier); None -> kind
     KFun a b -> KFun (map-kind-types f a) (map-kind-types f b)
+    other -> kind
+  normalize-kind :: Store -> Kind -> Kind
+  normalize-kind st kind = case kind of
+    KValue payload -> case value-carrier kind of Some carrier -> value-kind (normalize st carrier); None -> kind
+    KFun a b -> KFun (normalize-kind st a) (normalize-kind st b)
     other -> kind
   valid-kind :: Kind -> Bool
   valid-kind kind = case kind of
@@ -622,8 +640,6 @@ module Bootstrap.Type where
     UArg x rest -> UArg (normalize st x) (normalize st rest)
     other -> ty
 
-  normalize-kind :: Store -> Kind -> Kind
-  normalize-kind st kind = map-kind-types (normalize st) kind
   normalized-variable :: Store -> UType -> UType
   normalized-variable st ty = case ty of
     UCon name k -> let kind = normalize-kind st k in (case value-carrier kind of Some carrier -> UIndex carrier (IGlobal name); None -> UCon name kind)
@@ -809,11 +825,15 @@ module Bootstrap.Type where
   proposition-type ty = valid-type ty && kind-equal (type-kind ty) KProp
   proposition-spine :: UType -> Bool
   proposition-spine predicates = case predicates of UEnd -> True; UArg first rest -> proposition-type first && proposition-spine rest; other -> False
+  -- Nested, not a pair scrutinee: this is one of the hottest predicates on
+  -- the checking path and the pair was 1.2 M blocks per toolkit check.
   valid-comparison :: String -> UType -> UType -> Bool
-  valid-comparison relation left right = case (typed-index-carrier left, typed-index-carrier right) of
-    (Some a, Some b) -> valid-type left && valid-type right && carrier-equal a b &&
-      (if same-tag relation "Eq" || same-tag relation "==" || same-tag relation "/=" then True
-       else mathematical-carrier a && (same-tag relation "<" || same-tag relation "<=" || same-tag relation ">" || same-tag relation ">="))
+  valid-comparison relation left right = case typed-index-carrier left of
+    Some a -> case typed-index-carrier right of
+      Some b -> valid-type left && valid-type right && carrier-equal a b &&
+        (if same-tag relation "Eq" || same-tag relation "==" || same-tag relation "/=" then True
+         else mathematical-carrier a && (same-tag relation "<" || same-tag relation "<=" || same-tag relation ">" || same-tag relation ">="))
+      other -> False
     other -> False
 
   valid-value-fields :: UType -> Bool
@@ -1160,49 +1180,57 @@ module Bootstrap.Type where
     UEnd -> True
     UArg label rest -> effect-head label && valid-type label && kind-equal (type-kind label) KEffect && valid-effects rest
     other -> False
+  -- A `case (x, y) of` scrutinee allocates the pair block before the arms
+  -- run, and this function is called once per node of every kind equality,
+  -- so the pair was 2.5 M blocks per toolkit check. The nested form below
+  -- tests the same constructors in the same order and allocates nothing.
   same-shape :: UType -> UType -> Bool
-  same-shape first second = case (first, second) of
-    (UPropLit a, UPropLit b) -> if a then b else not b
-    (UCompare rel a b, UCompare op c d) -> same-tag rel op && same-shape a c && same-shape b d
-    (UPropAnd a b, UPropAnd c d) -> same-shape a c && same-shape b d
-    (UPropOr a b, UPropOr c d) -> same-shape a c && same-shape b d
-    (UPropNot a, UPropNot b) -> same-shape a b
-    (UPropNonZero a, UPropNonZero b) -> same-shape a b
-    (UPropNotNull a, UPropNotNull b) -> same-shape a b
-    (UPropAscii a, UPropAscii b) -> same-shape a b
-    (UPropOrdered a, UPropOrdered b) -> same-shape a b
-    (UPropNonZeroPending a, UPropNonZeroPending b) -> same-shape a b
-    (URequire a b, URequire c d) -> same-shape a c && same-shape b d
-    (URefine id name carrier predicate, URefine key other input condition) -> same-pi (refinement-pi id name carrier predicate) (refinement-pi key other input condition)
-    (URefineFormer name ids body, URefineFormer other keys template) ->
-      same-tag name other && list-length ids == list-length keys
-        && (let start = largest-id (merge-ids (type-all-ids first) (type-all-ids second)) + 1 in
-            let actuals = former-witnesses ids start in
-            same-shape (substitute (former-substitution ids actuals) body)
-                       (substitute (former-substitution keys actuals) template))
-    (UCon n k, UCon m l) -> string-compare n m == 0 && kind-equal k l
-    (UBound n name k, UBound m other l) -> n == m && kind-equal k l
-    (URigid n name level k, URigid m other outer l) -> n == m && kind-equal k l
-    (UMeta n k, UMeta m l) -> n == m && kind-equal k l
-    (UIndex carrier value, UIndex other right) -> same-shape carrier other && index-equal value right
-    (UIndexForget a, UIndexForget b) -> same-shape a b
-    (UIndexByteLength a, UIndexByteLength b) -> same-shape a b
-    (UIndexBorrowRead a, UIndexBorrowRead b) -> same-shape a b
-    (UIndexList element fields, UIndexList other values) -> same-shape element other && same-shape fields values
-    (UIndexCall function args, UIndexCall other values) -> total-function-equal function other && same-shape args values
-    (UIndexPromote a, UIndexPromote b) -> same-shape a b
-    (UIndexMath op a b, UIndexMath operation c d) -> same-tag op operation && same-shape a c && same-shape b d
-    (UPi id name domain row result, UPi key other input effects output) -> same-pi first second
-    (UApp f x, UApp g y) -> same-shape f g && same-shape x y
-    (UFun a b, UFun c d) -> same-shape a c && same-shape b d
-    (UFunEff a e b, UFunEff c f d) -> same-shape a c && same-shape e f && same-shape b d
-    (UUsageArrow first a, UUsageArrow second b) -> same-arrow-usage first second && same-shape a b
-    (UProofFun a e b, UProofFun c f d) -> same-shape a c && same-shape e f && same-shape b d
-    (URow a, URow b) -> same-shape a b
-    (URowJoin a b, URowJoin c d) -> same-shape a c && same-shape b d
-    (UTuple a, UTuple b) -> same-shape a b
-    (UArg a rest, UArg b more) -> same-shape a b && same-shape rest more
-    (UEnd, UEnd) -> True
+  same-shape first second = case first of
+    UPropLit a -> case second of UPropLit b -> if a then b else not b; other -> False
+    UCompare rel a b -> case second of UCompare op c d -> same-tag rel op && same-shape a c && same-shape b d; other -> False
+    UPropAnd a b -> case second of UPropAnd c d -> same-shape a c && same-shape b d; other -> False
+    UPropOr a b -> case second of UPropOr c d -> same-shape a c && same-shape b d; other -> False
+    UPropNot a -> case second of UPropNot b -> same-shape a b; other -> False
+    UPropNonZero a -> case second of UPropNonZero b -> same-shape a b; other -> False
+    UPropNotNull a -> case second of UPropNotNull b -> same-shape a b; other -> False
+    UPropAscii a -> case second of UPropAscii b -> same-shape a b; other -> False
+    UPropOrdered a -> case second of UPropOrdered b -> same-shape a b; other -> False
+    UPropNonZeroPending a -> case second of UPropNonZeroPending b -> same-shape a b; other -> False
+    URequire a b -> case second of URequire c d -> same-shape a c && same-shape b d; other -> False
+    URefine id name carrier predicate -> case second of
+      URefine key other input condition -> same-pi (refinement-pi id name carrier predicate) (refinement-pi key other input condition)
+      other -> False
+    URefineFormer name ids body -> case second of
+      URefineFormer other keys template ->
+        same-tag name other && list-length ids == list-length keys
+          && (let start = largest-id (merge-ids (type-all-ids first) (type-all-ids second)) + 1 in
+              let actuals = former-witnesses ids start in
+              same-shape (substitute (former-substitution ids actuals) body)
+                         (substitute (former-substitution keys actuals) template))
+      other -> False
+    UCon n k -> case second of UCon m l -> string-compare n m == 0 && kind-equal k l; other -> False
+    UBound n name k -> case second of UBound m other l -> n == m && kind-equal k l; other -> False
+    URigid n name level k -> case second of URigid m other outer l -> n == m && kind-equal k l; other -> False
+    UMeta n k -> case second of UMeta m l -> n == m && kind-equal k l; other -> False
+    UIndex carrier value -> case second of UIndex other right -> same-shape carrier other && index-equal value right; other -> False
+    UIndexForget a -> case second of UIndexForget b -> same-shape a b; other -> False
+    UIndexByteLength a -> case second of UIndexByteLength b -> same-shape a b; other -> False
+    UIndexBorrowRead a -> case second of UIndexBorrowRead b -> same-shape a b; other -> False
+    UIndexList element fields -> case second of UIndexList other values -> same-shape element other && same-shape fields values; other -> False
+    UIndexCall function args -> case second of UIndexCall other values -> total-function-equal function other && same-shape args values; other -> False
+    UIndexPromote a -> case second of UIndexPromote b -> same-shape a b; other -> False
+    UIndexMath op a b -> case second of UIndexMath operation c d -> same-tag op operation && same-shape a c && same-shape b d; other -> False
+    UPi id name domain row result -> case second of UPi key other input effects output -> same-pi first second; other -> False
+    UApp f x -> case second of UApp g y -> same-shape f g && same-shape x y; other -> False
+    UFun a b -> case second of UFun c d -> same-shape a c && same-shape b d; other -> False
+    UFunEff a e b -> case second of UFunEff c f d -> same-shape a c && same-shape e f && same-shape b d; other -> False
+    UUsageArrow usage a -> case second of UUsageArrow other b -> same-arrow-usage usage other && same-shape a b; other -> False
+    UProofFun a e b -> case second of UProofFun c f d -> same-shape a c && same-shape e f && same-shape b d; other -> False
+    URow a -> case second of URow b -> same-shape a b; other -> False
+    URowJoin a b -> case second of URowJoin c d -> same-shape a c && same-shape b d; other -> False
+    UTuple a -> case second of UTuple b -> same-shape a b; other -> False
+    UArg a rest -> case second of UArg b more -> same-shape a b && same-shape rest more; other -> False
+    UEnd -> case second of UEnd -> True; other -> False
     other -> False
   has-effect :: UType -> UType -> Bool
   has-effect label labels = case labels of UArg first rest -> same-shape label first || has-effect label rest; other -> False
@@ -1313,14 +1341,14 @@ module Bootstrap.Type where
         ReplaceRigid -> UIndex changed value)
     UBound id name k -> case (case mode of ReplaceBound -> mapped id pairs; other -> None) of
       Some replacement -> replacement
-      None -> UBound id name (map-kind-types (transform-type mode pairs) k)
-    UCon name k -> UCon name (map-kind-types (transform-type mode pairs) k)
+      None -> UBound id name (transform-kind mode pairs k)
+    UCon name k -> UCon name (transform-kind mode pairs k)
     URigid id name level k -> case (case mode of ReplaceRigid -> mapped id pairs; other -> None) of
       Some replacement -> replacement
-      None -> URigid id name level (map-kind-types (transform-type mode pairs) k)
+      None -> URigid id name level (transform-kind mode pairs k)
     UMeta id k -> case (case mode of ReplaceMeta -> mapped id pairs; other -> None) of
       Some replacement -> replacement
-      None -> UMeta id (map-kind-types (transform-type mode pairs) k)
+      None -> UMeta id (transform-kind mode pairs k)
     UApp f x -> type-application (transform-type mode pairs f) (transform-type mode pairs x)
     UFun a b -> UFun (transform-type mode pairs a) (transform-type mode pairs b)
     UFunEff a row b -> UFunEff (transform-type mode pairs a) (transform-type mode pairs row) (transform-type mode pairs b)
@@ -1331,6 +1359,14 @@ module Bootstrap.Type where
     UTuple xs -> UTuple (transform-type mode pairs xs)
     UArg x rest -> UArg (transform-type mode pairs x) (transform-type mode pairs rest)
     other -> ty
+  -- `transform-type` over a kind: the kind arms of the map, direct rather
+  -- than through `map-kind-types (transform-type mode pairs)`, which built a
+  -- closure at every `UCon`/`UBound`/`URigid`/`UMeta` node.
+  transform-kind :: TypeSubstitution -> List (Nat, UType) -> Kind -> Kind
+  transform-kind mode pairs kind = case kind of
+    KValue payload -> case value-carrier kind of Some carrier -> value-kind (transform-type mode pairs carrier); None -> kind
+    KFun a b -> KFun (transform-kind mode pairs a) (transform-kind mode pairs b)
+    other -> kind
   substitute-bound :: List (Nat, UType) -> UType -> UType
   substitute-bound pairs ty = substitute pairs ty
   instantiate-params :: Bool -> List Quant -> Store -> (List (Nat, UType), Store)
@@ -1654,16 +1690,30 @@ module Bootstrap.Type where
   math-operation op = same-tag op "+" || same-tag op "-" || same-tag op "*"
   math-index :: String -> IndexTerm -> IndexTerm -> IndexTerm
   math-index op left right = if same-tag op "+" then IAdd left right else if same-tag op "*" then IMultiply left right else ISubtract left right
+  -- Both operands' index terms, when both have one: the subtraction check
+  -- below needs the pair, and a `case (x, y)` scrutinee would allocate it.
+  both-index-terms :: UType -> UType -> Option (IndexTerm, IndexTerm)
+  both-index-terms left right = case index-of-type left of
+    Some x -> case index-of-type right of
+      Some y -> Some (x, y)
+      other -> None
+    other -> None
   valid-typed-math :: String -> UType -> UType -> Bool
-  valid-typed-math op left right = valid-type left && valid-type right && math-operation op && (case (typed-index-carrier left, typed-index-carrier right) of
-    (Some a, Some b) -> mathematical-carrier a && carrier-equal a b &&
-      (if same-tag op "-" && natural-carrier a then same-shape left right ||
-        (case (index-of-type left, index-of-type right) of (Some x, Some y) -> natural-subtraction-defined a x y; other -> False)
-       else True)
+  valid-typed-math op left right = valid-type left && valid-type right && math-operation op && (case typed-index-carrier left of
+    Some a -> case typed-index-carrier right of
+      Some b -> mathematical-carrier a && carrier-equal a b &&
+        (if same-tag op "-" && natural-carrier a then same-shape left right ||
+          (case both-index-terms left right of
+            Some pair -> case pair of (x, y) -> natural-subtraction-defined a x y
+            other -> False)
+         else True)
+      other -> False
     other -> False)
   make-index-math :: String -> UType -> UType -> UType
-  make-index-math op left right = if not (math-operation op) then UIndexMath op left right else case (left, right) of
-    (UIndex a x, UIndex b y) -> if mathematical-carrier a && carrier-equal a b then UIndex a (normalize-index a (math-index op x y)) else UIndexMath op left right
+  make-index-math op left right = if not (math-operation op) then UIndexMath op left right else case left of
+    UIndex a x -> case right of
+      UIndex b y -> if mathematical-carrier a && carrier-equal a b then UIndex a (normalize-index a (math-index op x y)) else UIndexMath op left right
+      other -> UIndexMath op left right
     other -> UIndexMath op left right
   normalize-promoted-index :: UType -> UType
   normalize-promoted-index value = case value of
