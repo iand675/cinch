@@ -1107,3 +1107,164 @@ the same one, applied to names rather than classes:
 So the finiteness proof Part I section 4 gives for layouts is exactly the
 finiteness proof for *names*, which is a stronger result than the section
 claimed and worth recording: the same Tarjan pass justifies both.
+
+### 14 Interface and ABI consequences
+
+#### 14.1 The three candidates, and which one it is
+
+|Candidate|What it would mean|Verdict|
+|---|---|---|
+|an interface *row*|`Iface.layouts` grows a slot row per name|taken: the row is what a consumer reads|
+|a new class letter|`Class` grows `Byte`/`Half` alongside `Raw`/`Obj`/`TObj`|rejected|
+|a symbol suffix|the unit symbol carries the layout|taken, *in addition*: the suffix is the identity, the row is the descriptor|
+
+**Why not a class letter.** `Class` is the *reclamation* axis: it says what
+a drop may do with a word, and Part I section 2's finiteness argument rests
+on there being three values (`3^k` versions for `k` parameters). A width is
+a different axis with a different cardinality (a slot width is `1`, `2`,
+`4`, `8`, or a pointer), and folding it into `Class` would multiply the
+version count to `(3 * 5)^k` and make the termination argument false for a
+reason unrelated to the type system. It would also make `SCAN_*` codes
+carry width information they do not carry today, which 14.4 shows there is
+no room for.
+
+**Why the suffix as well as the row.** The suffix is what makes two
+independently compiled modules agree (section 12); the row is what tells a
+consumer the descriptor without re-deriving it. Neither substitutes for the
+other: a symbol without a row cannot be laid out, and a row without a
+symbol cannot be *called*.
+
+#### 14.2 What a `.cinchif` must carry
+
+`Iface` gains one field, `slots`, beside `layouts` (`AbiLayout` today).
+Both are in the contract projection and therefore in `iface_hash`:
+
+```json
+"abi": {
+  "convention": "uniform-word, curried apply stub",
+  "layouts": [ ... today's repr facts ... ],
+  "slots": [
+    { "name": "List@unboxed_4_bytes",
+      "size": 8, "align": 4,
+      "fields": ["imm4", "obj"] }
+  ]
+}
+```
+
+- `name` is the canonical descriptor of section 12.
+- `size` and `align` are bytes, on *this* target (the interface is
+  target-keyed already: `runtime_abi`, `target` and `word_size` are in the
+  object ABI, and `profile.triple` is in the store key).
+- `fields` is the pointer map, one entry per field, spelled as a
+  *class* (`raw`, `obj`, `tobj`) plus a width where the width is not the
+  word. It is the same information `SCAN_*` encodes, in a form a human and
+  a diff can read; the index encoding stays an emission detail.
+
+The projection has one requirement that is easy to get wrong: a slot row
+must be in `iface_hash`, because a consumer that compiled against
+`List@unboxed_4_bytes` at size 8 and reads size 12 must be invalidated.
+`iface_hash` is `fnv1a64` over the canonical JSON with `source_hash`,
+`compiler` and `units` blanked (`interface.rs:1114`); `slots` is not one of
+those, so it is covered. That is the right answer and it needs no code
+change, but the note says it because "excluded from the hash" is the
+failure mode a reader would expect.
+
+#### 14.3 Does `runtime_abi` move? Yes, once
+
+`RUNTIME_ABI_VERSION` is 9. A specialised layout changes two things the
+runtime reads:
+
+1. **A payload word is no longer a word.** `Scan` iterates payload *words*
+   and applies a 2-bit code per word (`block.rs::Scan::with`,
+   `slots_below`). A 1-byte or 4-byte slot breaks the "one code per word"
+   assumption: a 4-byte `Nat` and a 4-byte pointer share one 8-byte word on
+   a 64-bit target, and the word's map would have to say "first half
+   immediate, second half pointer".
+2. **A block's size is no longer `8 * words`.** `allocate_shaped` rounds to
+   whole words (`round_payload`), so a 12-byte payload becomes 16 and the
+   size in the table must agree with what was allocated or `free` reads a
+   different `Layout`.
+
+So the bump is required, and it should be *one* bump that lands the whole
+slot mechanism rather than one per stage, because a half-bumped runtime is
+the state where two producers disagree and nothing catches it.
+
+#### 14.4 The pointer-map problem, stated honestly
+
+The header has no spare bits. `RC_BITS = 40`, `KIND_BITS = 8`,
+`LAYOUT_BITS = 16`, and `block_kinds.rs` asserts
+`LAYOUT_SHIFT + LAYOUT_BITS == 64`: the header word is full. So a width
+cannot ride in the header, and a per-word 2-bit code cannot express
+"half a word".
+
+Three options, and the recommendation:
+
+|Option|Cost|Verdict|
+|---|---|---|
+|a third scan code per *half* word|doubles the map width; `SCAN_INLINE_WORDS` falls from 16 to 8, so more blocks take an extension word|rejected: it pays a table word for every block to save a byte in some|
+|a per-block width byte in the payload|shifts every field offset by 1; breaks the `getelementptr` constant-offset rule and every `store i64 %p, ptr %t` in the emitter|rejected|
+|**a slot-layout row that is *word-granular*: narrow slots are packed into words, and the map describes the word**|no map change at all: a word holding four `U8`s is one `raw` word|**taken**|
+
+The third option is the important simplification, and it is what makes
+stage 1 small. A narrow slot is *packed*, not *individually addressed*: a
+`P4` block of four `U8`s is one 4-byte payload word (8 header + 4 = 12,
+rounded to 16 by `round_payload`), and its map is one `raw` code. The
+emitter stores it with a single `i32` store built from shifts, not four
+byte stores. A word never straddles a counted pointer, because a pointer is
+word-aligned by the allocator; the packing rule is "a pointer always starts
+a word".
+
+That rule costs nothing in the map, costs one `i32`/`i16`/`i8` store
+instead of an `i64` store, and delivers the measured win in 11.4 (`MkP4`
+40 to 16 bytes, `-60%`), which is *better* than the 24 bytes 11.7 quoted,
+because the header rounding is paid once. The remaining inefficiency is the
+last word's padding (a `P4` payload of 4 bytes rounds to 8), which is a
+separate stage.
+
+#### 14.5 What the runtime ABI does *not* need
+
+- No change to `__apply` or the apply stub: a narrowed unit's conversion
+  lives in the stub it already has (`c96402f2`, `narrow_boundary.rs`).
+- No change to the closure layout: a closure's saved words are its
+  parameters' classes, and a layout vector only adds a component to the
+  *unit name*, not to the closure's shape. A closure over a
+  layout-specialised unit keeps one word per saved parameter, exactly as
+  today.
+- No change to the static block rule: a static block's payload is still
+  reached by a constant offset (`static_payload`), and the dedup landing
+  (`dedupe_static_blocks`, the `blk#h` rule) is unaffected because a
+  narrow payload is still one `[n x i64]` constant. A 12-byte payload is
+  emitted as two words with the last one padded, which is the same bytes a
+  linker would produce and keeps the `getelementptr` offset integral.
+
+#### 14.6 The reader on the other side
+
+A consumer learns the producer's choice in three places, in this order:
+
+1. **The symbol.** `Data.List.Cons@unboxed_4_bytes` is not
+   `Data.List.Cons@boxed_obj`; the linker resolves one or the other, and a
+   missing one is an undefined symbol rather than a wrong layout.
+2. **The interface row.** The `.cinchif`'s `slots` entry gives size,
+   alignment and the field map, so the consumer emits the right
+   `cinch_alloc_ctor(i64 <bytes>, ...)` without seeing the producer's
+   source.
+3. **The object ABI's `layout_words`.** For a package object, the physical
+   table prefix still has to agree, and the existing prefix assertion
+   (`bootstrap_runtime_objects.rs:151`) is what enforces it.
+
+The failure mode this ordering rules out: a consumer that reads the row,
+believes the size, and calls a producer whose symbol is the *other*
+layout. That cannot happen, because the row and the symbol are keyed by the
+same name and a mismatch is a link error on the symbol before any row is
+read.
+
+#### 14.7 The constraint from the static-block dedup landing
+
+Recorded because it is easy to violate while adding a narrow layout: a
+static block's payload **must** be reached by a constant offset into its
+one storage object, never by a global alias at the payload
+(`static_payload`'s comment records the `ld64` incident: five zero-length
+`.blk` aliases came out at an unrelated constant's address and the runtime
+decremented a constant in `__TEXT`). A narrow static block keeps that rule:
+one `@"<sym>.blk#h"` constant of `ceil(payload/8)` words, and the payload
+at `8 * words`.
