@@ -70,7 +70,14 @@ A `build` for a target other than the host links the cinch runtime built for tha
 The freestanding target links differently, and the difference is the target's, not a flag's. clang's driver finishes every link by finding the C runtime, and `wasm32-unknown-unknown` has no `crt1.o` and no `-lc`, so the driver assembles the module with `clang -c` and the target's own linker (`wasm-ld --no-entry --export-all`) links it against the runtime archive. Two tools are therefore needed beyond a native toolchain, and both are named when absent:
 
 - clang 20 or newer. The emitted IR carries `range(...)` attributes on the units whose result is a known small integer, and older LLVM rejects them with `expected type`. Apple clang 21 and LLVM 20 both read them; the wasi-sdk's clang 18 does not. `CINCH_CLANG` names the compiler, and a refusal states the version it found and the version it needs.
-- `wasm-ld`. It is found the way clang's driver finds it: the toolchain's own copy when `clang -print-prog-name=wasm-ld` answers a path, and otherwise on `PATH`. `CINCH_WASM_LD` names one directly. nixpkgs `llvmPackages.bintools` provides it.
+- `wasm-ld`. It is found the way clang's driver finds it: the toolchain's own copy when `clang -print-prog-name=wasm-ld` answers a path, and otherwise on `PATH`. `CINCH_WASM_LD` names one directly, and on a nix system that is usually the only route: the linker lives in the store rather than on `PATH`, and Apple clang answers `-print-prog-name=wasm-ld` with nothing, so neither search reaches it. Set the variable to the store path a `llvm-binutils` derivation provides:
+
+```sh
+CINCH_WASM_LD=/nix/store/<hash>-llvm-binutils-21.1.8/bin/wasm-ld \
+  cinch build --target wasm32-unknown-unknown Main.cinch -o prog.wasm
+```
+
+`nix-shell -p llvmPackages.bintools --run 'which wasm-ld'` prints the path to use. With all three routes absent, the refusal names `CINCH_WASM_LD` and that example shape, so the next build does not have to search `/nix/store`.
 
 `run` executes the result on the host that can carry it. A native target runs its executable directly. `wasm32-unknown-unknown` runs its module under Node, which loads the module, calls the exported `main`, and exits with what it returned, so a program's exit code means the same thing under both. Node is named in the refusal when it is absent, and `CINCH_NODE` names a different one. A freestanding module has no command line, so `run` refuses program arguments for that target rather than dropping them. Every other foreign target still refuses to `run` here, because the host cannot start its binary.
 
