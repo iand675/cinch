@@ -137,7 +137,8 @@ Measured in the same bundle, capturing each type in a `parTabulate` callback:
 
 | Type | `Share` |
 | --- | --- |
-| `Span`, `Json`, `String`, `Nat`, `List Nat`, `List (String, Json)` | yes |
+| `Span`, `Nat`, `List Nat` | yes |
+| `String`, `Json`, `List (String, Json)` | **no** (measured by a later lane: `String` is `StrBuf :: Bytes -> String` and `Bytes` is transfer-only, so `parMap` over any of these is refused because the element type must be `Share`) |
 | `Program`, `Module`, `Decl`, `Expr`, `Pat`, `TypeExpr` (as source) | **yes** |
 | `Store` | **no** |
 | `Elaboration`, `CheckedProgram` | **no** |
@@ -193,9 +194,11 @@ The pool costs nothing when unused, so the default budget can stay on. A
 `--check` of a three-line program takes 1.01 s user at the default budget and
 1.05 s at `CINCH_THREADS=4`; no worker thread starts, because
 `parallel_participant` returns `None` when nothing publishes. The primitives
-are reachable and correct: `parMap` over `List (String, Json)` type-checks,
-emits `@cinch_par_map_array` in the IR, and its sequential and parallel
-readings agree.
+are reachable and correct: `parMap` over `List Nat` type-checks, emits
+`@cinch_par_map_array` in the IR, and its sequential and parallel readings
+agree. (`List (String, Json)` does **not** type-check: `String` is not
+`Share`, see section 5, which a later lane measured after this survey
+recorded it the other way.)
 
 ## 8 The order this should happen in
 
