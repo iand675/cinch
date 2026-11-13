@@ -113,6 +113,40 @@ fn safety_invariant_holds_across_a_mutating_loop() {
     );
 }
 
+/// The formula's comparison elaborated through a loaded interface, in both
+/// frontends. With an interfaces manifest `<` is the prelude's `Ord` method
+/// (`i.Relation.Ord.<`), reached through the instance's dictionary rather
+/// than a top-level binding: the contract's formula has to elaborate it the
+/// way a body's own comparison does, which means the module's reference set
+/// carries the formula's names so the method's external declaration is
+/// materialized and registered. A formula left out of the reference set left
+/// the method unbound and the contract unverifiable, so this pins the whole
+/// path from the source spelling to the verified proposition.
+#[test]
+fn contract_formula_comparison_elaborates_through_a_loaded_interface() {
+    let src = format!(
+        "{LOOP}
+  contract safety loopInv for countdown where
+    always = (copyOut m < 5)
+    assume = (copyOut m < 5)
+
+  main :: Int
+  main = 0
+"
+    );
+    // The frontend the suite selected. Under a staged compiler this is the
+    // self-hosted checker driven with the base interfaces manifest, which is
+    // the configuration the failure appeared in.
+    expect_checks("contract-formula-interface", &src);
+    // The seed frontend, unconditionally: the same source checks through the
+    // Rust reference checker in this same process, so the two frontends are
+    // compared rather than one being trusted alone.
+    match cinch::driver::check_sources(&src, "contract-formula-interface.cinch") {
+        Ok(_) => {}
+        Err(error) => panic!("the seed frontend must check the same formula: {error}"),
+    }
+}
+
 #[test]
 fn safety_violating_write_rejects_naming_the_step() {
     // The loop writes 9, which falsifies the invariant at that write: the

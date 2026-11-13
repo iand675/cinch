@@ -396,7 +396,24 @@ module Bootstrap.Contracts where
     DInstance s only name params class-app members -> param-references params <> type-references class-app <> declaration-references (decls-of members)
     DForeign s direction abi symbol name ty -> type-references ty <> (if same direction "export" then Cons name Nil else Nil)
     DPrim s name ty bodies -> type-references ty <> prim-body-references bodies
+    -- A temporal contract's formulas are checked as ordinary terms over the
+    -- definition's parameters (core specification section 10), so every
+    -- global they name is a name the module uses: the comparison a formula
+    -- spells `<` resolves to a loaded interface's method, and that method's
+    -- external declaration has to be materialized and registered exactly as
+    -- a body's own `<` materializes it. Leaving the formula out of the
+    -- reference set left the method unbound in the environment the formula
+    -- is checked in.
+    DContract s keyword name subject clauses -> contract-clause-references clauses
     other -> Nil
+
+  contract-clause-references :: List ContractClause -> List String
+  contract-clause-references clauses = case clauses of
+    Nil -> Nil
+    Cons first rest -> case first of
+      ContractFormula s op body -> expr-references body <> contract-clause-references rest
+      ContractAssume s body -> expr-references body <> contract-clause-references rest
+      ContractAssumed s text -> contract-clause-references rest
 
   prim-body-references :: List PrimBody -> List String
   prim-body-references bodies = case bodies of

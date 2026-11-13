@@ -370,6 +370,11 @@ module Bootstrap.TemporalCheck where
   -- own symbol (`...$3c` is `<`).
   method-comparison :: CoreTerm -> Option Comparison
   method-comparison term = case term of
+    -- A method reached through a checked interface is a dictionary
+    -- projection: the registered binding is a method, so the checker
+    -- elaborates it to `CMethod` (the class, the slot and the dictionary
+    -- it projects from), not to a bare use of the encoded global.
+    CMethod sp ty name owner slot actuals evidence -> method-comparison-name name
     CQualifiedUse sp ty name role actuals evidence -> method-comparison-name name
     CUse sp ty name role actuals -> method-comparison-name name
     CApply sp ty f x -> method-comparison term
@@ -400,6 +405,7 @@ module Bootstrap.TemporalCheck where
   -- The arithmetic operator a method application's head names.
   method-operation :: CoreTerm -> String
   method-operation term = case term of
+    CMethod sp ty name owner slot actuals evidence -> method-operation-name name
     CQualifiedUse sp ty name role actuals evidence -> method-operation-name name
     CUse sp ty name role actuals -> method-operation-name name
     CApply sp ty f x -> method-operation term
@@ -708,6 +714,19 @@ module Bootstrap.TemporalCheck where
     CArgument sp value rest -> temporal-scope-sites value <> temporal-scope-sites rest
     CApply sp ty f x -> temporal-scope-sites f <> temporal-scope-sites x
     CApplyEff sp ty row f x -> temporal-scope-sites f <> temporal-scope-sites x
+    -- The checking forms wrap a body without changing the sites it
+    -- contains: a discharged requirement, a refinement certificate, an
+    -- erased proof arrow, and a lambda (a `withScope` callback is one).
+    CDischarge sp ty evidence body -> temporal-scope-sites body
+    CRequire sp ty body -> temporal-scope-sites body
+    CForget sp ty body -> temporal-scope-sites body
+    CRefine sp ty evidence body -> temporal-scope-sites body
+    CRefineProof sp ty witness body -> temporal-scope-sites body
+    CProved sp ty evidence body -> temporal-scope-sites body
+    CErasedApply sp ty row f witness -> temporal-scope-sites f
+    CLambda sp ty pattern body -> temporal-scope-sites body
+    CMemoScope sp ty region body -> temporal-scope-sites body
+    CWith sp ty given value body -> temporal-scope-sites value <> temporal-scope-sites body
     other -> Nil
 
   scope-alternatives :: CoreTerm -> List String
