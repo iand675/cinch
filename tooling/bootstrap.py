@@ -498,12 +498,51 @@ def runtime_abi_source(abi: int) -> bytes:
             f"  runtime-abi-int = {abi}\n").encode()
 
 
+def host_source() -> bytes:
+    # The staged CLI defaults `--target` to the machine it runs on, and a
+    # compiled Cinch program cannot ask Rust for its own triple the way the
+    # seed does (`host_target_components`). So the build host is rendered into
+    # a module before the sources are hashed, exactly as the runtime ABI is.
+    # The rendering is a pure function of the host, with no timestamp and a
+    # fixed field order, so one machine renders identical bytes every run and
+    # a hash change can only mean a genuinely different host.
+    system, machine = HOST["system"], HOST["machine"]
+    os = {"Darwin": "darwin", "Linux": "linux", "Windows": "windows",
+          "FreeBSD": "freebsd"}.get(system)
+    if os is None:
+        raise BootstrapError(f"unsupported build host for target profiles: {system!r}")
+    # Kept in the triple spelling (`aarch64`, `x86_64`) so `--target` compares
+    # against a real triple.
+    arch = {"arm64": "aarch64", "aarch64": "aarch64",
+            "x86_64": "x86_64", "AMD64": "x86_64", "x86": "x86_64"}.get(machine)
+    if arch is None:
+        raise BootstrapError(f"unsupported build host architecture: {machine!r}")
+    libc = {"darwin": "libSystem", "linux": "glibc", "windows": "msvcrt"}.get(os, "none")
+    vendor = {"darwin": "apple", "windows": "pc"}.get(os, "unknown")
+    family = {"darwin": "darwin", "linux": "linux-gnu", "windows": "windows-msvc"}.get(os, os)
+    return ("-- The machine this compiler was built on. The staged builder renders\n"
+            "-- this module from the build host before hashing the complete sources,\n"
+            "-- because `--target` defaults to the host and a compiled program cannot\n"
+            "-- ask Rust for its own triple. Nothing derives the target from it.\n"
+            "module Bootstrap.Host where\n"
+            "  export host-triple, host-os, host-arch, host-libc\n"
+            "  host-triple :: String\n"
+            f"  host-triple = \"{arch}-{vendor}-{family}\"\n"
+            "  host-os :: String\n"
+            f"  host-os = \"{os}\"\n"
+            "  host-arch :: String\n"
+            f"  host-arch = \"{arch}\"\n"
+            "  host-libc :: String\n"
+            f"  host-libc = \"{libc}\"\n").encode()
+
+
 def collect_compiler_sources() -> dict[str, bytes]:
     # The seed links Stage1. The compiler inside Stage1 targets the pinned
     # library and runtime used to build and run Stage2 and later.
     lock = library_provider_lock()
     files = {p.name: p.read_bytes() for p in sorted((ROOT / "bootstrap").glob("*.cinch"))}
     files["Bootstrap.RuntimeAbi.cinch"] = runtime_abi_source(lock["runtime_abi"])
+    files["Bootstrap.Host.cinch"] = host_source()
     for module in TOOLKIT:
         files[f"Text.{module}.cinch"] = (ROOT / "compiler" / "prelude" / "Text" / f"{module}.cinch").read_bytes()
     files["Main.cinch"] = (ROOT / "bootstrap" / "programs" / "Run.Pipeline.cinch").read_bytes()
