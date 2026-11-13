@@ -1351,3 +1351,145 @@ the always-read tier (stage 2 of 16) or must be lazy.
   explicit layout wins, and the caller must be told it did not get the
   narrow layout it asked for. Silently using the C layout would make
   `List MyCStruct` mean two sizes in one program.
+
+### 16 Staged plan
+
+Five stages, smallest first. Each is gated on a measurement, and each gate
+is stated so a stage that does not pay can be dropped rather than pushed
+through. Stage 1 is deliberately one lane's day, not a monomorphisation.
+
+#### Stage 1: pack narrow fields into a word (one lane, about a day)
+
+**What.** A constructor whose fields are all fixed-width non-pointer
+scalars (`U8`/`I8`/`U16`/`I16`/`U32`/`I32`, `Bool`, `Char`) packs them into
+as few payload words as the sum of their widths needs, with a pointer
+always starting a word. `ctor_body` emits one `i32`/`i16`/`i8` store per
+packed word instead of one `i64` per field, and the field offsets come from
+one function (`slot_offsets`) that the checker, the emitter and the
+interface row all read.
+
+**Why it is first.** It is the only stage that needs no name, no interface
+row and no `runtime_abi` change: the block is still word-granular, so the
+pointer map, `round_payload`, `free` and `Scan` are untouched. It is also
+the stage with the largest measured win on a real shape: `MkP4` is 40 bytes
+today (measured, 11.4) and 16 packed (`8 header + 4 payload`, rounded), a
+60% reduction on 100,000-element lists (measured: `blocks=100000
+bytes=2400000`, 24 bytes each).
+
+**The measurement that decides it.** `CINCH_ALLOC_STATS=1
+CINCH_ALLOC_KINDS=1` over the compiler bundle's own check, comparing the
+`upto=40` and `upto=48` size classes before and after. It pays if the
+`ctor` byte count falls by at least 5% and `cargo test --lib` plus the
+target parity hold. If the bundle has too few multi-narrow-field blocks
+(the histogram in 11.5 says 1,487 sites at 3 words and 663 at 4, so the
+answer is measurable, not guessed), the stage is worth doing anyway for
+`Data.Machine`'s `Span`-like records but should not be scheduled ahead of
+stage 2.
+
+**What it does not need.** No `runtime_abi` bump (the map is unchanged), no
+interface change (the block is still word-granular), no collector change.
+
+#### Stage 2: the slot row in the interface, and the derived name
+
+**What.** `slot(T, P)` of 12.3 as one total function, the `slots` section
+of `Iface`, and `slot_offsets` reading it. No body is specialised yet: the
+row is emitted for every type and read by the emitter, so the interface and
+the emitter agree before anything depends on it.
+
+**Why second.** It is the load-bearing interface change, and it is
+verifiable on its own: every type's row must match what the emitter
+actually lays out, which is a golden test over the existing 49 interfaces
+with no behavioural change.
+
+**The measurement that decides it.** Every `.cinchif` in the fixed point
+is byte-identical except for the new `slots` section, and `stage2/compiler.ll`
+equals `stage3/compiler.ll`. If the rows do not fit the always-read tier
+(the 1.2% estimate of 15.4), the row moves behind the existing lazy
+mechanism, and that is a measured decision rather than a guess.
+
+#### Stage 3: the layout vector in the collector
+
+**What.** `specialize_with_roots` grows the layout component: a copy per
+reached *(class vector, layout vector)* pair, `spec_name` grows the second
+suffix, and `Layouts` collects rows by name into a `BTreeMap` before
+assigning indices. The first layout that is actually produced is
+`Nat`/`Int` at `csize` on a 32-bit target, because that is the user's case
+and it is the only one where the win is large.
+
+**Why third.** It is the first stage that changes emitted code, and it
+needs stages 1 and 2 to be trustworthy first.
+
+**The measurement that decides it.** On wasm32: the `List Nat` program's
+cell count and the compiler bundle's `word_size = 32` IR, checking that
+`Cons@unboxed_4_bytes` is emitted once and that the 4-byte payload reaches
+`cinch_alloc_ctor(i64 8, ...)`. On 64-bit: `List Nat` must not change at
+all, since a `Nat` is 8 bytes there (12.3.1). A 64-bit byte diff that is
+not empty means the function is wrong, not that the target does not pay.
+
+**What it needs.** `runtime_abi` bumps here, once, for the whole mechanism
+(14.3). The locks move after this lands, not before.
+
+#### Stage 4: tagged narrow types (`Option U8`, `Result e a`)
+
+**What.** A multi-constructor type whose payloads fit a narrow slot gets a
+packed tag. `Option U8` becomes 2 bytes (`{tag, payload}`) instead of
+`boxed_obj`.
+
+**Why it is fourth.** It needs a tag-packing rule and a `match` that reads
+it, and the win is smaller than stage 3's (an `Option U8` element in a list
+is 24 bytes today and 16 packed, against a `Nat` element's 24 to 16 on
+32-bit). It is also where a second representation of the same value first
+appears, so it should be measured before it is trusted.
+
+**The measurement that decides it.** A program with a `List (Option U8)` of
+100,000 elements: the byte count must fall by at least 25%, and
+`CINCH_LEAK_CHECK=1` must still print `live=0 immortal=0 leaked=0`. If the
+tag packing costs a branch in every `match`, the byte win is not worth it
+and the stage stops.
+
+#### Stage 5: pointer maps for sub-word slots, if ever
+
+**What.** The full sub-word map (a 4-byte immediate next to a 4-byte
+pointer in one word), which needs the map width change 14.4 rejects.
+
+**Why it is last, and probably never.** The word-granular rule of 14.4
+already gets the measured win for every shape that has several narrow
+fields. The only case it does not reach is a block that is *one* narrow
+scalar next to a pointer, where the scalar's word is half wasted; on a
+64-bit target that is unavoidable anyway (the pointer forces 8-byte
+alignment), and on 32-bit it is 4 bytes of 16, a 25% loss on one shape.
+That is not worth a map-width change that costs every block a table word.
+
+#### Where this sits in Part I's sequencing
+
+Part I section 8 orders the *class* work (reclamation, then value types,
+then demand-driven layouts). Part II's stages are independent of it except
+for one dependency: stage 3 needs the collector of Part I step 2 to exist,
+because that is where the layout vector lives. Stages 1 and 2 need nothing
+from Part I and can land now.
+
+#### What decides the whole thing
+
+The single measurement that should be taken before any of it: how many
+constructor sites in the compiler bundle have a payload that is entirely
+fixed-width non-pointer scalars, and how many bytes that is. The histogram
+in 11.5 says 62.3% of sites are two words; it does not say how many of
+those two words are a narrow scalar and a pointer. That number decides
+whether stage 1 is a 5% win or a 1% win.
+
+**It cannot be read from emitted IR, and that is a finding rather than an
+inconvenience.** Every store in every constructor body of
+`build/bootstrap/stage3/compiler.ll` is `i64`: 42,590 stores across 3,135
+constructor bodies, and not one `i8`, `i16`, `i32`, `float` or `double`.
+The width of a field is not in the IR at all, because the emitter writes
+one word per field whatever the type says. So the measurement has to be
+taken on the *checked* side, from `UnitRepr::fields` and the field types
+before `lower()` drops them, or from a `--dump-core checked` artifact.
+
+That absence is the same fact 12.6 turns into a rule: there is no place in
+the emitted form where a width could disagree with the slot decision,
+because there is no width there. The decision lives in one function on the
+checked side, and everything downstream reads its answer. The implementing
+lane's first task is therefore to add the width to the checked form (which
+stage 1 needs anyway) and read the histogram from it; the note does not
+claim the number because it has not been taken.
