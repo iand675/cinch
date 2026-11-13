@@ -4,13 +4,16 @@
 module Bootstrap.Stage where
   import Bootstrap.Ast
   import Bootstrap.Check (CheckedProgram, check-and-retain, checked-surface)
+  import Bootstrap.Expand (term-has-macro-call, decl-has-macro-call, clauses-have-macro-call, hygienic-term, fill-splices as macro-fill-splices, macro-parameters, template-of, expand-error)
+  import Bootstrap.Parse (Fix, macro-argument-groups, module-scope-fixes)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Bootstrap.StageEval
   import Bootstrap.Nominal (stage-quotation-module, stage-code-type-name, global-stage-code)
   import Bootstrap.Type (Scheme, UType, UApp, UCon, scheme-body)
   import Algebra.Semigroup
   import Data.Int (int-neg)
-  import Text.Lex (Span, span-start)
+  import Data.List (list-length)
+  import Text.Lex (Span, span-start, LToken)
   import Text.Show (int-to-string, nat-to-string)
 
   export expand-stages
@@ -21,6 +24,13 @@ module Bootstrap.Stage where
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
 
+  cat :: List String -> String
+  cat parts = string-concat-all parts
+
+  -- A module has staging work when it declares a compile-time construct or
+  -- when its ordinary code calls a macro. The second half matters for a
+  -- module that only *uses* a macro: it declares no `macro`, but its calls
+  -- still have to be expanded before the ordinary check.
   stage-work :: List Decl -> Bool
   stage-work declarations = case declarations of
     Nil -> False
@@ -28,7 +38,7 @@ module Bootstrap.Stage where
       DMacro site body -> True
       DStage site body -> True
       DGenerate site body -> True
-      other -> stage-work rest
+      other -> decl-has-macro-call other || stage-work rest
 
   probe-name :: Span -> String
   probe-name site = string-concat "#stage-probe-" (nat-to-string (span-start site))
@@ -442,6 +452,12 @@ module Bootstrap.Stage where
         Err errors -> Err errors
         Ok (more, done) -> Ok (generated <> more, done)
 
+  -- A macro declaration is compile-time only: it names no runtime value in
+  -- any module, so the runtime program keeps no trace of it. It is not
+  -- dropped without work, though: its calls elsewhere in the module are
+  -- expanded by `expand-term`, which reads the declaration's parameters and
+  -- template from `module-decls`.
+  --
   -- A quotation-bodied stage declaration leaves no runtime trace: its
   -- signature would name a value that never exists, so the signature goes with
   -- it. The template is read from the checked surface at each splice that
@@ -452,7 +468,124 @@ module Bootstrap.Stage where
     DStage site body -> Ok (Nil, fuel)
     DGenerate site actions -> expand-actions checked owner (MkExpandScope module-decls Nil) (decls-of actions) fuel
     DSig site name ty -> if quotation-signature-of name module-decls then Ok (Nil, fuel) else Ok ([declaration], fuel)
+    DFun site name clauses -> if clauses-have-macro-call clauses then
+      (case macro-expand-clauses checked owner module-decls clauses fuel of
+        Err errors -> Err errors
+        Ok (expanded, remaining) -> Ok ([DFun site name expanded], remaining))
+      else Ok ([declaration], fuel)
+    DConditional site clauses inner -> case expand-declaration checked owner module-decls inner fuel of
+      Err errors -> Err errors
+      Ok (Nil, remaining) -> Ok (Nil, remaining)
+      Ok (expanded, remaining) -> Ok ([DConditional site clauses (decl-spine site expanded)], remaining)
     other -> Ok ([declaration], fuel)
+
+  -- Every clause of an ordinary definition: macro calls in ordinary code
+  -- expand before the ordinary check, so the check runs on expanded syntax
+  -- (modules specification section 8: an expansion is checked under the
+  -- same rules as written code).
+  macro-expand-clauses :: CheckedProgram -> String -> List Decl -> List (List Pat, Expr) -> Nat -> Result (List Diagnostic) (List (List Pat, Expr), Nat)
+  macro-expand-clauses checked owner module-decls clauses fuel = case clauses of
+    Nil -> Ok (Nil, fuel)
+    Cons (patterns, body) rest -> case expand-term checked owner module-decls body fuel of
+      Err errors -> Err errors
+      Ok (expanded, remaining) -> case macro-expand-clauses checked owner module-decls rest remaining of
+        Err errors -> Err errors
+        Ok (more, done) -> Ok (Cons (patterns, expanded) more, done)
+
+  -- One term, with every macro call in it replaced by its expansion. The
+  -- walk visits every expression position, because a call can stand
+  -- anywhere a term can.
+  expand-term :: CheckedProgram -> String -> List Decl -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
+  expand-term checked owner module-decls e fuel = case e of
+    EMacroCall site path tokens -> expand-call checked owner module-decls site path tokens fuel
+    ECon s name args -> expand-sub (ECon s name) args checked owner module-decls fuel
+    ERecord s name fields -> expand-sub (ERecord s name) fields checked owner module-decls fuel
+    EProject s value name -> expand-one (\x -> EProject s x name) value checked owner module-decls fuel
+    ETuple s xs -> expand-sub (ETuple s) xs checked owner module-decls fuel
+    EList s xs -> expand-sub (EList s) xs checked owner module-decls fuel
+    ENeg s x -> expand-one (ENeg s) x checked owner module-decls fuel
+    ELam s ps body -> expand-one (ELam s ps) body checked owner module-decls fuel
+    ELetScope s body -> expand-one (ELetScope s) body checked owner module-decls fuel
+    ELocalSignature s name ty rest -> expand-one (ELocalSignature s name ty) rest checked owner module-decls fuel
+    EAnn s x ty -> expand-one (\y -> EAnn s y ty) x checked owner module-decls fuel
+    EForall s vs body -> expand-one (EForall s vs) body checked owner module-decls fuel
+    EUsing s bounds body -> expand-one (EUsing s bounds) body checked owner module-decls fuel
+    EBind s name rhs -> expand-one (EBind s name) rhs checked owner module-decls fuel
+    EDo s stmts -> expand-one (EDo s) stmts checked owner module-decls fuel
+    EHandler s label clauses -> expand-one (EHandler s label) clauses checked owner module-decls fuel
+    EQuote s body -> expand-one (EQuote s) body checked owner module-decls fuel
+    EApp s f a -> expand-two (\x y -> EApp s x y) f a checked owner module-decls fuel
+    EBin s op l r -> expand-two (\x y -> EBin s op x y) l r checked owner module-decls fuel
+    ERecordField s label value rest -> expand-two (\x y -> ERecordField s label x y) value rest checked owner module-decls fuel
+    ELocalStrict s p value rest -> expand-two (\x y -> ELocalStrict s p x y) value rest checked owner module-decls fuel
+    ELocalMemo s name value rest -> expand-two (\x y -> ELocalMemo s name x y) value rest checked owner module-decls fuel
+    EGuarded s guard body -> expand-two (\x y -> EGuarded s x y) guard body checked owner module-decls fuel
+    EHandle s body h -> expand-two (\x y -> EHandle s x y) body h checked owner module-decls fuel
+    EHandlerClause s name pats continuation body rest -> expand-two (\x y -> EHandlerClause s name pats continuation x y) body rest checked owner module-decls fuel
+    EWith s bs body -> expand-two (\x y -> EWith s x y) bs body checked owner module-decls fuel
+    EArg s x rest -> expand-two (\x y -> EArg s x y) x rest checked owner module-decls fuel
+    EBinding s name rhs rest -> expand-two (\x y -> EBinding s name x y) rhs rest checked owner module-decls fuel
+    EAlt s p body rest -> expand-two (\x y -> EAlt s p x y) body rest checked owner module-decls fuel
+    ECase s scrut alts -> expand-two (\x y -> ECase s x y) scrut alts checked owner module-decls fuel
+    ELocalGroup s bs body -> expand-two (\x y -> ELocalGroup s x y) bs body checked owner module-decls fuel
+    ELetRec s bs body -> expand-two (\x y -> ELetRec s x y) bs body checked owner module-decls fuel
+    ELet s bs body -> expand-two (\x y -> ELet s x y) bs body checked owner module-decls fuel
+    EIf s c t f -> case expand-term checked owner module-decls c fuel of
+      Err errors -> Err errors
+      Ok (expanded-c, a) -> case expand-term checked owner module-decls t a of
+        Err errors -> Err errors
+        Ok (expanded-t, b) -> case expand-term checked owner module-decls f b of
+          Err errors -> Err errors
+          Ok (expanded-f, after) -> Ok (EIf s expanded-c expanded-t expanded-f, after)
+    other -> Ok (e, fuel)
+
+  expand-sub :: (Expr -> Expr) -> Expr -> CheckedProgram -> String -> List Decl -> Nat -> Result (List Diagnostic) (Expr, Nat)
+  expand-sub build spine checked owner module-decls fuel = case expand-term checked owner module-decls spine fuel of
+    Err errors -> Err errors
+    Ok (expanded, remaining) -> Ok (build expanded, remaining)
+
+  expand-one :: (Expr -> Expr) -> Expr -> CheckedProgram -> String -> List Decl -> Nat -> Result (List Diagnostic) (Expr, Nat)
+  expand-one build body checked owner module-decls fuel = expand-sub build body checked owner module-decls fuel
+
+  expand-two :: (Expr -> Expr -> Expr) -> Expr -> Expr -> CheckedProgram -> String -> List Decl -> Nat -> Result (List Diagnostic) (Expr, Nat)
+  expand-two build first second checked owner module-decls fuel = case expand-term checked owner module-decls first fuel of
+    Err errors -> Err errors
+    Ok (expanded-first, more) -> case expand-term checked owner module-decls second more of
+      Err errors -> Err errors
+      Ok (expanded-second, after) -> Ok (build expanded-first expanded-second, after)
+
+  -- One invocation: bind the token tree's groups to the macro's parameters,
+  -- rename the template's own binders apart, fill its splices with the
+  -- caller's syntax, then expand whatever the filled template still calls.
+  -- A template that is not a quotation is a compile-time computation, which
+  -- this rung refuses by name rather than typing.
+  expand-call :: CheckedProgram -> String -> List Decl -> Span -> String -> List LToken -> Nat -> Result (List Diagnostic) (Expr, Nat)
+  expand-call checked owner module-decls site path tokens fuel =
+    let parameters = macro-parameters path module-decls in
+    case template-of path module-decls of
+      None -> expand-error site (cat ["macro `", path, "` has no quotation template; only a `[| ... |]` macro body expands in this rung"])
+      Some template ->
+        let groups = macro-argument-groups tokens (list-length parameters) in
+        if list-length groups /= list-length parameters then
+          expand-error site (cat ["macro `", path, "` takes ", nat-to-string (list-length parameters), " token-tree argument(s), but the invocation supplies ", nat-to-string (list-length groups)])
+        else
+          let fix = module-scope-fixes owner (program-modules-of checked) Nil in
+          case macro-fill-splices template (zip-parameters parameters groups) fix of
+            Err errors -> Err errors
+            Ok filled -> let (renamed, serial) = hygienic-term filled 0 in
+              expand-term checked owner module-decls renamed fuel
+
+  zip-parameters :: List String -> List (List LToken) -> List (String, List LToken)
+  zip-parameters names groups = case (names, groups) of
+    (Cons name rest, Cons tokens more) -> Cons (name, tokens) (zip-parameters rest more)
+    other -> Nil
+
+  -- The program a checked compilation came from, for its fixity surface.
+  -- A checked program retains the modules it was built from, so the
+  -- caller's own fixity declarations are what the re-parse of its token
+  -- trees uses.
+  program-modules-of :: CheckedProgram -> List Module
+  program-modules-of checked = program-modules (checked-surface checked)
 
 
   -- Two declaration lists with different jobs, named for those jobs so the
