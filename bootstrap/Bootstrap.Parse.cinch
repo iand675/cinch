@@ -2267,7 +2267,7 @@ module Bootstrap.Parse where
   parse-token-tree :: LToken -> List LToken -> Ps (List LToken)
   parse-token-tree opener toks = case tree-closes (lt-token opener) of
     None -> PBad
-    Some close -> tree-tokens close (Cons opener toks) Nil
+    Some close -> tree-scan (Cons close Nil) toks (Cons opener Nil)
 
   -- Is this token any tree closer? A close that matches nothing owed means
   -- the tree's delimiters disagree with the source's, which is a failure.
@@ -2290,14 +2290,12 @@ module Bootstrap.Parse where
       else None
     other -> None
 
-  -- Collect the tree's tokens from `pending`, which already holds the
-  -- opener, until the last closer is popped. `open` holds the closers still
-  -- owed, innermost first, so every nested opener pushes its own and a
-  -- close that does not match the innermost is a failure rather than a
-  -- silent truncation.
-  tree-tokens :: String -> List LToken -> List LToken -> Ps (List LToken)
-  tree-tokens close pending acc = tree-scan (Cons close Nil) pending acc
-
+  -- Collect the tree's tokens from `pending`, which begins at the opener's
+  -- successor, until the last closer is popped. `owed` holds the closers
+  -- still owed, innermost first, so every nested opener pushes its own and
+  -- a close that does not match the innermost is a failure rather than a
+  -- silent truncation. `acc` holds the opener already, which is why the
+  -- scan starts with its closer already owed and never pushes it twice.
   tree-scan :: List String -> List LToken -> List LToken -> Ps (List LToken)
   tree-scan owed pending acc = case pending of
     Nil -> PBad
@@ -2305,7 +2303,7 @@ module Bootstrap.Parse where
       case tree-closes tok of
         Some inner -> tree-scan (Cons inner owed) rest (Cons t acc)
         None -> case owed of
-          Nil -> POk (reverse (Cons t acc)) rest
+          Nil -> POk (reverse acc) rest
           Cons wanted more ->
             if is-punct-t tok wanted then (case more of
               Nil -> POk (reverse (Cons t acc)) rest
