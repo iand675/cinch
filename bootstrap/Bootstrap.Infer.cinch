@@ -2026,11 +2026,18 @@ module Bootstrap.Infer where
   register-source-methods :: CoreClass -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-source-methods description ds env st = case ds of
     Nil -> (env, st)
-    Cons (DMethod sp label symbol syntax) rest -> case (source-method label (class-methods description), lookup-binding symbol env) of
-      (Some method, None) -> case class-method-equation method of
+    -- The kernel's classes are declared after the resolver's visibility
+    -- pass, so a member may already carry a placeholder binding from
+    -- `builtin-bindings`. The method contract is the authority: it replaces
+    -- that placeholder, because the placeholder is what makes the *name*
+    -- visible while this is what makes it a method the rules can key on.
+    Cons (DMethod sp label symbol syntax) rest -> case source-method label (class-methods description) of
+      Some method -> case class-method-equation method of
         Some equation -> register-source-methods description rest env st
-        None -> register-source-methods description rest (Cons (MkMethodBinding symbol (class-method-scheme method) (class-name description) (class-method-slot method)) env) st
-      other -> register-source-methods description rest env (add-error sp "source method has a duplicate binding or no declaring slot" st)
+        None -> register-source-methods description rest
+          (Cons (MkMethodBinding symbol (class-method-scheme method) (class-name description) (class-method-slot method))
+            (without-binding symbol env)) st
+      None -> register-source-methods description rest env (add-error sp "source method has no declaring slot" st)
     Cons (DFun sp label clauses) rest -> case source-method label (class-methods description) of
       Some (MkCoreEquationMethod at name slot telescope symbol equation) ->
         register-source-methods description rest env (add-error sp "an equality method default needs erased proof elaboration" st)
@@ -2041,6 +2048,12 @@ module Bootstrap.Infer where
       None -> register-source-methods description rest env (add-error sp "default names an undeclared class method" st)
     Cons (DLaw sp name syntax) rest -> register-source-methods description rest env st
     Cons other rest -> register-source-methods description rest env (add-error (decl-span other) "invalid resolved source method declaration" st)
+  -- The environment without any binding of this name, so a method can
+  -- replace the visibility placeholder rather than collide with it.
+  without-binding :: String -> List CheckedBinding -> List CheckedBinding
+  without-binding name env = case env of
+    Nil -> Nil
+    Cons b rest -> if same name (checked-name b) then without-binding name rest else Cons b (without-binding name rest)
   source-class-default-symbol :: CoreClass -> CoreClassMethod -> String
   source-class-default-symbol description member = string-concat-all ["#class-default:", class-name description, ":", class-method-name member]
   source-class-default-clauses :: CoreClass -> CoreClassMethod -> List Decl -> Option (List (List Pat, Expr))
@@ -4607,57 +4620,96 @@ module Bootstrap.Infer where
       other -> None)
     other -> None
 
-  -- The rules run through `parallel-callback`, exactly as the builtin path
-  -- runs them: the callback is checked against an expected arrow, its row is
-  -- tested for the parallel-safe row, and its checked term is tested for the
-  -- literal form. The term the call emits is then the ordinary method
-  -- application, so the dictionary resolves the instance the way it resolves
-  -- any other method and the caller's obligations are unchanged by which
-  -- instance answers.
+  -- A call of a `Parallelism` method (`design/parallelism-as-a-value.md`
+  -- section 3). The method's checked scheme is opened the way any method
+  -- use opens it, and its own parameter types decide each callback's
+  -- expected arrow; this rule constructs no callback type of its own. That
+  -- matters: the rules below must see the exact arrows the declaration
+  -- states, and a synthesised type consumes the wrong number of arguments.
+  --
+  -- The three obligations then run through `parallel-callback`, unchanged:
+  -- the callback is checked against its declared arrow, its row is tested
+  -- for the parallel-safe row, and its checked term is tested for the
+  -- literal form. The emitted term is the ordinary method application, so
+  -- the dictionary resolves the instance the way it resolves any other
+  -- method and the caller's obligations do not depend on which instance
+  -- answers.
   infer-par-method-application :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Option UType -> String -> String -> Nat -> Store -> (CoreTerm, Store)
   infer-par-method-application classes kinds families env locals sp expr wanted spelling owner slot st =
     case application-spine expr Nil of
-      (EVar at name, args) ->
-        if same spelling "parBoth" then (case args of
-          Cons f (Cons g Nil) -> (case fresh-meta KType st of
-            (a, one) -> case fresh-meta KType one of
-              (b, two) -> case fresh-meta KRow two of
-                (row, three) ->
-                  let thunk-f = UFunEff (primitive-type "Unit") row a in
-                  let thunk-g = UFunEff (primitive-type "Unit") row b in
-                  (case parallel-callback classes kinds families env locals f thunk-f "parBoth" three of
-                    (checked-f, four) -> case parallel-callback classes kinds families env locals g thunk-g "parBoth" four of
-                      (checked-g, five) -> par-method-term classes kinds families env locals sp expr wanted five))
-          other -> term-error sp "both takes exactly two callbacks" st)
-        else if same spelling "parTabulate" then (case args of
-          Cons count (Cons f Nil) -> (case fresh-meta KType st of
-            (a, one) -> case fresh-meta KRow one of
-              (row, two) ->
-                let callback = UFunEff (primitive-type "Nat") row a in
-                (case parallel-callback classes kinds families env locals f callback "parTabulate" two of
-                  (checked-f, three) -> par-method-term classes kinds families env locals sp expr wanted three))
-          other -> term-error sp "tabulate takes a count and one callback" st)
-        else if same spelling "parMap" then (case args of
-          Cons f (Cons xs Nil) -> (case fresh-meta KType st of
-            (elem, one) -> case fresh-meta KType one of
-              (out, two) -> case fresh-meta KRow two of
-                (row, three) ->
-                  let callback = UFunEff elem row out in
-                  (case parallel-callback classes kinds families env locals f callback "parMap" three of
-                    (checked-f, four) -> par-method-term classes kinds families env locals sp expr wanted four))
-          other -> term-error sp "mapArray takes a callback and one array" st)
-        else term-error sp "unknown parallel method" st
+      (EVar at name, args) -> case lookup-value at name env st of
+        (fun, one) -> case method-callback-slots spelling args of
+          None -> term-error sp (string-concat spelling " takes the wrong number of arguments") one
+          Some callback-positions ->
+            case method-arrows (core-type fun) one (list-length args) Nil of
+              (arrows, two) -> let chosen = method-arrow-at callback-positions arrows in
+                case par-callback-obligations classes kinds families env locals spelling args callback-positions chosen two of
+                  three -> par-method-apply classes kinds families env locals sp expr wanted fun args three
       other -> term-error sp "parallel method needs its canonical application" st
-  -- The ordinary method application: `lookup-value` for the method, then the
-  -- arguments, which is the path a non-parallel method call takes.
-  par-method-term :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Option UType -> Store -> (CoreTerm, Store)
-  par-method-term classes kinds families env locals sp expr wanted st = case application-spine expr Nil of
-    (EVar at name, args) -> (case lookup-value at name env st of
-      (fun, one) -> case wanted of
-        Some expected -> apply-spine classes kinds families env locals fun args
-          (hint-application-result sp (core-type fun) args expected one)
-        None -> apply-spine classes kinds families env locals fun args one)
-    other -> term-error sp "parallel method needs its canonical application" st
+  -- Which argument positions of a method call are callbacks. `both` has two
+  -- (0 and 1); `tabulate` and `mapArray` have one (1 and 0 respectively).
+  method-callback-slots :: String -> List Expr -> Option (List Nat)
+  method-callback-slots spelling args = if same spelling "parBoth" then
+      (case args of Cons f (Cons g Nil) -> Some (Cons 0 (Cons 1 Nil)); other -> None)
+    else if same spelling "parTabulate" then (case args of Cons n (Cons f Nil) -> Some (Cons 1 Nil); other -> None)
+    else if same spelling "parMap" then (case args of Cons f (Cons xs Nil) -> Some (Cons 0 Nil); other -> None)
+    else None
+  -- The method's parameter arrows, in order, from its checked scheme. The
+  -- scheme is already opened (`lookup-value` opened it), so the body is an
+  -- arrow spine whose domains are the declaration's own parameter types.
+  -- Collect every domain, then the caller picks the callback positions.
+  -- A method reached through a `using` requirement carries a `URequire`
+  -- prefix (the `#self` dictionary) before its value arrows. The ordinary
+  -- application discharges that prefix first (`discharge-checked-call`), so
+  -- the arrow walk must skip it too or it sees no arrow at all and one
+  -- argument is consumed instead of the declared two.
+  method-arrows :: UType -> Store -> Nat -> List UType -> (List UType, Store)
+  method-arrows ty st remaining acc = if remaining == 0 then (acc, st) else
+    case method-arrow-domain ty st of
+      (domain, result, one) -> method-arrows result one (remaining - 1) (acc <> [domain])
+  method-arrow-domain :: UType -> Store -> (UType, UType, Store)
+  method-arrow-domain ty st = case normalize st ty of
+    URequire predicates body -> method-arrow-domain body st
+    UProofFun predicate row result -> method-arrow-domain (UFunEff predicate row result) st
+    UPi id name domain row result -> if pi-dependent (normalize st ty) then
+        (UError, UError, add-error (Span 0 0 1 1) "dependent arrow needs an actual argument witness" st)
+      else (domain, result, st)
+    UUsageArrow usage arrow -> method-arrow-domain arrow st
+    UFunEff domain row result -> (domain, result, st)
+    UFun domain result -> (domain, result, st)
+    other -> arrow-parts (Span 0 0 1 1) other st
+  method-arrow-at :: List Nat -> List UType -> List UType
+  method-arrow-at positions arrows = case positions of
+    Nil -> Nil
+    Cons index rest -> case list-at index arrows of
+      Some found -> Cons found (method-arrow-at rest arrows)
+      None -> method-arrow-at rest arrows
+  list-at :: Nat -> List UType -> Option UType
+  list-at index items = case items of
+    Nil -> None
+    Cons first rest -> if index == 0 then Some first else list-at (index - 1) rest
+  expr-at :: Nat -> List Expr -> Option Expr
+  expr-at index items = case items of
+    Nil -> None
+    Cons first rest -> if index == 0 then Some first else expr-at (index - 1) rest
+  -- Run `parallel-callback` on each callback position against its declared
+  -- arrow. Positions and arrows are already paired by `method-arrow-at`, so
+  -- each step takes the argument at that position and the arrow beside it.
+  par-callback-obligations :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> String -> List Expr -> List Nat -> List UType -> Store -> Store
+  par-callback-obligations classes kinds families env locals spelling args positions arrows st =
+    case (positions, arrows) of
+      (Nil, other) -> st
+      (Cons index rest, Cons arrow further) -> case expr-at index args of
+        Some arg -> (case parallel-callback classes kinds families env locals arg arrow (par-spelling-of spelling) st of
+          (checked, one) -> par-callback-obligations classes kinds families env locals spelling args rest further one)
+        None -> par-callback-obligations classes kinds families env locals spelling args rest further st
+      (Cons index rest, Nil) -> st
+  -- The ordinary method application, which is what the call emits.
+  par-method-apply :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Option UType -> CoreTerm -> List Expr -> Store -> (CoreTerm, Store)
+  par-method-apply classes kinds families env locals sp expr wanted fun args st = case wanted of
+    Some expected -> apply-spine classes kinds families env locals fun args
+      (hint-application-result sp (core-type fun) args expected st)
+    None -> apply-spine classes kinds families env locals fun args st
   par-method-dispatch :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Option UType -> Store -> (CoreTerm, Store)
   par-method-dispatch classes kinds families env locals sp expr wanted st = case par-method-head env expr of
     Some (spelling, owner, slot) -> infer-par-method-application classes kinds families env locals sp expr wanted spelling owner slot st

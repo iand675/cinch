@@ -122,12 +122,14 @@ module Bootstrap.Builtin where
     , ("withScope", "b.withScope"), ("spawn", "b.spawn"), ("joinAllOrCancel", "b.joinAllOrCancel")
     , ("parBoth", "b.parBoth"), ("parTabulate", "b.parTabulate"), ("parMap", "b.parMap")
     -- The parallel interface's visible surface
-    -- (`design/parallelism-as-a-value.md`). The signature name resolves
-    -- here; the four *methods* do not, because `register-source-methods`
-    -- registers each one as a `MkMethodBinding` from the class declaration
-    -- and refuses a symbol already bound. Listing them here would shadow
-    -- that registration and the safety rules would never see a method.
+    -- (`design/parallelism-as-a-value.md`). The class is declared after the
+    -- resolver's visibility pass, so these entries are what make the names
+    -- visible; `register-source-methods` then replaces each with the real
+    -- `MkMethodBinding` from the class contract, which is what the safety
+    -- rules key on.
     , ("Parallelism", "b.Parallelism")
+    , ("both", "b.both"), ("tabulate", "b.tabulate")
+    , ("mapArray", "b.mapArray"), ("workers", "b.workers")
     , ("Scope", "b.Scope"), ("Task", "b.Task")
     , ("ioWrite", "b.ioWrite"), ("ioRead", "b.ioRead")
     , ("ioSleep", "b.ioSleep"), ("pollCancel", "b.pollCancel")
