@@ -749,6 +749,120 @@ fn insert_reuse_in_args(
     None
 }
 
+/// Place a reset/reuse pair inside a branch: the branch with each arm
+/// carrying its own `Release`, and a `Reuse` on every arm that allocates,
+/// or `None` when no arm allocates anything.
+///
+/// Lean's `expandResetReuse` (`ExpandResetReuse.lean`): rather than proving
+/// the allocation sits on one straight-line path, push a copy of the
+/// reset/reuse pair into every arm, so each path owns its own token and the
+/// one-token-one-reuse rule holds per path. Nothing is shared across the
+/// branch, so no cell can be kept alive on a path that has no reuse to take
+/// it, which is the leak the straight-line rule exists to prevent.
+///
+/// Arms need not agree. The arms are mutually exclusive, so exactly one of
+/// them runs and one release per arm is exactly one release per path:
+///
+/// - an arm that allocates a compatible constructor binds a token and its
+///   reuse writes into the kept cell;
+/// - an arm that allocates nothing, or allocates something incompatible,
+///   binds no token, which is the plain drop that arm would have had.
+///
+/// Both consume the same reference exactly once, so the expansion is sound
+/// arm by arm and never needs the arms to agree. The expansion is only
+/// applied when at least one arm takes a pair, because otherwise it would
+/// duplicate the drop into every arm for no gain.
+///
+/// The fields an arm moves are the fields that arm reads: the outer release
+/// moved the union over the one body it had, and duplicating it makes the
+/// set per arm, so an arm that reads no field of the dying block moves none
+/// and drops the block itself.
+fn branch_reuse(
+    e: &Core,
+    s: usize,
+    words: usize,
+    tag: usize,
+    fields: &[LocalId],
+    counted: &dyn Fn(usize) -> bool,
+    class_of: &dyn Fn(usize) -> Class,
+    ctors: &Ctors,
+    fresh: &mut dyn FnMut() -> usize,
+) -> Option<Core> {
+    // The arm's body with its own release at the head: a pair when the arm
+    // allocates a compatible constructor, the plain drop otherwise.
+    let arm = |body: &Core, fresh: &mut dyn FnMut() -> usize| -> (Core, bool) {
+        let token = fresh();
+        let reused = insert_reuse(body, token, words, tag, fields, false, ctors)
+            .or_else(|| insert_reuse(body, token, words, tag, fields, true, ctors));
+        let (rewritten, token) = match reused {
+            Some(rewritten) => (rewritten, Some(LocalId(token))),
+            None => (body.clone(), None),
+        };
+        // The fields this arm reads, which are the ones it may keep. The
+        // rest are dropped with the block.
+        let mut bound = Set::new();
+        crate::core::walk_locals(body, &mut |l| {
+            bound.insert(l.0);
+        });
+        let used: Vec<usize> = fields.iter().map(|x| x.0).filter(|x| counted(*x) && bound.contains(x)).collect();
+        let with_class = |x: usize| (LocalId(x), class_of(x));
+        let moved: Vec<(LocalId, Class)> = used.iter().map(|x| with_class(*x)).collect();
+        let rest: Vec<(LocalId, Class)> = fields
+            .iter()
+            .map(|x| x.0)
+            .filter(|x| counted(*x) && !used.contains(x))
+            .map(with_class)
+            .collect();
+        let released = Core::Release {
+            block: LocalId(s),
+            moved,
+            rest,
+            token,
+            body: Box::new(rewritten),
+        };
+        (released, token.is_some())
+    };
+    match e {
+        Core::Case { scrut, alts } if !alts.is_empty() => {
+            let mut bodies = Vec::with_capacity(alts.len());
+            let mut any = false;
+            for a in alts {
+                let (body, reused) = arm(&a.body, fresh);
+                any |= reused;
+                bodies.push(body);
+            }
+            // Nothing to gain: duplicating a plain drop into every arm is
+            // code growth with no reuse behind it.
+            if !any {
+                return None;
+            }
+            let mut bodies = bodies.into_iter();
+            let alts = alts
+                .into_iter()
+                .map(|a| CAlt {
+                    pat: a.pat.clone(),
+                    weight: a.weight,
+                    body: Box::new(bodies.next().expect("one body per arm")),
+                })
+                .collect();
+            Some(Core::Case { scrut: scrut.clone(), alts })
+        }
+        Core::If(c, t, f) => {
+            let (then, then_reused) = arm(&t.body, fresh);
+            let (otherwise, else_reused) = arm(&f.body, fresh);
+            if !then_reused && !else_reused {
+                return None;
+            }
+            Some(Core::If(
+                c.clone(),
+                CBranch { weight: t.weight, body: Box::new(then) },
+                CBranch { weight: f.weight, body: Box::new(otherwise) },
+            ))
+        }
+        _ => None,
+    }
+}
+
 /// The payload words the dying block already holds, given the arm's field
 /// binders: `i` is present when the reuse's argument for slot `i` is that
 /// slot's own binder. The cell was never emptied of those words (the
@@ -1381,7 +1495,41 @@ impl Pass<'_> {
                                 }
                             }
                             None => {
-                                Core::Release { block: LocalId(s), moved, rest, token: None, body: Box::new(body) }
+                                // No allocation on the straight-line
+                                // spine. A branch places its own pair per
+                                // arm (Lean's `expandResetReuse`), so the
+                                // cell dies on every path and each path
+                                // reuses its own. The outer release is then
+                                // not emitted at all: the arms are mutually
+                                // exclusive, so one release per arm is one
+                                // release per path, and each carries the
+                                // field set its own arm reads.
+                                let expand = {
+                                    let counted = |x: usize| self.counted(x);
+                                    let class_of = |x: usize| self.class_of(x);
+                                    let mut next = self.next;
+                                    let mut fresh = || {
+                                        let t = next;
+                                        next += 1;
+                                        t
+                                    };
+                                    let out = branch_reuse(
+                                        &body, s, words, *tag, fields, &counted, &class_of,
+                                        self.ctors, &mut fresh,
+                                    );
+                                    self.next = next;
+                                    out
+                                };
+                                match expand {
+                                    Some(body) => body,
+                                    None => Core::Release {
+                                        block: LocalId(s),
+                                        moved,
+                                        rest,
+                                        token: None,
+                                        body: Box::new(body),
+                                    },
+                                }
                             }
                         }
                     } else if self.counted(s) && !owned.contains(&s) {

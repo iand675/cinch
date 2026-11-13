@@ -261,3 +261,91 @@ module Main where
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+fn an_if_shaped_rebuild_reuses_one_pair_per_branch() {
+    let dir = source_project("if", IF_SHAPED);
+    let ir_path = dir.join("prog.ll");
+    drive(Mode::EmitIr, &dir, &ir_path, false);
+    let ir = std::fs::read_to_string(&ir_path).expect("read IR");
+    // Both alternatives allocate a `Cons`, so both take a pair. The unit
+    // names the reuse twice and, critically, frees the cell on neither
+    // path: a free here would mean the arm kept the block alive with no
+    // reuse to take it.
+    assert_eq!(
+        frees(&ir, "Main.rebuild"),
+        0,
+        "the if-shaped rebuild still frees the dying cell on a path:\n{}",
+        body(&ir, "Main.rebuild")
+    );
+    let (code, err) = build_and_run(&dir, "prog", false);
+    assert_eq!(code, Some(0), "{err}");
+    assert!(
+        err.lines().any(|l| l.starts_with("cinch-leak:") && l.split_whitespace().any(|w| w == "leaked=0")),
+        "the if-shaped rebuild leaked: {err}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_case_shaped_rebuild_reuses_one_pair_per_alternative() {
+    let dir = source_project("case", CASE_SHAPED);
+    let ir_path = dir.join("prog.ll");
+    drive(Mode::EmitIr, &dir, &ir_path, false);
+    let ir = std::fs::read_to_string(&ir_path).expect("read IR");
+    assert_eq!(
+        frees(&ir, "Main.rebuild"),
+        0,
+        "the case-shaped rebuild still frees the dying cell on a path:\n{}",
+        body(&ir, "Main.rebuild")
+    );
+    let (code, err) = build_and_run(&dir, "prog", false);
+    assert_eq!(code, Some(0), "{err}");
+    assert!(
+        err.lines().any(|l| l.starts_with("cinch-leak:") && l.split_whitespace().any(|w| w == "leaked=0")),
+        "the case-shaped rebuild leaked: {err}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_branch_whose_arm_allocates_nothing_is_refused() {
+    let dir = source_project("mixed", MIXED_ARMS);
+    let ir_path = dir.join("prog.ll");
+    drive(Mode::EmitIr, &dir, &ir_path, false);
+    let ir = std::fs::read_to_string(&ir_path).expect("read IR");
+    // The `False` arm returns the tail itself, so there is no allocation to
+    // reuse the dying cell into. The pair must not be placed: a per-arm
+    // release on that path would keep the cell alive with nothing to take
+    // it, which is the leak the straight-line rule exists to prevent.
+    assert!(
+        frees(&ir, "Main.mixed") > 0,
+        "a branch with a non-allocating arm took a per-arm pair, which would \
+         strand the cell on that path:\n{}",
+        body(&ir, "Main.mixed")
+    );
+    let (code, err) = build_and_run(&dir, "prog", false);
+    assert_eq!(code, Some(0), "{err}");
+    assert!(
+        err.lines().any(|l| l.starts_with("cinch-leak:") && l.split_whitespace().any(|w| w == "leaked=0")),
+        "the refused shape leaked anyway: {err}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_recursive_branched_rebuild_is_leak_free_in_both_builds() {
+    let dir = source_project("rec", RECURSIVE_BRANCHED);
+    // The property the rule has to survive: a recursive unit whose
+    // allocation is inside a branch on every path. Both a plain build and
+    // an `rc_debug` build must run leak-free, because the debug profile
+    // traps on a use after free rather than reading reused memory.
+    for (name, debug) in [("prog", false), ("prog_dbg", true)] {
+        let (code, err) = build_and_run(&dir, name, debug);
+        assert_eq!(code, Some(0), "debug {debug}: {err}");
+        assert!(
+            err.lines().any(|l| l.starts_with("cinch-leak:") && l.split_whitespace().any(|w| w == "leaked=0")),
+            "debug {debug} leaked: {err}"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
