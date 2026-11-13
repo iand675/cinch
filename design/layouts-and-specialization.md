@@ -481,3 +481,169 @@ parsing `Data/Machine.cinch` exceeds 2 GiB (69 M blocks at a 1500 M cap).
 - The incremental linker splits emitted IR by unit symbol; a new symbol
   shape (`@"<unit>#tail"`) must be owned by its unit in `split_ir`
   (`compiler/src/incremental.rs`), or reassembly drops it.
+
+## Part II: lazy layout specialisation (2026-11-13)
+
+Status: design direction, not implemented. Sections 11 to 16 answer a
+question Part I left open. Part I establishes that a polymorphic value is
+one word, that a word has one of three reclamation classes, and that
+multi-word layouts are specialised on demand and boxed at expanding edges.
+It does not say what a *slot width* is, what such a layout is *called*, or
+who decides the width and when. This part does, because the user's goal is
+memory on 32-bit targets, and a polymorphic `List a` stuck at an 8-byte
+slot cannot deliver it.
+
+Read with `design/narrow-value-representation.md`, which is the companion
+and the boundary half of the same change. Section 11.0 states exactly what
+this part assumes from that one.
+
+### 11 The problem, measured
+
+#### 11.0 What this part assumes from the narrow-value note
+
+Assumed, not restated:
+
+- A function boundary already crosses a value at a narrower width where the
+  type proves one (`ParamContract::narrow`, `Crossing::Bits`/`Csize`,
+  `compiler/tests/narrow_boundary.rs`). That is a *boundary* change: the
+  body is unchanged, the entry widens and every return narrows.
+- The uniform word stays the default. A 64-bit scalar stays 8 unboxed
+  bytes; a heap slot stays 8 bytes (`narrow-value-representation.md`,
+  "The boundary slice, taken").
+- The immediate encoding follows `csize`: a `Nat` payload is
+  `0..=2^(csize-1)-1`, an `Int` payload `-2^(csize-2)..=2^(csize-2)-1`.
+- A layout change is an interface change, gated on `runtime_abi`.
+
+New in this part: the *slot*. A boundary position can be narrow while
+every heap slot is still 8 bytes, and that is the state of the tree today.
+Narrowing the boundary does not shrink a block, so it does not address the
+memory goal; a specialised slot does.
+
+#### 11.1 How these numbers were taken
+
+Every count below is observed, not estimated, except where a line says
+"arithmetic".
+
+- Block and byte counts: `CINCH_ALLOC_STATS=1 CINCH_ALLOC_KINDS=1`, read
+  from the `cinch-alloc:` line (`blocks`, `bytes`, `peak`, `header-bytes`)
+  and the `cinch-alloc-kind:` / `cinch-alloc-size:` censuses
+  (`compiler/runtime/src/heap.rs`, `alloc_kinds.rs`). The size classes are
+  the small allocator's own (`compiler/runtime/src/small.rs`): whole
+  multiples of 8 bytes up to 256.
+- Emitted layout: `cinch emit-ir` on the same source, reading the
+  `cinch_alloc_ctor(i64 <payload>, i64 <descriptor>)` call and the
+  `store i64` offsets that fill the block.
+- The compiler bundle's own statistics: `build/bootstrap/stage3/compiler.ll`
+  (43,959 lines), parsed for the payload-size histogram of every
+  `cinch_alloc_ctor` call and for the decoded `@cinch.typed.layouts` table.
+- Target comparison: `--target wasm32-unknown-unknown` for the 32-bit
+  profile, whose `target datalayout` is `e-m:e-p:32:32-...` and whose
+  `word_size` is 32 (`TargetProfile::wasm32`).
+- Programs were run with the seed (`build/bootstrap/stage0/cinch`), which
+  reads the prelude from source and needs no store, so a measurement is one
+  binary and one source file.
+
+#### 11.2 A cell is 8 header bytes plus 8 bytes per payload word
+
+A constructor block is `8 * (1 + words)` bytes: one header word at offset
+-8 and one word per field (`block.rs` `HEADER_BYTES`, `codegen.rs`
+`ctor_block_word`). The header is 8 bytes **unconditionally**, including on
+a 32-bit target, where it is half of a 16-byte cell.
+
+`List Nat` built by `replicate 1000 7`, seed, native aarch64:
+
+|Measurement|Value|
+|---|---|
+|`cinch-alloc-kind: kind=ctor`|`blocks=1000 bytes=24000`|
+|`cinch-alloc-size: upto=24`|`blocks=1000 bytes=24000`|
+|`cinch-alloc` total|`blocks=1008 bytes=24386 peak=24298`|
+|Payload per `Cons` (IR)|`cinch_alloc_ctor(i64 16, ...)`, two `store i64`|
+
+So 24 bytes per cell: 8 header, 8 for the `Nat`, 8 for the tail. The `Nat`
+slot holds at most `2^63 - 1`; a 1000-element list of small numbers spends
+8,000 bytes holding values that fit a byte.
+
+#### 11.3 The same 24 bytes for an element that carries no data at all
+
+`data Bit where Off; On`, a two-constructor nullary type, in a list of
+1000: `kind=ctor blocks=1000 bytes=24000`, `upto=24 blocks=1000`. Identical
+to `List Nat`. The element word is `Obj` (`repr.rs` `AdtRepr::Obj`), so a
+one-bit tag costs a pointer to a shared static block
+(`@"Main.On.blk#h"`, `static_ctor_block`).
+
+#### 11.4 Narrow fields cost a word each, so the waste compounds
+
+Measured, all with 1000-element lists, seed, native:
+
+|Element type|Element block|Cell|Total for 1000|
+|---|---|---|---|
+|`Nat`|none (inline word)|24 B|24,000 B|
+|`Bit` (nullary)|shared static|24 B|24,000 B|
+|`Wrap` = `W U8`|16 B (one word for one byte)|24 B|24,016 B|
+|`P8` = `MkP8 U8 U8`|24 B (two words for two bytes)|24 B|48,000 B|
+|`P4` = `MkP4 U8 U8 U8 U8`|40 B (four words for four bytes)|24 B|64,000 B|
+
+`MkP8`'s IR is `cinch_alloc_ctor(i64 16, ...)` with two `store i64`: 16
+payload bytes for 2 bytes of information. `MkP4` is `i64 32`, four stores.
+
+#### 11.5 On the real compiler, 62% of constructor sites are two words
+
+`build/bootstrap/stage3/compiler.ll`, payload bytes per
+`cinch_alloc_ctor` call, 16,746 call sites:
+
+|Payload|Sites|Share|
+|---|---|---|
+|16 B (2 words)|10,430|62.3%|
+|8 B (1 word)|3,787|22.6%|
+|24 B (3 words)|1,487|8.9%|
+|32 B (4 words)|663|4.0%|
+|40 B and above|379|2.3%|
+
+The two-word block is the common shape of this compiler's own data: a
+`Cons` cell, a two-field node, a token with a span. Every one of those
+words is an 8-byte slot whatever the field's type says.
+
+#### 11.6 The 32-bit target changes nothing today, and that is the gap
+
+A wasm32 module for the same `List Nat` program emits
+`cinch_alloc_ctor(i64 16, i64 897)`, byte-identical to the native module,
+and the runtime's `HEADER_BYTES` is 8 on every target. So a cell is 24
+bytes on a 32-bit target too, while the pointer in it is 4 bytes and a
+`Nat` immediate needs 31 bits. Measured by emitting both and diffing the
+constructor bodies; the module's own `target datalayout` says `p:32:32`.
+
+A real wasm32 module was built and executed to confirm the pipeline, not
+just the IR: `emit-ir --target wasm32-unknown-unknown`, clang 21
+(`--target=wasm32-unknown-unknown`), `wasm-ld` against
+`compiler/runtime/target/wasm32-unknown-unknown/release/libcinchruntime.a`,
+then Node. `List Nat` of 1000 elements answers 0. The freestanding module
+has no libc and no `atexit`, so its `CINCH_ALLOC_STATS` line never prints;
+the per-cell figures above are the same bytes by construction (the payload
+is `i64` and the header is 8), which is why they are quoted from the native
+census and the IR rather than claimed as a wasm census.
+
+#### 11.7 What a 4-byte slot would buy (arithmetic on the measured sizes)
+
+With a `csize` slot on a 32-bit target (4 bytes for a `Nat`, 4 for the
+tail pointer), a `Cons` payload is 8 bytes and the cell 16:
+
+|Case|Today|4-byte slot, 32-bit|Change|
+|---|---|---|---|
+|`List Nat`, 1000 cells|24,000 B|16,000 B|-33%|
+|`List Bit`, 1000 cells|24,000 B|16,000 B|-33%|
+|`MkP4` element block|40 B|24 B|-40%|
+|`List Nat`, 200,000 cells (measured `blocks=200000 bytes=4800000`)|4,800,000 B|3,200,000 B|-33%|
+
+With a 1-byte slot and byte packing, `MkP4` is 8 + 4 = 12 bytes (-70%) and
+a `List U8` cell on 32-bit is 8 + 1 padded to 4 + 4 = 16 bytes (-33%).
+Packing is a later stage; these two lines are arithmetic, not measurements.
+
+**On a 64-bit target the same change buys almost nothing for a list**, and
+this is the finding that decides the staging. The tail pointer is 8 bytes
+and forces 8-byte alignment, so a `Cons` payload of `{U8, List}` is 1 byte
+padded to 8 plus 8 = 16 bytes, exactly what it is today. A 64-bit `Nat`
+needs its 63-bit immediate, so it cannot narrow at all. The 64-bit win is
+confined to a type with several narrow fields in one block (`MkP4`: 40 to
+24 bytes, -40%) and to element blocks, never to the list spine. The user's
+motivation is therefore correct in a specific way: the memory win is a
+32-bit-target win, and on 64-bit it is an element-block win.
