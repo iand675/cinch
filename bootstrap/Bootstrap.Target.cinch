@@ -1,0 +1,615 @@
+-- The compile target profile and the `when` conditions that read it.
+--
+-- A build carries two profiles (design/base-as-a-package.md, "Host and
+-- target are different questions"): the HOST, where anything that runs
+-- during the build executes, and the TARGET, which the artifact is emitted
+-- for. This module owns the target half and the condition vocabulary the
+-- three positions a `when` clause can take share (modules specification
+-- section 11; primitive operations and inline target IR specification
+-- section 13):
+--
+--   an import     `import X when os darwin`
+--   a declaration `when os darwin x :: T`
+--   a prim body   `prim p :: T where { llvm { ... } when arch x86_64 }`
+--
+-- Every atom reads one component of the TARGET profile, never the build
+-- host, so a cross compile selects by the artifact's target and one
+-- compiler binary serves every target it supports.
+--
+-- The selection is applied ONCE, between parsing and resolution: the
+-- target's view of a module is the module the source describes for that
+-- target, with every false import and false declaration gone, so scope,
+-- exports, the checked interface and code generation all read it without
+-- knowing conditions exist (the seed's `target_view`). That is why the
+-- rest of the ladder never matches on `DConditional`.
+--
+-- The duplicate-name rule is checked over the SOURCE, before anything is
+-- dropped: one name may be defined twice only when no target profile can
+-- satisfy both conditions, so exactly one definition applies per target.
+--
+-- Refusal texts are the seed's, verbatim, because a reader comparing the
+-- two compilers should see the same sentence for the same mistake.
+module Bootstrap.Target where
+
+  import Bootstrap.Ast
+  import Bootstrap.Host (host-triple, host-os, host-arch, host-libc)
+  import Data.Char (is-ascii-digit)
+  import Data.List (map, reverse)
+  import Data.Option (Option, None, Some)
+  import Data.String (unpack, string-concat, string-concat-all, string-compare)
+  import Text.Show (nat-to-string)
+  import Algebra.Semigroup
+
+  export TargetProfile, MkTargetProfile
+  export profile-name, profile-triple, profile-os, profile-arch, profile-libc, profile-word-size, profile-endian
+  export supported-targets, profile-of-triple, host-profile, target-profile
+  export target-triple-of, unsupported-target
+  export WhenAtom, MkWhenAtom, atom-negated, atom-kind, atom-value
+  export lower-atom, atom-holds, atom-render, atom-actual, atoms-contradict
+  export condition-holds, condition-render, condition-describe, overlap-reason
+  export target-view, target-view-program
+
+  -- ------------------------------------------------------------------ profile
+
+  -- name, triple, os, arch, libc, word size in bits, endianness. The name
+  -- is the triple unless a caller asked for a platform version, which the
+  -- seed records as `<name>-os<version>`; it identifies the profile in a
+  -- store key, so it is kept distinct from the triple it derives from.
+  data TargetProfile where
+    MkTargetProfile ::
+      String -> String -> String -> String -> String -> Nat -> String -> TargetProfile
+
+  profile-name :: TargetProfile -> String
+  profile-name p = case p of MkTargetProfile name triple os arch libc bits endian -> name
+
+  profile-triple :: TargetProfile -> String
+  profile-triple p = case p of MkTargetProfile name triple os arch libc bits endian -> triple
+
+  profile-os :: TargetProfile -> String
+  profile-os p = case p of MkTargetProfile name triple os arch libc bits endian -> os
+
+  profile-arch :: TargetProfile -> String
+  profile-arch p = case p of MkTargetProfile name triple os arch libc bits endian -> arch
+
+  profile-libc :: TargetProfile -> String
+  profile-libc p = case p of MkTargetProfile name triple os arch libc bits endian -> libc
+
+  profile-word-size :: TargetProfile -> Nat
+  profile-word-size p = case p of MkTargetProfile name triple os arch libc bits endian -> bits
+
+  profile-endian :: TargetProfile -> String
+  profile-endian p = case p of MkTargetProfile name triple os arch libc bits endian -> endian
+
+  -- The triples this compiler emits for, in the seed's order. `check` and
+  -- `emit-ir` work for every one of them on any host; `build` additionally
+  -- needs the target's runtime archive and a linker that produces the
+  -- target's objects; `run` executes only a program built for the host.
+  supported-targets :: List String
+  supported-targets =
+    ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu", "wasm32-unknown-unknown"]
+
+  has-triple :: String -> List String -> Bool
+  has-triple triple triples = case triples of
+    Nil -> False
+    Cons first rest -> string-compare triple first == 0 || has-triple triple rest
+
+  join-with :: String -> List String -> String
+  join-with separator values = case values of
+    Nil -> ""
+    Cons first Nil -> first
+    Cons first rest -> string-concat first (string-concat separator (join-with separator rest))
+
+  -- The components one supported triple names: architecture, operating
+  -- system, C library. `None` is a triple this compiler does not emit for,
+  -- and the caller names the supported set in its message.
+  triple-components :: String -> Option (String, String, String)
+  triple-components triple =
+    if string-compare triple "aarch64-apple-darwin" == 0 then Some ("aarch64", "darwin", "libSystem")
+    else if string-compare triple "x86_64-apple-darwin" == 0 then Some ("x86_64", "darwin", "libSystem")
+    else if string-compare triple "x86_64-unknown-linux-gnu" == 0 then Some ("x86_64", "linux", "glibc")
+    else if string-compare triple "aarch64-unknown-linux-gnu" == 0 then Some ("aarch64", "linux", "glibc")
+    else if string-compare triple "wasm32-unknown-unknown" == 0 then Some ("wasm32", "unknown", "none")
+    else None
+
+  -- The refusal an unrecognised triple gets, naming the whole supported set.
+  unsupported-target :: String -> String
+  unsupported-target triple = string-concat-all
+    ["unknown target `", triple, "`: cross compilation supports exactly these triples: ",
+    join-with ", " supported-targets]
+
+  -- The profile of one supported triple. The operating system,
+  -- architecture, C library, word size and byte order come from the triple,
+  -- never from the build host, so a cross compile cannot inherit the
+  -- laptop's conditions; the name is the triple itself, so the store key and
+  -- the artifact manifest identify the same target wherever the compile runs.
+  profile-of-triple :: String -> Result String TargetProfile
+  profile-of-triple triple = case triple-components triple of
+    None -> Err (unsupported-target triple)
+    Some (arch, os, libc) ->
+      -- The freestanding Wasm target is the one 32-bit entry in the table.
+      if string-compare arch "wasm32" == 0 then
+        Ok (MkTargetProfile triple triple os arch libc 32 "little")
+      else Ok (MkTargetProfile triple triple os arch libc 64 "little")
+
+  -- The profile of the machine this compiler runs on. `Bootstrap.Host` is
+  -- rendered from the build host before the sources are hashed, the same
+  -- way `Bootstrap.RuntimeAbi` is, because a compiled program cannot ask
+  -- Rust for its own triple.
+  host-profile :: TargetProfile
+  host-profile = MkTargetProfile host-triple host-triple host-os host-arch host-libc 64 "little"
+
+  -- The profile a caller asked for: the host's own target, or the profile of
+  -- one supported triple. `--target` defaults to the host, so a compile that
+  -- names no target reads exactly the profile the host's own build reads.
+  target-profile :: Option String -> Result String TargetProfile
+  target-profile requested = case requested of
+    None -> Ok host-profile
+    Some triple -> profile-of-triple triple
+
+  -- The triple a profile names, for a message that has to compare it with
+  -- another profile's.
+  target-triple-of :: Option String -> Result String String
+  target-triple-of requested = case target-profile requested of
+    Err message -> Err message
+    Ok profile -> Ok (profile-triple profile)
+
+  -- -------------------------------------------------------------------- atoms
+
+  -- One `when` clause: an atom, or that atom negated. `kind` is the atom's
+  -- head (`Available`, `arch`, `os`, `libc`, `endian`, `word-size`,
+  -- `target`) and `value` its argument, kept as the spelling the source
+  -- used so a refusal can quote the clause back.
+  data WhenAtom where
+    MkWhenAtom :: Bool -> String -> String -> WhenAtom
+
+  atom-negated :: WhenAtom -> Bool
+  atom-negated a = case a of MkWhenAtom negated kind value -> negated
+
+  atom-kind :: WhenAtom -> String
+  atom-kind a = case a of MkWhenAtom negated kind value -> kind
+
+  atom-value :: WhenAtom -> String
+  atom-value a = case a of MkWhenAtom negated kind value -> value
+
+  -- The vocabulary every `when` refusal quotes, in the seed's words.
+  when-vocabulary :: String
+  when-vocabulary =
+    "A `when` clause is one atom over the compile target: `Available <capability>`, `arch <name>`, `os <name>`, `libc <name>`, `endian <little|big>`, `word-size <bits>`, or `target <triple>`, and a clause may negate its atom as `not (<atom>)`; repeated `when` clauses are a conjunction (primitive operations and inline target IR specification sections 2 and 13; modules specification section 11)"
+
+  -- The head name of an application, whether the parser read it as a
+  -- variable or as a bare constructor.
+  head-name :: Expr -> String
+  head-name e = case e of
+    EVar sp name -> name
+    ECon sp name args -> name
+    other -> ""
+
+  -- An atom's argument as the source spelled it.
+  argument-text :: Expr -> String
+  argument-text e = case e of
+    EVar sp name -> name
+    ECon sp name args -> name
+    ELitInt sp digits -> digits
+    other -> ""
+
+  -- `not (<atom>)`: the atom in parentheses, negated.
+  lower-negated :: Expr -> Result String WhenAtom
+  lower-negated inner = case lower-atom inner of
+    Err message -> Err message
+    Ok atom -> case atom of
+      MkWhenAtom negated kind value ->
+        if negated then
+          Err (string-concat-all
+            ["a `when` clause is negated once: `not (", atom-render-of kind value,
+            ")` is the clause itself (", when-vocabulary, ")"])
+        else Ok (MkWhenAtom True kind value)
+
+  atom-render-of :: String -> String -> String
+  atom-render-of kind value = string-concat kind (string-concat " " value)
+
+  -- One clause, read off its surface term: `<atom> <name>`, or
+  -- `not (<atom>)` for the negation.
+  lower-atom :: Expr -> Result String WhenAtom
+  lower-atom t = case t of
+    EApp sp head argument ->
+      let head-word = head-name head in
+      if string-compare head-word "not" == 0 then lower-negated argument
+      else atom-of head-word (argument-text argument)
+    ECon sp head (EArg at argument (EArgsEnd end)) ->
+      atom-of (head-name head) (argument-text argument)
+    other -> Err when-vocabulary
+
+  -- One atom from its head and argument spelling, with the vocabulary's
+  -- own checks: `endian` names one of two values, `word-size` a bit width,
+  -- and a capability has to be spelled as a constructor path.
+  atom-of :: String -> String -> Result String WhenAtom
+  atom-of kind value =
+    if string-compare value "" == 0 then Err when-vocabulary
+    else if string-compare kind "Available" == 0 then Ok (MkWhenAtom False kind value)
+    else if string-compare kind "arch" == 0 then Ok (MkWhenAtom False kind value)
+    else if string-compare kind "os" == 0 then Ok (MkWhenAtom False kind value)
+    else if string-compare kind "libc" == 0 then Ok (MkWhenAtom False kind value)
+    else if string-compare kind "target" == 0 then Ok (MkWhenAtom False kind value)
+    else if string-compare kind "endian" == 0 then
+      if string-compare value "little" == 0 || string-compare value "big" == 0 then
+        Ok (MkWhenAtom False kind value)
+      else Err (string-concat-all
+        ["an `endian` atom is `little` or `big`, and `", value,
+        "` is neither (primitive operations and inline target IR specification section 13)"])
+    else if string-compare kind "word-size" == 0 then
+      if string-is-digits value then Ok (MkWhenAtom False kind value)
+      else Err "a `word-size` atom is a bit width as an integer, such as `word-size 32` or `word-size 64` (primitive operations and inline target IR specification section 13)"
+    else Err when-vocabulary
+
+  string-is-digits :: String -> Bool
+  string-is-digits value = case unpack value of
+    Nil -> False
+    Cons first rest -> is-ascii-digit first && digits-rest rest
+
+  digits-rest :: List Char -> Bool
+  digits-rest chars = case chars of
+    Nil -> True
+    Cons first rest -> is-ascii-digit first && digits-rest rest
+
+  -- The atom as written, without its negation.
+  atom-render :: WhenAtom -> String
+  atom-render atom = case atom of
+    MkWhenAtom negated kind value ->
+      if negated then string-concat-all ["not (", atom-render-of kind value, ")"]
+      else atom-render-of kind value
+
+  -- The target profile's value for this atom's component, spelled for an
+  -- error's account of why the atom failed.
+  atom-actual :: WhenAtom -> TargetProfile -> String
+  atom-actual atom profile = case atom of
+    MkWhenAtom negated kind value ->
+      if string-compare kind "arch" == 0 then string-concat-all ["the target's arch is `", profile-arch profile, "`"]
+      else if string-compare kind "os" == 0 then string-concat-all ["the target's os is `", profile-os profile, "`"]
+      else if string-compare kind "libc" == 0 then string-concat-all ["the target links `", profile-libc profile, "`"]
+      else if string-compare kind "endian" == 0 then string-concat-all ["the target's endian is `", profile-endian profile, "`"]
+      else if string-compare kind "word-size" == 0 then
+        string-concat-all ["the target's word size is ", nat-to-string (profile-word-size profile), " bits"]
+      else if string-compare kind "target" == 0 then string-concat-all ["the target's triple is `", profile-triple profile, "`"]
+      else "the target profile carries no capability evidence"
+
+  -- Does the atom name what the target profile is?
+  atom-holds :: WhenAtom -> TargetProfile -> Bool
+  atom-holds atom profile = case atom of
+    MkWhenAtom negated kind value ->
+      (if string-compare kind "arch" == 0 then string-compare value (profile-arch profile) == 0
+      else if string-compare kind "os" == 0 then string-compare value (profile-os profile) == 0
+      else if string-compare kind "libc" == 0 then string-compare value (profile-libc profile) == 0
+      else if string-compare kind "endian" == 0 then string-compare value (profile-endian profile) == 0
+      else if string-compare kind "word-size" == 0 then
+        string-compare value (nat-to-string (profile-word-size profile)) == 0
+      else if string-compare kind "target" == 0 then string-compare value (profile-triple profile) == 0
+      else False) /= negated
+
+  -- Why this atom does not hold, naming the atom and what the profile is
+  -- instead. `None` when it holds.
+  atom-unmet :: WhenAtom -> TargetProfile -> Option String
+  atom-unmet atom profile =
+    if atom-holds atom profile then None
+    else Some (string-concat-all ["`", atom-render atom, "` fails: ", atom-actual atom profile])
+
+  -- Do these two atoms read the same component of the profile?
+  same-component :: String -> String -> Bool
+  same-component kind other =
+    if string-compare kind "Available" == 0 then string-compare other "Available" == 0
+    else if string-compare kind "arch" == 0 then string-compare other "arch" == 0
+    else if string-compare kind "os" == 0 then string-compare other "os" == 0
+    else if string-compare kind "libc" == 0 then string-compare other "libc" == 0
+    else if string-compare kind "endian" == 0 then string-compare other "endian" == 0
+    else if string-compare kind "word-size" == 0 then string-compare other "word-size" == 0
+    else if string-compare kind "target" == 0 then string-compare other "target" == 0
+    else False
+
+  -- Can no single target profile hold both atoms? Two atoms of one
+  -- component settle the question between them: the same value with one
+  -- negated, or two different values both asserted, are the contradictions.
+  -- A capability component has no value, so only its own negation
+  -- contradicts it.
+  atoms-contradict :: WhenAtom -> WhenAtom -> Bool
+  atoms-contradict a b = case (a, b) of
+    (MkWhenAtom negated-a kind-a value-a, MkWhenAtom negated-b kind-b value-b) ->
+      if not (same-component kind-a kind-b) then False
+      else if string-compare kind-a "Available" == 0 then
+        -- A capability's component has no single value, so only its own
+        -- negation contradicts it.
+        negated-a /= negated-b
+      else if string-compare value-a value-b == 0 then negated-a /= negated-b
+      else not negated-a && not negated-b
+
+  -- --------------------------------------------------------------- conditions
+
+  -- A `when` condition: the conjunction of its clauses. An empty condition
+  -- holds everywhere, which is the unconditional import or declaration.
+  condition-atoms :: List Expr -> Result String (List WhenAtom)
+  condition-atoms clauses = case clauses of
+    Nil -> Ok Nil
+    Cons first rest -> case lower-atom first of
+      Err message -> Err message
+      Ok atom -> case condition-atoms rest of
+        Err message -> Err message
+        Ok atoms -> Ok (Cons atom atoms)
+
+  -- Does every atom hold in the target profile?
+  condition-holds :: List Expr -> TargetProfile -> Result String Bool
+  condition-holds clauses profile = case condition-atoms clauses of
+    Err message -> Err message
+    Ok atoms -> Ok (atoms-hold atoms profile)
+
+  atoms-hold :: List WhenAtom -> TargetProfile -> Bool
+  atoms-hold atoms profile = case atoms of
+    Nil -> True
+    Cons first rest -> atom-holds first profile && atoms-hold rest profile
+
+  -- The condition as written, its clauses joined as the conjunction they
+  -- are: `os darwin and arch aarch64`.
+  condition-render :: List Expr -> Result String String
+  condition-render clauses = case condition-atoms clauses of
+    Err message -> Err message
+    Ok atoms -> Ok (render-atoms atoms)
+
+  render-atoms :: List WhenAtom -> String
+  render-atoms atoms = case atoms of
+    Nil -> ""
+    Cons first Nil -> atom-render first
+    Cons first rest -> string-concat (atom-render first) (string-concat " and " (render-atoms rest))
+
+  -- The condition as an error names it: the clauses, or `no `when` clause`
+  -- for the unconditional case.
+  condition-describe :: List Expr -> Result String String
+  condition-describe clauses = case condition-atoms clauses of
+    Err message -> Err message
+    Ok atoms -> case atoms of
+      Nil -> Ok "no `when` clause"
+      other -> Ok (string-concat-all ["`", render-atoms other, "`"])
+
+  -- Can one target profile satisfy both conditions? The disjointness rule
+  -- for a name two declarations define (modules specification section 11):
+  -- `None` when some atom of one contradicts some atom of the other,
+  -- otherwise the reason that leaves them both possible.
+  overlap-reason :: List Expr -> List Expr -> Result String (Option String)
+  overlap-reason clauses other = case condition-atoms clauses of
+    Err message -> Err message
+    Ok atoms -> case condition-atoms other of
+      Err message -> Err message
+      Ok others -> if atoms-disjoint atoms others then Ok None
+        else Ok (Some (overlap-account atoms others))
+
+  atoms-disjoint :: List WhenAtom -> List WhenAtom -> Bool
+  atoms-disjoint atoms others = case atoms of
+    Nil -> False
+    Cons first rest -> any-contradicts first others || atoms-disjoint rest others
+
+  any-contradicts :: WhenAtom -> List WhenAtom -> Bool
+  any-contradicts atom others = case others of
+    Nil -> False
+    Cons first rest -> atoms-contradict atom first || any-contradicts atom rest
+
+  -- The reason two conditions overlap, naming the atom that holds under
+  -- both when one does, and the absence of a contradicting atom when none
+  -- does.
+  overlap-account :: List WhenAtom -> List WhenAtom -> String
+  overlap-account atoms others = case atoms of
+    Nil -> "one of them is unconditional, so it holds on every target"
+    Cons first rest -> case others of
+      Nil -> "one of them is unconditional, so it holds on every target"
+      other -> case shared-atom atoms others of
+        Some rendered -> string-concat-all ["the atom `", rendered, "` holds under both"]
+        None -> "no atom of one contradicts an atom of the other, so a target can satisfy both"
+
+  -- The first atom of one condition that also appears in the other, which
+  -- is the atom the refusal quotes as holding under both.
+  shared-atom :: List WhenAtom -> List WhenAtom -> Option String
+  shared-atom atoms others = case atoms of
+    Nil -> None
+    Cons first rest -> case matching-atom first others of
+      Some rendered -> Some rendered
+      None -> shared-atom rest others
+
+  matching-atom :: WhenAtom -> List WhenAtom -> Option String
+  matching-atom atom others = case atom of
+    MkWhenAtom negated kind value -> case others of
+      Nil -> None
+      Cons (MkWhenAtom other-negated other-kind other-value) rest ->
+        if same-component kind other-kind && string-compare kind "Available" /= 0
+          && string-compare value other-value == 0
+          && negated == other-negated
+          then Some (atom-render-of kind value)
+          else matching-atom atom rest
+
+  -- -------------------------------------------------------------- target view
+
+  -- The name a declaration defines, and whether it defines one at all. A
+  -- signature is not a definition: `f :: T` declares the name its equation
+  -- defines, so the pair is one definition, not two.
+  definition-name :: Decl -> Option String
+  definition-name d = case d of
+    DFun s name clauses -> Some name
+    DData s name params ctors -> Some name
+    DRecord s name params fields -> Some name
+    DCodata s name params observations -> Some name
+    DOpaque s name params kind -> Some name
+    DRefine s name params binder predicate -> Some name
+    DPrim s name ty bodies -> Some name
+    -- A `foreign export` is not a definition: it names the symbol a
+    -- definition of the same name is published under.
+    DForeign s direction abi symbol name ty ->
+      if string-compare direction "import" == 0 then Some name else None
+    other -> None
+
+  -- The module names an import contributes, which is what an export that
+  -- names it has to stop naming once the import is gone.
+  dropped-names :: Decl -> List String
+  dropped-names d = case d of
+    DImport s path mods alias members hidden args -> case alias of
+      Some name -> Cons path (Cons name Nil)
+      None -> Cons path Nil
+    other -> Nil
+
+  -- The declarations under a `when` wrapper, with the clauses that select
+  -- them accumulated outermost first.
+  collect-conditions :: List Decl -> List Expr -> List (String, List Expr) -> List (String, List Expr)
+  collect-conditions decls clauses found = case decls of
+    Nil -> found
+    Cons first rest -> case first of
+      DConditional sp when inner -> collect-conditions (Cons inner rest) (clauses <> when) found
+      other -> case definition-name other of
+        Some name -> collect-conditions rest clauses (Cons (name, clauses) found)
+        None -> collect-conditions rest clauses found
+
+  -- The disjointness rule for a name two declarations define (modules
+  -- specification section 11). A name's clauses are ONE definition when they
+  -- carry the same condition, and separate definitions when they do not, so
+  -- grouping by (name, condition) keeps the ordinary multi-clause function
+  -- legal.
+  check-definition-disjointness :: Module -> Result String Unit
+  check-definition-disjointness m = case collect-groups (collect-conditions (module-decls m) Nil Nil) Nil of
+    Err message -> Err message
+    Ok groups -> check-groups groups
+
+  -- One entry per distinct (name, condition) pair, in source order.
+  collect-groups :: List (String, List Expr) -> List (String, String, List Expr) -> Result String (List (String, String, List Expr))
+  collect-groups found acc = case found of
+    Nil -> Ok (reverse acc)
+    Cons (name, clauses) rest -> case condition-render clauses of
+      Err message -> Err message
+      Ok rendered -> if group-present name rendered acc
+        then collect-groups rest acc
+        else collect-groups rest (Cons (name, rendered, clauses) acc)
+
+  group-present :: String -> String -> List (String, String, List Expr) -> Bool
+  group-present name rendered groups = case groups of
+    Nil -> False
+    Cons (other-name, other-rendered, clauses) rest ->
+      (string-compare name other-name == 0 && string-compare rendered other-rendered == 0)
+        || group-present name rendered rest
+
+  check-groups :: List (String, String, List Expr) -> Result String Unit
+  check-groups groups = case groups of
+    Nil -> Ok ()
+    Cons (name, rendered, clauses) rest -> case check-against name clauses rest of
+      Err message -> Err message
+      Ok found -> check-groups rest
+
+  check-against :: String -> List Expr -> List (String, String, List Expr) -> Result String Unit
+  check-against name clauses groups = case groups of
+    Nil -> Ok ()
+    Cons (other-name, other-rendered, other-clauses) rest ->
+      if string-compare name other-name /= 0 then check-against name clauses rest
+      else case overlap-reason clauses other-clauses of
+        Err message -> Err message
+        Ok None -> check-against name clauses rest
+        Ok (Some why) -> case (condition-describe clauses, condition-describe other-clauses) of
+          (Ok left, Ok right) -> Err (string-concat-all
+            ["two definitions of `", name, "` can apply to one target profile: ",
+            left, " and ", right, " overlap, because ", why,
+            ". A name may be defined twice only when no target profile satisfies both conditions, so that exactly one definition applies per target (modules specification section 11)"])
+          (Err message, other) -> Err message
+          (other, Err message) -> Err message
+
+  -- Every import and declaration whose `when` condition does not hold in
+  -- the profile is gone, so it contributes no name, no export, no code and
+  -- no interface entry. What survives is exactly the module the source
+  -- describes for this target.
+  target-view :: TargetProfile -> Module -> Result String Module
+  target-view profile m = if module-has-conditions (module-decls m) then conditioned-view profile m
+    else Ok m
+
+  -- A module with no `when` clause at all is the module the source
+  -- describes for every target, so its view is itself and the compiler's
+  -- own sources pay nothing for a feature they do not use. That is also why
+  -- the host build's emitted artifact cannot change: the check below is
+  -- false for every module in this compiler.
+  module-has-conditions :: List Decl -> Bool
+  module-has-conditions decls = case decls of
+    Nil -> False
+    Cons first rest -> decl-has-condition first || module-has-conditions rest
+
+  decl-has-condition :: Decl -> Bool
+  decl-has-condition d = case d of
+    DConditional sp when inner -> True
+    other -> False
+
+  conditioned-view :: TargetProfile -> Module -> Result String Module
+  conditioned-view profile m = case check-definition-disjointness m of
+    Err message -> Err message
+    Ok unit -> case dropped-modules profile (module-decls m) Nil of
+      Err message -> Err message
+      Ok dropped -> case prune-decls profile dropped (module-decls m) Nil of
+        Err message -> Err message
+        Ok kept -> Ok (MkModule (module-span m) (module-name m) (decl-spine (module-span m) kept))
+
+  -- The module names every false import would have contributed.
+  dropped-modules :: TargetProfile -> List Decl -> List String -> Result String (List String)
+  dropped-modules profile decls acc = case decls of
+    Nil -> Ok acc
+    Cons first rest -> case first of
+      DConditional sp when inner -> case condition-holds when profile of
+        Err message -> Err message
+        Ok True -> dropped-modules profile (Cons inner rest) acc
+        Ok False -> dropped-modules profile rest (dropped-names inner <> acc)
+      other -> dropped-modules profile rest acc
+
+  -- The target's view of the declaration list, in source order, with every
+  -- export that named a dropped module filtered out.
+  prune-decls :: TargetProfile -> List String -> List Decl -> List Decl -> Result String (List Decl)
+  prune-decls profile dropped decls acc = case decls of
+    Nil -> Ok (reverse acc)
+    Cons first rest -> case prune-one profile dropped first of
+      Err message -> Err message
+      Ok None -> prune-decls profile dropped rest acc
+      Ok (Some decl) -> prune-decls profile dropped rest (Cons decl acc)
+
+  prune-one :: TargetProfile -> List String -> Decl -> Result String (Option Decl)
+  prune-one profile dropped d = case d of
+    DConditional sp when inner -> case condition-holds when profile of
+      Err message -> Err message
+      Ok True -> prune-one profile dropped inner
+      Ok False -> Ok None
+    DExport s text items -> Ok (prune-export dropped s text items)
+    other -> Ok (Some other)
+
+  -- An export whose items all named a dropped module disappears entirely;
+  -- one that still names something keeps only the surviving items.
+  prune-export :: List String -> Span -> String -> List ExportItem -> Option Decl
+  prune-export dropped s text items = case keep-exports dropped items Nil of
+    Nil -> None
+    kept -> Some (DExport s text (reverse kept))
+
+  keep-exports :: List String -> List ExportItem -> List ExportItem -> List ExportItem
+  keep-exports dropped items acc = case items of
+    Nil -> acc
+    Cons item rest -> if export-dropped dropped item then keep-exports dropped rest acc
+      else keep-exports dropped rest (Cons item acc)
+
+  export-dropped :: List String -> ExportItem -> Bool
+  export-dropped dropped item = case item of
+    ExportModule sp name -> member name dropped
+    ExportName sp parts -> member (export-qualifier parts) dropped
+
+  export-qualifier :: List String -> String
+  export-qualifier parts = case reverse parts of
+    Nil -> ""
+    Cons last rest -> join-with "." (reverse rest)
+
+  member :: String -> List String -> Bool
+  member name names = case names of
+    Nil -> False
+    Cons first rest -> string-compare name first == 0 || member name rest
+
+  -- The target's view of every module in a program.
+  target-view-program :: TargetProfile -> Program -> Result String Program
+  target-view-program profile program = case target-views profile (program-modules program) Nil of
+    Err message -> Err message
+    Ok modules -> Ok (MkProgram (program-span program) modules)
+
+  target-views :: TargetProfile -> List Module -> List Module -> Result String (List Module)
+  target-views profile modules acc = case modules of
+    Nil -> Ok (reverse acc)
+    Cons first rest -> case target-view profile first of
+      Err message -> Err message
+      Ok view -> target-views profile rest (Cons view acc)
