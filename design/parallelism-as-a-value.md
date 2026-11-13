@@ -387,3 +387,85 @@ change's report.
 the `cinch_par_*` entries are referenced only by the host instance's method
 bodies. The ABI number did not have to move because the runtime's entry
 points did not change: the reshape is entirely above them.
+
+## 10 State after the port onto `main` at `38fc9e31` (2026-11-13)
+
+The parked lane's bisection ("the injected class contributes no member
+bindings, so `b.both` stays the `builtin-bindings` placeholder") no longer
+describes the tree. The ported change does bind the kernel class's members,
+and the measurement says so: the call site now elaborates far enough to ask
+for a **dictionary**, which only a `MkMethodBinding` can cause.
+
+Measured with the seed, on the ported bootstrap sources:
+
+```text
+user:     ok, m.Main.m role=value arity=2
+injected: check: injected:5:44: dictionary instance resolution failed: no instance for b.Parallelism
+injected:5:39: non-exhaustive patterns: a scrutinee value is not covered by an unguarded row; add an unguarded final row
+direct:   check: direct:3:44:   dictionary instance resolution failed: no instance for b.Parallelism
+direct:3:39:   non-exhaustive patterns: a scrutinee value is not covered by an unguarded row; add an unguarded final row
+```
+
+The `arity=2` is the measurement that matters: the user's `m` is a checked
+binding of two arrows after its `Pairing` dictionary is discharged, which is
+the type `both :: forall a b e. (Unit ->{e} a) -> (Unit ->{e} b) ->{e} (a, b)`
+promises. The kernel cases reach the same point in elaboration and then have
+no dictionary to discharge, so they never produce a binding to measure. The
+second diagnostic in each kernel case is downstream of the first: an
+unresolved method application leaves the scrutinee's type open, so the `case`
+over the pair reports non-exhaustiveness. It is not a separate defect and it
+disappears when the instance exists.
+
+Three facts follow, and they change what the remaining work is:
+
+1. **The class and its four methods are visible.** Neither case reports
+   `unknown name` any more. What the parked lane saw as "only the first
+   member reaches the surface" is gone.
+2. **The scheme no longer collapses.** The refusal is not
+   `expected (a, b), found (Unit -> (a, b))`; it is a *missing instance*,
+   which is the error a well-typed method application gives when its
+   `using (p :: Parallelism)` requirement cannot be discharged. The
+   `apply-spine` path consumes both callbacks.
+3. **The visibility route taken is (b), not (a).** The class is still
+   appended to the resolved `Main` body after `rename-decls` and
+   `own-bindings` have run, so it does not take the ordinary path.
+   Visibility comes from two places instead:
+   - `Bootstrap.Resolve.own-class-methods` gained a `DMethod` arm, so a
+     class member that is already resolved still contributes its own
+     symbol under its label;
+   - `Bootstrap.Infer.register-source-methods` replaces the
+     `builtin-bindings` placeholder rather than refusing an already-bound
+     symbol, which is what turns the visible *name* into the
+     `MkMethodBinding` the rules key on.
+   The second one is the load-bearing change: a name alone would not make
+   the call site ask for a dictionary.
+
+### 10.1 What is actually missing
+
+The host instance does not exist. Section 2.1 says it is
+"kernel-synthesized: the checker supplies its `CoreInstance` and the four
+method `CoreDefinition`s directly", and that synthesis was never written:
+`Bootstrap.Builtin.parallelism-declarations` returns only the `DClass`
+(`resolved-class` has no `DInstance` arm), and nothing in
+`Bootstrap.Infer` constructs a `MkCoreInstance` for `b.Parallelism`.
+`Bootstrap.Resolve.parallelism-used` already tests for
+`b.HostParallelism`, so the admission side is ready for an instance that
+does not exist yet.
+
+That is why the remaining refusal is the dictionary and not the scheme.
+The next step is to write the synthesis section 2.1 describes, in
+`Bootstrap.Infer`, keyed on the class identity the kernel already owns:
+
+- one `MkCoreInstance` named `b.HostParallelism`, implicit, with the
+  `Parallelism` target and four dictionary fields;
+- four `CoreDefinition`s whose bodies are the primitive operations
+  `par-both`, `par-tabulate` and `par-map` at slots 0, 1 and 2, and a bare
+  `Unit` return at slot 3 (`Bootstrap.Builtin.par-lowering-name` already
+  names exactly this mapping and is currently unreferenced);
+- the instance admitted only when the program references the class, the
+  same reference test `parallelism-used` already performs.
+
+Until that lands, the parallel safety rules stay attached to the
+`parBoth`/`parTabulate`/`parMap` builtin path, which is the status quo and
+not a weakening of anything that works today. Nothing in this port
+loosens a rule.
