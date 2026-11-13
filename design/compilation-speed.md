@@ -1167,14 +1167,45 @@ hiding in a total.
 counts, control reproduced at 6.01 blocks per interface byte with an
 exponent of 0.998.
 
-|axis|n|before `k`|after `k`|
-|---|---|---|---|
-|definitions|25 / 50 / 100 / 200|1.94|TBD|
-|modules|8 / 16 / 32 / 64|3.08|TBD|
-|entries|8 / 16 / 32 / 64|1.92|TBD|
+|axis|n|before `k`|after `k`|before blocks|after blocks|
+|---|---|---|---|---|---|
+|definitions|25 / 50 / 100 / 200|1.94|**1.94**|71.7M / 84.7M / 131.6M / 313.9M|71.8M / 85.0M / 132.5M / 316.8M|
+|modules|8 / 16 / 32 / 64|3.08|**3.07**|67.6M / 74.5M / 120.4M / 515.1M|67.7M / 74.7M / 121.3M / 519.8M|
+|entries|8 / 16 / 32 / 64|1.92|**1.92**|70.6M / 81.6M / 121.9M / 275.5M|70.7M / 81.9M / 122.9M / 278.7M|
 
-Before, in blocks: definitions 71.7M / 84.7M / 131.6M / 313.9M; modules
-67.6M / 74.5M / 120.4M / 515.1M; entries 70.6M / 81.6M / 121.9M / 275.5M.
+**The curve did not move, and the reason is the census, not the fix.** The
+identity map removes the restarting scan and its repeated identity
+extraction from every pair, which is real work, but it does not remove the
+pair count: `body-bindings-closed` still compares every ordered pair of
+body bindings, and every pair still serialises rows to bytes for
+`bytes-compare`. At `B = 54` bindings that is 1431 pairs, and each pair's
+`canonical-bytes` calls dominate what the scan cost. Every point is 0.3% to
+1.0% higher in blocks than before, which is the map's build cost against a
+scan that was shorter than the map for these sizes.
+
+So the honest reading is that the inner `find` was **not** the term either.
+The term is the pair count times the serialisation: `total-functions-compatible`
+reaches `canonical-bytes` on whole rows for every pair, and `canonical-bytes`
+rebuilds a `Bytes` through `builder-bytes (emit-value True v builder-new)` on
+every call. Removing the scan while keeping the serialisation moves nothing,
+which is what these four points measure.
+
+**What would move it.** In order of leverage, from the census:
+
+1. **Do not serialise per pair.** `total-function-equal` and
+   `compatible-definitions` both call `canonical-bytes` on documents they
+   compare repeatedly. A `TotalFunction` could carry its canonical bytes,
+   computed once when the graph is built, so a comparison is a byte compare
+   and not a re-serialisation. This is the term the four points leave
+   standing.
+2. **Do not compare every pair.** `body-bindings-closed` is an all-pairs
+   check, so it is `B^2` before any per-pair cost. Two bindings with the same
+   name are already refused by `compatible`, and bindings whose identities
+   are disjoint cannot conflict through `compatible-definitions` unless
+   their documents share a row, so an index on the row identities each
+   document mentions would cut the pair set without changing any verdict.
+3. Only then does anything about the definition list matter, and
+   `total-core-native-definition` is 2.8% of the site.
 
 ## 3. The query graph (rustc, Salsa, Shake)
 
