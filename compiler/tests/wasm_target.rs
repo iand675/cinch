@@ -9,12 +9,33 @@
 //! artifact, so a program that compiles here has to RUN here, and its
 //! answer is the same one the native target gives.
 //!
-//! Every case that links skips, with the reason printed, when the
-//! toolchain is absent: `wasm-ld` is LLVM's binary utilities, `clang` 20
-//! or newer is what reads the emitted `range(...)` attributes, the
-//! runtime archive is a Rust target this tree builds, and Node is the
-//! host that loads the module. None of those is part of a native
-//! toolchain, so a machine without them still runs every other suite.
+//! # Running it
+//!
+//! ```
+//! CINCH_WASM_LD=/nix/store/2kdq06nmp8k9bqvkj6rnwbb0a48b0m5v-llvm-binutils-21.1.8/bin/wasm-ld \
+//!   nice python3 tooling/run_stage_targets.py --stage 3 --out /tmp/wasm --jobs 1 wasm_target
+//! ```
+//!
+//! `CINCH_WASM_LD` is the piece this machine does not put on `PATH`.
+//! `wasm-ld` is LLVM's binary utilities, which on a nix system live only in
+//! the store, and Apple clang's `-print-prog-name=wasm-ld` answers nothing,
+//! so neither of the driver's own searches finds it. Without the variable
+//! every case that links skips and says so, and the target still passes:
+//! `wasm-ld` is not part of a native toolchain, so a machine that lacks it
+//! must not fail this suite.
+//!
+//! The other preconditions, each named in the skip message:
+//! `clang` 20 or newer (`CINCH_CLANG` names it; the emitted IR carries
+//! `range(...)` attributes older LLVM rejects), the
+//! `wasm32-unknown-unknown` Rust target (the runtime archive is built from
+//! this tree's runtime crate when `--runtime-archive` is absent), and Node
+//! (`CINCH_NODE` names it), which is the host that loads the module.
+//!
+//! A case whose precondition is absent skips once, as a whole test, with
+//! the reason printed. A partial matrix is neither a pass nor a failure,
+//! so `the_matrix_runs_every_program` decides before it runs a single
+//! program, and every other case asks the same question about its own
+//! mode and options before its first assertion.
 
 mod common;
 
@@ -47,23 +68,63 @@ fn wasm_target() -> DriverOptions {
     }
 }
 
-/// Why the compiler running this suite cannot be asked for the target, or
-/// `None` when it can.
+/// Why the compiler running this suite cannot serve one request, or `None`
+/// when it can.
 ///
 /// The suite runs through a selected frontend when one is configured, and
-/// that compiler is the Cinch-written one, which reaches the target through
-/// its own `--target` and `--runtime-archive` flags. A compiler without them
-/// is a missing capability of the same kind as a missing linker: the case
-/// skips and says which flag it wanted, rather than failing on a refusal
-/// that is about the frontend and not about the target.
-fn frontend_lacks_target() -> Option<String> {
+/// that compiler is the Cinch-written one. Its selector decides which
+/// invocations it can adapt, and it reports that through
+/// `options_request`; but a request the selector accepts is not yet a
+/// target the frontend builds, because the selector's own link is a native
+/// `clang` call with no target and no `wasm-ld`. The capability that
+/// matters is therefore the frontend's, and it is asked here rather than
+/// inferred: a `Build` for this target is attempted once, and its refusal
+/// is the reason every case that links skips.
+///
+/// `--runtime-archive` and `--opt-level` are part of the question, because
+/// a frontend that lacks them cannot be asked for this build at all, and
+/// the selector names them precisely.
+fn frontend_lacks(mode: Mode, opts: &DriverOptions) -> Option<String> {
     match common::external_frontend::configured() {
-        Ok(Some(_)) => {
-            common::external_frontend::options_request(Mode::Run, &wasm_target()).err()
-        }
+        Ok(Some(_)) => match common::external_frontend::options_request(mode, opts) {
+            Err(error) => Some(error),
+            // The selector accepts the request; the frontend still has to
+            // build the target. One compile answers that, and the answer is
+            // cached because every case asks the same question.
+            Ok(_) => frontend_build_refusal(mode, opts),
+        },
         Ok(None) => None,
         Err(error) => Some(error),
     }
+}
+
+/// The refusal a selected frontend gives for this target's `build`, or
+/// `None` when it builds it. The answer is computed once per process: it is
+/// the same compile for every case, and it is not free.
+fn frontend_build_refusal(mode: Mode, opts: &DriverOptions) -> Option<String> {
+    use std::sync::OnceLock;
+    static ANSWER: OnceLock<Option<String>> = OnceLock::new();
+    ANSWER
+        .get_or_init(|| {
+            // A refusal is what this asks for, so the compile is the
+            // smallest program that reaches the link.
+            let dir = project("frontend-probe", "module Main where\n\nmain :: Int\nmain = 0\n");
+            let out = dir.join("probe.wasm");
+            let result = common::drive_opts(mode, &dir, "Main.cinch", Some(out.clone()), opts);
+            let answer = match result {
+                Ok(_) if out.is_file() => None,
+                Ok(_) => Some(format!(
+                    "the selected frontend reported success without writing {}",
+                    out.display()
+                )),
+                Err(error) => Some(format!(
+                    "the selected frontend cannot build this target: {error}"
+                )),
+            };
+            let _ = std::fs::remove_dir_all(&dir);
+            answer
+        })
+        .clone()
 }
 
 /// Why a case that links cannot run on this machine, or `None` when the
@@ -71,12 +132,9 @@ fn frontend_lacks_target() -> Option<String> {
 ///
 /// The probe is the build's own: the same clang the link assembles with,
 /// the same linker search, the same Node lookup. A skip names the piece
-/// that is missing and what supplies it, because a silently skipped case
-/// reads as a passing one.
+/// that is missing and the environment variable that supplies it, because
+/// a silently skipped case reads as a passing one.
 fn missing_toolchain() -> Option<String> {
-    if let Some(reason) = frontend_lacks_target() {
-        return Some(reason);
-    }
     let (clang, major) = match cinch::driver::freestanding_clang() {
         Ok(found) => found,
         Err(error) => return Some(error.to_string()),
@@ -100,7 +158,13 @@ fn missing_toolchain() -> Option<String> {
         Some(_) => {}
     }
     if let Err(error) = cinch::driver::freestanding_linker(&clang) {
-        return Some(error.to_string());
+        return Some(format!(
+            "{error}. On this machine `wasm-ld` is only in the nix store, and Apple clang's \
+             `-print-prog-name=wasm-ld` answers nothing, so the search does not reach it: set \
+             CINCH_WASM_LD to a `wasm-ld`, for example \
+             /nix/store/2kdq06nmp8k9bqvkj6rnwbb0a48b0m5v-llvm-binutils-21.1.8/bin/wasm-ld \
+             (any `llvm-binutils` version from `nix-shell -p llvmPackages.bintools`)"
+        ));
     }
     let node = std::env::var("CINCH_NODE").unwrap_or_else(|_| "node".to_string());
     if std::process::Command::new(&node)
@@ -115,6 +179,35 @@ fn missing_toolchain() -> Option<String> {
             "`{node}` did not run, and `run` executes a freestanding module under Node; \
              CINCH_NODE names the Node executable"
         ))
+    }
+}
+
+/// The file one run's skip reasons accumulate in.
+///
+/// libtest prints `test <name> ... ` and only then the result, so anything a
+/// test writes to stderr lands *inside* that line and hides the result from
+/// the harness's `^test (\S+) \.\.\. (ok|FAILED)$` count. The reasons
+/// therefore go to a file, and `zz_the_skipped_cases` prints them after
+/// every other case has run: a skip is a pass, so its reason has to reach
+/// the log some other way than through a passing test's own output.
+fn skip_log() -> PathBuf {
+    std::env::temp_dir().join(format!("cinch-wasm-skips-{}.log", std::process::id()))
+}
+
+/// Record the reason and leave the test, which the harness counts as a
+/// pass: a case whose precondition is absent has no verdict to give.
+fn skip(test: &str, reason: &str) {
+    use std::io::Write;
+    let line = format!("skipping {test}: {reason}\n");
+    match std::fs::OpenOptions::new().create(true).append(true).open(skip_log()) {
+        Ok(mut file) => {
+            let _ = file.write_all(line.as_bytes());
+        }
+        // A filesystem that will not take the file still gets the reason,
+        // in the one place it can go.
+        Err(_) => {
+            let _ = std::io::stderr().write_all(line.as_bytes());
+        }
     }
 }
 
@@ -157,18 +250,11 @@ fn build_case(case: &Case) -> Vec<u8> {
     bytes
 }
 
-/// Run one matrix case.
-///
-/// A case that expects a refusal needs no toolchain: the refusal happens in
-/// checking, before any IR exists, so it runs everywhere. A case that links
-/// skips when the toolchain is incomplete, and says why.
+/// Run one matrix case. The caller has established the case's
+/// preconditions, so every path here is an assertion.
 fn matrix(case: &Case) {
     match case.expect {
         Expect::Refused(needle) => {
-            if let Some(reason) = frontend_lacks_target() {
-                eprintln!("skipping {}: {reason}", case.name);
-                return;
-            }
             let dir = project(case.name, case.source);
             let result = common::drive_opts(Mode::Run, &dir, "Main.cinch", None, &wasm_target());
             let _ = std::fs::remove_dir_all(&dir);
@@ -180,10 +266,6 @@ fn matrix(case: &Case) {
             );
         }
         Expect::Exit(want) => {
-            if let Some(reason) = missing_toolchain() {
-                eprintln!("skipping {}: {reason}", case.name);
-                return;
-            }
             let got = run_case(case);
             assert_eq!(got, want, "{}: the module returned {got}", case.name);
         }
@@ -597,6 +679,28 @@ const CASES: &[Case] = &[
 /// names the program rather than the table.
 #[test]
 fn the_matrix_runs_every_program() {
+    // A partial matrix is neither a pass nor a failure, so the whole test
+    // skips once when a program's precondition is absent. Two of them
+    // differ: a case that expects a refusal never links, and a case that
+    // expects an exit value needs the toolchain.
+    let links = CASES.iter().any(|case| matches!(case.expect, Expect::Exit(_)));
+    let refuses = CASES.iter().any(|case| matches!(case.expect, Expect::Refused(_)));
+    if refuses {
+        if let Some(reason) = frontend_lacks(Mode::Run, &wasm_target()) {
+            skip("the_matrix_runs_every_program", &reason);
+            return;
+        }
+    }
+    if links {
+        if let Some(reason) = missing_toolchain() {
+            skip("the_matrix_runs_every_program", &reason);
+            return;
+        }
+        if let Some(reason) = frontend_lacks(Mode::Run, &wasm_target()) {
+            skip("the_matrix_runs_every_program", &reason);
+            return;
+        }
+    }
     for case in CASES {
         matrix(case);
     }
@@ -607,8 +711,8 @@ fn the_matrix_runs_every_program() {
 /// named after the target's own extension.
 #[test]
 fn build_produces_a_wasm_module() {
-    if let Some(reason) = missing_toolchain() {
-        eprintln!("skipping build_produces_a_wasm_module: {reason}");
+    if let Some(reason) = frontend_lacks(Mode::Build, &wasm_target()).or_else(missing_toolchain) {
+        skip("build_produces_a_wasm_module", &reason);
         return;
     }
     // The probe the skip path uses reads the same clang the link does, so a
@@ -635,8 +739,8 @@ fn build_produces_a_wasm_module() {
 /// hand it. Emission needs no linker, so this runs everywhere.
 #[test]
 fn the_emitted_module_is_the_freestanding_entry() {
-    if let Some(reason) = frontend_lacks_target() {
-        eprintln!("skipping the_emitted_module_is_the_freestanding_entry: {reason}");
+    if let Some(reason) = frontend_lacks(Mode::EmitIr, &wasm_target()) {
+        skip("the_emitted_module_is_the_freestanding_entry", &reason);
         return;
     }
     let dir = project("ir-beside", CASES[0].source);
@@ -663,8 +767,8 @@ fn the_emitted_module_is_the_freestanding_entry() {
 /// one would see an empty list with no diagnostic.
 #[test]
 fn run_refuses_program_arguments_it_cannot_deliver() {
-    if let Some(reason) = frontend_lacks_target() {
-        eprintln!("skipping run_refuses_program_arguments_it_cannot_deliver: {reason}");
+    if let Some(reason) = frontend_lacks(Mode::Run, &wasm_target()) {
+        skip("run_refuses_program_arguments_it_cannot_deliver", &reason);
         return;
     }
     let dir = project("run-args", CASES[0].source);
@@ -697,8 +801,9 @@ fn a_native_target_still_runs_here() {
 /// freestanding one.
 #[test]
 fn an_unknown_triple_is_refused_with_the_list() {
-    if let Some(reason) = frontend_lacks_target() {
-        eprintln!("skipping an_unknown_triple_is_refused_with_the_list: {reason}");
+    let opts = DriverOptions { target: Some("wasm32".to_string()), ..DriverOptions::default() };
+    if let Some(reason) = frontend_lacks(Mode::Check, &opts) {
+        skip("an_unknown_triple_is_refused_with_the_list", &reason);
         return;
     }
     let dir = project("unknown-triple", CASES[0].source);
@@ -735,8 +840,8 @@ fn the_freestanding_archive_is_built_when_the_flag_is_absent() {
         );
         return;
     }
-    if let Some(reason) = missing_toolchain() {
-        eprintln!("skipping the_freestanding_archive_is_built_when_the_flag_is_absent: {reason}");
+    if let Some(reason) = frontend_lacks(Mode::Build, &wasm_target()).or_else(missing_toolchain) {
+        skip("the_freestanding_archive_is_built_when_the_flag_is_absent", &reason);
         return;
     }
     // No `--runtime-archive`: the build has to find or produce the archive
@@ -753,8 +858,14 @@ fn the_freestanding_archive_is_built_when_the_flag_is_absent() {
 /// an archive is refused by name rather than reaching the linker.
 #[test]
 fn a_runtime_archive_that_is_not_one_is_refused() {
-    if let Some(reason) = frontend_lacks_target() {
-        eprintln!("skipping a_runtime_archive_that_is_not_one_is_refused: {reason}");
+    // The request names an archive, which is the option this case is about,
+    // so the predicate is asked with one.
+    let probe = DriverOptions {
+        runtime_archive: Some(PathBuf::from("/nonexistent/libcinchruntime.a")),
+        ..wasm_target()
+    };
+    if let Some(reason) = frontend_lacks(Mode::Build, &probe) {
+        skip("a_runtime_archive_that_is_not_one_is_refused", &reason);
         return;
     }
     let dir = project("bad-archive", CASES[0].source);
@@ -775,8 +886,12 @@ fn a_runtime_archive_that_is_not_one_is_refused() {
 /// failing inside it.
 #[test]
 fn a_host_archive_is_refused_for_the_wasm_target() {
-    if let Some(reason) = frontend_lacks_target() {
-        eprintln!("skipping a_host_archive_is_refused_for_the_wasm_target: {reason}");
+    let probe = DriverOptions {
+        runtime_archive: Some(PathBuf::from("/nonexistent/libcinchruntime.a")),
+        ..wasm_target()
+    };
+    if let Some(reason) = frontend_lacks(Mode::Build, &probe) {
+        skip("a_host_archive_is_refused_for_the_wasm_target", &reason);
         return;
     }
     let dir = project("host-archive", CASES[0].source);
@@ -814,11 +929,26 @@ fn a_host_archive_is_refused_for_the_wasm_target() {
 /// case asserts the build only, under a bounded wait, and says why.
 #[test]
 fn a_nonterminating_program_still_builds() {
-    if let Some(reason) = missing_toolchain() {
-        eprintln!("skipping a_nonterminating_program_still_builds: {reason}");
+    if let Some(reason) = frontend_lacks(Mode::Build, &wasm_target()).or_else(missing_toolchain) {
+        skip("a_nonterminating_program_still_builds", &reason);
         return;
     }
     let case = Case { name: "forever", source: FOREVER, expect: Expect::Exit(0) };
     let bytes = build_case(&case);
     assert!(bytes.starts_with(b"\0asm"), "the nonterminating program did not produce a module");
+}
+
+/// The skip reasons, printed once, after every case that could produce one.
+///
+/// The name sorts last, so this runs last whether libtest keeps the source
+/// order or sorts by name, which is what makes the report complete without
+/// the harness having to know about it.
+#[test]
+fn zz_the_skipped_cases() {
+    let log = skip_log();
+    let Ok(text) = std::fs::read_to_string(&log) else { return };
+    let _ = std::fs::remove_file(&log);
+    use std::io::Write;
+    // A leading newline ends libtest's unterminated `test zz_... ... ` line.
+    let _ = write!(std::io::stderr(), "\n{text}");
 }
