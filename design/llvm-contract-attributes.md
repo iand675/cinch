@@ -81,7 +81,7 @@ the self-hosted emitter's output (`build/bootstrap/stage3/compiler.ll`,
 | `mustprogress` | 0 | 0 |
 | `!llvm.loop` | 0 | 0 |
 | `llvm.assume` | 0 | 0 |
-| `freeze` | 27 (115 `freeze` ops) | 0 |
+| `freeze` | 27 ops | 0 |
 | `noreturn` | 1 | 1 |
 
 The self-hosted emitter (`bootstrap/Bootstrap.RuntimeIr.cinch`) emits no
@@ -182,8 +182,7 @@ path claimed both. They now require the local walk to find a live
   zero definitions in the compiler's own sources, so there is nothing
   to attach the attribute to and no pass that would consume it.
 - **`freeze` at the boundary**: already implemented and tested
-  (`untrusted_boundary_reads_freeze`), 115 `freeze` ops in the seed IR
-  over 27 units. The remaining untrusted source is a `RawPtr` load,
+  (`untrusted_boundary_reads_freeze`), 27 `freeze` ops in the seed IR. The remaining untrusted source is a `RawPtr` load,
   which freezes, and `Bytes` data, which freezes. Nothing is missing.
 - **`llvm.assume` operand bundles**: already emitted at the checked
   boundary (`assume_ptr`, `assume_layout`). They appear zero times in
