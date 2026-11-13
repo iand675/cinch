@@ -3,7 +3,7 @@
 -- creation and decision evidence here, before checker elaboration.
 module Bootstrap.Builtin where
 
-  import Bootstrap.Ast (Decl, TypeExpr, Program, MkProgram, MkModule, DExternal, DData, MkTypeParam, TName, TInfix, TApp, TArg, TArgsEnd, TFun, TBound, TBoundsEnd, TUnmodeled, decl-spine, decls-of)
+  import Bootstrap.Ast (Decl, TypeExpr, Program, MkProgram, MkModule, DExternal, DData, DClass, DMethod, DSig, MkTypeParam, TName, TInfix, TApp, TArg, TArgsEnd, TFun, TBound, TBoundsEnd, TUnmodeled, decl-spine, decls-of)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Parse (parse-program, parse-scheme)
   import Data.Json
@@ -272,9 +272,27 @@ module Bootstrap.Builtin where
   parallelism-declarations :: List Decl
   parallelism-declarations = case parse-program "parallelism" parallelism-source of
     Parsed (MkProgram sp modules) Nil -> case modules of
-      Cons (MkModule ms name decls) Nil -> decls-of decls
+      Cons (MkModule ms name decls) Nil -> resolved-class (decls-of decls)
       other -> Nil
     other -> Nil
+
+  -- The checker's class path accepts only resolved members
+  -- (`source signature member needs checked method elaboration` otherwise),
+  -- and a source module gets them from `rename-class-members` in the
+  -- resolver. The kernel class is not in a source module, so the same
+  -- conversion happens here: each parsed `DSig` becomes a `DMethod` carrying
+  -- the kernel's own symbol and the parser's own contract, verbatim.
+  resolved-class :: List Decl -> List Decl
+  resolved-class ds = case ds of
+    Nil -> Nil
+    Cons (DClass sp name ps members) rest ->
+      Cons (DClass sp parallelism-name ps (decl-spine sp (resolved-members (decls-of members)))) (resolved-class rest)
+    Cons other rest -> Cons other (resolved-class rest)
+  resolved-members :: List Decl -> List Decl
+  resolved-members ds = case ds of
+    Nil -> Nil
+    Cons (DSig sp name ty) rest -> Cons (DMethod sp name (parallelism-method-symbol name) ty) (resolved-members rest)
+    Cons other rest -> Cons other (resolved-members rest)
 
   parallelism-source :: Bytes
   parallelism-source = string-to-bytes (string-concat-all [
