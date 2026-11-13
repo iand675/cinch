@@ -147,7 +147,31 @@ module Bootstrap.Infer where
     Cons (MkCheckedRewrite name lhs rhs guard (Some identity)) rest -> Cons (name, identity) (rewrite-assumptions rest)
     Cons other rest -> rewrite-assumptions rest
 
-  -- Instance law samples are observations and never proof evidence.
+  -- One verified temporal contract (core specification section 10): the
+  -- definition and contract it names, the kind and formula, the stated
+  -- assumptions, and the verification's own argument. The rows are the
+  -- interface facts and manifest rows a consumer reads.
+  data TemporalRow where
+    MkTemporalRow :: String -> String -> String -> String -> List String -> String -> TemporalRow
+
+  temporal-row-definition :: TemporalRow -> String
+  temporal-row-definition r = case r of MkTemporalRow definition name kind formula assumptions result -> definition
+
+  temporal-row-name :: TemporalRow -> String
+  temporal-row-name r = case r of MkTemporalRow definition name kind formula assumptions result -> name
+
+  temporal-row-kind :: TemporalRow -> String
+  temporal-row-kind r = case r of MkTemporalRow definition name kind formula assumptions result -> kind
+
+  temporal-row-formula :: TemporalRow -> String
+  temporal-row-formula r = case r of MkTemporalRow definition name kind formula assumptions result -> formula
+
+  temporal-row-assumptions :: TemporalRow -> List String
+  temporal-row-assumptions r = case r of MkTemporalRow definition name kind formula assumptions result -> assumptions
+
+  temporal-row-result :: TemporalRow -> String
+  temporal-row-result r = case r of MkTemporalRow definition name kind formula assumptions result -> result
+
   data Elaboration where
     MkElaboration :: List Diagnostic -> List CheckedBinding -> List Json -> List CoreDefinition -> List CoreData -> List CoreEffect -> CoreClassContext -> List CoreInstance -> List Decl -> List (String, String, String, String) -> List CheckedRewrite -> List TemporalRow -> Elaboration
   elaboration-rewrite-assumptions :: Elaboration -> List (String, String)
@@ -7427,27 +7451,6 @@ module Bootstrap.Infer where
   -- a formula is checked as an ordinary boolean term over them and the
   -- proposition it reads is over the same identities the write log names.
 
-  data TemporalRow where
-    MkTemporalRow :: String -> String -> String -> String -> List String -> String -> TemporalRow
-
-  temporal-row-definition :: TemporalRow -> String
-  temporal-row-definition r = case r of MkTemporalRow definition name kind formula assumptions result -> definition
-
-  temporal-row-name :: TemporalRow -> String
-  temporal-row-name r = case r of MkTemporalRow definition name kind formula assumptions result -> name
-
-  temporal-row-kind :: TemporalRow -> String
-  temporal-row-kind r = case r of MkTemporalRow definition name kind formula assumptions result -> kind
-
-  temporal-row-formula :: TemporalRow -> String
-  temporal-row-formula r = case r of MkTemporalRow definition name kind formula assumptions result -> formula
-
-  temporal-row-assumptions :: TemporalRow -> List String
-  temporal-row-assumptions r = case r of MkTemporalRow definition name kind formula assumptions result -> assumptions
-
-  temporal-row-result :: TemporalRow -> String
-  temporal-row-result r = case r of MkTemporalRow definition name kind formula assumptions result -> result
-
   -- The contracts a module declares, in written order.
   module-contracts :: List Decl -> List (Span, String, String, String, List ContractClause)
   module-contracts declarations = case declarations of
@@ -7530,11 +7533,41 @@ module Bootstrap.Infer where
   -- as the comparison proposition it states.
   read-formula :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List CheckedBinding -> Span -> String -> Expr -> Store -> (Option Proposition, Store)
   read-formula classes kinds families env scope s name body st =
-    case check classes kinds families (scope <> env) (formula-locals scope) body (primitive-type "Bool") st of
+    case check classes kinds families (scope <> global-bindings-for body env) (formula-locals scope) body (primitive-type "Bool") st of
       (term, checked) -> case temporal-proposition term of
         Some prop -> (Some prop, checked)
         None -> (None, add-error s (string-concat-all
           ["temporal contract `", name, "`: the formula states a comparison proposition (`a < b`, `Eq a b`, ...) (core specification section 10)"]) checked)
+
+  -- The environment a formula is checked in: the module's own, plus an alias
+  -- for every global the formula names at its resolved spelling. A formula
+  -- over a loaded interface spells its comparison as that interface's method
+  -- (`i.Relation.Ord.<`), while a binding is looked up by its visible
+  -- spelling, so the resolved name needs an entry of its own. The alias
+  -- carries the binding's own scheme and role: it is the same global.
+  global-bindings-for :: Expr -> List CheckedBinding -> List CheckedBinding
+  global-bindings-for body env = alias-globals (expr-references body) env env
+
+  alias-globals :: List String -> List CheckedBinding -> List CheckedBinding -> List CheckedBinding
+  alias-globals names source env = case names of
+    Nil -> env
+    Cons name rest -> case lookup-binding name env of
+      Some binding -> alias-globals rest source env
+      None -> case global-binding name source of
+        Some binding -> alias-globals rest source (Cons binding env)
+        None -> alias-globals rest source env
+
+  -- The binding a resolved global spelling names: the same binding under the
+  -- spelling the module sees it by.
+  global-binding :: String -> List CheckedBinding -> Option CheckedBinding
+  global-binding name env = case env of
+    Nil -> None
+    Cons (MkBodyBinding binding) rest -> if same name (binding-native binding) then Some (MkBodyBinding binding) else global-binding name rest
+    Cons (MkCheckedBinding actual sc role) rest -> if same name actual then Some (MkCheckedBinding name sc role) else global-binding name rest
+    Cons (MkIntrinsicBinding actual sc symbol) rest -> if same name actual then Some (MkIntrinsicBinding name sc symbol) else global-binding name rest
+    Cons (MkMethodBinding actual sc owner slot) rest -> if same name actual then Some (MkMethodBinding name sc owner slot) else global-binding name rest
+    Cons (MkForeignBinding actual sc plan) rest -> if same name actual then Some (MkForeignBinding name sc plan) else global-binding name rest
+    Cons other rest -> global-binding name rest
 
   formula-locals :: List CheckedBinding -> List (String, UType)
   formula-locals scope = case scope of
@@ -7550,7 +7583,7 @@ module Bootstrap.Infer where
   assumed-loop classes kinds families env scope s name clauses acc st = case clauses of
     Nil -> (reverse acc, st)
     Cons first rest -> case first of
-      ContractAssume at body -> case check classes kinds families (scope <> env) (formula-locals scope) body (primitive-type "Bool") st of
+      ContractAssume at body -> case check classes kinds families (scope <> global-bindings-for body env) (formula-locals scope) body (primitive-type "Bool") st of
         (term, checked) -> case temporal-proposition term of
           Some prop -> assumed-loop classes kinds families env scope s name rest (Cons prop acc) checked
           None -> assumed-loop classes kinds families env scope s name rest acc checked

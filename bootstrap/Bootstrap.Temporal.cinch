@@ -21,7 +21,11 @@
 module Bootstrap.Temporal where
 
   import Text.Lex (Span)
-  import Bootstrap.Ast (Decl, ContractClause, ContractFormula, ContractAssume, ContractAssumed, contract-clause-span, expr-span, Expr)
+  import Bootstrap.Ast (Decl, ContractClause, ContractFormula, ContractAssume, ContractAssumed, contract-clause-span, expr-span, Expr
+    , EVar, ECon, ERecord, ERecordField, EProject, ELitInt, ELitFloat, ELitStr, ELitChar, EUnit, ETuple, EList, EApp, EBin, ENeg
+    , ELam, ELet, ELetScope, ELocalGroup, ELetRec, ELocalStrict, ELocalSignature, ELocalMemo, ELocalEnd, EIf, ECase, EGuarded, EAnn
+    , EForall, EUsing, EBind, EDo, EHandle, EHandler, EHandlerClause, EHandlerEnd, EWith, EArg, EArgsEnd, EBinding, EBindingsEnd
+    , EAlt, EAltsEnd, EQuote, ESplice, EUnmodeled)
   import Algebra.Semigroup
 
   export ContractKind, Safety, Liveness, Recurrence, Stability
