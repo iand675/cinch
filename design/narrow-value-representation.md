@@ -295,14 +295,20 @@ positions a type proves, and leaves that specialisation axis for later.
   `Crossing::Bits { bits, signed }`). `U8` is `i8`, `I16` is `i16`,
   `U32`/`I32`/`F32` are `i32`, on every target. The body is unchanged:
   the entry widens, every return narrows, and the caller mirrors it.
-  The width is not enough on its own: the extension direction has to
-  match the word convention, or the crossing silently changes the value.
-  A signed scalar's canonical word is sign-extended (`I8`'s `-2` is `-2`
-  in the slot, which is what `icmp slt` and the prelude's primitives
-  read), so a signed position sign-extends; an unsigned scalar, a
-  float's bits, a pointer and a `Nat` zero-extend, and an `Int`
-  sign-extends. That is why `signed` rides `Crossing::Bits` exactly as it
-  rides `Crossing::Csize`.
+  A crossing carries a width **and** a signedness, because the width is
+  not enough on its own: the extension direction has to match the word
+  convention, or the crossing silently changes the value. The only
+  correct widening of a signed narrow scalar is sign extension, because
+  the canonical word for a signed scalar is sign-extended
+  (`cinch.prim.ltI8` is `icmp slt i64` over its operands,
+  `minBoundI8` returns `i64 -128`), so `-2 :: I8` must cross back as
+  `-2` and not as `254`. An unsigned scalar, a float's bits, a pointer
+  and a `Nat` zero-extend, and an `Int` sign-extends; `signed` rides
+  `Crossing::Bits` exactly as it rides `Crossing::Csize`.
+  Every boundary conversion goes through `Cross::sext` (the entry, a
+  direct call, the apply stub, a thunk's value, a foreign export's
+  wrapper), which is why the direction is one flag on that struct rather
+  than a change at five call sites.
 - **A word that fits the pointer crosses at `csize`**
   (`Crossing::Csize`): a counted pointer (an ADT, a closure, `Bytes`, a
   tuple), a `Nat` and an `Int`. That is the slot on a 64-bit target, so
