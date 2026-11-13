@@ -61,9 +61,18 @@ pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) ->
     } = profile;
     // Fuel and measure are upper bounds on driving. The selected compiler
     // performs no driving, so it meets every bound.
+    //
+    // `name` is compared only when the request names a FOREIGN triple. A
+    // `native()` request is the host itself under a different label
+    // (`native64`, the store key host artifacts are filed under, while the
+    // derived profile is named by its triple), so for the host's own triple
+    // the name carries no information the triple has not already fixed.
+    // Renaming `native()` instead would invalidate every recorded manifest
+    // and cached artifact that keyed on `native64`.
+    let foreign_triple = *triple != TargetProfile::native().triple;
     let mut lacking = Vec::new();
     for (field, same) in [
-        ("name", *name == host.name),
+        ("name", !foreign_triple || *name == host.name),
         ("triple", *triple == host.triple),
         ("os", *os == host.os),
         ("arch", *arch == host.arch),
@@ -433,4 +442,49 @@ fn publish_check_artifacts(frontend: &Frontend, dir: &Path, entry: &Path, ir: &P
     let target = build.join(format!("{stem}.manifest.json"));
     std::fs::copy(&written, &target).map_err(|error| format!("{}: {error}", target.display()))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod profile_tests {
+    use super::*;
+
+    /// A `native()` request is the host under its own label. The derived
+    /// profile names itself by triple and `native()` names itself `native64`,
+    /// so comparing the name would refuse the host its own target; the
+    /// triple already fixes which profile this is.
+    #[test]
+    fn a_native_request_is_accepted_for_the_hosts_own_triple() {
+        let request = TargetProfile { reclaim: true, ..TargetProfile::native() };
+        assert_eq!(request.name, "native64");
+        assert_ne!(request.triple, request.name, "the labels must differ for this test to mean anything");
+        let accepted = profile_request(Mode::Build, StageMode::Refresh, &request);
+        assert!(accepted.is_ok(), "native request refused: {}", accepted.unwrap_err());
+    }
+
+    /// A foreign triple still has to match its own derived profile exactly,
+    /// including the name, so the exemption above cannot hide a real
+    /// disagreement about which target was asked for. Built from the real
+    /// derived profile with only `name` perturbed, so the only field that can
+    /// be reported is the one under test.
+    #[test]
+    fn a_foreign_triple_must_match_its_own_profile_including_the_name() {
+        let triple = "aarch64-unknown-linux-gnu";
+        let derived = cinch::driver::target_profile(&DriverOptions {
+            target: Some(triple.to_string()),
+            ..DriverOptions::default()
+        })
+        .expect("the foreign triple is one the compiler supports");
+        let request = TargetProfile { reclaim: true, ..derived.clone() };
+        assert_eq!(request.name, triple, "a derived profile is named by its triple");
+        assert!(profile_request(Mode::Build, StageMode::Refresh, &request).is_ok(),
+            "the derived profile itself must be accepted");
+
+        let renamed = TargetProfile { name: "native64".to_string(), ..request };
+        let refused = profile_request(Mode::Build, StageMode::Refresh, &renamed);
+        assert!(refused.is_err(), "a foreign triple was accepted under the host's name");
+        let message = refused.unwrap_err();
+        assert!(message.contains("name"), "the refusal must name the field: {message}");
+        assert!(!message.contains("os, libc") && !message.contains("triple"),
+            "only the name should disagree: {message}");
+    }
 }
