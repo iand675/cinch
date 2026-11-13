@@ -93,8 +93,8 @@ property the extern can rely on, because the wrapper's own drops are decided
 per program.)
 
 The primitive unit that wraps the extern owns its parameters and drops them at
-`ret`: `prim_consumes` (`compiler/src/codegen.rs:1857`) keeps every array
-operation's arguments, so `ret_drops` (`codegen.rs:3428`) releases them. The
+`ret`: `prim_consumes` (`compiler/src/codegen.rs`) keeps every array
+operation's arguments, so `ret_drops` (`compiler/src/codegen.rs`) releases them. The
 extern therefore owes the same convention as the copying path: its result is
 one owned reference, and every slot it writes holds its own reference.
 
@@ -127,7 +127,7 @@ tree.
 
 `Data.Array.array-set@T` is a primitive unit. Its parameter ownership comes
 from `lent`, the borrow-inference result for that unit
-(`compiler/src/codegen.rs:1037`, applied at `codegen.rs:3428`), which is
+(`compiler/src/codegen.rs`, `reg.lent`), which is
 computed **per program** from how callers use the argument. Two programs, one
 with the array in a tail-recursive fill loop and one with the array in a
 top-level definition read again afterwards, produce wrappers that differ:
@@ -192,7 +192,7 @@ built version moves the decision to where the fact already is.
 Both entries therefore have the same observable contract: borrow the array,
 return an owned reference, and every slot holds its own reference. That is what
 the wrapping unit imposes, and the emitted IR is the proof: `prim_consumes`
-does not list the array operations, so `ret_drops` (`codegen.rs:3428`) releases
+does not list the array operations, so `ret_drops` (`compiler/src/codegen.rs`) releases
 every counted parameter at `ret`. A version that consumed the argument instead
 freed the block under the caller and trapped with `corrupt array value`, which
 is how this contract was found.
@@ -242,9 +242,9 @@ is not a borrow and the entry applies. Section 9 carries this as item 6.
 ### 2.6 The rule, stated once
 
 **An array operation cannot take a consuming contract while `prim_consumes`
-omits it.** `prim_consumes` (`compiler/src/codegen.rs:1857`) lists the
+omits it.** `prim_consumes` (`compiler/src/codegen.rs`) lists the
 primitives whose wrappers hand a parameter on instead of releasing it, and it
-does not list the array operations. So `ret_drops` (`codegen.rs:3428`) releases
+does not list the array operations. So `ret_drops` (`compiler/src/codegen.rs`) releases
 every counted parameter of an array primitive at `ret`, which means the extern
 behind it always receives a borrowed reference and must always return an owned
 one. An entry that assumes consumption instead frees the block the caller just
