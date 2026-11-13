@@ -1044,3 +1044,217 @@ fn the_threshold_model_is_selectable_and_reports_itself() {
     assert_eq!(report.inline_model, "threshold");
     assert_eq!(report.inlined, 1);
 }
+
+// ------------------------------------------------ computed-argument fold
+//
+// `known-constructor`'s read-order half (design/compilation-speed.md section
+// 10.2): a decision on a constructor application whose arguments are computed
+// is folded by rebinding the arguments where the construction stood, so the
+// evaluation order is preserved by construction and no single-use condition is
+// needed. The rule ships off by default because of a measured interaction with
+// the inliner (see its documentation), so every test here turns it on.
+
+fn computed_options() -> SimplifyOptions {
+    SimplifyOptions {
+        known_constructor_computed: true,
+        inline: false,
+        occurrence: false,
+        ..SimplifyOptions::default()
+    }
+}
+
+/// `let t = Some (g x) in case t of Some y -> h y` becomes
+/// `let y = g x in h y`: the block and the decision are gone, the call is
+/// evaluated once, in the position the constructor's argument occupied.
+#[test]
+fn computed_constructor_fold_rebinds_the_argument_where_it_stood() {
+    let call = Core::App(
+        Box::new(Core::Global(gid("Main.g"), vec![])),
+        vec![Core::Var(LocalId(0))],
+    );
+    let body = Core::Let(
+        LocalId(1),
+        Class::Obj,
+        Box::new(Core::App(Box::new(Core::Ctor(gid("Some"), vec![])), vec![call])),
+        Box::new(Core::Case {
+            scrut: Box::new(Core::Var(LocalId(1))),
+            alts: vec![CAlt::new(con(1, &[2]), Core::Var(LocalId(2)))],
+        }),
+    );
+    let mut p = program(vec![
+        ctor_unit("None", 0, 0),
+        ctor_unit("Some", 1, 1),
+        unit("Main.g", vec![Class::Raw], Core::Var(LocalId(0))),
+        unit("Main.f", vec![Class::Obj], body),
+    ]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &computed_options(), &mut report);
+    assert_eq!(report.known_ctor_once, 1, "{:?}", p.fns[3].body);
+    // The result is a `let` of the call over a body that reads the fresh
+    // binder: the constructor application and the decision are both gone.
+    let Core::Let(_, _, value, rest) = &p.fns[3].body else {
+        panic!("expected a let, got {:?}", p.fns[3].body);
+    };
+    assert!(matches!(&**value, Core::App(head, _) if matches!(&**head, Core::Global(g, _) if g.0 == "Main.g")));
+    assert!(!format!("{:?}", rest).contains("Case"));
+}
+
+/// A decision the tag does not select keeps the fold away: the constructor
+/// built for another tag cannot reach the alternative.
+#[test]
+fn computed_constructor_fold_needs_a_matching_alternative() {
+    let call = Core::App(
+        Box::new(Core::Global(gid("Main.g"), vec![])),
+        vec![Core::Var(LocalId(0))],
+    );
+    let body = Core::Let(
+        LocalId(1),
+        Class::Obj,
+        Box::new(Core::App(Box::new(Core::Ctor(gid("Some"), vec![])), vec![call])),
+        Box::new(Core::Case {
+            scrut: Box::new(Core::Var(LocalId(1))),
+            alts: vec![CAlt::new(con(0, &[]), Core::Int(7))],
+        }),
+    );
+    let mut p = program(vec![
+        ctor_unit("None", 0, 0),
+        ctor_unit("Some", 1, 1),
+        unit("Main.g", vec![Class::Raw], Core::Var(LocalId(0))),
+        unit("Main.f", vec![Class::Obj], body),
+    ]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &computed_options(), &mut report);
+    assert_eq!(report.known_ctor_once, 0);
+    assert!(matches!(&p.fns[3].body, Core::Let(..)));
+}
+
+/// The block has a second reader, so the fold refuses: deleting the decision
+/// would leave the other read naming a block nothing built.
+#[test]
+fn computed_constructor_fold_refuses_a_shared_block() {
+    let call = Core::App(
+        Box::new(Core::Global(gid("Main.g"), vec![])),
+        vec![Core::Var(LocalId(0))],
+    );
+    // The block is read twice: at the decision's scrutinee, and again inside
+    // the alternative the decision selects.
+    let body = Core::Let(
+        LocalId(1),
+        Class::Obj,
+        Box::new(Core::App(Box::new(Core::Ctor(gid("Some"), vec![])), vec![call])),
+        Box::new(Core::Case {
+            scrut: Box::new(Core::Var(LocalId(1))),
+            alts: vec![CAlt::new(
+                con(1, &[2]),
+                Core::App(Box::new(Core::Global(gid("Main.g"), vec![])), vec![Core::Var(LocalId(1))]),
+            )],
+        }),
+    );
+    let mut p = program(vec![
+        ctor_unit("None", 0, 0),
+        ctor_unit("Some", 1, 1),
+        unit("Main.g", vec![Class::Raw], Core::Var(LocalId(0))),
+        unit("Main.f", vec![Class::Obj], body),
+    ]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &computed_options(), &mut report);
+    assert_eq!(report.known_ctor_once, 0);
+}
+
+/// The value-only fold's own shape is not this rule's population, and the
+/// counter must not claim it: a constructor whose arguments are all values
+/// folds under `known-constructor` and reports there.
+#[test]
+fn computed_constructor_fold_leaves_the_value_only_shape_alone() {
+    let body = Core::Let(
+        LocalId(1),
+        Class::Obj,
+        Box::new(Core::App(Box::new(Core::Ctor(gid("Some"), vec![])), vec![Core::Var(LocalId(0))])),
+        Box::new(Core::Case {
+            scrut: Box::new(Core::Var(LocalId(1))),
+            alts: vec![CAlt::new(con(1, &[2]), Core::Var(LocalId(2)))],
+        }),
+    );
+    let mut p = program(vec![
+        ctor_unit("None", 0, 0),
+        ctor_unit("Some", 1, 1),
+        unit("Main.f", vec![Class::Obj], body),
+    ]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &computed_options(), &mut report);
+    assert_eq!(report.known_ctor_once, 0);
+    assert_eq!(report.known_ctor, 1);
+}
+
+/// The rule ships off: the defaults must not run it, whatever the flags say.
+#[test]
+fn the_computed_constructor_fold_is_off_by_default() {
+    assert!(!SimplifyOptions::default().known_constructor_computed);
+}
+
+// ------------------------------------------------------- projection fold
+
+/// `proj (Some x) 0` is `x`.
+#[test]
+fn projection_of_a_constructor_application_is_the_field() {
+    let body = Core::Proj(
+        Box::new(Core::App(
+            Box::new(Core::Ctor(gid("Some"), vec![])),
+            vec![Core::Var(LocalId(0))],
+        )),
+        cinch::core::ProjField::slot(0, Class::Obj),
+    );
+    let mut p = program(vec![
+        ctor_unit("Some", 1, 1),
+        unit("Main.f", vec![Class::Obj], body),
+    ]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &SimplifyOptions::default(), &mut report);
+    assert!(matches!(&p.fns[1].body, Core::Var(LocalId(0))), "{:?}", p.fns[1].body);
+    assert_eq!(report.projection, 1);
+}
+
+/// A slot the constructor does not have keeps the projection: the block has
+/// no such word, and reading it would be out of bounds.
+#[test]
+fn projection_refuses_a_slot_past_the_last_field() {
+    let body = Core::Proj(
+        Box::new(Core::App(
+            Box::new(Core::Ctor(gid("Some"), vec![])),
+            vec![Core::Var(LocalId(0))],
+        )),
+        cinch::core::ProjField::slot(3, Class::Obj),
+    );
+    let mut p = program(vec![
+        ctor_unit("Some", 1, 1),
+        unit("Main.f", vec![Class::Obj], body),
+    ]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &SimplifyOptions::default(), &mut report);
+    assert!(matches!(&p.fns[1].body, Core::Proj(..)));
+    assert_eq!(report.projection, 0);
+}
+
+/// A computed field keeps the projection: substituting it would move its work
+/// to the read, which is the reason the value-only fold states too.
+#[test]
+fn projection_refuses_a_computed_field() {
+    let body = Core::Proj(
+        Box::new(Core::App(
+            Box::new(Core::Ctor(gid("Some"), vec![])),
+            vec![Core::App(Box::new(Core::Global(gid("Main.g"), vec![])), vec![Core::Var(LocalId(0))])],
+        )),
+        cinch::core::ProjField::slot(0, Class::Obj),
+    );
+    let mut p = program(vec![
+        ctor_unit("Some", 1, 1),
+        unit("Main.g", vec![Class::Raw], Core::Var(LocalId(0))),
+        unit("Main.f", vec![Class::Obj], body),
+    ]);
+    let mut report = SimplifyReport::default();
+    // The inliner is off so the callee stays a call: what this test pins is
+    // the projection's own refusal, not the inliner's admission.
+    simplify(&mut p, &SimplifyOptions { inline: false, ..SimplifyOptions::default() }, &mut report);
+    assert!(matches!(&p.fns[2].body, Core::Proj(..)));
+    assert_eq!(report.projection, 0);
+}

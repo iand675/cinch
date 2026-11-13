@@ -2956,6 +2956,9 @@ fn write_artifacts(
         ("ticks", (opt.simplify.ticks as u64).into()),
         ("case_merge", (opt.simplify.case_merge as u64).into()),
         ("known_constructor", (opt.simplify.known_ctor as u64).into()),
+        ("known_constructor_computed", (opt.simplify.known_ctor_once as u64).into()),
+        ("projection", (opt.simplify.projection as u64).into()),
+        ("join_scope", (opt.simplify.join_scope as u64).into()),
         ("direct_dict_call", (opt.simplify.dict_call as u64).into()),
         ("saturate_partial", (opt.simplify.saturate as u64).into()),
         ("case_of_case", (opt.simplify.case_of_case as u64).into()),
@@ -4028,6 +4031,13 @@ pub struct DriverOptions {
     /// projection plus `__apply` instead of a direct call
     /// (design/compilation-speed.md section 10).
     pub no_direct_dict_calls: bool,
+    /// `--known-ctor-computed`: fold a decision on a computed-argument
+    /// constructor application. Off by default (the rule's documentation
+    /// carries the measurement that keeps it off).
+    pub known_ctor_computed: bool,
+    /// `--no-projection`: keep a record field projection of a constructor
+    /// application instead of replacing it by the field.
+    pub no_projection: bool,
     /// `--no-saturate-partial`: keep a one-shot partial application as a
     /// closure and an application (the measurement's other arm).
     pub no_saturate_partial: bool,
@@ -4091,6 +4101,8 @@ impl DriverOptions {
         crate::simplify::SimplifyOptions {
             max_iterations: self.max_simplifier_iterations.unwrap_or(4),
             direct_dict_calls: !self.no_direct_dict_calls,
+            known_constructor_computed: self.known_ctor_computed,
+            projection: !self.no_projection,
             saturate_partial: !self.no_saturate_partial,
             inline: !self.no_inline,
             inline_model: match self.inline_model.as_deref() {
@@ -4466,6 +4478,8 @@ fn core_emit(args: &[String]) -> i32 {
                 }
             }
             "--no-direct-dict-calls" => opts.no_direct_dict_calls = true,
+            "--known-ctor-computed" => opts.known_ctor_computed = true,
+            "--no-projection" => opts.no_projection = true,
             "--no-saturate-partial" => opts.no_saturate_partial = true,
             "--no-inline" => opts.no_inline = true,
             "--inline-model" => {
