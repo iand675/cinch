@@ -14,6 +14,7 @@ module Bootstrap.Core where
   import Bootstrap.Guarded
   import Bootstrap.ExportType (export-global)
   import Data.Json
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Text.Json (canonical-bytes)
   import Data.Nat (nat-to-int)
   import Text.Lex (Span)
@@ -3351,31 +3352,59 @@ module Bootstrap.Core where
   total-core-members values = case values of JArr first rest -> Cons first (total-core-members rest); other -> Nil
   total-core-has :: String -> List String -> Bool
   total-core-has name values = case values of Nil -> False; Cons first rest -> string-compare name first == 0 || total-core-has name rest
-  total-core-signature :: UType -> List String -> Option (List String, String)
-  total-core-signature ty parameters = case ty of
-    UFun domain result -> case total-core-sort domain of Some sort -> total-core-signature result (parameters <> [sort]); None -> None
-    UFunEff domain (URow UEnd) result -> case total-core-sort domain of Some sort -> total-core-signature result (parameters <> [sort]); None -> None
-    UPi id name domain (URow UEnd) result -> if pi-dependent ty then None else (case total-core-sort domain of Some sort -> total-core-signature result (parameters <> [sort]); None -> None)
-    other -> case total-core-value-sort ty of Some sort -> Some (parameters, sort); None -> None
+  -- The sorts of a curried signature, in written order.
+  --
+  -- The accumulator is REVERSED and flipped once at the result arm. Appending
+  -- a singleton per arrow is an append of a growing list, so arity `a` cost
+  -- `a^2/2` conses; a cons per arrow and one `reverse` is `a`. The list handed
+  -- back is the same list in the same order, which is what the caller's
+  -- `total-core-parameters` and the emitted `parameters` row observe.
+  total-core-signature :: UType -> Option (List String, String)
+  total-core-signature ty = total-core-signature-into Nil ty
+  total-core-signature-into :: List String -> UType -> Option (List String, String)
+  total-core-signature-into backwards ty = case ty of
+    UFun domain result -> case total-core-sort domain of Some sort -> total-core-signature-into (Cons sort backwards) result; None -> None
+    UFunEff domain (URow UEnd) result -> case total-core-sort domain of Some sort -> total-core-signature-into (Cons sort backwards) result; None -> None
+    UPi id name domain (URow UEnd) result -> if pi-dependent ty then None else (case total-core-sort domain of Some sort -> total-core-signature-into (Cons sort backwards) result; None -> None)
+    other -> case total-core-value-sort ty of Some sort -> Some (reverse backwards, sort); None -> None
+  -- Whether an identity is already bound in the accumulator. The accumulator
+  -- is reversed, and this question is about membership, so the order the scan
+  -- walks is irrelevant: it is the same test the slot-indexed lookup made
+  -- before the accumulator was reversed.
+  total-core-scope-bound :: Nat -> List (Option Nat, String) -> Bool
+  total-core-scope-bound id scope = case scope of
+    Nil -> False
+    Cons (Some key, sort) rest -> id == key || total-core-scope-bound id rest
+    Cons (None, sort) rest -> total-core-scope-bound id rest
   total-core-local :: Nat -> List (Option Nat, String) -> Nat -> Option (Nat, String)
   total-core-local id scope slot = case scope of
     Nil -> None
     Cons (Some key, sort) rest -> if id == key then Some (slot, sort) else total-core-local id rest (slot + 1)
     Cons (None, sort) rest -> total-core-local id rest (slot + 1)
-  total-core-parameters :: List String -> List CorePattern -> List (Option Nat, String) -> Option (List (Option Nat, String))
-  total-core-parameters sorts patterns scope = case (sorts, patterns) of
-    (Nil, Nil) -> Some scope
+  -- The lambda scope a clause's patterns bind, in written order.
+  --
+  -- Same reversal as `total-core-signature`: the accumulator is built with
+  -- `Cons` and flipped once at the terminal arm, so arity `a` costs `a` rather
+  -- than `a^2/2`. The scope is read by slot index (`total-core-local`), so the
+  -- order is observable and the flip is what preserves it.
+  total-core-parameters :: List String -> List CorePattern -> Option (List (Option Nat, String))
+  total-core-parameters sorts patterns = total-core-parameters-into Nil sorts patterns
+  total-core-parameters-into :: List (Option Nat, String) -> List String -> List CorePattern -> Option (List (Option Nat, String))
+  total-core-parameters-into backwards sorts patterns = case (sorts, patterns) of
+    (Nil, Nil) -> Some (reverse backwards)
     (Cons sort rest, Cons (CPVar sp ty id name) more) -> case total-core-sort ty of
-      Some actual -> if string-compare sort actual == 0 && (case total-core-local id scope 0 of None -> True; other -> False) then total-core-parameters rest more (scope <> [(Some id, sort)]) else None
+      Some actual -> if string-compare sort actual == 0 && not (total-core-scope-bound id backwards) then total-core-parameters-into (Cons (Some id, sort) backwards) rest more else None
       None -> None
     (Cons sort rest, Cons (CPWild sp ty) more) -> case total-core-sort ty of
-      Some actual -> if string-compare sort actual == 0 then total-core-parameters rest more (scope <> [(None, sort)]) else None
+      Some actual -> if string-compare sort actual == 0 then total-core-parameters-into (Cons (None, sort) backwards) rest more else None
       None -> None
     other -> None
   total-core-flatten :: List CorePattern -> CoreTerm -> (List CorePattern, CoreTerm)
-  total-core-flatten parameters body = case body of
-    CLambda sp ty pattern inner -> total-core-flatten (parameters <> [pattern]) inner
-    other -> (parameters, body)
+  total-core-flatten patterns body = total-core-flatten-into (reverse patterns) body
+  total-core-flatten-into :: List CorePattern -> CoreTerm -> (List CorePattern, CoreTerm)
+  total-core-flatten-into backwards body = case body of
+    CLambda sp ty pattern inner -> total-core-flatten-into (Cons pattern backwards) inner
+    other -> (reverse backwards, body)
   total-core-definition :: String -> List CoreDefinition -> Option CoreDefinition
   total-core-definition name definitions = case definitions of
     Nil -> None
@@ -3415,19 +3444,19 @@ module Bootstrap.Core where
         else if string-compare sort "Bool" == 0 && (string-compare operation "==" == 0 || string-compare operation "/=" == 0) then Some (total-core-primitive (if string-compare operation "==" == 0 then "BoolEq" else "BoolNe") [left, right]) else None
       other -> None)
     other -> None
-  total-core-expressions :: List BodyBinding -> List CoreDefinition -> List (Option Nat, String) -> List CoreTerm -> Option (List Json, List String)
-  total-core-expressions bindings definitions scope terms = case terms of
+  total-core-expressions :: List BodyBinding -> TotalCoreIndex -> List (Option Nat, String) -> List CoreTerm -> Option (List Json, List String)
+  total-core-expressions bindings index scope terms = case terms of
     Nil -> Some (Nil, Nil)
-    Cons first rest -> case (total-core-expression bindings definitions scope first, total-core-expressions bindings definitions scope rest) of
+    Cons first rest -> case (total-core-expression bindings index scope first, total-core-expressions bindings index scope rest) of
       (Some (value, calls), Some (more, others)) -> Some (Cons value more, calls <> others)
       other -> None
-  total-core-call :: List BodyBinding -> List CoreDefinition -> List (Option Nat, String) -> CoreTerm -> Option (Json, List String)
-  total-core-call bindings definitions scope term = case total-core-head term of
-    CUse sp ty name role Nil -> (case total-core-expressions bindings definitions scope (total-core-arguments term Nil) of
+  total-core-call :: List BodyBinding -> TotalCoreIndex -> List (Option Nat, String) -> CoreTerm -> Option (Json, List String)
+  total-core-call bindings index scope term = case total-core-head term of
+    CUse sp ty name role Nil -> (case total-core-expressions bindings index scope (total-core-arguments term Nil) of
       None -> None
       Some (arguments, references) -> if byte-length-function (core-type term) ty name role then
         (case arguments of [argument] -> Some (total-core-primitive "BytesLen" [argument], references); other -> None)
-        else case total-core-definition name definitions of
+        else case total-core-indexed-definition name index of
           Some definition -> if string-compare role "value" /= 0 || not (contract-equal ty (scheme-body (core-scheme definition))) then None else
             (case export-global name of
               Ok native -> Some (JObj "node" (JStr "call") (JObj "target" (JStr native) (JObj "arguments" (total-core-json-list arguments) JObjEnd)), Cons name references)
@@ -3438,78 +3467,153 @@ module Bootstrap.Core where
     CMethod sp ty name owner slot actuals [CEInstance at factory dictionary Nil (CEArgumentsEnd end)] ->
       (case selected-method-body dictionary slot bindings of
         Some binding -> if not (binding-matches (binding-name binding) "external" (mono ty) binding && method-selection-matches dictionary slot name owner actuals factory binding) then None else
-          (case total-core-expressions bindings definitions scope (total-core-arguments term Nil) of
+          (case total-core-expressions bindings index scope (total-core-arguments term Nil) of
             Some (arguments, references) -> Some (JObj "node" (JStr "call") (JObj "target" (JStr (binding-native binding)) (JObj "arguments" (total-core-json-list arguments) JObjEnd)), Cons (binding-name binding) references)
             None -> None)
         None -> None)
     other -> None
-  total-core-expression :: List BodyBinding -> List CoreDefinition -> List (Option Nat, String) -> CoreTerm -> Option (Json, List String)
-  total-core-expression bindings definitions scope term = if not (contract-equal (core-effects term) (URow UEnd)) then None else case term of
+  total-core-expression :: List BodyBinding -> TotalCoreIndex -> List (Option Nat, String) -> CoreTerm -> Option (Json, List String)
+  total-core-expression bindings index scope term = if not (contract-equal (core-effects term) (URow UEnd)) then None else case term of
     CLocal sp ty id name Nil -> (case (total-core-local id scope 0, total-core-value-sort ty) of
       (Some (slot, expected), Some actual) -> if string-compare expected actual == 0 then Some (JObj "node" (JStr "local") (JObj "slot" (JNum (nat-to-int slot)) JObjEnd), Nil) else None
       other -> None)
     CInt sp ty decimal -> (case total-core-value-sort ty of Some sort -> Some (total-core-number sort decimal, Nil); None -> None)
-    CIf sp ty condition yes no -> (case (total-core-expression bindings definitions scope condition, total-core-expression bindings definitions scope yes, total-core-expression bindings definitions scope no) of
+    CIf sp ty condition yes no -> (case (total-core-expression bindings index scope condition, total-core-expression bindings index scope yes, total-core-expression bindings index scope no) of
       (Some (test, called), Some (first, left), Some (second, right)) -> Some (JObj "node" (JStr "if") (JObj "condition" test (JObj "yes" first (JObj "no" second JObjEnd))), called <> left <> right)
       other -> None)
     CLet sp ty id name sc rhs body -> if (case (scheme-params sc, scheme-requirements sc) of (Nil, Nil) -> True; other -> False) then
-      (case (total-core-expression bindings definitions scope rhs, total-core-value-sort (scheme-body sc)) of
-        (Some (value, called), Some sort) -> (case total-core-expression bindings definitions (scope <> [(Some id, sort)]) body of
+      (case (total-core-expression bindings index scope rhs, total-core-value-sort (scheme-body sc)) of
+        (Some (value, called), Some sort) -> (case total-core-expression bindings index (scope <> [(Some id, sort)]) body of
           Some (inside, more) -> Some (JObj "node" (JStr "let") (JObj "value" value (JObj "body" inside JObjEnd)), called <> more)
           None -> None)
         other -> None) else None
-    CRefine sp ty evidence body -> total-core-expression bindings definitions scope body
-    CForget sp ty body -> total-core-expression bindings definitions scope body
+    CRefine sp ty evidence body -> total-core-expression bindings index scope body
+    CForget sp ty body -> total-core-expression bindings index scope body
     CPrimitive sp ty operation fields -> (case total-core-term-list fields of
-      Some terms -> (case total-core-expressions bindings definitions scope terms of
+      Some terms -> (case total-core-expressions bindings index scope terms of
         Some (values, references) -> (case total-core-operation operation terms values of Some value -> Some (value, references); None -> None)
         None -> None)
       None -> None)
-    CUse sp ty name role Nil -> if decision-constant True term then Some (JObj "node" (JStr "bool") (JObj "value" (JBool True) JObjEnd), Nil) else if decision-constant False term then Some (JObj "node" (JStr "bool") (JObj "value" (JBool False) JObjEnd), Nil) else total-core-call bindings definitions scope term
-    CApply sp ty f x -> total-core-call bindings definitions scope term
-    CApplyEff sp ty row f x -> total-core-call bindings definitions scope term
+    CUse sp ty name role Nil -> if decision-constant True term then Some (JObj "node" (JStr "bool") (JObj "value" (JBool True) JObjEnd), Nil) else if decision-constant False term then Some (JObj "node" (JStr "bool") (JObj "value" (JBool False) JObjEnd), Nil) else total-core-call bindings index scope term
+    CApply sp ty f x -> total-core-call bindings index scope term
+    CApplyEff sp ty row f x -> total-core-call bindings index scope term
     other -> None
   total-core-term-list :: CoreTerm -> Option (List CoreTerm)
   total-core-term-list terms = case terms of
     CArgumentsEnd sp -> Some Nil
     CArgument sp first rest -> (case total-core-term-list rest of Some more -> Some (Cons first more); None -> None)
     other -> None
-  total-core-row :: List BodyBinding -> List CoreDefinition -> CoreDefinition -> Option (Json, List String)
-  total-core-row bindings definitions definition = if not (core-definition-closed definition && core-definition-result-types definition) then None else
+  total-core-row :: List BodyBinding -> TotalCoreIndex -> CoreDefinition -> Option (Json, List String)
+  total-core-row bindings index definition = if not (core-definition-closed definition && core-definition-result-types definition) then None else
     case (scheme-params (core-scheme definition), scheme-requirements (core-scheme definition), core-givens definition, core-clauses definition) of
-      (Nil, Nil, Nil, [MkCoreClause sp patterns body]) -> (case (total-core-signature (scheme-body (core-scheme definition)) Nil, export-global (core-name definition), total-core-flatten patterns body) of
-        (Some (parameters, result), Ok native, (arguments, inner)) -> (case total-core-parameters parameters arguments Nil of
-          Some scope -> (case total-core-expression bindings definitions scope inner of
+      (Nil, Nil, Nil, [MkCoreClause sp patterns body]) -> (case (total-core-signature (scheme-body (core-scheme definition)), export-global (core-name definition), total-core-flatten patterns body) of
+        (Some (parameters, result), Ok native, (arguments, inner)) -> (case total-core-parameters parameters arguments of
+          Some scope -> (case total-core-expression bindings index scope inner of
             Some (value, references) -> Some (JObj "identity" (JStr native) (JObj "parameters" (total-core-text-list parameters) (JObj "result" (JStr result) (JObj "body" value JObjEnd))), references)
             None -> None)
           None -> None)
         other -> None)
       other -> None
-  total-core-insert :: Json -> List Json -> Option (List Json)
-  total-core-insert row rows = case rows of
-    Nil -> Some [row]
-    Cons first rest -> let order = string-compare (total-core-text (total-core-field "identity" row)) (total-core-text (total-core-field "identity" first)) in
-      if order == 0 then (if bytes-compare (canonical-bytes row) (canonical-bytes first) == 0 then Some rows else None)
-      else if order < 0 then Some (Cons row rows)
-      else (case total-core-insert row rest of Some more -> Some (Cons first more); None -> None)
-  total-core-merge :: List Json -> List Json -> Option (List Json)
-  total-core-merge first rest = case first of Nil -> Some rest; Cons row more -> (case total-core-insert row rest of Some rows -> total-core-merge more rows; None -> None)
-  total-core-gather :: List BodyBinding -> List CoreDefinition -> List String -> String -> Option (List Json)
-  total-core-gather bindings definitions visiting name = if total-core-has name visiting then None else case total-core-definition name definitions of
-    Some definition -> (case total-core-row bindings definitions definition of
-      Some (row, references) -> (case total-core-gather-list bindings definitions (Cons name visiting) references of Some more -> total-core-insert row more; None -> None)
-      None -> None)
-    None -> (case body-binding name bindings of Some binding -> total-core-merge (total-core-members (total-core-field "definitions" (total-function-document (binding-function binding)))) Nil; None -> None)
-  total-core-gather-list :: List BodyBinding -> List CoreDefinition -> List String -> List String -> Option (List Json)
-  total-core-gather-list bindings definitions visiting references = case references of
+  -- The definition list, indexed by the name a lookup asks for.
+  --
+  -- `total-core-gather` walked `definitions` linearly once per reference, so a
+  -- closure of k rows over a list of d definitions cost k*d name comparisons
+  -- before any row was built. The walk is the price of each gather, and the
+  -- gather runs once per binding, so that product was the term that survived
+  -- the sort-once change. One table per gather turns each of those walks into
+  -- a probe. The table's value is the definition, so nothing about what a
+  -- lookup answers moved; a name the list does not hold is still `None`.
+  data TotalCoreIndex where
+    MkTotalCoreIndex :: HashMap String CoreDefinition -> TotalCoreIndex
+  total-core-index :: List CoreDefinition -> TotalCoreIndex
+  total-core-index definitions = MkTotalCoreIndex (total-core-index-into definitions hash-map-empty)
+  total-core-index-into :: List CoreDefinition -> HashMap String CoreDefinition -> HashMap String CoreDefinition
+  total-core-index-into definitions table = case definitions of
+    Nil -> table
+    Cons definition rest -> total-core-index-into rest (hash-map-insert (core-name definition) definition table)
+  total-core-indexed-definition :: String -> TotalCoreIndex -> Option CoreDefinition
+  total-core-indexed-definition name index = case index of MkTotalCoreIndex table -> hash-map-lookup name table
+
+  -- The table's ordering, applied once instead of per row.
+  --
+  -- `total-core-gather` used to insert each row into a sorted `List Json`, so a
+  -- closure of k rows cost k sorted insertions into a list of up to k rows.
+  -- The gather now collects the rows in dependency order and this orders them
+  -- once, then applies the duplicate rule in one adjacency pass. Nothing
+  -- observable moved: the order is the same identity order, and a stable sort
+  -- keeps the first gathered row of an identity group first, which is the row
+  -- the sorted insertion kept. A group whose canonical bytes disagree still
+  -- refuses the table.
+  total-core-identity :: Json -> String
+  total-core-identity row = total-core-text (total-core-field "identity" row)
+  total-core-halve :: List Json -> List Json -> List Json -> (List Json, List Json)
+  total-core-halve slow fast left = case fast of
+    Nil -> (reverse left, slow)
+    Cons first rest -> case rest of
+      Nil -> (reverse left, slow)
+      Cons second more -> case slow of
+        Nil -> (reverse left, Nil)
+        Cons head tail -> total-core-halve tail more (Cons head left)
+  total-core-order-merge :: List Json -> List Json -> List Json
+  total-core-order-merge first second = case (first, second) of
+    (Nil, other) -> other
+    (other, Nil) -> other
+    (Cons a left, Cons b right) -> if string-compare (total-core-identity a) (total-core-identity b) <= 0
+      then Cons a (total-core-order-merge left second)
+      else Cons b (total-core-order-merge first right)
+  total-core-ordered :: List Json -> List Json
+  total-core-ordered rows = case rows of
+    Nil -> Nil
+    Cons first rest -> case rest of
+      Nil -> rows
+      Cons second more -> (case total-core-halve rows rows Nil of
+        (left, right) -> total-core-order-merge (total-core-ordered left) (total-core-ordered right))
+  total-core-collapse :: List Json -> Option (List Json)
+  total-core-collapse rows = case rows of
     Nil -> Some Nil
-    Cons first rest -> (case (total-core-gather bindings definitions visiting first, total-core-gather-list bindings definitions visiting rest) of
-      (Some rows, Some more) -> total-core-merge rows more
-      other -> None)
+    Cons first rest -> case rest of
+      Nil -> Some (Cons first Nil)
+      Cons second more ->
+        let order = string-compare (total-core-identity first) (total-core-identity second) in
+        if order == 0 then (if bytes-compare (canonical-bytes first) (canonical-bytes second) == 0 then total-core-collapse (Cons first more) else None)
+        else (case total-core-collapse rest of Some kept -> Some (Cons first kept); None -> None)
+  total-core-table :: List Json -> Option (List Json)
+  total-core-table rows = total-core-collapse (total-core-ordered rows)
+
+  -- The gather, accumulating the reversed table so the walk stays linear.
+  --
+  -- The rows come back reversed and are flipped once, because the duplicate
+  -- rule keeps the FIRST gathered row of an identity group: reversing the
+  -- accumulator before the stable sort is what makes "first gathered" mean
+  -- what it meant when each row was inserted in turn.
+  total-core-gather :: List BodyBinding -> TotalCoreIndex -> String -> Option (List Json)
+  total-core-gather bindings index name = case total-core-gather-into bindings index Nil Nil name of
+    Some backwards -> Some (reverse backwards)
+    None -> None
+  total-core-gather-into :: List BodyBinding -> TotalCoreIndex -> List String -> List Json -> String -> Option (List Json)
+  total-core-gather-into bindings index visiting tail name = if total-core-has name visiting then None else case total-core-indexed-definition name index of
+    Some definition -> (case total-core-row bindings index definition of
+      Some (row, references) -> (case total-core-gather-list-into bindings index (Cons name visiting) tail references of
+        Some rows -> Some (Cons row rows)
+        None -> None)
+      None -> None)
+    None -> (case body-binding name bindings of Some binding -> Some (total-core-document-into (total-core-members (total-core-field "definitions" (total-function-document (binding-function binding)))) tail); None -> None)
+  total-core-document-into :: List Json -> List Json -> List Json
+  total-core-document-into rows tail = case rows of
+    Nil -> tail
+    Cons first rest -> total-core-document-into rest (Cons first tail)
+  total-core-gather-list-into :: List BodyBinding -> TotalCoreIndex -> List String -> List Json -> List String -> Option (List Json)
+  total-core-gather-list-into bindings index visiting tail references = case references of
+    Nil -> Some tail
+    Cons first rest -> (case total-core-gather-into bindings index visiting tail first of
+      Some rows -> total-core-gather-list-into bindings index visiting rows rest
+      None -> None)
   core-total-function :: List BodyBinding -> List CoreDefinition -> String -> Option TotalFunction
   core-total-function bindings definitions native = case total-core-native-definition native definitions of
-    Some definition -> (case total-core-gather bindings definitions Nil (core-name definition) of
-      Some rows -> (case check-total-graph (JObj "version" (JNum 1) (JObj "definitions" (total-core-json-list rows) JObjEnd)) of Some graph -> total-function graph native; None -> None)
+    Some definition -> (case total-core-gather bindings (total-core-index definitions) (core-name definition) of
+      Some rows -> (case total-core-table rows of
+        Some ordered -> (case check-total-graph (JObj "version" (JNum 1) (JObj "definitions" (total-core-json-list ordered) JObjEnd)) of Some graph -> total-function graph native; None -> None)
+        None -> None)
       None -> None)
     None -> None
 
