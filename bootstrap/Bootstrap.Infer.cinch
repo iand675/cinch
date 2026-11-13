@@ -2728,10 +2728,19 @@ module Bootstrap.Infer where
     Nil -> Nil
     Cons (MkProofBinding origin None fact) rest -> Cons fact (proof-facts rest)
     Cons other rest -> proof-facts rest
+  -- Only two entry shapes carry a validity flag the write list can clear.
+  -- An environment holding neither comes back unchanged, so the walk that
+  -- would decide it is skipped instead of run and thrown away.
+  proof-env-invalidatable :: List CheckedBinding -> Bool
+  proof-env-invalidatable env = case env of
+    Nil -> False
+    Cons (MkProofBinding origin None fact) rest -> True
+    Cons (MkErasedBinding name predicate id origin None) rest -> True
+    Cons other rest -> proof-env-invalidatable rest
   proof-env-after-writes :: List CheckedBinding -> List (Span, Option UType) -> Store -> List CheckedBinding
   proof-env-after-writes env writes st = case writes of
     Nil -> env
-    other -> invalidate-proof-bindings (proof-context env st) env writes st
+    other -> if proof-env-invalidatable env then invalidate-proof-bindings (proof-context env st) env writes st else env
   invalidate-proof-bindings :: ProofScope -> List CheckedBinding -> List (Span, Option UType) -> Store -> List CheckedBinding
   invalidate-proof-bindings gamma env writes st = case env of
     Nil -> Nil
@@ -2741,8 +2750,15 @@ module Bootstrap.Infer where
         MkErasedBinding name predicate id origin None ->
           Cons (MkErasedBinding name predicate id origin (mutable-predicate-write writes (normalize st predicate))) next
         other -> Cons entry next)
+  -- The write list is read only to clear those two flags, so an
+  -- environment holding neither is returned as it stands and the
+  -- substitution walk that would compute the writes is not run at all.
+  -- This is an identity, not an approximation: `invalidate-proof-bindings`
+  -- rebuilds such an environment entry for entry.
   proof-env-after-term :: List CheckedBinding -> CoreTerm -> Store -> List CheckedBinding
-  proof-env-after-term env term st = proof-env-after-writes env (core-mutable-writes (map-term-types (normalize st) term)) st
+  proof-env-after-term env term st = if proof-env-invalidatable env then
+    proof-env-after-writes env (core-mutable-writes (map-term-types (normalize st) term)) st
+    else env
   proof-branch :: Span -> List CheckedBinding -> CoreTerm -> Bool -> Store -> List CheckedBinding
   proof-branch origin env condition positive st = let term = map-term-types (normalize st) condition in
     let introduced = (case scoped-core-branch (proof-context env st) (proof-facts env) term positive of
@@ -7117,7 +7133,7 @@ module Bootstrap.Infer where
   discharge-checked-call sp env term st = let ty = normalize st (core-type term) in
     case ty of
       URequire predicates result -> case store-errors st of
-        Nil -> let evaluated = proof-env-after-writes env (call-operand-writes (map-term-types (normalize st) term)) st in
+        Nil -> let evaluated = if proof-env-invalidatable env then proof-env-after-writes env (call-operand-writes (map-term-types (normalize st) term)) st else env in
           let gamma = proof-context evaluated st in
           (case scoped-prove-predicates gamma (proof-facts evaluated) ty of
             Some evidence -> (CDischarge sp (required-body ty) evidence term, st)
