@@ -1,12 +1,24 @@
 # Layouts, representation and specialization
 
-Status: design direction for review, 2026-10-29. It records the
-conclusions of the reclamation design discussion with the user and the
-choices still open. Companion to `design/reclamation.md` (Perceus reference
-counting, which needs every word's representation) and to
-`design/verified-primitives.md` (the proof chain that specialization's
-justification rests on). Normative text lands in the specifications when a
-slice implements it; until then this note is the reference.
+Status: design direction for review, 2026-10-29, with Part II added
+2026-11-13. It records the conclusions of the reclamation design discussion
+with the user and the choices still open. Companion to
+`design/reclamation.md` (Perceus reference counting, which needs every
+word's representation), to `design/verified-primitives.md` (the proof chain
+that specialization's justification rests on), and to
+`design/narrow-value-representation.md` (the boundary half of the same
+change; Part II assumes it and says what it adds).
+
+Two parts. Part I (sections 1 to 10) is the class model: what a word is,
+which words are counted, and how a polymorphic unit is copied per reached
+class vector. Part II (sections 11 to 16) is lazy layout specialisation:
+what a *slot width* is, what a specialised layout is called, and how two
+independently compiled modules agree on it. Part II is not implemented;
+its section 16 gives the staged plan and the measurement that gates each
+stage.
+
+Normative text lands in the specifications when a slice implements it;
+until then this note is the reference.
 
 ## 1 Requirements (stated by the user)
 
@@ -336,6 +348,29 @@ index bounds by linear arithmetic, glue by congruence closure).
 - Packed containers (a contiguous `F64` array) are an array type with its own
   layout, not a specialization of `List`; whether the base library grows one
   is separate.
+
+Part II's decisions, 2026-11-13 (section 12 unless named otherwise):
+
+- Taken: a specialised layout's identity is a canonical descriptor string
+  (`List@unboxed_4_bytes`, `List@boxed_obj`), derived by one total function
+  of (type, target), spelled as a symbol suffix and published as a
+  `.cinchif` slot row. Not a hash, not a positional index (12.7).
+- Taken: the slot width is decided once, by that function, and every
+  consumer reads its answer (12.6). This is the rule the narrow-value
+  miscompile argues for.
+- Taken: a width is not a `Class`. `Class` stays the reclamation axis, so
+  Part I section 2's `3^k` finiteness argument stays true (14.1).
+- Taken: narrow slots pack into words, and the pointer map describes the
+  word (14.4). A pointer always starts a word. This is what keeps the map
+  and the 64-bit header unchanged.
+- Taken: `runtime_abi` moves once for the whole mechanism, not per stage
+  (14.3).
+- Open: whether a multi-constructor narrow type (`Option U8`) gets a packed
+  tag (stage 4), pending its measurement.
+- Open: whether the interface slot rows can live in the always-read tier,
+  estimated at 1.2% of the base interface set and not yet measured (15.4).
+- Open: the spelling of the suffix's grammar if a future layout needs more
+  than a width and a boxed marker (12.2 fixes the three prefixes).
 
 
 ## 10 Context for later agents
