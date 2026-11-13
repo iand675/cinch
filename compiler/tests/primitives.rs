@@ -830,6 +830,21 @@ module Main where
     else 3
 "#,
         ),
+        // The extreme negative of each signed width against its extreme
+        // positive, which is the sharpest form of the same bug: with the
+        // sign lost, `-128` becomes `128` and the first comparison turns
+        // false, so the program answers `3` instead of `0`.
+        (
+            "the extreme bounds of every signed width",
+            r#"
+module Main where
+  main :: Int
+  main =
+    if (-128 :: I8) < (127 :: I8) && (-32768 :: I16) < (32767 :: I16) && (-2147483648 :: I32) < (2147483647 :: I32) then
+      if (127 :: I8) < (-128 :: I8) then 9 else 0
+    else 3
+"#,
+        ),
     ] {
         run_ok(name, src, 0);
     }
