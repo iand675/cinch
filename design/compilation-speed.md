@@ -1186,6 +1186,128 @@ and `core-source-function`; it is not a local edit and was left out of this
 round rather than half-done. `modules` inherits the same term and would
 fall with it.
 
+### 2.20 `typevars`: a guarded write walk, and what the axis still is (2026-11-13)
+
+Section 2.19 closed with a hypothesis about `typevars`: that
+`specialized-name` (`Bootstrap.RuntimeIr.cinch:352`) spells one digit per
+type parameter into the symbol, so a signature quantifying n variables
+mangles to a name O(n) long and rebuilt by `cat` per occurrence. The
+measurements below refute it; what the axis actually is, and the one change
+that removes most of it, follow.
+
+**Established: the naming scheme is not quadratic in occurrences.** The
+specialization appears in exactly two places in the emitted module, and
+there is one distinct name:
+
+| n | mangled name length | occurrences | distinct names |
+|---|---|---|---|
+| 64 | 70 | 2 | 1 |
+| 128 | 134 | 2 | 1 |
+| 256 | 262 | 2 | 1 |
+| 512 | 518 | 2 | 1 |
+
+`demand-seen`/`demand-key` (`RuntimeIr.cinch:415`, `:417`) key the pending
+`Demand` list on `specialized-name name classes`, so a repeated request for
+one specialization is dropped before its worker is emitted. Two occurrences
+of one O(n) name is O(n) of string work, and the axis grows by hundreds of
+millions of blocks. Whatever the axis is, "an O(n) name built O(n) times"
+is not it: the name is built twice.
+
+**Established: the cost is per call, not per program.** Splitting the same
+total arity into two calls of n/2 nearly halves the run at n=512 (515.1M to
+279.6M, same binary), so a single application spine of arity a costs a
+quadratic function of a. `sample` over the n=512 point puts 97.5% of the
+run under `Bootstrap.Core.map-term-types`/`map-types`, reached through
+`Bootstrap.Infer.proof-env-after-term` from `apply-open-argument`; no
+`Bootstrap.RuntimeIr` frame appears in the sample at all.
+
+**Established: the growth is in the checker, not the emitter.** On a clean
+directory per point, `--check` alone already shows the curve (32.9M at n=64
+to 479.7M at n=512, against 68.0M to 515.1M for `--emit-ir`). Subtracting
+the two is not a valid measure of the emitter's cost, because the modes do
+not do the same interface work, but it does bound it: the emitter can
+account for at most 35M of a 447M increase, and no `Bootstrap.RuntimeIr`
+frame appears in a sample of the n=512 point. The naming scheme is
+therefore not the site, and the profile's own answer is the frontend
+application spine.
+
+**The fix that landed.** `apply-spine` folds left over the arguments, and
+each step re-derives the write list of the whole accumulated term. That
+list is consumed in exactly one place, `proof-env-after-writes`
+(`Infer.cinch:2740`), which only clears the validity flag of
+`MkProofBinding` and `MkErasedBinding` entries. An environment holding
+neither is rebuilt entry for entry and returned unchanged, so
+
+```
+proof-env-invalidatable env = case env of
+  Nil -> False
+  Cons (MkProofBinding origin None fact) rest -> True
+  Cons (MkErasedBinding name predicate id origin None) rest -> True
+  Cons other rest -> proof-env-invalidatable rest
+```
+
+lets `proof-env-after-term` and the `discharge-checked-call` operand walk
+return the environment without running the substitution map. This is an
+identity, not an approximation, so it is name-stable by construction.
+
+**Measured, with the sweep and its control.**
+
+| axis | n | blocks before | blocks after | `k` before | `k` after | local after |
+|---|---|---|---|---|---|---|
+| typevars | 64/128/256/512 | 68.0M/75.8M/128.6M/515.1M | 65.6M/69.3M/91.3M/237.0M | 2.83 | **2.71** | 0.08, 0.40, 1.38 |
+
+The control reproduced at 6.09 blocks/byte, exponent 0.988. The largest
+point is 54% cheaper and the local exponent between 256 and 512 falls from
+1.83 to 1.38, so the term the guard removes was the dominant one, but the
+axis is still superlinear and `k` moves little because the floor dominates
+the two small points.
+
+**Byte identity, verified.** `compiler.ll` and `cinch` are byte equal
+between stage 2 and stage 3, all 51 `.cinchif` files are byte equal, and the
+emitted IR for the axis is byte identical to the pre-fix binary at n=64,
+128, 256 and 512. No golden moved.
+
+**Parity.** The full 234-target suite was run uncapped (237 targets
+scored, three extra from the runner's own list): 143 fully passing, 942
+tests passing, 641 failing, against the baseline's 145/928/631. Fourteen
+targets differ from `bootstrap/stage3-suite-baseline.json`, and every one
+was re-run on an untouched sibling tree (`dasl-inplace-reverse`, whose
+`Infer.cinch` predates this change):
+
+| target | baseline | this tree | pristine tree |
+|---|---|---|---|
+| `bootstrap_parse` | 2/0 | 1/1 | 1/1 |
+| `bootstrap_pipeline` | 2/0 | 1/1 | 1/1 |
+| `bootstrap_runtime_emit` | 1/0 | 0/1 | 0/1 |
+| `concurrency` | 21/3 | 20/4 | 20/4 |
+| `conditional_surface` | 1/20 | 2/19 | 2/19 |
+| `llvm_contract` | 12/2 | 16/2 | 16/2 |
+| `native_closure_checks` | 1/0 | 0/1 | 0/1 |
+| `primitives` | 28/9 | 29/9 | 28/9 |
+| `reclamation` | 15/4 | 0/19 | 0/19 |
+| `reclamation_tasks` | 3/0 | 0/3 | 0/3 |
+| `refinements` | 11/16 | 9/18 | 9/18 |
+| `syntax_index_evidence` | 2/12 | 1/13 | 1/13 |
+| `syntax_objects` | 26/52 | 29/49 | 29/49 |
+| `temporal` | 1/19 | 14/7 | 14/7 |
+
+Thirteen reproduce exactly on the untouched tree, so they are drift between
+the baseline and the current tree rather than anything this change did.
+`primitives` is one test better here than on the untouched tree, which is
+also not attributable to a change that only skips a provably empty walk. The
+baseline is stale relative to `main`, not a regression list; the meaningful
+comparison is this tree against an untouched tree of the same commit, and on
+that comparison the suite is unchanged.
+
+**What remains.** Two candidates, both measured as present and neither
+fixed here: the certificate refresh's per-`CDischarge` operand walk
+(`Bootstrap.Core.refresh-certificates`, which recomputes
+`call-operand-writes` at every level of a left-nested spine) and the
+interface exporter's `result-in`/`value-quantifiers`
+(`Bootstrap.ExportType`), which the post-fix profile ranks first. Both need
+their own byte-identity argument; the exporter one is delicate because it
+writes the published contract text.
+
 ## 3. The query graph (rustc, Salsa, Shake)
 
 The single largest structural gap. Today a build rechecks whatever the

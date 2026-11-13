@@ -25,7 +25,7 @@ def loglog(xs, ys):
     `residuals` are in log space: a point at +0.1 is `e**0.1` times the fitted
     curve, about 10% high. Fewer than two positive points cannot be fitted.
     """
-    points = [(x, y) for x, y in zip(xs, ys) if x > 0 and y > 0]
+    points = [(x, y) for x, y in zip(xs, ys) if y is not None and x > 0 and y > 0]
     if len(points) < 2:
         return {"exponent": None, "intercept": None, "r2": None,
                 "residuals": [], "points": len(points)}
