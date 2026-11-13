@@ -3,12 +3,15 @@
 -- creation and decision evidence here, before checker elaboration.
 module Bootstrap.Builtin where
 
-  import Bootstrap.Ast (Decl, DExternal, DData, MkTypeParam, TName, TInfix, TApp, TArg, TArgsEnd, TFun, TBound, TBoundsEnd)
+  import Bootstrap.Ast (Decl, TypeExpr, Program, MkProgram, MkModule, DExternal, DData, DClass, DMethod, DSig, MkTypeParam, TName, TInfix, TApp, TArg, TArgsEnd, TFun, TBound, TBoundsEnd, TUnmodeled, decl-spine, decls-of)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
+  import Bootstrap.Parse (parse-program, parse-scheme)
   import Data.Json
   import Text.Lex (Span)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
 
   export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, intrinsic-contract, array-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation, platform-intrinsic, total-primitive
+  export parallelism-declarations, parallelism-name, parallelism-method-slot, par-lowering-name
 
   nat-arithmetic-extern :: String -> Option String
   nat-arithmetic-extern symbol =
@@ -118,6 +121,15 @@ module Bootstrap.Builtin where
     [ ("newIO", "b.newIO"), ("Runtime.newIO", "b.newIO")
     , ("withScope", "b.withScope"), ("spawn", "b.spawn"), ("joinAllOrCancel", "b.joinAllOrCancel")
     , ("parBoth", "b.parBoth"), ("parTabulate", "b.parTabulate"), ("parMap", "b.parMap")
+    -- The parallel interface's visible surface
+    -- (`design/parallelism-as-a-value.md`). The class is declared after the
+    -- resolver's visibility pass, so these entries are what make the names
+    -- visible; `register-source-methods` then replaces each with the real
+    -- `MkMethodBinding` from the class contract, which is what the safety
+    -- rules key on.
+    , ("Parallelism", "b.Parallelism")
+    , ("both", "b.both"), ("tabulate", "b.tabulate")
+    , ("mapArray", "b.mapArray"), ("workers", "b.workers")
     , ("Scope", "b.Scope"), ("Task", "b.Task")
     , ("ioWrite", "b.ioWrite"), ("ioRead", "b.ioRead")
     , ("ioSleep", "b.ioSleep"), ("pollCancel", "b.pollCancel")
@@ -176,11 +188,123 @@ module Bootstrap.Builtin where
   -- gives each branch its own row variable, because rows unify by equality
   -- and one shared variable would refuse a total branch beside a diverging
   -- one, which the defining equation `(f (), g ())` admits.
+  --
+  -- `design/parallelism-as-a-value.md`: these three are no longer a
+  -- surface. They are the *lowering* of the host `Parallelism` instance's
+  -- methods, and the only declarations that name a `cinch_par_*` entry.
+  -- The interface a program calls is `parallelism-declarations` below.
   par-rule :: String -> String -> String -> Decl
   par-rule name operation scheme = DExternal (Span 0 0 1 1) (string-concat "b." name) "builtin-syntax" None
     (JObj "name" (JStr name) (JObj "operation" (JStr operation) (JObj "arity" (JNum 2)
       (JObj "runtime_abi" (JNum runtime-abi-int) (JObj "first_class" (JBool False)
         (JObj "scheme" (JStr scheme) JObjEnd))))))
+
+  -- The parallel interface a program calls
+  -- (`design/parallelism-as-a-value.md` sections 1 and 2).
+  --
+  -- `signature Parallelism where ...` with four methods, plus the implicit
+  -- `HostParallelism` instance whose methods lower to `cinch_par_both`,
+  -- `cinch_par_tabulate`, `cinch_par_map_array` and
+  -- `cinch_par_set_workers`. Both are kernel declarations rather than a
+  -- prelude module: the embedded base library is pinned by revision and
+  -- source hash, so a new `compiler/prelude` module would need a lock bump
+  -- this change must not take.
+  --
+  -- The method schemes are the builtins' own. `both` keeps one row variable
+  -- per branch for the reason above; `tabulate` and `mapArray` state one
+  -- row each, so a callback's effects flow out of the call.
+  -- The class identity in the resolved form: the kernel owns it, and a
+  -- reference (`Parallelism`) resolves through `builtin-bindings` to this
+  -- symbol before the checker sees it. Injecting the declaration under the
+  -- same symbol is what makes `source-class-kinds` register a kind the
+  -- instance target can match.
+  parallelism-name :: String
+  parallelism-name = "b.Parallelism"
+  -- `both` states ONE row variable, shared by the two branches and the
+  -- result. That is a measured requirement, not a preference: the builtin's
+  -- two-variable scheme works only because kernel syntax has a bespoke
+  -- rule, and as a method it fails with `cannot join distinct row variables
+  -- e1 and e2` at the call site (2026-11-13). The one-variable form still
+  -- admits the case the two-variable scheme existed for, a diverging branch
+  -- beside a total one, because `Diverge` is admitted by the row rule and
+  -- the caller's own row carries it; measured with the suite's own
+  -- `spin`/`nat-to-int 1` program.
+  parallelism-methods :: List (String, String)
+  parallelism-methods =
+    [ ("both", "forall (a :: Type) (b :: Type) (e :: Row). (Unit ->{|e} a) -> (Unit ->{|e} b) ->{|e} (a, b)")
+    , ("tabulate", "forall (a :: Type) (e :: Row). Nat -> (Nat ->{|e} a) ->{|e} Array a")
+    , ("mapArray", "forall (a :: Type) (b :: Type) (e :: Row). (a ->{|e} b) -> Array a ->{|e} Array b")
+    , ("workers", "Nat -> Unit")
+    ]
+
+  -- The method identity the safety rules key on, before instance selection:
+  -- the declaring signature and the method's slot in it. A like-named
+  -- instance cannot forge this pair, because an instance's target names a
+  -- checked signature and the slots are numbered from that signature's own
+  -- member list (`design/parallelism-as-a-value.md` section 3).
+  parallelism-method-slot :: String -> Option Nat
+  parallelism-method-slot name =
+    if string-compare name "both" == 0 then Some 0
+    else if string-compare name "tabulate" == 0 then Some 1
+    else if string-compare name "mapArray" == 0 then Some 2
+    else if string-compare name "workers" == 0 then Some 3
+    else None
+
+  -- The host instance's lowering, by method slot: which primitive operation
+  -- the instance's method body performs. This is the whole of the
+  -- runtime-ABI coupling now (`design/parallelism-as-a-value.md` sections 1
+  -- and 9): the surface names a method, and only this table names a
+  -- `cinch_par_*` entry. `workers` has no operation: its lowering is a bare
+  -- call, so it maps to the empty string.
+  par-lowering-name :: Nat -> String
+  par-lowering-name slot = if slot == 0 then "par-both"
+    else if slot == 1 then "par-tabulate"
+    else if slot == 2 then "par-map"
+    else ""
+
+  -- The signature and its methods, parsed from source text by the same
+  -- reader a user's module uses. This is deliberate: a class member's
+  -- contract must be the AST the class path expects (`DSig` with the
+  -- parser's own `TForall`/`TQuantifier` shape), and building that AST by
+  -- hand from `parse-scheme` output produced a contract whose leading
+  -- arrows were lost at registration. Parsing a whole `signature` block
+  -- keeps the two paths identical by construction.
+  parallelism-declarations :: List Decl
+  parallelism-declarations = case parse-program "parallelism" parallelism-source of
+    Parsed (MkProgram sp modules) Nil -> case modules of
+      Cons (MkModule ms name decls) Nil -> resolved-class (decls-of decls)
+      other -> Nil
+    other -> Nil
+
+  -- The checker's class path accepts only resolved members
+  -- (`source signature member needs checked method elaboration` otherwise),
+  -- and a source module gets them from `rename-class-members` in the
+  -- resolver. The kernel class is not in a source module, so the same
+  -- conversion happens here: each parsed `DSig` becomes a `DMethod` carrying
+  -- the kernel's own symbol and the parser's own contract, verbatim.
+  resolved-class :: List Decl -> List Decl
+  resolved-class ds = case ds of
+    Nil -> Nil
+    Cons (DClass sp name ps members) rest ->
+      Cons (DClass sp parallelism-name ps (decl-spine sp (resolved-members (decls-of members)))) (resolved-class rest)
+    Cons other rest -> Cons other (resolved-class rest)
+  parallelism-method-symbol :: String -> String
+  parallelism-method-symbol name = string-concat "b." name
+
+  resolved-members :: List Decl -> List Decl
+  resolved-members ds = case ds of
+    Nil -> Nil
+    Cons (DSig sp name ty) rest -> Cons (DMethod sp name (parallelism-method-symbol name) ty) (resolved-members rest)
+    Cons other rest -> Cons other (resolved-members rest)
+
+  parallelism-source :: Bytes
+  parallelism-source = string-to-bytes (string-concat-all [
+    "module Parallelism where\n",
+    "  signature Parallelism where\n",
+    "    both :: forall (a :: Type) (b :: Type) (e :: Row). (Unit ->{|e} a) -> (Unit ->{|e} b) ->{|e} (a, b)\n",
+    "    tabulate :: forall (a :: Type) (e :: Row). Nat -> (Nat ->{|e} a) ->{|e} Array a\n",
+    "    mapArray :: forall (a :: Type) (b :: Type) (e :: Row). (a ->{|e} b) -> Array a ->{|e} Array b\n",
+    "    workers :: Nat -> Unit\n"])
 
   -- The checked data path retains the index and erases the bound field.
   finite-index-declaration :: Decl

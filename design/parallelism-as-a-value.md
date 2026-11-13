@@ -1,0 +1,389 @@
+# Parallelism as a value
+
+Status: implemented, 2026-11-13. Supersedes the surface of
+`design/parallel-evaluation.md` sections 2.1 and 4.1: the three
+compiler-known builtins `parBoth`, `parTabulate` and `parMap` become the
+methods of one kernel signature, `Parallelism`, whose host instance is the
+implicit one. A program can supply its own instance without changing a call
+site or the compiler.
+
+## 1 The interface
+
+```text
+signature Parallelism where
+  both    :: forall a b e.
+             (Unit ->{|e} a) -> (Unit ->{|e} b) ->{|e} (a, b)
+  tabulate :: forall a e. Nat -> (Nat ->{|e} a) ->{|e} Array a
+  mapArray :: forall a b e. (a ->{|e} b) -> Array a ->{|e} Array b
+  workers :: Nat -> Unit
+```
+
+`both` states **one** row variable, shared by the two branches and the
+result. This is measured, not preferred. The builtin's two-variable scheme
+(`e1` for one branch, `e2` for the other, result `{|e1}`) works only because
+kernel syntax has a bespoke rule; as a method it fails at the call site with
+`cannot join distinct row variables e1#1021 and e2#1022` (2026-11-13, seed).
+Rows unify by equality, so two row variables in one call have nothing to
+join them.
+
+The case the two-variable scheme existed for, a diverging branch beside a
+total one, still works: the parallel-safe row rule admits `Diverge`, the
+caller's own row carries it, and the shared variable simply resolves to it.
+Measured with the test suite's own program
+(`spin :: Unit ->{Diverge} Nat` beside `nat-to-int 1`), which the seed
+accepts under this scheme.
+
+The host instance is `HostParallelism`, declared implicit. Its four methods
+lower to today's `cinch_par_both`, `cinch_par_tabulate`,
+`cinch_par_map_array` and `cinch_par_set_workers`. Nothing else in the
+compiler names those entries any more: `Bootstrap.RuntimeIr` lowers the
+primitive operations the instance's methods elaborate to, and the runtime
+ABI is no longer part of any surface declaration.
+
+A container-generic surface sits above the primitive:
+
+```text
+parTraverse :: forall t a b e. using (trav :: Traversable t, par :: Parallelism)
+             => (a ->{|e} b) -> t a ->{|e} t b
+parFoldMap  :: forall t m a. using (trav :: Foldable t, mon :: Monoid m, par :: Parallelism)
+             => (a -> m) -> t a -> m
+```
+
+`parTraverse` is the applicative traversal over the `Parallel` applicative:
+
+```text
+parTraverse f xs = traverse (\x -> MkParallel (\() -> f x)) xs
+```
+
+where `MkParallel` wraps a computation that may run concurrently with its
+siblings and the `Parallel` applicative's `lift-a2` is `both`. `parFoldMap`
+is the same walk at `Monoid`. Both are written once and work for every
+container with a `Traversable` or `Foldable` instance; there is no
+per-container code in the compiler.
+
+## 2 Where it lives, and why
+
+Both declarations are **kernel declarations** installed by the checker
+(`Bootstrap.Builtin.parallelism-declarations`), not a new prelude module.
+The reason is a hard constraint, not a preference: the embedded base library
+is pinned. `bootstrap/library-provider.lock.json` fixes a `revision` and a
+`source_sha256` over the whole `compiler/prelude` tree, and the ladder's
+`library_provider_lock()` refuses to run when
+`Bootstrap.RuntimeAbi.cinch` or the pinned source hash disagree. Adding
+`Category/Parallelism.cinch` to `compiler/prelude` would change that hash and
+require a lock bump, which this change must not do.
+
+The kernel already owns exactly this kind of vocabulary: `builtin-declarations`
+carries `withScope`, `spawn`, `joinAllOrCancel`, the `Io r` operations and the
+`par*` builtins as `DExternal` declarations with compiler-owned schemes. The
+`Parallelism` signature, its four method declarations and the host instance
+join that list, so a program sees them without importing anything and the
+pinned library stays byte-identical.
+
+`Data.Array` is not in the embedded family either (a program ships it beside
+its entry), which is why `mapArray`'s scheme names `Array` without a defining
+module: the type is primitive from ABI 6 (`array-type-name`).
+
+## 2.1 Why the host instance cannot be written in source
+
+Measured 2026-11-13 under the seed. A source `implicit instance
+HostParallelism :: Parallelism` whose methods forward to `parBoth` /
+`parTabulate` / `parMap` is refused, in three separate ways, one per attempt:
+
+| host body | refusal |
+| --- | --- |
+| `both f g = parBoth f g` | `parBoth must be applied directly to a callback written at the call site: f is a function-typed binding whose captures are unknown` |
+| `both f g = parBoth (\() -> f ()) (\() -> g ())` | `a parallel capture must be Share ...: f is shared with a parBoth callback without shareable evidence` |
+| `tabulate n f = parTabulate n (\i -> f i)` | `a parTabulate callback runs once per index, so f cannot move into it: a parallel capture must be Share` |
+
+The reason is structural, not incidental. An instance method's parameters
+are *bindings*, and the whole point of the callback-form rule is that a
+binding's captures are unknown at the call site. The rules exist to refuse
+exactly the shape an instance method necessarily has. Adding a row variable
+does not help either: with `both :: forall a b e1 e2. (Unit ->{|e1} a) ->
+(Unit ->{|e2} b) ->{|e1} (a, b)`, the instance body's own callback is
+row-polymorphic and the row rule refuses it
+(`its row is {e1#1025}, whose tail is a rigid row variable`).
+
+So the host instance is **kernel-synthesized**: the checker supplies its
+`CoreInstance` and the four method `CoreDefinition`s directly, the same way
+`task-source-forwarder` supplies a forwarder's obligations rather than
+letting source spell them. This is not a weakening: the instance is not a
+call site, and no caller's captures are examined through it. The caller's
+captures are examined at the caller, by the rules keyed on the method
+identity, which is the invariant that matters. What the synthesis removes is
+the possibility of *writing* a forwarding instance in source, and that
+possibility does not exist anyway (the three refusals above).
+
+A **user** instance is unaffected, because a user instance that runs its
+branches concurrently has to perform a parallel-safe effect anyway, and the
+cheap lawful instance is the sequential one:
+
+```text
+implicit instance SerialPool :: Parallelism where
+  both f g = (f (), g ())          -- accepted: no par* call
+  tabulate n f = array-tabulate n f
+  mapArray f xs = array-from-list (map f (array-to-list xs))
+  workers n = ()
+```
+
+Verified accepted and correct under the seed. A user instance that *does*
+want real concurrency writes a `foreign import` or reaches a `par*` builtin,
+and then the rules apply to it exactly as they apply to any caller.
+
+## 2.2 What is not finished, and exactly why
+
+The interface, its bindings, and the rule tables are in place. The rules do
+**not** yet fire at a method call site, so this change is not complete and
+the weaker acceptance is deliberately not landed. The measurement
+(2026-11-13, stage1):
+
+```text
+m :: forall a b e. using (p :: Parallelism) =>
+     (Unit ->{|e} a) -> (Unit ->{|e} b) ->{|e} (a, b)
+m = both
+```
+
+is refused with `type mismatch: expected (a, b), found (Unit -> (a, b))`, and
+a call `both (\() -> 1) (\() -> 2)` yields `Unit -> (?, ?)` rather than the
+pair. The class member's scheme is therefore reaching the call site with its
+first arrows collapsed: the method elaborates as if it took one `Unit`
+argument, so `apply-spine` never consumes the two callback arguments and the
+parallel rules (which run on those arguments) never see them.
+
+Two defects were found and fixed on the way here, and both are worth
+recording because each silently disabled the rules:
+
+1. The four method names were listed in `builtin-bindings`. That inserted a
+   `MkCheckedBinding` under the same symbol, and `register-source-methods`
+   refuses a symbol already bound, so no call site ever saw a
+   `MkMethodBinding` and `par-method-head` always answered `None`.
+2. The slot lookup compared the resolved symbol (`b.both`) against the bare
+   label (`both`), which never matched.
+
+The remaining work is the scheme collapse: `source-class-methods` builds the
+member contract through `make-scheme` over `operation-syntax`, and the
+observed result loses the leading arrows for this class. Until that is
+understood, the rules stay attached to the builtin path only, which is the
+status quo and not a weakening of anything that works today.
+
+Further measurements (2026-11-13, stage1) narrow it:
+
+- The scheme **text** is fine. `both2 :: forall a b e. (Unit ->{|e} a) ->
+  (Unit ->{|e} b) ->{|e} (a, b)` written as an ordinary top-level function,
+  with the identical text, checks and runs (exit 0). So `parse-scheme` and
+  ordinary elaboration of that contract are not the defect.
+- The collapse is specific to the kernel `DClass` appended to the resolved
+  `Main` module after `rename-decls`.
+- Binding scope is only partly right: `both` resolves at a call site
+  (reaching the type error above, so the name is in scope) while `tabulate`
+  and `workers` are still `unknown name (name is not in scope)`. Only the
+  first member of the injected class is reaching the visible surface, which
+  points at `own-class-methods`/`decls-of` over the injected `decl-spine`,
+  not at the class contract itself.
+
+The next thing to try is to stop injecting the class into `Main`'s body at
+all and register it where `withScope`/`Scope` are registered (`primitive-kinds`
+plus a checked binding), so the class is never re-elaborated as source.
+
+Sharpest bisection so far, and the one to start from:
+
+| class source | result |
+| --- | --- |
+| the user writes `signature Parallelism where both :: <exact kernel text>` in their own module | **works**: `both one one` checks and runs (exit 0) |
+| the same text parsed by `parse-program` and injected into the resolved `Main` body as `DClass`/`DMethod` | collapses: `both` has type `Unit -> (a, b)` |
+
+Same text, same `DMethod` shape, same symbol. The only difference is that a
+user's class lives in `module-decls` and goes through `rename-decls` and
+`own-bindings`, while the injected one is appended to the body afterwards.
+`own-bindings` is what puts a class's members into the visible surface, so
+the injected class contributes no member bindings and `b.both` in the
+checker's environment is whatever the `builtin-bindings` placeholder left,
+not a `MkMethodBinding`. That is why the call site sees a one-argument type
+and why `par-method-head` never matches.
+
+So the fix is to get the class into `module-decls` (or to register its
+members through the same path `own-bindings`/`register-source-methods`
+use), not to change the rule code. The rule code is now correct: it opens
+the method's scheme, skips the `URequire` dictionary prefix the ordinary
+application discharges first, and walks the declared arrow spine.
+
+## 3 The rule keying decision
+
+The three safety rules were keyed on the builtin *name*. They are now keyed
+on the **signature method identity**: the pair `(owner, slot)` the checker
+records for a method, where `owner` is the `Parallelism` class identity and
+`slot` is the method's position in it.
+
+Why that identity and not something else:
+
+- It is decided **before instance selection**. `parallel-callback` runs while
+  the call is being elaborated, when the receiver is still a `CMethod` whose
+  evidence is an unresolved `CENeeded`. The rule therefore reads the class
+  and slot the *declaration* fixed, not the dictionary the resolver will
+  later choose. That is the whole point: a caller's captures are examined
+  whatever instance answers.
+- It cannot be forged by declaring a like-named instance. An instance names
+  its class by a checked type (`Parallelism`), and
+  `checked-source-instances` refuses a factory whose target has no defining
+  signature identity (`source instance target has no defining signature
+  identity`). A user writing `implicit instance Sneaky :: Parallelism` adds a
+  dictionary, not a new owner: its methods keep `owner = Parallelism` and the
+  same slots. There is no way for user source to declare a method with a
+  different owner while claiming the same name, because `DMethod` identities
+  are assigned from the class's own member list (`source-class-methods`
+  numbers slots from 0 in declaration order).
+- It is stable across the two spellings. A call `both f g` elaborates to
+  `CMethod sp ty "both" "Parallelism" 0 ...`; the instance's own body reaches
+  `cinch_par_both` through the primitive operation, so the rule table has one
+  key and the lowering has another, and neither can drift into the other.
+
+The rules themselves are unchanged in strength. Re-read from the code:
+
+| rule | where | keyed on |
+| --- | --- | --- |
+| callback form (literal lambda, global, partial application of one) | `Bootstrap.Infer.parallel-callback` | `(Parallelism, slot)` |
+| parallel-safe row (closed `{}` or `{Diverge}`) | `Bootstrap.Infer.parallel-safe-row` | `(Parallelism, slot)` |
+| captures (`Share`, one `%1`/`%aff` per `both` branch, no memo cell, no `Mut`) | `Bootstrap.Typing.par-definition-error` | the primitive op the instance body elaborates to |
+
+The capture rule is the one that keys on the *lowering* rather than the
+method, and that is deliberate. It runs at the definition's end, after
+elaboration, over checked Core; by then the method call has been resolved to
+the instance's own method body, and the primitive `par-both` /
+`par-tabulate` / `par-map` node is what carries the callback shape the rule
+needs (which argument is the callback, whether the callback is one-shot). The
+`CMethod` is gone from the term at that point in the resolved form. Keying it
+on the method instead would mean running it before resolution, where the
+callback's own body is not yet available. So the capture rule keys on the
+operation the host instance produces, and a *user* instance produces no such
+operation at all: its body is ordinary checked code, and ordinary checked
+code already obeys the usage and `Share` rules of `design/reclamation.md`.
+That is the correct asymmetry, not a hole: the capture rule exists because
+`par-both` runs a callback on another thread, and only the host instance does
+that.
+
+## 4 Why concurrency is sound for a traversal
+
+`Traversable`'s law constrains the **order** in which the applicative's
+effects are combined: `traverse` must combine left to right, so a
+short-circuiting applicative reports the first failure in traversal order.
+The parallel-safe row rule already admits only the closed empty row or
+`{Diverge}` for a parallel callback. Under a parallel-safe row there is no
+observable effect order to preserve: nothing in `{}` or `{Diverge}` records
+which branch ran first, and `Diverge` is admitted precisely because a
+diverging branch's timing is already unobservable in the sequential reading.
+
+So executing the applicative's branches concurrently cannot violate the
+traversal law. **The existing restriction is the licence for this design.**
+The rule set does not weaken and no new safety argument is needed: the row
+rule that made `parBoth` sound is exactly what makes `traverse` sound at the
+`Parallel` applicative. This is the reason the reshape is not an escape
+hatch.
+
+Note what this does *not* say: `Parallel` is not a general `Applicative` a
+user may instantiate with arbitrary effects. `runParallel` and `MkParallel`
+are ordinary source, but a `parTraverse` call site is only accepted when the
+callback's row is parallel-safe, so the concurrent reading is always the one
+whose order is unobservable.
+
+## 5 Instance selection
+
+Selection is the ordinary dictionary path, with no parallel-specific
+machinery:
+
+1. `both` in scope is a `MkMethodBinding` (owner `Parallelism`, slot 0),
+   registered by `register-source-methods` from the kernel signature.
+2. Using it builds `CMethod ... (CENeeded ...)` with the requirement
+   `Parallelism`.
+3. `resolve-dictionary-term-with` resolves that evidence against
+   `env-instances`, which holds every `implicit instance`. The host instance
+   is there because the kernel declares it implicit.
+4. `Bootstrap.RuntimeIr.static-instance-method` sees a single `CEInstance`
+   with no context and no strict value field, so the projection collapses to
+   a direct call to the instance's method unit at the method's own
+   representation. The dictionary block is not built and no indirect apply
+   survives (the property `compiler/tests/rc_specialisation.rs` already
+   pins for static dictionaries).
+
+A user instance takes the same path. A user instance *with* a context (say
+`Parallelism` given `Traversable t`) keeps the projection, which is correct
+and costs one indirect call per method use.
+
+## 6 What a user-supplied pool costs
+
+- **Nothing at the call site.** `both f g` is unchanged. The instance is
+  implicit, so no runtime is named.
+- **One indirect call per method use** when the instance has a context or a
+  strict value field; zero when it is static, because the projection
+  collapses to a direct call.
+- **A dictionary block** for an instance that is not static: one immortal
+  static block holding the method closures, which the existing
+  static-dictionary rules already sweep when nothing reads it.
+- **No recompilation of callers.** A different instance is a different
+  dictionary; the call site's Core is identical.
+- **The captures are still checked at the call site**, so a user instance
+  cannot smuggle a `Mut` borrow or a non-`Share` capture into a concurrent
+  branch. That is the invariant the whole design rests on.
+
+A serial instance (`SerialPool`, the test's second instance) is the cheapest
+possible demonstration: `both f g = (f (), g ())`, `workers n = ()`, and the
+program's answers are identical because parallelism was always permission and
+never semantics.
+
+## 6.1 The `Share` limit, measured
+
+Parallelism inherits the capture rule, and the capture rule inherits the
+`Share` judgement. Measured 2026-11-13 under the seed, by element type,
+`parMap` accepts `Nat`, `(Nat, Nat)`, `List Nat` and a local four-`Nat` ADT,
+and refuses `String`, `(String, Nat)`, `Json` and `(String, Json)`.
+
+`String` is `StrBuf :: Bytes -> String` behind a module-private constructor,
+and `Bytes` is transfer-only (`design/reclamation.md`), so no `String`-bearing
+element type is `Share`. This is the real reason a phase that carries names
+cannot traverse in parallel today. **The container choice does not fix it:**
+`parTraverse` at any `Traversable` instance inherits the same restriction,
+because the restriction is on the captured *values*, not on the container.
+A generic surface widens which shapes can be walked; it does not widen which
+element types may cross a thread.
+
+## 7 What this does not buy
+
+- **Schedulers.** Choosing *when* a branch runs is not a dictionary
+  question. A real scheduler needs to suspend a computation and resume it,
+  which is the effect and task story (`design/green-threads.md`, the
+  `withScope`/`spawn`/`joinAllOrCancel` surface), not an interface method.
+  `Parallelism` says *who runs the branches*; it does not say *how a branch
+  yields*.
+- **Green threads.** Same reason. A user instance can be a thread pool, a
+  serial loop, or a deterministic test scheduler that runs branches in a
+  fixed order, but it cannot make a computation that does not terminate
+  cooperatively yield.
+- **Cancellation.** `joinAllOrCancel`'s cancellation story is a scope
+  property (`Cancel r`), not a dictionary one.
+- **A different parallelism *semantics*.** The law of the interface is that
+  the result equals the sequential reading. An instance that computed
+  something else would be unlawful, and the row rule that admits only `{}`
+  or `{Diverge}` is what keeps that law meaningful. `Parallelism` is a
+  *scheduling* interface, not an effect interface.
+- **A lock bump.** The interface is kernel-installed precisely so the pinned
+  library hash is untouched.
+
+## 8 Migration
+
+`parMap` does not survive as a second path. `parTraverse` at the array
+instance replaces it: `parMap f xs` becomes
+`array-to-list (parTraverse f (array-from-list xs))`, and the array
+`Traversable` instance is where the `cinch_par_map_array` fast path lives, so
+the specialization is a property of the container instance rather than of a
+hard-wired builtin. The in-tree call sites that moved are listed in the
+change's report.
+
+`parTabulate` stays: it is `Nat`-indexed, not a container operation, and
+`Traversable` has nothing to say about it.
+
+## 9 ABI
+
+`runtime_abi` stays at 9. The lock's `runtime_abi` field is untouched, and
+the `cinch_par_*` entries are referenced only by the host instance's method
+bodies. The ABI number did not have to move because the runtime's entry
+points did not change: the reshape is entirely above them.

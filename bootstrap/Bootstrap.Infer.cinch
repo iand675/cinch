@@ -319,10 +319,6 @@ module Bootstrap.Infer where
     -- A quotation is built at compile time, so the typed elaborator must
     -- see it: the legacy scalar path has no `Code` type to give it.
     EQuote s body -> True
-    -- A macro call is gone by the time the elaborator runs: expansion
-    -- replaced it with the code the macro produced, and that code is what
-    -- decides whether the typed path is needed.
-    EMacroCall s path tokens -> False
     other -> False
   ctor-needs :: List (String, TypeExpr) -> Bool
   ctor-needs cs = case cs of Nil -> False; Cons (name, ty) rest -> needs-type ty || ctor-needs rest
@@ -2030,11 +2026,18 @@ module Bootstrap.Infer where
   register-source-methods :: CoreClass -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-source-methods description ds env st = case ds of
     Nil -> (env, st)
-    Cons (DMethod sp label symbol syntax) rest -> case (source-method label (class-methods description), lookup-binding symbol env) of
-      (Some method, None) -> case class-method-equation method of
+    -- The kernel's classes are declared after the resolver's visibility
+    -- pass, so a member may already carry a placeholder binding from
+    -- `builtin-bindings`. The method contract is the authority: it replaces
+    -- that placeholder, because the placeholder is what makes the *name*
+    -- visible while this is what makes it a method the rules can key on.
+    Cons (DMethod sp label symbol syntax) rest -> case source-method label (class-methods description) of
+      Some method -> case class-method-equation method of
         Some equation -> register-source-methods description rest env st
-        None -> register-source-methods description rest (Cons (MkMethodBinding symbol (class-method-scheme method) (class-name description) (class-method-slot method)) env) st
-      other -> register-source-methods description rest env (add-error sp "source method has a duplicate binding or no declaring slot" st)
+        None -> register-source-methods description rest
+          (Cons (MkMethodBinding symbol (class-method-scheme method) (class-name description) (class-method-slot method))
+            (without-binding symbol env)) st
+      None -> register-source-methods description rest env (add-error sp "source method has no declaring slot" st)
     Cons (DFun sp label clauses) rest -> case source-method label (class-methods description) of
       Some (MkCoreEquationMethod at name slot telescope symbol equation) ->
         register-source-methods description rest env (add-error sp "an equality method default needs erased proof elaboration" st)
@@ -2045,6 +2048,12 @@ module Bootstrap.Infer where
       None -> register-source-methods description rest env (add-error sp "default names an undeclared class method" st)
     Cons (DLaw sp name syntax) rest -> register-source-methods description rest env st
     Cons other rest -> register-source-methods description rest env (add-error (decl-span other) "invalid resolved source method declaration" st)
+  -- The environment without any binding of this name, so a method can
+  -- replace the visibility placeholder rather than collide with it.
+  without-binding :: String -> List CheckedBinding -> List CheckedBinding
+  without-binding name env = case env of
+    Nil -> Nil
+    Cons b rest -> if same name (checked-name b) then without-binding name rest else Cons b (without-binding name rest)
   source-class-default-symbol :: CoreClass -> CoreClassMethod -> String
   source-class-default-symbol description member = string-concat-all ["#class-default:", class-name description, ":", class-method-name member]
   source-class-default-clauses :: CoreClass -> CoreClassMethod -> List Decl -> Option (List (List Pat, Expr))
@@ -3054,9 +3063,6 @@ module Bootstrap.Infer where
     ECon s name args -> case lookup-expression-value s kinds name env st of (term, sn) -> infer-arguments classes kinds families env locals term args sn
     EList s args -> infer-collection classes kinds families env locals s args None st
     EQuote sp body -> infer-quotation classes kinds families env locals sp body None st
-    -- A macro call reaches the elaborator only when expansion did not run,
-    -- so it is refused by name rather than typed as anything.
-    EMacroCall sp path tokens -> term-error sp "a macro invocation requires compile-time expansion" st
     ELitInt s text -> checked-literal s (primitive-type "Int") text st
     ELitStr s text -> (CString s (literal-type kinds "String") text, st)
     ELitChar s text -> (CChar s (primitive-type "Char") text, st)
@@ -3069,7 +3075,7 @@ module Bootstrap.Infer where
           else infer-borrow classes kinds families env locals s operation args UError st
         None -> case projection-syntax-head env f of
           Some operation -> infer-projection classes kinds families env locals s operation x st
-          None -> if task-syntax-head env expr then infer-task-application classes kinds families env locals s expr None st else if par-syntax-head env expr then infer-par-application classes kinds families env locals s expr None st else if decision-syntax-head env f then infer-decision classes kinds families env locals s x st else
+          None -> if task-syntax-head env expr then infer-task-application classes kinds families env locals s expr None st else if par-syntax-head env expr then infer-par-application classes kinds families env locals s expr None st else if par-method-head? env expr then par-method-dispatch classes kinds families env locals s expr None st else if decision-syntax-head env f then infer-decision classes kinds families env locals s x st else
             (case infer classes kinds families env locals f st of
               (fun, sf) -> apply-argument classes kinds families env locals s fun x sf)
     ELam s ps body -> case infer-lambda classes kinds families env locals ps body (duplicate-names s (patterns-names ps) Nil st) of
@@ -3139,7 +3145,6 @@ module Bootstrap.Infer where
       other -> check-inferred classes kinds families env locals expr expected st)
     EList s args -> infer-collection classes kinds families env locals s args (Some expected) st
     EQuote sp body -> infer-quotation classes kinds families env locals sp body (Some expected) st
-    EMacroCall sp path tokens -> term-error sp "a macro invocation requires compile-time expansion" st
     EIf s condition yes no -> case check classes kinds families env locals condition (primitive-type "Bool") st of
       (c, sc) -> case check classes kinds families (proof-branch (expr-span condition) env c True sc) locals yes expected sc of
         (a, sa) -> case check classes kinds families (proof-branch (expr-span condition) env c False sa) locals no expected sa of
@@ -3232,7 +3237,7 @@ module Bootstrap.Infer where
       (head, args) -> case ownership-syntax-head env head of
         Some operation -> if same operation "b.refSet" then infer-ref-set classes kinds families env locals sp args st
           else infer-borrow classes kinds families env locals sp operation args expected st
-        None -> if has-projection-head env head then infer classes kinds families env locals expr st else if task-syntax-at-head env head then infer-task-application classes kinds families env locals sp expr (Some expected) st else if par-syntax-at-head env head then infer-par-application classes kinds families env locals sp expr (Some expected) st else if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
+        None -> if has-projection-head env head then infer classes kinds families env locals expr st else if task-syntax-at-head env head then infer-task-application classes kinds families env locals sp expr (Some expected) st else if par-syntax-at-head env head then infer-par-application classes kinds families env locals sp expr (Some expected) st else if par-method-head? env head then par-method-dispatch classes kinds families env locals sp expr (Some expected) st else if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
           case thunk-syntax-operation env head of
             Some operation -> (case (later-parts (normalize st expected), args) of
               (Some carrier, [input]) -> if same operation "b.delay" then check-later-delay classes kinds families env locals sp input carrier st else infer classes kinds families env locals expr st
@@ -4576,6 +4581,141 @@ module Bootstrap.Infer where
   par-operation-name name = if same name "b.parBoth" then "par-both"
     else if same name "b.parTabulate" then "par-tabulate"
     else "par-map"
+
+  -- `design/parallelism-as-a-value.md` section 3: the safety rules are
+  -- keyed on the *signature method identity*, which is decided before
+  -- instance selection. The owner is compared by its last segment, because
+  -- the kernel class is declared as `b.Parallelism` but a module that
+  -- mentions it renames the class into its own home; both spellings name
+  -- one declaring signature. The slot is what actually pins the method: an
+  -- instance cannot invent a slot, because slots are numbered from the
+  -- declaring signature's own member list (`source-class-methods`).
+  par-method-last :: String -> String
+  par-method-last text = par-method-last-chars (unpack text) ""
+  -- The segment after the last dot, with the dot itself dropped: `b.both`
+  -- gives `both`, not `.both`.
+  par-method-last-chars :: List Char -> String -> String
+  par-method-last-chars chars acc = case chars of
+    Nil -> acc
+    Cons c rest -> if char-code c == 46 then par-method-last-chars rest "" else par-method-last-chars rest (string-concat acc (pack (Cons c Nil)))
+  -- `name` is the resolved symbol (`b.both`), so the label is its last
+  -- segment; comparing the symbol against `both` never matched and the
+  -- rules silently did not run.
+  par-method-slot :: String -> String -> Nat -> Option String
+  par-method-slot owner name slot =
+    let label = par-method-last name in
+    if not (same (par-method-last owner) "Parallelism") then None
+    else if slot == 0 && same label "both" then Some "parBoth"
+    else if slot == 1 && same label "tabulate" then Some "parTabulate"
+    else if slot == 2 && same label "mapArray" then Some "parMap"
+    else None
+  par-method-head? :: List CheckedBinding -> Expr -> Bool
+  par-method-head? env expr = case par-method-head env expr of Some found -> True; None -> False
+  par-method-head :: List CheckedBinding -> Expr -> Option (String, String, Nat)
+  par-method-head env expr = case application-spine expr Nil of
+    (EVar sp name, args) -> (case lookup-binding name env of
+      Some (MkMethodBinding actual sc owner slot) -> if same name actual then (case par-method-slot owner name slot of
+        Some spelling -> Some (spelling, owner, slot)
+        None -> None) else None
+      other -> None)
+    other -> None
+
+  -- A call of a `Parallelism` method (`design/parallelism-as-a-value.md`
+  -- section 3). The method's checked scheme is opened the way any method
+  -- use opens it, and its own parameter types decide each callback's
+  -- expected arrow; this rule constructs no callback type of its own. That
+  -- matters: the rules below must see the exact arrows the declaration
+  -- states, and a synthesised type consumes the wrong number of arguments.
+  --
+  -- The three obligations then run through `parallel-callback`, unchanged:
+  -- the callback is checked against its declared arrow, its row is tested
+  -- for the parallel-safe row, and its checked term is tested for the
+  -- literal form. The emitted term is the ordinary method application, so
+  -- the dictionary resolves the instance the way it resolves any other
+  -- method and the caller's obligations do not depend on which instance
+  -- answers.
+  infer-par-method-application :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Option UType -> String -> String -> Nat -> Store -> (CoreTerm, Store)
+  infer-par-method-application classes kinds families env locals sp expr wanted spelling owner slot st =
+    case application-spine expr Nil of
+      (EVar at name, args) -> case lookup-value at name env st of
+        (fun, one) -> case method-callback-slots spelling args of
+          None -> term-error sp (string-concat spelling " takes the wrong number of arguments") one
+          Some callback-positions ->
+            case method-arrows (core-type fun) one (list-length args) Nil of
+              (arrows, two) -> let chosen = method-arrow-at callback-positions arrows in
+                case par-callback-obligations classes kinds families env locals spelling args callback-positions chosen two of
+                  three -> par-method-apply classes kinds families env locals sp expr wanted fun args three
+      other -> term-error sp "parallel method needs its canonical application" st
+  -- Which argument positions of a method call are callbacks. `both` has two
+  -- (0 and 1); `tabulate` and `mapArray` have one (1 and 0 respectively).
+  method-callback-slots :: String -> List Expr -> Option (List Nat)
+  method-callback-slots spelling args = if same spelling "parBoth" then
+      (case args of Cons f (Cons g Nil) -> Some (Cons 0 (Cons 1 Nil)); other -> None)
+    else if same spelling "parTabulate" then (case args of Cons n (Cons f Nil) -> Some (Cons 1 Nil); other -> None)
+    else if same spelling "parMap" then (case args of Cons f (Cons xs Nil) -> Some (Cons 0 Nil); other -> None)
+    else None
+  -- The method's parameter arrows, in order, from its checked scheme. The
+  -- scheme is already opened (`lookup-value` opened it), so the body is an
+  -- arrow spine whose domains are the declaration's own parameter types.
+  -- Collect every domain, then the caller picks the callback positions.
+  -- A method reached through a `using` requirement carries a `URequire`
+  -- prefix (the `#self` dictionary) before its value arrows. The ordinary
+  -- application discharges that prefix first (`discharge-checked-call`), so
+  -- the arrow walk must skip it too or it sees no arrow at all and one
+  -- argument is consumed instead of the declared two.
+  method-arrows :: UType -> Store -> Nat -> List UType -> (List UType, Store)
+  method-arrows ty st remaining acc = if remaining == 0 then (acc, st) else
+    case method-arrow-domain ty st of
+      (domain, result, one) -> method-arrows result one (remaining - 1) (acc <> [domain])
+  method-arrow-domain :: UType -> Store -> (UType, UType, Store)
+  method-arrow-domain ty st = case normalize st ty of
+    URequire predicates body -> method-arrow-domain body st
+    UProofFun predicate row result -> method-arrow-domain (UFunEff predicate row result) st
+    UPi id name domain row result -> if pi-dependent (normalize st ty) then
+        (UError, UError, add-error (Span 0 0 1 1) "dependent arrow needs an actual argument witness" st)
+      else (domain, result, st)
+    UUsageArrow usage arrow -> method-arrow-domain arrow st
+    UFunEff domain row result -> (domain, result, st)
+    UFun domain result -> (domain, result, st)
+    other -> (case arrow-parts (Span 0 0 1 1) other st of
+      (domain, row, result, one) -> (domain, result, one))
+  method-arrow-at :: List Nat -> List UType -> List UType
+  method-arrow-at positions arrows = case positions of
+    Nil -> Nil
+    Cons index rest -> case list-at index arrows of
+      Some found -> Cons found (method-arrow-at rest arrows)
+      None -> method-arrow-at rest arrows
+  list-at :: Nat -> List UType -> Option UType
+  list-at index items = case items of
+    Nil -> None
+    Cons first rest -> if index == 0 then Some first else list-at (index - 1) rest
+  expr-at :: Nat -> List Expr -> Option Expr
+  expr-at index items = case items of
+    Nil -> None
+    Cons first rest -> if index == 0 then Some first else expr-at (index - 1) rest
+  -- Run `parallel-callback` on each callback position against its declared
+  -- arrow. Positions and arrows are already paired by `method-arrow-at`, so
+  -- each step takes the argument at that position and the arrow beside it.
+  par-callback-obligations :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> String -> List Expr -> List Nat -> List UType -> Store -> Store
+  par-callback-obligations classes kinds families env locals spelling args positions arrows st =
+    case (positions, arrows) of
+      (Nil, other) -> st
+      (Cons index rest, Cons arrow further) -> case expr-at index args of
+        Some arg -> (case parallel-callback classes kinds families env locals arg arrow (par-spelling-of spelling) st of
+          (checked, one) -> par-callback-obligations classes kinds families env locals spelling args rest further one)
+        None -> par-callback-obligations classes kinds families env locals spelling args rest further st
+      (Cons index rest, Nil) -> st
+  -- The ordinary method application, which is what the call emits.
+  par-method-apply :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Option UType -> CoreTerm -> List Expr -> Store -> (CoreTerm, Store)
+  par-method-apply classes kinds families env locals sp expr wanted fun args st = case wanted of
+    Some expected -> apply-spine classes kinds families env locals fun args
+      (hint-application-result sp (core-type fun) args expected st)
+    None -> apply-spine classes kinds families env locals fun args st
+  par-method-dispatch :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Option UType -> Store -> (CoreTerm, Store)
+  par-method-dispatch classes kinds families env locals sp expr wanted st = case par-method-head env expr of
+    Some (spelling, owner, slot) -> infer-par-method-application classes kinds families env locals sp expr wanted spelling owner slot st
+    None -> infer classes kinds families env locals expr st
+
   infer-par-application :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Option UType -> Store -> (CoreTerm, Store)
   infer-par-application classes kinds families env locals sp expr wanted st = case application-spine expr Nil of
     (EVar at name, args) ->
@@ -6326,11 +6466,6 @@ module Bootstrap.Infer where
       EHandlerClause sp name patterns continuation body rest -> first-guard-error (eager body) (eager rest)
       EQuote sp body -> nested flow body
       ESplice sp body -> eager body
-      -- The call's own name is not a value reference, so it is no
-      -- recursive reference either. Reaching here means expansion did not
-      -- run, and the elaborator refuses the call by name; the walker must
-      -- not invent a guard verdict for it.
-      EMacroCall sp path tokens -> None
       other -> if recursive-call-allowed productive diverges position then None else case first-recursive-reference group (expr-references expression) of
         Some name -> Some (expr-span expression, name)
         None -> None
@@ -7519,27 +7654,6 @@ module Bootstrap.Infer where
     let assumptions = contract-assumption-rows clauses in
     let formula = contract-formula-row kind body in
     let scope = formula-scope parameters in
-    -- A liveness claim is not a state proposition: `joined` and `cleanup`
-    -- name the finite structured-concurrency obligations, and anything else
-    -- is refused as an unbounded eventual claim (core specification section
-    -- 10). Only the safety, stability and recurrence formulas are read as
-    -- comparisons over the definition's parameters, so only those are
-    -- elaborated as boolean terms.
-    case kind of
-      Liveness -> case contract-assumed-facts classes kinds families env scope s name clauses st of
-        (assumed, assumed-store) -> case store-errors assumed-store of
-          Cons error rest -> (None, assumed-store)
-          Nil -> finish-temporal definition s name kind formula assumptions assumed
-            (verify-liveness name display (liveness-claim body) formula assumptions (temporal-scope-sites (definition-body (core-clauses definition)))) assumed-store
-      Safety -> read-verified-temporal classes kinds families env definition s name kind body clauses scope steps assumptions formula display st
-      Stability -> read-verified-temporal classes kinds families env definition s name kind body clauses scope steps assumptions formula display st
-      Recurrence -> read-verified-temporal classes kinds families env definition s name kind body clauses scope steps assumptions formula display st
-
-  -- The formula read as the comparison proposition it states, then the
-  -- kind's decision procedure over it.
-  read-verified-temporal :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreDefinition -> Span -> String -> ContractKind -> Expr -> List ContractClause -> List CheckedBinding -> List TemporalStep -> List String -> String -> String -> Store -> (Option TemporalRow, Store)
-  read-verified-temporal classes kinds families env definition s name kind body clauses scope steps assumptions formula display st =
-    let parameters = temporal-definition-parameters (core-clauses definition) in
     case (read-formula classes kinds families env scope s name body st, contract-assumed-facts classes kinds families env scope s name clauses st) of
       ((None, formula-store), other) -> (None, formula-store)
       ((Some prop, formula-store), (assumed, assumed-store)) ->
@@ -7567,11 +7681,41 @@ module Bootstrap.Infer where
   -- as the comparison proposition it states.
   read-formula :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List CheckedBinding -> Span -> String -> Expr -> Store -> (Option Proposition, Store)
   read-formula classes kinds families env scope s name body st =
-    case check classes kinds families (scope <> env) (formula-locals scope) body (primitive-type "Bool") st of
+    case check classes kinds families (scope <> global-bindings-for body env) (formula-locals scope) body (primitive-type "Bool") st of
       (term, checked) -> case temporal-proposition term of
         Some prop -> (Some prop, checked)
         None -> (None, add-error s (string-concat-all
           ["temporal contract `", name, "`: the formula states a comparison proposition (`a < b`, `Eq a b`, ...) (core specification section 10)"]) checked)
+
+  -- The environment a formula is checked in: the module's own, plus an alias
+  -- for every global the formula names at its resolved spelling. A formula
+  -- over a loaded interface spells its comparison as that interface's method
+  -- (`i.Relation.Ord.<`), while a binding is looked up by its visible
+  -- spelling, so the resolved name needs an entry of its own. The alias
+  -- carries the binding's own scheme and role: it is the same global.
+  global-bindings-for :: Expr -> List CheckedBinding -> List CheckedBinding
+  global-bindings-for body env = alias-globals (expr-references body) env env
+
+  alias-globals :: List String -> List CheckedBinding -> List CheckedBinding -> List CheckedBinding
+  alias-globals names source env = case names of
+    Nil -> env
+    Cons name rest -> case lookup-binding name env of
+      Some binding -> alias-globals rest source env
+      None -> case global-binding name source of
+        Some binding -> alias-globals rest source (Cons binding env)
+        None -> alias-globals rest source env
+
+  -- The binding a resolved global spelling names: the same binding under the
+  -- spelling the module sees it by.
+  global-binding :: String -> List CheckedBinding -> Option CheckedBinding
+  global-binding name env = case env of
+    Nil -> None
+    Cons (MkBodyBinding binding) rest -> if same name (binding-native binding) then Some (MkBodyBinding binding) else global-binding name rest
+    Cons (MkCheckedBinding actual sc role) rest -> if same name actual then Some (MkCheckedBinding name sc role) else global-binding name rest
+    Cons (MkIntrinsicBinding actual sc symbol) rest -> if same name actual then Some (MkIntrinsicBinding name sc symbol) else global-binding name rest
+    Cons (MkMethodBinding actual sc owner slot) rest -> if same name actual then Some (MkMethodBinding name sc owner slot) else global-binding name rest
+    Cons (MkForeignBinding actual sc plan) rest -> if same name actual then Some (MkForeignBinding name sc plan) else global-binding name rest
+    Cons other rest -> global-binding name rest
 
   formula-locals :: List CheckedBinding -> List (String, UType)
   formula-locals scope = case scope of
@@ -7587,7 +7731,7 @@ module Bootstrap.Infer where
   assumed-loop classes kinds families env scope s name clauses acc st = case clauses of
     Nil -> (reverse acc, st)
     Cons first rest -> case first of
-      ContractAssume at body -> case check classes kinds families (scope <> env) (formula-locals scope) body (primitive-type "Bool") st of
+      ContractAssume at body -> case check classes kinds families (scope <> global-bindings-for body env) (formula-locals scope) body (primitive-type "Bool") st of
         (term, checked) -> case temporal-proposition term of
           Some prop -> assumed-loop classes kinds families env scope s name rest (Cons prop acc) checked
           None -> assumed-loop classes kinds families env scope s name rest acc checked
