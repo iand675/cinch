@@ -968,13 +968,26 @@ module Bootstrap.Resolve where
     Nil -> Nil
     Cons (patterns, body) rest -> patterns-names patterns
 
+  -- A liveness formula names a finite structured-concurrency obligation,
+  -- not a value: `joined` and `cleanup` are the two claim words the language
+  -- defines (core specification section 10), so they stay exactly as
+  -- written. Every other formula is specification notation over the
+  -- definition's parameters and resolves like a body.
+  claim-word :: Expr -> Bool
+  claim-word body = case body of
+    EVar s word -> same word "joined" || same word "cleanup"
+    other -> False
+
   rename-contract-clauses :: Visible -> List String -> List ContractClause -> (List ContractClause, List Diagnostic)
   rename-contract-clauses visible locals clauses = case clauses of
     Nil -> (Nil, Nil)
     Cons first rest -> case first of
-      ContractFormula s op body -> case rename-expr visible locals body of
-        (renamed, errors) -> case rename-contract-clauses visible locals rest of
-          (others, more) -> (Cons (ContractFormula s op renamed) others, errors <> more)
+      ContractFormula s op body -> if claim-word body then
+          (case rename-contract-clauses visible locals rest of
+            (others, more) -> (Cons (ContractFormula s op body) others, more))
+        else case rename-expr visible locals body of
+          (renamed, errors) -> case rename-contract-clauses visible locals rest of
+            (others, more) -> (Cons (ContractFormula s op renamed) others, errors <> more)
       ContractAssume s body -> case rename-expr visible locals body of
         (renamed, errors) -> case rename-contract-clauses visible locals rest of
           (others, more) -> (Cons (ContractAssume s renamed) others, errors <> more)
