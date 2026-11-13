@@ -37,6 +37,9 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import shard_ir  # noqa: E402  (the sibling module the stage link also uses)
+
 ROOT = Path(__file__).resolve().parents[1]
 TOOLING = ROOT / "tooling"
 BOOTSTRAP = TOOLING / "bootstrap.py"
@@ -531,6 +534,129 @@ def toolkit_bundle() -> Path:
     return out
 
 
+def workload(name: str) -> Path:
+    """One of the four shapes the shard count is measured against.
+
+    The stage link's cost is dominated by how much independent work the
+    module hands clang, and shard count trades link wall time against
+    cross-shard inlining. These are the four shapes section 12 names:
+
+    `many-small`  forty tiny modules with no imports between them, so the
+                  backend has breadth and the frontend has nothing to
+                  resolve.
+    `wide-graph`  one root importing forty leaves, each leaf importing four
+                  shared bases: breadth with a fan-in.
+    `deep-chain`  forty modules importing the previous one, a pure depth
+                  test with no breadth at all.
+    `huge-module` one generated module of 200 top-level definitions, the
+                  single-translation-unit case a shard split is meant to
+                  fix. It is 200 and not 1200 because the frontend is
+                  superlinear in definition count on this tree: `emit-ir`
+                  over this shape takes 6.0 s at 100, 16.3 s at 200 and
+                  over 300 s at 1200, so a larger instance measures the
+                  frontend's scaling rather than the backend's sharding.
+
+    Each is written under `build/bootstrap-profile/sources`, so measuring
+    never touches the tree.
+    """
+    directory = SCRATCH / "sources" / "workloads"
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"{name}.cinch"
+    parts: list[bytes] = []
+    if name == "many-small":
+        for index in range(40):
+            parts.append(f"module ManySmall{index} where\n  export value{index}\n"
+                         f"  value{index} :: Int\n  value{index} = {index}\n".encode())
+        imports = "".join(f"  import ManySmall{index} as Small{index}\n" for index in range(40))
+        # `main` reads every leaf, so the reachability sweep keeps all forty
+        # bodies: a workload the emitter prunes measures nothing.
+        total = " + ".join(f"Small{index}.value{index}" for index in range(40))
+        parts.append(("module Main where\n" + imports +
+                      f"  main :: Int\n  main = {total}\n").encode())
+    elif name == "wide-graph":
+        for base in range(4):
+            parts.append(f"module Base{base} where\n  export base{base}\n"
+                         f"  base{base} :: Int\n  base{base} = {base}\n".encode())
+        for leaf in range(40):
+            uses = "".join(f" + Base{b}.base{b}" for b in range(4))
+            imports = "".join(f"  import Base{b} as Base{b}\n" for b in range(4))
+            parts.append(f"module Leaf{leaf} where\n{imports}"
+                         f"  export leaf{leaf}\n  leaf{leaf} :: Int\n"
+                         f"  leaf{leaf} = {leaf}{uses}\n".encode())
+        imports = "".join(f"  import Leaf{leaf} as Leaf{leaf}\n" for leaf in range(40))
+        total = " + ".join(f"Leaf{leaf}.leaf{leaf}" for leaf in range(40))
+        parts.append(("module Main where\n" + imports +
+                      f"  main :: Int\n  main = {total}\n").encode())
+    elif name == "deep-chain":
+        parts.append(b"module Chain0 where\n  export chain0\n  chain0 :: Int\n  chain0 = 0\n")
+        for index in range(1, 40):
+            parts.append(f"module Chain{index} where\n  import Chain{index - 1} as Prior\n"
+                         f"  export chain{index}\n  chain{index} :: Int\n"
+                         f"  chain{index} = Prior.chain{index - 1} + 1\n".encode())
+        parts.append(("module Main where\n  import Chain39 as Top\n"
+                      "  main :: Int\n  main = Top.chain39\n").encode())
+    elif name == "huge-module":
+        # One module, no imports: every definition is reachable from `main`,
+        # so this is the single-translation-unit case a shard split targets.
+        # Nothing is exported: an `export` per definition routes the module
+        # through the interface producer, which is a different measurement.
+        body = "".join(f"  def{index} :: Int -> Int\n"
+                       f"  def{index} x = x + {index}\n" for index in range(200))
+        total = " + ".join(f"def{index} 1" for index in range(200))
+        parts.append(f"module Main where\n{body}  main :: Int\n  main = {total}\n".encode())
+    else:
+        raise SystemExit(f"unknown workload {name}")
+    path.write_bytes(b"\n\n".join(parts) + b"\n")
+    return path
+
+
+def shard_sweep(compiler: Path, *, jobs: list[int], workloads: list[str]) -> list[dict]:
+    """Time `emit-ir` at each shard count over each workload.
+
+    The shard count is a stage input, so this measures the two halves
+    separately: the frontend, which `emit-ir` spends almost all of, and the
+    backend, which is `clang` over the emitted module split K ways. Both are
+    recorded per (workload, K) so a change to either shows as a column.
+    """
+    rows: list[dict] = []
+    cli = compiler_cli(compiler)
+    for name in workloads:
+        source = workload(name)
+        work = SCRATCH / "sweep" / name
+        work.mkdir(parents=True, exist_ok=True)
+        local = work / source.name
+        shutil.copyfile(source, local)
+        ir = work / "out.ll"
+        commands = check_commands(compiler, cli, local, ir, work / "diag")
+        code, emit_s = call(commands["emit-ir"], cwd=work)
+        if code:
+            rows.append({"workload": name, "error": f"emit-ir exited {code}"})
+            continue
+        ir_lines = sum(1 for _ in ir.open()) if ir.is_file() else 0
+        for count in jobs:
+            entry = {"workload": name, "jobs": count, "ir_lines": ir_lines,
+                     "frontend_s": round(emit_s, 3)}
+            # K=1 compiles the module as it stands; K>1 cuts it the way the
+            # stage link does, so the backend number is the same work split
+            # differently rather than a different program.
+            if count == 1:
+                shards = [ir]
+            else:
+                shards = shard_ir.write_shards(ir, work, count, stem=f"sweep{count}")
+            objects = [work / f"sweep{count}.shard{index}.o" for index in range(len(shards))]
+            clang = shutil.which("clang") or "clang"
+            started = time.perf_counter()
+            failure, log = shard_ir.compile_shards(shards, objects, clang, 2, count, work)
+            entry["backend_s"] = round(time.perf_counter() - started, 3)
+            entry["backend_ok"] = failure == 0
+            if failure:
+                entry["backend_log"] = log.strip().splitlines()[-1][:200] if log.strip() else ""
+            rows.append(entry)
+            print(f"{name} K={count}: emit {entry['frontend_s']:.1f}s "
+                  f"backend {entry['backend_s']:.1f}s over {len(shards)} shards", flush=True)
+    return rows
+
+
 def summarize(baseline: dict) -> str:
     lines = []
     lines.append(f"baseline {baseline['date']} on {baseline['host']['model']} ({baseline['host']['cores']} cores)")
@@ -557,7 +683,7 @@ def summarize(baseline: dict) -> str:
 def run_all(args) -> dict:
     build = args.build.resolve()
     baseline = {"schema": 1, "date": iso_now(), "host": host(), "jobs": args.jobs,
-                "chain": [], "check": [], "targets": [], "target_suites": []}
+                "chain": [], "check": [], "targets": [], "target_suites": [], "sweep": []}
     write_json(BASELINE, baseline)
     baseline["chain"] = chain(args.stage, args.jobs, build)
     write_json(BASELINE, baseline)
@@ -565,6 +691,9 @@ def run_all(args) -> dict:
     for source in sources:
         baseline["check"].append(check(source, compiler=build / f"stage{args.stage}" / "cinch",
                                        repeat=args.repeat, tag=source.stem))
+    write_json(BASELINE, baseline)
+    baseline["sweep"] = shard_sweep(build / f"stage{args.stage}" / "cinch", jobs=[1, 2, 4, 8],
+                                    workloads=["many-small", "wide-graph", "deep-chain", "huge-module"])
     write_json(BASELINE, baseline)
     baseline["targets"], baseline["target_suites"] = targets(None, jobs=args.jobs, build=build)
     write_json(BASELINE, baseline)
@@ -595,6 +724,15 @@ def main() -> int:
     one.add_argument("--stage", type=int, default=3, choices=range(4),
                      help="stage compiler to use when --compiler is absent")
 
+    sweep = commands.add_parser("sweep", help="time emit-ir and the sharded backend at -j 1,2,4,8")
+    sweep.add_argument("--jobs", type=int, nargs="+", default=[1, 2, 4, 8],
+                       help="shard counts to sweep (default 1 2 4 8)")
+    sweep.add_argument("--workloads", nargs="+", default=None,
+                       help="any of many-small, wide-graph, deep-chain, huge-module")
+    sweep.add_argument("--compiler", type=Path, default=None)
+    sweep.add_argument("--stage", type=int, default=3, choices=range(4),
+                       help="stage compiler to use when --compiler is absent")
+
     many = commands.add_parser("targets", help="per-target test wall time at stages 1 and 3")
     many.add_argument("targets", nargs="*")
     many.add_argument("--jobs", type=int, default=4)
@@ -616,6 +754,12 @@ def main() -> int:
             parser.error(f"no compiler at {compiler}; run `profile_build.py chain` first")
         print(json.dumps(check(args.source.resolve(), compiler=compiler, repeat=args.repeat,
                                tag=args.source.stem), indent=1))
+    elif args.command == "sweep":
+        compiler = args.compiler or build / f"stage{args.stage}" / "cinch"
+        if not compiler.is_file():
+            parser.error(f"no compiler at {compiler}; run `profile_build.py chain` first")
+        names = args.workloads or ["many-small", "wide-graph", "deep-chain", "huge-module"]
+        print(json.dumps({"sweep": shard_sweep(compiler, jobs=args.jobs, workloads=names)}, indent=1))
     elif args.command == "targets":
         rows, suites = targets(args.targets or None, jobs=args.jobs, build=build)
         print(json.dumps({"targets": rows, "target_suites": suites}, indent=1))
