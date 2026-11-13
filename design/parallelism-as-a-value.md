@@ -131,6 +131,42 @@ Verified accepted and correct under the seed. A user instance that *does*
 want real concurrency writes a `foreign import` or reaches a `par*` builtin,
 and then the rules apply to it exactly as they apply to any caller.
 
+## 2.2 What is not finished, and exactly why
+
+The interface, its bindings, and the rule tables are in place. The rules do
+**not** yet fire at a method call site, so this change is not complete and
+the weaker acceptance is deliberately not landed. The measurement
+(2026-11-13, stage1):
+
+```text
+m :: forall a b e. using (p :: Parallelism) =>
+     (Unit ->{|e} a) -> (Unit ->{|e} b) ->{|e} (a, b)
+m = both
+```
+
+is refused with `type mismatch: expected (a, b), found (Unit -> (a, b))`, and
+a call `both (\() -> 1) (\() -> 2)` yields `Unit -> (?, ?)` rather than the
+pair. The class member's scheme is therefore reaching the call site with its
+first arrows collapsed: the method elaborates as if it took one `Unit`
+argument, so `apply-spine` never consumes the two callback arguments and the
+parallel rules (which run on those arguments) never see them.
+
+Two defects were found and fixed on the way here, and both are worth
+recording because each silently disabled the rules:
+
+1. The four method names were listed in `builtin-bindings`. That inserted a
+   `MkCheckedBinding` under the same symbol, and `register-source-methods`
+   refuses a symbol already bound, so no call site ever saw a
+   `MkMethodBinding` and `par-method-head` always answered `None`.
+2. The slot lookup compared the resolved symbol (`b.both`) against the bare
+   label (`both`), which never matched.
+
+The remaining work is the scheme collapse: `source-class-methods` builds the
+member contract through `make-scheme` over `operation-syntax`, and the
+observed result loses the leading arrows for this class. Until that is
+understood, the rules stay attached to the builtin path only, which is the
+status quo and not a weakening of anything that works today.
+
 ## 3 The rule keying decision
 
 The three safety rules were keyed on the builtin *name*. They are now keyed
