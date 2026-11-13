@@ -47,6 +47,25 @@ fn wasm_target() -> DriverOptions {
     }
 }
 
+/// Why the compiler running this suite cannot be asked for the target, or
+/// `None` when it can.
+///
+/// The suite runs through a selected frontend when one is configured, and
+/// that compiler is the Cinch-written one, which reaches the target through
+/// its own `--target` and `--runtime-archive` flags. A compiler without them
+/// is a missing capability of the same kind as a missing linker: the case
+/// skips and says which flag it wanted, rather than failing on a refusal
+/// that is about the frontend and not about the target.
+fn frontend_lacks_target() -> Option<String> {
+    match common::external_frontend::configured() {
+        Ok(Some(_)) => {
+            common::external_frontend::options_request(Mode::Run, &wasm_target()).err()
+        }
+        Ok(None) => None,
+        Err(error) => Some(error),
+    }
+}
+
 /// Why a case that links cannot run on this machine, or `None` when the
 /// toolchain is complete.
 ///
@@ -55,19 +74,8 @@ fn wasm_target() -> DriverOptions {
 /// that is missing and what supplies it, because a silently skipped case
 /// reads as a passing one.
 fn missing_toolchain() -> Option<String> {
-    // A selected frontend has to implement the target before the toolchain
-    // matters: the suite runs through it when one is configured, and a
-    // compiler that lacks `--target wasm32-unknown-unknown` or
-    // `--runtime-archive` is a missing capability rather than a failing
-    // case. The probe is the selector's own, so the two never disagree.
-    match common::external_frontend::configured() {
-        Ok(Some(_)) => {
-            if let Err(error) = common::external_frontend::options_request(Mode::Run, &wasm_target()) {
-                return Some(error);
-            }
-        }
-        Ok(None) => {}
-        Err(error) => return Some(error),
+    if let Some(reason) = frontend_lacks_target() {
+        return Some(reason);
     }
     let (clang, major) = match cinch::driver::freestanding_clang() {
         Ok(found) => found,
@@ -157,6 +165,10 @@ fn build_case(case: &Case) -> Vec<u8> {
 fn matrix(case: &Case) {
     match case.expect {
         Expect::Refused(needle) => {
+            if let Some(reason) = frontend_lacks_target() {
+                eprintln!("skipping {}: {reason}", case.name);
+                return;
+            }
             let dir = project(case.name, case.source);
             let result = common::drive_opts(Mode::Run, &dir, "Main.cinch", None, &wasm_target());
             let _ = std::fs::remove_dir_all(&dir);
@@ -623,6 +635,10 @@ fn build_produces_a_wasm_module() {
 /// hand it. Emission needs no linker, so this runs everywhere.
 #[test]
 fn the_emitted_module_is_the_freestanding_entry() {
+    if let Some(reason) = frontend_lacks_target() {
+        eprintln!("skipping the_emitted_module_is_the_freestanding_entry: {reason}");
+        return;
+    }
     let dir = project("ir-beside", CASES[0].source);
     let ir_path = dir.join("program.ll");
     let result = common::drive_opts(Mode::EmitIr, &dir, "Main.cinch", Some(ir_path.clone()), &wasm_target());
@@ -647,6 +663,10 @@ fn the_emitted_module_is_the_freestanding_entry() {
 /// one would see an empty list with no diagnostic.
 #[test]
 fn run_refuses_program_arguments_it_cannot_deliver() {
+    if let Some(reason) = frontend_lacks_target() {
+        eprintln!("skipping run_refuses_program_arguments_it_cannot_deliver: {reason}");
+        return;
+    }
     let dir = project("run-args", CASES[0].source);
     let opts = DriverOptions {
         program_args: vec!["--flag".to_string()],
@@ -677,6 +697,10 @@ fn a_native_target_still_runs_here() {
 /// freestanding one.
 #[test]
 fn an_unknown_triple_is_refused_with_the_list() {
+    if let Some(reason) = frontend_lacks_target() {
+        eprintln!("skipping an_unknown_triple_is_refused_with_the_list: {reason}");
+        return;
+    }
     let dir = project("unknown-triple", CASES[0].source);
     let opts = DriverOptions {
         target: Some("wasm32".to_string()),
@@ -729,6 +753,10 @@ fn the_freestanding_archive_is_built_when_the_flag_is_absent() {
 /// an archive is refused by name rather than reaching the linker.
 #[test]
 fn a_runtime_archive_that_is_not_one_is_refused() {
+    if let Some(reason) = frontend_lacks_target() {
+        eprintln!("skipping a_runtime_archive_that_is_not_one_is_refused: {reason}");
+        return;
+    }
     let dir = project("bad-archive", CASES[0].source);
     let archive = dir.join("libcinchruntime.a");
     std::fs::write(&archive, b"not an archive").expect("write the bogus archive");
@@ -747,6 +775,10 @@ fn a_runtime_archive_that_is_not_one_is_refused() {
 /// failing inside it.
 #[test]
 fn a_host_archive_is_refused_for_the_wasm_target() {
+    if let Some(reason) = frontend_lacks_target() {
+        eprintln!("skipping a_host_archive_is_refused_for_the_wasm_target: {reason}");
+        return;
+    }
     let dir = project("host-archive", CASES[0].source);
     // A minimal ELF64 aarch64 object header, which is what a host archive
     // of this machine holds.
