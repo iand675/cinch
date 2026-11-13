@@ -141,6 +141,12 @@ module Bootstrap.Resolve where
         None -> own-bindings home rest acc
         Some name -> own-bindings home rest (add-own home name acc)
 
+  -- A resolved method already names its binding; re-deriving the symbol from
+  -- the home would rebind it to a name the checker never registered.
+  add-own-symbol :: String -> String -> List Binding -> List Binding
+  add-own-symbol label symbol entries = case lookup-binding label entries of
+    Some b -> entries
+    None -> Cons (MkBinding label "<builtin>" symbol) entries
   add-own :: String -> String -> List Binding -> List Binding
   add-own home name entries = case lookup-binding name entries of
     Some b -> entries
@@ -162,7 +168,7 @@ module Bootstrap.Resolve where
   own-class-methods home ds acc = case ds of
     Nil -> acc
     Cons (DSig s name ty) rest -> own-class-methods home rest (add-own home name acc)
-    Cons (DMethod s label symbol ty) rest -> own-class-methods home rest (add-own home label acc)
+    Cons (DMethod s label symbol ty) rest -> own-class-methods home rest (add-own-symbol label symbol acc)
     Cons other rest -> own-class-methods home rest acc
 
   own-ctors :: String -> List (String, TypeExpr) -> List Binding -> List Binding

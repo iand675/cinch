@@ -167,6 +167,25 @@ observed result loses the leading arrows for this class. Until that is
 understood, the rules stay attached to the builtin path only, which is the
 status quo and not a weakening of anything that works today.
 
+Further measurements (2026-11-13, stage1) narrow it:
+
+- The scheme **text** is fine. `both2 :: forall a b e. (Unit ->{|e} a) ->
+  (Unit ->{|e} b) ->{|e} (a, b)` written as an ordinary top-level function,
+  with the identical text, checks and runs (exit 0). So `parse-scheme` and
+  ordinary elaboration of that contract are not the defect.
+- The collapse is specific to the kernel `DClass` appended to the resolved
+  `Main` module after `rename-decls`.
+- Binding scope is only partly right: `both` resolves at a call site
+  (reaching the type error above, so the name is in scope) while `tabulate`
+  and `workers` are still `unknown name (name is not in scope)`. Only the
+  first member of the injected class is reaching the visible surface, which
+  points at `own-class-methods`/`decls-of` over the injected `decl-spine`,
+  not at the class contract itself.
+
+The next thing to try is to stop injecting the class into `Main`'s body at
+all and register it where `withScope`/`Scope` are registered (`primitive-kinds`
+plus a checked binding), so the class is never re-elaborated as source.
+
 ## 3 The rule keying decision
 
 The three safety rules were keyed on the builtin *name*. They are now keyed
