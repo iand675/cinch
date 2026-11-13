@@ -19,3 +19,14 @@ The repository is a colocated jj and git repository. Parallel work happens in jj
 - Inside a lane, finish work with `jj commit -m "..."` (or `jj describe` plus `jj new`). Every jj command snapshots the working copy, so an interrupted lane loses nothing; resume by opening the same workspace.
 - Landing: from the main checkout, `jws land <lane>` rebases the lane's committed changes onto `main` and moves `main`. The lane's uncommitted working copy stays in the lane. Then run the integration gates in the main checkout, and `jws rm <lane>` when the lane is done (it refuses while the lane has changes not in `main`).
 - Plain git still works for reading history and pushing (`jj git push --bookmark main`, or git). Do not run `jj op restore` or `jj undo` in the main checkout while lanes are running.
+
+## Pushing work to GitHub
+
+Every lane publishes its work as it goes, and `main` is published after every landing. The rule exists so a crash, a killed agent or a lost disk costs at most one increment.
+
+- **A lane publishes to its own bookmark**, one per lane, named `lane/<lane>`. Create it once with `jj bookmark create lane/<lane> -r @-` (or let the first push create it), then after each commit that builds and passes its gates: `jj git push --bookmark lane/<lane>`.
+- **A lane never pushes `main`.** Integration owns `main`; a lane that pushes it collides with every other lane.
+- **Rebased lane commits are rewritten, so a lane's push may need to move its own bookmark.** `jj git push --bookmark lane/<lane>` handles the lease for a bookmark it tracks. If jj reports `Non-tracking remote bookmark`, run `jj bookmark track lane/<lane>@origin` once and push again.
+- **The main checkout pushes `main` after each landing round**: `jj git push --bookmark main`. Do it after the pin bump and the gates, not before, so the published `main` is always one that built and reached the fixed point.
+- **Never push a tree that does not build**, and never push a lane bookmark as if it were `main`. A broken lane bookmark is cheap and expected; a broken `main` is not.
+- Pushing is not a gate. The gates stay what they were: the fixed point, `cargo test --lib`, the target set against the baseline, the smokes and the leak line.
