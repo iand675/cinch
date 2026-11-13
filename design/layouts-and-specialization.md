@@ -647,3 +647,312 @@ confined to a type with several narrow fields in one block (`MkP4`: 40 to
 24 bytes, -40%) and to element blocks, never to the list spine. The user's
 motivation is therefore correct in a specific way: the memory win is a
 32-bit-target win, and on 64-bit it is an element-block win.
+
+### 12 Naming and identity: `List@unboxed_4_bytes` versus `List@boxed_X`
+
+This is the section that decides whether the design is implementable. A
+specialised layout has to be *nameable in an interface*, and two modules
+compiled independently have to derive the *same name* for the same type at
+the same target, or `List Nat` will mean one layout in the producer and
+another in the consumer and the runtime will read a pointer map that is not
+there.
+
+#### 12.1 What exists, and why it is not enough
+
+Today a block's layout is a **16-bit positional index** into one
+program-wide table, not a derived identity.
+
+- `block_kinds.rs` gives the header a 16-bit `layout` field. For a
+  constructor block that field is a *descriptor*: `id = group << 6 | tag`,
+  so the tag is recoverable as `id & CTOR_TAG_MASK` without knowing the
+  scrutinee's type. `LAYOUT_BIG` escapes to a full descriptor in the word
+  before the header.
+- The index is assigned by `codegen::Layouts::place`/`add_type`, walking
+  `p.fns` in a `BTreeMap` order and bumping a counter `next`. **It is a
+  position in one program's emission order.** Nothing about it is derived
+  from the type.
+- Cross-module agreement is by *concatenation*, not by derivation. A
+  library object records its table as `layout_words` in its ABI manifest
+  (`codegen::object_abi`); a consumer prepends those words and starts its
+  own indices past the prefix (`Bootstrap.RuntimeIr.cinch:4436`
+  `library-layout-words`: `prefix <> library-layout-tail count ...`). The
+  test that guards it asserts `&words[..prefix.len()] == &prefix`
+  (`compiler/tests/bootstrap_runtime_objects.rs:151`).
+- `Layouts::next` starts at 0 in every module, so the prefix rule is the
+  only thing keeping two modules from handing out the same index to
+  different maps. It works because a consumer is compiled *after* its
+  provider and sees the provider's whole table.
+
+Two facts follow, and they are the reason this section has to exist:
+
+1. **The index is not an identity.** Two builds of the same module can
+   assign different indices to the same type if the type's emission order
+   changes, which is exactly why `compilation-speed.md` section 2.9 records
+   that IR comparison has to normalise "the representation-class index that
+   `cinch_alloc_shaped` takes".
+2. **A lazily created layout has no position.** The whole point of lazy
+   specialisation is that the module that *uses* `List Nat` may be compiled
+   before, or without, the module that *defines* `List`. A positional index
+   assigned at emission cannot be agreed on by two compilations that do not
+   share an emission order.
+
+So the name has to be derived from the type and the target, and the index
+has to be a *lookup* of that name, not a counter.
+
+#### 12.2 The name: a canonical descriptor, spelled in the suffix
+
+A specialised layout's identity is a **canonical descriptor string**, and
+the symbol suffix is that descriptor in a fixed grammar. It is not a hash.
+A hash cannot be read in a diagnostic, cannot be diffed, and (the deciding
+argument) cannot be checked: a consumer that receives a hash either trusts
+it or re-derives it, and re-deriving it is the same work as comparing the
+descriptor, so the hash buys nothing but an inability to explain a
+mismatch.
+
+The grammar, over the target profile `P` (word size `w = P.word_size / 8`
+bytes, `csize`), and a type expression `T`:
+
+```
+layout-name  := "unboxed_" width "_bytes"      slot is inline, this many bytes
+              | "boxed_" box                    slot is one counted pointer
+              | "inline_" width "_bytes"        stored in the parent, no slot of its own
+box          := "obj"                          a counted pointer, always w bytes
+              | "imm" width                    an immediate, this many bytes
+              | layout-name                    a nested layout, boxed by name
+```
+
+Worked examples, both derived by the rules of 12.3:
+
+|Element type|64-bit native|wasm32|
+|---|---|---|
+|`Nat`|`List@unboxed_8_bytes`|`List@unboxed_4_bytes`|
+|`Int`|`List@unboxed_8_bytes`|`List@unboxed_4_bytes`|
+|`U8`|`List@unboxed_1_bytes`|`List@unboxed_1_bytes`|
+|`U32`|`List@unboxed_4_bytes`|`List@unboxed_4_bytes`|
+|`Bit` (two nullary constructors)|`List@unboxed_1_bytes`|`List@unboxed_1_bytes`|
+|`List Nat` (the element is a pointer)|`List@boxed_obj`|`List@boxed_obj`|
+|`Bytes`, `String`, a closure|`List@boxed_obj`|`List@boxed_obj`|
+|a type variable `a`|`List@boxed_obj`|`List@boxed_obj`|
+
+`Option U8` is the one row that is a design decision rather than a
+consequence of 12.3: a tagged multi-constructor type needs a tag, and the
+note's answer is that it stays `boxed_obj` until the tag can be packed into
+the narrow slot without a second representation of the same value. Packing
+it is stage 4 of section 16, gated on the measurement there.
+
+Three properties of this spelling matter:
+
+- **The target is inside the name**, so `List@unboxed_8_bytes` and
+  `List@unboxed_4_bytes` are different units that never collide, and a
+  cross-compile cannot pick up the host's answer. This is the same
+  discipline `TargetProfile` already enforces: the profile comes from the
+  triple, never from the build host.
+- **The suffix is self-delimiting and unambiguous against today's class
+  letters.** A class vector suffix is `@` then `R`/`O`/`T` only
+  (`repr::letters`, `repr::base_unit` strips exactly that). A layout suffix
+  begins `@unboxed_`, `@boxed_` or `@inline_`, none of which starts with a
+  class letter, so `base_unit` can strip a layout segment with a second
+  case and existing symbols keep their meaning. There is no `~` in the
+  grammar because `~` is not a safe symbol character in LLVM IR.
+- **It composes with the class vector.** A polymorphic unit specialised at
+  a class vector *and* a layout is `Data.List.map@RO@unboxed_4_bytes`:
+  classes first (the reclamation axis), layout second (the width axis). Two
+  suffixes, two independent axes, one symbol.
+
+#### 12.3 How the descriptor is computed
+
+The function is total on the type and the profile, and it is the *only*
+place a slot width is decided. This is a hard requirement, not a style
+note; see 12.6.
+
+```
+slot(T, P) =
+  | Ty::Nat                      -> unboxed_{csize}_bytes          -- 12.3.1
+  | Ty::Int                      -> unboxed_{csize}_bytes
+  | Ty::Prim(U8|I8)              -> unboxed_1_bytes
+  | Ty::Prim(U16|I16)            -> unboxed_2_bytes
+  | Ty::Prim(U32|I32|F32)        -> unboxed_4_bytes
+  | Ty::Prim(U64|I64|F64)        -> unboxed_8_bytes
+  | Ty::Prim(Usize|Isize)        -> unboxed_{csize}_bytes
+  | Ty::Bool                     -> unboxed_1_bytes                -- 12.3.2
+  | Ty::Char                     -> unboxed_4_bytes
+  | Ty::Unit                     -> unboxed_0_bytes
+  | Ty::Bytes | Ty::Fun | closure| unboxed_8_bytes   (a pointer; `boxed_obj`)
+  | Ty::Adt(d, args)             -> layout-of d at args            -- 12.3.3
+  | Ty::Param(_)                 -> boxed_obj                      -- 12.3.4
+```
+
+The rules, each of which is a decision the note has to defend:
+
+**12.3.1 `Nat` and `Int` are `csize` bytes, never their payload width.**
+A `Nat` immediate is `0..=2^(csize-1)-1` because the low bit is the tag and
+the encoded word must fit the pointer-sized slot
+(`narrow-value-representation.md`, "the immediate payload follows `csize`").
+On 64-bit that is 63 bits, so the slot is 8 bytes and a `Nat` element does
+not narrow; on 32-bit it is 31 bits, so the slot is 4 bytes and it halves.
+The rule is not "narrow to the payload" but "the slot is the word the
+immediate encoding was defined over", because the encoding and the width
+are one change (the same note, "the word width and the encoding are one
+change"). A 5-byte slot holding a 31-bit payload would need a 3-bit tag and
+would break the `csize` crossing, for one byte.
+
+**12.3.2 `Bool` and a nullary-constructor type are 1 byte, and this is a
+semantic change, not an optimisation.** Today `Bool` is `Raw` and one word,
+and a nullary constructor is a pointer to a shared static block. Storing
+`Bool` as one byte and `Bit` as one byte makes the *value* no longer a
+`Raw` word, so a polymorphic position that held a `Bool` cannot also hold
+an `I64`. That is fine, because the layout suffix is on the *type*, not on
+the word: `List Bool` and `List I64` are different units. It is not fine if
+anything relies on the one-word encoding. The reclamation pointer map has
+to grow a `SCAN_BYTE`-like code or a width byte; see 14.4.
+
+**12.3.3 A data type's own slot is `boxed_obj`; the suffix names its
+element slot.** A `List a` is a pointer whatever `a` is, so `List Nat` in a
+field of another type is `boxed_obj`. The suffix on `List@unboxed_4_bytes`
+names the *element* slot of that `List`, which is what the block layout is
+computed from: `Cons`'s field 0 has the element's layout, field 1 is
+`boxed_obj`. This distinction has to be explicit or the grammar means two
+things at once, and it is why the examples in 12.2 are a column of *element
+types*.
+
+`List (List Nat)` is `List@boxed_obj` because its element is a `List`,
+which is a pointer whatever that inner list's elements are. That is the same
+termination argument Part I section 2 makes for classes: a
+constructor-applied type is `Obj` whatever its arguments, so the recursion
+bottoms out and a layout request never diverges.
+
+**12.3.4 A type variable's slot is a placeholder in the generic body, and
+`boxed_obj` in the layout vector.** The collector already copies a
+polymorphic body once per reached class vector, and a copy carries concrete
+classes (`Class::Param` is substituted by `repr::subst_all`). The layout
+axis is a second vector of the same shape: a copy is made per reached
+*(class vector, layout vector)* pair, and the layout vector's entries are
+layout names. The generic body carries a layout placeholder and the
+substitution is total, so a body never contains an unresolved slot width at
+emission.
+
+This is not monomorphisation, for the reason Part I section 2 gives for
+classes: `List a` is `boxed_obj` whatever `a` is, so a layout vector never
+grows with the type and the set of reached pairs is finite. The cost is one
+copy per reached pair, which is the cost the class axis already pays.
+
+#### 12.4 The two modules that disagree
+
+The question the brief asks directly: one module asks for
+`List@unboxed_4_bytes`, another for `List@boxed_8` for the same source type.
+
+`List@boxed_8` is not in the grammar, and that is deliberate: a boxed slot
+is `boxed_obj` (a pointer, `w` bytes), never `boxed_8`, because a boxed
+slot's width is the target's pointer width and writing `8` into it would
+let a 64-bit name be produced on a 32-bit target. The grammar has exactly
+one spelling per (layout, target) pair, and it is total, so **the same
+source type at the same target has exactly one name**. Two modules cannot
+disagree by asking for different names; they can only disagree by having
+been compiled for different targets, and that is refused at admission
+(`profile.triple` is in the object ABI and the store key).
+
+The residual case is a module that asks for `List@unboxed_4_bytes` while
+its provider only has `List@boxed_obj` because the provider was compiled
+before the layout existed. That is not a naming disagreement, it is a
+*staleness* fact, and the answer is the same one the store already gives:
+the layout set a module was compiled against is part of its interface
+identity, so a consumer demanding a layout the provider does not publish is
+`checked external variant is absent` (the message
+`bootstrap_runtime_objects.rs` already asserts), not a silent mismatch.
+
+#### 12.5 What the name is *for*: index lookup, not index arithmetic
+
+The name is the identity; the 16-bit index is a per-process cache of it.
+The mechanism:
+
+- A `.cinchif` carries the module's **layout rows**: for each type it
+  defines, the name and the descriptor words (size, alignment, pointer
+  map). It does not carry an index.
+- At link, the program collects the distinct names from every interface
+  plus every name its own code requests, sorts them, and assigns indices
+  0..n. That assignment is deterministic across builds of the same set and
+  is what the layout table is emitted from.
+- A block's header keeps the 16-bit index, so the runtime is unchanged: it
+  reads `layout(h)` and looks up the table, exactly as today.
+- The index is therefore an *implementation detail of one process*, and the
+  name is the *interface identity*. Two modules agree because they agree on
+  the name; they need not agree on the index, because the linker assigns
+  it once for the process.
+
+This keeps the property `block_kinds.rs` relies on (a tag readable without
+the scrutinee's type) because the index keeps the `group << 6 | tag` shape.
+It drops the property that the index is the emission order, which is what
+makes lazy creation possible at all.
+
+#### 12.6 Where the width is decided, once
+
+The narrow-value work already in the tree has a live miscompile from
+exactly this failure mode: a narrow comparison conjunct is lost when the
+guard is itself a conjunction of narrow comparisons (lane `dasl-narrow-cond`,
+`1395f02a`), and the seed returns the wrong answer. The cause is
+structural: the width of a value is decided in more than one place
+(`check_decls.rs` `crossing`, `codegen.rs` `Cross::of`, the apply stub, the
+`musttail` prototype comparison) and the places can disagree.
+
+The requirement this note imposes on the slot design is the same one, stated
+so it cannot be missed:
+
+> **A value's slot width is decided by one total function of (type,
+> target), and every consumer reads that function's answer rather than
+> recomputing it.**
+
+Concretely:
+
+- `slot(T, P)` (12.3) is the function. It is total: no `Option`, no
+  fallback, no "the analysis could not prove one". A type whose width
+  cannot be stated is `boxed_obj`, which is a *decision*, not a refusal.
+- The boundary crossing reads the same function. `Crossing::Bits { bits,
+  signed }` and `Crossing::Csize` become *views* of `slot`: the crossing of
+  a `U8` position is `slot(U8, P)` when that is narrower than the word, and
+  the slot of a `List U8` element is the same `1`. One answer, two uses.
+- A crossing that would disagree with the slot is made impossible by
+  construction: the emitter takes the width from the slot record on the
+  binding, and there is no second code path that computes a width from a
+  `Ty`. If a future change needs a second path, the type system should
+  carry the width (a `Width` newtype on the binding) rather than the code
+  recomputing it.
+
+That is the design rule the miscompile argues for, and it is why 12.3 is a
+total function rather than a proof obligation.
+
+#### 12.7 Why a descriptor and not a hash
+
+Three schemes were considered for the identity and one was taken.
+
+|Scheme|Identity is|Rejected because|
+|---|---|---|
+|positional index (today)|emission order|not derivable by a second compiler, and `compilation-speed.md` 2.9 already has to normalise it away when comparing IR|
+|hash of the descriptor|`fnv1a64(descriptor)`|cannot be read in a diagnostic, cannot be diffed when two modules disagree, and a consumer must either trust it or re-derive it (the same work as comparing the descriptor)|
+|canonical descriptor string|the string|taken|
+
+The decisive property is *explainability under disagreement*. When two
+modules disagree, the compiler must say which two layouts differ and how,
+and a string does that (`the provider publishes List@boxed_obj; this
+module needs List@unboxed_4_bytes for a Nat element`). A hash says two
+numbers are different. The existing code has this lesson already: the
+layout mismatch message in `bootstrap_runtime_objects.rs` names the class
+vector (`" [T]"`), not an index, and the note that documents the object ABI
+says the manifest is a *contract* a consumer reads.
+
+The one place a hash is right is the interface's own `iface_hash`, which is
+`fnv1a64` over the canonical contract projection (`interface.rs:1114`). It
+is a cache identity, explicitly "not a cryptographic artifact digest", and
+it is allowed to be opaque because nothing ever explains a hash mismatch;
+it recompiles. A layout name is different: it is part of the *contract* and
+appears in symbols a human reads.
+
+#### 12.8 How this fits the existing identity machinery
+
+|Existing mechanism|What it does|What the layout scheme does with it|
+|---|---|---|
+|static block descriptor (a symbol *is* its descriptor: `static_payload`, `@"<sym>.blk#h"`)|makes a static block's payload reachable by a constant offset, never an alias|unchanged: a specialised layout changes the payload's *size and map*, not how it is addressed. The dedup rule still holds, and a narrow block is still `getelementptr` at `8 * words`|
+|`repr::spec_name` / `base_unit` (`@` plus class letters)|names a specialised *unit* and recovers the generic one|extended with a second segment, `@unboxed_4_bytes`, after the class segment|
+|`iface-schema-version` (`SCHEMA_VERSION = 10`)|gates interface shape|bumped when layout rows are added; a 10 reader cannot read an 11 interface and says so|
+|`runtime_abi` (`RUNTIME_ABI_VERSION = 9`)|gates the layout algorithm and the runtime's ABI|bumped, because a 16-bit index into a table of a different shape, and a new pointer-map code, are runtime ABI|
+|`Span` interned handle (`sym.rs`)|identity by pointer for a name|not applicable: a layout is not a value, and interning it would make identity depend on process state|
+|`object_abi`'s `layout_words` prefix|concatenation agreement across objects|replaced for *new* layouts by name-keyed collection at link; the prefix rule stays as the mechanism for a provider's existing rows|
