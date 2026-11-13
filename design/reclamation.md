@@ -947,6 +947,38 @@ the reuse is the counting pass's business. Linearity is still not uniqueness
 (the next paragraph), so the per-node `cinch.rc.unique` test remains the
 authority: a shared tail takes the cold path and allocates.
 
+*A branch keeps its release and moves only the reuse* (`expandResetReuse`,
+`ExpandResetReuse.lean`). When no allocation is on the arm's straight-line
+spine, the pair can still be placed when the arm's *body* is a branch: each
+alternative that allocates a compatible constructor takes a `Reuse` of the
+dying cell. Lean pushes a copy of the whole pair into every arm. Copying the
+*release* is unsound, and the bootstrap compiler proved it: the branch head
+(an `if`'s condition, a `case`'s scrutinee) is evaluated after the release
+and before the arms, so a field the head consumes is dead at arm entry. An
+arm's release derives its moved-field set from the arm body alone, finds that
+field unused, and puts it in `rest`, which drops it a second time. In this
+runtime a double free is a corrupt small-heap free list, not a report, so the
+symptom is a segfault inside the allocator with no diagnostic at all.
+
+The release therefore stays at the head of the branch with the moved-field
+set the whole arm body computed, and only the `Reuse` moves. Every arm's
+reuse names the one token the head bound; exactly one arm runs per path, so
+the token is read at most once per path. An arm with no compatible
+allocation leaves the token unread, which is sound because the head's
+release already freed the block on its unique path (or dupped and dropped it
+on the shared one): that path has nothing left to leak. The expansion is
+applied only when at least one arm takes a pair, because otherwise the head
+would bind a token no path reads.
+
+The regression shape is a branch whose head consumes a counted field of the
+dying block and whose alternatives both rebuild it. `Bootstrap.Total.infer`
+is that shape: its `if`-condition reads a field of the dying `Json` block and
+both alternatives rebuild it, so the copied-pair form dropped that field
+twice on every call. `rc_specialisation` pins both shapes against the
+`Owned` Core dump, the only dump that states the decision as `release`/
+`reuse` tokens: the emitted IR cannot, because a callee inlined into the unit
+brings its own releases and uniqueness tests.
+
 *Family crossing* (`relaxedReuse`, `ResetReuse.lean`). The insertion runs
 twice: the same-family proof first, and only when that finds nothing the
 crossing one, so a compatible successor of the scrutinee's own type is never

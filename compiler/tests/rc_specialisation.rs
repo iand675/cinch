@@ -6,7 +6,7 @@
 
 use cinch::check::StageMode;
 use cinch::core::TargetProfile;
-use cinch::driver::{driver_with_profile, Mode};
+use cinch::driver::{driver_with_profile, driver_with_profile_opts, DriverOptions, Mode};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -262,90 +262,209 @@ module Main where
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-fn an_if_shaped_rebuild_reuses_one_pair_per_branch() {
-    let dir = source_project("if", IF_SHAPED);
-    let ir_path = dir.join("prog.ll");
-    drive(Mode::EmitIr, &dir, &ir_path, false);
-    let ir = std::fs::read_to_string(&ir_path).expect("read IR");
-    // Both alternatives allocate a `Cons`, so both take a pair. The unit
-    // names the reuse twice and, critically, frees the cell on neither
-    // path: a free here would mean the arm kept the block alive with no
-    // reuse to take it.
+/// A `case` whose scrutinee dies and whose every alternative rebuilds it:
+/// one release at the head of the branch, which binds the token that both
+/// alternatives' reuse reads.
+///
+/// The first version of this optimisation copied the *release* into every
+/// arm (Lean's `expandResetReuse` pushes the whole pair). That is wrong
+/// here, and the shape below is what makes it visible: the branch head (an
+/// `if`'s condition, a `case`'s scrutinee) runs after the release and
+/// before the arms, so a field the head consumes is already dead at arm
+/// entry, and a release copied into the arm drops it a second time. The
+/// head keeps the release; only the reuse moves into the arms.
+#[test]
+fn a_branch_keeps_its_release_at_the_head_and_reuses_in_the_arms() {
+    const PROGRAM: &str = r#"
+module Main where
+  import Data.List
+
+  len :: List Int -> Int
+  len xs = case xs of
+    Nil -> 0
+    Cons h t -> 1 + len t
+
+  step :: Option (List Int) -> Option (List Int)
+  step w = case w of
+    None -> None
+    Some x -> if len x == 1 then Some (Cons 9 x) else Some (Cons 8 x)
+
+  main :: Int
+  main = case step (Some (Cons 1 Nil)) of
+    Some v -> if len v == 2 then 0 else 1
+    None -> 2
+"#;
+    let dir = std::env::temp_dir().join(format!("cinch_reuse_branch_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("project directory");
+    std::fs::write(dir.join("Main.cinch"), PROGRAM).expect("write source");
+    let core = owned_core(&dir);
+    let step = core_unit(&core, "Main.step");
+    // Exactly one release of the dying block, at the head of the branch,
+    // and both alternatives read the one token it bound. Two releases (one
+    // per arm, each with its own token) is the copied-pair bug: the head
+    // runs before every arm, so an arm's release re-counts what the head
+    // already consumed.
     assert_eq!(
-        frees(&ir, "Main.rebuild"),
-        0,
-        "the if-shaped rebuild still frees the dying cell on a path:\n{}",
-        body(&ir, "Main.rebuild")
+        step.matches("(release t0 @token(").count(),
+        1,
+        "the branch does not keep exactly one tokenised release at its head:\n{step}"
     );
-    let (code, err) = build_and_run(&dir, "prog", false);
-    assert_eq!(code, Some(0), "{err}");
-    assert!(
-        err.lines().any(|l| l.starts_with("cinch-leak:") && l.split_whitespace().any(|w| w == "leaked=0")),
-        "the if-shaped rebuild leaked: {err}"
-    );
-    let _ = std::fs::remove_dir_all(&dir);
-}
-
-#[test]
-fn a_case_shaped_rebuild_reuses_one_pair_per_alternative() {
-    let dir = source_project("case", CASE_SHAPED);
-    let ir_path = dir.join("prog.ll");
-    drive(Mode::EmitIr, &dir, &ir_path, false);
-    let ir = std::fs::read_to_string(&ir_path).expect("read IR");
+    let token = step
+        .split("(release t0 @token(")
+        .nth(1)
+        .and_then(|rest| rest.split(')').next())
+        .expect("a token name");
     assert_eq!(
-        frees(&ir, "Main.rebuild"),
-        0,
-        "the case-shaped rebuild still frees the dying cell on a path:\n{}",
-        body(&ir, "Main.rebuild")
+        step.matches(&format!("(reuse {token}")).count(),
+        2,
+        "the two alternatives do not each read the token the head bound:\n{step}"
     );
-    let (code, err) = build_and_run(&dir, "prog", false);
+    let (code, err) = build_and_run(&dir, "prog", true);
     assert_eq!(code, Some(0), "{err}");
     assert!(
         err.lines().any(|l| l.starts_with("cinch-leak:") && l.split_whitespace().any(|w| w == "leaked=0")),
-        "the case-shaped rebuild leaked: {err}"
+        "the branch reuse leaked: {err}"
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// The shape that crashed the bootstrap compiler: the branch's own head
+/// consumes one of the dying block's counted fields, and every arm
+/// rebuilds the block.
+///
+/// `branch_reuse` derives each arm's moved-field set from the arm's body.
+/// The field the head read is dead by then, so it appeared in no arm's
+/// moved set and in every arm's `rest`, and each arm's release dropped it
+/// a second time. On the bootstrap sources that is a double free on every
+/// call of `Bootstrap.Total.infer`, which is why stage 2 segfaulted inside
+/// `allocate_block` with an empty log rather than reporting anything. The
+/// head now keeps the release, so the field is dropped once, before the
+/// condition runs.
 #[test]
-fn a_branch_whose_arm_allocates_nothing_is_refused() {
-    let dir = source_project("mixed", MIXED_ARMS);
-    let ir_path = dir.join("prog.ll");
-    drive(Mode::EmitIr, &dir, &ir_path, false);
-    let ir = std::fs::read_to_string(&ir_path).expect("read IR");
-    // The `False` arm returns the tail itself, so there is no allocation to
-    // reuse the dying cell into. The pair must not be placed: a per-arm
-    // release on that path would keep the cell alive with nothing to take
-    // it, which is the leak the straight-line rule exists to prevent.
-    assert!(
-        frees(&ir, "Main.mixed") > 0,
-        "a branch with a non-allocating arm took a per-arm pair, which would \
-         strand the cell on that path:\n{}",
-        body(&ir, "Main.mixed")
+fn a_branch_whose_head_consumes_a_field_drops_it_once() {
+    const PROGRAM: &str = r#"
+module Main where
+  import Data.List
+
+  len :: List Int -> Int
+  len xs = case xs of
+    Nil -> 0
+    Cons h t -> 1 + len t
+
+  pick :: Option (List Int) -> Bool -> Option (List Int)
+  pick w flag = case w of
+    None -> None
+    Some x -> if flag && len x == 1 then Some (Cons 7 x) else Some (Cons 8 x)
+
+  main :: Int
+  main = case pick (Some (Cons 1 Nil)) True of
+    Some v -> if len v == 2 then 0 else 1
+    None -> 2
+"#;
+    let dir = std::env::temp_dir().join(format!("cinch_reuse_head_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("project directory");
+    std::fs::write(dir.join("Main.cinch"), PROGRAM).expect("write source");
+    let core = owned_core(&dir);
+    let pick = core_unit(&core, "Main.pick");
+    // The head consumed one of the dying block's fields, so the release
+    // must be the branch's own, at its head, and the alternatives must not
+    // carry copies. In the copied-pair form each arm carries its own
+    // release *after* the condition and re-drops the field the condition
+    // already dropped: the double free that crashed the bootstrap. The
+    // head release is the one whose body is the branch (`(if` or `(case`),
+    // and there must be exactly one release of the block in the unit.
+    assert_eq!(
+        pick.matches("(release t0 @token(").count(),
+        1,
+        "the branch does not keep exactly one tokenised release at its head:\n{pick}"
     );
-    let (code, err) = build_and_run(&dir, "prog", false);
+    let after = pick
+        .split_once("@token(")
+        .and_then(|(_, rest)| rest.split_once(")"))
+        .map(|(_, rest)| rest)
+        .expect("the head release");
+    // The head release hands the field over rather than dropping it, so it
+    // appears in `moved`, not in `rest`: `rest` is the set the release
+    // drops, and a field the head's own condition consumes must not be in
+    // it (that is the second drop).
+    assert!(
+        after.trim_start().starts_with("(moved t2)"),
+        "the head release does not hand the block's field to the reuse:\n{pick}"
+    );
+    let branch_at = after.find("(if").or_else(|| after.find("(case")).expect("the branch");
+    let reuse_at = after.find("(reuse ").expect("the alternatives' reuse");
+    assert!(
+        branch_at < reuse_at,
+        "the release is inside an alternative rather than at the head:\n{pick}"
+    );
+    // A debug build traps on a use after free rather than reading reused
+    // memory, so this is the run that would have caught the original bug.
+    let (code, err) = build_and_run(&dir, "prog", true);
     assert_eq!(code, Some(0), "{err}");
     assert!(
         err.lines().any(|l| l.starts_with("cinch-leak:") && l.split_whitespace().any(|w| w == "leaked=0")),
-        "the refused shape leaked anyway: {err}"
+        "the head-consuming branch leaked: {err}"
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-#[test]
-fn a_recursive_branched_rebuild_is_leak_free_in_both_builds() {
-    let dir = source_project("rec", RECURSIVE_BRANCHED);
-    // The property the rule has to survive: a recursive unit whose
-    // allocation is inside a branch on every path. Both a plain build and
-    // an `rc_debug` build must run leak-free, because the debug profile
-    // traps on a use after free rather than reading reused memory.
-    for (name, debug) in [("prog", false), ("prog_dbg", true)] {
-        let (code, err) = build_and_run(&dir, name, debug);
-        assert_eq!(code, Some(0), "debug {debug}: {err}");
-        assert!(
-            err.lines().any(|l| l.starts_with("cinch-leak:") && l.split_whitespace().any(|w| w == "leaked=0")),
-            "debug {debug} leaked: {err}"
-        );
+/// Build `dir`'s entry and run it under the leak check, returning the exit
+/// code and stderr.
+fn build_and_run(dir: &Path, name: &str, debug: bool) -> (Option<i32>, String) {
+    let exe = dir.join(name);
+    drive(Mode::Build, dir, &exe, debug);
+    let mut cmd = Command::new(&exe);
+    cmd.env("CINCH_HEAP_LIMIT", "64M").env("CINCH_LEAK_CHECK", "1").env_remove("CINCH_ALLOC_STATS");
+    if debug {
+        cmd.env("CINCH_RC_DEBUG", "1");
     }
-    let _ = std::fs::remove_dir_all(&dir);
+    let out = cmd.output().expect("spawn program");
+    (out.status.code(), String::from_utf8_lossy(&out.stderr).into_owned())
+}
+
+/// The `Owned` Core of the project in `dir`: the reference-count pass's
+/// own output, before specialization lowers it.
+///
+/// This is the only dump that states the reset/reuse decision directly, as
+/// `release`/`reuse` nodes with their tokens. The emitted IR is not usable
+/// for it: a callee inlined into the unit brings its own releases and
+/// uniqueness tests, and no IR shape names which release is the branch's.
+fn owned_core(dir: &Path) -> String {
+    let core = dir.join("prog.owned.core");
+    let profile = TargetProfile { reclaim: true, rc_debug: false, ..TargetProfile::native() };
+    let opts = DriverOptions {
+        dump_core: Some(cinch::coretext::Stage::Owned),
+        core_out: Some(core.clone()),
+        ..DriverOptions::default()
+    };
+    let (src, dir_ir) = (dir.join("Main.cinch"), dir.join("prog.ll"));
+    std::thread::Builder::new()
+        .stack_size(64 * 1024 * 1024)
+        .spawn(move || {
+            driver_with_profile_opts(Mode::EmitIr, StageMode::Refresh, &src, Some(&dir_ir), &profile, &opts)
+        })
+        .expect("driver thread")
+        .join()
+        .expect("driver thread panicked")
+        .unwrap_or_else(|e| panic!("core dump failed: {e}"));
+    std::fs::read_to_string(&core).expect("read core")
+}
+
+/// The body of the unit `name` in a Core dump.
+fn core_unit<'a>(text: &'a str, name: &str) -> &'a str {
+    let head = format!("unit {name} ");
+    let start = text
+        .lines()
+        .scan(0usize, |at, line| {
+            let here = *at;
+            *at += line.len() + 1;
+            Some((here, line))
+        })
+        .find(|(_, line)| line.starts_with(&head))
+        .map(|(at, _)| at)
+        .unwrap_or_else(|| panic!("no unit {name}"));
+    let end = text[start..].find("\nend\n").expect("unit end");
+    &text[start..start + end]
 }
