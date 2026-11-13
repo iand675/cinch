@@ -993,6 +993,106 @@ problem, and it wants a census first: the ABI 9 bump arena means
 `CINCH_ALLOC_KINDS` no longer sees these blocks, so the census has to be
 taken per layout id in the runtime rather than per size class.
 
+### 2.17 The carrier round trip, and two harness defects that hid it (2026-11-13)
+
+Item 11 of section 12 asked for a measurement of the capture rate per unit
+before either candidate fix, because the release path's 13.9% had no
+attributable caller. Getting that measurement meant fixing the harness
+first, and the harness was hiding more than the attribution.
+
+**Two `profile_build.py` defects.** `sample` draws its group markers
+(`+`, `!`, `:`, `|`) in the gutter *before* the count, one marker per two
+columns of indent, so a frame four levels deep reads
+`      !   | + ! 5763 symbol`. The parser allowed exactly one marker and so
+matched no frame deeper than level 1: the call graph collapsed onto its
+first few frames and every deeper self count landed on the nearest
+surviving ancestor, which is why `after-parse-with` absorbed 45% of the
+self-check and why nothing inside it could be named. The marker run is
+part of the indent. Separately, `sample` leaves a frame `???` when its
+stack walk starts inside a function it cannot name, which was 42% of self
+samples; the printed `load address B + O` pair gives the link-time offset
+directly, so `nm -n` on the sampled binary names it. With both fixed the
+toolkit profile names `rc::release` at 30.0% self and the self-check at
+17.9%, and its callers are visible. **Any earlier per-symbol number from
+this harness was reading a flattened graph**; the lesson is that a
+profiler's own parse needs a correctness check (here: does a known-deep
+frame appear at its real depth) before its percentages are believed.
+
+**The measurement, per unit.** Attributing `rc::release` and
+`allocate_block` to the nearest named frame, on the toolkit check:
+
+|frame|release|allocate|what it does|
+|---|---|---|---|
+|`typed-index-carrier`|4.9%|1.9%|encode a type to a document, decode it back|
+|`valid-comparison`|3.6%|0.4%|two of those round trips, then compare|
+|`read-carrier-tree`|3.4%|1.6%|the decode half|
+|`carrier-tree`|2.4%|1.9%|the encode half|
+|`opaque-index`|1.7%|0.4%|`opaque-carrier` over the same trees|
+
+So the answer to "reset/reuse capture on those cells, or fewer of those
+cells" was neither: the cells were being built to carry a value that the
+caller already held. `type-kind` wraps a carrier in `KValue` as a
+`carrier-tree` document and `value-carrier` parses that document back, so
+every kind observation of a type rebuilt the whole type tree, and
+`typed-index-carrier` was `value-carrier (type-kind value)`.
+
+**The fix.** `index-carrier` answers the same question directly: each arm
+of `type-kind` that answers with `value-kind carrier` returns that carrier,
+and the five arms whose kind is a `Kind` rather than a carrier in hand
+(`UCon`, `UBound`, `URigid`, `UMeta`, `UApp`) take the same `value-carrier`
+step as before. `typed-index-carrier` is that function.
+
+|workload|counter|before|after|change|
+|---|---|---|---|---|
+|toolkit check|blocks|251,846,803|160,769,014|-36.2%|
+|toolkit check|bytes|5,663,759,709|3,759,771,566|-33.6%|
+|self-check|blocks|1,068,183,359|910,795,836|-14.7%|
+|self-check|bytes|25,893,114,155|22,613,324,564|-12.7%|
+
+Peak live heap is unchanged on both (24,603,579 and 167,373,342), so the
+change removed work rather than retained memory, and the toolkit arm
+repeats its counter line byte for byte across three runs. Output is byte
+identical (stage2 and stage3 `compiler.ll` equal, binaries equal), three
+smokes pass, `cargo test --lib` is 275 passed, and both workloads print
+`cinch-leak: live=0 immortal=0 leaked=0`.
+
+**What this leaves.** The round trip is gone but `KValue`'s document is
+still the representation: `value-kind` still encodes, so every consumer
+that builds a kind from a carrier pays one. The next step in this area is
+the `Kind` representation itself, not another caller rewrite.
+
+### 2.18 The frontend is superlinear in definition count (2026-11-13)
+
+Found while sizing the `huge-module` workload for the `-j` sweep, and
+worth recording because it is the largest scaling defect measured on this
+tree. `emit-ir` over one module of `n` independent `Int -> Int`
+definitions, stage-3 binary, no imports:
+
+|n|wall|
+|---|---|
+|50|3.60 s|
+|100|5.70 s|
+|200|17.02 s|
+|400|77.73 s|
+
+That is quadratic. The profile of the n=200 arm puts 14.1% inclusive in
+`Bootstrap.Infer.check-global-core` and 12.4% in
+`Bootstrap.Core.total-core-row`, with `total-core-merge` 12.2% and
+`total-core-call` 10.6% under it. The mechanism is
+`total-core-insert`: a sorted insertion into a `List Json`, called once per
+definition by `total-core-gather`, so building the total-core table for a
+module of `n` definitions is `n` insertions into a list of up to `n` rows,
+each one re-reading and re-comparing identities. The table is rebuilt per
+module rather than cached, and `core-total-function` calls `total-core-gather`
+again per definition it is asked about.
+
+Nothing here was changed: it is a representation change in
+`Bootstrap.Core`'s total-function table, not a local fix, and the item 11
+landing was already the larger win. The `huge-module` workload is sized at
+200 definitions for that reason, and the sweep records `frontend_s`
+separately so this curve shows up as a column rather than hiding in a
+total.
+
 ## 3. The query graph (rustc, Salsa, Shake)
 
 The single largest structural gap. Today a build rechecks whatever the
@@ -2568,12 +2668,17 @@ Metrics, reported per edit and per clean build:
    point breaks. The toolkit check falls from 15.47 s to 13.96 s median
    (9.8%, five interleaved runs) and the chain pays one instrumented link
    and one training run per source revision. See section 8.
-2. **Profile harness.** A `tooling/profile_build.py` that runs a stage
-   chain and emits phase timings, clang `-ftime-trace` summaries, sample
-   profiles of the running compiler, and per-target test times, as one JSON
-   file. Everything below is measured through it. Also add a `-j` sweep
-   (1, 2, 4, 8) over four workloads: many small modules, a wide dependency
-   graph, a deep import chain, one huge generated module.
+2. **Profile harness. Done (2026-11-13).** `tooling/profile_build.py`
+   runs a stage chain and emits phase timings, clang `-ftime-trace`
+   summaries, sample profiles of the running compiler, and per-target test
+   times, as one JSON file. The `-j` sweep (1, 2, 4, 8) over the four
+   workloads landed with it as `profile_build.py sweep`:
+   `many-small`, `wide-graph`, `deep-chain` and `huge-module`, each timed
+   as `emit-ir` plus a `shard_ir.py` split compile of that same module, so
+   the K>1 arms are one program split differently rather than a different
+   program. Two defects in its own sample parser were fixed at the same
+   time and had been silently flattening every profile it produced; section
+   2.17 has them and the rule they imply.
 3. **Parallel code generation. Done (2026-11-10).** `tooling/shard_ir.py`
    emits one `.ll` per shard (grouped by module prefix, fixed order) and
    `tooling/bootstrap.py` compiles them with `clang -O2 -c` in parallel
@@ -2584,10 +2689,15 @@ Metrics, reported per edit and per clean build:
    over the shard objects, or inlining at the Core level before emission)
    and emitting objects directly instead of text IR; neither is worth more
    than the frontend work in items 6 and 7 until the module shrinks.
-4. **Shrink the emitted IR further.** Re-measure after the reference-count
-   and match changes, then target the largest remaining constructs:
-   functions above 20K IR lines, repeated `case` spines, and every
-   remaining out-of-line helper call.
+4. **Shrink the emitted IR further. Not taken this round.** Re-measured
+   after the item 11 landing: the stage-3 module is unchanged in shape by
+   that change (the win is allocation, not IR), and no single remaining
+   construct reached the size where a rewrite pays. The largest functions
+   and the repeated `case` spines are still there; what is missing is a
+   census of IR lines per construct rather than per function, which the
+   harness can now supply. Section 2.18's superlinear frontend is the
+   larger IR-adjacent finding and is a representation change, not a
+   peephole.
 5. **Interface format.** Sectioned or indexed `.cinchif` decoding, plus an
    optimization section (size, arity, inline guidance). Needs a schema
    version bump and a producer rebuild. Dense typed bodies with the type
@@ -2597,37 +2707,71 @@ Metrics, reported per edit and per clean build:
    of 245.8 s in the single-threaded frontend, so per-declaration query
    reuse with fingerprints and early cutoff (section 3) and a parallel
    phase schedule (section 9) matter more than any backend work.
-7. **Interning `Ty` and names.** Names are done in the seed (section 2.3,
-   -11.1% on its check). What is left on this item: `Ty` *nodes* (an arena
-   plus integer ids, which needs the mutation paths in `core.rs` to take
-   ids), and the same interning in the Cinch compiler, where identity
-   decoding and export scans still compare spellings.
+7. **Interning `Ty` and names. Rejected for now, on measurement
+   (2026-11-13).** Names are done in the seed (section 2.3, -11.1% on its
+   check). The remaining half is `Ty` nodes as an arena plus integer ids,
+   which needs `core.rs`'s mutation paths to take ids. Measured before
+   starting it, on both workloads with the fixed harness: `Ty` is not in
+   the profile. The top self samples are the allocator and the release
+   walk (30.0% and 17.9% before item 11, still the top two after), then
+   `bytes-compare` 1.8% to 3.2%, `natCmp` 0.9% to 2.4%, and
+   `string-compare` 1.5% to 2.3%. No `Ty`-shaped frame reaches 1%: the
+   checker's types are already small trees that the allocator serves in a
+   few words, and the cost that looked like type copying was the carrier
+   document of item 11. An arena would remove one pointer indirection per
+   node from a path that is not the bottleneck, and would touch every
+   mutation path in `core.rs` to do it. The measurement that would revive
+   this item is a workload where `Ty` construction or traversal shows up
+   above 2% self after the carrier fix; nothing measured here does.
 8. **Finish the GHC-style simplifier** on our Core: case-of-case with join
    points, call-arity and eta, loopification, CPR plus worker/wrapper for
    single-field constructors, spec-constr and liberate-case. The pass
    shape, the tick budget and the first three rewrites (case-merge,
    known-constructor, direct dictionary calls) are in the tree (section
    10.1); case-of-case needs the join node in Core first.
-9. **LTO across the library boundary**: finish the investigation in section
-   8. It is worth one focused pass because it halves the binary and removes
-   the call cost to the library's string and `Nat` routines (14% of the
-   compiler's profile), but only if the stack-probe fault is understood.
+9. **LTO across the library boundary. Rejected on measurement
+   (2026-11-13).** Section 8 has the full table. The fault is understood
+   and gone (`a9a9a638` and `618f276a` removed its cause; neither LTO shape
+   reproduces it, and both pass the leak gate and emit the baseline
+   `compiler.ll`), so the parked question is answered. What rejects the
+   work is the cost: ThinLTO is 1.5% *more* CPU on the toolkit check and
+   within 2% on the self-check, full LTO and the sharded thin link cost 4%
+   to 9%, and all of it adds 26% to 33% of stage link time for no check-time
+   gain. The size drop is real (`__text` -13%, ~5 MB of export table) and
+   does not reach the process: peak resident set is 175 to 176 MB in every
+   arm. The 14% call population it would have inlined is also already
+   smaller than the estimate, because the interface unfoldings removed
+   2,833 wrapper calls at the Core level first. Nothing was wired.
 10. **Parallel phases** using the runtime pool, once section 11's corpus
    says which phases have enough independent work: RuntimeIr emission per
    unit, then inference per definition, then interface export per module.
-11. **Constructor release in the checker's hot paths** (section 2.15). The
-   release path is 13.9% of a toolkit check and 4.2% of a self-check, called
-   from ordinary code in `Bootstrap.Type` and `Bootstrap.Dictionary`, not from
-   an apply stub (0.00% on the toolkit, 0.02% on the self-check); the stubs'
-   own bodies are 0.27%. So the next item in this area is not a closure pass:
-   it is either reset/reuse capture on the cells `typed-index-carrier` and
-   `valid-comparison` build and drop, or fewer of those cells. Measure the
-   capture rate per unit before writing either. An earlier revision of this
+11. **Constructor release in the checker's hot paths. Done (2026-11-13).**
+   Section 2.17. With the profile harness's parser fixed, the release path
+   measured at 30.0% of the toolkit check's self samples and 17.9% of the
+   self-check's, and the capture rate per unit named the cells: they were
+   `value-kind`'s JSON documents, built and dropped by
+   `typed-index-carrier` (4.9%), `valid-comparison` (3.6%),
+   `read-carrier-tree` (3.4%) and `carrier-tree` (2.4%). Neither candidate
+   was the right move: the cells existed only to carry a value the caller
+   already held, so the fix was to stop encoding. `index-carrier` reads the
+   carrier directly, and the counts fell 36.2% on the toolkit check and
+   14.7% on the self-check with the output byte identical. What remains is
+   `Kind`'s representation (`value-kind` still encodes), which is the next
+   item rather than another caller rewrite. An earlier revision of this
    item sent the work to the apply stub on a stack-attribution artifact; do
    not resurrect that reading.
-12. **Development codegen tier** (Cranelift or a direct emitter) once the
-   backend is the measured bottleneck for edit-compile-run rather than for
-   clean builds.
+12. **Development codegen tier. Not yet, and the harness says why
+   (2026-11-13).** The trigger condition is "the backend is the measured
+   bottleneck for edit-compile-run", and it is not. `profile_build.py sweep`
+   measures the two halves separately over the four workload shapes, and
+   the backend is a rounding error at every shard count: `many-small`
+   spends 2.4 s in `emit-ir` and 0.04 to 0.05 s in the split `clang -O2`,
+   `wide-graph` 2.5 s and 0.04 s, `deep-chain` 5.3 s and 0.05 s. The
+   frontend is 50x to 100x the backend on the shapes an edit-compile-run
+   loop actually sees, and section 2.18 shows it is superlinear in
+   definition count. A cheaper codegen tier would optimize the 0.05 s. The
+   item stays parked until a sweep arm shows the backend above the
+   frontend, which the `sweep` subcommand can now state directly.
 13. **Deduplicate the self-hosted emitter's static nullary blocks. Done
    (2026-11-12).** Keying the symbol on the descriptor took the compiler
    module from 7,126 definitions to 96 and from 43,333,108 to 42,624,237
