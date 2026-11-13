@@ -3088,20 +3088,34 @@ smokes pass, `cargo test --lib` is 275 passed, and both workloads print
 `cinch-leak: live=0 immortal=0 leaked=0`.
 
 **The target suite, and why it needed a control.** The full suite against
-the baseline (`bootstrap/stage3-suite-baseline.json`: 234 targets, 145
-fully passing, 928 passed, 631 failed) reported 237 targets, 143 fully
-passing, 943 passed, 640 failed, and eight shared targets looked worse.
+the stored baseline (`bootstrap/stage3-suite-baseline.json`: 234 targets,
+145 fully passing, 928 passed, 631 failed) reported 237 targets, 143 fully
+passing, 943 passed, 640 failed. The three extra targets are new targets
+from other lanes (`narrow_boundary`, `par_map_in_compiler_sources`,
+`wasm_target`); nothing left the set. The baseline file is deliberately
+not updated here: `main` could not build a chain when this was written, so
+a re-baseline would record numbers from a tree that does not build. Eight
+shared targets looked worse.
 All eight reproduce identically on a control stage-3 built from the
 change's own parent (`d7e6e757`): `bootstrap_parse` 1p/1f,
 `bootstrap_pipeline` 1p/1f, `bootstrap_runtime_emit` 0p/1f, `concurrency`
 20p/4f, `native_closure_checks` 0p/1f, `reclamation` 0p/19f,
 `reclamation_tasks` 0p/3f, `refinements` 9p/18f, with byte-identical
-failure text. They are the state of this shared tree, not this change, so
-**no target is worse against the baseline because of it**; five targets
-are better (`temporal` 1p/19f to 14p/7f, `llvm_contract` 12p/2f to
-16p/2f, `syntax_objects`, `primitives`, `conditional_surface`). A suite
-run on a tree other lanes are editing needs that control: an unattributed
-red target is not evidence about this change either way.
+failure text. So they are the state of this shared tree, not this change:
+**no target is worse against the baseline because of it**, and five are
+better (`temporal` 1p/19f to 14p/7f, `llvm_contract` 12p/2f to 16p/2f,
+`syntax_objects`, `primitives`, `conditional_surface`).
+
+Two of the eight should be kept in view rather than filed under
+"pre-existing". **`reclamation` 0p/19f and `reclamation_tasks` 0p/3f are
+red at the change's parent (`d7e6e757`), so they are red for everyone on
+this tree rather than newly red here.** `reclamation` is the suite that
+pins the release and reuse machinery, and it losing all nineteen is not a
+small thing: it should be re-examined before any lane claims its own
+reuse or reclamation tests as evidence.
+
+A suite run on a tree other lanes are editing needs that control: an
+unattributed red target is not evidence about this change either way.
 
 **What this leaves, in the order the census now gives.**
 
