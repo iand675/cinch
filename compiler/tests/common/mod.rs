@@ -175,6 +175,8 @@ pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
         std::fs::write(dir.join("Bootstrap.Global.cinch"), include_str!("../../../bootstrap/Bootstrap.Global.cinch")).expect("global reference checking dependency");
         std::fs::write(dir.join("Bootstrap.Instance.cinch"), include_str!("../../../bootstrap/Bootstrap.Instance.cinch")).expect("typed source instance dependency");
         std::fs::write(dir.join("Bootstrap.Builtin.cinch"), include_str!("../../../bootstrap/Bootstrap.Builtin.cinch")).expect("kernel contract dependency");
+        std::fs::write(dir.join("Bootstrap.Temporal.cinch"), include_str!("../../../bootstrap/Bootstrap.Temporal.cinch")).expect("temporal contract vocabulary dependency");
+        std::fs::write(dir.join("Bootstrap.TemporalCheck.cinch"), include_str!("../../../bootstrap/Bootstrap.TemporalCheck.cinch")).expect("temporal contract decision dependency");
     }
     if files.iter().any(|(name, _)| *name == "Bootstrap.Check.cinch") {
         for (name, src) in [
