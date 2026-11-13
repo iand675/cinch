@@ -5882,9 +5882,30 @@ pub fn run_program_objects(
     let ir = codegen::emit_for(profile, &program)?;
     let tmp = scratch_dir("test")?;
     let ir_path = tmp.join("program.ll");
-    let exe = tmp.join("program");
+    // The artifact a target produces is the target's: an executable for a
+    // native one, a module for a freestanding one.
+    let exe = tmp.join(if is_freestanding(profile) { "program.wasm" } else { "program" });
     std::fs::write(&ir_path, ir)
         .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
+    // A profile that is not the host's links the way `build` does for that
+    // target, so a test that runs a cross profile executes it where the
+    // host can carry it and is refused where it cannot.
+    let opts = DriverOptions::default();
+    let target = link_target(profile, &opts);
+    if is_freestanding(profile) || is_foreign(profile) {
+        link_for(&ir_path, &exe, objects, &LinkPlan::default(), &target)?;
+        let code = if is_freestanding(profile) {
+            run_wasm_module(&exe, profile)?
+        } else {
+            return Err(Error::plain(format!(
+                "target `{}`: a program built for it does not run on this host, whose target is `{}`",
+                profile.triple,
+                crate::core::TargetProfile::native().triple
+            )));
+        };
+        let _ = std::fs::remove_dir_all(&tmp);
+        return Ok(code);
+    }
     link_with(&ir_path, &exe, objects, &LinkPlan::default())?;
     let status = std::process::Command::new(&exe)
         .status()

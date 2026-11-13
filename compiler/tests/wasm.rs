@@ -2,9 +2,11 @@
 //! specification sections 2-8): WIT parsing and the canonical ABI table
 //! of the generated component adapter, the target-keyed `Usize` width
 //! and wasm32 emission, and the `eval` admission rules (supercompilation
-//! and JIT specification section 7). Execution of Wasm artifacts is out
-//! of scope on this machine (no `wasm-ld` or Wasm runtime is installed);
-//! these tests assert the tables, the typing and the emitted IR text.
+//! and JIT specification section 7). These tests assert the tables, the
+//! typing, and the emitted IR text, which needs no toolchain beyond the
+//! compiler. Building and running a module is the separate concern of
+//! `wasm_target.rs`, which links with `wasm-ld` and executes under Node
+//! and skips with the reason printed when either is absent.
 
 mod common;
 
