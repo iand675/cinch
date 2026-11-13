@@ -28,6 +28,13 @@ ROOT = Path(__file__).resolve().parents[1]
 # beside an existing one without overwriting its stages.
 BUILD = Path(os.environ["CINCH_BOOTSTRAP_BUILD"]).resolve() if os.environ.get("CINCH_BOOTSTRAP_BUILD") else ROOT / "build" / "bootstrap"
 TOOLKIT = ("Lex", "Scan", "Parse", "Json", "Builder")
+# Prelude source modules the compiler itself compiles, keyed by the name the
+# bundle gives them. `Data.Array` is not in the embedded base package, and
+# `parMap` lowers through its two conversions (`Bootstrap.Infer`'s
+# `par-map-array-call`), so a `parMap` anywhere in the compiler's own source
+# resolves only when the module is in the same source set. One entry, because
+# nothing else the compiler reaches for is outside the base package.
+COMPILER_PRELUDE = ("Data.Array",)
 PROTOCOL = 4
 HOST = {"system": platform.system(), "machine": platform.machine()}
 FROZEN_SOURCES = None
@@ -506,6 +513,8 @@ def collect_compiler_sources() -> dict[str, bytes]:
     files["Bootstrap.RuntimeAbi.cinch"] = runtime_abi_source(lock["runtime_abi"])
     for module in TOOLKIT:
         files[f"Text.{module}.cinch"] = (ROOT / "compiler" / "prelude" / "Text" / f"{module}.cinch").read_bytes()
+    for module in COMPILER_PRELUDE:
+        files[f"{module}.cinch"] = (ROOT / "compiler" / "prelude" / f"{module.replace('.', '/')}.cinch").read_bytes()
     files["Main.cinch"] = (ROOT / "bootstrap" / "programs" / "Run.Pipeline.cinch").read_bytes()
     # Every bundled compiler module participates in the source compilation.
     # Make the seed-built stage check that same complete closure, including

@@ -116,6 +116,30 @@ class BootstrapContract(unittest.TestCase):
                                   if not line.startswith("  import ") or " as CompilerSource" not in line)
         self.assertEqual(without_imports, original)
 
+    def test_the_compiler_source_set_carries_the_parmap_prelude_module(self):
+        # `parMap` lowers through `Data.Array`'s `array-from-list` and
+        # `array-to-list` (`Bootstrap.Infer.par-map-array-call`), and that
+        # module is not in the embedded base package, so a `parMap` anywhere
+        # in the compiler resolves only when the module is in the same source
+        # set. The bundle has to carry the module's real bytes, because the
+        # fixed point publishes its interface and the seed checks the closure.
+        files = bootstrap.collect_compiler_sources()
+        self.assertIn("Data.Array", bootstrap.COMPILER_PRELUDE)
+        source = bootstrap.ROOT / "compiler/prelude/Data/Array.cinch"
+        self.assertEqual(files["Data.Array.cinch"], source.read_bytes())
+        self.assertEqual(files["Data.Array.cinch"].count(b"module Data.Array where"), 1)
+        # It is imported like every other bundled module, under a qualified
+        # alias, so its exports stay out of the entry's own scope.
+        entry = files["Main.cinch"].decode()
+        modules = sorted(name[:-6] for name in files if name.endswith(".cinch") and name != "Main.cinch")
+        self.assertIn("Data.Array", modules)
+        self.assertEqual(entry.count(f"  import Data.Array as CompilerSource{modules.index('Data.Array')}\n"), 1)
+        # The base package must not also provide it: a module that is both
+        # embedded and a source would be a duplicate definition, and the
+        # whole point of the entry is that the base package lacks it.
+        package = json.loads((bootstrap.ROOT / "compiler/prelude/cinch-base.cinchpkg").read_text())
+        self.assertNotIn("Data.Array", [module["name"] for module in package["modules"]])
+
     def test_fixed_point_requires_matching_executables(self):
         with tempfile.TemporaryDirectory() as temp:
             build = Path(temp)
