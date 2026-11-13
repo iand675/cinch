@@ -368,7 +368,8 @@ Part II's decisions, 2026-11-13 (section 12 unless named otherwise):
 - Open: whether a multi-constructor narrow type (`Option U8`) gets a packed
   tag (stage 4), pending its measurement.
 - Open: whether the interface slot rows can live in the always-read tier,
-  estimated at 1.2% of the base interface set and not yet measured (15.4).
+  estimated at 1.2 to 2.5% of the base interface set and not yet measured
+  (15.4).
 - Open: the spelling of the suffix's grammar if a future layout needs more
   than a width and a boxed marker (12.2 fixes the three prefixes).
 
@@ -1383,7 +1384,7 @@ class vectors (`units[].params` is `["R","O","T"]` in the manifest, not
 |Cost|Size|
 |---|---|
 |one extra copy per reached (class vector, layout vector) pair|bounded by `3^k * 5^k` in the worst case but only the reached pairs exist; the measured compiler bundle has 533 distinct layout ids across 191 groups, so the real number is small|
-|one interface row per published layout|about 40 bytes of JSON per row; at 533 rows that is 21 KB, against the 1.7 MB base interface set the two-tier measurement priced at 10 blocks per byte|
+|one interface row per published layout|a row is a name, a size, an align and a field list: 40 to 80 bytes of canonical JSON. At 533 rows that is 21 to 43 KB, which is 1.2 to 2.5% of the 1,735,532-byte base interface set the two-tier measurement priced at 10 blocks per byte|
 |one table word per layout index|already paid; the table is 22,272 words for the compiler bundle|
 |binary size|grows with the copies used, the same cost class as the class axis|
 |compile time|the collector's worklist grows by the layout component; the drain loop is already there|
@@ -1391,9 +1392,10 @@ class vectors (`units[].params` is `["R","O","T"]` in the manifest, not
 The interface cost is the one worth watching, because
 `compilation-speed.md` 2.17 measured that reading interfaces is 50% of the
 fixed cost of a small check and that a JSON byte is 10 blocks. 533 rows is
-a 1.2% increase on the base set, so the slot rows do not disturb that
-measurement. That is the estimate that decides whether the rows can be in
-the always-read tier (stage 2 of 16) or must be lazy.
+a 1.2 to 2.5% increase on the base set, so the slot rows do not disturb
+that measurement. That is the estimate that decides whether the rows can be
+in the always-read tier (stage 2 of 16) or must be lazy; it is an estimate
+because the row's exact size is not fixed until stage 2 writes it.
 
 #### 15.5 Two refusals that must be errors, not warnings
 
