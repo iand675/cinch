@@ -149,3 +149,115 @@ fn borrowed_parameters_release_and_static_dictionaries_free_everything() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// The pattern-match-rebuild shape of a recursive accumulator, which is
+/// what `reverse-into` is: the arm's scrutinee dies and the fresh `Cons`
+/// is an *argument* of the recursive call, not a `let` on the spine.
+///
+/// `insert_reuse` searches a `Release` body's spine, and a call argument
+/// is on that spine: it is evaluated after the release bound the token and
+/// before the transfer, with no branch between them. Before this shape was
+/// searched, the inliner's unrolled copies reused their cells and the
+/// residual iteration, the one that carries the whole remaining tail,
+/// allocated one cell per element. A 1,000-element build-then-reverse cost
+/// 1,125 constructor blocks; with the argument searched it costs 1,000,
+/// which is the build alone. The spine is allocated exactly once.
+#[test]
+fn accumulator_rebuild_reuses_the_cell_in_a_call_argument() {
+    const PROGRAM: &str = r#"
+module Main where
+  import Data.List
+
+  build :: Int -> List Int -> List Int
+  build n acc = if n == 0 then acc else build (n - 1) (Cons n acc)
+
+  main :: Int
+  main =
+    let xs = build 1000 Nil in
+    let ys = reverse xs in
+    if length ys == 1000 then 0 else 1
+"#;
+    let dir = std::env::temp_dir().join(format!("cinch_reuse_arg_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("project directory");
+    std::fs::write(dir.join("Main.cinch"), PROGRAM).expect("write source");
+    let exe = dir.join("prog");
+    drive(Mode::Build, &dir, &exe, false);
+    let out = Command::new(&exe)
+        .env("CINCH_HEAP_LIMIT", "64M")
+        .env("CINCH_ALLOC_KINDS", "1")
+        .env("CINCH_LEAK_CHECK", "1")
+        .output()
+        .expect("spawn program");
+    let err = String::from_utf8_lossy(&out.stderr);
+    // `0` is the answer check: the reversed list has all 1,000 elements.
+    assert_eq!(out.status.code(), Some(0), "{err}");
+    assert!(
+        err.lines().any(|l| l.starts_with("cinch-leak:") && l.split_whitespace().any(|w| w == "leaked=0")),
+        "the reverse leaked: {err}"
+    );
+    // The build allocates one constructor per element and the reverse
+    // reuses every one of them, so the count is the build's 1,000. The
+    // reverse's own output is the same cells; a single extra cell means a
+    // path in the walk fell back to allocating.
+    let ctor = err
+        .lines()
+        .find(|l| l.starts_with("cinch-alloc-kind:") && l.contains("kind=ctor"))
+        .unwrap_or_else(|| panic!("no constructor count in {err}"));
+    let blocks: u64 = ctor
+        .split_whitespace()
+        .find_map(|w| w.strip_prefix("blocks="))
+        .and_then(|n| n.parse().ok())
+        .unwrap_or_else(|| panic!("no block count in {ctor}"));
+    assert_eq!(blocks, 1000, "the reverse allocated again: {ctor}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A list whose tail another holder keeps: the reuse must copy the shared
+/// nodes and leave the other holder's list intact. The argument being on
+/// the spine says the cell is reachable, not that it is unique; the
+/// runtime's `cinch.rc.unique` decides per node, and the cold path
+/// allocates.
+#[test]
+fn accumulator_rebuild_copies_a_shared_tail() {
+    const PROGRAM: &str = r#"
+module Main where
+  import Data.List
+
+  build :: Int -> List Int -> List Int
+  build n acc = if n == 0 then acc else build (n - 1) (Cons n acc)
+
+  pair :: Int -> (Int, Int)
+  pair n =
+    let xs = build n Nil in
+    let ys = Cons 0 xs in
+    let rs = reverse xs in
+    (length rs, length ys)
+
+  main :: Int
+  main =
+    let (a, b) = pair 1000 in
+    if a == 1000 then (if b == 1001 then 0 else 2) else 1
+"#;
+    let dir = std::env::temp_dir().join(format!("cinch_reuse_shared_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("project directory");
+    std::fs::write(dir.join("Main.cinch"), PROGRAM).expect("write source");
+    let exe = dir.join("prog");
+    drive(Mode::Build, &dir, &exe, false);
+    let out = Command::new(&exe)
+        .env("CINCH_HEAP_LIMIT", "64M")
+        .env("CINCH_LEAK_CHECK", "1")
+        .env_remove("CINCH_ALLOC_KINDS")
+        .output()
+        .expect("spawn program");
+    let err = String::from_utf8_lossy(&out.stderr);
+    // `0` means both lists are the right length: the reverse copied the
+    // shared spine and did not corrupt the holder's view of it.
+    assert_eq!(out.status.code(), Some(0), "{err}");
+    assert!(
+        err.lines().any(|l| l.starts_with("cinch-leak:") && l.split_whitespace().any(|w| w == "leaked=0")),
+        "the shared case leaked: {err}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}

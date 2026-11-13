@@ -665,10 +665,20 @@ impl Ctors {
 /// cell the dying `block` leaves behind, or `None`.
 ///
 /// The spine is what a `Release` body evaluates without branching: `let`
-/// values and the count operations around them. A reuse under a branch
-/// could be skipped on some path, and the cell the release kept alive
-/// would leak, so nothing else is searched. One reuse per release: the
-/// token is read exactly once.
+/// values, the count operations around them, and the arguments of a call
+/// or a jump, which are evaluated in order before the transfer and never
+/// skipped. A reuse under a branch could be skipped on some path, and the
+/// cell the release kept alive would leak, so nothing else is searched.
+/// One reuse per release: the token is read exactly once.
+///
+/// A call argument is on the spine and used to be missed. The
+/// pattern-match-rebuild shape of a recursive accumulator
+/// (`reverse-into ys (Cons y acc)`) puts the fresh constructor in an
+/// argument of the recursive call, so the inliner's unrolled copies reused
+/// their cells while the residual iteration, the one that carries the loop
+/// for the whole tail, allocated one per element. Every argument is
+/// evaluated after the `Release` bound the token and before the call, so
+/// the reuse is reached on the same path that reached the `Release`.
 fn insert_reuse(
     e: &Core,
     token: usize,
@@ -695,8 +705,48 @@ fn insert_reuse(
             .map(|b2| Core::Dup(*x, *c, Box::new(b2))),
         Core::Drop(x, c, b) => insert_reuse(b, token, words, tag, fields, relaxed, ctors)
             .map(|b2| Core::Drop(*x, *c, Box::new(b2))),
+        // A call's arguments are evaluated in order before the transfer,
+        // with no branch between them and the `Release`, so the first
+        // compatible allocation among them is on the spine. The head is
+        // left alone: it is a unit, a primitive or a variable in every
+        // shape that reaches here, and a constructor there would not be an
+        // allocation on this path.
+        Core::App(f, args) => {
+            let (i, a2) = insert_reuse_in_args(args, token, words, tag, fields, relaxed, ctors)?;
+            let mut args = args.clone();
+            args[i] = a2;
+            Some(Core::App(f.clone(), args))
+        }
+        // A jump hands its arguments to a join point's parameters, in the
+        // same order and with the same "evaluated before the transfer"
+        // rule, so its arguments are on the spine for the same reason.
+        Core::Jump { id, args } => {
+            let (i, a2) = insert_reuse_in_args(args, token, words, tag, fields, relaxed, ctors)?;
+            let mut args = args.clone();
+            args[i] = a2;
+            Some(Core::Jump { id: *id, args })
+        }
         _ => None,
     }
+}
+
+/// The first argument of `args` that a reuse can be written into, with the
+/// rewritten argument.
+fn insert_reuse_in_args(
+    args: &[Core],
+    token: usize,
+    words: usize,
+    tag: usize,
+    fields: &[LocalId],
+    relaxed: bool,
+    ctors: &Ctors,
+) -> Option<(usize, Core)> {
+    for (i, a) in args.iter().enumerate() {
+        if let Some(a2) = insert_reuse(a, token, words, tag, fields, relaxed, ctors) {
+            return Some((i, a2));
+        }
+    }
+    None
 }
 
 /// The payload words the dying block already holds, given the arm's field

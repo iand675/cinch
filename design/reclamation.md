@@ -925,6 +925,28 @@ Lean searches an `oproj` chain for the same fact; the arm's binders are the
 cheaper form, because a `case` arm names its fields directly. Both paths stay
 straight-line, so the skip costs no branch per word.
 
+*Call arguments are on the spine* (`reverse-into`'s shape). The spine search
+descended through `let` values, `Dup` and `Drop` only, so a fresh constructor
+passed as a *call argument* was never found. That is exactly the
+pattern-match-rebuild shape of a recursive accumulator:
+`reverse-into ys (Cons y acc)` dies its scrutinee `xs` and builds the new
+`Cons` in an argument of the recursive call. A call's arguments are evaluated
+in order after the `Release` bound the token and before the transfer, with no
+branch between them, so they are on the spine by the same rule the `let`
+values are. The omission was invisible on a straight-line rebuild and costly
+on an accumulator: the inliner's unrolled copies reused their cells while the
+residual iteration, the one that carries the whole remaining tail, allocated
+one per element. A 1,000-element build-then-reverse cost 1,125 constructor
+blocks; with the arguments searched it costs 1,000, the build alone, and the
+reverse allocates nothing. `Jump` arguments are searched for the same reason
+(a join point's parameters are filled in the same order).
+
+This is the textbook case the whole mechanism exists for, and it needed no
+new language feature and no runtime entry: `reverse` keeps one spelling, and
+the reuse is the counting pass's business. Linearity is still not uniqueness
+(the next paragraph), so the per-node `cinch.rc.unique` test remains the
+authority: a shared tail takes the cold path and allocates.
+
 *Family crossing* (`relaxedReuse`, `ResetReuse.lean`). The insertion runs
 twice: the same-family proof first, and only when that finds nothing the
 crossing one, so a compatible successor of the scrutinee's own type is never
