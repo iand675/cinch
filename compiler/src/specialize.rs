@@ -568,7 +568,7 @@ pub fn optimize_object_with_foreign(
     simplifier: &crate::simplify::SimplifyOptions,
 ) -> crate::Result<(Program, OptReport, Vec<MethodFamily>)> {
     validate_object_roots(program, roots)?;
-    let (residual, mut report) = crate::core::optimize_unfolding(program, profile, simplifier.inline)?;
+    let (residual, mut report) = crate::core::optimize(program, profile)?;
     validate_object_roots(&residual, roots)?;
     let mut families = Vec::new();
     let mut out = specialize_with_roots(&residual, &mut report, roots, Some(&mut families));
@@ -607,7 +607,7 @@ pub fn optimize_with_foreign(
     foreign: &[crate::core::FnDef],
     simplifier: &crate::simplify::SimplifyOptions,
 ) -> crate::Result<(Program, OptReport)> {
-    let (residual, mut report) = crate::core::optimize_unfolding(program, profile, simplifier.inline)?;
+    let (residual, mut report) = crate::core::optimize(program, profile)?;
     let mut out = specialize(&residual, &mut report);
     crate::simplify::simplify_with_foreign(&mut out, foreign, simplifier, &mut report.simplify);
     Ok((out, report))

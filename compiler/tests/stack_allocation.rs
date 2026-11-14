@@ -20,6 +20,7 @@ module Main where
   sumPair p = case p of
     MkPair a b -> a * 10 + b
 
+  #[inline(never)]
   local :: Int -> Int
   local x = sumPair (MkPair x 2)
 
@@ -41,6 +42,7 @@ module Main where
   first t = case t of
     Tri a _ _ -> length a
 
+  #[inline(never)]
   local :: Int
   local = first (Tri (Cons 1 Nil) (Cons 2 Nil) (Cons 3 Nil))
 
@@ -59,6 +61,7 @@ module Main where
   unbox b = case b of
     Box n -> n
 
+  #[inline(never)]
   build :: Int -> Box
   build n = let r = Box n in r
 
@@ -98,10 +101,10 @@ fn cinch(dir: &Path, args: &[&str]) -> std::process::Output {
 fn emit_ir(dir: &Path, src: &str, flags: &[&str]) -> String {
     let entry = source(dir, src);
     let out = dir.join("prog.ll");
-    // `--no-inline` keeps the callee a unit of its own: dead-unit
-    // elimination removes a unit the inliner left with no caller
-    // (design/stack-allocation.md section 7.4), and every assertion here is
-    // about a named unit's body.
+    // `--no-inline` keeps the simplifier from copying callees, and every
+    // fixture marks the unit its assertions read `#[inline(never)]`, so
+    // driving does not unfold it into `main` either and dead-unit
+    // elimination (design/stack-allocation.md section 7.4) keeps it.
     let mut args: Vec<String> = vec!["emit-ir".into(), "--no-inline".into()];
     args.extend(flags.iter().map(|f| f.to_string()));
     args.push(entry.display().to_string());
@@ -310,6 +313,7 @@ module Main where
   data Holder where
     Holder :: Box (List Int) -> Int -> Holder
 
+  #[inline(never)]
   local :: Int
   local =
     let b = Box (Cons 1 Nil) in
