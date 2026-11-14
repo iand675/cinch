@@ -103,6 +103,7 @@ fn insert_with(mut program: Program, profile: &crate::core::TargetProfile, close
     if !profile.reclaim {
         return Ok(program);
     }
+    name_call_arguments(&mut program);
     let ctors = Ctors::of(&program);
     let (modes, prims) = if closed { borrow_modes(&program, &ctors) } else { Default::default() };
     program.lent = modes.iter().filter(|(k, _)| prims.contains(*k)).map(|(k, m)| (k.clone(), m.clone())).collect();
@@ -271,7 +272,7 @@ fn borrow_modes(program: &Program, ctors: &Ctors) -> (Modes, std::collections::H
             }
         }
         // What its calls pass to borrowed parameters.
-        call_sites(&f.body, true, &mut mine, cx, &mut modes, &mut killed);
+        call_sites(&f.body, true, &mut mine, cx, &mut modes, &prims, &mut killed);
         for k in killed.drain(..) {
             for &c in callers.get(&k).into_iter().flatten().chain(index.get(k.as_str())) {
                 if !queued[c] {
@@ -411,24 +412,35 @@ fn owned_uses(e: &Core, names: &HashMap<usize, usize>, modes: &Modes, cx: &UnitF
 /// names are `mine`: its borrowed parameters, their [`let_alias`]
 /// renamings and the fields of a `case` on any of them. Each callee
 /// whose modes change is pushed to `killed`.
-fn call_sites(e: &Core, tail: bool, mine: &mut Set, cx: &UnitFacts, modes: &mut Modes, killed: &mut Vec<String>) {
+fn call_sites(e: &Core, tail: bool, mine: &mut Set, cx: &UnitFacts, modes: &mut Modes, prims: &std::collections::HashSet<String>, killed: &mut Vec<String>) {
     match e {
         Core::App(h, args) => {
             let key = match &**h {
                 Core::Global(g, _) => Some(g.0.as_str().into()),
                 Core::Prim(op) => Some(std::borrow::Cow::Owned(op.symbol())),
                 other => {
-                    call_sites(other, false, mine, cx, modes, killed);
+                    call_sites(other, false, mine, cx, modes, prims, killed);
                     None
                 }
             };
             if let Some(k) = key {
+                // A primitive is a leaf: a call to one in tail position gains
+                // nothing from staying a tail call, so an owned local it is
+                // lent is simply released after it returns, and the lent mode
+                // stays (a primitive that owned its arguments paid a dup in
+                // every caller and a drop in its own body, which also made a
+                // `natCmp` too large for clang to inline).
+                let leaf = prims.contains(k.as_ref());
                 if let Some(m) = modes.get_mut(k.as_ref()).filter(|m| m.len() == args.len()) {
                     let mut changed = false;
                     for (i, a) in args.iter().enumerate() {
                         let fine = !m[i]
                             || match a {
-                                Core::Var(x) => !tail || mine.contains(&x.0) || !cx.classes.get(&x.0).copied().is_some_and(counted),
+                                Core::Var(x) => !tail || leaf || mine.contains(&x.0) || !cx.classes.get(&x.0).copied().is_some_and(counted),
+                                // A literal owns nothing a callee could keep or a caller
+                                // must release (an immediate, or an immortal static
+                                // block), so lending one costs nothing.
+                                Core::ConstBig { .. } | Core::ConstString { .. } | Core::ConstBytes(_) | Core::ConstSym(_) => true,
                                 other => expr_class_in(other, &cx.classes).is_some_and(|c| !counted(c)),
                             };
                         if !fine {
@@ -442,26 +454,26 @@ fn call_sites(e: &Core, tail: bool, mine: &mut Set, cx: &UnitFacts, modes: &mut 
                 }
             }
             for a in args {
-                call_sites(a, false, mine, cx, modes, killed);
+                call_sites(a, false, mine, cx, modes, prims, killed);
             }
         }
         Core::Let(x, c, v, b) => {
             if let_alias(*x, *c, v, &cx.classes, &cx.written).is_some_and(|y| mine.contains(&y)) {
                 mine.insert(x.0);
-                call_sites(b, tail, mine, cx, modes, killed);
+                call_sites(b, tail, mine, cx, modes, prims, killed);
                 mine.remove(&x.0);
                 return;
             }
-            call_sites(v, false, mine, cx, modes, killed);
-            call_sites(b, tail, mine, cx, modes, killed);
+            call_sites(v, false, mine, cx, modes, prims, killed);
+            call_sites(b, tail, mine, cx, modes, prims, killed);
         }
         Core::If(c, t, f) => {
-            call_sites(c, false, mine, cx, modes, killed);
-            call_sites(&t.body, tail, mine, cx, modes, killed);
-            call_sites(&f.body, tail, mine, cx, modes, killed);
+            call_sites(c, false, mine, cx, modes, prims, killed);
+            call_sites(&t.body, tail, mine, cx, modes, prims, killed);
+            call_sites(&f.body, tail, mine, cx, modes, prims, killed);
         }
         Core::Case { scrut, alts } => {
-            call_sites(scrut, false, mine, cx, modes, killed);
+            call_sites(scrut, false, mine, cx, modes, prims, killed);
             let lent = matches!(&**scrut, Core::Var(s) if mine.contains(&s.0));
             for a in alts {
                 match &a.pat {
@@ -472,12 +484,12 @@ fn call_sites(e: &Core, tail: bool, mine: &mut Set, cx: &UnitFacts, modes: &mut 
                             .map(|x| x.0)
                             .filter(|x| cx.classes.get(x).copied().is_some_and(counted) && mine.insert(*x))
                             .collect();
-                        call_sites(&a.body, tail, mine, cx, modes, killed);
+                        call_sites(&a.body, tail, mine, cx, modes, prims, killed);
                         for x in added {
                             mine.remove(&x);
                         }
                     }
-                    _ => call_sites(&a.body, tail, mine, cx, modes, killed),
+                    _ => call_sites(&a.body, tail, mine, cx, modes, prims, killed),
                 }
             }
         }
@@ -485,7 +497,7 @@ fn call_sites(e: &Core, tail: bool, mine: &mut Set, cx: &UnitFacts, modes: &mut 
         // a candidate, see `value_uses`).
         other => {
             for k in crate::core::child_slots_imm(other) {
-                call_sites(k, false, mine, cx, modes, killed);
+                call_sites(k, false, mine, cx, modes, prims, killed);
             }
         }
     }
@@ -1955,6 +1967,126 @@ fn short(e: &Core) -> String {
 }
 
 /// The class of `e`'s value when its form fixes it, binders by `classes`.
+/// Bind the computed arguments of every saturated direct call to locals,
+/// left to right, before borrow inference runs.
+///
+/// A callee's parameter is lent only while every caller passes it a local
+/// (`call_sites`): a computed argument (`f (g x)`) is an owned temporary the
+/// callee would have to release, so one such call site withdrew the lent
+/// mode for every caller of the unit. That made the common shapes owned
+/// everywhere: `natCmp (slots-read s i) x` cost a dup before and a drop
+/// inside every comparison, and the drops in turn made `natCmp` too large
+/// for clang to inline. Named first, the temporary is an ordinary local:
+/// the callee borrows it, and the caller releases it after the call.
+///
+/// Evaluation order is kept: an argument is named only when every computed
+/// argument before it is named too, so the arguments still run left to
+/// right. An argument whose class is not known is left in place, and with
+/// it every argument after it. Values (locals, constants, top-level units)
+/// need no name.
+fn name_call_arguments(program: &mut Program) {
+    let results: HashMap<String, Class> = program
+        .fns
+        .iter()
+        .filter_map(|f| f.repr.result.map(|c| (f.id.0.clone(), c)))
+        .filter(|(_, c)| !matches!(c, Class::Param(_)))
+        .collect();
+    let arity: HashMap<String, usize> = program.fns.iter().map(|f| (f.id.0.clone(), f.params.len())).collect();
+    for f in program.fns.iter_mut() {
+        if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body {
+            continue;
+        }
+        let mut next = max_local_in(&f.body).max(f.params.len()) + 1;
+        let mut classes: HashMap<usize, Class> = HashMap::new();
+        name_args_in(&mut f.body, &results, &arity, &mut classes, &mut next);
+    }
+}
+
+fn max_local_in(e: &Core) -> usize {
+    let mut most = 0;
+    crate::core::walk_locals(e, &mut |l| most = most.max(l.0));
+    most
+}
+
+/// Whether an argument needs no name: evaluating it is free and repeatable.
+fn trivial_argument(e: &Core) -> bool {
+    matches!(
+        e,
+        Core::Var(_) | Core::Int(_) | Core::Bool(_) | Core::Unit | Core::ConstBig { .. } | Core::ConstSym(_)
+            | Core::Global(..) | Core::Prim(_) | Core::Ctor(..)
+    )
+}
+
+/// The class of a computed argument, when it is known.
+fn argument_class(e: &Core, results: &HashMap<String, Class>, classes: &HashMap<usize, Class>) -> Option<Class> {
+    match e {
+        Core::App(head, _) => match &**head {
+            Core::Global(g, _) => results.get(&g.0).copied(),
+            Core::Prim(op) => crate::codegen::prim_result_class(*op).filter(|c| !matches!(c, Class::Param(_))),
+            Core::Ctor(..) => Some(Class::Obj),
+            _ => None,
+        },
+        other => expr_class_in(other, classes).filter(|c| !matches!(c, Class::Param(_))),
+    }
+}
+
+fn name_args_in(
+    e: &mut Core,
+    results: &HashMap<String, Class>,
+    arity: &HashMap<String, usize>,
+    classes: &mut HashMap<usize, Class>,
+    next: &mut usize,
+) {
+    if let Core::Let(l, c, _, _) = e {
+        classes.insert(l.0, *c);
+    }
+    for k in crate::core::child_slots(e) {
+        name_args_in(k, results, arity, classes, next);
+    }
+    let Core::App(head, args) = e else { return };
+    let saturated = match &**head {
+        Core::Global(g, _) => arity.get(&g.0) == Some(&args.len()),
+        Core::Prim(op) => op.arity() == args.len(),
+        _ => false,
+    };
+    if !saturated {
+        return;
+    }
+    // The longest prefix of the arguments in which every computed
+    // argument has a known class: those are named; the rest stay.
+    let mut plan: Vec<Option<Class>> = Vec::with_capacity(args.len());
+    for a in args.iter() {
+        if trivial_argument(a) {
+            plan.push(None);
+            continue;
+        }
+        match argument_class(a, results, classes) {
+            Some(c) => plan.push(Some(c)),
+            None => break,
+        }
+    }
+    // Only worth it when a named argument is counted (a raw temporary
+    // owns nothing to lend).
+    if !plan.iter().any(|c| c.is_some_and(|c| matches!(c, Class::Obj | Class::TObj))) {
+        return;
+    }
+    let mut bindings: Vec<(LocalId, Class, Core)> = Vec::new();
+    for (i, slot) in plan.iter().enumerate() {
+        if let Some(c) = slot {
+            let l = LocalId(*next);
+            *next += 1;
+            classes.insert(l.0, *c);
+            let value = std::mem::replace(&mut args[i], Core::Var(l));
+            bindings.push((l, *c, value));
+        }
+    }
+    let mut out = std::mem::replace(e, Core::Unit);
+    for (l, c, value) in bindings.into_iter().rev() {
+        out = Core::Let(l, c, Box::new(value), Box::new(out));
+    }
+    *e = out;
+}
+
 fn expr_class_in(e: &Core, classes: &HashMap<usize, Class>) -> Option<Class> {
     match e {
         Core::Var(x) => Some(classes.get(&x.0).copied().unwrap_or(Class::Raw)),

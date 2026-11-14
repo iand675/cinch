@@ -4390,6 +4390,8 @@ pub struct OptReport {
 /// the fixed point cost.
 #[derive(Clone, Debug, Default)]
 pub struct SimplifyReport {
+    /// Static-argument clones the specialiser made (`simplify::spec_static_args`).
+    pub specialised: usize,
     /// The passes actually run, at most the iteration cap.
     pub iterations: usize,
     /// The iteration cap the run was given (`--max-simplifier-iterations`).

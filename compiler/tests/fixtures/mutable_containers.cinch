@@ -373,6 +373,9 @@ module Main where
   push-heap :: forall r. Heap r Nat -> Nat -> Nat ->{Mut r} Nat
   push-heap h x n = if n == 0 then x else let p = heap-push h (nat-rem x 10000) in push-heap h (next x) (n - 1)
 
+  push-heap-max :: forall r. Heap r Nat -> Nat -> Nat ->{Mut r} Nat
+  push-heap-max h x n = if n == 0 then x else let p = heap-push-by (\a b -> b < a) h (nat-rem x 10000) in push-heap-max h (next x) (n - 1)
+
   check-heap :: forall r. Unit ->{Mut r} Bool
   check-heap u =
     let h = heap-new () in
@@ -381,9 +384,9 @@ module Main where
     let ok1 = heap-length h == 5000 in
     let drained = heap-drain h in
     let ok2 = ascending drained && count drained 0 == 5000 && heap-is-empty h in
-    let mx = heap-new-by (\a b -> b < a) () in
-    let y = push-heap mx 5 2000 in
-    let ok3 = descending (heap-drain mx) in
+    let mx = heap-new () in
+    let y = push-heap-max mx 5 2000 in
+    let ok3 = descending (heap-drain-by (\a b -> b < a) mx) in
     let fl = heap-from-list (Cons 9 (Cons 4 (Cons 7 (Cons 1 (Cons 8 (Cons 2 (Cons 6 Nil))))))) in
     let ok4 = is-some-nat (heap-peek fl) 1 && eq-nats (heap-drain fl) (Cons 1 (Cons 2 (Cons 4 (Cons 6 (Cons 7 (Cons 8 (Cons 9 Nil))))))) in
     e && ok1 && ok2 && ok3 && ok4

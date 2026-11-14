@@ -366,6 +366,14 @@ struct Scope {
     alias: HashMap<LocalId, LocalId>,
     /// A resolved local to the constructor application it is bound to.
     ctor: HashMap<LocalId, Core>,
+    /// A resolved local to the static instance dictionary it is bound to
+    /// (an `InstDict` with no subdictionaries): a method projection through
+    /// it is a direct call to the method unit ([`known_head`]).
+    dict: HashMap<LocalId, Core>,
+    /// A resolved local to the closure it is bound to, when every captured
+    /// word is a value: a saturated call through it is a direct call to the
+    /// hoisted unit ([`known_head`]).
+    lam: HashMap<LocalId, Core>,
 }
 
 impl Scope {
@@ -655,7 +663,11 @@ fn spine_only(e: &Core, l: LocalId, spine: bool) -> bool {
 fn speculatable(e: &Core, tables: &Tables) -> bool {
     match e {
         Core::Proj(inner, _) => speculatable(inner, tables) || is_value(inner, tables),
-        _ => is_value(e, tables),
+        // A static dictionary is one static block, and a closure over
+        // words free to copy only allocates: an unused one is work nobody
+        // observes, which is what a specialised clone leaves behind once
+        // every call through its bound argument went direct.
+        _ => is_value(e, tables) || static_dict(e, tables) || known_closure(e, tables),
     }
 }
 
@@ -766,11 +778,19 @@ fn pass(
                 None => ctor_app(value, tables).map(|_| (**value).clone()),
             };
             let is_bound = bound.is_some();
+            let dict = alias.is_none() && static_dict(value, tables);
+            let lam = alias.is_none() && known_closure(value, tables);
             if let Some(w) = alias {
                 scope.alias.insert(*l, w);
             }
             if let Some(v) = bound {
                 scope.ctor.insert(*l, v);
+            }
+            if dict {
+                scope.dict.insert(*l, (**value).clone());
+            }
+            if lam {
+                scope.lam.insert(*l, (**value).clone());
             }
             pass(body, scope, tables, classes, occ, opts, fresh, t);
             if alias.is_some() {
@@ -778,6 +798,12 @@ fn pass(
             }
             if is_bound {
                 scope.ctor.remove(&*l);
+            }
+            if dict {
+                scope.dict.remove(&*l);
+            }
+            if lam {
+                scope.lam.remove(&*l);
             }
         }
         _ => {
@@ -798,6 +824,8 @@ fn pass(
             Some(Rule::Projection)
         } else if case_merge(e, scope) {
             Some(Rule::CaseMerge)
+        } else if opts.direct_dict_calls && known_head(e, scope, tables) {
+            Some(Rule::DirectDictCall)
         } else if opts.direct_dict_calls && direct_dict_call(e, tables) {
             Some(Rule::DirectDictCall)
         } else if opts.saturate_partial && saturate_partial(e, occ, tables) {
@@ -1773,6 +1801,72 @@ fn projection(e: &mut Core, tables: &Tables) -> bool {
 
 /// `dictproj (instdict I) idx` applied to a static instance's method
 /// arity calls the method unit directly.
+/// An `InstDict` of a static instance: no subdictionaries, so the
+/// dictionary is one static block and every method projection of it names
+/// one unit.
+fn static_dict(e: &Core, tables: &Tables) -> bool {
+    match e {
+        Core::InstDict(inst, subs, _) => {
+            subs.is_empty() && tables.instances.get(&inst.0).is_some_and(|(subdicts, _)| *subdicts == 0)
+        }
+        _ => false,
+    }
+}
+
+/// A closure whose hoisted unit has a known arity and whose captured words
+/// are all copyable without work: values, static dictionaries, and closures
+/// of the same kind. Copying the capture list to a call site then copies no
+/// work (a static dictionary is one static block, a nested closure is
+/// rebuilt from words that are themselves free to copy).
+fn known_closure(e: &Core, tables: &Tables) -> bool {
+    match e {
+        Core::Lam { fn_id, env, .. } => {
+            tables.arity.get(&fn_id.0).is_some_and(|a| *a > env.len())
+                && env.iter().all(|w| is_value(w, tables) || static_dict(w, tables) || known_closure(w, tables))
+        }
+        _ => false,
+    }
+}
+
+/// Calls whose head is known through a binding, made direct:
+///
+/// - a method projection of a local bound to a static dictionary projects
+///   the dictionary itself, which `direct_dict_call` then turns into a
+///   call of the method unit (a projection of a dictionary *variable* was
+///   an `__apply` of the method closure, even with the dictionary in hand);
+/// - a saturated call of a local bound to a closure, or of a closure
+///   literal, calls the hoisted unit with the captured words first, which
+///   is the closure's own calling convention, so the closure need not be
+///   applied through `__apply` (and the unit can then be inlined).
+///
+/// Both read only values (a static dictionary, a closure whose captures
+/// are values), so the rewrite moves no work.
+fn known_head(e: &mut Core, scope: &Scope, tables: &Tables) -> bool {
+    let Core::App(head, args) = e else { return false };
+    if let Core::DictProj(dict, _, _, _) = &mut **head {
+        if let Core::Var(x) = &**dict {
+            if let Some(d) = scope.dict.get(&scope.root_of(*x)) {
+                **dict = d.clone();
+                return true;
+            }
+        }
+        return false;
+    }
+    let closure = match &**head {
+        Core::Var(x) => scope.lam.get(&scope.root_of(*x)).cloned(),
+        lam @ Core::Lam { .. } if known_closure(lam, tables) => Some(lam.clone()),
+        _ => None,
+    };
+    let Some(Core::Lam { fn_id, env, classes }) = closure else { return false };
+    if tables.arity.get(&fn_id.0).copied() != Some(env.len() + args.len()) {
+        return false;
+    }
+    let mut full = env;
+    full.extend(std::mem::take(args));
+    *e = Core::App(Box::new(Core::Global(fn_id, classes)), full);
+    true
+}
+
 fn direct_dict_call(e: &mut Core, tables: &Tables) -> bool {
     let replacement = {
         let Core::App(head, args) = &*e else { return false };
@@ -1948,6 +2042,240 @@ pub fn simplify(program: &mut Program, opts: &SimplifyOptions, report: &mut Simp
 /// program. Nothing is emitted for a foreign unit: its body is only ever
 /// copied into a caller of this program, and the definition stays in the
 /// object the artifact describes.
+// ------------------------------------------------ static-argument clones
+//
+// The inliner refuses a recursive group (it cannot unfold a loop), so a
+// loop that receives a comparator or a dictionary calls it through
+// `__apply` on every iteration, even when every caller passes the same
+// closed value: `vec-sort` with `Ord Nat`, a hash-table probe with
+// `Hash Nat`. This pass is the remedy GHC's specialiser and the static
+// argument transformation give: at a call whose argument is a *closed*
+// static value (a static dictionary, a top-level function, a closure over
+// such values), clone the callee with that parameter removed and the value
+// bound once at the clone's entry. Inside the clone the parameter is a
+// known local, so `known_head` makes its calls direct, the inliner unfolds
+// them, and `direct_dict_call` resolves the methods. A recursive call that
+// passes the parameter on unchanged passes the same value, so it lands on
+// the same clone (the memo is keyed by callee, class vector, position and
+// the value's structure), which is what turns the loop itself into a
+// specialised loop rather than one specialised iteration.
+//
+// Bounds: a callee over `SPEC_UNIT_NODES` is not cloned, the clones' nodes
+// together stay under the budget, and a linear parameter is never cloned
+// (binding it at entry would not change its use count, but the pass does
+// not need to argue about it). The value is evaluated once per call of the
+// clone, exactly where the caller evaluated it before.
+
+/// The largest callee the pass clones.
+const SPEC_UNIT_NODES: usize = 4_000;
+
+struct SpecState {
+    /// `callee|classes|position|value` to the clone's name.
+    memo: HashMap<String, String>,
+    /// Node budget for every clone together.
+    budget: usize,
+    clones: usize,
+}
+
+impl SpecState {
+    fn new(program: &Program) -> SpecState {
+        let total: usize = program.fns.iter().map(|f| nodes(&f.body)).sum();
+        SpecState { memo: HashMap::new(), budget: total / 10 + 20_000, clones: 0 }
+    }
+}
+
+/// What a call site needs to know about a callee to clone it.
+struct SpecTarget {
+    arity: usize,
+    /// Parameters worth cloning on: counted, mentioned, and not linear.
+    wants: Vec<bool>,
+    nodes: usize,
+    index: usize,
+}
+
+/// A closed static value: what an argument is when every word it is built
+/// from is known at compile time. Locals resolve through the bindings in
+/// scope (`env`), so a value let-bound before the call counts.
+fn resolve_static(e: &Core, env: &[(LocalId, Core)], tables: &Tables) -> Option<Core> {
+    match e {
+        Core::Var(x) => env.iter().rev().find(|(l, _)| l == x).map(|(_, v)| v.clone()),
+        Core::Global(g, _) => tables.arity.get(&g.0).is_some_and(|a| *a > 0).then(|| e.clone()),
+        Core::InstDict(g, subs, classes) => {
+            let subs = subs.iter().map(|s| resolve_static(s, env, tables)).collect::<Option<Vec<_>>>()?;
+            Some(Core::InstDict(g.clone(), subs, classes.clone()))
+        }
+        Core::Lam { fn_id, env: captured, classes } => {
+            let captured = captured.iter().map(|s| resolve_static(s, env, tables)).collect::<Option<Vec<_>>>()?;
+            Some(Core::Lam { fn_id: fn_id.clone(), env: captured, classes: classes.clone() })
+        }
+        _ => None,
+    }
+}
+
+/// Rewrite calls to clones in `e`, requesting the clones that do not exist
+/// yet. One argument per call per round: the next round sees the clone's
+/// call and may clone it on another position.
+fn spec_walk(
+    e: &mut Core,
+    env: &mut Vec<(LocalId, Core)>,
+    targets: &HashMap<String, SpecTarget>,
+    tables: &Tables,
+    state: &mut SpecState,
+    requests: &mut Vec<(String, usize, usize, Core)>,
+) -> bool {
+    match e {
+        Core::Let(l, _, value, body) => {
+            let mut changed = spec_walk(value, env, targets, tables, state, requests);
+            let bound = resolve_static(value, env, tables);
+            let pushed = bound.is_some();
+            if let Some(v) = bound {
+                env.push((*l, v));
+            }
+            changed |= spec_walk(body, env, targets, tables, state, requests);
+            if pushed {
+                env.pop();
+            }
+            return changed;
+        }
+        Core::App(head, args) => {
+            let mut changed = false;
+            for a in args.iter_mut() {
+                changed |= spec_walk(a, env, targets, tables, state, requests);
+            }
+            changed |= spec_walk(head, env, targets, tables, state, requests);
+            let Core::Global(g, classes) = &**head else { return changed };
+            let Some(target) = targets.get(&g.0) else { return changed };
+            if target.arity != args.len() {
+                return changed;
+            }
+            for i in 0..args.len() {
+                if !target.wants[i] {
+                    continue;
+                }
+                let Some(value) = resolve_static(&args[i], env, tables) else { continue };
+                let key = format!("{}|{:?}|{}|{:?}", g.0, classes, i, value);
+                let name = match state.memo.get(&key) {
+                    Some(name) => name.clone(),
+                    None => {
+                        if target.nodes > state.budget {
+                            continue;
+                        }
+                        state.budget -= target.nodes;
+                        state.clones += 1;
+                        let name = format!("{}$s{}", g.0, state.clones);
+                        state.memo.insert(key, name.clone());
+                        requests.push((name.clone(), target.index, i, value));
+                        name
+                    }
+                };
+                let classes = classes.clone();
+                args.remove(i);
+                **head = Core::Global(GlobalId(name), classes);
+                return true;
+            }
+            changed
+        }
+        _ => {
+            let mut changed = false;
+            for k in child_slots(e) {
+                changed |= spec_walk(k, env, targets, tables, state, requests);
+            }
+            changed
+        }
+    }
+}
+
+/// The callee `src` with parameter `i` removed and bound to `value` at
+/// entry; the later parameters move down one place.
+fn spec_clone(src: &FnDef, name: String, i: usize, value: Core, fresh: &mut Fresh) -> FnDef {
+    let mut body = src.body.clone();
+    let mut renames: HashMap<LocalId, LocalId> = HashMap::new();
+    rename_binders(&mut body, &mut renames, fresh);
+    let bound = fresh.local();
+    subst(&mut body, LocalId(i), &Core::Var(bound));
+    for j in (i + 1)..src.params.len() {
+        subst(&mut body, LocalId(j), &Core::Var(LocalId(j - 1)));
+    }
+    let class = src.repr.params.get(i).copied().unwrap_or(Class::Obj);
+    let mut out = src.clone();
+    out.id = GlobalId(name);
+    out.body = Core::Let(bound, class, Box::new(value), Box::new(body));
+    out.params.remove(i);
+    if i < out.repr.params.len() {
+        out.repr.params.remove(i);
+    }
+    let shift = |k: usize| if k > i { k - 1 } else { k };
+    out.meta.linear = out.meta.linear.iter().filter(|(k, _)| *k != i).map(|(k, m)| (shift(*k), *m)).collect();
+    out.meta.pure_arrows = out.meta.pure_arrows.iter().filter(|k| **k != i).map(|k| shift(*k)).collect();
+    out.meta.dicts = out.meta.dicts.iter().filter(|(k, _)| *k != i).map(|(k, c)| (shift(*k), c.clone())).collect();
+    out
+}
+
+/// Run the pass to its fixpoint (bounded): rewrite calls whose static
+/// arguments have clones, create the clones that are missing, repeat over
+/// the new clones. `true` when anything changed.
+fn spec_static_args(program: &mut Program, tables: &mut Tables, fresh: &mut Fresh, state: &mut SpecState) -> bool {
+    let main = program.main.as_ref().map(|m| m.0.clone());
+    let mut any = false;
+    for _ in 0..16 {
+        let mut targets: HashMap<String, SpecTarget> = HashMap::new();
+        for (index, f) in program.fns.iter().enumerate() {
+            if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body || f.params.is_empty() || main.as_deref() == Some(f.id.0.as_str()) {
+                continue;
+            }
+            let size = nodes(&f.body);
+            if size > SPEC_UNIT_NODES {
+                continue;
+            }
+            let wants = (0..f.params.len())
+                .map(|i| {
+                    f.repr.params.get(i).is_some_and(|c| matches!(c, Class::Obj))
+                        && !f.meta.linear.iter().any(|(k, _)| *k == i)
+                        && mentions(&f.body, LocalId(i))
+                })
+                .collect::<Vec<_>>();
+            if wants.iter().any(|w| *w) {
+                targets.insert(f.id.0.clone(), SpecTarget { arity: f.params.len(), wants, nodes: size, index });
+            }
+        }
+        let mut requests: Vec<(String, usize, usize, Core)> = Vec::new();
+        let mut changed = false;
+        for f in program.fns.iter_mut() {
+            if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body {
+                continue;
+            }
+            let mut env = Vec::new();
+            changed |= spec_walk(&mut f.body, &mut env, &targets, tables, state, &mut requests);
+        }
+        for (name, index, i, value) in requests {
+            let clone = spec_clone(&program.fns[index], name, i, value, fresh);
+            tables.arity.insert(clone.id.0.clone(), clone.params.len());
+            program.fns.push(clone);
+            changed = true;
+        }
+        if !changed {
+            break;
+        }
+        any = true;
+    }
+    any
+}
+
+/// Under `CINCH_INLINE_TRACE`, name a site the inliner refused and the
+/// rule that refused it.
+fn trace_refusal(rule: &str, callee: &str) {
+    if opts_trace() {
+        eprintln!("cinch-inline-refused: {} <= {callee} ({rule})", current_unit());
+    }
+}
+
+/// A unit's own inlining allowance is its node count over this, plus
+/// [`UNIT_ALLOWANCE_FLOOR`].
+const UNIT_ALLOWANCE_DIVISOR: usize = 4;
+/// The allowance every unit has whatever its size, so a small loop body
+/// can take the handful of copies that make it straight-line code.
+const UNIT_ALLOWANCE_FLOOR: usize = 192;
+
 pub fn simplify_with_foreign(
     program: &mut Program,
     foreign: &[FnDef],
@@ -1962,18 +2290,29 @@ pub fn simplify_with_foreign(
     tables.extend(foreign);
     let mut ticks = Ticks::default();
     let mut fresh = Fresh { local: max_local(program), join: max_join(program) };
-    // Two percent of the program is the most inlining may add: a copy is
-    // code the linker and the instruction cache pay for, so the budget is
-    // what keeps the pass from trading a run-time win for an unbounded
-    // growth.
-    let mut budget = (program.fns.iter().map(|f| nodes(&f.body)).sum::<usize>() / 50).max(1_000);
+    // The growth bound has two levels. Each unit has an allowance of its
+    // own (a quarter of its size, with a floor for small bodies), so the
+    // walk order cannot decide who gets to inline: one shared pool let the
+    // library units visited first (string, effect and file-system code a
+    // program may never reach) spend everything, and the hot units after
+    // them, among them every specialised clone, were refused copies that
+    // grow nothing. Over all of them sits a program-wide ceiling of a tenth
+    // of the program, the backstop against a cascade: a copy is code the
+    // linker and the instruction cache pay for, so the pass never trades a
+    // run-time win for unbounded growth.
+    let mut budget = (program.fns.iter().map(|f| nodes(&f.body)).sum::<usize>() / 10).max(4_000);
+    let mut allowances: HashMap<String, usize> = HashMap::new();
     program.inline.clear();
     let mut facts: HashMap<String, InlineFacts> = HashMap::new();
     // The benefit model's site tally, accumulated over every pass so the
     // artifact reports the whole run rather than the last pass.
     let mut benefit = BenefitTally::default();
+    let mut spec = SpecState::new(program);
     for _ in 0..opts.max_iterations {
         ticks.changed = false;
+        if opts.inline && spec_static_args(program, &mut tables, &mut fresh, &mut spec) {
+            ticks.changed = true;
+        }
         if opts.inline {
             let table = inline_table(program, foreign, &tables, opts);
             if !table.is_empty() {
@@ -1986,12 +2325,17 @@ pub fn simplify_with_foreign(
                     let mut here = InlineFacts::default();
                     let mut stack: Vec<String> = Vec::new();
                     let loop_body = table.is_loop(&f.id.0);
+                    let own = allowances
+                        .entry(f.id.0.clone())
+                        .or_insert_with(|| nodes(&body) / UNIT_ALLOWANCE_DIVISOR + UNIT_ALLOWANCE_FLOOR);
+                    let before = (*own).min(budget);
+                    let mut remaining = before;
                     inline_unit(
                         &mut body,
                         &table,
                         &tables,
                         &mut fresh,
-                        &mut budget,
+                        &mut remaining,
                         &mut here,
                         &mut ticks,
                         &mut stack,
@@ -2000,6 +2344,9 @@ pub fn simplify_with_foreign(
                         &mut benefit,
                         opts,
                     );
+                    let spent = before - remaining;
+                    *own -= spent;
+                    budget -= spent;
                     f.body = body;
                     if here.sites > 0 {
                         let entry = facts.entry(f.id.0.clone()).or_default();
@@ -2041,6 +2388,7 @@ pub fn simplify_with_foreign(
     report.joins = ticks.joins;
     report.duplicated = ticks.duplicated;
     report.inlined = ticks.inline;
+    report.specialised = spec.clones;
     report.inlined_nodes = facts.values().map(|f| f.nodes as usize).sum();
     report.inline_model = match opts.inline_model {
         InlineModel::Threshold => "threshold",
@@ -3333,6 +3681,7 @@ fn inline_unit(
     // the node budget bounds the program-wide growth.
     if depth >= opts.inline_depth || stack.iter().any(|name| name == &g.0) {
         tally.refused_chain += 1;
+        trace_refusal("chain", &g.0);
         return;
     }
     // A callee in a recursive group is refused at every site: its body
@@ -3342,6 +3691,7 @@ fn inline_unit(
     // what makes the benefit model's admission safe.
     if callee.recursive {
         tally.refused_recursive += 1;
+        trace_refusal("recursive", &g.0);
         return;
     }
     // A decision-bearing body is copied only where the decision folds: a
@@ -3359,6 +3709,7 @@ fn inline_unit(
         })
     {
         tally.refused_fold += 1;
+        trace_refusal("fold", &g.0);
         return;
     }
     let added = nodes(&callee.body);
@@ -3380,6 +3731,7 @@ fn inline_unit(
                 }
                 if callee.weight.saturating_sub(discount) > opts.inline_use_threshold {
                     tally.refused_size += 1;
+                    trace_refusal("size", &g.0);
                     return;
                 }
             }
@@ -3405,17 +3757,25 @@ fn inline_unit(
                 };
                 if growth.saturating_sub(removed) > allowance {
                     tally.refused_size += 1;
+                    trace_refusal("size", &g.0);
                     return;
                 }
             }
         }
     }
+    // What the copy grows the program by: its nodes less the call it
+    // replaces (the head and the argument slots). A delegation such as a
+    // specialised comparator (`lam x y = Ord_Nat.< x y`) replaces one call
+    // with another and grows nothing, so charging its whole size spent the
+    // budget on no growth at all and left the sites after it refused.
+    let growth = added.saturating_sub(args.len() + 1);
     if callee.charge {
-        if added > *budget {
+        if growth > *budget {
             tally.refused_budget += 1;
+            trace_refusal("budget", &g.0);
             return;
         }
-        *budget -= added;
+        *budget -= growth;
     }
     tally.inlined += 1;
     facts.sites += 1;

@@ -272,6 +272,67 @@ the mode survives), and an insertion reports its outcome as one word (a slot,
 `placed`, or `absent` for "grow first") so a present key's update allocates
 nothing.
 
+## 6.1 Getting the comparison inlined
+
+The first measurement had the sort and the heap 5x behind `std::sort` and
+`priority_queue`, and the cause was one closure call per comparison. Four
+compiler changes and one library change took it out; each was found by
+reading the refusal trace (`CINCH_INLINE_TRACE=1`, one
+`cinch-inline-refused: unit <= callee (rule)` line per refused site).
+
+**Static-argument specialisation** (`simplify.rs`, `spec_static_args`). A
+recursive helper that passes an argument through unchanged (the sort's
+ordering, the heap's `less`) is cloned per static value, with the
+parameter removed and bound to that value at the clone's entry: GHC's
+specialiser and its static argument transformation in one step. The
+recursive call passes the same value on, so it lands on the same clone and
+the loop itself is specialised, not one iteration of it.
+A value is static when it is a top-level function, an instance dictionary
+with no sub-dictionaries, or a closure whose environment holds only such
+values. Clones are memoised by callee, class vector, position and value, a
+callee over 4,000 nodes is not cloned, and the clones share a node budget
+(a tenth of the program plus 20,000) so a cascade of clones stops.
+
+**Known heads** (`known_head`). Inside a clone, a call of the bound
+parameter is a call of a known closure, and a method projection from a
+bound dictionary is a projection from a known instance. The simplifier now
+rewrites both to direct calls (`App(Global(fn), env ++ args)`), which the
+inliner can copy; before, only the literal shape `DictProj(InstDict)` was
+direct.
+
+**Literal arguments keep a lent mode** (`rc.rs`, `call_sites`). Borrow
+inference withdrew a parameter's lent mode at any non-variable argument,
+and a literal is one: `natCmp x 0` made `natCmp` own both arguments
+everywhere, so every comparison dropped its operands and LLVM, seeing a
+callee too big to inline, kept the call. A literal is static data with
+nothing to count, so it no longer withdraws the mode; non-trivial arguments
+of saturated calls are let-bound first (`name_call_arguments`) so they are
+variables by the time the modes are read.
+
+**Each unit has its own inline allowance.** The inliner's growth bound was
+one program-wide pool (two percent of the program), spent in walk order.
+The library units visited first (string, effect and file-system code a
+program may never reach) used all of it, so every specialised clone, which
+is appended last, was refused copies that grow nothing (`lam x y =
+Ord_Nat.< x y`). Each unit now has an allowance of a quarter of its size
+plus 192 nodes, a copy is charged its net growth (its nodes less the call
+it replaces), and a program-wide ceiling of a tenth of the program stays as
+the backstop against a cascade.
+
+**The heap takes its ordering per call.** A comparator stored in the heap
+value is a field load and an unknown call on every comparison, which no
+specialiser can see through. `heap-push-by` and `heap-pop-by` take the
+ordering as an argument, as C++'s `std::push_heap` does, so it is a static
+argument of the sift loops; `heap-push` and `heap-pop` pass the `Ord`
+instance's `<`. Pop then sinks its hole to a leaf along the least children
+and lets the old last element climb back (libstdc++'s `__adjust_heap`),
+which saves the comparison against that element at every level.
+
+The heap probe (20,000 pushes and pops of `Nat`) went from 140M to 43M
+instructions. What is left per comparison is the tag test and the dup and
+drop of each slot read (the element is an owned copy, released after the
+comparison); a borrowed slot read would remove both (section 9).
+
 ## 6.5 Two compiler bugs this work found
 
 **A library object carried modules its target never selects.**
@@ -381,6 +442,17 @@ Reading them:
    (or inlining it at a static dictionary, where `direct_dict_calls` would fire)
    is a compiler change, not a library one.
 5. **`run-mut`**, once the checker accepts a rank-2 argument (section 3).
+6. **Borrowed slot reads.** A `slots-read` whose result is only compared
+   and then dropped pays a dup and a drop for nothing: the slot keeps the
+   element alive across the comparison. A read the count pass can prove is
+   consumed only in lent positions, with no write to any slot in between,
+   could load the word without a count; that is the next step for the sort
+   and the heap once the comparison is inline.
+7. **The free of a small block.** A pop's `Some` costs about 280
+   instructions to free through the general walk (`rc.rs`, `release`), most
+   of it the layout lookup and scan set-up for a block with one immediate
+   field. A fast path for a block whose fields are all immediates would
+   help every `Option`-returning API, not only this family.
 
 ## 10 Reproducing
 

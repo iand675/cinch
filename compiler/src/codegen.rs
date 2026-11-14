@@ -1815,6 +1815,21 @@ fn sig_class(t: &crate::types::Ty) -> Class {
     crate::repr::repr_of(t, &[], &SigTypes, &mut |_| {})
 }
 
+/// A primitive's result class from its signature, with a polymorphic
+/// family's class vector substituted, or `None` for the builtins that carry
+/// no boundary signature (the deferral, evaluation and concurrency family).
+pub(crate) fn prim_result_class(op: PrimOp) -> Option<Class> {
+    let subst = |params: Vec<String>, result: &crate::types::Ty, classes: &[Class; 2]| {
+        crate::repr::repr_of(result, &params, &SigTypes, &mut |_| {}).subst(classes)
+    };
+    match op {
+        PrimOp::Array { op, classes, packed } => Some(subst(op.params(packed), &op.sig(packed).1, &classes)),
+        PrimOp::Stm { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
+        PrimOp::Slots { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
+        _ => prim_sig(op).map(|(_, result)| sig_class(&result)),
+    }
+}
+
 /// A primitive's parameter classes from its signature. The deferral,
 /// evaluation and concurrency builtins carry no boundary signature;
 /// their classes are fixed here: a thunk, memo cell, quotation or task
