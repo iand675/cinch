@@ -1,7 +1,7 @@
 {
-  "description": "ABI 9 library producer with the fixed-frame apply stub family.",
-  "revision": "905aa3cf7a8beb8f619ac371962cf4bfad369332",
+  "description": "ABI 9 library producer that keeps another target's syscall backend out of the library object.",
+  "revision": "f36dc5d97acf51fde2fef307bed3325bf48969c6",
   "runtime_abi": 9,
   "schema": 1,
-  "source_sha256": "9d47f7ec9d1816606a4e5e0a4586e2b3743cac6f2bc9b9c4a109518dda0d18a2"
+  "source_sha256": "3cd98989727914b8cd76544e8b2f064eb80be2f76e6ad8dd6cb015279c979886"
 }
