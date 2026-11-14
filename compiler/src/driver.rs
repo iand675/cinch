@@ -2,7 +2,7 @@
 
 use crate::parser::{parse_modules, FixityTable, ParsedModules};
 use crate::{check, codegen, layout, lexer, Error, Result};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 /// P29: Blaze-style incremental recompilation (the REAPER item graph,
@@ -2339,6 +2339,45 @@ fn compile_time_roots(
 /// Ordinary code reaching a host-only module is the same fact without the
 /// compile-time context, and it is refused as unavailable for the target,
 /// naming the condition that would select it.
+/// The family modules that only a target-false `when` imports: another
+/// target's backend (`Prim.Sys.Darwin` on a Linux target, which
+/// `Prim.Sys` imports `when os darwin`). A standalone library object for
+/// this target must not root them: their units name that target's
+/// symbols (Darwin's `__error`), which this target's linker cannot
+/// resolve, and no code this target runs can reach them.
+fn unselected_backends<'a>(modules: impl Iterator<Item = &'a crate::ast::Module>, build: &crate::core::BuildProfiles) -> HashSet<String> {
+    let profile = crate::core::condition_context(build, crate::core::BuildContext::Emitted);
+    fn walk(d: &crate::ast::Decl, holds: bool, profile: &crate::core::TargetProfile,
+            selected: &mut HashSet<String>, gated: &mut HashSet<String>) {
+        match d {
+            crate::ast::Decl::Conditional { when, inner } => {
+                // An undecidable condition keeps the import: never drop a
+                // module some build of this target might need.
+                let here = crate::core::WhenCond::lower(when).map(|c| c.holds(profile)).unwrap_or(true);
+                walk(inner, holds && here, profile, selected, gated)
+            }
+            crate::ast::Decl::Attributed { inner, .. } => walk(inner, holds, profile, selected, gated),
+            crate::ast::Decl::Import(i) => {
+                // `import X when <clause> ...`: the clauses the checker reads
+                // to drop the import (`check_decls::prune_module`).
+                let here = i.when.is_empty()
+                    || crate::core::WhenCond::lower(&i.when).map(|c| c.holds(profile)).unwrap_or(true);
+                let name = i.path.parts().join(".");
+                if holds && here { selected.insert(name); } else { gated.insert(name); }
+            }
+            _ => {}
+        }
+    }
+    let (mut selected, mut gated) = (HashSet::new(), HashSet::new());
+    for m in modules {
+        for d in &m.decls {
+            walk(d, true, profile, &mut selected, &mut gated);
+        }
+    }
+    gated.retain(|module| !selected.contains(module));
+    gated
+}
+
 fn refuse_unavailable_modules(
     project: &Project,
     modules: &[crate::ast::Module],
@@ -5368,6 +5407,13 @@ pub fn driver_with_profile_opts(
     // parsed declarations, which is why they run here rather than in the
     // loader.
     refuse_unavailable_modules(&project, &modules, &build)?;
+    // The embedded family is parsed apart from the project's modules, and
+    // its `Prim.Sys` facade is where the target-conditional imports live.
+    let unselected = if mode == Mode::EmitObject {
+        unselected_backends(prelude.modules.iter().chain(modules.iter()), &build)
+    } else {
+        HashSet::new()
+    };
     let mut hashes: HashMap<String, String> = HashMap::new();
     let mut files: HashMap<String, String> = HashMap::new();
     for name in &project.order {
@@ -5545,7 +5591,7 @@ pub fn driver_with_profile_opts(
         // A whole-program artifact has no consumer to resolve against, and
         // keeping its interface names would only add unreachable units.
         if mode == Mode::EmitObject {
-            for iface in &ifaces {
+            for iface in ifaces.iter().filter(|iface| !unselected.contains(&iface.module)) {
                 for value in &iface.exports.values {
                     roots.push(value.symbol.clone());
                     if let Some(graph) = &value.total_body {
@@ -5573,6 +5619,14 @@ pub fn driver_with_profile_opts(
         let pruned = crate::simplify::prune(&mut program, &roots);
         opt.simplify.pruned = pruned.removed;
         opt.simplify.pruned_nodes = pruned.removed_nodes;
+        // Foreign binding contracts are emitted whether or not a unit is
+        // reachable, so another target's backend keeps none: its symbols
+        // do not exist on this target, and nothing here can call them.
+        if !unselected.is_empty() {
+            let owned_by_unselected = |unit: &str| unselected.iter().any(|m| unit.starts_with(&format!("{m}.")));
+            program.foreigns.retain(|unit, _| !owned_by_unselected(unit));
+            program.fns.retain(|f| !owned_by_unselected(&f.id.0));
+        }
     }
     write_artifacts(
         &out_dir,
