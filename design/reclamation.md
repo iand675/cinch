@@ -963,12 +963,32 @@ symptom is a segfault inside the allocator with no diagnostic at all.
 The release therefore stays at the head of the branch with the moved-field
 set the whole arm body computed, and only the `Reuse` moves. Every arm's
 reuse names the one token the head bound; exactly one arm runs per path, so
-the token is read at most once per path. An arm with no compatible
-allocation leaves the token unread, which is sound because the head's
-release already freed the block on its unique path (or dupped and dropped it
-on the shared one): that path has nothing left to leak. The expansion is
-applied only when at least one arm takes a pair, because otherwise the head
-would bind a token no path reads.
+the token is read at most once per path. An arm that allocates a compatible
+constructor writes into the kept cell and clears the token; an arm that
+allocates nothing compatible leaves it set.
+
+The token being set is what says the cell is still owed a free, and the
+code generator pays it. `emit_release` returns the token's slot, the
+emitter holds it for the scope of the release body, and the body's every
+exit settles it: the destination a decision delivers to, the join a `Jump`
+targets, the loop header a self tail call returns to, and the unit's return
+each test the slot and `cinch_free` the cell when it is still nonzero. So
+the cell has exactly one owner on every path, the arm that reused it or
+the exit that found the token bound.
+
+The pass alone cannot make that true, which is why the free is the code
+generator's: the arms are alternatives, and nothing in the pass represents
+"the branch's continuation" as one place to release from. The first version
+of this optimisation claimed the head's release already freed the block on
+its unique path, so an arm that reused nothing had nothing to leak. That
+was false against `emit_release`: on the unique path with a token bound the
+cell is stored into the token slot and not freed, and only a `Reuse` ever
+took it. A `case` whose arm rebuilds the block and whose other arm does not
+therefore leaked one block per call, which is a `step` that returns `Nil` on
+its `else` path. The compiler's own leak check caught it as exit 74 on
+every leak-checked invocation. The expansion is applied only when at least
+one arm takes a pair, because otherwise the head would bind a token no path
+reads.
 
 The regression shape is a branch whose head consumes a counted field of the
 dying block and whose alternatives both rebuild it. `Bootstrap.Total.infer`

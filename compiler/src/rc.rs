@@ -771,14 +771,20 @@ fn insert_reuse_in_args(
 /// arm runs per path, so the token is read at most once per path:
 ///
 /// - an arm that allocates a compatible constructor writes into the kept
-///   cell;
-/// - an arm that allocates nothing compatible leaves the token unread,
-///   which is sound because the release already freed the block on its
-///   unique path (or dupped and dropped it on the shared one), so there is
-///   nothing left for that path to leak.
+///   cell and clears the token, because the cell is that arm's now;
+/// - an arm that allocates nothing compatible leaves the token set, and
+///   the cell the unique path kept is freed where that path leaves the
+///   release. The code generator owns that free (`emit_release` returns
+///   the token's slot, and the emitter settles it at the release body's
+///   every exit), because the pass cannot see the branch's arms as a
+///   single continuation: a code generator that emitted the arms and
+///   dropped the cell only on the reuse path leaked one block per call of
+///   the shape below, and the compiler's own leak check reported it.
 ///
-/// `Some` only when at least one arm took a pair, because otherwise the
-/// release would bind a token that no path reads.
+/// So the cell has exactly one owner on every path: the arm that reused
+/// it, or the exit that found the token still bound. `Some` only when at
+/// least one arm took a pair, because otherwise the release would bind a
+/// token that no path reads.
 fn branch_reuse(
     e: &Core,
     token: usize,

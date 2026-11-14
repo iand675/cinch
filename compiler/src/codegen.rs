@@ -7395,6 +7395,7 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result
         joins: HashMap::new(),
         frame: reg.frame.get(&f.id.0),
         frame_bases: HashMap::new(),
+        pending: Vec::new(),
     };
     // A narrowed parameter arrives at its own width and the body reads a
     // slot word, so the entry widens it once (design/narrow-value-
@@ -7666,14 +7667,32 @@ struct CoreEmitter<'a, 'b> {
     /// The `alloca` of each frame slot, by slot id: one entry block slot
     /// per allocation site, reused when a site executes again.
     frame_bases: HashMap<u32, String>,
+    /// The token slots of the `Release`s whose bodies the emitter is
+    /// currently inside, outermost first.
+    ///
+    /// A `Release` binds its token before its body runs and a `Reuse` that
+    /// takes the kept cell zeroes the slot as it reads it, so a nonzero
+    /// slot is a cell the unique path kept that the body did not reuse.
+    /// The cell must be freed where the path leaves the `Release`'s scope:
+    /// the destination the body delivers to, the join a `Jump` targets,
+    /// the loop header a self tail call returns to, or the return of the
+    /// unit. [`CoreEmitter::settle_tokens`] is that free.
+    pending: Vec<String>,
 }
 
-/// A join's code generation site: the block its body starts at, and the
-/// slot of each parameter.
+/// A join's code generation site: the block its body starts at, the slot
+/// of each parameter, and the `Release` depth the join was opened at.
+///
+/// A `Jump` settles the tokens from `base` up before it branches, so a
+/// release whose body ends in a jump frees the cell it kept there rather
+/// than leaving the join's block to free it: the join's block runs at the
+/// shallower depth, and the token's slot is only meaningful on the path
+/// that wrote it.
 #[derive(Clone)]
 struct JoinSite {
     label: String,
     slots: Vec<String>,
+    base: usize,
 }
 
 /// Where a value-position expression delivers its result: the function's
@@ -7686,7 +7705,7 @@ struct JoinSite {
 #[derive(Clone)]
 enum Dest {
     Ret,
-    Slot { slot: String, label: String },
+    Slot { slot: String, label: String, base: usize },
 }
 
 impl Dest {
@@ -7701,10 +7720,21 @@ impl Dest {
                 let w = ret.narrow(b, v);
                 b.line(&format!("ret {} {w}", ret.ty()));
             }
-            Dest::Slot { slot, label } => {
+            Dest::Slot { slot, label, .. } => {
                 b.line(&format!("store i64 {v}, ptr {slot}"));
                 b.line(&format!("br label %{label}"));
             }
+        }
+    }
+
+    /// How deep the `Release` scope was when this destination was made:
+    /// the tokens a path delivering here is leaving, and so the ones it
+    /// must settle ([`CoreEmitter::settle_tokens`]). The return leaves the
+    /// whole unit, so it settles every token in scope.
+    fn base(&self) -> usize {
+        match self {
+            Dest::Ret => 0,
+            Dest::Slot { base, .. } => *base,
         }
     }
 }
@@ -7717,6 +7747,49 @@ impl CoreEmitter<'_, '_> {
         let s = self.b.alloca_i64();
         self.slots.insert(x, s.clone());
         s
+    }
+
+    /// Free the cells behind the `Release` tokens from depth `from` up:
+    /// the releases this path is leaving whose bodies did not take the
+    /// cell.
+    ///
+    /// The test is a branch, not an unconditional call, because the path
+    /// that reused the cell zeroed the slot and pays one compare here. The
+    /// slot is written before the body runs and on every path, so the
+    /// branch reads a word this path stored.
+    ///
+    /// The free clears the slot, which is what makes this safe to reach
+    /// twice on one path: a body whose own exit already settled the token
+    /// (a decision's destination inside the release) leaves 0 behind, and
+    /// the outer settle reads it and does nothing.
+    fn settle_tokens(&mut self, from: usize) {
+        let from = from.min(self.pending.len());
+        for i in from..self.pending.len() {
+            let slot = self.pending[i].clone();
+            let t = self.b.reg();
+            self.b.line(&format!("{t} = load i64, ptr {slot}"));
+            let nz = self.b.reg();
+            self.b.line(&format!("{nz} = icmp ne i64 {t}, 0"));
+            let (lfree, lcont) = (self.b.label(), self.b.label());
+            self.b.line(&format!("br i1 {nz}, label %{lfree}, label %{lcont}"));
+            self.b.start(&lfree);
+            self.b.line(&format!("store i64 0, ptr {slot}"));
+            self.b.line(&format!("call void @cinch_free(i64 {t})"));
+            self.b.line(&format!("br label %{lcont}"));
+            self.b.start(&lcont);
+        }
+    }
+
+    /// Run `f` with `slot` in the `Release` scope: the body of the release
+    /// that bound it. Every exit from the body settles it.
+    fn in_release<T>(&mut self, slot: Option<String>, f: impl FnOnce(&mut Self) -> T) -> T {
+        let depth = self.pending.len();
+        if let Some(slot) = slot {
+            self.pending.push(slot);
+        }
+        let out = f(self);
+        self.pending.truncate(depth);
+        out
     }
 
     /// The first-class value of a code generation unit: its static closure
@@ -8203,8 +8276,17 @@ impl CoreEmitter<'_, '_> {
                 self.emit_reuse(*token, &ctor.0, args, already_set)
             }
             Core::Release { block, moved, rest, token, body } => {
-                self.emit_release(*block, moved, rest, *token)?;
-                self.emit_expr(body)
+                let slot = self.emit_release(*block, moved, rest, *token)?;
+                let depth = self.pending.len();
+                // The body produced its word, so the release is over: the
+                // cell it kept is freed here unless a `Reuse` took it. The
+                // word the body computed is a register, so freeing the cell
+                // it came from does not disturb it.
+                self.in_release(slot, |this| {
+                    let v = this.emit_expr(body)?;
+                    this.settle_tokens(depth);
+                    Ok(v)
+                })
             }
         }
     }
@@ -8243,13 +8325,21 @@ impl CoreEmitter<'_, '_> {
     /// a uniquely held block hands its moved fields over, drops the rest
     /// and is freed without visiting its fields; any other block dups the
     /// moved fields and is dropped.
+    ///
+    /// Returns the token's slot when the unique path can leave it bound,
+    /// which is the path that keeps the cell for a `Reuse`. The caller
+    /// holds that slot for the body's scope and settles it where the body
+    /// leaves ([`CoreEmitter::settle_tokens`]): the cell a `Reuse` did not
+    /// take is freed there, so every path owns it exactly once. Every
+    /// other path writes 0 to the slot before the body runs, so there is
+    /// nothing to settle and the slot is not returned.
     fn emit_release(
         &mut self,
         block: LocalId,
         moved: &[(LocalId, Class)],
         rest: &[(LocalId, Class)],
         token: Option<LocalId>,
-    ) -> Result<()> {
+    ) -> Result<Option<String>> {
         for x in std::iter::once(&block).chain(moved.iter().chain(rest).map(|(l, _)| l)) {
             if !self.bound.contains(x) {
                 return err(format!("count operation on unknown local {}", x.0));
@@ -8284,7 +8374,7 @@ impl CoreEmitter<'_, '_> {
                 rc_op(self.b, self.reg.rc_debug, true, &v, *c);
             }
             cold(self);
-            return Ok(());
+            return Ok(None);
         }
         let w = self.load_local(block);
         let shared = |this: &mut Self, w: &str| {
@@ -8295,9 +8385,11 @@ impl CoreEmitter<'_, '_> {
             rc_op(this.b, this.reg.rc_debug, true, w, Class::Obj);
         };
         if !self.b.reclaim || self.reg.rc_debug {
+            // Neither path keeps the cell, so the token is 0 on both and
+            // there is nothing for the body's exit to settle.
             shared(self, &w);
             cold(self);
-            return Ok(());
+            return Ok(None);
         }
         let (lunique, lshared, ljoin) = (self.b.label(), self.b.label(), self.b.label());
         let unique = self.b.reg();
@@ -8320,7 +8412,9 @@ impl CoreEmitter<'_, '_> {
         cold(self);
         self.b.line(&format!("br label %{ljoin}"));
         self.b.start(&ljoin);
-        Ok(())
+        // Only the unique path leaves the token bound; the shared path
+        // stored 0 into the slot.
+        Ok(tslot)
     }
 
     /// `Core::Reuse`: write `ctor`'s fields into the cell the token names
@@ -8379,6 +8473,13 @@ impl CoreEmitter<'_, '_> {
         // (`ExpandResetReuse.lean`), and both paths stay straight-line, so
         // the skip costs no branch per word.
         self.b.start(&lhot);
+        // The cell is this path's now, so the token stops naming it: the
+        // slot is cleared here, on the path that took the cell, and stays
+        // set on every path that did not. The exit that settles the token
+        // ([`CoreEmitter::settle_tokens`]) therefore frees exactly the
+        // cells no `Reuse` took, and each kept cell has one owner on every
+        // path: this reuse, or that free.
+        self.b.line(&format!("store i64 0, ptr {slot}"));
         let cell = self.b.reg();
         self.b.line(&format!("{cell} = inttoptr i64 {t} to ptr"));
         let field = block::ctor_layout_field(desc);
@@ -8685,7 +8786,7 @@ impl CoreEmitter<'_, '_> {
     fn emit_value(&mut self, e: &Core) -> Result<String> {
         let slot = self.b.alloca_i64();
         let label = self.b.label();
-        let dest = Dest::Slot { slot: slot.clone(), label: label.clone() };
+        let dest = Dest::Slot { slot: slot.clone(), label: label.clone(), base: self.pending.len() };
         self.emit_to(e, &dest)?;
         self.b.start(&label);
         let r = self.b.reg();
@@ -8718,12 +8819,13 @@ impl CoreEmitter<'_, '_> {
             }
             Core::Reuse { token, ctor, args, already_set } => {
                 let w = self.emit_reuse(*token, &ctor.0, args, already_set)?;
+                self.settle_tokens(dest.base());
                 dest.settle(self.b, &w, self.ret);
                 Ok(())
             }
             Core::Release { block, moved, rest, token, body } => {
-                self.emit_release(*block, moved, rest, *token)?;
-                self.emit_to(body, dest)
+                let slot = self.emit_release(*block, moved, rest, *token)?;
+                self.in_release(slot, |this| this.emit_to(body, dest))
             }
             Core::If(c, t, f) => {
                 let cv = self.emit_expr(c)?;
@@ -8755,9 +8857,16 @@ impl CoreEmitter<'_, '_> {
             // join's value.
             Core::Join { id, params, body, rest } => {
                 let site = self.enter_join(*id, params)?;
+                // The continuation is the join's own context, so it keeps
+                // the current scope. The block is entered by a `Jump`,
+                // which settled the tokens the jump was leaving, so it runs
+                // at the depth the join was opened at.
                 self.emit_to(rest, dest)?;
+                let depth = self.pending.len();
+                self.pending.truncate(site.base);
                 self.b.start(&site.label);
                 self.emit_to(body, dest)?;
+                self.pending.truncate(depth);
                 self.joins.remove(id);
                 Ok(())
             }
@@ -8780,6 +8889,12 @@ impl CoreEmitter<'_, '_> {
                 for (v, slot) in vals.iter().zip(&site.slots) {
                     self.b.line(&format!("store i64 {v}, ptr {slot}"));
                 }
+                // The jump leaves every `Release` opened inside the join's
+                // continuation behind: the join's block runs at the depth
+                // the join was opened at, so the tokens are settled on the
+                // path that jumps, where their slots hold this path's
+                // words.
+                self.settle_tokens(site.base);
                 self.b.line(&format!("br label %{}", site.label));
                 Ok(())
             }
@@ -8799,6 +8914,11 @@ impl CoreEmitter<'_, '_> {
                             let slot = self.slot(LocalId(i));
                             self.b.line(&format!("store i64 {v}, ptr {slot}"));
                         }
+                        // The back edge leaves every `Release` in the body
+                        // behind, so a cell the body kept and did not reuse
+                        // is freed before the next iteration overwrites the
+                        // token's slot.
+                        self.settle_tokens(dest.base());
                         let loop_label = self.loop_label.clone();
                         // The back edge is where LLVM reads the loop's
                         // unrolling policy (attribute annotations
@@ -8842,6 +8962,12 @@ impl CoreEmitter<'_, '_> {
                             }
                         };
                         let ty = self.ret.ty();
+                        // A `musttail` call must be followed by the `ret`
+                        // that consumes it and nothing else, so the tokens
+                        // are settled before the call: the arguments are
+                        // evaluated already, and a kept cell is freed on
+                        // this path.
+                        self.settle_tokens(dest.base());
                         let r = self.b.reg();
                         self.b.line(&format!("{r} = musttail call {ty} @{}({args})", quote(&sym)));
                         self.b.line(&format!("ret {ty} {r}"));
@@ -8854,6 +8980,7 @@ impl CoreEmitter<'_, '_> {
                         // this arm, and a narrowed `define` must return its
                         // narrowed type on every path.
                         let w = self.ret.narrow(self.b, &v);
+                        self.settle_tokens(dest.base());
                         self.b.line(&format!("ret {} {w}", self.ret.ty()));
                         Ok(())
                     }
@@ -8864,6 +8991,7 @@ impl CoreEmitter<'_, '_> {
                 // A terminating expression (the fault path, or a value that
                 // was delivered elsewhere) leaves nothing to settle.
                 if !self.b.terminated {
+                    self.settle_tokens(dest.base());
                     dest.settle(self.b, &v, self.ret);
                 }
                 Ok(())
@@ -8883,7 +9011,7 @@ impl CoreEmitter<'_, '_> {
             }
             slots.push(self.slot(*param));
         }
-        let site = JoinSite { label: self.b.label(), slots };
+        let site = JoinSite { label: self.b.label(), slots, base: self.pending.len() };
         if self.joins.insert(id, site.clone()).is_some() {
             return err(format!("join j{} is bound twice in one body", id.0));
         }
@@ -8997,7 +9125,10 @@ impl CoreEmitter<'_, '_> {
             }
             None => {
                 // The checker enforces coverage; an unmatched tag has no
-                // continuation, so the enclosing function returns 0.
+                // continuation, so the enclosing function returns 0. The
+                // return leaves every `Release` in scope, so it settles
+                // their tokens first.
+                self.settle_tokens(dest.base());
                 self.b.line(&format!("ret {} 0", self.ret.ty()));
             }
         }
