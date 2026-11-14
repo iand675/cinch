@@ -727,8 +727,9 @@ drop goes as early as possible.
 - passed on in a tail call that needs it owned.
 
 Iterate to a fixpoint over the whole-program call graph. Modes are ABI
-once emission is per-unit, so `ValueExport` would gain modes, or exports
-default to owned. Dictionary and capability parameters (`FnMeta.dicts`,
+once emission is per-unit; as built, an object publishes them in its
+package execution interface and keeps an owned symbol beside the lent
+worker (below). Dictionary and capability parameters (`FnMeta.dicts`,
 `core.rs:2316-2319`) nearly always stay borrowed.
 
 **Checking.** A debug verifier re-derives ownership over the output and
@@ -741,16 +742,50 @@ exactly once. Reclamation is on by default; `CINCH_RECLAIM=0` in the
 compiler's environment builds the leak-everything baseline for
 measurements and A/B debugging.
 
-- Borrowed parameters are inferred only for a closed program: an
-  executable emitted whole (`rc::insert_closed`). An object, a module
-  subset, a link against package objects and the incremental unit cache
-  keep every parameter owned (`rc::insert`), the convention every
-  separately compiled caller assumes, so modes never reach an interface.
-  A unit takes part only if every caller is a saturated direct call in
-  the program: the entry, `foreign export` targets, instance methods and
-  every unit used as a value (a closure, a hoisted lambda, anything a
-  quotation body names) stay owned, because `__apply`, the entry glue,
-  the export entries and the evaluator pass owned arguments. Each counted
+- Borrowed parameters are inferred for every program; what differs is
+  who may call a unit's own symbol with the lent convention. In a closed
+  program (an executable emitted whole, `rc::insert_closed`) every caller
+  is known, so the symbol takes it. In an open one (a library or package
+  object, a module subset, a link against package objects,
+  `rc::insert_open`) a unit that lends a parameter runs its body in a
+  worker (`<unit>#tail`, the tail-widening worker of its width) and its
+  symbol becomes a one-call wrapper that releases the lent arguments on
+  return, Lean 4's boxed wrapper: a separately compiled caller that knows
+  nothing of modes calls the symbol and keeps the owned convention, and
+  one that does calls the worker. The symbol keeps the boundary its
+  contract gives, narrowed scalars included, because a separately compiled
+  caller (the stage compiler among them) derives that boundary from the
+  contract alone: the wrapper widens into the word-typed worker and
+  narrows the result back, and every direct call this artifact makes goes
+  to the worker in words. A recursive group with one split member runs
+  every member in its worker, so the group's tail calls stay `musttail`
+  between word-typed workers. The incremental unit cache still keeps
+  every parameter owned (`rc::insert`).
+- Modes cross objects as ABI facts in the package execution interface:
+  each `units` row of a lending unit carries `lent` (its parameters'
+  modes), `lent_entry` and `lent_width` (the worker). A build reads the
+  rows of the objects it links (`--package-object`) and, for a package
+  object, of the dependency objects already vendored beside it; their
+  units are then called at the worker with those modes, which are fixed:
+  no call here withdraws them, so a call that would have (an owned local
+  in tail position) keeps its reference and releases it after the call.
+  The object records the conventions it was compiled against
+  (`lent_imports`), and a link refuses objects whose published modes
+  differ from what a dependent recorded. Modes follow from bodies, so a
+  dependency rebuilt from changed source may move them while its
+  contract stays put; the check makes that "rebuild the dependent"
+  rather than a count imbalance. Argument naming uses the callee's
+  parameter classes, so every counted computed argument reaches a fixed
+  lent parameter as a local the caller releases.
+- A unit takes part unless something calls its symbol with the owned
+  convention that cannot be told otherwise: the entry, `foreign export`
+  targets, anything a quotation body names (the evaluator) and
+  primitives used as values. Instance methods and units used as values
+  (closures, hoisted lambdas, dictionary slots, partial and over-
+  applications) take part: they are entered through their apply stub,
+  which owns its frame words and releases the lent ones after the call,
+  and a strict method's call at dictionary construction does the same.
+  Each counted
   parameter starts borrowed and becomes owned, to a fixed point, when the
   unit uses it outside a `case` scrutinee, a projection's container or a
   borrowed argument; when a call passes it a computed counted value; or
@@ -767,8 +802,13 @@ measurements and A/B debugging.
 - A `let x = y` of a counted, never written-through binder of `y`'s
   class is a renaming: the pass binds no reference for `x` and counts
   `y` wherever `x` is used, so it does not turn a borrowed `y` owned.
-- Primitive units take part with the parameters their runtime operation
-  only reads (all but `prim_consumes`). The modes of those that stay
+- Primitive units take part, in a closed program only, with the
+  parameters their runtime operation only reads (all but
+  `prim_consumes`). An open program keeps them owned: a primitive's
+  wrapper has no owned entry beside its lent one, and an object emits it
+  `linkonce_odr` under the runtime name that every other object and the
+  stage compiler also define, so a mixture of conventions would be
+  settled by the linker. The modes of those that stay
   borrowed travel in `Program::lent`, and the primitive's wrapper releases
   only its other counted parameters on return.
 - Measured on the bootstrap compiler's sources: of 15,134 candidate

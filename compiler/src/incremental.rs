@@ -1446,6 +1446,7 @@ impl Session {
             frame: Default::default(),
             stack: Default::default(),
             borrowed: Default::default(),
+            lent_entries: Default::default(),
             inline: Default::default(),
         };
         let mut state = crate::driver::query::QueryState::of(
@@ -2054,6 +2055,7 @@ impl Session {
             frame: Default::default(),
             stack: Default::default(),
             borrowed: Default::default(),
+            lent_entries: Default::default(),
             inline: Default::default(),
                 });
             }
@@ -2108,6 +2110,7 @@ impl Session {
             frame: Default::default(),
             stack: Default::default(),
             borrowed: Default::default(),
+            lent_entries: Default::default(),
             inline: Default::default(),
         })
     }

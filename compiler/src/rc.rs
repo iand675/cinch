@@ -87,7 +87,50 @@ fn concrete(c: Class) -> Class {
 /// specialized program and must precede counting, which balances each
 /// unit separately.
 pub fn insert(program: Program, profile: &crate::core::TargetProfile) -> crate::Result<Program> {
-    insert_with(program, profile, false)
+    insert_with(program, profile, None)
+}
+
+/// What an open program knows about the units other artifacts define or
+/// call: the artifact's own units (the rest are defined elsewhere and only
+/// called here), and the borrowed parameters the objects it links
+/// published for theirs (`Program::lent_entries`, the object ABI's `lent`
+/// rows).
+pub struct Boundary<'a> {
+    /// The modules this artifact defines; empty: every module.
+    pub modules: &'a [String],
+    /// Published modes of units another object defines, by unit, with the
+    /// width of the worker that takes them (`crate::core::LentEntry`).
+    pub imported: &'a std::collections::BTreeMap<String, (Vec<bool>, usize)>,
+    /// Whether every caller of every unit is in this program (an
+    /// executable emitted whole): then a unit's own symbol may take the
+    /// lent convention, since nothing else calls it.
+    pub closed: bool,
+}
+
+impl Boundary<'_> {
+    fn defines(&self, unit: &str) -> bool {
+        self.modules.is_empty()
+            || self.modules.iter().any(|m| unit == m || unit.strip_prefix(m.as_str()).is_some_and(|r| r.starts_with('.')))
+    }
+}
+
+/// [`insert`] for an open program (a library or package object, or a
+/// program linking package objects) with borrow inference across the
+/// boundary. Its own units are inferred as a closed program's are, since
+/// every direct call the inference reads is in this artifact; what keeps
+/// that sound against the callers it cannot see is that a unit given a
+/// lent parameter keeps its public symbol owned (code generation runs the
+/// body in a worker and makes the symbol a wrapper that drops the lent
+/// arguments, `Program::lent_entries`). A unit another object defines is
+/// called with the modes that object published, which are fixed: no call
+/// here may withdraw them, so a call that would have (an owned local in
+/// tail position) keeps the reference and releases it after the call.
+pub fn insert_open(
+    program: Program,
+    profile: &crate::core::TargetProfile,
+    boundary: &Boundary<'_>,
+) -> crate::Result<Program> {
+    insert_with(program, profile, Some(boundary))
 }
 
 /// [`insert`] for a closed program, one whose every caller of every unit
@@ -95,22 +138,47 @@ pub fn insert(program: Program, profile: &crate::core::TargetProfile) -> crate::
 /// read are inferred borrowed ([`borrow_modes`]), so neither the caller's
 /// dup nor the callee's drop is emitted for them.
 pub fn insert_closed(program: Program, profile: &crate::core::TargetProfile) -> crate::Result<Program> {
-    insert_with(program, profile, true)
+    let none = std::collections::BTreeMap::new();
+    insert_with(program, profile, Some(&Boundary { modules: &[], imported: &none, closed: true }))
 }
 
-fn insert_with(mut program: Program, profile: &crate::core::TargetProfile, closed: bool) -> crate::Result<Program> {
+/// `boundary` is `None` for the all-owned convention ([`insert`]); a
+/// closed program is the boundary that defines everything and imports
+/// nothing.
+fn insert_with(
+    mut program: Program,
+    profile: &crate::core::TargetProfile,
+    boundary: Option<&Boundary<'_>>,
+) -> crate::Result<Program> {
     crate::core::share_repeated_subterms(&mut program);
     if !profile.reclaim {
         return Ok(program);
     }
     name_call_arguments(&mut program);
     let ctors = Ctors::of(&program);
-    let (modes, prims) = if closed { borrow_modes(&program, &ctors) } else { Default::default() };
+    let (modes, prims) = match boundary {
+        Some(b) => borrow_modes(&program, &ctors, b),
+        None => Default::default(),
+    };
     program.lent = modes.iter().filter(|(k, _)| prims.contains(*k)).map(|(k, m)| (k.clone(), m.clone())).collect();
     // The whole mode map reaches the stack allocation pass, which reads a
     // lent reference as one the callee cannot store or return
     // (`crate::stack::Options`).
     program.borrowed = modes.iter().map(|(k, m)| (k.clone(), m.clone())).collect();
+    // An open program's units that lend a parameter keep an owned public
+    // symbol for the callers this artifact cannot see; the lent body runs
+    // in a worker (`crate::core::LentEntry`). The units another object
+    // defines are reached at the worker that object published.
+    program.lent_entries.clear();
+    if let Some(b) = boundary.filter(|b| !b.closed) {
+        for (unit, _) in modes.iter().filter(|(k, _)| !prims.contains(*k)) {
+            let entry = match b.imported.get(unit) {
+                Some((_, width)) if !b.defines(unit) => crate::core::LentEntry::Imported { width: *width },
+                _ => crate::core::LentEntry::Local,
+            };
+            program.lent_entries.insert(unit.clone(), entry);
+        }
+    }
     for f in &mut program.fns {
         if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body {
             continue;
@@ -181,8 +249,11 @@ fn reuse_scrutinees(body: &Core, ctors: &Ctors, out: &mut Set) {
     }
 }
 
-fn borrow_modes(program: &Program, ctors: &Ctors) -> (Modes, std::collections::HashSet<String>) {
+fn borrow_modes(program: &Program, ctors: &Ctors, boundary: &Boundary<'_>) -> (Modes, std::collections::HashSet<String>) {
     let mut excluded: std::collections::HashSet<String> = std::collections::HashSet::new();
+    // A unit another object defines is not inferred here: its modes are
+    // what that object published, or none (owned).
+    let mut fixed: std::collections::HashSet<String> = std::collections::HashSet::new();
     if let Some(main) = &program.main {
         excluded.insert(main.0.clone());
     }
@@ -197,8 +268,25 @@ fn borrow_modes(program: &Program, ctors: &Ctors) -> (Modes, std::collections::H
     }
     let mut modes: Modes = HashMap::new();
     let mut prims: std::collections::HashSet<String> = std::collections::HashSet::new();
+    // A primitive's wrapper takes its lent convention at its own symbol,
+    // with no owned entry beside it, and an object emits it `linkonce_odr`
+    // under the runtime name every other object and the stage compiler
+    // also define: a mixture of conventions would be resolved by the
+    // linker, not by anyone who knows. So only a closed program lends to
+    // primitives.
+    let lend_prims = boundary.closed;
     for f in &program.fns {
         if f.ctor.is_some() || f.meta.prim_body || excluded.contains(&f.id.0) {
+            continue;
+        }
+        if f.prim.is_some() && !lend_prims {
+            continue;
+        }
+        if f.prim.is_none() && !boundary.defines(&f.id.0) {
+            if let Some((m, _)) = boundary.imported.get(&f.id.0).filter(|(m, _)| m.len() == f.arity() && m.iter().any(|b| *b)) {
+                modes.insert(f.id.0.clone(), m.clone());
+                fixed.insert(f.id.0.clone());
+            }
             continue;
         }
         let m: Vec<bool> = param_classes(f)
@@ -214,7 +302,7 @@ fn borrow_modes(program: &Program, ctors: &Ctors) -> (Modes, std::collections::H
         }
     }
     for (symbol, op) in prim_ops {
-        if excluded.contains(&symbol) {
+        if excluded.contains(&symbol) || !lend_prims {
             continue;
         }
         let m: Vec<bool> = (0..op.arity()).map(|i| !crate::codegen::prim_consumes(op, i)).collect();
@@ -226,7 +314,7 @@ fn borrow_modes(program: &Program, ctors: &Ctors) -> (Modes, std::collections::H
     let units: Vec<(&FnDef, UnitFacts)> = program
         .fns
         .iter()
-        .filter(|f| f.prim.is_none() && f.ctor.is_none() && !f.meta.prim_body)
+        .filter(|f| f.prim.is_none() && f.ctor.is_none() && !f.meta.prim_body && boundary.defines(&f.id.0))
         .map(|f| (f, UnitFacts::of(&param_classes(f), &f.body)))
         .collect();
     let index: HashMap<&str, usize> = units.iter().enumerate().map(|(i, (f, _))| (f.id.0.as_str(), i)).collect();
@@ -268,7 +356,7 @@ fn borrow_modes(program: &Program, ctors: &Ctors) -> (Modes, std::collections::H
             }
         }
         // What its calls pass to borrowed parameters.
-        call_sites(&f.body, true, &mut mine, cx, &mut modes, &prims, &mut killed);
+        call_sites(&f.body, true, &mut mine, cx, &mut modes, &prims, &fixed, &mut killed);
         for k in killed.drain(..) {
             for &c in callers.get(&k).into_iter().flatten().chain(index.get(k.as_str())) {
                 if !queued[c] {
@@ -417,14 +505,24 @@ fn owned_uses(e: &Core, names: &HashMap<usize, usize>, modes: &Modes, cx: &UnitF
 /// names are `mine`: its borrowed parameters, their [`let_alias`]
 /// renamings and the fields of a `case` on any of them. Each callee
 /// whose modes change is pushed to `killed`.
-fn call_sites(e: &Core, tail: bool, mine: &mut Set, cx: &UnitFacts, modes: &mut Modes, prims: &std::collections::HashSet<String>, killed: &mut Vec<String>) {
+#[allow(clippy::too_many_arguments)]
+fn call_sites(
+    e: &Core,
+    tail: bool,
+    mine: &mut Set,
+    cx: &UnitFacts,
+    modes: &mut Modes,
+    prims: &std::collections::HashSet<String>,
+    fixed: &std::collections::HashSet<String>,
+    killed: &mut Vec<String>,
+) {
     match e {
         Core::App(h, args) => {
             let key = match &**h {
                 Core::Global(g, _) => Some(g.0.as_str().into()),
                 Core::Prim(op) => Some(std::borrow::Cow::Owned(op.symbol())),
                 other => {
-                    call_sites(other, false, mine, cx, modes, prims, killed);
+                    call_sites(other, false, mine, cx, modes, prims, fixed, killed);
                     None
                 }
             };
@@ -436,6 +534,14 @@ fn call_sites(e: &Core, tail: bool, mine: &mut Set, cx: &UnitFacts, modes: &mut 
                 // every caller and a drop in its own body, which also made a
                 // `natCmp` too large for clang to inline).
                 let leaf = prims.contains(k.as_ref());
+                // Another object's published modes are fixed: the call keeps
+                // what it lends and releases it after, tail position or not.
+                if fixed.contains(k.as_ref()) {
+                    for a in args {
+                        call_sites(a, false, mine, cx, modes, prims, fixed, killed);
+                    }
+                    return;
+                }
                 if let Some(m) = modes.get_mut(k.as_ref()).filter(|m| m.len() == args.len()) {
                     let mut changed = false;
                     for (i, a) in args.iter().enumerate() {
@@ -463,26 +569,26 @@ fn call_sites(e: &Core, tail: bool, mine: &mut Set, cx: &UnitFacts, modes: &mut 
                 }
             }
             for a in args {
-                call_sites(a, false, mine, cx, modes, prims, killed);
+                call_sites(a, false, mine, cx, modes, prims, fixed, killed);
             }
         }
         Core::Let(x, c, v, b) => {
             if let_alias(*x, *c, v, &cx.classes, &cx.written).is_some_and(|y| mine.contains(&y)) {
                 mine.insert(x.0);
-                call_sites(b, tail, mine, cx, modes, prims, killed);
+                call_sites(b, tail, mine, cx, modes, prims, fixed, killed);
                 mine.remove(&x.0);
                 return;
             }
-            call_sites(v, false, mine, cx, modes, prims, killed);
-            call_sites(b, tail, mine, cx, modes, prims, killed);
+            call_sites(v, false, mine, cx, modes, prims, fixed, killed);
+            call_sites(b, tail, mine, cx, modes, prims, fixed, killed);
         }
         Core::If(c, t, f) => {
-            call_sites(c, false, mine, cx, modes, prims, killed);
-            call_sites(&t.body, tail, mine, cx, modes, prims, killed);
-            call_sites(&f.body, tail, mine, cx, modes, prims, killed);
+            call_sites(c, false, mine, cx, modes, prims, fixed, killed);
+            call_sites(&t.body, tail, mine, cx, modes, prims, fixed, killed);
+            call_sites(&f.body, tail, mine, cx, modes, prims, fixed, killed);
         }
         Core::Case { scrut, alts } => {
-            call_sites(scrut, false, mine, cx, modes, prims, killed);
+            call_sites(scrut, false, mine, cx, modes, prims, fixed, killed);
             let lent = matches!(&**scrut, Core::Var(s) if mine.contains(&s.0));
             for a in alts {
                 match &a.pat {
@@ -493,12 +599,12 @@ fn call_sites(e: &Core, tail: bool, mine: &mut Set, cx: &UnitFacts, modes: &mut 
                             .map(|x| x.0)
                             .filter(|x| cx.classes.get(x).copied().is_some_and(counted) && mine.insert(*x))
                             .collect();
-                        call_sites(&a.body, tail, mine, cx, modes, prims, killed);
+                        call_sites(&a.body, tail, mine, cx, modes, prims, fixed, killed);
                         for x in added {
                             mine.remove(&x);
                         }
                     }
-                    _ => call_sites(&a.body, tail, mine, cx, modes, prims, killed),
+                    _ => call_sites(&a.body, tail, mine, cx, modes, prims, fixed, killed),
                 }
             }
         }
@@ -506,7 +612,7 @@ fn call_sites(e: &Core, tail: bool, mine: &mut Set, cx: &UnitFacts, modes: &mut 
         // a candidate, see `value_uses`).
         other => {
             for k in crate::core::child_slots_imm(other) {
-                call_sites(k, false, mine, cx, modes, prims, killed);
+                call_sites(k, false, mine, cx, modes, prims, fixed, killed);
             }
         }
     }
@@ -2001,13 +2107,25 @@ fn name_call_arguments(program: &mut Program) {
         .filter(|(_, c)| !matches!(c, Class::Param(_)))
         .collect();
     let arity: HashMap<String, usize> = program.fns.iter().map(|f| (f.id.0.clone(), f.params.len())).collect();
+    // A saturated call's argument has the callee's parameter class, which
+    // names an argument whose own form does not fix one. A callee with
+    // fixed modes (another object's unit) needs that: no call here can
+    // withdraw its lent mode, so every counted computed argument must
+    // reach it as a local the caller releases.
+    let params: HashMap<String, Vec<Class>> = program
+        .fns
+        .iter()
+        .filter(|f| f.ctor.is_none())
+        .map(|f| (f.id.0.clone(), f.repr.params.clone()))
+        .collect();
+    let cx = Callees { results: &results, arity: &arity, params: &params };
     for f in program.fns.iter_mut() {
         if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body {
             continue;
         }
         let mut next = max_local_in(&f.body).max(f.params.len()) + 1;
         let mut classes: HashMap<usize, Class> = HashMap::new();
-        name_args_in(&mut f.body, &results, &arity, &mut classes, &mut next);
+        name_args_in(&mut f.body, &cx, &mut classes, &mut next);
     }
 }
 
@@ -2046,24 +2164,25 @@ fn argument_class(e: &Core, results: &HashMap<String, Class>, classes: &HashMap<
     }
 }
 
-fn name_args_in(
-    e: &mut Core,
-    results: &HashMap<String, Class>,
-    arity: &HashMap<String, usize>,
-    classes: &mut HashMap<usize, Class>,
-    next: &mut usize,
-) {
+/// What the argument naming reads about the program's units.
+struct Callees<'a> {
+    results: &'a HashMap<String, Class>,
+    arity: &'a HashMap<String, usize>,
+    params: &'a HashMap<String, Vec<Class>>,
+}
+
+fn name_args_in(e: &mut Core, cx: &Callees<'_>, classes: &mut HashMap<usize, Class>, next: &mut usize) {
     if let Core::Let(l, c, _, _) = e {
         classes.insert(l.0, *c);
     }
     for k in crate::core::child_slots(e) {
-        name_args_in(k, results, arity, classes, next);
+        name_args_in(k, cx, classes, next);
     }
     let Core::App(head, args) = e else { return };
-    let saturated = match &**head {
-        Core::Global(g, _) => arity.get(&g.0) == Some(&args.len()),
-        Core::Prim(op) => op.arity() == args.len(),
-        _ => false,
+    let (saturated, params) = match &**head {
+        Core::Global(g, _) => (cx.arity.get(&g.0) == Some(&args.len()), cx.params.get(&g.0)),
+        Core::Prim(op) => (op.arity() == args.len(), None),
+        _ => (false, None),
     };
     if !saturated {
         return;
@@ -2071,12 +2190,13 @@ fn name_args_in(
     // The longest prefix of the arguments in which every computed
     // argument has a known class: those are named; the rest stay.
     let mut plan: Vec<Option<Class>> = Vec::with_capacity(args.len());
-    for a in args.iter() {
+    for (i, a) in args.iter().enumerate() {
         if trivial_argument(a) {
             plan.push(None);
             continue;
         }
-        match argument_class(a, results, classes) {
+        let param = params.and_then(|ps| ps.get(i)).copied().filter(|c| !c.is_param());
+        match argument_class(a, cx.results, classes).or(param) {
             Some(c) => plan.push(Some(c)),
             None => break,
         }

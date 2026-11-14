@@ -1794,6 +1794,35 @@ fn matches_comparator(version: &str, spec: &str) -> bool {
 
 /// Install a bundle already fetched from a registry. The bundle shape is
 /// `{ schema, manifest, files: { path: base64 }, visibility, readme }`.
+/// The package objects vendored under `project` (`vendor/<namespace>/
+/// <name>/<version>/package.o`) other than the one at `except`, in path
+/// order.
+fn vendored_objects(project: &Path, except: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    let level = |dir: &Path| -> Vec<PathBuf> {
+        let mut entries: Vec<PathBuf> = std::fs::read_dir(dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.is_dir())
+            .collect();
+        entries.sort();
+        entries
+    };
+    for namespace in level(&project.join("vendor")) {
+        for package in level(&namespace) {
+            for version in level(&package) {
+                let object = version.join("package.o");
+                if version != except && object.is_file() && read_package_execution(&object).is_ok() {
+                    out.push(object);
+                }
+            }
+        }
+    }
+    out
+}
+
 pub fn install_bundle(
     project: &Path,
     registry: &str,
@@ -1947,6 +1976,9 @@ fn materialize(
     // lock afterwards.
     let mut options = DriverOptions {
         emit_modules: module_names.clone(),
+        // The dependencies already vendored here: this object calls their
+        // units with the lent conventions they publish.
+        lent_objects: vendored_objects(project, &source_dir),
         ..DriverOptions::default()
     };
     if let Some(native) = native_record(&source_dir)? {
@@ -3424,6 +3456,113 @@ mod tests {
         let error = driver_opts(Mode::Run, &dir.join("Main.cinch"), None, &options)
             .expect_err("native package linking requires package.cinchif");
         assert!(error.to_string().contains("package.cinchif"), "{error}");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Borrow modes cross the object boundary. `Base.count` only reads
+    /// its chain (a type of Base's own: a package object does not carry the
+    /// prelude's units, so a prelude list could not cross the link), so its object publishes it lent (a worker that borrows,
+    /// behind an owned public symbol). `Top`, built against Base's object,
+    /// and `Main`, linked against both, call the worker and keep the list;
+    /// `Main` also reaches `Base.total` through a closure, which enters by
+    /// the owned symbol. Every path must balance its counts.
+    #[test]
+    fn borrow_modes_cross_package_objects() {
+        let dir = std::env::temp_dir().join(format!("cinch-pkg-lent-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("project");
+        let install = |name: &str, module: &str, source: &[u8]| {
+            let manifest = json!({
+                "schema": 2,
+                "name": name,
+                "version": "0.1.0",
+                "modules": [{"name": module, "path": format!("{module}.cinch")}],
+                "order": [module],
+            });
+            let mut files = BTreeMap::new();
+            files.insert(format!("{module}.cinch"), source.to_vec());
+            let id = package_identity(&manifest, &files).expect("identity");
+            let bundle = json!({
+                "schema": 1,
+                "manifest": manifest,
+                "files": {format!("{module}.cinch"): base64_encode(source)},
+                "visibility": "public",
+            });
+            install_bundle(&dir, "http://registry.local", &id, &bundle, None, None)
+                .expect("install package")
+        };
+        let base = install(
+            "acme/base",
+            "Base",
+            b"module Base where\n  data Chain where\n    End :: Chain\n    Link :: Int -> Chain -> Chain\n  count :: Chain -> Int -> Int\n  count xs acc = case xs of\n    End -> acc\n    Link x rest -> count rest (acc + 1)\n  total :: Chain -> Int\n  total xs = count xs 0 + count xs 0\n",
+        );
+        let top = install(
+            "acme/top",
+            "Top",
+            b"module Top where\n  import Base\n  answer :: Chain -> Int\n  answer xs = total xs + count xs 1\n",
+        );
+        std::fs::write(
+            dir.join("Main.cinch"),
+            "module Main where\n  import Base\n  import Top\n  apply :: (Chain -> Int) -> Chain -> Int\n  apply f xs = f xs\n  main :: Int\n  main =\n    let xs = Link 1 (Link 2 (Link 3 End)) in\n    if answer xs + total xs + apply total xs == 22 then 0 else 1\n",
+        )
+        .expect("entry");
+        let execution = read_package_execution(&base.object).expect("base execution interface");
+        let unit = |symbol: &str| {
+            execution["units"]
+                .as_array()
+                .and_then(|units| units.iter().find(|u| u["symbol"] == symbol))
+                .cloned()
+                .unwrap_or(Value::Null)
+        };
+        assert_eq!(unit("Base.count")["lent"], json!([true, false]), "{}", unit("Base.count"));
+        assert_eq!(unit("Base.count")["lent_entry"], json!("Base.count#tail"));
+        assert_eq!(unit("Base.total")["lent"], json!([true]), "{}", unit("Base.total"));
+        let options = DriverOptions {
+            package_objects: vec![top.object.clone(), base.object.clone()],
+            ..DriverOptions::default()
+        };
+        // Top was compiled against Base's published modes: it calls a lent
+        // worker (an undefined symbol of its object; `total` itself may be
+        // inlined, which leaves the call to `count`'s), and it records the
+        // conventions it assumed for its final link to check.
+        let top_bytes = std::fs::read(&top.object).expect("top object");
+        assert!(
+            top_bytes.windows(b"Base.count#tail".len()).any(|w| w == b"Base.count#tail"),
+            "Top must call Base's lent worker"
+        );
+        let top_execution = read_package_execution(&top.object).expect("top execution interface");
+        let imports = top_execution["lent_imports"].as_array().cloned().unwrap_or_default();
+        assert!(
+            imports.iter().any(|r| r["symbol"] == "Base.count" && r["lent"] == json!([true, false])),
+            "{imports:?}"
+        );
+        let exe = dir.join("main-lent");
+        driver_opts(Mode::Build, &dir.join("Main.cinch"), Some(&exe), &options)
+            .expect("native build with package objects");
+        for debug in [false, true] {
+            let mut cmd = Command::new(&exe);
+            cmd.env("CINCH_LEAK_CHECK", "1");
+            if debug {
+                cmd.env("CINCH_RC_DEBUG", "1");
+            }
+            let out = cmd.output().expect("run");
+            let err = String::from_utf8_lossy(&out.stderr);
+            assert_eq!(out.status.code(), Some(0), "debug {debug}: {err}");
+            assert!(err.contains("leaked=0"), "debug {debug}: {err}");
+        }
+        // A Base that publishes a different convention than the one Top was
+        // compiled against is refused at the link, not linked into an
+        // imbalance.
+        let path = package_execution_path(&base.object);
+        let mut published: Value = serde_json::from_slice(&std::fs::read(&path).expect("base ABI")).expect("JSON");
+        for unit in published["units"].as_array_mut().expect("units") {
+            if unit["symbol"] == "Base.count" {
+                unit["lent"] = json!([false, false]);
+            }
+        }
+        std::fs::write(&path, canonical(&published).expect("encode")).expect("rewrite base ABI");
+        let error = driver_opts(Mode::Build, &dir.join("Main.cinch"), Some(&exe), &options)
+            .expect_err("a changed lent convention must be refused");
+        assert!(error.to_string().contains("lent convention for Base.count"), "{error}");
         std::fs::remove_dir_all(&dir).ok();
     }
 }

@@ -49,6 +49,7 @@ fn program(fns: Vec<FnDef>) -> Program {
             frame: Default::default(),
             stack: Default::default(),
             borrowed: Default::default(),
+            lent_entries: Default::default(),
             inline: Default::default(),
     }
 }

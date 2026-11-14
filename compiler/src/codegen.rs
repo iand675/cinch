@@ -635,6 +635,12 @@ fn emit_module(
                 .join(", ");
             let ret = sig.map_or(Cross::WORD, |s| s.ret).ty();
             out.push_str(&format!("declare {ret} @{}({params})\n", quote(&f.id.0)));
+            // Its worker, which this module's direct calls reach when the
+            // unit is widened or lends parameters across the boundary.
+            if let Some(&width) = reg.tail_width.get(&f.id.0) {
+                let words = vec!["i64"; width].join(", ");
+                out.push_str(&format!("declare i64 @{}({words})\n", quote(&tail_worker(&f.id.0))));
+            }
             out.push_str(&format!(
                 "declare i64 @{}()\n",
                 quote(&format!("{}.object-closure", f.id.0))
@@ -1052,6 +1058,11 @@ struct Registry {
     /// strict dictionary method) drops these after the call
     /// ([`drop_lent`]).
     modes: std::collections::BTreeMap<String, Vec<bool>>,
+    /// The units whose own symbol keeps the owned convention although they
+    /// lend parameters ([`Program::lent_entries`]): the lent body is the
+    /// worker [`tail_sig`](Registry::tail_sig) names, and the symbol is a
+    /// wrapper that releases the lent arguments.
+    owned_entry: HashSet<String>,
     /// Frame allocation decisions by unit name ([`Program::frame`],
     /// `crate::stack`): the allocations a unit builds in its own frame.
     frame: std::collections::BTreeMap<String, crate::stack::Plan>,
@@ -1192,13 +1203,44 @@ impl Registry {
                             .and_then(|op| prim_sig(*op).map(|(_, ty)| sig_class(&ty)))
                     })
             };
-            units.push(J::obj([
-                ("symbol", name.as_str().into()),
+            let mut row = vec![
+                ("symbol", J::from(name.as_str())),
                 ("closure_entry", format!("{name}.object-closure").into()),
                 ("arity", (self.arity[name] as u64).into()),
                 ("params", classes(params)?),
                 ("result", result.map(class).transpose()?.unwrap_or(J::Null)),
-            ]));
+            ];
+            // The lent convention a separately compiled caller may use
+            // instead of the owned symbol: which parameters the worker only
+            // borrows, and the worker's symbol and width.
+            if self.owned_entry.contains(name.as_str()) {
+                if let (Some(modes), Some(&width)) = (self.modes.get(name.as_str()), self.tail_width.get(name.as_str())) {
+                    row.push(("lent", J::Arr(modes.iter().map(|b| J::from(*b)).collect())));
+                    row.push(("lent_entry", tail_worker(name).into()));
+                    row.push(("lent_width", (width as u64).into()));
+                }
+            }
+            units.push(J::Obj(row.into_iter().map(|(k, v)| (k.to_string(), v)).collect()));
+        }
+        // The lent conventions this object's code was compiled against for
+        // units another object defines: a link must supply objects that
+        // publish exactly these, or the calls here would release (or keep)
+        // what the callee does not expect.
+        let mut lent_imports = Vec::new();
+        let mut imported: Vec<&String> = self
+            .owned_entry
+            .iter()
+            .filter(|name| !emitted_symbol(name, emit_modules))
+            .collect();
+        imported.sort();
+        for name in imported {
+            if let (Some(modes), Some(&width)) = (self.modes.get(name.as_str()), self.tail_width.get(name.as_str())) {
+                lent_imports.push(J::obj([
+                    ("symbol", name.as_str().into()),
+                    ("lent", J::Arr(modes.iter().map(|b| J::from(*b)).collect())),
+                    ("lent_width", (width as u64).into()),
+                ]));
+            }
         }
         let layouts = self.layouts.borrow();
         let mut types = BTreeMap::new();
@@ -1267,6 +1309,7 @@ impl Registry {
                 J::Arr(emit_modules.iter().map(|m| J::from(m.as_str())).collect()),
             ),
             ("units", J::Arr(units)),
+            ("lent_imports", J::Arr(lent_imports)),
             ("types", J::Obj(types)),
             ("constructors", J::Obj(ctors)),
             ("dictionaries", J::Obj(dictionaries)),
@@ -1553,11 +1596,42 @@ impl Registry {
         // program's `main` is called by the runtime through a fixed
         // `i64 ()` pointer (`cinch_run_main`), so it keeps the word too.
         reg.tail_width = crate::core::tail_widths(p);
+        let widened: HashSet<String> = reg.tail_width.keys().cloned().collect();
+        // A unit whose public symbol must stay owned runs its lent body in
+        // a word-typed worker: one of its own tail width, or for another
+        // object's unit the width that object published. The symbol keeps
+        // the boundary its contract gives (narrowed or not), because a
+        // separately compiled caller derives that boundary from the
+        // contract alone; the wrapper widens into the worker and narrows
+        // the result back. A recursive group with such a member runs every
+        // member in its worker, so the group's tail calls stay between
+        // word-typed workers and keep `musttail`.
+        for (unit, entry) in &p.lent_entries {
+            if let crate::core::LentEntry::Imported { width } = entry {
+                reg.tail_width.insert(unit.clone(), *width);
+            }
+            reg.owned_entry.insert(unit.clone());
+        }
+        if !reg.owned_entry.is_empty() {
+            for group in crate::core::tail_report(p) {
+                let local = |m: &String| !matches!(p.lent_entries.get(m), Some(crate::core::LentEntry::Imported { .. }));
+                if group.members.iter().any(|m| reg.owned_entry.contains(m) && local(m)) {
+                    for m in group.members.iter().filter(|m| local(m)) {
+                        reg.owned_entry.insert(m.clone());
+                    }
+                }
+            }
+            for f in &p.fns {
+                if reg.owned_entry.contains(&f.id.0) && !matches!(p.lent_entries.get(&f.id.0), Some(crate::core::LentEntry::Imported { .. })) {
+                    reg.tail_width.entry(f.id.0.clone()).or_insert(f.arity());
+                }
+            }
+        }
         for f in &p.fns {
             if f.prim.is_some()
                 || f.ctor.is_some()
                 || f.meta.prim_body
-                || reg.tail_width.contains_key(&f.id.0)
+                || widened.contains(&f.id.0)
                 || p.main.as_ref() == Some(&f.id)
             {
                 continue;
@@ -1642,6 +1716,16 @@ impl Registry {
     /// `arity`) targets: its widened worker where it has one, else the
     /// unit itself. Two units whose tail signatures have one count have
     /// identical prototypes, which is what `musttail` needs.
+    /// The prototype a direct call of `unit` uses: none (all words) when
+    /// the call goes to a word-typed worker.
+    fn call_sig(&self, unit: &str) -> Option<&NarrowSig> {
+        if self.owned_entry.contains(unit) {
+            None
+        } else {
+            self.narrow_sigs.get(unit)
+        }
+    }
+
     fn tail_sig(&self, unit: &str, arity: usize) -> (String, usize) {
         match self.tail_width.get(unit) {
             Some(&width) => (tail_worker(unit), width),
@@ -3532,14 +3616,35 @@ fn build_unit(
             // primitive's word, so the registry never narrows either.
             match (&body, reg.tail_width.get(name)) {
                 (UnitBody::Fn(_), Some(&width)) => {
-                    let params: Vec<String> = (0..arity).map(|i| format!("%p{i}")).collect();
+                    // The symbol's boundary is its contract's: widen each
+                    // narrowed parameter into the worker's word and narrow
+                    // the result back.
+                    let params: Vec<String> = (0..arity)
+                        .map(|i| narrow.map_or(Cross::WORD, |s| s.param(i)).widen(&mut b, &format!("%p{i}")))
+                        .collect();
                     let r = b.reg();
                     b.line(&format!(
                         "{r} = call i64 @{}({})",
                         quote(&tail_worker(name)),
                         padded_args(&params, width)
                     ));
-                    b.line(&format!("ret i64 {r}"));
+                    // The owned entry of a lending unit: the worker only
+                    // borrowed these, and the caller handed them over.
+                    if reg.owned_entry.contains(name) {
+                        if let Some(modes) = reg.modes.get(name) {
+                            let cs = reg.unit_params.get(name).cloned().unwrap_or_default();
+                            b.ret_drops = (0..arity)
+                                .filter(|i| modes.get(*i).copied().unwrap_or(false))
+                                .filter_map(|i| {
+                                    let c = cs.get(i).copied().unwrap_or(Class::Raw);
+                                    counted_class(c).then(|| (params[i].clone(), c))
+                                })
+                                .collect();
+                        }
+                    }
+                    let ret = narrow.map_or(Cross::WORD, |s| s.ret);
+                    let out = ret.narrow(&mut b, &r);
+                    b.line(&format!("ret {} {out}", ret.ty()));
                 }
                 _ => core_body(&mut b, reg, f, arity)?,
             }
@@ -3809,6 +3914,10 @@ fn call_unit(b: &mut Builder, reg: &Registry, name: &str, args: &[String]) -> St
 /// stub's frame, a strict method's saved fields) release them here, which
 /// is Lean 4's boxed wrapper for a borrowed parameter.
 fn drop_lent(b: &mut Builder, reg: &Registry, name: &str, args: &[String]) {
+    // A unit whose symbol stays owned releases them itself.
+    if reg.owned_entry.contains(name) {
+        return;
+    }
     let Some(modes) = reg.modes.get(name) else { return };
     let classes = reg.unit_params.get(name);
     for (i, w) in args.iter().enumerate() {
@@ -7448,7 +7557,7 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result
     // The registry's answer, never the contract's directly: a widened
     // unit's worker runs this same body under a word-typed header, and
     // the registry is what leaves it out.
-    let narrow = reg.narrow_sigs.get(&f.id.0);
+    let narrow = reg.call_sig(&f.id.0);
     let cross = |i: usize| narrow.map_or(Cross::WORD, |s| s.param(i));
     let mut e = CoreEmitter {
         b,
@@ -8672,7 +8781,7 @@ impl CoreEmitter<'_, '_> {
                 // narrowed call never goes to one.
                 let (sym, width) = self.reg.tail_sig(&unit, arity);
                 let narrow = if width == arity {
-                    self.reg.narrow_sigs.get(&unit)
+                    self.reg.call_sig(&unit)
                 } else {
                     None
                 };
@@ -8887,8 +8996,8 @@ impl CoreEmitter<'_, '_> {
                             // constant stack; one that does not takes the
                             // ordinary call (design/narrow-value-
                             // representation.md section 4).
-                            && self.reg.narrow_sigs.get(&unit).map(NarrowSig::proto)
-                                == self.reg.narrow_sigs.get(&self.unit).map(NarrowSig::proto) =>
+                            && self.reg.call_sig(&unit).map(NarrowSig::proto)
+                                == self.reg.call_sig(&self.unit).map(NarrowSig::proto) =>
                     {
                         // Same prototype as the caller, so `musttail` is
                         // legal: the callee's frame replaces ours.
@@ -8897,7 +9006,7 @@ impl CoreEmitter<'_, '_> {
                             vals.push(self.emit_expr(a)?);
                         }
                         let (sym, width) = self.reg.tail_sig(&unit, arity);
-                        let args = match self.reg.narrow_sigs.get(&unit) {
+                        let args = match self.reg.call_sig(&unit) {
                             None => padded_args(&vals, width),
                             Some(sig) => {
                                 let mut typed = Vec::with_capacity(vals.len());
@@ -9289,6 +9398,7 @@ mod tests {
             frame: Default::default(),
             stack: Default::default(),
             borrowed: Default::default(),
+            lent_entries: Default::default(),
             inline: Default::default(),
         }
     }

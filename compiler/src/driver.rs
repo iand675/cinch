@@ -4344,6 +4344,11 @@ pub struct DriverOptions {
     /// recorded modules are excluded from emitted IR and resolved from the
     /// object at link time.
     pub package_objects: Vec<PathBuf>,
+    /// Objects this build calls into but does not link (a package object's
+    /// already-built dependencies): only their published lent conventions
+    /// are read (`package_lent_modes`), and the object records the ones it
+    /// used so its final link can check them.
+    pub lent_objects: Vec<PathBuf>,
     /// `--rebuild`: rewrite the package-store entry for this compile's
     /// key even when the entry is intact and matches it, instead of
     /// leaving it alone. The compile path never fails over an entry's
@@ -5106,6 +5111,66 @@ pub(crate) fn package_execution_path(object: &Path) -> PathBuf {
     object.with_file_name("build").join("package.cinchif")
 }
 
+/// The lent conventions the package objects publish: each unit row with a
+/// `lent` vector (its worker only borrows those parameters) and the width
+/// of the worker that takes them (`lent_width`). A row without them is a
+/// unit whose symbol is owned, which is every unit of an older object.
+fn package_lent_modes(objects: &[PathBuf]) -> Result<std::collections::BTreeMap<String, (Vec<bool>, usize)>> {
+    let mut out = std::collections::BTreeMap::new();
+    for object in objects {
+        let abi = read_package_execution(object)?;
+        for unit in abi.get("units").and_then(serde_json::Value::as_array).into_iter().flatten() {
+            let (Some(symbol), Some(lent), Some(width)) = (
+                unit.get("symbol").and_then(serde_json::Value::as_str),
+                unit.get("lent").and_then(serde_json::Value::as_array),
+                unit.get("lent_width").and_then(serde_json::Value::as_u64),
+            ) else {
+                continue;
+            };
+            let modes: Option<Vec<bool>> = lent.iter().map(serde_json::Value::as_bool).collect();
+            let Some(modes) = modes else {
+                return Err(Error::plain(format!("{}: malformed lent modes for {symbol}", object.display())));
+            };
+            out.insert(symbol.to_string(), (modes, width as usize));
+        }
+    }
+    Ok(out)
+}
+
+/// Refuse a link whose objects disagree about a lent convention: every
+/// `lent_imports` row an object recorded (what its calls into another
+/// object assumed) must be exactly what the linked objects publish.
+/// Modes follow from bodies, so a dependency rebuilt from changed source
+/// can move them while its contract stays put; this is the check that
+/// turns that into "rebuild the dependent" rather than a count imbalance.
+fn check_lent_imports(
+    objects: &[PathBuf],
+    published: &std::collections::BTreeMap<String, (Vec<bool>, usize)>,
+) -> Result<()> {
+    for object in objects {
+        let abi = read_package_execution(object)?;
+        for row in abi.get("lent_imports").and_then(serde_json::Value::as_array).into_iter().flatten() {
+            let symbol = row.get("symbol").and_then(serde_json::Value::as_str).unwrap_or("");
+            let modes: Option<Vec<bool>> = row
+                .get("lent")
+                .and_then(serde_json::Value::as_array)
+                .and_then(|m| m.iter().map(serde_json::Value::as_bool).collect());
+            let width = row.get("lent_width").and_then(serde_json::Value::as_u64).map(|w| w as usize);
+            let agrees = match (modes, width, published.get(symbol)) {
+                (Some(m), Some(w), Some((pm, pw))) => &m == pm && w == *pw,
+                _ => false,
+            };
+            if !agrees {
+                return Err(Error::plain(format!(
+                    "{}: compiled against a lent convention for {symbol} that the linked objects do not publish; rebuild it against the current dependency objects",
+                    object.display()
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn read_package_execution(path: &Path) -> Result<serde_json::Value> {
     let abi_path = package_execution_path(path);
     let bytes = std::fs::read(&abi_path)
@@ -5647,11 +5712,20 @@ pub fn driver_with_profile_opts(
     // An executable emitted whole calls its units only from itself, so
     // parameters may be inferred borrowed; an object, a module subset or
     // a link against package objects keeps every parameter owned.
+    // An object, a module subset or a link against package objects is open:
+    // its units infer modes too, and each one that lends keeps an owned
+    // public symbol over a lent worker, while the units the linked objects
+    // define are called with the modes those objects published
+    // (`crate::rc::insert_open`, `package_lent_modes`).
     let closed = mode != Mode::EmitObject && emit_modules.is_empty() && opts.package_objects.is_empty();
     let program = if closed {
         crate::rc::insert_closed(program, profile)?
     } else {
-        crate::rc::insert(program, profile)?
+        let sources: Vec<PathBuf> = opts.package_objects.iter().chain(&opts.lent_objects).cloned().collect();
+        let imported = package_lent_modes(&sources)?;
+        check_lent_imports(&opts.package_objects, &imported)?;
+        let boundary = crate::rc::Boundary { modules: &emit_modules, imported: &imported, closed: false };
+        crate::rc::insert_open(program, profile, &boundary)?
     };
     // Coalescing comes after counting and after the reuse insertion inside
     // it, which reads the dups where counting put them (Lean's order:

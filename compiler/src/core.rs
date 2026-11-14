@@ -3330,6 +3330,22 @@ pub struct Program {
     /// reads it: a lent reference is one the callee never stores or
     /// returns, so it cannot outlive the caller's activation.
     pub borrowed: std::collections::BTreeMap<String, Vec<bool>>,
+    /// The units of an open program whose lent convention lives in a
+    /// worker rather than at their own symbol (`crate::rc::insert_open`):
+    /// the symbol stays owned for callers in other artifacts, and the
+    /// direct calls the count pass placed go to the worker. Empty for a
+    /// closed program, where the symbol itself takes the lent convention.
+    pub lent_entries: std::collections::BTreeMap<String, LentEntry>,
+}
+
+/// Where a unit with lent parameters takes them ([`Program::lent_entries`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LentEntry {
+    /// Defined here: code generation runs the body in a worker of the
+    /// unit's tail width and makes the symbol an owned wrapper.
+    Local,
+    /// Defined by a linked object, which published its worker's width.
+    Imported { width: usize },
 }
 
 impl Program {
@@ -3352,6 +3368,7 @@ impl Program {
             stack: self.stack.clone(),
             inline: self.inline.clone(),
             borrowed: self.borrowed.clone(),
+            lent_entries: self.lent_entries.clone(),
         }
     }
 }
@@ -8648,6 +8665,7 @@ mod tests {
             frame: Default::default(),
             stack: Default::default(),
             borrowed: Default::default(),
+            lent_entries: Default::default(),
             inline: Default::default(),
         };
         for reverse in [false, true] {
@@ -8703,6 +8721,7 @@ mod tests {
             frame: Default::default(),
             stack: Default::default(),
             borrowed: Default::default(),
+            lent_entries: Default::default(),
             inline: Default::default(),
         };
         share_repeated_subterms(&mut program);
