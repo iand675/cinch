@@ -3265,6 +3265,11 @@ fn inline_table(
         if f.prim.is_some() || f.meta.prim_body {
             continue;
         }
+        // `#[inline(never)]`: the function must not be inlined (attribute
+        // annotations specification section 5), at any level.
+        if f.hints.inline == Some(crate::core::InlineHint::Never) {
+            continue;
+        }
         let name = &f.id.0;
         let sites = calls.get(name).copied().unwrap_or(0);
         let n = nodes(&f.body);

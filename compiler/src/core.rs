@@ -6235,6 +6235,9 @@ struct OptCx {
     opaque: std::collections::HashSet<String>,
     measure: u32,
     fuel: u32,
+    /// Whether driving may unfold a call at all: `--no-inline` leaves every
+    /// call in place, the driver's copies included.
+    unfold: bool,
 }
 
 fn scan_calls(e: &Core, f: &mut impl FnMut(&GlobalId)) {
@@ -7344,6 +7347,16 @@ impl<'a> Driver<'a> {
         if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body || args.len() != f.params.len() {
             return None;
         }
+        // `#[inline(never)]` (attribute annotations specification section
+        // 5) and `--no-inline` both leave the call in place.
+        if f.hints.inline == Some(InlineHint::Never) {
+            self.site("unfold", Some("inline(never): the callee is never unfolded".to_string()));
+            return None;
+        }
+        if !self.cx.unfold {
+            self.site("unfold", Some("--no-inline: calls stay calls".to_string()));
+            return None;
+        }
         // Do not even copy a previously optimized callee that exceeds
         // this caller's entire residual allowance. Otherwise expansion
         // can multiply across units before the round-level whistle runs.
@@ -7948,6 +7961,13 @@ fn verify_residual(orig: &FnDef, body: &Core) -> Result<(), String> {
 /// sections 2-5 and 8-9). Returns the residual program and the compiler
 /// report; the residual's contract identity is the generic form's.
 pub fn optimize(program: &Program, profile: &TargetProfile) -> Result<(Program, OptReport)> {
+    optimize_unfolding(program, profile, true)
+}
+
+/// [`optimize`], with driving's unfolding of calls on or off (`unfold`
+/// false is `--no-inline`: every call stays a call, while the driver's
+/// other rewrites still run).
+pub fn optimize_unfolding(program: &Program, profile: &TargetProfile, unfold: bool) -> Result<(Program, OptReport)> {
     let pure = build_purity(program);
     let mut defs: HashMap<String, FnDef> = HashMap::new();
     let mut def_sizes: HashMap<String, usize> = HashMap::new();
@@ -7971,6 +7991,7 @@ pub fn optimize(program: &Program, profile: &TargetProfile) -> Result<(Program, 
         opaque: std::collections::HashSet::new(),
         measure: profile.measure,
         fuel: profile.fuel,
+        unfold,
     };
     let mut out = program.skeleton();
     out.instances = program.instances.clone();
