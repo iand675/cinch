@@ -9307,6 +9307,7 @@ mod tests {
             let runtime = manifest_dir.join("runtime");
             let out = Command::new("cargo")
                 .arg("build")
+                .arg("--release")
                 .arg("--manifest-path")
                 .arg(runtime.join("Cargo.toml"))
                 .arg("--target-dir")
@@ -9318,7 +9319,7 @@ mod tests {
                 "building compiler/runtime (cinchruntime) failed:\n{}",
                 String::from_utf8_lossy(&out.stderr)
             );
-            let lib = runtime.join("target/debug/libcinchruntime.a");
+            let lib = runtime.join("target/release/libcinchruntime.a");
             assert!(
                 lib.exists(),
                 "libcinchruntime.a not found after building the runtime"

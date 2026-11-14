@@ -3680,8 +3680,10 @@ pub(crate) fn ensure_runtime_dylib() -> Result<std::path::PathBuf> {
         return Ok(dylib);
     }
     let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime");
+    // The same profile as the archive beside it, or the library would land
+    // in another directory.
     let status = std::process::Command::new("cargo")
-        .args(["build", "--manifest-path"])
+        .args(["build", "--release", "--manifest-path"])
         .arg(runtime.join("Cargo.toml"))
         .arg("--target-dir")
         .arg(runtime.join("target"))
@@ -3695,10 +3697,15 @@ pub(crate) fn ensure_runtime_dylib() -> Result<std::path::PathBuf> {
     Ok(dylib)
 }
 
+/// The host runtime archive every native link uses, rebuilt when a runtime
+/// source is newer. It is always the release profile: generated code calls
+/// the runtime for every allocation, free and count slow path, and the
+/// unoptimised build costs an order of magnitude on each (an allocation was
+/// about 1,800 instructions against about 120, design/cps-optimisation.md).
+/// The bootstrap ladder links the same profile.
 fn ensure_runtime() -> Result<std::path::PathBuf> {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let runtime = manifest_dir.join("runtime");
-    let debug = runtime.join("target/debug/libcinchruntime.a");
     let release = runtime.join("target/release/libcinchruntime.a");
     // The rebuild holds the lock; a concurrent link waits rather than
     // reading a half-written archive.
@@ -3727,11 +3734,8 @@ fn ensure_runtime() -> Result<std::path::PathBuf> {
     if fresh(&release) {
         return Ok(release);
     }
-    if fresh(&debug) {
-        return Ok(debug);
-    }
     let status = std::process::Command::new("cargo")
-        .args(["build", "--manifest-path"])
+        .args(["build", "--release", "--manifest-path"])
         .arg(runtime.join("Cargo.toml"))
         .arg("--target-dir")
         .arg(runtime.join("target"))
@@ -3742,8 +3746,8 @@ fn ensure_runtime() -> Result<std::path::PathBuf> {
             "building compiler/runtime (cinchruntime) failed",
         ));
     }
-    if debug.exists() {
-        Ok(debug)
+    if release.exists() {
+        Ok(release)
     } else {
         Err(Error::plain(
             "libcinchruntime.a not found after building the runtime",

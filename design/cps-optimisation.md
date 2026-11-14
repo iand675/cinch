@@ -76,7 +76,9 @@ entry, which have their own calling conventions. The rule is off on
 Measured: the CPS sum over ten million elements (`tests/cps.rs`, which
 uses two million) completes at `-O0` in constant stack and leak-free. At
 `-O2` it takes the same time as before: the continuation chain itself is
-the cost, one closure per element, built once and called once.
+the cost, one closure per element, built once and called once. With the
+release runtime (see "The runtime profile" below) that sum takes 527 ms at
+`-O2` and 732 ms at `-O0`.
 
 ## 2. Contification
 
@@ -255,8 +257,10 @@ counted capture is still refused, so an applied closure never has a second
 live reference that could read released children.
 
 Measured on the `with-twice` loop over ten million iterations, with
-specialisation and inlining off so the closure survives: 1,155 ms with
-heap closures and 922 ms with frame closures. With every rule on, rule 4
+specialisation and inlining off so the closure survives: 204 ms with heap
+closures and 190 ms with frame closures (about 7%; against the unoptimised
+runtime the same pair was 1,155 ms and 922 ms, because each heap closure
+then cost a slow allocation and a slow free). With every rule on, rule 4
 removes the closure entirely and the loop takes 4 ms. That ordering is
 the point of the design: specialisation removes what it can see, and the
 frame keeps the rest off the heap.
@@ -277,6 +281,22 @@ frame keeps the rest off the heap.
 - **Leak accounting.** Every test in `tests/cps.rs` runs under
   `CINCH_LEAK_CHECK=1`. A rule that loses a release or releases twice
   fails as a live count or a trap.
+
+## The runtime profile
+
+The measurements above first ran against an unoptimised runtime. The
+driver's `ensure_runtime` built `compiler/runtime` without `--release` and
+linked `target/debug/libcinchruntime.a` into every program `cinch build`
+produced. The runtime crate sets no profile, so that archive was opt-level 0.
+Under callgrind one allocation cost about 1,800 instructions and one free
+about 1,000, because every atomic, counter and bounds check was an
+out-of-line call. The same program against the release archive costs about
+118 instructions per allocation and 98 per free. A 10M-element list build
+and sum went from 3,563 ms to 268 ms, and the CPS sum from 7,012 ms to
+608 ms. The bootstrap ladder always linked the release archive, so the
+self-hosted compiler was never affected. The driver, its JIT shared library
+and the tests that link the archive themselves now all use the release
+profile.
 
 ## References
 

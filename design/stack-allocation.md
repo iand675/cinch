@@ -698,7 +698,9 @@ closure with a counted capture is still refused.
 
 Measured on a ten-million-iteration loop whose continuation captures a
 counted word, with specialisation and inlining off so the closure
-survives: 1,155 ms on the heap and 922 ms in the frame.
+survives: 204 ms on the heap and 190 ms in the frame with the release
+runtime (1,155 ms and 922 ms against the unoptimised runtime the driver
+used to link, design/cps-optimisation.md "The runtime profile").
 `tests/cps.rs::a_consumed_continuation_takes_a_frame_slot` covers a
 non-tail application and a tail application in the callee, at `-O0` and
 `-O2`, under the leak check.
