@@ -1,7 +1,7 @@
 {
-  "description": "ABI 9 library producer with the fixed-frame apply stub family.",
-  "revision": "905aa3cf7a8beb8f619ac371962cf4bfad369332",
+  "description": "ABI 9 library producer with the branch release kept at the branch head (reuse-only arm expansion).",
+  "revision": "1665ebdc917c7828d839ddeb5027ec2f80d63d5f",
   "runtime_abi": 9,
   "schema": 1,
-  "source_sha256": "9d47f7ec9d1816606a4e5e0a4586e2b3743cac6f2bc9b9c4a109518dda0d18a2"
+  "source_sha256": "62d4314a75eea42294c34edc2205170fc7cd608c9983e650945550c147211028"
 }
