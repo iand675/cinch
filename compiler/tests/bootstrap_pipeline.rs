@@ -35,6 +35,7 @@ fn ladder() -> Vec<(&'static str, &'static str)> {
         ("Bootstrap.Builtin.cinch", include_str!("../../bootstrap/Bootstrap.Builtin.cinch")),
         ("Bootstrap.Report.cinch", REPORT),
         ("Bootstrap.Parse.cinch", PARSE),
+        ("Bootstrap.Expand.cinch", include_str!("../../bootstrap/Bootstrap.Expand.cinch")),
         ("Bootstrap.Resolve.cinch", RESOLVE),
         ("Bootstrap.Contracts.cinch", include_str!("../../bootstrap/Bootstrap.Contracts.cinch")),
         ("Bootstrap.Inputs.cinch", include_str!("../../bootstrap/Bootstrap.Inputs.cinch")),
