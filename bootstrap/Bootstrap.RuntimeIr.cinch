@@ -317,6 +317,8 @@ module Bootstrap.RuntimeIr where
       UUsageArrow usage arrow -> Some 1
       UProofFun predicate row result -> Some 1
       UPi id name domain row result -> Some 1
+      -- A polymorphic value is its class-indexed bundle: one block.
+      UForall qs body -> Some 1
       UTuple fields -> if field-types context fields 0 then Some 1 else None
       other -> case type-head ty of
         UCon name kind -> if (same name "b.Io" && kind-equal kind (KFun KRegion KType)) || (same name "b.Scope" && kind-equal kind scope-kind) || (same name "b.Task" && kind-equal kind task-kind) then Some 0
@@ -1012,8 +1014,8 @@ module Bootstrap.RuntimeIr where
       else unsupported w sp "polymorphic or aggregate let needs runtime lowering"
     CIf sp ty test yes no -> branch definitions locals w sp test yes no
     CTuple sp ty fields -> tuple definitions locals w sp fields
-    CPolyIntro sp ty ids body -> unsupported w sp "rank-N lowering in the Cinch emitter is not implemented yet: a polymorphic value needs its #poly family dictionary (design/rank-n-polymorphism.md section 8)"
-    CPolyElim sp ty value args -> unsupported w sp "rank-N lowering in the Cinch emitter is not implemented yet: a polymorphic value needs its #poly family dictionary (design/rank-n-polymorphism.md section 8)"
+    CPolyIntro sp ty ids body -> poly-bundle definitions locals w sp ty ids body
+    CPolyElim sp ty value args -> poly-project definitions locals w sp ty value args
     CCase sp ty value alternatives -> case fold-known-case definitions locals w value alternatives of
       Some folded -> folded
       None -> case expression definitions locals w value of
@@ -2558,6 +2560,102 @@ module Bootstrap.RuntimeIr where
     other -> None
   field-words :: RuntimeContext -> List CoreTerm -> Bool
   field-words datas fields = case fields of Nil -> True; Cons first rest -> word-type datas (core-type first) && field-words datas rest
+  -- design/rank-n-polymorphism.md section 8. A polymorphic value is a
+  -- class-indexed bundle: one block whose component i is the body lowered
+  -- with its type binders at the i-th class vector, in lexicographic order
+  -- of the Raw/Obj/TObj codes. A lambda body becomes one specialised
+  -- closure per vector; any other body is evaluated once per vector, which
+  -- its checked purity makes unobservable. Row and region binders carry no
+  -- class. An instantiation loads the component its arguments' classes
+  -- select. The Rust compiler instead keeps a demand-driven family slot
+  -- table; the two never meet, because no library export has a polytype.
+  poly-bundle :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> List Nat -> CoreTerm -> (Writer, String)
+  poly-bundle definitions locals w sp ty ids body = case ty of
+    UForall qs inner -> let binders = poly-class-binders qs ids in
+      if list-length binders > 2 then unsupported w sp "a polymorphic value with more than two type binders needs an extended runtime descriptor (its 3^k bundle exceeds 16 words)" else
+      case poly-components definitions locals w sp binders body (class-vectors (list-length binders)) of
+        (built, values, classes) -> if list-length (writer-errors built) > list-length (writer-errors w) then (built, "0") else
+          (case request-class-layout sp classes built of
+            (planned, descriptor) -> allocate planned descriptor values)
+    other -> unsupported w sp "a generalisation needs a polymorphic type"
+  poly-class-binders :: List Quant -> List Nat -> List Nat
+  poly-class-binders qs ids = case (qs, ids) of
+    (Cons q rest, Cons id more) -> if poly-class-kind (quant-kind q) then Cons id (poly-class-binders rest more) else poly-class-binders rest more
+    other -> Nil
+  poly-class-positions :: List Quant -> Nat -> List Nat
+  poly-class-positions qs index = case qs of
+    Nil -> Nil
+    Cons q rest -> if poly-class-kind (quant-kind q) then Cons index (poly-class-positions rest (index + 1)) else poly-class-positions rest (index + 1)
+  poly-class-kind :: Kind -> Bool
+  poly-class-kind kind = case kind of KType -> True; KFun a b -> True; other -> False
+  class-vectors :: Nat -> List (List Nat)
+  class-vectors k = if k == 0 then [Nil] else prefix-classes [0, 1, 2] (class-vectors (k - 1))
+  prefix-classes :: List Nat -> List (List Nat) -> List (List Nat)
+  prefix-classes codes tails = case codes of Nil -> Nil; Cons code rest -> prefix-each code tails <> prefix-classes rest tails
+  prefix-each :: Nat -> List (List Nat) -> List (List Nat)
+  prefix-each code tails = case tails of Nil -> Nil; Cons tail more -> Cons (Cons code tail) (prefix-each code more)
+  vector-index :: List Nat -> Nat
+  vector-index v = vector-index-from v 0
+  vector-index-from :: List Nat -> Nat -> Nat
+  vector-index-from v acc = case v of Nil -> acc; Cons code rest -> vector-index-from rest (acc * 3 + code)
+  select-positions :: List Nat -> List UType -> List UType
+  select-positions positions args = select-from positions args 0
+  select-from :: List Nat -> List UType -> Nat -> List UType
+  select-from positions args index = case args of
+    Nil -> Nil
+    Cons arg rest -> if has-nat index positions then Cons arg (select-from positions rest (index + 1)) else select-from positions rest (index + 1)
+  has-nat :: Nat -> List Nat -> Bool
+  has-nat n xs = case xs of Nil -> False; Cons x rest -> x == n || has-nat n rest
+  -- Lower the body once per class vector, with the type binders' rigid ids
+  -- mapped to that vector for the body alone.
+  poly-components :: List CoreDefinition -> List Local -> Writer -> Span -> List Nat -> CoreTerm -> List (List Nat) -> (Writer, List String, List Nat)
+  poly-components definitions locals w sp binders body vectors = case vectors of
+    Nil -> (w, Nil, Nil)
+    Cons v rest ->
+      let original = writer-rigids w in
+      let opened = with-writer-rigids (zip-classes binders v <> original) w in
+      case expression definitions locals opened body of
+        (lowered, value) -> let code = case word-class (writer-context lowered) (core-type body) of Some c -> c; None -> 1 in
+          let restored = with-writer-rigids original lowered in
+          case poly-components definitions locals restored sp binders body rest of
+            (done, values, classes) -> (done, Cons value values, Cons code classes)
+  zip-classes :: List Nat -> List Nat -> List (Nat, Nat)
+  zip-classes ids codes = case (ids, codes) of
+    (Cons id rest, Cons code more) -> Cons (id, code) (zip-classes rest more)
+    other -> Nil
+  writer-rigids :: Writer -> List (Nat, Nat)
+  writer-rigids w = case writer-context w of RuntimeContext info bounds rigids pending done inlining -> rigids
+  with-writer-rigids :: List (Nat, Nat) -> Writer -> Writer
+  with-writer-rigids rigids w = case w of
+    Writer next globals code errors layouts (RuntimeContext info bounds old pending done inlining) ->
+      Writer next globals code errors layouts (RuntimeContext info bounds rigids pending done inlining)
+  writer-errors :: Writer -> List Diagnostic
+  writer-errors w = case w of Writer next globals code errors layouts context -> errors
+  poly-project :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> CoreTerm -> List UType -> (Writer, String)
+  poly-project definitions locals w sp ty value args = case core-type value of
+    UForall qs inner -> (case class-vector (writer-context w) (select-positions (poly-class-positions qs 0) args) of
+      None -> unsupported w sp "an instantiation needs known runtime representations"
+      Some v -> case expression definitions locals w value of
+        (evaluated, bundle) -> let (named, pointer) = fresh evaluated "%poly" in
+          let addressed = line named (cat ["  ", pointer, " = inttoptr i64 ", bundle, " to ptr"]) in
+          case load-word addressed pointer (nat-to-string (vector-index v)) of
+            -- The component outlives the bundle it came from.
+            (loaded, selected) -> (count-op False (core-type value) bundle (count-op True ty selected loaded), selected))
+    other -> unsupported w sp "an instantiation needs a polymorphic value"
+  -- A tuple layout from the components' classes directly: the bundle's
+  -- components have different classes per vector, so no single context
+  -- types them all.
+  request-class-layout :: Span -> List Nat -> Writer -> (Writer, Nat)
+  request-class-layout sp classes w = case w of
+    Writer next globals code errors (LayoutPlan groups tuples names cells) datas ->
+      let packed = list-length classes + class-field-map classes 4294967296 in case known-layout packed tuples of
+        Some id -> (w, id)
+        None -> if list-length classes > 16 || groups >= 1022 then
+          (refuse w sp "polymorphic bundle layout needs an extended runtime descriptor", 0)
+          else let id = 64 * (groups + 1) in
+            (Writer next globals code errors (LayoutPlan (groups + 1) (Cons (id, packed) tuples) names (Cons (id, packed) cells)) datas, id)
+  class-field-map :: List Nat -> Nat -> Nat
+  class-field-map classes factor = case classes of Nil -> 0; Cons code rest -> code * factor + class-field-map rest (factor * 4)
   tuple :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> (Writer, String)
   tuple definitions locals w sp fields = case term-fields fields of
     Some actual -> if list-length actual > 16 || not (field-words (writer-context w) actual) then unsupported w sp "tuple fields need an extended or polymorphic runtime layout" else
