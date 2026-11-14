@@ -1,0 +1,60 @@
+-- Data.Mutable: the mutable containers, behind one import.
+--
+-- Every container is indexed by a region `r`, and every operation on it
+-- carries the `Mut r` label in its row:
+--
+--   word-counts :: forall r. List String ->{Mut r} HashTable r String Nat
+--   word-counts ws =
+--     let t = hash-table-new () in
+--     let counted = count-into t ws in
+--     t
+--
+-- `Mut r` is a capability exactly like `IO r`: a definition whose row
+-- lacks it cannot touch a container of region `r`, so a pure function
+-- stays pure and every function that mutates says so in its type. A
+-- program discharges the label at its entry point
+-- (`main :: Unit ->{Mut r} Int`). Labels need no declaration, so there is
+-- nothing to import for the row itself.
+--
+-- The family (each module's header gives its layout, costs and the
+-- invariant that keeps its reads sound):
+--
+--   Data.Mutable.Vec        growable vector, introsort      (std::vector)
+--   Data.Mutable.HashTable  SwissTable/F14 hash table       (absl::flat_hash_map, folly::F14ValueMap)
+--   Data.Mutable.HashSet    the table's set                 (absl::flat_hash_set)
+--   Data.Mutable.Deque      power-of-two ring buffer        (Rust VecDeque)
+--   Data.Mutable.Heap       4-ary priority queue            (boost::d_ary_heap)
+--   Data.Mutable.Array      fixed-length mutable array      (std::array by reference)
+--   Data.Mutable.Var        one mutable cell                (IORef, STRef)
+--
+-- Named refusals (boundaries the family deliberately does not cross):
+--   a pure runner: `run-mut :: (forall r. Unit ->{Mut r} a) -> a` (the
+--     `ST` runner) needs a rank-2 argument, which the checker refuses
+--     ("quantifiers are only supported at the outermost position"), and a
+--     handler cannot stand in for it, because a handler only dispatches
+--     operations its handled expression performs directly (decision D23),
+--     never ones a called container operation performs. Without the
+--     quantifier a runner would let a container escape the scope that ran
+--     it and be mutated under a pure type, so none is offered;
+--   cross-task sharing: a container is not synchronized, so it must stay
+--     with the task that made it (`Effect.Stm`'s `TVar` is the shared
+--     mutable cell);
+--   aliasing views: no container hands out an `Array` that aliases its
+--     storage; `vec-freeze` and `mut-array-freeze` copy.
+module Data.Mutable where
+
+  import Data.Mutable.Vec
+  import Data.Mutable.HashTable
+  import Data.Mutable.HashSet
+  import Data.Mutable.Deque
+  import Data.Mutable.Heap
+  import Data.Mutable.Array
+  import Data.Mutable.Var
+
+  export module Data.Mutable.Vec
+  export module Data.Mutable.HashTable
+  export module Data.Mutable.HashSet
+  export module Data.Mutable.Deque
+  export module Data.Mutable.Heap
+  export module Data.Mutable.Array
+  export module Data.Mutable.Var

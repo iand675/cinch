@@ -1,0 +1,424 @@
+-- The behaviour program of the mutable containers (`Data.Mutable.*`),
+-- run by compiler/tests/lib_mutable.rs under the leak checker.
+--
+-- The exit code is the verdict: 0 when every check passed, otherwise the
+-- number of the FIRST failed check (1 .. 12, in the order `main` lists
+-- them). Every check is a top-level function returning `Bool`, because a
+-- `case` inside a `let` binder must indent past the binder's column.
+module Main where
+
+  import Data.Option
+  import Data.Array
+  import Data.Hash
+  import Data.Mutable.Vec
+  import Data.Mutable.HashTable
+  import Data.Mutable.HashSet
+  import Data.Mutable.Deque
+  import Data.Mutable.Heap
+  import Data.Mutable.Array
+  import Data.Mutable.Var
+
+  -- ------------------------------------------------------------------
+  -- Helpers
+  -- ------------------------------------------------------------------
+
+  -- A linear congruential sequence: deterministic pseudo-random Nats.
+  next :: Nat -> Nat
+  next x = nat-rem (x * 1103515245 + 12345) 2147483648
+
+  is-some-nat :: Option Nat -> Nat -> Bool
+  is-some-nat o n = case o of
+    Some v -> v == n
+    None -> False
+
+  is-none-nat :: Option Nat -> Bool
+  is-none-nat o = case o of
+    Some v -> False
+    None -> True
+
+  is-some-str :: Option String -> String -> Bool
+  is-some-str o s = case o of
+    Some v -> string-compare v s == 0
+    None -> False
+
+  ascending :: List Nat -> Bool
+  ascending xs = case xs of
+    Nil -> True
+    Cons x rest -> case rest of
+      Nil -> True
+      Cons y more -> if y < x then False else ascending rest
+
+  descending :: List Nat -> Bool
+  descending xs = case xs of
+    Nil -> True
+    Cons x rest -> case rest of
+      Nil -> True
+      Cons y more -> if x < y then False else descending rest
+
+  sum-list :: List Nat -> Nat -> Nat
+  sum-list xs acc = case xs of
+    Nil -> acc
+    Cons x rest -> sum-list rest (acc + x)
+
+  count :: forall a. List a -> Nat -> Nat
+  count xs n = case xs of
+    Nil -> n
+    Cons x rest -> count rest (n + 1)
+
+  eq-nats :: List Nat -> List Nat -> Bool
+  eq-nats xs ys = case xs of
+    Nil -> case ys of
+      Nil -> True
+      Cons b bs -> False
+    Cons a ar -> case ys of
+      Nil -> False
+      Cons b bs -> if a == b then eq-nats ar bs else False
+
+  nats-down :: Nat -> List Nat -> List Nat
+  nats-down n acc = if n == 0 then acc else nats-down (n - 1) (Cons n acc)
+
+  -- ------------------------------------------------------------------
+  -- 1. Vec: growth, indexing, the ends
+  -- ------------------------------------------------------------------
+
+  push-range :: forall r. Vec r Nat -> Nat -> Nat ->{Mut r} Unit
+  push-range v i n = if i < n then let p = vec-push v (i * 2) in push-range v (i + 1) n else ()
+
+  get-all :: forall r. Vec r Nat -> Nat -> Nat ->{Mut r} Bool
+  get-all v i n = if i < n then (if is-some-nat (vec-get v i) (i * 2) then get-all v (i + 1) n else False) else True
+
+  pop-all :: forall r. Vec r Nat -> Nat ->{Mut r} Bool
+  pop-all v n = if n == 0 then is-none-nat (vec-pop v) else (if is-some-nat (vec-pop v) ((n - 1) * 2) then pop-all v (n - 1) else False)
+
+  check-vec-basics :: forall r. Unit ->{Mut r} Bool
+  check-vec-basics u =
+    let v = vec-new () in
+    let e = vec-is-empty v && is-none-nat (vec-get v 0) && is-none-nat (vec-pop v) && is-none-nat (vec-last v) in
+    let p = push-range v 0 10000 in
+    let sized = vec-length v == 10000 && 10000 <= vec-capacity v in
+    let got = get-all v 0 10000 && is-none-nat (vec-get v 10000) && is-some-nat (vec-last v) 19998 in
+    let popped = pop-all v 10000 in
+    let w = vec-with-capacity 64 in
+    let room = vec-capacity w == 64 && vec-length w == 0 in
+    e && sized && got && popped && vec-is-empty v && room
+
+  -- ------------------------------------------------------------------
+  -- 2. Vec: the middle
+  -- ------------------------------------------------------------------
+
+  check-vec-middle :: forall r. Unit ->{Mut r} Bool
+  check-vec-middle u =
+    let v = vec-from-list (nats-down 6 Nil) in
+    let i1 = vec-insert v 0 0 in
+    let i2 = vec-insert v 7 7 in
+    let i3 = vec-insert v 3 100 in
+    let bad = vec-insert v 99 5 == False in
+    let s1 = eq-nats (vec-to-list v) (Cons 0 (Cons 1 (Cons 2 (Cons 100 (Cons 3 (Cons 4 (Cons 5 (Cons 6 (Cons 7 Nil))))))))) in
+    let r1 = is-some-nat (vec-remove v 3) 100 && is-none-nat (vec-remove v 50) in
+    let r2 = is-some-nat (vec-swap-remove v 0) 0 in
+    let s2 = eq-nats (vec-to-list v) (Cons 7 (Cons 1 (Cons 2 (Cons 3 (Cons 4 (Cons 5 (Cons 6 Nil))))))) in
+    let sw = vec-swap v 0 6 && vec-swap v 2 2 && vec-swap v 0 7 == False in
+    let st = vec-set v 1 10 && vec-set v 7 0 == False in
+    let md = vec-modify v 1 (\x -> x + 1) in
+    let s3 = eq-nats (vec-to-list v) (Cons 6 (Cons 11 (Cons 2 (Cons 3 (Cons 4 (Cons 5 (Cons 7 Nil))))))) in
+    let rv = vec-reverse v in
+    let s4 = eq-nats (vec-to-list v) (Cons 7 (Cons 5 (Cons 4 (Cons 3 (Cons 2 (Cons 11 (Cons 6 Nil))))))) in
+    let tr = vec-truncate v 3 in
+    let s5 = eq-nats (vec-to-list v) (Cons 7 (Cons 5 (Cons 4 Nil))) in
+    let tr2 = vec-truncate v 10 in
+    let cl = vec-clear v in
+    i1 && i2 && i3 && bad && s1 && r1 && r2 && s2 && sw && st && md && s3 && s4 && s5 && vec-length v == 0
+
+  -- ------------------------------------------------------------------
+  -- 3. Vec: sorting (random, sorted, reversed, constant, strings)
+  -- ------------------------------------------------------------------
+
+  push-random :: forall r. Vec r Nat -> Nat -> Nat ->{Mut r} Nat
+  push-random v x n = if n == 0 then x else let p = vec-push v (nat-rem x 1000) in push-random v (next x) (n - 1)
+
+  push-const :: forall r. Vec r Nat -> Nat ->{Mut r} Unit
+  push-const v n = if n == 0 then () else let p = vec-push v 42 in push-const v (n - 1)
+
+  check-vec-sort :: forall r. Unit ->{Mut r} Bool
+  check-vec-sort u =
+    let v = vec-new () in
+    let x = push-random v 7 3000 in
+    let before = vec-fold (\a b -> a + b) 0 v in
+    let s = vec-sort v in
+    let ok1 = ascending (vec-to-list v) && vec-fold (\a b -> a + b) 0 v == before && vec-length v == 3000 in
+    let s2 = vec-sort v in
+    let ok2 = ascending (vec-to-list v) in
+    let s3 = vec-sort-by (\a b -> if b < a then LT else if a < b then GT else EQ) v in
+    let ok3 = descending (vec-to-list v) in
+    let s4 = vec-sort v in
+    let ok4 = ascending (vec-to-list v) in
+    let c = vec-new () in
+    let filled = push-const c 2000 in
+    let s5 = vec-sort c in
+    let ok5 = vec-fold (\a b -> a + b) 0 c == 84000 in
+    let w = vec-from-list (Cons "pear" (Cons "apple" (Cons "fig" (Cons "kiwi" Nil)))) in
+    let s6 = vec-sort-by (\a b -> if string-compare a b < 0 then LT else if string-compare a b > 0 then GT else EQ) w in
+    let ok6 = is-some-str (vec-get w 0) "apple" && is-some-str (vec-get w 3) "pear" in
+    ok1 && ok2 && ok3 && ok4 && ok5 && ok6
+
+  -- ------------------------------------------------------------------
+  -- 4. Vec: arrays, folds, iteration under mutation
+  -- ------------------------------------------------------------------
+
+  check-vec-views :: forall r. Unit ->{Mut r} Bool
+  check-vec-views u =
+    let v = vec-from-list (nats-down 5 Nil) in
+    let frozen = vec-freeze v in
+    let changed = vec-set v 0 99 in
+    let ok1 = array-length frozen == 5 && is-some-nat (array-get frozen 0) 1 in
+    let back = vec-from-array frozen in
+    let ok2 = eq-nats (vec-to-list back) (nats-down 5 Nil) in
+    let m = vec-map-in-place (\x -> x * 10) back in
+    let ok3 = vec-fold (\a b -> a + b) 0 back == 150 in
+    let seen = var-new 0 in
+    let grow = vec-for-each back (\x -> let a = var-modify seen (\s -> s + 1) in if x < 30 then vec-push back 1000 else ()) in
+    let ok4 = vec-length back == 7 && var-read seen == 7 in
+    ok1 && ok2 && ok3 && ok4
+
+  -- ------------------------------------------------------------------
+  -- 5. HashTable: scale and absence
+  -- ------------------------------------------------------------------
+
+  fill-table :: forall r. HashTable r Nat Nat -> Nat -> Nat ->{Mut r} Unit
+  fill-table t i n = if i < n then let p = hash-table-insert t i (i + 1) in fill-table t (i + 1) n else ()
+
+  look-table :: forall r. HashTable r Nat Nat -> Nat -> Nat ->{Mut r} Bool
+  look-table t i n = if i < n then (if is-some-nat (hash-table-lookup t i) (i + 1) then look-table t (i + 1) n else False) else True
+
+  absent-table :: forall r. HashTable r Nat Nat -> Nat -> Nat ->{Mut r} Bool
+  absent-table t i n = if i < n then (if hash-table-member t i then False else absent-table t (i + 1) n) else True
+
+  check-table-scale :: forall r. Unit ->{Mut r} Bool
+  check-table-scale u =
+    let t = hash-table-new () in
+    let e = hash-table-is-empty t && is-none-nat (hash-table-lookup t 3) in
+    let f = fill-table t 0 50000 in
+    let ok1 = hash-table-size t == 50000 && look-table t 0 50000 && absent-table t 50000 51000 in
+    let o = hash-table-insert t 7 700 in
+    let ok2 = is-some-nat (hash-table-lookup t 7) 700 && hash-table-size t == 50000 && hash-table-lookup-or t 50001 9 == 9 in
+    let ok3 = 50000 <= hash-table-capacity t in
+    e && ok1 && ok2 && ok3
+
+  -- ------------------------------------------------------------------
+  -- 6. HashTable: delete churn needs no tombstone rehash
+  -- ------------------------------------------------------------------
+
+  delete-evens :: forall r. HashTable r Nat Nat -> Nat -> Nat ->{Mut r} Bool
+  delete-evens t i n =
+    if i < n then
+      (if nat-rem i 2 == 0 then (if is-some-nat (hash-table-delete t i) (i + 1) then delete-evens t (i + 1) n else False) else delete-evens t (i + 1) n)
+    else True
+
+  parity-ok :: forall r. HashTable r Nat Nat -> Nat -> Nat ->{Mut r} Bool
+  parity-ok t i n = if i < n then (if hash-table-member t i == (nat-rem i 2 == 1) then parity-ok t (i + 1) n else False) else True
+
+  churn :: forall r. HashTable r Nat Nat -> Nat -> Nat ->{Mut r} Unit
+  churn t base rounds =
+    if rounds == 0 then ()
+    else
+      let f = fill-table t base (base + 5000) in
+      let d = drop-range t base (base + 5000) in
+      churn t (base + 5000) (rounds - 1)
+
+  drop-range :: forall r. HashTable r Nat Nat -> Nat -> Nat ->{Mut r} Unit
+  drop-range t i n = if i < n then let d = hash-table-delete t i in drop-range t (i + 1) n else ()
+
+  check-table-delete :: forall r. Unit ->{Mut r} Bool
+  check-table-delete u =
+    let t = hash-table-new () in
+    let f = fill-table t 0 20000 in
+    let ok1 = delete-evens t 0 20000 && hash-table-size t == 10000 && parity-ok t 0 20000 in
+    let ok2 = is-none-nat (hash-table-delete t 0) in
+    let r = fill-table t 0 20000 in
+    let ok3 = hash-table-size t == 20000 && look-table t 0 20000 in
+    let cap = hash-table-capacity t in
+    let c = churn t 100000 20 in
+    let ok4 = hash-table-size t == 20000 && hash-table-capacity t == cap && look-table t 0 20000 in
+    ok1 && ok2 && ok3 && ok4
+
+  -- ------------------------------------------------------------------
+  -- 7. HashTable: one digest for every key
+  -- ------------------------------------------------------------------
+
+  data Label where
+    MkLabel :: Nat -> Label
+
+  label-id :: Label -> Nat
+  label-id l = case l of
+    MkLabel n -> n
+
+  implicit instance Eq-Label :: Eq Label where
+    (==) a b = label-id a == label-id b
+    (/=) a b = (label-id a == label-id b) == False
+
+  implicit instance Hash-Label :: Hash Label where
+    hash l = 12345
+
+  fill-labels :: forall r. HashTable r Label Nat -> Nat ->{Mut r} Unit
+  fill-labels t n = if n == 0 then () else let p = hash-table-insert t (MkLabel n) n in fill-labels t (n - 1)
+
+  look-labels :: forall r. HashTable r Label Nat -> Nat ->{Mut r} Bool
+  look-labels t n = if n == 0 then True else (if is-some-nat (hash-table-lookup t (MkLabel n)) n then look-labels t (n - 1) else False)
+
+  drop-labels :: forall r. HashTable r Label Nat -> Nat ->{Mut r} Bool
+  drop-labels t n = if n == 0 then True else (if is-some-nat (hash-table-delete t (MkLabel n)) n then drop-labels t (n - 1) else False)
+
+  check-table-collisions :: forall r. Unit ->{Mut r} Bool
+  check-table-collisions u =
+    let t = hash-table-new () in
+    let f = fill-labels t 300 in
+    let ok1 = hash-table-size t == 300 && look-labels t 300 && hash-table-member t (MkLabel 301) == False in
+    let ok2 = drop-labels t 300 && hash-table-is-empty t in
+    let again = fill-labels t 50 in
+    ok1 && ok2 && look-labels t 50
+
+  -- ------------------------------------------------------------------
+  -- 8. HashTable: String keys and the update family
+  -- ------------------------------------------------------------------
+
+  count-words :: forall r. HashTable r String Nat -> List String ->{Mut r} Unit
+  count-words t ws = case ws of
+    Nil -> ()
+    Cons w rest ->
+      let c = hash-table-insert-with (\new old -> new + old) t w 1 in
+      count-words t rest
+
+  bump :: Option Nat -> Nat
+  bump o = case o of
+    None -> 100
+    Some n -> n + 100
+
+  check-table-updates :: forall r. Unit ->{Mut r} Bool
+  check-table-updates u =
+    let t = hash-table-new () in
+    let c = count-words t (Cons "a" (Cons "b" (Cons "a" (Cons "c" (Cons "a" (Cons "b" Nil)))))) in
+    let ok1 = hash-table-size t == 3 && hash-table-lookup-or t "a" 0 == 3 && hash-table-lookup-or t "b" 0 == 2 && hash-table-lookup-or t "c" 0 == 1 in
+    let up1 = hash-table-upsert t "a" bump in
+    let up2 = hash-table-upsert t "z" bump in
+    let ok2 = hash-table-lookup-or t "a" 0 == 103 && hash-table-lookup-or t "z" 0 == 100 in
+    let md = hash-table-modify t "c" (\n -> n * 7) && hash-table-modify t "nope" (\n -> n) == False in
+    let ok3 = hash-table-lookup-or t "c" 0 == 7 in
+    let ti = hash-table-try-insert t "fresh" 5 && hash-table-try-insert t "fresh" 6 == False && hash-table-lookup-or t "fresh" 0 == 5 in
+    let total = hash-table-fold (\acc k v -> acc + v) 0 t in
+    let ok4 = total == 103 + 2 + 7 + 100 + 5 && count (hash-table-to-list t) 0 == 5 && count (hash-table-keys t) 0 == 5 in
+    let seen = var-new 0 in
+    let each = hash-table-for-each t (\k v -> var-modify seen (\s -> s + v)) in
+    let ok5 = var-read seen == total in
+    let cl = hash-table-clear t in
+    let ok6 = hash-table-is-empty t && hash-table-member t "a" == False in
+    let after = hash-table-insert t "a" 1 in
+    ok1 && ok2 && md && ok3 && ti && ok4 && ok5 && ok6 && hash-table-lookup-or t "a" 0 == 1
+
+  -- ------------------------------------------------------------------
+  -- 9. HashSet
+  -- ------------------------------------------------------------------
+
+  check-set :: forall r. Unit ->{Mut r} Bool
+  check-set u =
+    let s = hash-set-from-list (Cons 3 (Cons 1 (Cons 3 (Cons 2 (Cons 1 Nil))))) in
+    let ok1 = hash-set-size s == 3 && hash-set-member s 2 && hash-set-member s 4 == False in
+    let ok2 = hash-set-insert s 4 && hash-set-insert s 4 == False && hash-set-size s == 4 in
+    let ok3 = hash-set-delete s 3 && hash-set-delete s 3 == False && hash-set-size s == 3 in
+    let ok4 = hash-set-fold (\a x -> a + x) 0 s == 7 && count (hash-set-to-list s) 0 == 3 in
+    ok1 && ok2 && ok3 && ok4
+
+  -- ------------------------------------------------------------------
+  -- 10. Deque: both ends, wrap-around, growth while wrapped
+  -- ------------------------------------------------------------------
+
+  pop-front-all :: forall r. Deque r Nat -> Nat -> Nat ->{Mut r} Bool
+  pop-front-all q i n = if i < n then (if is-some-nat (deque-pop-front q) i then pop-front-all q (i + 1) n else False) else is-none-nat (deque-pop-front q)
+
+  push-fronts :: forall r. Deque r Nat -> Nat ->{Mut r} Unit
+  push-fronts q n = if n == 0 then () else let p = deque-push-front q (n - 1) in push-fronts q (n - 1)
+
+  push-backs :: forall r. Deque r Nat -> Nat -> Nat ->{Mut r} Unit
+  push-backs q i n = if i < n then let p = deque-push-back q i in push-backs q (i + 1) n else ()
+
+  check-deque :: forall r. Unit ->{Mut r} Bool
+  check-deque u =
+    let q = deque-new () in
+    let e = deque-is-empty q && is-none-nat (deque-pop-back q) && is-none-nat (deque-front q) in
+    let a = deque-push-back q 3 in
+    let b = deque-push-back q 4 in
+    let c = deque-push-front q 2 in
+    let d = deque-push-front q 1 in
+    let ok1 = eq-nats (deque-to-list q) (Cons 1 (Cons 2 (Cons 3 (Cons 4 Nil)))) && deque-capacity q == 4 in
+    let g = deque-push-front q 0 in
+    let ok2 = eq-nats (deque-to-list q) (Cons 0 (Cons 1 (Cons 2 (Cons 3 (Cons 4 Nil))))) && deque-capacity q == 8 in
+    let ok3 = is-some-nat (deque-get q 2) 2 && deque-set q 2 20 && is-some-nat (deque-get q 2) 20 && is-none-nat (deque-get q 5) in
+    let ok4 = is-some-nat (deque-pop-back q) 4 && is-some-nat (deque-pop-front q) 0 && is-some-nat (deque-back q) 3 in
+    let cl = deque-clear q in
+    let r = deque-new () in
+    let pf = push-fronts r 1000 in
+    let pb = push-backs r 1000 3000 in
+    let ok5 = deque-length r == 3000 && deque-fold (\x y -> x + y) 0 r == 4498500 && pop-front-all r 0 3000 in
+    e && ok1 && ok2 && ok3 && ok4 && deque-is-empty q && ok5
+
+  -- ------------------------------------------------------------------
+  -- 11. Heap
+  -- ------------------------------------------------------------------
+
+  push-heap :: forall r. Heap r Nat -> Nat -> Nat ->{Mut r} Nat
+  push-heap h x n = if n == 0 then x else let p = heap-push h (nat-rem x 10000) in push-heap h (next x) (n - 1)
+
+  check-heap :: forall r. Unit ->{Mut r} Bool
+  check-heap u =
+    let h = heap-new () in
+    let e = heap-is-empty h && is-none-nat (heap-pop h) && is-none-nat (heap-peek h) in
+    let x = push-heap h 99 5000 in
+    let ok1 = heap-length h == 5000 in
+    let drained = heap-drain h in
+    let ok2 = ascending drained && count drained 0 == 5000 && heap-is-empty h in
+    let mx = heap-new-by (\a b -> b < a) () in
+    let y = push-heap mx 5 2000 in
+    let ok3 = descending (heap-drain mx) in
+    let fl = heap-from-list (Cons 9 (Cons 4 (Cons 7 (Cons 1 (Cons 8 (Cons 2 (Cons 6 Nil))))))) in
+    let ok4 = is-some-nat (heap-peek fl) 1 && eq-nats (heap-drain fl) (Cons 1 (Cons 2 (Cons 4 (Cons 6 (Cons 7 (Cons 8 (Cons 9 Nil))))))) in
+    e && ok1 && ok2 && ok3 && ok4
+
+  -- ------------------------------------------------------------------
+  -- 12. MutArray and Var
+  -- ------------------------------------------------------------------
+
+  check-array-var :: forall r. Unit ->{Mut r} Bool
+  check-array-var u =
+    let a = mut-array-new 5 "x" in
+    let s1 = mut-array-set a 2 "y" && mut-array-set a 5 "z" == False in
+    let ok1 = mut-array-length a == 5 && is-some-str (mut-array-get a 2) "y" && is-some-str (mut-array-get a 0) "x" in
+    let sw = mut-array-swap a 0 2 && is-some-str (mut-array-get a 0) "y" in
+    let frozen = mut-array-freeze a in
+    let f = mut-array-fill a "q" in
+    let ok2 = array-length frozen == 5 && is-some-str (array-get frozen 0) "y" && is-some-str (mut-array-get a 0) "q" in
+    let t = mut-array-tabulate 10 (\i -> i * i) in
+    let ok3 = mut-array-fold (\x y -> x + y) 0 t == 285 && mut-array-modify t 3 (\x -> x + 1) && is-some-nat (mut-array-get t 3) 10 in
+    let th = mut-array-thaw (array-from-list (Cons 1 (Cons 2 Nil))) in
+    let ok4 = eq-nats (mut-array-to-list th) (Cons 1 (Cons 2 Nil)) in
+    let v = var-new "a" in
+    let w = var-write v "b" in
+    let old = var-swap v "c" in
+    let m = var-modify v (\s -> string-concat s "d") in
+    let ok5 = string-compare old "b" == 0 && string-compare (var-read v) "cd" == 0 in
+    s1 && ok1 && sw && ok2 && ok3 && ok4 && ok5
+
+  -- ------------------------------------------------------------------
+  -- The verdict
+  -- ------------------------------------------------------------------
+
+  verdict :: forall r. Nat -> List (Unit ->{Mut r} Bool) ->{Mut r} Int
+  verdict k checks = case checks of
+    Nil -> 0
+    Cons c rest -> if c () then verdict (k + 1) rest else nat-to-int k
+
+  nat-to-int :: Nat -> Int
+  nat-to-int n = if n == 0 then 0 else 1 + nat-to-int (n - 1)
+
+  main :: Unit ->{Mut r} Int
+  main u = verdict 1 (Cons check-vec-basics (Cons check-vec-middle (Cons check-vec-sort (Cons check-vec-views
+    (Cons check-table-scale (Cons check-table-delete (Cons check-table-collisions (Cons check-table-updates
+    (Cons check-set (Cons check-deque (Cons check-heap (Cons check-array-var Nil))))))))))))

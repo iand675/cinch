@@ -1,0 +1,272 @@
+-- Data.Mutable.Deque: the double-ended queue (Rust `VecDeque`, a ring
+-- buffer rather than C++'s segmented `std::deque`).
+--
+-- The elements live in one slot array used as a ring: `head` is the
+-- physical slot of element 0, and element `i` is at `(head + i) & (cap -
+-- 1)`. The capacity is a power of two (0, then 4, then doubling), so the
+-- wrap is a mask. Growth moves the two halves of the ring into fresh
+-- storage in order (two word moves, no reference count touched) and
+-- resets `head` to 0.
+--
+-- Costs: push and pop at either end are amortised O(1); `deque-get` and
+-- `deque-set` are O(1); `deque-to-list` and the folds are O(n).
+--
+-- The invariant that makes every read sound: exactly the `len` ring
+-- positions from `head` are written, and only those are read.
+--
+-- Named refusals:
+--   middle insertion and removal: a ring makes them O(n) with two-sided
+--     shifting, so they are left to `Data.Mutable.Vec`;
+--   iteration under mutation: `deque-for-each` visits indices while they
+--     are below the CURRENT length and re-reads the storage each step.
+--
+-- The trusted core is the private `cinch.runtime.slots*` imports (the
+-- compiler's `slots.rs`); none of them leaves the module.
+module Data.Mutable.Deque where
+
+  import Data.Machine
+  import Data.Option
+  import Data.Nat
+
+  export Deque, deque-new, deque-with-capacity, deque-length, deque-is-empty, deque-capacity
+  export deque-push-back, deque-push-front, deque-pop-back, deque-pop-front
+  export deque-front, deque-back, deque-get, deque-set, deque-clear
+  export deque-from-list, deque-to-list, deque-fold, deque-for-each
+
+  foreign import ccall "cinch.runtime.slotsNew" slots-new :: forall a. U64 -> Array a
+  foreign import ccall "cinch.runtime.slotsLen" slots-len :: forall a. Array a -> U64
+  foreign import ccall "cinch.runtime.slotsRead" slots-read :: forall a. Array a -> U64 -> a
+  foreign import ccall "cinch.runtime.slotsWrite" slots-write :: forall a. Array a -> U64 -> a -> Unit
+  foreign import ccall "cinch.runtime.slotsTake" slots-take :: forall a. Array a -> U64 -> a
+  foreign import ccall "cinch.runtime.slotsMove" slots-move :: forall a. Array a -> U64 -> Array a -> U64 -> U64 -> Unit
+  foreign import ccall "cinch.runtime.slotsFoldNat" fold-nat :: Nat -> U64
+
+  -- The header: `head` at word 0 and `len` at word 1, and one cell
+  -- holding the current ring.
+  data Deque r a where
+    MkDeque :: Array U64 -> Array (Array a) -> Deque r a
+
+  inc :: U64 -> U64
+  inc w = wrapping-add-u64 w 1
+
+  dec :: U64 -> U64
+  dec w = wrapping-sub-u64 w 1
+
+  to-nat :: U64 -> Nat
+  to-nat w = nat-from-i64 (mask-i64 (wrapping-u64-to-i64 w) 9223372036854775807)
+
+  -- The smallest power of two at least `n` (and at least 4).
+  pow2-at-least :: U64 -> U64 -> U64
+  pow2-at-least n p = if lt-u64 p n then pow2-at-least n (wrapping-add-u64 p p) else p
+
+  head-of :: forall r a. Deque r a -> U64
+  head-of q = case q of
+    MkDeque m c -> slots-read m 0
+
+  len-of :: forall r a. Deque r a -> U64
+  len-of q = case q of
+    MkDeque m c -> slots-read m 1
+
+  set-head :: forall r a. Deque r a -> U64 -> Unit
+  set-head q h = case q of
+    MkDeque m c -> slots-write m 0 h
+
+  set-len :: forall r a. Deque r a -> U64 -> Unit
+  set-len q n = case q of
+    MkDeque m c -> slots-write m 1 n
+
+  ring-of :: forall r a. Deque r a -> Array a
+  ring-of q = case q of
+    MkDeque m c -> slots-read c 0
+
+  -- The physical slot of element `i` in a ring of capacity `cap`.
+  phys :: U64 -> U64 -> U64 -> U64
+  phys h i cap = bit-and-u64 (wrapping-add-u64 h i) (dec cap)
+
+  -- A ring with room for `need` elements: the current one, or a fresh one
+  -- of twice the capacity holding the elements in order from slot 0.
+  room-for :: forall r a. Deque r a -> U64 -> Array a
+  room-for q need =
+    let s = ring-of q in
+    let cap = slots-len s in
+    if lt-u64 cap need then
+      let fresh = slots-new (pow2-at-least need (if eq-u64 cap 0 then (4 :: U64) else wrapping-add-u64 cap cap)) in
+      let h = head-of q in
+      let n = len-of q in
+      let moved = unwrap-into fresh s h n cap in
+      let installed = install q fresh in
+      let reset = set-head q 0 in
+      fresh
+    else s
+
+  -- Move the n ring elements from h into `fresh` at 0 .. n: the run up to
+  -- the end of the old ring, then the wrapped run from its start.
+  unwrap-into :: forall a. Array a -> Array a -> U64 -> U64 -> U64 -> Unit
+  unwrap-into fresh s h n cap =
+    if eq-u64 n 0 then ()
+    else
+      let first = if lt-u64 (wrapping-sub-u64 cap h) n then wrapping-sub-u64 cap h else n in
+      let a = slots-move fresh 0 s h first in
+      if lt-u64 first n then slots-move fresh first s 0 (wrapping-sub-u64 n first) else ()
+
+  install :: forall r a. Deque r a -> Array a -> Unit
+  install q fresh = case q of
+    MkDeque m c -> slots-write c 0 fresh
+
+  deque-new :: forall r a. Unit ->{Mut r} Deque r a
+  deque-new u = deque-with-capacity 0
+
+  -- An empty deque with room for `n` elements (rounded up to a power of
+  -- two) before its first growth.
+  deque-with-capacity :: forall r a. Nat ->{Mut r} Deque r a
+  deque-with-capacity n =
+    let m = (slots-new 2 :: Array U64) in
+    let h = slots-write m 0 (0 :: U64) in
+    let l = slots-write m 1 (0 :: U64) in
+    let c = slots-new 1 in
+    let want = fold-nat n in
+    let ring = slots-new (if eq-u64 want 0 then (0 :: U64) else pow2-at-least want 4) in
+    let installed = slots-write c 0 ring in
+    MkDeque m c
+
+  deque-length :: forall r a. Deque r a ->{Mut r} Nat
+  deque-length q = to-nat (len-of q)
+
+  deque-is-empty :: forall r a. Deque r a ->{Mut r} Bool
+  deque-is-empty q = eq-u64 (len-of q) 0
+
+  deque-capacity :: forall r a. Deque r a ->{Mut r} Nat
+  deque-capacity q =
+    let s = ring-of q in
+    to-nat (slots-len s)
+
+  deque-push-back :: forall r a. Deque r a -> a ->{Mut r} Unit
+  deque-push-back q x =
+    let n = len-of q in
+    let s = room-for q (inc n) in
+    let at = phys (head-of q) n (slots-len s) in
+    let written = slots-write s at x in
+    set-len q (inc n)
+
+  deque-push-front :: forall r a. Deque r a -> a ->{Mut r} Unit
+  deque-push-front q x =
+    let n = len-of q in
+    let s = room-for q (inc n) in
+    let h = phys (head-of q) (dec (slots-len s)) (slots-len s) in
+    let written = slots-write s h x in
+    let moved = set-head q h in
+    set-len q (inc n)
+
+  deque-pop-front :: forall r a. Deque r a ->{Mut r} Option a
+  deque-pop-front q =
+    let n = len-of q in
+    if eq-u64 n 0 then None
+    else
+      let s = ring-of q in
+      let h = head-of q in
+      let x = slots-take s h in
+      let moved = set-head q (phys h 1 (slots-len s)) in
+      let shrunk = set-len q (dec n) in
+      Some x
+
+  deque-pop-back :: forall r a. Deque r a ->{Mut r} Option a
+  deque-pop-back q =
+    let n = len-of q in
+    if eq-u64 n 0 then None
+    else
+      let s = ring-of q in
+      let x = slots-take s (phys (head-of q) (dec n) (slots-len s)) in
+      let shrunk = set-len q (dec n) in
+      Some x
+
+  deque-front :: forall r a. Deque r a ->{Mut r} Option a
+  deque-front q = deque-get q 0
+
+  deque-back :: forall r a. Deque r a ->{Mut r} Option a
+  deque-back q =
+    let n = len-of q in
+    if eq-u64 n 0 then None
+    else
+      let s = ring-of q in
+      Some (slots-read s (phys (head-of q) (dec n) (slots-len s)))
+
+  deque-get :: forall r a. Deque r a -> Nat ->{Mut r} Option a
+  deque-get q i =
+    if i < to-nat (len-of q) then
+      let s = ring-of q in
+      Some (slots-read s (phys (head-of q) (fold-nat i) (slots-len s)))
+    else None
+
+  -- Replace element `i`: `False` (and nothing written) when out of range.
+  deque-set :: forall r a. Deque r a -> Nat -> a ->{Mut r} Bool
+  deque-set q i x =
+    if i < to-nat (len-of q) then
+      let s = ring-of q in
+      let written = slots-write s (phys (head-of q) (fold-nat i) (slots-len s)) x in
+      True
+    else False
+
+  -- Drop every element; the capacity stays.
+  deque-clear :: forall r a. Deque r a ->{Mut r} Unit
+  deque-clear q =
+    let s = ring-of q in
+    let dropped = drop-from s (head-of q) (len-of q) (slots-len s) in
+    let reset = set-head q 0 in
+    set-len q 0
+
+  drop-from :: forall a. Array a -> U64 -> U64 -> U64 -> Unit
+  drop-from s h n cap =
+    if eq-u64 n 0 then ()
+    else
+      let x = slots-take s h in
+      drop-from s (phys h 1 cap) (dec n) cap
+
+  deque-from-list :: forall r a. List a ->{Mut r} Deque r a
+  deque-from-list xs =
+    let q = deque-new () in
+    let pushed = push-all q xs in
+    q
+
+  push-all :: forall r a. Deque r a -> List a ->{Mut r} Unit
+  push-all q xs = case xs of
+    Nil -> ()
+    Cons x rest ->
+      let pushed = deque-push-back q x in
+      push-all q rest
+
+  -- Front to back.
+  deque-to-list :: forall r a. Deque r a ->{Mut r} List a
+  deque-to-list q =
+    let s = ring-of q in
+    list-down s (head-of q) (len-of q) (slots-len s) Nil
+
+  list-down :: forall a. Array a -> U64 -> U64 -> U64 -> List a -> List a
+  list-down s h i cap acc =
+    if eq-u64 i 0 then acc
+    else
+      let j = dec i in
+      list-down s h j cap (Cons (slots-read s (phys h j cap)) acc)
+
+  -- A left fold front to back through a pure function.
+  deque-fold :: forall r a b. (b -> a -> b) -> b -> Deque r a ->{Mut r} b
+  deque-fold f z q =
+    let s = ring-of q in
+    fold-from f z s (head-of q) 0 (len-of q) (slots-len s)
+
+  fold-from :: forall a b. (b -> a -> b) -> b -> Array a -> U64 -> U64 -> U64 -> U64 -> b
+  fold-from f z s h i n cap =
+    if lt-u64 i n then fold-from f (f z (slots-read s (phys h i cap))) s h (inc i) n cap else z
+
+  -- Run an action front to back; the ring, head and length are re-read
+  -- at every step.
+  deque-for-each :: forall r a. Deque r a -> (a ->{Mut r} Unit) ->{Mut r} Unit
+  deque-for-each q act = each-from q act 0
+
+  each-from :: forall r a. Deque r a -> (a ->{Mut r} Unit) -> U64 ->{Mut r} Unit
+  each-from q act i =
+    if lt-u64 i (len-of q) then
+      let s = ring-of q in
+      let x = slots-read s (phys (head-of q) i (slots-len s)) in
+      let done = act x in
+      each-from q act (inc i)
+    else ()

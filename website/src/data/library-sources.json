@@ -307,6 +307,70 @@
       "public_methods": 0
     },
     {
+      "module": "Data.Mutable.Array",
+      "path": "compiler/prelude/Data/Mutable/Array.cinch",
+      "sha256": "94e1495897c24970b02075aeb56bb1181bf54735059dd1828679581c3772490e",
+      "embedded": false,
+      "values": 13,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Mutable.Deque",
+      "path": "compiler/prelude/Data/Mutable/Deque.cinch",
+      "sha256": "3761e4888415de3d3fa427aefef583cfcb7cfb4f481759ed906b7c3a841eaada",
+      "embedded": false,
+      "values": 18,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Mutable.HashSet",
+      "path": "compiler/prelude/Data/Mutable/HashSet.cinch",
+      "sha256": "dd418d95ba3d0f8453ee803fdd25bbd0ed2fbb4dcdca5669b37fd5acfe477977",
+      "embedded": false,
+      "values": 13,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Mutable.HashTable",
+      "path": "compiler/prelude/Data/Mutable/HashTable.cinch",
+      "sha256": "ea2ddd0f2f15f5a527f7cfa5b97a12eec135ae4fb34d373f774ad79438fe3a98",
+      "embedded": false,
+      "values": 22,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Mutable.Heap",
+      "path": "compiler/prelude/Data/Mutable/Heap.cinch",
+      "sha256": "7187bd2ef31d5d505e0a02e326528985252c32d129674a2d3fa2d397be8077cc",
+      "embedded": false,
+      "values": 13,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Mutable.Var",
+      "path": "compiler/prelude/Data/Mutable/Var.cinch",
+      "sha256": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+      "embedded": false,
+      "values": 5,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Mutable.Vec",
+      "path": "compiler/prelude/Data/Mutable/Vec.cinch",
+      "sha256": "61fff082140825bba9490ae212de6dcfec740a684d0cc336adc6058c9b89dde7",
+      "embedded": false,
+      "values": 29,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Mutable",
+      "path": "compiler/prelude/Data/Mutable.cinch",
+      "sha256": "1fee11d2ed1b0f718a9f933b3f3f72fa831d769694a6f4ef25333c5b88a41c51",
+      "embedded": false,
+      "values": 113,
+      "public_methods": 0
+    },
+    {
       "module": "Data.Nat",
       "path": "compiler/prelude/Data/Nat.cinch",
       "sha256": "6cd6f13c374b0fdaa230e5e5e0266d5cd75a88e8f60e8e2f81d5a355a6a15d5b",
@@ -679,7 +743,7 @@
       "path": "compiler/prelude/Prim/Sys.cinch",
       "sha256": "00b3342acf6fe183229cf1c2135fcaa3d16df0136a6ac827b925e2ca4a4aa79d",
       "embedded": true,
-      "values": 18,
+      "values": 17,
       "public_methods": 0
     },
     {
@@ -749,7 +813,7 @@
     {
       "module": "Text.Json",
       "path": "compiler/prelude/Text/Json.cinch",
-      "sha256": "461861b69d963202733c7016f571b393cfc048e45c04eaf92cef036fcfaeb47b",
+      "sha256": "646cb9dacbfe1f64f18870031ca3fd708bb0b71021dff562f3661954f3e80f6c",
       "embedded": false,
       "values": 25,
       "public_methods": 0

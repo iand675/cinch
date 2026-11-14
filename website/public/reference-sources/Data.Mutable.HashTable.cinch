@@ -1,0 +1,624 @@
+-- Data.Mutable.HashTable: the mutable hash table, after Google's
+-- SwissTable (abseil `flat_hash_map`) and Facebook's F14 (folly
+-- `F14ValueMap`).
+--
+-- Layout. Slots come in chunks of eight. Each chunk has one 64-bit
+-- control word, one byte per slot: 0 for an empty slot, and for a full
+-- one a 7-bit tag of the key's hash with the high bit set (`0x80 | t`).
+-- Keys and values live in two parallel slot arrays, so a probe touches
+-- the control word first and a key only when its tag matched. The table
+-- holds at most 7 entries per chunk (a 7/8 maximum load), and the chunk
+-- count is a power of two.
+--
+-- Probing (SwissTable's group match, done in SWAR). The control word is
+-- matched against a key's tag eight slots at a time with the classic
+-- zero-byte trick: `x = ctrl ^ (tag * 0x0101..01)` has a zero byte
+-- exactly where the tag matches, and `(x - 0x0101..01) & ~x & 0x8080..80`
+-- lights those bytes (a rare false positive is settled by `Eq`, never a
+-- false negative). Empty bytes are `~ctrl & 0x8080..80`. A hit is the
+-- trailing-zero count over eight. A miss moves to the next chunk by a
+-- per-key odd stride (F14's double hashing, `2 * tag + 1`), which visits
+-- every chunk of a power-of-two table.
+--
+-- Deletion without tombstones (F14's overflow counts). Every chunk keeps
+-- a count of the entries whose probe passed it because it was full. A
+-- lookup stops at the first chunk with no match and a zero count; a
+-- delete retraces its key's probe from the home chunk and decrements the
+-- count of every chunk it passed. So a delete-heavy workload never fills
+-- the table with tombstones, never needs a same-size rehash, and lookups
+-- of absent keys stay short.
+--
+-- Hashing. `Hash` gives a `Nat` digest, and many digests are weak (the
+-- `Hash Nat` instance is the identity), so the low 64 bits are passed
+-- through a 64-bit finalizer (two xor-shift-multiply rounds) before the
+-- table uses them: the tag is the top 7 bits, the home chunk the low bits
+-- masked by the chunk count.
+--
+-- Costs: lookup, insert and delete are expected O(1); growth doubles the
+-- chunk count and moves every entry once (no reference count touched,
+-- only the digest recomputed), so n inserts cost O(n) amortised.
+--
+-- The invariant that makes every read sound: a slot is read only when its
+-- control byte says it is full, a slot is written before its byte is set,
+-- and a byte is cleared before its slot is taken. Growth clears the old
+-- table's control words as it empties them.
+--
+-- Named refusals:
+--   iteration order: entries are listed in slot order, which depends on
+--     the digests and the growth history; nothing may rely on it (the
+--     ordered views are Data.Map's);
+--   iteration under mutation: `hash-table-fold` reads a snapshot through a
+--     pure function, and `hash-table-for-each` runs its action over the
+--     entries listed when it started, so an action that changes the table
+--     never meets a moved-out slot;
+--   adversarial digests: the finalizer spreads weak digests, but a `Hash`
+--     instance that maps many keys to one digest still puts them in one
+--     probe sequence (correctness holds; only probe length degrades).
+--
+-- The trusted core is the private `cinch.runtime.slots*` imports (the
+-- compiler's `slots.rs`); none of them leaves the module.
+module Data.Mutable.HashTable where
+
+  import Data.Machine
+  import Data.Option
+  import Data.Nat
+  import Data.Hash
+  import Relation.Eq
+
+  export HashTable, hash-table-new, hash-table-with-capacity, hash-table-size, hash-table-is-empty
+  export hash-table-capacity, hash-table-insert, hash-table-try-insert, hash-table-insert-with
+  export hash-table-lookup, hash-table-lookup-or, hash-table-member, hash-table-delete
+  export hash-table-modify, hash-table-upsert, hash-table-clear, hash-table-reserve
+  export hash-table-from-list, hash-table-to-list, hash-table-keys, hash-table-values
+  export hash-table-fold, hash-table-for-each
+
+  -- ------------------------------------------------------------------
+  -- The trusted core (compiler/src/slots.rs). Private.
+  -- ------------------------------------------------------------------
+
+  foreign import ccall "cinch.runtime.slotsNew" slots-new :: forall a. U64 -> Array a
+  foreign import ccall "cinch.runtime.slotsLen" slots-len :: forall a. Array a -> U64
+  foreign import ccall "cinch.runtime.slotsRead" slots-read :: forall a. Array a -> U64 -> a
+  foreign import ccall "cinch.runtime.slotsWrite" slots-write :: forall a. Array a -> U64 -> a -> Unit
+  foreign import ccall "cinch.runtime.slotsTake" slots-take :: forall a. Array a -> U64 -> a
+  foreign import ccall "cinch.runtime.slotsClear" slots-clear :: forall a. Array a -> U64 -> U64 -> Unit
+  foreign import ccall "cinch.runtime.slotsFoldNat" fold-nat :: Nat -> U64
+  foreign import ccall "cinch.runtime.slotsPrefetch" slots-prefetch :: forall a. Array a -> U64 -> Unit
+
+  -- The storage of one table generation. `words` holds the entry count
+  -- at 0, the chunk mask (chunks - 1) at 1, and for chunk g its control
+  -- word at 2 + 2g and its overflow count at 3 + 2g, so a probe reads
+  -- both from one cache line.
+  data Table k v where
+    Table :: Array U64 -> Array k -> Array v -> Table k v
+
+  -- The table's handle: one cell holding the current generation,
+  -- replaced when the table grows.
+  data HashTable r k v where
+    MkHashTable :: Array (Table k v) -> HashTable r k v
+
+  -- ------------------------------------------------------------------
+  -- Words
+  -- ------------------------------------------------------------------
+
+  inc :: U64 -> U64
+  inc w = wrapping-add-u64 w 1
+
+  dec :: U64 -> U64
+  dec w = wrapping-sub-u64 w 1
+
+  to-nat :: U64 -> Nat
+  to-nat w = nat-from-i64 (mask-i64 (wrapping-u64-to-i64 w) 9223372036854775807)
+
+  lanes :: U64
+  lanes = 0x0101010101010101
+
+  highs :: U64
+  highs = 0x8080808080808080
+
+  -- The slot number that no slot has: a failed find.
+  absent :: U64
+  absent = 0xffffffffffffffff
+
+  -- The 64-bit finalizer (the xor-shift-multiply rounds of splitmix64's
+  -- output function): every input bit reaches every output bit.
+  mix :: U64 -> U64
+  mix z =
+    let a = wrapping-mul-u64 (bit-xor-u64 z (wrapping-shr-u64 z 30)) 0xbf58476d1ce4e5b9 in
+    let b = wrapping-mul-u64 (bit-xor-u64 a (wrapping-shr-u64 a 27)) 0x94d049bb133111eb in
+    bit-xor-u64 b (wrapping-shr-u64 b 31)
+
+  digest :: forall k. using (h :: Hash k) => k -> U64
+  digest x = mix (fold-nat (hash x))
+
+  -- The control byte of a full slot: the top 7 bits with the high bit
+  -- set, so it is never 0.
+  tag-of :: U64 -> U64
+  tag-of d = bit-or-u64 (wrapping-shr-u64 d 57) 0x80
+
+  -- The per-key chunk stride: odd, so it visits every chunk.
+  stride-of :: U64 -> U64
+  stride-of t = bit-or-u64 (wrapping-shl-u64 t 1) 1
+
+  -- The bytes of `ctrl` equal to `t`, as their high bits.
+  match-tag :: U64 -> U64 -> U64
+  match-tag ctrl t =
+    let x = bit-xor-u64 ctrl (wrapping-mul-u64 t lanes) in
+    bit-and-u64 (bit-and-u64 (wrapping-sub-u64 x lanes) (bit-not-u64 x)) highs
+
+  -- The empty bytes of `ctrl`, as their high bits.
+  empties :: U64 -> U64
+  empties ctrl = bit-and-u64 (bit-not-u64 ctrl) highs
+
+  -- The full bytes of `ctrl`, as their high bits.
+  fulls :: U64 -> U64
+  fulls ctrl = bit-and-u64 ctrl highs
+
+  -- The slot within its chunk of a mask's lowest lit byte.
+  lowest :: U64 -> U64
+  lowest m = wrapping-shr-u64 (u32-to-u64 (trailing-zeros-u64 m)) 3
+
+  -- The mask without its lowest lit byte.
+  rest-of :: U64 -> U64
+  rest-of m = bit-and-u64 m (dec m)
+
+  byte-shift :: U64 -> U32
+  byte-shift j = wrapping-u64-to-u32 (wrapping-shl-u64 j 3)
+
+  -- ------------------------------------------------------------------
+  -- One generation's words
+  -- ------------------------------------------------------------------
+
+  ctrl-at :: Array U64 -> U64 -> U64
+  ctrl-at w g = slots-read w (wrapping-add-u64 2 (wrapping-shl-u64 g 1))
+
+  set-ctrl :: Array U64 -> U64 -> U64 -> Unit
+  set-ctrl w g c = slots-write w (wrapping-add-u64 2 (wrapping-shl-u64 g 1)) c
+
+  overflow-at :: Array U64 -> U64 -> U64
+  overflow-at w g = slots-read w (wrapping-add-u64 3 (wrapping-shl-u64 g 1))
+
+  set-overflow :: Array U64 -> U64 -> U64 -> Unit
+  set-overflow w g n = slots-write w (wrapping-add-u64 3 (wrapping-shl-u64 g 1)) n
+
+  size-of :: Array U64 -> U64
+  size-of w = slots-read w 0
+
+  mask-of :: Array U64 -> U64
+  mask-of w = slots-read w 1
+
+  -- The largest entry count `chunks` chunks hold: seven per chunk.
+  limit-of :: U64 -> U64
+  limit-of mask = wrapping-mul-u64 (inc mask) 7
+
+  -- A generation of `chunks` empty chunks (a power of two).
+  fresh-table :: forall k v. U64 -> Table k v
+  fresh-table chunks =
+    let w = (slots-new (wrapping-add-u64 2 (wrapping-shl-u64 chunks 1)) :: Array U64) in
+    let c = slots-clear w 0 (slots-len w) in
+    let m = slots-write w 1 (dec chunks) in
+    let slots = wrapping-shl-u64 chunks 3 in
+    Table w (slots-new slots) (slots-new slots)
+
+  -- The smallest power-of-two chunk count holding `n` entries.
+  chunks-for :: U64 -> U64 -> U64
+  chunks-for n chunks = if lt-u64 (limit-of (dec chunks)) n then chunks-for n (wrapping-shl-u64 chunks 1) else chunks
+
+  table-of :: forall r k v. HashTable r k v -> Table k v
+  table-of t = case t of
+    MkHashTable c -> slots-read c 0
+
+  -- ------------------------------------------------------------------
+  -- Probing
+  -- ------------------------------------------------------------------
+
+  -- The slot holding `key`, or `absent`. `probes` bounds the walk by the
+  -- chunk count, so it ends even on a table whose counts were wrong.
+  find-slot :: forall k. using (eq :: Eq k) => Array U64 -> Array k -> k -> U64 -> U64 -> U64 -> U64 -> U64 -> U64
+  find-slot w ks key t stride mask g probes =
+    let c = ctrl-at w g in
+    let hit = scan-match ks key (wrapping-shl-u64 g 3) (match-tag c t) in
+    if ne-u64 hit absent then hit
+    else if eq-u64 (overflow-at w g) 0 then absent
+    else if lt-u64 mask probes then absent
+    else find-slot w ks key t stride mask (bit-and-u64 (wrapping-add-u64 g stride) mask) (inc probes)
+
+  scan-match :: forall k. using (eq :: Eq k) => Array k -> k -> U64 -> U64 -> U64
+  scan-match ks key base m =
+    if eq-u64 m 0 then absent
+    else
+      let slot = wrapping-add-u64 base (lowest m) in
+      if slots-read ks slot == key then slot else scan-match ks key base (rest-of m)
+
+  -- Place a key known to be absent, in a generation with room: the first
+  -- empty slot on its probe, counting an overflow on every full chunk it
+  -- passes. The slots are written before the control byte is set.
+  place :: forall k v. Array U64 -> Array k -> Array v -> k -> v -> U64 -> Unit
+  place w ks vs key val d =
+    let t = tag-of d in
+    let mask = mask-of w in
+    place-from w ks vs key val t (stride-of t) mask (bit-and-u64 d mask)
+
+  place-from :: forall k v. Array U64 -> Array k -> Array v -> k -> v -> U64 -> U64 -> U64 -> U64 -> Unit
+  place-from w ks vs key val t stride mask g =
+    let c = ctrl-at w g in
+    let e = empties c in
+    if eq-u64 e 0 then
+      let counted = set-overflow w g (inc (overflow-at w g)) in
+      place-from w ks vs key val t stride mask (bit-and-u64 (wrapping-add-u64 g stride) mask)
+    else
+      let j = lowest e in
+      let slot = wrapping-add-u64 (wrapping-shl-u64 g 3) j in
+      let wk = slots-write ks slot key in
+      let wv = slots-write vs slot val in
+      set-ctrl w g (bit-or-u64 c (wrapping-shl-u64 t (byte-shift j)))
+
+  place-into :: forall k v. Table k v -> k -> v -> U64 -> Unit
+  place-into tb key val d = case tb of
+    Table w ks vs -> place w ks vs key val d
+
+  -- Retrace a deleted key's probe from its home chunk to the chunk that
+  -- held it, taking back the overflow each passed chunk counted.
+  uncount :: Array U64 -> U64 -> U64 -> U64 -> U64 -> Unit
+  uncount w stride mask g until =
+    if eq-u64 g until then ()
+    else
+      let n = overflow-at w g in
+      let taken = set-overflow w g (if eq-u64 n 0 then (0 :: U64) else dec n) in
+      uncount w stride mask (bit-and-u64 (wrapping-add-u64 g stride) mask) until
+
+  -- ------------------------------------------------------------------
+  -- Growth
+  -- ------------------------------------------------------------------
+
+  -- The current generation, grown first when it cannot take `need`
+  -- entries: every entry moves into a generation of twice the chunks.
+  room-for :: forall r k v. using (h :: Hash k) => HashTable r k v -> U64 -> Table k v
+  room-for ht need = case ht of
+    MkHashTable cell ->
+      let tb = slots-read cell 0 in
+      case tb of
+        Table w ks vs ->
+          let mask = mask-of w in
+          if lt-u64 (limit-of mask) need then
+            let grown = fresh-table (chunks-for need (wrapping-shl-u64 (inc mask) 1)) in
+            let moved = move-all w ks vs grown 0 (inc mask) in
+            let installed = slots-write cell 0 grown in
+            grown
+          else tb
+
+  -- Move the entries of chunks g .. n into `into`, clearing each old
+  -- control word before its slots are taken.
+  move-all :: forall k v. using (h :: Hash k) => Array U64 -> Array k -> Array v -> Table k v -> U64 -> U64 -> Unit
+  move-all w ks vs into g n =
+    if lt-u64 g n then
+      let c = ctrl-at w g in
+      let cleared = set-ctrl w g 0 in
+      let moved = move-chunk ks vs into (wrapping-shl-u64 g 3) (fulls c) in
+      move-all w ks vs into (inc g) n
+    else case into of
+      Table w2 ks2 vs2 -> slots-write w2 0 (size-of w)
+
+  move-chunk :: forall k v. using (h :: Hash k) => Array k -> Array v -> Table k v -> U64 -> U64 -> Unit
+  move-chunk ks vs into base m =
+    if eq-u64 m 0 then ()
+    else
+      let slot = wrapping-add-u64 base (lowest m) in
+      let key = slots-take ks slot in
+      let val = slots-take vs slot in
+      let placed = place-into into key val (digest key) in
+      move-chunk ks vs into base (rest-of m)
+
+  -- ------------------------------------------------------------------
+  -- Construction and size
+  -- ------------------------------------------------------------------
+
+  hash-table-new :: forall r k v. Unit ->{Mut r} HashTable r k v
+  hash-table-new u = hash-table-with-capacity 0
+
+  -- An empty table that holds `n` entries before its first growth.
+  hash-table-with-capacity :: forall r k v. Nat ->{Mut r} HashTable r k v
+  hash-table-with-capacity n =
+    let cell = slots-new 1 in
+    let installed = slots-write cell 0 (fresh-table (chunks-for (fold-nat n) 1)) in
+    MkHashTable cell
+
+  entries :: forall r k v. HashTable r k v -> U64
+  entries ht = case table-of ht of
+    Table w ks vs -> size-of w
+
+  hash-table-size :: forall r k v. HashTable r k v ->{Mut r} Nat
+  hash-table-size ht = case table-of ht of
+    Table w ks vs -> to-nat (size-of w)
+
+  hash-table-is-empty :: forall r k v. HashTable r k v ->{Mut r} Bool
+  hash-table-is-empty ht = case table-of ht of
+    Table w ks vs -> eq-u64 (size-of w) 0
+
+  -- The entry count the table takes before it next grows.
+  hash-table-capacity :: forall r k v. HashTable r k v ->{Mut r} Nat
+  hash-table-capacity ht = case table-of ht of
+    Table w ks vs -> to-nat (limit-of (mask-of w))
+
+  -- Make room for `n` entries in all without a further growth.
+  hash-table-reserve :: forall r k v. using (h :: Hash k) => HashTable r k v -> Nat ->{Mut r} Unit
+  hash-table-reserve ht n =
+    let tb = room-for ht (fold-nat n) in
+    ()
+
+  -- ------------------------------------------------------------------
+  -- Lookup
+  --
+  -- Each operation reads the current generation once and hands it to a
+  -- helper whose parameter is lent (the call is not a tail call, so the
+  -- borrow inference keeps it lent and the fields are read without a
+  -- count operation).
+  -- ------------------------------------------------------------------
+
+  -- The slot of `key` (digest `d`) in one generation, or `absent`.
+  find-in :: forall k. using (eq :: Eq k) => Array U64 -> Array k -> k -> U64 -> U64
+  find-in w ks key d =
+    let t = tag-of d in
+    let mask = mask-of w in
+    find-slot w ks key t (stride-of t) mask (bit-and-u64 d mask) 0
+
+  -- Start the home chunk's key and value lines loading while the control
+  -- word is fetched (F14's prefetch): most keys sit in their home chunk,
+  -- so the three misses of a hit overlap instead of running in turn.
+  warm :: forall k v. Array U64 -> Array k -> Array v -> U64 -> Unit
+  warm w ks vs d =
+    let base = wrapping-shl-u64 (bit-and-u64 d (mask-of w)) 3 in
+    let a = slots-prefetch ks base in
+    slots-prefetch vs base
+
+  hash-table-lookup :: forall r k v. using (h :: Hash k, eq :: Eq k) => HashTable r k v -> k ->{Mut r} Option v
+  hash-table-lookup ht key =
+    let tb = table-of ht in
+    let found = lookup-in tb key (digest key) in
+    found
+
+  lookup-in :: forall k v. using (eq :: Eq k) => Table k v -> k -> U64 -> Option v
+  lookup-in tb key d = case tb of
+    Table w ks vs ->
+      let warmed = warm w ks vs d in
+      let slot = find-in w ks key d in
+      if eq-u64 slot absent then None else Some (slots-read vs slot)
+
+  -- The value at `key`, or `dflt`: a lookup that allocates nothing.
+  hash-table-lookup-or :: forall r k v. using (h :: Hash k, eq :: Eq k) => HashTable r k v -> k -> v ->{Mut r} v
+  hash-table-lookup-or ht key dflt =
+    let tb = table-of ht in
+    let found = lookup-or-in tb key (digest key) dflt in
+    found
+
+  lookup-or-in :: forall k v. using (eq :: Eq k) => Table k v -> k -> U64 -> v -> v
+  lookup-or-in tb key d dflt = case tb of
+    Table w ks vs ->
+      let warmed = warm w ks vs d in
+      let slot = find-in w ks key d in
+      if eq-u64 slot absent then dflt else slots-read vs slot
+
+  hash-table-member :: forall r k v. using (h :: Hash k, eq :: Eq k) => HashTable r k v -> k ->{Mut r} Bool
+  hash-table-member ht key =
+    let tb = table-of ht in
+    let slot = slot-in tb key (digest key) in
+    ne-u64 slot absent
+
+  slot-in :: forall k v. using (eq :: Eq k) => Table k v -> k -> U64 -> U64
+  slot-in tb key d = case tb of
+    Table w ks vs -> find-in w ks key d
+
+  -- ------------------------------------------------------------------
+  -- Insertion
+  -- ------------------------------------------------------------------
+
+  -- What an insertion found, as one word so nothing is allocated: the
+  -- present key's slot, `placed` (it was absent and is now in), or
+  -- `absent` (it was absent and there is no room: grow first).
+  placed :: U64
+  placed = 0xfffffffffffffffe
+
+  -- Place `key` when absent and there is room; report what happened.
+  -- A present key's slot is left as it is for the caller to update.
+  probe-in :: forall k v. using (eq :: Eq k) => Table k v -> k -> v -> U64 -> U64
+  probe-in tb key val d = case tb of
+    Table w ks vs ->
+      let warmed = warm w ks vs d in
+      let slot = find-in w ks key d in
+      if ne-u64 slot absent then slot
+      else
+        let size = size-of w in
+        if lt-u64 size (limit-of (mask-of w)) then
+          let put = place w ks vs key val d in
+          let counted = slots-write w 0 (inc size) in
+          placed
+        else absent
+
+  -- Grow, then place a key known to be absent.
+  grow-and-place :: forall r k v. using (h :: Hash k) => HashTable r k v -> k -> v -> U64 -> Unit
+  grow-and-place ht key val d =
+    let tb = room-for ht (inc (entries ht)) in
+    let placed = place-counted tb key val d in
+    ()
+
+  place-counted :: forall k v. Table k v -> k -> v -> U64 -> Unit
+  place-counted tb key val d = case tb of
+    Table w ks vs ->
+      let placed = place w ks vs key val d in
+      slots-write w 0 (inc (size-of w))
+
+  -- The value slots of the current generation.
+  values-of :: forall k v. Table k v -> Array v
+  values-of tb = case tb of
+    Table w ks vs -> vs
+
+  -- Set `key` to `val`, replacing a present value (the key already stored
+  -- is kept).
+  hash-table-insert :: forall r k v. using (h :: Hash k, eq :: Eq k) => HashTable r k v -> k -> v ->{Mut r} Unit
+  hash-table-insert ht key val =
+    let d = digest key in
+    let tb = table-of ht in
+    let probe = probe-in tb key val d in
+    if eq-u64 probe placed then ()
+    else if eq-u64 probe absent then grow-and-place ht key val d
+    else
+      let vs = values-of tb in
+      let written = slots-write vs probe val in
+      written
+
+  -- Insert only when `key` is absent: `True` when it was inserted.
+  hash-table-try-insert :: forall r k v. using (h :: Hash k, eq :: Eq k) => HashTable r k v -> k -> v ->{Mut r} Bool
+  hash-table-try-insert ht key val =
+    let d = digest key in
+    let tb = table-of ht in
+    let probe = probe-in tb key val d in
+    if eq-u64 probe placed then True
+    else if eq-u64 probe absent then
+      let grown = grow-and-place ht key val d in
+      True
+    else False
+
+  -- Insert `val`, or combine it with the present value as `f val old`
+  -- (the counting idiom: `hash-table-insert-with (+) t word 1`).
+  hash-table-insert-with :: forall r k v. using (h :: Hash k, eq :: Eq k) => (v -> v -> v) -> HashTable r k v -> k -> v ->{Mut r} Unit
+  hash-table-insert-with f ht key val =
+    let d = digest key in
+    let tb = table-of ht in
+    let slot = slot-in tb key d in
+    if ne-u64 slot absent then
+      let vs = values-of tb in
+      let old = slots-take vs slot in
+      let written = slots-write vs slot (f val old) in
+      written
+    else insert-absent ht key val d
+
+  -- Place a key known to be absent, growing first when needed.
+  insert-absent :: forall r k v. using (h :: Hash k) => HashTable r k v -> k -> v -> U64 -> Unit
+  insert-absent ht key val d =
+    let tb = room-for ht (inc (entries ht)) in
+    let placed = place-counted tb key val d in
+    ()
+
+  -- Rewrite the value at `key` through `f`, in place: `False` when the
+  -- key is absent.
+  hash-table-modify :: forall r k v. using (h :: Hash k, eq :: Eq k) => HashTable r k v -> k -> (v -> v) ->{Mut r} Bool
+  hash-table-modify ht key f =
+    let tb = table-of ht in
+    let slot = slot-in tb key (digest key) in
+    if eq-u64 slot absent then False
+    else
+      let vs = values-of tb in
+      let old = slots-take vs slot in
+      let written = slots-write vs slot (f old) in
+      True
+
+  -- Set `key` to `f` of its present value (`None` when absent).
+  hash-table-upsert :: forall r k v. using (h :: Hash k, eq :: Eq k) => HashTable r k v -> k -> (Option v -> v) ->{Mut r} Unit
+  hash-table-upsert ht key f =
+    let d = digest key in
+    let tb = table-of ht in
+    let slot = slot-in tb key d in
+    if ne-u64 slot absent then
+      let vs = values-of tb in
+      let old = slots-take vs slot in
+      let written = slots-write vs slot (f (Some old)) in
+      written
+    else insert-absent ht key (f None) d
+
+  -- ------------------------------------------------------------------
+  -- Removal
+  -- ------------------------------------------------------------------
+
+  -- Remove `key`: its value, or `None` when it was absent.
+  hash-table-delete :: forall r k v. using (h :: Hash k, eq :: Eq k) => HashTable r k v -> k ->{Mut r} Option v
+  hash-table-delete ht key =
+    let tb = table-of ht in
+    let gone = delete-in tb key (digest key) in
+    gone
+
+  delete-in :: forall k v. using (eq :: Eq k) => Table k v -> k -> U64 -> Option v
+  delete-in tb key d = case tb of
+    Table w ks vs ->
+      let slot = find-in w ks key d in
+      if eq-u64 slot absent then None
+      else
+        let g = wrapping-shr-u64 slot 3 in
+        let j = bit-and-u64 slot 7 in
+        let cleared = set-ctrl w g (bit-and-u64 (ctrl-at w g) (bit-not-u64 (wrapping-shl-u64 0xff (byte-shift j)))) in
+        let old-key = slots-take ks slot in
+        let val = slots-take vs slot in
+        let t = tag-of d in
+        let mask = mask-of w in
+        let retraced = uncount w (stride-of t) mask (bit-and-u64 d mask) g in
+        let shrunk = slots-write w 0 (dec (size-of w)) in
+        Some val
+
+  -- Remove every entry; the capacity stays.
+  hash-table-clear :: forall r k v. HashTable r k v ->{Mut r} Unit
+  hash-table-clear ht = case table-of ht of
+    Table w ks vs ->
+      let mask = mask-of w in
+      let counts = slots-clear w 0 (slots-len w) in
+      let restored = slots-write w 1 mask in
+      let keys = slots-clear ks 0 (slots-len ks) in
+      let vals = slots-clear vs 0 (slots-len vs) in
+      vals
+
+  -- ------------------------------------------------------------------
+  -- Lists and folds
+  -- ------------------------------------------------------------------
+
+  hash-table-from-list :: forall r k v. using (h :: Hash k, eq :: Eq k) => List (k, v) ->{Mut r} HashTable r k v
+  hash-table-from-list kvs =
+    let ht = hash-table-new () in
+    let filled = insert-all ht kvs in
+    ht
+
+  -- A later pair replaces an earlier one with the same key.
+  insert-all :: forall r k v. using (h :: Hash k, eq :: Eq k) => HashTable r k v -> List (k, v) ->{Mut r} Unit
+  insert-all ht kvs = case kvs of
+    Nil -> ()
+    Cons p rest -> case p of
+      (k, v) ->
+        let inserted = hash-table-insert ht k v in
+        insert-all ht rest
+
+  -- A fold over the entries in slot order (see the refusal in the
+  -- header), through a pure function over a snapshot of the table.
+  hash-table-fold :: forall r k v b. (b -> k -> v -> b) -> b -> HashTable r k v ->{Mut r} b
+  hash-table-fold f z ht = case table-of ht of
+    Table w ks vs -> fold-chunks f z w ks vs 0 (inc (mask-of w))
+
+  fold-chunks :: forall k v b. (b -> k -> v -> b) -> b -> Array U64 -> Array k -> Array v -> U64 -> U64 -> b
+  fold-chunks f z w ks vs g n =
+    if lt-u64 g n then fold-chunks f (fold-chunk f z ks vs (wrapping-shl-u64 g 3) (fulls (ctrl-at w g))) w ks vs (inc g) n
+    else z
+
+  fold-chunk :: forall k v b. (b -> k -> v -> b) -> b -> Array k -> Array v -> U64 -> U64 -> b
+  fold-chunk f z ks vs base m =
+    if eq-u64 m 0 then z
+    else
+      let slot = wrapping-add-u64 base (lowest m) in
+      fold-chunk f (f z (slots-read ks slot) (slots-read vs slot)) ks vs base (rest-of m)
+
+  hash-table-to-list :: forall r k v. HashTable r k v ->{Mut r} List (k, v)
+  hash-table-to-list ht = hash-table-fold (\acc k v -> Cons (k, v) acc) Nil ht
+
+  hash-table-keys :: forall r k v. HashTable r k v ->{Mut r} List k
+  hash-table-keys ht = hash-table-fold (\acc k v -> Cons k acc) Nil ht
+
+  hash-table-values :: forall r k v. HashTable r k v ->{Mut r} List v
+  hash-table-values ht = hash-table-fold (\acc k v -> Cons v acc) Nil ht
+
+  -- Run an action on every entry present when it starts (see the
+  -- refusal in the header).
+  hash-table-for-each :: forall r k v. HashTable r k v -> (k -> v ->{Mut r} Unit) ->{Mut r} Unit
+  hash-table-for-each ht act = each-entry (hash-table-to-list ht) act
+
+  each-entry :: forall r k v. List (k, v) -> (k -> v ->{Mut r} Unit) ->{Mut r} Unit
+  each-entry kvs act = case kvs of
+    Nil -> ()
+    Cons p rest -> case p of
+      (k, v) ->
+        let done = act k v in
+        each-entry rest act

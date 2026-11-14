@@ -1,0 +1,191 @@
+-- Data.Mutable.Array: the fixed-length mutable array (C++ `std::array`
+-- held by reference, Haskell's `MutableArray`).
+--
+-- A `MutArray r a` has the length it was made with and every slot always
+-- holds a value: `mut-array-new n x` fills, `mut-array-from-list` and
+-- `mut-array-thaw` copy in. Reads and writes are O(1) index loads and
+-- stores; a write releases the value it replaces.
+--
+-- It is the mutable twin of `Data.Array`: `mut-array-freeze` copies out an
+-- immutable `Array a` (a fresh block, so no later write reaches it), and
+-- `mut-array-thaw` copies an `Array a` in. For a sequence that changes
+-- length, use `Data.Mutable.Vec`.
+--
+-- The trusted core is the private `cinch.runtime.slots*` imports (the
+-- compiler's `slots.rs`); none of them leaves the module. Every slot is
+-- written before the array is returned, so no read meets an empty slot.
+module Data.Mutable.Array where
+
+  import Data.Machine
+  import Data.Option
+  import Data.Nat
+
+  export MutArray, mut-array-new, mut-array-tabulate, mut-array-from-list, mut-array-length
+  export mut-array-get, mut-array-set, mut-array-modify, mut-array-swap, mut-array-fill
+  export mut-array-to-list, mut-array-fold, mut-array-freeze, mut-array-thaw
+
+  foreign import ccall "cinch.runtime.slotsNew" slots-new :: forall a. U64 -> Array a
+  foreign import ccall "cinch.runtime.slotsLen" slots-len :: forall a. Array a -> U64
+  foreign import ccall "cinch.runtime.slotsRead" slots-read :: forall a. Array a -> U64 -> a
+  foreign import ccall "cinch.runtime.slotsWrite" slots-write :: forall a. Array a -> U64 -> a -> Unit
+  foreign import ccall "cinch.runtime.slotsTake" slots-take :: forall a. Array a -> U64 -> a
+  foreign import ccall "cinch.runtime.slotsFoldNat" fold-nat :: Nat -> U64
+
+  data MutArray r a where
+    MkMutArray :: Array a -> MutArray r a
+
+  inc :: U64 -> U64
+  inc w = wrapping-add-u64 w 1
+
+  dec :: U64 -> U64
+  dec w = wrapping-sub-u64 w 1
+
+  to-nat :: U64 -> Nat
+  to-nat w = nat-from-i64 (mask-i64 (wrapping-u64-to-i64 w) 9223372036854775807)
+
+  slots :: forall r a. MutArray r a -> Array a
+  slots m = case m of
+    MkMutArray s -> s
+
+  -- `n` copies of `x`.
+  mut-array-new :: forall r a. Nat -> a ->{Mut r} MutArray r a
+  mut-array-new n x =
+    let s = slots-new (fold-nat n) in
+    let filled = fill-from s x 0 (slots-len s) in
+    MkMutArray s
+
+  fill-from :: forall a. Array a -> a -> U64 -> U64 -> Unit
+  fill-from s x i n =
+    if lt-u64 i n then
+      let written = slots-write s i x in
+      fill-from s x (inc i) n
+    else ()
+
+  -- Element i is `f i`.
+  mut-array-tabulate :: forall r a. Nat -> (Nat -> a) ->{Mut r} MutArray r a
+  mut-array-tabulate n f =
+    let s = slots-new (fold-nat n) in
+    let filled = tabulate-from s f 0 (slots-len s) in
+    MkMutArray s
+
+  tabulate-from :: forall a. Array a -> (Nat -> a) -> U64 -> U64 -> Unit
+  tabulate-from s f i n =
+    if lt-u64 i n then
+      let written = slots-write s i (f (to-nat i)) in
+      tabulate-from s f (inc i) n
+    else ()
+
+  mut-array-from-list :: forall r a. List a ->{Mut r} MutArray r a
+  mut-array-from-list xs =
+    let s = slots-new (list-count xs 0) in
+    let filled = write-list s xs 0 in
+    MkMutArray s
+
+  list-count :: forall a. List a -> U64 -> U64
+  list-count xs n = case xs of
+    Nil -> n
+    Cons x rest -> list-count rest (inc n)
+
+  write-list :: forall a. Array a -> List a -> U64 -> Unit
+  write-list s xs i = case xs of
+    Nil -> ()
+    Cons x rest ->
+      let written = slots-write s i x in
+      write-list s rest (inc i)
+
+  mut-array-length :: forall r a. MutArray r a ->{Mut r} Nat
+  mut-array-length m =
+    let s = slots m in
+    to-nat (slots-len s)
+
+  mut-array-get :: forall r a. MutArray r a -> Nat ->{Mut r} Option a
+  mut-array-get m i =
+    let s = slots m in
+    if i < to-nat (slots-len s) then Some (slots-read s (fold-nat i)) else None
+
+  -- Replace element `i`: `False` (and nothing written) when out of range.
+  mut-array-set :: forall r a. MutArray r a -> Nat -> a ->{Mut r} Bool
+  mut-array-set m i x =
+    let s = slots m in
+    if i < to-nat (slots-len s) then
+      let written = slots-write s (fold-nat i) x in
+      True
+    else False
+
+  -- Rewrite element `i` through `f`, moving it out and back.
+  mut-array-modify :: forall r a. MutArray r a -> Nat -> (a -> a) ->{Mut r} Bool
+  mut-array-modify m i f =
+    let s = slots m in
+    if i < to-nat (slots-len s) then
+      let w = fold-nat i in
+      let x = slots-take s w in
+      let written = slots-write s w (f x) in
+      True
+    else False
+
+  mut-array-swap :: forall r a. MutArray r a -> Nat -> Nat ->{Mut r} Bool
+  mut-array-swap m i j =
+    let s = slots m in
+    let n = to-nat (slots-len s) in
+    if i < n && j < n then
+      let wi = fold-nat i in
+      let wj = fold-nat j in
+      if eq-u64 wi wj then True
+      else
+        let x = slots-take s wi in
+        let y = slots-take s wj in
+        let a = slots-write s wi y in
+        let b = slots-write s wj x in
+        True
+    else False
+
+  -- Every element becomes `x`.
+  mut-array-fill :: forall r a. MutArray r a -> a ->{Mut r} Unit
+  mut-array-fill m x =
+    let s = slots m in
+    fill-from s x 0 (slots-len s)
+
+  mut-array-to-list :: forall r a. MutArray r a ->{Mut r} List a
+  mut-array-to-list m =
+    let s = slots m in
+    list-down s (slots-len s) Nil
+
+  list-down :: forall a. Array a -> U64 -> List a -> List a
+  list-down s i acc =
+    if eq-u64 i 0 then acc
+    else
+      let j = dec i in
+      list-down s j (Cons (slots-read s j) acc)
+
+  mut-array-fold :: forall r a b. (b -> a -> b) -> b -> MutArray r a ->{Mut r} b
+  mut-array-fold f z m =
+    let s = slots m in
+    fold-from f z s 0 (slots-len s)
+
+  fold-from :: forall a b. (b -> a -> b) -> b -> Array a -> U64 -> U64 -> b
+  fold-from f z s i n =
+    if lt-u64 i n then fold-from f (f z (slots-read s i)) s (inc i) n else z
+
+  -- An immutable copy (a fresh block).
+  mut-array-freeze :: forall r a. MutArray r a ->{Mut r} Array a
+  mut-array-freeze m =
+    let s = slots m in
+    let n = slots-len s in
+    let out = slots-new n in
+    let copied = copy-into out s 0 n in
+    out
+
+  -- A mutable copy of an immutable array.
+  mut-array-thaw :: forall r a. Array a ->{Mut r} MutArray r a
+  mut-array-thaw a =
+    let n = slots-len a in
+    let out = slots-new n in
+    let copied = copy-into out a 0 n in
+    MkMutArray out
+
+  copy-into :: forall a. Array a -> Array a -> U64 -> U64 -> Unit
+  copy-into out s i n =
+    if lt-u64 i n then
+      let written = slots-write out i (slots-read s i) in
+      copy-into out s (inc i) n
+    else ()

@@ -1,0 +1,122 @@
+-- The mutable containers' benchmark: Data.Mutable against the persistent
+-- Data.HashMap, on the phases `bench.cpp` runs against abseil and the C++
+-- standard library. See README.md for the commands and the recorded
+-- numbers. Keys are scrambled (`i * 2654435761 mod 2^32`), so neither
+-- side gets a sequential memory walk from an identity hash.
+module Main where
+
+  import Data.Option
+  import Data.HashMap
+  import Effect.Clock
+  import Data.Mutable.HashTable
+  import Data.Mutable.Vec
+  import Data.Mutable.Heap
+
+  key :: Nat -> Nat
+  key i = nat-rem (i * 2654435761) 4294967296
+
+  -- ------------------------------------------------------------------
+  -- Data.Mutable.HashTable
+  -- ------------------------------------------------------------------
+
+  t-insert :: forall r. HashTable r Nat Nat -> Nat -> Nat ->{Mut r} Unit
+  t-insert t i n = if i < n then let p = hash-table-insert t (key i) i in t-insert t (i + 1) n else ()
+
+  t-hits :: forall r. HashTable r Nat Nat -> Nat -> Nat -> Nat ->{Mut r} Nat
+  t-hits t i n acc = if i < n then t-hits t (i + 1) n (acc + hash-table-lookup-or t (key i) 0) else acc
+
+  t-misses :: forall r. HashTable r Nat Nat -> Nat -> Nat -> Nat ->{Mut r} Nat
+  t-misses t i n acc = if i < n then t-misses t (i + 1) n (if hash-table-member t (key i + 4294967296) then acc + 1 else acc) else acc
+
+  t-delete :: forall r. HashTable r Nat Nat -> Nat -> Nat ->{Mut r} Unit
+  t-delete t i n = if i < n then let d = hash-table-delete t (key i) in t-delete t (i + 2) n else ()
+
+  -- ------------------------------------------------------------------
+  -- Data.HashMap (persistent)
+  -- ------------------------------------------------------------------
+
+  p-insert :: HashMap Nat Nat -> Nat -> Nat -> HashMap Nat Nat
+  p-insert m i n = if i < n then p-insert (hash-map-insert (key i) i m) (i + 1) n else m
+
+  p-get :: HashMap Nat Nat -> Nat -> Nat
+  p-get m k = case hash-map-lookup k m of
+    Some v -> v
+    None -> 0
+
+  p-hits :: HashMap Nat Nat -> Nat -> Nat -> Nat -> Nat
+  p-hits m i n acc = if i < n then p-hits m (i + 1) n (acc + p-get m (key i)) else acc
+
+  -- ------------------------------------------------------------------
+  -- Data.Mutable.Vec and Data.Mutable.Heap
+  -- ------------------------------------------------------------------
+
+  v-push :: forall r. Vec r Nat -> Nat -> Nat ->{Mut r} Unit
+  v-push v i n = if i < n then let p = vec-push v (key i) in v-push v (i + 1) n else ()
+
+  h-push :: forall r. Heap r Nat -> Nat -> Nat ->{Mut r} Unit
+  h-push h i n = if i < n then let p = heap-push h (key i) in h-push h (i + 1) n else ()
+
+  h-pop :: forall r. Heap r Nat -> Nat ->{Mut r} Nat
+  h-pop h acc = case heap-pop h of
+    None -> acc
+    Some x -> h-pop h (acc + 1)
+
+  -- ------------------------------------------------------------------
+  -- Reporting
+  -- ------------------------------------------------------------------
+
+  span :: forall r. using (io :: Io r) => String -> Nat -> Nat -> Nat ->{IO r} Unit
+  span label n t0 t1 =
+    let ns = elapsed t0 t1 in
+    let line = string-concat label (string-concat " ms=" (string-concat (nat-to-string (nat-div ns 1000000)) (string-concat " ns/op=" (string-concat (nat-to-string (per-op ns n)) "\n")))) in
+    case ioWrite (string-to-bytes line) of
+      _ -> ()
+
+  elapsed :: Nat -> Nat -> Nat
+  elapsed t0 t1 = if t0 <= t1 then t1 - t0 else 0
+
+  -- Nanoseconds per operation (0 for an empty phase).
+  per-op :: Nat -> Nat -> Nat
+  per-op total n = if 0 < n then nat-div total n else 0
+
+  main :: Unit ->{IO r, Mut r} Int
+  main u = with (io = newIO ()) in
+    let n = (1000000 :: Nat) in
+    let t = hash-table-new () in
+    let c0 = clock-monotonic-ns () in
+    let a = t-insert t 0 n in
+    let c1 = clock-monotonic-ns () in
+    let hits = t-hits t 0 n 0 in
+    let c2 = clock-monotonic-ns () in
+    let misses = t-misses t 0 n 0 in
+    let c3 = clock-monotonic-ns () in
+    let d = t-delete t 0 n in
+    let c4 = clock-monotonic-ns () in
+    let s1 = span "table insert" n c0 c1 in
+    let s2 = span "table lookup-hit" n c1 c2 in
+    let s3 = span "table lookup-miss" n c2 c3 in
+    let s4 = span "table delete-half" (nat-div n 2) c3 c4 in
+    let p0 = clock-monotonic-ns () in
+    let m = p-insert hash-map-empty 0 n in
+    let p1 = clock-monotonic-ns () in
+    let phits = p-hits m 0 n 0 in
+    let p2 = clock-monotonic-ns () in
+    let s5 = span "persistent insert" n p0 p1 in
+    let s6 = span "persistent lookup-hit" n p1 p2 in
+    let v = vec-new () in
+    let v0 = clock-monotonic-ns () in
+    let vp = v-push v 0 n in
+    let v1 = clock-monotonic-ns () in
+    let vs = vec-sort v in
+    let v2 = clock-monotonic-ns () in
+    let s7 = span "vec push" n v0 v1 in
+    let s8 = span "vec sort" n v1 v2 in
+    let h = heap-new () in
+    let h0 = clock-monotonic-ns () in
+    let hp = h-push h 0 n in
+    let h1 = clock-monotonic-ns () in
+    let popped = h-pop h 0 in
+    let h2 = clock-monotonic-ns () in
+    let s9 = span "heap push" n h0 h1 in
+    let s10 = span "heap pop" n h1 h2 in
+    if hits == phits && misses == 0 && hash-table-size t == nat-div n 2 && popped == n then 0 else 1

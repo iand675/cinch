@@ -1,0 +1,59 @@
+-- Data.Mutable.Var: the single mutable cell (Haskell's `IORef`/`STRef`,
+-- OCaml's `ref`).
+--
+-- A `Var r a` always holds one value. `var-write` releases the value it
+-- replaces; `var-modify` moves the value out and back, so a uniquely held
+-- value is rewritten without a copy. It is not synchronized: the shared
+-- cell between tasks is `Effect.Stm`'s `TVar`.
+--
+-- The trusted core is the private `cinch.runtime.slots*` imports (the
+-- compiler's `slots.rs`); none of them leaves the module. The one slot is
+-- written before the cell is returned.
+module Data.Mutable.Var where
+
+  export Var, var-new, var-read, var-write, var-modify, var-swap
+
+  foreign import ccall "cinch.runtime.slotsNew" slots-new :: forall a. U64 -> Array a
+  foreign import ccall "cinch.runtime.slotsRead" slots-read :: forall a. Array a -> U64 -> a
+  foreign import ccall "cinch.runtime.slotsWrite" slots-write :: forall a. Array a -> U64 -> a -> Unit
+  foreign import ccall "cinch.runtime.slotsTake" slots-take :: forall a. Array a -> U64 -> a
+
+  data Var r a where
+    MkVar :: Array a -> Var r a
+
+  cell :: forall r a. Var r a -> Array a
+  cell v = case v of
+    MkVar c -> c
+
+  var-new :: forall r a. a ->{Mut r} Var r a
+  var-new x =
+    let c = slots-new 1 in
+    let written = slots-write c 0 x in
+    MkVar c
+
+  var-read :: forall r a. Var r a ->{Mut r} a
+  var-read v =
+    let c = cell v in
+    let x = slots-read c 0 in
+    x
+
+  var-write :: forall r a. Var r a -> a ->{Mut r} Unit
+  var-write v x =
+    let c = cell v in
+    let written = slots-write c 0 x in
+    written
+
+  var-modify :: forall r a. Var r a -> (a -> a) ->{Mut r} Unit
+  var-modify v f =
+    let c = cell v in
+    let x = slots-take c 0 in
+    let written = slots-write c 0 (f x) in
+    written
+
+  -- Store `x` and return the value it replaced.
+  var-swap :: forall r a. Var r a -> a ->{Mut r} a
+  var-swap v x =
+    let c = cell v in
+    let old = slots-take c 0 in
+    let written = slots-write c 0 x in
+    old

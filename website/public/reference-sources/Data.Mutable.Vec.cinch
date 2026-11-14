@@ -1,0 +1,559 @@
+-- Data.Mutable.Vec: the growable vector (C++ `std::vector`, Rust `Vec`).
+--
+-- A `Vec r a` is a dense sequence in one contiguous slot array: elements
+-- `0 .. length - 1` are written, the capacity beyond them is empty, and
+-- growth doubles the capacity (floor 4), so `n` pushes move fewer than
+-- `2n` elements and allocate `O(log n)` times. A reallocation MOVES the
+-- elements (one word copy each, no reference count touched), which is
+-- why doubling, not folly's 1.5x, is the right factor here: the factor
+-- trades copy work against slack, and the copy is already the cheap kind.
+--
+-- Costs: `vec-push` and `vec-pop` are amortised O(1); `vec-get`,
+-- `vec-set`, `vec-length` and `vec-swap` are O(1); `vec-insert` and
+-- `vec-remove` shift the tail (O(n - i), one memmove); `vec-swap-remove`
+-- is O(1) and does not keep order; `vec-sort` is introsort (median-of-
+-- three quicksort, insertion sort under 16 elements, heapsort past a
+-- 2 log2 n depth), O(n log n) worst case and in place.
+--
+-- The invariant that makes every read sound: a slot below the length is
+-- written, a slot at or above it is empty, and only slots below the
+-- length are ever read. Every operation re-reads the current storage, so
+-- a callback that pushes during `vec-for-each` (which may reallocate)
+-- cannot hand a moved-out slot back.
+--
+-- Named refusals:
+--   aliasing views: there is no borrowed slice of a vector; `vec-freeze`
+--     copies into an immutable `Array a` (O(n)) and `vec-from-array`
+--     copies back, so an immutable value never observes a later write;
+--   iteration under mutation: `vec-for-each` visits indices 0, 1, ...
+--     while they are below the CURRENT length, so a callback that
+--     removes or inserts shifts what it visits (memory-safe, but the
+--     visit set is the callback's business).
+--
+-- The trusted core is the private `cinch.runtime.slots*` imports (the
+-- compiler's `slots.rs`); none of them leaves the module.
+module Data.Mutable.Vec where
+
+  import Data.Machine
+  import Data.Option
+  import Data.Nat
+  import Data.Ordering
+  import Relation.Ord
+
+  export Vec, vec-new, vec-with-capacity, vec-length, vec-capacity, vec-is-empty
+  export vec-push, vec-pop, vec-get, vec-set, vec-last, vec-swap, vec-modify
+  export vec-insert, vec-remove, vec-swap-remove, vec-clear, vec-truncate, vec-reserve
+  export vec-from-list, vec-to-list, vec-push-all, vec-fold, vec-for-each, vec-map-in-place
+  export vec-reverse, vec-sort, vec-sort-by, vec-freeze, vec-from-array
+
+  -- ------------------------------------------------------------------
+  -- The trusted core (compiler/src/slots.rs). Private.
+  -- ------------------------------------------------------------------
+
+  foreign import ccall "cinch.runtime.slotsNew" slots-new :: forall a. U64 -> Array a
+  foreign import ccall "cinch.runtime.slotsLen" slots-len :: forall a. Array a -> U64
+  foreign import ccall "cinch.runtime.slotsRead" slots-read :: forall a. Array a -> U64 -> a
+  foreign import ccall "cinch.runtime.slotsWrite" slots-write :: forall a. Array a -> U64 -> a -> Unit
+  foreign import ccall "cinch.runtime.slotsTake" slots-take :: forall a. Array a -> U64 -> a
+  foreign import ccall "cinch.runtime.slotsMove" slots-move :: forall a. Array a -> U64 -> Array a -> U64 -> U64 -> Unit
+  foreign import ccall "cinch.runtime.slotsClear" slots-clear :: forall a. Array a -> U64 -> U64 -> Unit
+  foreign import ccall "cinch.runtime.slotsFoldNat" fold-nat :: Nat -> U64
+
+  -- The header: one raw word (the length) and one cell holding the
+  -- current storage, replaced when the vector reallocates.
+  data Vec r a where
+    MkVec :: Array U64 -> Array (Array a) -> Vec r a
+
+  -- ------------------------------------------------------------------
+  -- Words
+  -- ------------------------------------------------------------------
+
+  inc :: U64 -> U64
+  inc w = wrapping-add-u64 w 1
+
+  dec :: U64 -> U64
+  dec w = wrapping-sub-u64 w 1
+
+  to-nat :: U64 -> Nat
+  to-nat w = nat-from-i64 (mask-i64 (wrapping-u64-to-i64 w) 9223372036854775807)
+
+  -- The capacity a vector of capacity `cap` grows to so that it holds
+  -- `need`: doubling with a floor of 4, and never less than `need`.
+  grown :: U64 -> U64 -> U64
+  grown cap need =
+    let doubled = if lt-u64 cap 4 then (4 :: U64) else wrapping-add-u64 cap cap in
+    if lt-u64 doubled need then need else doubled
+
+  -- ------------------------------------------------------------------
+  -- The header's fields
+  -- ------------------------------------------------------------------
+
+  len-of :: forall r a. Vec r a -> U64
+  len-of v = case v of
+    MkVec m c -> slots-read m 0
+
+  store-of :: forall r a. Vec r a -> Array a
+  store-of v = case v of
+    MkVec m c -> slots-read c 0
+
+  set-len :: forall r a. Vec r a -> U64 -> Unit
+  set-len v n = case v of
+    MkVec m c -> slots-write m 0 n
+
+  -- Move the live prefix into fresh storage of `cap` slots and install
+  -- it; the old storage is left all empty and dies with its last word.
+  relocate :: forall r a. Vec r a -> Array a -> U64 -> U64 -> Array a
+  relocate v s n cap = case v of
+    MkVec m c ->
+      let fresh = slots-new cap in
+      let moved = slots-move fresh 0 s 0 n in
+      let installed = slots-write c 0 fresh in
+      fresh
+
+  -- Storage with room for `need` elements (the current one when it has
+  -- room).
+  room-for :: forall r a. Vec r a -> U64 -> Array a
+  room-for v need =
+    let s = store-of v in
+    let cap = slots-len s in
+    if lt-u64 cap need then relocate v s (len-of v) (grown cap need) else s
+
+  -- ------------------------------------------------------------------
+  -- Construction and size
+  -- ------------------------------------------------------------------
+
+  vec-new :: forall r a. Unit ->{Mut r} Vec r a
+  vec-new u = vec-with-capacity 0
+
+  -- An empty vector with room for `n` elements before its first
+  -- reallocation.
+  vec-with-capacity :: forall r a. Nat ->{Mut r} Vec r a
+  vec-with-capacity n =
+    let m = (slots-new 1 :: Array U64) in
+    let zero = slots-write m 0 (0 :: U64) in
+    let c = slots-new 1 in
+    let fresh = slots-new (fold-nat n) in
+    let installed = slots-write c 0 fresh in
+    MkVec m c
+
+  vec-length :: forall r a. Vec r a ->{Mut r} Nat
+  vec-length v = to-nat (len-of v)
+
+  vec-capacity :: forall r a. Vec r a ->{Mut r} Nat
+  vec-capacity v =
+    let s = store-of v in
+    to-nat (slots-len s)
+
+  vec-is-empty :: forall r a. Vec r a ->{Mut r} Bool
+  vec-is-empty v = eq-u64 (len-of v) 0
+
+  -- Make room for `extra` more elements without a further reallocation.
+  vec-reserve :: forall r a. Vec r a -> Nat ->{Mut r} Unit
+  vec-reserve v extra =
+    let s = room-for v (wrapping-add-u64 (len-of v) (fold-nat extra)) in
+    ()
+
+  -- ------------------------------------------------------------------
+  -- The ends
+  -- ------------------------------------------------------------------
+
+  vec-push :: forall r a. Vec r a -> a ->{Mut r} Unit
+  vec-push v x =
+    let n = len-of v in
+    let s = room-for v (inc n) in
+    let written = slots-write s n x in
+    set-len v (inc n)
+
+  vec-pop :: forall r a. Vec r a ->{Mut r} Option a
+  vec-pop v =
+    let n = len-of v in
+    if eq-u64 n 0 then None
+    else
+      let last = dec n in
+      let s = store-of v in
+      let x = slots-take s last in
+      let shrunk = set-len v last in
+      Some x
+
+  vec-last :: forall r a. Vec r a ->{Mut r} Option a
+  vec-last v =
+    let n = len-of v in
+    if eq-u64 n 0 then None
+    else
+      let s = store-of v in
+      Some (slots-read s (dec n))
+
+  -- ------------------------------------------------------------------
+  -- Indexing
+  -- ------------------------------------------------------------------
+
+  vec-get :: forall r a. Vec r a -> Nat ->{Mut r} Option a
+  vec-get v i =
+    if i < to-nat (len-of v) then
+      let s = store-of v in
+      Some (slots-read s (fold-nat i))
+    else None
+
+  -- Replace element `i`: `False` (and nothing written) when `i` is not
+  -- below the length.
+  vec-set :: forall r a. Vec r a -> Nat -> a ->{Mut r} Bool
+  vec-set v i x =
+    if i < to-nat (len-of v) then
+      let s = store-of v in
+      let written = slots-write s (fold-nat i) x in
+      True
+    else False
+
+  -- Rewrite element `i` through `f`, moving it out and back so a unique
+  -- element is updated without a copy. `False` when out of range.
+  vec-modify :: forall r a. Vec r a -> Nat -> (a -> a) ->{Mut r} Bool
+  vec-modify v i f =
+    if i < to-nat (len-of v) then
+      let s = store-of v in
+      let w = fold-nat i in
+      let x = slots-take s w in
+      let written = slots-write s w (f x) in
+      True
+    else False
+
+  -- Exchange elements `i` and `j`: `False` when either is out of range.
+  vec-swap :: forall r a. Vec r a -> Nat -> Nat ->{Mut r} Bool
+  vec-swap v i j =
+    let n = to-nat (len-of v) in
+    if i < n && j < n then
+      let s = store-of v in
+      let u = swap-slots s (fold-nat i) (fold-nat j) in
+      True
+    else False
+
+  swap-slots :: forall a. Array a -> U64 -> U64 -> Unit
+  swap-slots s i j =
+    if eq-u64 i j then ()
+    else
+      let x = slots-take s i in
+      let y = slots-take s j in
+      let wi = slots-write s i y in
+      slots-write s j x
+
+  -- ------------------------------------------------------------------
+  -- The middle
+  -- ------------------------------------------------------------------
+
+  -- Insert at `i`, shifting `i ..` up by one: `False` (and nothing
+  -- inserted) when `i` exceeds the length (`i == length` appends).
+  vec-insert :: forall r a. Vec r a -> Nat -> a ->{Mut r} Bool
+  vec-insert v i x =
+    let n = len-of v in
+    if i <= to-nat n then
+      let w = fold-nat i in
+      let s = room-for v (inc n) in
+      let shifted = slots-move s (inc w) s w (wrapping-sub-u64 n w) in
+      let written = slots-write s w x in
+      let grown-len = set-len v (inc n) in
+      True
+    else False
+
+  -- Remove element `i`, shifting the tail down: the element, or `None`
+  -- when out of range.
+  vec-remove :: forall r a. Vec r a -> Nat ->{Mut r} Option a
+  vec-remove v i =
+    let n = len-of v in
+    if i < to-nat n then
+      let w = fold-nat i in
+      let s = store-of v in
+      let x = slots-take s w in
+      let shifted = slots-move s w s (inc w) (wrapping-sub-u64 (dec n) w) in
+      let shrunk = set-len v (dec n) in
+      Some x
+    else None
+
+  -- Remove element `i` by moving the last element into its place: O(1),
+  -- and the order of the rest is not kept.
+  vec-swap-remove :: forall r a. Vec r a -> Nat ->{Mut r} Option a
+  vec-swap-remove v i =
+    let n = len-of v in
+    if i < to-nat n then
+      let w = fold-nat i in
+      let s = store-of v in
+      let last = dec n in
+      let x = slots-take s w in
+      let filled = if eq-u64 w last then () else slots-write s w (slots-take s last) in
+      let shrunk = set-len v last in
+      Some x
+    else None
+
+  -- Drop every element; the capacity stays.
+  vec-clear :: forall r a. Vec r a ->{Mut r} Unit
+  vec-clear v =
+    let n = len-of v in
+    let s = store-of v in
+    let cleared = slots-clear s 0 n in
+    set-len v 0
+
+  -- Keep the first `k` elements (all of them when `k` is at least the
+  -- length).
+  vec-truncate :: forall r a. Vec r a -> Nat ->{Mut r} Unit
+  vec-truncate v k =
+    let n = len-of v in
+    if k < to-nat n then
+      let w = fold-nat k in
+      let s = store-of v in
+      let cleared = slots-clear s w (wrapping-sub-u64 n w) in
+      set-len v w
+    else ()
+
+  -- ------------------------------------------------------------------
+  -- Lists and folds
+  -- ------------------------------------------------------------------
+
+  vec-from-list :: forall r a. List a ->{Mut r} Vec r a
+  vec-from-list xs =
+    let v = vec-new () in
+    let pushed = vec-push-all v xs in
+    v
+
+  vec-push-all :: forall r a. Vec r a -> List a ->{Mut r} Unit
+  vec-push-all v xs = case xs of
+    Nil -> ()
+    Cons x rest ->
+      let pushed = vec-push v x in
+      vec-push-all v rest
+
+  -- The elements in index order (built from the back, one cons each).
+  vec-to-list :: forall r a. Vec r a ->{Mut r} List a
+  vec-to-list v =
+    let s = store-of v in
+    list-down s (len-of v) Nil
+
+  list-down :: forall a. Array a -> U64 -> List a -> List a
+  list-down s i acc =
+    if eq-u64 i 0 then acc
+    else
+      let j = dec i in
+      list-down s j (Cons (slots-read s j) acc)
+
+  -- A left fold in index order over the elements present when it
+  -- starts. The callback is pure, so it cannot change the vector.
+  vec-fold :: forall r a b. (b -> a -> b) -> b -> Vec r a ->{Mut r} b
+  vec-fold f z v =
+    let s = store-of v in
+    fold-from f z s 0 (len-of v)
+
+  fold-from :: forall a b. (b -> a -> b) -> b -> Array a -> U64 -> U64 -> b
+  fold-from f z s i n =
+    if lt-u64 i n then fold-from f (f z (slots-read s i)) s (inc i) n else z
+
+  -- Run an action on each element in index order. The storage and the
+  -- length are re-read at every step, so an action that changes this
+  -- vector is memory-safe (it decides what is visited after it).
+  vec-for-each :: forall r a. Vec r a -> (a ->{Mut r} Unit) ->{Mut r} Unit
+  vec-for-each v act = each-from v act 0
+
+  each-from :: forall r a. Vec r a -> (a ->{Mut r} Unit) -> U64 ->{Mut r} Unit
+  each-from v act i =
+    if lt-u64 i (len-of v) then
+      let s = store-of v in
+      let x = slots-read s i in
+      let done = act x in
+      each-from v act (inc i)
+    else ()
+
+  -- Rewrite every element through `f`, moving each out and back.
+  vec-map-in-place :: forall r a. (a -> a) -> Vec r a ->{Mut r} Unit
+  vec-map-in-place f v =
+    let s = store-of v in
+    map-from f s 0 (len-of v)
+
+  map-from :: forall a. (a -> a) -> Array a -> U64 -> U64 -> Unit
+  map-from f s i n =
+    if lt-u64 i n then
+      let x = slots-take s i in
+      let written = slots-write s i (f x) in
+      map-from f s (inc i) n
+    else ()
+
+  vec-reverse :: forall r a. Vec r a ->{Mut r} Unit
+  vec-reverse v =
+    let n = len-of v in
+    if lt-u64 n 2 then ()
+    else
+      let s = store-of v in
+      reverse-range s 0 (dec n)
+
+  reverse-range :: forall a. Array a -> U64 -> U64 -> Unit
+  reverse-range s i j =
+    if lt-u64 i j then
+      let u = swap-slots s i j in
+      reverse-range s (inc i) (dec j)
+    else ()
+
+  -- ------------------------------------------------------------------
+  -- Arrays
+  -- ------------------------------------------------------------------
+
+  -- An immutable copy of the elements. The copy is a fresh block with
+  -- every slot written, so it is an ordinary `Array a` and no later
+  -- write to the vector reaches it.
+  vec-freeze :: forall r a. Vec r a ->{Mut r} Array a
+  vec-freeze v =
+    let n = len-of v in
+    let out = slots-new n in
+    let s = store-of v in
+    let copied = copy-into out s 0 n in
+    out
+
+  copy-into :: forall a. Array a -> Array a -> U64 -> U64 -> Unit
+  copy-into out s i n =
+    if lt-u64 i n then
+      let written = slots-write out i (slots-read s i) in
+      copy-into out s (inc i) n
+    else ()
+
+  vec-from-array :: forall r a. Array a ->{Mut r} Vec r a
+  vec-from-array a =
+    let n = slots-len a in
+    let v = vec-with-capacity (to-nat n) in
+    let s = store-of v in
+    let copied = copy-into s a 0 n in
+    let sized = set-len v n in
+    v
+
+  -- ------------------------------------------------------------------
+  -- Sorting: introsort over [lo, hi)
+  -- ------------------------------------------------------------------
+
+  vec-sort :: forall r a. using (o :: Ord a) => Vec r a ->{Mut r} Unit
+  vec-sort v = vec-sort-less (\x y -> x < y) v
+
+  vec-sort-by :: forall r a. (a -> a -> Ordering) -> Vec r a ->{Mut r} Unit
+  vec-sort-by cmp v = vec-sort-less (\x y -> is-lt (cmp x y)) v
+
+  is-lt :: Ordering -> Bool
+  is-lt o = case o of
+    LT -> True
+    _ -> False
+
+  vec-sort-less :: forall r a. (a -> a -> Bool) -> Vec r a ->{Mut r} Unit
+  vec-sort-less less v =
+    let n = len-of v in
+    let s = store-of v in
+    sort-range less s 0 n (depth-limit n 0)
+
+  -- 2 * floor(log2 n): the depth past which quicksort hands its range to
+  -- heapsort, so a hostile input still costs O(n log n).
+  depth-limit :: U64 -> U64 -> U64
+  depth-limit n acc = if lt-u64 n 2 then acc else depth-limit (wrapping-shr-u64 n 1) (wrapping-add-u64 acc 2)
+
+  sort-range :: forall a. (a -> a -> Bool) -> Array a -> U64 -> U64 -> U64 -> Unit
+  sort-range less s lo hi depth =
+    let n = wrapping-sub-u64 hi lo in
+    if le-u64 n 16 then insertion-sort less s lo (inc lo) hi
+    else if eq-u64 depth 0 then heap-sort less s lo hi
+    else
+      let p = partition less s lo hi in
+      -- Recurse into the smaller side and loop on the larger, so the
+      -- stack stays O(log n).
+      if lt-u64 (wrapping-sub-u64 p lo) (wrapping-sub-u64 hi p) then
+        let left = sort-range less s lo p (dec depth) in
+        sort-range less s (inc p) hi (dec depth)
+      else
+        let right = sort-range less s (inc p) hi (dec depth) in
+        sort-range less s lo p (dec depth)
+
+  -- Insert s[i] into the sorted run s[lo .. i), for i up to hi.
+  insertion-sort :: forall a. (a -> a -> Bool) -> Array a -> U64 -> U64 -> U64 -> Unit
+  insertion-sort less s lo i hi =
+    if lt-u64 i hi then
+      let x = slots-take s i in
+      let placed = sift-back less s lo i x in
+      insertion-sort less s lo (inc i) hi
+    else ()
+
+  -- The hole is at j; shift greater elements up until x fits.
+  sift-back :: forall a. (a -> a -> Bool) -> Array a -> U64 -> U64 -> a -> Unit
+  sift-back less s lo j x =
+    if lt-u64 lo j then
+      let prev = slots-read s (dec j) in
+      if less x prev then
+        let moved = slots-write s j (slots-take s (dec j)) in
+        sift-back less s lo (dec j) x
+      else slots-write s j x
+    else slots-write s j x
+
+  -- Median of three to s[lo] as the pivot, then a Hoare partition. The
+  -- result p has s[lo .. p) not greater than s[p] and s(p .. hi) not
+  -- less. Both scans are bounded explicitly, so the partition does not
+  -- rely on sentinels surviving the swaps.
+  partition :: forall a. (a -> a -> Bool) -> Array a -> U64 -> U64 -> U64
+  partition less s lo hi =
+    let mid = wrapping-add-u64 lo (wrapping-shr-u64 (wrapping-sub-u64 hi lo) 1) in
+    let last = dec hi in
+    let o1 = order2 less s lo mid in
+    let o2 = order2 less s mid last in
+    let o3 = order2 less s lo mid in
+    let pivot-in = swap-slots s lo mid in
+    let pivot = slots-read s lo in
+    let j = hoare less s pivot lo (inc lo) last in
+    let placed = swap-slots s lo j in
+    j
+
+  order2 :: forall a. (a -> a -> Bool) -> Array a -> U64 -> U64 -> Unit
+  order2 less s i j =
+    if less (slots-read s j) (slots-read s i) then swap-slots s i j else ()
+
+  hoare :: forall a. (a -> a -> Bool) -> Array a -> a -> U64 -> U64 -> U64 -> U64
+  hoare less s pivot lo i j =
+    let i2 = scan-up less s pivot i j in
+    let j2 = scan-down less s pivot lo j in
+    if lt-u64 i2 j2 then
+      let u = swap-slots s i2 j2 in
+      hoare less s pivot lo (inc i2) (dec j2)
+    else j2
+
+  scan-up :: forall a. (a -> a -> Bool) -> Array a -> a -> U64 -> U64 -> U64
+  scan-up less s pivot i bound =
+    if le-u64 i bound then
+      if less (slots-read s i) pivot then scan-up less s pivot (inc i) bound else i
+    else i
+
+  scan-down :: forall a. (a -> a -> Bool) -> Array a -> a -> U64 -> U64 -> U64
+  scan-down less s pivot lo j =
+    if lt-u64 lo j then
+      if less pivot (slots-read s j) then scan-down less s pivot lo (dec j) else j
+    else j
+
+  -- Heapsort of [lo, hi) as a max-heap over offsets from lo.
+  heap-sort :: forall a. (a -> a -> Bool) -> Array a -> U64 -> U64 -> Unit
+  heap-sort less s lo hi =
+    let n = wrapping-sub-u64 hi lo in
+    let built = heapify less s lo n (wrapping-shr-u64 n 1) in
+    pop-max less s lo n
+
+  heapify :: forall a. (a -> a -> Bool) -> Array a -> U64 -> U64 -> U64 -> Unit
+  heapify less s lo n i =
+    if eq-u64 i 0 then ()
+    else
+      let k = dec i in
+      let down = sift-down less s lo n k in
+      heapify less s lo n k
+
+  pop-max :: forall a. (a -> a -> Bool) -> Array a -> U64 -> U64 -> Unit
+  pop-max less s lo n =
+    if lt-u64 n 2 then ()
+    else
+      let last = dec n in
+      let u = swap-slots s lo (wrapping-add-u64 lo last) in
+      let down = sift-down less s lo last 0 in
+      pop-max less s lo last
+
+  sift-down :: forall a. (a -> a -> Bool) -> Array a -> U64 -> U64 -> U64 -> Unit
+  sift-down less s lo n i =
+    let l = inc (wrapping-add-u64 i i) in
+    if lt-u64 l n then
+      let r = inc l in
+      let big = if lt-u64 r n && less (slots-read s (wrapping-add-u64 lo l)) (slots-read s (wrapping-add-u64 lo r)) then r else l in
+      if less (slots-read s (wrapping-add-u64 lo i)) (slots-read s (wrapping-add-u64 lo big)) then
+        let u = swap-slots s (wrapping-add-u64 lo i) (wrapping-add-u64 lo big) in
+        sift-down less s lo n big
+      else ()
+    else ()
