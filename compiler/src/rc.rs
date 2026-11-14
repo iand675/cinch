@@ -772,13 +772,20 @@ fn insert_reuse_in_args(
 ///
 /// - an arm that allocates a compatible constructor writes into the kept
 ///   cell;
-/// - an arm that allocates nothing compatible leaves the token unread,
-///   which is sound because the release already freed the block on its
-///   unique path (or dupped and dropped it on the shared one), so there is
-///   nothing left for that path to leak.
+/// - an arm that allocates nothing compatible would leave the token
+///   unread, and that is a leak, not a free: on the unique path a release
+///   that binds a token KEEPS the cell for the reuse (the `Release` node's
+///   contract, `core.rs`), so an arm with no reuse never frees it. The
+///   expansion is therefore only applied when EVERY arm reuses; a branch
+///   with a non-reusing arm keeps the plain release, which frees the cell
+///   on its unique path. (A mixed branch could free the unread token in
+///   its other arms instead; that needs a token-freeing node Core does not
+///   have, and losing reuse in a mixed branch costs an allocation, while
+///   the kept cell cost the whole block.)
 ///
-/// `Some` only when at least one arm took a pair, because otherwise the
-/// release would bind a token that no path reads.
+/// `Some` only when every arm took a pair, because otherwise the release
+/// would bind a token some path never reads, and that path would keep the
+/// cell forever.
 fn branch_reuse(
     e: &Core,
     token: usize,
@@ -800,15 +807,16 @@ fn branch_reuse(
     match e {
         Core::Case { scrut, alts } if !alts.is_empty() => {
             let mut bodies = Vec::with_capacity(alts.len());
-            let mut any = false;
+            let mut every = true;
             for a in alts {
                 let (body, reused) = arm(&a.body);
-                any |= reused;
+                every &= reused;
                 bodies.push(body);
             }
-            // Nothing to gain: a token no arm reads is a slot no path
-            // uses, and the release is the same either way.
-            if !any {
+            // A token some arm does not read keeps the cell on that path
+            // with nothing to free it: only a branch whose every arm
+            // reuses binds one.
+            if !every {
                 return None;
             }
             let mut bodies = bodies.into_iter();
@@ -825,7 +833,7 @@ fn branch_reuse(
         Core::If(c, t, f) => {
             let (then, then_reused) = arm(&t.body);
             let (otherwise, else_reused) = arm(&f.body);
-            if !then_reused && !else_reused {
+            if !(then_reused && else_reused) {
                 return None;
             }
             Some(Core::If(
