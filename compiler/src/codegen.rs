@@ -9554,6 +9554,12 @@ mod tests {
             // checked user units rather than shipping the embedded prelude.
             p.fns.retain(|f| f.id.0.starts_with("Library.") || (f.id.0.starts_with("<builtin>.") && f.ctor.is_some()));
             p.instances.retain(|i| i.id.0.starts_with("Library."));
+            // The object holds the library's own units, so the foreign
+            // contracts of the modules trimmed above go too, as the driver's
+            // object path drops an unselected backend's (`driver.rs`): left
+            // in, every prelude wrapper is emitted, the Darwin syscall
+            // backend's `__error` among them, and a Linux link fails.
+            p.foreigns.retain(|unit, _| unit.starts_with("Library."));
             let p = crate::rc::insert(p, &profile).unwrap();
             let object = emit_object_for(&profile, &p).unwrap();
             assert!(!object.ir.contains("define i32 @main("));
