@@ -347,17 +347,21 @@ impl Tables {
             if is_lambda_unit(&f.id.0) && f.prim.is_none() && f.ctor.is_none() {
                 tables.lambdas.insert(f.id.0.clone(), (f.repr.params.clone(), f.body.clone()));
             }
+            if let Some((tag, fields)) = f.ctor {
+                tables.ctors.insert(f.id.0.clone(), (tag, fields));
+            }
+        }
+        // Static records close their lambdas, which reads every unit's arity:
+        // a second pass, once the table is complete.
+        for f in &program.fns {
             if f.params.is_empty() && f.prim.is_none() && f.ctor.is_none() && !f.meta.prim_body {
                 if let Core::App(head, args) = &f.body {
                     if matches!(&**head, Core::Ctor(..)) && args.iter().all(static_field) {
                         let mut record = f.body.clone();
-                        close_lambdas(&mut record);
+                        close_lambdas(&mut record, &tables.arity);
                         tables.static_records.insert(f.id.0.clone(), record);
                     }
                 }
-            }
-            if let Some((tag, fields)) = f.ctor {
-                tables.ctors.insert(f.id.0.clone(), (tag, fields));
             }
         }
         for inst in &program.instances {
@@ -895,7 +899,7 @@ fn pass(
             Some(Rule::DirectDictCall)
         } else if known_closure_call(e, scope, tables) {
             Some(Rule::KnownClosureCall)
-        } else if closed_lambda(e) {
+        } else if closed_lambda(e, &tables.arity) {
             Some(Rule::KnownClosureCall)
         } else if opts.saturate_partial && saturate_partial(e, occ, tables) {
             Some(Rule::SaturatePartial)
@@ -2191,21 +2195,25 @@ fn static_record_of(e: &Core, tables: &Tables) -> Option<Core> {
 /// as a value, `lam f []` is `f`. Code generation gives that a static
 /// closure, so the allocation goes, and a record built of such closures is
 /// a record of values, which `known-constructor` folds.
-fn closed_lambda(e: &mut Core) -> bool {
+fn closed_lambda(e: &mut Core, arity: &HashMap<String, usize>) -> bool {
     let Core::Lam { fn_id, env, classes } = &*e else { return false };
-    if !env.is_empty() {
+    // A unit reference names the function value only for a unit that takes
+    // a parameter: a zero-arity unit's reference *is* its evaluation, so a
+    // closure whose every parameter is erased (`I64 %0 -> Int`) stays a
+    // closure, applied later with no words.
+    if !env.is_empty() || !arity.get(&fn_id.0).is_some_and(|n| *n > 0) {
         return false;
     }
     *e = Core::Global(fn_id.clone(), classes.clone());
     true
 }
 
-fn close_lambdas(e: &mut Core) {
-    if closed_lambda(e) {
+fn close_lambdas(e: &mut Core, arity: &HashMap<String, usize>) {
+    if closed_lambda(e, arity) {
         return;
     }
     if let Core::App(_, args) = e {
-        for a in args { close_lambdas(a); }
+        for a in args { close_lambdas(a, arity); }
     }
 }
 
