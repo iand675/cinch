@@ -12,15 +12,13 @@
 //! [`crate::heap::free_block`] (the small-object heap of [`crate::small`]
 //! for every block of up to 256 bytes, the system allocator above that).
 //!
-//! A constructor block's `layout` is its layout id (the tag is in it, see
-//! `block_kinds.rs`), and a closure's or a dictionary's is its shape's
-//! table index. The program's layout table, which generated code hands
-//! over through [`register_layouts`] before any of its code runs, gives
-//! each id or shape its payload size and pointer map ([`Scan`]). Every
-//! other kind's `layout` is its payload size in words. Either value, when
-//! it does not fit the field, goes in one extra word before the header: a
-//! payload of [`LAYOUT_BIG`] words or more keeps its byte size there, an
-//! escaped descriptor itself.
+//! A shaped block (a constructor, closure or dictionary) describes
+//! itself (design/self-describing-blocks.md): its header's layout field is
+//! its tag and the counted mask of its fields, or, when they do not fit,
+//! the escape tag with a pointer to a static descriptor in the word before
+//! the header. There is no layout table. Every other kind's `layout` is its
+//! payload size in words, with [`LAYOUT_BIG`] putting the byte size in the
+//! extra word instead.
 //!
 //! A word with low bit 1 is an immediate, never a block: nothing here may
 //! be handed one.
@@ -85,45 +83,17 @@ pub const fn kind(h: u64) -> u8 {
 
 /// The layout field.
 #[inline]
-pub const fn layout(h: u64) -> u16 {
+pub const fn layout(h: u64) -> u32 {
     header_layout(h)
 }
 
-/// The program's layout table (`@__cinch_layouts`): one entry per layout
-/// id or shape index, giving its payload size and pointer map, followed
-/// by the map extensions of the wide entries. Null until registered.
-static LAYOUTS: std::sync::atomic::AtomicPtr<u64> = std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
-static LAYOUTS_LEN: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-
-/// Install the program's layout table of `len` words. The table is
-/// read-only data that outlives every block, so a pointer suffices.
-///
-/// # Safety
-///
-/// `table` points to `len` readable words that stay valid for the rest
-/// of the process.
-pub unsafe fn register_layouts(table: *const u64, len: usize) {
-    use std::sync::atomic::Ordering::Release;
-    LAYOUTS_LEN.store(0, Release);
-    LAYOUTS.store(table.cast_mut(), Release);
-    LAYOUTS_LEN.store(len, Release);
-}
-
-/// The registered table as a slice (empty before registration).
-pub(crate) fn layout_table() -> &'static [u64] {
-    use std::sync::atomic::Ordering::Acquire;
-    let len = LAYOUTS_LEN.load(Acquire);
-    let table = LAYOUTS.load(Acquire);
-    if table.is_null() {
-        return &[];
-    }
-    unsafe { std::slice::from_raw_parts(table, len) }
-}
-
-/// Layout table entry `index`, or `None` when no table holds it.
-fn layout_entry_at(index: u64) -> Option<u64> {
-    layout_table().get(usize::try_from(index).ok()?).copied()
-}
+/// Payload sizes of the shaped blocks the small-object heap could not hold
+/// (its address range used up, or a thread past its teardown), by payload
+/// address. An inline shaped block's size is not in its header, and a block
+/// of the system allocator is freed with its size; this rare path is the
+/// one that needs it recorded.
+static FALLBACK_SIZES: std::sync::LazyLock<std::sync::Mutex<std::collections::HashMap<usize, usize>>> =
+    std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::HashMap::new()));
 
 /// The rounded payload size of a `size`-byte request: whole words,
 /// minimum one, so every block keeps the 8-byte alignment the immediate
@@ -201,27 +171,54 @@ pub unsafe fn allocate(size: usize, kind: u8, rc: i64, zeroed: bool) -> *mut u8 
     let (field, ext) = if words >= LAYOUT_BIG as usize {
         (LAYOUT_BIG, Some(payload as u64))
     } else {
-        (words as u16, None)
+        (words as u32, None)
     };
     unsafe { allocate_block(payload, header(rc, kind, field), ext, rc == RC_IMMORTAL, zeroed) }
 }
 
 /// Allocate a fresh block of a shaped kind (`kind_has_shape`) with `size`
-/// payload bytes whose descriptor is `desc` (a layout id or shape index,
-/// or an escaped descriptor that goes in the extra word). Returns the
-/// payload pointer.
+/// payload bytes whose layout field is `field` (its tag and counted mask,
+/// [`shape_field`]). Returns the payload pointer.
 ///
 /// # Safety
 ///
-/// As for [`allocate`]; `desc`'s layout table entry describes this
-/// payload.
-pub unsafe fn allocate_shaped(size: usize, kind: u8, desc: u64, zeroed: bool) -> *mut u8 {
+/// As for [`allocate`]; `field` describes this payload, and a constructor
+/// or dictionary of more than [`SHAPED_SMALL_WORDS`] payload words is
+/// escaped instead ([`allocate_shaped_desc`]).
+pub unsafe fn allocate_shaped(size: usize, kind: u8, field: u32, zeroed: bool) -> *mut u8 {
     let Some(payload) = round_payload(size) else {
         crate::heap::request_too_large(size);
     };
-    let field = ctor_layout_field(desc);
-    let ext = (field == LAYOUT_BIG).then_some(desc);
-    unsafe { allocate_block(payload, header(RC_FRESH, kind, field), ext, false, zeroed) }
+    if shape_escaped(field) {
+        crate::abi::panic_exit(b"compiler bug: an escaped shaped block allocated without its descriptor");
+    }
+    let p = unsafe { allocate_block(payload, header(RC_FRESH, kind, field), None, false, zeroed) };
+    // A closure's size is its prefix and filled count; a constructor's or a
+    // dictionary's is the small heap's to know, and one the system holds
+    // instead is recorded for its free.
+    // An arena's blocks are immortal and freed with their chunk, so only a
+    // mortal block of the system allocator needs the record.
+    if kind != KIND_CLOSURE
+        && !crate::small::owns(unsafe { p.sub(HEADER_BYTES) })
+        && rc(unsafe { read_header(p) }) != RC_IMMORTAL
+    {
+        FALLBACK_SIZES.lock().unwrap_or_else(|e| e.into_inner()).insert(p as usize, payload);
+    }
+    p
+}
+
+/// [`allocate_shaped`] of an escaped block: its layout field is the escape
+/// tag and the word before its header points to `desc`, a static
+/// descriptor (`DESC_*`) that outlives the block.
+///
+/// # Safety
+///
+/// As for [`allocate`]; `desc` describes this payload.
+pub unsafe fn allocate_shaped_desc(size: usize, kind: u8, desc: *const u64, zeroed: bool) -> *mut u8 {
+    let Some(payload) = round_payload(size) else {
+        crate::heap::request_too_large(size);
+    };
+    unsafe { allocate_block(payload, header(RC_FRESH, kind, ESCAPED_FIELD), Some(desc as u64), false, zeroed) }
 }
 
 /// Allocate a fresh constructor block: [`allocate_shaped`] of `KIND_CTOR`.
@@ -229,8 +226,54 @@ pub unsafe fn allocate_shaped(size: usize, kind: u8, desc: u64, zeroed: bool) ->
 /// # Safety
 ///
 /// As for [`allocate_shaped`].
-pub unsafe fn allocate_ctor(size: usize, desc: u64, zeroed: bool) -> *mut u8 {
-    unsafe { allocate_shaped(size, KIND_CTOR, desc, zeroed) }
+pub unsafe fn allocate_ctor(size: usize, field: u32, zeroed: bool) -> *mut u8 {
+    unsafe { allocate_shaped(size, KIND_CTOR, field, zeroed) }
+}
+
+/// Allocate an escaped constructor block: [`allocate_shaped_desc`] of
+/// `KIND_CTOR`.
+///
+/// # Safety
+///
+/// As for [`allocate_shaped_desc`].
+pub unsafe fn allocate_ctor_desc(size: usize, desc: *const u64, zeroed: bool) -> *mut u8 {
+    unsafe { allocate_shaped_desc(size, KIND_CTOR, desc, zeroed) }
+}
+
+/// A static descriptor for a block of `words` payload words of tag `tag`
+/// whose counted payload words are the low bits of `mask`, interned so one
+/// description has one descriptor for the life of the process. A block
+/// whose tag arrives at run time is the only one code generation cannot
+/// describe ahead of time.
+pub fn interned_descriptor(tag: u64, words: u64, mask: u64) -> *const u64 {
+    static INTERNED: std::sync::LazyLock<std::sync::Mutex<std::collections::HashMap<(u64, u64, u64), usize>>> =
+        std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::HashMap::new()));
+    let mut table = INTERNED.lock().unwrap_or_else(|e| e.into_inner());
+    let at = *table.entry((tag, words, mask)).or_insert_with(|| {
+        let mut d = vec![0u64; desc_words(words) as usize];
+        d[DESC_TAG_WORD] = tag;
+        d[DESC_WORDS_WORD] = words;
+        if words > 0 {
+            d[DESC_MASK_WORD] = if words >= 64 { mask } else { mask & ((1u64 << words) - 1) };
+        }
+        Box::leak(d.into_boxed_slice()).as_ptr() as usize
+    });
+    at as *const u64
+}
+
+/// Allocate a shaped block from a description word ([`inline_description`]
+/// or a static descriptor's address).
+///
+/// # Safety
+///
+/// As for [`allocate_shaped`] or [`allocate_shaped_desc`], whichever the
+/// word names.
+pub unsafe fn allocate_described(size: usize, kind: u8, description: u64, zeroed: bool) -> *mut u8 {
+    if description & 1 == 1 {
+        unsafe { allocate_shaped(size, kind, (description >> 1) as u32, zeroed) }
+    } else {
+        unsafe { allocate_shaped_desc(size, kind, description as usize as *const u64, zeroed) }
+    }
 }
 
 /// Move `value` into a fresh header block of `kind` and count `rc`, the
@@ -251,6 +294,20 @@ unsafe fn ext_word(p: *const u8) -> u64 {
     unsafe { p.cast::<u64>().sub(2).read() }
 }
 
+/// The static descriptor of the escaped shaped block at `p`.
+///
+/// # Safety
+///
+/// `p` is the payload pointer of an escaped shaped block (heap or static).
+unsafe fn descriptor(p: *const u8) -> &'static [u64] {
+    let d = unsafe { ext_word(p) } as usize as *const u64;
+    if d.is_null() || d as usize % 8 != 0 {
+        crate::abi::panic_exit(b"compiler bug: escaped block with no descriptor");
+    }
+    let words = unsafe { d.add(DESC_WORDS_WORD).read() };
+    unsafe { std::slice::from_raw_parts(d, desc_words(words) as usize) }
+}
+
 /// The constructor tag of the constructor block at `p`.
 ///
 /// # Safety
@@ -258,40 +315,27 @@ unsafe fn ext_word(p: *const u8) -> u64 {
 /// `p` must be the payload pointer of a constructor block (heap or static).
 pub unsafe fn ctor_tag_of(p: *const u8) -> u64 {
     let l = layout(unsafe { read_header(p) });
-    let ext = if l == LAYOUT_BIG { unsafe { ext_word(p) } } else { 0 };
-    ctor_tag(l, ext)
-}
-
-/// The layout table entry of the shaped block at `p` whose header is `h`.
-///
-/// # Safety
-///
-/// `p` is the payload pointer of a header block of a shaped kind.
-unsafe fn shape_entry(p: *const u8, h: u64) -> Option<u64> {
-    let l = layout(h);
-    let ext = if l == LAYOUT_BIG { unsafe { ext_word(p) } } else { 0 };
-    layout_entry_at(ctor_index(l, ext))
-}
-
-/// The payload words of the shaped block at `p`: a closure's prefix and
-/// filled count, every other shaped kind's table entry (at least one
-/// word, as allocated).
-///
-/// # Safety
-///
-/// As for [`shape_entry`].
-unsafe fn shaped_words(p: *const u8, h: u64, entry: u64) -> usize {
-    if kind(h) == KIND_CLOSURE {
-        let filled = unsafe { p.cast::<u64>().add(CLOSURE_FILLED_WORD as usize).read() };
-        (CLOSURE_PREFIX_WORDS as usize).saturating_add(filled as usize)
+    if shape_escaped(l) {
+        (unsafe { descriptor(p) })[DESC_TAG_WORD]
     } else {
-        (layout_entry_words(entry) as usize).max(1)
+        shape_field_tag(l)
     }
 }
 
+/// The payload words of the closure at `p`: its prefix and filled count.
+///
+/// # Safety
+///
+/// `p` is the payload pointer of a closure block.
+unsafe fn closure_words(p: *const u8) -> usize {
+    let filled = unsafe { p.cast::<u64>().add(CLOSURE_FILLED_WORD as usize).read() };
+    (CLOSURE_PREFIX_WORDS as usize).saturating_add(filled as usize)
+}
+
 /// The payload size in bytes of the heap block at `p` whose header is
-/// `h`, and whether its prefix holds the extra word. `None` for a shaped
-/// block whose layout no registered table records.
+/// `h`, and whether its prefix holds the extra word. `None` for an inline
+/// constructor or dictionary that neither the small heap nor the fallback
+/// record holds (a static or arena block, which nothing frees).
 ///
 /// # Safety
 ///
@@ -299,13 +343,41 @@ unsafe fn shaped_words(p: *const u8, h: u64, entry: u64) -> usize {
 /// `h`.
 pub unsafe fn payload_bytes(p: *const u8, h: u64) -> Option<(usize, bool)> {
     let l = layout(h);
-    let big = l == LAYOUT_BIG;
-    if kind_has_shape(kind(h)) {
-        let entry = unsafe { shape_entry(p, h) }?;
-        return Some((unsafe { shaped_words(p, h, entry) }.checked_mul(8)?, big));
+    let k = kind(h);
+    if kind_has_shape(k) {
+        let escaped = shape_escaped(l);
+        if k == KIND_CLOSURE {
+            return Some((unsafe { closure_words(p) }.checked_mul(8)?, escaped));
+        }
+        if escaped {
+            let words = unsafe { descriptor(p) }[DESC_WORDS_WORD] as usize;
+            return Some((words.max(1).checked_mul(8)?, true));
+        }
+        let base = unsafe { p.sub(HEADER_BYTES) };
+        if crate::small::owns(base) {
+            return Some((unsafe { crate::small::block_size(base) } - HEADER_BYTES, false));
+        }
+        let recorded = FALLBACK_SIZES.lock().unwrap_or_else(|e| e.into_inner()).get(&(p as usize)).copied();
+        return recorded.map(|bytes| (bytes, false));
     }
+    let big = l == LAYOUT_BIG;
     let ext = if big { unsafe { ext_word(p) } } else { 0 };
     Some((if big { ext as usize } else { l as usize * 8 }, big))
+}
+
+/// The scan codes of the low 32 bits of `mask`, one bit per word: every set
+/// bit `i` becomes code [`SCAN_TOBJ`] at slot `i`.
+#[inline(always)]
+const fn counted_codes(mask: u64) -> u64 {
+    // Spread the 32 low bits to the even bit positions, then move each to
+    // its slot's high bit (`SCAN_TOBJ` is 2).
+    let mut x = mask & 0xFFFF_FFFF;
+    x = (x | (x << 16)) & 0x0000_FFFF_0000_FFFF;
+    x = (x | (x << 8)) & 0x00FF_00FF_00FF_00FF;
+    x = (x | (x << 4)) & 0x0F0F_0F0F_0F0F_0F0F;
+    x = (x | (x << 2)) & 0x3333_3333_3333_3333;
+    x = (x | (x << 1)) & 0x5555_5555_5555_5555;
+    x << 1
 }
 
 /// How the drop machinery reads one block's payload: how many words it
@@ -320,9 +392,9 @@ pub unsafe fn payload_bytes(p: *const u8, h: u64) -> Option<(usize, bool)> {
 pub struct Scan {
     words: usize,
     kind: u8,
-    /// A shaped block's table entry, an array's element format, or zero.
+    /// An array's element format, or zero.
     entry: u64,
-    /// A wide entry's extension words.
+    /// A wide escaped block's counted mask, one bit per payload word.
     ext: &'static [u64],
     /// The codes of the payload words below `words`, `SCAN_BITS` each,
     /// when `inline`.
@@ -346,57 +418,53 @@ const _: () = assert!(SCAN_BITS == 2 && SCAN_TOBJ == 2 && SCAN_CODE_MASK == 3);
 
 impl Scan {
     /// The scan of the live heap or static block at `p` whose header is
-    /// `h`. A shaped block whose layout the table does not record, a
-    /// closure filled past its shape, an invalid pointer map code or a
-    /// truncated extension is a compiler bug and traps.
+    /// `h`. A closure filled past its description, an invalid pointer map
+    /// code or a malformed descriptor is a compiler bug and traps.
     ///
     /// # Safety
     ///
     /// `p` is the payload pointer of a header block whose header is `h`.
-    #[inline]
-    pub unsafe fn of(p: *const u8, h: u64) -> Scan {
-        unsafe { Scan::with(p, h, layout_table()) }
-    }
-
-    /// [`Scan::of`] against `table`, the registered layout table, which a
-    /// walk visiting many blocks reads once.
-    ///
-    /// # Safety
-    ///
-    /// As for [`Scan::of`]; `table` is [`layout_table`]'s answer.
     #[inline(always)]
-    pub(crate) unsafe fn with(p: *const u8, h: u64, table: &'static [u64]) -> Scan {
+    pub unsafe fn of(p: *const u8, h: u64) -> Scan {
         let k = kind(h);
         if !kind_has_shape(k) {
             return unsafe { Scan::fixed(p, h, k) };
         }
         let l = layout(h);
-        let ext = if l == LAYOUT_BIG { unsafe { ext_word(p) } } else { 0 };
-        let Some(&entry) = usize::try_from(ctor_index(l, ext)).ok().and_then(|i| table.get(i)) else {
-            crate::abi::panic_exit(b"compiler bug: shaped block with no registered layout");
-        };
-        let mapped = layout_entry_words(entry) as usize;
-        // A constructor or dictionary is scanned over its mapped words: a
-        // zero-field constructor's one allocated word holds nothing.
+        let prefix = shape_prefix_words(k) as usize;
+        if !shape_escaped(l) {
+            // The fields' mask, moved past the kind's prefix: a constructor
+            // is scanned up to its last counted field, a closure up to its
+            // filled count.
+            let mut mask = shape_field_mask(l) << prefix;
+            let words = if k == KIND_CLOSURE {
+                let words = unsafe { closure_words(p) };
+                if words < 64 {
+                    mask &= (1u64 << words) - 1;
+                }
+                words
+            } else {
+                64 - mask.leading_zeros() as usize
+            };
+            return Scan { words, kind: k, entry: 0, ext: &[], map: counted_codes(mask), inline: true };
+        }
+        let desc = unsafe { descriptor(p) };
+        let described = desc[DESC_WORDS_WORD] as usize;
         let words = if k == KIND_CLOSURE {
-            let words = unsafe { shaped_words(p, h, entry) };
-            if words > mapped {
-                crate::abi::panic_exit(b"compiler bug: closure filled past its shape");
+            let words = unsafe { closure_words(p) };
+            if words > described {
+                crate::abi::panic_exit(b"compiler bug: closure filled past its description");
             }
             words
         } else {
-            mapped
+            described
         };
-        if layout_entry_inline(entry) {
-            let map = layout_entry_map(entry) & slots_below(words);
-            return Scan::mapped(words, k, entry, map);
+        let mask = &desc[DESC_MASK_WORD..];
+        if words <= 32 {
+            let low = mask.first().copied().unwrap_or(0) & if words == 32 { u32::MAX as u64 } else { (1u64 << words) - 1 };
+            return Scan { words, kind: k, entry: 0, ext: &[], map: counted_codes(low), inline: true };
         }
-        let start = layout_entry_map(entry) as usize;
-        let n = scan_ext_len(mapped as u64) as usize;
-        let Some(ext) = start.checked_add(n).and_then(|end| table.get(start..end)) else {
-            crate::abi::panic_exit(b"compiler bug: layout map extension out of range");
-        };
-        Scan { words, kind: k, entry, ext, map: 0, inline: false }
+        Scan { words, kind: k, entry: 0, ext: mask, map: 0, inline: false }
     }
 
     /// The scan of a block whose kind fixes its map.
@@ -452,8 +520,10 @@ impl Scan {
             if slot >= 2 && self.entry <= SCAN_TOBJ { self.entry } else { SCAN_RAW }
         } else if !kind_has_shape(self.kind) {
             fixed_scan_code(self.kind, slot)
+        } else if (self.ext[(slot / 64) as usize] >> (slot % 64)) & 1 == 1 {
+            SCAN_TOBJ
         } else {
-            scan_code_at(self.ext[(slot / SCAN_EXT_WORDS) as usize], slot % SCAN_EXT_WORDS)
+            SCAN_RAW
         };
         if code > SCAN_TOBJ {
             crate::abi::panic_exit(b"compiler bug: invalid pointer map code");
@@ -536,7 +606,7 @@ pub(crate) unsafe fn free_in(p: *mut u8, h: u64, debug: bool, local: Option<&cra
             crate::abi::panic_exit(b"compiler bug: a stack frame block reached the free path");
         }
         let Some((payload, _)) = (unsafe { payload_bytes(p, h) }) else {
-            crate::abi::panic_exit(b"compiler bug: shaped block with no registered layout");
+            crate::abi::panic_exit(b"compiler bug: a shaped block of unknown size reached the free path");
         };
         let words = p.cast::<u64>();
         for i in 0..payload / 8 {
@@ -547,13 +617,17 @@ pub(crate) unsafe fn free_in(p: *mut u8, h: u64, debug: bool, local: Option<&cra
         return;
     }
     // The escape word, when there is one, is where the allocation starts.
-    let prefix = if layout(h) == LAYOUT_BIG { 2 * HEADER_BYTES } else { HEADER_BYTES };
+    let escaped = if kind_has_shape(kind(h)) { shape_escaped(layout(h)) } else { layout(h) == LAYOUT_BIG };
+    let prefix = if escaped { 2 * HEADER_BYTES } else { HEADER_BYTES };
     let base = unsafe { p.sub(prefix) };
     unsafe {
         crate::heap::free_block(local, base, || {
             let Some((payload, ext)) = payload_bytes(p, h) else {
-                crate::abi::panic_exit(b"compiler bug: shaped block with no registered layout");
+                crate::abi::panic_exit(b"compiler bug: a shaped block of unknown size reached the free path");
             };
+            if kind_has_shape(kind(h)) && !ext && kind(h) != KIND_CLOSURE {
+                FALLBACK_SIZES.lock().unwrap_or_else(|e| e.into_inner()).remove(&(p as usize));
+            }
             match plan(payload, ext) {
                 Some(layout) => layout,
                 None => crate::abi::panic_exit(b"compiler bug: block header corrupt"),
@@ -562,47 +636,12 @@ pub(crate) unsafe fn free_in(p: *mut u8, h: u64, debug: bool, local: Option<&cra
     }
 }
 
-/// A layout table for the unit tests. Entry `i < 200` records `i % 7`
-/// unscanned payload words; the entries of [`test_shapes`] carry pointer
-/// maps. Every test that needs a table installs this one, once, so tests
-/// running side by side never see a registration in progress.
+/// Kept for the tests' call sites: there is no table to install any more.
 #[cfg(test)]
-pub(crate) fn install_test_layouts() -> fn(u64) -> usize {
-    use test_shapes::*;
-    static TABLE: [u64; TABLE_LEN] = {
-        let mut t = [0u64; TABLE_LEN];
-        let mut i = 0;
-        while i < 200 {
-            t[i] = layout_entry(i as u64 % 7, 0);
-            i += 1;
-        }
-        let mut s = 0;
-        while s < SHAPES.len() {
-            let (index, codes) = SHAPES[s];
-            let mut map = 0;
-            let mut j = 0;
-            while j < codes.len() {
-                map |= scan_slot(codes[j], j as u64);
-                j += 1;
-            }
-            t[index as usize] = layout_entry(codes.len() as u64, map);
-            s += 1;
-        }
-        // The wide shape's map lives in its extension words.
-        t[WIDE as usize] = layout_entry(WIDE_WORDS, WIDE_EXT);
-        let mut w = 0;
-        while w < WIDE_WORDS {
-            t[(WIDE_EXT + w / SCAN_EXT_WORDS) as usize] |= scan_slot(wide_code(w), w % SCAN_EXT_WORDS);
-            w += 1;
-        }
-        t
-    };
-    static ONCE: std::sync::Once = std::sync::Once::new();
-    ONCE.call_once(|| unsafe { register_layouts(TABLE.as_ptr(), TABLE.len()) });
-    |index| index as usize % 7
-}
+pub(crate) fn install_test_layouts() {}
 
-/// The pointer-mapped entries of the unit tests' layout table.
+/// The shapes of the unit tests, as description words
+/// ([`inline_description`], or a static descriptor's address).
 #[cfg(test)]
 pub(crate) mod test_shapes {
     use super::*;
@@ -611,26 +650,27 @@ pub(crate) mod test_shapes {
     const O: u64 = SCAN_OBJ;
     const T: u64 = SCAN_TOBJ;
 
-    /// `Cons` over a `TObj` head.
-    pub const CONS_T: u64 = 200;
-    /// `Cons` over an `Obj` head.
-    pub const CONS_O: u64 = 201;
+    /// `Cons` (tag 1) over a `TObj` head.
+    pub const CONS_T: u64 = inline_description(shape_field(1, 0b11));
+    /// `Cons` (tag 1) over an `Obj` head.
+    pub const CONS_O: u64 = inline_description(shape_field(1, 0b11));
     /// `{ raw; obj }`.
-    pub const PAIR_RO: u64 = 202;
+    pub const PAIR_RO: u64 = inline_description(shape_field(0, 0b10));
     /// A zero-field constructor.
-    pub const NIL: u64 = 203;
+    pub const NIL: u64 = inline_description(shape_field(0, 0));
     /// Four counted fields, for the visiting order.
-    pub const QUAD: u64 = 204;
-    /// A closure shape over `(Obj, TObj, Raw)` parameters.
-    pub const CLOSURE_OTR: u64 = 205;
+    pub const QUAD: u64 = inline_description(shape_field(0, 0b1111));
+    /// A closure over `(Obj, TObj, Raw)` parameters.
+    pub const CLOSURE_OTR: u64 = inline_description(shape_field(0, 0b011));
     /// A dictionary `{ count; closure method; value method }`.
-    pub const DICT_OR: u64 = 206;
-    /// A 40-word constructor whose map needs an extension.
-    pub const WIDE: u64 = 207;
+    pub const DICT_OR: u64 = inline_description(shape_field(0, 0b01));
+    /// A 40-word constructor, escaped to its descriptor.
     pub const WIDE_WORDS: u64 = 40;
-    /// Where the wide shape's extension starts.
-    pub const WIDE_EXT: u64 = 250;
-    pub const TABLE_LEN: usize = (WIDE_EXT + scan_ext_len(WIDE_WORDS)) as usize;
+
+    /// The header layout field of a test shape's description word.
+    pub const fn field_of(description: u64) -> u32 {
+        (description >> 1) as u32
+    }
 
     /// The wide shape's code of word `w`: `Obj`, `TObj`, `Raw` in turn.
     pub const fn wide_code(w: u64) -> u64 {
@@ -641,15 +681,24 @@ pub(crate) mod test_shapes {
         }
     }
 
-    pub(super) const SHAPES: [(u64, &[u64]); 7] = [
-        (CONS_T, &[T, O]),
-        (CONS_O, &[O, O]),
-        (PAIR_RO, &[R, O]),
-        (NIL, &[]),
-        (QUAD, &[O, O, O, O]),
-        (CLOSURE_OTR, &[R, R, R, O, T, R]),
-        (DICT_OR, &[R, O, R]),
-    ];
+    static WIDE_DESC: [u64; desc_words(WIDE_WORDS) as usize] = {
+        let mut d = [0u64; desc_words(WIDE_WORDS) as usize];
+        d[DESC_TAG_WORD] = 0;
+        d[DESC_WORDS_WORD] = WIDE_WORDS;
+        let mut w = 0;
+        while w < WIDE_WORDS {
+            if wide_code(w) != R {
+                d[DESC_MASK_WORD + (w / 64) as usize] |= 1 << (w % 64);
+            }
+            w += 1;
+        }
+        d
+    };
+
+    /// The wide shape's description word: its descriptor's address.
+    pub fn wide() -> u64 {
+        WIDE_DESC.as_ptr() as usize as u64
+    }
 }
 
 #[cfg(test)]
@@ -658,14 +707,14 @@ mod tests {
 
     #[test]
     fn header_fields_round_trip_at_their_extremes() {
-        let h = header(-5, KIND_CLOSURE, 0x1234);
-        assert_eq!((rc(h), kind(h), layout(h)), (-5, KIND_CLOSURE, 0x1234));
+        let h = header(-5, KIND_CLOSURE, 0x12_3456);
+        assert_eq!((rc(h), kind(h), layout(h)), (-5, KIND_CLOSURE, 0x12_3456));
         // The full count range survives, and no field bleeds into its
         // neighbours.
-        assert_eq!(RC_MAX, (1i64 << 39) - 1);
+        assert_eq!(RC_MAX, (1i64 << 34) - 1);
         for rcv in [0, 1, -1, RC_MAX, RC_MIN] {
-            let h = header(rcv, KIND_FREED, u16::MAX);
-            assert_eq!((rc(h), kind(h), layout(h)), (rcv, KIND_FREED, u16::MAX));
+            let h = header(rcv, KIND_FREED, LAYOUT_BIG);
+            assert_eq!((rc(h), kind(h), layout(h)), (rcv, KIND_FREED, LAYOUT_BIG));
             let h = header(rcv, KIND_NONE, 0);
             assert_eq!((rc(h), kind(h), layout(h)), (rcv, KIND_NONE, 0));
         }
@@ -679,15 +728,15 @@ mod tests {
             (0usize, 8usize),
             (1, 8),
             (24, 24),
-            (8 * 0xFFFE, 8 * 0xFFFE),
             (8 * 0xFFFF, 8 * 0xFFFF),
+            (8 * 0x10000, 8 * 0x10000),
             (1 << 20, 1 << 20),
         ] {
             let p = unsafe { allocate(size, KIND_RAW, RC_FRESH, true) };
             assert_eq!(p as usize % 8, 0);
             let h = unsafe { read_header(p) };
             assert_eq!((rc(h), kind(h)), (RC_FRESH, KIND_RAW));
-            let big = want / 8 >= 0xFFFF;
+            let big = want / 8 >= LAYOUT_BIG as usize;
             assert_eq!(unsafe { payload_bytes(p, h) }, Some((want, big)), "size {size}");
             assert_eq!(layout(h) == LAYOUT_BIG, big);
             // The whole payload is usable, including its last byte.
@@ -697,51 +746,50 @@ mod tests {
     }
 
     #[test]
-    fn layout_ids_carry_the_tag_at_every_group() {
-        assert_eq!(CTOR_GROUPS, 1023);
-        for group in [0, 1, 17, CTOR_GROUPS - 1] {
-            for tag in [0, 1, CTOR_TAG_MASK] {
-                let id = ctor_id(group, tag);
-                assert!(id < LAYOUT_BIG as u64);
-                let field = ctor_layout_field(id);
-                assert_eq!(field as u64, id);
-                assert_eq!(ctor_tag(field, 0), tag);
-                assert_eq!(ctor_index(field, 0), id);
-                // `tag = id - base`, with the group's base.
-                assert_eq!(id - (group << CTOR_TAG_BITS), tag);
+    fn shape_fields_carry_the_tag_and_the_mask() {
+        for tag in [0, 1, 7, SHAPE_ESCAPED - 1] {
+            for mask in [0, 1, 0b1010, 0xFFFF] {
+                let f = shape_field(tag, mask);
+                assert_eq!((shape_field_tag(f), shape_field_mask(f)), (tag, mask));
+                assert!(!shape_escaped(f));
+                let h = header(RC_FRESH, KIND_CTOR, f);
+                assert_eq!(layout(h), f);
             }
         }
-        for (index, tag) in [(0u64, 0u64), (5, 64), (70_000, (1 << CTOR_ESC_TAG_BITS) - 1)] {
-            let d = ctor_escaped(index, tag);
-            assert_eq!(ctor_layout_field(d), LAYOUT_BIG);
-            assert_eq!(ctor_tag(LAYOUT_BIG, d), tag);
-            assert_eq!(ctor_index(LAYOUT_BIG, d), index);
-        }
+        assert!(shape_escaped(ESCAPED_FIELD));
+        assert_eq!(inline_description(shape_field(3, 1)) & 1, 1);
     }
 
     #[test]
-    fn constructor_blocks_size_from_the_layout_table() {
-        let words_of = install_test_layouts();
-        // Regular ids: the header holds the id, the table the size; an
-        // escaped descriptor adds the extra word and keeps its tag there.
-        for (desc, tag) in [
-            (ctor_id(0, 0), 0),
-            (ctor_id(0, 3), 3),
-            (ctor_id(2, 5), 5),
-            (ctor_escaped(150, 64), 64),
-            (ctor_escaped(13, 9000), 9000),
-        ] {
-            let index = ctor_index(ctor_layout_field(desc), desc);
-            let words = words_of(index);
-            let p = unsafe { allocate_ctor(8 * words, desc, true) };
+    fn constructors_read_their_tag_inline_or_from_their_descriptor() {
+        use test_shapes::*;
+        // Inline: the small heap knows the size, the header the tag.
+        for (field, words, tag) in [(shape_field(0, 0), 0usize, 0u64), (shape_field(3, 0b1), 1, 3), (shape_field(5, 0b11), 2, 5)] {
+            let p = unsafe { allocate_ctor(8 * words, field, true) };
             let h = unsafe { read_header(p) };
             assert_eq!((rc(h), kind(h)), (RC_FRESH, KIND_CTOR));
             assert_eq!(unsafe { ctor_tag_of(p) }, tag);
-            let big = layout(h) == LAYOUT_BIG;
-            assert_eq!(big, desc >= LAYOUT_BIG as u64);
-            assert_eq!(unsafe { payload_bytes(p, h) }, Some((words.max(1) * 8, big)));
-            unsafe { p.add(words.max(1) * 8 - 1).write(0xAB) };
+            assert_eq!(unsafe { payload_bytes(p, h) }, Some((words.max(1) * 8, false)));
             unsafe { free(p) };
         }
+        // Escaped: the descriptor has the size and the tag.
+        let p = unsafe { allocate_described(8 * WIDE_WORDS as usize, KIND_CTOR, wide(), true) };
+        let h = unsafe { read_header(p) };
+        assert!(shape_escaped(layout(h)));
+        assert_eq!(unsafe { ctor_tag_of(p) }, 0);
+        assert_eq!(unsafe { payload_bytes(p, h) }, Some((8 * WIDE_WORDS as usize, true)));
+        unsafe { p.add(8 * WIDE_WORDS as usize - 1).write(0xAB) };
+        unsafe { free(p) };
+    }
+
+    #[test]
+    fn a_counted_mask_scans_exactly_its_fields() {
+        let p = unsafe { allocate_ctor(8 * 4, shape_field(1, 0b1010), true) };
+        let scan = unsafe { Scan::of(p, read_header(p)) };
+        assert_eq!(scan.words(), 4);
+        assert_eq!(scan.counted_below(4), Some((3, SCAN_TOBJ)));
+        assert_eq!(scan.counted_below(3), Some((1, SCAN_TOBJ)));
+        assert_eq!(scan.counted_below(1), None);
+        unsafe { free(p) };
     }
 }

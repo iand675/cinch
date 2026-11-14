@@ -55,8 +55,6 @@ fn program(fns: Vec<FnDef>) -> Program {
         borrowed: Default::default(),
         lent_entries: Default::default(),
         private_modules: Vec::new(),
-        layout_base: 0,
-        linked_layouts: Vec::new(),
         inline: Default::default(),
     }
 }

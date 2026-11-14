@@ -98,9 +98,6 @@ mod block {
     include!("../runtime/src/block_kinds.rs");
 }
 
-/// The width of one constructor layout group: a layout range starts on a
-/// multiple of it, so the tag bits of every id in the range stay the tag.
-pub(crate) const LAYOUT_GROUP: u64 = block::CTOR_TAG_MASK + 1;
 
 /// The target's lowering choices (WebAssembly and WASI specification
 /// sections 2 and 7): the `Usize`/`Isize` word width and which task ABI
@@ -324,7 +321,9 @@ fn emit_module(
     out.push_str("declare ptr @cinch_alloc_raw(i64, i64)\n");
     out.push_str("declare ptr @cinch_alloc_ctor(i64, i64)\n");
     out.push_str("declare ptr @cinch_alloc_shaped(i64, i64, i64)\n");
-    out.push_str("declare void @cinch_layouts_register(ptr, i64)\n");
+    out.push_str("declare ptr @cinch_alloc_ctor_desc(i64, ptr)\n");
+    out.push_str("declare ptr @cinch_alloc_shaped_desc(i64, i64, ptr)\n");
+    out.push_str("declare ptr @cinch_alloc_ctor_tagged(i64, i64, i64)\n");
     out.push_str("declare i64 @cinch_exit_check(i64)\n");
     // `memcpy`'s length is `size_t`, the target's pointer width, so a
     // 32-bit module declares it `i32` and its calls pass `i32` (a
@@ -932,9 +931,12 @@ fn emit_module(
     }
     // The constructor layout table, complete now that every unit has
     // asked for its descriptors.
+    // Every escaped descriptor the units asked for, and the module
+    // constructor that turns counting on. An object leaves the latter to
+    // the program that links it.
+    out.push_str(&reg.descs.borrow().globals());
     if !object {
-        reg.layouts.borrow_mut().merge(&program.linked_layouts)?;
-        out.push_str(&reg.layouts.borrow().finish(reg.reclaim)?);
+        out.push_str(&reclaim_init(reg.reclaim));
     }
     // Function attribute groups and metadata nodes (the branch weights
     // of attribute annotations specification section 3.1).
@@ -1049,7 +1051,8 @@ struct Registry {
     /// may not be defined at all.
     partial_module: bool,
     /// The program's constructor layout ids and layout table.
-    layouts: RefCell<Layouts>,
+    /// The escaped descriptors this module emits.
+    descs: RefCell<Descs>,
     /// The named by-value layout types of the aggregate boundary
     /// (`%__sl_layout_N = type [W x i8]`), keyed by width: the `byval`
     /// and `sret` spellings need a pointee type.
@@ -1097,8 +1100,6 @@ struct Registry {
     /// worker [`tail_sig`](Registry::tail_sig) names, and the symbol is a
     /// wrapper that releases the lent arguments.
     owned_entry: HashSet<String>,
-    /// The first layout index this artifact assigns ([`Program::layout_base`]).
-    layout_base: u64,
     /// Frame allocation decisions by unit name ([`Program::frame`],
     /// `crate::stack`): the allocations a unit builds in its own frame.
     frame: std::collections::BTreeMap<String, crate::stack::Plan>,
@@ -1278,19 +1279,6 @@ impl Registry {
                 ]));
             }
         }
-        let layouts = self.layouts.borrow();
-        let mut types = BTreeMap::new();
-        for (name, ids) in &layouts.types {
-            types.insert(
-                name.clone(),
-                match ids {
-                    TypeIds::Group(group) => J::obj([("group", (*group).into())]),
-                    TypeIds::Escaped { base, shared } => {
-                        J::obj([("base", (*base).into()), ("shared", (*shared).into())])
-                    }
-                },
-            );
-        }
         let mut ctors = BTreeMap::new();
         for (name, (tag, fields)) in &self.ctors {
             if !emitted_symbol(name, emit_modules) {
@@ -1301,7 +1289,8 @@ impl Registry {
                 J::obj([
                     ("tag", (*tag as u64).into()),
                     ("arity", (*fields as u64).into()),
-                    ("descriptor", self.ctor_descs[name].into()),
+                    ("descriptor", u64::from(desc_field(self.ctor_descs[name])).into()),
+                    ("escaped", desc_escaped(self.ctor_descs[name]).into()),
                 ]),
             );
         }
@@ -1346,16 +1335,11 @@ impl Registry {
             ),
             ("units", J::Arr(units)),
             ("lent_imports", J::Arr(lent_imports)),
-            ("types", J::Obj(types)),
             ("constructors", J::Obj(ctors)),
             ("dictionaries", J::Obj(dictionaries)),
-            ("escaped_descriptors", layouts.escaped.into()),
-            ("layout_base", self.layout_base.into()),
-            ("layout_entries", (layouts.table.len() as u64).into()),
-            (
-                "layout_words",
-                J::Arr(layouts.words()?.into_iter().map(J::from).collect()),
-            ),
+            // Blocks describe themselves: an object publishes no layout
+            // table for a consumer to register.
+            ("self_describing", true.into()),
         ])
         .to_canonical_string())
     }
@@ -1599,7 +1583,6 @@ impl Registry {
         // specification section 2).
         reg.plans
             .extend(p.plans.iter().map(|(k, v)| (k.clone(), v.clone())));
-        reg.layout_base = p.layout_base;
         reg.lay_out_constructors(p)?;
         reg.foreigns
             .extend(p.foreigns.iter().map(|(k, v)| (k.clone(), v.clone())));
@@ -1828,32 +1811,14 @@ impl Registry {
                 }
             }
         }
-        let mut layouts = Layouts::default();
-        // An artifact linked beside others lays out from its own base, and
-        // reads every tag allowing for an escaped descriptor, since a block
-        // another artifact allocated may carry one whatever this one does.
-        layouts.next = p.layout_base;
-        layouts.hole = p.layout_base;
-        layouts.escaped = !p.private_modules.is_empty();
-        // A program that crosses the canonical ABI can lift an enum whose
-        // tag arrives at run time; its block may be escaped, so every tag
-        // read must allow for one.
-        if p.foreigns.values().any(|plan| plan.canon.is_some()) {
-            layouts.escaped = true;
-        }
-        for (key, ctors) in &types {
-            let ncons = ctors.keys().next_back().map_or(0, |t| t + 1);
-            let mut maps = vec![Vec::new(); ncons];
-            for (tag, (_, map)) in ctors {
-                maps[*tag] = map.clone();
-            }
-            layouts.add_type(key, &maps)?;
-            for (tag, (unit, _)) in ctors {
-                let desc = layouts.desc(key, *tag as u64).expect("laid out just now");
+        // Every constructor describes itself by its tag and the counted
+        // mask of its fields (design/self-describing-blocks.md).
+        for ctors in types.values() {
+            for (tag, (unit, map)) in ctors {
+                let desc = self.descs.borrow_mut().describe(block::KIND_CTOR, *tag as u64, map);
                 self.ctor_descs.insert(unit.clone(), desc);
             }
         }
-        self.layouts = RefCell::new(layouts);
         Ok(())
     }
 
@@ -1877,7 +1842,7 @@ impl Registry {
     /// classes `map` and that no constructor unit names
     /// (`Layouts::shape_desc`).
     fn shape_desc(&self, map: &[Class], tag: u64) -> u64 {
-        self.layouts.borrow_mut().shape_desc(map, tag)
+        self.descs.borrow_mut().describe(block::KIND_CTOR, tag, map)
     }
 
     /// [`Registry::shape_desc`] of `words` uncounted words: a block whose
@@ -1891,28 +1856,23 @@ impl Registry {
     /// are the unit's leading parameters, so its map is the fixed closure
     /// words and then the unit's parameter classes.
     fn closure_desc(&self, unit: &str) -> u64 {
-        let mut map = vec![Class::Raw; block::CLOSURE_PREFIX_WORDS as usize];
-        match self.unit_params.get(unit) {
-            Some(params) => map.extend(params.iter().copied()),
-            None => map.extend(std::iter::repeat_n(
-                Class::Raw,
-                self.arity.get(unit).copied().unwrap_or(0),
-            )),
-        }
-        self.layouts.borrow_mut().shape(map)
+        let params: Vec<Class> = match self.unit_params.get(unit) {
+            Some(params) => params.clone(),
+            None => vec![Class::Raw; self.arity.get(unit).copied().unwrap_or(0)],
+        };
+        self.descs.borrow_mut().describe(block::KIND_CLOSURE, 0, &params)
     }
 
     /// Dictionary slots contain either closures or eagerly computed values;
     /// the latter retain the result class recorded by the checker and collector.
     fn dict_desc(&self, info: &InstInfo) -> u64 {
-        let mut map = vec![Class::Raw; block::DICT_PREFIX_WORDS as usize];
-        map.extend(info.fields.iter().copied());
-        self.layouts.borrow_mut().shape(map)
+        self.descs.borrow_mut().describe(block::KIND_DICT, 0, &info.fields)
     }
 
-    /// Whether a tag read must allow for an escaped descriptor.
+    /// Whether a tag read must allow for an escaped descriptor: always,
+    /// since any block, another artifact's included, may be escaped.
     fn escapes(&self) -> bool {
-        self.layouts.borrow().escaped
+        true
     }
 }
 
@@ -2177,312 +2137,127 @@ fn scan_code(c: Class) -> u64 {
     }
 }
 
-/// Layout ids and shapes (design/reclamation.md section 3, slices S1b and
-/// S5; the encoding is `block_kinds.rs`'s). Every table index records a
-/// payload size and pointer map.
-///
-/// Constructor blocks: each data type at each class vector its
-/// constructor units were copied for (`crate::specialize`) gets one group
-/// of `2^CTOR_TAG_BITS` consecutive ids, `base = group << CTOR_TAG_BITS`,
-/// so a block's tag is `id - base`, which every reader computes as `id &
-/// CTOR_TAG_MASK` without knowing the scrutinee's type (`Core::Case`
-/// carries none). The same type at another vector is another group: its
-/// constructors' maps differ, its tags do not. A type with more
-/// constructors than a group holds, or one past the last group, is
-/// escaped: one table index per constructor, its tag in the descriptor
-/// word before the header. Blocks no constructor unit names take an
-/// anonymous group per pointer map.
-///
-/// Closures and dictionaries: one table index per distinct map (a shape),
-/// placed first in the indices of the type groups that no constructor
-/// uses, so shapes cost no group of their own until those run out.
+/// A shaped block's description as code generation carries it: an inline
+/// header layout field (`block::shape_field`, below 2^24), or
+/// [`DESC_ESCAPED`] with the index of an escaped block's static descriptor
+/// in this module ([`Descs`], emitted as the private constant
+/// [`desc_symbol`] names). Blocks describe themselves
+/// (design/self-describing-blocks.md): there is no layout table and no
+/// layout id, so nothing about a description depends on the rest of the
+/// program or on another artifact.
+const DESC_ESCAPED: u64 = 1 << 63;
+
+/// Whether a description is escaped (its block points to a descriptor).
+fn desc_escaped(desc: u64) -> bool {
+    desc & DESC_ESCAPED != 0
+}
+
+/// The header layout field a description stores.
+fn desc_field(desc: u64) -> u32 {
+    if desc_escaped(desc) {
+        block::ESCAPED_FIELD
+    } else {
+        desc as u32
+    }
+}
+
+/// The symbol of an escaped description's static descriptor.
+fn desc_symbol(desc: u64) -> String {
+    format!("@{}", quote(&format!("cinch.desc.{}", desc & !DESC_ESCAPED)))
+}
+
+/// A description as one word operand (`block::inline_description`, or the
+/// descriptor's address), for the consumers that take either through one
+/// slot: the quote evaluator's nodes and a columnar zip's pair.
+fn description_word(desc: u64) -> String {
+    if desc_escaped(desc) {
+        format!("ptrtoint (ptr {} to i64)", desc_symbol(desc))
+    } else {
+        (block::inline_description(desc as u32) as i64).to_string()
+    }
+}
+
+/// The escaped descriptors this module emits (`block::DESC_*`), by index,
+/// with each distinct descriptor once.
 #[derive(Default)]
-struct Layouts {
-    /// Each laid-out type's ids, by data type (or anonymous shape) key.
-    types: HashMap<String, TypeIds>,
-    /// The pointer map per table index (its length is the payload
-    /// words); `None` for an index no block uses.
-    table: Vec<Option<Vec<Class>>>,
-    /// The first table index past every assigned one.
-    next: u64,
-    /// Whether some block may carry an escaped descriptor, so every tag
-    /// read must check for one. Fixed before any unit is emitted.
-    escaped: bool,
-    /// An anonymous shape escaped after the units were laid out without
-    /// escapes: the emitted tag reads would be wrong, so the module is
-    /// refused (`finish`).
-    late_escape: bool,
-    /// Closure and dictionary shapes by map.
-    shapes: HashMap<Vec<Class>, u64>,
-    /// Where the search for an unused index below `next` resumes.
-    hole: u64,
+struct Descs {
+    list: Vec<Vec<u64>>,
+    index: HashMap<Vec<u64>, usize>,
 }
 
-#[derive(Clone, Copy)]
-enum TypeIds {
-    /// Regular ids `ctor_id(group, tag)`.
-    Group(u64),
-    /// Escaped: tag `t` has table index `base + t`, or `base` for every
-    /// tag when the constructors share one map (`shared`, an anonymous
-    /// shape).
-    Escaped { base: u64, shared: bool },
-}
-
-impl Layouts {
-    fn set_map(&mut self, index: u64, map: &[Class]) {
-        let i = index as usize;
-        if self.table.len() <= i {
-            self.table.resize(i + 1, None);
+impl Descs {
+    /// The description of a shaped block of `kind` and `tag` whose fields
+    /// (after the kind's prefix words) have the classes `fields`: inline
+    /// when the tag, the counted mask and the size fit the header, escaped
+    /// to a static descriptor otherwise.
+    fn describe(&mut self, kind: u8, tag: u64, fields: &[Class]) -> u64 {
+        let counted: Vec<bool> = fields.iter().map(|c| counted_class(concrete(*c))).collect();
+        let prefix = block::shape_prefix_words(kind);
+        let words = prefix + fields.len() as u64;
+        let last = counted.iter().rposition(|c| *c);
+        let mask_fits = last.is_none_or(|i| (i as u32) < block::SHAPE_MASK_BITS);
+        // A closure's size is its prefix and filled count, so only a
+        // constructor or a dictionary is bounded by the small heap.
+        let size_fits = kind == block::KIND_CLOSURE || words <= block::SHAPED_SMALL_WORDS;
+        if tag < block::SHAPE_ESCAPED && mask_fits && size_fits {
+            let mask = counted.iter().enumerate().filter(|(_, c)| **c).fold(0u64, |m, (i, _)| m | (1 << i));
+            return u64::from(block::shape_field(tag, mask));
         }
-        self.table[i] = Some(map.iter().map(|c| concrete(*c)).collect());
+        let mut d = vec![0u64; block::desc_words(words) as usize];
+        d[block::DESC_TAG_WORD] = tag;
+        d[block::DESC_WORDS_WORD] = words;
+        for (i, c) in counted.iter().enumerate() {
+            if *c {
+                let w = prefix + i as u64;
+                d[block::DESC_MASK_WORD + (w / 64) as usize] |= 1 << (w % 64);
+            }
+        }
+        let next = self.list.len();
+        let at = *self.index.entry(d.clone()).or_insert(next);
+        if at == next {
+            self.list.push(d);
+        }
+        DESC_ESCAPED | at as u64
     }
 
-    /// Reserve `n` table indices for one type: a whole regular group when
-    /// `n` fits one and a group is left, else `n` escaped indices.
-    fn place(&mut self, n: u64) -> Result<TypeIds> {
-        let group = self.next.div_ceil(block::CTOR_TAG_MASK + 1);
-        if n <= block::CTOR_TAG_MASK + 1 && group < block::CTOR_GROUPS {
-            self.next = block::ctor_id(group + 1, 0);
-            return Ok(TypeIds::Group(group));
-        }
-        let base = self.next;
-        self.next += n.max(1);
-        if self.next >> (64 - block::CTOR_ESC_INDEX_SHIFT) != 0 {
-            return err(
-                "the program has more constructor layouts than an escaped descriptor can index",
-            );
-        }
-        Ok(TypeIds::Escaped {
-            base,
-            shared: false,
-        })
-    }
-
-    /// Lay out a data type (at one class vector) whose tag `t` has the
-    /// pointer map `maps[t]`, one class per payload word.
-    fn add_type(&mut self, key: &str, maps: &[Vec<Class>]) -> Result<()> {
-        if (maps.len() as u64) >> block::CTOR_ESC_TAG_BITS != 0 {
-            return err(format!(
-                "data type {key} has more constructors than a descriptor can tag"
+    /// The module's descriptor constants.
+    fn globals(&self) -> String {
+        let mut out = String::new();
+        for (i, d) in self.list.iter().enumerate() {
+            let words: Vec<String> = d.iter().map(|w| format!("i64 {}", *w as i64)).collect();
+            out.push_str(&format!(
+                "{} = private unnamed_addr constant [{} x i64] [{}], align 8\n",
+                desc_symbol(DESC_ESCAPED | i as u64),
+                d.len(),
+                words.join(", ")
             ));
         }
-        let ids = self.place(maps.len() as u64)?;
-        if matches!(ids, TypeIds::Escaped { .. }) {
-            self.escaped = true;
-        }
-        self.types.insert(key.to_string(), ids);
-        for (tag, map) in maps.iter().enumerate() {
-            let index = match ids {
-                TypeIds::Group(g) => block::ctor_id(g, tag as u64),
-                TypeIds::Escaped { base, .. } => base + tag as u64,
-            };
-            self.set_map(index, map);
-        }
-        Ok(())
-    }
-
-    /// The descriptor of `tag` of the laid-out type `key`.
-    fn desc(&self, key: &str, tag: u64) -> Option<u64> {
-        Some(match *self.types.get(key)? {
-            TypeIds::Group(g) => block::ctor_id(g, tag),
-            TypeIds::Escaped { base, shared } => {
-                block::ctor_escaped(if shared { base } else { base + tag }, tag)
-            }
-        })
-    }
-
-    /// The descriptor of a block that no constructor unit names (a
-    /// canonical ABI lift, a boxed-out nested aggregate, a built prelude
-    /// value): tag `tag` of the anonymous shape whose payload words have
-    /// the classes `map`. Any id with the right tag reads correctly, so
-    /// the shape only has to record the map: one regular group per map,
-    /// and one shared escaped index per map for tags past a group.
-    fn shape_desc(&mut self, map: &[Class], tag: u64) -> u64 {
-        let map: Vec<Class> = map.iter().map(|c| concrete(*c)).collect();
-        let regular = tag <= block::CTOR_TAG_MASK;
-        let letters = crate::repr::letters(&map);
-        let key = if regular {
-            format!("<shape {letters}>")
-        } else {
-            format!("<shape {letters} escaped>")
-        };
-        if !self.types.contains_key(&key) {
-            let group = self.next.div_ceil(block::CTOR_TAG_MASK + 1);
-            let ids = if regular && group < block::CTOR_GROUPS {
-                self.next = block::ctor_id(group + 1, 0);
-                TypeIds::Group(group)
-            } else {
-                let base = self.next;
-                self.next += 1;
-                TypeIds::Escaped { base, shared: true }
-            };
-            match ids {
-                TypeIds::Group(g) => {
-                    for t in 0..=block::CTOR_TAG_MASK {
-                        self.set_map(block::ctor_id(g, t), &map);
-                    }
-                }
-                TypeIds::Escaped { base, .. } => {
-                    self.set_map(base, &map);
-                    self.late_escape |= !self.escaped;
-                }
-            }
-            self.types.insert(key.clone(), ids);
-        }
-        self.desc(&key, tag).expect("laid out just now")
-    }
-
-    /// The shape descriptor (`block_kinds.rs`'s `shape_desc`) of a
-    /// closure or dictionary whose payload words have the classes `map`.
-    fn shape(&mut self, map: Vec<Class>) -> u64 {
-        let map: Vec<Class> = map.into_iter().map(concrete).collect();
-        if let Some(index) = self.shapes.get(&map) {
-            return block::shape_desc(*index);
-        }
-        while self.hole < self.next && matches!(self.table.get(self.hole as usize), Some(Some(_))) {
-            self.hole += 1;
-        }
-        let index = if self.hole < self.next {
-            self.hole
-        } else {
-            let group = self.next.div_ceil(block::CTOR_TAG_MASK + 1);
-            let base = if group < block::CTOR_GROUPS {
-                block::ctor_id(group, 0)
-            } else {
-                self.next
-            };
-            self.next = if group < block::CTOR_GROUPS {
-                block::ctor_id(group + 1, 0)
-            } else {
-                base + 1
-            };
-            base
-        };
-        self.hole = index + 1;
-        self.set_map(index, &map);
-        self.shapes.insert(map, index);
-        block::shape_desc(index)
-    }
-
-    /// The layout table and the global constructor that registers it
-    /// with the runtime before any generated code runs
-    /// (`cinch_layouts_register`): one entry per index, then the map
-    /// extensions of the entries wider than an entry's own map. A program
-    /// that counts references (`reclaim`) also says so there
-    /// (`cinch_reclaim_enable`), so the runtime marks task bodies and
-    /// drops the task results nobody receives.
-    fn words(&self) -> Result<Vec<u64>> {
-        if self.late_escape {
-            return err("internal error: a constructor shape escaped after the tag reads were emitted without escapes");
-        }
-        let mut entries: Vec<u64> = Vec::with_capacity(self.table.len());
-        let mut ext: Vec<u64> = Vec::new();
-        for map in &self.table {
-            let map = map.as_deref().unwrap_or(&[]);
-            let words = map.len() as u64;
-            let n = block::scan_ext_len(words);
-            if n == 0 {
-                let bits = map
-                    .iter()
-                    .enumerate()
-                    .fold(0, |m, (i, c)| m | block::scan_slot(scan_code(*c), i as u64));
-                entries.push(block::layout_entry(words, bits));
-            } else {
-                let at = (self.table.len() + ext.len()) as u64;
-                if at >> (64 - block::LAYOUT_ENTRY_WORDS_BITS) != 0 {
-                    return err("the layout table is too large for its map extension indices");
-                }
-                entries.push(block::layout_entry(words, at));
-                let start = ext.len();
-                ext.resize(start + n as usize, 0);
-                for (i, c) in map.iter().enumerate() {
-                    let i = i as u64;
-                    ext[start + (i / block::SCAN_EXT_WORDS) as usize] |=
-                        block::scan_slot(scan_code(*c), i % block::SCAN_EXT_WORDS);
-                }
-            }
-        }
-        entries.extend(ext);
-        Ok(entries)
-    }
-
-    /// Add the linked objects' tables at the indices they assigned. A
-    /// published table is decoded back into maps, so the program's own
-    /// encoding places every extension consistently. An index two
-    /// artifacts both assign is refused: the blocks each allocates would
-    /// read the other's map.
-    fn merge(&mut self, linked: &[crate::core::LinkedLayout]) -> Result<()> {
-        for object in linked {
-            let entries = object.entries as usize;
-            if object.words.len() < entries {
-                return err(format!("{}: layout table shorter than its entry count", object.object));
-            }
-            for index in object.start..object.entries {
-                let entry = object.words[index as usize];
-                if entry == 0 {
-                    continue;
-                }
-                let words = block::layout_entry_words(entry);
-                let bits = block::layout_entry_map(entry);
-                let mut map = Vec::with_capacity(words as usize);
-                for slot in 0..words {
-                    let code = if block::layout_entry_inline(entry) {
-                        block::scan_code_at(bits, slot)
-                    } else {
-                        let at = bits as usize + (slot / block::SCAN_EXT_WORDS) as usize;
-                        let Some(word) = object.words.get(at) else {
-                            return err(format!("{}: layout map extension out of range", object.object));
-                        };
-                        block::scan_code_at(*word, slot % block::SCAN_EXT_WORDS)
-                    };
-                    map.push(match code {
-                        block::SCAN_OBJ => Class::Obj,
-                        block::SCAN_TOBJ => Class::TObj,
-                        _ => Class::Raw,
-                    });
-                }
-                if matches!(self.table.get(index as usize), Some(Some(_))) {
-                    return err(format!(
-                        "{}: layout index {index} is also assigned by another artifact in this link",
-                        object.object
-                    ));
-                }
-                self.set_map(index, &map);
-            }
-            self.escaped = true;
-        }
-        Ok(())
-    }
-
-    fn finish(&self, reclaim: bool) -> Result<String> {
-        let entries = self.words()?;
-        let n = entries.len();
-        let words: Vec<String> = entries
-            .iter()
-            .map(|e| format!("i64 {}", *e as i64))
-            .collect();
-        let enable = if reclaim {
-            "  call void @cinch_reclaim_enable()\n"
-        } else {
-            ""
-        };
-        Ok(format!(
-            "@__cinch_layouts = internal constant [{n} x i64] [{}]\n\
-             define internal void @__cinch_layouts_init() {{\n\
-             entry:\n{enable}  call void @cinch_layouts_register(ptr @__cinch_layouts, i64 {n})\n  ret void\n}}\n\
-             @llvm.global_ctors = appending global [1 x {{ i32, ptr, ptr }}] [{{ i32, ptr, ptr }} {{ i32 65535, ptr @__cinch_layouts_init, ptr null }}]\n",
-            words.join(", ")
-        ))
+        out
     }
 }
 
-/// The `cinch_alloc_ctor` call that allocates a constructor block of
-/// `bytes` payload bytes with descriptor `desc` into `dst`.
+/// The module constructor that tells the runtime the program counts
+/// references (`cinch_reclaim_enable`), so it marks task bodies and drops
+/// the task results nobody receives. Empty for a module that does not.
+fn reclaim_init(reclaim: bool) -> String {
+    if !reclaim {
+        return String::new();
+    }
+    "define internal void @__cinch_reclaim_init() {\n\
+     entry:\n  call void @cinch_reclaim_enable()\n  ret void\n}\n\
+     @llvm.global_ctors = appending global [1 x { i32, ptr, ptr }] [{ i32, ptr, ptr } { i32 65535, ptr @__cinch_reclaim_init, ptr null }]\n"
+        .to_string()
+}
+
+/// The call that allocates a constructor block of `bytes` payload bytes
+/// with description `desc` into `dst`: its layout field inline, or its
+/// static descriptor when it is escaped.
 fn ctor_alloc_call(dst: &str, bytes: impl std::fmt::Display, desc: u64) -> String {
-    format!(
-        "{dst} = call ptr @cinch_alloc_ctor(i64 {bytes}, i64 {})",
-        desc as i64
-    )
+    if desc_escaped(desc) {
+        format!("{dst} = call ptr @cinch_alloc_ctor_desc(i64 {bytes}, ptr {})", desc_symbol(desc))
+    } else {
+        format!("{dst} = call ptr @cinch_alloc_ctor(i64 {bytes}, i64 {})", desc_field(desc))
+    }
 }
 
 /// Allocate a constructor block with descriptor `desc` holding the words
@@ -2508,80 +2283,48 @@ fn string_block_word(b: &mut Builder, reg: &Registry, bytes: &str) -> String {
     ctor_block_word(b, desc, &[bytes.to_string()])
 }
 
-/// The descriptor, computed at run time, of an anonymous block whose
-/// payload words have the classes `map` and whose tag is the word `tag`
-/// (an enum lifted from canonical memory): the shape's regular id for a
-/// tag that fits a group, its escaped descriptor otherwise.
-fn dynamic_shape_desc(b: &mut Builder, reg: &Registry, map: &[Class], tag: &str) -> String {
-    let group_base = reg.shape_desc(map, 0);
-    let esc = reg.shape_desc(map, block::CTOR_TAG_MASK + 1);
-    let index = block::ctor_index(block::LAYOUT_BIG, esc);
-    let fits = b.reg();
-    b.line(&format!(
-        "{fits} = icmp ule i64 {tag}, {}",
-        block::CTOR_TAG_MASK
-    ));
-    let regular = b.reg();
-    b.line(&format!("{regular} = or i64 {tag}, {group_base}"));
-    let shifted = b.reg();
-    b.line(&format!(
-        "{shifted} = shl i64 {tag}, {}",
-        block::CTOR_ESC_TAG_SHIFT
-    ));
-    let escaped = b.reg();
-    b.line(&format!(
-        "{escaped} = or i64 {shifted}, {}",
-        block::ctor_escaped(index, 0) as i64
-    ));
-    let d = b.reg();
-    b.line(&format!(
-        "{d} = select i1 {fits}, i64 {regular}, i64 {escaped}"
-    ));
-    d
+/// The counted mask, over payload words, of an anonymous block whose
+/// payload words have the classes `map`: what a block whose tag arrives at
+/// run time (an enum lifted from canonical memory) hands
+/// `cinch_alloc_ctor_tagged`, which describes it inline or escapes it.
+fn counted_mask_words(map: &[Class]) -> u64 {
+    map.iter()
+        .take(64)
+        .enumerate()
+        .filter(|(_, c)| counted_class(concrete(**c)))
+        .fold(0u64, |m, (i, _)| m | (1 << i))
 }
 
-/// The constructor tag of the constructor block at `p`: the header's
-/// layout id masked to its tag bits, or, when the program may hold
-/// escaped descriptors (`escapes`), the descriptor word's tag for a
-/// header that says `LAYOUT_BIG`.
-fn ctor_tag(b: &mut Builder, p: &str, escapes: bool) -> String {
+/// The constructor tag of the constructor block at `p`: the header's tag
+/// field, or, for an escaped block (tag field `SHAPE_ESCAPED`), its
+/// descriptor's tag word. Any block may be escaped, including one another
+/// artifact allocated, so the test is always made; it is one compare on a
+/// branch that is predicted the same way nearly every time.
+fn ctor_tag(b: &mut Builder, p: &str, _escapes: bool) -> String {
     let hp = b.gep_dyn(p, "-8");
     let h = header_load(b, &hp);
     let l = b.reg();
     b.line(&format!("{l} = lshr i64 {h}, {}", block::LAYOUT_SHIFT));
-    if !escapes {
-        let t = b.reg();
-        b.line(&format!("{t} = and i64 {l}, {}", block::CTOR_TAG_MASK));
-        return t;
-    }
-    let big = b.reg();
-    b.line(&format!("{big} = icmp eq i64 {l}, {}", block::LAYOUT_BIG));
+    let tr = b.reg();
+    b.line(&format!("{tr} = and i64 {l}, {}", block::SHAPE_TAG_MASK));
+    let esc = b.reg();
+    b.line(&format!("{esc} = icmp eq i64 {tr}, {}", block::SHAPE_ESCAPED));
     let (lesc, lreg, ljoin) = (b.label(), b.label(), b.label());
-    b.line(&format!("br i1 {big}, label %{lesc}, label %{lreg}"));
+    b.line(&format!("br i1 {esc}, label %{lesc}, label %{lreg}"));
     b.start(&lesc);
     let xp = b.gep_dyn(p, "-16");
     let x = b.reg();
     b.line(&format!("{x} = load i64, ptr {xp}"));
-    let xs = b.reg();
-    b.line(&format!(
-        "{xs} = lshr i64 {x}, {}",
-        block::CTOR_ESC_TAG_SHIFT
-    ));
+    let dp = b.reg();
+    b.line(&format!("{dp} = inttoptr i64 {x} to ptr"));
     let te = b.reg();
-    b.line(&format!(
-        "{te} = and i64 {xs}, {}",
-        (1u64 << block::CTOR_ESC_TAG_BITS) - 1
-    ));
+    b.line(&format!("{te} = load i64, ptr {dp}"));
     b.line(&format!("br label %{ljoin}"));
     b.start(&lreg);
-    let tr = b.reg();
-    b.line(&format!("{tr} = and i64 {l}, {}", block::CTOR_TAG_MASK));
     b.line(&format!("br label %{ljoin}"));
     b.start(&ljoin);
     let t = b.reg();
-    b.line(&format!(
-        "{t} = phi i64 [ {te}, %{lesc} ], [ {tr}, %{lreg} ]"
-    ));
+    b.line(&format!("{t} = phi i64 [ {te}, %{lesc} ], [ {tr}, %{lreg} ]"));
     t
 }
 
@@ -2626,11 +2369,11 @@ fn static_shaped_block(
     desc: u64,
     words: &[StaticWord],
 ) -> String {
-    let field = block::ctor_layout_field(desc);
+    let field = desc_field(desc);
     let hdr = block::static_header(kind, field) as i64;
     let mut init: Vec<StaticWord> = Vec::new();
-    if field == block::LAYOUT_BIG {
-        init.push(StaticWord::Int(desc as i64));
+    if desc_escaped(desc) {
+        init.push(StaticWord::Ptr(desc_symbol(desc)));
     }
     init.push(StaticWord::Int(hdr));
     init.extend(words.iter().map(|w| match w {
@@ -2690,7 +2433,7 @@ fn static_shaped_block(
 /// exit -10). An offset the compiler folds into a relocation against the
 /// one storage symbol cannot be separated from its header by any linker.
 fn static_payload(sym: &str, desc: u64) -> String {
-    let words = if block::ctor_layout_field(desc) == block::LAYOUT_BIG { 2 } else { 1 };
+    let words = if desc_escaped(desc) { 2 } else { 1 };
     format!(
         "getelementptr inbounds (i8, ptr @{storage}, i64 {offset})",
         storage = quote(&format!("{sym}#h")),
@@ -5242,10 +4985,11 @@ fn alloc_call(dst: &str, size: impl std::fmt::Display, kind: u8) -> String {
 /// The `cinch_alloc_shaped` call that allocates a `size`-byte closure or
 /// dictionary block of shape descriptor `desc` into `dst`.
 fn shaped_alloc_call(dst: &str, size: impl std::fmt::Display, kind: u8, desc: u64) -> String {
-    format!(
-        "{dst} = call ptr @cinch_alloc_shaped(i64 {size}, i64 {kind}, i64 {})",
-        desc as i64
-    )
+    if desc_escaped(desc) {
+        format!("{dst} = call ptr @cinch_alloc_shaped_desc(i64 {size}, i64 {kind}, ptr {})", desc_symbol(desc))
+    } else {
+        format!("{dst} = call ptr @cinch_alloc_shaped(i64 {size}, i64 {kind}, i64 {})", desc_field(desc))
+    }
 }
 
 /// The task ABI symbol of the target's backend (WebAssembly and WASI
@@ -8184,13 +7928,13 @@ impl CoreEmitter<'_, '_> {
                     ));
                 }
                 let desc = self.reg.ctor_desc(&ctor.0)?;
-                let field = block::ctor_layout_field(desc);
+                let field = desc_field(desc);
                 let unit = self.unit.clone();
                 let name = self.b.dec_name(&unit);
                 let qname = quote(&name);
                 let mut parts: Vec<(String, String)> = Vec::new();
-                if field == block::LAYOUT_BIG {
-                    parts.push(("i64".into(), format!("i64 {}", desc as i64)));
+                if desc_escaped(desc) {
+                    parts.push(("ptr".into(), format!("ptr {}", desc_symbol(desc))));
                 }
                 let at = parts.len();
                 let data_ty = format!("[{} x i8]", bytes.len());
@@ -8672,17 +8416,17 @@ impl CoreEmitter<'_, '_> {
         self.b.start(&lhot);
         let cell = self.b.reg();
         self.b.line(&format!("{cell} = inttoptr i64 {t} to ptr"));
-        let field = block::ctor_layout_field(desc);
+        let field = desc_field(desc);
         let h = block::header(block::RC_FRESH, block::KIND_CTOR, field) as i64;
         // The header sits one word before the payload (and the escaped
         // descriptor's own word one word before that).
         let hp = self.b.gep_dyn(&cell, "-8");
         self.b.line(&format!("store i64 {h}, ptr {hp}"));
-        if field == block::LAYOUT_BIG {
-            // The escaped descriptor's own word describes the payload; it
-            // is rewritten with the cell's new constructor.
+        if desc_escaped(desc) {
+            // The descriptor word describes the payload; it is rewritten
+            // with the cell's new constructor.
             let ep = self.b.gep_dyn(&cell, "-16");
-            self.b.line(&format!("store i64 {desc}, ptr {ep}"));
+            self.b.line(&format!("store ptr {}, ptr {ep}", desc_symbol(desc)));
         }
         for (i, v) in vals.iter().enumerate() {
             if !already_set.contains(&(i as u32)) {
@@ -8783,8 +8527,8 @@ impl CoreEmitter<'_, '_> {
     /// per execution. The slot itself is one entry block `alloca`, aligned
     /// and sized as a multiple of 16 bytes (`Builder::alloca_frame`).
     fn frame_payload(&mut self, site: &crate::stack::Site, desc: u64, kind: u8) -> String {
-        let field = block::ctor_layout_field(desc);
-        let escaped = field == block::LAYOUT_BIG;
+        let field = desc_field(desc);
+        let escaped = desc_escaped(desc);
         let base = match self.frame_bases.get(&site.slot) {
             Some(base) => base.clone(),
             None => {
@@ -8796,7 +8540,7 @@ impl CoreEmitter<'_, '_> {
         };
         let prefix = usize::from(escaped) * 8;
         if escaped {
-            self.b.line(&format!("store i64 {desc}, ptr {base}"));
+            self.b.line(&format!("store ptr {}, ptr {base}", desc_symbol(desc)));
         }
         let h = block::header(block::RC_FRAME, kind, field) as i64;
         let hp = self.b.gep(&base, prefix);
@@ -9514,8 +9258,6 @@ mod tests {
             borrowed: Default::default(),
             lent_entries: Default::default(),
             private_modules: Vec::new(),
-            layout_base: 0,
-            linked_layouts: Vec::new(),
             inline: Default::default(),
         }
     }
@@ -9587,17 +9329,13 @@ mod tests {
             assert_eq!(unit("Library.raw")["result"].as_str().unwrap(), "R");
             assert_eq!(unit("Library.tagged")["result"].as_str().unwrap(), "T");
             let desc = m["constructors"].as_object().unwrap()["Library.Packet"].as_object().unwrap()["descriptor"].as_num().unwrap();
-            let mut words: Vec<u64> = m["layout_words"].as_array().unwrap().iter().map(|w| w.as_num().unwrap()).collect();
-            let packet_entry = words[desc as usize];
-            assert_eq!(packet_entry, block::layout_entry(3, block::scan_slot(scan_code(Class::Obj), 1) | block::scan_slot(scan_code(Class::TObj), 2)));
-            // New consumer-owned layouts follow the entire finalized prefix.
-            // This must include extension words, not merely descriptor rows.
-            let consumer_index = words.len().div_ceil(64) * 64;
-            words.resize(consumer_index, 0);
-            words.push(block::layout_entry(1, block::scan_slot(scan_code(Class::Obj), 0)));
-            let mut consumer = format!("@table = internal constant [{} x i64] [{}]\ndeclare void @cinch_layouts_register(ptr, i64)\ndeclare void @cinch_reclaim_enable()\n", words.len(), words.iter().map(|w| format!("i64 {}", *w as i64)).collect::<Vec<_>>().join(", "));
+            // The packet describes itself: tag 0, and its second and third
+            // fields (Obj, TObj) counted. There is no table to register.
+            assert_eq!(desc as u32, block::shape_field(0, 0b110));
+            assert!(m["self_describing"].as_bool().unwrap());
+            let mut consumer = "declare void @cinch_reclaim_enable()\n".to_string();
             consumer.push_str(APPLY_DEF);
-            consumer.push_str(&format!("define void @install() {{\n call void @cinch_reclaim_enable()\n call void @cinch_layouts_register(ptr @table, i64 {})\n ret void\n}}\n", words.len()));
+            consumer.push_str("define void @install() {\n call void @cinch_reclaim_enable()\n ret void\n}\n");
             for (alias, name, arity) in [("payload", "Library.Payload", 1), ("packet", "Library.Packet", 3)] {
                 let params = (0..arity).map(|i| format!("i64 %a{i}")).collect::<Vec<_>>().join(", ");
                 consumer.push_str(&format!("declare i64 @\"{name}\"({})\ndefine i64 @{alias}({params}) {{\n %r = call i64 @\"{name}\"({params})\n ret i64 %r\n}}\n", vec!["i64"; arity].join(", ")));
@@ -9636,7 +9374,7 @@ int main(void) {{
   restored = __apply(method,1,&restored);
   uint64_t *fields = (uint64_t*)restored;
   if (cinch_int_cmp(((uint64_t*)fields[1])[0],fields[2]) != 0) return 3;
-  uint64_t *own = cinch_alloc_ctor(8,{consumer_index});
+  uint64_t *own = cinch_alloc_ctor(8,{consumer_field});
   own[0] = restored;
   cinch_drop((uint64_t)own);
   uint64_t vector_big = cinch_int_from_decimal("18446744073709551616",20);
@@ -9647,7 +9385,7 @@ int main(void) {{
   cinch_drop(indexed);
   return cinch_exit_check(0);
 }}
-"#, dict_prefix = block::DICT_PREFIX_WORDS)).unwrap();
+"#, dict_prefix = block::DICT_PREFIX_WORDS, consumer_field = block::shape_field(0, 1))).unwrap();
             let clang = std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into());
             let compile = Command::new(&clang).arg("-c").arg(dir.join("library.ll")).arg("-o").arg(dir.join("library.o")).output().unwrap();
             assert!(compile.status.success(), "{}", String::from_utf8_lossy(&compile.stderr));
@@ -9658,28 +9396,30 @@ int main(void) {{
             assert!(String::from_utf8_lossy(&run.stderr).split_whitespace().any(|w| w == "leaked=0"));
             // The manifest really is canonical JSON, including u64 words.
             assert_eq!(manifest.to_canonical_string(), object.abi);
-            assert!(matches!(m["layout_words"], J::Arr(_)));
+            assert!(m.get("layout_words").is_none());
         }).unwrap().join().unwrap();
     }
 
     #[test]
-    fn object_layout_prefix_preserves_extended_pointer_maps() {
-        let mut layouts = Layouts::default();
+    fn a_wide_constructor_escapes_to_a_descriptor_with_its_whole_mask() {
+        let mut descs = Descs::default();
         let map: Vec<Class> = (0..40)
             .map(|i| [Class::Raw, Class::Obj, Class::TObj][i % 3])
             .collect();
-        layouts.add_type("Wide", &[map.clone()]).unwrap();
-        let desc = layouts.desc("Wide", 0).unwrap();
-        let words = layouts.words().unwrap();
-        assert!(words.len() > layouts.table.len());
-        let ext = words[desc as usize] >> block::LAYOUT_ENTRY_WORDS_BITS;
+        let desc = descs.describe(block::KIND_CTOR, 2, &map);
+        assert!(desc_escaped(desc));
+        assert_eq!(desc_field(desc), block::ESCAPED_FIELD);
+        let d = &descs.list[(desc & !DESC_ESCAPED) as usize];
+        assert_eq!((d[block::DESC_TAG_WORD], d[block::DESC_WORDS_WORD]), (2, 40));
         for (i, class) in map.iter().enumerate() {
-            let w = words[ext as usize + i / block::SCAN_EXT_WORDS as usize];
-            assert_eq!(
-                (w >> (2 * (i % block::SCAN_EXT_WORDS as usize))) & 3,
-                scan_code(*class)
-            );
+            assert_eq!((d[block::DESC_MASK_WORD] >> i) & 1 == 1, counted_class(*class), "field {i}");
         }
+        // One description, one descriptor.
+        assert_eq!(descs.describe(block::KIND_CTOR, 2, &map), desc);
+        // A small one stays inline.
+        let small = descs.describe(block::KIND_CTOR, 1, &[Class::TObj, Class::Raw, Class::Obj]);
+        assert!(!desc_escaped(small));
+        assert_eq!(small as u32, block::shape_field(1, 0b101));
     }
 
     #[test]
@@ -9720,10 +9460,10 @@ int main(void) {{
             assert_eq!(manifest.to_canonical_string(), text);
             let string_iface = ifaces.iter().find(|i| i.module == "Data.String").unwrap();
             assert!(string_iface.exports.types.iter().all(|t| t.ctors.iter().all(|c| c.name != "StrBuf")));
-            let words = m["layout_words"].as_array().unwrap();
-            let mut consumer = format!("@table = internal constant [{} x i64] [{}]\ndeclare void @cinch_layouts_register(ptr, i64)\ndeclare void @cinch_reclaim_enable()\n", words.len(), words.iter().map(|w| format!("i64 {}", w.as_num().unwrap() as i64)).collect::<Vec<_>>().join(", "));
+            // Blocks describe themselves: the consumer registers no table.
+            let mut consumer = "declare void @cinch_reclaim_enable()\n".to_string();
             consumer.push_str(APPLY_DEF);
-            consumer.push_str(&format!("define void @install() {{\n call void @cinch_reclaim_enable()\n call void @cinch_layouts_register(ptr @table, i64 {})\n ret void\n}}\n", words.len()));
+            consumer.push_str("define void @install() {\n call void @cinch_reclaim_enable()\n ret void\n}\n");
             consumer.push_str("declare i64 @\"Library.library-string\"(i64)\ndefine i64 @library_string() {\n %r = call i64 @\"Library.library-string\"(i64 0)\n ret i64 %r\n}\n");
             std::fs::write(dir.join("consumer.ll"), consumer).unwrap();
             std::fs::write(dir.join("main.c"), r#"#include <stdint.h>
@@ -9777,10 +9517,10 @@ int main(void) {
                 assert_eq!(d["class"].as_str().unwrap(), "Library.Poly");
                 assert_eq!(d["methods"].as_array().unwrap().len(), 2);
             }
-            let words = m["layout_words"].as_array().unwrap();
-            let mut consumer = format!("@table = internal constant [{} x i64] [{}]\ndeclare void @cinch_layouts_register(ptr, i64)\ndeclare void @cinch_reclaim_enable()\n", words.len(), words.iter().map(|w| format!("i64 {}", w.as_num().unwrap() as i64)).collect::<Vec<_>>().join(", "));
+            // Blocks describe themselves: the consumer registers no table.
+            let mut consumer = "declare void @cinch_reclaim_enable()\n".to_string();
             consumer.push_str(APPLY_DEF);
-            consumer.push_str(&format!("define void @install() {{\n call void @cinch_reclaim_enable()\n call void @cinch_layouts_register(ptr @table, i64 {})\n ret void\n}}\n", words.len()));
+            consumer.push_str("define void @install() {\n call void @cinch_reclaim_enable()\n ret void\n}\n");
             for (alias, symbol) in [("raw_choose", "Library.choose@R"), ("tagged_choose", "Library.choose@T")] {
                 consumer.push_str(&format!("declare i64 @\"{symbol}\"(i64,i64)\ndefine i64 @{alias}(i64 %x) {{\n %r = call i64 @\"{symbol}\"(i64 %x,i64 0)\n ret i64 %r\n}}\n"));
             }
@@ -11092,6 +10832,17 @@ fn q_imm(out: &mut Vec<QWord>, v: u64) {
     out.push(QWord::Imm(v));
 }
 
+/// A shaped block's description as the evaluator reads it: an inline
+/// layout field's description word, or its static descriptor's address
+/// (`block::inline_description`).
+fn q_desc(out: &mut Vec<QWord>, desc: u64) {
+    if desc_escaped(desc) {
+        out.push(QWord::Addr(desc_symbol(desc)));
+    } else {
+        q_imm(out, block::inline_description(desc as u32));
+    }
+}
+
 /// The `counted` operand of a loaded word of class `c` (an open
 /// parameter class is never counted, as in the ownership pass).
 fn q_counted(c: crate::repr::Class) -> u64 {
@@ -11293,7 +11044,7 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
             }
             q_imm(out, quote_op::LAM);
             out.push(QWord::Addr(quote(&format!("{}.app", fn_id.0))));
-            q_imm(out, reg.closure_desc(&fn_id.0));
+            q_desc(out, reg.closure_desc(&fn_id.0));
             q_imm(out, arity as u64);
             q_imm(out, env.len() as u64);
             for a in env {
@@ -11428,7 +11179,7 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
                 ));
             }
             q_imm(out, quote_op::CTOR);
-            q_imm(out, reg.ctor_desc(&ctor.0)?);
+            q_desc(out, reg.ctor_desc(&ctor.0)?);
             q_imm(out, 1);
             q_imm(out, quote_op::CONST_BYTES);
             q_imm(out, bytes.len() as u64);
@@ -11695,11 +11446,11 @@ fn canon_lift_shape(
                     b.line(&format!("{t} = load i{}, ptr {p}, align 1", size * 8));
                     let tw = b.reg();
                     b.line(&format!("{tw} = zext i{} {t} to i64", size * 8));
-                    let desc = dynamic_shape_desc(b, reg, &map, &tw);
                     let blk = b.reg();
                     b.line(&format!(
-                        "{blk} = call ptr @cinch_alloc_ctor(i64 {}, i64 {desc})",
-                        8 * words
+                        "{blk} = call ptr @cinch_alloc_ctor_tagged(i64 {}, i64 {tw}, i64 {})",
+                        8 * words,
+                        counted_mask_words(&map) as i64
                     ));
                     for (i, v) in vals.iter().enumerate() {
                         b.store_at(&blk, 8 * i, v);
@@ -11937,11 +11688,8 @@ fn canon_import_body(b: &mut Builder, reg: &Registry, plan: &ForeignPlan) -> Res
             } => {
                 // An enum value: its block's header carries the
                 // discriminant as its tag.
-                let desc = dynamic_shape_desc(b, reg, &[], &v);
                 let blk = b.reg();
-                b.line(&format!(
-                    "{blk} = call ptr @cinch_alloc_ctor(i64 0, i64 {desc})"
-                ));
+                b.line(&format!("{blk} = call ptr @cinch_alloc_ctor_tagged(i64 0, i64 {v}, i64 0)"));
                 let w = b.reg();
                 b.line(&format!("{w} = ptrtoint ptr {blk} to i64"));
                 w
@@ -12094,11 +11842,8 @@ fn canon_export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry) -> R
                         let t = b.reg();
                         b.line(&format!("{t} = zext i32 {v} to i64"));
                         if matches!(step, CanonStep::Tag) {
-                            let desc = dynamic_shape_desc(&mut b, reg, &[], &t);
                             let blk = b.reg();
-                            b.line(&format!(
-                                "{blk} = call ptr @cinch_alloc_ctor(i64 0, i64 {desc})"
-                            ));
+                            b.line(&format!("{blk} = call ptr @cinch_alloc_ctor_tagged(i64 0, i64 {t}, i64 0)"));
                             let r = b.reg();
                             b.line(&format!("{r} = ptrtoint ptr {blk} to i64"));
                             r

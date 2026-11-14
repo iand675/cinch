@@ -1449,8 +1449,6 @@ impl Session {
             borrowed: Default::default(),
             lent_entries: Default::default(),
             private_modules: Vec::new(),
-            layout_base: 0,
-            linked_layouts: Vec::new(),
             inline: Default::default(),
         };
         let mut state = crate::driver::query::QueryState::of(
@@ -2061,8 +2059,6 @@ impl Session {
             borrowed: Default::default(),
             lent_entries: Default::default(),
             private_modules: Vec::new(),
-            layout_base: 0,
-            linked_layouts: Vec::new(),
             inline: Default::default(),
                 });
             }
@@ -2119,8 +2115,6 @@ impl Session {
             borrowed: Default::default(),
             lent_entries: Default::default(),
             private_modules: Vec::new(),
-            layout_base: 0,
-            linked_layouts: Vec::new(),
             inline: Default::default(),
         })
     }

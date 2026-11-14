@@ -231,11 +231,16 @@ static CONFIG: LazyLock<Config> = LazyLock::new(|| {
 // Keep the default-setting rule testable without launching a generated
 // program with its heap guard removed. Reading this setting does not
 // change CONFIG or allocate memory.
+//
+// The cap never passes `HEAP_LIMIT_MAX`: a block's count has a fixed width,
+// and the cap is what keeps every reachable count below its frame markers
+// (`block_kinds.rs`).
 fn configured_limit(setting: Option<&[u8]>) -> u64 {
-    match setting {
+    let limit = match setting {
         None => DEFAULT_HEAP_LIMIT,
         Some(value) => parse_limit(value).unwrap_or(DEFAULT_HEAP_LIMIT),
-    }
+    };
+    limit.min(crate::block::HEAP_LIMIT_MAX)
 }
 
 /// Whether `CINCH_RC_DEBUG=1`: freed blocks are poisoned and kept, and the

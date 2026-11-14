@@ -32,7 +32,13 @@ pub const SCHEMA_VERSION: u32 = 10;
 /// on the work-stealing pool, with the sequential `cinch_coop_par_*`
 /// readings on the cooperative backend (design/parallel-evaluation.md
 /// sections 3.3 and 3.6).
-pub const RUNTIME_ABI_VERSION: u32 = 9;
+/// 10: self-describing blocks (design/self-describing-blocks.md): a 35-bit
+/// count, a 5-bit kind and a shaped block's tag and counted mask in its
+/// header, escaped blocks pointing to static descriptors, no layout table
+/// and no `cinch_layouts_register`; `cinch_alloc_ctor`/`cinch_alloc_shaped`
+/// take a layout field, with `_desc` and `cinch_alloc_ctor_tagged` beside
+/// them.
+pub const RUNTIME_ABI_VERSION: u32 = 10;
 pub const LANGUAGE_VERSION: &str = "draft-0.2+amendments";
 const CALLING_CONVENTION: &str = "uniform-word, curried apply stub";
 

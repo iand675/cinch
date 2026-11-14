@@ -7,9 +7,9 @@
 // field's width is a named constant below (`*_BITS`), each position
 // (`*_SHIFT`), mask and range is derived from the widths, and every
 // encoder and decoder goes through them, so a change of field widths is
-// local to this file. Today, from the low bit:
+// local to this file. From the low bit (design/self-describing-blocks.md):
 //
-//   rc      40 bits, signed: 0 immortal, > 0 a single-threaded count,
+//   rc      35 bits, signed: 0 immortal, > 0 a single-threaded count,
 //           -n an atomic count of n (a block shared across tasks, see
 //           the runtime's `rc.rs`), and `RC_FRAME` for a block that
 //           lives in an activation's frame rather than on the heap, with
@@ -18,63 +18,53 @@
 //           subtract of one on the whole word changes only the count,
 //           except the drop that takes the last reference, whose carry
 //           its thread repairs
-//   kind     8 bits: one of the `KIND_*` constants below
-//   layout  16 bits: for a constructor block (`KIND_CTOR`), its
-//           constructor's layout id; for a closure or a dictionary
-//           (`KIND_CLOSURE`, `KIND_DICT`), its shape's layout table
-//           index; for every other kind, the payload size in 64-bit
-//           words. `LAYOUT_BIG` is the escape: the value is in the word
-//           before the header (offset -16), a descriptor for the three
-//           shaped kinds, the byte size otherwise
+//   kind     5 bits: one of the `KIND_*` constants below
+//   layout  24 bits: for a shaped block (a constructor, closure or
+//           dictionary, `kind_has_shape`), its tag (low 8 bits) and the
+//           counted mask of its fields (high 16 bits), see below; for
+//           every other kind, the payload size in 64-bit words, where
+//           `LAYOUT_BIG` says the byte size is in the word before the
+//           header (offset -16)
 //
 // A count never saturates and needs no overflow check: the heap is capped
-// below 8 * 2^RC_BITS bytes, so fewer than `RC_MAX` words can ever hold a
-// reference to one block. There is no sticky "immortal" state.
+// at `HEAP_LIMIT_MAX` bytes, so far fewer than `RC_FRAME_RELEASED` words
+// can ever hold a reference to one block. There is no sticky "immortal"
+// state.
 //
-// Constructor blocks carry no tag word: the tag is in the layout id. The
-// code generator gives each data type one group of `2^CTOR_TAG_BITS`
-// consecutive ids, `id = group << CTOR_TAG_BITS | tag`, so a type's
-// `base` is `group << CTOR_TAG_BITS` and `tag = id - base = id &
-// CTOR_TAG_MASK`. The mask form needs no knowledge of the scrutinee's
-// type, which is what lets a `case`, the quote evaluator and the task
-// runtime read a tag without it. The id also indexes the program's
-// layout table (`@__cinch_layouts`, registered through
-// `cinch_layouts_register`), whose entry gives the payload size.
+// Shaped blocks describe themselves: there is no layout table and no
+// layout id. A shaped block's tag is its constructor's (0 for a closure or
+// a dictionary), and bit `i` of its mask says whether its field `i` is
+// counted: payload word `i` of a constructor, saved argument `i` of a
+// closure (after `CLOSURE_PREFIX_WORDS`), slot `i` of a dictionary (after
+// `DICT_PREFIX_WORDS`). Reading a tag needs no knowledge of the
+// scrutinee's type, which is what lets a `case`, the quote evaluator and
+// the task runtime read one.
 //
-// A constructor that does not fit (a type with more than
-// `2^CTOR_TAG_BITS` constructors, or a program with more types than
-// `CTOR_GROUPS`) is escaped: its header layout is `LAYOUT_BIG` and the
-// word at -16 is its full descriptor, `index << CTOR_ESC_INDEX_SHIFT |
-// tag << CTOR_ESC_TAG_SHIFT | LAYOUT_BIG`. A descriptor is what generated
-// code hands `cinch_alloc_ctor`: a regular id (below `LAYOUT_BIG`) or an
-// escaped descriptor, and its low `LAYOUT_BITS` are the header's layout
-// either way.
+// A shaped block whose description does not fit the header (a tag of
+// `SHAPE_ESCAPED` or more, a counted field at `SHAPE_MASK_BITS` or beyond,
+// or a constructor or dictionary of more than `SHAPED_SMALL_WORDS` payload
+// words, whose free needs its size) is escaped: its tag field is
+// `SHAPE_ESCAPED`, its mask is 0, and the word before its header points to
+// a static descriptor (`DESC_*`): its tag, its payload size in words, and
+// its counted mask over payload words, one bit per word. A descriptor is
+// content: any artifact may emit an identical one, and nothing compares
+// their addresses.
 //
-// A closure's or a dictionary's layout is the table index of its shape,
-// described the same way with tag 0: a regular index below `LAYOUT_BIG`,
-// or `LAYOUT_BIG` and the escaped descriptor at -16. A closure's shape is
-// the classes of its unit's parameters, which its saved words are, and
-// its size is not in the table: a closure is `CLOSURE_PREFIX_WORDS`
-// words plus its filled count. A dictionary's shape is its instance's
-// method slots, and its entry records its size.
-//
-// The layout table's entries carry the pointer maps the drop machinery
-// scans (`SCAN_*` below). Every unshaped kind's map is fixed by the kind
-// (`fixed_scan_code`).
+// A shaped block's size is not in its header: the small-object heap knows
+// the size of every block it holds, an escaped block's descriptor records
+// its size, and a closure is `CLOSURE_PREFIX_WORDS` plus its filled count.
 //
 // The kind namespace is separate from constructor tags.
 
 /// No kind: a zero header never belongs to a live block.
 pub const KIND_NONE: u8 = 0;
 /// A constructor block `{ fields... }` (the tag is in the header's layout
-/// id), including tuples, the prelude ADTs built by primitives, and
+/// field), including tuples, the prelude ADTs built by primitives, and
 /// boundary-layout (`repr(C)`) payloads.
 pub const KIND_CTOR: u8 = 1;
-/// A closure `{ code; arity; nfilled; saved... }`; its layout is its
-/// shape's descriptor.
+/// A closure `{ code; arity; nfilled; saved... }`.
 pub const KIND_CLOSURE: u8 = 2;
-/// An instance dictionary `{ nmeth; methods... }`; its layout is its
-/// shape's descriptor.
+/// An instance dictionary `{ nmeth; methods... }`.
 pub const KIND_DICT: u8 = 3;
 /// A memo cell `{ state; thunk; value }`.
 pub const KIND_MEMO: u8 = 4;
@@ -111,15 +101,15 @@ pub const KIND_COLUMNAR: u8 = 16;
 pub const KIND_TVAR: u8 = 17;
 /// Last live kind; keep range validation in step with new runtime kinds.
 pub const KIND_LAST: u8 = KIND_TVAR;
-/// A freed block (debug poisoning).
-pub const KIND_FREED: u8 = 255;
+/// A freed block (debug poisoning): the largest value the field holds.
+pub const KIND_FREED: u8 = 31;
 
 /// Width of the signed reference count.
-pub const RC_BITS: u32 = 40;
+pub const RC_BITS: u32 = 35;
 /// Width of the kind.
-pub const KIND_BITS: u32 = 8;
+pub const KIND_BITS: u32 = 5;
 /// Width of the layout.
-pub const LAYOUT_BITS: u32 = 16;
+pub const LAYOUT_BITS: u32 = 24;
 
 /// Field positions, packed from the low bit in the order rc, kind, layout.
 pub const RC_SHIFT: u32 = 0;
@@ -130,7 +120,8 @@ const _: () = assert!(LAYOUT_SHIFT + LAYOUT_BITS == 64, "the header fields fill 
 const _: () = assert!(RC_BITS >= 2 && RC_BITS <= 63);
 const _: () = assert!(RC_SHIFT == 0, "atomic counts add and subtract one on the whole header word");
 const _: () = assert!(KIND_BITS <= 8, "kinds are u8");
-const _: () = assert!(LAYOUT_BITS <= 16, "layouts are u16");
+const _: () = assert!(KIND_FREED as u64 == (1u64 << KIND_BITS) - 1 && KIND_LAST < KIND_FREED);
+const _: () = assert!(LAYOUT_BITS <= 32, "layouts are u32");
 
 /// The low `bits` bits set.
 const fn field_mask(bits: u32) -> u64 {
@@ -147,17 +138,24 @@ pub const RC_MAX: i64 = (1i64 << (RC_BITS - 1)) - 1;
 /// The most negative count (the atomic range's far end).
 pub const RC_MIN: i64 = -(1i64 << (RC_BITS - 1));
 
+/// The largest heap cap a count of [`RC_BITS`] stays clear of its frame
+/// markers under: 64 GiB of live heap is 2^33 words, a reference is a
+/// word, and `RC_FRAME_RELEASED` is `2^34 - 2`, which leaves 2^33 more for
+/// references held on stacks. `crate::heap` clamps `CINCH_HEAP_LIMIT` to
+/// it.
+pub const HEAP_LIMIT_MAX: u64 = 1u64 << 36;
+
 /// `rc` of a block that lives in a function's stack frame rather than on
 /// the heap (`compiler/src/stack.rs`): never counted, never freed, never
 /// scanned. The value is [`RC_MAX`], a count no heap block can hold: the
 /// heap cap bounds the live bytes of the process (8 GiB unless the caller
-/// raises `CINCH_HEAP_LIMIT`), so nothing can hold `2^39 - 1` references
-/// to one block, and a count only ever moves by one from [`RC_FRESH`]. A
-/// frame block is therefore distinguishable from every reachable count,
-/// and a stale count operation on one is a no-op instead of a corruption
-/// (the compiler elides those operations; the runtime's paths are the
-/// backstop, and `CINCH_RC_DEBUG=1` traps on a frame block that reaches
-/// the free path).
+/// raises `CINCH_HEAP_LIMIT`, never past [`HEAP_LIMIT_MAX`]), so nothing can
+/// hold `2^34 - 1` references to one block, and a count only ever moves by
+/// one from [`RC_FRESH`]. A frame block is therefore distinguishable from
+/// every reachable count, and a stale count operation on one is a no-op
+/// instead of a corruption (the compiler elides those operations; the
+/// runtime's paths are the backstop, and `CINCH_RC_DEBUG=1` traps on a
+/// frame block that reaches the free path).
 pub const RC_FRAME: i64 = RC_MAX;
 
 /// `rc` of a frame block whose payload has been released: the sticky
@@ -171,93 +169,105 @@ pub const RC_FRAME: i64 = RC_MAX;
 /// and does nothing.
 ///
 /// The value is the count one below [`RC_MAX`], which no heap block can
-/// hold for the same reason [`RC_FRAME`] cannot: a count only moves by
-/// one from [`RC_FRESH`], and the heap cap bounds the live words of the
-/// process far below `2^39`. The header's kind and layout, and an escaped
-/// descriptor's word at -16, are left exactly as the allocation wrote
-/// them, so a released block still reads its tag and its payload map.
+/// hold for the same reason [`RC_FRAME`] cannot. The header's kind and
+/// layout, and an escaped block's descriptor word at -16, are left exactly
+/// as the allocation wrote them, so a released block still reads its tag
+/// and its counted fields.
 pub const RC_FRAME_RELEASED: i64 = RC_MAX - 1;
 
 const _: () = assert!(RC_FRAME == RC_MAX && RC_FRAME > RC_FRESH);
 const _: () = assert!(RC_FRAME_RELEASED < RC_FRAME && RC_FRAME_RELEASED > RC_FRESH);
+// Heap references at the cap use at most half the count range below the
+// frame markers; the other half is the stacks'.
+const _: () = assert!(2 * (HEAP_LIMIT_MAX / 8) <= RC_FRAME_RELEASED as u64 + 2);
 
-/// The `layout` value saying the real value is stored out of line, in
-/// the word at offset -16: a constructor block's descriptor, or another
-/// kind's payload byte size (the payload is at least this many words).
-pub const LAYOUT_BIG: u16 = field_mask(LAYOUT_BITS) as u16;
+/// An unshaped block's `layout` saying its byte size is stored out of
+/// line, in the word at offset -16 (the payload is at least this many
+/// words).
+pub const LAYOUT_BIG: u32 = field_mask(LAYOUT_BITS) as u32;
 
-/// Width of the tag inside a regular constructor layout id (its low bits).
-pub const CTOR_TAG_BITS: u32 = 6;
-/// The tag of a regular layout id is `id & CTOR_TAG_MASK`.
-pub const CTOR_TAG_MASK: u64 = field_mask(CTOR_TAG_BITS);
-/// How many data types get a group of regular ids: every id of every
-/// group stays below `LAYOUT_BIG`.
-pub const CTOR_GROUPS: u64 = (LAYOUT_BIG as u64) >> CTOR_TAG_BITS;
-/// Where an escaped descriptor keeps its tag, and how wide it is.
-pub const CTOR_ESC_TAG_SHIFT: u32 = LAYOUT_BITS;
-pub const CTOR_ESC_TAG_BITS: u32 = 24;
-/// Where an escaped descriptor keeps its layout table index (the rest of
-/// the word).
-pub const CTOR_ESC_INDEX_SHIFT: u32 = CTOR_ESC_TAG_SHIFT + CTOR_ESC_TAG_BITS;
+/// Width of a shaped block's tag (the layout field's low bits).
+pub const SHAPE_TAG_BITS: u32 = 8;
+/// Width of a shaped block's counted mask (the layout field's high bits).
+pub const SHAPE_MASK_BITS: u32 = LAYOUT_BITS - SHAPE_TAG_BITS;
+/// The tag field of an escaped shaped block; every inline tag is below it.
+pub const SHAPE_ESCAPED: u64 = field_mask(SHAPE_TAG_BITS);
+/// A shaped block's tag field is `layout & SHAPE_TAG_MASK`.
+pub const SHAPE_TAG_MASK: u64 = field_mask(SHAPE_TAG_BITS);
+/// The largest constructor or dictionary payload, in words, the
+/// small-object heap holds (256 bytes with the header), and so the largest
+/// one whose free needs no size in its description.
+pub const SHAPED_SMALL_WORDS: u64 = 31;
 
-const _: () = assert!(CTOR_TAG_BITS < LAYOUT_BITS);
-const _: () = assert!(((CTOR_GROUPS << CTOR_TAG_BITS) - 1) < LAYOUT_BIG as u64);
-const _: () = assert!(CTOR_ESC_INDEX_SHIFT < 64);
+/// A static descriptor's word holding the block's tag.
+pub const DESC_TAG_WORD: usize = 0;
+/// A static descriptor's word holding the payload size in words.
+pub const DESC_WORDS_WORD: usize = 1;
+/// A static descriptor's first counted-mask word: payload word `i` is bit
+/// `i % 64` of mask word `i / 64`.
+pub const DESC_MASK_WORD: usize = 2;
 
-/// A regular constructor layout id: `tag` of the data type in `group`
-/// (`group < CTOR_GROUPS`, `tag <= CTOR_TAG_MASK`).
-pub const fn ctor_id(group: u64, tag: u64) -> u64 {
-    (group << CTOR_TAG_BITS) | tag
+const _: () = assert!(SHAPE_MASK_BITS == 16 && SHAPE_TAG_BITS + SHAPE_MASK_BITS == LAYOUT_BITS);
+
+/// The words of a static descriptor for a block of `words` payload words.
+pub const fn desc_words(words: u64) -> u64 {
+    DESC_MASK_WORD as u64 + words.div_ceil(64)
 }
 
-/// The escaped descriptor of `tag` whose layout table entry is `index`.
-pub const fn ctor_escaped(index: u64, tag: u64) -> u64 {
-    (index << CTOR_ESC_INDEX_SHIFT) | (tag << CTOR_ESC_TAG_SHIFT) | LAYOUT_BIG as u64
+/// The layout field of an inline shaped block: `tag` (below
+/// [`SHAPE_ESCAPED`]) and the counted mask of its fields.
+pub const fn shape_field(tag: u64, mask: u64) -> u32 {
+    ((tag & SHAPE_TAG_MASK) | ((mask & field_mask(SHAPE_MASK_BITS)) << SHAPE_TAG_BITS)) as u32
 }
 
-/// The header layout field a descriptor stores: the id itself, or
-/// `LAYOUT_BIG` for an escaped one.
-pub const fn ctor_layout_field(desc: u64) -> u16 {
-    (desc & field_mask(LAYOUT_BITS)) as u16
+/// The layout field of an escaped shaped block.
+pub const ESCAPED_FIELD: u32 = SHAPE_ESCAPED as u32;
+
+/// A shaped block's description as one word, for a consumer that takes
+/// either form through one slot (the quote evaluator's `LAM` and `CTOR`
+/// nodes): an inline layout field is `field << 1 | 1`; an escaped block's
+/// is the address of its static descriptor, which is 8-aligned and so even.
+pub const fn inline_description(field: u32) -> u64 {
+    ((field as u64) << 1) | 1
 }
 
-/// The constructor tag of a block whose header layout is `layout` and,
-/// when that is `LAYOUT_BIG`, whose descriptor word at -16 is `ext`.
-pub const fn ctor_tag(layout: u16, ext: u64) -> u64 {
-    if layout == LAYOUT_BIG {
-        (ext >> CTOR_ESC_TAG_SHIFT) & field_mask(CTOR_ESC_TAG_BITS)
+/// The tag field of a shaped block's layout (`SHAPE_ESCAPED` when the tag
+/// is in its descriptor).
+pub const fn shape_field_tag(layout: u32) -> u64 {
+    layout as u64 & SHAPE_TAG_MASK
+}
+
+/// The counted mask of a shaped block's layout, over its fields.
+pub const fn shape_field_mask(layout: u32) -> u64 {
+    (layout as u64 >> SHAPE_TAG_BITS) & field_mask(SHAPE_MASK_BITS)
+}
+
+/// Whether a shaped block's layout says it is escaped.
+pub const fn shape_escaped(layout: u32) -> bool {
+    shape_field_tag(layout) == SHAPE_ESCAPED
+}
+
+/// The payload words before a shaped kind's fields, which its mask does not
+/// cover: a closure's code, arity and filled count, a dictionary's method
+/// count, nothing for a constructor.
+pub const fn shape_prefix_words(kind: u8) -> u64 {
+    if kind == KIND_CLOSURE {
+        CLOSURE_PREFIX_WORDS
+    } else if kind == KIND_DICT {
+        DICT_PREFIX_WORDS
     } else {
-        layout as u64 & CTOR_TAG_MASK
+        0
     }
 }
 
-/// The layout table index of a constructor block, as for [`ctor_tag`].
-pub const fn ctor_index(layout: u16, ext: u64) -> u64 {
-    if layout == LAYOUT_BIG {
-        ext >> CTOR_ESC_INDEX_SHIFT
-    } else {
-        layout as u64
-    }
-}
-
-/// Width of the payload size, in words, in the low bits of a layout table
-/// entry. The rest of the entry is the pointer map.
-pub const LAYOUT_ENTRY_WORDS_BITS: u32 = 32;
-const LAYOUT_ENTRY_MAP_BITS: u32 = 64 - LAYOUT_ENTRY_WORDS_BITS;
-
-// Pointer maps. Each payload word of a block has a `SCAN_BITS` code:
+// Scan codes. Each payload word a release visits has a `SCAN_BITS` code:
 // `SCAN_RAW` is never touched, `SCAN_OBJ` is a counted pointer (or 0, or
 // an immortal block, both skipped), and `SCAN_TOBJ` is an immediate when
-// its low bit is 1 and a counted pointer otherwise. Code 3 is invalid:
-// registration refuses a table that uses it.
-//
-// A block of at most `SCAN_INLINE_WORDS` words keeps its codes in its
-// entry's map bits, word `i` at bit `SCAN_BITS * i` of the map. A wider
-// block's map bits are instead the table index of its extension:
-// `scan_ext_len(words)` consecutive table words, word `i`'s code at bit
-// `SCAN_BITS * (i % SCAN_EXT_WORDS)` of extension word `i /
-// SCAN_EXT_WORDS`. Which form an entry has follows from its size, so no
-// flag bit is spent.
+// its low bit is 1 and a counted pointer otherwise. Code 3 is invalid. A
+// shaped block's counted fields read as `SCAN_TOBJ`: the release tests
+// every counted word for an immediate, which is all the distinction ever
+// bought there. The fixed kinds' codes are `fixed_scan_code`'s; an array's
+// is its element format; a transactional cell's is its format word.
 
 /// Width of one word's code.
 pub const SCAN_BITS: u32 = 2;
@@ -266,14 +276,10 @@ pub const SCAN_OBJ: u64 = 1;
 pub const SCAN_TOBJ: u64 = 2;
 /// The mask of one code.
 pub const SCAN_CODE_MASK: u64 = field_mask(SCAN_BITS);
-/// Payload words an entry's own map covers.
-pub const SCAN_INLINE_WORDS: u64 = (LAYOUT_ENTRY_MAP_BITS / SCAN_BITS) as u64;
-/// Payload words one extension word covers.
-pub const SCAN_EXT_WORDS: u64 = (64 / SCAN_BITS) as u64;
 
-const _: () = assert!(SCAN_RAW == 0, "a zero entry scans nothing");
+const _: () = assert!(SCAN_RAW == 0, "a zero map scans nothing");
 const _: () = assert!(SCAN_TOBJ <= SCAN_CODE_MASK && SCAN_OBJ <= SCAN_CODE_MASK);
-const _: () = assert!(LAYOUT_ENTRY_MAP_BITS % SCAN_BITS == 0 && 64 % SCAN_BITS == 0);
+const _: () = assert!(64 % SCAN_BITS == 0);
 
 /// `code` placed at `slot` of a map word.
 pub const fn scan_slot(code: u64, slot: u64) -> u64 {
@@ -285,39 +291,8 @@ pub const fn scan_code_at(map: u64, slot: u64) -> u64 {
     (map >> (SCAN_BITS as u64 * slot)) & SCAN_CODE_MASK
 }
 
-/// A layout table entry for a block of `words` payload words whose map
-/// bits are `map`: the packed codes when `words <= SCAN_INLINE_WORDS`,
-/// else the table index of the extension.
-pub const fn layout_entry(words: u64, map: u64) -> u64 {
-    (words & field_mask(LAYOUT_ENTRY_WORDS_BITS)) | (map << LAYOUT_ENTRY_WORDS_BITS)
-}
-
-/// The payload size in words a layout table entry records.
-pub const fn layout_entry_words(entry: u64) -> u64 {
-    entry & field_mask(LAYOUT_ENTRY_WORDS_BITS)
-}
-
-/// The map bits of a layout table entry.
-pub const fn layout_entry_map(entry: u64) -> u64 {
-    entry >> LAYOUT_ENTRY_WORDS_BITS
-}
-
-/// Whether an entry's map bits are its codes (else an extension index).
-pub const fn layout_entry_inline(entry: u64) -> bool {
-    layout_entry_words(entry) <= SCAN_INLINE_WORDS
-}
-
-/// The extension words a map of `words` payload words needs (0 inline).
-pub const fn scan_ext_len(words: u64) -> u64 {
-    if words <= SCAN_INLINE_WORDS {
-        0
-    } else {
-        words.div_ceil(SCAN_EXT_WORDS)
-    }
-}
-
-/// Whether blocks of `kind` keep a layout table index (a descriptor) in
-/// their header's layout field rather than their size.
+/// Whether blocks of `kind` describe their fields in their header's layout
+/// field (a tag and a counted mask) rather than record their size.
 pub const fn kind_has_shape(kind: u8) -> bool {
     kind == KIND_CTOR || kind == KIND_CLOSURE || kind == KIND_DICT
 }
@@ -373,19 +348,9 @@ pub const fn fixed_scan_code(kind: u8, slot: u64) -> u64 {
     }
 }
 
-/// The descriptor of shape `index` of a closure or dictionary: the index
-/// itself when it fits the header, else the escaped form with tag 0.
-pub const fn shape_desc(index: u64) -> u64 {
-    if index < LAYOUT_BIG as u64 {
-        index
-    } else {
-        ctor_escaped(index, 0)
-    }
-}
-
 /// Encode a header word. `rc` must be in `RC_MIN..=RC_MAX`; it is stored
 /// in two's complement in its field.
-pub const fn header(rc: i64, kind: u8, layout: u16) -> u64 {
+pub const fn header(rc: i64, kind: u8, layout: u32) -> u64 {
     ((rc as u64 & field_mask(RC_BITS)) << RC_SHIFT)
         | ((kind as u64 & field_mask(KIND_BITS)) << KIND_SHIFT)
         | ((layout as u64 & field_mask(LAYOUT_BITS)) << LAYOUT_SHIFT)
@@ -404,12 +369,12 @@ pub const fn header_kind(h: u64) -> u8 {
 }
 
 /// The layout of header `h`.
-pub const fn header_layout(h: u64) -> u16 {
-    ((h >> LAYOUT_SHIFT) & field_mask(LAYOUT_BITS)) as u16
+pub const fn header_layout(h: u64) -> u32 {
+    ((h >> LAYOUT_SHIFT) & field_mask(LAYOUT_BITS)) as u32
 }
 
 /// The header of a static (immortal) block: `layout` is the payload size
-/// in words, or a constructor's layout field.
-pub const fn static_header(kind: u8, layout: u16) -> u64 {
+/// in words, or a shaped block's layout field.
+pub const fn static_header(kind: u8, layout: u32) -> u64 {
     header(RC_IMMORTAL, kind, layout)
 }

@@ -3344,26 +3344,6 @@ pub struct Program {
     /// meet at link time. Empty for a whole program, where every module is
     /// simply emitted.
     pub private_modules: Vec<String>,
-    /// The first layout table index this artifact assigns (a multiple of
-    /// a constructor group). Artifacts linked into one program take
-    /// disjoint ranges, so a block's layout id always names the entry the
-    /// artifact that allocated it laid out (`crate::codegen`'s `Layouts`).
-    /// Zero for a whole program.
-    pub layout_base: u64,
-    /// The layout tables of the package objects a program links, which the
-    /// program registers beside its own.
-    pub linked_layouts: Vec<LinkedLayout>,
-}
-
-/// One linked object's layout table, as its package execution interface
-/// publishes it: the indices it assigns are `start .. entries`, and `words`
-/// is its encoded table (`entries` entries, then the map extensions).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct LinkedLayout {
-    pub object: String,
-    pub start: u64,
-    pub entries: u64,
-    pub words: Vec<u64>,
 }
 
 /// Where a unit with lent parameters takes them ([`Program::lent_entries`]).
@@ -3398,8 +3378,6 @@ impl Program {
             borrowed: self.borrowed.clone(),
             lent_entries: self.lent_entries.clone(),
             private_modules: self.private_modules.clone(),
-            layout_base: self.layout_base,
-            linked_layouts: self.linked_layouts.clone(),
         }
     }
 }
@@ -8698,8 +8676,6 @@ mod tests {
             borrowed: Default::default(),
             lent_entries: Default::default(),
             private_modules: Vec::new(),
-            layout_base: 0,
-            linked_layouts: Vec::new(),
             inline: Default::default(),
         };
         for reverse in [false, true] {
@@ -8757,8 +8733,6 @@ mod tests {
             borrowed: Default::default(),
             lent_entries: Default::default(),
             private_modules: Vec::new(),
-            layout_base: 0,
-            linked_layouts: Vec::new(),
             inline: Default::default(),
         };
         share_repeated_subterms(&mut program);
