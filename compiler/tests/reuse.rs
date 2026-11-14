@@ -175,7 +175,7 @@ fn coalescing_puts_a_values_counts_at_its_uses() {
     let counted = cinch::rc::insert_closed(specialized, &profile).expect("reference counting");
     let (before_dups, before_drops) = cinch::coalesce::count_operations(&counted);
     let mut coalesced = counted.clone();
-    cinch::coalesce::coalesce(&mut coalesced, &profile);
+    cinch::coalesce::coalesce(&mut coalesced, &profile).expect("coalescing keeps the counts balanced");
     let (after_dups, after_drops) = cinch::coalesce::count_operations(&coalesced);
     // The moves are moves: no operation is created or dropped, so the
     // counts are equal and only their positions change.

@@ -1017,15 +1017,28 @@ whether the arm reads any of the block's fields; `moved` still carries only
 the counted ones.
 
 *Coalescing* (`coalesce.rs`, `CoalesceRC.lean`). Within a straight-line run a
-later dup of a value proves the value never passed through a state where it
-could be freed, so every dup may be issued at its first read, and a drop may
-move later across steps that do not mention the value at all. Our `Core`
-carries no count number, so this is a move and never a sum, and a dup keeps
-its multiplicity. The first version sank every drop past the last mention,
-which is unsound: the counting pass places a drop where a path stops needing
-the value, and a later step may read it again through a borrowed position.
-Three reclamation programs crashed with no leak line, and the ownership
-verifier cannot catch it because it sees the moved program, not the move.
+dup may be issued earlier, at the run's first dup of the same value, and a
+drop may move later across steps that do not mention the value at all. Our
+`Core` carries no count number, so this is a move and never a sum, and a dup
+keeps its multiplicity. A dup MUST NOT move later, to the first step that
+reads the value: the step that ends a value's life need not read it, because
+a `Release` frees the block a field was loaded from and a `Drop` releases the
+block itself, so a dup placed after either dups a dead word. That is the
+live-range rule above, and it is what the pass did wrong in two ways at once.
+
+The first version sank every drop past the last mention, which is unsound:
+the counting pass places a drop where a path stops needing the value, and a
+later step may read it again through a borrowed position. Three reclamation
+programs crashed with no leak line. The second version moved every dup *down*
+to its first read, which is the same fault on the other side, and it lost 14
+of the bootstrap's 24 refusals: the case scrutinee was dupped after the
+alternative's `Release` had already freed the cell it came from.
+
+The ownership verifier does catch both: it sees the moved program, and a dup
+of a value the run has already released fails `alive`. It did not catch
+either because it ran inside the counting pass, on the program *before*
+coalescing. `coalesce` now calls it on what it produced, so the certificate
+covers the artifact code generation reads.
 
 On the compiler's own 43,119-line bundle, one arm built from each side of the
 change, three interleaved pairs, `emit-ir` (the mode that runs the counting
