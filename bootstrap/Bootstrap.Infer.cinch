@@ -1098,7 +1098,7 @@ module Bootstrap.Infer where
     TName s name -> if same name "IO" then (UCon "#kernel.ForeignIO" KEffect, st) else if has name ["Diverge", "Blocking", "Global", "Fail", "Reentrant", "ThreadAffine"] then (UCon name KEffect, st)
       else convert-declared-effect kinds locals label st
     TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) ->
-      if has name ["IO", "Async", "Cancel", "Eval", "Foreign"] then (case lookup-local region locals of
+      if has name ["IO", "Async", "Cancel", "Eval", "Foreign", "Mut"] then (case lookup-local region locals of
         Some ty -> if kind-equal (type-kind ty) KRegion then (UApp (UCon name (KFun KRegion KEffect)) ty, st)
           else bad r "effect argument must have kind Region" st
         None -> bad r "unbound effect region" st)
@@ -1298,7 +1298,7 @@ module Bootstrap.Infer where
         TName r region -> Cons region (region-names first <> region-names value)
         other -> region-names first <> region-names value)
       else region-names first <> region-names second <> region-names value
-    TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) -> if has name ["Io", "b.Io", "IO", "Async", "Cancel", "Eval", "Foreign"] then [region] else Nil
+    TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) -> if has name ["Io", "b.Io", "IO", "Async", "Cancel", "Eval", "Foreign", "Mut"] then [region] else Nil
     TApp s f xs -> region-names f <> region-names xs
     TFun s a b -> region-names a <> region-names b
     TFunEff s a row b -> region-names a <> region-names row <> region-names b

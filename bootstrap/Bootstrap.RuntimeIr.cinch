@@ -1262,7 +1262,12 @@ module Bootstrap.RuntimeIr where
     else if operation == 4 then [1, 2, element]
     else if operation == 5 then [1, 2, 2]
     else if operation == 6 || operation == 7 || operation == 10 || operation == 13 then [1, 1]
-    else if operation == 11 then [1, 1, element] else [1]
+    else if operation == 11 then [1, 1, element]
+    else if operation == 20 then [0]
+    else if operation == 22 || operation == 24 || operation == 27 then [1, 0]
+    else if operation == 23 then [1, 0, 0]
+    else if operation == 25 then [1, 0, 1, 0, 0]
+    else if operation == 26 then [1, 0, 0] else [1]
   array-symbol :: String -> List Nat -> String
   array-symbol name classes = specialized-name name classes
   array-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List String -> List CoreTerm -> (Writer, String)
@@ -1339,7 +1344,65 @@ module Bootstrap.RuntimeIr where
       (ready, descriptor) -> array-null-option ready sp "@cinch_columnar_zip" "" ["%arg0", "%arg1", nat-to-string descriptor])
     else if operation == 17 || operation == 18 then array-null-option w sp "@cinch_columnar_child" "" ["%arg0", if operation == 18 then "1" else "0"]
     else if operation == 19 then array-null-option w sp "@cinch_columnar_array" "" ["%arg0"]
+    else if operation >= 20 then slot-lower w operation element
     else unsupported w sp "unknown checked array operation"
+  -- The mutable slot family (compiler/src/slots.rs and slots_codegen.rs,
+  -- the same IR): a slot array is an Array block with a word format, the
+  -- length at payload word 1 and the elements from word 2. The worker owns
+  -- its arguments and drops the counted ones at its end, which is why a
+  -- write's value is listed as uncounted (array-argument-classes): the
+  -- slot takes that reference over.
+  slot-lower :: Writer -> Nat -> Nat -> (Writer, String)
+  slot-lower w operation element =
+    if operation == 20 then call w "@cinch_slots_new" ["%arg0", nat-to-string element]
+    else if operation == 21 then slot-length w
+    else if operation == 25 then call w "@cinch_slots_move" ["%arg0", "%arg1", "%arg2", "%arg3", "%arg4"]
+    else if operation == 26 then call w "@cinch_slots_clear" ["%arg0", "%arg1", "%arg2"]
+    else if operation == 27 then slot-prefetch w
+    else case slot-address w of
+      (ready, address) ->
+        if operation == 22 then (case slot-load ready address element of
+          (loaded, value) -> (if element == 0 then loaded else line loaded (count-call True value), value))
+        else if operation == 24 then (case slot-load ready address element of
+          (loaded, value) -> (if element == 0 then loaded else line loaded (cat ["  store i64 0, ptr ", address, ", align 8"]), value))
+        else
+          let (one, old) = fresh ready "%v" in
+          let stored = line (line one (cat ["  ", old, " = load i64, ptr ", address, ", align 8"])) (cat ["  store i64 %arg2, ptr ", address, ", align 8"]) in
+          (if element == 0 then stored else line stored (count-call False old), "0")
+  slot-length :: Writer -> (Writer, String)
+  slot-length w =
+    let (one, base) = fresh w "%v" in let (two, at) = fresh one "%v" in let (three, count) = fresh two "%v" in
+    (line (line (line three (cat ["  ", base, " = inttoptr i64 %arg0 to ptr"])) (cat ["  ", at, " = getelementptr inbounds i64, ptr ", base, ", i64 1"])) (cat ["  ", count, " = load i64, ptr ", at, ", align 8"]), count)
+  -- The address of slot %arg1, after checking it against the length: an
+  -- index at or past it is a container bug and traps (code 1).
+  slot-address :: Writer -> (Writer, String)
+  slot-address w = case slot-length w of
+    (measured, count) ->
+      let (one, ok) = fresh measured "%v" in let (two, good) = fresh one "slotok" in let (three, bad) = fresh two "slotbad" in
+      let (four, base) = fresh three "%v" in let (five, at) = fresh four "%v" in let (six, address) = fresh five "%v" in
+      let checked = line (line six (cat ["  ", ok, " = icmp ult i64 %arg1, ", count])) (cat ["  br i1 ", ok, ", label %", good, ", label %", bad]) in
+      let trapped = line (line (line checked (cat [bad, ":"])) "  call i64 @cinch_slots_fault(i64 1)") "  unreachable" in
+      let resumed = line trapped (cat [good, ":"]) in
+      let based = line (line resumed (cat ["  ", base, " = inttoptr i64 %arg0 to ptr"])) (cat ["  ", at, " = add i64 %arg1, 2"]) in
+      (line based (cat ["  ", address, " = getelementptr inbounds i64, ptr ", base, ", i64 ", at]), address)
+  -- A slot's word; a counted hole is a container bug and traps (code 2).
+  slot-load :: Writer -> String -> Nat -> (Writer, String)
+  slot-load w address element =
+    let (one, value) = fresh w "%v" in
+    let loaded = line one (cat ["  ", value, " = load i64, ptr ", address, ", align 8"]) in
+    if element == 0 then (loaded, value) else
+      let (two, hole) = fresh loaded "%v" in let (three, good) = fresh two "slotfull" in let (four, bad) = fresh three "slothole" in
+      let checked = line (line four (cat ["  ", hole, " = icmp eq i64 ", value, ", 0"])) (cat ["  br i1 ", hole, ", label %", bad, ", label %", good]) in
+      (line (line (line (line checked (cat [bad, ":"])) "  call i64 @cinch_slots_fault(i64 2)") "  unreachable") (cat [good, ":"]), value)
+  -- A read hint for slot %arg1, issued only in range; it changes nothing.
+  slot-prefetch :: Writer -> (Writer, String)
+  slot-prefetch w = case slot-length w of
+    (measured, count) ->
+      let (one, ok) = fresh measured "%v" in let (two, go) = fresh one "slotgo" in let (three, done) = fresh two "slotdone" in
+      let (four, base) = fresh three "%v" in let (five, at) = fresh four "%v" in let (six, address) = fresh five "%v" in
+      let checked = line (line six (cat ["  ", ok, " = icmp ult i64 %arg1, ", count])) (cat ["  br i1 ", ok, ", label %", go, ", label %", done]) in
+      let issued = line (line (line (line (line checked (cat [go, ":"])) (cat ["  ", base, " = inttoptr i64 %arg0 to ptr"])) (cat ["  ", at, " = add i64 %arg1, 2"])) (cat ["  ", address, " = getelementptr inbounds i64, ptr ", base, ", i64 ", at])) (cat ["  call void @llvm.prefetch.p0(ptr ", address, ", i32 0, i32 3, i32 1)"]) in
+      (line (line issued (cat ["  br label %", done])) (cat [done, ":"]), "0")
   array-worker :: String -> List Nat -> Writer -> Writer
   array-worker name classes w = case array-plan name of
     None -> refuse w (Span 0 0 1 1) "array worker unavailable in selected ABI"
@@ -1350,7 +1413,7 @@ module Bootstrap.RuntimeIr where
         (made, result) -> let done = array-drop-arguments parameters 0 made in line (line done (cat ["  ret i64 ", result])) "}"
 
   builtin-known :: String -> Bool
-  builtin-known name = machine-integer-builtin name || nat-arithmetic-builtin name || same name "b.newIO" || same name "b.ioWrite" || same name "b.ioRead" || same name "b.ioSleep" || same name "b.pollCancel" || same name "cinch.runtime.bytesNew" || same name "cinch.runtime.bytesLen" || same name "cinch.runtime.bytesGet" || same name "cinch.runtime.textF64FromDecimal" || same name "cinch.runtime.textF64ToDecimal" || (case platform-intrinsic name of Some plan -> True; None -> False)
+  builtin-known name = machine-integer-builtin name || nat-arithmetic-builtin name || same name "b.newIO" || same name "b.ioWrite" || same name "b.ioRead" || same name "b.ioSleep" || same name "b.pollCancel" || same name "cinch.runtime.bytesNew" || same name "cinch.runtime.bytesLen" || same name "cinch.runtime.bytesGet" || same name "cinch.runtime.textF64FromDecimal" || same name "cinch.runtime.textF64ToDecimal" || same name "cinch.runtime.slotsFoldNat" || (case platform-intrinsic name of Some plan -> True; None -> False)
   machine-integer-builtin :: String -> Bool
   machine-integer-builtin name = same name "cinch.prim.eqI64" || same name "cinch.prim.neI64" || (case wrapping-worker-plan name of Some plan -> True; None -> False)
   wrapping-worker-plan :: String -> Option (String, Bool)
@@ -1370,7 +1433,7 @@ module Bootstrap.RuntimeIr where
   nat-arithmetic-builtin :: String -> Bool
   nat-arithmetic-builtin name = case nat-arithmetic-extern name of Some external -> True; None -> False
   builtin-classes :: String -> List Nat
-  builtin-classes name = if machine-integer-builtin name then [0, 0] else if nat-arithmetic-builtin name then [2, 2] else if same name "b.newIO" then [0] else if same name "b.ioWrite" then [0, 1] else if same name "b.ioRead" || same name "b.ioSleep" then [0, 2] else if same name "b.pollCancel" then [0, 0] else if same name "cinch.runtime.bytesGet" then [1, 2] else if same name "cinch.runtime.bytesNew" then [2] else if same name "cinch.runtime.textF64ToDecimal" then [0] else case platform-intrinsic name of
+  builtin-classes name = if same name "cinch.runtime.slotsFoldNat" then [2] else if machine-integer-builtin name then [0, 0] else if nat-arithmetic-builtin name then [2, 2] else if same name "b.newIO" then [0] else if same name "b.ioWrite" then [0, 1] else if same name "b.ioRead" || same name "b.ioSleep" then [0, 2] else if same name "b.pollCancel" then [0, 0] else if same name "cinch.runtime.bytesGet" then [1, 2] else if same name "cinch.runtime.bytesNew" then [2] else if same name "cinch.runtime.textF64ToDecimal" then [0] else case platform-intrinsic name of
     Some (scheme, external, arguments, result) -> platform-classes arguments
     None -> [1]
   -- A Unit argument the extern does not take is still the worker's raw word.
@@ -1468,6 +1531,8 @@ module Bootstrap.RuntimeIr where
          let converted = line one (cat ["  ", value, " = bitcast i64 %arg0 to double"]) in
          let (two, result) = fresh converted "%v" in
          (line two (cat ["  ", result, " = call i64 @cinch_text_f64_to_decimal(double ", value, ")"]), result))
+      else if same name "cinch.runtime.slotsFoldNat" then (case call started "@cinch_nat_low_word" ["%arg0"] of
+        (done, result) -> (line done (count-call False "%arg0"), result))
       else if same name "cinch.runtime.textF64FromDecimal" then
         (let (one, value) = fresh started "%float" in
          let decoded = line one (cat ["  ", value, " = call double @cinch_text_f64_from_decimal(i64 %arg0)"]) in
@@ -4110,6 +4175,7 @@ module Bootstrap.RuntimeIr where
     "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_int_from_nat(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_get(i64, i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
     "declare i64 @cinch_array_from_list(i64, i64)\ndeclare i64 @cinch_array_replicate(i64, i64, i64)\ndeclare i64 @cinch_array_len(i64)\ndeclare i64 @cinch_array_has(i64, i64)\ndeclare i64 @cinch_array_get(i64, i64)\ndeclare i64 @cinch_array_set(i64, i64, i64)\ndeclare i64 @cinch_array_slice(i64, i64, i64)\ndeclare i64 @cinch_array_append(i64, i64)\ndeclare i64 @cinch_tensor_reshape(i64, i64)\ndeclare i64 @cinch_tensor_shape(i64)\ndeclare i64 @cinch_tensor_data(i64)\ndeclare i64 @cinch_tensor_index(i64, i64)\ndeclare i64 @cinch_tensor_get(i64, i64)\ndeclare i64 @cinch_tensor_set(i64, i64, i64)\ndeclare i64 @cinch_columnar_column(i64)\ndeclare i64 @cinch_columnar_zip(i64, i64, i64)\ndeclare i64 @cinch_columnar_rows(i64)\ndeclare i64 @cinch_columnar_columns(i64)\ndeclare i64 @cinch_columnar_get(i64, i64)\ndeclare i64 @cinch_columnar_child(i64, i64)\ndeclare i64 @cinch_columnar_array(i64)\n",
     "declare i64 @cinch_text_f64_to_decimal(double)\ndeclare double @cinch_text_f64_from_decimal(i64)\n",
+    "declare i64 @cinch_slots_new(i64, i64)\ndeclare i64 @cinch_slots_move(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_slots_clear(i64, i64, i64)\ndeclare i64 @cinch_slots_fault(i64)\ndeclare i64 @cinch_nat_low_word(i64)\ndeclare void @llvm.prefetch.p0(ptr, i32, i32, i32)\n",
     "declare i64 @cinch_io_read(i64)\ndeclare i64 @cinch_text_sha256(i64)\ndeclare i64 @cinch_text_sha512(i64)\ndeclare i64 @cinch_text_sha1(i64)\ndeclare i64 @cinch_text_md5(i64)\ndeclare i64 @cinch_text_hmac_sha256(i64, i64)\n",
     "declare i64 @cinch_random_bytes(i64)\ndeclare i64 @cinch_fs_mkdir(i64, i64)\ndeclare i64 @cinch_fs_remove(i64, i64)\ndeclare i64 @cinch_fs_temp_dir()\ndeclare i64 @cinch_signal_send(i64, i64)\ndeclare i64 @cinch_arena_new(i64)\ndeclare i64 @cinch_arena_leave(i64)\ndeclare i64 @cinch_argv_count()\n",
     "declare i64 @cinch_net_tcp_connect(i64, i64)\ndeclare i64 @cinch_net_read(i64, i64)\ndeclare i64 @cinch_net_write(i64, i64)\ndeclare i64 @cinch_net_close(i64)\ndeclare i64 @cinch_net_resolve(i64, i64)\n",
