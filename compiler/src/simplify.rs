@@ -4194,6 +4194,24 @@ pub fn prune_excluding(program: &mut Program, keep: &[String], excluded: &HashSe
             }
         }
     }
+    // A data type is laid out whole: once any of its constructors is live
+    // at a class vector, so are its siblings at that vector (they have no
+    // bodies to follow). Code generation builds some prelude types itself
+    // and checks every constructor's payload against what it builds.
+    let siblings = |f: &FnDef| {
+        f.repr.data.as_ref().map(|d| (d.clone(), f.id.0[crate::repr::base_unit(&f.id.0).len()..].to_string()))
+    };
+    let live_types: HashSet<(String, String)> = program
+        .fns
+        .iter()
+        .filter(|f| f.ctor.is_some() && live.contains(&f.id.0))
+        .filter_map(siblings)
+        .collect();
+    for f in &program.fns {
+        if f.ctor.is_some() && siblings(f).is_some_and(|k| live_types.contains(&k)) {
+            live.insert(f.id.0.clone());
+        }
+    }
     let before: usize = program.fns.len();
     let mut removed_nodes = 0;
     program.fns.retain(|f| {
