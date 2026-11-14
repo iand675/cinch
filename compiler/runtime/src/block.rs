@@ -466,6 +466,18 @@ impl Scan {
     #[inline(always)]
     pub fn counted_below(&self, below: usize) -> Option<(usize, u64)> {
         if !self.inline {
+            // An array's map is one code for every element slot (word 2 on)
+            // and raw below it ([`Scan::code`]), so the next counted slot is
+            // the one just below the cursor, and a raw or packed array has
+            // none. Answered here, inline, a counted array's release costs a
+            // few instructions per slot and a raw array's nothing, instead of
+            // re-deriving each slot's code out of line.
+            if self.kind == KIND_ARRAY {
+                if self.entry == SCAN_RAW || self.entry > SCAN_TOBJ {
+                    return None;
+                }
+                return (below > 2).then(|| (below - 1, self.entry));
+            }
             return self.decode_below(below);
         }
         let m = self.map & slots_below(below);
