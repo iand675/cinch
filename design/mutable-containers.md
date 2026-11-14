@@ -29,8 +29,8 @@ command in section 10. No em dashes.
 | The hash table is SwissTable's probe with F14's deletion | 8-slot chunks, 7-bit tags matched in SWAR, overflow counts instead of tombstones (section 5) |
 | Delete churn does not grow the table | twenty rounds of 5,000 inserts and deletes leave the capacity unchanged (check 6 of the behaviour program) |
 | Every container check passes leak-free, under count debugging and at `-O2` | `cinch-leak: live=0 immortal=0 leaked=0` in all three modes (section 8) |
-| The mutable table beats the persistent map by 7 to 13 times | 1M scrambled keys (section 7) |
-| It is within 2x of abseil on insert and 4x on lookup | the same benchmark against `absl::flat_hash_map` (section 7) |
+| The mutable table beats the persistent map by about 11 times | 1M scrambled keys (section 7) |
+| It is within 2x of abseil on insert and 4.7x on a hit | the same benchmark against `absl::flat_hash_map` (section 7) |
 
 ## 2 The trusted core
 
@@ -299,30 +299,54 @@ work; they hold more memory than they need) until the seed is next re-pinned.
 
 ## 7 Measured
 
-Provisional: measured 2026-11-14 on a 4-core cloud VM while the stage ladder
-and regression suites were running (load average about 3), so absolute figures
-are noisy; the ratios are the claim. One million keys, `--opt-level 2`, the
+Measured 2026-11-14 on a 4-core x86_64 cloud VM with nothing else running
+(load average under 2), the median of three interleaved runs of each side.
+One million scrambled keys (`i * 2654435761 mod 2^32`), `--opt-level 2`, the
 release runtime, clang 19, abseil 20220623. Commands in
-`experiments/mutable-containers/README.md`.
+`experiments/mutable-containers/README.md`. Nanoseconds per operation.
 
-| Phase (ns/op) | `Data.Mutable.HashTable` | `Data.HashMap` (persistent) | `absl::flat_hash_map` | `std::unordered_map` |
+Hash maps:
+
+| Phase | `Data.Mutable.HashTable` | `Data.HashMap` (persistent) | `absl::flat_hash_map` | `std::unordered_map` |
 | --- | --- | --- | --- | --- |
-| insert | 214-295 | 2,253 | 128 | 134 |
-| lookup, hit | 132-155 (256 before the prefetch) | 1,716 | 36 | 13 |
-| lookup, miss | 47-85 | | 13 | 15 |
-| delete half | 336-390 | | 52 | 48 |
+| insert | 232 | 2,449 | 127 | 128 |
+| lookup, hit | 154 | 1,801 | 33 | 14 |
+| lookup, miss | 52 | | 11 | 16 |
+| delete half | 379 | | 47 | 51 |
 
-| Phase (ns/op) | Cinch | C++ |
+Ordered maps:
+
+| Phase | `Data.Mutable.BTree` | `Data.Map` (persistent) | `absl::btree_map` | `std::map` |
+| --- | --- | --- | --- | --- |
+| insert | 676 | 1,972 | 251 | 118 |
+| lookup, hit | 455 | 1,643 | 281 | 60 |
+| delete half | 927 | | 326 | 178 |
+
+Sequences and heaps:
+
+| Phase | Cinch | C++ |
 | --- | --- | --- |
-| `vec-push` / `push_back` | 28 | 1 |
-| `vec-sort` / `std::sort` | 376 | 66 |
-| `heap-push` / `priority_queue::push` | 51 | 6 |
-| `heap-pop` / `priority_queue::pop` | 675 | 130 |
+| `vec-push` / `vector::push_back` | 28 | 108 |
+| `vec-sort` / `std::sort` | 390 | 68 |
+| `heap-push` / `priority_queue::push` | 48 | 6 |
+| `heap-pop` / `priority_queue::pop` | 697 | 141 |
 
-At 50,000 keys (cache resident) a hit costs 82 ns against abseil's 9, so at a
-million keys roughly two thirds of the gap is memory (three arrays per hit,
-section 9 item 2) and one third instructions, mostly the `Hash` and `Eq`
-dictionary calls (section 9 item 3).
+Reading them:
+
+* Against the persistent maps the mutable ones are 10.6x (insert) and 11.7x
+  (hit) faster for hashing, and 2.9x and 3.6x for ordered maps.
+* Against C++ the hash table is within 2x on insert and 4.7x on a hit, the
+  B-tree within 2.7x on insert and 1.6x on a hit of abseil's.
+* At 50,000 keys (cache resident) a table hit costs 82 ns against abseil's 9,
+  so at a million keys roughly two thirds of the gap is memory (three arrays
+  per hit, section 9 item 2) and one third instructions, mostly the `Hash` and
+  `Eq` dictionary calls (section 9 item 4). The home-chunk prefetch took a hit
+  from 256 to about 150 ns.
+* The sort and the heap pay a closure call per comparison (the ordering is a
+  value, not an inlined `<`), which is the 5x against `std::sort` and
+  `priority_queue`.
+* `std::vector::push_back` at 108 ns here is page faulting on fresh memory
+  after the map phases; earlier runs measured 1 ns.
 
 ## 8 Gates
 
