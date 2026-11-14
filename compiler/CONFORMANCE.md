@@ -102,6 +102,7 @@ needs the checker to consume export tables instead of sources.
 | Pi/Sigma, dependent functions and pairs | done (explicit `(x :: A) -> B` and `Sigma (x :: A). B`; construction and elimination tested and exercised by examples 01/02) |
 | Conversion checking (definitional equality) | done (beta + iota-on-numerals + alpha + proof irrelevance; terminating by construction, no delta; D28) |
 | Implicit arguments, inference | done (`forall` binders classified by use; value binders solved by unification and reified; D29) |
+| Rank-N polymorphism (nested `forall`) | done, predicative with simplified subsumption: rank-N arguments, results and constructor fields; polytypes are `#poly.<k>` family dictionaries with one slot per reached class vector; nested `using` constraints deferred (D429) |
 | Indexed families (`Vec`, `Fin`), dependent matching, coverage | done except rigid-index refinement (D35): `Vec`/`Fin`/`Dec` builtins (D30), general user indexed families, index equations solve/refute/unknown, refuted arms rejected |
 | `Prop`, `proof`, `erased`, `Eq`/`refl`/`congr`, erasure | done (erased fields/args bind `%0` evidence and take no runtime slot; proof irrelevance at runtime; D31) |
 | Totality (structural recursion), `decide`, branch evidence | done for the logical fragment (`spec`/`proof`: purity, self-structural decrease, mutual-cycle rejection); `decide` with Checked/Disproved folds, Unsupported/Timeout errors, Unresolved scoped runtime comparison; `Diverge` enforcement on executable definitions deferred (D32) |
@@ -852,6 +853,28 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   `sched/fiber.rs`, `sched/switch.rs`, `sched/thread.rs`, `park.rs`,
   `task.rs`; `compiler/runtime/tests/sched.rs`,
   `compiler/tests/concurrency.rs`; `design/green-threads.md`.
+- **D429 (rank-N polymorphism, design/rank-n-polymorphism.md)**: a
+  `forall` may appear in any type position. A nested quantifier binds
+  types, type constructors, effect rows and regions (never `using`
+  constraints, proposition, index or value binders), and its binders
+  are renamed apart at conversion so no substitution captures them.
+  Checking is predicative with simplified subsumption: checking a term
+  against a polytype skolemises it under a fresh pure performed-effect
+  frame, synthesizing a polytype instantiates it, and two polytypes are
+  equal when their bodies unify at one shared set of skolems. A
+  metavariable is never bound to a polytype, and a metavariable older
+  than a skolem scope may never be bound to a type mentioning its skolems
+  (level adjustment promotes the younger metavariables such a binding
+  mentions). At run time a polytype with `k` type binders is a dictionary
+  of the anonymous `#poly.<k>` family: a generalisation site is an
+  instance whose one method is generic over the enclosing unit's
+  parameters and the skolems, built by `InstDict` over its captured
+  locals, and an instantiation is a `DictProj` of slot 0 at the use's
+  own class vector. The collector's existing shared slot table gives
+  one slot per reached own vector, so no runtime class dispatch exists.
+  Family identity is the binder count alone, because it must not change
+  under substitution of free outer type variables. Evidence:
+  `tests/rank_n.rs`, `tests/fixtures/rank_n/`.
 - **D221-D227 (P18 continuation, reported)**: `unsafe` is a per-body
   prefix (`unsafe <family> { ... }`) with `unsafe prim ... where` sugar
   folding into bodies at parse, recognized contextually so `unsafe`

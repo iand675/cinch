@@ -1,0 +1,9 @@
+module Main where
+  -- Generalisation inside a polymorphic definition: the method unit is
+  -- generic over the enclosing `b` and its own `a`.
+  apply-both :: forall b. (forall a. a -> b -> a) -> b -> (I64, String) -> (I64, String)
+  apply-both f b p = case p of (n, s) -> (f n b, f s b)
+  konst :: forall b. b -> (I64, String) -> (I64, String)
+  konst b p = apply-both (\x y -> x) b p
+  main :: Int
+  main = case konst "ignored" (39, "abc") of (n, s) -> int-from-i64 n + nat-to-int (string-length s)

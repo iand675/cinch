@@ -169,6 +169,48 @@ module Main where
   main = at 5 3
 ```
 
+# Polymorphic arguments and results
+
+A `forall` may appear inside a type, not only at the start of a signature. `(forall a. a -> a) -> (I64, String) -> (I64, String)` takes an argument that is itself polymorphic, so the body may use it at more than one type. The callee chooses the types, not the caller:
+
+<!-- cinch:run exit=0 -->
+```cinch
+module Main where
+  both :: (forall a. a -> a) -> (I64, String) -> (I64, String)
+  both f p = case p of (n, s) -> (f n, f s)
+
+  main :: Int
+  main = case both (\x -> x) (7, "seven") of
+    (n, s) -> if n == 7 && string-length s == 5 then 0 else 1
+```
+
+A constructor field may hold a polymorphic value, and a function may return one:
+
+| Form | Meaning |
+| --- | --- |
+| `(forall a. a -> a) -> Int` | A rank-2 argument: the body may apply it at several types. |
+| `((forall a. a -> a) -> Int) -> Int` | Rank 3: the argument itself takes a polymorphic argument. |
+| `Church :: (forall a. (a -> a) -> a -> a) -> Church` | A polymorphic constructor field. |
+| `Bool -> (forall a. a -> a -> a)` | A polymorphic result, instantiated where it is applied. |
+| `(forall f. f I64 -> f I64) -> ...` | A nested binder may be a type constructor, an effect row or a region. |
+
+The rules are predicative. A term checked against a polymorphic type is checked at fresh rigid type variables, so `\x -> x` is accepted and a function of `I64 -> I64` is not. Those variables may not escape into a type outside the term. Building the value performs no effects, because it is built once for each representation its uses need. A type variable never stands for a polymorphic type, so `ident both` is refused, and a nested `forall` cannot carry `using` constraints. Two polymorphic types are the same when they differ only in the names of their binders.
+
+<!-- cinch:reject contains="type mismatch: expected I64, got a" -->
+```cinch
+module Main where
+  run :: (forall a. a -> a) -> I64
+  run f = f 1
+
+  inc :: I64 -> I64
+  inc n = n
+
+  main :: Int
+  main = int-from-i64 (run inc)
+```
+
+A polymorphic value is a block of closures, one for each word representation its uses reach, so passing one costs a pointer, and a use is one indirect call.
+
 # Declaration forms
 
 ## Data declarations

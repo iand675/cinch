@@ -312,6 +312,23 @@ D-numbers) that amend or interpret this chapter's normative text.
   are deferred and `bisim` is out of scope; D32's boundary is unchanged
   (a pure-typed diverging helper can fake productivity through a
   guard).
+- **Rank-N polymorphism (D429), 2026-11-14.** This amends section 1's
+  notation table: `forall` is not confined to a signature's outermost
+  position. `(forall a. a -> a) -> (I64, String)` takes a polymorphic
+  argument, a function may return a polytype, and a constructor field may
+  hold one (`Church :: (forall a. (a -> a) -> a -> a) -> Church`). A nested
+  quantifier binds types, type constructors, effect rows and regions;
+  `using` constraints and value, index and proposition binders stay at
+  the outermost position. Instantiation is predicative: a type variable
+  never stands for a polymorphic type, so `ident both` is refused and a
+  polymorphic value is passed where its polytype is declared. A term
+  checked against a polytype is checked at fresh rigid variables, which
+  must not escape into any type outside it, and its evaluation must be
+  pure: the value is built once per representation its uses reach, so
+  building it twice must be unobservable. Polytypes compare by alpha-
+  equivalence, without subsumption between them. Positivity reads a
+  polytype's body at the polarity of its position. See
+  `design/rank-n-polymorphism.md`.
 - **Cinch naming (D278-D281), 2026-10-28.** The language is Cinch:
   `.cinch` sources, `.cinchif` compiled interfaces, `cinch_*` runtime
   externs, `cinchruntime` staticlib. Artifact names in this chapter

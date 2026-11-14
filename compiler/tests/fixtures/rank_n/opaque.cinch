@@ -1,0 +1,15 @@
+module Main where
+  -- A recursive callee is not inlined, so its projections read a
+  -- dictionary it cannot see, through the family's shared slot table.
+  both :: (forall a. a -> a) -> Nat -> (I64, String) -> (I64, String)
+  both f n p = case n of
+    0 -> case p of (m, s) -> (f m, f s)
+    k -> both f (k - 1) p
+  store :: (forall a. a -> a) -> List String -> List String
+  store f xs = case xs of
+    Nil -> Nil
+    Cons x rest -> Cons (f x) (store f rest)
+  main :: Int
+  main = let suffix = "!" in
+    case both (\x -> x) 3 (39, "a") of
+      (m, s) -> int-from-i64 m + nat-to-int (string-length s) + length (store (\y -> y) ["p", suffix])

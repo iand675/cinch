@@ -1,0 +1,6 @@
+module Main where
+  -- One polymorphic argument used at a raw word and at a counted one.
+  both :: (forall a. a -> a) -> (I64, String) -> (I64, String)
+  both f p = case p of (n, s) -> (f n, f s)
+  main :: Int
+  main = case both (\x -> x) (40, "ab") of (n, s) -> int-from-i64 n + nat-to-int (string-length s)

@@ -146,6 +146,10 @@ fn check_group_positivity(
                 go(group, label, field, ctor, dom, span, positive)?;
                 go(group, label, field, ctor, cod, span, positive)
             }
+            // A polytype's binders introduce no occurrence; its body keeps
+            // the polarity of its position (design/rank-n-polymorphism.md
+            // section 3).
+            Ty::Forall(scheme) => go(group, label, field, ctor, &scheme.ty, span, positive),
             Ty::Tuple(items) => {
                 for i in items {
                     go(group, label, field, ctor, i, span, positive)?;
@@ -293,6 +297,7 @@ fn ty_mentions(t: &Ty, name: &str) -> bool {
             ty_mentions(a, name) || ty_mentions(b, name)
         }
         Ty::Sigma { dom, cod, .. } => ty_mentions(dom, name) || ty_mentions(cod, name),
+        Ty::Forall(scheme) => !scheme.params.iter().any(|p| p == name) && ty_mentions(&scheme.ty, name),
         Ty::Thunk { inner, .. } | Ty::Later(inner) | Ty::Lazy { inner, .. } => ty_mentions(inner, name),
         Ty::Ref(_, i) | Ty::Mut(_, i) => ty_mentions(i, name),
         Ty::Handler { input, output, .. } => {
@@ -8067,7 +8072,8 @@ impl Checker {
             if let Some(result) = total_result { self.remember_total_body(&id, &param_ids, result, &body); }
         }
         let mut hoisted = Vec::new();
-        hoist_lambdas(&mut body, &id.0, &mut self.lam_counter, &mut hoisted);
+        let definition_tparams = self.cur_tparams.clone();
+        hoist_lambdas_in(&mut body, &id.0, &mut self.lam_counter, &mut hoisted, &definition_tparams, &mut Vec::new());
         // `letrec` member units (surface grammar local amendments
         // section 9): their bodies arrive with their final unit ids, so
         // only their nested lambdas hoist like any others.
@@ -8081,7 +8087,7 @@ impl Checker {
                 }
             };
             let mut mbody = mbody;
-            hoist_lambdas(&mut mbody, &id.0, &mut self.lam_counter, &mut hoisted);
+            hoist_lambdas_in(&mut mbody, &id.0, &mut self.lam_counter, &mut hoisted, &definition_tparams, &mut Vec::new());
             let mut free = Vec::new();
             free_locals(&mbody, &mut Vec::new(), &mut free);
             let mut env: Vec<LocalId> =
@@ -8093,6 +8099,9 @@ impl Checker {
                 id: mid,
                 params: fn_params,
                 body: mbody,
+                extra: Vec::new(),
+                poly: None,
+                result: None,
             });
         }
         if prim.is_none() && ctor.is_none() && meta.pure && !meta.prim_body {
@@ -8121,23 +8130,40 @@ impl Checker {
                 }
             }
             let mut done = Vec::with_capacity(hoisted.len() + 1);
+            let mut polys = Vec::new();
             {
                 let mut cx = LowerCx::new(self, &tparams, &own);
                 done.push(finalize_fn(id, param_ids, body, prim, ctor, hints, meta, &mut cx)?);
                 for h in hoisted {
-                    done.push(finalize_fn(
-                        h.id,
-                        h.params,
-                        h.body,
-                        None,
-                        None,
-                        crate::core::FnHints::default(),
-                        crate::core::FnMeta::default(),
-                        &mut cx,
-                    )?);
+                    // A unit under generalisation sites is generic over
+                    // their skolems too (design/rank-n-polymorphism.md
+                    // section 4); the instance's vector is the part before
+                    // the site's own binders.
+                    let unit_tparams: Vec<String> = tparams.iter().chain(&h.extra).cloned().collect();
+                    if let Some((k, captures)) = h.poly {
+                        polys.push(InstanceDef {
+                            id: crate::check::poly_instance_id(&h.id),
+                            method_count: 1,
+                            subdict_count: captures,
+                            methods: vec![h.id.clone()],
+                            class: crate::check::poly_family_of(k),
+                            tparams: unit_tparams.len() - k,
+                            own: vec![k],
+                        });
+                    }
+                    let result = h.result.as_ref().map(|ty| crate::repr::repr_of(&self.uni.zonk(ty), &unit_tparams, self, &mut |_| {}));
+                    let mut unit = if h.extra.is_empty() {
+                        finalize_fn(h.id, h.params, h.body, None, None, crate::core::FnHints::default(), crate::core::FnMeta::default(), &mut cx)?
+                    } else {
+                        let mut unit_cx = LowerCx::new(self, &unit_tparams, &own);
+                        finalize_fn(h.id, h.params, h.body, None, None, crate::core::FnHints::default(), crate::core::FnMeta::default(), &mut unit_cx)?
+                    };
+                    if result.is_some() { unit.repr.result = result; }
+                    done.push(unit);
                 }
             }
             self.fns.extend(done);
+            self.instance_defs.extend(polys);
         }
         Ok(())
     }
@@ -10459,6 +10485,10 @@ impl Checker {
         let rule_unit = GlobalId(format!("{}.rewrite.{}", self.current_module, r.name.text));
         hoist_lambdas(&mut m, &rule_unit.0, &mut self.lam_counter, &mut hoisted);
         hoist_lambdas(&mut rp, &rule_unit.0, &mut self.lam_counter, &mut hoisted);
+        if hoisted.iter().any(|h| h.poly.is_some()) {
+            return Err(Error::at(r.name.span,
+                "a rewrite rule cannot build a polymorphic value; name it with a top-level definition (design/rank-n-polymorphism.md section 7)"));
+        }
         // The rule's own type parameters lower to open classes
         // (`Class::Param`, in binder order): a firing binds each to the
         // first subterm class it meets (`core::match_class`), and the
@@ -13775,6 +13805,7 @@ fn ty_has_raw_ptr(t: &Ty, opaque: &HashSet<String>, out: &mut Option<String>) ->
         Ty::Sigma { dom, cod, .. } => {
             ty_has_raw_ptr(dom, opaque, out) || ty_has_raw_ptr(cod, opaque, out)
         }
+        Ty::Forall(scheme) => ty_has_raw_ptr(&scheme.ty, opaque, out),
         _ => false,
     }
 }
@@ -24389,6 +24420,10 @@ impl Checker {
         self.fold_pass(&mut body, &id.0.clone(), true);
         let mut hoisted = Vec::new();
         hoist_lambdas(&mut body, &id.0, &mut self.lam_counter, &mut hoisted);
+        if hoisted.iter().any(|h| h.poly.is_some()) {
+            return Err(Error::plain(format!(
+                "{} builds a polymorphic value at compile time, which staging does not support yet (design/rank-n-polymorphism.md section 7)", id.0)));
+        }
         let before = self.fns.len();
         // A probe runs at compile time only; its classes are never read.
         let own: HashSet<GlobalId> = hoisted.iter().map(|h| h.id.clone()).collect();

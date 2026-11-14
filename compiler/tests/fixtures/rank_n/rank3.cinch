@@ -1,0 +1,10 @@
+module Main where
+  -- Rank 3: the argument itself takes a polymorphic argument.
+  use-id :: ((forall a. a -> a) -> I64) -> I64
+  use-id k = k (\x -> x)
+  twice-id :: (forall a. a -> a) -> I64
+  twice-id f = case f True of
+    True -> f 41
+    False -> 0
+  main :: Int
+  main = int-from-i64 (use-id twice-id) + 1

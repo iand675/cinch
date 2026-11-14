@@ -1,0 +1,21 @@
+module Main where
+  -- Polymorphic values stored in a list and in a pair, used later at
+  -- counted (String), tagged (Int) and raw (Bool) words: every dictionary, captured string and result
+  -- must be released exactly once.
+  data Poly where
+    Poly :: (forall a. a -> a -> a) -> Poly
+  firsts :: String -> Poly
+  firsts tag = Poly (\x y -> if string-length tag > 0 then x else y)
+  seconds :: Poly
+  seconds = Poly (\x y -> y)
+  apply-all :: List Poly -> String -> String -> Int -> Int -> (List String, Int)
+  apply-all ps s t m n = case ps of
+    Nil -> (Nil, 0)
+    Cons p rest -> case p of
+      Poly f -> case apply-all rest s t m n of
+        (strings, total) -> if f True True then (Cons (f s t) strings, total + f m n) else (strings, total)
+  main :: Int
+  main = let ps = [firsts "tag", seconds, firsts "x"] in
+    case apply-all ps "left" "right" 10 11 of
+      -- 10 + 11 + 10 from the three pairs, plus the three kept strings.
+      (strings, total) -> total + length strings + 8

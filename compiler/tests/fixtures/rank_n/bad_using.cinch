@@ -1,0 +1,5 @@
+module Main where
+  run :: (forall a. using (e :: Eq a) => a -> Bool) -> Bool
+  run f = f 1
+  main :: Int
+  main = 0

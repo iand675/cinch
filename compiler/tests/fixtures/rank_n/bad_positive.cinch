@@ -1,0 +1,5 @@
+module Main where
+  data Bad where
+    Bad :: (forall a. Bad -> a) -> Bad
+  main :: Int
+  main = 0

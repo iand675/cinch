@@ -1,0 +1,5 @@
+module Main where
+  mk :: Bool -> (forall a. a -> a -> a)
+  mk first = \x y -> if first then x else y
+  main :: Int
+  main = int-from-i64 (mk True 42 0)

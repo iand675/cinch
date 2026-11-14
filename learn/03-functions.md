@@ -149,6 +149,7 @@ Use `where` when a helper belongs to one equation, and `let` when the binding be
 - A function takes exactly one argument per arrow. Supplying fewer leaves a function; supplying more is `cannot apply a value of type Int`.
 - The body of a definition must produce the type its signature promises.
 - `forall` at the top of a signature lets the caller choose the type; the body must work for every choice.
+- A `forall` inside a parenthesized argument type, as in `(forall a. a -> a) -> Int`, lets the body choose instead: the argument must work at every type. See [polymorphic arguments](../reference/04-types-and-kinds.md#polymorphic-arguments-and-results).
 - `letrec` requires a signature per name and a lambda or `delay` around every recursive use.
 - Subtraction on `Nat` requires evidence that the result is not negative, which an `if` test or a guard supplies.
 

@@ -1,0 +1,5 @@
+module Main where
+  both :: (forall a. a -> a) -> (I64, Bool) -> (I64, Bool)
+  both f p = case p of (n, b) -> (f n, f b)
+  main :: Int
+  main = case both (\x -> x) (41, True) of (n, b) -> if b then int-from-i64 n + 1 else 0

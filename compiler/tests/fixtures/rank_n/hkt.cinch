@@ -1,0 +1,9 @@
+module Main where
+  -- A higher-kinded nested binder: a natural transformation.
+  apply-nat :: (forall f. f I64 -> f I64) -> List I64 -> Option I64 -> (List I64, Option I64)
+  apply-nat k xs o = (k xs, k o)
+  main :: Int
+  main = case apply-nat (\v -> v) [1, 2] (Some 40) of
+    (xs, o) -> case o of
+      Some n -> int-from-i64 n + length xs
+      None -> 0

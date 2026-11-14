@@ -2830,6 +2830,18 @@ fn referenced_symbols(text: &str, units: &HashSet<String>) -> BTreeSet<String> {
             if units.contains(name) {
                 out.insert(name.to_string());
             }
+            // A static dictionary block (`<instance>.dict`) is emitted by
+            // that instance's `.mk` factory, which is the unit that must
+            // stay. This is decided before the prefix rule: an anonymous
+            // instance of a polytype family (`Main.f.inst3`) is named under
+            // its definition, which the prefix rule would pick instead.
+            if let Some(mk) = name.split('#').next().and_then(|n| n.strip_suffix(".dict")).map(|id| format!("{id}.mk")) {
+                if units.contains(&mk) {
+                    out.insert(mk);
+                    i = end.max(i);
+                    continue;
+                }
+            }
             let mut best: Option<&str> = None;
             for unit in units {
                 // A tail worker is `<unit>#w` (`tail_worker`), so `#`

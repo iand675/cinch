@@ -1,0 +1,11 @@
+module Main where
+  run :: (forall a. a -> a) -> I64
+  run f = f 1
+  choose :: forall t. t -> t -> t
+  choose x y = y
+  -- `x`'s type is an outer metavariable: equating it with the skolem of
+  -- the polymorphic argument would let `a` escape its forall.
+  bad :: I64
+  bad = (\x -> run (\y -> choose x y)) 0
+  main :: Int
+  main = int-from-i64 bad
