@@ -112,6 +112,61 @@ fn a_tail_only_local_continuation_becomes_a_join_point() {
 }
 
 #[test]
+fn a_contified_continuation_passes_its_counted_captures() {
+    // The innermost continuation captures the string `s`, and after
+    // inlining `opt-then` it is only tail-called, so it becomes a join. The
+    // capture must travel as a join argument: reference counting runs after
+    // the simplifier and reads a join body's free locals as borrowed, so a
+    // free `s` was released before the jump that needed it.
+    let source = r#"module Main where
+  opt-then :: forall a b. Option a -> (a -> Option b) -> Option b
+  opt-then o k = case o of
+    None -> None
+    Some v -> k v
+  names :: Nat -> List String
+  names n = Cons "alpha" (Cons (nat-to-string n) (Cons "gamma" Nil))
+  doubled-second :: List String -> Option String
+  doubled-second xs = opt-then (tail xs) (\t -> opt-then (head t) (\s -> opt-then (string-char-at s 0) (\c -> Some (string-concat s s))))
+  main :: Int
+  main = case doubled-second (names 21) of
+    None -> 1
+    Some s -> if string-compare s "2121" == 0 then 42 else 2
+"#;
+    for level in [0, 2] {
+        build_and_run(&format!("cps-contify-capture-o{level}"), source, &at(level));
+    }
+}
+
+#[test]
+fn contifying_a_recursive_continuation_terminates() {
+    // `digits` builds a continuation that calls `digits` again. Contifying
+    // a copy exposes the same closure beneath it once the callee unfolds,
+    // so the rule must not re-enter its own copy: without the guard the
+    // simplifier recursed until the compiler's stack overflowed.
+    let source = r#"module Main where
+  and-then :: forall e a b. Result e a -> (a -> Result e b) -> Result e b
+  and-then r k = case r of
+    Err e -> Err e
+    Ok v -> k v
+  digit :: Nat -> Result String Nat
+  digit k = if k < 10 then Ok k else Err "bad"
+  digits :: List Nat -> Result String (List Nat)
+  digits xs = case xs of
+    Nil -> Ok Nil
+    Cons h t -> and-then (digit h) (\d -> and-then (digits t) (\ds -> Ok (Cons d ds)))
+  total :: List Nat -> Nat
+  total xs = case xs of
+    Nil -> 0
+    Cons h t -> h + total t
+  main :: Int
+  main = case digits (Cons 1 (Cons 2 (Cons 4 Nil))) of
+    Err e -> 1
+    Ok v -> if total v == 7 then 42 else 2
+"#;
+    build_and_run("cps-contify-recursive", source, &at(2));
+}
+
+#[test]
 fn a_rank_two_continuation_folds() {
     let source = r#"module Main where
   data Cont a where

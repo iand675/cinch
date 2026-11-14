@@ -399,6 +399,12 @@ struct Scope {
     /// A local to the closure construction it is bound to, when every
     /// capture is a value (rule `known-closure-call`).
     lams: HashMap<LocalId, Core>,
+    /// The lambda units whose contified copy the pass is inside. A copy can
+    /// expose the recursion it came from (an unfolded recursive callee that
+    /// builds the same closure again), so the same lambda is not contified
+    /// again beneath its own copy: each simplifier iteration unrolls at most
+    /// one level, and the iteration cap bounds the rest.
+    contifying: Vec<String>,
 }
 
 impl Scope {
@@ -816,9 +822,14 @@ fn pass(
     // Contification looks at a binding's uses before the body's own rewrites
     // run: `known-closure-call` would otherwise turn the tail calls it wants
     // into direct calls first, and a jump beats a call.
-    if opts.contify && matches!(e, Core::Let(..)) && contify(e, tables, fresh) {
-        t.fire(Rule::Contify);
-        return pass(e, scope, tables, classes, occ, opts, fresh, t);
+    if opts.contify {
+        if let Some(lam) = contify(e, tables, fresh, &scope.contifying) {
+            t.fire(Rule::Contify);
+            scope.contifying.push(lam);
+            pass(e, scope, tables, classes, occ, opts, fresh, t);
+            scope.contifying.pop();
+            return;
+        }
     }
     match e {
         Core::Let(l, _, value, body) => {
@@ -2240,35 +2251,60 @@ fn is_lambda_unit(name: &str) -> bool {
 /// `let k = lam f (e1 .. em) in body`, where every occurrence of `k` in
 /// `body` is a saturated call `k a1 .. an` in tail position, becomes
 ///
-/// `join j (p1 .. pn) = body_f[env := e1 .. em, params := p1 .. pn] in body[k a := jump j a]`.
+/// `join j (c1 .. cm p1 .. pn) = body_f[env := c1 .. cm, params := p1 .. pn] in body[k a := jump j e a]`.
 ///
 /// Every call of `k` was the last thing its path did, so jumping to the
 /// join's block computes the same value without allocating the closure or
 /// making an indirect call. The captures must be values (locals, literals,
-/// unit references): the join reads them where the closure would have
-/// read its saved copies, so nothing is evaluated twice or moved past an
-/// effect. A join body sits in the enclosing scope, which is exactly where
-/// the captures were read when the closure was built.
-fn contify(e: &mut Core, tables: &Tables, fresh: &mut Fresh) -> bool {
-    let Core::Let(k, _, value, body) = &*e else { return false };
-    let Core::Lam { fn_id, env, .. } = &**value else { return false };
-    let Some((classes, unit_body)) = tables.lambdas.get(&fn_id.0) else { return false };
+/// unit references), so nothing is evaluated twice or moved past an effect.
+/// A captured local becomes a leading join parameter that every jump
+/// passes (literals and unit references are put in place): reference
+/// counting reads a join body's free locals as borrowed and keeps them live
+/// nowhere, so the join must be closed over counted locals, as the lambda
+/// unit was.
+fn contify(e: &mut Core, tables: &Tables, fresh: &mut Fresh, inside: &[String]) -> Option<String> {
+    let Core::Let(k, _, value, body) = &*e else { return None };
+    let Core::Lam { fn_id, env, .. } = &**value else { return None };
+    if inside.contains(&fn_id.0) {
+        return None;
+    }
+    let (classes, unit_body) = tables.lambdas.get(&fn_id.0)?;
     if classes.len() < env.len() || !env.iter().all(capture_value) {
-        return false;
+        return None;
     }
     let arity = classes.len() - env.len();
     if arity == 0 {
-        return false;
+        return None;
     }
     match tail_calls(body, *k, arity, true) {
         Some(n) if n > 0 => {}
-        _ => return false,
+        _ => return None,
     }
     let k = *k;
+    let lam = fn_id.0.clone();
     let mut copy = unit_body.clone();
     let mut renames: HashMap<LocalId, LocalId> = HashMap::new();
     rename_binders(&mut copy, &mut renames, fresh);
-    let params: Vec<(LocalId, crate::core::Class)> =
+    // A captured local becomes a join parameter that every jump passes,
+    // rather than a free variable of the join body: reference counting
+    // runs after this pass and reads a jump's arguments as its uses, so a
+    // counted capture read only inside the join would be dropped before the
+    // jump that needs it. A literal or a unit reference carries no count and
+    // is put in place.
+    let mut params: Vec<(LocalId, crate::core::Class)> = Vec::new();
+    let mut passed: Vec<Core> = Vec::new();
+    let mut captures: Vec<Core> = Vec::with_capacity(env.len());
+    for (i, c) in env.iter().enumerate() {
+        if matches!(c, Core::Var(_)) {
+            let p = fresh.local();
+            params.push((p, classes[i]));
+            passed.push(c.clone());
+            captures.push(Core::Var(p));
+        } else {
+            captures.push(c.clone());
+        }
+    }
+    let own: Vec<(LocalId, crate::core::Class)> =
         classes[env.len()..].iter().map(|c| (fresh.local(), *c)).collect();
     // Parameters first become fresh locals, then the captures are put in:
     // the unit's parameter numbers collide with the caller's own locals.
@@ -2276,18 +2312,19 @@ fn contify(e: &mut Core, tables: &Tables, fresh: &mut Fresh) -> bool {
     for (i, s) in staged.iter().enumerate() {
         subst(&mut copy, LocalId(i), &Core::Var(*s));
     }
-    for (j, (p, _)) in params.iter().enumerate() {
+    for (j, (p, _)) in own.iter().enumerate() {
         subst(&mut copy, LocalId(env.len() + j), &Core::Var(*p));
     }
-    for (s, capture) in staged.iter().zip(env.iter()) {
+    for (s, capture) in staged.iter().zip(captures.iter()) {
         subst(&mut copy, *s, capture);
     }
+    params.extend(own);
     let id = fresh.join();
     let Core::Let(_, _, _, body) = std::mem::replace(e, Core::Unit) else { unreachable!() };
     let mut rest = *body;
-    jumpify(&mut rest, k, id, true);
+    jumpify(&mut rest, k, id, &passed, true);
     *e = Core::Join { id, params, body: Box::new(copy), rest: Box::new(rest) };
-    true
+    Some(lam)
 }
 
 /// A closure capture `contify` may read where the closure stood.
@@ -2321,7 +2358,11 @@ fn tail_calls(e: &Core, k: LocalId, arity: usize, tail: bool) -> Option<usize> {
             for alt in alts { n += tail_calls(&alt.body, k, arity, tail)?; }
             Some(n)
         }
-        Core::Join { body, rest, .. } => sum(&[(body, tail), (rest, tail)]),
+        // A call inside an inner join's body would become a jump that passes
+        // the captures from inside that body, leaving them free there, and
+        // reference counting reads a join body's free locals as borrowed and
+        // keeps them live nowhere: only the continuation may call `k`.
+        Core::Join { body, rest, .. } => if mentions_local(body, k) { None } else { tail_calls(rest, k, arity, tail) },
         // A quotation's retained body is a scope of its own.
         Core::Quote { .. } | Core::DeclsQuote { .. } => if mentions_local(e, k) { None } else { Some(0) },
         other => {
@@ -2349,21 +2390,22 @@ fn mentions_local(e: &Core, k: LocalId) -> bool {
 
 /// Replace every tail call of `k` by a jump to `id` ([`tail_calls`] has
 /// established that no other occurrence exists).
-fn jumpify(e: &mut Core, k: LocalId, id: JoinId, tail: bool) {
+fn jumpify(e: &mut Core, k: LocalId, id: JoinId, passed: &[Core], tail: bool) {
     if tail {
         if let Core::App(head, args) = e {
             if matches!(&**head, Core::Var(x) if *x == k) {
-                let args = std::mem::take(args);
-                *e = Core::Jump { id, args };
+                let mut all = passed.to_vec();
+                all.append(args);
+                *e = Core::Jump { id, args: all };
                 return;
             }
         }
     }
     match e {
-        Core::Let(_, _, _, b) => jumpify(b, k, id, tail),
-        Core::If(_, a, b) => { jumpify(&mut a.body, k, id, tail); jumpify(&mut b.body, k, id, tail); }
-        Core::Case { alts, .. } => for alt in alts { jumpify(&mut alt.body, k, id, tail) },
-        Core::Join { body, rest, .. } => { jumpify(body, k, id, tail); jumpify(rest, k, id, tail); }
+        Core::Let(_, _, _, b) => jumpify(b, k, id, passed, tail),
+        Core::If(_, a, b) => { jumpify(&mut a.body, k, id, passed, tail); jumpify(&mut b.body, k, id, passed, tail); }
+        Core::Case { alts, .. } => for alt in alts { jumpify(&mut alt.body, k, id, passed, tail) },
+        Core::Join { rest, .. } => jumpify(rest, k, id, passed, tail),
         _ => {}
     }
 }
