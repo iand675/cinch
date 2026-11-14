@@ -370,6 +370,8 @@ module Bootstrap.Global where
     CIf sp ty condition yes no -> term-references globals locals givens condition && term-references globals locals givens yes && term-references globals locals givens no
     CCase sp ty value alternatives -> term-references globals locals givens value && term-references globals locals givens alternatives
     CTuple sp ty fields -> term-references globals locals givens fields
+    CPolyIntro sp ty poly-ids fields -> term-references globals locals givens fields
+    CPolyElim sp ty fields poly-args -> term-references globals locals givens fields
     CPrimitive sp ty name args -> term-references globals locals givens args
     CProved sp ty certificate body -> term-references globals locals givens body
     CRefine sp ty certificate body -> term-references globals locals givens body

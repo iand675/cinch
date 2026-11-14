@@ -18,7 +18,7 @@ module Bootstrap.Type where
   export valid-kind, map-kind-types, value-kind, value-carrier
   export arrow-constructor-kind, type-application, refinement-view, refinement-formals
   export ArrowUsage, UsageZero, UsageOne, UsageAffine, UsageMany, parse-arrow-usage, arrow-usage-text, UUsageArrow, arrow-shape, erased-value-arrow
-  export UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, UPropNotNull, UPropAscii, UPropOrdered, UPropAscii, UPropOrdered, URequire, URefine, URefineFormer, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexBorrowRead, UIndexCall, UIndexList, UIndexMath, UPi, UApp, UFun, UFunEff, UProofFun, URow, URowJoin, UTuple, UArg, UEnd, UError
+  export UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, UPropNotNull, UPropAscii, UPropOrdered, UPropAscii, UPropOrdered, URequire, URefine, URefineFormer, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexBorrowRead, UIndexCall, UIndexList, UIndexMath, UPi, UApp, UFun, UFunEff, UProofFun, URow, URowJoin, UTuple, UForall, UArg, UEnd, UError
   export core-list-type, core-list-element, ascii-carrier, ordered-carrier
   export borrow-constructor-kind, borrow-type-parts, borrow-regions, borrow-region-conflict
   export thunk-kind, thunk-type, thunk-parts
@@ -31,6 +31,7 @@ module Bootstrap.Type where
   export Requirement, MkRequirement, requirement-name, requirement-type, map-requirements
   export Scheme, MkScheme, MkQualifiedScheme, scheme-params, scheme-body, scheme-requirements, mono, qualified
   export map-scheme-types, open-qualified
+  export instantiate-params, map-quant-kinds, has-forall, quant-id-list, quant-names-text, same-quant-kinds, rename-quants, remove-ids
   export pending-number, pending-comparison, default-numbers-for, finish-numbers
   export Store, empty-store, store-errors, store-level, enter-level, restore-level
   export store-law-scope, with-law-scope
@@ -117,6 +118,11 @@ module Bootstrap.Type where
     URow :: UType -> UType
     URowJoin :: UType -> UType -> UType
     UTuple :: UType -> UType
+    -- A nested polymorphic type (design/rank-n-polymorphism.md): its
+    -- binders are `UBound` ids unique in the store, exactly as a scheme's,
+    -- so substitution never captures one. No metavariable is ever bound
+    -- to a type containing it (predicativity, `bind-other`).
+    UForall :: List Quant -> UType -> UType
     UArg :: UType -> UType -> UType
     UEnd :: UType
     UError :: UType
@@ -256,9 +262,22 @@ module Bootstrap.Type where
     URow labels -> tree "row" [carrier-tree labels]
     URowJoin a b -> tree "row-join" [carrier-tree a, carrier-tree b]
     UTuple fields -> tree "tuple" [carrier-tree fields]
+    UForall qs body -> tree "forall" [quant-trees qs, carrier-tree body]
     UArg a rest -> tree "arg" [carrier-tree a, carrier-tree rest]
     UEnd -> JStr "end"
     UError -> JStr "error"
+  quant-trees :: List Quant -> Json
+  quant-trees qs = case qs of
+    Nil -> JArrEnd
+    Cons (MkQuant id name kind only) rest -> JArr (tree "quant" [JNum (nat-to-int id), JStr name, kind-tree kind, JBool only]) (quant-trees rest)
+  read-quant-trees :: Json -> Option (List Quant)
+  read-quant-trees doc = case doc of
+    JArrEnd -> Some Nil
+    JArr (JArr (JStr tag) (JArr a (JArr (JStr name) (JArr k (JArr (JBool only) JArrEnd))))) rest ->
+      if same-tag tag "quant" then (case (tree-natural a, read-kind-tree k, read-quant-trees rest) of
+        (Some id, Some kind, Some qs) -> Some (Cons (MkQuant id name kind only) qs)
+        other -> None) else None
+    other -> None
   same-tag :: String -> String -> Bool
   same-tag a b = string-compare a b == 0
   tree-natural :: Json -> Option Nat
@@ -291,6 +310,9 @@ module Bootstrap.Type where
       if same-tag tag "con" then (case (a, read-kind-tree b) of (JStr name, Some kind) -> Some (UCon name kind); other -> None)
       else if same-tag tag "meta" then (case (tree-natural a, read-kind-tree b) of (Some id, Some kind) -> Some (UMeta id kind); other -> None)
       else if same-tag tag "index" then (case (read-carrier-tree a, index-from-tree b) of (Some carrier, Some value) -> Some (UIndex carrier value); other -> None)
+      else if same-tag tag "forall" then (case (read-quant-trees a, read-carrier-tree b) of
+        (Some qs, Some body) -> Some (UForall qs body)
+        other -> None)
       else if same-tag tag "usage-fun" then (case (a, read-carrier-tree b) of
         (JStr marker, Some arrow) -> case parse-arrow-usage marker of
           Some usage -> if computational-arrow arrow then Some (UUsageArrow usage arrow) else None
@@ -380,6 +402,7 @@ module Bootstrap.Type where
     URow labels -> URow (opaque-carrier labels)
     URowJoin a b -> URowJoin (opaque-carrier a) (opaque-carrier b)
     UTuple fields -> UTuple (opaque-carrier fields)
+    UForall qs body -> UForall qs (opaque-carrier body)
     UArg first rest -> UArg (opaque-carrier first) (opaque-carrier rest)
     other -> ty
   opaque-index :: IndexTerm -> IndexTerm
@@ -637,6 +660,7 @@ module Bootstrap.Type where
     URow labels -> URow (unique-effects (normalize st labels))
     URowJoin a b -> union-effects (normalize st a) (normalize st b)
     UTuple xs -> UTuple (normalize st xs)
+    UForall qs body -> UForall qs (normalize st body)
     UArg x rest -> UArg (normalize st x) (normalize st rest)
     other -> ty
 
@@ -803,6 +827,7 @@ module Bootstrap.Type where
       && (carrier-type result || proposition-type result)
     UApp f x -> valid-type f && valid-type x && (case type-kind f of KFun a b -> kind-equal a (type-kind x); other -> False)
     UFun a b -> valid-type a && valid-type b && kind-equal (type-kind a) KType && kind-equal (type-kind b) KType
+    UForall qs body -> list-length qs > 0 && valid-type body && kind-equal (type-kind body) KType
     UFunEff a row b -> valid-type a && valid-type row && valid-type b && kind-equal (type-kind a) KType && kind-equal (type-kind row) KRow && kind-equal (type-kind b) KType
     UUsageArrow usage arrow -> computational-arrow arrow && not (later-unrestricted usage arrow) && valid-type arrow
     UProofFun predicate row result -> proposition-type predicate && valid-type row && kind-equal (type-kind row) KRow && carrier-type result
@@ -887,6 +912,7 @@ module Bootstrap.Type where
     URow labels -> string-concat-all ["{", type-text labels, "}"]
     URowJoin a b -> string-concat-all ["(", type-text a, " union ", type-text b, ")"]
     UTuple xs -> string-concat-all ["(", type-text xs, ")"]
+    UForall qs body -> string-concat-all ["(forall", quant-names-text qs, ". ", type-text body, ")"]
     UArg x UEnd -> type-text x
     UArg x rest -> string-concat-all [type-text x, ", ", type-text rest]
     UEnd -> ""
@@ -932,6 +958,7 @@ module Bootstrap.Type where
     URow labels -> free-metas st labels
     URowJoin a b -> merge-ids (free-metas st a) (free-metas st b)
     UTuple xs -> free-metas st xs
+    UForall qs body -> merge-ids (quant-metas st qs) (free-metas st body)
     UArg x rest -> merge-ids (free-metas st x) (free-metas st rest)
     other -> Nil
   kind-metas :: Store -> Kind -> List Nat
@@ -946,6 +973,22 @@ module Bootstrap.Type where
   requirement-metas :: Store -> List Requirement -> List Nat
   requirement-metas st rs = case rs of Nil -> Nil; Cons r rest -> merge-ids (free-metas st (requirement-type r)) (requirement-metas st rest)
 
+  -- Predicativity: whether a polytype occurs anywhere in a type. No
+  -- metavariable solution may contain one.
+  has-forall :: UType -> Bool
+  has-forall ty = case ty of
+    UForall qs body -> True
+    UApp f x -> has-forall f || has-forall x
+    UFun a b -> has-forall a || has-forall b
+    UFunEff a row b -> has-forall a || has-forall b
+    UProofFun a row b -> has-forall a || has-forall b
+    UUsageArrow usage arrow -> has-forall arrow
+    UPi id name domain row result -> has-forall domain || has-forall result
+    UTuple xs -> has-forall xs
+    UArg x rest -> has-forall x || has-forall rest
+    URequire predicates body -> has-forall body
+    URefine id name carrier predicate -> has-forall carrier
+    other -> False
   -- Lower younger metavariables when they become part of an older one.
   -- A rigid variable from a deeper scope must never escape into it.
   escapes :: Nat -> UType -> Bool
@@ -984,6 +1027,7 @@ module Bootstrap.Type where
     URow labels -> escapes level labels
     URowJoin a b -> escapes level a || escapes level b
     UTuple xs -> escapes level xs
+    UForall qs body -> escapes level body
     UArg x rest -> escapes level x || escapes level rest
     other -> False
   kind-escapes :: Nat -> Kind -> Bool
@@ -1014,6 +1058,7 @@ module Bootstrap.Type where
       if list-length (store-errors checked) > list-length (store-errors st) then checked
       else if not (valid-type solution-type) then add-error sp "invalid type in type inference" checked
       else if contains-id id (free-metas checked solution-type) then add-error sp "infinite type: inference variable occurs in its own solution" checked
+      else if has-forall solution-type then add-error sp (string-concat "a type variable cannot stand for a polymorphic type; annotate the binding with its polymorphic type: " (display-type-text solution-type)) checked
       else if escapes lev solution-type then add-error sp "a quantified type variable escapes its scope" checked
       else put-cell (MkCell n lev (normalize-kind checked kind) (Some solution-type)) (lower lev (free-metas checked solution-type) checked)
 
@@ -1155,6 +1200,7 @@ module Bootstrap.Type where
       unify-open-rows sp a b st
       else add-error sp "malformed open effect row" st
     UTuple xs -> case b of UTuple ys -> unify sp xs ys st; other -> mismatch sp a b st
+    UForall qs x -> case b of UForall rs y -> unify-forall sp a b st; other -> mismatch sp a b st
     UArg x rest -> case b of UArg y tail -> unify sp rest tail (unify sp x y st); other -> mismatch sp a b st
     UEnd -> case b of UEnd -> st; other -> mismatch sp a b st
     other -> mismatch sp a b st
@@ -1229,6 +1275,9 @@ module Bootstrap.Type where
     URow a -> case second of URow b -> same-shape a b; other -> False
     URowJoin a b -> case second of URowJoin c d -> same-shape a c && same-shape b d; other -> False
     UTuple a -> case second of UTuple b -> same-shape a b; other -> False
+    UForall qs a -> case second of
+      UForall rs b -> list-length qs == list-length rs && same-quant-kinds qs rs && same-shape a (substitute (rename-quants rs qs) b)
+      other -> False
     UArg a rest -> case second of UArg b more -> same-shape a b && same-shape rest more; other -> False
     UEnd -> case second of UEnd -> True; other -> False
     other -> False
@@ -1357,6 +1406,9 @@ module Bootstrap.Type where
     URow labels -> URow (transform-type mode pairs labels)
     URowJoin a b -> union-effects (transform-type mode pairs a) (transform-type mode pairs b)
     UTuple xs -> UTuple (transform-type mode pairs xs)
+    -- A polytype's own binders shadow a bound-variable substitution.
+    UForall qs body -> UForall (map-quant-kinds (transform-type mode pairs) qs)
+      (transform-type mode (case mode of ReplaceBound -> without-type-pairs (quant-id-list qs) pairs; other -> pairs) body)
     UArg x rest -> UArg (transform-type mode pairs x) (transform-type mode pairs rest)
     other -> ty
   -- `transform-type` over a kind: the kind arms of the map, direct rather
@@ -1455,6 +1507,24 @@ module Bootstrap.Type where
       if any-pending dependencies pending then ready-meta rest pending st else Some id
   any-pending :: List Nat -> List Nat -> Bool
   any-pending ids pending = case ids of Nil -> False; Cons id rest -> contains-id id pending || any-pending rest pending
+  -- Polytype binder helpers (design/rank-n-polymorphism.md section 8).
+  quant-id-list :: List Quant -> List Nat
+  quant-id-list qs = case qs of Nil -> Nil; Cons q rest -> Cons (quant-id q) (quant-id-list rest)
+  quant-names-text :: List Quant -> String
+  quant-names-text qs = case qs of Nil -> ""; Cons q rest -> string-concat-all [" ", quant-name q, quant-names-text rest]
+  remove-ids :: List Nat -> List Nat -> List Nat
+  remove-ids gone ids = case gone of Nil -> ids; Cons id rest -> remove-ids rest (remove-id id ids)
+  same-quant-kinds :: List Quant -> List Quant -> Bool
+  same-quant-kinds qs rs = case (qs, rs) of
+    (Nil, Nil) -> True
+    (Cons q more, Cons r rest) -> kind-equal (quant-kind q) (quant-kind r) && same-quant-kinds more rest
+    other -> False
+  -- Rename the binders `from` to `to` positionally: alpha-equivalence of
+  -- two polytypes reads both bodies over one set of binder ids.
+  rename-quants :: List Quant -> List Quant -> List (Nat, UType)
+  rename-quants before after = case (before, after) of
+    (Cons f rest, Cons (MkQuant id name kind only) more) -> Cons (quant-id f, UBound id name kind) (rename-quants rest more)
+    other -> Nil
   remove-id :: Nat -> List Nat -> List Nat
   remove-id id ids = case ids of Nil -> Nil; Cons first rest -> if id == first then remove-id id rest else Cons first (remove-id id rest)
   close-pairs :: List (Nat, UType) -> List (Nat, UType) -> List (Nat, UType)
@@ -1669,6 +1739,7 @@ module Bootstrap.Type where
       URequire predicates result -> borrow-regions result
       URefine id name carrier predicate -> borrow-regions carrier
       UTuple fields -> borrow-regions fields
+      UForall qs body -> borrow-regions body
       UArg first rest -> borrow-regions first <> borrow-regions rest
       other -> Nil)
   region-already-borrowed :: Bool -> UType -> List (Bool, UType) -> Bool
@@ -1813,6 +1884,7 @@ module Bootstrap.Type where
     URow labels -> validate-type-indices sp labels st
     URowJoin a b -> validate-type-indices sp b (validate-type-indices sp a st)
     UTuple fields -> validate-type-indices sp fields st
+    UForall qs body -> validate-type-indices sp body st
     UArg a b -> validate-type-indices sp b (validate-type-indices sp a st)
     other -> st
   validate-index-references :: Span -> Option UType -> IndexTerm -> Store -> Store
@@ -1838,6 +1910,8 @@ module Bootstrap.Type where
   value-index-pairs pairs = case pairs of
     Nil -> Nil
     Cons (id, ty) rest -> case index-of-type ty of Some value -> Cons (id, value) (value-index-pairs rest); None -> value-index-pairs rest
+  without-type-pairs :: List Nat -> List (Nat, UType) -> List (Nat, UType)
+  without-type-pairs ids pairs = case ids of Nil -> pairs; Cons id rest -> without-type-pairs rest (without-type-pair id pairs)
   without-type-pair :: Nat -> List (Nat, UType) -> List (Nat, UType)
   without-type-pair id pairs = case pairs of Nil -> Nil; Cons (key, ty) rest -> if id == key then without-type-pair id rest else Cons (key, ty) (without-type-pair id rest)
   index-replacement-ok :: Nat -> List (Nat, UType) -> Option UType -> Bool
@@ -1925,6 +1999,7 @@ module Bootstrap.Type where
     URow labels -> type-all-ids labels
     URowJoin a b -> merge-ids (type-all-ids a) (type-all-ids b)
     UTuple fields -> type-all-ids fields
+    UForall qs body -> merge-ids (quant-id-list qs) (type-all-ids body)
     UArg a rest -> merge-ids (type-all-ids a) (type-all-ids rest)
     other -> Nil
   largest-id :: List Nat -> Nat
@@ -1970,6 +2045,7 @@ module Bootstrap.Type where
     URow labels -> type-free-bound labels
     URowJoin a b -> merge-ids (type-free-bound a) (type-free-bound b)
     UTuple fields -> type-free-bound fields
+    UForall qs body -> remove-ids (quant-id-list qs) (type-free-bound body)
     UArg a rest -> merge-ids (type-free-bound a) (type-free-bound rest)
     other -> Nil
   pair-all-ids :: List (Nat, UType) -> List Nat
@@ -2031,6 +2107,24 @@ module Bootstrap.Type where
   cells-level cells = case cells of Nil -> 0; Cons (MkCell id level kind solution) rest -> let more = cells-level rest in if level > more then level else more
   pi-level :: Store -> Nat
   pi-level st = case st of MkStore label next level cells errors numbers in-law depth -> let highest = cells-level cells in (if level > highest then level else highest) + 1
+  -- Two polytypes are equal when their binders agree in number and kind
+  -- and their bodies unify over one shared set of rigid variables, opened
+  -- one level deeper than every existing metavariable: `bind-other`'s
+  -- escape check then refuses any older metavariable that would capture
+  -- one (design/rank-n-polymorphism.md section 3). Polytypes are invariant.
+  unify-forall :: Span -> UType -> UType -> Store -> Store
+  unify-forall sp a b st = case (a, b) of
+    (UForall qs x, UForall rs y) ->
+      if not (list-length qs == list-length rs && same-quant-kinds qs rs) then
+        add-error sp (string-concat-all ["polymorphic types differ in their quantifiers: expected ", display-type-text b, ", found ", display-type-text a]) st
+      else let outer = store-level st in
+        case instantiate-params True qs (enter-level st) of
+          (pairs, opened) -> restore-level outer (unify sp (substitute pairs x) (substitute (shared-rigids rs pairs) y) opened)
+    other -> mismatch sp a b st
+  shared-rigids :: List Quant -> List (Nat, UType) -> List (Nat, UType)
+  shared-rigids rs pairs = case (rs, pairs) of
+    (Cons r rest, Cons (id, rigid) more) -> Cons (quant-id r, rigid) (shared-rigids rest more)
+    other -> Nil
   unify-pi :: Span -> UType -> UType -> Store -> Store
   unify-pi sp first second st = case (first, second) of
     (UPi id name domain row result, UPi key other input effects output) ->
@@ -2127,6 +2221,7 @@ module Bootstrap.Type where
     URow labels -> type-pi-ids labels
     URowJoin a b -> merge-ids (type-pi-ids a) (type-pi-ids b)
     UTuple fields -> type-pi-ids fields
+    UForall qs body -> type-pi-ids body
     UArg a rest -> merge-ids (type-pi-ids a) (type-pi-ids rest)
     other -> Nil
   pi-escaping-metas :: List Nat -> List Nat -> Store -> List Nat -> List Nat
@@ -2181,6 +2276,7 @@ module Bootstrap.Type where
     URow labels -> URow (without-index-levels labels)
     URowJoin a b -> URowJoin (without-index-levels a) (without-index-levels b)
     UTuple fields -> UTuple (without-index-levels fields)
+    UForall qs body -> UForall qs (without-index-levels body)
     UArg x rest -> UArg (without-index-levels x) (without-index-levels rest)
     UIndex carrier value -> UIndex (without-index-levels carrier) (index-without-levels value)
     UCon name k -> UCon name (map-kind-types without-index-levels k)

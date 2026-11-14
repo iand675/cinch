@@ -733,6 +733,8 @@ module Bootstrap.TemporalCheck where
     CLet sp ty id name sc rhs body -> temporal-scope-sites rhs <> temporal-scope-sites body
     CGuard sp ty condition guard-body -> temporal-scope-sites condition <> temporal-scope-sites guard-body
     CTuple sp ty fields -> temporal-scope-sites fields
+    CPolyIntro sp ty poly-ids fields -> temporal-scope-sites fields
+    CPolyElim sp ty fields poly-args -> temporal-scope-sites fields
     CArgument sp value rest -> temporal-scope-sites value <> temporal-scope-sites rest
     CApply sp ty f x -> temporal-scope-sites f <> temporal-scope-sites x
     CApplyEff sp ty row f x -> temporal-scope-sites f <> temporal-scope-sites x

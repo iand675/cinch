@@ -624,7 +624,7 @@ module Bootstrap.Infer where
         (h, sh) -> if later-arguments-valid h actuals then convert-args external kinds locals s h actuals sh
           else bad s "Later must be applied to exactly one type and takes no effect row" sh
     TTuple s args -> case convert-spine external kinds locals args st of (xs, sx) -> (UTuple xs, sx)
-    TForall s qs body -> bad s "higher-rank forall needs explicit elaboration" st
+    TForall s binders body -> convert-nested-forall external kinds locals s binders body st
     TUsing s bounds body -> bad s "using contexts need dictionary and proof elaboration" st
     TFunEff s a row b -> convert-arrow external kinds locals s a (Some row) b st
     TUsageArrow s usage arrow -> check-usage-arrow s usage (convert external kinds locals arrow st)
@@ -633,6 +633,46 @@ module Bootstrap.Infer where
     TIndex s literal -> bad s "kind mismatch: a numeric index cannot be used as a proper type" st
     TBound s name kind rest -> bad s "dependent argument binders need index elaboration" st
     other -> bad (type-expr-span ty) "dependent or unmodeled type needs kernel elaboration" st
+  -- A nested quantifier (design/rank-n-polymorphism.md section 8): its
+  -- binders classify by use exactly as a signature's do, and they bind
+  -- only types, type constructors, rows and regions. Their ids follow
+  -- every bound variable in scope, so substitution of an outer binder can
+  -- never meet one.
+  convert-nested-forall :: Bool -> TypeContext -> List (String, UType) -> Span -> TypeExpr -> TypeExpr -> Store -> (UType, Store)
+  convert-nested-forall external kinds locals sp binders body st =
+    if not (quantifiers-ok binders) then bad sp "malformed quantified parameter spine" st else
+    case body of
+      TUsing at bounds inner -> bad at "a nested forall cannot carry `using` constraints yet; lift them to the signature (design/rank-n-polymorphism.md section 7)" st
+      other ->
+        let params = inferred-forall-parameters kinds locals (region-parameters (forall-params-of binders) (region-names body)) body in
+        case shadowed-parameter locals params of
+          Some name -> bad sp (string-concat-all ["the nested forall binder `", name, "` shadows a type variable already in scope; rename it"]) st
+          None -> case parameters external kinds locals params (next-bound-id locals) Nil st of
+            (qs, checked) -> case nested-value-binder qs of
+              Some name -> bad sp (string-concat-all ["the nested forall binder `", name, "` is a value or proposition; a nested quantifier binds only types, effect rows and regions"]) checked
+              None -> case convert external kinds (quant-locals qs <> locals) body checked of
+                (converted, done) -> (nested-forall-type qs converted, done)
+  nested-forall-type :: List Quant -> UType -> UType
+  nested-forall-type qs body = case qs of Nil -> body; more -> UForall qs body
+  shadowed-parameter :: List (String, UType) -> List TypeParam -> Option String
+  shadowed-parameter locals params = case params of
+    Nil -> None
+    Cons p rest -> case lookup-type-local (param-name p) locals of
+      Some found -> Some (param-name p)
+      None -> shadowed-parameter locals rest
+  nested-value-binder :: List Quant -> Option String
+  nested-value-binder qs = case qs of
+    Nil -> None
+    Cons q rest -> case quant-kind q of
+      KValue payload -> Some (quant-name q)
+      KProp -> Some (quant-name q)
+      other -> nested-value-binder rest
+  next-bound-id :: List (String, UType) -> Nat
+  next-bound-id locals = case locals of
+    Nil -> 0
+    Cons (name, ty) rest -> let later = next-bound-id rest in case ty of
+      UBound id n k -> if id + 1 > later then id + 1 else later
+      other -> later
   later-arguments-valid :: UType -> TypeExpr -> Bool
   later-arguments-valid head arguments = case head of
     UCon name kind -> if same name "Later" && kind-equal kind later-kind then
@@ -1907,6 +1947,7 @@ module Bootstrap.Infer where
     UUsageArrow usage arrow -> occurs-owner name arrow
     UProofFun predicate row result -> occurs-owner name predicate || occurs-owner name row || occurs-owner name result
     UTuple xs -> occurs-owner name xs
+    UForall qs body -> occurs-owner name body
     UArg x rest -> occurs-owner name x || occurs-owner name rest
     other -> False
   positive :: String -> UType -> Bool
@@ -1922,6 +1963,7 @@ module Bootstrap.Infer where
         None -> (case root-name ty of Some name -> same name owner && positive-arguments owner ty; None -> False))
       else True
     UTuple xs -> positive owner xs
+    UForall qs body -> positive owner body
     UArg x rest -> positive owner x && positive owner rest
     other -> True
   positive-arguments :: String -> UType -> Bool
@@ -3042,8 +3084,67 @@ module Bootstrap.Infer where
         term-error sp "a codata value must use its observed construction form" st
         else lookup-value sp name env st
 
+  -- Every synthesised polytype is instantiated where it is used
+  -- (design/rank-n-polymorphism.md section 3): at a variable, an
+  -- application head, a projection or a constructor field alike.
   infer :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> (CoreTerm, Store)
-  infer classes kinds families env locals expr st = case expr of
+  infer classes kinds families env locals expr st = case infer-raw classes kinds families env locals expr st of
+    (term, checked) -> poly-elim-all (expr-span expr) term checked
+  poly-elim-all :: Span -> CoreTerm -> Store -> (CoreTerm, Store)
+  poly-elim-all sp term st = case normalize st (core-type term) of
+    UForall qs inner -> case open-scheme False (MkScheme qs inner) st of
+      (opened, pairs, next) -> poly-elim-all sp (CPolyElim sp opened term (pair-types pairs)) next
+    other -> (term, st)
+  pair-types :: List (Nat, UType) -> List UType
+  pair-types pairs = case pairs of Nil -> Nil; Cons (id, ty) rest -> Cons ty (pair-types rest)
+  rigid-ids :: List (Nat, UType) -> List Nat
+  rigid-ids pairs = case pairs of
+    Nil -> Nil
+    Cons (id, ty) rest -> case ty of URigid key name level kind -> Cons key (rigid-ids rest); other -> rigid-ids rest
+  -- Check against a polytype: open its binders as rigid variables one level
+  -- deeper than every existing metavariable, check the body there, and
+  -- require it to be pure. `bind-other` refuses any older metavariable
+  -- that would capture one of the rigid variables.
+  check-poly-intro :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
+  check-poly-intro classes kinds families env locals expr expected st = case expected of
+    UForall qs inner ->
+      let sp = expr-span expr in
+      if synthesizes-polytype env st expr then
+        (case infer-raw classes kinds families env locals expr st of
+          (term, checked) -> (term, unify sp expected (core-type term) checked))
+      else let outer = store-level st in
+        case instantiate-params True qs (enter-level st) of
+          (pairs, opened) -> case check classes kinds families env locals expr (substitute-bound pairs inner) opened of
+            (body, checked) ->
+              let restored = restore-level outer checked in
+              let pure = include-effects sp (core-effects body) (URow UEnd) restored in
+              if list-length (store-errors pure) > list-length (store-errors restored) then
+                (CPolyIntro sp expected (rigid-ids pairs) body, add-error sp "a polymorphic value must be pure to build: it is built once per representation its uses reach" restored)
+              else (CPolyIntro sp expected (rigid-ids pairs) body, pure)
+    other -> check classes kinds families env locals expr expected st
+  -- A variable, or a call, whose declared type is a polytype once its
+  -- arguments are applied. It reads declared schemes only.
+  synthesizes-polytype :: List CheckedBinding -> Store -> Expr -> Bool
+  synthesizes-polytype env st expr = case poly-head expr 0 of
+    Some (name, arguments) -> (case lookup-binding name env of
+      Some binding -> (case checked-scheme binding of
+        MkScheme Nil ty -> polytype-after st arguments ty
+        other -> False)
+      None -> False)
+    None -> False
+  poly-head :: Expr -> Nat -> Option (String, Nat)
+  poly-head expr arguments = case expr of
+    EVar s name -> Some (name, arguments)
+    EApp s f x -> poly-head f (arguments + 1)
+    other -> None
+  polytype-after :: Store -> Nat -> UType -> Bool
+  polytype-after st arguments ty = case normalize st ty of
+    UForall qs inner -> arguments == 0
+    UFun a b -> arguments > 0 && polytype-after st (arguments - 1) b
+    UFunEff a row b -> arguments > 0 && polytype-after st (arguments - 1) b
+    other -> False
+  infer-raw :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> (CoreTerm, Store)
+  infer-raw classes kinds families env locals expr st = case expr of
     ERecord sp name fields -> infer-record-construction classes kinds families env locals sp name fields None st
     EProject sp value label -> infer-record-projection classes kinds families env locals sp value label st
     EVar s name -> case lookup-expression-value s kinds name env st of (term, checked) -> discharge-call classes s env term checked
@@ -3103,7 +3204,11 @@ module Bootstrap.Infer where
     EBin s op a b -> infer-operator classes kinds families env locals s op a b st
     other -> term-error (expr-span expr) "expression needs effect, dictionary or dependent elaboration" st
   check :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
-  check classes kinds families env locals expr expected st = case expr of
+  check classes kinds families env locals expr expected st = case normalize st expected of
+    UForall qs inner -> check-poly-intro classes kinds families env locals expr (UForall qs inner) st
+    other -> check-monotype classes kinds families env locals expr expected st
+  check-monotype :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
+  check-monotype classes kinds families env locals expr expected st = case expr of
     ELetScope sp body -> scoped-let sp (check classes kinds families env locals body expected) st
     ELetRec sp bindings body -> scoped-let sp (infer-recursive-group classes kinds families env locals sp bindings body (Some expected)) st
     other -> (case refinement-view (normalize st expected) of
@@ -3209,6 +3314,9 @@ module Bootstrap.Infer where
       UPi id name domain row result -> hint-independent-result (Cons id binders) sp result rest expected st
       UProofFun predicate row result -> hint-independent-result binders sp result rest expected st
       URequire predicates result -> st
+      -- A polytype mid-spine is instantiated by the application itself;
+      -- the hint stops rather than equate it with an arrow.
+      UForall qs inner -> st
       other -> case arrow-parts sp ty st of
         (domain, row, result, shaped) -> hint-independent-result binders sp result rest expected shaped
   apply-spine :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> CoreTerm -> List Expr -> Store -> (CoreTerm, Store)
@@ -3444,6 +3552,7 @@ module Bootstrap.Infer where
     URow labels -> URow (relocate-local-index binding new-level labels)
     URowJoin a b -> URowJoin (relocate-local-index binding new-level a) (relocate-local-index binding new-level b)
     UTuple fields -> UTuple (relocate-local-index binding new-level fields)
+    UForall qs body -> UForall qs (relocate-local-index binding new-level body)
     UArg x rest -> UArg (relocate-local-index binding new-level x) (relocate-local-index binding new-level rest)
     UIndex carrier value -> UIndex (relocate-local-index binding new-level carrier) (relocate-local-index-term binding new-level value)
     UCon name k -> UCon name (map-kind-types (relocate-local-index binding new-level) k)
@@ -3536,7 +3645,14 @@ module Bootstrap.Infer where
         (b, sb) -> case fresh-meta KRow sb of
           (row, sr) -> (a, row, b, unify sp ty (UFunEff a row b) sr)
   apply-argument :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> CoreTerm -> Expr -> Store -> (CoreTerm, Store)
-  apply-argument classes kinds families env locals sp fun arg st = case fun of
+  apply-argument classes kinds families env locals sp fun arg st = case normalize st (core-type fun) of
+    -- A call whose result is a polytype is instantiated before the next
+    -- argument applies (design/rank-n-polymorphism.md section 3).
+    UForall qs inner -> (case poly-elim-all sp fun st of
+      (opened, next) -> apply-argument classes kinds families env locals sp opened arg next)
+    other -> apply-monotype-argument classes kinds families env locals sp fun arg st
+  apply-monotype-argument :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> CoreTerm -> Expr -> Store -> (CoreTerm, Store)
+  apply-monotype-argument classes kinds families env locals sp fun arg st = case fun of
     -- Continue a curried call inside the scopes created for its previous
     -- strict argument. The argument's equation and declaration stay in
     -- scope until the remaining preconditions are checked. Hidden names
@@ -4161,6 +4277,8 @@ module Bootstrap.Infer where
     CArgument sp value rest -> stable-recursive-initializer group value && stable-recursive-initializer group rest
     CArgumentsEnd sp -> True
     CTuple sp ty fields -> stable-recursive-initializer group fields
+    CPolyIntro sp ty poly-ids fields -> stable-recursive-initializer group fields
+    CPolyElim sp ty fields poly-args -> stable-recursive-initializer group fields
     CLet sp ty id name sc rhs body -> stable-recursive-initializer group rhs && stable-recursive-initializer group body
     CIf sp ty condition yes no -> stable-recursive-initializer group condition && stable-recursive-initializer group yes && stable-recursive-initializer group no
     CProved sp ty evidence body -> stable-recursive-initializer group body
@@ -5565,6 +5683,7 @@ module Bootstrap.Infer where
     URequire predicates result -> rewrite-mentions-task result
     URefine id name carrier predicate -> rewrite-mentions-task carrier
     UTuple fields -> rewrite-mentions-task fields
+    UForall qs body -> rewrite-mentions-task body
     UArg first rest -> rewrite-mentions-task first || rewrite-mentions-task rest
     other -> False
   rewrite-restricted-type :: UType -> Bool

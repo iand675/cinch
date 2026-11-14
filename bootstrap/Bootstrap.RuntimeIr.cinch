@@ -775,6 +775,8 @@ module Bootstrap.RuntimeIr where
     CIf sp ty condition yes no -> CIf sp ty (specialize-local id scheme value condition) (specialize-local id scheme value yes) (specialize-local id scheme value no)
     CCase sp ty input alternatives -> CCase sp ty (specialize-local id scheme value input) (specialize-local id scheme value alternatives)
     CTuple sp ty fields -> CTuple sp ty (specialize-local id scheme value fields)
+    CPolyIntro sp ty ids body -> CPolyIntro sp ty ids (specialize-local id scheme value body)
+    CPolyElim sp ty input args -> CPolyElim sp ty (specialize-local id scheme value input) args
     CPrimitive sp ty name args -> CPrimitive sp ty name (specialize-local id scheme value args)
     CProved sp ty certificate body -> CProved sp ty certificate (specialize-local id scheme value body)
     CRefine sp ty certificate body -> CRefine sp ty certificate (specialize-local id scheme value body)
@@ -919,6 +921,8 @@ module Bootstrap.RuntimeIr where
           Ok (lowered, after) -> Ok (CWith sp output given word lowered, after)
           Err message -> Err message) cursor
         CTuple sp ty fields -> handler-cps-fields context sp fields (\values fresh -> handler-bind sp (CTuple sp ty values) next fresh) cursor
+        CPolyIntro sp ty ids body -> Err "a polymorphic value inside a handled computation is not supported yet"
+        CPolyElim sp ty value args -> Err "a polymorphic value inside a handled computation is not supported yet"
         CPrimitive sp ty operation fields -> if same operation "thunk-force" && (case fields of
           CArgument at thunk (CArgumentsEnd end) -> (case deferral-parts (core-type thunk) of Some (latent, result) -> handler-performs label latent; None -> True)
           other -> True) then Err "handled effect needs a direct checked operation call"
@@ -1008,6 +1012,8 @@ module Bootstrap.RuntimeIr where
       else unsupported w sp "polymorphic or aggregate let needs runtime lowering"
     CIf sp ty test yes no -> branch definitions locals w sp test yes no
     CTuple sp ty fields -> tuple definitions locals w sp fields
+    CPolyIntro sp ty ids body -> unsupported w sp "rank-N lowering in the Cinch emitter is not implemented yet: a polymorphic value needs its #poly family dictionary (design/rank-n-polymorphism.md section 8)"
+    CPolyElim sp ty value args -> unsupported w sp "rank-N lowering in the Cinch emitter is not implemented yet: a polymorphic value needs its #poly family dictionary (design/rank-n-polymorphism.md section 8)"
     CCase sp ty value alternatives -> case fold-known-case definitions locals w value alternatives of
       Some folded -> folded
       None -> case expression definitions locals w value of
@@ -1850,6 +1856,8 @@ module Bootstrap.RuntimeIr where
     CIf sp ty condition yes no -> merge-value-fields (term-value-dependencies w owner key seen condition) (merge-value-fields (term-value-dependencies w owner key seen yes) (term-value-dependencies w owner key seen no))
     CCase sp ty value alternatives -> merge-value-fields (term-value-dependencies w owner key seen value) (term-value-dependencies w owner key seen alternatives)
     CTuple sp ty fields -> term-value-dependencies w owner key seen fields
+    CPolyIntro sp ty poly-ids fields -> term-value-dependencies w owner key seen fields
+    CPolyElim sp ty fields poly-args -> term-value-dependencies w owner key seen fields
     CPrimitive sp ty op args -> term-value-dependencies w owner key seen args
     CProved sp ty evidence body -> term-value-dependencies w owner key seen body
     CRefine sp ty evidence body -> term-value-dependencies w owner key seen body
@@ -2236,6 +2244,8 @@ module Bootstrap.RuntimeIr where
     CIf sp ty test yes no -> term-uses id test || term-uses id yes || term-uses id no
     CCase sp ty value alternatives -> term-uses id value || term-uses id alternatives
     CTuple sp ty fields -> term-uses id fields
+    CPolyIntro sp ty poly-ids fields -> term-uses id fields
+    CPolyElim sp ty fields poly-args -> term-uses id fields
     CPrimitive sp ty op args -> term-uses id args
     CProved sp ty evidence body -> term-uses id body
     CRefine sp ty evidence body -> term-uses id body
@@ -2283,6 +2293,8 @@ module Bootstrap.RuntimeIr where
     CIf sp ty test yes no -> given-uses name test || given-uses name yes || given-uses name no
     CCase sp ty value alternatives -> given-uses name value || given-uses name alternatives
     CTuple sp ty fields -> given-uses name fields
+    CPolyIntro sp ty poly-ids fields -> given-uses name fields
+    CPolyElim sp ty fields poly-args -> given-uses name fields
     CPrimitive sp ty op args -> given-uses name args
     CProved sp ty evidence body -> given-uses name body
     CRefine sp ty evidence body -> given-uses name body
