@@ -1249,6 +1249,34 @@ fn str_of(v: &crate::interface::JsonValue, what: &str) -> Result<String> {
         .map_err(|e| Error::plain(format!("package manifest: {what}: {e}")))
 }
 
+/// The modules this target never selects: every import that names them
+/// carries a `when` condition that does not hold for `profile` (modules
+/// specification section 11), and no import names them unconditionally.
+/// The target's view of each importer already drops those imports
+/// (`check_decls::target_view`); this is the same decision read from the
+/// imported side, for the one consumer that roots modules rather than
+/// reaching them by import, a library object.
+fn unselected_modules<'a>(
+    modules: impl Iterator<Item = &'a crate::ast::Module>,
+    profile: &crate::core::TargetProfile,
+) -> Result<std::collections::HashSet<String>> {
+    let mut held: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut dropped: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for m in modules {
+        for d in &m.decls {
+            if let crate::ast::Decl::Import(i) = d {
+                let name = i.path.parts().join(".");
+                if i.when.is_empty() || crate::core::WhenCond::lower(&i.when)?.holds(profile) {
+                    held.insert(name);
+                } else {
+                    dropped.insert(name);
+                }
+            }
+        }
+    }
+    Ok(dropped.into_iter().filter(|name| !held.contains(name)).collect())
+}
+
 /// The embedded `(path, source)` entry for a manifest path (the
 /// `include_str!` table).
 pub fn embedded_source(path: &str) -> Option<(&'static str, &'static str)> {
@@ -5368,6 +5396,12 @@ pub fn driver_with_profile_opts(
     // parsed declarations, which is why they run here rather than in the
     // loader.
     refuse_unavailable_modules(&project, &modules, &build)?;
+    // A library object roots every module's exported values (below), so
+    // it must not root a module the target never selects: a platform
+    // backend `Prim.Sys` imports only `when os darwin` is not part of a
+    // Linux object, and rooting it linked Darwin's `__error` errno accessor
+    // into one, which no Linux libc defines.
+    let unselected = unselected_modules(prelude.modules.iter().chain(modules.iter()), profile)?;
     let mut hashes: HashMap<String, String> = HashMap::new();
     let mut files: HashMap<String, String> = HashMap::new();
     for name in &project.order {
@@ -5545,7 +5579,7 @@ pub fn driver_with_profile_opts(
         // A whole-program artifact has no consumer to resolve against, and
         // keeping its interface names would only add unreachable units.
         if mode == Mode::EmitObject {
-            for iface in &ifaces {
+            for iface in ifaces.iter().filter(|iface| !unselected.contains(&iface.module)) {
                 for value in &iface.exports.values {
                     roots.push(value.symbol.clone());
                     if let Some(graph) = &value.total_body {
@@ -5570,7 +5604,11 @@ pub fn driver_with_profile_opts(
                 }
             }
         }
-        let pruned = crate::simplify::prune(&mut program, &roots);
+        let pruned = if mode == Mode::EmitObject {
+            crate::simplify::prune_excluding(&mut program, &roots, &unselected)
+        } else {
+            crate::simplify::prune(&mut program, &roots)
+        };
         opt.simplify.pruned = pruned.removed;
         opt.simplify.pruned_nodes = pruned.removed_nodes;
     }

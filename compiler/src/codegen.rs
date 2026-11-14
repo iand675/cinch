@@ -9294,6 +9294,10 @@ mod tests {
             // checked user units rather than shipping the embedded prelude.
             p.fns.retain(|f| f.id.0.starts_with("Library.") || (f.id.0.starts_with("<builtin>.") && f.ctor.is_some()));
             p.instances.retain(|i| i.id.0.starts_with("Library."));
+            // The prelude's foreign wrappers too: kept, they bring every
+            // platform backend's bindings along, and Darwin's `__error`
+            // does not link on Linux.
+            p.foreigns.retain(|name, _| name.starts_with("Library."));
             let p = crate::rc::insert(p, &profile).unwrap();
             let object = emit_object_for(&profile, &p).unwrap();
             assert!(!object.ir.contains("define i32 @main("));

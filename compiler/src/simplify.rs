@@ -3726,6 +3726,21 @@ fn derived_from(unit: &str, name: &str) -> bool {
 /// (`keep`, in addition to the ones the program itself names): an object or
 /// package build's emitted modules and its object roots.
 pub fn prune(program: &mut Program, keep: &[String]) -> PruneReport {
+    prune_excluding(program, keep, &HashSet::new())
+}
+
+/// [`prune`], with the blanket roots (every constructor, primitive,
+/// boundary plan and instance) withheld from the units of `excluded`
+/// modules: a library object built for a target leaves out the modules
+/// that target never selects (a platform backend imported only `when os
+/// darwin`, on Linux), and their bindings stay only if a live unit really
+/// reaches them.
+pub fn prune_excluding(program: &mut Program, keep: &[String], excluded: &HashSet<String>) -> PruneReport {
+    let in_excluded = |name: &str| {
+        excluded
+            .iter()
+            .any(|m| name.len() > m.len() && name.starts_with(m.as_str()) && name.as_bytes()[m.len()] == b'.')
+    };
     let present: HashSet<&str> = program.fns.iter().map(|f| f.id.0.as_str()).collect();
     let mut live: HashSet<String> = HashSet::new();
     let mut work: Vec<String> = Vec::new();
@@ -3738,21 +3753,26 @@ pub fn prune(program: &mut Program, keep: &[String]) -> PruneReport {
         root(&main.0, &mut live, &mut work);
     }
     for name in program.plans.keys() {
-        root(name, &mut live, &mut work);
+        if !in_excluded(name) {
+            root(name, &mut live, &mut work);
+        }
     }
     for plan in program.foreigns.values() {
-        if plan.export {
+        if plan.export && !in_excluded(&plan.unit) {
             root(&plan.unit, &mut live, &mut work);
         }
     }
     for inst in &program.instances {
+        if in_excluded(&inst.id.0) {
+            continue;
+        }
         root(&inst.id.0, &mut live, &mut work);
         for m in &inst.methods {
             root(&m.0, &mut live, &mut work);
         }
     }
     for f in &program.fns {
-        if f.ctor.is_some() || f.prim.is_some() || f.meta.prim_body {
+        if (f.ctor.is_some() || f.prim.is_some() || f.meta.prim_body) && !in_excluded(&f.id.0) {
             root(&f.id.0, &mut live, &mut work);
         }
     }
@@ -3782,10 +3802,16 @@ pub fn prune(program: &mut Program, keep: &[String]) -> PruneReport {
         .map(|f| (f.id.0.as_str(), &f.body))
         .collect();
     let mut mentioned: Vec<String> = Vec::new();
+    // Every name a live body mentions, units or not: the foreign wrappers
+    // of an excluded module stay only if one of these calls them.
+    let mut reached: HashSet<String> = HashSet::new();
     while let Some(unit) = work.pop() {
         let Some(body) = bodies.get(unit.as_str()) else { continue };
         mentioned.clear();
         unit_mentions(body, &mut mentioned);
+        if !excluded.is_empty() {
+            reached.extend(mentioned.iter().cloned());
+        }
         for name in &mentioned {
             if present.contains(name.as_str()) && live.insert(name.clone()) {
                 work.push(name.clone());
@@ -3804,6 +3830,9 @@ pub fn prune(program: &mut Program, keep: &[String]) -> PruneReport {
     // The per-unit facts name units too; a removed unit's entry is stale.
     program.inline.retain(|unit, _| live.contains(unit));
     program.frame.retain(|unit, _| live.contains(unit));
+    if !excluded.is_empty() {
+        program.foreigns.retain(|name, plan| plan.export || !in_excluded(name) || reached.contains(name));
+    }
     PruneReport { kept: program.fns.len(), removed: before - program.fns.len(), removed_nodes }
 }
 
@@ -3814,6 +3843,7 @@ pub fn prune(program: &mut Program, keep: &[String]) -> PruneReport {
 fn unit_mentions(e: &Core, out: &mut Vec<String>) {
     match e {
         Core::Global(g, _) | Core::Ctor(g, _) => out.push(g.0.clone()),
+        Core::Foreign(name) => out.push(name.clone()),
         Core::Lam { fn_id, .. } => out.push(fn_id.0.clone()),
         Core::App(h, args) => {
             unit_mentions(h, out);
