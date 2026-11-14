@@ -61,6 +61,11 @@ module Bootstrap.Type where
     UsageAffine :: ArrowUsage
     UsageMany :: ArrowUsage
 
+  -- Declared before UType, which holds a polytype's binders: the
+  -- self-hosted checker resolves data references in declaration order.
+  data Quant where
+    MkQuant :: Nat -> String -> Kind -> Bool -> Quant
+
   data UType where
     UPropLit :: Bool -> UType
     UCompare :: String -> UType -> UType -> UType
@@ -473,9 +478,6 @@ module Bootstrap.Type where
     UEnd -> True
     UArg first rest -> (if values then carrier-type first else carrier-node first) && carrier-spine rest values
     other -> False
-
-  data Quant where
-    MkQuant :: Nat -> String -> Kind -> Bool -> Quant
 
   quant-id :: Quant -> Nat
   quant-id q = case q of MkQuant n name k only -> n

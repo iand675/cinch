@@ -29,7 +29,7 @@ module Bootstrap.TemporalCheck where
   import Bootstrap.Type (UType, UApp, borrow-type-parts, without-index-levels, empty-store, store-errors, unify, index-of-type, type-text)
   import Bootstrap.Index (IndexTerm, IRigid, index-equal)
   import Bootstrap.Proof (Arithmetic, AInteger, AVariable, APlus, AMinus, ATimes, ACall, AArgument, AArgumentsEnd, Proposition, PTruth, PFalsehood, PCompare, PBoth, PEither, PNegate, Comparison, Less, AtMost, Equal, Unequal, AtLeast, Greater, prove, disproved, proposition-equal)
-  import Bootstrap.Core (mutable-borrow, CoreClause, MkCoreClause, core-clauses, term-children, core-type, borrow-read-variable, proof-variable
+  import Bootstrap.Core (CPolyIntro, CPolyElim, mutable-borrow, CoreClause, MkCoreClause, core-clauses, term-children, core-type, borrow-read-variable, proof-variable
     , CoreTerm, CUse,CLocal,CProofRef,CProofRefl,CProofSearch,CQualifiedUse,CMethod,CInt,CString,CChar,CUnit,CApply,CApplyEff,CErasedApply,CDecision,CScope,CMemoScope,CSpawn,CJoin,CWith,CHandler,CHandle,CHandlerOperation,CHandlerEnd,CLambda,CLet,CRecursiveFunctions,CRecursiveValues,CRecursiveBinding,CRecursiveBindingsEnd,CIf,CCase,CTuple,CPrimitive,CProved,CRefine,CRefineProof,CForget,CRequire,CDischarge,CGuard,CArgument,CArgumentsEnd,CAlternative,CAlternativesEnd,CError
     , CorePattern, CPWild, CPVar, CPProof, CPErasedValue, CPAs, CPConstructor, CPInt, CPString, CPChar, CPTuple, CPField, CPDone)
 
