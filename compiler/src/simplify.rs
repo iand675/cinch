@@ -645,6 +645,11 @@ fn occurrences(e: &Core, in_join: bool, out: &mut HashMap<LocalId, Occ>) {
             }
             return;
         }
+        // Every binder the analysis sees has an entry, read or not, so the
+        // dead-binder rule can tell "no uses" from "bound after the count".
+        Core::Let(x, ..) => {
+            out.entry(*x).or_default();
+        }
         _ => {}
     }
     for child in child_slots_imm(e) {
