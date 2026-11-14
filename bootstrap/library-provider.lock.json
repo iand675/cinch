@@ -1,7 +1,7 @@
 {
-  "description": "ABI 9 library producer with the branch release kept at the branch head (reuse-only arm expansion).",
-  "revision": "1665ebdc917c7828d839ddeb5027ec2f80d63d5f",
+  "description": "ABI 9 library producer that leaves a target's unselected modules (Prim.Sys.Darwin on Linux) out of the base object.",
+  "revision": "da01d2056dda0b22d0b1efd4e7b4c85a0adece92",
   "runtime_abi": 9,
   "schema": 1,
-  "source_sha256": "62d4314a75eea42294c34edc2205170fc7cd608c9983e650945550c147211028"
+  "source_sha256": "87abc4413732369c68e8696a338826df9e00849c0043fcbc93387908ad5837f0"
 }
