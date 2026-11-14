@@ -50,6 +50,10 @@ flags:
               closure plus an `__apply` instead of one saturated call
   --no-inline  leave every call in place instead of copying a small
               callee's body to its site (the rule is on by default)
+  --no-contify  keep a tail-only local continuation a closure rather than
+              a join point
+  --no-specialise-arguments  keep a call passing a known unit, closure or
+              record of functions on the general callee
   --inline-model <threshold|benefit>  which site test the inliner uses: GHC's
               weighted-size-against-a-threshold, or Flambda 2's benefit
               against size (the default)
@@ -307,6 +311,8 @@ fn main() {
             "--no-direct-dict-calls" => opts.no_direct_dict_calls = true,
             "--no-saturate-partial" => opts.no_saturate_partial = true,
             "--no-inline" => opts.no_inline = true,
+            "--no-contify" => opts.no_contify = true,
+            "--no-specialise-arguments" => opts.no_specialise_arguments = true,
             "--inline-model" => {
                 i += 1;
                 match rest.get(i).map(String::as_str) {

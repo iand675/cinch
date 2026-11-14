@@ -2999,6 +2999,9 @@ fn write_artifacts(
         ("projection", (opt.simplify.projection as u64).into()),
         ("join_scope", (opt.simplify.join_scope as u64).into()),
         ("direct_dict_call", (opt.simplify.dict_call as u64).into()),
+        ("contify", (opt.simplify.contified as u64).into()),
+        ("known_closure_call", (opt.simplify.closure_calls as u64).into()),
+        ("specialise_arguments", (opt.simplify.specialised as u64).into()),
         ("saturate_partial", (opt.simplify.saturate as u64).into()),
         ("case_of_case", (opt.simplify.case_of_case as u64).into()),
         ("joins", (opt.simplify.joins as u64).into()),
@@ -4428,6 +4431,13 @@ pub struct DriverOptions {
     /// taken against the same program with the inliner active
     /// (design/stack-allocation.md section 7).
     pub no_inline: bool,
+    /// `--no-contify`: keep a tail-only local continuation a closure
+    /// instead of a join point (design/cps-optimisation.md).
+    pub no_contify: bool,
+    /// `--no-specialise-arguments`: keep calls that pass a known unit,
+    /// closure or record of functions on the general callee
+    /// (design/cps-optimisation.md).
+    pub no_specialise_arguments: bool,
     /// `--inline-model <threshold|benefit>`: which site test the inliner
     /// uses (`crate::simplify::InlineModel`). Default `benefit`.
     pub inline_model: Option<String>,
@@ -4488,6 +4498,8 @@ impl DriverOptions {
             projection: !self.no_projection,
             saturate_partial: !self.no_saturate_partial,
             inline: !self.no_inline,
+            contify: !self.no_contify,
+            specialise_arguments: !self.no_specialise_arguments,
             inline_model: match self.inline_model.as_deref() {
                 Some("threshold") => crate::simplify::InlineModel::Threshold,
                 Some("benefit") | None => crate::simplify::InlineModel::Benefit,
@@ -4803,7 +4815,7 @@ cinch core: the annotated Core dump (design/core-output.md)
 usage:
   cinch core emit <file.cinch> [--stage=<name>] [--target <triple>] [-o <out.core>]
                      [--max-simplifier-iterations <n>] [--no-direct-dict-calls]
-                     [--case-of-case] [--no-inline] [--inline-model <threshold|benefit>] [--no-stack-alloc]
+                     [--case-of-case] [--no-inline] [--no-contify] [--no-specialise-arguments] [--inline-model <threshold|benefit>] [--no-stack-alloc]
                      [--stack-frame-limit <bytes>]
   cinch core verify <file.core>
   cinch core diff <a.core> <b.core>
@@ -4865,6 +4877,8 @@ fn core_emit(args: &[String]) -> i32 {
             "--no-projection" => opts.no_projection = true,
             "--no-saturate-partial" => opts.no_saturate_partial = true,
             "--no-inline" => opts.no_inline = true,
+            "--no-contify" => opts.no_contify = true,
+            "--no-specialise-arguments" => opts.no_specialise_arguments = true,
             "--inline-model" => {
                 i += 1;
                 match args.get(i) {

@@ -880,6 +880,27 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   bundle of `3^k` components, `k <= 2`. Every fixture compiles through
   Stage 3 at the fixed point:
   `bootstrap/current-rank-n-stage3-results.json`.
+- **D430 (compiling continuation-passing code, design/cps-optimisation.md)**:
+  five optimisations, none of which changes observable behaviour. (1) On
+  64-bit native targets, a tail call through an unknown closure is
+  guaranteed: units in the closed tail set get a private `tailcc` body
+  behind their C-ABI name, every apply stub carries prefix data naming
+  its `musttail` tail twin, and an unknown tail call passes up to 16
+  arguments through a thread-local buffer, so a continuation chain runs
+  in constant stack at every optimisation level. (2) A local
+  continuation that is only tail-called becomes a join point
+  (`--no-contify`). (3) A projection out of a known capturing dictionary,
+  including a rank-N polytype, becomes a direct call of the method with
+  its captures, and static records fold under `case` and projection. (4)
+  A saturated call passing a known unit, value-capturing closure, static
+  record or record of functions to a parameter the callee applies,
+  decides on, projects or forwards calls a cached copy specialised to that
+  shape, and self-calls forward to the copy. Copies are budgeted at 4 per
+  callee, 256 per program, and callees of at most 4,000 nodes
+  (`--no-specialise-arguments`). (5) A continuation a non-tail callee
+  consumes takes a frame slot: application counts as a consumption, and
+  the apply stub releases a frame closure's payload once. Evidence:
+  `tests/cps.rs`, which runs every test under the leak check.
 - **D221-D227 (P18 continuation, reported)**: `unsafe` is a per-body
   prefix (`unsafe <family> { ... }`) with `unsafe prim ... where` sugar
   folding into bodies at parse, recognized contextually so `unsafe`

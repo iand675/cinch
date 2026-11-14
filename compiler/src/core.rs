@@ -4401,6 +4401,15 @@ pub struct SimplifyReport {
     /// Static dictionary projections turned into direct calls (rule
     /// `direct-dict-call`).
     pub dict_call: usize,
+    /// Local continuations called only in tail position, turned into join
+    /// points (rule `contify`).
+    pub contified: usize,
+    /// Calls of a known closure made direct calls of its unit (rule
+    /// `known-closure-call`).
+    pub closure_calls: usize,
+    /// Calls redirected to a copy of their callee specialised to a known
+    /// argument (rule `specialise-arguments`).
+    pub specialised: usize,
     /// Partial applications applied exactly once and merged into one
     /// saturated direct call (rule `saturate-partial`).
     pub saturate: usize,
@@ -4908,7 +4917,7 @@ fn pat_eq(a: &CPat, b: &CPat) -> bool {
 }
 
 /// The largest local id a term mentions (fresh ids must exceed it).
-fn max_local(e: &Core) -> usize {
+pub(crate) fn max_local(e: &Core) -> usize {
     let mut m = 0;
     walk_locals(e, &mut |l: LocalId| {
         m = m.max(l.0);
