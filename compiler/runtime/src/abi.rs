@@ -593,6 +593,18 @@ pub unsafe extern "C" fn cinch_nat_to_i64(word: i64) -> i64 {
     }
 }
 
+/// The low 64 bits of a boxed `Nat` (the value modulo 2^64): the slow path
+/// of `slotsFoldNat`, which folds an immediate inline. Total: every `Nat`
+/// has low bits, so this is how a `Hash` digest of any size becomes the
+/// machine word a mutable table indexes by.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_nat_low_word(word: i64) -> i64 {
+    if is_immediate(word) {
+        return nat_immediate_value(word) as i64;
+    }
+    unsafe { as_nat(word) }.low_u64() as i64
+}
+
 /// 1 when the `Nat` word fits in an `i64`, else 0.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_fits_i64(word: i64) -> i64 {

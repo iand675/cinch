@@ -76,6 +76,8 @@
 
 #[path = "arrays_codegen.rs"]
 mod arrays_codegen;
+#[path = "slots_codegen.rs"]
+mod slots_codegen;
 
 use crate::core::{
     AbiClass, AbiParam, ArithMode, ArithOp, BitOp, BitScanOp, BytesOp, CAlt, CBranch, CPat, Class,
@@ -370,6 +372,12 @@ fn emit_module(
         "declare i64 @cinch_array_slice(i64, i64, i64)",
         "declare i64 @cinch_array_append(i64, i64)",
         "declare i64 @cinch_stm_cell_new(i64, i64)",
+        crate::slots::DECLARES[0],
+        crate::slots::DECLARES[1],
+        crate::slots::DECLARES[2],
+        crate::slots::DECLARES[3],
+        crate::slots::DECLARES[4],
+        crate::slots::DECLARES[5],
         "declare i64 @cinch_tensor_reshape(i64, i64)",
         "declare i64 @cinch_tensor_shape(i64)",
         "declare i64 @cinch_tensor_data(i64)",
@@ -1827,6 +1835,14 @@ fn prim_param_classes(op: PrimOp) -> Vec<Class> {
                 .map(|t| crate::repr::repr_of(t, &params, &SigTypes, &mut |_| {}).subst(&classes))
                 .collect()
         }
+        PrimOp::Slots { op, classes } => {
+            let params = op.params();
+            op.sig()
+                .0
+                .iter()
+                .map(|t| crate::repr::repr_of(t, &params, &SigTypes, &mut |_| {}).subst(&classes))
+                .collect()
+        }
         PrimOp::Stm { op, classes } => {
             let params = op.params();
             op.sig()
@@ -1869,6 +1885,7 @@ pub(crate) fn prim_consumes(op: PrimOp, i: usize) -> bool {
     match op {
         PrimOp::Delay | PrimOp::Force | PrimOp::ApplyErased => i == 0,
         PrimOp::Stm { op, .. } => op.consumes(i),
+        PrimOp::Slots { op, .. } => op.consumes(i),
         PrimOp::Conc(ConcOp::WithScope | ConcOp::Spawn) => i == 1,
         _ => false,
     }
@@ -1885,7 +1902,7 @@ fn prim_payload_classes(op: PrimOp) -> Vec<Class> {
             vec![]
         };
     }
-    if matches!(op, PrimOp::Stm { .. }) {
+    if matches!(op, PrimOp::Stm { .. } | PrimOp::Slots { .. }) {
         return vec![];
     }
     if op == PrimOp::Conc(ConcOp::IoRead) {
@@ -2719,6 +2736,11 @@ fn classify_callee(sym: &str, units: &HashSet<String>, extra: Option<&str>) -> C
         | "cinch_task_join_all_or_cancel"
         | "cinch_coop_task_join_all_or_cancel" => Callee::Free,
         s if s.starts_with("llvm.mem") => Callee::Copy,
+        // A prefetch reads no value and writes none, but a unit whose only
+        // work is one must not be classified pure: a pure call with an
+        // unused result is dead code, and the hint would be deleted before
+        // it could be inlined (`crate::slots`'s `slotsPrefetch`).
+        s if s.starts_with("llvm.prefetch") => Callee::Extern,
         s if s.starts_with("llvm.") => Callee::Pure,
         _ => Callee::Extern,
     }
@@ -4986,6 +5008,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             classes,
             packed,
         } => arrays_codegen::emit(b, reg, name, op, array_op, classes, packed),
+        Slots { op: slot_op, classes } => slots_codegen::emit(b, reg, slot_op, classes),
         Stm { op: stm_op, classes } => {
             use crate::stm::StmOp::*;
             match stm_op {

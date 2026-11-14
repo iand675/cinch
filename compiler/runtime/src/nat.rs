@@ -43,6 +43,13 @@ impl Nat {
         Ok(u as i64)
     }
 
+    /// The value modulo 2^64: its two lowest limbs.
+    pub fn low_u64(&self) -> u64 {
+        let lo = self.limbs.first().copied().unwrap_or(0) as u64;
+        let hi = self.limbs.get(1).copied().unwrap_or(0) as u64;
+        lo | (hi << 32)
+    }
+
     /// Whether the value fits in an `i64`.
     pub fn fits_i64(&self) -> bool {
         self.to_i64().is_ok()

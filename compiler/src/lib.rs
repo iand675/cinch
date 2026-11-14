@@ -38,6 +38,7 @@ pub mod specialize;
 pub mod spelling;
 pub mod stack;
 pub mod stm;
+pub mod slots;
 pub mod store;
 pub mod types;
 pub mod total;

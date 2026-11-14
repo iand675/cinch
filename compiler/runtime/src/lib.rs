@@ -597,6 +597,7 @@ pub mod platform;
 pub mod pty;
 pub mod rc;
 pub mod sched;
+pub mod slots;
 mod small;
 pub mod string;
 pub mod stack;
