@@ -101,10 +101,16 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.Map](Data.Map.md) | Embedded | Ordered maps with comparison constraints, lookup, insertion, removal, traversal, and collection-literal support. |
 | [Data.Matrix](Data.Matrix.md) | Ship source | Matrix construction, shape checks, indexing, transformation, and arithmetic operations. |
 | [Data.Mutable.Array](Data.Mutable.Array.md) | Ship source | A fixed-length mutable array whose slots always hold values, with copying freeze and thaw against the immutable Array. |
+| [Data.Mutable.BTree](Data.Mutable.BTree.md) | Ship source | An ordered mutable map: a degree-8 B-tree whose nodes are indices into one pooled set of slot arrays, with floor, ceiling, range folds, pop-min/max and a structural verifier. |
+| [Data.Mutable.BTreeSet](Data.Mutable.BTreeSet.md) | Ship source | An ordered mutable set: the pooled B-tree with a Unit value per member. |
+| [Data.Mutable.BitSet](Data.Mutable.BitSet.md) | Ship source | A dynamic bitset in 64-bit words: test/set/toggle, popcount, next-set-bit scanning, and word-at-a-time union, intersection and difference. |
 | [Data.Mutable.Deque](Data.Mutable.Deque.md) | Ship source | A double-ended queue as a power-of-two ring buffer: amortised O(1) push and pop at both ends and O(1) indexing. |
 | [Data.Mutable.HashSet](Data.Mutable.HashSet.md) | Ship source | A mutable hash set: the HashTable with a Unit value per member. |
 | [Data.Mutable.HashTable](Data.Mutable.HashTable.md) | Ship source | A mutable hash table after SwissTable and F14: 8-slot chunks with 7-bit tags matched eight at a time, a 64-bit finalizer over the Hash digest, and overflow counts that make deletion tombstone-free. |
 | [Data.Mutable.Heap](Data.Mutable.Heap.md) | Ship source | A 4-ary priority queue with its ordering fixed at construction: O(log n) push and pop, O(1) peek, and an O(n) Floyd build from a list. |
+| [Data.Mutable.IndexMap](Data.Mutable.IndexMap.md) | Ship source | An insertion-ordered hash map: dense entries with a tagged chunk index over them, positional access, O(1) swap-remove and order-keeping shift-remove. |
+| [Data.Mutable.LruCache](Data.Mutable.LruCache.md) | Ship source | A bounded least-recently-used cache: a hash table to nodes threaded on a recency list, with O(1) get, put and eviction. |
+| [Data.Mutable.UnionFind](Data.Mutable.UnionFind.md) | Ship source | Disjoint sets with union by size and path halving: near-constant find, union and same-set queries, and appendable elements. |
 | [Data.Mutable.Var](Data.Mutable.Var.md) | Ship source | A single mutable cell, written in place; not synchronized (TVar is the shared cell). |
 | [Data.Mutable.Vec](Data.Mutable.Vec.md) | Ship source | A growable vector: amortised O(1) push and pop, O(1) indexing, middle insertion and removal, in-place introsort, and copying freeze/thaw against Array. |
 | [Data.Mutable](Data.Mutable.md) | Ship source | One import for the mutable containers. Every container is indexed by a region r and every operation carries the Mut r label, a capability like IO r, so purity stays a checked property. |
@@ -181,7 +187,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **114 source modules**: **64 embedded** and **50 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **120 source modules**: **64 embedded** and **56 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

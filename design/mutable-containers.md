@@ -1,9 +1,12 @@
 # Mutable containers: the slot core and the `Data.Mutable` family
 
 Status: built, 2026-11-14. Part 1 (the trusted slot intrinsics) and part 2
-(seven containers and a facade) are in the tree and tested; section 9 states
-what remains, including the one thing the stage chain needs before a
-stage-3-built program can import the family.
+(thirteen containers and a facade) are in the tree and tested. Section 5.5
+covers the second wave (the ordered B-tree, the insertion-ordered map, the
+LRU cache, the bitset and union-find); section 6.5 records two compiler bugs
+the work found and fixed. Section 9 states what remains, including the one
+thing the stage chain needs before a stage-3-built program can import the
+family.
 
 Companions: `design/arraylist.md` (the growable sequence this note delivers,
 and the reasons the in-place `array-set` could not be decided at run time),
@@ -131,7 +134,13 @@ addition and no container signature changes.
 | `Data.Mutable.Heap` | 4-ary heap, ordering fixed at construction, hole sifting, Floyd build | `boost::d_ary_heap` |
 | `Data.Mutable.Array` | fixed length, every slot always written | `std::array` by reference, `MutableArray` |
 | `Data.Mutable.Var` | one written slot | `IORef`, `STRef` |
-| `Data.Mutable` | the facade (`export module` of all seven) | |
+| `Data.Mutable.BTree` | pooled degree-8 B-tree (section 5.5) | `absl::btree_map` |
+| `Data.Mutable.BTreeSet` | the B-tree with a `Unit` value | `absl::btree_set` |
+| `Data.Mutable.IndexMap` | dense insertion-ordered entries under a tagged chunk index | `folly::F14VectorMap`, Rust `indexmap` |
+| `Data.Mutable.LruCache` | a table to nodes on a recency list in raw link words | `folly::EvictingCacheMap` |
+| `Data.Mutable.BitSet` | 64-bit words, popcount, trailing-zero scans | `boost::dynamic_bitset` |
+| `Data.Mutable.UnionFind` | parent and size words; union by size, path halving | |
+| `Data.Mutable` | the facade (`export module` of all thirteen) | |
 
 Common to all: a growth MOVES elements (`slotsMove`, one word copy each, no
 count touched), which is why doubling rather than folly's 1.5x is the factor:
@@ -195,6 +204,48 @@ slot is written before its byte is set, and a byte is cleared before its slot
 is taken. Growth clears each old control word before it takes that chunk's
 slots.
 
+## 5.5 The second wave
+
+**`BTree`: nodes are indices, not blocks.** A degree-8 B-tree (7 to 15 keys
+per node, 16 children) whose nodes all live in one pool of three slot arrays:
+node x owns key and value slots `15x .. 15x + 14` and 18 words of a raw
+`nodes` array (count, leaf flag, 16 child indices). A node is allocated from a
+free list or a high-water mark, so the tree's shape costs no block per node and
+no count per child pointer, and a search compares keys inside one node's
+contiguous slots. Every operation that may allocate reserves its worst case
+first (height + 2 nodes), so the arrays it holds stay current for its whole
+run; growth doubles the pool by moving words. Insertion and deletion are CLRS
+chapter 18's single-pass forms: split every full node on the way down;
+top every node up to 8 keys (rotate from a sibling with one to spare, or merge)
+before descending into it. Keys are compared with `Ord`'s `<` alone (equal is
+neither less). `btree-verify` checks the whole contract (order, per-node
+counts, equal leaf depth, the entry count), as abseil's `verify()` does, and
+check 13 runs it every 2,000 steps of 40,000 random inserts and deletes against
+a model, then floor, ceiling, range folds and a draining `pop-min`.
+
+**`IndexMap`: F14's vector layout.** Entries are dense in insertion order
+(keys, values, and each key's 64-bit digest), and a separate copy of the hash
+table's chunked index holds entry positions. Iteration walks a dense array;
+entries are addressable by position; the index grows by rebuilding from the
+stored digests, so no key is rehashed. `swap-remove` is O(1) (the last entry
+moves into the hole and its index slot, found by its digest, is re-pointed);
+`shift-remove` keeps the order (one memmove and a renumbering pass over the
+index). Check 17 runs 20,000 random inserts and both removes against a model of
+the order.
+
+**`LruCache`**: a `HashTable` from key to node, and nodes as slots of arrays
+made once at the capacity, threaded on a doubly linked recency list in raw link
+words (unused nodes on a free list through the same words). Every operation is
+O(1) and nothing allocates after construction beyond the table's own growth.
+Check 18 compares 20,000 random gets and puts against a list model of recency
+and eviction.
+
+**`BitSet`** keeps bit i in word i / 64, so whole-set operations run a word at
+a time (popcount per word, one `or`/`and` per word) and `bitset-next-set`
+skips 64 clear bits a step with a trailing-zero count. **`UnionFind`** keeps
+parent and size words; find halves paths, union hangs the smaller set under
+the larger.
+
 ## 6 What made it fast: three findings worth keeping
 
 **Borrow inference withdraws a lent mode on one bad call site.** A callee's
@@ -220,6 +271,31 @@ and hands it to a helper that takes it lent (the call is not a tail call, so
 the mode survives), and an insertion reports its outcome as one word (a slot,
 `placed`, or `absent` for "grow first") so a present key's update allocates
 nothing.
+
+## 6.5 Two compiler bugs this work found
+
+**A library object carried modules its target never selects.**
+`emit-object` roots every module's exported values, and `prune` roots every
+constructor, primitive, boundary plan and instance, so an object built on
+Linux carried `Prim.Sys.Darwin` whole, although `Prim.Sys` imports it only
+`when os darwin`. Its foreign wrappers name Darwin's `__error`, which no Linux
+libc defines, so every Linux link of the base object failed: the ladder's
+Stage 2 and three `codegen::tests::object_*` unit tests. The driver now
+computes the modules the target never selects and withholds them from both the
+roots and `prune`'s blanket rules (`unselected_modules`,
+`simplify::prune_excluding`); the base object on x86_64 Linux goes from 172
+`Prim.Sys.Darwin` symbols to none. The library-producer lock was moved to that
+revision.
+
+**A branch's reuse token leaked the kept cell.** `1665ebd` fixed a double free
+by keeping a branch's `Release` at its head and letting an arm with nothing to
+reuse leave the token unread. But a `Release` that binds a token keeps the cell
+on the unique path for the `Reuse`, so a non-reusing arm kept it forever.
+`Data.Map` churn leaked 122,378 blocks (none under `905aa3cf`), and two
+`reclamation` tests failed with leaked blocks. `branch_reuse` now binds a token
+only when every arm reuses; `tests/reclamation` is 21 of 21 again. Because the
+seed is pinned at `1665ebd`, the stage compilers still carry the leak (they
+work; they hold more memory than they need) until the seed is next re-pinned.
 
 ## 7 Measured
 
@@ -273,11 +349,14 @@ dictionary calls (section 9 item 3).
    values in one slot array would save a miss whenever the two classes agree,
    but one array has one element format, so it needs a class-dependent layout
    the library cannot branch on today.
-3. **Dictionary calls.** `Hash` and `Eq` are called through dictionary apply
+3. **The seed re-pin.** Moving the seed lock to a revision with the reuse
+   fix makes the stage compilers leak-free too; it rebuilds the whole chain,
+   so it was left for a deliberate refresh.
+4. **Dictionary calls.** `Hash` and `Eq` are called through dictionary apply
    stubs, about 47 instructions per `hash`. Specializing the table per instance
    (or inlining it at a static dictionary, where `direct_dict_calls` would fire)
    is a compiler change, not a library one.
-4. **`run-mut`**, once the checker accepts a rank-2 argument (section 3).
+5. **`run-mut`**, once the checker accepts a rank-2 argument (section 3).
 
 ## 10 Reproducing
 

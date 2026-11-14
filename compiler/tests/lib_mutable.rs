@@ -14,7 +14,13 @@
 //! overflow counts make deletion tombstone-free), 300 keys sharing one
 //! digest, `String` keys through the whole update family, the set, the
 //! ring wrapping while it grows, the 4-ary heap (min, max and Floyd
-//! build), and the fixed array and the cell.
+//! build), the fixed array and the cell, the B-tree against a model over
+//! 40,000 random inserts and deletes (with `btree-verify` checking its
+//! whole structure every 2,000 steps, then floor, ceiling, range folds and
+//! a draining pop-min), the ordered set, the bitset, union-find, the
+//! insertion-ordered map against a model of its order under random swap-
+//! and shift-removes, and the LRU cache against a list model of recency
+//! and eviction.
 //!
 //! A container bug that reads an empty slot is not a wrong answer here but
 //! a trap (`cinch_slots_fault`, exit 71), so the leak line and the exit
@@ -35,6 +41,12 @@ const MODULES: &[(&str, &str)] = &[
     ("Data.Mutable.Heap.cinch", include_str!("../prelude/Data/Mutable/Heap.cinch")),
     ("Data.Mutable.Array.cinch", include_str!("../prelude/Data/Mutable/Array.cinch")),
     ("Data.Mutable.Var.cinch", include_str!("../prelude/Data/Mutable/Var.cinch")),
+    ("Data.Mutable.BTree.cinch", include_str!("../prelude/Data/Mutable/BTree.cinch")),
+    ("Data.Mutable.BTreeSet.cinch", include_str!("../prelude/Data/Mutable/BTreeSet.cinch")),
+    ("Data.Mutable.BitSet.cinch", include_str!("../prelude/Data/Mutable/BitSet.cinch")),
+    ("Data.Mutable.UnionFind.cinch", include_str!("../prelude/Data/Mutable/UnionFind.cinch")),
+    ("Data.Mutable.IndexMap.cinch", include_str!("../prelude/Data/Mutable/IndexMap.cinch")),
+    ("Data.Mutable.LruCache.cinch", include_str!("../prelude/Data/Mutable/LruCache.cinch")),
     ("Data.Mutable.cinch", include_str!("../prelude/Data/Mutable.cinch")),
     ("Data.Array.cinch", include_str!("../prelude/Data/Array.cinch")),
 ];
@@ -53,6 +65,12 @@ const CHECKS: &[&str] = &[
     "deque",
     "heap",
     "array-var",
+    "btree-against-a-model",
+    "btree-set",
+    "bitset",
+    "union-find",
+    "index-map-against-a-model",
+    "lru-cache-against-a-model",
 ];
 
 fn project(tag: &str, main: &str) -> std::path::PathBuf {
@@ -101,7 +119,15 @@ module Main where
     let w = var-write c 9 in
     let a = mut-array-new 2 (7 :: Nat) in
     let hs = hash-set-from-list (Cons (1 :: Nat) (Cons 1 Nil)) in
-    if vec-length v == 3 && hash-table-size t == 1 && deque-length q == 1 && heap-length h == 2
+    let bt = btree-from-list (Cons ((2 :: Nat), "b") (Cons (1, "a") Nil)) in
+    let im = index-map-from-list (Cons ("z", (1 :: Nat)) Nil) in
+    let lru = lru-new 4 in
+    let put = lru-put lru (1 :: Nat) (2 :: Nat) in
+    let bits = bitset-from-list (Cons 3 Nil) in
+    let uf = union-find-new 3 in
+    let bs = btree-set-from-list (Cons (5 :: Nat) Nil) in
+    if btree-size bt == 2 && index-map-size im == 1 && lru-size lru == 1 && bitset-count bits == 1
+       && union-find-set-count uf == 3 && btree-set-size bs == 1 && vec-length v == 3 && hash-table-size t == 1 && deque-length q == 1 && heap-length h == 2
        && var-read c == 9 && mut-array-length a == 2 && hash-set-size hs == 1 then 0 else 1
 "#;
     let dir = project("mutable_facade", main);

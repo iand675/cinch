@@ -2,7 +2,9 @@
 // absl::flat_hash_map (SwissTable) and std::unordered_map, plus
 // std::vector/std::sort and std::priority_queue. Build:
 //   clang++ -O2 -std=c++17 bench.cpp -o bench -labsl_hash -labsl_raw_hash_set -labsl_city -labsl_low_level_hash
+#include <absl/container/btree_map.h>
 #include <absl/container/flat_hash_map.h>
+#include <map>
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
@@ -39,10 +41,29 @@ template <class Map> static uint64_t run(const char* name, uint64_t n) {
   return hits + misses + m.size();
 }
 
+template <class Map> static uint64_t ordered(const char* name, uint64_t n) {
+  char label[64];
+  Map m;
+  double c0 = now();
+  for (uint64_t i = 0; i < n; i++) m[key(i)] = i;
+  double c1 = now();
+  uint64_t hits = 0;
+  for (uint64_t i = 0; i < n; i++) { auto it = m.find(key(i)); hits += it == m.end() ? 0 : it->second; }
+  double c2 = now();
+  for (uint64_t i = 0; i < n; i += 2) m.erase(key(i));
+  double c3 = now();
+  std::snprintf(label, sizeof label, "%s insert", name); span(label, n, c0, c1);
+  std::snprintf(label, sizeof label, "%s lookup-hit", name); span(label, n, c1, c2);
+  std::snprintf(label, sizeof label, "%s delete-half", name); span(label, n / 2, c2, c3);
+  return hits + m.size();
+}
+
 int main() {
   const uint64_t n = 1000000;
   uint64_t sink = run<absl::flat_hash_map<uint64_t, uint64_t>>("absl", n);
   sink += run<std::unordered_map<uint64_t, uint64_t>>("unordered", n);
+  sink += ordered<absl::btree_map<uint64_t, uint64_t>>("absl-btree", n);
+  sink += ordered<std::map<uint64_t, uint64_t>>("std-map", n);
   std::vector<uint64_t> v;
   double v0 = now();
   for (uint64_t i = 0; i < n; i++) v.push_back(key(i));

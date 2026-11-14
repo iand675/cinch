@@ -1,0 +1,170 @@
+-- Data.Mutable.UnionFind: disjoint sets (union-find), as in every
+-- compiler's type unifier and every Kruskal.
+--
+-- Elements are the Nats 0 .. n - 1, `union-find-add` appends one more.
+-- Each element keeps a parent word and each root its set's size, both in
+-- raw slot arrays. `union-find-find` halves paths as it walks (every node
+-- on the way is pointed at its grandparent), and `union-find-union` hangs
+-- the smaller set under the larger, which together make a sequence of m
+-- operations cost O(m alpha(n)), effectively constant per operation.
+--
+-- The trusted core is the private `cinch.runtime.slots*` imports (the
+-- compiler's `slots.rs`); none of them leaves the module. Every word below
+-- the element count is written when its element is added.
+module Data.Mutable.UnionFind where
+
+  import Data.Machine
+  import Data.Option
+  import Data.Nat
+
+  export UnionFind, union-find-new, union-find-add, union-find-length, union-find-find
+  export union-find-union, union-find-same, union-find-set-size, union-find-set-count
+
+  foreign import ccall "cinch.runtime.slotsNew" slots-new :: forall a. U64 -> Array a
+  foreign import ccall "cinch.runtime.slotsLen" slots-len :: forall a. Array a -> U64
+  foreign import ccall "cinch.runtime.slotsRead" slots-read :: forall a. Array a -> U64 -> a
+  foreign import ccall "cinch.runtime.slotsWrite" slots-write :: forall a. Array a -> U64 -> a -> Unit
+  foreign import ccall "cinch.runtime.slotsMove" slots-move :: forall a. Array a -> U64 -> Array a -> U64 -> U64 -> Unit
+  foreign import ccall "cinch.runtime.slotsFoldNat" fold-nat :: Nat -> U64
+
+  -- The header (element count, set count) and one cell holding the
+  -- words: parent of element i at 2i, size of the set rooted at i at
+  -- 2i + 1.
+  data UnionFind r where
+    MkUnionFind :: Array U64 -> Array (Array U64) -> UnionFind r
+
+  inc :: U64 -> U64
+  inc w = wrapping-add-u64 w 1
+
+  dec :: U64 -> U64
+  dec w = wrapping-sub-u64 w 1
+
+  to-nat :: U64 -> Nat
+  to-nat w = nat-from-i64 (mask-i64 (wrapping-u64-to-i64 w) 9223372036854775807)
+
+  parent-at :: U64 -> U64
+  parent-at i = wrapping-shl-u64 i 1
+
+  size-at :: U64 -> U64
+  size-at i = inc (wrapping-shl-u64 i 1)
+
+  words-of :: forall r. UnionFind r -> Array U64
+  words-of uf = case uf of
+    MkUnionFind m c -> slots-read c 0
+
+  count-of :: forall r. UnionFind r -> U64
+  count-of uf = case uf of
+    MkUnionFind m c -> slots-read m 0
+
+  -- `n` singleton sets.
+  union-find-new :: forall r. Nat ->{Mut r} UnionFind r
+  union-find-new n =
+    let m = (slots-new 2 :: Array U64) in
+    let a = slots-write m 0 (0 :: U64) in
+    let b = slots-write m 1 (0 :: U64) in
+    let c = slots-new 1 in
+    let installed = slots-write c 0 (slots-new (wrapping-shl-u64 (fold-nat n) 1)) in
+    let uf = MkUnionFind m c in
+    let added = add-many uf (fold-nat n) in
+    uf
+
+  add-many :: forall r. UnionFind r -> U64 -> Unit
+  add-many uf n = if eq-u64 n 0 then () else let a = add-one uf in add-many uf (dec n)
+
+  -- A new singleton set: its element.
+  union-find-add :: forall r. UnionFind r ->{Mut r} Nat
+  union-find-add uf = to-nat (add-one uf)
+
+  add-one :: forall r. UnionFind r -> U64
+  add-one uf = case uf of
+    MkUnionFind m c ->
+      let i = slots-read m 0 in
+      let w = room-for c (wrapping-shl-u64 (inc i) 1) in
+      let p = slots-write w (parent-at i) i in
+      let s = slots-write w (size-at i) (1 :: U64) in
+      let counted = slots-write m 0 (inc i) in
+      let sets = slots-write m 1 (inc (slots-read m 1)) in
+      i
+
+  room-for :: Array (Array U64) -> U64 -> Array U64
+  room-for c need =
+    let w = slots-read c 0 in
+    let n = slots-len w in
+    if lt-u64 n need then
+      let doubled = if lt-u64 n 8 then (8 :: U64) else wrapping-add-u64 n n in
+      let fresh = (slots-new (if lt-u64 doubled need then need else doubled) :: Array U64) in
+      let moved = slots-move fresh 0 w 0 n in
+      let installed = slots-write c 0 fresh in
+      fresh
+    else w
+
+  union-find-length :: forall r. UnionFind r ->{Mut r} Nat
+  union-find-length uf = to-nat (count-of uf)
+
+  -- The number of disjoint sets.
+  union-find-set-count :: forall r. UnionFind r ->{Mut r} Nat
+  union-find-set-count uf = case uf of
+    MkUnionFind m c -> to-nat (slots-read m 1)
+
+  -- The representative of x's set (`None` when x is not an element).
+  union-find-find :: forall r. UnionFind r -> Nat ->{Mut r} Option Nat
+  union-find-find uf x =
+    if x < to-nat (count-of uf) then
+      let w = words-of uf in
+      Some (to-nat (root w (fold-nat x)))
+    else None
+
+  -- Path halving: every node on the walk is re-pointed at its
+  -- grandparent.
+  root :: Array U64 -> U64 -> U64
+  root w x =
+    let p = slots-read w (parent-at x) in
+    if eq-u64 p x then x
+    else
+      let g = slots-read w (parent-at p) in
+      let halved = slots-write w (parent-at x) g in
+      root w g
+
+  -- Merge the sets of x and y: `True` when they were separate (and both
+  -- are elements).
+  union-find-union :: forall r. UnionFind r -> Nat -> Nat ->{Mut r} Bool
+  union-find-union uf x y =
+    let n = to-nat (count-of uf) in
+    if x < n && y < n then
+      let w = words-of uf in
+      let rx = root w (fold-nat x) in
+      let ry = root w (fold-nat y) in
+      if eq-u64 rx ry then False
+      else
+        let sx = slots-read w (size-at rx) in
+        let sy = slots-read w (size-at ry) in
+        let linked = if lt-u64 sx sy then link w rx ry sx sy else link w ry rx sy sx in
+        let sets = one-fewer uf in
+        True
+    else False
+
+  one-fewer :: forall r. UnionFind r -> Unit
+  one-fewer uf = case uf of
+    MkUnionFind m c -> slots-write m 1 (dec (slots-read m 1))
+
+  -- Hang the root `small` (size ss) under `big` (size sb).
+  link :: Array U64 -> U64 -> U64 -> U64 -> U64 -> Unit
+  link w small big ss sb =
+    let p = slots-write w (parent-at small) big in
+    slots-write w (size-at big) (wrapping-add-u64 ss sb)
+
+  union-find-same :: forall r. UnionFind r -> Nat -> Nat ->{Mut r} Bool
+  union-find-same uf x y =
+    let n = to-nat (count-of uf) in
+    if x < n && y < n then
+      let w = words-of uf in
+      eq-u64 (root w (fold-nat x)) (root w (fold-nat y))
+    else False
+
+  -- The size of x's set (0 when x is not an element).
+  union-find-set-size :: forall r. UnionFind r -> Nat ->{Mut r} Nat
+  union-find-set-size uf x =
+    if x < to-nat (count-of uf) then
+      let w = words-of uf in
+      to-nat (slots-read w (size-at (root w (fold-nat x))))
+    else 0

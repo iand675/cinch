@@ -2,7 +2,7 @@
 -- run by compiler/tests/lib_mutable.rs under the leak checker.
 --
 -- The exit code is the verdict: 0 when every check passed, otherwise the
--- number of the FIRST failed check (1 .. 12, in the order `main` lists
+-- number of the FIRST failed check (1 .. 18, in the order `main` lists
 -- them). Every check is a top-level function returning `Bool`, because a
 -- `case` inside a `let` binder must indent past the binder's column.
 module Main where
@@ -17,6 +17,12 @@ module Main where
   import Data.Mutable.Heap
   import Data.Mutable.Array
   import Data.Mutable.Var
+  import Data.Mutable.BTree
+  import Data.Mutable.BTreeSet
+  import Data.Mutable.BitSet
+  import Data.Mutable.UnionFind
+  import Data.Mutable.IndexMap
+  import Data.Mutable.LruCache
 
   -- ------------------------------------------------------------------
   -- Helpers
@@ -407,6 +413,334 @@ module Main where
     s1 && ok1 && sw && ok2 && ok3 && ok4 && ok5
 
   -- ------------------------------------------------------------------
+  -- 13. BTreeMap against a model: 40,000 random inserts and deletes
+  -- ------------------------------------------------------------------
+
+  -- The model is a MutArray indexed by key, 0 meaning absent (every
+  -- stored value is at least 1). The tree verifies its whole structure
+  -- every 2,000 steps.
+  bt-churn :: forall r. BTreeMap r Nat Nat -> MutArray r Nat -> Nat -> Nat ->{Mut r} Bool
+  bt-churn t model x n =
+    if n == 0 then True
+    else
+      let k = nat-rem (nat-div x 7) 3000 in
+      let ok = if nat-rem n 2000 == 0 then btree-verify t else True in
+      if ok == False then False
+      else if nat-rem (nat-div x 65536) 5 < 3 then
+        let i = btree-insert t k (n + 1) in
+        let w = mut-array-set model k (n + 1) in
+        bt-churn t model (next x) (n - 1)
+      else
+        let want = model-get model k in
+        let got = btree-delete t k in
+        let w = mut-array-set model k 0 in
+        if agrees got want then bt-churn t model (next x) (n - 1) else False
+
+  model-get :: forall r. MutArray r Nat -> Nat ->{Mut r} Nat
+  model-get model k = case mut-array-get model k of
+    Some v -> v
+    None -> 0
+
+  agrees :: Option Nat -> Nat -> Bool
+  agrees o want = case o of
+    None -> want == 0
+    Some v -> v == want
+
+  -- The model's present entries in ascending key order.
+  model-list :: forall r. MutArray r Nat -> Nat -> List (Nat, Nat) ->{Mut r} List (Nat, Nat)
+  model-list model k acc =
+    if k == 0 then acc
+    else
+      let j = k - 1 in
+      let v = model-get model j in
+      model-list model j (if v == 0 then acc else Cons (j, v) acc)
+
+  eq-pairs :: List (Nat, Nat) -> List (Nat, Nat) -> Bool
+  eq-pairs xs ys = case xs of
+    Nil -> case ys of
+      Nil -> True
+      Cons q qs -> False
+    Cons p ps -> case ys of
+      Nil -> False
+      Cons q qs -> case p of
+        (a, b) -> case q of
+          (c, d) -> if a == c && b == d then eq-pairs ps qs else False
+
+  first-key :: Option (Nat, Nat) -> Nat
+  first-key o = case o of
+    None -> 1000000
+    Some p -> case p of
+      (a, b) -> a
+
+  -- Floor and ceiling of every probe against a scan of the model.
+  model-floor :: forall r. MutArray r Nat -> Nat ->{Mut r} Nat
+  model-floor model k = if 0 < model-get model k then k else (if k == 0 then 1000000 else model-floor model (k - 1))
+
+  model-ceiling :: forall r. MutArray r Nat -> Nat ->{Mut r} Nat
+  model-ceiling model k = if 2999 < k then 1000000 else (if 0 < model-get model k then k else model-ceiling model (k + 1))
+
+  bt-probes :: forall r. BTreeMap r Nat Nat -> MutArray r Nat -> Nat ->{Mut r} Bool
+  bt-probes t model k =
+    if k == 0 then True
+    else
+      let q = k - 1 in
+      if first-key (btree-floor t q) == model-floor model q && first-key (btree-ceiling t q) == model-ceiling model q
+      then bt-probes t model q else False
+
+  bt-drain :: forall r. BTreeMap r Nat Nat -> Nat -> Nat ->{Mut r} Bool
+  bt-drain t prev n = case btree-pop-min t of
+    None -> n == 0
+    Some p -> case p of
+      (k, v) -> if n == 0 then False else if k < prev then False else if nat-rem n 500 == 0 && btree-verify t == False then False else bt-drain t k (n - 1)
+
+  check-btree :: forall r. Unit ->{Mut r} Bool
+  check-btree u =
+    let t = btree-new () in
+    let model = mut-array-new 3000 0 in
+    let churned = bt-churn t model 42 40000 in
+    let xs = model-list model 3000 Nil in
+    let ok1 = churned && btree-verify t && btree-size t == count xs 0 in
+    let ok2 = eq-pairs (btree-to-list t) xs && 1 < btree-height t in
+    let ok3 = bt-probes t model 3000 in
+    let ok4 = btree-fold-range (\acc k v -> acc + v) 0 700 1900 t == sum-range xs 700 1900 0 in
+    let ok5 = btree-fold (\acc k v -> acc + 1) 0 t == count xs 0 in
+    let ok6 = bt-drain t 0 (btree-size t) && btree-is-empty t && btree-verify t in
+    let s = btree-from-list (Cons ("b", 2) (Cons ("a", 1) (Cons ("c", 3) Nil))) in
+    let md = btree-modify s "b" (\v -> v * 10) in
+    let ok7 = btree-lookup-or s "b" 0 == 20 && first-str (btree-min s) "a" && first-str (btree-max s) "c" in
+    ok1 && ok2 && ok3 && ok4 && ok5 && ok6 && ok7
+
+  sum-range :: List (Nat, Nat) -> Nat -> Nat -> Nat -> Nat
+  sum-range xs lo hi acc = case xs of
+    Nil -> acc
+    Cons p rest -> case p of
+      (a, b) -> sum-range rest lo hi (if lo <= a && a < hi then acc + b else acc)
+
+  first-str :: Option (String, Nat) -> String -> Bool
+  first-str o want = case o of
+    None -> False
+    Some p -> case p of
+      (a, b) -> string-compare a want == 0
+
+  -- ------------------------------------------------------------------
+  -- 14. BTreeSet
+  -- ------------------------------------------------------------------
+
+  check-btree-set :: forall r. Unit ->{Mut r} Bool
+  check-btree-set u =
+    let s = btree-set-from-list (Cons (50 :: Nat) (Cons 10 (Cons 40 (Cons 10 (Cons 30 (Cons 20 Nil)))))) in
+    let ok1 = btree-set-size s == 5 && eq-nats (btree-set-to-list s) (Cons 10 (Cons 20 (Cons 30 (Cons 40 (Cons 50 Nil))))) in
+    let ok2 = btree-set-insert s 25 && btree-set-insert s 25 == False && btree-set-delete s 40 && btree-set-delete s 40 == False in
+    let ok3 = is-some-nat (btree-set-floor s 39) 30 && is-some-nat (btree-set-ceiling s 26) 30 && is-none-nat (btree-set-ceiling s 51) in
+    let ok4 = btree-set-fold-range (\a x -> a + x) 0 20 31 s == 75 && is-some-nat (btree-set-pop-min s) 10 && is-some-nat (btree-set-max s) 50 in
+    ok1 && ok2 && ok3 && ok4 && btree-set-verify s
+
+  -- ------------------------------------------------------------------
+  -- 15. BitSet
+  -- ------------------------------------------------------------------
+
+  check-bitset :: forall r. Unit ->{Mut r} Bool
+  check-bitset u =
+    let b = bitset-new 10 in
+    let e = bitset-is-empty b && bitset-test b 5 == False && bitset-test b 100000 == False in
+    let s1 = bitset-set b 3 in
+    let s2 = bitset-set b 64 in
+    let s3 = bitset-set b 1000 in
+    let ok1 = bitset-test b 3 && bitset-test b 64 && bitset-test b 1000 && bitset-test b 4 == False && bitset-count b == 3 in
+    let ok2 = eq-nats (bitset-to-list b) (Cons 3 (Cons 64 (Cons 1000 Nil))) && is-some-nat (bitset-next-set b 4) 64 && is-some-nat (bitset-next-set b 65) 1000 && is-none-nat (bitset-next-set b 1001) in
+    let t = bitset-toggle b 3 in
+    let c = bitset-clear b 64 in
+    let ok3 = bitset-count b == 1 && 1000 < bitset-capacity b in
+    let x = bitset-from-list (Cons 1 (Cons 2 (Cons 3 (Cons 200 Nil)))) in
+    let y = bitset-from-list (Cons 2 (Cons 3 (Cons 4 Nil))) in
+    let un = bitset-union-with x y in
+    let ok4 = eq-nats (bitset-to-list x) (Cons 1 (Cons 2 (Cons 3 (Cons 4 (Cons 200 Nil))))) in
+    let it = bitset-intersect-with x y in
+    let ok5 = eq-nats (bitset-to-list x) (Cons 2 (Cons 3 (Cons 4 Nil))) in
+    let df = bitset-difference-with x (bitset-from-list (Cons 3 Nil)) in
+    let ok6 = eq-nats (bitset-to-list x) (Cons 2 (Cons 4 Nil)) in
+    let ca = bitset-clear-all x in
+    e && ok1 && ok2 && ok3 && ok4 && ok5 && ok6 && bitset-is-empty x
+
+  -- ------------------------------------------------------------------
+  -- 16. UnionFind
+  -- ------------------------------------------------------------------
+
+  -- Union i with i + 2 for every i below n: two components (evens, odds).
+  link-pairs :: forall r. UnionFind r -> Nat -> Nat ->{Mut r} Unit
+  link-pairs uf i n = if i + 2 < n then let j = union-find-union uf i (i + 2) in link-pairs uf (i + 1) n else ()
+
+  check-union-find :: forall r. Unit ->{Mut r} Bool
+  check-union-find u =
+    let uf = union-find-new 1000 in
+    let ok1 = union-find-set-count uf == 1000 && union-find-same uf 0 1 == False in
+    let linked = link-pairs uf 0 1000 in
+    let ok2 = union-find-set-count uf == 2 && union-find-same uf 0 998 && union-find-same uf 1 999 && union-find-same uf 0 1 == False in
+    let ok3 = union-find-set-size uf 4 == 500 && union-find-union uf 0 2 == False in
+    let ok4 = union-find-union uf 10 11 && union-find-set-count uf == 1 && union-find-set-size uf 0 == 1000 in
+    let fresh = union-find-add uf in
+    let ok5 = fresh == 1000 && union-find-set-count uf == 2 && union-find-length uf == 1001 && union-find-same uf 1000 0 == False in
+    let ok6 = is-none-nat (union-find-find uf 5000) && union-find-union uf 0 5000 == False in
+    ok1 && ok2 && ok3 && ok4 && ok5 && ok6
+
+  -- ------------------------------------------------------------------
+  -- 17. IndexMap against a model of its order
+  -- ------------------------------------------------------------------
+
+  -- The model is the key order as a Vec plus a MutArray of values by key
+  -- (0 meaning absent). Random inserts, swap-removes and shift-removes.
+  im-churn :: forall r. IndexMap r Nat Nat -> Vec r Nat -> MutArray r Nat -> Nat -> Nat ->{Mut r} Bool
+  im-churn t order vals x n =
+    if n == 0 then True
+    else
+      let k = nat-rem (nat-div x 7) 400 in
+      let op = nat-rem (nat-div x 65536) 6 in
+      let present = 0 < model-get vals k in
+      if op < 3 then
+        let i = index-map-insert t k (n + 1) in
+        let pushed = if present then () else vec-push order k in
+        let w = mut-array-set vals k (n + 1) in
+        im-churn t order vals (next x) (n - 1)
+      else if op == 3 then
+        let got = index-map-swap-remove t k in
+        let want = model-get vals k in
+        let moved = if present then swap-out order k else () in
+        let w = mut-array-set vals k 0 in
+        if agrees got want then im-churn t order vals (next x) (n - 1) else False
+      else
+        let got = index-map-shift-remove t k in
+        let want = model-get vals k in
+        let moved = if present then shift-out order k else () in
+        let w = mut-array-set vals k 0 in
+        if agrees got want then im-churn t order vals (next x) (n - 1) else False
+
+  position :: forall r. Vec r Nat -> Nat -> Nat ->{Mut r} Nat
+  position v k i = if is-some-nat (vec-get v i) k then i else position v k (i + 1)
+
+  swap-out :: forall r. Vec r Nat -> Nat ->{Mut r} Unit
+  swap-out v k = let r = vec-swap-remove v (position v k 0) in ()
+
+  shift-out :: forall r. Vec r Nat -> Nat ->{Mut r} Unit
+  shift-out v k = let r = vec-remove v (position v k 0) in ()
+
+  model-entries :: forall r. Vec r Nat -> MutArray r Nat ->{Mut r} List (Nat, Nat)
+  model-entries order vals =
+    let backwards = vec-fold (\acc k -> Cons k acc) Nil order in
+    pairs-back vals Nil backwards
+
+  pairs-back :: forall r. MutArray r Nat -> List (Nat, Nat) -> List Nat ->{Mut r} List (Nat, Nat)
+  pairs-back vals acc ks = case ks of
+    Nil -> acc
+    Cons k rest -> pairs-back vals (Cons (k, model-get vals k) acc) rest
+
+  positions-agree :: forall r. IndexMap r Nat Nat -> Vec r Nat -> Nat ->{Mut r} Bool
+  positions-agree t order i = case vec-get order i of
+    None -> True
+    Some k -> if is-some-nat (index-map-index-of t k) i then positions-agree t order (i + 1) else False
+
+  check-index-map :: forall r. Unit ->{Mut r} Bool
+  check-index-map u =
+    let t = index-map-new () in
+    let order = vec-new () in
+    let vals = mut-array-new 400 0 in
+    let churned = im-churn t order vals 7 20000 in
+    let ok1 = churned && index-map-size t == vec-length order in
+    let ok2 = eq-pairs (index-map-to-list t) (model-entries order vals) && positions-agree t order 0 in
+    let s = index-map-from-list (Cons ("c", 3) (Cons ("a", 1) (Cons ("b", 2) (Cons ("a", 10) Nil)))) in
+    let ok3 = string-compare (first-of (index-map-get-index s 0)) "c" == 0 && index-map-lookup-or s "a" 0 == 10 && index-map-size s == 3 in
+    let popped = index-map-pop s in
+    let ok4 = string-compare (first-of popped) "b" == 0 && index-map-size s == 2 && index-map-member s "b" == False && index-map-member s "c" in
+    ok1 && ok2 && ok3 && ok4
+
+  first-of :: Option (String, Nat) -> String
+  first-of o = case o of
+    None -> ""
+    Some p -> case p of
+      (a, b) -> a
+
+  -- ------------------------------------------------------------------
+  -- 18. LruCache against a list model
+  -- ------------------------------------------------------------------
+
+  -- The model: entries most recently used first.
+  model-touch :: List (Nat, Nat) -> Nat -> Option (Nat, List (Nat, Nat))
+  model-touch xs k = case model-find xs k of
+    None -> None
+    Some v -> Some (v, Cons (k, v) (model-drop xs k))
+
+  model-find :: List (Nat, Nat) -> Nat -> Option Nat
+  model-find xs k = case xs of
+    Nil -> None
+    Cons p rest -> case p of
+      (a, b) -> if a == k then Some b else model-find rest k
+
+  model-drop :: List (Nat, Nat) -> Nat -> List (Nat, Nat)
+  model-drop xs k = case xs of
+    Nil -> Nil
+    Cons p rest -> case p of
+      (a, b) -> if a == k then rest else Cons p (model-drop rest k)
+
+  model-init :: List (Nat, Nat) -> List (Nat, Nat)
+  model-init xs = case xs of
+    Nil -> Nil
+    Cons p rest -> case rest of
+      Nil -> Nil
+      Cons q more -> Cons p (model-init rest)
+
+  model-last-key :: List (Nat, Nat) -> Nat
+  model-last-key xs = case xs of
+    Nil -> 1000000
+    Cons p rest -> case rest of
+      Nil -> case p of
+        (a, b) -> a
+      Cons q more -> model-last-key rest
+
+  evicted-key :: Option (Nat, Nat) -> Nat
+  evicted-key o = case o of
+    None -> 1000000
+    Some p -> case p of
+      (a, b) -> a
+
+  lru-churn :: forall r. LruCache r Nat Nat -> List (Nat, Nat) -> Nat -> Nat ->{Mut r} Bool
+  lru-churn c model x n =
+    if n == 0 then eq-pairs (lru-to-list c) model
+    else
+      let k = nat-rem (nat-div x 7) 40 in
+      if nat-rem (nat-div x 65536) 3 == 0 then
+        case model-touch model k of
+          None -> if is-none-nat (lru-get c k) then lru-churn c model (next x) (n - 1) else False
+          Some hit -> case hit of
+            (v, moved) -> if is-some-nat (lru-get c k) v then lru-churn c moved (next x) (n - 1) else False
+      else
+        let present = is-some-nat (model-find model k) (n + 1) || model-find-any model k in
+        let full = count model 0 == 16 in
+        let expect = if present == False && full then model-last-key model else 1000000 in
+        let ev = lru-put c k (n + 1) in
+        let base = if present then model-drop model k else (if full then model-init model else model) in
+        if evicted-key ev == expect then lru-churn c (Cons (k, n + 1) base) (next x) (n - 1) else False
+
+  model-find-any :: List (Nat, Nat) -> Nat -> Bool
+  model-find-any xs k = case model-find xs k of
+    None -> False
+    Some v -> True
+
+  check-lru :: forall r. Unit ->{Mut r} Bool
+  check-lru u =
+    let c = lru-new 16 in
+    let ok1 = lru-capacity c == 16 && lru-size c == 0 in
+    let ok2 = lru-churn c Nil 11 20000 && lru-size c == 16 in
+    let d = lru-new 2 in
+    let a = lru-put d 1 10 in
+    let b = lru-put d 2 20 in
+    let g = lru-get d 1 in
+    let e = lru-put d 3 30 in
+    let ok3 = evicted-key e == 2 && lru-member d 2 == False && is-some-nat (lru-peek d 1) 10 in
+    let del = lru-delete d 1 in
+    let ok4 = is-some-nat del 10 && lru-size d == 1 && evicted-key (lru-put d 4 40) == 1000000 && lru-size d == 2 in
+    let cl = lru-clear d in
+    ok1 && ok2 && ok3 && ok4 && lru-size d == 0
+
+  -- ------------------------------------------------------------------
   -- The verdict
   -- ------------------------------------------------------------------
 
@@ -421,4 +755,5 @@ module Main where
   main :: Unit ->{Mut r} Int
   main u = verdict 1 (Cons check-vec-basics (Cons check-vec-middle (Cons check-vec-sort (Cons check-vec-views
     (Cons check-table-scale (Cons check-table-delete (Cons check-table-collisions (Cons check-table-updates
-    (Cons check-set (Cons check-deque (Cons check-heap (Cons check-array-var Nil))))))))))))
+    (Cons check-set (Cons check-deque (Cons check-heap (Cons check-array-var (Cons check-btree
+    (Cons check-btree-set (Cons check-bitset (Cons check-union-find (Cons check-index-map (Cons check-lru Nil))))))))))))))))))

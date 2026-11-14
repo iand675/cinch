@@ -11,6 +11,8 @@ module Main where
   import Data.Mutable.HashTable
   import Data.Mutable.Vec
   import Data.Mutable.Heap
+  import Data.Mutable.BTree
+  import Data.Map
 
   key :: Nat -> Nat
   key i = nat-rem (i * 2654435761) 4294967296
@@ -60,6 +62,30 @@ module Main where
   h-pop h acc = case heap-pop h of
     None -> acc
     Some x -> h-pop h (acc + 1)
+
+  -- ------------------------------------------------------------------
+  -- Data.Mutable.BTree and the persistent Data.Map
+  -- ------------------------------------------------------------------
+
+  b-insert :: forall r. BTreeMap r Nat Nat -> Nat -> Nat ->{Mut r} Unit
+  b-insert t i n = if i < n then let p = btree-insert t (key i) i in b-insert t (i + 1) n else ()
+
+  b-hits :: forall r. BTreeMap r Nat Nat -> Nat -> Nat -> Nat ->{Mut r} Nat
+  b-hits t i n acc = if i < n then b-hits t (i + 1) n (acc + btree-lookup-or t (key i) 0) else acc
+
+  b-delete :: forall r. BTreeMap r Nat Nat -> Nat -> Nat ->{Mut r} Unit
+  b-delete t i n = if i < n then let d = btree-delete t (key i) in b-delete t (i + 2) n else ()
+
+  m-insert :: Map Nat Nat -> Nat -> Nat -> Map Nat Nat
+  m-insert m i n = if i < n then m-insert (map-insert (key i) i m) (i + 1) n else m
+
+  m-get :: Map Nat Nat -> Nat -> Nat
+  m-get m k = case map-lookup k m of
+    Some v -> v
+    None -> 0
+
+  m-hits :: Map Nat Nat -> Nat -> Nat -> Nat -> Nat
+  m-hits m i n acc = if i < n then m-hits m (i + 1) n (acc + m-get m (key i)) else acc
 
   -- ------------------------------------------------------------------
   -- Reporting
@@ -119,4 +145,22 @@ module Main where
     let h2 = clock-monotonic-ns () in
     let s9 = span "heap push" n h0 h1 in
     let s10 = span "heap pop" n h1 h2 in
-    if hits == phits && misses == 0 && hash-table-size t == nat-div n 2 && popped == n then 0 else 1
+    let bt = btree-new () in
+    let b0 = clock-monotonic-ns () in
+    let bi = b-insert bt 0 n in
+    let b1 = clock-monotonic-ns () in
+    let bhits = b-hits bt 0 n 0 in
+    let b2 = clock-monotonic-ns () in
+    let bd = b-delete bt 0 n in
+    let b3 = clock-monotonic-ns () in
+    let s11 = span "btree insert" n b0 b1 in
+    let s12 = span "btree lookup-hit" n b1 b2 in
+    let s13 = span "btree delete-half" (nat-div n 2) b2 b3 in
+    let q0 = clock-monotonic-ns () in
+    let om = m-insert map-empty 0 n in
+    let q1 = clock-monotonic-ns () in
+    let ohits = m-hits om 0 n 0 in
+    let q2 = clock-monotonic-ns () in
+    let s14 = span "persistent-ordered insert" n q0 q1 in
+    let s15 = span "persistent-ordered lookup-hit" n q1 q2 in
+    if hits == phits && hits == bhits && bhits == ohits && btree-size bt == nat-div n 2 && misses == 0 && hash-table-size t == nat-div n 2 && popped == n then 0 else 1

@@ -1,0 +1,229 @@
+-- Data.Mutable.LruCache: the bounded least-recently-used cache (folly
+-- `EvictingCacheMap`).
+--
+-- A cache of fixed capacity: `lru-put` into a full cache evicts the entry
+-- used least recently and hands it back, `lru-get` marks an entry used.
+-- Every operation is O(1).
+--
+-- Layout. A `Data.Mutable.HashTable` maps each key to its node, and the
+-- nodes are slots of three arrays made once at the capacity: the key, the
+-- value, and two raw link words (the previous and next node) per node,
+-- threaded into a doubly linked recency list from the most recently used
+-- (the head) to the least (the tail). Unused nodes sit on a free list
+-- threaded through the same next words. A hit therefore costs one table
+-- lookup and four link writes, and no operation allocates after the cache
+-- is made (beyond the table's own growth up to the capacity).
+--
+-- The invariant that makes every read sound: a node's key and value slots
+-- are written exactly while it is on the recency list, and the table maps
+-- exactly the listed keys to their nodes.
+--
+-- The trusted core is the private `cinch.runtime.slots*` imports (the
+-- compiler's `slots.rs`); none of them leaves the module.
+module Data.Mutable.LruCache where
+
+  import Data.Machine
+  import Data.Option
+  import Data.Nat
+  import Data.Hash
+  import Relation.Eq
+  import Data.Mutable.HashTable
+
+  export LruCache, lru-new, lru-size, lru-capacity, lru-get, lru-peek, lru-member, lru-put
+  export lru-delete, lru-to-list, lru-clear
+
+  foreign import ccall "cinch.runtime.slotsNew" slots-new :: forall a. U64 -> Array a
+  foreign import ccall "cinch.runtime.slotsRead" slots-read :: forall a. Array a -> U64 -> a
+  foreign import ccall "cinch.runtime.slotsWrite" slots-write :: forall a. Array a -> U64 -> a -> Unit
+  foreign import ccall "cinch.runtime.slotsTake" slots-take :: forall a. Array a -> U64 -> a
+  foreign import ccall "cinch.runtime.slotsClear" slots-clear :: forall a. Array a -> U64 -> U64 -> Unit
+  foreign import ccall "cinch.runtime.slotsFoldNat" fold-nat :: Nat -> U64
+
+  -- `meta`: size, capacity, head, tail, free head. `links`: node i's
+  -- previous at 2i, next at 2i + 1.
+  data LruCache r k v where
+    MkLru :: Array U64 -> HashTable r k U64 -> Array k -> Array v -> Array U64 -> LruCache r k v
+
+  inc :: U64 -> U64
+  inc w = wrapping-add-u64 w 1
+
+  dec :: U64 -> U64
+  dec w = wrapping-sub-u64 w 1
+
+  to-nat :: U64 -> Nat
+  to-nat w = nat-from-i64 (mask-i64 (wrapping-u64-to-i64 w) 9223372036854775807)
+
+  none :: U64
+  none = 0xffffffffffffffff
+
+  prev-at :: U64 -> U64
+  prev-at i = wrapping-shl-u64 i 1
+
+  next-at :: U64 -> U64
+  next-at i = inc (wrapping-shl-u64 i 1)
+
+  -- ------------------------------------------------------------------
+  -- The recency list
+  -- ------------------------------------------------------------------
+
+  -- Take node i off the list.
+  unlink :: Array U64 -> Array U64 -> U64 -> Unit
+  unlink m links i =
+    let p = slots-read links (prev-at i) in
+    let n = slots-read links (next-at i) in
+    let a = if eq-u64 p none then slots-write m 2 n else slots-write links (next-at p) n in
+    if eq-u64 n none then slots-write m 3 p else slots-write links (prev-at n) p
+
+  -- Put node i at the head.
+  push-front :: Array U64 -> Array U64 -> U64 -> Unit
+  push-front m links i =
+    let h = slots-read m 2 in
+    let a = slots-write links (prev-at i) none in
+    let b = slots-write links (next-at i) h in
+    let c = if eq-u64 h none then slots-write m 3 i else slots-write links (prev-at h) i in
+    slots-write m 2 i
+
+  touch :: Array U64 -> Array U64 -> U64 -> Unit
+  touch m links i =
+    if eq-u64 (slots-read m 2) i then ()
+    else
+      let off = unlink m links i in
+      push-front m links i
+
+  -- ------------------------------------------------------------------
+  -- Construction and size
+  -- ------------------------------------------------------------------
+
+  -- An empty cache holding at most `capacity` entries (at least one).
+  lru-new :: forall r k v. Nat ->{Mut r} LruCache r k v
+  lru-new capacity =
+    let want = fold-nat capacity in
+    let cap = if eq-u64 want 0 then (1 :: U64) else want in
+    let m = (slots-new 5 :: Array U64) in
+    let a = slots-write m 0 (0 :: U64) in
+    let b = slots-write m 1 cap in
+    let c = slots-write m 2 none in
+    let d = slots-write m 3 none in
+    let e = slots-write m 4 (0 :: U64) in
+    let links = (slots-new (wrapping-shl-u64 cap 1) :: Array U64) in
+    let chained = chain-free links 0 cap in
+    MkLru m (hash-table-with-capacity (to-nat cap)) (slots-new cap) (slots-new cap) links
+
+  -- Thread nodes i .. cap - 1 onto the free list in order.
+  chain-free :: Array U64 -> U64 -> U64 -> Unit
+  chain-free links i cap =
+    if lt-u64 i cap then
+      let n = inc i in
+      let w = slots-write links (next-at i) (if lt-u64 n cap then n else none) in
+      let p = slots-write links (prev-at i) none in
+      chain-free links n cap
+    else ()
+
+  lru-size :: forall r k v. LruCache r k v ->{Mut r} Nat
+  lru-size c = case c of
+    MkLru m ht ks vs links -> to-nat (slots-read m 0)
+
+  lru-capacity :: forall r k v. LruCache r k v ->{Mut r} Nat
+  lru-capacity c = case c of
+    MkLru m ht ks vs links -> to-nat (slots-read m 1)
+
+  -- ------------------------------------------------------------------
+  -- Reads
+  -- ------------------------------------------------------------------
+
+  -- The value at `key`, marking it the most recently used.
+  lru-get :: forall r k v. using (h :: Hash k, eq :: Eq k) => LruCache r k v -> k ->{Mut r} Option v
+  lru-get c key = case c of
+    MkLru m ht ks vs links -> case hash-table-lookup ht key of
+      None -> None
+      Some i ->
+        let moved = touch m links i in
+        Some (slots-read vs i)
+
+  -- The value at `key`, leaving the recency order alone.
+  lru-peek :: forall r k v. using (h :: Hash k, eq :: Eq k) => LruCache r k v -> k ->{Mut r} Option v
+  lru-peek c key = case c of
+    MkLru m ht ks vs links -> case hash-table-lookup ht key of
+      None -> None
+      Some i -> Some (slots-read vs i)
+
+  lru-member :: forall r k v. using (h :: Hash k, eq :: Eq k) => LruCache r k v -> k ->{Mut r} Bool
+  lru-member c key = case c of
+    MkLru m ht ks vs links -> hash-table-member ht key
+
+  -- ------------------------------------------------------------------
+  -- Writes
+  -- ------------------------------------------------------------------
+
+  -- Set `key` to `val` and mark it the most recently used. A full cache
+  -- first evicts its least recently used entry, which is returned.
+  lru-put :: forall r k v. using (h :: Hash k, eq :: Eq k) => LruCache r k v -> k -> v ->{Mut r} Option (k, v)
+  lru-put c key val = case c of
+    MkLru m ht ks vs links -> case hash-table-lookup ht key of
+      Some i ->
+        let written = slots-write vs i val in
+        let moved = touch m links i in
+        None
+      None ->
+        let evicted = if eq-u64 (slots-read m 0) (slots-read m 1) then evict m ht ks vs links else None in
+        let i = slots-read m 4 in
+        let popped = slots-write m 4 (slots-read links (next-at i)) in
+        let wk = slots-write ks i key in
+        let wv = slots-write vs i val in
+        let linked = push-front m links i in
+        let mapped = hash-table-insert ht key i in
+        let sized = slots-write m 0 (inc (slots-read m 0)) in
+        evicted
+
+  -- Drop the tail entry onto the free list and return it.
+  evict :: forall r k v. using (h :: Hash k, eq :: Eq k) => Array U64 -> HashTable r k U64 -> Array k -> Array v -> Array U64 ->{Mut r} Option (k, v)
+  evict m ht ks vs links =
+    let t = slots-read m 3 in
+    let k = slots-take ks t in
+    let v = slots-take vs t in
+    let unmapped = hash-table-delete ht k in
+    let off = unlink m links t in
+    let freed = free-node m links t in
+    Some (k, v)
+
+  free-node :: Array U64 -> Array U64 -> U64 -> Unit
+  free-node m links i =
+    let n = slots-write links (next-at i) (slots-read m 4) in
+    let pushed = slots-write m 4 i in
+    slots-write m 0 (dec (slots-read m 0))
+
+  -- Remove `key`: its value, or `None` when it was absent.
+  lru-delete :: forall r k v. using (h :: Hash k, eq :: Eq k) => LruCache r k v -> k ->{Mut r} Option v
+  lru-delete c key = case c of
+    MkLru m ht ks vs links -> case hash-table-delete ht key of
+      None -> None
+      Some i ->
+        let k = slots-take ks i in
+        let v = slots-take vs i in
+        let off = unlink m links i in
+        let freed = free-node m links i in
+        Some v
+
+  -- The entries from the most recently used to the least.
+  lru-to-list :: forall r k v. LruCache r k v ->{Mut r} List (k, v)
+  lru-to-list c = case c of
+    MkLru m ht ks vs links -> list-back ks vs links (slots-read m 3) Nil
+
+  list-back :: forall k v. Array k -> Array v -> Array U64 -> U64 -> List (k, v) -> List (k, v)
+  list-back ks vs links i acc =
+    if eq-u64 i none then acc
+    else list-back ks vs links (slots-read links (prev-at i)) (Cons (slots-read ks i, slots-read vs i) acc)
+
+  -- Drop every entry; the capacity stays.
+  lru-clear :: forall r k v. LruCache r k v ->{Mut r} Unit
+  lru-clear c = case c of
+    MkLru m ht ks vs links ->
+      let cap = slots-read m 1 in
+      let a = slots-clear ks 0 cap in
+      let b = slots-clear vs 0 cap in
+      let t = hash-table-clear ht in
+      let chained = chain-free links 0 cap in
+      let s = slots-write m 0 (0 :: U64) in
+      let h = slots-write m 2 none in
+      let tl = slots-write m 3 none in
+      slots-write m 4 0

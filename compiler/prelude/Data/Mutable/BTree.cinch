@@ -1,0 +1,924 @@
+-- Data.Mutable.BTree: the ordered mutable map (abseil `btree_map`).
+--
+-- A B-tree of minimum degree 8: every node holds 7 .. 15 keys (the root
+-- 0 .. 15) and an internal node one more child than keys, so a million
+-- entries sit at most five levels deep and a search compares a handful of
+-- keys per level inside one node's contiguous slots. That locality is
+-- abseil's argument for a B-tree over a red-black tree, and it holds here
+-- with more force: a node is not a heap block at all.
+--
+-- Layout (a node pool). Nodes are indices into three slot arrays shared by
+-- the whole tree: node x owns key and value slots 15x .. 15x + 14, and 18
+-- words of `nodes` from 18x (its key count, a leaf flag, and up to 16 child
+-- indices). Allocating a node takes an index from a free list or the high
+-- water mark; freeing one pushes it back. The pool doubles when an
+-- operation could run out, which moves every slot once (no count touched).
+-- So the tree's shape costs no allocation per node, no reference count per
+-- child pointer, and no pointer chase into a separate block per level.
+--
+-- Algorithms. CLRS chapter 18 in its single-pass form: an insertion splits
+-- every full node on its way down, so it never has to back up; a deletion
+-- tops every node it descends into up to at least 8 keys first (by
+-- rotating a key in from a sibling or merging with one), so the key it
+-- finally removes from a leaf never leaves an underfull node behind. A
+-- search within a node is a binary search with `Ord`'s `<`; two keys are
+-- equal when neither is less, so no `Eq` is needed.
+--
+-- Costs: lookup, insert, delete, floor and ceiling are O(log n); min and
+-- max are O(log n) walks; folds and `btree-to-list` are O(n) in key order;
+-- `btree-fold-range lo hi` is O(log n + the entries in [lo, hi)).
+--
+-- The invariant that makes every read sound: node x's key and value slots
+-- below its count are written and the rest are empty, and a node's child
+-- words are read only below its count + 1 and only when it is internal.
+-- `btree-verify` checks the whole structural contract (order, counts, equal
+-- leaf depth, the entry count), as abseil's `verify()` does.
+--
+-- Named refusals:
+--   iteration under mutation: the folds are pure, so they cannot change
+--     the tree; `btree-for-each` runs its action over the entries listed
+--     when it started;
+--   keys whose `Ord` is not a strict total order: the tree's shape is only
+--     as sound as `<` (as for every comparison-ordered container).
+--
+-- The trusted core is the private `cinch.runtime.slots*` imports (the
+-- compiler's `slots.rs`); none of them leaves the module.
+module Data.Mutable.BTree where
+
+  import Data.Machine
+  import Data.Option
+  import Data.Nat
+  import Relation.Ord
+
+  export BTreeMap, btree-new, btree-size, btree-is-empty, btree-height
+  export btree-insert, btree-lookup, btree-lookup-or, btree-member, btree-delete, btree-modify
+  export btree-min, btree-max, btree-pop-min, btree-pop-max, btree-floor, btree-ceiling
+  export btree-fold, btree-fold-range, btree-for-each, btree-to-list, btree-keys, btree-values
+  export btree-from-list, btree-clear, btree-verify
+
+  foreign import ccall "cinch.runtime.slotsNew" slots-new :: forall a. U64 -> Array a
+  foreign import ccall "cinch.runtime.slotsLen" slots-len :: forall a. Array a -> U64
+  foreign import ccall "cinch.runtime.slotsRead" slots-read :: forall a. Array a -> U64 -> a
+  foreign import ccall "cinch.runtime.slotsWrite" slots-write :: forall a. Array a -> U64 -> a -> Unit
+  foreign import ccall "cinch.runtime.slotsTake" slots-take :: forall a. Array a -> U64 -> a
+  foreign import ccall "cinch.runtime.slotsMove" slots-move :: forall a. Array a -> U64 -> Array a -> U64 -> U64 -> Unit
+  foreign import ccall "cinch.runtime.slotsClear" slots-clear :: forall a. Array a -> U64 -> U64 -> Unit
+
+  -- The pool: node words, key slots, value slots.
+  data Pool k v where
+    Pool :: Array U64 -> Array k -> Array v -> Pool k v
+
+  -- The header (`meta`: entry count, root, height, free head, high
+  -- water, free count, node capacity) and the cell holding the pool.
+  data BTreeMap r k v where
+    MkBTree :: Array U64 -> Array (Pool k v) -> BTreeMap r k v
+
+  -- ------------------------------------------------------------------
+  -- Words
+  -- ------------------------------------------------------------------
+
+  inc :: U64 -> U64
+  inc w = wrapping-add-u64 w 1
+
+  dec :: U64 -> U64
+  dec w = wrapping-sub-u64 w 1
+
+  add :: U64 -> U64 -> U64
+  add a b = wrapping-add-u64 a b
+
+  sub :: U64 -> U64 -> U64
+  sub a b = wrapping-sub-u64 a b
+
+  to-nat :: U64 -> Nat
+  to-nat w = nat-from-i64 (mask-i64 (wrapping-u64-to-i64 w) 9223372036854775807)
+
+  none :: U64
+  none = 0xffffffffffffffff
+
+  -- The most keys a node holds (2t - 1 for t = 8), the fewest a non-root
+  -- node holds (t - 1), and the words of one node's record.
+  most :: U64
+  most = 15
+
+  fewest :: U64
+  fewest = 7
+
+  stride :: U64
+  stride = 18
+
+  -- ------------------------------------------------------------------
+  -- Header and node fields
+  -- ------------------------------------------------------------------
+
+  meta :: Array U64 -> U64 -> U64
+  meta m i = slots-read m i
+
+  set-meta :: Array U64 -> U64 -> U64 -> Unit
+  set-meta m i w = slots-write m i w
+
+  base :: U64 -> U64
+  base x = wrapping-mul-u64 x stride
+
+  -- Key/value slot `i` of node `x`.
+  kat :: U64 -> U64 -> U64
+  kat x i = add (wrapping-mul-u64 x most) i
+
+  count-of :: Array U64 -> U64 -> U64
+  count-of ns x = slots-read ns (base x)
+
+  set-count :: Array U64 -> U64 -> U64 -> Unit
+  set-count ns x n = slots-write ns (base x) n
+
+  is-leaf :: Array U64 -> U64 -> Bool
+  is-leaf ns x = eq-u64 (slots-read ns (inc (base x))) 1
+
+  set-leaf :: Array U64 -> U64 -> U64 -> Unit
+  set-leaf ns x flag = slots-write ns (inc (base x)) flag
+
+  child :: Array U64 -> U64 -> U64 -> U64
+  child ns x i = slots-read ns (add (base x) (add 2 i))
+
+  set-child :: Array U64 -> U64 -> U64 -> U64 -> Unit
+  set-child ns x i c = slots-write ns (add (base x) (add 2 i)) c
+
+  -- The child word index of child `i` of `x`, for bulk moves.
+  cat :: U64 -> U64 -> U64
+  cat x i = add (base x) (add 2 i)
+
+  meta-of :: forall r k v. BTreeMap r k v -> Array U64
+  meta-of t = case t of
+    MkBTree m c -> m
+
+  pool-of :: forall r k v. BTreeMap r k v -> Pool k v
+  pool-of t = case t of
+    MkBTree m c -> slots-read c 0
+
+  -- ------------------------------------------------------------------
+  -- The pool
+  -- ------------------------------------------------------------------
+
+  fresh-pool :: forall k v. U64 -> Pool k v
+  fresh-pool cap =
+    let ns = (slots-new (wrapping-mul-u64 cap stride) :: Array U64) in
+    let zeroed = slots-clear ns 0 (slots-len ns) in
+    Pool ns (slots-new (wrapping-mul-u64 cap most)) (slots-new (wrapping-mul-u64 cap most))
+
+  -- Make sure `need` nodes can be allocated without the pool moving:
+  -- every operation that allocates reserves first, so the arrays it holds
+  -- stay the current ones for its whole run.
+  reserve-nodes :: forall r k v. BTreeMap r k v -> U64 -> Unit
+  reserve-nodes t need = case t of
+    MkBTree m c ->
+      let cap = meta m 6 in
+      let hw = meta m 4 in
+      let avail = add (sub cap hw) (meta m 5) in
+      if lt-u64 avail need then
+        let doubled = wrapping-add-u64 cap cap in
+        let wanted = add hw need in
+        let newcap = if lt-u64 doubled wanted then wanted else doubled in
+        let old = slots-read c 0 in
+        let fresh = fresh-pool newcap in
+        let moved = move-pool old fresh hw in
+        let installed = slots-write c 0 fresh in
+        set-meta m 6 newcap
+      else ()
+
+  move-pool :: forall k v. Pool k v -> Pool k v -> U64 -> Unit
+  move-pool old fresh hw = case old of
+    Pool ns ks vs -> case fresh of
+      Pool ns2 ks2 vs2 ->
+        let a = slots-move ns2 0 ns 0 (wrapping-mul-u64 hw stride) in
+        let b = slots-move ks2 0 ks 0 (wrapping-mul-u64 hw most) in
+        slots-move vs2 0 vs 0 (wrapping-mul-u64 hw most)
+
+  -- A node (empty, with the given leaf flag) from the free list or the
+  -- high water mark. The caller reserved it.
+  alloc :: Array U64 -> Array U64 -> U64 -> U64
+  alloc m ns leaf =
+    let head = meta m 3 in
+    if ne-u64 head none then
+      let next = count-of ns head in
+      let popped = set-meta m 3 next in
+      let counted = set-meta m 5 (dec (meta m 5)) in
+      let c = set-count ns head 0 in
+      let l = set-leaf ns head leaf in
+      head
+    else
+      let id = meta m 4 in
+      let bumped = set-meta m 4 (inc id) in
+      let c = set-count ns id 0 in
+      let l = set-leaf ns id leaf in
+      id
+
+  -- Return an emptied node to the free list (its count word links it).
+  release :: Array U64 -> Array U64 -> U64 -> Unit
+  release m ns x =
+    let linked = set-count ns x (meta m 3) in
+    let pushed = set-meta m 3 x in
+    set-meta m 5 (inc (meta m 5))
+
+  -- ------------------------------------------------------------------
+  -- Searching a node
+  -- ------------------------------------------------------------------
+
+  same :: forall k. using (o :: Ord k) => k -> k -> Bool
+  same a b = if a < b then False else if b < a then False else True
+
+  -- The first slot of node x below n whose key is not less than `key`
+  -- (n when there is none): a binary search.
+  lower-bound :: forall k. using (o :: Ord k) => Array k -> U64 -> U64 -> k -> U64
+  lower-bound ks x n key = lb-from ks x key 0 n
+
+  lb-from :: forall k. using (o :: Ord k) => Array k -> U64 -> k -> U64 -> U64 -> U64
+  lb-from ks x key lo hi =
+    if lt-u64 lo hi then
+      let mid = wrapping-shr-u64 (add lo hi) 1 in
+      if slots-read ks (kat x mid) < key then lb-from ks x key (inc mid) hi else lb-from ks x key lo mid
+    else lo
+
+  -- The first slot whose key is greater than `key`.
+  upper-bound :: forall k. using (o :: Ord k) => Array k -> U64 -> U64 -> k -> U64
+  upper-bound ks x n key = ub-from ks x key 0 n
+
+  ub-from :: forall k. using (o :: Ord k) => Array k -> U64 -> k -> U64 -> U64 -> U64
+  ub-from ks x key lo hi =
+    if lt-u64 lo hi then
+      let mid = wrapping-shr-u64 (add lo hi) 1 in
+      if key < slots-read ks (kat x mid) then ub-from ks x key lo mid else ub-from ks x key (inc mid) hi
+    else lo
+
+  -- Whether slot i (below n) of x holds `key`.
+  holds :: forall k. using (o :: Ord k) => Array k -> U64 -> U64 -> U64 -> k -> Bool
+  holds ks x i n key = if lt-u64 i n then same (slots-read ks (kat x i)) key else False
+
+  -- The key/value slot of `key`, or `none`.
+  find :: forall k. using (o :: Ord k) => Array U64 -> Array k -> U64 -> k -> U64
+  find ns ks x key =
+    let n = count-of ns x in
+    let i = lower-bound ks x n key in
+    if holds ks x i n key then kat x i
+    else if is-leaf ns x then none
+    else find ns ks (child ns x i) key
+
+  -- ------------------------------------------------------------------
+  -- Construction and size
+  -- ------------------------------------------------------------------
+
+  btree-new :: forall r k v. Unit ->{Mut r} BTreeMap r k v
+  btree-new u =
+    let m = (slots-new 7 :: Array U64) in
+    let z = slots-clear m 0 7 in
+    let h = set-meta m 2 1 in
+    let f = set-meta m 3 none in
+    let w = set-meta m 4 1 in
+    let cap = set-meta m 6 4 in
+    let pool = (fresh-pool 4 :: Pool k v) in
+    let leaf = mark-root pool in
+    let c = slots-new 1 in
+    let installed = slots-write c 0 pool in
+    MkBTree m c
+
+  -- Node 0 starts as the empty leaf root.
+  mark-root :: forall k v. Pool k v -> Unit
+  mark-root p = case p of
+    Pool ns ks vs -> set-leaf ns 0 1
+
+  btree-size :: forall r k v. BTreeMap r k v ->{Mut r} Nat
+  btree-size t =
+    let m = meta-of t in
+    to-nat (meta m 0)
+
+  btree-is-empty :: forall r k v. BTreeMap r k v ->{Mut r} Bool
+  btree-is-empty t =
+    let m = meta-of t in
+    eq-u64 (meta m 0) 0
+
+  -- The number of levels (1 for a tree that is one leaf).
+  btree-height :: forall r k v. BTreeMap r k v ->{Mut r} Nat
+  btree-height t =
+    let m = meta-of t in
+    to-nat (meta m 2)
+
+  -- ------------------------------------------------------------------
+  -- Lookup
+  -- ------------------------------------------------------------------
+
+  btree-lookup :: forall r k v. using (o :: Ord k) => BTreeMap r k v -> k ->{Mut r} Option v
+  btree-lookup t key =
+    let m = meta-of t in
+    let p = pool-of t in
+    let found = lookup-in p (meta m 1) key in
+    found
+
+  lookup-in :: forall k v. using (o :: Ord k) => Pool k v -> U64 -> k -> Option v
+  lookup-in p root key = case p of
+    Pool ns ks vs ->
+      let slot = find ns ks root key in
+      if eq-u64 slot none then None else Some (slots-read vs slot)
+
+  btree-lookup-or :: forall r k v. using (o :: Ord k) => BTreeMap r k v -> k -> v ->{Mut r} v
+  btree-lookup-or t key dflt =
+    let m = meta-of t in
+    let p = pool-of t in
+    let found = lookup-or-in p (meta m 1) key dflt in
+    found
+
+  lookup-or-in :: forall k v. using (o :: Ord k) => Pool k v -> U64 -> k -> v -> v
+  lookup-or-in p root key dflt = case p of
+    Pool ns ks vs ->
+      let slot = find ns ks root key in
+      if eq-u64 slot none then dflt else slots-read vs slot
+
+  btree-member :: forall r k v. using (o :: Ord k) => BTreeMap r k v -> k ->{Mut r} Bool
+  btree-member t key =
+    let m = meta-of t in
+    let p = pool-of t in
+    let slot = slot-in p (meta m 1) key in
+    ne-u64 slot none
+
+  slot-in :: forall k v. using (o :: Ord k) => Pool k v -> U64 -> k -> U64
+  slot-in p root key = case p of
+    Pool ns ks vs -> find ns ks root key
+
+  -- Rewrite the value at `key` through `f`, in place: `False` when absent.
+  btree-modify :: forall r k v. using (o :: Ord k) => BTreeMap r k v -> k -> (v -> v) ->{Mut r} Bool
+  btree-modify t key f =
+    let m = meta-of t in
+    let p = pool-of t in
+    let done = modify-in p (meta m 1) key f in
+    done
+
+  modify-in :: forall k v. using (o :: Ord k) => Pool k v -> U64 -> k -> (v -> v) -> Bool
+  modify-in p root key f = case p of
+    Pool ns ks vs ->
+      let slot = find ns ks root key in
+      if eq-u64 slot none then False
+      else
+        let old = slots-take vs slot in
+        let written = slots-write vs slot (f old) in
+        True
+
+  -- ------------------------------------------------------------------
+  -- Insertion (CLRS 18.2: split full nodes on the way down)
+  -- ------------------------------------------------------------------
+
+  -- Set `key` to `val`, replacing a present value (the key already stored
+  -- is kept).
+  btree-insert :: forall r k v. using (o :: Ord k) => BTreeMap r k v -> k -> v ->{Mut r} Unit
+  btree-insert t key val =
+    let m = meta-of t in
+    let reserved = reserve-nodes t (add (meta m 2) 2) in
+    let p = pool-of t in
+    let added = insert-in m p key val in
+    if added then set-meta m 0 (inc (meta m 0)) else ()
+
+  insert-in :: forall k v. using (o :: Ord k) => Array U64 -> Pool k v -> k -> v -> Bool
+  insert-in m p key val = case p of
+    Pool ns ks vs ->
+      let root = meta m 1 in
+      if eq-u64 (count-of ns root) most then
+        let s = alloc m ns 0 in
+        let linked = set-child ns s 0 root in
+        let split = split-child m ns ks vs s 0 in
+        let rooted = set-meta m 1 s in
+        let taller = set-meta m 2 (inc (meta m 2)) in
+        let added = insert-nonfull m ns ks vs s key val in
+        added
+      else
+        let added = insert-nonfull m ns ks vs root key val in
+        added
+
+  -- Split the full child i of the non-full node x: its upper seven keys
+  -- (and eight children) move to a new right sibling and its median moves
+  -- up into x at slot i.
+  split-child :: forall k v. Array U64 -> Array U64 -> Array k -> Array v -> U64 -> U64 -> Unit
+  split-child m ns ks vs x i =
+    let y = child ns x i in
+    let leaf = is-leaf ns y in
+    let z = alloc m ns (if leaf then (1 :: U64) else 0) in
+    let mk = slots-move ks (kat z 0) ks (kat y 8) 7 in
+    let mv = slots-move vs (kat z 0) vs (kat y 8) 7 in
+    let mc = if leaf then () else slots-move ns (cat z 0) ns (cat y 8) 8 in
+    let cz = set-count ns z 7 in
+    let cy = set-count ns y 7 in
+    let n = count-of ns x in
+    let sk = slots-move ks (kat x (inc i)) ks (kat x i) (sub n i) in
+    let sv = slots-move vs (kat x (inc i)) vs (kat x i) (sub n i) in
+    let sc = slots-move ns (cat x (add i 2)) ns (cat x (inc i)) (sub n i) in
+    let linked = set-child ns x (inc i) z in
+    let upk = slots-write ks (kat x i) (slots-take ks (kat y 7)) in
+    let upv = slots-write vs (kat x i) (slots-take vs (kat y 7)) in
+    set-count ns x (inc n)
+
+  -- Insert into a node known not to be full: `True` when the key is new.
+  -- A full child is split before the descent enters it, so the node the
+  -- recursion reaches always has room.
+  insert-nonfull :: forall k v. using (o :: Ord k) => Array U64 -> Array U64 -> Array k -> Array v -> U64 -> k -> v -> Bool
+  insert-nonfull m ns ks vs x key val =
+    let n = count-of ns x in
+    let i = lower-bound ks x n key in
+    if holds ks x i n key then
+      let replaced = slots-write vs (kat x i) val in
+      False
+    else if is-leaf ns x then
+      let sk = slots-move ks (kat x (inc i)) ks (kat x i) (sub n i) in
+      let sv = slots-move vs (kat x (inc i)) vs (kat x i) (sub n i) in
+      let wk = slots-write ks (kat x i) key in
+      let wv = slots-write vs (kat x i) val in
+      let counted = set-count ns x (inc n) in
+      True
+    else
+      let c = child ns x i in
+      if eq-u64 (count-of ns c) most then
+        let split = split-child m ns ks vs x i in
+        let med = slots-read ks (kat x i) in
+        if med < key then insert-nonfull m ns ks vs (child ns x (inc i)) key val
+        else if key < med then insert-nonfull m ns ks vs (child ns x i) key val
+        else
+          let replaced = slots-write vs (kat x i) val in
+          False
+      else insert-nonfull m ns ks vs c key val
+
+  -- ------------------------------------------------------------------
+  -- Deletion (CLRS 18.3: top up every node before descending into it)
+  -- ------------------------------------------------------------------
+
+  -- Remove `key`: its value, or `None` when it was absent.
+  btree-delete :: forall r k v. using (o :: Ord k) => BTreeMap r k v -> k ->{Mut r} Option v
+  btree-delete t key =
+    let m = meta-of t in
+    let p = pool-of t in
+    let gone = delete-in m p key in
+    gone
+
+  delete-in :: forall k v. using (o :: Ord k) => Array U64 -> Pool k v -> k -> Option v
+  delete-in m p key = case p of
+    Pool ns ks vs ->
+      let res = del m ns ks vs (meta m 1) key in
+      let shrunk = shrink-root m ns in
+      let counted = uncount m res in
+      res
+
+  uncount :: forall v. Array U64 -> Option v -> Unit
+  uncount m res = case res of
+    None -> ()
+    Some v -> set-meta m 0 (dec (meta m 0))
+
+  -- An internal root emptied by a merge hands the root to its only child.
+  shrink-root :: Array U64 -> Array U64 -> Unit
+  shrink-root m ns =
+    let root = meta m 1 in
+    if eq-u64 (count-of ns root) 0 then
+      if is-leaf ns root then ()
+      else
+        let only = child ns root 0 in
+        let freed = release m ns root in
+        let rooted = set-meta m 1 only in
+        set-meta m 2 (dec (meta m 2))
+    else ()
+
+  -- Delete from the subtree at x, which holds at least 8 keys unless it is
+  -- the root.
+  del :: forall k v. using (o :: Ord k) => Array U64 -> Array U64 -> Array k -> Array v -> U64 -> k -> Option v
+  del m ns ks vs x key =
+    let n = count-of ns x in
+    let i = lower-bound ks x n key in
+    if holds ks x i n key then
+      if is-leaf ns x then
+        let gone = slots-take ks (kat x i) in
+        let val = slots-take vs (kat x i) in
+        let sk = slots-move ks (kat x i) ks (kat x (inc i)) (sub (dec n) i) in
+        let sv = slots-move vs (kat x i) vs (kat x (inc i)) (sub (dec n) i) in
+        let counted = set-count ns x (dec n) in
+        Some val
+      else del-internal m ns ks vs x i key
+    else if is-leaf ns x then None
+    else
+      let j = top-up m ns ks vs x i in
+      del m ns ks vs (child ns x j) key
+
+  -- The key sits at slot i of internal node x (CLRS case 2).
+  del-internal :: forall k v. using (o :: Ord k) => Array U64 -> Array U64 -> Array k -> Array v -> U64 -> U64 -> k -> Option v
+  del-internal m ns ks vs x i key =
+    let y = child ns x i in
+    let z = child ns x (inc i) in
+    if lt-u64 fewest (count-of ns y) then
+      -- 2a: the predecessor replaces it, and is deleted from y.
+      let leaf = rightmost ns y in
+      let at = kat leaf (dec (count-of ns leaf)) in
+      let pk = slots-read ks at in
+      let old = slots-take vs (kat x i) in
+      let wk = slots-write ks (kat x i) pk in
+      let wv = slots-write vs (kat x i) (slots-read vs at) in
+      let gone = del m ns ks vs y (slots-read ks (kat x i)) in
+      Some old
+    else if lt-u64 fewest (count-of ns z) then
+      -- 2b: the successor, from z.
+      let leaf = leftmost ns z in
+      let at = kat leaf 0 in
+      let sk = slots-read ks at in
+      let old = slots-take vs (kat x i) in
+      let wk = slots-write ks (kat x i) sk in
+      let wv = slots-write vs (kat x i) (slots-read vs at) in
+      let gone = del m ns ks vs z (slots-read ks (kat x i)) in
+      Some old
+    else
+      -- 2c: y absorbs the key and z, and the deletion continues in y.
+      let merged = merge m ns ks vs x i in
+      del m ns ks vs y key
+
+  rightmost :: Array U64 -> U64 -> U64
+  rightmost ns x = if is-leaf ns x then x else rightmost ns (child ns x (count-of ns x))
+
+  leftmost :: Array U64 -> U64 -> U64
+  leftmost ns x = if is-leaf ns x then x else leftmost ns (child ns x 0)
+
+  -- Make child i of x hold at least 8 keys before the descent enters it
+  -- (CLRS case 3): rotate a key in from a sibling with one to spare, or
+  -- merge with a sibling. Returns the index of the child to descend into
+  -- (a merge with the left sibling moves it down by one).
+  top-up :: forall k v. Array U64 -> Array U64 -> Array k -> Array v -> U64 -> U64 -> U64
+  top-up m ns ks vs x i =
+    let c = child ns x i in
+    if lt-u64 fewest (count-of ns c) then i
+    else
+      let n = count-of ns x in
+      if lt-u64 0 i && lt-u64 fewest (count-of ns (child ns x (dec i))) then
+        let rotated = from-left ns ks vs x i in
+        i
+      else if lt-u64 i n && lt-u64 fewest (count-of ns (child ns x (inc i))) then
+        let rotated = from-right ns ks vs x i in
+        i
+      else if lt-u64 i n then
+        let merged = merge m ns ks vs x i in
+        i
+      else
+        let merged = merge m ns ks vs x (dec i) in
+        dec i
+
+  -- Child i takes x's key i - 1 at its front; x takes the left sibling's
+  -- last key; an internal left sibling's last child moves across too.
+  from-left :: forall k v. Array U64 -> Array k -> Array v -> U64 -> U64 -> Unit
+  from-left ns ks vs x i =
+    let c = child ns x i in
+    let l = child ns x (dec i) in
+    let cn = count-of ns c in
+    let ln = count-of ns l in
+    let sk = slots-move ks (kat c 1) ks (kat c 0) cn in
+    let sv = slots-move vs (kat c 1) vs (kat c 0) cn in
+    let downk = slots-write ks (kat c 0) (slots-take ks (kat x (dec i))) in
+    let downv = slots-write vs (kat c 0) (slots-take vs (kat x (dec i))) in
+    let upk = slots-write ks (kat x (dec i)) (slots-take ks (kat l (dec ln))) in
+    let upv = slots-write vs (kat x (dec i)) (slots-take vs (kat l (dec ln))) in
+    let moved = if is-leaf ns c then () else child-from-left ns c cn l ln in
+    let cc = set-count ns c (inc cn) in
+    set-count ns l (dec ln)
+
+  child-from-left :: Array U64 -> U64 -> U64 -> U64 -> U64 -> Unit
+  child-from-left ns c cn l ln =
+    let sc = slots-move ns (cat c 1) ns (cat c 0) (inc cn) in
+    set-child ns c 0 (child ns l ln)
+
+  -- Child i takes x's key i at its end; x takes the right sibling's first
+  -- key; an internal right sibling's first child moves across too.
+  from-right :: forall k v. Array U64 -> Array k -> Array v -> U64 -> U64 -> Unit
+  from-right ns ks vs x i =
+    let c = child ns x i in
+    let r = child ns x (inc i) in
+    let cn = count-of ns c in
+    let rn = count-of ns r in
+    let downk = slots-write ks (kat c cn) (slots-take ks (kat x i)) in
+    let downv = slots-write vs (kat c cn) (slots-take vs (kat x i)) in
+    let upk = slots-write ks (kat x i) (slots-take ks (kat r 0)) in
+    let upv = slots-write vs (kat x i) (slots-take vs (kat r 0)) in
+    let sk = slots-move ks (kat r 0) ks (kat r 1) (dec rn) in
+    let sv = slots-move vs (kat r 0) vs (kat r 1) (dec rn) in
+    let moved = if is-leaf ns c then () else child-from-right ns c cn r rn in
+    let cc = set-count ns c (inc cn) in
+    set-count ns r (dec rn)
+
+  child-from-right :: Array U64 -> U64 -> U64 -> U64 -> U64 -> Unit
+  child-from-right ns c cn r rn =
+    let across = set-child ns c (inc cn) (child ns r 0) in
+    slots-move ns (cat r 0) ns (cat r 1) rn
+
+  -- Merge child i + 1 of x into child i, with x's key i between them; the
+  -- right child is freed and x loses the key and the child word.
+  merge :: forall k v. Array U64 -> Array U64 -> Array k -> Array v -> U64 -> U64 -> Unit
+  merge m ns ks vs x i =
+    let y = child ns x i in
+    let z = child ns x (inc i) in
+    let yn = count-of ns y in
+    let zn = count-of ns z in
+    let downk = slots-write ks (kat y yn) (slots-take ks (kat x i)) in
+    let downv = slots-write vs (kat y yn) (slots-take vs (kat x i)) in
+    let mk = slots-move ks (kat y (inc yn)) ks (kat z 0) zn in
+    let mv = slots-move vs (kat y (inc yn)) vs (kat z 0) zn in
+    let mc = if is-leaf ns y then () else slots-move ns (cat y (inc yn)) ns (cat z 0) (inc zn) in
+    let cy = set-count ns y (add (inc yn) zn) in
+    let n = count-of ns x in
+    let sk = slots-move ks (kat x i) ks (kat x (inc i)) (sub (dec n) i) in
+    let sv = slots-move vs (kat x i) vs (kat x (inc i)) (sub (dec n) i) in
+    let sc = slots-move ns (cat x (inc i)) ns (cat x (add i 2)) (sub (dec n) i) in
+    let cx = set-count ns x (dec n) in
+    release m ns z
+
+  -- ------------------------------------------------------------------
+  -- The ends and the neighbours of a key
+  -- ------------------------------------------------------------------
+
+  -- The entry at an encoded slot (`none` for none).
+  entry-at :: forall k v. Array k -> Array v -> U64 -> Option (k, v)
+  entry-at ks vs slot = if eq-u64 slot none then None else Some (slots-read ks slot, slots-read vs slot)
+
+  btree-min :: forall r k v. BTreeMap r k v ->{Mut r} Option (k, v)
+  btree-min t =
+    let m = meta-of t in
+    let p = pool-of t in
+    let e = end-in p (meta m 1) False in
+    e
+
+  btree-max :: forall r k v. BTreeMap r k v ->{Mut r} Option (k, v)
+  btree-max t =
+    let m = meta-of t in
+    let p = pool-of t in
+    let e = end-in p (meta m 1) True in
+    e
+
+  end-in :: forall k v. Pool k v -> U64 -> Bool -> Option (k, v)
+  end-in p root high = case p of
+    Pool ns ks vs ->
+      let leaf = if high then rightmost ns root else leftmost ns root in
+      let n = count-of ns leaf in
+      if eq-u64 n 0 then None
+      else entry-at ks vs (kat leaf (if high then dec n else 0))
+
+  btree-pop-min :: forall r k v. using (o :: Ord k) => BTreeMap r k v ->{Mut r} Option (k, v)
+  btree-pop-min t = pop-end t (btree-min t)
+
+  btree-pop-max :: forall r k v. using (o :: Ord k) => BTreeMap r k v ->{Mut r} Option (k, v)
+  btree-pop-max t = pop-end t (btree-max t)
+
+  pop-end :: forall r k v. using (o :: Ord k) => BTreeMap r k v -> Option (k, v) ->{Mut r} Option (k, v)
+  pop-end t e = case e of
+    None -> None
+    Some kv -> case kv of
+      (k, v) ->
+        let gone = btree-delete t k in
+        Some (k, v)
+
+  -- The entry with the greatest key not above `key`.
+  btree-floor :: forall r k v. using (o :: Ord k) => BTreeMap r k v -> k ->{Mut r} Option (k, v)
+  btree-floor t key =
+    let m = meta-of t in
+    let p = pool-of t in
+    let e = floor-in p (meta m 1) key in
+    e
+
+  floor-in :: forall k v. using (o :: Ord k) => Pool k v -> U64 -> k -> Option (k, v)
+  floor-in p root key = case p of
+    Pool ns ks vs -> entry-at ks vs (floor-node ns ks root key none)
+
+  floor-node :: forall k. using (o :: Ord k) => Array U64 -> Array k -> U64 -> k -> U64 -> U64
+  floor-node ns ks x key best =
+    let n = count-of ns x in
+    let j = upper-bound ks x n key in
+    let here = if eq-u64 j 0 then best else kat x (dec j) in
+    if lt-u64 0 j && same (slots-read ks (kat x (dec j))) key then here
+    else if is-leaf ns x then here
+    else floor-node ns ks (child ns x j) key here
+
+  -- The entry with the least key not below `key`.
+  btree-ceiling :: forall r k v. using (o :: Ord k) => BTreeMap r k v -> k ->{Mut r} Option (k, v)
+  btree-ceiling t key =
+    let m = meta-of t in
+    let p = pool-of t in
+    let e = ceiling-in p (meta m 1) key in
+    e
+
+  ceiling-in :: forall k v. using (o :: Ord k) => Pool k v -> U64 -> k -> Option (k, v)
+  ceiling-in p root key = case p of
+    Pool ns ks vs -> entry-at ks vs (ceiling-node ns ks root key none)
+
+  ceiling-node :: forall k. using (o :: Ord k) => Array U64 -> Array k -> U64 -> k -> U64 -> U64
+  ceiling-node ns ks x key best =
+    let n = count-of ns x in
+    let i = lower-bound ks x n key in
+    let here = if lt-u64 i n then kat x i else best in
+    if holds ks x i n key then here
+    else if is-leaf ns x then here
+    else ceiling-node ns ks (child ns x i) key here
+
+  -- ------------------------------------------------------------------
+  -- Folds, in key order
+  -- ------------------------------------------------------------------
+
+  -- A left fold over every entry in ascending key order.
+  btree-fold :: forall r k v b. (b -> k -> v -> b) -> b -> BTreeMap r k v ->{Mut r} b
+  btree-fold f z t =
+    let m = meta-of t in
+    let p = pool-of t in
+    let r = fold-in f z p (meta m 1) in
+    r
+
+  fold-in :: forall k v b. (b -> k -> v -> b) -> b -> Pool k v -> U64 -> b
+  fold-in f z p root = case p of
+    Pool ns ks vs -> fold-node f z ns ks vs root
+
+  fold-node :: forall k v b. (b -> k -> v -> b) -> b -> Array U64 -> Array k -> Array v -> U64 -> b
+  fold-node f z ns ks vs x =
+    let n = count-of ns x in
+    if is-leaf ns x then fold-keys f z ks vs x 0 n else fold-inner f z ns ks vs x 0 n
+
+  fold-keys :: forall k v b. (b -> k -> v -> b) -> b -> Array k -> Array v -> U64 -> U64 -> U64 -> b
+  fold-keys f z ks vs x i n =
+    if lt-u64 i n then fold-keys f (f z (slots-read ks (kat x i)) (slots-read vs (kat x i))) ks vs x (inc i) n else z
+
+  fold-inner :: forall k v b. (b -> k -> v -> b) -> b -> Array U64 -> Array k -> Array v -> U64 -> U64 -> U64 -> b
+  fold-inner f z ns ks vs x i n =
+    let below = fold-node f z ns ks vs (child ns x i) in
+    if lt-u64 i n then fold-inner f (f below (slots-read ks (kat x i)) (slots-read vs (kat x i))) ns ks vs x (inc i) n
+    else below
+
+  -- A left fold over the entries with lo <= key < hi, ascending: the
+  -- descent skips every subtree wholly below lo, and stops at the first
+  -- key at or above hi.
+  btree-fold-range :: forall r k v b. using (o :: Ord k) => (b -> k -> v -> b) -> b -> k -> k -> BTreeMap r k v ->{Mut r} b
+  btree-fold-range f z lo hi t =
+    let m = meta-of t in
+    let p = pool-of t in
+    let r = range-in f z lo hi p (meta m 1) in
+    r
+
+  range-in :: forall k v b. using (o :: Ord k) => (b -> k -> v -> b) -> b -> k -> k -> Pool k v -> U64 -> b
+  range-in f z lo hi p root = case p of
+    Pool ns ks vs -> range-node f z lo hi ns ks vs root
+
+  range-node :: forall k v b. using (o :: Ord k) => (b -> k -> v -> b) -> b -> k -> k -> Array U64 -> Array k -> Array v -> U64 -> b
+  range-node f z lo hi ns ks vs x =
+    let n = count-of ns x in
+    let i = lower-bound ks x n lo in
+    if is-leaf ns x then range-keys f z hi ks vs x i n else range-inner f z lo hi ns ks vs x i n
+
+  range-keys :: forall k v b. using (o :: Ord k) => (b -> k -> v -> b) -> b -> k -> Array k -> Array v -> U64 -> U64 -> U64 -> b
+  range-keys f z hi ks vs x i n =
+    if lt-u64 i n then
+      let k = slots-read ks (kat x i) in
+      if k < hi then range-keys f (f z k (slots-read vs (kat x i))) hi ks vs x (inc i) n else z
+    else z
+
+  range-inner :: forall k v b. using (o :: Ord k) => (b -> k -> v -> b) -> b -> k -> k -> Array U64 -> Array k -> Array v -> U64 -> U64 -> U64 -> b
+  range-inner f z lo hi ns ks vs x i n =
+    let below = range-node f z lo hi ns ks vs (child ns x i) in
+    if lt-u64 i n then
+      let k = slots-read ks (kat x i) in
+      if k < hi then range-inner f (f below k (slots-read vs (kat x i))) lo hi ns ks vs x (inc i) n else below
+    else below
+
+  -- The entries in ascending key order (built from the right).
+  btree-to-list :: forall r k v. BTreeMap r k v ->{Mut r} List (k, v)
+  btree-to-list t =
+    let m = meta-of t in
+    let p = pool-of t in
+    let r = list-in p (meta m 1) in
+    r
+
+  list-in :: forall k v. Pool k v -> U64 -> List (k, v)
+  list-in p root = case p of
+    Pool ns ks vs -> list-node ns ks vs root Nil
+
+  list-node :: forall k v. Array U64 -> Array k -> Array v -> U64 -> List (k, v) -> List (k, v)
+  list-node ns ks vs x acc =
+    let n = count-of ns x in
+    if is-leaf ns x then list-keys ks vs x n acc else list-inner ns ks vs x n acc
+
+  list-keys :: forall k v. Array k -> Array v -> U64 -> U64 -> List (k, v) -> List (k, v)
+  list-keys ks vs x i acc =
+    if eq-u64 i 0 then acc
+    else
+      let j = dec i in
+      list-keys ks vs x j (Cons (slots-read ks (kat x j), slots-read vs (kat x j)) acc)
+
+  -- Right to left: child i, then key i - 1, down to child 0.
+  list-inner :: forall k v. Array U64 -> Array k -> Array v -> U64 -> U64 -> List (k, v) -> List (k, v)
+  list-inner ns ks vs x i acc =
+    let withchild = list-node ns ks vs (child ns x i) acc in
+    if eq-u64 i 0 then withchild
+    else
+      let j = dec i in
+      list-inner ns ks vs x j (Cons (slots-read ks (kat x j), slots-read vs (kat x j)) withchild)
+
+  btree-keys :: forall r k v. BTreeMap r k v ->{Mut r} List k
+  btree-keys t = firsts (btree-to-list t)
+
+  btree-values :: forall r k v. BTreeMap r k v ->{Mut r} List v
+  btree-values t = seconds (btree-to-list t)
+
+  firsts :: forall k v. List (k, v) -> List k
+  firsts kvs = case kvs of
+    Nil -> Nil
+    Cons p rest -> case p of
+      (k, v) -> Cons k (firsts rest)
+
+  seconds :: forall k v. List (k, v) -> List v
+  seconds kvs = case kvs of
+    Nil -> Nil
+    Cons p rest -> case p of
+      (k, v) -> Cons v (seconds rest)
+
+  -- Run an action on every entry present when it starts, in key order.
+  btree-for-each :: forall r k v. BTreeMap r k v -> (k -> v ->{Mut r} Unit) ->{Mut r} Unit
+  btree-for-each t act = each-entry (btree-to-list t) act
+
+  each-entry :: forall r k v. List (k, v) -> (k -> v ->{Mut r} Unit) ->{Mut r} Unit
+  each-entry kvs act = case kvs of
+    Nil -> ()
+    Cons p rest -> case p of
+      (k, v) ->
+        let done = act k v in
+        each-entry rest act
+
+  btree-from-list :: forall r k v. using (o :: Ord k) => List (k, v) ->{Mut r} BTreeMap r k v
+  btree-from-list kvs =
+    let t = btree-new () in
+    let filled = insert-all t kvs in
+    t
+
+  -- A later pair replaces an earlier one with the same key.
+  insert-all :: forall r k v. using (o :: Ord k) => BTreeMap r k v -> List (k, v) ->{Mut r} Unit
+  insert-all t kvs = case kvs of
+    Nil -> ()
+    Cons p rest -> case p of
+      (k, v) ->
+        let inserted = btree-insert t k v in
+        insert-all t rest
+
+  -- Remove every entry; the pool's capacity stays.
+  btree-clear :: forall r k v. BTreeMap r k v ->{Mut r} Unit
+  btree-clear t =
+    let m = meta-of t in
+    let p = pool-of t in
+    let emptied = clear-pool p (meta m 4) in
+    let size = set-meta m 0 0 in
+    let root = set-meta m 1 0 in
+    let height = set-meta m 2 1 in
+    let free = set-meta m 3 none in
+    let hw = set-meta m 4 1 in
+    set-meta m 5 0
+
+  clear-pool :: forall k v. Pool k v -> U64 -> Unit
+  clear-pool p hw = case p of
+    Pool ns ks vs ->
+      let a = slots-clear ks 0 (wrapping-mul-u64 hw most) in
+      let b = slots-clear vs 0 (wrapping-mul-u64 hw most) in
+      let c = set-count ns 0 0 in
+      set-leaf ns 0 1
+
+  -- ------------------------------------------------------------------
+  -- Verification
+  -- ------------------------------------------------------------------
+
+  -- The tree's whole structural contract: keys strictly ascending in key
+  -- order across nodes, every non-root node holding 7 .. 15 keys, every
+  -- leaf at the same depth (the recorded height), and the entry count the
+  -- header records. `True` when all of it holds.
+  btree-verify :: forall r k v. using (o :: Ord k) => BTreeMap r k v ->{Mut r} Bool
+  btree-verify t =
+    let m = meta-of t in
+    let p = pool-of t in
+    let ok = verify-in m p in
+    ok
+
+  verify-in :: forall k v. using (o :: Ord k) => Array U64 -> Pool k v -> Bool
+  verify-in m p = case p of
+    Pool ns ks vs ->
+      let root = meta m 1 in
+      let counted = verify-node ns root True (meta m 2) in
+      if eq-u64 counted none then False
+      else if eq-u64 counted (meta m 0) then ascending (list-node ns ks vs root Nil) else False
+
+  -- The entries below x when its subtree is sound, `none` when not.
+  verify-node :: Array U64 -> U64 -> Bool -> U64 -> U64
+  verify-node ns x is-root depth =
+    let n = count-of ns x in
+    if lt-u64 most n then none
+    else if is-root == False && lt-u64 n fewest then none
+    else if is-leaf ns x then (if eq-u64 depth 1 then n else none)
+    else if eq-u64 n 0 then none
+    else verify-children ns x 0 n (dec depth) n
+
+  verify-children :: Array U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64
+  verify-children ns x i n depth acc =
+    if lt-u64 n i then acc
+    else
+      let sub-count = verify-node ns (child ns x i) False depth in
+      if eq-u64 sub-count none then none else verify-children ns x (inc i) n depth (add acc sub-count)
+
+  ascending :: forall k v. using (o :: Ord k) => List (k, v) -> Bool
+  ascending kvs = case kvs of
+    Nil -> True
+    Cons p rest -> case rest of
+      Nil -> True
+      Cons q more -> case p of
+        (a, x) -> case q of
+          (b, y) -> if a < b then ascending rest else False

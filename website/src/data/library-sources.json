@@ -315,6 +315,30 @@
       "public_methods": 0
     },
     {
+      "module": "Data.Mutable.BTree",
+      "path": "compiler/prelude/Data/Mutable/BTree.cinch",
+      "sha256": "9741c4de3eb73bcf097d0dc27f48d9ace038c8a9ca7e4a8062e6e6f41cc19c54",
+      "embedded": false,
+      "values": 25,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Mutable.BTreeSet",
+      "path": "compiler/prelude/Data/Mutable/BTreeSet.cinch",
+      "sha256": "95b4465c365cead885ece4adbe28d10605df080e6a4903123093775f696b0d04",
+      "embedded": false,
+      "values": 18,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Mutable.BitSet",
+      "path": "compiler/prelude/Data/Mutable/BitSet.cinch",
+      "sha256": "1ce604a52fb81e9b084c070dcd4370a4eb9b161b70cb723a38b45be31264b5cc",
+      "embedded": false,
+      "values": 15,
+      "public_methods": 0
+    },
+    {
       "module": "Data.Mutable.Deque",
       "path": "compiler/prelude/Data/Mutable/Deque.cinch",
       "sha256": "3761e4888415de3d3fa427aefef583cfcb7cfb4f481759ed906b7c3a841eaada",
@@ -347,6 +371,30 @@
       "public_methods": 0
     },
     {
+      "module": "Data.Mutable.IndexMap",
+      "path": "compiler/prelude/Data/Mutable/IndexMap.cinch",
+      "sha256": "119e94ae13c00611a834c4947d4db4c9bfed98b86da803c8ce707c16fe0cf501",
+      "embedded": false,
+      "values": 18,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Mutable.LruCache",
+      "path": "compiler/prelude/Data/Mutable/LruCache.cinch",
+      "sha256": "4ade3198bc4fd7a8686d5c6ffa38a61a80dfaa62153c15bd9543a4d10e5116de",
+      "embedded": false,
+      "values": 10,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Mutable.UnionFind",
+      "path": "compiler/prelude/Data/Mutable/UnionFind.cinch",
+      "sha256": "727e954bd65cccc23e096583f2e09110a598ca323a6a4170d7d3270a230afe1b",
+      "embedded": false,
+      "values": 8,
+      "public_methods": 0
+    },
+    {
       "module": "Data.Mutable.Var",
       "path": "compiler/prelude/Data/Mutable/Var.cinch",
       "sha256": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
@@ -365,9 +413,9 @@
     {
       "module": "Data.Mutable",
       "path": "compiler/prelude/Data/Mutable.cinch",
-      "sha256": "1fee11d2ed1b0f718a9f933b3f3f72fa831d769694a6f4ef25333c5b88a41c51",
+      "sha256": "41f43a5edd93e517e7aa298c9ae7b3af24b56313cc49dd20dfaccd380713aeaa",
       "embedded": false,
-      "values": 113,
+      "values": 207,
       "public_methods": 0
     },
     {

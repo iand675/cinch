@@ -26,6 +26,12 @@
 --   Data.Mutable.Heap       4-ary priority queue            (boost::d_ary_heap)
 --   Data.Mutable.Array      fixed-length mutable array      (std::array by reference)
 --   Data.Mutable.Var        one mutable cell                (IORef, STRef)
+--   Data.Mutable.BTree      pooled degree-8 B-tree map      (absl::btree_map)
+--   Data.Mutable.BTreeSet   the B-tree's set                (absl::btree_set)
+--   Data.Mutable.IndexMap   insertion-ordered hash map      (folly::F14VectorMap, Rust indexmap)
+--   Data.Mutable.LruCache   bounded LRU cache               (folly::EvictingCacheMap)
+--   Data.Mutable.BitSet     word-wide dynamic bitset        (boost::dynamic_bitset)
+--   Data.Mutable.UnionFind  disjoint sets                   (union by size, path halving)
 --
 -- Named refusals (boundaries the family deliberately does not cross):
 --   a pure runner: `run-mut :: (forall r. Unit ->{Mut r} a) -> a` (the
@@ -50,6 +56,12 @@ module Data.Mutable where
   import Data.Mutable.Heap
   import Data.Mutable.Array
   import Data.Mutable.Var
+  import Data.Mutable.BTree
+  import Data.Mutable.BTreeSet
+  import Data.Mutable.IndexMap
+  import Data.Mutable.LruCache
+  import Data.Mutable.BitSet
+  import Data.Mutable.UnionFind
 
   export module Data.Mutable.Vec
   export module Data.Mutable.HashTable
@@ -58,3 +70,9 @@ module Data.Mutable where
   export module Data.Mutable.Heap
   export module Data.Mutable.Array
   export module Data.Mutable.Var
+  export module Data.Mutable.BTree
+  export module Data.Mutable.BTreeSet
+  export module Data.Mutable.IndexMap
+  export module Data.Mutable.LruCache
+  export module Data.Mutable.BitSet
+  export module Data.Mutable.UnionFind
