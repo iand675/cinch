@@ -247,6 +247,7 @@ fn emit_module(
     // there is the address.
     reg.partial_module = object || !emit_modules.is_empty();
     reg.lent = program.lent.clone();
+    reg.modes = program.borrowed.clone();
     let reg = reg;
     // A program with `foreign export` entries may be linked as a library
     // with the C side supplying `main` (foreign function interface
@@ -1046,6 +1047,11 @@ struct Registry {
     /// The primitive units' borrowed parameters ([`Program::lent`]): their
     /// wrappers leave them to the caller.
     lent: std::collections::BTreeMap<String, Vec<bool>>,
+    /// Every unit's borrowed parameters ([`Program::borrowed`]). A caller
+    /// that enters a unit with the owned convention (an apply stub, a
+    /// strict dictionary method) drops these after the call
+    /// ([`drop_lent`]).
+    modes: std::collections::BTreeMap<String, Vec<bool>>,
     /// Frame allocation decisions by unit name ([`Program::frame`],
     /// `crate::stack`): the allocations a unit builds in its own frame.
     frame: std::collections::BTreeMap<String, crate::stack::Plan>,
@@ -3791,7 +3797,26 @@ fn call_unit(b: &mut Builder, reg: &Registry, name: &str, args: &[String]) -> St
     let ret = sig.map_or(Cross::WORD, |s| s.ret);
     let r = b.reg();
     b.line(&format!("{r} = call {} @{}({})", ret.ty(), quote(name), typed.join(", ")));
+    drop_lent(b, reg, name, args);
     ret.widen(b, &r)
+}
+
+/// After an owned-convention call of `name` with the words `args`: drop
+/// the arguments the unit only borrows. Borrow inference
+/// (`crate::rc::borrow_modes`) gives a unit lent parameters whatever
+/// enters it, and every direct call the count pass placed already keeps
+/// those references; the entries that hold them as owned words (the apply
+/// stub's frame, a strict method's saved fields) release them here, which
+/// is Lean 4's boxed wrapper for a borrowed parameter.
+fn drop_lent(b: &mut Builder, reg: &Registry, name: &str, args: &[String]) {
+    let Some(modes) = reg.modes.get(name) else { return };
+    let classes = reg.unit_params.get(name);
+    for (i, w) in args.iter().enumerate() {
+        if modes.get(i).copied().unwrap_or(false) {
+            let class = classes.and_then(|cs| cs.get(i)).copied().unwrap_or(Class::Raw);
+            rc_op(b, reg.rc_debug, true, w, class);
+        }
+    }
 }
 
 /// The unit's static closure `@"<name>.clo"`, `{ app; arity; 0 }`, with
@@ -3974,11 +3999,13 @@ fn stub_saturate(
     // the indirect boundary.
     let narrow = reg.narrow_sigs.get(name);
     let mut args = Vec::with_capacity(arity);
+    let mut words = Vec::with_capacity(arity);
     for i in 0..arity {
         let w = b.load_at(frame, i * 8);
         let c = narrow.map_or(Cross::WORD, |s| s.param(i));
         let n = c.narrow(b, &w);
         args.push(format!("{} {n}", c.ty()));
+        words.push(w);
     }
     let ret = narrow.map_or(Cross::WORD, |s| s.ret);
     let ret_ty = ret.ty();
@@ -3992,6 +4019,9 @@ fn stub_saturate(
             args.join(", ")
         ));
     }
+    // The stub owns every frame word; the ones the unit borrows are its to
+    // release once the call returns.
+    drop_lent(b, reg, name, &words);
     // The frame and the excess-word path work in words, so a narrowed
     // result widens straight back.
     let r = ret.widen(b, &r);

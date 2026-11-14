@@ -182,7 +182,6 @@ fn reuse_scrutinees(body: &Core, ctors: &Ctors, out: &mut Set) {
 }
 
 fn borrow_modes(program: &Program, ctors: &Ctors) -> (Modes, std::collections::HashSet<String>) {
-    let arity: HashMap<&str, usize> = program.fns.iter().map(|f| (f.id.0.as_str(), f.arity())).collect();
     let mut excluded: std::collections::HashSet<String> = std::collections::HashSet::new();
     if let Some(main) = &program.main {
         excluded.insert(main.0.clone());
@@ -192,12 +191,9 @@ fn borrow_modes(program: &Program, ctors: &Ctors) -> (Modes, std::collections::H
             excluded.insert(plan.unit.clone());
         }
     }
-    for inst in &program.instances {
-        excluded.extend(inst.methods.iter().map(|m| m.0.clone()));
-    }
     let mut prim_ops: HashMap<String, crate::core::PrimOp> = HashMap::new();
     for f in &program.fns {
-        value_uses(&f.body, &arity, false, &mut excluded, &mut prim_ops);
+        value_uses(&f.body, false, &mut excluded, &mut prim_ops);
     }
     let mut modes: Modes = HashMap::new();
     let mut prims: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -298,30 +294,39 @@ fn callee_modes<'m>(modes: &'m Modes, head: &Core, args: usize) -> Option<&'m Ve
     .filter(|m| m.len() == args)
 }
 
-/// Mark every unit `e` uses other than as the head of a saturated direct
-/// call, and record the primitive operations `e` calls saturated by
-/// symbol. Inside a quotation body (`quoted`) every reference counts: the
-/// runtime evaluator calls units through their closures.
+/// Mark the units whose calling convention must stay owned: every unit a
+/// quotation body names (`quoted`; the runtime evaluator calls it with
+/// the owned convention) and every primitive used other than saturated.
+/// Record the primitive operations `e` calls saturated by symbol.
 fn value_uses(
     e: &Core,
-    arity: &HashMap<&str, usize>,
     quoted: bool,
     out: &mut std::collections::HashSet<String>,
     prims: &mut HashMap<String, crate::core::PrimOp>,
 ) {
     match e {
+        // A unit used as a value (a global word, a closure, a dictionary
+        // method, a partial or over-application) is entered through its
+        // apply stub, which owns the frame words and drops the ones the
+        // unit lends (`codegen::stub_saturate`), so the unit keeps its
+        // inferred modes. A quotation is different: the runtime evaluator
+        // calls what it names with the owned convention.
         Core::Global(g, _) => {
-            out.insert(g.0.clone());
+            if quoted {
+                out.insert(g.0.clone());
+            }
         }
         Core::Prim(op) => {
             out.insert(op.symbol());
         }
         Core::Lam { fn_id, .. } => {
-            out.insert(fn_id.0.clone());
+            if quoted {
+                out.insert(fn_id.0.clone());
+            }
         }
         Core::App(h, args) => match &**h {
             Core::Global(g, _) => {
-                if quoted || arity.get(g.0.as_str()) != Some(&args.len()) {
+                if quoted {
                     out.insert(g.0.clone());
                 }
             }
@@ -332,13 +337,13 @@ fn value_uses(
                     prims.insert(op.symbol(), *op);
                 }
             }
-            other => value_uses(other, arity, quoted, out, prims),
+            other => value_uses(other, quoted, out, prims),
         },
-        Core::Quote { body: Some(b), .. } => value_uses(b, arity, true, out, prims),
+        Core::Quote { body: Some(b), .. } => value_uses(b, true, out, prims),
         _ => {}
     }
     for k in crate::core::child_slots_imm(e) {
-        value_uses(k, arity, quoted, out, prims);
+        value_uses(k, quoted, out, prims);
     }
 }
 

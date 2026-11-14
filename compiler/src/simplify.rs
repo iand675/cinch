@@ -2060,28 +2060,31 @@ pub fn simplify(program: &mut Program, opts: &SimplifyOptions, report: &mut Simp
 // the value's structure), which is what turns the loop itself into a
 // specialised loop rather than one specialised iteration.
 //
-// Bounds: a callee over `SPEC_UNIT_NODES` is not cloned, the clones' nodes
-// together stay under the budget, and a linear parameter is never cloned
+// Bounds: a callee over `SPEC_UNIT_NODES` is not cloned, a source unit has
+// at most `SPEC_CLONES_PER_UNIT` clones, and a linear parameter is never cloned
 // (binding it at entry would not change its use count, but the pass does
 // not need to argue about it). The value is evaluated once per call of the
 // clone, exactly where the caller evaluated it before.
 
 /// The largest callee the pass clones.
 const SPEC_UNIT_NODES: usize = 4_000;
+/// The most clones one source unit has, counting clones of its clones: a
+/// bound per function, so what one unit's callers pass never decides
+/// whether another unit is specialised.
+const SPEC_CLONES_PER_UNIT: usize = 8;
 
+#[derive(Default)]
 struct SpecState {
     /// `callee|classes|position|value` to the clone's name.
     memo: HashMap<String, String>,
-    /// Node budget for every clone together.
-    budget: usize,
+    /// Clones made so far, by source unit (the name before any `$s`).
+    per_unit: HashMap<String, usize>,
     clones: usize,
 }
 
-impl SpecState {
-    fn new(program: &Program) -> SpecState {
-        let total: usize = program.fns.iter().map(|f| nodes(&f.body)).sum();
-        SpecState { memo: HashMap::new(), budget: total / 10 + 20_000, clones: 0 }
-    }
+/// The unit a clone was first made from.
+fn spec_source(name: &str) -> &str {
+    name.find("$s").map_or(name, |at| &name[..at])
 }
 
 /// What a call site needs to know about a callee to clone it.
@@ -2157,10 +2160,11 @@ fn spec_walk(
                 let name = match state.memo.get(&key) {
                     Some(name) => name.clone(),
                     None => {
-                        if target.nodes > state.budget {
+                        let made = state.per_unit.entry(spec_source(&g.0).to_string()).or_default();
+                        if *made >= SPEC_CLONES_PER_UNIT {
                             continue;
                         }
-                        state.budget -= target.nodes;
+                        *made += 1;
                         state.clones += 1;
                         let name = format!("{}$s{}", g.0, state.clones);
                         state.memo.insert(key, name.clone());
@@ -2290,24 +2294,22 @@ pub fn simplify_with_foreign(
     tables.extend(foreign);
     let mut ticks = Ticks::default();
     let mut fresh = Fresh { local: max_local(program), join: max_join(program) };
-    // The growth bound has two levels. Each unit has an allowance of its
-    // own (a quarter of its size, with a floor for small bodies), so the
-    // walk order cannot decide who gets to inline: one shared pool let the
-    // library units visited first (string, effect and file-system code a
-    // program may never reach) spend everything, and the hot units after
-    // them, among them every specialised clone, were refused copies that
-    // grow nothing. Over all of them sits a program-wide ceiling of a tenth
-    // of the program, the backstop against a cascade: a copy is code the
-    // linker and the instruction cache pay for, so the pass never trades a
-    // run-time win for unbounded growth.
-    let mut budget = (program.fns.iter().map(|f| nodes(&f.body)).sum::<usize>() / 10).max(4_000);
+    // The growth bound is per unit: each has an allowance of its own (a
+    // quarter of its size, with a floor for small bodies), spent across
+    // every pass. A copy is code the linker and the instruction cache pay
+    // for, so the pass never trades a run-time win for unbounded growth,
+    // and the whole program grows at most by the sum of the allowances.
+    // What one unit inlines never decides what another may: a shared pool
+    // was spent in walk order, so the library units visited first used it
+    // up and the hot units after them, among them every specialised clone,
+    // were refused copies that grow nothing.
     let mut allowances: HashMap<String, usize> = HashMap::new();
     program.inline.clear();
     let mut facts: HashMap<String, InlineFacts> = HashMap::new();
     // The benefit model's site tally, accumulated over every pass so the
     // artifact reports the whole run rather than the last pass.
     let mut benefit = BenefitTally::default();
-    let mut spec = SpecState::new(program);
+    let mut spec = SpecState::default();
     for _ in 0..opts.max_iterations {
         ticks.changed = false;
         if opts.inline && spec_static_args(program, &mut tables, &mut fresh, &mut spec) {
@@ -2328,7 +2330,7 @@ pub fn simplify_with_foreign(
                     let own = allowances
                         .entry(f.id.0.clone())
                         .or_insert_with(|| nodes(&body) / UNIT_ALLOWANCE_DIVISOR + UNIT_ALLOWANCE_FLOOR);
-                    let before = (*own).min(budget);
+                    let before = *own;
                     let mut remaining = before;
                     inline_unit(
                         &mut body,
@@ -2344,9 +2346,7 @@ pub fn simplify_with_foreign(
                         &mut benefit,
                         opts,
                     );
-                    let spent = before - remaining;
-                    *own -= spent;
-                    budget -= spent;
+                    *own = remaining;
                     f.body = body;
                     if here.sites > 0 {
                         let entry = facts.entry(f.id.0.clone()).or_default();
@@ -2446,8 +2446,9 @@ pub fn simplify_with_foreign(
 //   caller's binders. The parameters are then renamed to fresh ids too, and
 //   the substitution replaces those: a caller's local that lands in the body
 //   can never be mistaken for a parameter still to be substituted.
-// - A node budget (two percent of the program by default) caps how much the
-//   pass may grow the program; a site that would pass it is left alone.
+// - A node allowance per unit (a quarter of its size plus a floor) caps how
+//   much the pass may grow that unit; a site that would pass it is left
+//   alone.
 //
 // Nothing is removed: the callee keeps its body, because other artifacts
 // and the program's interfaces name it.
@@ -3678,7 +3679,7 @@ fn inline_unit(
     // The stack rule: a unit already being unfolded in this chain is never
     // unfolded again, so a cycle of admitted units cannot recurse without
     // end. Independent of it, the depth cap bounds a long acyclic chain and
-    // the node budget bounds the program-wide growth.
+    // the unit's allowance bounds its growth.
     if depth >= opts.inline_depth || stack.iter().any(|name| name == &g.0) {
         tally.refused_chain += 1;
         trace_refusal("chain", &g.0);
@@ -4026,8 +4027,8 @@ fn max_join(program: &Program) -> usize {
 // leaves the callee's body behind: a unit whose every call site was inlined
 // is never called again, and one that a rewrite emptied is never called at
 // all. Those units are code the artifact still pays for, and they are what
-// keeps the inliner's node budget (two percent of the program) the binding
-// constraint rather than the size of the program.
+// keeps the inliner's per-unit allowances the binding constraint rather
+// than the size of the program.
 //
 // `prune` is a reachability sweep over the call graph with the program's
 // real roots, run after inlining and before reference counting:
