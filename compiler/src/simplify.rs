@@ -4213,6 +4213,12 @@ pub fn prune_excluding(program: &mut Program, keep: &[String], excluded: &HashSe
     PruneReport { kept: program.fns.len(), removed: before - program.fns.len(), removed_nodes }
 }
 
+/// [`unit_mentions`] for a caller outside the pass: every unit, instance
+/// and foreign name `e` mentions, appended to `out`.
+pub fn units_mentioned(e: &Core, out: &mut Vec<String>) {
+    unit_mentions(e, out);
+}
+
 /// Every unit the body `e` names anywhere: a direct call or a `Global` in
 /// value position, a constructor unit, and the unit behind a `Lam`'s code
 /// pointer. Recurses through every child, including a quotation's retained
@@ -4223,6 +4229,9 @@ fn unit_mentions(e: &Core, out: &mut Vec<String>) {
         // The instance whose dictionary this builds (its methods are
         // reached through it, `prune_excluding`).
         Core::InstDict(g, ..) => out.push(g.0.clone()),
+        // A string literal is a static block of its representation
+        // constructor, and a reuse allocates the constructor it names.
+        Core::ConstString { ctor, .. } | Core::Reuse { ctor, .. } => out.push(ctor.0.clone()),
         Core::Foreign(name) => out.push(name.clone()),
         Core::Lam { fn_id, .. } => out.push(fn_id.0.clone()),
         Core::App(h, args) => {

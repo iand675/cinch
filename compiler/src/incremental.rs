@@ -1299,6 +1299,7 @@ impl Session {
             // An incremental session writes interfaces for its store, not
             // a library's unfoldings for a consumer.
             false,
+            &crate::interface::contract_hashes(&ifaces),
         )?;
         report.chain_ok = self.chain_ok();
 

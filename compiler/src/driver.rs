@@ -2595,6 +2595,7 @@ fn write_artifacts(
     opts: &DriverOptions,
     link_plan: &LinkPlan,
     write_optimisations: bool,
+    contract_hashes: &std::collections::BTreeMap<&str, String>,
 ) -> Result<()> {
     std::fs::create_dir_all(out_dir)
         .map_err(|e| Error::plain(format!("{}: {e}", out_dir.display())))?;
@@ -2631,7 +2632,10 @@ fn write_artifacts(
     }
     let mut modules: Vec<(&str, String)> = ifaces
         .iter()
-        .map(|i| (i.module.as_str(), i.iface_hash()))
+        .map(|i| {
+            let hash = contract_hashes.get(i.module.as_str()).cloned().unwrap_or_else(|| i.iface_hash());
+            (i.module.as_str(), hash)
+        })
         .collect();
     modules.sort();
     let mut prims: Vec<String> = Vec::new();
@@ -5537,7 +5541,10 @@ pub fn driver_with_profile_opts(
         &project.module_preludes,
     )?;
     // Metadata boundary checks (design note, section 3).
-    crate::interface::verify_chain(&ifaces).map_err(|e| Error::plain(e.to_string()))?;
+    // Each interface's contract hash, rendered once for this compile: the
+    // chain check and the artifacts written below both read it.
+    let contract_hashes = crate::interface::contract_hashes(&ifaces);
+    crate::interface::verify_chain_with(&ifaces, &contract_hashes).map_err(|e| Error::plain(e.to_string()))?;
     crate::interface::check_coherence(&ifaces).map_err(|e| Error::plain(e.to_string()))?;
     // Interface optimisations (design/inline-unfolding-policy.md section
     // 12, mechanism A): the unfoldings a library artifact carries join the
@@ -5606,6 +5613,44 @@ pub fn driver_with_profile_opts(
     };
     if let Some(owned) = &owned_program {
         dump.write(owned, crate::coretext::Stage::Owned, &ifaces, &mut core_rows)?;
+    }
+    // A closed program is pruned by reach before it is optimised: the
+    // embedded prelude is checked whole, but driving, specialisation, the
+    // simplifier and code generation only see what the program reaches, so
+    // a two-line program no longer optimises the whole base library to
+    // emit a few hundred lines. The prelude's constructors, instances and
+    // primitives are not roots of their own here (an instance lives when a
+    // live body builds its dictionary); a rewrite rule's template is a
+    // root, since driving may introduce what it names. The sweep after
+    // inlining still runs, with the full rules.
+    let closed_build = matches!(mode, Mode::Build | Mode::Run | Mode::EmitIr)
+        && emit_modules.is_empty()
+        && opts.package_objects.is_empty()
+        && opts.interface_optimisations.is_none();
+    if closed_build && std::env::var_os("CINCH_NO_PRUNE").is_none() {
+        let mut roots: Vec<String> = Vec::new();
+        let mut mentioned: Vec<String> = Vec::new();
+        for rule in &program.rewrites {
+            crate::simplify::units_mentioned(&rule.template, &mut mentioned);
+            if let Some(require) = &rule.require {
+                crate::simplify::units_mentioned(require, &mut mentioned);
+            }
+        }
+        roots.extend(mentioned);
+        for a in &adapters {
+            for b in &a.bindings {
+                if b.export {
+                    roots.push(b.impl_unit.clone());
+                }
+            }
+        }
+        let prelude_modules: std::collections::HashSet<String> = prelude
+            .modules
+            .iter()
+            .map(|m| m.name.text.clone())
+            .filter(|m| !project.order.contains(m))
+            .collect();
+        crate::simplify::prune_excluding(&mut program, &roots, &prelude_modules);
     }
     // Specialization (supercompilation and JIT specification sections
     // 2-5): every residual program is rechecked before installation, and
@@ -5764,6 +5809,7 @@ pub fn driver_with_profile_opts(
         opts,
         &link_plan,
         opts.emit_interface_optimisations || mode == Mode::EmitObject,
+        &contract_hashes,
     )?;
     if mode == Mode::Check {
         // A check reaches no later stage, so `--dump-core=owned` and

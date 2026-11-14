@@ -2981,6 +2981,67 @@ fn callee_symbol(line: &str) -> Option<String> {
     Some(rest[..end].to_string())
 }
 
+/// Every symbol `text` references: each `@name` or `@"name"` token, in
+/// order. Shared by [`closures_named`] and [`referenced_symbols`], so a
+/// body is scanned once per question rather than once per unit of the
+/// program.
+fn symbol_tokens(text: &str) -> impl Iterator<Item = &str> {
+    let bytes = text.as_bytes();
+    let mut i = 0;
+    std::iter::from_fn(move || {
+        while i < bytes.len() {
+            if bytes[i] != b'@' {
+                i += 1;
+                continue;
+            }
+            i += 1;
+            let (start, end) = if i < bytes.len() && bytes[i] == b'"' {
+                let start = i + 1;
+                match text[start..].find('"') {
+                    Some(off) => (start, start + off),
+                    None => {
+                        i = bytes.len();
+                        return None;
+                    }
+                }
+            } else {
+                let start = i;
+                let mut end = i;
+                while end < bytes.len() {
+                    let c = bytes[end];
+                    if c.is_ascii_alphanumeric() || c == b'_' || c == b'.' || c == b'$' || c == b'-' {
+                        end += 1;
+                    } else {
+                        break;
+                    }
+                }
+                (start, end)
+            };
+            i = end.max(i);
+            if end > start {
+                return Some(&text[start..end]);
+            }
+        }
+        None
+    })
+}
+
+/// The longest unit `name` belongs to: `name` itself, or a unit followed in
+/// `name` by `.` or `#` (a unit's artifacts all hang off its name: the
+/// static block `X.blk#h`, the closure descriptor `X.clo#h`, the entries
+/// `X.app` and `X.clo`, the worker `X#tail`). The candidates are the
+/// prefixes of `name` that end before a separator, tried longest first, so
+/// the cost is the name's length, not the number of units.
+fn owning_unit<'u>(name: &str, units: &'u HashSet<String>) -> Option<&'u String> {
+    if let Some(unit) = units.get(name) {
+        return Some(unit);
+    }
+    name.char_indices()
+        .rev()
+        .filter(|(_, c)| *c == '.' || *c == '#')
+        .find_map(|(at, _)| units.get(&name[..at]))
+}
+
 /// The units whose closure artifact (`.clo` or `.app`) `text` names.
 ///
 /// Kept separate from [`referenced_symbols`], which resolves an artifact
@@ -2988,11 +3049,17 @@ fn callee_symbol(line: &str) -> Option<String> {
 /// used as a value or merely called.
 fn closures_named(text: &str, units: &HashSet<String>) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
-    for unit in units {
+    for name in symbol_tokens(text) {
+        // Every place `<unit>.clo` or `<unit>.app` starts in the symbol
+        // (`X.clo`, `X.clo#h`, `X.app`) names that unit as a value.
         for suffix in [".clo", ".app"] {
-            let needle = format!("{unit}{suffix}");
-            if text.contains(&needle) {
-                out.insert(unit.clone());
+            let mut from = 0;
+            while let Some(off) = name[from..].find(suffix) {
+                let at = from + off;
+                if let Some(unit) = units.get(&name[..at]) {
+                    out.insert(unit.clone());
+                }
+                from = at + 1;
             }
         }
     }
@@ -3009,77 +3076,31 @@ fn closures_named(text: &str, units: &HashSet<String>) -> BTreeSet<String> {
 /// defines.
 fn referenced_symbols(text: &str, units: &HashSet<String>) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
-    let bytes = text.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] != b'@' {
-            i += 1;
-            continue;
+    for name in symbol_tokens(text) {
+        // An exact unit name wins outright: a prim family unit
+        // (`X.llvm`) is a unit of its own beside its wrapper `X`, and
+        // the prefix rule would otherwise fold it into the wrapper and
+        // never emit the body the wrapper calls.
+        if units.contains(name) {
+            out.insert(name.to_string());
         }
-        i += 1;
-        let (start, end) = if i < bytes.len() && bytes[i] == b'"' {
-            let start = i + 1;
-            match text[start..].find('"') {
-                Some(off) => (start, start + off),
-                None => break,
-            }
-        } else {
-            let start = i;
-            let mut end = i;
-            while end < bytes.len() {
-                let c = bytes[end];
-                if c.is_ascii_alphanumeric() || c == b'_' || c == b'.' || c == b'$' || c == b'-' {
-                    end += 1;
-                } else {
-                    break;
-                }
-            }
-            (start, end)
-        };
-        if end > start {
-            // A unit's artifacts all hang off its name: the static block
-            // (`X.blk#h`), the closure descriptor (`X.clo#h`), the
-            // per-arity entries (`X.app`, `X.clo`). The longest unit name
-            // the reference starts with is the unit it belongs to.
-            let name = &text[start..end];
-            // An exact unit name wins outright: a prim family unit
-            // (`X.llvm`) is a unit of its own beside its wrapper `X`, and
-            // the prefix rule below would otherwise fold it into the
-            // wrapper and never emit the body the wrapper calls.
-            if units.contains(name) {
-                out.insert(name.to_string());
-            }
-            let mut best: Option<&str> = None;
-            for unit in units {
-                // A tail worker is `<unit>#w` (`tail_worker`), so `#`
-                // separates a unit from its artifacts exactly as `.` does.
-                let prefix_matches = name == unit
-                    || name
-                        .strip_prefix(unit.as_str())
-                        .is_some_and(|rest| rest.starts_with('.') || rest.starts_with('#'));
-                if prefix_matches && best.is_none_or(|b| unit.len() > b.len()) {
-                    best = Some(unit);
-                }
-            }
-            // A tail worker `<unit>#tail` is reached only through its
-            // unit, which keeps its own one-word symbol for closures and
-            // exports (`tail_worker`), so the worker keeps its parent.
-            if let Some(unit) = name.split('#').next().filter(|base| *base != name && units.contains(*base)) {
-                out.insert(unit.to_string());
-            }
-            if let Some(unit) = best {
-                out.insert(unit.to_string());
-            } else if let Some(id) = name.split('#').next().and_then(|n| n.strip_suffix(".dict")) {
-                // A static dictionary block (`<instance>.dict`) is emitted
-                // by that instance's `.mk` factory, which is the unit that
-                // must stay.
-                let mk = format!("{id}.mk");
-                if units.contains(&mk) {
-                    out.insert(mk);
-                }
+        // A tail worker `<unit>#tail` is reached only through its unit,
+        // which keeps its own one-word symbol for closures and exports
+        // (`tail_worker`), so the worker keeps its parent.
+        if let Some(unit) = name.split('#').next().filter(|base| *base != name && units.contains(*base)) {
+            out.insert(unit.to_string());
+        }
+        if let Some(unit) = owning_unit(name, units) {
+            out.insert(unit.clone());
+        } else if let Some(id) = name.split('#').next().and_then(|n| n.strip_suffix(".dict")) {
+            // A static dictionary block (`<instance>.dict`) is emitted by
+            // that instance's `.mk` factory, which is the unit that must
+            // stay.
+            let mk = format!("{id}.mk");
+            if units.contains(&mk) {
+                out.insert(mk);
             }
         }
-        i = end.max(i);
     }
     out
 }

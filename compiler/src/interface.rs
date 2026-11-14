@@ -157,9 +157,15 @@ pub fn contract_hashes(ifaces: &[Iface]) -> BTreeMap<&str, String> {
 /// artifact provided for it: the "checked against" chain (design note,
 /// section 2.2). A mismatch means stale metadata.
 pub fn verify_chain(ifaces: &[Iface]) -> Result<(), CoherenceError> {
+    verify_chain_with(ifaces, &contract_hashes(ifaces))
+}
+
+/// [`verify_chain`] against hashes the caller already computed with
+/// [`contract_hashes`], so a compile renders each interface for its hash
+/// once and reuses it for the artifacts it writes.
+pub fn verify_chain_with(ifaces: &[Iface], hashes: &BTreeMap<&str, String>) -> Result<(), CoherenceError> {
     let by_module: BTreeMap<&str, &Iface> =
         ifaces.iter().map(|f| (f.module.as_str(), f)).collect();
-    let hashes = contract_hashes(ifaces);
     let mut actual_definitions = BTreeMap::new();
     for f in ifaces {
         let mut reachable = std::collections::BTreeSet::new();

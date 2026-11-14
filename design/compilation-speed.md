@@ -1206,6 +1206,48 @@ definitions instead of one. The cost is per reachable definition multiplied
 by the closure, not per module, which is the shape the re-gather above
 predicts and corroborates its conclusion from `bodies-match` independently.
 
+### 2.20 The prelude's fixed cost in the seed compiler (2026-11-14)
+
+Every seed-compiler build checks, optimises and emits the embedded prelude
+whole before it touches the program, so a two-line `main = 0` paid for all of
+it. Measured with callgrind on that program (`cinch emit-ir`, release build),
+each row a change in the tree:
+
+|change|instructions|`emit-ir`|`build`|
+|---|---|---|---|
+|before|24.6 G|2,591 ms|2,670 ms|
+|`closures_named` and `referenced_symbols` scan a body's symbol tokens once, instead of formatting and searching for every unit of the program in every unit's body|5.9 G|1,089 ms|1,205 ms|
+|a closed program is pruned by reach before driving, specialisation, the simplifier and code generation|4.1 G|771 ms|946 ms|
+|the package store keys on the compiler build (`CINCH_BUILD_ID`, a hash of the compiler's sources from `build.rs`), so an installed entry under the key is kept without re-rendering every prelude interface to compare|3.0 G|607 ms|712 ms|
+|each interface's contract hash is rendered once per compile and shared by the chain check and the artifact writes|2.85 G|about 600 ms|about 700 ms|
+
+The emitted IR for the two-line program fell from 753 to 330 lines: the
+early prune drops the static blocks of every prelude constructor nothing
+reaches. The first row's IR is byte-identical before and after.
+
+The two mechanisms in the second and third rows:
+
+- **The early prune.** The prelude's constructors, instances and
+  primitives are not roots of their own (an instance lives when a live body
+  builds its dictionary, `simplify::prune_excluding`); a rewrite rule's
+  template and require condition are roots, since driving may introduce
+  what they name; a string literal mentions its representation constructor.
+  The sweep after inlining still runs with the full rules.
+- **The store key.** Two builds of the compiler with one
+  `CARGO_PKG_VERSION` render the same sources differently, which is why the
+  compile path used to load and compare an existing entry on every build.
+  With the build in the key, an entry whose manifest records the key and
+  whose interfaces are all present was installed whole by a compiler that
+  renders exactly what this one does; verifying contents stays the loader's
+  job.
+
+What is left of the 2.85 G: checking the prelude is 63% (`check_bodies`,
+the pattern compiler `compile_rows`/`consume_column`, inference), parsing it
+13%, and the system allocator 36% of exclusive instructions across all of
+it. Removing the checking needs the prelude's checked state from the store
+rather than its sources, which the checker's single pass over all modules
+does not yet separate (section 2.6 and `crate::store`'s module notes).
+
 ## 3. The query graph (rustc, Salsa, Shake)
 
 The single largest structural gap. Today a build rechecks whatever the
