@@ -260,6 +260,12 @@ The point of the split is not to make linking safe, which it cannot be, but to k
 
 This is the mechanism that lets `Net.Tls`, `Sql.Sqlite`, and anything else binding a real library exist without the runtime having to reimplement it. The runtime's own syscall layer (part 5) is what keeps the *first-party* stack free of that dependency.
 
+## 4.5 Package objects carry their prelude
+
+A package object (`emit-object` over the package's modules) and a program linking package objects (`--package-object`) compile the embedded prelude as private copies (`Program::private_modules`): every prelude unit the artifact's own units reach is defined in it with internal linkage, is absent from its ABI, and has no object-closure accessor. So no artifact needs prelude code from another, and two artifacts' copies never meet at link time. The alternatives fail on specialisation: the class variants (`Cons@T`) and static-argument clones a package's code calls exist only in the program that compiled it, so neither the consuming program nor one shared prelude object could know which to define. Private copies cost code size (each artifact carries what it uses, pruned by reach: the prelude's constructors, instances and primitives are not blanket roots there, and an instance lives when a live body builds its dictionary) and share no mutable state, which the prelude has none of outside the runtime.
+
+What crosses the boundary is values, and two things make that sound. Layout ids are positional per program, so linked artifacts take disjoint layout ranges and the program registers every linked object's table beside its own (`design/reclamation.md` section 3). Calling conventions cross as published borrow modes, with owned public symbols for callers that know nothing of them (section 4 of the same note).
+
 # 5 A runtime that owns its syscalls
 
 Today `cinchruntime` has zero dependencies and declares libc symbols directly (`kill`, `pause`, `_exit`, and the `cinch_fs_*` and `cinch_net_*` wrappers around `open`/`read`/`socket`/...). Clang's default link line supplies libc plus, on Linux, `-ldl -lpthread -lm`. The ABI we promise is therefore partly somebody else's, and errno handling is a C convention we inherited.

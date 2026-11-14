@@ -98,6 +98,10 @@ mod block {
     include!("../runtime/src/block_kinds.rs");
 }
 
+/// The width of one constructor layout group: a layout range starts on a
+/// multiple of it, so the tag bits of every id in the range stay the tag.
+pub(crate) const LAYOUT_GROUP: u64 = block::CTOR_TAG_MASK + 1;
+
 /// The target's lowering choices (WebAssembly and WASI specification
 /// sections 2 and 7): the `Usize`/`Isize` word width and which task ABI
 /// the concurrency units call.
@@ -232,6 +236,18 @@ fn emit_module(
     emit_modules: &[String],
     prune: bool,
 ) -> Result<EmittedObject> {
+    // `emit_modules` names what this artifact ships; its private modules
+    // (`Program::private_modules`) are defined here too, with internal
+    // linkage, and stay out of the ABI. From here on `emit_modules` is the
+    // set the module defines, and `shipped` the set it exports.
+    let shipped = emit_modules;
+    let defined: Vec<String> = if emit_modules.is_empty() {
+        Vec::new()
+    } else {
+        emit_modules.iter().chain(&program.private_modules).cloned().collect()
+    };
+    let emit_modules: &[String] = &defined;
+    let private = |name: &str| !program.private_modules.is_empty() && emitted_symbol(name, &program.private_modules);
     let cx = LowerCx {
         usize_bits: profile.word_size,
         coop_tasks: profile.artifact != crate::core::ArtifactProfile::Native,
@@ -783,8 +799,18 @@ fn emit_module(
     // leaves thousands of external symbols nothing can delete, so the
     // reachable set is computed and the rest is skipped. A module subset or
     // an object keeps everything: a consumer links against it.
+    // A private module is emitted only as far as the artifact's own units
+    // reach it, whatever the artifact is: its units are not exported, so
+    // nothing outside can need one that nothing here calls.
     let reachable = if prune && !object && emit_modules.is_empty() {
-        Some(reachable_units(&units, &reg, program, main_exit.map(|e| e.0.clone())))
+        Some(reachable_units(&units, &reg, program, main_exit.map(|e| e.0.clone()), &[]))
+    } else if !program.private_modules.is_empty() {
+        let own: Vec<String> = units
+            .iter()
+            .filter(|u| emitted_symbol(&u.name, shipped) && !private(&u.name))
+            .map(|u| u.name.clone())
+            .collect();
+        Some(reachable_units(&units, &reg, program, main_exit.map(|e| e.0.clone()), &own))
     } else {
         None
     };
@@ -804,7 +830,10 @@ fn emit_module(
             continue;
         }
         if let Some(reachable) = &reachable {
-            if !reachable.contains(&u.name) {
+            // A subset build keeps every primitive wrapper, as it did before
+            // private modules were pruned by reach.
+            let kept = primitive && !program.private_modules.is_empty();
+            if !reachable.contains(&u.name) && !kept {
                 continue;
             }
         }
@@ -819,7 +848,11 @@ fn emit_module(
             &mut out,
             u,
             group,
-            (object && primitive).then_some("linkonce_odr"),
+            if private(&u.name) {
+                Some("internal")
+            } else {
+                (object && primitive).then_some("linkonce_odr")
+            },
             // An object is a link-time artifact: any consumer may take
             // any of its exported functions as a value, and the module
             // cannot see those uses. Its `object-closure` accessor is
@@ -831,7 +864,7 @@ fn emit_module(
             // whole.
             object || !prune || closure_taken.contains(&u.name),
         );
-        if object && reg.arity.contains_key(&u.name) {
+        if object && reg.arity.contains_key(&u.name) && !private(&u.name) {
             // Static closure blocks are module-local. Export an accessor
             // instead of relying on a platform linker to expose storage
             // that belongs to this module.
@@ -900,6 +933,7 @@ fn emit_module(
     // The constructor layout table, complete now that every unit has
     // asked for its descriptors.
     if !object {
+        reg.layouts.borrow_mut().merge(&program.linked_layouts)?;
         out.push_str(&reg.layouts.borrow().finish(reg.reclaim)?);
     }
     // Function attribute groups and metadata nodes (the branch weights
@@ -909,7 +943,7 @@ fn emit_module(
         // The recorded identity is the identity of what is written, so the
         // dedupe happens before it: a hash over the pre-dedupe text would
         // disagree with the file on disk.
-        reg.object_abi(program, profile, &dedupe_static_blocks(&out), emit_modules)?
+        reg.object_abi(program, profile, &dedupe_static_blocks(&out), shipped)?
     } else {
         String::new()
     };
@@ -1063,6 +1097,8 @@ struct Registry {
     /// worker [`tail_sig`](Registry::tail_sig) names, and the symbol is a
     /// wrapper that releases the lent arguments.
     owned_entry: HashSet<String>,
+    /// The first layout index this artifact assigns ([`Program::layout_base`]).
+    layout_base: u64,
     /// Frame allocation decisions by unit name ([`Program::frame`],
     /// `crate::stack`): the allocations a unit builds in its own frame.
     frame: std::collections::BTreeMap<String, crate::stack::Plan>,
@@ -1314,6 +1350,7 @@ impl Registry {
             ("constructors", J::Obj(ctors)),
             ("dictionaries", J::Obj(dictionaries)),
             ("escaped_descriptors", layouts.escaped.into()),
+            ("layout_base", self.layout_base.into()),
             ("layout_entries", (layouts.table.len() as u64).into()),
             (
                 "layout_words",
@@ -1562,6 +1599,7 @@ impl Registry {
         // specification section 2).
         reg.plans
             .extend(p.plans.iter().map(|(k, v)| (k.clone(), v.clone())));
+        reg.layout_base = p.layout_base;
         reg.lay_out_constructors(p)?;
         reg.foreigns
             .extend(p.foreigns.iter().map(|(k, v)| (k.clone(), v.clone())));
@@ -1791,6 +1829,12 @@ impl Registry {
             }
         }
         let mut layouts = Layouts::default();
+        // An artifact linked beside others lays out from its own base, and
+        // reads every tag allowing for an escaped descriptor, since a block
+        // another artifact allocated may carry one whatever this one does.
+        layouts.next = p.layout_base;
+        layouts.hole = p.layout_base;
+        layouts.escaped = !p.private_modules.is_empty();
         // A program that crosses the canonical ABI can lift an enum whose
         // tag arrives at run time; its block may be escaped, so every tag
         // read must allow for one.
@@ -2360,6 +2404,54 @@ impl Layouts {
         }
         entries.extend(ext);
         Ok(entries)
+    }
+
+    /// Add the linked objects' tables at the indices they assigned. A
+    /// published table is decoded back into maps, so the program's own
+    /// encoding places every extension consistently. An index two
+    /// artifacts both assign is refused: the blocks each allocates would
+    /// read the other's map.
+    fn merge(&mut self, linked: &[crate::core::LinkedLayout]) -> Result<()> {
+        for object in linked {
+            let entries = object.entries as usize;
+            if object.words.len() < entries {
+                return err(format!("{}: layout table shorter than its entry count", object.object));
+            }
+            for index in object.start..object.entries {
+                let entry = object.words[index as usize];
+                if entry == 0 {
+                    continue;
+                }
+                let words = block::layout_entry_words(entry);
+                let bits = block::layout_entry_map(entry);
+                let mut map = Vec::with_capacity(words as usize);
+                for slot in 0..words {
+                    let code = if block::layout_entry_inline(entry) {
+                        block::scan_code_at(bits, slot)
+                    } else {
+                        let at = bits as usize + (slot / block::SCAN_EXT_WORDS) as usize;
+                        let Some(word) = object.words.get(at) else {
+                            return err(format!("{}: layout map extension out of range", object.object));
+                        };
+                        block::scan_code_at(*word, slot % block::SCAN_EXT_WORDS)
+                    };
+                    map.push(match code {
+                        block::SCAN_OBJ => Class::Obj,
+                        block::SCAN_TOBJ => Class::TObj,
+                        _ => Class::Raw,
+                    });
+                }
+                if matches!(self.table.get(index as usize), Some(Some(_))) {
+                    return err(format!(
+                        "{}: layout index {index} is also assigned by another artifact in this link",
+                        object.object
+                    ));
+                }
+                self.set_map(index, &map);
+            }
+            self.escaped = true;
+        }
+        Ok(())
     }
 
     fn finish(&self, reclaim: bool) -> Result<String> {
@@ -3420,6 +3512,7 @@ fn reachable_units(
     reg: &Registry,
     program: &Program,
     main: Option<String>,
+    extra: &[String],
 ) -> HashSet<String> {
     let mut callees: HashMap<&str, &BTreeSet<String>> =
         units.iter().map(|u| (u.name.as_str(), &u.scan.refs)).collect();
@@ -3439,7 +3532,7 @@ fn reachable_units(
                 .collect(),
         );
     }
-    let mut roots: Vec<&str> = Vec::new();
+    let mut roots: Vec<&str> = extra.iter().map(String::as_str).collect();
     if let Some(main) = &main {
         roots.push(main.as_str());
     }
@@ -9399,6 +9492,9 @@ mod tests {
             stack: Default::default(),
             borrowed: Default::default(),
             lent_entries: Default::default(),
+            private_modules: Vec::new(),
+            layout_base: 0,
+            linked_layouts: Vec::new(),
             inline: Default::default(),
         }
     }

@@ -107,10 +107,13 @@ pub struct Boundary<'a> {
     pub closed: bool,
 }
 
+fn in_modules(modules: &[String], unit: &str) -> bool {
+    modules.iter().any(|m| unit == m || unit.strip_prefix(m.as_str()).is_some_and(|r| r.starts_with('.')))
+}
+
 impl Boundary<'_> {
-    fn defines(&self, unit: &str) -> bool {
-        self.modules.is_empty()
-            || self.modules.iter().any(|m| unit == m || unit.strip_prefix(m.as_str()).is_some_and(|r| r.starts_with('.')))
+    fn ships(&self, unit: &str) -> bool {
+        self.modules.is_empty() || in_modules(self.modules, unit)
     }
 }
 
@@ -171,9 +174,13 @@ fn insert_with(
     // defines are reached at the worker that object published.
     program.lent_entries.clear();
     if let Some(b) = boundary.filter(|b| !b.closed) {
-        for (unit, _) in modes.iter().filter(|(k, _)| !prims.contains(*k)) {
+        // A private copy is called only from this artifact (and through its
+        // own apply stub), so it takes the lent convention at its symbol,
+        // as a closed program's units do.
+        let private = |unit: &str| in_modules(&program.private_modules, unit);
+        for (unit, _) in modes.iter().filter(|(k, _)| !prims.contains(*k) && !private(k)) {
             let entry = match b.imported.get(unit) {
-                Some((_, width)) if !b.defines(unit) => crate::core::LentEntry::Imported { width: *width },
+                Some((_, width)) if !b.ships(unit) => crate::core::LentEntry::Imported { width: *width },
                 _ => crate::core::LentEntry::Local,
             };
             program.lent_entries.insert(unit.clone(), entry);
@@ -250,6 +257,8 @@ fn reuse_scrutinees(body: &Core, ctors: &Ctors, out: &mut Set) {
 }
 
 fn borrow_modes(program: &Program, ctors: &Ctors, boundary: &Boundary<'_>) -> (Modes, std::collections::HashSet<String>) {
+    // Defined here: shipped, or a private copy (`Program::private_modules`).
+    let defines = |unit: &str| boundary.ships(unit) || in_modules(&program.private_modules, unit);
     let mut excluded: std::collections::HashSet<String> = std::collections::HashSet::new();
     // A unit another object defines is not inferred here: its modes are
     // what that object published, or none (owned).
@@ -282,7 +291,7 @@ fn borrow_modes(program: &Program, ctors: &Ctors, boundary: &Boundary<'_>) -> (M
         if f.prim.is_some() && !lend_prims {
             continue;
         }
-        if f.prim.is_none() && !boundary.defines(&f.id.0) {
+        if f.prim.is_none() && !defines(&f.id.0) {
             if let Some((m, _)) = boundary.imported.get(&f.id.0).filter(|(m, _)| m.len() == f.arity() && m.iter().any(|b| *b)) {
                 modes.insert(f.id.0.clone(), m.clone());
                 fixed.insert(f.id.0.clone());
@@ -314,7 +323,7 @@ fn borrow_modes(program: &Program, ctors: &Ctors, boundary: &Boundary<'_>) -> (M
     let units: Vec<(&FnDef, UnitFacts)> = program
         .fns
         .iter()
-        .filter(|f| f.prim.is_none() && f.ctor.is_none() && !f.meta.prim_body && boundary.defines(&f.id.0))
+        .filter(|f| f.prim.is_none() && f.ctor.is_none() && !f.meta.prim_body && defines(&f.id.0))
         .map(|f| (f, UnitFacts::of(&param_classes(f), &f.body)))
         .collect();
     let index: HashMap<&str, usize> = units.iter().enumerate().map(|(i, (f, _))| (f.id.0.as_str(), i)).collect();

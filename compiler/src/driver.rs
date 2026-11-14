@@ -5137,6 +5137,31 @@ fn package_lent_modes(objects: &[PathBuf]) -> Result<std::collections::BTreeMap<
     Ok(out)
 }
 
+/// The layout tables the package objects publish (`layout_base`,
+/// `layout_entries`, `layout_words`). An object from before layout ranges
+/// has no `layout_base`: its range starts at 0.
+fn package_layouts(objects: &[PathBuf]) -> Result<Vec<crate::core::LinkedLayout>> {
+    let mut out = Vec::new();
+    for object in objects {
+        let abi = read_package_execution(object)?;
+        let num = |k: &str| abi.get(k).and_then(serde_json::Value::as_u64);
+        let words: Option<Vec<u64>> = abi
+            .get("layout_words")
+            .and_then(serde_json::Value::as_array)
+            .and_then(|w| w.iter().map(serde_json::Value::as_u64).collect());
+        let (Some(entries), Some(words)) = (num("layout_entries"), words) else {
+            return Err(Error::plain(format!("{}: package object has no layout table", object.display())));
+        };
+        out.push(crate::core::LinkedLayout {
+            object: object.display().to_string(),
+            start: num("layout_base").unwrap_or(0),
+            entries,
+            words,
+        });
+    }
+    Ok(out)
+}
+
 /// Refuse a link whose objects disagree about a lent convention: every
 /// `lent_imports` row an object recorded (what its calls into another
 /// object assumed) must be exactly what the linked objects publish.
@@ -5615,6 +5640,48 @@ pub fn driver_with_profile_opts(
     // nothing: it emits no artifact.
     // `CINCH_NO_PRUNE=1` takes the measurement the other way: the same
     // program with every unit the sweep would remove still in it.
+    // A module subset (a package object, or a program linking package
+    // objects) carries the embedded prelude as private copies: whatever its
+    // own units reach is defined here with internal linkage, so the
+    // artifact needs nothing from another one for it, and two artifacts'
+    // copies never meet at link time (`Program::private_modules`). A
+    // prelude module this project shadows with its own source is an
+    // ordinary emitted module.
+    program.private_modules = if emit_modules.is_empty() {
+        Vec::new()
+    } else {
+        prelude
+            .modules
+            .iter()
+            .map(|m| m.name.text.clone())
+            .filter(|m| !emit_modules.contains(m))
+            .collect()
+    };
+    // Layout ranges. Every package object this build links or calls into
+    // published the table indices it assigned; this artifact takes the
+    // range after all of them, so no two artifacts that meet in one program
+    // give one index two maps, and a program registers the linked tables
+    // beside its own.
+    if !emit_modules.is_empty() {
+        let linked = package_layouts(&opts.package_objects)?;
+        let called = package_layouts(&opts.lent_objects)?;
+        for (i, a) in linked.iter().enumerate() {
+            for b in &linked[i + 1..] {
+                if a.start < b.entries && b.start < a.entries {
+                    return Err(Error::plain(format!(
+                        "package objects {} and {} assign overlapping layout ranges ({}..{} and {}..{}); rebuild one of them against the other",
+                        a.object, b.object, a.start, a.entries, b.start, b.entries
+                    )));
+                }
+            }
+        }
+        let group = crate::codegen::LAYOUT_GROUP;
+        let end = linked.iter().chain(&called).map(|l| l.entries).max().unwrap_or(0);
+        program.layout_base = end.div_ceil(group) * group;
+        if mode != Mode::EmitObject {
+            program.linked_layouts = linked;
+        }
+    }
     if mode != Mode::Check && std::env::var_os("CINCH_NO_PRUNE").is_none() {
         let mut roots: Vec<String> = if mode == Mode::EmitObject {
             emit_modules.clone()
@@ -5669,8 +5736,13 @@ pub fn driver_with_profile_opts(
                 }
             }
         }
-        let pruned = if mode == Mode::EmitObject {
-            crate::simplify::prune_excluding(&mut program, &roots, &unselected)
+        // Private modules are kept only as far as this artifact reaches
+        // them: none of their constructors, instances or primitives is a
+        // root of its own.
+        let pruned = if mode == Mode::EmitObject || !program.private_modules.is_empty() {
+            let mut excluded = unselected.clone();
+            excluded.extend(program.private_modules.iter().cloned());
+            crate::simplify::prune_excluding(&mut program, &roots, &excluded)
         } else {
             crate::simplify::prune(&mut program, &roots)
         };

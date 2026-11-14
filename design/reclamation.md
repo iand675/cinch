@@ -436,6 +436,19 @@ from the row in section 10:
   runtime read a tag without knowing the scrutinee's type. The cost is
   the same (load, shift, mask). The id space is sparse: 1023 groups in 16
   bits.
+- Artifacts that meet in one program take disjoint layout ranges
+  (`Program::layout_base`). Ids are positional, so two separately compiled
+  programs give one type different ids, and a block is sized and scanned
+  through the id its allocating artifact gave it. A package object lays out
+  from the end of every dependency object vendored beside it, a program
+  linking package objects lays out after all of them, and it registers their
+  published tables (`layout_base`, `layout_entries`, `layout_words` in the
+  package execution interface) at their indices beside its own, refusing an
+  index two artifacts both assign. The tag stays `id & CTOR_TAG_MASK`
+  because a range starts on a group. Such artifacts read every tag allowing
+  for an escaped descriptor, since another artifact's block may carry one.
+  A static block keeps its artifact's id: it is immortal, so nothing sizes
+  or scans it through the table.
 - The checker records each constructor unit's data type
   (`UnitRepr::data`); tuples, which have one constructor, use the unit
   name. The groups of `Option`, `Result` and `Ordering` are fixed (0, 1,

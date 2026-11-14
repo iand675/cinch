@@ -4123,10 +4123,16 @@ pub fn prune_excluding(program: &mut Program, keep: &[String], excluded: &HashSe
             root(&plan.unit, &mut live, &mut work);
         }
     }
+    // An instance of an excluded module lives only when a live body builds
+    // its dictionary; the rest are roots with their methods.
+    let methods_of: HashMap<&str, &Vec<GlobalId>> =
+        program.instances.iter().map(|i| (i.id.0.as_str(), &i.methods)).collect();
+    let mut live_instances: HashSet<String> = HashSet::new();
     for inst in &program.instances {
         if in_excluded(&inst.id.0) {
             continue;
         }
+        live_instances.insert(inst.id.0.clone());
         root(&inst.id.0, &mut live, &mut work);
         for m in &inst.methods {
             root(&m.0, &mut live, &mut work);
@@ -4177,6 +4183,15 @@ pub fn prune_excluding(program: &mut Program, keep: &[String], excluded: &HashSe
             if present.contains(name.as_str()) && live.insert(name.clone()) {
                 work.push(name.clone());
             }
+            if let Some(methods) = methods_of.get(name.as_str()) {
+                if live_instances.insert(name.clone()) {
+                    for m in methods.iter() {
+                        if present.contains(m.0.as_str()) && live.insert(m.0.clone()) {
+                            work.push(m.0.clone());
+                        }
+                    }
+                }
+            }
         }
     }
     let before: usize = program.fns.len();
@@ -4193,6 +4208,7 @@ pub fn prune_excluding(program: &mut Program, keep: &[String], excluded: &HashSe
     program.frame.retain(|unit, _| live.contains(unit));
     if !excluded.is_empty() {
         program.foreigns.retain(|name, plan| plan.export || !in_excluded(name) || reached.contains(name));
+        program.instances.retain(|i| !in_excluded(&i.id.0) || live_instances.contains(&i.id.0));
     }
     PruneReport { kept: program.fns.len(), removed: before - program.fns.len(), removed_nodes }
 }
@@ -4204,6 +4220,9 @@ pub fn prune_excluding(program: &mut Program, keep: &[String], excluded: &HashSe
 fn unit_mentions(e: &Core, out: &mut Vec<String>) {
     match e {
         Core::Global(g, _) | Core::Ctor(g, _) => out.push(g.0.clone()),
+        // The instance whose dictionary this builds (its methods are
+        // reached through it, `prune_excluding`).
+        Core::InstDict(g, ..) => out.push(g.0.clone()),
         Core::Foreign(name) => out.push(name.clone()),
         Core::Lam { fn_id, .. } => out.push(fn_id.0.clone()),
         Core::App(h, args) => {
