@@ -7,6 +7,21 @@ interfaces. Run `tooling/bootstrap.sh check` to build the ladder and check
 the fixed point with the current pins. See [the cutover audit](current-schema10-family-and-cutover-results.json)
 and [the first schema 10 fixed point](current-schema10-bootstrap-results.json).
 
+## Rank-N polymorphism checkpoint
+
+The self-hosted frontend checks, elaborates, independently re-types and
+lowers nested `forall` types (`design/rank-n-polymorphism.md` section 8).
+On x86_64 Linux with LLVM 20, `tooling/bootstrap.sh check` reaches the
+four-stage fixed point. Stage 3 compiles the twelve accepted rank-N
+fixtures, and each runs to exit 42 with zero leaks under RC debugging.
+It refuses the six rejected fixtures. See
+[rank-N Stage 3 results](current-rank-n-stage3-results.json). The seed
+pin moved to 1665ebd, past its branch-release double free. The
+library-provider pin moved to f36dc5d, whose library object leaves out
+the unselected Darwin syscall backend. Stage 3 still leaks while
+compiling ordinary programs, so the leak-checked stage-target gate stays
+open.
+
 ## Earlier checkpoints
 
 Matching4f/NativeE5 auxiliary suites pass171 runtime,43 tooling and39 Native

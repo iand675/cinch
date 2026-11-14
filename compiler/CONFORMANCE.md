@@ -874,7 +874,12 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   one slot per reached own vector, so no runtime class dispatch exists.
   Family identity is the binder count alone, because it must not change
   under substitution of free outer type variables. Evidence:
-  `tests/rank_n.rs`, `tests/fixtures/rank_n/`.
+  `tests/rank_n.rs`, `tests/fixtures/rank_n/`. The self-hosted frontend
+  implements the same rules (`UForall`, `CPolyIntro`/`CPolyElim`, and
+  independent Core typing). It lowers a polytype to a class-indexed
+  bundle of `3^k` components, `k <= 2`. Every fixture compiles through
+  Stage 3 at the fixed point:
+  `bootstrap/current-rank-n-stage3-results.json`.
 - **D221-D227 (P18 continuation, reported)**: `unsafe` is a per-body
   prefix (`unsafe <family> { ... }`) with `unsafe prim ... where` sugar
   folding into bodies at parse, recognized contextually so `unsafe`

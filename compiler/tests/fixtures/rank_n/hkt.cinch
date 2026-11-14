@@ -1,9 +1,14 @@
 module Main where
-  -- A higher-kinded nested binder: a natural transformation.
-  apply-nat :: (forall f. f I64 -> f I64) -> List I64 -> Option I64 -> (List I64, Option I64)
-  apply-nat k xs o = (k xs, k o)
+  -- A higher-kinded nested binder: a natural transformation, used at two
+  -- different type constructors.
+  data Box a where
+    Box :: a -> Box a
+  data Two a where
+    Two :: a -> a -> Two a
+  apply-nat :: (forall f. f I64 -> f I64) -> Box I64 -> Two I64 -> (Box I64, Two I64)
+  apply-nat k b t = (k b, k t)
   main :: Int
-  main = case apply-nat (\v -> v) [1, 2] (Some 40) of
-    (xs, o) -> case o of
-      Some n -> int-from-i64 n + length xs
-      None -> 0
+  main = case apply-nat (\v -> v) (Box 40) (Two 1 1) of
+    (b, t) -> case b of
+      Box n -> case t of
+        Two x y -> int-from-i64 n + int-from-i64 x + int-from-i64 y

@@ -1,7 +1,7 @@
 # Rank-N polymorphism
 
-Status: design for implementation, 2026-11-14. The Rust compiler
-implements sections 1 to 6; section 8 is the Cinch frontend's port.
+Status: implemented, 2026-11-14. The Rust compiler implements sections
+1 to 6, and the Cinch frontend implements section 8.
 Companion to `design/layouts-and-specialization.md` (the class-vector
 collector this design extends) and `specifications/core-language-specification.md`
 (the amendment that makes the rule normative).
@@ -203,59 +203,73 @@ family's slot demand through the existing `ObjectRoot::Method` protocol.
   the family's method takes the dictionaries as leading arguments after
   its captures, and the projection site resolves them.
 
-## 8 Cinch frontend (`Bootstrap.*`): the port
+## 8 Cinch frontend (`Bootstrap.*`)
 
-Status: not started. The Rust compiler is the reference implementation
-(sections 1 to 6). The self-hosted frontend still refuses a nested
-`forall` in `Bootstrap.Infer.convert` with "higher-rank forall needs
-explicit elaboration". No compiler module uses one, so the fixed point
-does not depend on this port.
+Status: implemented. Every rank-N fixture compiles through the self-hosted
+Stage 3 with the four-stage fixed point intact
+(`bootstrap/current-rank-n-stage3-results.json`).
 
-The Cinch elaborator already has the machinery the rules need. Metas
-carry levels (`enter-level`, `restore-level`). `URigid` carries the level
-of its scope. `Bootstrap.Type.bind-other` already refuses a solution whose
-rigid variables are deeper than the metavariable (`escapes`). It also
-already lowers the levels of the metavariables a solution mentions
-(`lower`), which is the level adjustment that section 3 needed to add to
-the Rust unifier. The port has six slices, each with its own gate.
+The Cinch elaborator already had the machinery the rules need. Metas
+carry levels (`enter-level`, `restore-level`), and `URigid` carries the
+level of its scope. `Bootstrap.Type.bind-other` already refused a
+solution whose rigid variables are deeper than the metavariable
+(`escapes`). It already lowered the levels of the metavariables a
+solution mentions (`lower`): the level adjustment that section 3 added
+to the Rust unifier.
 
-1. **Types** (`Bootstrap.Type`). Add the constructor
-   `UForall :: List Quant -> UType -> UType`, with `UBound` binders
-   exactly as `Scheme` uses them. Rename it apart in `map` and
-   `substitute`. In `unify-structure`, a `UForall` pair enters a level,
-   opens both sides at one shared list of rigid variables
-   (`open-scheme True`), unifies the bodies and restores the level.
-   `bind-other` refuses a solution that contains a `UForall`. It must also
-   be added to `type-text`, `valid-type`, `free-metas`, `same-shape` and
-   the positivity walker.
-2. **Conversion** (`Bootstrap.Infer.convert`). Convert `TForall s qs body`
-   by running the same binder classification as `parameters` and
-   producing a `UForall`. Refuse `TUsing` under it, using the Rust
-   diagnostic text.
+1. **Types** (`Bootstrap.Type`).
+   - The constructor is `UForall :: List Quant -> UType -> UType`. Its
+     binders are `UBound` ids, exactly as a scheme's, so substitution never
+     captures one, and a bound-variable substitution shadows them.
+   - `unify-forall` opens both sides at one shared list of rigid variables
+     one level deeper, unifies the bodies and restores the level.
+   - `bind-other` refuses a solution that contains a polytype
+     (`has-forall`).
+   - `Quant` is declared before `UType`, because the self-hosted checker
+     resolves data references in declaration order.
+2. **Conversion** (`convert-nested-forall`).
+   - Binders classify as `parameters` classifies a signature's.
+   - Binders are numbered past every bound variable in scope.
+   - `using`, value or proposition binders, and shadowing are refused,
+     each with the Rust compiler's text.
 3. **Elaboration** (`Bootstrap.Infer`).
-   - When checking against a `UForall`: enter a level, skolemise, check
-     the term, require a pure row, and restore the level. Pass through a
-     term that already synthesises the polytype.
-   - When synthesising a `UForall`, at a variable, an application head or
-     a constructor field, instantiate it with `open-scheme False`.
-   - Bind a lambda parameter at the expected domain directly (already the
-     shape of `bind-arrow-pattern`).
-4. **Core** (`Bootstrap.Core`, `Bootstrap.Typing`). Add the two term forms
-   `CPolyIntro :: Span -> UType -> List Nat -> CoreTerm -> CoreTerm`
-   (polytype, skolem ids, body) and
-   `CPolyElim :: Span -> UType -> CoreTerm -> List UType -> CoreTerm`.
-   The independent Core checker re-types both by the same rules, so a
-   Core producer can never claim a generalisation that its body does not
-   support.
-5. **Emitter** (`Bootstrap.RuntimeIr`). Lower `CPolyIntro` to an anonymous
-   instance of `#poly.<k>`: a dictionary demand whose one method is a
-   worker over the enclosing class vector followed by the skolems' classes.
-   Lower `CPolyElim` to the slot projection of that vector. This is the
-   same `DictionaryDemand` and method-slot path that `Bootstrap.Object`
-   already lays out.
-6. **Interfaces** (`Bootstrap.ExportType`, `Bootstrap.Load`). Write the
-   polytype in its source spelling, as the Rust writer does (section 5),
-   and read it back through slice 2.
+   - `check` against a `UForall` goes to `check-poly-intro`, which
+     enters a level, skolemises, checks the body, requires a pure row and
+     restores the level. A term that already synthesises the polytype
+     passes through.
+   - `infer` instantiates every synthesised polytype (`poly-elim-all`),
+     as does `apply-argument` for a call that returns one. The
+     result-type hint stops at a polytype.
+4. **Core** (`Bootstrap.Core`, `Bootstrap.Typing`).
+   - The two forms are `CPolyIntro sp polytype rigid-ids body` and
+     `CPolyElim sp opened value type-args`.
+   - The independent typing re-checks both. The body has the polytype's
+     body opened at the rigid ids, which are in scope for it alone, and
+     it is pure. Instantiation arguments are well-formed and forall-free.
+5. **Emitter** (`Bootstrap.RuntimeIr`). A generalisation is a
+   *class-indexed bundle*: a block whose component `i` is the body lowered
+   with the type binders at the `i`-th of the `3^k` class vectors.
+   - A lambda body yields one specialised closure per vector, because
+     lambda workers are named fresh and capture the rigid-class map.
+   - An instantiation loads the component that its arguments' class
+     vector selects, duplicates it and drops the bundle.
+   - `k <= 2` keeps the bundle within the existing 16-word descriptors,
+     and more binders are refused by name.
+   - This differs from the Rust compiler's demand-driven slot table. The
+     two ABIs never meet, because no library export has a polytype.
+6. **Interfaces** (`Bootstrap.ExportType`). A polytype is written in its
+   source spelling, which the reader parses back through slice 2.
 
-The acceptance gate is `tests/rank_n.rs` replayed through Stage 3
-(`CINCH_TEST_COMPILER`), with the four-stage fixed point unchanged.
+Verification:
+- `tooling/bootstrap.sh check` reaches the fixed point.
+- Stage 3 compiles each fixture. The program links against the pinned
+  library object and runtime, and runs under `CINCH_LEAK_CHECK=1
+  CINCH_RC_DEBUG=1`.
+- All twelve accepted fixtures exit 42 with zero leaks, and all six
+  rejected ones are refused.
+
+The audited `run_stage_targets.py` gate cannot pass yet, for any target.
+That gate leak-checks the compiler process, and Stage 3 leaks while
+compiling ordinary rank-1 programs too: the `letrec` and `argv` targets
+fail the same way. That is a known open item of the stage suites
+(Acceptance 5), not part of this port.
