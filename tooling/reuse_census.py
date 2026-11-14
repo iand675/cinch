@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Census the Perceus reuse the compiler's own code collects, and misses.
 
-usage: reuse_census.py <owned-core-dir> [--by-module] [--why]
+usage: reuse_census.py <owned-core-dir> [--by-module] [--why] [--by-host]
 
 `<owned-core-dir>` holds `*.owned.core` files, the `--dump-core owned` output
 of `cinch emit-ir <module>.cinch --dump-core owned` for each `bootstrap`
@@ -23,12 +23,21 @@ For every `(release ...)` site the report classifies the outcome the way
 `--why` breaks the opportunity bucket down by the node that stopped the
 spine walk (a `case`, an `if`, a call), which is the actionable part.
 
+`--by-host` splits the collected pairs by the construct that hosts the
+reuse: `spine` for a pair on the release body's straight line, and `case`
+or `if` for one inside an arm. It also splits each host's pairs into the
+ones that skip a store (`@kept` is non-empty: the cell already holds those
+payload words) and the ones that write the whole payload.
+
 The spine the walk follows is `insert_reuse`'s: a `Let` value, a `Let` body,
-a `Dup` body, a `Drop` body, and nothing else. Anything else ends the search,
-because a reuse under a branch could be skipped and the kept cell would leak.
+a `Dup` body, a `Drop` body, a call's arguments in order, and a jump's
+arguments in order. Anything else ends the search, because a reuse under a
+branch could be skipped and the kept cell would leak.
 
 Numbers from the 2026-11-13 run over all 44 `bootstrap/*.cinch` modules
-(5,927 units) are in `design/linear-in-place.md` section 5.
+(5,927 units) are in `design/linear-in-place.md` section 5. The 2026-11-14
+run, which added the call-argument and branch-arm positions and the host
+split, is in `design/compilation-speed.md` section 2.21.
 """
 import argparse
 import collections
@@ -89,7 +98,14 @@ def has_ctor(n):
 
 
 def spine(e):
-    """Walk `insert_reuse`'s spine; return ('alloc', node) or ('blocked', node)."""
+    """Walk `insert_reuse`'s spine; return ('alloc', node) or ('blocked', node).
+
+    This mirrors `rc.rs insert_reuse` exactly, including the two positions
+    that were added after the 2026-11-13 census: a call's arguments
+    (`insert_reuse_in_args`, in order) and a jump's arguments. The head of
+    a call is not searched, and a branch is never entered, so a `case` or
+    an `if` is still where the walk stops.
+    """
     h = head(e)
     if h == "let" and len(e) >= 5:
         kind, node = spine(e[3])
@@ -100,7 +116,60 @@ def spine(e):
         return spine(e[-1])
     if h == "app" and len(e) >= 2 and head(e[1]) == "ctor":
         return "alloc", e
+    if h in ("app", "jump"):
+        # `(app head arg...)` and `(jump id arg...)`: every argument is
+        # evaluated before the transfer, so each is on the spine. The
+        # call's head is not searched: it is a unit, a primitive or a
+        # variable in every shape that reaches here.
+        for arg in e[2:]:
+            kind, node = spine(arg)
+            if kind == "alloc":
+                return kind, node
+        return "blocked", e
     return "blocked", e
+
+
+def reuses(n, branches=(), out=None):
+    """Every `reuse` under `n` with the branch constructs that enclose it.
+
+    `branches` is the chain of `case`/`if` heads on the path from the
+    release body down to this node, outermost first, so the innermost
+    entry is the construct that hosts the branch the reuse sits in. A
+    `reuse` on the release body's straight-line spine has an empty chain.
+
+    The walk stops at a nested `release`: that node's reuses belong to its
+    own token, and `insert_reuse` cannot see past it either (it is not a
+    spine position). A `reuse` found under a `case` or `if` is always in an
+    arm, because `insert_reuse` stops at the branch and never enters a
+    scrutinee or a condition.
+    """
+    if out is None:
+        out = []
+    if isinstance(n, list):
+        h = head(n)
+        if h == "reuse":
+            out.append((branches, n))
+        elif h == "release":
+            return out
+        else:
+            inner = branches + (h,) if h in ("case", "if") else branches
+            for c in n:
+                reuses(c, inner, out)
+    return out
+
+
+def kept_slots(reuse):
+    """The payload slots a `reuse` node skips a store for.
+
+    A mark prints as two atoms, its name and its bracketed payload
+    (`@kept` then `(0)`), so the count is the payload list beside the
+    `@kept` atom. An empty mark means every word is written: the pair
+    consumes the token and stores the whole payload.
+    """
+    for i, x in enumerate(reuse):
+        if x == "@kept" and i + 1 < len(reuse) and isinstance(reuse[i + 1], list):
+            return len(reuse[i + 1])
+    return 0
 
 
 def classify(release):
@@ -137,6 +206,8 @@ def main():
     ap.add_argument("core_dir", type=pathlib.Path)
     ap.add_argument("--by-module", action="store_true", help="one row per core file")
     ap.add_argument("--why", action="store_true", help="break opportunities down by blocker")
+    ap.add_argument("--by-host", action="store_true",
+                    help="split the collected pairs by the construct that hosts the reuse")
     args = ap.parse_args()
 
     files = sorted(args.core_dir.glob("*.owned.core"))
@@ -145,6 +216,13 @@ def main():
 
     total = collections.Counter()
     blockers = collections.Counter()
+    # The host of a collected pair: `spine` for a reuse on the release
+    # body's straight line, else the innermost `case` or `if` whose arm
+    # holds it. `skipped` counts the pairs whose `@kept` mark is non-empty,
+    # which is the store-skipping half of the extension; `stored` counts
+    # the ones that write the whole payload.
+    hosts = collections.Counter()
+    skipped = collections.Counter()
     rows = []
     units = 0
     for path in files:
@@ -156,6 +234,11 @@ def main():
                 counts[outcome] += 1
                 if outcome == "opportunity":
                     blockers[blocker] += 1
+                if outcome == "reused":
+                    for chain, node in reuses(release[-1]):
+                        host = chain[-1] if chain else "spine"
+                        hosts[host] += 1
+                        skipped[host] += 1 if kept_slots(node) else 0
         rows.append((path.name.removesuffix(".owned.core"), counts))
         total.update(counts)
 
@@ -180,6 +263,18 @@ def main():
         print("opportunities by the node that stopped the spine walk:")
         for blocker, n in blockers.most_common():
             print(f"  {blocker:20} {n:7} {100 * n / max(total['opportunity'], 1):6.1f}%")
+
+    if args.by_host:
+        pairs = sum(hosts.values())
+        print()
+        print("collected pairs by the construct that hosts the reuse:")
+        print(f"  {'host':12} {'pairs':>7} {'share':>8} {'skip':>7} {'store':>7}")
+        for host in sorted(hosts, key=lambda h: (-hosts[h], h)):
+            n = hosts[host]
+            print(f"  {host:12} {n:7} {100 * n / max(pairs, 1):7.1f}% "
+                  f"{skipped[host]:7} {n - skipped[host]:7}")
+        print(f"  {'total':12} {pairs:7} {100.0 if pairs else 0:7.1f}% "
+              f"{sum(skipped.values()):7} {pairs - sum(skipped.values()):7}")
 
 
 if __name__ == "__main__":

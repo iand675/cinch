@@ -1345,6 +1345,103 @@ interface exporter's `result-in`/`value-quantifiers`
 their own byte-identity argument; the exporter one is delicate because it
 writes the published contract text.
 
+### 2.21 Reuse pairs by the construct that hosts them (2026-11-14)
+
+The reuse census (`tooling/reuse_census.py`) has counted pairs and
+classified what stops the spine walk since 2026-11-13, but it never split
+the pairs themselves by the construct that hosts the reuse. That split is
+the measurement the in-place work was missing. `case` and `app` were the
+dominant *blockers* of the straight-line search, and the obvious reading was
+that in-place work should chase them; the question this section answers is
+what the pairs that do collect actually look like, because a pass change
+aimed at a host that already collects every pair it can see buys nothing.
+
+**Method.** Owned Core for all 44 `bootstrap/*.cinch` modules, from a
+compiler built at `main` (`9f5c360f`, the seed at `3f39effe`; `rc.rs`,
+`coalesce.rs` and `core.rs` are byte-identical between the two revisions):
+
+```sh
+cargo build --locked --release --bin cinch   # compiler/, at main
+for f in bootstrap/*.cinch; do
+  cinch emit-ir "$f" -o /tmp/o.ll --dump-core owned >/dev/null 2>&1
+done
+python3 tooling/reuse_census.py build --by-host --why
+```
+
+The harness was extended for this run in two ways, and both matter for the
+numbers:
+
+- `spine` now follows `insert_reuse` into a call's arguments and a jump's
+  arguments, in order. The 2026-11-13 census predates both positions, so it
+  classified a `Cons` in a recursive call's argument as a `case`-blocked
+  opportunity when it is on the spine and gets reused. That is why `app`
+  falls from 1,237 blockers to 64 here. The pair count itself is decided by
+  `@token` and so is unaffected by the spine fix; the 2,634 token releases
+  here against the 2,064 of the 2026-11-13 census are the two pass
+  extensions landed since then (call arguments, then branch arms), not a
+  harness change.
+- `--by-host` walks each collected pair's body and records the innermost
+  `case` or `if` whose arm holds it (`spine` when the pair is on the
+  release body's straight line), plus whether the pair carries a non-empty
+  `@kept` mark, which is the store-skipping half of the extension.
+
+**The split.**
+
+| Host of the pair | Pairs | Share of pairs | Skip a store | Write the payload |
+| --- | --- | --- | --- | --- |
+| straight-line spine | 2,282 | 80.2% | 978 | 1,304 |
+| a `case` arm | 320 | 11.2% | 164 | 156 |
+| an `if` arm | 243 | 8.5% | 117 | 126 |
+| total | 2,845 | 100% | 1,259 | 1,586 |
+
+The population is 2,845 pairs over 18,263 releases in 5,944 units. The
+2,634 releases that bind a token host them: 2,532 host one pair, ninety host
+two, eleven host between four and forty-five (a `branch_reuse` copies one
+token's reuse into every arm that can take it), and one hosts none in this
+walk because a nested `release` sits between it and its reuse. That is a
+limit of the harness, not of the pass: the walk stops at a nested release
+because those pairs belong to the inner token, so 2,845 is a lower bound and
+the shortfall is one pair.
+
+**What the split says.** Four fifths of the pairs are on the straight line,
+so the spine is where the mechanism already works, and the branch positions
+contribute 563 pairs, 19.8%. `case` hosts 320 and `if` 243, which is the
+opposite ordering from the blocker table, where `case` outnumbers `if` 3.3
+to 1: `case` blocks the search far more often than it hosts a pair, because
+most `case`-blocked opportunities are arms that allocate nothing at all
+(the `no allocation` row), while an `if` arm is more often a rebuild.
+
+Store skipping is roughly uniform across hosts: 42.9% of spine pairs, 51.3%
+of `case`-arm pairs and 48.1% of `if`-arm pairs skip at least one store, so
+the extension pays at every position rather than only where it was designed.
+The shortfall noted above is `parse-paren-type` (`Bootstrap.Parse`), the
+`branch_reuse` shape: the release binds a token, its reuse sits inside an
+`if` arm, and a nested `release` in that arm is where the walk stops.
+
+Per module, the branch-hosted pairs concentrate in three: `Bootstrap.Core`
+99 (65 `case`, 34 `if`), `Bootstrap.ExportType` 78 (75 `case`, 3 `if`) and
+`Bootstrap.Infer` 78 (50 `case`, 28 `if`). `ExportType`'s 75 `case` pairs
+skip 75 stores, so its branch arms are rebuilds of the scrutinee's own
+fields and nothing else.
+
+**Did the coalesce fix change the population?** No, and it cannot. The fix
+(`82e49e18`, "Move a dup earlier, never later, in coalescing") moves `Dup`
+nodes upward within a straight-line run. Reuse insertion reads a release's
+body for the first constructor allocation on the spine, and a `Dup` body is
+one of the positions it walks through without changing the allocation it
+finds; a `Dup` that moves changes where the count operation sits, not which
+allocation is on the spine or whether one exists. The fix also cannot move a
+`Dup` across a branch, because coalescing operates within a run and a
+branch ends the run. The measurement agrees: `bootstrap/*.cinch` is
+byte-identical from `38a07a23` (the revision before the fix) to `main`, so
+the source population the census reads is the same file set, and the dumps
+the census parses are produced by the pass order counting-then-coalescing
+(`compiler/src/driver.rs:5676-5687`), which the fix did not reorder.
+
+**No pin.** This section and the `tooling/reuse_census.py` extension are the
+only changes: `tooling/` and `design/` are not seed sources, no file under
+`compiler/` changed, and neither lock moves.
+
 ## 3. The query graph (rustc, Salsa, Shake)
 
 The single largest structural gap. Today a build rechecks whatever the
