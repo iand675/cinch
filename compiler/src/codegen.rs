@@ -3289,9 +3289,9 @@ fn assemble_unit(
         _ => (header, String::new()),
     };
     out.push_str(&head);
-    if let Some(group) = group {
+    if let Some(group) = &group {
         out.push(' ');
-        out.push_str(&group);
+        out.push_str(group);
     }
     out.push_str(&meta);
     out.push_str(" {\nentry:\n");
@@ -3299,9 +3299,17 @@ fn assemble_unit(
     out.push_str(&u.code);
     out.push_str("}\n\n");
     if !u.wrapper.is_empty() {
-        out.push_str(&match linkage {
-            Some(linkage) => with_linkage(&u.wrapper, linkage),
+        // The C-ABI wrapper of a `tailcc` body is the unit as every caller
+        // and the contract surface see it, and it does exactly what the
+        // body does: it carries the body's function attribute group (the
+        // memory effects, purity, hints), or a reader of `@X` sees none.
+        let wrapper = match &group {
+            Some(group) => u.wrapper.replacen(") {\nentry:", &format!(") {group} {{\nentry:"), 1),
             None => u.wrapper.clone(),
+        };
+        out.push_str(&match linkage {
+            Some(linkage) => with_linkage(&wrapper, linkage),
+            None => wrapper,
         });
     }
     // The apply stub and the static closure are only reachable through a
