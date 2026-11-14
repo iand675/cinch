@@ -85,6 +85,10 @@
       "symbol": "Data.List.Semigroup_List"
     },
     {
+      "classes": "O",
+      "symbol": "Data.Result.Applicative_Result"
+    },
+    {
       "classes": "OO",
       "symbol": "Algebra.Monoid.Monoid_Function"
     },
@@ -365,6 +369,11 @@
     {
       "class": "Category.Monad.Monad",
       "own": "TT",
+      "slot": 0
+    },
+    {
+      "class": "Category.Traversable.Traversable",
+      "own": "OOO",
       "slot": 0
     }
   ],
@@ -1241,6 +1250,34 @@
     {
       "classes": "T",
       "symbol": "Data.List.replicate"
+    },
+    {
+      "classes": "O",
+      "symbol": "Data.List.head"
+    },
+    {
+      "classes": "O",
+      "symbol": "Data.List.tail"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.Option.map-option"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.Result.from-result"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.Result.is-err"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.Result.result-to-option"
+    },
+    {
+      "classes": "OOT",
+      "symbol": "Data.Result.map-err"
     }
   ]
 }
