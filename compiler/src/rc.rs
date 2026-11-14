@@ -445,7 +445,11 @@ fn call_sites(e: &Core, tail: bool, mine: &mut Set, cx: &UnitFacts, modes: &mut 
                                 // A literal owns nothing a callee could keep or a caller
                                 // must release (an immediate, or an immortal static
                                 // block), so lending one costs nothing.
-                                Core::ConstBig { .. } | Core::ConstString { .. } | Core::ConstBytes(_) | Core::ConstSym(_) => true,
+                                Core::ConstString { .. } | Core::ConstBytes(_) | Core::ConstSym(_) => true,
+                                // A `Nat`/`Int` literal is static only while it is an
+                                // immediate; a larger one is parsed into a fresh bignum
+                                // at run time, an owned temporary like any call result.
+                                Core::ConstBig { .. } => small_literal(a),
                                 other => expr_class_in(other, &cx.classes).is_some_and(|c| !counted(c)),
                             };
                         if !fine {
@@ -2017,9 +2021,16 @@ fn max_local_in(e: &Core) -> usize {
 fn trivial_argument(e: &Core) -> bool {
     matches!(
         e,
-        Core::Var(_) | Core::Int(_) | Core::Bool(_) | Core::Unit | Core::ConstBig { .. } | Core::ConstSym(_)
+        Core::Var(_) | Core::Int(_) | Core::Bool(_) | Core::Unit | Core::ConstSym(_)
             | Core::Global(..) | Core::Prim(_) | Core::Ctor(..)
-    )
+    ) || small_literal(e)
+}
+
+/// A `Nat`/`Int` literal that is an immediate word on every target (code
+/// generation's `immediate_word` keeps 30 bits plus the tag even on a
+/// 32-bit word), so it needs no allocation and no count.
+fn small_literal(e: &Core) -> bool {
+    matches!(e, Core::ConstBig { digits, .. } if digits.parse::<i64>().is_ok_and(|v| v.unsigned_abs() < 1 << 29))
 }
 
 /// The class of a computed argument, when it is known.
