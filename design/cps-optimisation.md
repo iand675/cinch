@@ -96,10 +96,28 @@ env}, body)` when:
   relative to the `let`;
 - there is at least one such call.
 
-The lambda's body is copied with fresh binders. The captures are
-substituted through staged locals, and the parameters become join
-parameters with their classes. The result is `Join { params, body, rest
-}`, with each `k a` in `rest` replaced by a `Jump`.
+The lambda's body is copied with fresh binders. The result is `Join {
+params, body, rest }`, with each `k a` in `rest` replaced by a `Jump`. The
+join's parameters are the captured locals followed by the lambda's own
+parameters, and every jump passes the captures. Literal and unit captures
+are substituted in place.
+
+The join must be closed over counted locals. Reference counting runs after
+the simplifier. It reads a join body's free locals as borrowed and keeps
+them live nowhere, so a free capture would be dropped before the jump that
+needs it. The first version substituted the captures in place, and a
+contified continuation over a string read it after its release
+(`tests/cps.rs::a_contified_continuation_passes_its_counted_captures`).
+For the same reason, a call of `k` inside an inner join's *body* is not
+contified: the jump would pass the captures from inside that body. Only
+the continuation may call `k`.
+
+A contified copy can expose the recursion it came from. A recursive callee
+unfolds inside the copy and builds the same closure again. The pass
+therefore records the lambdas whose copies it is inside, and does not
+contify a lambda beneath its own copy. Each simplifier iteration then
+unrolls at most one level, and the iteration cap bounds the rest
+(`contifying_a_recursive_continuation_terminates`).
 
 No closure is allocated, no indirect call is made, and the join compiles
 to a basic block with phis.
