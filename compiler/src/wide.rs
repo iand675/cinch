@@ -141,6 +141,17 @@ fn signatures(program: &Program) -> HashMap<String, Sig> {
             Sig { params: params.iter().map(|c| rep(*c)).collect(), ret: f.repr.result.map_or(Rep::Word, rep) },
         );
     }
+    // A foreign import's wrapper: a wide scalar crosses as itself.
+    for (name, plan) in &program.foreigns {
+        if plan.export {
+            continue;
+        }
+        let r = |a: &crate::core::AbiParam| match a.class {
+            crate::core::AbiClass::Scalar(s) if s.is_wide() => Rep::Wide,
+            _ => Rep::Word,
+        };
+        out.insert(name.clone(), Sig { params: plan.params.iter().map(r).collect(), ret: r(&plan.result) });
+    }
     out
 }
 
@@ -224,6 +235,7 @@ impl Cx<'_> {
     fn direct(&self, f: &Core, n: usize) -> Option<Sig> {
         let sig = match f {
             Core::Global(id, _) | Core::Ctor(id, _) => self.sigs.get(&id.0).cloned()?,
+            Core::Foreign(name) => self.sigs.get(name).cloned()?,
             Core::Prim(op) => match prim_sig(*op) {
                 Some(s) => s,
                 // A word primitive: every position is a word.

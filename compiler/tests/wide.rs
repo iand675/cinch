@@ -6,7 +6,7 @@
 
 mod common;
 
-use common::source_frontend::{check_sources, run_source};
+use common::source_frontend::{check_sources, run_source, run_source_objects};
 
 fn run_ok(name: &str, src: &str) {
     match run_source(src) {
@@ -483,6 +483,62 @@ module Main where
       else 2)
     else 1
 "#);
+}
+
+#[test]
+fn int128_crosses_the_c_boundary_both_ways() {
+    // `I128`/`U128` are C's `__int128`/`unsigned __int128`, crossing as
+    // LLVM `i128` (clang's own spelling): an import's wrapper takes and
+    // gives the `i128` it holds, and an export's entry is called from C
+    // with one, including mixed with a word argument.
+    let dir = std::env::temp_dir().join(format!("cinch-wide-ffi-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("scratch dir");
+    let c_path = dir.join("w.c");
+    let o_path = dir.join("w.o");
+    std::fs::write(&c_path, r#"
+__int128 dbl(__int128 x) { return x * 2; }
+unsigned __int128 top(void) { return ~(unsigned __int128)0; }
+extern __int128 cinch_neg(__int128 x);
+extern unsigned __int128 cinch_hi(unsigned __int128 x, long shift);
+long long back(void) {
+  __int128 big = ((__int128)1) << 100;
+  if (cinch_neg(big) != -big) return 1;
+  if (cinch_hi(~(unsigned __int128)0, 64) != (unsigned __int128)0xFFFFFFFFFFFFFFFFull) return 2;
+  return 0;
+}
+"#).expect("write fixture");
+    let clang = std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".to_string());
+    let status = std::process::Command::new(&clang).arg("-c").arg(&c_path).arg("-o").arg(&o_path).status().expect("run clang");
+    assert!(status.success(), "clang failed to compile the C fixture");
+    let o = o_path.to_string_lossy().into_owned();
+    match run_source_objects(r#"
+module Main where
+  import Data.Wide
+
+  foreign import ccall "dbl" dbl :: I128 ->{Foreign Fix, Diverge} I128
+  foreign import ccall "top" top :: () ->{Foreign Fix, Diverge} U128
+  foreign import ccall "back" back :: () ->{Foreign Fix, Diverge} I64
+
+  cinchNeg :: I128 -> I128
+  cinchNeg x = wrapping-neg-i128 x
+
+  cinchHi :: U128 -> I64 -> U128
+  cinchHi x s = case checked-i64-to-u32 s of
+    Some n -> wrapping-shr-u128 x n
+    None -> 0
+
+  foreign export ccall "cinch_neg" cinchNeg :: I128 -> I128
+  foreign export ccall "cinch_hi" cinchHi :: U128 -> I64 -> U128
+
+  main :: Unit ->{Foreign Fix, Diverge} Int
+  main _ =
+    if eq-i128 (dbl (-85070591730234615865843651857942052864)) min-bound-i128 then
+      (if eq-u128 (top ()) max-bound-u128 then (if back () == 0 then 0 else 3) else 2)
+    else 1
+"#, &[&o]) {
+        Ok(code) => assert_eq!(code, 0, "wide FFI: expected exit 0, got {code}"),
+        Err(e) => panic!("wide FFI: compilation failed: {e}"),
+    }
 }
 
 #[test]

@@ -1620,6 +1620,18 @@ impl Registry {
                 reg.narrow_sigs.insert(op.symbol(), sig);
             }
         }
+        // A foreign import's wrapper takes and gives a `__int128` as the
+        // `i128` it is in every wide position.
+        for (name, plan) in &p.foreigns {
+            if plan.export || plan.canon.is_some() {
+                continue;
+            }
+            let wide = |a: &AbiParam| if matches!(a.class, AbiClass::Scalar(s) if s.is_wide()) { Cross::WIDE } else { Cross::WORD };
+            let sig = NarrowSig { params: plan.params.iter().map(wide).collect(), ret: wide(&plan.result) };
+            if sig.is_wide() {
+                reg.narrow_sigs.insert(name.clone(), sig);
+            }
+        }
         for f in &p.fns {
             if f.prim.is_some()
                 || f.ctor.is_some()
@@ -2016,6 +2028,8 @@ fn foreign_param_classes(plan: &ForeignPlan) -> Vec<Class> {
             .map(|a| {
                 if matches!(a.class, AbiClass::Aggregate) {
                     Class::Obj
+                } else if matches!(a.class, AbiClass::Scalar(s) if s.is_wide()) {
+                    Class::Wide
                 } else {
                     Class::Raw
                 }
@@ -3640,8 +3654,9 @@ fn build_unit(
         // positions (`NarrowSig::of_wide_prim`); every other primitive's
         // boundary is the word.
         UnitBody::Prim(op) if op.touches_wide() => reg.narrow_sigs.get(name),
-        // A constructor with a wide field takes that field as an `i128`.
-        UnitBody::Ctor(_) => reg.narrow_sigs.get(name).filter(|s| s.is_wide()),
+        // A constructor with a wide field takes that field as an `i128`, and
+        // a foreign wrapper a wide scalar.
+        UnitBody::Ctor(_) | UnitBody::Foreign(_) => reg.narrow_sigs.get(name).filter(|s| s.is_wide()),
         _ => None,
     };
     match &body {
@@ -7507,6 +7522,10 @@ fn abi_llvm_ty(p: &AbiParam) -> &'static str {
 
 /// Convert one canonical value word to its C scalar shape.
 fn word_to_c(b: &mut Builder, s: Scalar, w: &str) -> String {
+    // A wide scalar is already its C `__int128` (LLVM `i128`).
+    if s.is_wide() {
+        return w.to_string();
+    }
     if s == Scalar::F32 {
         let i = b.reg();
         b.line(&format!("{i} = trunc i64 {w} to i32"));
@@ -7531,6 +7550,9 @@ fn word_to_c(b: &mut Builder, s: Scalar, w: &str) -> String {
 
 /// Convert one C scalar value to its canonical value word.
 fn c_to_word(b: &mut Builder, s: Scalar, v: &str) -> String {
+    if s.is_wide() {
+        return v.to_string();
+    }
     if s == Scalar::F32 {
         let i = b.reg();
         b.line(&format!("{i} = bitcast float {v} to i32"));
@@ -8109,8 +8131,15 @@ fn foreign_import_body(
                 &format!("{r} = call {rty} @{}({})", quote(&plan.symbol), call_args.join(", ")),
             );
             let w = c_to_word(b, *s, &r);
-            let w = freeze_word(b, &w);
-            b.line(&format!("ret i64 {w}"));
+            // The C side's result is foreign input: it freezes at its own
+            // width, an `i128` for a wide scalar.
+            if s.is_wide() {
+                let w = freeze_at(b, &w, 128);
+                b.line(&format!("ret i128 {w}"));
+            } else {
+                let w = freeze_word(b, &w);
+                b.line(&format!("ret i64 {w}"));
+            }
         }
         AbiClass::Ptr => {
             let r = b.reg();
@@ -8225,7 +8254,7 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
                 // C register would otherwise leak into safe code): the
                 // word freezes before it can branch or compare.
                 let w = c_to_word(&mut b, *s, &n);
-                words.push(freeze_word(&mut b, &w));
+                words.push(if s.is_wide() { freeze_at(&mut b, &w, 128) } else { freeze_word(&mut b, &w) });
             }
             AbiClass::Ptr => {
                 params.push(format!("ptr {n}{}", param_attrs(p, true)));

@@ -358,6 +358,11 @@ fn sysv_params(
                 sse_free = sse_free.saturating_sub(1);
                 passes.push(None);
             }
+            // A `__int128` takes a pair of INTEGER registers.
+            AbiClass::Scalar(s) if s.is_wide() => {
+                int_free = int_free.saturating_sub(2);
+                passes.push(None);
+            }
             AbiClass::Scalar(_) | AbiClass::Ptr => {
                 int_free = int_free.saturating_sub(1);
                 passes.push(None);
