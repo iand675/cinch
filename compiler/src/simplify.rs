@@ -2106,6 +2106,11 @@ fn specialise_arguments(program: &mut Program, tables: &mut Tables, fresh: &mut 
                 if !interesting_param(&def.body, LocalId(i), &callee, i) { continue; }
                 let n = def.params.len();
                 let copy_id = GlobalId(format!("{callee}.sp{}", specs.made));
+                // The copy's trailing parameters are locals n.. of its own,
+                // so every local it mints (the renamed binders and the
+                // entry `let`) must lie past them; the program-wide counter
+                // can sit lower in a small program.
+                fresh.local = fresh.local.max(n + shape.free.len());
                 let mut body = def.body.clone();
                 let mut renames: HashMap<LocalId, LocalId> = HashMap::new();
                 rename_binders(&mut body, &mut renames, fresh);

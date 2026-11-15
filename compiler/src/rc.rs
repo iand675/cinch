@@ -2216,12 +2216,19 @@ fn small_literal(e: &Core) -> bool {
     matches!(e, Core::ConstBig { digits, .. } if digits.parse::<i64>().is_ok_and(|v| v.unsigned_abs() < 1 << 29))
 }
 
-/// The class of a computed argument, when it is known.
-fn argument_class(e: &Core, results: &HashMap<String, Class>, classes: &HashMap<usize, Class>) -> Option<Class> {
+/// The class of a computed argument, when it is known. Only a saturated
+/// call has its callee's result class: fewer arguments build a closure, an
+/// `Obj`, and more apply the result, whose class is not known here.
+fn argument_class(e: &Core, cx: &Callees<'_>, classes: &HashMap<usize, Class>) -> Option<Class> {
+    let applied = |given: usize, arity: usize, result: Option<Class>| match given.cmp(&arity) {
+        std::cmp::Ordering::Equal => result,
+        std::cmp::Ordering::Less => Some(Class::Obj),
+        std::cmp::Ordering::Greater => None,
+    };
     match e {
-        Core::App(head, _) => match &**head {
-            Core::Global(g, _) => results.get(&g.0).copied(),
-            Core::Prim(op) => crate::codegen::prim_result_class(*op).filter(|c| !matches!(c, Class::Param(_))),
+        Core::App(head, args) => match &**head {
+            Core::Global(g, _) => cx.arity.get(&g.0).and_then(|a| applied(args.len(), *a, cx.results.get(&g.0).copied())),
+            Core::Prim(op) => applied(args.len(), op.arity(), crate::codegen::prim_result_class(*op).filter(|c| !matches!(c, Class::Param(_)))),
             Core::Ctor(..) => Some(Class::Obj),
             _ => None,
         },
@@ -2261,7 +2268,7 @@ fn name_args_in(e: &mut Core, cx: &Callees<'_>, classes: &mut HashMap<usize, Cla
             continue;
         }
         let param = params.and_then(|ps| ps.get(i)).copied().filter(|c| !c.is_param());
-        match argument_class(a, cx.results, classes).or(param) {
+        match argument_class(a, cx, classes).or(param) {
             Some(c) => plan.push(Some(c)),
             None => break,
         }
