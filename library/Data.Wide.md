@@ -1,6 +1,6 @@
 # Data.Wide
 
-Signed and unsigned 128-bit scalars, with explicit checked, wrapping, and saturating arithmetic, bit operations, comparisons, and numeric conversions.
+Unboxed 128-bit integers with checked, wrapping and saturating arithmetic, bit operations, numeric conversions and explicit overflow policies.
 
 <span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
 

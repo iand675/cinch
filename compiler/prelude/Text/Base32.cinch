@@ -92,11 +92,15 @@ module Text.Base32 where
     let raw = base32-raw-encode alphabet b in
     string-concat raw (string-repeat (nat-rem (8 - nat-rem (string-length raw) 8) 8) "=")
 
-  -- | Discard only CR and LF; spaces and other Unicode whitespace remain invalid input.
-  without-newlines :: List Char -> List Char
-  without-newlines cs = case cs of
-    Nil -> Nil
-    Cons c rest -> if char-code c == 10 || char-code c == 13 then without-newlines rest else Cons c (without-newlines rest)
+  -- | Read scalar symbols from a known UTF-8 boundary, discarding only CR
+  -- and LF. The already decoded ASCII prefix is never traversed again.
+  tail-symbols :: Bytes -> Nat -> List Char
+  tail-symbols b i = case utf8-at b i of
+    None -> Nil
+    Some pair -> case pair of
+      (c, width) ->
+        if char-code c == 10 || char-code c == 13 then tail-symbols b (i + width)
+        else Cons c (tail-symbols b (i + width))
 
   -- | Check that every remaining scalar is an equals sign.
   all-pads :: List Char -> Bool
@@ -133,11 +137,11 @@ module Text.Base32 where
 
   -- | Decode padded Base32, ignoring CR/LF. Incomplete quanta, misplaced padding, lowercase and unknown symbols return named errors.
   base32-decode :: Base32Alphabet -> String -> Result Base32Error Bytes
-  base32-decode alphabet s = decode-blocks alphabet True s (string-to-bytes s) 0 Nil
+  base32-decode alphabet s = decode-blocks alphabet True (string-to-bytes s) 0 Nil
 
   -- | Decode unpadded Base32, ignoring CR/LF. Padding and impossible final-quantum lengths are errors.
   base32-raw-decode :: Base32Alphabet -> String -> Result Base32Error Bytes
-  base32-raw-decode alphabet s = decode-blocks alphabet False s (string-to-bytes s) 0 Nil
+  base32-raw-decode alphabet s = decode-blocks alphabet False (string-to-bytes s) 0 Nil
 
   -- | Encode five packed bytes into eight alphabet bytes with SIMD bit-field lanes; mode 0 is standard, mode 1 is extended hex.
   prim encode5 :: U64 -> U8 -> U64 where
@@ -363,8 +367,8 @@ module Text.Base32 where
   -- | Decode complete ASCII quanta in SIMD lanes. Padding, newlines, Unicode
   -- errors and short tails use the scalar decoder from the first such block,
   -- preserving the already decoded prefix and the full error contract.
-  decode-blocks :: Base32Alphabet -> Bool -> String -> Bytes -> Nat -> List (InRange 0 255 Nat) -> Result Base32Error Bytes
-  decode-blocks alphabet padded text b i out =
+  decode-blocks :: Base32Alphabet -> Bool -> Bytes -> Nat -> List (InRange 0 255 Nat) -> Result Base32Error Bytes
+  decode-blocks alphabet padded b i out =
     if i + 8 <= bytes-len b then
       let word = decode8 (bytes-read-le64 b i) (alphabet-mode alphabet) in
       if eq-u64 (wrapping-shr-u64 word 56) 0 then
@@ -373,6 +377,6 @@ module Text.Base32 where
         let b2 = u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 word 16)) in
         let b3 = u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 word 24)) in
         let b4 = u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 word 32)) in
-        decode-blocks alphabet padded text b (i + 8) (Cons b4 (Cons b3 (Cons b2 (Cons b1 (Cons b0 out)))))
-      else decode-from alphabet padded (without-newlines (drop i (unpack text))) i 0 0 out
-    else decode-from alphabet padded (without-newlines (drop i (unpack text))) i 0 0 out
+        decode-blocks alphabet padded b (i + 8) (Cons b4 (Cons b3 (Cons b2 (Cons b1 (Cons b0 out)))))
+      else decode-from alphabet padded (tail-symbols b i) i 0 0 out
+    else decode-from alphabet padded (tail-symbols b i) i 0 0 out

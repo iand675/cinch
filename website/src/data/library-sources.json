@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "base_manifest_sha256": "7dbf2f6c367b379615e42def4c006fad9f05ec4c752105e07377afd77df5a6cc",
+  "base_manifest_sha256": "e43afe96027d28ed96f7feae39d2d72adc1430d76ab55847ed354cb4ef20e100",
   "modules": [
     {
       "module": "Algebra.Arithmetic",
@@ -141,7 +141,7 @@
     {
       "module": "Data.Bytes.Word",
       "path": "compiler/prelude/Data/Bytes/Word.cinch",
-      "sha256": "f1b5d062f8657f5a47150da282e202fe021cf1260ff4824e3c172ff8cd004780",
+      "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
       "embedded": false,
       "values": 4,
       "public_methods": 0
@@ -517,7 +517,7 @@
     {
       "module": "Data.String",
       "path": "compiler/prelude/Data/String.cinch",
-      "sha256": "27a381efd32575a2b0ca0c4a0d9f3a9c982b64b731d672caad03ba04a997ae79",
+      "sha256": "3d35e3bb0d10e90d9f591765fc79f06c3a52c3a1d207fb0a42ad57c67b838a79",
       "embedded": true,
       "values": 27,
       "public_methods": 0
@@ -584,14 +584,6 @@
       "sha256": "1e4049e0bbd8d7f17d3955669904abb1916ab8f93a3cee2dcb3fa26826357b62",
       "embedded": true,
       "values": 6,
-      "public_methods": 0
-    },
-    {
-      "module": "Effect.Concurrent.MVar",
-      "path": "compiler/prelude/Effect/Concurrent/MVar.cinch",
-      "sha256": "ae0fdb5a7b2b398681d7598c2a606e536c739e98e4a8188a1169092b49f68de6",
-      "embedded": true,
-      "values": 14,
       "public_methods": 0
     },
     {
@@ -755,6 +747,14 @@
       "public_methods": 0
     },
     {
+      "module": "Effect.Stream",
+      "path": "compiler/prelude/Effect/Stream.cinch",
+      "sha256": "ca55b0b65b41cf4583f3167ea6c8a6a23bcc821c8fe5cc45a828d0bc618564f7",
+      "embedded": false,
+      "values": 24,
+      "public_methods": 0
+    },
+    {
       "module": "Effect.Test",
       "path": "compiler/prelude/Effect/Test.cinch",
       "sha256": "25f23bc38d56b5f178e7c80980cf4f29a8e84544dee3c883d8c857cb462478e0",
@@ -845,7 +845,7 @@
     {
       "module": "Text.Base32",
       "path": "compiler/prelude/Text/Base32.cinch",
-      "sha256": "1497ed5e0adb806c86a2626c9719afdec1e83825331d6773d4e812e09fbd5569",
+      "sha256": "ae82b9c24657458ca5d6b0f33ee80b8ba8239cef592e793a926270cb45e308bd",
       "embedded": false,
       "values": 4,
       "public_methods": 0

@@ -159,6 +159,7 @@ fn run_with_profile(name: &str, checks: Vec<String>, profile: Option<cinch::core
     let expected = match name {
         "hex" => "shufflevector <4 x i8>",
         "base32" => "lshr <8 x i16>",
+        "base32-long-prefix-tails" => "icmp uge <8 x i8>",
         "checksums" | "checksums-portable" => "@llvm.vector.reduce.add.v16i32",
         "fixed-width" => "@llvm.bswap.i64",
         "varints" => "Text.Binary.compress-varint8",
@@ -505,6 +506,33 @@ fn base32_matches_go_rfc4648_both_alphabets_and_raw_forms() {
         ));
     }
     run("base32", checks);
+}
+
+/// SIMD prefixes preserve scalar tail errors, symbol counts, CR/LF handling
+/// and supplementary Unicode scalars without reparsing the decoded prefix.
+#[test]
+fn base32_scalar_tails_follow_long_simd_prefixes() {
+    let mut checks = Vec::new();
+    for (alphabet, quantum, tail) in [
+        ("Base32Standard", "MZXW6YTB", "MY"),
+        ("Base32Hex", "CPNMUOJ1", "CO"),
+    ] {
+        let prefix = format!("(string-repeat 256 {quantum:?})");
+        let expected = "(string-to-bytes (string-concat (string-repeat 256 \"fooba\") \"f\"))";
+        for suffix in [format!("{tail}======"), format!("\r\n{tail}===\r\n===\n")] {
+            checks.push(format!("base32-is {alphabet} (string-concat {prefix} {suffix:?}) {expected}"));
+        }
+        checks.push(format!("raw-is {alphabet} (string-concat {prefix} {tail:?}) {expected}"));
+        for scalar in ['é', '€', '🦀'] {
+            for lane in 0..8 {
+                let suffix = format!("{}{}", &quantum[..lane], scalar);
+                checks.push(format!("case base32-decode {alphabet} (string-concat {prefix} {suffix:?}) of\n    Err (InvalidBase32Character c) -> char-code c == {}\n    _ -> False", scalar as u32));
+            }
+        }
+        checks.push(format!("case base32-raw-decode {alphabet} (string-concat {prefix} \"M\") of\n    Err (InvalidBase32Length count) -> count == 2049\n    _ -> False"));
+        checks.push(format!("case base32-decode {alphabet} (string-concat {prefix} \"====\") of\n    Err InvalidBase32Padding -> True\n    _ -> False"));
+    }
+    run("base32-long-prefix-tails", checks);
 }
 
 #[test]
