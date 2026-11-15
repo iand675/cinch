@@ -7,6 +7,7 @@
 mod common;
 use cinch::driver::check_sources;
 use common::source_frontend::run_source_objects;
+use std::collections::HashMap;
 
 /// The emitted LLVM IR of one checked source (every IR test carries a
 /// `main`, which code generation requires).
@@ -26,17 +27,24 @@ fn define_of(ir: &str, unit: &str) -> String {
         .to_string()
 }
 
+/// The attribute group number a `define` line references (`#N`), if
+/// it carries one.
+fn group_ref(define: &str) -> Option<&str> {
+    let (_, tail) = define.split_once(" #")?;
+    Some(
+        tail.split_whitespace()
+            .next()
+            .expect("an attribute group number"),
+    )
+}
+
 /// The text of one unit's function attribute group (empty when the
 /// unit carries no group).
 fn attrs_of(ir: &str, unit: &str) -> String {
     let define = define_of(ir, unit);
-    let Some((_, tail)) = define.split_once(" #") else {
+    let Some(n) = group_ref(&define) else {
         return String::new();
     };
-    let n = tail
-        .split_whitespace()
-        .next()
-        .expect("an attribute group number");
     let head = format!("attributes #{n} = {{ ");
     ir.lines()
         .find_map(|l| l.strip_prefix(&head).and_then(|r| r.strip_suffix(" }")))
@@ -45,35 +53,69 @@ fn attrs_of(ir: &str, unit: &str) -> String {
 }
 
 /// The unit name a `define` line defines (`@"a b"(` or `@ab(`).
-fn unit_name_of(line: &str) -> Option<String> {
+fn unit_name_of(line: &str) -> Option<&str> {
     let (_, after) = line.split_once('@')?;
     if let Some(rest) = after.strip_prefix('"') {
         let end = rest.find('"')?;
-        return Some(rest[..end].to_string());
+        return Some(&rest[..end]);
     }
     let end = after.find('(')?;
-    Some(after[..end].to_string())
+    Some(&after[..end])
 }
 
-/// The body of one unit's define, or `None` when the unit is not
-/// emitted (a pruned or inlined unit).
-fn body_of_opt(ir: &str, unit: &str) -> Option<String> {
-    let quoted = format!("@\"{unit}\"(");
-    let bare = format!("@{unit}(");
+/// One emitted `define`: its unit name, its body lines (between `{` and
+/// `}`) and its attribute group text.
+struct Define<'a> {
+    name: &'a str,
+    body: Vec<&'a str>,
+    attrs: &'a str,
+}
+
+/// Every emitted `define` of a module, read in one pass over the IR.
+///
+/// A whole-module check that resolves each define by name rescans the
+/// module once per define, and the module carries the whole prelude, so
+/// that check is quadratic in the IR. Here the attribute groups are
+/// indexed once and each body is collected as the walk passes it, which
+/// keeps the check linear. A define whose body never closes (truncated
+/// IR) is left out, as a by-name lookup would leave it out.
+fn defines_of(ir: &str) -> Vec<Define<'_>> {
+    let groups: HashMap<&str, &str> = ir
+        .lines()
+        .filter_map(|l| {
+            let (n, text) = l.strip_prefix("attributes #")?.split_once(" = { ")?;
+            Some((n, text.strip_suffix(" }")?))
+        })
+        .collect();
+    let mut defines = Vec::new();
     let mut lines = ir.lines();
-    while let Some(l) = lines.next() {
-        if l.starts_with("define ") && (l.contains(&quoted) || l.contains(&bare)) {
-            let mut body = String::new();
-            for l in lines.by_ref() {
-                if l == "}" {
-                    return Some(body);
-                }
-                body.push_str(l);
-                body.push('\n');
-            }
+    while let Some(line) = lines.next() {
+        if !line.starts_with("define ") {
+            continue;
         }
+        let mut body = Vec::new();
+        let mut closed = false;
+        for l in lines.by_ref() {
+            if l == "}" {
+                closed = true;
+                break;
+            }
+            body.push(l);
+        }
+        let Some(name) = unit_name_of(line) else { continue };
+        if !closed {
+            continue;
+        }
+        let attrs = match group_ref(line) {
+            None => "",
+            Some(n) => groups
+                .get(n)
+                .copied()
+                .unwrap_or_else(|| panic!("{name}: attribute group #{n} missing in {ir}")),
+        };
+        defines.push(Define { name, body, attrs });
     }
-    None
+    defines
 }
 
 /// The body of one unit's define (its lines between `{` and `}`).
@@ -840,20 +882,14 @@ module Main where
     // must not carry `norecurse`. The check is over the IR rather than a
     // named unit so a renamed or specialized symbol cannot slip past it.
     let mut checked = 0;
-    for line in ir.lines() {
-        if !line.starts_with("define ") {
-            continue;
-        }
-        let Some(name) = unit_name_of(line) else { continue };
-        let Some(body) = body_of_opt(&ir, &name) else { continue };
-        let calls_self = body
-            .lines()
-            .any(|l| l.contains(&format!("@{name}(")) || l.contains(&format!("\"{name}\"(")));
+    for Define { name, body, attrs } in defines_of(&ir) {
+        let bare = format!("@{name}(");
+        let quoted = format!("\"{name}\"(");
+        let calls_self = body.iter().any(|l| l.contains(&bare) || l.contains(&quoted));
         if !calls_self {
             continue;
         }
         checked += 1;
-        let attrs = attrs_of(&ir, &name);
         assert!(
             !attrs.contains("norecurse"),
             "{name} calls itself and must not claim norecurse, got {attrs:?}\n{ir}"
@@ -951,12 +987,7 @@ module Main where
     );
     // No unit in the module may claim both, and no unit may claim
     // `noreturn` while its body has a reachable `ret`.
-    for line in ir.lines() {
-        if !line.starts_with("define ") {
-            continue;
-        }
-        let Some(name) = unit_name_of(line) else { continue };
-        let attrs = attrs_of(&ir, &name);
+    for Define { name, attrs, .. } in defines_of(&ir) {
         if !attrs.contains("noreturn") {
             continue;
         }
