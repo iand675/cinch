@@ -1,7 +1,7 @@
 {
-  "description": "ABI 10 library producer: self-describing block headers, merged with main, narrow C arguments extended.",
-  "revision": "0a31d7f57a9b8a2abe79ef89e21f44c0477cc017",
+  "description": "ABI 10 library producer: self-describing block headers, merged with main (through the no-reclaim switch), narrow C arguments extended.",
+  "revision": "ab294c68b24fa093a84813e09e0b9f5f33667e7f",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "e585da9a6bcc909c5a3cb12f6275043b95c45a877ec5ccf719cbd3bad6695edd"
+  "source_sha256": "c559c794935bbbf52d60118abd95c7207621ab1059c7e4695f40d99e8f0dfabd"
 }
