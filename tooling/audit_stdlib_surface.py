@@ -24,6 +24,7 @@ HOMES = {
     "container/heap": ["Data.Mutable.Heap"], "container/list": ["Data.List"], "container/ring": ["Data.Mutable.Deque"], "context": ["Effect.Concurrent", "Effect.Clock"],
     "crypto/hmac": ["Text.Digest"], "crypto/md5": ["Text.Digest"], "crypto/rand": ["Effect.Random"],
     "crypto/sha1": ["Text.Digest"], "crypto/sha256": ["Text.Digest"], "crypto/sha512": ["Text.Digest"],
+    "encoding/ascii85": ["Text.Ascii85", "Effect.Ascii85"],
     "encoding/base32": ["Text.Base32"], "encoding/base64": ["Text.Base64"],
     "encoding/binary": ["Text.Binary"], "encoding/csv": ["Text.Csv"], "encoding/hex": ["Text.Hex"],
     "encoding/json": ["Text.Json", "Data.Json"], "errors": ["Data.Result"],
@@ -50,6 +51,7 @@ HOMES = {
 }
 
 EVIDENCE = {
+    "encoding/ascii85": (["lib_ascii85::ascii85_matches_independent_vectors_and_all_chunk_splits", "lib_ascii85::ascii85_stream_adapters_preserve_chunk_and_failure_contracts"], ["ascii85-encode", "ascii85-decode", "ascii85-stream-encode", "ascii85-stream-decode"]),
     "encoding/base32": (["lib_go_stdlib::base32_matches_go_rfc4648_both_alphabets_and_raw_forms", "lib_go_stdlib::base32_scalar_tails_follow_long_simd_prefixes"], ["base32-encode", "base32-decode"]),
     "encoding/binary": (["lib_go_stdlib::fixed_width_binary_matches_go_and_validates_writes", "lib_go_stdlib::varints_match_go_including_signed_extrema_and_malformed_input"], ["binary", "varint"]),
     "encoding/hex": (["lib_go_stdlib::hexadecimal_matches_go_and_names_invalid_bytes"], ["hex-encode", "hex-decode"]),
