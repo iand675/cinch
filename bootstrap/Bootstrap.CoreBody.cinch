@@ -113,7 +113,7 @@ module Bootstrap.CoreBody where
     URow labels -> dense-mix 163 (dense-type-digest labels) 0
     URowJoin a b -> dense-mix 167 (dense-type-digest a) (dense-type-digest b)
     UTuple fields -> dense-mix 173 (dense-type-digest fields) 0
-    UForall qs body -> dense-mix 181 (list-length qs) (dense-type-digest body)
+    UForall qs body -> dense-mix 181 (quants-length qs) (dense-type-digest body)
     UArg first rest -> dense-mix 179 (dense-type-digest first) (dense-type-digest rest)
     UEnd -> 181
     UError -> 191
@@ -126,7 +126,7 @@ module Bootstrap.CoreBody where
     KEffect -> 211
     KRow -> 223
     KFun a b -> dense-mix 227 (dense-kind-digest a) (dense-kind-digest b)
-    KValue payload -> 229
+    KValue carrier -> 229
 
   dense-index-digest :: IndexTerm -> Nat
   dense-index-digest term = case term of

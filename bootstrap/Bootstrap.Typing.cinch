@@ -389,17 +389,17 @@ module Bootstrap.Typing where
     -- the polytype's body opened at its rigid ids and performs nothing; an
     -- instantiation opens its value's polytype at forall-free arguments.
     CPolyIntro sp ty ids body -> (case ty of
-      UForall qs inner -> list-length ids == list-length qs && wf context scope ty
-        && equal-type (substitute-bound (poly-rigid-pairs qs ids) inner) (core-type body)
+      UForall qs inner -> list-length ids == quants-length qs && wf context scope ty
+        && equal-type (substitute-bound (poly-rigid-pairs (quants-list qs) ids) inner) (core-type body)
         && effects-fit (core-effects body) (URow UEnd)
         -- The skolems are in scope, as rigid variables, for the body only.
-        && (case poly-rigid-scope qs ids scope of
+        && (case poly-rigid-scope (quants-list qs) ids scope of
           Some opened -> checked-term context opened gamma facts body
           None -> False)
       other -> False)
     CPolyElim sp ty value args -> (case core-type value of
-      UForall qs inner -> list-length args == list-length qs && poly-arguments-wf context scope args
-        && equal-type ty (substitute-bound (poly-argument-pairs qs args) inner)
+      UForall qs inner -> list-length args == quants-length qs && poly-arguments-wf context scope args
+        && equal-type ty (substitute-bound (poly-argument-pairs (quants-list qs) args) inner)
         && checked-term context scope gamma facts value
       other -> False)
     CPrimitive sp ty name args -> (if same name "copy-out" then copy-out-checked context ty args

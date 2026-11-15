@@ -92,7 +92,7 @@ module Bootstrap.ExportType where
     KEffect -> Ok "Effect"
     KRow -> Ok "Row"
     KFun a b -> join [Ok "(", kind-in scope a, Ok " -> ", kind-in scope b, Ok ")"]
-    KValue value -> case value-carrier kind of Some carrier -> type-in scope carrier; None -> Err "invalid checked value kind"
+    KValue carrier -> type-in scope carrier
   kind-display-in :: List (Nat, String) -> Kind -> Result String String
   kind-display-in scope kind = case kind of
     KFun first rest -> join [kind-argument-in scope first, Ok " -> ", kind-display-in scope rest]
@@ -332,7 +332,7 @@ module Bootstrap.ExportType where
     UTuple fields -> join [Ok "(", separated-style display scope ", " fields, Ok ")"]
     -- design/rank-n-polymorphism.md section 5: the source spelling, which
     -- the reader parses back through the nested-forall conversion.
-    UForall qs body -> case forall-binder-names qs scope of
+    UForall qs body -> case forall-binder-names (quants-list qs) scope of
       (names, bound) -> join [Ok "(forall", Ok names, Ok ". ", type-in-style display bound body, Ok ")"]
     other -> Err "checked type has no portable interface representation"
   export-type :: UType -> Result String String

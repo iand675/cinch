@@ -150,7 +150,7 @@ module Main where
   field :: String -> Json -> Json
   field name doc = case doc of JObj key value rest -> if same name key then value else field name rest; other -> JNull
   decode-type :: Json -> Option UType
-  decode-type doc = value-carrier (KValue doc)
+  decode-type doc = read-carrier-tree doc
   answer :: Bool -> (Int, String)
   answer ok = (if ok then 0 else 4, "Pi result")
   request :: Json -> (Int, String)

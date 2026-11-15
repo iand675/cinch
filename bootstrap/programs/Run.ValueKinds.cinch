@@ -140,7 +140,7 @@ module Main where
     , ("quantifier kind holes stay visible", hidden-kind-hole nonce)
     , ("no invented runtime witness", no-invented-witness nonce)
     , ("private erased type remains allowed", private-type-ok nonce)
-    , ("malformed carrier tree rejected", not (valid-kind (KValue JNull)))
+    , ("malformed carrier tree rejected", case read-carrier-tree JNull of None -> True; Some _ -> False)
     , ("sequence end is not a carrier", not (valid-kind (value-kind UEnd)))
     , ("argument spine is not a carrier", not (valid-kind (value-kind (UArg nat UEnd))))
     , ("sequence cannot hide in an application", not (valid-kind (value-kind (UApp (UCon "F" (KFun KType KType)) UEnd))))

@@ -28,6 +28,7 @@ module Bootstrap.Type where
   export type-free-bound
   export include-effects, union-effects
   export Quant, MkQuant, quant-id, quant-name, quant-kind, quant-implicit
+  export Quants, QEnd, QCons, quants-of, quants-list, quants-length
   export Requirement, MkRequirement, requirement-name, requirement-type, map-requirements
   export Scheme, MkScheme, MkQualifiedScheme, scheme-params, scheme-body, scheme-requirements, mono, qualified
   export map-scheme-types, open-qualified
@@ -50,10 +51,11 @@ module Bootstrap.Type where
     KEffect :: Kind
     KRow :: Kind
     KFun :: Kind -> Kind -> Kind
-    -- A complete tagged type tree avoids a forward-recursive Kind/UType
-    -- declaration in this bootstrap language. Always use value-kind and
-    -- value-carrier; malformed trees are rejected by valid-kind.
-    KValue :: Json -> Kind
+    -- The type a value inhabits, held directly. `Kind`, `Quants`, `Quant`
+    -- and `UType` are one mutually recursive group and every occurrence is
+    -- a direct constructor field, so the group is strictly positive
+    -- (design/mutual-data-groups.md section 2).
+    KValue :: UType -> Kind
 
   data ArrowUsage where
     UsageZero :: ArrowUsage
@@ -61,8 +63,16 @@ module Bootstrap.Type where
     UsageAffine :: ArrowUsage
     UsageMany :: ArrowUsage
 
-  -- Declared before UType, which holds a polytype's binders: the
-  -- self-hosted checker resolves data references in declaration order.
+  -- A polytype's binders, as a spine. `UForall` cannot hold `List Quant`:
+  -- `Quant` names `Kind`, which names `UType`, so those declarations form
+  -- one recursive group, and clause 4 of the positivity rule admits a group
+  -- member only as a direct occurrence, never nested inside another type
+  -- constructor such as `List`. The spine keeps every occurrence direct,
+  -- the same encoding `Bootstrap.Ast` uses for statement lists.
+  data Quants where
+    QEnd :: Quants
+    QCons :: Quant -> Quants -> Quants
+
   data Quant where
     MkQuant :: Nat -> String -> Kind -> Bool -> Quant
 
@@ -127,7 +137,7 @@ module Bootstrap.Type where
     -- binders are `UBound` ids unique in the store, exactly as a scheme's,
     -- so substitution never captures one. No metavariable is ever bound
     -- to a type containing it (predicativity, `bind-other`).
-    UForall :: List Quant -> UType -> UType
+    UForall :: Quants -> UType -> UType
     UArg :: UType -> UType -> UType
     UEnd :: UType
     UError :: UType
@@ -215,9 +225,9 @@ module Bootstrap.Type where
     other -> None
 
   value-kind :: UType -> Kind
-  value-kind carrier = KValue (carrier-tree carrier)
+  value-kind carrier = KValue carrier
   value-carrier :: Kind -> Option UType
-  value-carrier kind = case kind of KValue payload -> read-carrier-tree payload; other -> None
+  value-carrier kind = case kind of KValue carrier -> Some carrier; other -> None
   tree :: String -> List Json -> Json
   tree tag fields = JArr (JStr tag) (tree-fields fields)
   tree-fields :: List Json -> Json
@@ -230,7 +240,7 @@ module Bootstrap.Type where
     KEffect -> JStr "Effect"
     KRow -> JStr "Row"
     KFun a b -> tree "kind-fun" [kind-tree a, kind-tree b]
-    KValue payload -> tree "value" [payload]
+    KValue carrier -> tree "value" [carrier-tree carrier]
   carrier-tree :: UType -> Json
   carrier-tree ty = case ty of
     UPropLit value -> tree "prop-literal" [JBool value]
@@ -267,7 +277,7 @@ module Bootstrap.Type where
     URow labels -> tree "row" [carrier-tree labels]
     URowJoin a b -> tree "row-join" [carrier-tree a, carrier-tree b]
     UTuple fields -> tree "tuple" [carrier-tree fields]
-    UForall qs body -> tree "forall" [quant-trees qs, carrier-tree body]
+    UForall qs body -> tree "forall" [quant-trees (quants-list qs), carrier-tree body]
     UArg a rest -> tree "arg" [carrier-tree a, carrier-tree rest]
     UEnd -> JStr "end"
     UError -> JStr "error"
@@ -300,7 +310,8 @@ module Bootstrap.Type where
   read-kind-tree doc = case doc of
     JStr tag -> if same-tag tag "Type" then Some KType else if same-tag tag "Prop" then Some KProp else if same-tag tag "Region" then Some KRegion
       else if same-tag tag "Effect" then Some KEffect else if same-tag tag "Row" then Some KRow else None
-    JArr (JStr tag) (JArr payload JArrEnd) -> if same-tag tag "value" then Some (KValue payload) else None
+    JArr (JStr tag) (JArr payload JArrEnd) -> if same-tag tag "value" then
+      (case read-carrier-tree payload of Some carrier -> Some (KValue carrier); None -> None) else None
     JArr (JStr tag) (JArr a (JArr b JArrEnd)) -> if same-tag tag "kind-fun" then
       (case (read-kind-tree a, read-kind-tree b) of (Some left, Some right) -> Some (KFun left right); other -> None) else None
     other -> None
@@ -316,7 +327,7 @@ module Bootstrap.Type where
       else if same-tag tag "meta" then (case (tree-natural a, read-kind-tree b) of (Some id, Some kind) -> Some (UMeta id kind); other -> None)
       else if same-tag tag "index" then (case (read-carrier-tree a, index-from-tree b) of (Some carrier, Some value) -> Some (UIndex carrier value); other -> None)
       else if same-tag tag "forall" then (case (read-quant-trees a, read-carrier-tree b) of
-        (Some qs, Some body) -> Some (UForall qs body)
+        (Some qs, Some body) -> Some (UForall (quants-of qs) body)
         other -> None)
       else if same-tag tag "usage-fun" then (case (a, read-carrier-tree b) of
         (JStr marker, Some arrow) -> case parse-arrow-usage marker of
@@ -362,9 +373,7 @@ module Bootstrap.Type where
     KEffect -> case b of KEffect -> True; other -> False
     KRow -> case b of KRow -> True; other -> False
     KFun x y -> case b of KFun u v -> kind-equal x u && kind-equal y v; other -> False
-    KValue payload -> case value-carrier a of
-      Some carrier -> case value-carrier b of Some other -> carrier-equal carrier other; other -> False
-      other -> False
+    KValue carrier -> case b of KValue other -> carrier-equal carrier other; other -> False
 
   -- Compare carriers by the existing type-conversion rules. Metas are
   -- temporarily rigid: a pure kind equality check must not solve them.
@@ -429,7 +438,7 @@ module Bootstrap.Type where
     KEffect -> "Effect"
     KRow -> "Row"
     KFun a b -> string-concat-all ["(", kind-text a, " -> ", kind-text b, ")"]
-    KValue payload -> case value-carrier k of Some carrier -> type-text carrier; None -> "<invalid value carrier>"
+    KValue carrier -> type-text carrier
 
   -- The kind arms of the three whole-type maps, written as direct recursion
   -- over a kind instead of through `map-kind-types f kind`. A higher-order
@@ -437,21 +446,23 @@ module Bootstrap.Type where
   -- `transform-type` are on the hottest type paths in the checker, so the
   -- partial application was 3.8 M blocks per toolkit check by itself
   -- (design/compilation-speed.md section 2.19). Each entry point keeps its
-  -- own name and its own `KValue` decode/encode, so every caller of the old
-  -- function has an exact replacement and no closure is built.
+  -- own name and its own `KValue` rebuild, so every caller of the old
+  -- function has an exact replacement and no closure is built. `KValue`
+  -- holds its carrier directly, so each of these is one field rebuild
+  -- rather than an encode and a decode of the whole type tree.
   map-kind-types :: (UType -> UType) -> Kind -> Kind
   map-kind-types f kind = case kind of
-    KValue payload -> case value-carrier kind of Some carrier -> value-kind (f carrier); None -> kind
+    KValue carrier -> KValue (f carrier)
     KFun a b -> KFun (map-kind-types f a) (map-kind-types f b)
     other -> kind
   normalize-kind :: Store -> Kind -> Kind
   normalize-kind st kind = case kind of
-    KValue payload -> case value-carrier kind of Some carrier -> value-kind (normalize st carrier); None -> kind
+    KValue carrier -> KValue (normalize st carrier)
     KFun a b -> KFun (normalize-kind st a) (normalize-kind st b)
     other -> kind
   valid-kind :: Kind -> Bool
   valid-kind kind = case kind of
-    KValue payload -> case value-carrier kind of Some carrier -> carrier-type carrier; None -> False
+    KValue carrier -> carrier-type carrier
     KFun a b -> valid-kind a && valid-kind b
     other -> True
 
@@ -487,6 +498,18 @@ module Bootstrap.Type where
   quant-kind q = case q of MkQuant n name k only -> k
   quant-implicit :: Quant -> Bool
   quant-implicit q = case q of MkQuant n name k only -> only
+
+  -- The binder spine and its list form. `UForall` holds the spine so that
+  -- every occurrence in the `Kind`/`UType` group is a direct constructor
+  -- field; the rest of the type engine speaks `List Quant`, so the two
+  -- forms meet here. A spine of `n` binders converts in `n` steps, which is
+  -- the binder count of one polytype, not the size of a type tree.
+  quants-of :: List Quant -> Quants
+  quants-of qs = case qs of Nil -> QEnd; Cons q rest -> QCons q (quants-of rest)
+  quants-list :: Quants -> List Quant
+  quants-list qs = case qs of QEnd -> Nil; QCons q rest -> Cons q (quants-list rest)
+  quants-length :: Quants -> Nat
+  quants-length qs = case qs of QEnd -> 0; QCons q rest -> 1 + quants-length rest
 
   data Requirement where
     MkRequirement :: String -> UType -> Requirement
@@ -829,7 +852,7 @@ module Bootstrap.Type where
       && (carrier-type result || proposition-type result)
     UApp f x -> valid-type f && valid-type x && (case type-kind f of KFun a b -> kind-equal a (type-kind x); other -> False)
     UFun a b -> valid-type a && valid-type b && kind-equal (type-kind a) KType && kind-equal (type-kind b) KType
-    UForall qs body -> list-length qs > 0 && valid-type body && kind-equal (type-kind body) KType
+    UForall qs body -> quants-length qs > 0 && valid-type body && kind-equal (type-kind body) KType
     UFunEff a row b -> valid-type a && valid-type row && valid-type b && kind-equal (type-kind a) KType && kind-equal (type-kind row) KRow && kind-equal (type-kind b) KType
     UUsageArrow usage arrow -> computational-arrow arrow && not (later-unrestricted usage arrow) && valid-type arrow
     UProofFun predicate row result -> proposition-type predicate && valid-type row && kind-equal (type-kind row) KRow && carrier-type result
@@ -914,7 +937,7 @@ module Bootstrap.Type where
     URow labels -> string-concat-all ["{", type-text labels, "}"]
     URowJoin a b -> string-concat-all ["(", type-text a, " union ", type-text b, ")"]
     UTuple xs -> string-concat-all ["(", type-text xs, ")"]
-    UForall qs body -> string-concat-all ["(forall", quant-names-text qs, ". ", type-text body, ")"]
+    UForall qs body -> string-concat-all ["(forall", quant-names-text (quants-list qs), ". ", type-text body, ")"]
     UArg x UEnd -> type-text x
     UArg x rest -> string-concat-all [type-text x, ", ", type-text rest]
     UEnd -> ""
@@ -960,12 +983,12 @@ module Bootstrap.Type where
     URow labels -> free-metas st labels
     URowJoin a b -> merge-ids (free-metas st a) (free-metas st b)
     UTuple xs -> free-metas st xs
-    UForall qs body -> merge-ids (quant-metas st qs) (free-metas st body)
+    UForall qs body -> merge-ids (quant-metas st (quants-list qs)) (free-metas st body)
     UArg x rest -> merge-ids (free-metas st x) (free-metas st rest)
     other -> Nil
   kind-metas :: Store -> Kind -> List Nat
   kind-metas st kind = case kind of
-    KValue payload -> case value-carrier kind of Some carrier -> free-metas st carrier; None -> Nil
+    KValue carrier -> free-metas st carrier
     KFun a b -> merge-ids (kind-metas st a) (kind-metas st b)
     other -> Nil
   quant-metas :: Store -> List Quant -> List Nat
@@ -1034,7 +1057,7 @@ module Bootstrap.Type where
     other -> False
   kind-escapes :: Nat -> Kind -> Bool
   kind-escapes level kind = case kind of
-    KValue payload -> case value-carrier kind of Some carrier -> escapes level carrier; None -> True
+    KValue carrier -> escapes level carrier
     KFun a b -> kind-escapes level a || kind-escapes level b
     other -> False
   lower :: Nat -> List Nat -> Store -> Store
@@ -1070,7 +1093,7 @@ module Bootstrap.Type where
     let b = normalize-kind st second in
     if not (valid-kind a && valid-kind b) then add-error sp "invalid kind in type inference" st
     else if kind-equal a b then st else case (a, b) of
-      (KValue payload, KValue other) -> (case (value-carrier a, value-carrier b) of (Some carrier, Some right) -> unify sp carrier right st; other -> add-error sp "invalid value carrier" st)
+      (KValue carrier, KValue right) -> unify sp carrier right st
       (KFun domain range, KFun input output) -> unify-kind sp range output (unify-kind sp domain input st)
       other -> add-error sp "kind mismatch in type inference" st
 
@@ -1278,7 +1301,9 @@ module Bootstrap.Type where
     URowJoin a b -> case second of URowJoin c d -> same-shape a c && same-shape b d; other -> False
     UTuple a -> case second of UTuple b -> same-shape a b; other -> False
     UForall qs a -> case second of
-      UForall rs b -> list-length qs == list-length rs && same-quant-kinds qs rs && same-shape a (substitute (rename-quants rs qs) b)
+      UForall rs b -> quants-length qs == quants-length rs
+        && same-quant-kinds (quants-list qs) (quants-list rs)
+        && same-shape a (substitute (rename-quants (quants-list rs) (quants-list qs)) b)
       other -> False
     UArg a rest -> case second of UArg b more -> same-shape a b && same-shape rest more; other -> False
     UEnd -> case second of UEnd -> True; other -> False
@@ -1409,8 +1434,8 @@ module Bootstrap.Type where
     URowJoin a b -> union-effects (transform-type mode pairs a) (transform-type mode pairs b)
     UTuple xs -> UTuple (transform-type mode pairs xs)
     -- A polytype's own binders shadow a bound-variable substitution.
-    UForall qs body -> UForall (map-quant-kinds (transform-type mode pairs) qs)
-      (transform-type mode (case mode of ReplaceBound -> without-type-pairs (quant-id-list qs) pairs; other -> pairs) body)
+    UForall qs body -> UForall (quants-of (map-quant-kinds (transform-type mode pairs) (quants-list qs)))
+      (transform-type mode (case mode of ReplaceBound -> without-type-pairs (quant-id-list (quants-list qs)) pairs; other -> pairs) body)
     UArg x rest -> UArg (transform-type mode pairs x) (transform-type mode pairs rest)
     other -> ty
   -- `transform-type` over a kind: the kind arms of the map, direct rather
@@ -1418,7 +1443,7 @@ module Bootstrap.Type where
   -- closure at every `UCon`/`UBound`/`URigid`/`UMeta` node.
   transform-kind :: TypeSubstitution -> List (Nat, UType) -> Kind -> Kind
   transform-kind mode pairs kind = case kind of
-    KValue payload -> case value-carrier kind of Some carrier -> value-kind (transform-type mode pairs carrier); None -> kind
+    KValue carrier -> KValue (transform-type mode pairs carrier)
     KFun a b -> KFun (transform-kind mode pairs a) (transform-kind mode pairs b)
     other -> kind
   substitute-bound :: List (Nat, UType) -> UType -> UType
@@ -1842,7 +1867,7 @@ module Bootstrap.Type where
 
   validate-kind-indices :: Span -> Kind -> Store -> Store
   validate-kind-indices sp kind st = case kind of
-    KValue payload -> case value-carrier kind of Some carrier -> validate-type-indices sp carrier st; None -> add-error sp "invalid value carrier" st
+    KValue carrier -> validate-type-indices sp carrier st
     KFun a b -> validate-kind-indices sp b (validate-kind-indices sp a st)
     other -> st
   validate-type-indices :: Span -> UType -> Store -> Store
@@ -1962,7 +1987,7 @@ module Bootstrap.Type where
     other -> Nil
   kind-all-ids :: Kind -> List Nat
   kind-all-ids kind = case kind of
-    KValue payload -> case value-carrier kind of Some carrier -> type-all-ids carrier; None -> Nil
+    KValue carrier -> type-all-ids carrier
     KFun a b -> merge-ids (kind-all-ids a) (kind-all-ids b)
     other -> Nil
   type-all-ids :: UType -> List Nat
@@ -2001,14 +2026,14 @@ module Bootstrap.Type where
     URow labels -> type-all-ids labels
     URowJoin a b -> merge-ids (type-all-ids a) (type-all-ids b)
     UTuple fields -> type-all-ids fields
-    UForall qs body -> merge-ids (quant-id-list qs) (type-all-ids body)
+    UForall qs body -> merge-ids (quant-id-list (quants-list qs)) (type-all-ids body)
     UArg a rest -> merge-ids (type-all-ids a) (type-all-ids rest)
     other -> Nil
   largest-id :: List Nat -> Nat
   largest-id ids = case ids of Nil -> 0; Cons id rest -> let more = largest-id rest in if id > more then id else more
   kind-free-bound :: Kind -> List Nat
   kind-free-bound kind = case kind of
-    KValue payload -> case value-carrier kind of Some carrier -> type-free-bound carrier; None -> Nil
+    KValue carrier -> type-free-bound carrier
     KFun a b -> merge-ids (kind-free-bound a) (kind-free-bound b)
     other -> Nil
   type-free-bound :: UType -> List Nat
@@ -2047,7 +2072,7 @@ module Bootstrap.Type where
     URow labels -> type-free-bound labels
     URowJoin a b -> merge-ids (type-free-bound a) (type-free-bound b)
     UTuple fields -> type-free-bound fields
-    UForall qs body -> remove-ids (quant-id-list qs) (type-free-bound body)
+    UForall qs body -> remove-ids (quant-id-list (quants-list qs)) (type-free-bound body)
     UArg a rest -> merge-ids (type-free-bound a) (type-free-bound rest)
     other -> Nil
   pair-all-ids :: List (Nat, UType) -> List Nat
@@ -2117,11 +2142,13 @@ module Bootstrap.Type where
   unify-forall :: Span -> UType -> UType -> Store -> Store
   unify-forall sp a b st = case (a, b) of
     (UForall qs x, UForall rs y) ->
-      if not (list-length qs == list-length rs && same-quant-kinds qs rs) then
+      let left = quants-list qs in
+      let right = quants-list rs in
+      if not (list-length left == list-length right && same-quant-kinds left right) then
         add-error sp (string-concat-all ["polymorphic types differ in their quantifiers: expected ", display-type-text b, ", found ", display-type-text a]) st
       else let outer = store-level st in
-        case instantiate-params True qs (enter-level st) of
-          (pairs, opened) -> restore-level outer (unify sp (substitute pairs x) (substitute (shared-rigids rs pairs) y) opened)
+        case instantiate-params True left (enter-level st) of
+          (pairs, opened) -> restore-level outer (unify sp (substitute pairs x) (substitute (shared-rigids right pairs) y) opened)
     other -> mismatch sp a b st
   shared-rigids :: List Quant -> List (Nat, UType) -> List (Nat, UType)
   shared-rigids rs pairs = case (rs, pairs) of
@@ -2184,7 +2211,7 @@ module Bootstrap.Type where
   -- annotation outside the binder's scope. Keep it as an unresolved hole.
   kind-pi-ids :: Kind -> List Nat
   kind-pi-ids kind = case kind of
-    KValue payload -> case value-carrier kind of Some carrier -> type-pi-ids carrier; None -> Nil
+    KValue carrier -> type-pi-ids carrier
     KFun a b -> merge-ids (kind-pi-ids a) (kind-pi-ids b)
     other -> Nil
   type-pi-ids :: UType -> List Nat

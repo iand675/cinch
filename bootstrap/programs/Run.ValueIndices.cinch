@@ -144,7 +144,7 @@ module Main where
   answer :: Bool -> (Int, String)
   answer ok = (if ok then 0 else 4, "typed index result")
   decode-type :: Json -> Option UType
-  decode-type doc = value-carrier (KValue doc)
+  decode-type doc = read-carrier-tree doc
   decode-pairs :: Json -> Option (List (Nat, UType))
   decode-pairs doc = case doc of
     JArrEnd -> Some Nil
