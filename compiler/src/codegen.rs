@@ -7053,7 +7053,7 @@ fn byvalue_attr(p: &AbiParam, reg: &Registry, result: bool) -> String {
 }
 
 /// One parameter's declaration attributes at the C boundary (the plan
-/// note's usage-derived parameter attributes): `captures(none)` for the
+/// note's usage-derived parameter attributes): `nocapture` for the
 /// call-scoped borrow (P5 non-escape: a retained or raw pointer may
 /// escape and is not claimed), `nonnull` for the non-null contract
 /// (P11's default), `align` from the role's pointee assertion or the
@@ -7070,8 +7070,16 @@ fn param_attrs(p: &AbiParam, export: bool) -> String {
             }
         }
         AbiClass::Ptr => {
+            // `nocapture`, not `captures(none)`: the two mean the same
+            // fact, but only `nocapture` reads on every supported LLVM.
+            // LLVM 19 and older know no `captures(...)` and refuse the
+            // declare with `expected ')' at end of argument list`; LLVM
+            // 20 knows both; LLVM 21 onward dropped the enum attribute
+            // and its parser rewrites `nocapture` to `captures(none)`
+            // (`LLParser::parseOptionalParamOrReturnAttrs`), so the
+            // optimiser sees the same attribute either way.
             if p.role == "borrowed" {
-                attrs.push("captures(none)".to_string());
+                attrs.push("nocapture".to_string());
             }
             if !p.nullable && !export {
                 attrs.push("nonnull".to_string());

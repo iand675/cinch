@@ -233,7 +233,7 @@ Beyond the assertion restatements above, the backend translates other establishe
 | An `Io`-headed or mutating definition | `memory(read)` or `memory(readwrite)` instead |
 | `#[no-alloc]` | `nofree` |
 | A totality proof | `willreturn` |
-| A non-escaping borrow | `captures(none)`, as in `declare void @"fix_borrow"(ptr captures(none) nonnull)` |
+| A non-escaping borrow | `nocapture`, as in `declare void @"fix_borrow"(ptr nocapture nonnull)` (LLVM 21 and newer read it as `captures(none)`) |
 | A scalars-only signature | `noundef` on each scalar parameter |
 | A bounded return type (`U8`, `U32`, a `Fin` index) | `range(...)` on the define, and `!range` metadata where a call's result range is statable |
 | `#[checked-params]` and boundary facts | `llvm.assume` with `align`, `nonnull`, `dereferenceable` or `range` operand bundles |

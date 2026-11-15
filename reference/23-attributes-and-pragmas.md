@@ -616,7 +616,7 @@ The following are not attributes, and the compiler rejects them in `#[...]` posi
 | `unsafe` | A declaration modifier | `unsafe prim ...` |
 | `ignore e` | A term of type `Unit` that discards its argument on purpose (`ignore` is a builtin application, not syntax) | Expression position |
 | `stage`, `macro`, `corec`, `proof`, `spec` | Declaration modifiers | Before the declaration name |
-| `nonnull`, `noundef`, `willreturn`, `nofree`, `captures(none)`, `!range` | LLVM output names the backend derives from checked facts | Emitted IR only |
+| `nonnull`, `noundef`, `willreturn`, `nofree`, `nocapture`, `!range` | LLVM output names the backend derives from checked facts | Emitted IR only |
 
 The `#[ignore]` attribute does not exist. `#[ignore]` on a declaration is an unknown name, and `#[ignore]` in expression position is a parse error:
 
