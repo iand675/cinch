@@ -252,24 +252,105 @@ module Main where
 }
 
 #[test]
+fn wide_values_cross_the_apply_frame_boxed() {
+    // Every word position holds a wide value boxed: a wide function used
+    // as a value is saturated by its apply stub, which unboxes the frame's
+    // argument and boxes the result; a lambda's wide parameter, a wide
+    // value it captures (a closure's saved word), a partial application of
+    // a wide primitive, and a generic `mapL` reached at `@WW` all cross
+    // the frame through the edge pass's boxes.
+    run_ok("wide-closures", r#"
+module Main where
+  import Data.Wide
+
+  data L a where
+    N :: L a
+    C :: a -> L a -> L a
+
+  #[inline(never)]
+  twice :: (I128 -> I128) -> I128 -> I128
+  twice f x = f (f x)
+
+  #[inline(never)]
+  mapL :: forall a b. (a -> b) -> L a -> L b
+  mapL f xs = case xs of
+    N -> N
+    C y ys -> C (f y) (mapL f ys)
+
+  sumL :: U128 -> L U128 -> U128
+  sumL acc xs = case xs of
+    N -> acc
+    C y ys -> sumL (wrapping-add-u128 acc y) ys
+
+  main :: Int
+  main =
+    let k = (170141183460469231731687303715884105000 :: I128) in
+    if eq-i128 (twice wrapping-neg-i128 5) 5 then
+      (if eq-i128 (twice (\x -> wrapping-add-i128 x 1) 5) 7 then
+        (if eq-i128 (twice (\x -> wrapping-sub-i128 x k) 0) (wrapping-neg-i128 (wrapping-mul-i128 k 2)) then
+          (if eq-u128 (sumL 0 (mapL (\v -> wrapping-mul-u128 v v) (C 18446744073709551616 (C 3 N)))) 9 then
+            (if eq-u128 (sumL 0 (mapL (wrapping-add-u128 1) (C 1 (C 2 N)))) 5 then 0 else 5)
+          else 4)
+        else 3)
+      else 2)
+    else 1
+"#);
+}
+
+#[test]
+fn eq_and_ord_instances_work_directly_and_through_dictionaries() {
+    // `==` and `<` at `I128`/`U128` (signed and unsigned order), and the
+    // same methods reached through `Ord a`/`Eq a` dictionaries from
+    // generic code, whose method calls go through the apply frame.
+    run_ok("wide-classes", r#"
+module Main where
+  import Data.Wide
+
+  #[inline(never)]
+  biggest :: forall a. using (ord :: Ord a) => a -> a -> a
+  biggest x y = if x < y then y else x
+
+  #[inline(never)]
+  same :: forall a. using (eq :: Eq a) => a -> a -> Bool
+  same x y = x == y
+
+  main :: Int
+  main =
+    let big = (340282366920938463463374607431768211455 :: U128) in
+    if big == max-bound-u128 then
+      (if (-1 :: I128) < 0 then
+        (if eq-u128 (biggest big 1) big then
+          (if eq-i128 (biggest (-5) (-170141183460469231731687303715884105728)) (-5) then
+            (if same (7 :: I128) 7 then (if same big 0 then 6 else 0) else 5)
+          else 4)
+        else 3)
+      else 2)
+    else 1
+"#);
+}
+
+#[test]
 fn unlowered_wide_positions_are_refused_by_name() {
-    // A function with a wide boundary used as a value would be applied
-    // through the word-typed apply frame, and a `repr(C)` record's wide
-    // field is a C `__int128` at its recorded offset (the boundary
-    // increment). Both are later increments, and each is refused, naming
-    // the unit, rather than miscompiled.
+    // A `repr(C)` record's wide field is a C `__int128` at its recorded
+    // offset, which is the foreign boundary's increment: refused, naming
+    // the unit, rather than laid out as two Cinch words.
     expect_refused(
-        "wide-closure",
+        "wide-repr-c",
         r#"
 module Main where
   import Data.Wide
 
-  twice :: (I128 -> I128) -> I128 -> I128
-  twice f x = f (f x)
+  #[repr(C)]
+  record Wide where
+    n :: I128
+
+  #[inline(never)]
+  mk :: I128 -> Wide
+  mk x = Wide { n = x }
 
   main :: Int
-  main = if eq-i128 (twice wrapping-neg-i128 5) 5 then 0 else 1
+  main = if eq-i128 (mk 1).n 1 then 0 else 1
 "#,
-        "I128",
+        "boundary-layout",
     );
 }

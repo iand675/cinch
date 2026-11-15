@@ -106,6 +106,10 @@ pub fn insert_closed(program: Program, profile: &crate::core::TargetProfile) -> 
 
 fn insert_with(mut program: Program, profile: &crate::core::TargetProfile, closed: bool) -> crate::Result<Program> {
     crate::core::share_repeated_subterms(&mut program);
+    // The wide edges first, reclaiming or not: a wide value in a word
+    // position is a box, and its unbox binds an owned `Obj` word that the
+    // counts below then account for (design/wide-scalars.md section 3).
+    crate::wide::insert_edges(&mut program);
     if !profile.reclaim {
         return Ok(program);
     }

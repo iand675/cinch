@@ -230,6 +230,9 @@ fn emit_module(
     emit_modules: &[String],
     prune: bool,
 ) -> Result<EmittedObject> {
+    // The wide edges (`crate::wide`): already inserted when reference
+    // counting ran, inserted here when it did not.
+    let program: &Program = &crate::wide::with_edges(program);
     refuse_unlowered_wide(program)?;
     let cx = LowerCx {
         usize_bits: profile.word_size,
@@ -815,19 +818,6 @@ fn emit_module(
     let mut closure_taken: HashSet<String> = HashSet::new();
     for u in &units {
         closure_taken.extend(u.scan.closures_taken.iter().cloned());
-    }
-    // A taken closure is reached through its apply stub, whose frame holds
-    // words; a unit with a wide boundary cannot be saturated from one
-    // until the stub boxes and unboxes (design/wide-scalars.md section 3).
-    if let Some(unit) = closure_taken
-        .iter()
-        .filter(|u| reg.narrow_sigs.get(*u).is_some_and(NarrowSig::is_wide))
-        .min()
-    {
-        return err(format!(
-            "`{}` has an `I128`/`U128` boundary and is used as a function value (a closure or a dictionary method), which code generation does not lower yet (design/wide-scalars.md, phase 1)",
-            crate::repr::base_unit(unit)
-        ));
     }
     for u in &units {
         let primitive = reg.prims.iter().any(|op| op.symbol() == u.name);
@@ -1864,7 +1854,8 @@ impl Registry {
     /// the latter retain the result class recorded by the checker and collector.
     fn dict_desc(&self, info: &InstInfo) -> u64 {
         let mut map = vec![Class::Raw; block::DICT_PREFIX_WORDS as usize];
-        map.extend(info.fields.iter().copied());
+        // A wide value slot holds its box.
+        map.extend(info.fields.iter().copied().map(frame_class));
         self.layouts.borrow_mut().shape(map)
     }
 
@@ -8189,7 +8180,13 @@ fn mk_body(b: &mut Builder, reg: &Registry, info: &InstInfo) {
         }
         saved.extend((0..info.subdict_count).map(|j| format!("%p{j}")));
         let word = if strict[i] {
-            call_unit(b, reg, method, &saved)
+            // A strict value slot holds a word; a wide value goes in boxed.
+            let v = call_unit(b, reg, method, &saved);
+            if reg.narrow_sigs.get(method).is_some_and(|s| s.ret.is_wide()) {
+                wide_box(b, reg, &v)
+            } else {
+                v
+            }
         } else if saved.is_empty() {
             let value = b.reg();
             b.line(&format!(
@@ -8785,13 +8782,6 @@ impl CoreEmitter<'_, '_> {
         if arity == 0 {
             return Ok(call_unit(self.b, self.reg, name, &[]));
         }
-        if self.reg.narrow_sigs.get(name).is_some_and(NarrowSig::is_wide) {
-            return err(format!(
-                "{}: {} is used as a value, and a function with an `I128`/`U128` boundary cannot cross the word-typed apply frame yet (design/wide-scalars.md, phase 1)",
-                self.unit,
-                crate::repr::base_unit(name)
-            ));
-        }
         let r = self.b.reg();
         self.b.line(&format!(
             "{r} = ptrtoint ptr {clo} to i64",
@@ -9118,13 +9108,6 @@ impl CoreEmitter<'_, '_> {
             Core::App(f, args) => self.emit_app(f, args),
             Core::Lam { fn_id, env, .. } => {
                 let arity = self.reg.arity_of(&fn_id.0)?;
-                if self.reg.narrow_sigs.get(&fn_id.0).is_some_and(NarrowSig::is_wide) {
-                    return err(format!(
-                        "{}: a closure over {}, whose boundary is wide, is not lowered yet: its apply frame holds words (design/wide-scalars.md, phase 1)",
-                        self.unit,
-                        crate::repr::base_unit(&fn_id.0)
-                    ));
-                }
                 if env.len() > arity {
                     return err(format!(
                         "lambda over {} captures {} values, above its arity {arity}",

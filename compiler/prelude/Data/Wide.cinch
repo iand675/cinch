@@ -21,11 +21,14 @@
 -- Phase 1 of the design lands in increments. This module carries what
 -- the emitter lowers so far: bounds, the checked, wrapping and saturating
 -- families of addition, subtraction, multiplication and negation, checked
--- division and remainder, the bitwise operations, and comparison. Shifts,
--- rotates, bit inspection, conversions and the instances follow.
+-- division and remainder, the bitwise operations, comparison, and the
+-- `Eq` and `Ord` instances. Shifts, rotates, bit inspection, `Bits`,
+-- conversions and `Show` follow.
 module Data.Wide where
 
   import Data.Option
+  import Relation.Eq
+  import Relation.Ord
 
   export bit-and-i128, bit-and-u128, bit-not-i128, bit-not-u128, bit-or-i128, bit-or-u128, bit-xor-i128, bit-xor-u128, checked-add-i128, checked-add-u128, checked-div-i128, checked-div-u128, checked-mul-i128, checked-mul-u128, checked-neg-i128, checked-neg-u128, checked-rem-i128, checked-rem-u128, checked-sub-i128, checked-sub-u128, eq-i128, eq-u128, ge-i128, ge-u128, gt-i128, gt-u128, le-i128, le-u128, lt-i128, lt-u128, max-bound-i128, max-bound-u128, min-bound-i128, min-bound-u128, ne-i128, ne-u128, saturating-add-i128, saturating-add-u128, saturating-mul-i128, saturating-mul-u128, saturating-neg-i128, saturating-neg-u128, saturating-sub-i128, saturating-sub-u128, wrapping-add-i128, wrapping-add-u128, wrapping-mul-i128, wrapping-mul-u128, wrapping-neg-i128, wrapping-neg-u128, wrapping-sub-i128, wrapping-sub-u128
 
@@ -84,3 +87,25 @@ module Data.Wide where
   foreign import ccall "cinch.prim.leU128" le-u128 :: U128 -> U128 -> Bool
   foreign import ccall "cinch.prim.gtU128" gt-u128 :: U128 -> U128 -> Bool
   foreign import ccall "cinch.prim.geU128" ge-u128 :: U128 -> U128 -> Bool
+
+  -- The order instances: signed order on `I128`, unsigned on `U128`
+  -- (primitive types specification section 8).
+  implicit instance Eq_I128 :: Eq I128 where
+    (==) x y = eq-i128 x y
+    (/=) x y = ne-i128 x y
+
+  implicit instance Ord_I128 :: Ord I128 where
+    (<) x y = lt-i128 x y
+    (<=) x y = le-i128 x y
+    (>) x y = gt-i128 x y
+    (>=) x y = ge-i128 x y
+
+  implicit instance Eq_U128 :: Eq U128 where
+    (==) x y = eq-u128 x y
+    (/=) x y = ne-u128 x y
+
+  implicit instance Ord_U128 :: Ord U128 where
+    (<) x y = lt-u128 x y
+    (<=) x y = le-u128 x y
+    (>) x y = gt-u128 x y
+    (>=) x y = ge-u128 x y

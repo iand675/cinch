@@ -1,6 +1,8 @@
 # Wide scalars: native unboxed `I128` and `U128`
 
-Status: design, 2026-11-15. Decided by the user the same day: native
+Status: phase 1 implemented in the seed compiler, 2026-11-15 (section
+11 records what landed and where it departs from the text above it).
+Decided by the user the same day: native
 unboxed `i128` (not a tagged or boxed word), the whole primitive-types
 surface for both types, an opt-in extension module rather than the core
 prelude, and the stage compiler at parity with the seed compiler. No em
@@ -219,3 +221,61 @@ suites on clang 19 and 20, and from phase 4 the fixed point.
 3. **The boundary (seed).** `__int128` imports and exports, the `cabi`
    leaf rules, and the wasm32 link.
 4. **The stage compiler.** Section 9's two halves, and the fixed point.
+
+## 11 What landed in phase 1, and where it departs
+
+Phase 1 is in the seed compiler (`compiler/src`), with `tests/wide.rs`
+running every lowered position against real hardware under the leak
+checker. Five decisions differ from, or refine, the text above.
+
+**The box is a constructor, not two new `Core` nodes.** Section 3 named
+`Core::WideBox` and `Core::WideUnbox`. The edge pass (`compiler/src/wide.rs`)
+uses the constructor machinery instead: a box is an application of the
+builtin one-field constructor `<builtin>.WideBox`, whose field is `Wide`,
+and an unbox is `let b = e in b.0`, a projection of that field. The pass
+runs at the head of `crate::rc::insert_with`, before counting, so the
+unbox's binder is an ordinary owned `Obj` word that reference counting
+reads once and drops, and a box's allocation, layout and descriptor are
+the constructor path's. No emitter rule is special to boxes. The apply
+stub, the one edge outside `Core`, boxes and unboxes with the same
+two-raw-word layout (`codegen::wide_box`/`wide_unbox`). The pass is
+idempotent, so code generation also applies it to a program that never
+reached reference counting.
+
+**A wide boundary is a `Cross::WIDE` crossing.** Headers, direct calls,
+returns, `call_unit` and `musttail` already read a unit's narrow boundary
+signature; a wide position is a crossing at 128 bits whose widen and
+narrow are the identity. Unlike a narrowing it is the unit's type, so the
+registry decides it first and never drops it for a tail group's
+prototype mismatch, and a tail group with a wide member is not widened
+through the word-typed `#tail` worker (a self tail call is still a loop,
+and identical `i128` prototypes still `musttail`).
+
+**A projection carries its predecessors' classes.** A field's word offset
+is its slot plus the wide fields before it, and for a generic record those
+classes are `Param` until the collector substitutes them. So
+`ProjField::before` records the classes of the runtime fields before the
+projected one (filled at lowering from the types `ECore::Proj` carries)
+and is a class site the collector rewrites. An empty list means every
+earlier field is a word, which keeps every existing projection's offset.
+
+**The type names are kernel; only the operations are opt-in.** `I128` and
+`U128` are registered like every scalar, so the names resolve everywhere
+and type identity needs no module; `Data.Wide` holds every operation and
+instance, so a program sees none of them without `import Data.Wide`.
+
+**The ABI version does not move yet.** Section 8 planned the bump with
+this change. Every reader of a class letter refuses an unknown one by
+name rather than misreading it, so an interface or object root carrying
+`W` is refused, not misread, by an older reader. The bump becomes
+necessary when wide interfaces cross between pinned builds, which is the
+stage compiler's provider-pin move in phase 4.
+
+What phase 1 still refuses, by name, in one place
+(`codegen::refuse_unlowered_wide`): a wide field of a boundary layout
+(`repr(C)`, phase 3), and a wide value in a quotation. Two optimisations
+decline a wide constructor rather than learn its layout: in-place reuse
+(`rc`, as `planned`) and frame allocation (`stack`, as a layout refusal).
+The constant folder and the compile-time evaluator refuse wide
+operations; a `U128` has no solver sort.
+

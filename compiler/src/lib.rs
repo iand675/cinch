@@ -41,6 +41,7 @@ pub mod stack;
 pub mod stm;
 pub mod store;
 pub mod types;
+pub mod wide;
 pub mod total;
 pub mod syntax;
 
