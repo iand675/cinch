@@ -378,6 +378,62 @@ module Main where
 }
 
 #[test]
+fn conversions_with_every_numeric_type_respect_their_families() {
+    // Widening from signed and unsigned words, checked narrowing at both
+    // ends of `I64`, saturation from `U128`'s maximum, wrapping to `U8`,
+    // `I128`/`U128` in each direction (the upper half of `U128` is above
+    // every `I128`; a negative `I128` is below every `U128`), and floats:
+    // an exact round trip at 2^100, NaN refused by `checked` and zero
+    // under `saturating`, and 2^128 and a negative `F32` saturating.
+    run_ok("wide-conversions", r#"
+module Main where
+  import Data.Wide
+
+  isNone :: forall a. Option a -> Bool
+  isNone o = case o of
+    None -> True
+    Some _ -> False
+
+  main :: Int
+  main =
+    let p100 = wrapping-shl-u128 1 100 in
+    if eq-i128 (i64-to-i128 (-1)) (-1) then
+      (if eq-u128 (u64-to-u128 18446744073709551615) 18446744073709551615 then
+        (if isNone (checked-i128-to-i64 9223372036854775808) then
+          (case checked-i128-to-i64 (-9223372036854775808) of
+            None -> 4
+            Some v -> if v == -9223372036854775808 then
+                (if saturating-u128-to-u64 max-bound-u128 == 18446744073709551615 then
+                  (if wrapping-u128-to-u8 257 == 1 then
+                    (if isNone (checked-u128-to-i128 max-bound-u128) then
+                      (if isNone (checked-i128-to-u128 (-1)) then
+                        (if eq-u128 (saturating-i128-to-u128 (-1)) 0 then
+                          (if eq-u128 (wrapping-i128-to-u128 (-1)) max-bound-u128 then
+                            (case checked-f64-to-u128 (u128-to-f64 p100) of
+                              None -> 12
+                              Some r -> if eq-u128 r p100 then
+                                  (if isNone (checked-f64-to-i128 (div-f64 0 0)) then
+                                    (if eq-i128 (saturating-f64-to-i128 (u128-to-f64 max-bound-u128)) max-bound-i128 then
+                                      (if eq-u128 (saturating-f32-to-u128 (-5)) 0 then
+                                        (if eq-i128 (saturating-f64-to-i128 (div-f64 0 0)) 0 then 0 else 17)
+                                      else 16)
+                                    else 15)
+                                  else 14)
+                                else 13)
+                          else 11)
+                        else 10)
+                      else 9)
+                    else 8)
+                  else 7)
+                else 6)
+              else 5)
+        else 3)
+      else 2)
+    else 1
+"#);
+}
+
+#[test]
 fn unlowered_wide_positions_are_refused_by_name() {
     // A `repr(C)` record's wide field is a C `__int128` at its recorded
     // offset, which is the foreign boundary's increment: refused, naming

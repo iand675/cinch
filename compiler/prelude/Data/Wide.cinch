@@ -22,8 +22,9 @@
 -- the emitter lowers so far: bounds, the checked, wrapping and saturating
 -- families of addition, subtraction, multiplication and negation, checked
 -- division and remainder, the bitwise operations, checked and wrapping
--- shifts, rotates, bit inspection, comparison, and the `Eq`, `Ord` and
--- `Bits` instances. Conversions and `Show` follow.
+-- shifts, rotates, bit inspection, comparison, conversions with every
+-- other numeric type, and the `Eq`, `Ord` and `Bits` instances.
+-- Conversions with `Int` and `Nat`, and `Show`, follow.
 module Data.Wide where
 
   import Data.Option
@@ -31,7 +32,7 @@ module Data.Wide where
   import Relation.Ord
   import Algebra.Bits
 
-  export bit-and-i128, bit-and-u128, bit-not-i128, bit-not-u128, bit-or-i128, bit-or-u128, bit-xor-i128, bit-xor-u128, checked-add-i128, checked-add-u128, checked-div-i128, checked-div-u128, checked-mul-i128, checked-mul-u128, checked-neg-i128, checked-neg-u128, checked-rem-i128, checked-rem-u128, checked-shl-i128, checked-shl-u128, checked-shr-i128, checked-shr-u128, checked-sub-i128, checked-sub-u128, count-ones-i128, count-ones-u128, eq-i128, eq-u128, ge-i128, ge-u128, gt-i128, gt-u128, le-i128, le-u128, leading-zeros-i128, leading-zeros-u128, lt-i128, lt-u128, max-bound-i128, max-bound-u128, min-bound-i128, min-bound-u128, ne-i128, ne-u128, reverse-bits-i128, reverse-bits-u128, rotate-left-i128, rotate-left-u128, rotate-right-i128, rotate-right-u128, saturating-add-i128, saturating-add-u128, saturating-mul-i128, saturating-mul-u128, saturating-neg-i128, saturating-neg-u128, saturating-sub-i128, saturating-sub-u128, swap-bytes-i128, swap-bytes-u128, trailing-zeros-i128, trailing-zeros-u128, wrapping-add-i128, wrapping-add-u128, wrapping-mul-i128, wrapping-mul-u128, wrapping-neg-i128, wrapping-neg-u128, wrapping-shl-i128, wrapping-shl-u128, wrapping-shr-i128, wrapping-shr-u128, wrapping-sub-i128, wrapping-sub-u128
+  export bit-and-i128, bit-and-u128, bit-not-i128, bit-not-u128, bit-or-i128, bit-or-u128, bit-xor-i128, bit-xor-u128, checked-add-i128, checked-add-u128, checked-div-i128, checked-div-u128, checked-f32-to-i128, checked-f32-to-u128, checked-f64-to-i128, checked-f64-to-u128, checked-i128-to-i128, checked-i128-to-i16, checked-i128-to-i32, checked-i128-to-i64, checked-i128-to-i8, checked-i128-to-isize, checked-i128-to-u128, checked-i128-to-u16, checked-i128-to-u32, checked-i128-to-u64, checked-i128-to-u8, checked-i128-to-usize, checked-i16-to-i128, checked-i16-to-u128, checked-i32-to-i128, checked-i32-to-u128, checked-i64-to-i128, checked-i64-to-u128, checked-i8-to-i128, checked-i8-to-u128, checked-isize-to-i128, checked-isize-to-u128, checked-mul-i128, checked-mul-u128, checked-neg-i128, checked-neg-u128, checked-rem-i128, checked-rem-u128, checked-shl-i128, checked-shl-u128, checked-shr-i128, checked-shr-u128, checked-sub-i128, checked-sub-u128, checked-u128-to-i128, checked-u128-to-i16, checked-u128-to-i32, checked-u128-to-i64, checked-u128-to-i8, checked-u128-to-isize, checked-u128-to-u128, checked-u128-to-u16, checked-u128-to-u32, checked-u128-to-u64, checked-u128-to-u8, checked-u128-to-usize, checked-u16-to-i128, checked-u16-to-u128, checked-u32-to-i128, checked-u32-to-u128, checked-u64-to-i128, checked-u64-to-u128, checked-u8-to-i128, checked-u8-to-u128, checked-usize-to-i128, checked-usize-to-u128, count-ones-i128, count-ones-u128, eq-i128, eq-u128, ge-i128, ge-u128, gt-i128, gt-u128, i128-to-f32, i128-to-f64, i128-to-i128, i16-to-i128, i32-to-i128, i64-to-i128, i8-to-i128, isize-to-i128, le-i128, le-u128, leading-zeros-i128, leading-zeros-u128, lt-i128, lt-u128, max-bound-i128, max-bound-u128, min-bound-i128, min-bound-u128, ne-i128, ne-u128, reverse-bits-i128, reverse-bits-u128, rotate-left-i128, rotate-left-u128, rotate-right-i128, rotate-right-u128, saturating-add-i128, saturating-add-u128, saturating-f32-to-i128, saturating-f32-to-u128, saturating-f64-to-i128, saturating-f64-to-u128, saturating-i128-to-i128, saturating-i128-to-i16, saturating-i128-to-i32, saturating-i128-to-i64, saturating-i128-to-i8, saturating-i128-to-isize, saturating-i128-to-u128, saturating-i128-to-u16, saturating-i128-to-u32, saturating-i128-to-u64, saturating-i128-to-u8, saturating-i128-to-usize, saturating-i16-to-i128, saturating-i16-to-u128, saturating-i32-to-i128, saturating-i32-to-u128, saturating-i64-to-i128, saturating-i64-to-u128, saturating-i8-to-i128, saturating-i8-to-u128, saturating-isize-to-i128, saturating-isize-to-u128, saturating-mul-i128, saturating-mul-u128, saturating-neg-i128, saturating-neg-u128, saturating-sub-i128, saturating-sub-u128, saturating-u128-to-i128, saturating-u128-to-i16, saturating-u128-to-i32, saturating-u128-to-i64, saturating-u128-to-i8, saturating-u128-to-isize, saturating-u128-to-u128, saturating-u128-to-u16, saturating-u128-to-u32, saturating-u128-to-u64, saturating-u128-to-u8, saturating-u128-to-usize, saturating-u16-to-i128, saturating-u16-to-u128, saturating-u32-to-i128, saturating-u32-to-u128, saturating-u64-to-i128, saturating-u64-to-u128, saturating-u8-to-i128, saturating-u8-to-u128, saturating-usize-to-i128, saturating-usize-to-u128, swap-bytes-i128, swap-bytes-u128, trailing-zeros-i128, trailing-zeros-u128, u128-to-f32, u128-to-f64, u128-to-u128, u16-to-i128, u16-to-u128, u32-to-i128, u32-to-u128, u64-to-i128, u64-to-u128, u8-to-i128, u8-to-u128, usize-to-i128, usize-to-u128, wrapping-add-i128, wrapping-add-u128, wrapping-i128-to-i128, wrapping-i128-to-i16, wrapping-i128-to-i32, wrapping-i128-to-i64, wrapping-i128-to-i8, wrapping-i128-to-isize, wrapping-i128-to-u128, wrapping-i128-to-u16, wrapping-i128-to-u32, wrapping-i128-to-u64, wrapping-i128-to-u8, wrapping-i128-to-usize, wrapping-i16-to-i128, wrapping-i16-to-u128, wrapping-i32-to-i128, wrapping-i32-to-u128, wrapping-i64-to-i128, wrapping-i64-to-u128, wrapping-i8-to-i128, wrapping-i8-to-u128, wrapping-isize-to-i128, wrapping-isize-to-u128, wrapping-mul-i128, wrapping-mul-u128, wrapping-neg-i128, wrapping-neg-u128, wrapping-shl-i128, wrapping-shl-u128, wrapping-shr-i128, wrapping-shr-u128, wrapping-sub-i128, wrapping-sub-u128, wrapping-u128-to-i128, wrapping-u128-to-i16, wrapping-u128-to-i32, wrapping-u128-to-i64, wrapping-u128-to-i8, wrapping-u128-to-isize, wrapping-u128-to-u128, wrapping-u128-to-u16, wrapping-u128-to-u32, wrapping-u128-to-u64, wrapping-u128-to-u8, wrapping-u128-to-usize, wrapping-u16-to-i128, wrapping-u16-to-u128, wrapping-u32-to-i128, wrapping-u32-to-u128, wrapping-u64-to-i128, wrapping-u64-to-u128, wrapping-u8-to-i128, wrapping-u8-to-u128, wrapping-usize-to-i128, wrapping-usize-to-u128
 
   -- I128 (128 bits).
   foreign import ccall "cinch.prim.minBoundI128" min-bound-i128 :: I128
@@ -110,6 +111,173 @@ module Data.Wide where
   foreign import ccall "cinch.prim.leU128" le-u128 :: U128 -> U128 -> Bool
   foreign import ccall "cinch.prim.gtU128" gt-u128 :: U128 -> U128 -> Bool
   foreign import ccall "cinch.prim.geU128" ge-u128 :: U128 -> U128 -> Bool
+
+
+  -- Conversions with every numeric type, in the families of the primitive
+  -- types specification section 7: total where every value fits (and from
+  -- any integer to a float), checked and saturating for every integer pair
+  -- and from a float, wrapping between integers.
+  foreign import ccall "cinch.prim.i8ToI128" i8-to-i128 :: I8 -> I128
+  foreign import ccall "cinch.prim.checkedI8ToI128" checked-i8-to-i128 :: I8 -> Option I128
+  foreign import ccall "cinch.prim.saturatingI8ToI128" saturating-i8-to-i128 :: I8 -> I128
+  foreign import ccall "cinch.prim.wrappingI8ToI128" wrapping-i8-to-i128 :: I8 -> I128
+  foreign import ccall "cinch.prim.checkedI8ToU128" checked-i8-to-u128 :: I8 -> Option U128
+  foreign import ccall "cinch.prim.saturatingI8ToU128" saturating-i8-to-u128 :: I8 -> U128
+  foreign import ccall "cinch.prim.wrappingI8ToU128" wrapping-i8-to-u128 :: I8 -> U128
+  foreign import ccall "cinch.prim.i16ToI128" i16-to-i128 :: I16 -> I128
+  foreign import ccall "cinch.prim.checkedI16ToI128" checked-i16-to-i128 :: I16 -> Option I128
+  foreign import ccall "cinch.prim.saturatingI16ToI128" saturating-i16-to-i128 :: I16 -> I128
+  foreign import ccall "cinch.prim.wrappingI16ToI128" wrapping-i16-to-i128 :: I16 -> I128
+  foreign import ccall "cinch.prim.checkedI16ToU128" checked-i16-to-u128 :: I16 -> Option U128
+  foreign import ccall "cinch.prim.saturatingI16ToU128" saturating-i16-to-u128 :: I16 -> U128
+  foreign import ccall "cinch.prim.wrappingI16ToU128" wrapping-i16-to-u128 :: I16 -> U128
+  foreign import ccall "cinch.prim.i32ToI128" i32-to-i128 :: I32 -> I128
+  foreign import ccall "cinch.prim.checkedI32ToI128" checked-i32-to-i128 :: I32 -> Option I128
+  foreign import ccall "cinch.prim.saturatingI32ToI128" saturating-i32-to-i128 :: I32 -> I128
+  foreign import ccall "cinch.prim.wrappingI32ToI128" wrapping-i32-to-i128 :: I32 -> I128
+  foreign import ccall "cinch.prim.checkedI32ToU128" checked-i32-to-u128 :: I32 -> Option U128
+  foreign import ccall "cinch.prim.saturatingI32ToU128" saturating-i32-to-u128 :: I32 -> U128
+  foreign import ccall "cinch.prim.wrappingI32ToU128" wrapping-i32-to-u128 :: I32 -> U128
+  foreign import ccall "cinch.prim.i64ToI128" i64-to-i128 :: I64 -> I128
+  foreign import ccall "cinch.prim.checkedI64ToI128" checked-i64-to-i128 :: I64 -> Option I128
+  foreign import ccall "cinch.prim.saturatingI64ToI128" saturating-i64-to-i128 :: I64 -> I128
+  foreign import ccall "cinch.prim.wrappingI64ToI128" wrapping-i64-to-i128 :: I64 -> I128
+  foreign import ccall "cinch.prim.checkedI64ToU128" checked-i64-to-u128 :: I64 -> Option U128
+  foreign import ccall "cinch.prim.saturatingI64ToU128" saturating-i64-to-u128 :: I64 -> U128
+  foreign import ccall "cinch.prim.wrappingI64ToU128" wrapping-i64-to-u128 :: I64 -> U128
+  foreign import ccall "cinch.prim.u8ToI128" u8-to-i128 :: U8 -> I128
+  foreign import ccall "cinch.prim.checkedU8ToI128" checked-u8-to-i128 :: U8 -> Option I128
+  foreign import ccall "cinch.prim.saturatingU8ToI128" saturating-u8-to-i128 :: U8 -> I128
+  foreign import ccall "cinch.prim.wrappingU8ToI128" wrapping-u8-to-i128 :: U8 -> I128
+  foreign import ccall "cinch.prim.u8ToU128" u8-to-u128 :: U8 -> U128
+  foreign import ccall "cinch.prim.checkedU8ToU128" checked-u8-to-u128 :: U8 -> Option U128
+  foreign import ccall "cinch.prim.saturatingU8ToU128" saturating-u8-to-u128 :: U8 -> U128
+  foreign import ccall "cinch.prim.wrappingU8ToU128" wrapping-u8-to-u128 :: U8 -> U128
+  foreign import ccall "cinch.prim.u16ToI128" u16-to-i128 :: U16 -> I128
+  foreign import ccall "cinch.prim.checkedU16ToI128" checked-u16-to-i128 :: U16 -> Option I128
+  foreign import ccall "cinch.prim.saturatingU16ToI128" saturating-u16-to-i128 :: U16 -> I128
+  foreign import ccall "cinch.prim.wrappingU16ToI128" wrapping-u16-to-i128 :: U16 -> I128
+  foreign import ccall "cinch.prim.u16ToU128" u16-to-u128 :: U16 -> U128
+  foreign import ccall "cinch.prim.checkedU16ToU128" checked-u16-to-u128 :: U16 -> Option U128
+  foreign import ccall "cinch.prim.saturatingU16ToU128" saturating-u16-to-u128 :: U16 -> U128
+  foreign import ccall "cinch.prim.wrappingU16ToU128" wrapping-u16-to-u128 :: U16 -> U128
+  foreign import ccall "cinch.prim.u32ToI128" u32-to-i128 :: U32 -> I128
+  foreign import ccall "cinch.prim.checkedU32ToI128" checked-u32-to-i128 :: U32 -> Option I128
+  foreign import ccall "cinch.prim.saturatingU32ToI128" saturating-u32-to-i128 :: U32 -> I128
+  foreign import ccall "cinch.prim.wrappingU32ToI128" wrapping-u32-to-i128 :: U32 -> I128
+  foreign import ccall "cinch.prim.u32ToU128" u32-to-u128 :: U32 -> U128
+  foreign import ccall "cinch.prim.checkedU32ToU128" checked-u32-to-u128 :: U32 -> Option U128
+  foreign import ccall "cinch.prim.saturatingU32ToU128" saturating-u32-to-u128 :: U32 -> U128
+  foreign import ccall "cinch.prim.wrappingU32ToU128" wrapping-u32-to-u128 :: U32 -> U128
+  foreign import ccall "cinch.prim.u64ToI128" u64-to-i128 :: U64 -> I128
+  foreign import ccall "cinch.prim.checkedU64ToI128" checked-u64-to-i128 :: U64 -> Option I128
+  foreign import ccall "cinch.prim.saturatingU64ToI128" saturating-u64-to-i128 :: U64 -> I128
+  foreign import ccall "cinch.prim.wrappingU64ToI128" wrapping-u64-to-i128 :: U64 -> I128
+  foreign import ccall "cinch.prim.u64ToU128" u64-to-u128 :: U64 -> U128
+  foreign import ccall "cinch.prim.checkedU64ToU128" checked-u64-to-u128 :: U64 -> Option U128
+  foreign import ccall "cinch.prim.saturatingU64ToU128" saturating-u64-to-u128 :: U64 -> U128
+  foreign import ccall "cinch.prim.wrappingU64ToU128" wrapping-u64-to-u128 :: U64 -> U128
+  foreign import ccall "cinch.prim.usizeToI128" usize-to-i128 :: Usize -> I128
+  foreign import ccall "cinch.prim.checkedUsizeToI128" checked-usize-to-i128 :: Usize -> Option I128
+  foreign import ccall "cinch.prim.saturatingUsizeToI128" saturating-usize-to-i128 :: Usize -> I128
+  foreign import ccall "cinch.prim.wrappingUsizeToI128" wrapping-usize-to-i128 :: Usize -> I128
+  foreign import ccall "cinch.prim.usizeToU128" usize-to-u128 :: Usize -> U128
+  foreign import ccall "cinch.prim.checkedUsizeToU128" checked-usize-to-u128 :: Usize -> Option U128
+  foreign import ccall "cinch.prim.saturatingUsizeToU128" saturating-usize-to-u128 :: Usize -> U128
+  foreign import ccall "cinch.prim.wrappingUsizeToU128" wrapping-usize-to-u128 :: Usize -> U128
+  foreign import ccall "cinch.prim.isizeToI128" isize-to-i128 :: Isize -> I128
+  foreign import ccall "cinch.prim.checkedIsizeToI128" checked-isize-to-i128 :: Isize -> Option I128
+  foreign import ccall "cinch.prim.saturatingIsizeToI128" saturating-isize-to-i128 :: Isize -> I128
+  foreign import ccall "cinch.prim.wrappingIsizeToI128" wrapping-isize-to-i128 :: Isize -> I128
+  foreign import ccall "cinch.prim.checkedIsizeToU128" checked-isize-to-u128 :: Isize -> Option U128
+  foreign import ccall "cinch.prim.saturatingIsizeToU128" saturating-isize-to-u128 :: Isize -> U128
+  foreign import ccall "cinch.prim.wrappingIsizeToU128" wrapping-isize-to-u128 :: Isize -> U128
+  foreign import ccall "cinch.prim.checkedI128ToI8" checked-i128-to-i8 :: I128 -> Option I8
+  foreign import ccall "cinch.prim.saturatingI128ToI8" saturating-i128-to-i8 :: I128 -> I8
+  foreign import ccall "cinch.prim.wrappingI128ToI8" wrapping-i128-to-i8 :: I128 -> I8
+  foreign import ccall "cinch.prim.checkedI128ToI16" checked-i128-to-i16 :: I128 -> Option I16
+  foreign import ccall "cinch.prim.saturatingI128ToI16" saturating-i128-to-i16 :: I128 -> I16
+  foreign import ccall "cinch.prim.wrappingI128ToI16" wrapping-i128-to-i16 :: I128 -> I16
+  foreign import ccall "cinch.prim.checkedI128ToI32" checked-i128-to-i32 :: I128 -> Option I32
+  foreign import ccall "cinch.prim.saturatingI128ToI32" saturating-i128-to-i32 :: I128 -> I32
+  foreign import ccall "cinch.prim.wrappingI128ToI32" wrapping-i128-to-i32 :: I128 -> I32
+  foreign import ccall "cinch.prim.checkedI128ToI64" checked-i128-to-i64 :: I128 -> Option I64
+  foreign import ccall "cinch.prim.saturatingI128ToI64" saturating-i128-to-i64 :: I128 -> I64
+  foreign import ccall "cinch.prim.wrappingI128ToI64" wrapping-i128-to-i64 :: I128 -> I64
+  foreign import ccall "cinch.prim.checkedI128ToU8" checked-i128-to-u8 :: I128 -> Option U8
+  foreign import ccall "cinch.prim.saturatingI128ToU8" saturating-i128-to-u8 :: I128 -> U8
+  foreign import ccall "cinch.prim.wrappingI128ToU8" wrapping-i128-to-u8 :: I128 -> U8
+  foreign import ccall "cinch.prim.checkedI128ToU16" checked-i128-to-u16 :: I128 -> Option U16
+  foreign import ccall "cinch.prim.saturatingI128ToU16" saturating-i128-to-u16 :: I128 -> U16
+  foreign import ccall "cinch.prim.wrappingI128ToU16" wrapping-i128-to-u16 :: I128 -> U16
+  foreign import ccall "cinch.prim.checkedI128ToU32" checked-i128-to-u32 :: I128 -> Option U32
+  foreign import ccall "cinch.prim.saturatingI128ToU32" saturating-i128-to-u32 :: I128 -> U32
+  foreign import ccall "cinch.prim.wrappingI128ToU32" wrapping-i128-to-u32 :: I128 -> U32
+  foreign import ccall "cinch.prim.checkedI128ToU64" checked-i128-to-u64 :: I128 -> Option U64
+  foreign import ccall "cinch.prim.saturatingI128ToU64" saturating-i128-to-u64 :: I128 -> U64
+  foreign import ccall "cinch.prim.wrappingI128ToU64" wrapping-i128-to-u64 :: I128 -> U64
+  foreign import ccall "cinch.prim.checkedI128ToUsize" checked-i128-to-usize :: I128 -> Option Usize
+  foreign import ccall "cinch.prim.saturatingI128ToUsize" saturating-i128-to-usize :: I128 -> Usize
+  foreign import ccall "cinch.prim.wrappingI128ToUsize" wrapping-i128-to-usize :: I128 -> Usize
+  foreign import ccall "cinch.prim.checkedI128ToIsize" checked-i128-to-isize :: I128 -> Option Isize
+  foreign import ccall "cinch.prim.saturatingI128ToIsize" saturating-i128-to-isize :: I128 -> Isize
+  foreign import ccall "cinch.prim.wrappingI128ToIsize" wrapping-i128-to-isize :: I128 -> Isize
+  foreign import ccall "cinch.prim.i128ToI128" i128-to-i128 :: I128 -> I128
+  foreign import ccall "cinch.prim.checkedI128ToI128" checked-i128-to-i128 :: I128 -> Option I128
+  foreign import ccall "cinch.prim.saturatingI128ToI128" saturating-i128-to-i128 :: I128 -> I128
+  foreign import ccall "cinch.prim.wrappingI128ToI128" wrapping-i128-to-i128 :: I128 -> I128
+  foreign import ccall "cinch.prim.checkedI128ToU128" checked-i128-to-u128 :: I128 -> Option U128
+  foreign import ccall "cinch.prim.saturatingI128ToU128" saturating-i128-to-u128 :: I128 -> U128
+  foreign import ccall "cinch.prim.wrappingI128ToU128" wrapping-i128-to-u128 :: I128 -> U128
+  foreign import ccall "cinch.prim.i128ToF32" i128-to-f32 :: I128 -> F32
+  foreign import ccall "cinch.prim.i128ToF64" i128-to-f64 :: I128 -> F64
+  foreign import ccall "cinch.prim.checkedU128ToI8" checked-u128-to-i8 :: U128 -> Option I8
+  foreign import ccall "cinch.prim.saturatingU128ToI8" saturating-u128-to-i8 :: U128 -> I8
+  foreign import ccall "cinch.prim.wrappingU128ToI8" wrapping-u128-to-i8 :: U128 -> I8
+  foreign import ccall "cinch.prim.checkedU128ToI16" checked-u128-to-i16 :: U128 -> Option I16
+  foreign import ccall "cinch.prim.saturatingU128ToI16" saturating-u128-to-i16 :: U128 -> I16
+  foreign import ccall "cinch.prim.wrappingU128ToI16" wrapping-u128-to-i16 :: U128 -> I16
+  foreign import ccall "cinch.prim.checkedU128ToI32" checked-u128-to-i32 :: U128 -> Option I32
+  foreign import ccall "cinch.prim.saturatingU128ToI32" saturating-u128-to-i32 :: U128 -> I32
+  foreign import ccall "cinch.prim.wrappingU128ToI32" wrapping-u128-to-i32 :: U128 -> I32
+  foreign import ccall "cinch.prim.checkedU128ToI64" checked-u128-to-i64 :: U128 -> Option I64
+  foreign import ccall "cinch.prim.saturatingU128ToI64" saturating-u128-to-i64 :: U128 -> I64
+  foreign import ccall "cinch.prim.wrappingU128ToI64" wrapping-u128-to-i64 :: U128 -> I64
+  foreign import ccall "cinch.prim.checkedU128ToU8" checked-u128-to-u8 :: U128 -> Option U8
+  foreign import ccall "cinch.prim.saturatingU128ToU8" saturating-u128-to-u8 :: U128 -> U8
+  foreign import ccall "cinch.prim.wrappingU128ToU8" wrapping-u128-to-u8 :: U128 -> U8
+  foreign import ccall "cinch.prim.checkedU128ToU16" checked-u128-to-u16 :: U128 -> Option U16
+  foreign import ccall "cinch.prim.saturatingU128ToU16" saturating-u128-to-u16 :: U128 -> U16
+  foreign import ccall "cinch.prim.wrappingU128ToU16" wrapping-u128-to-u16 :: U128 -> U16
+  foreign import ccall "cinch.prim.checkedU128ToU32" checked-u128-to-u32 :: U128 -> Option U32
+  foreign import ccall "cinch.prim.saturatingU128ToU32" saturating-u128-to-u32 :: U128 -> U32
+  foreign import ccall "cinch.prim.wrappingU128ToU32" wrapping-u128-to-u32 :: U128 -> U32
+  foreign import ccall "cinch.prim.checkedU128ToU64" checked-u128-to-u64 :: U128 -> Option U64
+  foreign import ccall "cinch.prim.saturatingU128ToU64" saturating-u128-to-u64 :: U128 -> U64
+  foreign import ccall "cinch.prim.wrappingU128ToU64" wrapping-u128-to-u64 :: U128 -> U64
+  foreign import ccall "cinch.prim.checkedU128ToUsize" checked-u128-to-usize :: U128 -> Option Usize
+  foreign import ccall "cinch.prim.saturatingU128ToUsize" saturating-u128-to-usize :: U128 -> Usize
+  foreign import ccall "cinch.prim.wrappingU128ToUsize" wrapping-u128-to-usize :: U128 -> Usize
+  foreign import ccall "cinch.prim.checkedU128ToIsize" checked-u128-to-isize :: U128 -> Option Isize
+  foreign import ccall "cinch.prim.saturatingU128ToIsize" saturating-u128-to-isize :: U128 -> Isize
+  foreign import ccall "cinch.prim.wrappingU128ToIsize" wrapping-u128-to-isize :: U128 -> Isize
+  foreign import ccall "cinch.prim.checkedU128ToI128" checked-u128-to-i128 :: U128 -> Option I128
+  foreign import ccall "cinch.prim.saturatingU128ToI128" saturating-u128-to-i128 :: U128 -> I128
+  foreign import ccall "cinch.prim.wrappingU128ToI128" wrapping-u128-to-i128 :: U128 -> I128
+  foreign import ccall "cinch.prim.u128ToU128" u128-to-u128 :: U128 -> U128
+  foreign import ccall "cinch.prim.checkedU128ToU128" checked-u128-to-u128 :: U128 -> Option U128
+  foreign import ccall "cinch.prim.saturatingU128ToU128" saturating-u128-to-u128 :: U128 -> U128
+  foreign import ccall "cinch.prim.wrappingU128ToU128" wrapping-u128-to-u128 :: U128 -> U128
+  foreign import ccall "cinch.prim.u128ToF32" u128-to-f32 :: U128 -> F32
+  foreign import ccall "cinch.prim.u128ToF64" u128-to-f64 :: U128 -> F64
+  foreign import ccall "cinch.prim.checkedF32ToI128" checked-f32-to-i128 :: F32 -> Option I128
+  foreign import ccall "cinch.prim.saturatingF32ToI128" saturating-f32-to-i128 :: F32 -> I128
+  foreign import ccall "cinch.prim.checkedF32ToU128" checked-f32-to-u128 :: F32 -> Option U128
+  foreign import ccall "cinch.prim.saturatingF32ToU128" saturating-f32-to-u128 :: F32 -> U128
+  foreign import ccall "cinch.prim.checkedF64ToI128" checked-f64-to-i128 :: F64 -> Option I128
+  foreign import ccall "cinch.prim.saturatingF64ToI128" saturating-f64-to-i128 :: F64 -> I128
+  foreign import ccall "cinch.prim.checkedF64ToU128" checked-f64-to-u128 :: F64 -> Option U128
+  foreign import ccall "cinch.prim.saturatingF64ToU128" saturating-f64-to-u128 :: F64 -> U128
 
   -- The order instances: signed order on `I128`, unsigned on `U128`
   -- (primitive types specification section 8).

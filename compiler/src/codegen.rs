@@ -3674,7 +3674,7 @@ fn build_unit(
             let lent = reg.lent.get(name);
             b.ret_drops = borrowed(&|i| prim_consumes(*op, i) || lent.is_some_and(|m| m.get(i).copied().unwrap_or(false)));
             if op.touches_wide() {
-                wide_prim_body(&mut b, reg, name, *op)?;
+                wide_prim_body(&mut b, cx, reg, name, *op)?;
             } else {
                 prim_body(&mut b, cx, reg, name, *op);
             }
@@ -5209,8 +5209,10 @@ fn ret_option_wide(b: &mut Builder, reg: &Registry, name: &str, none_if: &str, v
 /// own width. A result that is a word (a comparison's `Bool`, an
 /// `Option`'s block) returns as the word. The rest of the surface is
 /// phase 2's and is refused by name here.
-fn wide_prim_body(b: &mut Builder, reg: &Registry, name: &str, op: PrimOp) -> Result<()> {
+fn wide_prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: PrimOp) -> Result<()> {
     use PrimOp::*;
+    // `Usize`/`Isize` take the target's width (a conversion's other end).
+    let op = op.resolve_widths(cx.usize_bits);
     let not_yet = |what: &str| {
         err(format!(
             "`{}` ({what}) over `I128`/`U128` is not lowered yet (design/wide-scalars.md section 10)",
@@ -5416,6 +5418,22 @@ fn wide_prim_body(b: &mut Builder, reg: &Registry, name: &str, op: PrimOp) -> Re
                 ret128(b, &r);
             }
         },
+        Conv { from, to, mode } if from.is_int_like() && to.is_int_like() => {
+            wide_int_conv(b, reg, op, name, from, to, mode);
+        }
+        Conv { from, to, mode } if from.is_float() => {
+            wide_from_float(b, reg, name, from, to, mode);
+        }
+        Conv { from, to, .. } if to.is_float() => {
+            // Integer to float is total, rounding per IEEE 754 (section 7);
+            // LLVM lowers it to `__floattidf` and kin where needed.
+            let inst = if from.is_signed() { "sitofp" } else { "uitofp" };
+            let fty = float_ty(to);
+            let f = b.reg();
+            b.line(&format!("{f} = {inst} i128 %p0 to {fty}"));
+            let w = float_to_word(b, to, &f);
+            ret(b, &w);
+        }
         CheckedDiv { ty } | CheckedRem { ty } => {
             // `None` on a zero divisor and on `minBound / -1` for the
             // signed type (primitive types specification section 4). The
@@ -5467,6 +5485,152 @@ fn wide_prim_body(b: &mut Builder, reg: &Registry, name: &str, op: PrimOp) -> Re
         _ => return not_yet("phase 2's surface"),
     }
     Ok(())
+}
+
+/// An integer scalar's range as `(lo, hi)`: `lo` as a signed `i128`, `hi`
+/// as a `u128`, so both ends of every type up to 128 bits are exact.
+fn int_range_128(s: Scalar) -> (i128, u128) {
+    let w = s.width();
+    if s.is_signed() {
+        let lo = if w == 128 { i128::MIN } else { -(1i128 << (w - 1)) };
+        (lo, (1u128 << (w - 1)) - 1)
+    } else {
+        (0, if w == 128 { u128::MAX } else { (1u128 << w) - 1 })
+    }
+}
+
+/// A conversion between two integer types, one of them wide (primitive
+/// types specification section 7). The source becomes an `i128` (a word
+/// source widens by its own signedness), and the range test is uniform
+/// for every pair: a negative signed value is below an unsigned target or
+/// compared signed against a signed one; any other value is above the
+/// target when it exceeds the target's maximum *unsigned*, which is exact
+/// for `U128`'s upper half as well as for every non-negative signed value.
+fn wide_int_conv(b: &mut Builder, reg: &Registry, op: PrimOp, name: &str, from: Scalar, to: Scalar, mode: crate::core::ConvMode) {
+    use crate::core::ConvMode;
+    let v = if from.is_wide() {
+        "%p0".to_string()
+    } else {
+        let r = b.reg();
+        b.line(&format!("{r} = {} i64 %p0 to i128", if from.is_signed() { "sext" } else { "zext" }));
+        r
+    };
+    let (lo, hi) = int_range_128(to);
+    let neg = if from.is_signed() {
+        let r = b.reg();
+        b.line(&format!("{r} = icmp slt i128 {v}, 0"));
+        r
+    } else {
+        "false".to_string()
+    };
+    let below = if to.is_signed() {
+        let lt = b.reg();
+        b.line(&format!("{lt} = icmp slt i128 {v}, {lo}"));
+        let r = b.reg();
+        b.line(&format!("{r} = and i1 {neg}, {lt}"));
+        r
+    } else {
+        neg.clone()
+    };
+    let gt = b.reg();
+    b.line(&format!("{gt} = icmp ugt i128 {v}, {}", hi as i128));
+    let nonneg = b.reg();
+    b.line(&format!("{nonneg} = xor i1 {neg}, true"));
+    let above = b.reg();
+    b.line(&format!("{above} = and i1 {nonneg}, {gt}"));
+    // The value at the target's representation: truncated two's
+    // complement, then the target's canonical word for a word type.
+    let at_target = |b: &mut Builder, v: &str| -> String {
+        if to.is_wide() {
+            return v.to_string();
+        }
+        let t = b.reg();
+        b.line(&format!("{t} = trunc i128 {v} to i64"));
+        canon(b, to, &t)
+    };
+    let finish = |b: &mut Builder, r: &str| {
+        if to.is_wide() {
+            b.line(&format!("ret i128 {r}"));
+        } else {
+            ret(b, r);
+        }
+    };
+    match mode {
+        ConvMode::Total | ConvMode::Wrapping => {
+            let r = at_target(b, &v);
+            finish(b, &r);
+        }
+        ConvMode::Saturating => {
+            let hi_v = b.reg();
+            b.line(&format!("{hi_v} = select i1 {above}, i128 {}, i128 {v}", hi as i128));
+            let clamped = b.reg();
+            b.line(&format!("{clamped} = select i1 {below}, i128 {lo}, i128 {hi_v}"));
+            let r = at_target(b, &clamped);
+            finish(b, &r);
+        }
+        ConvMode::Checked => {
+            let bad = b.reg();
+            b.line(&format!("{bad} = or i1 {below}, {above}"));
+            if to.is_wide() {
+                ret_option_wide(b, reg, name, &bad, &v);
+            } else {
+                ret_option(b, reg, op, name, &bad, |b| at_target(b, &v));
+            }
+        }
+    }
+}
+
+/// A float to a wide integer: checked (`None` for NaN and out of range)
+/// or saturating (clamped, NaN to zero), never total (section 7). The
+/// test runs in `double` (an `F32` widens exactly) against the bounds as
+/// exact powers of two, and the conversion runs on a value already in
+/// range, so no out-of-range (poison) conversion is ever computed.
+fn wide_from_float(b: &mut Builder, reg: &Registry, name: &str, from: Scalar, to: Scalar, mode: crate::core::ConvMode) {
+    use crate::core::ConvMode;
+    let f = word_to_float(b, from, "%p0");
+    let d = if from == Scalar::F32 {
+        let r = b.reg();
+        b.line(&format!("{r} = fpext float {f} to double"));
+        r
+    } else {
+        f
+    };
+    // -2^127, 2^127, -1.0 and 2^128 as double bit patterns.
+    let (lo, lo_pred, hi) = if to.is_signed() {
+        ("0xC7E0000000000000", "oge", "0x47E0000000000000")
+    } else {
+        ("0xBFF0000000000000", "ogt", "0x47F0000000000000")
+    };
+    let ge_lo = b.reg();
+    b.line(&format!("{ge_lo} = fcmp {lo_pred} double {d}, {lo}"));
+    let lt_hi = b.reg();
+    b.line(&format!("{lt_hi} = fcmp olt double {d}, {hi}"));
+    let ok = b.reg();
+    b.line(&format!("{ok} = and i1 {ge_lo}, {lt_hi}"));
+    let safe = b.reg();
+    b.line(&format!("{safe} = select i1 {ok}, double {d}, double 0.0"));
+    let v = b.reg();
+    b.line(&format!("{v} = {} double {safe} to i128", if to.is_signed() { "fptosi" } else { "fptoui" }));
+    match mode {
+        ConvMode::Checked => {
+            let bad = b.reg();
+            b.line(&format!("{bad} = xor i1 {ok}, true"));
+            ret_option_wide(b, reg, name, &bad, &v);
+        }
+        _ => {
+            // NaN is zero; at or past an end, that end.
+            let (min, max) = int_range_128(to);
+            let above = b.reg();
+            b.line(&format!("{above} = fcmp oge double {d}, {hi}"));
+            let below = b.reg();
+            b.line(&format!("{below} = fcmp {} double {d}, {lo}", if to.is_signed() { "olt" } else { "ole" }));
+            let a = b.reg();
+            b.line(&format!("{a} = select i1 {above}, i128 {}, i128 {v}", max as i128));
+            let r = b.reg();
+            b.line(&format!("{r} = select i1 {below}, i128 {min}, i128 {a}"));
+            b.line(&format!("ret i128 {r}"));
+        }
+    }
 }
 
 fn rt_call(b: &mut Builder, f: &str, args: &[String]) -> String {
