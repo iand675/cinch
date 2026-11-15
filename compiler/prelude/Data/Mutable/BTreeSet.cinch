@@ -1,0 +1,104 @@
+-- Data.Mutable.BTreeSet: the ordered mutable set (abseil `btree_set`).
+--
+-- A `BTreeSet r a` is a `Data.Mutable.BTree r a Unit`: the same pooled
+-- degree-8 B-tree, with a `Unit` value per member (a raw word nothing
+-- counts). Members come out in ascending order; every cost and boundary is
+-- the tree's (see that module's header).
+module Data.Mutable.BTreeSet where
+
+  import Data.Option
+  import Relation.Ord
+  import Data.Mutable.BTree
+
+  export BTreeSet, btree-set-new, btree-set-size, btree-set-is-empty, btree-set-insert, btree-set-member
+  export btree-set-delete, btree-set-min, btree-set-max, btree-set-pop-min, btree-set-pop-max
+  export btree-set-floor, btree-set-ceiling, btree-set-fold, btree-set-fold-range, btree-set-to-list
+  export btree-set-from-list, btree-set-clear, btree-set-verify
+
+  data BTreeSet r a where
+    MkBTreeSet :: BTreeMap r a Unit -> BTreeSet r a
+
+  tree :: forall r a. BTreeSet r a -> BTreeMap r a Unit
+  tree s = case s of
+    MkBTreeSet t -> t
+
+  key-of :: forall a. Option (a, Unit) -> Option a
+  key-of o = case o of
+    None -> None
+    Some p -> case p of
+      (k, u) -> Some k
+
+  btree-set-new :: forall r a. Unit ->{Mut r} BTreeSet r a
+  btree-set-new u = MkBTreeSet (btree-new ())
+
+  btree-set-size :: forall r a. BTreeSet r a ->{Mut r} Nat
+  btree-set-size s = btree-size (tree s)
+
+  btree-set-is-empty :: forall r a. BTreeSet r a ->{Mut r} Bool
+  btree-set-is-empty s = btree-is-empty (tree s)
+
+  -- Add `x`: `True` when it was not already a member.
+  btree-set-insert :: forall r a. using (o :: Ord a) => BTreeSet r a -> a ->{Mut r} Bool
+  btree-set-insert s x =
+    if btree-member (tree s) x then False
+    else
+      let added = btree-insert (tree s) x () in
+      True
+
+  btree-set-member :: forall r a. using (o :: Ord a) => BTreeSet r a -> a ->{Mut r} Bool
+  btree-set-member s x = btree-member (tree s) x
+
+  -- Remove `x`: `True` when it was a member.
+  btree-set-delete :: forall r a. using (o :: Ord a) => BTreeSet r a -> a ->{Mut r} Bool
+  btree-set-delete s x = case btree-delete (tree s) x of
+    None -> False
+    Some u -> True
+
+  btree-set-min :: forall r a. BTreeSet r a ->{Mut r} Option a
+  btree-set-min s = key-of (btree-min (tree s))
+
+  btree-set-max :: forall r a. BTreeSet r a ->{Mut r} Option a
+  btree-set-max s = key-of (btree-max (tree s))
+
+  btree-set-pop-min :: forall r a. using (o :: Ord a) => BTreeSet r a ->{Mut r} Option a
+  btree-set-pop-min s = key-of (btree-pop-min (tree s))
+
+  btree-set-pop-max :: forall r a. using (o :: Ord a) => BTreeSet r a ->{Mut r} Option a
+  btree-set-pop-max s = key-of (btree-pop-max (tree s))
+
+  -- The greatest member not above `x`.
+  btree-set-floor :: forall r a. using (o :: Ord a) => BTreeSet r a -> a ->{Mut r} Option a
+  btree-set-floor s x = key-of (btree-floor (tree s) x)
+
+  -- The least member not below `x`.
+  btree-set-ceiling :: forall r a. using (o :: Ord a) => BTreeSet r a -> a ->{Mut r} Option a
+  btree-set-ceiling s x = key-of (btree-ceiling (tree s) x)
+
+  btree-set-fold :: forall r a b. (b -> a -> b) -> b -> BTreeSet r a ->{Mut r} b
+  btree-set-fold f z s = btree-fold (\acc x u -> f acc x) z (tree s)
+
+  -- A left fold over the members in [lo, hi), ascending.
+  btree-set-fold-range :: forall r a b. using (o :: Ord a) => (b -> a -> b) -> b -> a -> a -> BTreeSet r a ->{Mut r} b
+  btree-set-fold-range f z lo hi s = btree-fold-range (\acc x u -> f acc x) z lo hi (tree s)
+
+  btree-set-to-list :: forall r a. BTreeSet r a ->{Mut r} List a
+  btree-set-to-list s = btree-keys (tree s)
+
+  btree-set-from-list :: forall r a. using (o :: Ord a) => List a ->{Mut r} BTreeSet r a
+  btree-set-from-list xs =
+    let s = btree-set-new () in
+    let added = insert-all s xs in
+    s
+
+  insert-all :: forall r a. using (o :: Ord a) => BTreeSet r a -> List a ->{Mut r} Unit
+  insert-all s xs = case xs of
+    Nil -> ()
+    Cons x rest ->
+      let added = btree-insert (tree s) x () in
+      insert-all s rest
+
+  btree-set-clear :: forall r a. BTreeSet r a ->{Mut r} Unit
+  btree-set-clear s = btree-clear (tree s)
+
+  btree-set-verify :: forall r a. using (o :: Ord a) => BTreeSet r a ->{Mut r} Bool
+  btree-set-verify s = btree-verify (tree s)

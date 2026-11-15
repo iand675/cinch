@@ -1,0 +1,263 @@
+-- Data.Mutable.Heap: the priority queue (C++ `std::priority_queue`, as a
+-- 4-ary heap like Boost's `d_ary_heap`).
+--
+-- A `Heap r a` keeps its elements in one dense slot array arranged as a
+-- 4-ary heap under an ordering fixed when it is made: the least element
+-- is at slot 0, and the children of slot i are 4i + 1 .. 4i + 4. Four
+-- children per node halve the depth of a binary heap, so a pop does
+-- fewer levels of sifting and touches one cache line per level for word
+-- elements; the extra comparisons per level are cheap next to the
+-- misses they save.
+--
+-- The ordering is part of the heap (`heap-new` takes the `Ord` instance's
+-- `<`, `heap-new-by` any strict "comes first" relation), so a max-heap is
+-- `heap-new-by (\x y -> y < x)` and no operation needs a dictionary.
+--
+-- Costs: `heap-push` and `heap-pop` are O(log n) (amortised for the
+-- storage growth); `heap-peek` and `heap-length` are O(1);
+-- `heap-from-list` is Floyd's O(n) bottom-up build.
+--
+-- Sifting moves the element into a hole rather than swapping, so each
+-- level costs one move and no reference count operation.
+--
+-- The invariant that makes every read sound: slots below the length are
+-- written, and only those are read.
+--
+-- The trusted core is the private `cinch.runtime.slots*` imports (the
+-- compiler's `slots.rs`); none of them leaves the module.
+module Data.Mutable.Heap where
+
+  import Data.Machine
+  import Data.Option
+  import Data.Nat
+  import Relation.Ord
+
+  export Heap, heap-new, heap-new-by, heap-with-capacity-by, heap-length, heap-is-empty
+  export heap-push, heap-pop, heap-peek, heap-clear, heap-from-list, heap-from-list-by
+  export heap-to-list, heap-drain
+
+  foreign import ccall "cinch.runtime.slotsNew" slots-new :: forall a. U64 -> Array a
+  foreign import ccall "cinch.runtime.slotsLen" slots-len :: forall a. Array a -> U64
+  foreign import ccall "cinch.runtime.slotsRead" slots-read :: forall a. Array a -> U64 -> a
+  foreign import ccall "cinch.runtime.slotsWrite" slots-write :: forall a. Array a -> U64 -> a -> Unit
+  foreign import ccall "cinch.runtime.slotsTake" slots-take :: forall a. Array a -> U64 -> a
+  foreign import ccall "cinch.runtime.slotsMove" slots-move :: forall a. Array a -> U64 -> Array a -> U64 -> U64 -> Unit
+  foreign import ccall "cinch.runtime.slotsClear" slots-clear :: forall a. Array a -> U64 -> U64 -> Unit
+  foreign import ccall "cinch.runtime.slotsFoldNat" fold-nat :: Nat -> U64
+
+  -- The ordering, the length word, and the cell holding the storage.
+  data Heap r a where
+    MkHeap :: (a -> a -> Bool) -> Array U64 -> Array (Array a) -> Heap r a
+
+  inc :: U64 -> U64
+  inc w = wrapping-add-u64 w 1
+
+  dec :: U64 -> U64
+  dec w = wrapping-sub-u64 w 1
+
+  to-nat :: U64 -> Nat
+  to-nat w = nat-from-i64 (mask-i64 (wrapping-u64-to-i64 w) 9223372036854775807)
+
+  less-of :: forall r a. Heap r a -> (a -> a -> Bool)
+  less-of hp = case hp of
+    MkHeap less m c -> less
+
+  len-of :: forall r a. Heap r a -> U64
+  len-of hp = case hp of
+    MkHeap less m c -> slots-read m 0
+
+  set-len :: forall r a. Heap r a -> U64 -> Unit
+  set-len hp n = case hp of
+    MkHeap less m c -> slots-write m 0 n
+
+  store-of :: forall r a. Heap r a -> Array a
+  store-of hp = case hp of
+    MkHeap less m c -> slots-read c 0
+
+  -- Storage with room for `need` elements: doubling, floor 4.
+  room-for :: forall r a. Heap r a -> U64 -> Array a
+  room-for hp need =
+    let s = store-of hp in
+    let cap = slots-len s in
+    if lt-u64 cap need then
+      let doubled = if lt-u64 cap 4 then (4 :: U64) else wrapping-add-u64 cap cap in
+      let fresh = slots-new (if lt-u64 doubled need then need else doubled) in
+      let moved = slots-move fresh 0 s 0 (len-of hp) in
+      let installed = install hp fresh in
+      fresh
+    else s
+
+  install :: forall r a. Heap r a -> Array a -> Unit
+  install hp fresh = case hp of
+    MkHeap less m c -> slots-write c 0 fresh
+
+  -- ------------------------------------------------------------------
+  -- Construction
+  -- ------------------------------------------------------------------
+
+  -- A min-heap under the `Ord` instance.
+  heap-new :: forall r a. using (o :: Ord a) => Unit ->{Mut r} Heap r a
+  heap-new u = heap-with-capacity-by (\x y -> x < y) 0
+
+  -- A heap whose least element is the one `first` puts first: `first x
+  -- y` holds when x must come out before y (a strict order).
+  heap-new-by :: forall r a. (a -> a -> Bool) -> Unit ->{Mut r} Heap r a
+  heap-new-by first u = heap-with-capacity-by first 0
+
+  heap-with-capacity-by :: forall r a. (a -> a -> Bool) -> Nat ->{Mut r} Heap r a
+  heap-with-capacity-by first n =
+    let m = (slots-new 1 :: Array U64) in
+    let zero = slots-write m 0 (0 :: U64) in
+    let c = slots-new 1 in
+    let fresh = slots-new (fold-nat n) in
+    let installed = slots-write c 0 fresh in
+    MkHeap first m c
+
+  heap-length :: forall r a. Heap r a ->{Mut r} Nat
+  heap-length hp = to-nat (len-of hp)
+
+  heap-is-empty :: forall r a. Heap r a ->{Mut r} Bool
+  heap-is-empty hp = eq-u64 (len-of hp) 0
+
+  -- ------------------------------------------------------------------
+  -- Push and pop
+  -- ------------------------------------------------------------------
+
+  heap-push :: forall r a. Heap r a -> a ->{Mut r} Unit
+  heap-push hp x =
+    let n = len-of hp in
+    let s = room-for hp (inc n) in
+    let less = less-of hp in
+    let placed = sift-up less s n x in
+    set-len hp (inc n)
+
+  -- The hole is at i; move parents down until x fits, then fill it.
+  sift-up :: forall a. (a -> a -> Bool) -> Array a -> U64 -> a -> Unit
+  sift-up less s i x =
+    if eq-u64 i 0 then slots-write s 0 x
+    else
+      let p = wrapping-shr-u64 (dec i) 2 in
+      let parent = slots-read s p in
+      if less x parent then
+        let moved = slots-write s i (slots-take s p) in
+        sift-up less s p x
+      else slots-write s i x
+
+  -- The least element.
+  heap-peek :: forall r a. Heap r a ->{Mut r} Option a
+  heap-peek hp =
+    if eq-u64 (len-of hp) 0 then None
+    else
+      let s = store-of hp in
+      Some (slots-read s 0)
+
+  -- Remove and return the least element.
+  heap-pop :: forall r a. Heap r a ->{Mut r} Option a
+  heap-pop hp =
+    let n = len-of hp in
+    if eq-u64 n 0 then None
+    else
+      let s = store-of hp in
+      let top = slots-take s 0 in
+      let last = dec n in
+      let shrunk = set-len hp last in
+      if eq-u64 last 0 then Some top
+      else
+        let x = slots-take s last in
+        let less = less-of hp in
+        let placed = sift-down less s 0 last x in
+        Some top
+
+  -- The hole is at i in a heap of n elements; move the least child up
+  -- while it comes before x, then fill the hole with x.
+  sift-down :: forall a. (a -> a -> Bool) -> Array a -> U64 -> U64 -> a -> Unit
+  sift-down less s i n x =
+    let first = inc (wrapping-shl-u64 i 2) in
+    if lt-u64 first n then
+      let best = least-child less s first (wrapping-add-u64 first 1) (if lt-u64 (wrapping-add-u64 first 4) n then wrapping-add-u64 first 4 else n) in
+      let child = slots-read s best in
+      if less child x then
+        let moved = slots-write s i (slots-take s best) in
+        sift-down less s best n x
+      else slots-write s i x
+    else slots-write s i x
+
+  -- The index of the least of s[best], s[j .. end).
+  least-child :: forall a. (a -> a -> Bool) -> Array a -> U64 -> U64 -> U64 -> U64
+  least-child less s best j end =
+    if lt-u64 j end then
+      if less (slots-read s j) (slots-read s best) then least-child less s j (inc j) end
+      else least-child less s best (inc j) end
+    else best
+
+  -- Drop every element; the capacity stays.
+  heap-clear :: forall r a. Heap r a ->{Mut r} Unit
+  heap-clear hp =
+    let s = store-of hp in
+    let cleared = slots-clear s 0 (len-of hp) in
+    set-len hp 0
+
+  -- ------------------------------------------------------------------
+  -- Lists
+  -- ------------------------------------------------------------------
+
+  heap-from-list :: forall r a. using (o :: Ord a) => List a ->{Mut r} Heap r a
+  heap-from-list xs = heap-from-list-by (\x y -> x < y) xs
+
+  -- Floyd's build: write the list in, then sift every internal node
+  -- down from the last one, O(n) in all.
+  heap-from-list-by :: forall r a. (a -> a -> Bool) -> List a ->{Mut r} Heap r a
+  heap-from-list-by first xs =
+    let hp = heap-with-capacity-by first 0 in
+    let n = write-all hp xs 0 in
+    let s = store-of hp in
+    let built = heapify first s n (if lt-u64 n 2 then (0 :: U64) else inc (wrapping-shr-u64 (wrapping-sub-u64 n 2) 2)) in
+    hp
+
+  -- Append the list in order, keeping the length current so a growth
+  -- moves every element already written.
+  write-all :: forall r a. Heap r a -> List a -> U64 -> U64
+  write-all hp xs i = case xs of
+    Nil -> i
+    Cons x rest ->
+      let s = room-for hp (inc i) in
+      let written = slots-write s i x in
+      let sized = set-len hp (inc i) in
+      write-all hp rest (inc i)
+
+  -- Sift down every node below `i`, from i - 1 to 0.
+  heapify :: forall a. (a -> a -> Bool) -> Array a -> U64 -> U64 -> Unit
+  heapify less s n i =
+    if eq-u64 i 0 then ()
+    else
+      let k = dec i in
+      let x = slots-take s k in
+      let placed = sift-down less s k n x in
+      heapify less s n k
+
+  -- The elements in storage order (a heap order, not a sorted one).
+  heap-to-list :: forall r a. Heap r a ->{Mut r} List a
+  heap-to-list hp =
+    let s = store-of hp in
+    list-down s (len-of hp) Nil
+
+  list-down :: forall a. Array a -> U64 -> List a -> List a
+  list-down s i acc =
+    if eq-u64 i 0 then acc
+    else
+      let j = dec i in
+      list-down s j (Cons (slots-read s j) acc)
+
+  -- Pop everything: the elements in the heap's order, leaving it empty.
+  heap-drain :: forall r a. Heap r a ->{Mut r} List a
+  heap-drain hp = drain-into hp Nil
+
+  drain-into :: forall r a. Heap r a -> List a ->{Mut r} List a
+  drain-into hp acc = case heap-pop hp of
+    None -> reverse-onto acc Nil
+    Some x -> drain-into hp (Cons x acc)
+
+  reverse-onto :: forall a. List a -> List a -> List a
+  reverse-onto xs acc = case xs of
+    Nil -> acc
+    Cons x rest -> reverse-onto rest (Cons x acc)

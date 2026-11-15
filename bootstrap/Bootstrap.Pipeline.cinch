@@ -578,8 +578,6 @@ module Bootstrap.Pipeline where
     other -> JObj name value JObjEnd
   object-append :: Json -> Json -> Json
   object-append first second = case first of JArr row rest -> JArr row (object-append rest second); JArrEnd -> second; other -> JNull
-  object-words-json :: List Nat -> Json
-  object-words-json words = case words of Nil -> JArrEnd; Cons word rest -> JArr (JNum (nat-to-int word)) (object-words-json rest)
   object-interface-row :: String -> String -> Json -> Json
   object-interface-row name hash doc = JObj "module" (JStr name) (JObj "iface_hash" (JStr hash) (JObj "interface" doc JObjEnd))
   object-imports :: List LoadedInterface -> Json
@@ -629,17 +627,17 @@ module Bootstrap.Pipeline where
       other -> JNull)
     JArrEnd -> older
     other -> JNull
-  object-manifest :: Json -> Json -> List Nat -> Json -> Json -> String -> Bytes -> Json
-  object-manifest provider interfaces words units facts ir code =
-    let actual = (object-set "method_families" (object-merge-families (object-field "method_families" facts) (object-field "method_families" provider)) (object-set "types" (object-merge-fields (object-field "types" facts) (object-field "types" provider))
+  -- Blocks describe themselves, so the manifest carries no layout table:
+  -- the combined object states its constructors' descriptions as facts.
+  object-manifest :: Json -> Json -> Json -> Json -> String -> Bytes -> Json
+  object-manifest provider interfaces units facts ir code =
+    let actual = (object-set "method_families" (object-merge-families (object-field "method_families" facts) (object-field "method_families" provider))
       (object-set "constructors" (object-merge-fields (object-field "constructors" facts) (object-field "constructors" provider))
-        (object-set "escaped_descriptors" (object-field "escaped_descriptors" facts) provider)))) in
+        (object-set "self_describing" (JBool True) provider))) in
     object-set "interfaces" interfaces
       (object-set "units" (object-append (object-field "units" provider) units)
-        (object-set "layout_entries" (JNum (nat-to-int (list-length words)))
-          (object-set "layout_words" (object-words-json words)
-            (object-set "ir_content_hash" (JStr (fnv-source-hash (string-to-bytes ir)))
-              (object-set "object_content_hash" (JStr (fnv-source-hash code)) actual)))))
+        (object-set "ir_content_hash" (JStr (fnv-source-hash (string-to-bytes ir)))
+          (object-set "object_content_hash" (JStr (fnv-source-hash code)) actual)))
   object-paths-distinct :: List String -> Bool
   object-paths-distinct paths = case paths of
     Nil -> True
@@ -681,14 +679,14 @@ module Bootstrap.Pipeline where
         Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-emit-refused
         Ok closure -> case emit-runtime-library-object-with-object-mode inlining checked (Some provider) roots of
           Err errors -> write-failure ir (render-diagnostics errors) pipeline-emit-refused
-          Ok (text, words, units, facts) -> if (case object-field "unpublished_dictionaries" facts of JBool True -> True; other -> False) then write-failure ir "bootstrap.object: reached source dictionaries require physical factory and method metadata" pipeline-emit-refused else if not (object-distinct-units units (object-field "units" document)) then write-failure ir "bootstrap.object: source and provider symbols collide" pipeline-emit-refused else
+          Ok (text, units, facts) -> if (case object-field "unpublished_dictionaries" facts of JBool True -> True; other -> False) then write-failure ir "bootstrap.object: reached source dictionaries require physical factory and method metadata" pipeline-emit-refused else if not (object-distinct-units units (object-field "units" document)) then write-failure ir "bootstrap.object: source and provider symbols collide" pipeline-emit-refused else
             case fs-write ir (string-to-bytes text) of
               Err error -> pipeline-write-failed
               Ok done -> case fs-write (path-from-string (path-to-string object <> ".provider.o")) provider-code of
                 Err error -> pipeline-write-failed
-                Ok done -> assemble-library-object document closure exported prefix text words units facts ir object abi
-  assemble-library-object :: forall r. using (io :: Io r) => Json -> Json -> List (String, Json) -> String -> String -> List Nat -> Json -> Json -> Path -> Path -> Path ->{IO r, Diverge} Int
-  assemble-library-object document closure exported prefix text words units facts ir object abi =
+                Ok done -> assemble-library-object document closure exported prefix text units facts ir object abi
+  assemble-library-object :: forall r. using (io :: Io r) => Json -> Json -> List (String, Json) -> String -> String -> Json -> Json -> Path -> Path -> Path ->{IO r, Diverge} Int
+  assemble-library-object document closure exported prefix text units facts ir object abi =
     let object-name = path-to-string object in
     case process-run (command (path-from-string "clang") ["-Wno-override-module", "-c", path-to-string ir, "-o", object-name <> ".new.o"]) "" of
       Err error -> write-failure ir "bootstrap.object: cannot start object assembler" pipeline-emit-refused
@@ -700,7 +698,7 @@ module Bootstrap.Pipeline where
             Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-write-failed
             Ok done -> case fs-write (refusal-path ir) (string-to-bytes "") of
               Err error -> pipeline-write-failed
-              Ok done -> case fs-write abi (canonical-bytes (object-manifest document closure words units facts text code)) of
+              Ok done -> case fs-write abi (canonical-bytes (object-manifest document closure units facts text code)) of
                 Err error -> pipeline-write-failed
                 Ok done -> pipeline-ok)
         Ok (status, output) -> write-failure ir "bootstrap.object: dependency linker refused" pipeline-emit-refused)

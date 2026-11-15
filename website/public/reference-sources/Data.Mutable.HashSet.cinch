@@ -1,0 +1,78 @@
+-- Data.Mutable.HashSet: the mutable hash set (abseil `flat_hash_set`).
+--
+-- A `HashSet r a` is a `Data.Mutable.HashTable r a Unit`: the same
+-- chunked, tagged, tombstone-free table, with a `Unit` value per entry (a
+-- raw word nothing counts). Every cost and boundary is the table's; see
+-- that module's header.
+module Data.Mutable.HashSet where
+
+  import Data.Option
+  import Data.Hash
+  import Relation.Eq
+  import Data.Mutable.HashTable
+
+  export HashSet, hash-set-new, hash-set-with-capacity, hash-set-size, hash-set-is-empty
+  export hash-set-insert, hash-set-member, hash-set-delete, hash-set-clear, hash-set-reserve
+  export hash-set-from-list, hash-set-to-list, hash-set-fold, hash-set-for-each
+
+  data HashSet r a where
+    MkHashSet :: HashTable r a Unit -> HashSet r a
+
+  table :: forall r a. HashSet r a -> HashTable r a Unit
+  table s = case s of
+    MkHashSet t -> t
+
+  hash-set-new :: forall r a. Unit ->{Mut r} HashSet r a
+  hash-set-new u = MkHashSet (hash-table-new ())
+
+  hash-set-with-capacity :: forall r a. Nat ->{Mut r} HashSet r a
+  hash-set-with-capacity n = MkHashSet (hash-table-with-capacity n)
+
+  hash-set-size :: forall r a. HashSet r a ->{Mut r} Nat
+  hash-set-size s = hash-table-size (table s)
+
+  hash-set-is-empty :: forall r a. HashSet r a ->{Mut r} Bool
+  hash-set-is-empty s = hash-table-is-empty (table s)
+
+  -- Add `x`: `True` when it was not already a member.
+  hash-set-insert :: forall r a. using (h :: Hash a, eq :: Eq a) => HashSet r a -> a ->{Mut r} Bool
+  hash-set-insert s x = hash-table-try-insert (table s) x ()
+
+  hash-set-member :: forall r a. using (h :: Hash a, eq :: Eq a) => HashSet r a -> a ->{Mut r} Bool
+  hash-set-member s x = hash-table-member (table s) x
+
+  -- Remove `x`: `True` when it was a member.
+  hash-set-delete :: forall r a. using (h :: Hash a, eq :: Eq a) => HashSet r a -> a ->{Mut r} Bool
+  hash-set-delete s x = case hash-table-delete (table s) x of
+    None -> False
+    Some u -> True
+
+  hash-set-clear :: forall r a. HashSet r a ->{Mut r} Unit
+  hash-set-clear s = hash-table-clear (table s)
+
+  hash-set-reserve :: forall r a. using (h :: Hash a) => HashSet r a -> Nat ->{Mut r} Unit
+  hash-set-reserve s n = hash-table-reserve (table s) n
+
+  hash-set-from-list :: forall r a. using (h :: Hash a, eq :: Eq a) => List a ->{Mut r} HashSet r a
+  hash-set-from-list xs =
+    let s = hash-set-new () in
+    let added = insert-all s xs in
+    s
+
+  insert-all :: forall r a. using (h :: Hash a, eq :: Eq a) => HashSet r a -> List a ->{Mut r} Unit
+  insert-all s xs = case xs of
+    Nil -> ()
+    Cons x rest ->
+      let added = hash-set-insert s x in
+      insert-all s rest
+
+  -- The members in the table's slot order (unstable; see the table).
+  hash-set-to-list :: forall r a. HashSet r a ->{Mut r} List a
+  hash-set-to-list s = hash-table-keys (table s)
+
+  hash-set-fold :: forall r a b. (b -> a -> b) -> b -> HashSet r a ->{Mut r} b
+  hash-set-fold f z s = hash-table-fold (\acc x u -> f acc x) z (table s)
+
+  -- Run an action on every member present when it starts.
+  hash-set-for-each :: forall r a. HashSet r a -> (a ->{Mut r} Unit) ->{Mut r} Unit
+  hash-set-for-each s act = hash-table-for-each (table s) (\x u -> act x)
