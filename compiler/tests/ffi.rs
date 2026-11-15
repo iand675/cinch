@@ -99,6 +99,70 @@ module Main where
     );
 }
 
+/// A narrow integer crosses the C boundary widened as the platform ABI
+/// says: the SysV x86-64 and AArch64 conventions have the caller sign- or
+/// zero-extend an 8- or 16-bit argument to 32 bits and the callee extend
+/// such a result, and optimised C relies on it. The fixture is built at
+/// `-O2` because an unoptimised callee re-extends from its stack slot and
+/// would hide a missing `signext`; without it, `i16 -1234` reached C as
+/// 64302.
+#[test]
+fn narrow_integers_cross_the_c_boundary_extended() {
+    let dir = std::env::temp_dir().join(format!("slffi-narrow-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("scratch dir");
+    let c_path = dir.join("narrow.c");
+    let o_path = dir.join("narrow.o");
+    std::fs::write(
+        &c_path,
+        r#"
+#include <stdint.h>
+int64_t n_i8(int8_t x) { return x == -7 ? 42 : -1; }
+int64_t n_u8(uint8_t x) { return x == 249 ? 42 : -1; }
+int64_t n_i16(int16_t x) { return x == -1234 ? 42 : -1; }
+int64_t n_u16(uint16_t x) { return x == 60000 ? 42 : -1; }
+int16_t n_make_i16(void) { return -1234; }
+uint16_t n_make_u16(void) { return 60000; }
+"#,
+    )
+    .expect("write fixture");
+    let clang = std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".to_string());
+    let status = std::process::Command::new(&clang)
+        .args(["-O2", "-c"])
+        .arg(&c_path)
+        .arg("-o")
+        .arg(&o_path)
+        .status()
+        .expect("run clang");
+    assert!(status.success(), "clang failed to compile the narrow fixture");
+    let src = r#"
+module Main where
+  foreign import ccall "n_i8" pi8 :: I8 ->{Foreign Fix} I64
+  foreign import ccall "n_u8" pu8 :: U8 ->{Foreign Fix} I64
+  foreign import ccall "n_i16" pi16 :: I16 ->{Foreign Fix} I64
+  foreign import ccall "n_u16" pu16 :: U16 ->{Foreign Fix} I64
+  foreign import ccall "n_make_i16" mi16 :: Unit ->{Foreign Fix} I16
+  foreign import ccall "n_make_u16" mu16 :: Unit ->{Foreign Fix} U16
+
+  main :: Unit ->{Foreign Fix} Int
+  main _ =
+    if pi8 (-7) /= 42 then 1
+    else if pu8 249 /= 42 then 2
+    else if pi16 (-1234) /= 42 then 3
+    else if pu16 60000 /= 42 then 4
+    else if pi16 (mi16 ()) /= 42 then 5
+    else if pu16 (mu16 ()) /= 42 then 6
+    else 0
+"#;
+    let target = TargetProfile::native();
+    let program = cinch::driver::check_sources_profile(src, "<test>", &target).expect("the program checks");
+    let ir = cinch::codegen::emit_for(&target, &program).expect("IR emission");
+    for needed in ["i16 signext", "i16 zeroext", "i8 signext", "i8 zeroext", "call signext i16", "call zeroext i16"] {
+        assert!(ir.contains(needed), "the boundary carries `{needed}`:\n{ir}");
+    }
+    let o = o_path.to_string_lossy().into_owned();
+    expect_ok("narrow-boundary", src, &[&o], 0);
+}
+
 // ------------------------------------------------- effect honesty (section 4)
 
 #[test]

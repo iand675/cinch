@@ -1615,12 +1615,28 @@ module Bootstrap.RuntimeIr where
   foreign-parameter-types params = case params of
     Nil -> Nil
     Cons first rest -> if same (foreign-class first) "unit" then foreign-parameter-types rest else Cons (foreign-llvm-type first) (foreign-parameter-types rest)
+  -- A narrow integer crosses the C boundary widened as the platform ABI
+  -- says: SysV x86-64 and AArch64 have the caller extend an 8- or 16-bit
+  -- argument, and the callee such a result, to 32 bits, and optimised C
+  -- relies on it. `signext`/`zeroext` tells LLVM which side widens and
+  -- how (compiler/src/codegen.rs, ext_attr); without it a constant
+  -- `i16 -1234` reached C as 64302.
+  foreign-c-type :: ForeignParameter -> String
+  foreign-c-type parameter = let ty = foreign-llvm-type parameter in
+    if same ty "i8" || same ty "i16" then cat [ty, if foreign-signed parameter then " signext" else " zeroext"] else ty
+  foreign-c-result :: ForeignParameter -> String
+  foreign-c-result parameter = let ty = foreign-llvm-type parameter in
+    if same ty "i8" || same ty "i16" then cat [if foreign-signed parameter then "signext " else "zeroext ", ty] else ty
+  foreign-c-parameter-types :: List ForeignParameter -> List String
+  foreign-c-parameter-types params = case params of
+    Nil -> Nil
+    Cons first rest -> if same (foreign-class first) "unit" then foreign-c-parameter-types rest else Cons (foreign-c-type first) (foreign-c-parameter-types rest)
   foreign-worker :: ForeignPlan -> Writer -> Writer
   foreign-worker plan w = let result = foreign-llvm-type (foreign-result plan) in
     let arguments = foreign-parameter-types (foreign-parameters plan) in
     let symbol = foreign-symbol plan in
     case foreign-inline plan of
-      None -> global w (cat ["declare ", result, " ", llvm-object-symbol symbol, "(", join arguments, ")"])
+      None -> global w (cat ["declare ", foreign-c-result (foreign-result plan), " ", llvm-object-symbol symbol, "(", join (foreign-c-parameter-types (foreign-parameters plan)), ")"])
       Some (InlinePrimitiveBody fragment symbols immediates assembly) ->
         let required = primitive-intrinsics symbols w in
         let defined = primitive-worker symbol result arguments fragment immediates required in
@@ -1675,13 +1691,16 @@ module Bootstrap.RuntimeIr where
     (Nil, Nil) -> True
     (Cons first rest, Cons value more) -> foreign-type-equal (foreign-parameter-type first) (core-type value) && foreign-argument-types rest more
     other -> False
-  foreign-marshal :: Writer -> List ForeignParameter -> List String -> (Writer, List String)
-  foreign-marshal w params values = case (params, values) of
+  -- `boundary` is a call of a C symbol, whose narrow arguments carry the
+  -- platform's extension; an inline primitive's worker is this module's
+  -- own, so its arguments do not.
+  foreign-marshal :: Bool -> Writer -> List ForeignParameter -> List String -> (Writer, List String)
+  foreign-marshal boundary w params values = case (params, values) of
     (Nil, Nil) -> (w, Nil)
-    (Cons first rest, Cons value more) -> if same (foreign-class first) "unit" then foreign-marshal w rest more else
+    (Cons first rest, Cons value more) -> if same (foreign-class first) "unit" then foreign-marshal boundary w rest more else
       (case foreign-marshal-one w first value of
-        (converted, argument) -> case foreign-marshal converted rest more of
-          (done, tail) -> (done, Cons (cat [foreign-llvm-type first, " ", argument]) tail))
+        (converted, argument) -> case foreign-marshal boundary converted rest more of
+          (done, tail) -> (done, Cons (cat [if boundary then foreign-c-type first else foreign-llvm-type first, " ", argument]) tail))
     other -> (refuse w (Span 0 0 1 1) "foreign ABI argument vector differs from its checked plan", Nil)
   foreign-marshal-one :: Writer -> ForeignParameter -> String -> (Writer, String)
   foreign-marshal-one w parameter value = let ty = foreign-llvm-type parameter in
@@ -1716,11 +1735,12 @@ module Bootstrap.RuntimeIr where
       else if not (foreign-abi-coherent plan (program-foreign-plans (writer-program w))) then unsupported w sp "foreign symbol has conflicting ABI contracts"
       else if not (primitive-immediate-arguments (foreign-inline plan) args) then unsupported w sp "an immarg primitive operand must be an immediate literal"
       else case expressions definitions locals (request-demand (ForeignDemand plan) w) args of
-        (evaluated, values) -> case foreign-marshal evaluated (foreign-parameters plan) values of
+        (evaluated, values) -> let boundary = (case foreign-inline plan of None -> True; Some body -> False) in
+          case foreign-marshal boundary evaluated (foreign-parameters plan) values of
           (ready, arguments) -> let result = foreign-result plan in let ty = foreign-llvm-type result in
             if same ty "void" then (line ready (cat ["  call void ", llvm-object-symbol (foreign-symbol plan), "(", join arguments, ")"]), "0")
             else let (next, value) = fresh ready "%foreign" in
-              foreign-result-word (line next (cat ["  ", value, " = call ", ty, " ", llvm-object-symbol (foreign-symbol plan), "(", join arguments, ")"])) result value
+              foreign-result-word (line next (cat ["  ", value, " = call ", if boundary then foreign-c-result result else ty, " ", llvm-object-symbol (foreign-symbol plan), "(", join arguments, ")"])) result value
   primitive-immediate-arguments :: Option InlinePrimitive -> List CoreTerm -> Bool
   primitive-immediate-arguments plan args = case plan of
     None -> True

@@ -7080,11 +7080,38 @@ fn byvalue_attr(p: &AbiParam, reg: &Registry, result: bool) -> String {
 /// aggregate's recorded layout, and `noundef` for scalars. At an export
 /// entry (`export`) the pointer side is untrusted: its nullness stays a
 /// checked fault, never a `nonnull` promise.
+/// The extension a narrow integer crosses the C boundary with. The SysV
+/// x86-64 and AArch64 calling conventions leave an 8- or 16-bit argument's
+/// widening to 32 bits to the caller and a result's to the callee, and
+/// clang-compiled code relies on it (`int16_t x == -1234` compares the
+/// whole 32-bit register). `signext`/`zeroext` is how LLVM is told which
+/// side widens and how; without it a constant `i16 -1234` reached C as
+/// 64302.
+fn ext_attr(p: &AbiParam) -> Option<&'static str> {
+    match &p.class {
+        AbiClass::Scalar(Scalar::I8 | Scalar::I16) => Some("signext"),
+        AbiClass::Scalar(Scalar::U8 | Scalar::U16) => Some("zeroext"),
+        _ => None,
+    }
+}
+
+/// A foreign result's LLVM type with its return attribute
+/// ([`ext_attr`]): `signext i16`.
+fn abi_result_ty(p: &AbiParam) -> String {
+    match ext_attr(p) {
+        Some(ext) => format!("{ext} {}", abi_llvm_ty(p)),
+        None => abi_llvm_ty(p).to_string(),
+    }
+}
+
 fn param_attrs(p: &AbiParam, export: bool) -> String {
     let mut attrs: Vec<String> = Vec::new();
     match &p.class {
         AbiClass::Unit => {}
         AbiClass::Scalar(_) => {
+            if let Some(ext) = ext_attr(p) {
+                attrs.push(ext.to_string());
+            }
             if !export {
                 attrs.push("noundef".to_string());
             }
@@ -7150,7 +7177,7 @@ fn foreign_declare(plan: &ForeignPlan, reg: &Registry) -> String {
     let ret = if matches!(plan.result.class, AbiClass::Aggregate) {
         "void".to_string()
     } else {
-        abi_llvm_ty(&plan.result).to_string()
+        abi_result_ty(&plan.result)
     };
     format!(
         "declare {ret} @{}({})\n",
@@ -7299,7 +7326,7 @@ fn foreign_import_body(
             b.line("ret i64 0");
         }
         AbiClass::Scalar(s) => {
-            let rty = abi_llvm_ty(&plan.result);
+            let rty = abi_result_ty(&plan.result);
             let r = b.reg();
             foreign_call(
                 b,
@@ -7400,7 +7427,7 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
         match &p.class {
             AbiClass::Unit => {}
             AbiClass::Scalar(s) => {
-                params.push(format!("{} {n}{}", abi_llvm_ty(p), param_attrs(p, true)));
+                params.push(format!("{}{} {n}", abi_llvm_ty(p), param_attrs(p, true)));
                 // The C side's argument is foreign input (an `undef`
                 // C register would otherwise leak into safe code): the
                 // word freezes before it can branch or compare.
@@ -7408,7 +7435,7 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
                 words.push(freeze_word(&mut b, &w));
             }
             AbiClass::Ptr => {
-                params.push(format!("ptr {n}{}", param_attrs(p, true)));
+                params.push(format!("ptr{} {n}", param_attrs(p, true)));
                 if !p.nullable {
                     // The pointer side is untrusted: a null crossing is
                     // the checked fault, never a `nonnull` promise.
@@ -7428,9 +7455,9 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
                 // way in.
                 let byval = byvalue_attr(p, reg, false);
                 params.push(if byval.is_empty() {
-                    format!("ptr {n}{}", param_attrs(p, true))
+                    format!("ptr{} {n}", param_attrs(p, true))
                 } else {
-                    format!("ptr {byval} {n}{}", param_attrs(p, true))
+                    format!("ptr {byval}{} {n}", param_attrs(p, true))
                 });
                 let blk = b.reg();
                 b.line(&ctor_alloc_call(
@@ -7452,7 +7479,7 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
     let ret_ty = if sret {
         "void".to_string()
     } else {
-        abi_llvm_ty(&plan.result).to_string()
+        abi_result_ty(&plan.result)
     };
     let header = format!(
         "define {} @{}({})",
