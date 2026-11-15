@@ -135,7 +135,7 @@ fn frontend_build_refusal(mode: Mode, opts: &DriverOptions) -> Option<String> {
 /// that is missing and the environment variable that supplies it, because
 /// a silently skipped case reads as a passing one.
 fn missing_toolchain() -> Option<String> {
-    let (clang, major) = match cinch::driver::freestanding_clang() {
+    let (clang, major) = match cinch::driver::clang_major() {
         Ok(found) => found,
         Err(error) => return Some(error.to_string()),
     };
@@ -144,15 +144,15 @@ fn missing_toolchain() -> Option<String> {
             return Some(format!(
                 "`{clang}` does not report a clang version, and assembling the emitted module \
                  needs clang {} or newer",
-                cinch::driver::FREESTANDING_CLANG_MAJOR
+                cinch::driver::CLANG_MIN_MAJOR
             ))
         }
-        Some(major) if major < cinch::driver::FREESTANDING_CLANG_MAJOR => {
+        Some(major) if major < cinch::driver::CLANG_MIN_MAJOR => {
             return Some(format!(
                 "`{clang}` is clang {major}, and assembling the emitted module needs clang {} \
                  or newer: the IR carries `range(...)` attributes older LLVM rejects with \
                  `expected type`",
-                cinch::driver::FREESTANDING_CLANG_MAJOR
+                cinch::driver::CLANG_MIN_MAJOR
             ))
         }
         Some(_) => {}
@@ -165,6 +165,25 @@ fn missing_toolchain() -> Option<String> {
              /nix/store/2kdq06nmp8k9bqvkj6rnwbb0a48b0m5v-llvm-binutils-21.1.8/bin/wasm-ld \
              (any `llvm-binutils` version from `nix-shell -p llvmPackages.bintools`)"
         ));
+    }
+    // The build produces the runtime archive itself, with cargo, for the
+    // Rust target; without that target's standard library it fails, which
+    // names the missing piece but is not a verdict on the emitted module.
+    let libdir = std::process::Command::new("rustc")
+        .args(["--print", "target-libdir", "--target", "wasm32-unknown-unknown"])
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .map(|output| PathBuf::from(String::from_utf8_lossy(&output.stdout).trim()));
+    let has_core = libdir.as_ref().and_then(|dir| std::fs::read_dir(dir).ok()).is_some_and(|entries| {
+        entries.flatten().any(|entry| entry.file_name().to_string_lossy().starts_with("libcore-"))
+    });
+    if !has_core {
+        return Some(
+            "the Rust target `wasm32-unknown-unknown` is not installed, and the build compiles \
+             the runtime archive for it: `rustup target add wasm32-unknown-unknown`"
+                .to_string(),
+        );
     }
     let node = std::env::var("CINCH_NODE").unwrap_or_else(|_| "node".to_string());
     if std::process::Command::new(&node)
@@ -717,11 +736,11 @@ fn build_produces_a_wasm_module() {
     // The probe the skip path uses reads the same clang the link does, so a
     // machine that reaches this line has a compiler the emitted IR is known
     // to parse: a wrong one is a diagnostic, not a wrong-code failure.
-    let (clang, major) = cinch::driver::freestanding_clang().expect("the probe reports the compiler");
+    let (clang, major) = cinch::driver::clang_major().expect("the probe reports the compiler");
     assert!(
-        major.is_some_and(|major| major >= cinch::driver::FREESTANDING_CLANG_MAJOR),
+        major.is_some_and(|major| major >= cinch::driver::CLANG_MIN_MAJOR),
         "`{clang}` reports clang {major:?}, below the {} the emitted IR needs",
-        cinch::driver::FREESTANDING_CLANG_MAJOR
+        cinch::driver::CLANG_MIN_MAJOR
     );
     let bytes = build_case(&CASES[0]);
     assert!(

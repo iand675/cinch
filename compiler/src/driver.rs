@@ -3894,6 +3894,17 @@ fn link_for(
             ),
             _ => String::new(),
         };
+        // An old clang fails on the IR's first newer attribute with a
+        // parse error that reads like corrupt IR; the version is asked for
+        // only now, so a working link never pays for the probe.
+        let version = match clang_major() {
+            Ok((name, Some(major))) if major < CLANG_MIN_MAJOR => format!(
+                "\n`{name}` reports clang {major}, and the emitted IR needs clang {CLANG_MIN_MAJOR} \
+                 or newer; CINCH_CLANG names the clang to use"
+            ),
+            _ => String::new(),
+        };
+        let hint = format!("{hint}{version}");
         return Err(Error::plain(format!(
             "{} failed to link {}{}{hint}",
             clang(),
@@ -3908,17 +3919,24 @@ fn link_for(
     Ok(())
 }
 
-/// The clang major version a freestanding link requires: the emitted IR
-/// carries `range(...)` attributes on the units whose result is known to
-/// be a small integer, and LLVM 20 is the first release that parses them.
-/// An older clang reports `expected type` on the first one, which reads
-/// like corrupt IR rather than an old assembler.
-pub const FREESTANDING_CLANG_MAJOR: u32 = 20;
+/// The oldest clang whose LLVM reads the IR cinch emits. The floor is set
+/// by `range(...)` return attributes on the units whose result is known to
+/// be a small integer, which LLVM 19 is the first release to parse: an
+/// older clang reports `expected type` on the first one, which reads like
+/// corrupt IR rather than an old assembler.
+///
+/// Every other attribute is spelled so the whole range from this floor to
+/// current LLVM reads it. A borrowed pointer is `nocapture`, not
+/// `captures(none)`: 19 rejects the newer spelling, 20 reads both, and 21
+/// onwards upgrades `nocapture` to `captures(none)` as it parses
+/// (`LLParser`'s `kw_nocapture` case), so the one spelling means the same
+/// fact on every version.
+pub const CLANG_MIN_MAJOR: u32 = 19;
 
-/// The clang a freestanding link assembles with, and the version it
+/// The clang the build assembles and links with, and the major version it
 /// reported. `CINCH_CLANG` still names the compiler; this only reads the
 /// version back so a refusal can name the compiler it found.
-pub fn freestanding_clang() -> Result<(String, Option<u32>)> {
+pub fn clang_major() -> Result<(String, Option<u32>)> {
     let clang = clang();
     let output = std::process::Command::new(&clang)
         .arg("-dM")
@@ -3928,7 +3946,7 @@ pub fn freestanding_clang() -> Result<(String, Option<u32>)> {
         .arg(if cfg!(windows) { "NUL" } else { "/dev/null" })
         .output()
         .map_err(|e| Error::plain(format!(
-            "target wasm32-unknown-unknown: assembling needs clang, and `{clang}` did not run: {e}; \
+            "assembling needs clang, and `{clang}` did not run: {e}; \
              CINCH_CLANG names the clang to use"
         )))?;
     let text = String::from_utf8_lossy(&output.stdout);
@@ -3962,14 +3980,14 @@ fn link_freestanding(
     triple: &str,
     target: &LinkTarget<'_>,
 ) -> Result<()> {
-    let (clang, major) = freestanding_clang()?;
+    let (clang, major) = clang_major()?;
     if let Some(major) = major {
-        if major < FREESTANDING_CLANG_MAJOR {
+        if major < CLANG_MIN_MAJOR {
             return Err(Error::plain(format!(
                 "target `{triple}`: `{clang}` reports clang {major}, and assembling the emitted \
-                 module needs clang {FREESTANDING_CLANG_MAJOR} or newer, because the IR carries \
+                 module needs clang {CLANG_MIN_MAJOR} or newer, because the IR carries \
                  `range(...)` attributes that older LLVM rejects as `expected type`; \
-                 CINCH_CLANG names a newer clang (Apple clang 21 and LLVM 20 both read them)"
+                 CINCH_CLANG names a newer clang"
             )));
         }
     }

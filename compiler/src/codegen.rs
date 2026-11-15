@@ -7073,7 +7073,7 @@ fn byvalue_attr(p: &AbiParam, reg: &Registry, result: bool) -> String {
 }
 
 /// One parameter's declaration attributes at the C boundary (the plan
-/// note's usage-derived parameter attributes): `captures(none)` for the
+/// note's usage-derived parameter attributes): `nocapture` for the
 /// call-scoped borrow (P5 non-escape: a retained or raw pointer may
 /// escape and is not claimed), `nonnull` for the non-null contract
 /// (P11's default), `align` from the role's pointee assertion or the
@@ -7118,7 +7118,9 @@ fn param_attrs(p: &AbiParam, export: bool) -> String {
         }
         AbiClass::Ptr => {
             if p.role == "borrowed" {
-                attrs.push("captures(none)".to_string());
+                // `nocapture`, not `captures(none)`: the one spelling every
+                // supported LLVM reads (`driver::CLANG_MIN_MAJOR`).
+                attrs.push("nocapture".to_string());
             }
             if !p.nullable && !export {
                 attrs.push("nonnull".to_string());

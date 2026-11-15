@@ -163,6 +163,28 @@ module Main where
     expect_ok("narrow-boundary", src, &[&o], 0);
 }
 
+/// A borrowed pointer is declared `nocapture`, the one spelling of the
+/// fact every supported LLVM reads (`driver::CLANG_MIN_MAJOR`): LLVM 19
+/// rejects `captures(none)`, 20 reads both, and 21 onwards upgrades
+/// `nocapture` to `captures(none)` as it parses.
+#[test]
+fn a_borrowed_pointer_is_spelled_for_every_supported_llvm() {
+    let src = r#"
+module Main where
+  opaque type Handle :: Type
+  foreign import ccall "h_open" open :: Unit ->{Foreign Fix} Borrowed Handle
+  foreign import ccall "h_read" read-handle :: Borrowed Handle ->{Foreign Fix} I64
+
+  main :: Unit ->{Foreign Fix} Int
+  main _ = if read-handle (open ()) == 42 then 0 else 1
+"#;
+    let target = TargetProfile::native();
+    let program = cinch::driver::check_sources_profile(src, "<test>", &target).expect("the program checks");
+    let ir = cinch::codegen::emit_for(&target, &program).expect("IR emission");
+    assert!(ir.contains("ptr nocapture"), "a borrowed pointer is `nocapture`:\n{ir}");
+    assert!(!ir.contains("captures("), "no LLVM-20-only spelling:\n{ir}");
+}
+
 // ------------------------------------------------- effect honesty (section 4)
 
 #[test]
