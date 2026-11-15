@@ -1,0 +1,85 @@
+-- | Unaligned little-endian machine-word access to byte buffers.
+-- Bounds are explicit preconditions in the public signatures. Reads and writes
+-- access exactly the proved byte range, preserving buffer ownership and lifetime;
+-- no raw pointer escapes into a pure primitive. Inline LLVM assembles the packed
+-- words consumed by SIMD and SWAR kernels. Wire order is independent of host
+-- endianness. Concurrent mutation follows the same rules as Data.Bytes.
+module Data.Bytes.Word where
+
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+
+  export bytes-read-le32, bytes-read-le64, bytes-write-le32, bytes-write-le64
+
+  -- | Assemble four byte scalars into a canonical little-endian word using inline LLVM shifts and masks.
+  prim pack32 :: U8 -> U8 -> U8 -> U8 -> U32 where
+    llvm {
+      %b0 = zext i8 %0 to i32
+      %b1 = zext i8 %1 to i32
+      %s1 = shl i32 %b1, 8
+      %b2 = zext i8 %2 to i32
+      %s2 = shl i32 %b2, 16
+      %b3 = zext i8 %3 to i32
+      %s3 = shl i32 %b3, 24
+      %v0 = or i32 %b0, %s1
+      %v1 = or i32 %v0, %s2
+      %v2 = or i32 %v1, %s3
+      ret i32 %v2
+    }
+
+  -- | Read exactly 4 bytes as a little-endian U32. Alignment is unrestricted. The caller must prove pos + 4 <= bytes-len b; no tail bytes are read.
+  bytes-read-le32 :: using (pos + 4 <= bytes-len b) => (b :: Bytes) -> (pos :: Nat) -> U32
+  bytes-read-le32 b pos = pack32 (wrapping-i64-to-u8 (nat-to-i64 (bytes-get b pos))) (wrapping-i64-to-u8 (nat-to-i64 (bytes-get b (pos + 1)))) (wrapping-i64-to-u8 (nat-to-i64 (bytes-get b (pos + 2)))) (wrapping-i64-to-u8 (nat-to-i64 (bytes-get b (pos + 3))))
+
+  -- | Write exactly 4 low-to-high bytes of a U32. The caller must prove pos + 4 <= bytes-len b; bytes outside that range are preserved.
+  bytes-write-le32 :: using (pos + 4 <= bytes-len b) => (b :: Bytes) -> (pos :: Nat) -> U32 -> Unit
+  bytes-write-le32 b pos x =
+    let w0 = bytes-set b pos (u8-to-nat (wrapping-u32-to-u8 x)) in
+    let w1 = bytes-set b (pos + 1) (u8-to-nat (wrapping-u32-to-u8 (wrapping-shr-u32 x 8))) in
+    let w2 = bytes-set b (pos + 2) (u8-to-nat (wrapping-u32-to-u8 (wrapping-shr-u32 x 16))) in
+    bytes-set b (pos + 3) (u8-to-nat (wrapping-u32-to-u8 (wrapping-shr-u32 x 24)))
+
+  -- | Assemble eight byte scalars into a canonical little-endian word using inline LLVM shifts and masks.
+  prim pack64 :: U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U64 where
+    llvm {
+      %b0 = zext i8 %0 to i64
+      %b1 = zext i8 %1 to i64
+      %s1 = shl i64 %b1, 8
+      %b2 = zext i8 %2 to i64
+      %s2 = shl i64 %b2, 16
+      %b3 = zext i8 %3 to i64
+      %s3 = shl i64 %b3, 24
+      %b4 = zext i8 %4 to i64
+      %s4 = shl i64 %b4, 32
+      %b5 = zext i8 %5 to i64
+      %s5 = shl i64 %b5, 40
+      %b6 = zext i8 %6 to i64
+      %s6 = shl i64 %b6, 48
+      %b7 = zext i8 %7 to i64
+      %s7 = shl i64 %b7, 56
+      %v0 = or i64 %b0, %s1
+      %v1 = or i64 %v0, %s2
+      %v2 = or i64 %v1, %s3
+      %v3 = or i64 %v2, %s4
+      %v4 = or i64 %v3, %s5
+      %v5 = or i64 %v4, %s6
+      %v6 = or i64 %v5, %s7
+      ret i64 %v6
+    }
+
+  -- | Read exactly 8 bytes as a little-endian U64. Alignment is unrestricted. The caller must prove pos + 8 <= bytes-len b; no tail bytes are read.
+  bytes-read-le64 :: using (pos + 8 <= bytes-len b) => (b :: Bytes) -> (pos :: Nat) -> U64
+  bytes-read-le64 b pos = pack64 (wrapping-i64-to-u8 (nat-to-i64 (bytes-get b pos))) (wrapping-i64-to-u8 (nat-to-i64 (bytes-get b (pos + 1)))) (wrapping-i64-to-u8 (nat-to-i64 (bytes-get b (pos + 2)))) (wrapping-i64-to-u8 (nat-to-i64 (bytes-get b (pos + 3)))) (wrapping-i64-to-u8 (nat-to-i64 (bytes-get b (pos + 4)))) (wrapping-i64-to-u8 (nat-to-i64 (bytes-get b (pos + 5)))) (wrapping-i64-to-u8 (nat-to-i64 (bytes-get b (pos + 6)))) (wrapping-i64-to-u8 (nat-to-i64 (bytes-get b (pos + 7))))
+
+  -- | Write exactly 8 low-to-high bytes of a U64. The caller must prove pos + 8 <= bytes-len b; bytes outside that range are preserved.
+  bytes-write-le64 :: using (pos + 8 <= bytes-len b) => (b :: Bytes) -> (pos :: Nat) -> U64 -> Unit
+  bytes-write-le64 b pos x =
+    let w0 = bytes-set b pos (u8-to-nat (wrapping-u64-to-u8 x)) in
+    let w1 = bytes-set b (pos + 1) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 x 8))) in
+    let w2 = bytes-set b (pos + 2) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 x 16))) in
+    let w3 = bytes-set b (pos + 3) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 x 24))) in
+    let w4 = bytes-set b (pos + 4) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 x 32))) in
+    let w5 = bytes-set b (pos + 5) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 x 40))) in
+    let w6 = bytes-set b (pos + 6) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 x 48))) in
+    bytes-set b (pos + 7) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 x 56)))
