@@ -7072,14 +7072,6 @@ fn byvalue_attr(p: &AbiParam, reg: &Registry, result: bool) -> String {
     }
 }
 
-/// One parameter's declaration attributes at the C boundary (the plan
-/// note's usage-derived parameter attributes): `nocapture` for the
-/// call-scoped borrow (P5 non-escape: a retained or raw pointer may
-/// escape and is not claimed), `nonnull` for the non-null contract
-/// (P11's default), `align` from the role's pointee assertion or the
-/// aggregate's recorded layout, and `noundef` for scalars. At an export
-/// entry (`export`) the pointer side is untrusted: its nullness stays a
-/// checked fault, never a `nonnull` promise.
 /// The extension a narrow integer crosses the C boundary with. The SysV
 /// x86-64 and AArch64 calling conventions leave an 8- or 16-bit argument's
 /// widening to 32 bits to the caller and a result's to the callee, and
@@ -7104,6 +7096,14 @@ fn abi_result_ty(p: &AbiParam) -> String {
     }
 }
 
+/// One parameter's declaration attributes at the C boundary (the plan
+/// note's usage-derived parameter attributes): `nocapture` for the
+/// call-scoped borrow (P5 non-escape: a retained or raw pointer may
+/// escape and is not claimed), `nonnull` for the non-null contract
+/// (P11's default), `align` from the role's pointee assertion or the
+/// aggregate's recorded layout, and `noundef` for scalars. At an export
+/// entry (`export`) the pointer side is untrusted: its nullness stays a
+/// checked fault, never a `nonnull` promise.
 fn param_attrs(p: &AbiParam, export: bool) -> String {
     let mut attrs: Vec<String> = Vec::new();
     match &p.class {
