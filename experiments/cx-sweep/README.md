@@ -68,6 +68,7 @@ the two axes where that difference decided the verdict.
 | `imports` | `generators.imports` | 8, 16, 32, 64 | one importing module's fan-in, one export each |
 | `string` | `generators.string_literal` | 256, 512, 1024, 2048 | bytes in one string literal |
 | `identifier` | `generators.identifier` | 64, 128, 256, 512 | characters in one identifier |
+| `required` | `generators.required_spine` | 256, 512, 1024, 2048 | left-nested calls to a function carrying a precondition (one `CDischarge` per level) |
 
 Every generator is a pure function of its size, so a point is reproducible from
 its number and there is no fixture corpus to rot. Sums are balanced rather than

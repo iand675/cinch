@@ -3031,8 +3031,8 @@ module Bootstrap.Core where
       URequire predicates result -> case scoped-core-predicates gamma predicates of Some ps -> CRequire s ty (refresh-certificates gamma (ps <> facts) body); None -> CError s
       other -> CError s
     CDischarge s ty evidence body -> let call = refresh-certificates gamma facts body in
-      let writes = call-operand-writes call in
-      case scoped-prove-predicates (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) (core-type call) of
+      let (scope, live) = discharge-scope gamma facts call in
+      case scoped-prove-predicates scope live (core-type call) of
         Some fresh -> CDischarge s ty fresh call
         None -> CError s
     CProved s ty evidence body -> let out = refresh-certificates gamma facts body in
@@ -3073,8 +3073,8 @@ module Bootstrap.Core where
       CIf s ty c (refresh-certificates (proof-after-writes gamma (scoped-branch-writes c True)) (scoped-branch-facts gamma facts c True) yes)
         (refresh-certificates (proof-after-writes gamma (scoped-branch-writes c False)) (scoped-branch-facts gamma facts c False) no)
     CCase s ty value alts -> let scrutinee = refresh-certificates gamma facts value in
-      let writes = core-mutable-writes scrutinee in
-      CCase s ty scrutinee (refresh-case-alternatives (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) scrutinee alts)
+      let (scope, live) = term-scope gamma facts scrutinee in
+      CCase s ty scrutinee (refresh-case-alternatives scope live scrutinee alts)
     CTuple s ty fields -> CTuple s ty (refresh-certificates gamma facts fields)
     CPolyIntro s ty ids body -> CPolyIntro s ty ids (refresh-certificates gamma facts body)
     CPolyElim s ty value args -> CPolyElim s ty (refresh-certificates gamma facts value) args
@@ -3085,9 +3085,32 @@ module Bootstrap.Core where
     CAlternative s pattern body rest -> CAlternative s pattern (refresh-certificates (proof-pattern pattern gamma) facts body) (refresh-certificates gamma facts rest)
     other -> term
 
+  -- Whether a write list can change this scope at all. `proof-after-writes`
+  -- clears only proof bindings and `facts-after-writes` clears only facts, so
+  -- a scope with neither is returned unchanged by every write list. This is
+  -- an identity, not an approximation: both are the identity on such a scope
+  -- by their own definitions.
+  writes-move-nothing :: ProofScope -> List Proposition -> Bool
+  writes-move-nothing gamma facts = case (gamma, facts) of
+    (MkProofScope types values proofs bodies guards, Nil) -> case proofs of Nil -> True; other -> False
+    (other, rest) -> False
+  -- The scope a refreshed term's writes leave behind. Asking whether writes
+  -- can matter before computing them avoids a walk over the whole prefix at
+  -- every level of a left-nested spine with no proof bindings or facts.
+  term-scope :: ProofScope -> List Proposition -> CoreTerm -> (ProofScope, List Proposition)
+  term-scope gamma facts term = if writes-move-nothing gamma facts then (gamma, facts) else
+    let writes = core-mutable-writes term in
+    (proof-after-writes gamma writes, facts-after-writes gamma facts writes)
+  -- A discharged call's operands, not the call itself, are the writes its
+  -- obligation is proved under. Same guard, different walk.
+  discharge-scope :: ProofScope -> List Proposition -> CoreTerm -> (ProofScope, List Proposition)
+  discharge-scope gamma facts term = if writes-move-nothing gamma facts then (gamma, facts) else
+    let writes = call-operand-writes term in
+    (proof-after-writes gamma writes, facts-after-writes gamma facts writes)
+
   refresh-after-term :: ProofScope -> List Proposition -> CoreTerm -> CoreTerm -> CoreTerm
-  refresh-after-term gamma facts first rest = let writes = core-mutable-writes first in
-    refresh-certificates (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) rest
+  refresh-after-term gamma facts first rest = let (scope, live) = term-scope gamma facts first in
+    refresh-certificates scope live rest
 
   -- Preconditions are proof metadata. Calls retain their obligation until a
   -- CDischarge checks it; CRequire is permitted only at a declared boundary.
