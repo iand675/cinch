@@ -509,20 +509,21 @@ module Bootstrap.RuntimeIr where
   description-field :: Nat -> Nat
   description-field description = if description-escaped description then 255 else description
   descriptor-symbol :: Nat -> String
-  descriptor-symbol description = cat ["@cinch.desc.", nat-to-string (description - 16777216)]
+  descriptor-symbol description = if 16777216 <= description then cat ["@cinch.desc.", nat-to-string (description - 16777216)] else "@cinch.desc.inline"
   descriptor-mask-words :: Nat -> Nat -> String
   descriptor-mask-words mask count = if count == 0 then "" else
     cat [", i64 ", nat-to-string (mask % 18446744073709551616), descriptor-mask-words (mask / 18446744073709551616) (count - 1)]
   -- An escaped description's static descriptor, emitted beside its use;
   -- `dedupe-globals` keeps one definition per name.
   with-descriptor :: Writer -> Nat -> Writer
-  with-descriptor w description = if not (description-escaped description) then w else
-    let content = description - 16777216 in
+  with-descriptor w description = if 16777216 <= description then
+    (let content = description - 16777216 in
     let rest = content / 16777216 in
     let words = rest % 65536 in
     let mask-count = (words + 63) / 64 in
     global w (cat [descriptor-symbol description, " = private unnamed_addr constant [", nat-to-string (2 + mask-count), " x i64] [i64 ",
-      nat-to-string (content % 16777216), ", i64 ", nat-to-string words, descriptor-mask-words (rest / 65536) mask-count, "], align 8"])
+      nat-to-string (content % 16777216), ", i64 ", nat-to-string words, descriptor-mask-words (rest / 65536) mask-count, "], align 8"]))
+    else w
   -- A description as one word, for a runtime entry that takes either form
   -- (the columnar zip's pair): field << 1 | 1, or the descriptor's address.
   description-word :: Writer -> Nat -> (Writer, String)
