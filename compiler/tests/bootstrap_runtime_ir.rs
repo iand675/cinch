@@ -670,22 +670,22 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
         let symbol = format!("cinch.typed.{}", encode(source));
         dictionary_ir.push_str(&format!("\ndefine i64 @cinch_abi_{bridge}() {{\nentry:\n  %value = call i64 @\"{symbol}\"()\n  ret i64 %value\n}}\n"));
     }
-    dictionary_ir.push_str("\ndefine i64 @cinch_abi_dict_shape(i64 %index) {\nentry:\n  %slot = getelementptr i64, ptr @cinch.typed.layouts, i64 %index\n  %value = load i64, ptr %slot\n  ret i64 %value\n}\n");
     std::fs::write(dir.join("dictionaries.ll"), dictionary_ir).unwrap();
     std::fs::write(dir.join("dictionaries.c"), r#"#include <stdint.h>
 extern uint64_t cinch_abi_raw(void), cinch_abi_tagged(void), cinch_abi_object(void), cinch_abi_function(void), cinch_abi_shared(void);
-extern uint64_t cinch_abi_dict_shape(uint64_t);
 extern void cinch_reclaim_enable(void), cinch_dup(uint64_t), cinch_drop(uint64_t);
 extern uint64_t cinch_int_from_decimal(const char *, uint64_t), __apply(uint64_t, uint64_t, uint64_t *);
 extern int64_t cinch_int_cmp(uint64_t, uint64_t), cinch_exit_check(int64_t);
-static int dictionary(uint64_t word, uint64_t map) {
+// Self-describing header: kind at bit 35; the layout field is tag 0 and the
+// counted mask of the slots after the method-count word.
+static int dictionary(uint64_t word, uint64_t mask) {
   uint64_t *p = (uint64_t *)(uintptr_t)word, h = p[-1];
-  return ((h >> 40) & 255) == 3 && p[0] == 1 && cinch_abi_dict_shape(h >> 48) == (UINT64_C(2) | map << 32);
+  return ((h >> 35) & 31) == 3 && p[0] == 1 && (h >> 40) == (mask << 8);
 }
 int main(void) {
   cinch_reclaim_enable();
   uint64_t raw = cinch_abi_raw(), tagged = cinch_abi_tagged(), object = cinch_abi_object(), function = cinch_abi_function();
-  int good = dictionary(raw, 0) && dictionary(tagged, 8) && dictionary(object, 4) && dictionary(function, 4);
+  int good = dictionary(raw, 0) && dictionary(tagged, 1) && dictionary(object, 1) && dictionary(function, 1);
   good = good && ((uint64_t *)(uintptr_t)raw)[1] == 1;
   uint64_t expected = cinch_int_from_decimal("340282366920938463463374607431768211456", 39);
   good = good && cinch_int_cmp(((uint64_t *)(uintptr_t)tagged)[1], expected) == 0;
@@ -695,7 +695,7 @@ int main(void) {
   good = good && cinch_int_cmp(((uint64_t *)(uintptr_t)box)[0], expected) == 0;
   cinch_drop(expected);
   uint64_t f = ((uint64_t *)(uintptr_t)function)[1];
-  good = good && ((((uint64_t *)(uintptr_t)f)[-1] >> 40) & 255) == 2;
+  good = good && ((((uint64_t *)(uintptr_t)f)[-1] >> 35) & 31) == 2;
   cinch_dup(f);
   uint64_t arg = cinch_int_from_decimal("2", 1), result = __apply(f, 1, &arg);
   expected = cinch_int_from_decimal("18446744073709551618", 20);
@@ -704,8 +704,8 @@ int main(void) {
   cinch_drop(raw); cinch_drop(tagged); cinch_drop(object); cinch_drop(function);
   uint64_t shared = cinch_abi_shared(), *p = (uint64_t *)(uintptr_t)shared;
   uint64_t header = p[-1], shared_box = p[1];
-  good = good && ((header >> 40) & 255) == 3 && p[0] == 4
-    && cinch_abi_dict_shape(header >> 48) == (UINT64_C(5) | UINT64_C(340) << 32)
+  good = good && ((header >> 35) & 31) == 3 && p[0] == 4
+    && (header >> 40) == (UINT64_C(15) << 8)
     && p[1] == p[2];
   uint64_t unit = 0, observer = p[3];
   cinch_dup(observer);
@@ -744,17 +744,16 @@ int main(void) {
     ir.push_str(&format!("\ndefine i64 @cinch_abi_pair() {{\nentry:\n  %pair = call i64 @\"{symbol}\"()\n  ret i64 %pair\n}}\n"));
     let generic_symbol = format!("cinch.typed.{}", encode("makeGeneric"));
     ir.push_str(&format!("\ndefine i64 @cinch_abi_generic() {{\nentry:\n  %value = call i64 @\"{generic_symbol}\"()\n  ret i64 %value\n}}\n"));
-    ir.push_str("\ndefine i64 @cinch_abi_layout(i64 %index) {\nentry:\n  %slot = getelementptr i64, ptr @cinch.typed.layouts, i64 %index\n  %word = load i64, ptr %slot\n  ret i64 %word\n}\n");
     std::fs::write(dir.join("abi.ll"), ir).unwrap();
     std::fs::write(dir.join("abi.c"), r#"
 #include <stdint.h>
 extern uint64_t cinch_abi_pair(void);
 extern uint64_t cinch_abi_generic(void);
-extern uint64_t cinch_abi_layout(uint64_t);
 extern void cinch_reclaim_enable(void);
 extern void cinch_drop(uint64_t);
 extern int64_t cinch_exit_check(int64_t);
-static uint64_t tag(uint64_t word) { return (((uint64_t *)(uintptr_t)word)[-1] >> 48) & 63; }
+static uint64_t tag(uint64_t word) { return (((uint64_t *)(uintptr_t)word)[-1] >> 40) & 255; }
+static uint64_t layout(uint64_t word) { return ((uint64_t *)(uintptr_t)word)[-1] >> 40; }
 int main(void) {
   cinch_reclaim_enable();
   uint64_t pair = cinch_abi_pair();
@@ -765,13 +764,9 @@ int main(void) {
     && children[0] == leaf && children[1] == leaf;
   uint64_t generic = cinch_abi_generic();
   uint64_t *boxes = (uint64_t *)(uintptr_t)generic;
-  uint64_t raw_id = (((uint64_t *)(uintptr_t)boxes[0])[-1] >> 48) & 65535;
-  uint64_t tagged_id = (((uint64_t *)(uintptr_t)boxes[1])[-1] >> 48) & 65535;
-  uint64_t object_id = (((uint64_t *)(uintptr_t)boxes[2])[-1] >> 48) & 65535;
-  good = good && raw_id != tagged_id && tagged_id != object_id && raw_id != object_id
-    && cinch_abi_layout(raw_id) == 1
-    && cinch_abi_layout(tagged_id) == (UINT64_C(2) << 32 | 1)
-    && cinch_abi_layout(object_id) == (UINT64_C(1) << 32 | 1)
+  // Each specialization describes its own field: a raw Box counts
+  // nothing, a tagged or object Box counts its one field.
+  good = good && layout(boxes[0]) == 0 && layout(boxes[1]) == 256 && layout(boxes[2]) == 256
     && ((uint64_t *)(uintptr_t)boxes[0])[0] == 1;
   cinch_drop(pair);
   cinch_drop(generic);

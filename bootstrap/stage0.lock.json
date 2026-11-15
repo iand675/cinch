@@ -1,9 +1,9 @@
 {
-  "description": "ABI 9 Native seed with the branch release kept at the branch head (reuse-only arm expansion); empty patch.",
+  "description": "ABI 10 Native seed: self-describing block headers (tag and counted mask inline, static descriptors for escapes), no layout table; empty patch.",
   "patch": "bootstrap/seed/stage0.patch",
   "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "revision": "1665ebdc917c7828d839ddeb5027ec2f80d63d5f",
-  "runtime_abi": 9,
+  "revision": "52694cf6bd30f9995343d2cd6a55171ed694cec0",
+  "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "62d4314a75eea42294c34edc2205170fc7cd608c9983e650945550c147211028"
+  "source_sha256": "ab6bede35ead5ae4f0320fefa7a00026218787fcc96acc1ebc2314dee9413514"
 }

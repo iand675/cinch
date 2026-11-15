@@ -46,13 +46,11 @@ fn compiler_emit_mode_uses_the_typed_runtime_backend_and_preserves_refusals() {
         let symbol = format!("cinch.typed.{}", cinch::interface::module_global("Main", source));
         ir.push_str(&format!("\ndefine i64 @{bridge}() {{\nentry:\n  %value = call i64 @\"{symbol}\"()\n  ret i64 %value\n}}\n"));
     }
-    ir.push_str("\ndefine i64 @cinch_abi_shape(i64 %index) {\nentry:\n  %slot = getelementptr i64, ptr @cinch.typed.layouts, i64 %index\n  %value = load i64, ptr %slot\n  ret i64 %value\n}\n");
     std::fs::write(dir.join("closures.ll"), ir).unwrap();
     std::fs::write(dir.join("closures.c"), r#"
 #include <stdint.h>
 extern uint64_t cinch_abi_partial(void);
 extern uint64_t cinch_abi_over(void);
-extern uint64_t cinch_abi_shape(uint64_t);
 extern uint64_t __apply(uint64_t, uint64_t, uint64_t *);
 extern void cinch_reclaim_enable(void);
 extern void cinch_dup(uint64_t);
@@ -62,10 +60,12 @@ extern int64_t cinch_int_cmp(uint64_t, uint64_t);
 extern int64_t cinch_exit_check(int64_t);
 static int closure(uint64_t word, uint64_t arity, uint64_t filled) {
   uint64_t *p = (uint64_t *)(uintptr_t)word;
-  uint64_t header = p[-1], shape = header >> 48;
-  uint64_t map = (arity == 2 ? UINT64_C(640) : UINT64_C(128)) << 32;
-  return ((header >> 40) & 255) == 2 && p[0] != 0 && p[1] == arity && p[2] == filled
-    && cinch_abi_shape(shape) == (3 + arity + map);
+  // Self-describing header: kind at bit 35, then tag 0 and the counted
+  // mask of the parameter classes (both Int parameters are counted).
+  uint64_t header = p[-1], layout = header >> 40;
+  uint64_t mask = arity == 2 ? 3 : 1;
+  return ((header >> 35) & 31) == 2 && p[0] != 0 && p[1] == arity && p[2] == filled
+    && (layout & 255) == 0 && (layout >> 8) == mask;
 }
 int main(void) {
   cinch_reclaim_enable();

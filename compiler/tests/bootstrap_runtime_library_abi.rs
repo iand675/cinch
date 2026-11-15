@@ -96,7 +96,6 @@ fn library_abi_entries_describe_actual_workers_and_owned_closure_accessors() {
         if *wanted != 0 {
             assert!(common::read_output(&dir, &format!("output-{index}.ll")).is_empty());
             assert_eq!(common::read_output(&dir, &format!("output-{index}.units.json")).trim(), "[]");
-            assert_eq!(common::read_output(&dir, &format!("output-{index}.layouts.json")).trim(), "[]");
         }
     }
     let units = parse_json(&common::read_output(&dir, "output-0.units.json")).unwrap();
@@ -113,13 +112,10 @@ fn library_abi_entries_describe_actual_workers_and_owned_closure_accessors() {
     let expected = units.as_arr().unwrap().iter().flat_map(|unit| ["symbol", "closure_entry"].map(|key| unit.get(key).and_then(Json::as_str).unwrap().to_string())).collect::<std::collections::BTreeSet<_>>();
     assert_eq!(public.len(), expected.len(), "every ABI symbol is defined exactly once");
     assert_eq!(public.into_iter().collect::<std::collections::BTreeSet<_>>(), expected, "only real ABI bridges/accessors are public");
-    let layout_line = ir.lines().find(|line| line.starts_with("@cinch.typed.layouts = ")).expect("physical layout table");
-    let actual = layout_line.rsplit_once('[').unwrap().1.trim_end_matches(']').split(", ").map(|v| v.strip_prefix("i64 ").unwrap().parse::<u64>().unwrap()).collect::<Vec<_>>();
-    // Parse unsigned descriptor words exactly; a floating JSON projection
-    // would lose integer precision for a full sixteen-field ownership map.
-    let text = common::read_output(&dir, "output-0.layouts.json");
-    let reported = text.trim().trim_start_matches('[').trim_end_matches(']').split(',').map(|n| n.trim().parse::<u64>().unwrap()).collect::<Vec<_>>();
-    assert_eq!(reported, actual, "metadata must use the exact final physical table, including accessor shapes");
+    // Blocks describe themselves (design/self-describing-blocks.md): the
+    // artifact carries no layout table and registers nothing at startup.
+    assert!(!ir.contains("@cinch.typed.layouts") && !ir.contains("cinch_layouts_register") && !ir.contains("@llvm.global_ctors"), "no layout table:\n{ir}");
+    assert!(ir.contains("@cinch_alloc_ctor(i64 ") || ir.contains("@cinch_alloc_shaped(i64 "), "allocations carry their layout field inline");
     ir.push_str("\ndefine i64 @cinch_abi_apply0(i64 %closure) {\nentry:\n  %args = alloca i64\n  %result = call i64 @__apply(i64 %closure, i64 0, ptr %args)\n  ret i64 %result\n}\ndefine i64 @cinch_abi_apply1(i64 %closure, i64 %value) {\nentry:\n  %args = alloca i64\n  store i64 %value, ptr %args\n  %result = call i64 @__apply(i64 %closure, i64 1, ptr %args)\n  ret i64 %result\n}\n");
     std::fs::write(dir.join("library.ll"), ir).unwrap();
     std::fs::write(dir.join("caller.c"), r#"

@@ -1,7 +1,7 @@
 {
-  "description": "ABI 9 library producer that leaves a target's unselected modules (Prim.Sys.Darwin on Linux) out of the base object.",
-  "revision": "da01d2056dda0b22d0b1efd4e7b4c85a0adece92",
-  "runtime_abi": 9,
+  "description": "ABI 10 library producer: self-describing block headers, no layout table or layout ids in the object ABI.",
+  "revision": "52694cf6bd30f9995343d2cd6a55171ed694cec0",
+  "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "87abc4413732369c68e8696a338826df9e00849c0043fcbc93387908ad5837f0"
+  "source_sha256": "ab6bede35ead5ae4f0320fefa7a00026218787fcc96acc1ebc2314dee9413514"
 }

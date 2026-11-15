@@ -1,9 +1,9 @@
 # Self-describing blocks: no layout table, no layout ids
 
 Status: decided 2026-11-14 (the user chose the Lean/Koka direction over a
-startup layout registry). Phase 1 (runtime, seed compiler, evaluator) is
-in the tree at `runtime_abi` 10; phase 2 (the stage compiler's lowering,
-then the lock re-pin) is next (section 7).
+startup layout registry). Both phases are in the tree at `runtime_abi` 10:
+the runtime, seed compiler and evaluator (phase 1), then the stage
+compiler's lowering with both locks re-pinned (phase 2, section 8).
 
 ## 1 The problem
 
@@ -138,3 +138,45 @@ a table, so the release walk loses one dependent load per block.
    the new revision and the chain is rebuilt to its fixed point. Until then
    the tests that link stage-compiled code against the current runtime
    (`bootstrap_runtime_objects`, `bootstrap_library_object`) fail by design.
+
+## 8 The stage compiler (phase 2)
+
+`Bootstrap.RuntimeIr` carries a description as one `Nat`, the counterpart of
+the seed's `u64`:
+
+- below 2^24 it is the inline layout field, `tag + 256 * mask`;
+- otherwise it is escaped, `2^24 + tag + 2^24 * (words + 2^16 * mask)`,
+  with the mask over payload words (prefix included), so the number names
+  its static descriptor `@cinch.desc.<n>` by content. `with-descriptor`
+  emits the descriptor beside each use and `dedupe-globals` keeps one
+  definition per name, as it already did for nullary static blocks.
+
+`shape-description kind tag codes` decides between the two with the same
+rule as the seed's `describe`: tag below 255, counted fields among the first
+16, and a constructor or dictionary payload of at most 31 words.
+`shaped-allocation` picks `cinch_alloc_ctor`/`cinch_alloc_shaped` or their
+`_desc` forms; static blocks (nullary constructors, closures that save
+nothing, fixed dictionaries) put the descriptor address before the header
+when escaped; the columnar zip takes a description word. A tag read is the
+low layout byte with the escape compare, as in the seed. The inline count
+helpers shift by 29 (the 35-bit count).
+
+`LayoutPlan` is now only a cache of each specialized family's descriptions by
+tag. It is never seeded from the provider: nothing about layouts is shared
+between objects. The object ABI loses `layout_words`, `layout_entries`,
+`escaped_descriptors` and the per-type `group`/`base` facts; a constructor's
+facts are its tag, arity, header layout field and `escaped`, and every
+manifest states `self_describing: true`, which `Bootstrap.Object` requires of
+a provider. The provider's String wrapper must be inline with its one field
+counted (layout field 256), which is what a string literal's static header
+uses.
+
+The stage compiler keeps its existing field-count limits (16 tuple or
+constructor fields, 13 closure parameters, 15 dictionary slots): they are
+refusals of other lowering paths, not of the header, so the escape path is
+reached today only by families of 255 or more constructors.
+
+Both locks pin the commit that removed the JIT's and the Wasm entry's last
+layout registrations (`52694cf6bd30`), seed source hash
+`ab6bede35ead5ae4f0320fefa7a00026218787fcc96acc1ebc2314dee9413514`, and
+`tooling/bootstrap.py` admits `runtime_abi` 10.

@@ -1,4 +1,4 @@
-//! The Cinch emitter consumes checked library objects and a shared layout prefix.
+//! The Cinch emitter consumes checked library objects whose blocks describe themselves.
 mod common;
 use std::process::Command;
 
@@ -144,11 +144,10 @@ fn cinch_calls_actual_library_objects_with_checked_layout_authority() {
     for (i, (name, _, code)) in cases.iter().enumerate() {
         assert_eq!(common::read_output(&dir, &format!("output-{i}.status")), "0", "{name}: {}", common::read_output(&dir, &format!("output-{i}.diagnostics")));
         let ir = dir.join(format!("output-{i}.ll")); let exe = dir.join(format!("program-{i}"));
-        let prefix: Vec<u64> = metadata.split("\"layout_words\":[").nth(1).unwrap().split(']').next().unwrap().split(',').filter(|s| !s.is_empty()).map(|s| s.parse().unwrap()).collect();
+        // Blocks describe themselves: the consumer shares no layout table
+        // with the provider object and registers none.
         let text = std::fs::read_to_string(&ir).unwrap();
-        let table = text.lines().find(|l| l.starts_with("@cinch.typed.layouts =")).unwrap();
-        let words: Vec<u64> = table.split("] [").nth(1).unwrap().trim_end_matches(']').split(", ").map(|s| s.strip_prefix("i64 ").unwrap().parse().unwrap()).collect();
-        assert_eq!(&words[..prefix.len()], &prefix, "{name}: provider layout prefix changed");
+        assert!(!text.contains("@cinch.typed.layouts") && !text.contains("cinch_layouts_register"), "{name}: a layout table was emitted");
         let link = Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into())).arg(&ir).arg(&object).arg(&runtime).arg("-o").arg(&exe).output().unwrap();
         assert!(link.status.success(), "{name}: {}", String::from_utf8_lossy(&link.stderr));
         let mut command = Command::new(&exe);
