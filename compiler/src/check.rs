@@ -6496,6 +6496,47 @@ impl Checker {
         Some(FieldShape::Inline { size: layout.size, tag, fields })
     }
 
+    /// The C ABI's view of one boundary-layout field stored at `offset`
+    /// in `size` recorded bytes: the machine scalars it holds, appended
+    /// to `out` in offset order (`crate::core::CLeaf`). It follows
+    /// [`Self::field_shape`]: a machine scalar is one leaf, a `Bool` an
+    /// integer leaf at its recorded width, `Unit` nothing, a nested
+    /// boundary-layout aggregate its own fields flattened at its offset,
+    /// and every boxed or pointer word one integer leaf.
+    pub(crate) fn c_leaves(&self, ty: &Ty, offset: u64, size: u64, out: &mut Vec<crate::core::CLeaf>) {
+        use crate::core::CLeaf;
+        match ty {
+            Ty::Unit if size == 0 => {}
+            Ty::Unit | Ty::Bool => out.push(CLeaf { offset, size, float: false }),
+            Ty::Prim(s) => out.push(CLeaf {
+                offset,
+                size: s.size(),
+                float: matches!(s, Scalar::F32 | Scalar::F64),
+            }),
+            Ty::Adt(n, _) if self.inline_layout(n).is_some() => {
+                let nested = self.lookup_known_type(n).ok().and_then(|info| {
+                    let layout = self.type_layouts.get(&(info.module.clone(), info.name.clone()))?;
+                    let v = self.qualified.get(&(info.module.clone(), info.name.clone()))?;
+                    match &v.kind {
+                        ValueKind::Ctor { field_tys, field_erased, .. } => {
+                            Some((layout.fields.clone(), field_tys.clone(), field_erased.clone()))
+                        }
+                        _ => None,
+                    }
+                });
+                let Some((facts, field_tys, field_erased)) = nested else {
+                    out.push(CLeaf { offset, size, float: false });
+                    return;
+                };
+                let kept = field_tys.iter().zip(field_erased.iter()).filter(|(_, erased)| !**erased);
+                for ((t, _), f) in kept.zip(facts.iter()) {
+                    self.c_leaves(t, offset + f.offset, f.size, out);
+                }
+            }
+            _ => out.push(CLeaf { offset, size, float: false }),
+        }
+    }
+
     /// Record that the current declaration's check consulted the instance
     /// bucket `(class, head)`, whether or not it found anything. The
     /// declaration is the unit the checker is elaborating; a search with

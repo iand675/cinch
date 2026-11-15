@@ -239,7 +239,7 @@ Beyond the assertion restatements above, the backend translates other establishe
 | `#[checked-params]` and boundary facts | `llvm.assume` with `align`, `nonnull`, `dereferenceable` or `range` operand bundles |
 | A read from an untrusted buffer, pointer or foreign input | `freeze` before a branch or comparison |
 | A fault exit | `noreturn` and a dead successor |
-| A foreign aggregate boundary | `byval` and `sret` |
+| A foreign aggregate boundary | The target's C convention: register pieces, `byval`, a pointer to the caller's copy, or `sret` |
 | A `prim` immediate parameter, an `asm` fragment | `immarg`, and `llvm.sideeffect` for the assembly |
 
 These names describe emitted IR. They are not source attributes: writing `#[nonnull]` on a Cinch definition does not exist and does not prove anything. Fast-math flags are not a default permission to reassociate IEEE arithmetic, and a reserved or opaque primitive body keeps its explicit trust and containment status rather than becoming proved by its own annotation.

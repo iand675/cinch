@@ -1351,6 +1351,7 @@ impl Checker {
                         by_value: false,
                         tag: 0,
                         fields: Vec::new(),
+                        leaves: Vec::new(),
                     })
                     .collect();
                 let has_ret_ptr = b.call.ret.is_some();
@@ -1368,6 +1369,7 @@ impl Checker {
                         by_value: false,
                         tag: 0,
                         fields: Vec::new(),
+                        leaves: Vec::new(),
                     });
                 }
                 let result = AbiParam {
@@ -1387,6 +1389,7 @@ impl Checker {
                     by_value: false,
                     tag: 0,
                     fields: Vec::new(),
+                    leaves: Vec::new(),
                 };
                 self.foreign_plans.push((
                     unit.clone(),
@@ -1514,6 +1517,7 @@ impl Checker {
                 by_value: false,
                 tag: 0,
                 fields: Vec::new(),
+                leaves: Vec::new(),
             };
             let mut params = vec![word_param.clone()];
             if arity == 2 {
@@ -1540,6 +1544,7 @@ impl Checker {
                         by_value: false,
                         tag: 0,
                         fields: Vec::new(),
+                        leaves: Vec::new(),
                     },
                     deallocator: String::new(),
                     canon: None,
@@ -11726,6 +11731,7 @@ impl Checker {
             by_value: false,
             tag: 0,
             fields: Vec::new(),
+            leaves: Vec::new(),
         };
         match ty {
             Ty::Unit => Ok(p),
@@ -11870,8 +11876,10 @@ impl Checker {
                         shape: self.field_shape(fty, f.size),
                         range: fty.value_range(),
                     });
+                    self.c_leaves(fty, f.offset, f.size, &mut p.leaves);
                     slot += 1;
                 }
+                p.leaves.sort_by_key(|l| l.offset);
                 Ok(p)
             }
             other => Err(Error::plain(crate::diagnostic!(

@@ -148,7 +148,8 @@ D-numbers) that amend or interpret this chapter's normative text.
   (checked definitions restate them only under their P20/totality rows)
   and the unit scan classifies every call, load, store, and poison
   source so effectful units never claim `memory(none)`. Aggregate
-  parameter spelling: `byref`/`sret`, see the FFI chapter's amendment.
+  parameter spelling: per target C convention (superseding `byref`),
+  see the FFI chapter's 2026-11-15 amendment.
 - **Cross-compilation widths (A4, closed P14), 2026-10-28.** `Usize`/
   `Isize` widths and capability checks key on the target profile, never
   the generator host (rows 27-28 of `compiler/SPEC-MAPPING.md`).

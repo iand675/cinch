@@ -2977,8 +2977,10 @@ pub enum AbiClass {
     Scalar(crate::types::Scalar),
     /// Any pointer role, including opaque handles: crossing as `ptr`.
     Ptr,
-    /// An aggregate crossing by const-pointer to a call-scoped C-layout
-    /// copy (parameters only; a foreign result cannot be an aggregate).
+    /// A C-layout aggregate: by default a parameter crossing by
+    /// const-pointer to a call-scoped copy; with `by_value`, a struct
+    /// passed or returned by value as the target's C convention says
+    /// (`crate::cabi`). A result is an aggregate only by value.
     Aggregate,
 }
 
@@ -3126,19 +3128,38 @@ pub struct AbiParam {
     /// (0 asserts none, as for `RawPtr` and opaque handles). This is the
     /// `align` parameter attribute and the `align` operand bundle.
     pub pointee_align: u64,
-    /// The native by-value spelling of the crossing (the plan note
-    /// `design/llvm-contract-attributes.md`): an aggregate parameter
-    /// crosses `byval(<layout>)` and an aggregate result crosses
-    /// `sret(<layout>)` (the platform's by-value struct ABI, spelled for
-    /// LLVM rather than guessed). Without it an aggregate parameter
-    /// crosses as D66's const-pointer to a call-scoped copy and an
-    /// aggregate result is rejected.
+    /// The aggregate crosses by value (`#[byval]` parameters, the
+    /// `#[sret]` result): where the bytes travel, in registers, as a
+    /// stack copy, behind a pointer or through a result buffer, is the
+    /// target's C convention's decision over `leaves`, made in
+    /// `crate::cabi` rather than guessed. Without it an aggregate
+    /// parameter crosses as D66's const-pointer to a call-scoped copy
+    /// and an aggregate result is rejected.
     pub by_value: bool,
     /// For aggregates: the constructor tag of the boxed block built on
     /// the way in (the C-layout field plan is `fields`).
     pub tag: u64,
     /// For aggregates: the C-layout field plan (recorded offsets).
     pub fields: Vec<FieldAccess>,
+    /// For aggregates: the machine scalars the C ABI sees in the
+    /// aggregate, nested aggregates flattened, in offset order. A
+    /// by-value crossing's passing mode is a function of these and the
+    /// target's calling convention (`crate::cabi`), never of the Cinch
+    /// field plan: the field plan stores bits, while the classifier
+    /// needs to know which bits live in a float register.
+    pub leaves: Vec<CLeaf>,
+}
+
+/// One machine scalar inside a C aggregate, as the target's calling
+/// convention classifies it: its byte offset from the aggregate's base,
+/// its byte width, and whether it is a floating-point value (SysV's
+/// SSE class, AAPCS64's homogeneous floating-point aggregates) or an
+/// integer, pointer or `Bool` (SysV's INTEGER class).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CLeaf {
+    pub offset: u64,
+    pub size: u64,
+    pub float: bool,
 }
 
 /// One foreign binding's contract and marshalling plan (foreign function

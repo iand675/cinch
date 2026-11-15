@@ -246,7 +246,7 @@ LLVM's attribute vocabulary. Implemented 2026-10-27 by
 | Usage-derived parameter attributes (`captures(none)`/`nonnull`/`noundef`/`align`, `!range`, `!align`) | done (presence/absence pairs; `Fin`/full-width ranges refused as unsound (D187)) |
 | `llvm.assume` with operand bundles from P20 assertions and repr facts | done (no `range` bundle exists in this LLVM; ranges via the return attribute + `!range` (D188)) |
 | `freeze` at untrusted boundaries; `noreturn` + `unreachable` fault audit | done (every untrusted ingress; all fault paths audited) |
-| Aggregate FFI spelling | done as `byref(%__sl_layout_N)` + `sret`, NOT `byval` (disassembly proof: `byval` segfaults against C struct-by-value; `byref` preserves the C convention (D190)); `immarg`/`llvm.sideeffect` noted for P18 |
+| Aggregate FFI spelling | done per target C convention (`src/cabi.rs`, 2026-11-15, superseding D190's single `byref` spelling): System V register eightbytes / `byval` / `sret`, AAPCS64 HFAs and `[2 x i64]` / caller-copy pointer / `sret`, Microsoft x64 and wasm32 rules; real-C round trips in `tests/llvm_contract.rs`; `immarg`/`llvm.sideeffect` noted for P18 |
 
 Evidence: `tests/llvm_contract.rs` 14/14 IR-observation tests, each
 attribute present where proven and absent where unproven (catching
@@ -591,7 +591,11 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   caller's copy; `byref` states validity without changing the
   convention and the run test proves callee copy isolation; `sret` is
   clang's own spelling; per-target spelling is the cross-compilation
-  follow-up); `llvm.assume` has no `range` operand bundle in this
+  follow-up). Superseded 2026-11-15: the `byref` evidence was AAPCS64's,
+  where a composite over 16 bytes is passed by reference; on x86-64
+  System V the same struct is a stack copy, `byval` is the C convention,
+  and `byref` read garbage. `src/cabi.rs` now classifies per target,
+  including the register cases at 16 bytes or less); `llvm.assume` has no `range` operand bundle in this
   LLVM (accepted: align/cold/dereferenceable/
   dereferenceable_or_null/ignore/nonnull/noundef/separate_storage),
   so range facts use the `range` return attribute and `!range`

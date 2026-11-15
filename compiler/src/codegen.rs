@@ -241,6 +241,7 @@ fn emit_module(
         reg.tailcc.clear();
     }
     reg.rc_debug = profile.rc_debug;
+    reg.convention = crate::cabi::Convention::of(profile);
     reg.reclaim = profile.reclaim;
     reg.emit_modules = emit_modules.to_vec();
     // An object, or a module emitted without its neighbours, may not define
@@ -590,7 +591,7 @@ fn emit_module(
         let mut declared: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
         for plan in program.foreigns.values() {
             if !plan.export && declared.insert(plan.symbol.clone()) {
-                out.push_str(&foreign_declare(plan, &reg));
+                out.push_str(&foreign_declare(plan, &reg)?);
             }
         }
         // The bracket around a `Blocking` import's call (`foreign_call`).
@@ -1047,6 +1048,10 @@ struct Registry {
     /// Count operations call the out-of-line runtime entries
     /// ([`crate::core::TargetProfile::rc_debug`]).
     rc_debug: bool,
+    /// The target's C convention for aggregates crossing by value
+    /// ([`crate::cabi`]); `None` where this compiler has no rule, and a
+    /// by-value crossing there is refused.
+    convention: Option<crate::cabi::Convention>,
     /// The program counts references
     /// ([`crate::core::TargetProfile::reclaim`]); otherwise no unit emits
     /// an ownership operation and every block leaks.
@@ -7029,26 +7034,58 @@ fn prim_use_declares(program: &Program, so_far: &str) -> Vec<String> {
     lines
 }
 
-/// The native spelling of one by-value aggregate crossing (the plan
-/// note's item 6): `sret(<layout>)` for the result-out buffer, and
-/// `byref(<layout>)` for the parameter's call-scoped copy. LLVM's
-/// `byval` is not that spelling on every platform: it can mean a
-/// machine convention (a stack-passed copy) that does not match the C
-/// side's by-value aggregates, while `byref` states the pointee type
-/// and the pointer's validity without changing the passing convention
-/// (the tests/llvm_contract.rs round trip against real C).
-fn byvalue_attr(p: &AbiParam, reg: &Registry, result: bool) -> String {
-    if !p.by_value {
-        return String::new();
-    }
-    let name = reg
-        .layout_types
+/// The named layout type of one aggregate's C bytes: the pointee of a
+/// `byval` parameter or an `sret` result (`%__sl_layout_N`).
+fn layout_ty<'r>(p: &AbiParam, reg: &'r Registry) -> &'r str {
+    reg.layout_types
         .get(&p.width)
-        .expect("the aggregate's layout type is registered");
-    if result {
-        format!("sret(%{name}) align {}", p.align)
+        .expect("the aggregate's layout type is registered")
+}
+
+/// `byval(<layout>) align A`: the copy the backend places in the
+/// argument area ([`crate::cabi::ParamPass::Byval`]).
+fn byval_attr(p: &AbiParam, reg: &Registry) -> String {
+    format!("byval(%{}) align {}", layout_ty(p, reg), p.align)
+}
+
+/// `sret(<layout>) align A`: the caller's result buffer
+/// ([`crate::cabi::ResultPass::Sret`]).
+fn sret_attr(p: &AbiParam, reg: &Registry) -> String {
+    format!("sret(%{}) align {}", layout_ty(p, reg), p.align)
+}
+
+/// One binding's by-value aggregate decisions on this target
+/// ([`crate::cabi::classify`]): the declare, the import wrapper and the
+/// export entry all spell their crossings from this one answer.
+fn foreign_crossing(plan: &ForeignPlan, reg: &Registry) -> Result<crate::cabi::Crossing> {
+    crate::cabi::classify(plan, reg.convention).or_else(err)
+}
+
+/// The alignment of a by-value aggregate's copy: its own, raised to 8
+/// when register pieces load from or store to it, since every piece sits
+/// at an offset that is a multiple of 8.
+fn copy_align(p: &AbiParam, direct: bool) -> u64 {
+    if direct {
+        p.align.max(8)
     } else {
-        format!("byref(%{name}) align {}", p.align)
+        p.align.max(1)
+    }
+}
+
+/// Zero `bytes` of a boundary copy with the target's `llvm.memset`.
+fn zero_bytes(b: &mut Builder, cx: &LowerCx, buf: &str, bytes: u64) {
+    let size_ty = if cx.size_ty() == "i32" { "i32" } else { "i64" };
+    b.line(&format!(
+        "call void @llvm.memset.p0.{size_ty}(ptr {buf}, i8 0, {size_ty} {bytes}, i1 false)"
+    ));
+}
+
+/// The address of one register piece inside a by-value aggregate's copy.
+fn piece_addr(b: &mut Builder, buf: &str, piece: &crate::cabi::Piece) -> String {
+    if piece.offset == 0 {
+        buf.to_string()
+    } else {
+        b.gep(buf, piece.offset as usize)
     }
 }
 
@@ -7105,46 +7142,45 @@ fn param_attrs(p: &AbiParam, export: bool) -> String {
 }
 
 /// The `declare` for one imported foreign symbol.
-fn foreign_declare(plan: &ForeignPlan, reg: &Registry) -> String {
+fn foreign_declare(plan: &ForeignPlan, reg: &Registry) -> Result<String> {
     if let Some(call) = &plan.canon {
         // The canonical ABI's core signature (WebAssembly and WASI
         // specification section 4).
         let (ret, params) = canon_sig(call);
-        return format!(
+        return Ok(format!(
             "declare {ret} @{}({})\n",
             quote(&plan.symbol),
             params.join(", ")
-        );
+        ));
     }
+    use crate::cabi::{ParamPass, ResultPass};
+    let crossing = foreign_crossing(plan, reg)?;
     let mut params: Vec<String> = Vec::new();
-    // A by-value aggregate result crosses first, through the
-    // platform's result-out buffer (`sret`).
-    if matches!(plan.result.class, AbiClass::Aggregate) {
-        params.push(format!("ptr {}", byvalue_attr(&plan.result, reg, true)));
-    }
-    for p in plan
-        .params
-        .iter()
-        .filter(|p| !matches!(p.class, AbiClass::Unit))
-    {
-        let byval = byvalue_attr(p, reg, false);
-        let kind = if byval.is_empty() {
-            "ptr".to_string()
-        } else {
-            format!("ptr {byval}")
-        };
-        params.push(format!("{kind}{}", param_attrs(p, false)));
-    }
-    let ret = if matches!(plan.result.class, AbiClass::Aggregate) {
-        "void".to_string()
-    } else {
-        abi_llvm_ty(&plan.result).to_string()
+    // A result-buffer aggregate result crosses first (`sret`); one the
+    // convention returns in registers is the declared result type.
+    let ret = match &crossing.result {
+        Some(ResultPass::Sret) => {
+            params.push(format!("ptr {}", sret_attr(&plan.result, reg)));
+            "void".to_string()
+        }
+        Some(ResultPass::Direct { ty, .. }) => ty.clone(),
+        None => abi_llvm_ty(&plan.result).to_string(),
     };
-    format!(
+    for (p, pass) in plan.params.iter().zip(&crossing.params) {
+        match pass {
+            _ if matches!(p.class, AbiClass::Unit) => {}
+            None | Some(ParamPass::Reference) => {
+                params.push(format!("{}{}", abi_llvm_ty(p), param_attrs(p, false)))
+            }
+            Some(ParamPass::Byval) => params.push(format!("ptr {}", byval_attr(p, reg))),
+            Some(ParamPass::Direct(pieces)) => params.extend(pieces.iter().map(|piece| piece.ty.clone())),
+        }
+    }
+    Ok(format!(
         "declare {ret} @{}({})\n",
         quote(&plan.symbol),
         params.join(", ")
-    )
+    ))
 }
 
 /// Restate one boundary buffer's recorded layout as an `llvm.assume`
@@ -7223,6 +7259,8 @@ fn foreign_import_body(
         }
         return canon_import_body(b, reg, plan);
     }
+    use crate::cabi::{ParamPass, ResultPass};
+    let crossing = foreign_crossing(plan, reg)?;
     let fault = b.label();
     let mut any_check = false;
     let mut tys: Vec<String> = Vec::new();
@@ -7246,13 +7284,15 @@ fn foreign_import_body(
                 args.push(v);
             }
             AbiClass::Aggregate => {
-                // A call-scoped C-layout copy of the block payload,
-                // laid out and aligned as the recorded layout says.
-                let buf = b.alloca_bytes(p.width, p.align.max(1));
-                b.line(&format!(
-                    "call void @llvm.memset.p0.i64(ptr {buf}, i8 0, i64 {}, i1 false)",
-                    p.width
-                ));
+                // A call-scoped C-layout copy of the block payload, laid
+                // out and aligned as the recorded layout says (and long
+                // enough for every register piece's load). Zeroed first,
+                // so its padding crosses as zero bits, not stack bytes.
+                let pass = crossing.params[i].as_ref();
+                let bytes = pass.map_or(p.width, |pass| pass.buffer_bytes(p));
+                let direct = matches!(pass, Some(ParamPass::Direct(_)));
+                let buf = b.alloca_bytes(bytes, copy_align(p, direct));
+                zero_bytes(b, cx, &buf, bytes);
                 assume_layout(b, &buf, p.align, p.width);
                 let blk = b.reg();
                 b.line(&format!("{blk} = inttoptr i64 %p{i} to ptr"));
@@ -7260,14 +7300,27 @@ fn foreign_import_body(
                 for fa in &p.fields {
                     copy_field_exact(b, reg, &buf, 0, &payload, 0, fa, false);
                 }
-                let byval = byvalue_attr(p, reg, false);
-                let spelled = if byval.is_empty() {
-                    format!("ptr{}", param_attrs(p, false))
-                } else {
-                    format!("ptr {byval}{}", param_attrs(p, false))
-                };
-                tys.push(spelled);
-                args.push(buf);
+                match pass {
+                    // D66's const-pointer, and the conventions' own
+                    // by-reference aggregate: the copy's address.
+                    None | Some(ParamPass::Reference) => {
+                        tys.push(format!("ptr{}", param_attrs(p, false)));
+                        args.push(buf);
+                    }
+                    Some(ParamPass::Byval) => {
+                        tys.push(format!("ptr {}", byval_attr(p, reg)));
+                        args.push(buf);
+                    }
+                    Some(ParamPass::Direct(pieces)) => {
+                        for piece in pieces {
+                            let at = piece_addr(b, &buf, piece);
+                            let v = b.reg();
+                            b.line(&format!("{v} = load {}, ptr {at}, align 8", piece.ty));
+                            tys.push(piece.ty.clone());
+                            args.push(v);
+                        }
+                    }
+                }
             }
         }
     }
@@ -7318,19 +7371,39 @@ fn foreign_import_body(
             b.line(&format!("ret i64 {w}"));
         }
         AbiClass::Aggregate => {
-            // The by-value result crosses through the platform's
-            // result-out buffer (`sret`); the C-layout bytes box into a
+            // The by-value result crosses through the caller's result
+            // buffer (`sret`) or in registers stored into one, as the
+            // convention says; the C-layout bytes box into a
             // boundary-layout block on the way in.
-            let sret = byvalue_attr(&plan.result, reg, true);
-            let buf = b.alloca_bytes(plan.result.width, plan.result.align.max(1));
-            let mut full = vec![format!("ptr {sret} {buf}")];
-            full.extend(call_args);
-            foreign_call(
-                b,
-                cx,
-                plan,
-                &format!("call void @{}({})", quote(&plan.symbol), full.join(", ")),
-            );
+            let pass = crossing
+                .result
+                .as_ref()
+                .expect("an aggregate result is classified");
+            let bytes = pass.buffer_bytes(&plan.result);
+            let direct = matches!(pass, ResultPass::Direct { .. });
+            let buf = b.alloca_bytes(bytes, copy_align(&plan.result, direct));
+            match pass {
+                ResultPass::Sret => {
+                    let mut full = vec![format!("ptr {} {buf}", sret_attr(&plan.result, reg))];
+                    full.extend(call_args);
+                    foreign_call(
+                        b,
+                        cx,
+                        plan,
+                        &format!("call void @{}({})", quote(&plan.symbol), full.join(", ")),
+                    );
+                }
+                ResultPass::Direct { ty, .. } => {
+                    let r = b.reg();
+                    foreign_call(
+                        b,
+                        cx,
+                        plan,
+                        &format!("{r} = call {ty} @{}({})", quote(&plan.symbol), call_args.join(", ")),
+                    );
+                    b.line(&format!("store {ty} {r}, ptr {buf}, align 8"));
+                }
+            }
             // The block holds C bytes: no word in it is a reference this
             // program owns, so none is counted.
             let blk = b.reg();
@@ -7369,19 +7442,18 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
         }
         return canon_export_entry(out, plan, reg);
     }
+    use crate::cabi::{ParamPass, ResultPass};
+    let crossing = foreign_crossing(plan, reg)?;
     let mut b = Builder::new();
     let fault = b.label();
     let mut any_check = false;
     let mut params: Vec<String> = Vec::new();
     let mut words: Vec<String> = Vec::new();
-    // A by-value aggregate result crosses first, through the C
-    // caller's result-out buffer (`sret`).
-    let sret = matches!(plan.result.class, AbiClass::Aggregate);
+    // A result-buffer aggregate result crosses first, through the C
+    // caller's `sret` slot.
+    let sret = matches!(crossing.result, Some(ResultPass::Sret));
     if sret {
-        params.push(format!(
-            "ptr {} %sret",
-            byvalue_attr(&plan.result, reg, true)
-        ));
+        params.push(format!("ptr {} %sret", sret_attr(&plan.result, reg)));
     }
     for (i, p) in plan.params.iter().enumerate() {
         let n = format!("%c{i}");
@@ -7410,16 +7482,32 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
                 words.push(w);
             }
             AbiClass::Aggregate => {
-                // The C side passes a pointer to a C-layout struct: box
-                // it into a boundary-layout block at the recorded
-                // offsets. The bytes are untrusted and freeze on the
-                // way in.
-                let byval = byvalue_attr(p, reg, false);
-                params.push(if byval.is_empty() {
-                    format!("ptr {n}{}", param_attrs(p, true))
-                } else {
-                    format!("ptr {byval} {n}{}", param_attrs(p, true))
-                });
+                // The C side's struct, wherever the convention put it:
+                // behind a pointer (D66's const-pointer, a by-reference
+                // composite, the `byval` copy), or in register pieces
+                // stored back into a C-layout copy here. It boxes into a
+                // boundary-layout block at the recorded offsets; the
+                // bytes are untrusted and freeze on the way in.
+                let src = match &crossing.params[i] {
+                    None | Some(ParamPass::Reference) => {
+                        params.push(format!("ptr {n}{}", param_attrs(p, true)));
+                        n.clone()
+                    }
+                    Some(ParamPass::Byval) => {
+                        params.push(format!("ptr {} {n}", byval_attr(p, reg)));
+                        n.clone()
+                    }
+                    Some(pass @ ParamPass::Direct(pieces)) => {
+                        let buf = b.alloca_bytes(pass.buffer_bytes(p), copy_align(p, true));
+                        for (k, piece) in pieces.iter().enumerate() {
+                            let arg = format!("{n}.{k}");
+                            params.push(format!("{} {arg}", piece.ty));
+                            let at = piece_addr(&mut b, &buf, piece);
+                            b.line(&format!("store {} {arg}, ptr {at}, align 8", piece.ty));
+                        }
+                        buf
+                    }
+                };
                 let blk = b.reg();
                 b.line(&ctor_alloc_call(
                     &blk,
@@ -7428,7 +7516,7 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
                 ));
                 let payload = blk.clone();
                 for fa in &p.fields {
-                    copy_field_exact(&mut b, reg, &payload, 0, &n, 0, fa, true);
+                    copy_field_exact(&mut b, reg, &payload, 0, &src, 0, fa, true);
                 }
                 let w = b.reg();
                 b.line(&format!("{w} = ptrtoint ptr {blk} to i64"));
@@ -7437,10 +7525,10 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
         }
     }
     let r = call_unit(&mut b, reg, &plan.unit, &words);
-    let ret_ty = if sret {
-        "void".to_string()
-    } else {
-        abi_llvm_ty(&plan.result).to_string()
+    let ret_ty = match &crossing.result {
+        Some(ResultPass::Sret) => "void".to_string(),
+        Some(ResultPass::Direct { ty, .. }) => ty.clone(),
+        None => abi_llvm_ty(&plan.result).to_string(),
     };
     let header = format!(
         "define {} @{}({})",
@@ -7464,15 +7552,31 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
             b.line(&format!("ret ptr {p}"));
         }
         AbiClass::Aggregate => {
-            // The result-out buffer: copy the boxed result's C-layout
-            // bytes into the caller's `sret` slot.
+            // The boxed result's C-layout bytes: copied into the caller's
+            // `sret` slot, or into a zeroed local copy whose register
+            // pieces are the returned value.
             let blk = b.reg();
             b.line(&format!("{blk} = inttoptr i64 {r} to ptr"));
             let payload = blk.clone();
-            for fa in &plan.result.fields {
-                copy_field_exact(&mut b, reg, "%sret", 0, &payload, 0, fa, false);
+            match crossing.result.as_ref().expect("an aggregate result is classified") {
+                ResultPass::Sret => {
+                    for fa in &plan.result.fields {
+                        copy_field_exact(&mut b, reg, "%sret", 0, &payload, 0, fa, false);
+                    }
+                    b.line("ret void");
+                }
+                pass @ ResultPass::Direct { ty, .. } => {
+                    let bytes = pass.buffer_bytes(&plan.result);
+                    let buf = b.alloca_bytes(bytes, copy_align(&plan.result, true));
+                    zero_bytes(&mut b, cx, &buf, bytes);
+                    for fa in &plan.result.fields {
+                        copy_field_exact(&mut b, reg, &buf, 0, &payload, 0, fa, false);
+                    }
+                    let v = b.reg();
+                    b.line(&format!("{v} = load {ty}, ptr {buf}, align 8"));
+                    b.line(&format!("ret {ty} {v}"));
+                }
             }
-            b.line("ret void");
         }
     }
     if any_check {

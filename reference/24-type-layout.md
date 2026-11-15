@@ -514,18 +514,20 @@ A default admitted aggregate parameter crosses through a pointer to a call-scope
   %t8 = call i64 @"sum_big"(ptr nonnull align 4 %t0)
 ```
 
-`#[byval]` selects the explicitly represented aggregate-copy convention and states the pointee layout without changing the machine convention:
+`#[byval]` passes the struct by value, as the target's C calling convention does. An 8-byte struct travels in one integer register on x86-64 and arm64, so the copy is loaded as one `i64`:
 
 ```text
-  %t8 = call i64 @"sum_big"(ptr byref(%__sl_layout_0) align 4 nonnull align 4 %t0)
+  %t8 = load i64, ptr %t0, align 8
+  %t9 = call i64 @"sum_big"(i64 %t8)
 ```
 
-An aggregate result needs the admitted `#[sret]` result-out crossing, which passes a buffer and takes a void result:
+An aggregate result needs `#[sret]`, the by-value result. The same 8-byte struct comes back in a register, which is stored into the boundary copy:
 
 ```text
-  %t0 = alloca [8 x i8], align 4
-  call void @"make_big"(ptr sret(%__sl_layout_0) align 4 %t0, i64 noundef %p0)
+  %t1 = call i64 @"make_big"(i64 noundef %p0)
 ```
+
+A struct the convention does not keep in registers (24 bytes of `I64`s, say) takes an `sret(<layout>)` result buffer with a `void` result, and its parameter becomes a `byval(<layout>)` copy on x86-64 or a pointer to the caller's copy on arm64 ([aggregate crossings](15-ffi-layout-and-attributes.md#aggregate-crossings-byval-and-sret)).
 
 The three attributes are checked against the binding they annotate:
 

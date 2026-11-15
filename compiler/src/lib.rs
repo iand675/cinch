@@ -8,6 +8,7 @@
 pub mod analysis;
 pub mod arrays;
 pub mod ast;
+pub mod cabi;
 pub mod check;
 pub mod cinchdoc;
 pub mod coalesce;
