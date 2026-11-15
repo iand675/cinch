@@ -8387,14 +8387,23 @@ const SHARE_MAX_PARAMS: usize = 24;
 /// each unit on its own.
 pub fn share_repeated_subterms(program: &mut Program) {
     let mut taken: std::collections::HashSet<String> = program.fns.iter().map(|f| f.id.0.clone()).collect();
+    let mut wide_results: HashMap<String, usize> = program.fns.iter()
+        .filter(|f| f.repr.result == Some(Class::Wide))
+        .map(|f| (f.id.0.clone(), f.arity()))
+        .collect();
     // Shared units are appended and visited in turn: a shared body can
     // hold repeats of its own.
     let mut index = 0;
     while index < program.fns.len() {
         let f = &program.fns[index];
         if f.prim.is_none() && f.ctor.is_none() && !f.meta.prim_body && f.repr.tparams == 0 {
-            if let Some((body, shared)) = share_in_unit(f, &mut taken) {
+            if let Some((body, shared)) = share_in_unit(f, &mut taken, &wide_results) {
                 program.fns[index].body = body;
+                for unit in &shared {
+                    if unit.repr.result == Some(Class::Wide) {
+                        wide_results.insert(unit.id.0.clone(), unit.arity());
+                    }
+                }
                 program.fns.extend(shared);
             }
         }
@@ -8415,7 +8424,7 @@ struct ShareNode {
     shareable: bool,
 }
 
-fn share_in_unit(f: &FnDef, taken: &mut std::collections::HashSet<String>) -> Option<(Core, Vec<FnDef>)> {
+fn share_in_unit(f: &FnDef, taken: &mut std::collections::HashSet<String>, wide_results: &HashMap<String, usize>) -> Option<(Core, Vec<FnDef>)> {
     let mut classes: HashMap<usize, Class> = HashMap::new();
     for (i, c) in f.repr.params.iter().enumerate() {
         classes.insert(i, *c);
@@ -8476,6 +8485,9 @@ fn share_in_unit(f: &FnDef, taken: &mut std::collections::HashSet<String>) -> Op
                     break candidate;
                 }
             };
+            // A wide result must retain its carrier across the extracted call:
+            // a word return would allocate boxes and break recursive tail calls.
+            let result = share_returns_wide(refs[rep], &classes, wide_results).then_some(Class::Wide);
             let mut body = refs[rep].clone();
             share_rename(&mut body, &free);
             shared.push(FnDef {
@@ -8486,7 +8498,7 @@ fn share_in_unit(f: &FnDef, taken: &mut std::collections::HashSet<String>) -> Op
                 ctor: None,
                 hints: FnHints::default(),
                 meta: FnMeta { pure: f.meta.pure, ..FnMeta::default() },
-                repr: UnitRepr { params: param_classes, ..UnitRepr::default() },
+                repr: UnitRepr { params: param_classes, result, ..UnitRepr::default() },
             });
             for (p, args) in std::iter::once((rep, free)).chain(others) {
                 covered[p..p + nodes[p].size].iter_mut().for_each(|c| *c = true);
@@ -8504,6 +8516,28 @@ fn share_in_unit(f: &FnDef, taken: &mut std::collections::HashSet<String>) -> Op
     let mut pre = 0;
     share_rewrite(&mut body, &mut pre, &nodes, &mut plan);
     Some((body, shared))
+}
+
+/// Whether every returned path is an unboxed wide scalar. Unknown result
+/// shapes keep the existing word convention; only proved-wide paths specialize.
+fn share_returns_wide(e: &Core, classes: &HashMap<usize, Class>, units: &HashMap<String, usize>) -> bool {
+    let wide = |body: &Core| share_returns_wide(body, classes, units);
+    match e {
+        Core::Wide(_) => true,
+        Core::Var(local) => classes.get(&local.0) == Some(&Class::Wide),
+        Core::Proj(_, field) => field.class == Class::Wide,
+        Core::Let(_, _, _, body) | Core::Dup(_, _, body) | Core::Drop(_, _, body)
+            | Core::Release { body, .. } => wide(body),
+        Core::If(_, yes, no) => wide(&yes.body) && wide(&no.body),
+        Core::Case { alts, .. } => !alts.is_empty() && alts.iter().all(|alt| wide(&alt.body)),
+        Core::App(head, args) => match &**head {
+            Core::Global(unit, _) => units.get(&unit.0) == Some(&args.len()),
+            Core::Prim(op) if op.touches_wide() && op.arity() == args.len() => matches!(op.sig().1, crate::types::Ty::Prim(s) if s.is_wide()),
+            _ => false,
+        },
+        Core::Global(unit, _) => units.get(&unit.0) == Some(&0),
+        _ => false,
+    }
 }
 
 /// A term's operands in preorder: an application's head, then
