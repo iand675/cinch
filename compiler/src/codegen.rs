@@ -5360,6 +5360,62 @@ fn wide_prim_body(b: &mut Builder, reg: &Registry, name: &str, op: PrimOp) -> Re
             b.line(&format!("{r} = zext i1 {c} to i64"));
             ret(b, &r);
         }
+        Shift { ty, op: sop, checked } => {
+            // The count is a `U32` word. `checked*` answer `None` at or
+            // above the width, `wrapping*` reduce it modulo 128; both shift
+            // by the reduced count, so an oversized shift (poison) is never
+            // computed, even on the `None` path.
+            let c = b.reg();
+            b.line(&format!("{c} = zext i64 %p1 to i128"));
+            let m = b.reg();
+            b.line(&format!("{m} = and i128 {c}, 127"));
+            let inst = match sop {
+                ShiftOp::Shl => "shl",
+                ShiftOp::Shr if ty.is_signed() => "ashr",
+                ShiftOp::Shr => "lshr",
+            };
+            let r = b.reg();
+            b.line(&format!("{r} = {inst} i128 %p0, {m}"));
+            if checked {
+                let bad = b.reg();
+                b.line(&format!("{bad} = icmp uge i64 %p1, 128"));
+                ret_option_wide(b, reg, name, &bad, &r);
+            } else {
+                ret128(b, &r);
+            }
+        }
+        Rotate { right, .. } => {
+            // A funnel shift of the value with itself reduces its count
+            // modulo the width: total by construction.
+            let c = b.reg();
+            b.line(&format!("{c} = zext i64 %p1 to i128"));
+            let r = b.reg();
+            let f = if right { "fshr" } else { "fshl" };
+            b.line(&format!("{r} = call i128 @llvm.{f}.i128(i128 %p0, i128 %p0, i128 {c})"));
+            ret128(b, &r);
+        }
+        BitScan { op: sop, .. } => match sop {
+            BitScanOp::CountOnes | BitScanOp::LeadingZeros | BitScanOp::TrailingZeros => {
+                // The count is a `U32` word; the zero value's scan is the
+                // width (`i1 false`), never poison.
+                let call = match sop {
+                    BitScanOp::CountOnes => "ctpop.i128(i128 %p0)".to_string(),
+                    BitScanOp::LeadingZeros => "ctlz.i128(i128 %p0, i1 false)".to_string(),
+                    _ => "cttz.i128(i128 %p0, i1 false)".to_string(),
+                };
+                let r = b.reg();
+                b.line(&format!("{r} = call i128 @llvm.{call}"));
+                let w = b.reg();
+                b.line(&format!("{w} = trunc i128 {r} to i64"));
+                ret(b, &w);
+            }
+            BitScanOp::ReverseBits | BitScanOp::SwapBytes => {
+                let f = if sop == BitScanOp::ReverseBits { "bitreverse" } else { "bswap" };
+                let r = b.reg();
+                b.line(&format!("{r} = call i128 @llvm.{f}.i128(i128 %p0)"));
+                ret128(b, &r);
+            }
+        },
         CheckedDiv { ty } | CheckedRem { ty } => {
             // `None` on a zero divisor and on `minBound / -1` for the
             // signed type (primitive types specification section 4). The

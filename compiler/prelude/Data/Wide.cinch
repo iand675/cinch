@@ -21,16 +21,17 @@
 -- Phase 1 of the design lands in increments. This module carries what
 -- the emitter lowers so far: bounds, the checked, wrapping and saturating
 -- families of addition, subtraction, multiplication and negation, checked
--- division and remainder, the bitwise operations, comparison, and the
--- `Eq` and `Ord` instances. Shifts, rotates, bit inspection, `Bits`,
--- conversions and `Show` follow.
+-- division and remainder, the bitwise operations, checked and wrapping
+-- shifts, rotates, bit inspection, comparison, and the `Eq`, `Ord` and
+-- `Bits` instances. Conversions and `Show` follow.
 module Data.Wide where
 
   import Data.Option
   import Relation.Eq
   import Relation.Ord
+  import Algebra.Bits
 
-  export bit-and-i128, bit-and-u128, bit-not-i128, bit-not-u128, bit-or-i128, bit-or-u128, bit-xor-i128, bit-xor-u128, checked-add-i128, checked-add-u128, checked-div-i128, checked-div-u128, checked-mul-i128, checked-mul-u128, checked-neg-i128, checked-neg-u128, checked-rem-i128, checked-rem-u128, checked-sub-i128, checked-sub-u128, eq-i128, eq-u128, ge-i128, ge-u128, gt-i128, gt-u128, le-i128, le-u128, lt-i128, lt-u128, max-bound-i128, max-bound-u128, min-bound-i128, min-bound-u128, ne-i128, ne-u128, saturating-add-i128, saturating-add-u128, saturating-mul-i128, saturating-mul-u128, saturating-neg-i128, saturating-neg-u128, saturating-sub-i128, saturating-sub-u128, wrapping-add-i128, wrapping-add-u128, wrapping-mul-i128, wrapping-mul-u128, wrapping-neg-i128, wrapping-neg-u128, wrapping-sub-i128, wrapping-sub-u128
+  export bit-and-i128, bit-and-u128, bit-not-i128, bit-not-u128, bit-or-i128, bit-or-u128, bit-xor-i128, bit-xor-u128, checked-add-i128, checked-add-u128, checked-div-i128, checked-div-u128, checked-mul-i128, checked-mul-u128, checked-neg-i128, checked-neg-u128, checked-rem-i128, checked-rem-u128, checked-shl-i128, checked-shl-u128, checked-shr-i128, checked-shr-u128, checked-sub-i128, checked-sub-u128, count-ones-i128, count-ones-u128, eq-i128, eq-u128, ge-i128, ge-u128, gt-i128, gt-u128, le-i128, le-u128, leading-zeros-i128, leading-zeros-u128, lt-i128, lt-u128, max-bound-i128, max-bound-u128, min-bound-i128, min-bound-u128, ne-i128, ne-u128, reverse-bits-i128, reverse-bits-u128, rotate-left-i128, rotate-left-u128, rotate-right-i128, rotate-right-u128, saturating-add-i128, saturating-add-u128, saturating-mul-i128, saturating-mul-u128, saturating-neg-i128, saturating-neg-u128, saturating-sub-i128, saturating-sub-u128, swap-bytes-i128, swap-bytes-u128, trailing-zeros-i128, trailing-zeros-u128, wrapping-add-i128, wrapping-add-u128, wrapping-mul-i128, wrapping-mul-u128, wrapping-neg-i128, wrapping-neg-u128, wrapping-shl-i128, wrapping-shl-u128, wrapping-shr-i128, wrapping-shr-u128, wrapping-sub-i128, wrapping-sub-u128
 
   -- I128 (128 bits).
   foreign import ccall "cinch.prim.minBoundI128" min-bound-i128 :: I128
@@ -53,6 +54,17 @@ module Data.Wide where
   foreign import ccall "cinch.prim.bitOrI128" bit-or-i128 :: I128 -> I128 -> I128
   foreign import ccall "cinch.prim.bitXorI128" bit-xor-i128 :: I128 -> I128 -> I128
   foreign import ccall "cinch.prim.bitNotI128" bit-not-i128 :: I128 -> I128
+  foreign import ccall "cinch.prim.checkedShlI128" checked-shl-i128 :: I128 -> U32 -> Option I128
+  foreign import ccall "cinch.prim.wrappingShlI128" wrapping-shl-i128 :: I128 -> U32 -> I128
+  foreign import ccall "cinch.prim.checkedShrI128" checked-shr-i128 :: I128 -> U32 -> Option I128
+  foreign import ccall "cinch.prim.wrappingShrI128" wrapping-shr-i128 :: I128 -> U32 -> I128
+  foreign import ccall "cinch.prim.rotateLeftI128" rotate-left-i128 :: I128 -> U32 -> I128
+  foreign import ccall "cinch.prim.rotateRightI128" rotate-right-i128 :: I128 -> U32 -> I128
+  foreign import ccall "cinch.prim.countOnesI128" count-ones-i128 :: I128 -> U32
+  foreign import ccall "cinch.prim.leadingZerosI128" leading-zeros-i128 :: I128 -> U32
+  foreign import ccall "cinch.prim.trailingZerosI128" trailing-zeros-i128 :: I128 -> U32
+  foreign import ccall "cinch.prim.reverseBitsI128" reverse-bits-i128 :: I128 -> I128
+  foreign import ccall "cinch.prim.swapBytesI128" swap-bytes-i128 :: I128 -> I128
   foreign import ccall "cinch.prim.eqI128" eq-i128 :: I128 -> I128 -> Bool
   foreign import ccall "cinch.prim.neI128" ne-i128 :: I128 -> I128 -> Bool
   foreign import ccall "cinch.prim.ltI128" lt-i128 :: I128 -> I128 -> Bool
@@ -81,6 +93,17 @@ module Data.Wide where
   foreign import ccall "cinch.prim.bitOrU128" bit-or-u128 :: U128 -> U128 -> U128
   foreign import ccall "cinch.prim.bitXorU128" bit-xor-u128 :: U128 -> U128 -> U128
   foreign import ccall "cinch.prim.bitNotU128" bit-not-u128 :: U128 -> U128
+  foreign import ccall "cinch.prim.checkedShlU128" checked-shl-u128 :: U128 -> U32 -> Option U128
+  foreign import ccall "cinch.prim.wrappingShlU128" wrapping-shl-u128 :: U128 -> U32 -> U128
+  foreign import ccall "cinch.prim.checkedShrU128" checked-shr-u128 :: U128 -> U32 -> Option U128
+  foreign import ccall "cinch.prim.wrappingShrU128" wrapping-shr-u128 :: U128 -> U32 -> U128
+  foreign import ccall "cinch.prim.rotateLeftU128" rotate-left-u128 :: U128 -> U32 -> U128
+  foreign import ccall "cinch.prim.rotateRightU128" rotate-right-u128 :: U128 -> U32 -> U128
+  foreign import ccall "cinch.prim.countOnesU128" count-ones-u128 :: U128 -> U32
+  foreign import ccall "cinch.prim.leadingZerosU128" leading-zeros-u128 :: U128 -> U32
+  foreign import ccall "cinch.prim.trailingZerosU128" trailing-zeros-u128 :: U128 -> U32
+  foreign import ccall "cinch.prim.reverseBitsU128" reverse-bits-u128 :: U128 -> U128
+  foreign import ccall "cinch.prim.swapBytesU128" swap-bytes-u128 :: U128 -> U128
   foreign import ccall "cinch.prim.eqU128" eq-u128 :: U128 -> U128 -> Bool
   foreign import ccall "cinch.prim.neU128" ne-u128 :: U128 -> U128 -> Bool
   foreign import ccall "cinch.prim.ltU128" lt-u128 :: U128 -> U128 -> Bool
@@ -109,3 +132,39 @@ module Data.Wide where
     (<=) x y = le-u128 x y
     (>) x y = gt-u128 x y
     (>=) x y = ge-u128 x y
+
+  -- The `Bits` instances, with the modulo-width shift and mask rules of
+  -- `Data.Machine`'s.
+  implicit instance Bits_I128 :: Bits I128 where
+    bit-and x y = bit-and-i128 x y
+    bit-or x y = bit-or-i128 x y
+    bit-xor x y = bit-xor-i128 x y
+    bit-not x = bit-not-i128 x
+    shift-left x n = wrapping-shl-i128 x n
+    shift-right x n = wrapping-shr-i128 x n
+    rotate-left x n = rotate-left-i128 x n
+    rotate-right x n = rotate-right-i128 x n
+    test-bit x n = ne-i128 (bit-and-i128 x (wrapping-shl-i128 1 n)) 0
+    set-bit x n = bit-or-i128 x (wrapping-shl-i128 1 n)
+    clear-bit x n = bit-and-i128 x (bit-not-i128 (wrapping-shl-i128 1 n))
+    complement-bit x n = bit-xor-i128 x (wrapping-shl-i128 1 n)
+    count-ones x = count-ones-i128 x
+    leading-zeros x = leading-zeros-i128 x
+    trailing-zeros x = trailing-zeros-i128 x
+
+  implicit instance Bits_U128 :: Bits U128 where
+    bit-and x y = bit-and-u128 x y
+    bit-or x y = bit-or-u128 x y
+    bit-xor x y = bit-xor-u128 x y
+    bit-not x = bit-not-u128 x
+    shift-left x n = wrapping-shl-u128 x n
+    shift-right x n = wrapping-shr-u128 x n
+    rotate-left x n = rotate-left-u128 x n
+    rotate-right x n = rotate-right-u128 x n
+    test-bit x n = ne-u128 (bit-and-u128 x (wrapping-shl-u128 1 n)) 0
+    set-bit x n = bit-or-u128 x (wrapping-shl-u128 1 n)
+    clear-bit x n = bit-and-u128 x (bit-not-u128 (wrapping-shl-u128 1 n))
+    complement-bit x n = bit-xor-u128 x (wrapping-shl-u128 1 n)
+    count-ones x = count-ones-u128 x
+    leading-zeros x = leading-zeros-u128 x
+    trailing-zeros x = trailing-zeros-u128 x

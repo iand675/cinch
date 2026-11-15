@@ -330,6 +330,54 @@ module Main where
 }
 
 #[test]
+fn shifts_rotates_bit_scans_and_bits_work_at_128_bits() {
+    // A wrapping shift reduces its `U32` count modulo 128 and a checked
+    // one answers `None` at 128; `shr` is arithmetic on `I128` and logical
+    // on `U128`; rotates are total; the bit scans count to 128 (the zero
+    // value's leading and trailing zeros are the width); `reverse-bits` and
+    // `swap-bytes` act on all 16 bytes; and the `Bits` methods reach the
+    // same primitives.
+    run_ok("wide-bits", r#"
+module Main where
+  import Data.Wide
+
+  main :: Int
+  main =
+    let one = (1 :: U128) in
+    let top = wrapping-shl-u128 one 127 in
+    if eq-u128 (wrapping-shl-u128 one 128) one then
+      (case checked-shl-u128 one 128 of
+        Some _ -> 2
+        None -> case checked-shl-u128 one 64 of
+          None -> 3
+          Some v -> if eq-u128 v 18446744073709551616 then
+              (if eq-i128 (wrapping-shr-i128 min-bound-i128 127) (-1) then
+                (if eq-u128 (wrapping-shr-u128 top 127) 1 then
+                  (if eq-u128 (rotate-left-u128 top 1) 1 then
+                    (if eq-u128 (rotate-right-u128 1 1) top then
+                      (if count-ones-u128 max-bound-u128 == 128 then
+                        (if leading-zeros-u128 one == 127 then
+                          (if trailing-zeros-u128 0 == 128 then
+                            (if eq-u128 (reverse-bits-u128 one) top then
+                              (if eq-u128 (swap-bytes-u128 255) (wrapping-shl-u128 255 120) then
+                                (if test-bit top 127 then
+                                  (if eq-u128 (set-bit 0 100) (wrapping-shl-u128 one 100) then 0 else 15)
+                                else 14)
+                              else 13)
+                            else 12)
+                          else 11)
+                        else 10)
+                      else 9)
+                    else 8)
+                  else 7)
+                else 6)
+              else 5)
+            else 4)
+    else 1
+"#);
+}
+
+#[test]
 fn unlowered_wide_positions_are_refused_by_name() {
     // A `repr(C)` record's wide field is a C `__int128` at its recorded
     // offset, which is the foreign boundary's increment: refused, naming
