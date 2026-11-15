@@ -1,0 +1,217 @@
+{
+  "format": 1,
+  "measurement": "Alternating retained executables; identical driver and library sources; blanket primitive inlining experiment",
+  "cpu_affinity": [
+    0
+  ],
+  "binaries": {
+    "base32-tail": {
+      "path": "build/benchmarks/base32-tail/bench",
+      "sha256": "fd33bf20033dde9411312f8250381edadc0ad658a450b177fe3cba373d40f46e"
+    },
+    "primitive-inlining": {
+      "path": "build/benchmarks/primitive-inlining/bench",
+      "sha256": "4254ff467d7a15a1f798626eab2ddbe0c7dd5de6cd58c0fa16590e8438e71de3"
+    }
+  },
+  "results": [
+    {
+      "workload": "hex-encode",
+      "raw_input_bytes": 16384,
+      "samples_ns": {
+        "base32-tail": [
+          31023745,
+          29955403,
+          31053459,
+          29290449,
+          28606768
+        ],
+        "primitive-inlining": [
+          27386356,
+          22972358,
+          21800700,
+          22974001,
+          22255917
+        ]
+      },
+      "checksum": 1051856,
+      "iterations": 32
+    },
+    {
+      "workload": "base32-encode",
+      "raw_input_bytes": 16384,
+      "samples_ns": {
+        "base32-tail": [
+          109382863,
+          111585316,
+          126424153,
+          149743855,
+          123728676
+        ],
+        "primitive-inlining": [
+          92495506,
+          95407940,
+          103079664,
+          206152117,
+          150227034
+        ]
+      },
+      "checksum": 842992,
+      "iterations": 32
+    },
+    {
+      "workload": "base64-decode",
+      "raw_input_bytes": 16384,
+      "samples_ns": {
+        "base32-tail": [
+          265917884,
+          278431263,
+          605030835,
+          283476704,
+          269022002
+        ],
+        "primitive-inlining": [
+          258875028,
+          257611392,
+          483956553,
+          254733032,
+          245927869
+        ]
+      },
+      "checksum": 533104,
+      "iterations": 32
+    },
+    {
+      "workload": "crc32c",
+      "raw_input_bytes": 16384,
+      "samples_ns": {
+        "base32-tail": [
+          2291041,
+          2216439,
+          2312794,
+          2352693,
+          2215147
+        ],
+        "primitive-inlining": [
+          1986333,
+          1808696,
+          1795056,
+          2013283,
+          1834535
+        ]
+      },
+      "checksum": 719410708,
+      "iterations": 32
+    },
+    {
+      "workload": "fnv32a",
+      "raw_input_bytes": 16384,
+      "samples_ns": {
+        "base32-tail": [
+          2238602,
+          2358081,
+          2353174,
+          2227986,
+          2221988
+        ],
+        "primitive-inlining": [
+          1843428,
+          2312744,
+          1890530,
+          1818331,
+          1763628
+        ]
+      },
+      "checksum": 385371198,
+      "iterations": 32
+    },
+    {
+      "workload": "stream-read-all",
+      "raw_input_bytes": 16384,
+      "samples_ns": {
+        "base32-tail": [
+          117356,
+          118899,
+          118478,
+          121172,
+          120921
+        ],
+        "primitive-inlining": [
+          117386,
+          286630,
+          115403,
+          117366,
+          116094
+        ]
+      },
+      "checksum": 532144,
+      "iterations": 32
+    },
+    {
+      "workload": "binary",
+      "raw_input_bytes": 16384,
+      "iterations": 1024,
+      "samples_ns": {
+        "base32-tail": [
+          757885,
+          772387,
+          845506,
+          753509,
+          836623
+        ],
+        "primitive-inlining": [
+          665537,
+          857935,
+          680960,
+          760810,
+          790724
+        ]
+      },
+      "checksum": 153088
+    },
+    {
+      "workload": "varint",
+      "raw_input_bytes": 16384,
+      "iterations": 1024,
+      "samples_ns": {
+        "base32-tail": [
+          1306638,
+          1333357,
+          1224174,
+          1278405,
+          1256002
+        ],
+        "primitive-inlining": [
+          1224314,
+          1295921,
+          1255220,
+          1295962,
+          1294809
+        ]
+      },
+      "checksum": 132096
+    },
+    {
+      "workload": "stream-read-all",
+      "raw_input_bytes": 32,
+      "iterations": 1024,
+      "samples_ns": {
+        "base32-tail": [
+          2546965,
+          1574844,
+          1228360,
+          1229282,
+          2195829
+        ],
+        "primitive-inlining": [
+          2440876,
+          1140629,
+          1272716,
+          1099437,
+          1117154
+        ]
+      },
+      "checksum": 300544
+    }
+  ]
+}
