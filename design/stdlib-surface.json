@@ -421,10 +421,36 @@
     },
     {
       "reference_package": "encoding/ascii85",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 7
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Ascii85",
+        "Text.Ascii85"
+      ],
+      "remaining": [
+        "caller-supplied destination buffers with consumed/written counts",
+        "return decoded prefix and input progress alongside a malformed-input error",
+        "reduce remaining allocation and ownership overhead identified by independent public API benchmarks"
+      ],
+      "reference_declarations": 7,
+      "tests": [
+        "lib_ascii85::ascii85_matches_independent_vectors_and_all_chunk_splits",
+        "lib_ascii85::ascii85_stream_adapters_preserve_chunk_and_failure_contracts"
+      ],
+      "benchmarks": [
+        "ascii85-encode",
+        "ascii85-decode",
+        "ascii85-stream-encode",
+        "ascii85-stream-decode"
+      ],
+      "capability_mapping": {
+        "Encode": "ascii85-encode and ascii85-encoder-feed produce complete or incremental owned output",
+        "Decode": "ascii85-decode[-bytes], ascii85-decoder-feed and ascii85-decoder-finish handle buffers, nonfinal input and EOF",
+        "MaxEncodedLen": "ascii85-max-encoded-length",
+        "NewDecoder": "ascii85-reader composes with ByteReader and retains incomplete input and decoded surplus",
+        "NewEncoder": "ascii85-writer, ascii85-write and ascii85-finish compose with ByteWriter; finish flushes without closing a borrowed descriptor",
+        "CorruptInputError and Error": "Ascii85Error, ascii85-error-offset and ascii85-error-message; stream errors retain format, absolute input offset and diagnostic"
+      },
+      "review": "All seven reference declarations mapped to implemented capabilities. Partial status retains the output/progress API differences and measured performance work explicitly."
     },
     {
       "reference_package": "encoding/asn1",

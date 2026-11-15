@@ -28,6 +28,7 @@ WORKLOADS = (
     "base64-encode", "base64-decode", "adler32", "crc32", "crc32c",
     "crc64", "fnv32a", "fnv64a", "binary", "varint",
     "stream-copy-buffer", "stream-copy-discard", "stream-read-all",
+    "ascii85-encode", "ascii85-decode", "ascii85-stream-encode", "ascii85-stream-decode",
 )
 
 SOURCE = r'''-- | Executable workload driver; output is elapsed_ns and an observable checksum.
@@ -38,6 +39,8 @@ module Main where
   import Text.Binary
   import Text.Checksum
   import Text.Fnv
+  import Text.Ascii85
+  import Effect.Ascii85
   import Effect.Clock
   import Effect.Process
   import Effect.Stream
@@ -119,6 +122,22 @@ module Main where
       case stream-read-all 4096 (reader-from-bytes b) of
         (Err _, _) -> 1000000000
         (Ok out, _) -> fingerprint out
+    else if mode == "ascii85-encode" then fingerprint (string-to-bytes (ascii85-encode b))
+    else if mode == "ascii85-decode" then case ascii85-decode (text b) of
+      Err _ -> 1000000000
+      Ok out -> fingerprint out
+    else if mode == "ascii85-stream-encode" then
+      case ascii85-write (ascii85-writer writer-buffer) b of
+        (Err _, _) -> 1000000000
+        (Ok count, next) -> case ascii85-finish next of
+          (Err _, _) -> 1000000000
+          (Ok _, sink) -> case writer-bytes sink of
+            None -> 1000000000
+            Some out -> fingerprint out
+    else if mode == "ascii85-stream-decode" then
+      case stream-read-all 4096 (ascii85-reader (reader-from-bytes b)) of
+        (Err _, _) -> 1000000000
+        (Ok out, _) -> fingerprint out
     else 1000000000
 
   -- | Prepare valid encoded inputs outside timing for decoding workloads.
@@ -127,6 +146,7 @@ module Main where
     if mode == "hex-decode" then string-to-bytes (hex-encode b)
     else if mode == "base32-decode" then string-to-bytes (base32-encode Base32Standard b)
     else if mode == "base64-decode" then string-to-bytes (base64-encode b)
+    else if mode == "ascii85-decode" || mode == "ascii85-stream-decode" then string-to-bytes (ascii85-encode b)
     else b
 
   -- | Change input each iteration to prevent invariant work from being hoisted.
@@ -134,6 +154,7 @@ module Main where
   change-byte mode iteration =
     if mode == "hex-decode" then 48 + nat-rem iteration 10
     else if mode == "base32-decode" || mode == "base64-decode" then 65 + nat-rem iteration 26
+    else if mode == "ascii85-decode" || mode == "ascii85-stream-decode" then 33 + nat-rem iteration 85
     else nat-rem iteration 256
 
   -- | Mutate a proved byte position before each operation, including decoders.
@@ -227,6 +248,7 @@ def main() -> None:
     parser.add_argument("--warmup", type=int, default=1)
     parser.add_argument("--workloads", nargs="+", choices=WORKLOADS, default=list(WORKLOADS))
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--reference-go", type=Path, help="Also measure the independent ASCII85 reference pipelines with this SDK")
     parser.add_argument("--cpu", type=int, help="Pin this run and its children to one allowed CPU on supported hosts")
     parser.add_argument("--label", default="", help="Describe the measured source snapshot without replacing its hashes")
     parser.add_argument("--artifacts", type=Path, help="Keep the compiled driver, LLVM and assembly for codegen investigation")
@@ -253,22 +275,42 @@ def main() -> None:
         "cpu": next((line.split(":", 1)[1].strip() for line in Path("/proc/cpuinfo").read_text().splitlines() if line.startswith("model name")), platform.processor()) if Path("/proc/cpuinfo").exists() else platform.processor(),
         "clang": run([os.environ.get("CINCH_CLANG", "clang"), "--version"]).stdout.splitlines()[0],
         "timing": "runtime monotonic clock around operation loop; preparation, startup and output excluded",
-        "measurement": "public API pipeline; encoding includes conversion to observable bytes; decoding includes bytes-to-text conversion; stream operations include adapter construction",
+        "measurement": "public API pipeline; encoding includes conversion to observable bytes; text decoders include bytes-to-text conversion; stream operations include adapter construction",
         "iterations": args.iterations, "warmup_processes": args.warmup, "results": [],
     }
     with tempfile.TemporaryDirectory(prefix="cinch-stdlib-bench-") as tmp:
         work = Path(tmp)
+        # A concurrent development build must not replace the executable
+        # between identity capture and the actual measured compilation.
+        report["compiler_path"] = str(compiler)
+        frozen_compiler = work / "compiler"
+        shutil.copy2(compiler, frozen_compiler)
+        compiler = frozen_compiler
+        report["compiler_sha256"] = digest(compiler)
         for name, path in closure.items():
             (work / f"{name}.cinch").write_bytes(path.read_bytes())
         (work / "Main.cinch").write_text(SOURCE)
         executable = work / "bench"
         run([str(compiler), "build", str(work / "Main.cinch"), "-o", str(executable)], cwd=work)
+        reference = None
+        reference_env = {**os.environ, "GOCACHE": "/tmp/cinch-go-benchmark-cache", "GOTELEMETRY": "off", "GOMAXPROCS": "1"}
+        if args.reference_go:
+            reference = work / "reference"
+            reference_source = ROOT / "tooling/bench_ascii85_reference.go"
+            run([str(args.reference_go.resolve()), "build", "-o", str(reference), str(reference_source)], cwd=ROOT, env=reference_env)
+            report["reference"] = {"sdk": run([str(args.reference_go.resolve()), "version"], env=reference_env).stdout.strip(),
+                                   "source_sha256": digest(reference_source), "executable_sha256": digest(reference),
+                                   "GOMAXPROCS": "1", "workloads": [name for name in WORKLOADS if name.startswith("ascii85-")],
+                                   "scope": "Equivalent public API results and observable checksums; allocation and immutable string semantics differ"}
         if args.artifacts:
             artifacts = args.artifacts.resolve()
             artifacts.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(executable, artifacts / "bench")
             (artifacts / "bench").chmod(0o755)
             shutil.copyfile(executable.with_suffix(".ll"), artifacts / "bench.ll")
+            if reference:
+                shutil.copyfile(reference, artifacts / "reference")
+                (artifacts / "reference").chmod(0o755)
             (artifacts / "Main.cinch").write_text(SOURCE)
             run([os.environ.get("CINCH_CLANG", "clang"), "-O2", "-S", "-x", "ir", str(artifacts / "bench.ll"), "-o", str(artifacts / "bench.s")])
             report["artifacts"] = str(artifacts)
@@ -292,6 +334,16 @@ def main() -> None:
                         "checksum": checksums[0], "median_ns_per_operation": median / args.iterations,
                         "raw_mib_per_second": (size * args.iterations * 1e9 / median / 1048576) if median and size and workload not in ("binary", "varint") else None}
                 report["results"].append(item)
+                if reference and workload.startswith("ascii85-"):
+                    reference_samples = []
+                    for index in range(args.warmup + args.samples):
+                        elapsed, checksum = map(int, run([str(reference), workload, str(size), str(args.iterations)], env=reference_env).stdout.split())
+                        if checksum != checksums[0]:
+                            raise ValueError(f"reference checksum mismatch for {workload}/{size}: {checksum} != {checksums[0]}")
+                        if index >= args.warmup:
+                            reference_samples.append(elapsed)
+                    item["reference_samples_ns"] = reference_samples
+                    item["reference_median_ns_per_operation"] = statistics.median(reference_samples) / args.iterations
                 print(f"{workload:16} {size:6} bytes {item['median_ns_per_operation']:12.1f} ns/op", flush=True)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + "\n")

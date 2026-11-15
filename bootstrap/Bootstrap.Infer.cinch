@@ -1239,6 +1239,7 @@ module Bootstrap.Infer where
     Nil -> Nil
     Cons p rest -> Cons (case p of
       MkTypeParam sp name None only -> if has name (row-parameter-names body) then MkTypeParam sp name (Some (TName sp "Row")) only else
+        if has name (nominal-region-names kinds all body) then MkTypeParam sp name (Some (TName sp "Region")) only else
         let arity = constructor-arity-in kinds locals all name 0 body in
         if arity == 0 then p else MkTypeParam sp name (Some (constructor-kind-syntax sp arity)) only
       other -> p) (infer-forall-parameters kinds locals all rest body)
@@ -1325,6 +1326,56 @@ module Bootstrap.Infer where
   region-parameters ps regions = case ps of
     Nil -> Nil
     Cons p rest -> Cons (case p of MkTypeParam s name None only -> if has name regions then MkTypeParam s name (Some (TName s "Region")) only else p; other -> p) (region-parameters rest regions)
+
+  -- | Infer a region argument from an already checked nominal constructor kind.
+  -- Explicit parameter kinds remain authoritative and are checked during conversion.
+  nominal-region-arguments :: TypeContext -> List TypeParam -> Kind -> TypeExpr -> List String
+  nominal-region-arguments kinds params kind arguments = case arguments of
+    TArg sp value rest -> case kind of
+      KFun domain result ->
+        (case (domain, value) of (KRegion, TName at name) -> [name]; other -> Nil)
+        <> nominal-region-names kinds params value <> nominal-region-arguments kinds params result rest
+      other -> nominal-region-names kinds params value <> nominal-region-names kinds params rest
+    other -> Nil
+
+  -- | Remove names bound by an inner forall from the enclosing family's inferred regions.
+  unshadowed-region-names :: List String -> List String -> List String
+  unshadowed-region-names names bound = case names of
+    Nil -> Nil
+    Cons name rest -> if has name bound then unshadowed-region-names rest bound
+      else Cons name (unshadowed-region-names rest bound)
+
+  -- | Follow region positions through nominal applications, function fields and tuples.
+  -- A nested forall shadows names instead of changing the enclosing family's parameters.
+  nominal-region-names :: TypeContext -> List TypeParam -> TypeExpr -> List String
+  nominal-region-names kinds params syntax = case syntax of
+    TApp sp head arguments ->
+      (case known-head-kind kinds Nil params head of
+        Some kind -> nominal-region-arguments kinds params kind arguments
+        None -> nominal-region-names kinds params arguments)
+      <> nominal-region-names kinds params head
+    TFun sp first last -> nominal-region-names kinds params first <> nominal-region-names kinds params last
+    TFunEff sp first row last -> nominal-region-names kinds params first <> nominal-region-names kinds params row <> nominal-region-names kinds params last
+    TUsageArrow sp usage arrow -> nominal-region-names kinds params arrow
+    TUsing sp bounds body -> nominal-region-names kinds params bounds <> nominal-region-names kinds params body
+    TBound sp name annotation rest -> nominal-region-names kinds params annotation <> nominal-region-names kinds params rest
+    TArg sp first rest -> nominal-region-names kinds params first <> nominal-region-names kinds params rest
+    TTuple sp fields -> nominal-region-names kinds params fields
+    TRow sp labels tail -> nominal-region-names kinds params labels
+    TForall sp binders body -> unshadowed-region-names (nominal-region-names kinds params body) (parameter-names-for-check (forall-params-of binders))
+    other -> Nil
+
+  -- | Gather runtime identities used by constructor callbacks and nested region-indexed carriers.
+  constructor-region-names :: TypeContext -> List TypeParam -> List (String, TypeExpr) -> List String
+  constructor-region-names kinds params constructors = case constructors of
+    Nil -> Nil
+    Cons (name, annotation) rest -> region-names annotation <> nominal-region-names kinds params annotation <> constructor-region-names kinds params rest
+
+  -- | Give unannotated runtime identity parameters their Region kind before any constructor checks.
+  inferred-data-parameters :: TypeContext -> List TypeParam -> List (String, TypeExpr) -> List TypeParam
+  inferred-data-parameters kinds params constructors = case params of
+    Nil -> Nil
+    other -> region-parameters params (constructor-region-names kinds params constructors)
   region-names :: TypeExpr -> List String
   region-names ty = case ty of
     TApp s (TName h name) (TArg a (TName r region) (TArg b carrier (TArgsEnd end))) ->
@@ -1472,7 +1523,7 @@ module Bootstrap.Infer where
           collect-kinds rest (context-add-byte-observation name None kinds) st else collect-kinds rest kinds st
       DEffect s name ps ops -> case parameters False kinds Nil ps 0 Nil st of
         (qs, sq) -> case add-kind s name (source-effect-kind qs) kinds (declaration-kind-errors s qs sq) of (ks, sk) -> collect-kinds rest ks sk
-      DData s name ps cs -> case parameters False kinds Nil ps 0 Nil st of
+      DData s name ps cs -> case parameters False kinds Nil (inferred-data-parameters kinds ps cs) 0 Nil st of
         (qs, sq) -> case add-kind s name (kind-arrow qs) kinds (declaration-kind-errors s qs sq) of (ks, sk) -> collect-kinds rest ks sk
       -- The generated single-constructor data has already checked the
       -- kind. Keep the defining labels as separate source provenance.
@@ -2253,7 +2304,7 @@ module Bootstrap.Infer where
           (more, final) -> register all rows classes kinds rest more final
       DEffect s owner ps ops -> case register-operations classes kinds ps ops env st of
         (e, se) -> register all rows classes kinds rest e se
-      DData s owner ps cs -> case parameters False kinds Nil ps 0 Nil st of
+      DData s owner ps cs -> case parameters False kinds Nil (inferred-data-parameters kinds ps cs) 0 Nil st of
         (qs, sq) -> case register-ctors kinds owner (data-group all owner) qs cs env sq of (e, se) -> register all rows classes kinds rest e se
       DRecord s owner ps fields -> register all rows classes kinds rest env st
       DCodata s owner ps observations -> register all rows classes kinds rest env st
@@ -5550,7 +5601,7 @@ module Bootstrap.Infer where
   checked-data-declaration :: List (String, Kind) -> TypeContext -> List CheckedBinding -> Decl -> Store -> (Option CoreData, Store)
   checked-data-declaration classes kinds env d st = case d of
     DData s name ps cs -> case context-kind name kinds of
-      Some k -> case parameters False kinds Nil ps 0 Nil st of
+      Some k -> case parameters False kinds Nil (inferred-data-parameters kinds ps cs) 0 Nil st of
         (qs, sq) -> case checked-constructors cs env sq of
           (constructors, sc) -> (Some (MkCoreData s name k qs constructors), sc)
       None -> (None, add-error s "typed data declaration has no checked kind" st)

@@ -139,6 +139,8 @@ DESCRIPTIONS = {
 'Text.Toml':'The module\'s supported TOML parsing/rendering surface and explicit unsupported/malformed cases.',
 'Text.Uri':'URI parsing, rendering, components, and validation/error vocabulary.',
 'Text.Base64':'Base64 encoding/decoding over bytes with explicit invalid-input results.',
+'Text.Ascii85':'ASCII85 buffer and incremental codecs with SIMD word quanta, zero-word compression, byte-offset errors and explicit finalization.',
+'Effect.Ascii85':'ASCII85 encoding writers and decoding byte readers with explicit finalization, bounded read-ahead and sticky stream errors.',
 'Text.Base32':'RFC 4648 standard and extended-hex Base32, with padded and raw forms and named decoding errors.',
 'Text.Binary':'Little- and big-endian integer encoding, checked buffer access, and signed/unsigned varints.',
 'Text.Hex':'Lowercase hexadecimal encoding and case-insensitive decoding with named errors and byte offsets.',

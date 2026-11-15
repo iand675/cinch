@@ -6,7 +6,9 @@ maintained libraries shipped with the compiler. Cinch keeps its module names,
 explicit effects, bounds, overflow policies, and `Result` errors. Matching a
 Go wire format does not require copying its object model or panic behavior.
 
-This inventory describes the current Rust compiler. An existing module does
+The coverage inventory is checked with the Rust compiler. Targeted ASCII85,
+stream, word/UTF-8 and constructor-identity suites also run with the updated
+self-built compiler. An existing module does
 not imply full parity with the corresponding Go package. Planned work below
 is not an available API.
 
@@ -16,6 +18,7 @@ is not an available API.
 | --- | --- | --- | --- |
 | `encoding/binary` | [Text.Binary](../library/Text.Binary.md) | U16/U32/U64, both byte orders, offset reads, checked writes, unsigned and zigzag I64 varints, consumed byte count | Float/aggregate codecs, stream and append operations |
 | `encoding/hex` | [Text.Hex](../library/Text.Hex.md) | Lowercase encoder, either-case decoder, length helpers, invalid-byte offsets | Dumps, stream and append operations |
+| `encoding/ascii85` | [Text.Ascii85](../library/Text.Ascii85.md), [Effect.Ascii85](../library/Effect.Ascii85.md) | Whole buffers, incremental feed/finish, absolute byte errors, streaming reader/writer adapters, zero-word shorthand, control-byte tolerance and wrapped arithmetic | Caller-supplied buffers, decoded prefix/progress on errors, allocation and ownership costs |
 | `encoding/base32` | [Text.Base32](../library/Text.Base32.md) | RFC 4648 standard and extended-hex alphabets, padded and raw forms, CR/LF tolerance, final-quantum validation | Custom alphabets/padding, stream adapters |
 | `hash/adler32` | [Text.Checksum](../library/Text.Checksum.md) | Whole-buffer checksum and incremental update | Stream adapters, serialized state |
 | `hash/crc32` | [Text.Checksum](../library/Text.Checksum.md) | IEEE, Castagnoli, Koopman and custom reflected polynomials, incremental update | Table acceleration, stream adapters, serialized state |
@@ -23,14 +26,14 @@ is not an available API.
 | `hash/fnv` | [Text.Fnv](../library/Text.Fnv.md) | FNV-1 and FNV-1a, 32 and 64 bits, incremental update | 128-bit variants, stream adapters, serialized state |
 | `io` | [Effect.Stream](../library/Effect.Stream.md) | Explicit reader/writer continuations, memory and borrowed-descriptor adapters, limited/concatenated/mirrored sources, broadcast sinks, exact/minimum/all reads, full writes, bulk and limited copies | Random access, seek/close/flush capabilities, pipes and cancellation, section/offset adapters |
 
-The five format/hash modules and their shared `Data.Bytes.Word` layer are
+The format/hash modules and their shared `Data.Bytes.Word` layer are
 Cinch source over existing base operations and inline LLVM/ASM, with no new
 compiler intrinsics or foreign libraries. They follow the existing
 [source-distributed library loading rules](../library/00-index.md).
 `Text.Zlib` retains its standalone `adler32` and `crc32` exports; the new
 incremental checksum API does not depend on compression.
 
-Hex and Base32 use LLVM SIMD lanes for complete encoding/decoding quanta.
+ASCII85, Hex and Base32 use LLVM SIMD lanes for complete encoding/decoding quanta.
 Adler-32 reduces sixteen byte lanes and their weights in parallel. Fixed
 binary fields use native word assembly and LLVM byte swaps, and varints use
 SWAR continuation-bit detection and payload compaction. CRCs process native
@@ -53,8 +56,8 @@ retain the callback's actual effect-region identity; cross-runtime handles are
 rejected by negative tests.
 
 The machine-readable [surface inventory](stdlib-surface.json) covers all 180
-public packages in the pinned reference SDK. It currently records 66 partial
-and 114 unreviewed packages, with none marked complete. Upstream mutable
+public packages in the pinned reference SDK. It currently records 67 partial
+and 113 unreviewed packages, with none marked complete. Upstream mutable
 containers are included as implementation homes, not assumed full coverage.
 The [benchmark notes](../benchmarks/stdlib/README.md) describe measured public
 API pipelines and their limits. The full standard library goal remains open.
@@ -64,6 +67,15 @@ and Base32 return an error for the entire input, rather than Go's partial
 decoded prefix. Short binary reads return `UnexpectedBinaryEnd`, and
 overflowing varints return `BinaryVarintOverflow`. Fixed-width put operations
 validate the complete destination range before writing any bytes.
+
+ASCII85 has independent buffer and stream measurements against the reference
+SDK. SIMD digit kernels lower to short, call-free arithmetic; generated buffer
+loops exposed repeated runtime byte-access calls. Checked payload fast paths
+remove those calls for valid buffers while preserving bounds, byte range,
+read-only, wrong-kind and null faults through the original runtime fallback.
+Both heap and static empty buffers preserve their data-pointer contract.
+Natural-index conversions and ownership work still dominate much of the loop;
+current measurements do not establish performance parity.
 
 ### Using the additions
 
@@ -102,6 +114,11 @@ concatenated bytes. CRC polynomial arguments use Go's reflected representation.
 real imports against [Go-generated fixtures](../compiler/tests/fixtures/go-stdlib-vectors.json).
 The corpus includes RFC 4648 examples, all 256 byte values, a deterministic
 257-byte buffer, integer width truncations, and signed/unsigned 64-bit limits.
+[ASCII85 tests](../compiler/tests/lib_ascii85.rs) additionally cover every
+two-chunk split, empty feeds, malformed input after complete words, streaming
+short writes, sticky failures and mutable-alias isolation. They inspect the
+emitted SIMD and compile its kernels for AArch64 and big-endian PowerPC; those
+cross-target checks do not claim execution on that hardware.
 Separate checks cover offsets, truncation, failed writes without mutation,
 malformed encodings, and updates at every split of a check string, including
 empty chunks. The fixture generator calls Go's actual standard packages.
@@ -122,7 +139,7 @@ cargo test --test lib_go_stdlib
 | `strconv`, `fmt` | `Text.Show`, `Text.Scan`, `Data.Machine` | Explicit-base, bit-width-aware number parsing and quoting |
 | `unicode`, `unicode/utf8` | `Data.Char`, `Data.String` | Unicode property and case tables; current classification helpers are ASCII |
 | `encoding/base64`, `encoding/csv`, `encoding/json` | `Text.Base64`, `Text.Csv`, `Text.Json` | Format/options compatibility audit and streaming APIs |
-| `encoding/ascii85`, `encoding/xml`, `encoding/pem` | None | ASCII85 and PEM first; XML with explicit resource limits later |
+| `encoding/xml`, `encoding/pem` | None | PEM first; XML with explicit resource limits later |
 | `compress/zlib`, `compress/flate` | `Text.Zlib` | Existing DEFLATE decoder within zlib and stored-block encoder; raw wrapper and actual compression remain |
 | `compress/gzip`, `compress/bzip2`, `archive/tar`, `archive/zip` | None | Gzip and tar first; zip and bzip2 later |
 | `crypto/sha256`, `crypto/sha512`, `crypto/sha1`, `crypto/md5`, `crypto/hmac` | `Text.Digest` | Existing whole-buffer digests and HMAC-SHA256; streaming and other HMAC variants remain |

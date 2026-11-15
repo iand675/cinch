@@ -1,0 +1,300 @@
+-- | ASCII85 byte encoding with incremental encoder and decoder state.
+-- Four bytes become five symbols from ! through u; a complete zero word
+-- becomes z. No document delimiters are added or accepted. Decoding ignores
+-- bytes 0 through 32, counts errors in original input bytes, and accumulates
+-- complete groups modulo 2^32, including noncanonical overflowing groups.
+-- Complete groups use inline LLVM SIMD digit arithmetic. Incremental calls
+-- retain only an unfinished word; finishing emits the final short quantum.
+module Text.Ascii85 where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  export Ascii85Error, InvalidAscii85Byte, TruncatedAscii85Quantum
+  export ascii85-error-offset, ascii85-error-message
+  export Ascii85Encoder, Ascii85Decoder
+  export ascii85-max-encoded-length, ascii85-encode, ascii85-decode, ascii85-decode-bytes
+  export ascii85-encoder, ascii85-encoder-feed, ascii85-encoder-finish
+  export ascii85-decoder, ascii85-decoder-feed, ascii85-decoder-finish
+
+  -- | Malformed encoded input. An unsuccessful feed returns no partial output.
+  data Ascii85Error where
+    -- | The absolute zero-based byte offset and invalid byte value.
+    InvalidAscii85Byte :: Nat -> Nat -> Ascii85Error
+    -- | A final single symbol cannot describe a byte; the offset is the input length.
+    TruncatedAscii85Quantum :: Nat -> Ascii85Error
+
+  -- | The absolute original input byte offset associated with a decoding failure.
+  ascii85-error-offset :: Ascii85Error -> Nat
+  ascii85-error-offset error = case error of
+    InvalidAscii85Byte offset byte -> offset
+    TruncatedAscii85Quantum offset -> offset
+
+  -- | Render a decoding diagnostic, including the offending byte or incomplete tail position.
+  ascii85-error-message :: Ascii85Error -> String
+  ascii85-error-message error = case error of
+    InvalidAscii85Byte offset byte -> string-concat "invalid ASCII85 byte " (string-concat (nat-to-string byte) (string-concat " at byte " (nat-to-string offset)))
+    TruncatedAscii85Quantum offset -> string-concat "incomplete ASCII85 quantum at byte " (nat-to-string offset)
+
+  -- | An immutable encoding continuation holding at most three pending bytes.
+  data Ascii85Encoder where
+    -- | Private accumulator in input order and its pending byte count.
+    EncodeState :: U32 -> Nat -> Ascii85Encoder
+
+  -- | An immutable decoding continuation holding at most four pending symbols.
+  data Ascii85Decoder where
+    -- | Private accumulator, symbol count and total original input bytes consumed.
+    DecodeState :: U32 -> Nat -> Nat -> Ascii85Decoder
+
+  -- | A safe encoded byte bound, including a full five-symbol final allocation.
+  ascii85-max-encoded-length :: Nat -> Nat
+  ascii85-max-encoded-length n = nat-div (n + 3) 4 * 5
+
+  -- | Begin an independent encoding. Empty feeds preserve the continuation.
+  ascii85-encoder :: Ascii85Encoder
+  ascii85-encoder = EncodeState 0 0
+
+  -- | Begin an independent decoding with absolute error offsets starting at zero.
+  ascii85-decoder :: Ascii85Decoder
+  ascii85-decoder = DecodeState 0 0 0
+
+  -- | Snapshot exactly the initialized prefix of a private output buffer.
+  prefix :: Bytes -> Nat -> Bytes
+  prefix b n =
+    if n <= bytes-len b then
+      let out = bytes-new n in
+      let copied = bytes-copy-range out b 0 0 n in out
+    else bytes-new 0
+
+  -- | Join independently owned output chunks without retaining mutable aliases.
+  join :: Bytes -> Bytes -> Bytes
+  join first last =
+    let n = bytes-len first in
+    let out = bytes-new (n + bytes-len last) in
+    let a = bytes-copy-range out first 0 0 n in
+    let b = bytes-copy-range out last n 0 (bytes-len last) in out
+
+  -- | Normalize a little-endian input word to the encoding's big-endian order.
+  prim reverse-word :: U32 -> U32 where
+    llvm {
+      %word = call i32 @llvm.bswap.i32(i32 %0)
+      ret i32 %word
+    }
+
+  -- | Store five packed symbols in their input order, with a complete range proof.
+  store-five :: using (i + 5 <= bytes-len out) => (out :: Bytes) -> (i :: Nat) -> U64 -> Unit
+  store-five out i word =
+    let first = bytes-write-le32 out i (wrapping-u64-to-u32 word) in
+    bytes-set out (i + 4) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 word 32)))
+
+  -- | Emit one complete word, compressing only a full zero word to z.
+  emit :: using (i + 5 <= bytes-len out) => (out :: Bytes) -> (i :: Nat) -> U32 -> Nat
+  emit out i word =
+    if eq-u32 word 0 then let written = bytes-set out i 122 in i + 1
+    else let written = store-five out i (encode-word word) in i + 5
+
+  -- | Encode full words without carrying a symbol count through the hot loop.
+  -- Only the final fringe needs the incremental accumulator and count.
+  encode-blocks :: Bytes -> Nat -> Bytes -> Nat -> (Bytes, Ascii85Encoder)
+  encode-blocks b i out oi =
+    if i + 4 <= bytes-len b && oi + 5 <= bytes-len out then
+      let next = emit out oi (reverse-word (bytes-read-le32 b i)) in
+      encode-blocks b (i + 4) out next
+    else encode-fringe b i out oi 0 0
+
+  -- | Complete a carried word or retain the final bytes, then resume the full-word loop.
+  encode-fringe :: Bytes -> Nat -> Bytes -> Nat -> U32 -> Nat -> (Bytes, Ascii85Encoder)
+  encode-fringe b i out oi acc count =
+    if i < bytes-len b && oi + 5 <= bytes-len out then
+      let byte = wrapping-i64-to-u32 (nat-to-i64 (bytes-get b i)) in
+      let word = bit-or-u32 (wrapping-shl-u32 acc 8) byte in
+      if count == 3 then
+        let next = emit out oi word in encode-blocks b (i + 1) out next
+      else encode-fringe b (i + 1) out oi word (count + 1)
+    else (prefix out oi, EncodeState acc count)
+
+  -- | Encode all complete words in a chunk and return their bytes plus the advanced state.
+  -- The returned output is independent of subsequent mutation of the input.
+  ascii85-encoder-feed :: Ascii85Encoder -> Bytes -> (Bytes, Ascii85Encoder)
+  ascii85-encoder-feed state b = case state of
+    EncodeState acc count ->
+      let out = bytes-new (ascii85-max-encoded-length (bytes-len b + count)) in
+      if count == 0 then encode-blocks b 0 out 0 else encode-fringe b 0 out 0 acc count
+
+  -- | Finish an encoding, emitting two through four symbols for any pending bytes.
+  -- A partial zero word is never shortened to z. Finishing an empty state is empty.
+  ascii85-encoder-finish :: Ascii85Encoder -> Bytes
+  ascii85-encoder-finish state = case state of
+    EncodeState acc count ->
+      if count > 0 && count < 4 then
+        let shift = wrapping-i64-to-u32 (nat-to-i64 ((4 - count) * 8)) in
+        let out = bytes-new 5 in
+        let written = store-five out 0 (encode-word (wrapping-shl-u32 acc shift)) in
+        prefix out (count + 1)
+      else bytes-new 0
+
+  -- | Encode a complete buffer without document delimiters or inserted whitespace.
+  ascii85-encode :: Bytes -> String
+  ascii85-encode b = case ascii85-encoder-feed ascii85-encoder b of
+    (out, state) -> case string-from-bytes (join out (ascii85-encoder-finish state)) of
+      Some text -> text
+      None -> empty-string
+
+  -- | Load five ASCII bytes without reading beyond the proved input range.
+  read-five :: using (i + 5 <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> U64
+  read-five b i =
+    bit-or-u64 (u32-to-u64 (bytes-read-le32 b i))
+      (wrapping-shl-u64 (wrapping-i64-to-u64 (nat-to-i64 (bytes-get b (i + 4)))) 32)
+
+  -- | Decode full groups using SIMD; whitespace, z and invalid bytes retain scalar rules.
+  decode-from :: Bytes -> Nat -> Bytes -> Nat -> U32 -> Nat -> Nat -> Result Ascii85Error (Bytes, Ascii85Decoder)
+  decode-from b i out oi acc count offset =
+    if count == 0 && i + 5 <= bytes-len b && oi + 4 <= bytes-len out then
+      let decoded = decode-word (read-five b i) in
+      if eq-u64 (wrapping-shr-u64 decoded 32) 0 then
+        let written = bytes-write-le32 out oi (reverse-word (wrapping-u64-to-u32 decoded)) in
+        decode-from b (i + 5) out (oi + 4) 0 0 offset
+      else decode-byte b i out oi acc count offset
+    else decode-byte b i out oi acc count offset
+
+  -- | Process one original byte, preserving global offsets across feeds and ignored controls.
+  decode-byte :: Bytes -> Nat -> Bytes -> Nat -> U32 -> Nat -> Nat -> Result Ascii85Error (Bytes, Ascii85Decoder)
+  decode-byte b i out oi acc count offset =
+    if i < bytes-len b then
+      let byte = bytes-get b i in
+      if byte <= 32 then decode-from b (i + 1) out oi acc count offset
+      else if byte == 122 && count == 0 && oi + 4 <= bytes-len out then
+        let written = bytes-write-le32 out oi 0 in
+        decode-from b (i + 1) out (oi + 4) 0 0 offset
+      else if byte >= 33 && byte <= 117 then
+        let digit = wrapping-i64-to-u32 (nat-to-i64 (byte - 33)) in
+        let word = wrapping-add-u32 (wrapping-mul-u32 acc 85) digit in
+        if count == 4 && oi + 4 <= bytes-len out then
+          let written = bytes-write-le32 out oi (reverse-word word) in
+          decode-from b (i + 1) out (oi + 4) 0 0 offset
+        else decode-from b (i + 1) out oi word (count + 1) offset
+      else Err (InvalidAscii85Byte (offset + i) byte)
+    else Ok (prefix out oi, DecodeState acc count (offset + bytes-len b))
+
+  -- | Decode complete groups in arbitrary byte chunks, retaining unfinished symbols.
+  -- Invalid bytes return an absolute byte offset and no output for this feed.
+  ascii85-decoder-feed :: Ascii85Decoder -> Bytes -> Result Ascii85Error (Bytes, Ascii85Decoder)
+  ascii85-decoder-feed state b = case state of
+    DecodeState acc count offset ->
+      let out = bytes-new (bytes-len b * 4) in
+      decode-from b 0 out 0 acc count offset
+
+  -- | Complete a short quantum by assuming the largest missing digits, with explicit wrapping.
+  pad-word :: U32 -> Nat -> U32
+  pad-word acc count =
+    if count < 5 then pad-word (wrapping-add-u32 (wrapping-mul-u32 acc 85) 84) (count + 1)
+    else acc
+
+  -- | Finish decoding: a single remaining symbol is invalid; two through four emit a byte tail.
+  ascii85-decoder-finish :: Ascii85Decoder -> Result Ascii85Error Bytes
+  ascii85-decoder-finish state = case state of
+    DecodeState acc count offset ->
+      if count == 1 then Err (TruncatedAscii85Quantum offset)
+      else if count > 1 && count < 5 then
+        let out = bytes-new 4 in
+        let written = bytes-write-le32 out 0 (reverse-word (pad-word acc count)) in
+        Ok (prefix out (count - 1))
+      else Ok (bytes-new 0)
+
+  -- | Decode a complete byte buffer. Control bytes through space are ignored; framing is invalid.
+  ascii85-decode-bytes :: Bytes -> Result Ascii85Error Bytes
+  ascii85-decode-bytes b = case ascii85-decoder-feed ascii85-decoder b of
+    Err error -> Err error
+    Ok pair -> case pair of
+      (out, state) -> case ascii85-decoder-finish state of
+        Err error -> Err error
+        Ok tail -> Ok (join out tail)
+
+  -- | Decode complete text with error positions measured in UTF-8 input bytes.
+  ascii85-decode :: String -> Result Ascii85Error Bytes
+  ascii85-decode text = ascii85-decode-bytes (string-to-bytes text)
+
+  -- | Compute four base-85 digits in SIMD lanes and pack all five ASCII bytes
+  -- in a target-independent little-endian machine word.
+  prim encode-word :: U32 -> U64 where
+    llvm {
+      %seed = insertelement <4 x i32> zeroinitializer, i32 %0, i32 0
+      %words = shufflevector <4 x i32> %seed, <4 x i32> zeroinitializer, <4 x i32> zeroinitializer
+      %quotients = udiv <4 x i32> %words, <i32 52200625, i32 614125, i32 7225, i32 85>
+      %digits = urem <4 x i32> %quotients, <i32 85, i32 85, i32 85, i32 85>
+      %ascii = add <4 x i32> %digits, <i32 33, i32 33, i32 33, i32 33>
+      %c0 = extractelement <4 x i32> %ascii, i32 0
+      %w0 = zext i32 %c0 to i64
+      %s0 = shl i64 %w0, 0
+      %c1 = extractelement <4 x i32> %ascii, i32 1
+      %w1 = zext i32 %c1 to i64
+      %s1 = shl i64 %w1, 8
+      %p1 = or i64 %s0, %s1
+      %c2 = extractelement <4 x i32> %ascii, i32 2
+      %w2 = zext i32 %c2 to i64
+      %s2 = shl i64 %w2, 16
+      %p2 = or i64 %p1, %s2
+      %c3 = extractelement <4 x i32> %ascii, i32 3
+      %w3 = zext i32 %c3 to i64
+      %s3 = shl i64 %w3, 24
+      %p3 = or i64 %p2, %s3
+      %last = urem i32 %0, 85
+      %last-ascii = add i32 %last, 33
+      %last-wide = zext i32 %last-ascii to i64
+      %last-packed = shl i64 %last-wide, 32
+      %result = or i64 %p3, %last-packed
+      ret i64 %result
+    }
+
+  -- | Validate four digit lanes in parallel and combine their weighted values.
+  -- The low word is decoded data; upper bits flag invalid bytes for scalar diagnosis.
+  prim decode-word :: U64 -> U64 where
+    llvm {
+      %s0 = lshr i64 %0, 0
+      %t0 = trunc i64 %s0 to i32
+      %b0 = and i32 %t0, 255
+      %v0 = insertelement <4 x i32> zeroinitializer, i32 %b0, i32 0
+      %s1 = lshr i64 %0, 8
+      %t1 = trunc i64 %s1 to i32
+      %b1 = and i32 %t1, 255
+      %v1 = insertelement <4 x i32> %v0, i32 %b1, i32 1
+      %s2 = lshr i64 %0, 16
+      %t2 = trunc i64 %s2 to i32
+      %b2 = and i32 %t2, 255
+      %v2 = insertelement <4 x i32> %v1, i32 %b2, i32 2
+      %s3 = lshr i64 %0, 24
+      %t3 = trunc i64 %s3 to i32
+      %b3 = and i32 %t3, 255
+      %v3 = insertelement <4 x i32> %v2, i32 %b3, i32 3
+      %digits = sub <4 x i32> %v3, <i32 33, i32 33, i32 33, i32 33>
+      %bad = icmp uge <4 x i32> %digits, <i32 85, i32 85, i32 85, i32 85>
+      %mask = bitcast <4 x i1> %bad to i4
+      %first-flags = zext i4 %mask to i64
+      %weighted = mul <4 x i32> %digits, <i32 52200625, i32 614125, i32 7225, i32 85>
+      %c0 = extractelement <4 x i32> %weighted, i32 0
+      %c1 = extractelement <4 x i32> %weighted, i32 1
+      %p1 = add i32 %c0, %c1
+      %c2 = extractelement <4 x i32> %weighted, i32 2
+      %p2 = add i32 %p1, %c2
+      %c3 = extractelement <4 x i32> %weighted, i32 3
+      %p3 = add i32 %p2, %c3
+      %last-shift = lshr i64 %0, 32
+      %last-word = trunc i64 %last-shift to i32
+      %last-byte = and i32 %last-word, 255
+      %last-digit = sub i32 %last-byte, 33
+      %last-bad = icmp uge i32 %last-digit, 85
+      %last-flag = zext i1 %last-bad to i64
+      %last-flag-bit = shl i64 %last-flag, 4
+      %flags = or i64 %first-flags, %last-flag-bit
+      %upper = shl i64 %flags, 32
+      %value = add i32 %p3, %last-digit
+      %lower = zext i32 %value to i64
+      %result = or i64 %upper, %lower
+      ret i64 %result
+    }
