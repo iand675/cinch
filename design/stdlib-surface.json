@@ -784,11 +784,15 @@
       ],
       "reference_declarations": 6,
       "tests": [
-        "lib_go_stdlib::fnv_matches_go_and_updates_over_every_split"
+        "lib_go_stdlib::fnv_matches_go_and_updates_over_every_split",
+        "lib_fnv128::fnv128_matches_reference_vectors_and_every_chunk_split",
+        "lib_fnv128::fnv128_updates_preserve_arbitrary_high_bits_and_exact_tails"
       ],
       "benchmarks": [
         "fnv32a",
-        "fnv64a"
+        "fnv64a",
+        "fnv128",
+        "fnv128a"
       ]
     },
     {
