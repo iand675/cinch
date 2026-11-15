@@ -165,7 +165,7 @@ A target profile fixes the pointer width, the features an artifact may assume, t
 
 `Usize` and `Isize` follow `word_size`, never the build host, so a `Wasm32` profile makes them 32 bits. The Rust API exposes `TargetProfile::native()`, `TargetProfile::wasm32(artifact)`, and the stricter `TargetProfile::jpl()`.
 
-<span class="support-tag support-tag--planned">Coming soon</span> **target selection in the CLI.** There is no `--target`, `--component`, or cross-target packaging flag today; `cinch --help` lists `check`, `emit-ir`, `emit-object`, `build`, `run`, `lsp`, `doc`, `repl`, `jit`, and `pkg`. The build-property switches the CLI does expose are the runtime ones, `CINCH_RECLAIM`, `CINCH_HEAP_LIMIT`, `CINCH_STACK_SIZE`, and the runtime's diagnostic variables.
+<span class="support-tag support-tag--planned">Coming soon</span> **target selection in the CLI.** There is no `--target`, `--component`, or cross-target packaging flag today; `cinch --help` lists `check`, `emit-ir`, `emit-object`, `build`, `run`, `lsp`, `doc`, `repl`, `jit`, and `pkg`. The build-property switches the CLI does expose are `--no-reclaim` (the leak baseline, the same profile `CINCH_RECLAIM=0` selects) and the runtime ones, `CINCH_RECLAIM`, `CINCH_HEAP_LIMIT`, `CINCH_STACK_SIZE`, and the runtime's diagnostic variables.
 
 # The component path today
 

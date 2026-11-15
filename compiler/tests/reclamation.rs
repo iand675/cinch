@@ -117,6 +117,56 @@ fn lists_built_mapped_filtered_and_folded_are_freed() {
     expect_leaked("lists", LISTS, 0, 0);
 }
 
+/// The other arm of the same switch: a profile that does not reclaim
+/// (`--no-reclaim`, or `CINCH_RECLAIM=0`) emits no ownership operation at
+/// all, so the very list the counted build frees stays live. Built through
+/// `drive_with_profile`, which means the external frontend receives
+/// `--no-reclaim` from `profile_request` and the Native driver reads the
+/// profile field, so this test covers both translations of the one choice.
+#[test]
+fn a_profile_that_does_not_reclaim_emits_no_ownership_and_leaks() {
+    let dir = project("leaky", LISTS);
+    let exe = dir.join("prog_leaky");
+    let profile = TargetProfile { reclaim: false, ..TargetProfile::native() };
+    drive_with_profile(Mode::Build, StageMode::Refresh, &dir, "Main.cinch", Some(exe.clone()), &profile)
+        .unwrap_or_else(|e| panic!("build failed: {e}"));
+    let out = run(&exe, &[("CINCH_LEAK_CHECK", "1")]);
+    // The program's own answer is still 0: nothing about its meaning
+    // changed, only what it releases.
+    let leaked = field(&out, "cinch-leak:", "leaked");
+    assert!(leaked > 0, "a build that counts nothing must leave blocks live: {out:?}");
+    assert_eq!(out.status.code(), Some(74), "the leak check must fail the exit: {out:?}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The same switch one level down, where it is cheapest to see: the emitted
+/// module itself. A counted build of this program calls the count helpers;
+/// the leak baseline calls none of them, and says so at the runtime by
+/// leaving `cinch_reclaim_enable` out of its constructor too. Both halves
+/// are asserted, so a flag that silently did nothing fails here.
+#[test]
+fn the_leak_baseline_emits_no_count_call_and_does_not_enable_reclaiming() {
+    let dir = project("leakyir", LISTS);
+    let emit = |name: &str, reclaim: bool| {
+        let out = dir.join(name);
+        let profile = TargetProfile { reclaim, ..TargetProfile::native() };
+        drive_with_profile(Mode::EmitIr, StageMode::Refresh, &dir, "Main.cinch", Some(out.clone()), &profile)
+            .unwrap_or_else(|e| panic!("{name}: emit failed: {e}"));
+        std::fs::read_to_string(&out).expect("emitted IR")
+    };
+    let counted = emit("counted.ll", true);
+    let leaky = emit("leaky.ll", false);
+    // A call, not a declaration: the declarations stay in the module.
+    let calls = |text: &str| text.lines().filter(|l| l.trim_start().starts_with("call void @cinch.rc.")).count();
+    assert!(calls(&counted) > 0, "a counted build must count: {counted}");
+    assert_eq!(calls(&leaky), 0, "the leak baseline emitted a count operation");
+    assert!(counted.contains("call void @cinch_reclaim_enable()"),
+        "a counted build tells the runtime it reclaims");
+    assert!(!leaky.contains("call void @cinch_reclaim_enable()"),
+        "the leak baseline must not tell the runtime it reclaims");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 const TREES: &str = r#"
 module Main where
   data Tree where

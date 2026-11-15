@@ -86,7 +86,10 @@ pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) ->
         ("artifact", *artifact == host.artifact),
         ("required", *required == host.required),
         ("jpl", *jpl == host.jpl),
-        ("reclaim", *reclaim == host.reclaim),
+        // `reclaim` is absent on purpose: the selected compiler counts
+        // references by default and `--no-reclaim` selects the other arm, so
+        // both values of this field are ones it implements. The flag below
+        // is how the request states which arm it wants.
     ] {
         if !same {
             lacking.push(field);
@@ -107,6 +110,11 @@ pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) ->
     }
     if *rc_debug {
         flags.push("--rc-debug".to_owned());
+    }
+    // The selected compiler counts references unless a word says otherwise,
+    // so a request that does not reclaim is the one that needs a flag.
+    if !*reclaim {
+        flags.push("--no-reclaim".to_owned());
     }
     Ok(Request { flags, program_args: Vec::new() })
 }
@@ -486,5 +494,26 @@ mod profile_tests {
         assert!(message.contains("name"), "the refusal must name the field: {message}");
         assert!(!message.contains("os, libc") && !message.contains("triple"),
             "only the name should disagree: {message}");
+    }
+
+    /// A profile that reclaims asks for no word, because counting is what
+    /// the selected compiler does unless told otherwise; a profile that does
+    /// not reclaim is the one that must say so. Both arms are checked, so a
+    /// selector that always (or never) emits the flag fails here.
+    #[test]
+    fn a_profile_that_does_not_reclaim_asks_for_the_word() {
+        let counting = TargetProfile { reclaim: true, ..TargetProfile::native() };
+        let asked = profile_request(Mode::Build, StageMode::Refresh, &counting)
+            .expect("the host's own counting profile is one the selected compiler implements");
+        assert!(!asked.flags.iter().any(|f| f == "--no-reclaim"),
+            "a counting profile must not ask for the leak baseline: {:?}", asked.flags);
+
+        let leaky = TargetProfile { reclaim: false, ..TargetProfile::native() };
+        let asked = profile_request(Mode::Build, StageMode::Refresh, &leaky)
+            .expect("the leak baseline differs from the implemented profile only in reclaim");
+        assert!(asked.flags.iter().any(|f| f == "--no-reclaim"),
+            "a profile that does not reclaim must ask for --no-reclaim: {:?}", asked.flags);
+        assert_eq!(asked.flags.last().map(String::as_str), Some("--no-reclaim"),
+            "the profile words stay in one order: {:?}", asked.flags);
     }
 }

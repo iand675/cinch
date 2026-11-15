@@ -737,9 +737,13 @@ asserts that each owned binder is consumed exactly once on each path
 
 **As built (S6a, S6b).** `compiler/src/rc.rs` inserts `Dup`/`Drop`, and a
 debug verifier refuses any path that does not consume an owned binder
-exactly once. Reclamation is on by default; `CINCH_RECLAIM=0` in the
-compiler's environment builds the leak-everything baseline for
-measurements and A/B debugging.
+exactly once. Reclamation is on by default; `--no-reclaim` on the command
+line, or `CINCH_RECLAIM=0` in the compiler's environment, builds the
+leak-everything baseline for measurements and A/B debugging. The flag and
+the variable set the one profile field (`TargetProfile::reclaim`), so the
+counting pass inserts nothing, code generation emits no ownership
+operation, the artifact manifest records `reclaim: false` for a consumer
+to refuse, and both front ends accept the word.
 
 - Borrowed parameters are inferred only for a closed program: an
   executable emitted whole (`rc::insert_closed`). An object, a module
