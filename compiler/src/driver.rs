@@ -4500,6 +4500,11 @@ pub struct DriverOptions {
     /// its percentage and the payload bytes the refused allocations carry
     /// (design/stack-allocation.md section 8).
     pub escape_report: bool,
+    /// `--no-reclaim`: build the leak-everything baseline, the same profile
+    /// `CINCH_RECLAIM=0` selects, as a command-line word. Nothing is
+    /// counted, so no ownership operation is emitted and every block the
+    /// program allocates stays live (design/reclamation.md).
+    pub no_reclaim: bool,
     /// The words the CLI forwards to the program `Mode::Run` executes:
     /// every argument after the entry file (`cinch run f.cinch a b`, or
     /// everything after `--` verbatim). They land on the built program's
@@ -4910,7 +4915,7 @@ usage:
   cinch core emit <file.cinch> [--stage=<name>] [--target <triple>] [-o <out.core>]
                      [--max-simplifier-iterations <n>] [--no-direct-dict-calls]
                      [--case-of-case] [--no-inline] [--no-contify] [--no-specialise-arguments] [--inline-model <threshold|benefit>] [--no-stack-alloc]
-                     [--stack-frame-limit <bytes>]
+                     [--stack-frame-limit <bytes>] [--no-reclaim]
   cinch core verify <file.core>
   cinch core diff <a.core> <b.core>
 
@@ -4985,6 +4990,7 @@ fn core_emit(args: &[String]) -> i32 {
             }
             "--case-of-case" => opts.case_of_case = true,
             "--no-stack-alloc" => opts.no_stack_alloc = true,
+            "--no-reclaim" => opts.no_reclaim = true,
             "--escape-report" => opts.escape_report = true,
             "--stack-frame-limit" => {
                 i += 1;
@@ -5181,6 +5187,13 @@ pub fn target_profile(opts: &DriverOptions) -> Result<crate::core::TargetProfile
         }
         profile.os_version = Some(version.trim().to_string());
         profile.name = format!("{}-os{}", profile.name, profile.os_version.as_deref().unwrap_or("-"));
+    }
+    // `--no-reclaim` is the command-line spelling of `CINCH_RECLAIM=0`: the
+    // same profile field, so `crate::rc` inserts nothing, code generation
+    // emits no ownership operation, and the artifact manifest records
+    // `reclaim: false` for a consumer to refuse (design/reclamation.md).
+    if opts.no_reclaim {
+        profile.reclaim = false;
     }
     Ok(profile)
 }

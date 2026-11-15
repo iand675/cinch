@@ -83,7 +83,7 @@ module Bootstrap.RuntimeIr where
   data BindingIndex where
     BindingIndex :: List CheckedBinding -> List ForeignPlan -> HashMap String (Option ForeignPlan) -> BindingIndex
   data ProgramInfo where
-    ProgramInfo :: List CoreData -> List CoreClass -> List CoreInstance -> BindingIndex -> List MethodVersion -> Option RuntimeObject -> Option (List String) -> List CoreEffect -> HashMap String (Nat, Nat) -> ProgramInfo
+    ProgramInfo :: List CoreData -> List CoreClass -> List CoreInstance -> BindingIndex -> List MethodVersion -> Option RuntimeObject -> Option (List String) -> List CoreEffect -> HashMap String (Nat, Nat) -> Bool -> ProgramInfo
   -- The units a sweep may copy at their call sites, whether copying is on
   -- at all, and the unfolding stack. The names are fixed before emission, so
   -- the decision at a site depends on nothing but the unit's name; the stack
@@ -135,19 +135,19 @@ module Bootstrap.RuntimeIr where
   writer-program :: Writer -> ProgramInfo
   writer-program w = case writer-context w of RuntimeContext info bounds rigids pending done inlining -> info
   program-data :: ProgramInfo -> List CoreData
-  program-data info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> datas
+  program-data info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim -> datas
   program-classes :: ProgramInfo -> List CoreClass
-  program-classes info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> descriptions
+  program-classes info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim -> descriptions
   program-instances :: ProgramInfo -> List CoreInstance
-  program-instances info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> instances
+  program-instances info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim -> instances
   program-bindings :: ProgramInfo -> List CheckedBinding
-  program-bindings info = case info of ProgramInfo datas descriptions instances (BindingIndex bindings plans names) versions provider exposed effects tail-groups -> bindings
+  program-bindings info = case info of ProgramInfo datas descriptions instances (BindingIndex bindings plans names) versions provider exposed effects tail-groups reclaim -> bindings
   program-foreign-plans :: ProgramInfo -> List ForeignPlan
-  program-foreign-plans info = case info of ProgramInfo datas descriptions instances (BindingIndex bindings plans names) versions provider exposed effects tail-groups -> plans
+  program-foreign-plans info = case info of ProgramInfo datas descriptions instances (BindingIndex bindings plans names) versions provider exposed effects tail-groups reclaim -> plans
   -- The foreign plan of the first binding named `name`, if that binding is foreign.
   program-foreign-binding :: String -> ProgramInfo -> Option ForeignPlan
   program-foreign-binding name info = case info of
-    ProgramInfo datas descriptions instances (BindingIndex bindings plans names) versions provider exposed effects tail-groups -> case hash-map-lookup name names of
+    ProgramInfo datas descriptions instances (BindingIndex bindings plans names) versions provider exposed effects tail-groups reclaim -> case hash-map-lookup name names of
       Some plan -> plan
       None -> None
   index-bindings :: List CheckedBinding -> BindingIndex
@@ -159,24 +159,30 @@ module Bootstrap.RuntimeIr where
       (plans, names) -> let plan = checked-foreign-plan binding in
         ((case plan of Some found -> Cons found plans; None -> plans), hash-map-insert (checked-name binding) plan names)
   program-versions :: ProgramInfo -> List MethodVersion
-  program-versions info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> versions
+  program-versions info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim -> versions
   program-object :: ProgramInfo -> Option RuntimeObject
-  program-object info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> provider
+  program-object info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim -> provider
   program-effects :: ProgramInfo -> List CoreEffect
-  program-effects info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> effects
+  program-effects info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim -> effects
   with-versions :: List MethodVersion -> ProgramInfo -> ProgramInfo
-  with-versions versions info = case info of ProgramInfo datas descriptions instances bindings old provider exposed effects tail-groups -> ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups
+  with-versions versions info = case info of ProgramInfo datas descriptions instances bindings old provider exposed effects tail-groups reclaim -> ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim
   program-tail-groups :: ProgramInfo -> HashMap String (Nat, Nat)
-  program-tail-groups info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects groups -> groups
+  program-tail-groups info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects groups reclaim -> groups
+  -- Whether this emission counts references (`--no-reclaim` and
+  -- `CINCH_RECLAIM=0` select the other arm): the one switch every
+  -- ownership operation reads, so a leak-baseline build emits none of
+  -- them and every block it allocates stays live until exit.
+  program-reclaim :: ProgramInfo -> Bool
+  program-reclaim info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim -> reclaim
   with-tail-groups :: HashMap String (Nat, Nat) -> ProgramInfo -> ProgramInfo
   with-tail-groups groups info = case info of
-    ProgramInfo datas descriptions instances bindings versions provider exposed effects old ->
-      ProgramInfo datas descriptions instances bindings versions provider exposed effects groups
+    ProgramInfo datas descriptions instances bindings versions provider exposed effects old reclaim ->
+      ProgramInfo datas descriptions instances bindings versions provider exposed effects groups reclaim
   exposed-worker :: String -> List String -> Bool
   exposed-worker name names = case names of Nil -> False; Cons first rest -> same name first || exposed-worker name rest
   worker-linkage :: Writer -> String -> String
   worker-linkage w name = case writer-program w of
-    ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> case exposed of
+    ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim -> case exposed of
       None -> ""
       Some names -> if exposed-worker name names then "" else "internal "
   same-classes :: List Nat -> List Nat -> Bool
@@ -450,10 +456,16 @@ module Bootstrap.RuntimeIr where
   constant-word value = case string-char-at value 0 of
     Some c -> let code = char-code c in (code >= 48 && code <= 57) || code == 45
     None -> False
+  -- One count operation as a line, or nothing under an emission that does
+  -- not reclaim. Every direct call site goes through here, so the switch
+  -- reaches the array, platform, builtin, stub and memo paths as well as
+  -- `count-op`.
+  count-line :: Bool -> String -> Writer -> Writer
+  count-line duplicate value w = if program-reclaim (writer-program w) then line w (count-call duplicate value) else w
   count-op :: Bool -> UType -> String -> Writer -> Writer
   count-op duplicate ty value w = case word-class (writer-context w) ty of
     Some 0 -> w
-    Some code -> if constant-word value then w else line w (count-call duplicate value)
+    Some code -> if constant-word value then w else count-line duplicate value w
     None -> refuse w (Span 0 0 1 1) "reference operation needs a checked runtime representation"
   drop-locals :: List Local -> Writer -> Writer
   drop-locals locals w = case locals of
@@ -1315,7 +1327,7 @@ module Bootstrap.RuntimeIr where
   array-drop-arguments :: List Nat -> Nat -> Writer -> Writer
   array-drop-arguments classes index w = case classes of
     Nil -> w
-    Cons first rest -> array-drop-arguments rest (index + 1) (if first == 0 then w else line w (count-call False (cat ["%arg", nat-to-string index])))
+    Cons first rest -> array-drop-arguments rest (index + 1) (if first == 0 then w else count-line False (cat ["%arg", nat-to-string index]) w)
   array-option :: Writer -> Span -> Nat -> String -> String -> List String -> (Writer, String)
   array-option w sp payload-class invalid runtime arguments =
     case (constructor (global-data-core-some) (writer-data w), constructor (global-data-core-none) (writer-data w)) of
@@ -1480,7 +1492,7 @@ module Bootstrap.RuntimeIr where
   platform-drops :: Writer -> List Nat -> Nat -> Writer
   platform-drops w codes index = case codes of
     Nil -> w
-    Cons code rest -> platform-drops (if code == 1 || code == 2 then line w (count-call False (cat ["%arg", nat-to-string index])) else w) rest (index + 1)
+    Cons code rest -> platform-drops (if code == 1 || code == 2 then count-line False (cat ["%arg", nat-to-string index]) w else w) rest (index + 1)
   platform-worker :: Writer -> String -> List Nat -> Nat -> (Writer, String)
   platform-worker w external codes result = case platform-arguments w codes 0 of
     (converted, values) -> case call converted (cat ["@", external]) values of
@@ -1542,20 +1554,20 @@ module Bootstrap.RuntimeIr where
         (case wrapping-worker-plan name of
           Some (operation, unsigned-narrow) -> wrapping-word-worker started operation unsigned-narrow
           None -> unsupported started (Span 0 0 1 1) "checked machine worker has no wrapping operation")
-      else if same name "b.ioWrite" then (case call started "@cinch_io_write" ["%arg1"] of (done, result) -> (line done (count-call False "%arg1"), "0"))
+      else if same name "b.ioWrite" then (case call started "@cinch_io_write" ["%arg1"] of (done, result) -> (count-line False "%arg1" done, "0"))
       else if same name "b.ioRead" then (case call started "@cinch_nat_to_len" ["%arg1"] of
         (converted, length) -> case call converted "@cinch_io_read" [length] of
-          (read, bytes) -> case compare-word (line read (count-call False "%arg1")) "eq" bytes "0" of
+          (read, bytes) -> case compare-word (count-line False "%arg1" read) "eq" bytes "0" of
             (checked, absent) -> array-option checked (Span 0 0 1 1) 1 absent "" [bytes])
       else if same name "b.ioSleep" then (case call started "@cinch_nat_to_len" ["%arg1"] of
-        (converted, length) -> case call converted "@cinch_io_sleep" [length] of (done, result) -> (line done (count-call False "%arg1"), "0"))
+        (converted, length) -> case call converted "@cinch_io_sleep" [length] of (done, result) -> (count-line False "%arg1" done, "0"))
       else if same name "b.pollCancel" then call started "@cinch_task_poll_cancel" Nil
       else if same name "cinch.runtime.bytesNew" then (case call started "@cinch_nat_to_len" ["%arg0"] of
-        (converted, length) -> case call converted "@cinch_bytes_new" [length] of (done, result) -> (line done (count-call False "%arg0"), result))
+        (converted, length) -> case call converted "@cinch_bytes_new" [length] of (done, result) -> (count-line False "%arg0" done, result))
       else if same name "cinch.runtime.bytesGet" then (case call started "@cinch_nat_to_len" ["%arg1"] of
         (converted, index) -> case call converted "@cinch_bytes_get" ["%arg0", index] of
           (read, byte) -> case call read "@cinch_nat_from_i64" [byte] of
-            (done, result) -> (line (line done (count-call False "%arg0")) (count-call False "%arg1"), result))
+            (done, result) -> (count-line False "%arg1" (count-line False "%arg0" done), result))
       else if same name "cinch.runtime.textF64ToDecimal" then
         (let (one, value) = fresh started "%float" in
          let converted = line one (cat ["  ", value, " = bitcast i64 %arg0 to double"]) in
@@ -1566,7 +1578,7 @@ module Bootstrap.RuntimeIr where
       else if same name "cinch.runtime.textF64FromDecimal" then
         (let (one, value) = fresh started "%float" in
          let decoded = line one (cat ["  ", value, " = call double @cinch_text_f64_from_decimal(i64 %arg0)"]) in
-         let (two, result) = fresh (line decoded (count-call False "%arg0")) "%v" in
+         let (two, result) = fresh (count-line False "%arg0" decoded) "%v" in
          (line two (cat ["  ", result, " = bitcast double ", value, " to i64"]), result))
       else case platform-intrinsic name of
         Some (scheme, external, arguments, result) -> platform-worker started external arguments result
@@ -1576,7 +1588,7 @@ module Bootstrap.RuntimeIr where
               let nat = UCon "Nat" KType in
               (count-op False nat "%arg1" (count-op False nat "%arg0" done), result)
           None -> (case call started "@cinch_bytes_len" ["%arg0"] of
-            (measured, length) -> case call measured "@cinch_nat_from_i64" [length] of (done, result) -> (line done (count-call False "%arg0"), result))) in
+            (measured, length) -> case call measured "@cinch_nat_from_i64" [length] of (done, result) -> (count-line False "%arg0" done, result))) in
     case lowered of (done, result) -> line (line done (cat ["  ret i64 ", result])) "}"
   direct-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List CoreTerm -> (Writer, String)
   direct-call definitions locals w sp name actuals args = call-name definitions locals w sp name actuals Nil args
@@ -2542,7 +2554,7 @@ module Bootstrap.RuntimeIr where
       let (three, next) = fresh two "savednext" in
       let started = line (line (line three (cat ["  ", condition, " = icmp ult i64 ", nat-to-string index, ", ", filled])) (cat ["  br i1 ", condition, ", label %", duplicate, ", label %", next])) (cat [duplicate, ":"]) in
       case load-word started merged (nat-to-string index) of
-        (loaded, word) -> saved-dups rest (index + 1) filled merged (line (line (line loaded (count-call True word)) (cat ["  br label %", next])) (cat [next, ":"]))
+        (loaded, word) -> saved-dups rest (index + 1) filled merged (line (line (count-line True word loaded) (cat ["  br label %", next])) (cat [next, ":"]))
   load-arguments :: Nat -> Nat -> String -> Writer -> (Writer, List String)
   load-arguments count index merged w = if count == 0 then (w, Nil) else case load-word w merged (nat-to-string index) of
     (loaded, word) -> case load-arguments (count - 1) (index + 1) merged loaded of (done, words) -> (done, Cons word words)
@@ -2591,7 +2603,7 @@ module Bootstrap.RuntimeIr where
     let saved-copy = line (line copied (cat ["  ", saved, " = getelementptr i64, ptr %self, i64 3"])) (cat ["  call ptr @memcpy(ptr ", destination, ", ptr ", saved, ", i64 ", saved-bytes, ")"]) in
     let argv-copy = line (line saved-copy (cat ["  ", incoming-bytes, " = mul i64 %argc, 8"])) (cat ["  ", incoming, " = getelementptr i8, ptr ", destination, ", i64 ", saved-bytes]) in
     let (nine, self-word) = fresh (saved-dups classes 0 filled destination (line argv-copy (cat ["  call ptr @memcpy(ptr ", incoming, ", ptr %argv, i64 ", incoming-bytes, ")"]))) "%v" in
-    let released = line (line nine (cat ["  ", self-word, " = ptrtoint ptr %self to i64"])) (count-call False self-word) in
+    let released = count-line False self-word (line nine (cat ["  ", self-word, " = ptrtoint ptr %self to i64"])) in
     let (ten, closure-word) = fresh released "%v" in
     line (line ten (cat ["  ", closure-word, " = ptrtoint ptr ", pointer, " to i64"])) (cat ["  ret i64 ", closure-word])
   -- The saturated call: `frame` holds the merged words and `total` is the
@@ -2653,7 +2665,7 @@ module Bootstrap.RuntimeIr where
     let saved-line = line one (cat ["  ", saved-bytes, " = mul i64 ", filled, ", 8"]) in
     let (merged, frame) = if arity == 0 then (saved-line, "%self") else merged-frame saved-line arity filled saved-bytes in
     let (two, self-word) = fresh (saved-dups classes 0 filled frame merged) "%v" in
-    let released = line (line two (cat ["  ", self-word, " = ptrtoint ptr %self to i64"])) (count-call False self-word) in
+    let released = count-line False self-word (line two (cat ["  ", self-word, " = ptrtoint ptr %self to i64"])) in
     app-saturate name classes frame filled saved-bytes total released
   term-fields :: CoreTerm -> Option (List CoreTerm)
   term-fields fields = case fields of
@@ -3849,7 +3861,7 @@ module Bootstrap.RuntimeIr where
               let pointed = line one (cat ["  ", pointer, " = inttoptr i64 ", word, " to ptr"]) in
               (case load-word pointed pointer "1" of
                 (loaded, owned) -> let cleared = store-fields loaded pointer 1 ["0"] in
-                  let released = line cleared (count-call False owned) in
+                  let released = count-line False owned cleared in
                   (count-op False cell word released, result)))
       else expression definitions locals w term
     other -> expression definitions locals w term
@@ -4279,7 +4291,7 @@ module Bootstrap.RuntimeIr where
           ForeignDemand plan -> workers definitions (foreign-worker plan claimed)
           PrimitiveIntrinsicDemand symbol -> workers definitions (primitive-intrinsic-worker symbol claimed)
   declarations :: String
-  declarations = declarations-counting False
+  declarations = declarations-counting False True
   -- The four pooled parallel entries (runtime ABI 8). They are declared
   -- only when the program contains a parallel primitive, so a program that
   -- uses none emits the same IR bytes as before the builtins existed
@@ -4306,13 +4318,15 @@ module Bootstrap.RuntimeIr where
   par-preamble :: List CoreDefinition -> String
   par-preamble definitions = if par-used definitions then par-declarations else ""
   -- The module prelude. Debug counting swaps only the two count helpers,
-  -- so every other declaration and every call site is the same bytes.
-  declarations-counting :: Bool -> String
-  declarations-counting debug = cat [
+  -- so every other declaration and every call site is the same bytes. An
+  -- emission that does not reclaim emits neither helper, because no body
+  -- of it calls one.
+  declarations-counting :: Bool -> Bool -> String
+  declarations-counting debug reclaim = cat [
     "declare i64 @cinch_alloc(i64, i64)\ndeclare void @cinch_blackhole() noreturn\n",
     "declare void @llvm.trap()\ndeclare ptr @cinch_alloc_ctor(i64, i64)\ndeclare ptr @cinch_alloc_shaped(i64, i64, i64)\ndeclare ptr @cinch_alloc_ctor_desc(i64, ptr)\ndeclare ptr @cinch_alloc_shaped_desc(i64, i64, ptr)\ndeclare ptr @memcpy(ptr, ptr, i64)\n",
     "declare void @cinch_dup_mt(i64)\ndeclare void @cinch_drop_mt(i64)\ndeclare void @cinch_drop_slow(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
-    if debug then debug-count-helpers else count-helpers,
+    if not reclaim then "" else if debug then debug-count-helpers else count-helpers,
     "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_int_from_nat(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_get(i64, i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
     "declare i64 @cinch_array_from_list(i64, i64)\ndeclare i64 @cinch_array_replicate(i64, i64, i64)\ndeclare i64 @cinch_array_len(i64)\ndeclare i64 @cinch_array_has(i64, i64)\ndeclare i64 @cinch_array_get(i64, i64)\ndeclare i64 @cinch_array_set(i64, i64, i64)\ndeclare i64 @cinch_array_slice(i64, i64, i64)\ndeclare i64 @cinch_array_append(i64, i64)\ndeclare i64 @cinch_tensor_reshape(i64, i64)\ndeclare i64 @cinch_tensor_shape(i64)\ndeclare i64 @cinch_tensor_data(i64)\ndeclare i64 @cinch_tensor_index(i64, i64)\ndeclare i64 @cinch_tensor_get(i64, i64)\ndeclare i64 @cinch_tensor_set(i64, i64, i64)\ndeclare i64 @cinch_columnar_column(i64)\ndeclare i64 @cinch_columnar_zip(i64, i64, i64)\ndeclare i64 @cinch_columnar_rows(i64)\ndeclare i64 @cinch_columnar_columns(i64)\ndeclare i64 @cinch_columnar_get(i64, i64)\ndeclare i64 @cinch_columnar_child(i64, i64)\ndeclare i64 @cinch_columnar_array(i64)\n",
     "declare i64 @cinch_text_f64_to_decimal(double)\ndeclare double @cinch_text_f64_from_decimal(i64)\n",
@@ -4363,15 +4377,15 @@ module Bootstrap.RuntimeIr where
   apply-entry-with-linkage linkage = cat ["define ", linkage, "i64 @__apply(i64 %closure, i64 %argc, ptr %argv) {\nentry:\n",
     "  %self = inttoptr i64 %closure to ptr\n  %code = load i64, ptr %self\n  %function = inttoptr i64 %code to ptr\n",
     "  %result = call i64 %function(ptr %self, i64 %argc, ptr %argv)\n  ret i64 %result\n}\n"]
-  entry :: Nat -> String
-  entry mode =
+  entry :: Nat -> Bool -> String
+  entry mode reclaim =
     let invocation = (if mode == 0 then cat ["  %result = call i64 ", symbol "main", "()\n"]
       else if mode == 1 then cat ["  %result = call i64 ", symbol "main", "(i64 0)\n"]
       else if mode == 3 then cat ["  %function = call i64 ", symbol "main", "()\n  %result = call i64 @__apply(i64 %function, i64 0, ptr null)\n"]
       else cat ["  %function = call i64 ", symbol "main", "()\n  %argv = alloca i64\n  store i64 0, ptr %argv\n  %result = call i64 @__apply(i64 %function, i64 1, ptr %argv)\n"]) in
     cat ["define i64 @cinch.typed.exit() {\nentry:\n", invocation,
-    "  %exit = call i64 @cinch_int_to_i64(i64 %result)\n  call void @cinch.typed.rc.drop(i64 %result)\n  ret i64 %exit\n}\n",
-    "define i32 @main(i32 %argc, ptr %argv) {\nentry:\n  call void @cinch_reclaim_enable()\n  %count = sext i32 %argc to i64\n  call i64 @cinch_argv_init(i64 %count, ptr %argv)\n",
+    "  %exit = call i64 @cinch_int_to_i64(i64 %result)\n", if reclaim then "  call void @cinch.typed.rc.drop(i64 %result)\n" else "", "  ret i64 %exit\n}\n",
+    "define i32 @main(i32 %argc, ptr %argv) {\nentry:\n", if reclaim then "  call void @cinch_reclaim_enable()\n" else "", "  %count = sext i32 %argc to i64\n  call i64 @cinch_argv_init(i64 %count, ptr %argv)\n",
     "  %exit = call i64 @cinch_run_main(ptr @cinch.typed.exit)\n  %checked = call i64 @cinch_exit_check(i64 %exit)\n  %code = trunc i64 %checked to i32\n  ret i32 %code\n}\n"]
   entry-parameters :: List Quant -> Bool
   entry-parameters qs = case qs of Nil -> True; Cons q rest -> erased-kind (quant-kind q) && entry-parameters rest
@@ -4541,7 +4555,7 @@ module Bootstrap.RuntimeIr where
   emit-runtime-library-with-object-mode inlining checked provider roots =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
-    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty in
+    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty True in
     let plan = inline-plan inlining definitions info in
     case settled-workers-with-plan plan definitions roots info of
       Writer next globals code Nil layouts datas -> Ok (cat [declarations, par-preamble definitions, dedupe-globals (builder-run globals), apply-entry-with-linkage "internal ", builder-run code])
@@ -4638,7 +4652,7 @@ module Bootstrap.RuntimeIr where
   runtime-library-default-roots :: CheckedProgram -> Result String (List (String, List Nat, String))
   runtime-library-default-roots checked =
     let typed = checked-elaboration checked in
-    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil None (Some Nil) (elaboration-effects typed) hash-map-empty in
+    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil None (Some Nil) (elaboration-effects typed) hash-map-empty True in
     case (library-default-definitions (elaboration-core typed), library-default-constructors (elaboration-data typed) (empty-writer info)) of
       (Ok definitions, Ok constructors) -> Ok (definitions <> constructors)
       (Err message, other) -> Err message
@@ -4758,7 +4772,7 @@ module Bootstrap.RuntimeIr where
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let selected = library-selected-roots roots in
-    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil provider (Some Nil) (elaboration-effects typed) hash-map-empty in
+    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil provider (Some Nil) (elaboration-effects typed) hash-map-empty True in
     let plan = inline-plan inlining definitions info in
     case library-bridges definitions roots Nil (settled-workers-with-plan plan definitions selected info) of
       (bridged, units) -> case workers definitions bridged of
@@ -4768,24 +4782,24 @@ module Bootstrap.RuntimeIr where
         Writer next globals code errors layouts context -> Err errors
   emit-runtime-program :: CheckedProgram -> Result (List Diagnostic) String
   emit-runtime-program checked = emit-runtime-program-with-object checked None
-  emit-runtime-program-mode :: Bool -> CheckedProgram -> Result (List Diagnostic) String
-  emit-runtime-program-mode inlining checked = emit-runtime-program-with-object-mode inlining checked None
+  emit-runtime-program-mode :: Bool -> Bool -> CheckedProgram -> Result (List Diagnostic) String
+  emit-runtime-program-mode inlining reclaim checked = emit-runtime-program-with-object-mode inlining reclaim checked None
   emit-runtime-program-with-object :: CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
-  emit-runtime-program-with-object checked provider = emit-runtime-program-counting False checked provider
-  emit-runtime-program-with-object-mode :: Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
-  emit-runtime-program-with-object-mode inlining checked provider = emit-runtime-program-counting-mode inlining False checked provider
+  emit-runtime-program-with-object checked provider = emit-runtime-program-counting False True checked provider
+  emit-runtime-program-with-object-mode :: Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
+  emit-runtime-program-with-object-mode inlining reclaim checked provider = emit-runtime-program-counting-mode inlining False reclaim checked provider
   -- A debug-counting program routes its own count operations through the
   -- runtime's checked entries; a linked provider object keeps the counts
   -- it was compiled with. The inliner is opt-in, so the plain entry emits
   -- every worker a root reaches and a `-mode` entry takes the flag.
-  emit-runtime-program-counting :: Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
-  emit-runtime-program-counting debug checked provider = emit-runtime-program-counting-mode False debug checked provider
-  emit-runtime-program-counting-mode :: Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
-  emit-runtime-program-counting-mode inlining debug checked provider =
+  emit-runtime-program-counting :: Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
+  emit-runtime-program-counting debug reclaim checked provider = emit-runtime-program-counting-mode False debug reclaim checked provider
+  emit-runtime-program-counting-mode :: Bool -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
+  emit-runtime-program-counting-mode inlining debug reclaim checked provider =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let datas = elaboration-data typed in
-    let info = ProgramInfo datas (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil provider None (elaboration-effects typed) hash-map-empty in
+    let info = ProgramInfo datas (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil provider None (elaboration-effects typed) hash-map-empty reclaim in
     case definition "main" definitions of
       None -> Err [MkDiagnostic "bootstrap.runtime-ir" (Span 0 0 1 1) "runtime entry has no main definition"]
       Some d -> case entry-mode d of
@@ -4795,5 +4809,5 @@ module Bootstrap.RuntimeIr where
         Some mode -> let plan = inline-plan inlining definitions info in
           let settled = settled-workers-with-plan plan definitions [("main", Nil)] info in
           case (case constructor "main" datas of Some found -> workers definitions (demand-worker "main" Nil (empty-writer-with-plan (writer-program settled) plan)); None -> settled) of
-            Writer next globals code Nil layouts datas -> Ok (cat [declarations-counting debug, par-preamble definitions, dedupe-globals (builder-run globals), apply-entry, builder-run code, entry mode])
+            Writer next globals code Nil layouts datas -> Ok (cat [declarations-counting debug reclaim, par-preamble definitions, dedupe-globals (builder-run globals), apply-entry, builder-run code, entry mode reclaim])
             Writer next globals code errors layouts datas -> Err errors

@@ -251,7 +251,14 @@ fn emit_module(
         native: profile.artifact == crate::core::ArtifactProfile::Native,
     };
     let mut reg = Registry::build(program, (profile.word_size / 8) as usize)?;
-    reg.tail_apply = profile.word_size == 64 && profile.arch != "wasm32";
+    // An apply stub's prefix data holds the tail twin's address as an
+    // absolute integer, and Mach-O cannot encode an absolute address in a
+    // code section: the assembler emits it as a text relocation, which the
+    // linker refuses (`Illegal text-relocations`, arm64-apple-darwin). The
+    // fast path is therefore an ELF and wasm-free property, and a Mach-O
+    // target keeps the ordinary call from the slow path instead.
+    reg.tail_apply =
+        profile.word_size == 64 && profile.arch != "wasm32" && profile.os != "darwin";
     if !reg.tail_apply {
         reg.tailcc.clear();
     }
