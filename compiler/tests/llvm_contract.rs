@@ -307,6 +307,8 @@ module Main where
   main = 0
 "#,
     );
+    // Spelled `nocapture`, which every supported LLVM reads and 21 onwards
+    // upgrades to `captures(none)` (`driver::CLANG_MIN_MAJOR`).
     assert!(
         declare_of(&ir, "fix_borrow").contains("nocapture"),
         "a non-escaping borrow must carry nocapture\n{ir}"

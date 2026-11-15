@@ -478,9 +478,8 @@ pub unsafe extern "C" fn cinch_mark_mt(word: i64) {
     let mut parent: *mut u8 = std::ptr::null_mut();
     // The slots of `cur` still to visit, or `None` on a fresh visit.
     let mut resume: Option<usize> = None;
-    let table = block::layout_table();
     loop {
-        let scan = unsafe { Scan::with(cur, block::read_header(cur), table) };
+        let scan = unsafe { Scan::of(cur, block::read_header(cur)) };
         let mut next = resume.take().unwrap_or_else(|| scan.words());
         let mut child: Option<*mut u8> = None;
         while let Some((at, _)) = scan.counted_below(next) {
@@ -505,7 +504,7 @@ pub unsafe extern "C" fn cinch_mark_mt(word: i64) {
         // just finished and resume below it.
         let done = cur;
         cur = parent;
-        let pscan = unsafe { Scan::with(cur, block::read_header(cur), table) };
+        let pscan = unsafe { Scan::of(cur, block::read_header(cur)) };
         let mut at = pscan.words();
         let link = loop {
             let Some((slot, _)) = pscan.counted_below(at) else {
@@ -629,7 +628,6 @@ pub(crate) unsafe fn take_field(word: i64, slot: usize) -> i64 {
 /// `root` is a live mortal block whose last reference the caller holds.
 unsafe fn release(root: *mut u8) {
     let debug = crate::heap::rc_debug();
-    let table = block::layout_table();
     let local = crate::small::local();
     let mut cur = root;
     let mut parent: *mut u8 = std::ptr::null_mut();
@@ -640,7 +638,7 @@ unsafe fn release(root: *mut u8) {
         if !live_kind(block::kind(h)) {
             corrupt();
         }
-        let scan = unsafe { Scan::with(cur, h, table) };
+        let scan = unsafe { Scan::of(cur, h) };
         let mut next = resume.take().unwrap_or_else(|| scan.words());
         let mut child: Option<*mut u8> = None;
         while let Some((at, code)) = scan.counted_below(next) {
@@ -759,13 +757,12 @@ pub extern "C" fn cinch_exit_check(code: i64) -> i64 {
 mod tests {
     use super::*;
     use crate::block::test_shapes::*;
-    use crate::block::{allocate_ctor, allocate_shaped, ctor_id, read_header, KIND_CLOSURE, KIND_DICT};
+    use crate::block::{allocate_described, read_header, KIND_CLOSURE, KIND_CTOR, KIND_DICT};
 
-    /// A constructor block of table index `index` (a regular id below 200
-    /// or a test shape) holding `fields`.
-    fn ctor(index: u64, fields: &[i64]) -> i64 {
-        crate::block::install_test_layouts();
-        let p = unsafe { allocate_ctor(fields.len() * 8, index, false) }.cast::<i64>();
+    /// A constructor block of description `description` (a test shape)
+    /// holding `fields`.
+    fn ctor(description: u64, fields: &[i64]) -> i64 {
+        let p = unsafe { allocate_described(fields.len() * 8, KIND_CTOR, description, false) }.cast::<i64>();
         for (i, f) in fields.iter().enumerate() {
             unsafe { p.add(i).write(*f) };
         }
@@ -785,7 +782,7 @@ mod tests {
 
     /// A static immortal block, like the code generator's `.blk`.
     fn immortal_nil() -> i64 {
-        static IMMORTAL_NIL: [u64; 2] = [block::static_header(block::KIND_CTOR, NIL as u16), 0];
+        static IMMORTAL_NIL: [u64; 2] = [block::static_header(block::KIND_CTOR, field_of(NIL)), 0];
         IMMORTAL_NIL.as_ptr().wrapping_add(1) as usize as i64
     }
 
@@ -889,7 +886,7 @@ mod tests {
         let obj = ctor(NIL, &[]);
         let boxed = unsafe { crate::abi::cinch_int_from_i64(i64::MIN) };
         // Two of three parameters filled: the raw third slot is not there.
-        let clo = unsafe { allocate_shaped(5 * 8, KIND_CLOSURE, CLOSURE_OTR, false) }.cast::<i64>();
+        let clo = unsafe { allocate_described(5 * 8, KIND_CLOSURE, CLOSURE_OTR, false) }.cast::<i64>();
         unsafe {
             clo.write(0x1000);
             clo.add(1).write(3);
@@ -906,7 +903,7 @@ mod tests {
     fn dictionaries_scan_closure_methods_but_not_value_methods() {
         crate::block::install_test_layouts();
         let method = ctor(NIL, &[]);
-        let dict = unsafe { allocate_shaped(3 * 8, KIND_DICT, DICT_OR, false) }.cast::<i64>();
+        let dict = unsafe { allocate_described(3 * 8, KIND_DICT, DICT_OR, false) }.cast::<i64>();
         unsafe {
             dict.write(2);
             dict.add(1).write(method);
@@ -932,7 +929,7 @@ mod tests {
                 _ => fields.push(0x10),
             }
         }
-        let wide = ctor(WIDE, &fields);
+        let wide = ctor(wide(), &fields);
         want.reverse();
         want.push(wide as usize);
         assert_eq!(freed_by(|| unsafe { cinch_drop(wide) }), want);
@@ -974,9 +971,9 @@ mod tests {
     }
 
     #[test]
-    fn regular_ids_scan_nothing_in_the_unmapped_test_entries() {
-        // Entries below 200 have no pointer map: their words are raw.
-        let w = ctor(ctor_id(0, 2), &[0x10, 0x20]);
+    fn an_empty_mask_scans_nothing() {
+        // No counted field: the words are raw, and touching one would crash.
+        let w = ctor(crate::block::inline_description(crate::block::shape_field(2, 0)), &[0x10, 0x20]);
         assert_eq!(freed_by(|| unsafe { cinch_drop(w) }), vec![w as usize]);
     }
 
@@ -1064,7 +1061,7 @@ mod tests {
         // An immortal block (count 0) holding a mortal one, so the walk
         // could reach the mortal block only through it.
         let behind = ctor(NIL, &[]);
-        let mut cell = [block::static_header(block::KIND_CTOR, CONS_O as u16), behind as u64, immortal_nil() as u64];
+        let mut cell = [block::static_header(block::KIND_CTOR, field_of(CONS_O)), behind as u64, immortal_nil() as u64];
         let imm = cell.as_mut_ptr().wrapping_add(1) as usize as i64;
         let xs = ctor(CONS_O, &[imm, immortal_nil()]);
         unsafe { cinch_mark_mt(xs) };
@@ -1133,7 +1130,7 @@ mod tests {
         let boxed = unsafe { crate::abi::cinch_int_from_i64(i64::MIN) };
         // Three filled parameters `(Obj, TObj, Raw)`: the raw word is an
         // even non-pointer that must not be read as a block.
-        let clo = unsafe { allocate_shaped(6 * 8, KIND_CLOSURE, CLOSURE_OTR, false) }.cast::<i64>();
+        let clo = unsafe { allocate_described(6 * 8, KIND_CLOSURE, CLOSURE_OTR, false) }.cast::<i64>();
         unsafe {
             clo.write(0x1000);
             clo.add(1).write(3);
@@ -1190,7 +1187,7 @@ mod tests {
 
     /// A frame block whose payload words are `payload` and whose header
     /// layout is `layout`.
-    fn frame_slot(layout: u16, payload: &[i64]) -> Slot {
+    fn frame_slot(layout: u32, payload: &[i64]) -> Slot {
         let mut slot = Slot([0; 8]);
         slot.0[0] = block::header(block::RC_FRAME, block::KIND_CTOR, layout);
         for (i, w) in payload.iter().enumerate() {
@@ -1208,7 +1205,7 @@ mod tests {
     fn a_frame_block_is_released_once_and_never_freed() {
         crate::block::install_test_layouts();
         let child = ctor(NIL, &[]);
-        let slot = frame_slot(CONS_O as u16, &[child, 0]);
+        let slot = frame_slot(field_of(CONS_O), &[child, 0]);
         let w = word_of(&slot);
         unsafe {
             cinch_dup(w);
@@ -1238,8 +1235,8 @@ mod tests {
         // tag and the payload's map still describes the payload.
         let p = w as usize as *const u8;
         let h = unsafe { block::read_header(p) };
-        assert_eq!((block::kind(h), block::layout(h)), (block::KIND_CTOR, CONS_O as u16));
-        assert_eq!(unsafe { crate::block::ctor_tag_of(p) }, CONS_O & block::CTOR_TAG_MASK);
+        assert_eq!((block::kind(h), block::layout(h)), (block::KIND_CTOR, field_of(CONS_O)));
+        assert_eq!(unsafe { crate::block::ctor_tag_of(p) }, block::shape_field_tag(field_of(CONS_O)));
     }
 
     #[test]
@@ -1248,7 +1245,7 @@ mod tests {
         // `QUAD` has four counted words, so the walk has an order to get
         // wrong: reverse payload order.
         let (a, b, c, d) = (ctor(NIL, &[]), ctor(NIL, &[]), ctor(NIL, &[]), ctor(NIL, &[]));
-        let slot = frame_slot(QUAD as u16, &[a, b, c, d]);
+        let slot = frame_slot(field_of(QUAD), &[a, b, c, d]);
         let w = word_of(&slot);
         let freed = freed_by(|| unsafe { cinch_frame_release(w) });
         assert_eq!(freed, vec![d as usize, c as usize, b as usize, a as usize]);
@@ -1263,9 +1260,9 @@ mod tests {
         // drops the child, whose own release drops its payload, and neither
         // block is freed.
         let leaf = ctor(NIL, &[]);
-        let inner = frame_slot(CONS_O as u16, &[leaf, 0]);
+        let inner = frame_slot(field_of(CONS_O), &[leaf, 0]);
         let inner_w = word_of(&inner);
-        let outer = frame_slot(PAIR_RO as u16, &[0, inner_w]);
+        let outer = frame_slot(field_of(PAIR_RO), &[0, inner_w]);
         let outer_w = word_of(&outer);
         let freed = freed_by(|| unsafe { cinch_frame_release(outer_w) });
         assert_eq!(freed, vec![leaf as usize]);
@@ -1278,7 +1275,7 @@ mod tests {
     fn a_frame_block_child_survives_a_heap_parent_release() {
         crate::block::install_test_layouts();
         let child = ctor(NIL, &[]);
-        let slot = frame_slot(CONS_O as u16, &[child, 0]);
+        let slot = frame_slot(field_of(CONS_O), &[child, 0]);
         let w = word_of(&slot);
         // A heap cell holding the frame block: releasing the parent leaves
         // the frame block (and its payload) to the activation, because the
@@ -1296,7 +1293,7 @@ mod tests {
     fn a_frame_block_never_reaches_the_allocator_through_a_release() {
         crate::block::install_test_layouts();
         let child = ctor(NIL, &[]);
-        let slot = frame_slot(CONS_O as u16, &[child, 0]);
+        let slot = frame_slot(field_of(CONS_O), &[child, 0]);
         let w = word_of(&slot);
         // `cinch_drop_slow` ends in the allocator for a heap block; a frame
         // block that arrives there (a module with no frame arm, so a

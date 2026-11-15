@@ -484,52 +484,79 @@ pub unsafe extern "C" fn cinch_alloc_raw(size: i64, kind: i64) -> *mut u8 {
 }
 
 /// Allocate a constructor block of `size` uninitialised payload bytes
-/// whose constructor descriptor is `desc` and return the payload pointer.
-/// `desc` is a layout id below `LAYOUT_BIG`, which the header's layout
-/// field holds (the constructor's tag is in its low bits), or an escaped
-/// descriptor, which goes in the word before the header
-/// (`block_kinds.rs`). The block gets `rc = 1` and kind `KIND_CTOR`; the
-/// payload is the fields alone, with no tag word. A negative size is a
-/// compiler-bug trap.
+/// whose layout field is `field` (its tag and the counted mask of its
+/// fields, `block_kinds.rs`'s `shape_field`) and return the payload pointer.
+/// The block gets `rc = 1` and kind `KIND_CTOR`; the payload is the fields
+/// alone, with no tag word. A negative size is a compiler-bug trap.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn cinch_alloc_ctor(size: i64, desc: i64) -> *mut u8 {
+pub unsafe extern "C" fn cinch_alloc_ctor(size: i64, field: i64) -> *mut u8 {
     if size < 0 {
         panic_exit(b"compiler bug: cinch_alloc_ctor called with negative size");
     }
-    unsafe { crate::block::allocate_ctor(size as usize, desc as u64, false) }
+    unsafe { crate::block::allocate_ctor(size as usize, field as u32, false) }
 }
 
-/// Allocate a closure (`KIND_CLOSURE`) or dictionary (`KIND_DICT`) block
-/// of `size` uninitialised payload bytes whose shape descriptor is `desc`
-/// (`block_kinds.rs`'s `shape_desc`: a table index, or an escaped
-/// descriptor that goes in the word before the header), with `rc = 1`,
-/// and return the payload pointer. A negative size or any other kind is
-/// a compiler-bug trap.
+/// [`cinch_alloc_ctor`] of an escaped constructor: its tag, size and
+/// counted mask are in the static descriptor `desc` (`block_kinds.rs`'s
+/// `DESC_*`), which goes in the word before the header.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn cinch_alloc_shaped(size: i64, kind: i64, desc: i64) -> *mut u8 {
+pub unsafe extern "C" fn cinch_alloc_ctor_desc(size: i64, desc: *const u64) -> *mut u8 {
     if size < 0 {
-        panic_exit(b"compiler bug: cinch_alloc_shaped called with negative size");
+        panic_exit(b"compiler bug: cinch_alloc_ctor_desc called with negative size");
     }
+    unsafe { crate::block::allocate_ctor_desc(size as usize, desc, false) }
+}
+
+/// Allocate a constructor block of `size` payload bytes whose tag arrives at
+/// run time (an enum lifted from canonical memory), with `mask` the counted
+/// mask of its payload words: inline when the tag, mask and size fit the
+/// header, otherwise escaped to a descriptor interned for the description.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_alloc_ctor_tagged(size: i64, tag: i64, mask: i64) -> *mut u8 {
+    if size < 0 || tag < 0 {
+        panic_exit(b"compiler bug: cinch_alloc_ctor_tagged called with a negative size or tag");
+    }
+    let (tag, mask) = (tag as u64, mask as u64);
+    let words = (size as u64).div_ceil(8);
+    if tag < crate::block::SHAPE_ESCAPED && mask >> crate::block::SHAPE_MASK_BITS == 0 && words <= crate::block::SHAPED_SMALL_WORDS {
+        let field = crate::block::shape_field(tag, mask);
+        return unsafe { crate::block::allocate_ctor(size as usize, field, false) };
+    }
+    let desc = crate::block::interned_descriptor(tag, words, mask);
+    unsafe { crate::block::allocate_ctor_desc(size as usize, desc, false) }
+}
+
+/// The kind of a closure or dictionary allocation, or a compiler-bug trap.
+fn shaped_kind(kind: i64) -> u8 {
     let closure = i64::from(crate::block::KIND_CLOSURE);
     let dict = i64::from(crate::block::KIND_DICT);
     if kind != closure && kind != dict {
-        panic_exit(b"compiler bug: cinch_alloc_shaped called with an unshaped block kind");
+        panic_exit(b"compiler bug: a shaped allocation of an unshaped block kind");
     }
-    unsafe { crate::block::allocate_shaped(size as usize, kind as u8, desc as u64, false) }
+    kind as u8
 }
 
-/// Install the program's layout table: `len` words, one entry per
-/// constructor layout id and closure or dictionary shape index, then the
-/// map extensions of the wide entries (`block_kinds.rs`'s
-/// `layout_entry`). Generated code calls it from a global constructor,
-/// before any of its own code runs; [`cinch_free`] sizes shaped blocks
-/// from it and [`crate::rc`] scans them by it.
+/// Allocate a closure (`KIND_CLOSURE`) or dictionary (`KIND_DICT`) block
+/// of `size` uninitialised payload bytes whose layout field is `field`
+/// (tag 0 and the counted mask of its saved words or slots), with `rc = 1`,
+/// and return the payload pointer. A negative size or any other kind is
+/// a compiler-bug trap.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn cinch_layouts_register(table: *const u64, len: i64) {
-    if len < 0 || (len > 0 && table.is_null()) {
-        panic_exit(b"compiler bug: cinch_layouts_register called with a corrupt table");
+pub unsafe extern "C" fn cinch_alloc_shaped(size: i64, kind: i64, field: i64) -> *mut u8 {
+    if size < 0 {
+        panic_exit(b"compiler bug: cinch_alloc_shaped called with negative size");
     }
-    unsafe { crate::block::register_layouts(table, len as usize) }
+    unsafe { crate::block::allocate_shaped(size as usize, shaped_kind(kind), field as u32, false) }
+}
+
+/// [`cinch_alloc_shaped`] of an escaped closure or dictionary, described by
+/// the static descriptor `desc`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_alloc_shaped_desc(size: i64, kind: i64, desc: *const u64) -> *mut u8 {
+    if size < 0 {
+        panic_exit(b"compiler bug: cinch_alloc_shaped_desc called with negative size");
+    }
+    unsafe { crate::block::allocate_shaped_desc(size as usize, shaped_kind(kind), desc, false) }
 }
 
 /// Deallocate the header block behind `word`: the raw release of a block
@@ -537,7 +564,7 @@ pub unsafe extern "C" fn cinch_layouts_register(table: *const u64, len: i64) {
 /// (that is [`crate::rc::cinch_drop_slow`]); it only releases what a
 /// runtime box owns outside its block (a `Nat`'s limbs, a heap buffer's
 /// data), then returns the block to the allocator with the size its
-/// header records (a shaped block's from the layout table).
+/// header records (a shaped block's from the small heap or its descriptor).
 ///
 /// An immediate word (low bit 1), the null word, an immortal block
 /// (`rc == 0`: static blocks and interned `Sym` cells) and a frame block
@@ -611,6 +638,18 @@ pub unsafe extern "C" fn cinch_nat_to_u128(word: i64) -> u128 {
         Ok(v) => v,
         Err(e) => raise(e),
     }
+}
+
+/// The low 64 bits of a boxed `Nat` (the value modulo 2^64): the slow path
+/// of `slotsFoldNat`, which folds an immediate inline. Total: every `Nat`
+/// has low bits, so this is how a `Hash` digest of any size becomes the
+/// machine word a mutable table indexes by.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_nat_low_word(word: i64) -> i64 {
+    if is_immediate(word) {
+        return nat_immediate_value(word) as i64;
+    }
+    unsafe { as_nat(word) }.low_u64() as i64
 }
 
 /// 1 when the `Nat` word fits in an `i64`, else 0.
@@ -1485,12 +1524,10 @@ mod tests {
         let _heavy = crate::heap::TEST_HEAVY.lock().unwrap_or_else(|e| e.into_inner());
         unsafe {
             let before = freed();
-            // A two-field constructor: id 2 of the test table records two
-            // payload words, and the tag (2) is in the id.
-            let words_of = crate::block::install_test_layouts();
-            let id = crate::block::ctor_id(0, 2);
-            assert_eq!(words_of(id), 2);
-            let ctor = cinch_alloc_ctor(16, id as i64);
+            // A two-field constructor of tag 2 whose second field is
+            // counted (an immediate here).
+            let field = crate::block::shape_field(2, 0b10);
+            let ctor = cinch_alloc_ctor(16, i64::from(field));
             assert_eq!(crate::block::ctor_tag_of(ctor), 2);
             ctor.cast::<i64>().write(1);
             ctor.cast::<i64>().add(1).write(42);

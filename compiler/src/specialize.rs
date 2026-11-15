@@ -158,6 +158,8 @@ struct Cx<'a> {
     own: BTreeMap<(String, usize), BTreeSet<Vector>>,
     /// Reached vectors per vector-dependent constructor unit.
     ctors: BTreeMap<String, BTreeSet<Vector>>,
+    /// The constructor units of each data type, by type.
+    siblings: HashMap<&'a str, Vec<&'a str>>,
     work: Vec<Item>,
     unrecorded: usize,
 }
@@ -165,7 +167,7 @@ struct Cx<'a> {
 impl<'a> Cx<'a> {
     fn generic(&self, id: &str) -> Option<&'a FnDef> {
         let f = *self.fns.get(id)?;
-        let body = (f.prim.is_none() || matches!(f.prim, Some(crate::core::PrimOp::Array { .. } | crate::core::PrimOp::Stm { .. }))) && f.ctor.is_none() && !f.meta.prim_body;
+        let body = (f.prim.is_none() || matches!(f.prim, Some(crate::core::PrimOp::Array { .. } | crate::core::PrimOp::Stm { .. } | crate::core::PrimOp::Slots { .. }))) && f.ctor.is_none() && !f.meta.prim_body;
         (body && f.repr.tparams > 0 && !self.pinned.contains(id)).then_some(f)
     }
 
@@ -183,11 +185,23 @@ impl<'a> Cx<'a> {
     }
 
     /// Reach constructor unit `id` at the class vector of its use.
+    ///
+    /// A data type is laid out whole at a class vector, so reaching one of
+    /// its constructors there reaches its siblings too: code generation
+    /// builds some prelude types itself (a task outcome is a `Result`), and
+    /// a constructor no source names at that vector would otherwise have no
+    /// copy, and so no layout, for the block it builds.
     fn reach_ctor(&mut self, id: &str, v: &[Class]) {
         if let Some(f) = self.ctor_generic(id) {
             let (v, filled) = fit(v, f.repr.tparams);
             self.unrecorded += filled as usize;
-            self.ctors.entry(id.to_string()).or_default().insert(v);
+            self.ctors.entry(id.to_string()).or_default().insert(v.clone());
+            let siblings = f.repr.data.as_deref().and_then(|d| self.siblings.get(d)).cloned().unwrap_or_default();
+            for sibling in siblings {
+                if sibling != id && self.ctor_generic(sibling).is_some() {
+                    self.ctors.entry(sibling.to_string()).or_default().insert(v.clone());
+                }
+            }
         }
     }
 
@@ -411,6 +425,15 @@ fn specialize_with_roots(program: &Program, report: &mut OptReport, roots: &[Obj
         by_class: BTreeMap::new(),
         own: BTreeMap::new(),
         ctors: BTreeMap::new(),
+        siblings: {
+            let mut by_type: HashMap<&str, Vec<&str>> = HashMap::new();
+            for f in program.fns.iter().filter(|f| f.ctor.is_some()) {
+                if let Some(d) = f.repr.data.as_deref() {
+                    by_type.entry(d).or_default().push(f.id.0.as_str());
+                }
+            }
+            by_type
+        },
         work: Vec::new(),
         unrecorded: 0,
     };
@@ -459,7 +482,7 @@ fn specialize_with_roots(program: &Program, report: &mut OptReport, roots: &[Obj
                 copy.repr.params = crate::repr::subst_all(&copy.repr.params, v);
                 copy.repr.result = copy.repr.result.map(|c| c.subst(v));
                 copy.repr.tparams = 0;
-                if let Some(crate::core::PrimOp::Array { classes, .. } | crate::core::PrimOp::Stm { classes, .. }) = &mut copy.prim {
+                if let Some(crate::core::PrimOp::Array { classes, .. } | crate::core::PrimOp::Stm { classes, .. } | crate::core::PrimOp::Slots { classes, .. }) = &mut copy.prim {
                     *classes = [v.first().copied().unwrap_or(Class::Raw), v.get(1).copied().unwrap_or(Class::Raw)];
                 }
                 out.fns.push(copy);

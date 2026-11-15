@@ -314,13 +314,15 @@ It types each place a value crosses:
 A U128 literal at or above 2^127 is written in two's complement, since
 LLVM reads a decimal constant as signed.
 
-**Fields are payload words.** A wide field takes two raw words, so it
-adds two `0` codes to the pointer map (`field-map`). Its access is
-8-aligned, as every payload word is. Layout limits count words
+**Fields are payload words.** A wide field takes two raw words. A
+block's self-description (design/self-describing-blocks.md) counts a
+field by its code, so a wide field adds two uncounted `0` codes
+(`word-codes`, and `word_map` in the seed's `Descs::describe`). Its
+access is 8-aligned, as every payload word is. Layout limits count words
 (`payload-words`), not fields.
 
 **Every word position refuses by name** (`wide-refusal`), because code 3
-is the runtime's invalid map code. This covers:
+would read as a counted field in a description. This covers:
 
 - closure shapes, which takes in partial applications, lambdas, recursive
   locals, proof continuations, method closures and `__apply` arguments;

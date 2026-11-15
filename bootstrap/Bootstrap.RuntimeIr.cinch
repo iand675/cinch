@@ -5,7 +5,7 @@
 module Bootstrap.RuntimeIr where
   import Bootstrap.Check (CheckedProgram, checked-elaboration)
   import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target, checked-foreign-plan)
-  import Bootstrap.Object (RuntimeObject, RuntimeUnit, object-words, object-unit, object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit, object-string-layout, unit-symbol, unit-closure, unit-params, unit-result, llvm-object-symbol, llvm-data-bytes)
+  import Bootstrap.Object (RuntimeObject, RuntimeUnit, object-unit, object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit, object-string-layout, unit-symbol, unit-closure, unit-params, unit-result, llvm-object-symbol, llvm-data-bytes)
   import Bootstrap.Core
   import Bootstrap.Foreign
   import Bootstrap.Builtin (array-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation, wide-intrinsic, platform-intrinsic)
@@ -30,11 +30,13 @@ module Bootstrap.RuntimeIr where
   export emit-runtime-library-object-with-object-mode, emit-runtime-library-artifact-with-object-mode
   export runtime-library-default-roots, emit-runtime-library-object-with-object
 
-  -- Named families and anonymous tuples share one table, but distinct
-  -- group caches: a tuple must retain tag0 even when a named constructor
-  -- has the same field map at another tag.
+  -- The descriptions of each named family's constructors, by tag, keyed by
+  -- the family's specialized name. A description is content, not identity
+  -- (design/self-describing-blocks.md), so this is only a cache: it spares
+  -- each construction site re-deriving its family and refuses an
+  -- unrepresentable constructor once.
   data LayoutPlan where
-    LayoutPlan :: Nat -> List (Nat, Nat) -> List (String, Nat) -> List (Nat, Nat) -> LayoutPlan
+    LayoutPlan :: List (String, List Nat) -> LayoutPlan
   data Local where
     Local :: Nat -> UType -> String -> Local
     Discard :: UType -> String -> Local
@@ -81,7 +83,7 @@ module Bootstrap.RuntimeIr where
   data BindingIndex where
     BindingIndex :: List CheckedBinding -> List ForeignPlan -> HashMap String (Option ForeignPlan) -> BindingIndex
   data ProgramInfo where
-    ProgramInfo :: List CoreData -> List CoreClass -> List CoreInstance -> BindingIndex -> List MethodVersion -> Option RuntimeObject -> Option (List String) -> List CoreEffect -> HashMap String (Nat, Nat) -> ProgramInfo
+    ProgramInfo :: List CoreData -> List CoreClass -> List CoreInstance -> BindingIndex -> List MethodVersion -> Option RuntimeObject -> Option (List String) -> List CoreEffect -> HashMap String (Nat, Nat) -> Bool -> ProgramInfo
   -- The units a sweep may copy at their call sites, whether copying is on
   -- at all, and the unfolding stack. The names are fixed before emission, so
   -- the decision at a site depends on nothing but the unit's name; the stack
@@ -133,19 +135,19 @@ module Bootstrap.RuntimeIr where
   writer-program :: Writer -> ProgramInfo
   writer-program w = case writer-context w of RuntimeContext info bounds rigids pending done inlining -> info
   program-data :: ProgramInfo -> List CoreData
-  program-data info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> datas
+  program-data info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim -> datas
   program-classes :: ProgramInfo -> List CoreClass
-  program-classes info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> descriptions
+  program-classes info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim -> descriptions
   program-instances :: ProgramInfo -> List CoreInstance
-  program-instances info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> instances
+  program-instances info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim -> instances
   program-bindings :: ProgramInfo -> List CheckedBinding
-  program-bindings info = case info of ProgramInfo datas descriptions instances (BindingIndex bindings plans names) versions provider exposed effects tail-groups -> bindings
+  program-bindings info = case info of ProgramInfo datas descriptions instances (BindingIndex bindings plans names) versions provider exposed effects tail-groups reclaim -> bindings
   program-foreign-plans :: ProgramInfo -> List ForeignPlan
-  program-foreign-plans info = case info of ProgramInfo datas descriptions instances (BindingIndex bindings plans names) versions provider exposed effects tail-groups -> plans
+  program-foreign-plans info = case info of ProgramInfo datas descriptions instances (BindingIndex bindings plans names) versions provider exposed effects tail-groups reclaim -> plans
   -- The foreign plan of the first binding named `name`, if that binding is foreign.
   program-foreign-binding :: String -> ProgramInfo -> Option ForeignPlan
   program-foreign-binding name info = case info of
-    ProgramInfo datas descriptions instances (BindingIndex bindings plans names) versions provider exposed effects tail-groups -> case hash-map-lookup name names of
+    ProgramInfo datas descriptions instances (BindingIndex bindings plans names) versions provider exposed effects tail-groups reclaim -> case hash-map-lookup name names of
       Some plan -> plan
       None -> None
   index-bindings :: List CheckedBinding -> BindingIndex
@@ -157,24 +159,30 @@ module Bootstrap.RuntimeIr where
       (plans, names) -> let plan = checked-foreign-plan binding in
         ((case plan of Some found -> Cons found plans; None -> plans), hash-map-insert (checked-name binding) plan names)
   program-versions :: ProgramInfo -> List MethodVersion
-  program-versions info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> versions
+  program-versions info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim -> versions
   program-object :: ProgramInfo -> Option RuntimeObject
-  program-object info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> provider
+  program-object info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim -> provider
   program-effects :: ProgramInfo -> List CoreEffect
-  program-effects info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> effects
+  program-effects info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim -> effects
   with-versions :: List MethodVersion -> ProgramInfo -> ProgramInfo
-  with-versions versions info = case info of ProgramInfo datas descriptions instances bindings old provider exposed effects tail-groups -> ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups
+  with-versions versions info = case info of ProgramInfo datas descriptions instances bindings old provider exposed effects tail-groups reclaim -> ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim
   program-tail-groups :: ProgramInfo -> HashMap String (Nat, Nat)
-  program-tail-groups info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects groups -> groups
+  program-tail-groups info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects groups reclaim -> groups
+  -- Whether this emission counts references (`--no-reclaim` and
+  -- `CINCH_RECLAIM=0` select the other arm): the one switch every
+  -- ownership operation reads, so a leak-baseline build emits none of
+  -- them and every block it allocates stays live until exit.
+  program-reclaim :: ProgramInfo -> Bool
+  program-reclaim info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim -> reclaim
   with-tail-groups :: HashMap String (Nat, Nat) -> ProgramInfo -> ProgramInfo
   with-tail-groups groups info = case info of
-    ProgramInfo datas descriptions instances bindings versions provider exposed effects old ->
-      ProgramInfo datas descriptions instances bindings versions provider exposed effects groups
+    ProgramInfo datas descriptions instances bindings versions provider exposed effects old reclaim ->
+      ProgramInfo datas descriptions instances bindings versions provider exposed effects groups reclaim
   exposed-worker :: String -> List String -> Bool
   exposed-worker name names = case names of Nil -> False; Cons first rest -> same name first || exposed-worker name rest
   worker-linkage :: Writer -> String -> String
   worker-linkage w name = case writer-program w of
-    ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> case exposed of
+    ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim -> case exposed of
       None -> ""
       Some names -> if exposed-worker name names then "" else "internal "
   same-classes :: List Nat -> List Nat -> Bool
@@ -471,11 +479,17 @@ module Bootstrap.RuntimeIr where
   constant-word value = case string-char-at value 0 of
     Some c -> let code = char-code c in (code >= 48 && code <= 57) || code == 45
     None -> False
+  -- One count operation as a line, or nothing under an emission that does
+  -- not reclaim. Every direct call site goes through here, so the switch
+  -- reaches the array, platform, builtin, stub and memo paths as well as
+  -- `count-op`.
+  count-line :: Bool -> String -> Writer -> Writer
+  count-line duplicate value w = if program-reclaim (writer-program w) then line w (count-call duplicate value) else w
   count-op :: Bool -> UType -> String -> Writer -> Writer
   count-op duplicate ty value w = case word-class (writer-context w) ty of
     Some 0 -> w
     Some 3 -> w
-    Some code -> if constant-word value then w else line w (count-call duplicate value)
+    Some code -> if constant-word value then w else count-line duplicate value w
     None -> refuse w (Span 0 0 1 1) "reference operation needs a checked runtime representation"
   drop-locals :: List Local -> Writer -> Writer
   drop-locals locals w = case locals of
@@ -500,47 +514,97 @@ module Bootstrap.RuntimeIr where
     Cons (SelfValue owner slot ty word) rest -> local id rest
     Cons (DeferredConstructor key ty name actuals args) rest -> local id rest
 
-  -- The layout word's pointer map holds one 2-bit code per payload word.
-  -- A wide field is two raw words, so it contributes two zero codes.
-  field-map :: RuntimeContext -> List UType -> Nat -> Option Nat
-  field-map datas fields factor = case fields of
-    Nil -> Some 0
-    Cons first rest -> case word-class datas first of
-      Some 3 -> field-map datas rest (factor * 16)
-      Some code -> (case field-map datas rest (factor * 4) of
-        Some more -> Some (code * factor + more)
-        None -> None)
-      None -> None
+  -- A shaped block describes itself (design/self-describing-blocks.md).
+  -- Its description is the header's layout field, tag | counted-mask << 8,
+  -- when its tag is below 255, its counted fields are among the first 16
+  -- and (a constructor or dictionary) its payload fits the small-object
+  -- heap. Otherwise it is escaped: the layout field is 255 and the word
+  -- before the header holds the address of a static descriptor [tag,
+  -- words, mask words...] whose mask covers payload words, the kind's
+  -- prefix included. An escaped description is the number
+  -- 16777216 + tag + 16777216 * (words + 65536 * mask): it names its
+  -- descriptor by content, so two sites share one definition.
+  shape-prefix :: Nat -> Nat
+  shape-prefix kind = if kind == 2 then 3 else if kind == 3 then 1 else 0
+  counted-mask :: List Nat -> Nat -> Nat -> Nat
+  counted-mask codes bit mask = case codes of
+    Nil -> mask
+    Cons code rest -> counted-mask rest (bit * 2) (if code == 0 then mask else mask + bit)
+  counted-extent :: List Nat -> Nat -> Nat -> Nat
+  counted-extent codes index extent = case codes of
+    Nil -> extent
+    Cons code rest -> counted-extent rest (index + 1) (if code == 0 then extent else index + 1)
+  shape-description :: Nat -> Nat -> List Nat -> Nat
+  shape-description kind tag codes =
+    let prefix = shape-prefix kind in
+    let words = prefix + list-length codes in
+    let mask = counted-mask codes 1 0 in
+    if tag < 255 && counted-extent codes 0 0 <= 16 && (kind == 2 || words <= 31) then tag + 256 * mask
+    else 16777216 + tag + 16777216 * (words + 65536 * mask * (if prefix == 3 then 8 else if prefix == 1 then 2 else 1))
+  description-escaped :: Nat -> Bool
+  description-escaped description = description >= 16777216
+  -- The header's layout field.
+  description-field :: Nat -> Nat
+  description-field description = if description-escaped description then 255 else description
+  descriptor-symbol :: Nat -> String
+  descriptor-symbol description = if 16777216 <= description then cat ["@cinch.desc.", nat-to-string (description - 16777216)] else "@cinch.desc.inline"
+  descriptor-mask-words :: Nat -> Nat -> String
+  descriptor-mask-words mask count = if count == 0 then "" else
+    cat [", i64 ", nat-to-string (mask % 18446744073709551616), descriptor-mask-words (mask / 18446744073709551616) (count - 1)]
+  -- An escaped description's static descriptor, emitted beside its use;
+  -- `dedupe-globals` keeps one definition per name.
+  with-descriptor :: Writer -> Nat -> Writer
+  with-descriptor w description = if 16777216 <= description then
+    (let content = description - 16777216 in
+    let rest = content / 16777216 in
+    let words = rest % 65536 in
+    let mask-count = (words + 63) / 64 in
+    global w (cat [descriptor-symbol description, " = private unnamed_addr constant [", nat-to-string (2 + mask-count), " x i64] [i64 ",
+      nat-to-string (content % 16777216), ", i64 ", nat-to-string words, descriptor-mask-words (rest / 65536) mask-count, "], align 8"]))
+    else w
+  -- A description as one word, for a runtime entry that takes either form
+  -- (the columnar zip's pair): field << 1 | 1, or the descriptor's address.
+  description-word :: Writer -> Nat -> (Writer, String)
+  description-word w description = if description-escaped description
+    then (with-descriptor w description, cat ["ptrtoint (ptr ", descriptor-symbol description, " to i64)"])
+    else (w, nat-to-string (description * 2 + 1))
+  -- The allocation of a shaped block of `bytes` payload bytes into
+  -- `pointer`: the inline entry with its layout field, or the escaped one
+  -- with its descriptor.
+  shaped-allocation :: Writer -> String -> String -> Nat -> Nat -> Writer
+  shaped-allocation w pointer bytes kind description =
+    let entry = if kind == 1 then "@cinch_alloc_ctor" else "@cinch_alloc_shaped" in
+    let kind-word = if kind == 1 then "" else cat [", i64 ", nat-to-string kind] in
+    if description-escaped description then
+      line (with-descriptor w description) (cat ["  ", pointer, " = call ptr ", entry, "_desc(i64 ", bytes, kind-word, ", ptr ", descriptor-symbol description, ")"])
+    else line w (cat ["  ", pointer, " = call ptr ", entry, "(i64 ", bytes, kind-word, ", i64 ", nat-to-string description, ")"])
+  -- The words of a static shaped block before its header: an escaped
+  -- block's descriptor address, nothing otherwise.
+  static-prefix :: Nat -> String
+  static-prefix description = if description-escaped description then cat ["i64 ptrtoint (ptr ", descriptor-symbol description, " to i64), "] else ""
+  static-prefix-words :: Nat -> Nat
+  static-prefix-words description = if description-escaped description then 1 else 0
+  -- A payload's per-word codes from its per-field classes: a wide field
+  -- is two raw words, so it adds two uncounted codes. Only an object
+  -- payload expands; a word position refuses code 3 instead (wide-refusal).
+  word-codes :: List Nat -> List Nat
+  word-codes codes = case codes of Nil -> Nil; Cons code rest -> if code == 3 then Cons 0 (Cons 0 (word-codes rest)) else Cons code (word-codes rest)
   term-types :: List CoreTerm -> List UType
   term-types terms = case terms of Nil -> Nil; Cons term rest -> Cons (core-type term) (term-types rest)
-  known-layout :: Nat -> List (Nat, Nat) -> Option Nat
-  known-layout packed layouts = case layouts of
-    Nil -> None
-    Cons (id, entry-word) rest -> if packed == entry-word then Some id else known-layout packed rest
-  named-layout :: String -> List (String, Nat) -> Option Nat
-  named-layout name groups = case groups of Nil -> None; Cons (owner, id) rest -> if same owner name then Some id else named-layout name rest
+  named-layout :: String -> List (String, List Nat) -> Option (List Nat)
+  named-layout name groups = case groups of Nil -> None; Cons (owner, descriptions) rest -> if same owner name then Some descriptions else named-layout name rest
+  -- A tuple is tag 0 of its anonymous constructor family.
   request-layout :: Span -> List CoreTerm -> Writer -> (Writer, Nat)
-  request-layout sp fields w = case w of
-    Writer next globals code errors (LayoutPlan groups tuples names cells) datas ->
-      case field-map datas (term-types fields) 4294967296 of
-        None -> (refuse w sp "tuple fields need checked runtime representations", 0)
-        Some bits -> let words = payload-words datas (term-types fields) in
-          let packed = words + bits in case known-layout packed tuples of
-          Some id -> (w, id)
-          None -> if words > 16 || groups >= 1022 then
-            (refuse w sp "tuple layout needs an extended runtime descriptor", 0)
-            else let id = 64 * (groups + 1) in
-              (Writer next globals code errors (LayoutPlan (groups + 1) (Cons (id, packed) tuples) names (Cons (id, packed) cells)) datas, id)
-  decision-layout :: Span -> Writer -> (Writer, Nat)
-  decision-layout sp w = case w of
-    Writer next globals code errors (LayoutPlan groups tuples names cells) context -> case named-layout "b.Dec" names of
-      Some id -> (w, id)
-      None -> if groups >= 1022 then (refuse w sp "decision layout exceeds the shared runtime table", 0) else
-        let id = 64 * (groups + 1) in
-        (Writer next globals code errors (LayoutPlan (groups + 1) tuples (Cons ("b.Dec", id) names) (Cons (id, 0) (Cons (id + 1, 0) cells))) context, id)
+  request-layout sp fields w = case class-vector (writer-context w) (term-types fields) of
+    None -> (refuse w sp "tuple fields need checked runtime representations", 0)
+    Some classes -> request-tuple-shape sp classes w
+  request-tuple-shape :: Span -> List Nat -> Writer -> (Writer, Nat)
+  request-tuple-shape sp classes w = let words = word-codes classes in
+    if list-length words > 16 then (refuse w sp "tuple layout needs an extended runtime descriptor", 0)
+    else (w, shape-description 1 0 words)
+  -- `b.Dec` is Yes (tag 0) or No (tag 1), with no fields.
   decision-constructor :: Span -> Bool -> Writer -> (Writer, String)
-  decision-constructor sp positive w = case decision-layout sp w of
-    (planned, base-id) -> allocate planned (base-id + (if positive then 0 else 1)) Nil
+  decision-constructor sp positive w = allocate w (if positive then 0 else 1) Nil
   decision-expression :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> (Writer, String)
   decision-expression definitions locals w sp test = case expression definitions locals w test of
     (tested, condition) ->
@@ -558,23 +622,6 @@ module Bootstrap.RuntimeIr where
   erased-decision-fields fields = case fields of
     CPField sp (CPProof at predicate id name) (CPDone end) -> True
     other -> False
-  layout-count :: LayoutPlan -> Nat
-  layout-count plan = case plan of LayoutPlan groups tuples names cells -> if groups == 0 then 0 else 64 * (groups + 1)
-  layout-word :: Nat -> List (Nat, Nat) -> Nat
-  layout-word index cells = case cells of
-    Nil -> 0
-    Cons (id, packed) rest -> if id == index then packed else layout-word index rest
-  layout-words :: Nat -> Nat -> List (Nat, Nat) -> Builder -> Builder
-  layout-words index end cells code = if index == end then code else
-    layout-words (index + 1) end cells (builder-add-string (cat [if index == 0 then "" else ", ", "i64 ", nat-to-string (layout-word index cells)]) code)
-  layout-table :: LayoutPlan -> String
-  layout-table plan = case plan of
-    LayoutPlan 0 tuples names cells -> ""
-    LayoutPlan groups tuples names cells -> let count = layout-count plan in
-      let words = builder-run (layout-words 0 count cells builder-new) in
-      cat ["@cinch.typed.layouts = internal constant [", nat-to-string count, " x i64] [", words, "]\n",
-        "define internal void @cinch.typed.layouts.init() {\nentry:\n  call void @cinch_layouts_register(ptr @cinch.typed.layouts, i64 ", nat-to-string count, ")\n  ret void\n}\n",
-        "@llvm.global_ctors = appending global [1 x { i32, ptr, ptr }] [{ i32, ptr, ptr } { i32 65535, ptr @cinch.typed.layouts.init, ptr null }]\n"]
   regular-parameters :: List Quant -> List Quant -> Bool
   regular-parameters expected actual = case (expected, actual) of
     (Nil, Nil) -> True
@@ -620,43 +667,39 @@ module Bootstrap.RuntimeIr where
     regular-parameters (core-data-params d) (scheme-params sc)
     && (case scheme-requirements sc of Nil -> True; other -> False)
     && constructor-shape context (data-result d) (scheme-body sc) && payload-words context (core-constructor-fields c) <= 16
-  add-constructor-layouts :: RuntimeContext -> CoreData -> Nat -> Nat -> List CoreConstructor -> Writer -> Writer
-  add-constructor-layouts context d base-id tag constructors w = case constructors of
-    Nil -> w
-    Cons c rest -> if not (constructor-supported context d c) then
-      add-constructor-layouts context d base-id (tag + 1) rest (refuse w (Span 0 0 1 1) "constructor needs dependent, existential or extended runtime lowering")
-      else case field-map context (core-constructor-fields c) 4294967296 of
-        None -> add-constructor-layouts context d base-id (tag + 1) rest (refuse w (Span 0 0 1 1) "constructor field representation is unknown")
-        Some bits -> case w of
-          Writer next globals code errors (LayoutPlan groups tuples names cells) original ->
-            let packed = payload-words context (core-constructor-fields c) + bits in
-            add-constructor-layouts context d base-id (tag + 1) rest (Writer next globals code errors (LayoutPlan groups tuples names (Cons (base-id + tag, packed) cells)) original)
-  request-data :: Span -> CoreData -> List Nat -> Writer -> (Writer, Nat)
+  -- Each constructor's description, by tag. A constructor the lowering
+  -- cannot represent is refused once, when its family is first described.
+  constructor-descriptions :: RuntimeContext -> CoreData -> Nat -> List CoreConstructor -> Writer -> (Writer, List Nat)
+  constructor-descriptions context d tag constructors w = case constructors of
+    Nil -> (w, Nil)
+    Cons c rest ->
+      let (checked, description) = (if not (constructor-supported context d c) then
+          (refuse w (Span 0 0 1 1) "constructor needs dependent, existential or extended runtime lowering", 0)
+        else case class-vector context (core-constructor-fields c) of
+          None -> (refuse w (Span 0 0 1 1) "constructor field representation is unknown", 0)
+          Some codes -> (w, shape-description 1 tag (word-codes codes))) in
+      case constructor-descriptions context d (tag + 1) rest checked of
+        (done, more) -> (done, Cons description more)
+  request-data :: Span -> CoreData -> List Nat -> Writer -> (Writer, List Nat)
   request-data sp d classes w = case class-bindings (core-data-params d) classes of
-    None -> (refuse w sp "data parameters need first-order runtime representation classes", 0)
+    None -> (refuse w sp "data parameters need first-order runtime representation classes", Nil)
     Some bounds -> case w of
-      Writer next globals code errors (LayoutPlan groups tuples names cells) (RuntimeContext datas old-bound rigids pending done inlining) ->
+      Writer next globals code errors (LayoutPlan names) (RuntimeContext datas old-bound rigids pending done inlining) ->
         let key = specialized-name (core-data-name d) classes in
         case named-layout key names of
-          Some id -> (w, id)
-          None -> let count = list-length (core-data-constructors d) in
-            let id = 64 * (groups + 1) in
-            if count >= 16777216 || id + count >= 16777216 then
-              (refuse w sp "data family exceeds the runtime descriptor tag or index capacity", 0)
-            else let reserved = if count == 0 then count + 1 else (count + 63) / 64 in
-              -- Preserve the existing shared-table bound: admitted objects
-              -- may have branch-free reads for their regular families.
-              if groups + reserved > 1022 then
-                (refuse w sp "data family exceeds the supported shared runtime layout table", 0)
-              else let planned = Writer next globals code errors (LayoutPlan (groups + reserved) tuples (Cons (key, id) names) cells) (writer-context w) in
-                (add-constructor-layouts (RuntimeContext datas bounds Nil pending done inlining) d id 0 (core-data-constructors d) planned, id)
-  -- The runtime's escaped descriptor stores the table index in bits40..63
-  -- and the full tag in bits16..39; 65535 marks the header escape. Every
-  -- constructor of an escaped family uses it, including tags below64.
-  data-descriptor :: CoreData -> Nat -> Nat -> Nat
-  data-descriptor d base-id tag =
-    if list-length (core-data-constructors d) <= 64 && base-id < 65472 then base-id + tag
-    else (base-id + tag) * 1099511627776 + tag * 65536 + 65535
+          Some descriptions -> (w, descriptions)
+          None -> if list-length (core-data-constructors d) >= 16777216 then
+            (refuse w sp "data family exceeds the runtime descriptor tag capacity", Nil)
+            else case constructor-descriptions (RuntimeContext datas bounds Nil pending done inlining) d 0 (core-data-constructors d) w of
+              (described, descriptions) -> (remember-layout key descriptions described, descriptions)
+  remember-layout :: String -> List Nat -> Writer -> Writer
+  remember-layout key descriptions w = case w of
+    Writer next globals code errors (LayoutPlan names) context -> Writer next globals code errors (LayoutPlan (Cons (key, descriptions) names)) context
+  -- The description of a family's constructor `tag`.
+  data-descriptor :: List Nat -> Nat -> Nat
+  data-descriptor descriptions tag = case descriptions of
+    Nil -> 0
+    Cons first rest -> if tag == 0 then first else data-descriptor rest (tag - 1)
   constructor-in :: String -> Nat -> List CoreConstructor -> Option (Nat, CoreConstructor)
   constructor-in name index constructors = case constructors of
     Nil -> None
@@ -710,9 +753,9 @@ module Bootstrap.RuntimeIr where
         None -> None
   char-word :: String -> Option String
   char-word text = case unpack text of Cons c Nil -> Some (nat-to-string (char-code c)); other -> None
-  -- An immortal header word: rc 0, then kind at bit 40 and layout at bit 48.
+  -- An immortal header word: rc 0, then kind at bit 35 and layout at bit 40.
   static-header :: Nat -> Nat -> Nat
-  static-header kind layout = layout * 281474976710656 + kind * 1099511627776
+  static-header kind layout = layout * 1099511627776 + kind * 34359738368
   struct-field :: String -> String -> Nat -> String
   struct-field shape storage index = cat ["getelementptr inbounds (", shape, ", ptr ", storage, ", i64 0, i32 ", nat-to-string index, ")"]
   -- A string literal is one shared read-only data-section object, as in
@@ -720,25 +763,21 @@ module Bootstrap.RuntimeIr where
   -- block { bytes } and the Bytes block { len; data } it wraps, each after
   -- an immortal header, then the data. The Bytes kind is
   -- KIND_BYTES_STATIC, so a write faults instead of touching constant data.
-  -- An escaped descriptor goes in the word before the String header.
+  -- The provider's String wrapper is inline (tag 0, its one field counted).
   string-literal :: Writer -> Span -> UType -> String -> (Writer, String)
   string-literal w sp ty text = case (base ty, program-object (writer-program w)) of
     (UCon name KType, Some provider) -> (case object-string-layout name provider of
       Some descriptor ->
-        let escaped = descriptor >= 65535 in
-        let layout = if escaped then (65535 :: Nat) else descriptor in
-        let at = if escaped then (1 :: Nat) else 0 in
         let (one, storage) = fresh w "@text" in
         let size = nat-to-string (bytes-len (string-to-bytes text)) in
         let contents = if same size "0" then "[0 x i8] zeroinitializer" else cat ["[", size, " x i8] c\"", llvm-data-bytes text, "\""] in
-        let shape = cat ["{ ", if escaped then "i64, " else "", "i64, ptr, i64, i64, ptr, [", size, " x i8] }"] in
+        let shape = cat ["{ i64, ptr, i64, i64, ptr, [", size, " x i8] }"] in
         let declared = global one (cat [storage, " = private unnamed_addr constant ", shape, " { ",
-          if escaped then cat ["i64 ", nat-to-string descriptor, ", "] else "",
-          "i64 ", nat-to-string (static-header 1 layout), ", ptr ", struct-field shape storage (at + 3),
-          ", i64 ", nat-to-string (static-header 9 2), ", i64 ", size, ", ptr ", struct-field shape storage (at + 5),
+          "i64 ", nat-to-string (static-header 1 descriptor), ", ptr ", struct-field shape storage 3,
+          ", i64 ", nat-to-string (static-header 9 2), ", i64 ", size, ", ptr ", struct-field shape storage 5,
           ", ", contents, " }, align 8"]) in
         let (done, result) = fresh declared "%v" in
-        (line done (cat ["  ", result, " = ptrtoint ptr ", struct-field shape storage (at + 1), " to i64"]), result)
+        (line done (cat ["  ", result, " = ptrtoint ptr ", struct-field shape storage 1, " to i64"]), result)
       None -> unsupported w sp "String literal has no checked defining wrapper layout")
     other -> unsupported w sp "String literal needs its checked library object layout"
   string-bytes :: Writer -> String -> (Writer, String)
@@ -1150,10 +1189,10 @@ module Bootstrap.RuntimeIr where
   task-join-success w sp ty values = case task-result-types ty of
     Some (error, payload) -> (case (task-tuple-types payload, data-declaration (global-data-core-result) (writer-data w)) of
       (Some types, Some d) -> (case class-vector (writer-context w) types of
-        Some classes -> (case request-object-shape sp classes w of
+        Some classes -> (case request-tuple-shape sp classes w of
           (planned, descriptor) -> case allocate planned descriptor values of
             (made, tuple) -> case scheme-classes (writer-context made) (core-data-params d) [error, payload] of
-              Some result-classes -> (case request-data sp d result-classes made of (ready, base-id) -> allocate ready (data-descriptor d base-id 1) [tuple])
+              Some result-classes -> (case request-data sp d result-classes made of (ready, base-id) -> allocate ready (data-descriptor base-id 1) [tuple])
               None -> unsupported made sp "joined Result needs checked runtime representations")
         None -> unsupported w sp "joined tuple needs checked runtime representations")
       other -> unsupported w sp "joined task result must use its checked tuple and Result declarations")
@@ -1184,21 +1223,11 @@ module Bootstrap.RuntimeIr where
     Nil -> (w, Nil)
     Cons term rest -> case expression definitions locals w term of
       (first, value) -> case expressions definitions locals first rest of (done, values) -> (done, Cons value values)
-  -- A shape entry includes the three raw ABI prefix words and every
-  -- parameter class. The allocation itself holds only the filled prefix.
-  class-bits :: List Nat -> Nat -> Nat
-  class-bits classes factor = case classes of Nil -> 0; Cons first rest -> first * factor + class-bits rest (factor * 4)
+  -- A closure's description covers every parameter class; its saved
+  -- fields follow the three raw prefix words (code, arity, filled count).
   request-shape :: Span -> List Nat -> Writer -> (Writer, Nat)
-  request-shape sp classes w = case w of
-    Writer next globals code errors (LayoutPlan groups tuples names cells) context ->
-      let packed = 3 + list-length classes + class-bits classes 274877906944 in
-      if wide-code classes then (refuse w sp wide-refusal, 0) else
-      case known-layout packed tuples of
-        Some id -> (w, id)
-        None -> if list-length classes > 13 || groups >= 1022 then
-          (refuse w sp "closure shape needs an extended runtime descriptor", 0)
-          else let id = 64 * (groups + 1) in
-            (Writer next globals code errors (LayoutPlan (groups + 1) (Cons (id, packed) tuples) names (Cons (id, packed) cells)) context, id)
+  request-shape sp classes w = if wide-code classes then (refuse w sp wide-refusal, 0) else if list-length classes > 13 then (refuse w sp "closure shape needs an extended runtime descriptor", 0)
+    else (w, shape-description 2 0 classes)
   closure :: Span -> String -> List Nat -> List String -> Writer -> (Writer, String)
   closure sp name classes values w = case values of
     Nil -> case static-closure sp name classes w of
@@ -1207,7 +1236,7 @@ module Bootstrap.RuntimeIr where
     other -> case request-shape sp classes (request-demand (StubDemand name classes) w) of
       (planned, descriptor) ->
         let (one, pointer) = fresh planned "%ptr" in
-        let allocated = line one (cat ["  ", pointer, " = call ptr @cinch_alloc_shaped(i64 ", nat-to-string (8 * (3 + list-length values)), ", i64 2, i64 ", nat-to-string descriptor, ")"]) in
+        let allocated = shaped-allocation one pointer (nat-to-string (8 * (3 + list-length values))) 2 descriptor in
         let prefix = [cat ["ptrtoint (ptr ", symbol (cat [name, ".app"]), " to i64)"], nat-to-string (list-length classes), nat-to-string (list-length values)] in
         let (done, word) = fresh (store-fields allocated pointer 0 (prefix <> values)) "%v" in
         (line done (cat ["  ", word, " = ptrtoint ptr ", pointer, " to i64"]), word)
@@ -1218,9 +1247,12 @@ module Bootstrap.RuntimeIr where
   static-closure sp name classes w = case request-shape sp classes (request-demand (StubDemand name classes) w) of
     (planned, descriptor) ->
       let (declared, storage) = fresh planned "@closure" in
-      let stored = global declared (cat [storage, " = private unnamed_addr constant [4 x i64] [i64 ", nat-to-string (static-header 2 descriptor),
+      let skip = static-prefix-words descriptor in
+      let block = cat ["[", nat-to-string (4 + skip), " x i64]"] in
+      let stored = global (with-descriptor declared descriptor) (cat [storage, " = private unnamed_addr constant ", block, " [", static-prefix descriptor,
+        "i64 ", nat-to-string (static-header 2 (description-field descriptor)),
         ", i64 ptrtoint (ptr ", symbol (cat [name, ".app"]), " to i64), i64 ", nat-to-string (list-length classes), ", i64 0], align 8"]) in
-      (stored, cat ["getelementptr inbounds ([4 x i64], ptr ", storage, ", i64 0, i64 1)"])
+      (stored, cat ["getelementptr inbounds (", block, ", ptr ", storage, ", i64 0, i64 ", nat-to-string (1 + skip), ")"])
   apply-one :: Writer -> String -> String -> (Writer, String)
   apply-one w function value =
     let (one, argv) = fresh w "%ptr" in
@@ -1305,7 +1337,12 @@ module Bootstrap.RuntimeIr where
     else if operation == 4 then [1, 2, element]
     else if operation == 5 then [1, 2, 2]
     else if operation == 6 || operation == 7 || operation == 10 || operation == 13 then [1, 1]
-    else if operation == 11 then [1, 1, element] else [1]
+    else if operation == 11 then [1, 1, element]
+    else if operation == 20 then [0]
+    else if operation == 22 || operation == 24 || operation == 27 then [1, 0]
+    else if operation == 23 then [1, 0, 0]
+    else if operation == 25 then [1, 0, 1, 0, 0]
+    else if operation == 26 then [1, 0, 0] else [1]
   array-symbol :: String -> List Nat -> String
   array-symbol name classes = specialized-name name classes
   array-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List String -> List CoreTerm -> (Writer, String)
@@ -1325,7 +1362,7 @@ module Bootstrap.RuntimeIr where
   array-drop-arguments :: List Nat -> Nat -> Writer -> Writer
   array-drop-arguments classes index w = case classes of
     Nil -> w
-    Cons first rest -> array-drop-arguments rest (index + 1) (if first == 0 then w else line w (count-call False (cat ["%arg", nat-to-string index])))
+    Cons first rest -> array-drop-arguments rest (index + 1) (if first == 0 then w else count-line False (cat ["%arg", nat-to-string index]) w)
   array-option :: Writer -> Span -> Nat -> String -> String -> List String -> (Writer, String)
   array-option w sp payload-class invalid runtime arguments =
     case (constructor (global-data-core-some) (writer-data w), constructor (global-data-core-none) (writer-data w)) of
@@ -1338,10 +1375,10 @@ module Bootstrap.RuntimeIr where
               let (three, end) = fresh two "arraydone" in let (four, slot) = fresh three "%ptr" in
               let (five, predicate) = fresh four "%v" in
               let split = line (line (line five (cat ["  ", slot, " = alloca i64"])) (cat ["  ", predicate, " = icmp ne i64 ", invalid, ", 0"])) (cat ["  br i1 ", predicate, ", label %", failure, ", label %", success]) in
-              case allocate (line split (cat [failure, ":"])) (data-descriptor d descriptor none-tag) Nil of
+              case allocate (line split (cat [failure, ":"])) (data-descriptor descriptor none-tag) Nil of
                 (absent, none) -> let next = line (line (line absent (cat ["  store i64 ", none, ", ptr ", slot])) (cat ["  br label %", end])) (cat [success, ":"]) in
                   case (if same runtime "" then (next, case arguments of Cons value rest -> value; Nil -> "0") else call next runtime arguments) of
-                    (read, payload) -> case allocate read (data-descriptor d descriptor some-tag) [payload] of
+                    (read, payload) -> case allocate read (data-descriptor descriptor some-tag) [payload] of
                       (present, some) -> let joined = line (line (line present (cat ["  store i64 ", some, ", ptr ", slot])) (cat ["  br label %", end])) (cat [end, ":"]) in
                         let (ready, value) = fresh joined "%v" in (line ready (cat ["  ", value, " = load i64, ptr ", slot]), value))
           None -> unsupported w sp "array result has no defining Option family")
@@ -1379,11 +1416,70 @@ module Bootstrap.RuntimeIr where
           (checked, invalid) -> array-option checked sp (if operation == 10 then element else 1) invalid
             (if operation == 10 then "@cinch_tensor_get" else "@cinch_tensor_set") (if operation == 10 then ["%arg0", index] else ["%arg0", index, "%arg2"]))
     else if operation == 12 then call w "@cinch_columnar_column" ["%arg0"]
-    else if operation == 13 then (case request-object-shape sp classes w of
-      (ready, descriptor) -> array-null-option ready sp "@cinch_columnar_zip" "" ["%arg0", "%arg1", nat-to-string descriptor])
+    else if operation == 13 then (case request-tuple-shape sp classes w of
+      (ready, descriptor) -> case description-word ready descriptor of
+        (described, word) -> array-null-option described sp "@cinch_columnar_zip" "" ["%arg0", "%arg1", word])
     else if operation == 17 || operation == 18 then array-null-option w sp "@cinch_columnar_child" "" ["%arg0", if operation == 18 then "1" else "0"]
     else if operation == 19 then array-null-option w sp "@cinch_columnar_array" "" ["%arg0"]
+    else if operation >= 20 then slot-lower w operation element
     else unsupported w sp "unknown checked array operation"
+  -- The mutable slot family (compiler/src/slots.rs and slots_codegen.rs,
+  -- the same IR): a slot array is an Array block with a word format, the
+  -- length at payload word 1 and the elements from word 2. The worker owns
+  -- its arguments and drops the counted ones at its end, which is why a
+  -- write's value is listed as uncounted (array-argument-classes): the
+  -- slot takes that reference over.
+  slot-lower :: Writer -> Nat -> Nat -> (Writer, String)
+  slot-lower w operation element =
+    if operation == 20 then call w "@cinch_slots_new" ["%arg0", nat-to-string element]
+    else if operation == 21 then slot-length w
+    else if operation == 25 then call w "@cinch_slots_move" ["%arg0", "%arg1", "%arg2", "%arg3", "%arg4"]
+    else if operation == 26 then call w "@cinch_slots_clear" ["%arg0", "%arg1", "%arg2"]
+    else if operation == 27 then slot-prefetch w
+    else case slot-address w of
+      (ready, address) ->
+        if operation == 22 then (case slot-load ready address element of
+          (loaded, value) -> (if element == 0 then loaded else line loaded (count-call True value), value))
+        else if operation == 24 then (case slot-load ready address element of
+          (loaded, value) -> (if element == 0 then loaded else line loaded (cat ["  store i64 0, ptr ", address, ", align 8"]), value))
+        else
+          let (one, old) = fresh ready "%v" in
+          let stored = line (line one (cat ["  ", old, " = load i64, ptr ", address, ", align 8"])) (cat ["  store i64 %arg2, ptr ", address, ", align 8"]) in
+          (if element == 0 then stored else line stored (count-call False old), "0")
+  slot-length :: Writer -> (Writer, String)
+  slot-length w =
+    let (one, base) = fresh w "%v" in let (two, at) = fresh one "%v" in let (three, count) = fresh two "%v" in
+    (line (line (line three (cat ["  ", base, " = inttoptr i64 %arg0 to ptr"])) (cat ["  ", at, " = getelementptr inbounds i64, ptr ", base, ", i64 1"])) (cat ["  ", count, " = load i64, ptr ", at, ", align 8"]), count)
+  -- The address of slot %arg1, after checking it against the length: an
+  -- index at or past it is a container bug and traps (code 1).
+  slot-address :: Writer -> (Writer, String)
+  slot-address w = case slot-length w of
+    (measured, count) ->
+      let (one, ok) = fresh measured "%v" in let (two, good) = fresh one "slotok" in let (three, bad) = fresh two "slotbad" in
+      let (four, base) = fresh three "%v" in let (five, at) = fresh four "%v" in let (six, address) = fresh five "%v" in
+      let checked = line (line six (cat ["  ", ok, " = icmp ult i64 %arg1, ", count])) (cat ["  br i1 ", ok, ", label %", good, ", label %", bad]) in
+      let trapped = line (line (line checked (cat [bad, ":"])) "  call i64 @cinch_slots_fault(i64 1)") "  unreachable" in
+      let resumed = line trapped (cat [good, ":"]) in
+      let based = line (line resumed (cat ["  ", base, " = inttoptr i64 %arg0 to ptr"])) (cat ["  ", at, " = add i64 %arg1, 2"]) in
+      (line based (cat ["  ", address, " = getelementptr inbounds i64, ptr ", base, ", i64 ", at]), address)
+  -- A slot's word; a counted hole is a container bug and traps (code 2).
+  slot-load :: Writer -> String -> Nat -> (Writer, String)
+  slot-load w address element =
+    let (one, value) = fresh w "%v" in
+    let loaded = line one (cat ["  ", value, " = load i64, ptr ", address, ", align 8"]) in
+    if element == 0 then (loaded, value) else
+      let (two, hole) = fresh loaded "%v" in let (three, good) = fresh two "slotfull" in let (four, bad) = fresh three "slothole" in
+      let checked = line (line four (cat ["  ", hole, " = icmp eq i64 ", value, ", 0"])) (cat ["  br i1 ", hole, ", label %", bad, ", label %", good]) in
+      (line (line (line (line checked (cat [bad, ":"])) "  call i64 @cinch_slots_fault(i64 2)") "  unreachable") (cat [good, ":"]), value)
+  -- A read hint for slot %arg1, issued only in range; it changes nothing.
+  slot-prefetch :: Writer -> (Writer, String)
+  slot-prefetch w = case slot-length w of
+    (measured, count) ->
+      let (one, ok) = fresh measured "%v" in let (two, go) = fresh one "slotgo" in let (three, done) = fresh two "slotdone" in
+      let (four, base) = fresh three "%v" in let (five, at) = fresh four "%v" in let (six, address) = fresh five "%v" in
+      let checked = line (line six (cat ["  ", ok, " = icmp ult i64 %arg1, ", count])) (cat ["  br i1 ", ok, ", label %", go, ", label %", done]) in
+      let issued = line (line (line (line (line checked (cat [go, ":"])) (cat ["  ", base, " = inttoptr i64 %arg0 to ptr"])) (cat ["  ", at, " = add i64 %arg1, 2"])) (cat ["  ", address, " = getelementptr inbounds i64, ptr ", base, ", i64 ", at])) (cat ["  call void @llvm.prefetch.p0(ptr ", address, ", i32 0, i32 3, i32 1)"]) in
+      (line (line issued (cat ["  br label %", done])) (cat [done, ":"]), "0")
   array-worker :: String -> List Nat -> Writer -> Writer
   array-worker name classes w = case array-plan name of
     None -> refuse w (Span 0 0 1 1) "array worker unavailable in selected ABI"
@@ -1394,7 +1490,7 @@ module Bootstrap.RuntimeIr where
         (made, result) -> let done = array-drop-arguments parameters 0 made in line (line done (cat ["  ret i64 ", result])) "}"
 
   builtin-known :: String -> Bool
-  builtin-known name = machine-integer-builtin name || nat-arithmetic-builtin name || same name "b.newIO" || same name "b.ioWrite" || same name "b.ioRead" || same name "b.ioSleep" || same name "b.pollCancel" || same name "cinch.runtime.bytesNew" || same name "cinch.runtime.bytesLen" || same name "cinch.runtime.bytesGet" || same name "cinch.runtime.textF64FromDecimal" || same name "cinch.runtime.textF64ToDecimal" || (case platform-intrinsic name of Some plan -> True; None -> False)
+  builtin-known name = machine-integer-builtin name || nat-arithmetic-builtin name || same name "b.newIO" || same name "b.ioWrite" || same name "b.ioRead" || same name "b.ioSleep" || same name "b.pollCancel" || same name "cinch.runtime.bytesNew" || same name "cinch.runtime.bytesLen" || same name "cinch.runtime.bytesGet" || same name "cinch.runtime.textF64FromDecimal" || same name "cinch.runtime.textF64ToDecimal" || same name "cinch.runtime.slotsFoldNat" || (case platform-intrinsic name of Some plan -> True; None -> False)
   machine-integer-builtin :: String -> Bool
   machine-integer-builtin name = same name "cinch.prim.eqI64" || same name "cinch.prim.neI64" || (case wrapping-worker-plan name of Some plan -> True; None -> False) || wide-builtin name
   -- The wide intrinsics (Bootstrap.Builtin.wide-intrinsic) lower to one
@@ -1426,7 +1522,7 @@ module Bootstrap.RuntimeIr where
   nat-arithmetic-builtin :: String -> Bool
   nat-arithmetic-builtin name = case nat-arithmetic-extern name of Some external -> True; None -> False
   builtin-classes :: String -> List Nat
-  builtin-classes name = if wide-builtin name then [3, 3] else if machine-integer-builtin name then [0, 0] else if nat-arithmetic-builtin name then [2, 2] else if same name "b.newIO" then [0] else if same name "b.ioWrite" then [0, 1] else if same name "b.ioRead" || same name "b.ioSleep" then [0, 2] else if same name "b.pollCancel" then [0, 0] else if same name "cinch.runtime.bytesGet" then [1, 2] else if same name "cinch.runtime.bytesNew" then [2] else if same name "cinch.runtime.textF64ToDecimal" then [0] else case platform-intrinsic name of
+  builtin-classes name = if wide-builtin name then [3, 3] else if same name "cinch.runtime.slotsFoldNat" then [2] else if machine-integer-builtin name then [0, 0] else if nat-arithmetic-builtin name then [2, 2] else if same name "b.newIO" then [0] else if same name "b.ioWrite" then [0, 1] else if same name "b.ioRead" || same name "b.ioSleep" then [0, 2] else if same name "b.pollCancel" then [0, 0] else if same name "cinch.runtime.bytesGet" then [1, 2] else if same name "cinch.runtime.bytesNew" then [2] else if same name "cinch.runtime.textF64ToDecimal" then [0] else case platform-intrinsic name of
     Some (scheme, external, arguments, result) -> platform-classes arguments
     None -> [1]
   -- A Unit argument the extern does not take is still the worker's raw word.
@@ -1443,7 +1539,7 @@ module Bootstrap.RuntimeIr where
   platform-drops :: Writer -> List Nat -> Nat -> Writer
   platform-drops w codes index = case codes of
     Nil -> w
-    Cons code rest -> platform-drops (if code == 1 || code == 2 then line w (count-call False (cat ["%arg", nat-to-string index])) else w) rest (index + 1)
+    Cons code rest -> platform-drops (if code == 1 || code == 2 then count-line False (cat ["%arg", nat-to-string index]) w else w) rest (index + 1)
   platform-worker :: Writer -> String -> List Nat -> Nat -> (Writer, String)
   platform-worker w external codes result = case platform-arguments w codes 0 of
     (converted, values) -> case call converted (cat ["@", external]) values of
@@ -1473,10 +1569,10 @@ module Bootstrap.RuntimeIr where
                 let (five, negative) = fresh four "%v" in let (six, code) = fresh five "%v" in
                 let split = emit-lines six [cat ["  ", slot, " = alloca i64"], cat ["  ", negative, " = icmp slt i64 ", raw, ", 0"],
                   cat ["  br i1 ", negative, ", label %", failure, ", label %", success], cat [failure, ":"], cat ["  ", code, " = sub i64 0, ", raw]] in
-                case allocate split (data-descriptor d descriptor err-tag) [code] of
+                case allocate split (data-descriptor descriptor err-tag) [code] of
                   (failed, err-word) -> let next = emit-lines failed [cat ["  store i64 ", err-word, ", ptr ", slot], cat ["  br label %", end], cat [success, ":"]] in
                     case (if result == 3 then call next "@cinch_nat_from_i64" [raw] else (next, if result == 5 then "0" else raw)) of
-                      (ready, payload) -> case allocate ready (data-descriptor d descriptor ok-tag) [payload] of
+                      (ready, payload) -> case allocate ready (data-descriptor descriptor ok-tag) [payload] of
                         (succeeded, value) -> let joined = emit-lines succeeded [cat ["  store i64 ", value, ", ptr ", slot], cat ["  br label %", end], cat [end, ":"]] in
                           let (done, loaded) = fresh joined "%v" in (line done (cat ["  ", loaded, " = load i64, ptr ", slot]), loaded))
           None -> unsupported w sp "runtime result has no defining Result family")
@@ -1509,29 +1605,31 @@ module Bootstrap.RuntimeIr where
         (case wrapping-worker-plan name of
           Some (operation, unsigned-narrow) -> wrapping-word-worker started operation unsigned-narrow
           None -> unsupported started (Span 0 0 1 1) "checked machine worker has no wrapping operation")
-      else if same name "b.ioWrite" then (case call started "@cinch_io_write" ["%arg1"] of (done, result) -> (line done (count-call False "%arg1"), "0"))
+      else if same name "b.ioWrite" then (case call started "@cinch_io_write" ["%arg1"] of (done, result) -> (count-line False "%arg1" done, "0"))
       else if same name "b.ioRead" then (case call started "@cinch_nat_to_len" ["%arg1"] of
         (converted, length) -> case call converted "@cinch_io_read" [length] of
-          (read, bytes) -> case compare-word (line read (count-call False "%arg1")) "eq" bytes "0" of
+          (read, bytes) -> case compare-word (count-line False "%arg1" read) "eq" bytes "0" of
             (checked, absent) -> array-option checked (Span 0 0 1 1) 1 absent "" [bytes])
       else if same name "b.ioSleep" then (case call started "@cinch_nat_to_len" ["%arg1"] of
-        (converted, length) -> case call converted "@cinch_io_sleep" [length] of (done, result) -> (line done (count-call False "%arg1"), "0"))
+        (converted, length) -> case call converted "@cinch_io_sleep" [length] of (done, result) -> (count-line False "%arg1" done, "0"))
       else if same name "b.pollCancel" then call started "@cinch_task_poll_cancel" Nil
       else if same name "cinch.runtime.bytesNew" then (case call started "@cinch_nat_to_len" ["%arg0"] of
-        (converted, length) -> case call converted "@cinch_bytes_new" [length] of (done, result) -> (line done (count-call False "%arg0"), result))
+        (converted, length) -> case call converted "@cinch_bytes_new" [length] of (done, result) -> (count-line False "%arg0" done, result))
       else if same name "cinch.runtime.bytesGet" then (case call started "@cinch_nat_to_len" ["%arg1"] of
         (converted, index) -> case call converted "@cinch_bytes_get" ["%arg0", index] of
           (read, byte) -> case call read "@cinch_nat_from_i64" [byte] of
-            (done, result) -> (line (line done (count-call False "%arg0")) (count-call False "%arg1"), result))
+            (done, result) -> (count-line False "%arg1" (count-line False "%arg0" done), result))
       else if same name "cinch.runtime.textF64ToDecimal" then
         (let (one, value) = fresh started "%float" in
          let converted = line one (cat ["  ", value, " = bitcast i64 %arg0 to double"]) in
          let (two, result) = fresh converted "%v" in
          (line two (cat ["  ", result, " = call i64 @cinch_text_f64_to_decimal(double ", value, ")"]), result))
+      else if same name "cinch.runtime.slotsFoldNat" then (case call started "@cinch_nat_low_word" ["%arg0"] of
+        (done, result) -> (line done (count-call False "%arg0"), result))
       else if same name "cinch.runtime.textF64FromDecimal" then
         (let (one, value) = fresh started "%float" in
          let decoded = line one (cat ["  ", value, " = call double @cinch_text_f64_from_decimal(i64 %arg0)"]) in
-         let (two, result) = fresh (line decoded (count-call False "%arg0")) "%v" in
+         let (two, result) = fresh (count-line False "%arg0" decoded) "%v" in
          (line two (cat ["  ", result, " = bitcast double ", value, " to i64"]), result))
       else case platform-intrinsic name of
         Some (scheme, external, arguments, result) -> platform-worker started external arguments result
@@ -1541,9 +1639,8 @@ module Bootstrap.RuntimeIr where
               let nat = UCon "Nat" KType in
               (count-op False nat "%arg1" (count-op False nat "%arg0" done), result)
           None -> (case call started "@cinch_bytes_len" ["%arg0"] of
-            (measured, length) -> case call measured "@cinch_nat_from_i64" [length] of (done, result) -> (line done (count-call False "%arg0"), result))) in
+            (measured, length) -> case call measured "@cinch_nat_from_i64" [length] of (done, result) -> (count-line False "%arg0" done, result))) in
     case lowered of (done, result) -> line (line done (cat ["  ret ", builtin-result-llvm name, " ", result])) "}"
-
   direct-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List CoreTerm -> (Writer, String)
   direct-call definitions locals w sp name actuals args = call-name definitions locals w sp name actuals Nil args
   call-name :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List String -> List CoreTerm -> (Writer, String)
@@ -1562,7 +1659,7 @@ module Bootstrap.RuntimeIr where
               Some context -> if list-length args == list-length (core-constructor-fields c) then
                 (case request-data sp d classes w of
                   (planned, descriptor) -> case expressions definitions locals planned args of
-                    (ready, values) -> allocate-typed ready (data-descriptor d descriptor tag) (typed-values (value-llvms (writer-context ready) (term-types args)) values))
+                    (ready, values) -> allocate-typed ready (data-descriptor descriptor tag) (typed-values (value-llvms (writer-context ready) (term-types args)) values))
                 else if list-length args < list-length (core-constructor-fields c) then
                   (case class-vector context (core-constructor-fields c) of
                     Some parameters -> case expressions definitions locals (request-demand (ConstructorDemand name classes) w) args of
@@ -1581,12 +1678,28 @@ module Bootstrap.RuntimeIr where
   foreign-parameter-types params = case params of
     Nil -> Nil
     Cons first rest -> if same (foreign-class first) "unit" then foreign-parameter-types rest else Cons (foreign-llvm-type first) (foreign-parameter-types rest)
+  -- A narrow integer crosses the C boundary widened as the platform ABI
+  -- says: SysV x86-64 and AArch64 have the caller extend an 8- or 16-bit
+  -- argument, and the callee such a result, to 32 bits, and optimised C
+  -- relies on it. `signext`/`zeroext` tells LLVM which side widens and
+  -- how (compiler/src/codegen.rs, ext_attr); without it a constant
+  -- `i16 -1234` reached C as 64302.
+  foreign-c-type :: ForeignParameter -> String
+  foreign-c-type parameter = let ty = foreign-llvm-type parameter in
+    if same ty "i8" || same ty "i16" then cat [ty, if foreign-signed parameter then " signext" else " zeroext"] else ty
+  foreign-c-result :: ForeignParameter -> String
+  foreign-c-result parameter = let ty = foreign-llvm-type parameter in
+    if same ty "i8" || same ty "i16" then cat [if foreign-signed parameter then "signext " else "zeroext ", ty] else ty
+  foreign-c-parameter-types :: List ForeignParameter -> List String
+  foreign-c-parameter-types params = case params of
+    Nil -> Nil
+    Cons first rest -> if same (foreign-class first) "unit" then foreign-c-parameter-types rest else Cons (foreign-c-type first) (foreign-c-parameter-types rest)
   foreign-worker :: ForeignPlan -> Writer -> Writer
   foreign-worker plan w = let result = foreign-llvm-type (foreign-result plan) in
     let arguments = foreign-parameter-types (foreign-parameters plan) in
     let symbol = foreign-symbol plan in
     case foreign-inline plan of
-      None -> global w (cat ["declare ", result, " ", llvm-object-symbol symbol, "(", join arguments, ")"])
+      None -> global w (cat ["declare ", foreign-c-result (foreign-result plan), " ", llvm-object-symbol symbol, "(", join (foreign-c-parameter-types (foreign-parameters plan)), ")"])
       Some (InlinePrimitiveBody fragment symbols immediates assembly) ->
         let required = primitive-intrinsics symbols w in
         let defined = primitive-worker symbol result arguments fragment immediates required in
@@ -1641,13 +1754,16 @@ module Bootstrap.RuntimeIr where
     (Nil, Nil) -> True
     (Cons first rest, Cons value more) -> foreign-type-equal (foreign-parameter-type first) (core-type value) && foreign-argument-types rest more
     other -> False
-  foreign-marshal :: Writer -> List ForeignParameter -> List String -> (Writer, List String)
-  foreign-marshal w params values = case (params, values) of
+  -- `boundary` is a call of a C symbol, whose narrow arguments carry the
+  -- platform's extension; an inline primitive's worker is this module's
+  -- own, so its arguments do not.
+  foreign-marshal :: Bool -> Writer -> List ForeignParameter -> List String -> (Writer, List String)
+  foreign-marshal boundary w params values = case (params, values) of
     (Nil, Nil) -> (w, Nil)
-    (Cons first rest, Cons value more) -> if same (foreign-class first) "unit" then foreign-marshal w rest more else
+    (Cons first rest, Cons value more) -> if same (foreign-class first) "unit" then foreign-marshal boundary w rest more else
       (case foreign-marshal-one w first value of
-        (converted, argument) -> case foreign-marshal converted rest more of
-          (done, tail) -> (done, Cons (cat [foreign-llvm-type first, " ", argument]) tail))
+        (converted, argument) -> case foreign-marshal boundary converted rest more of
+          (done, tail) -> (done, Cons (cat [if boundary then foreign-c-type first else foreign-llvm-type first, " ", argument]) tail))
     other -> (refuse w (Span 0 0 1 1) "foreign ABI argument vector differs from its checked plan", Nil)
   foreign-marshal-one :: Writer -> ForeignParameter -> String -> (Writer, String)
   foreign-marshal-one w parameter value = let ty = foreign-llvm-type parameter in
@@ -1683,11 +1799,12 @@ module Bootstrap.RuntimeIr where
       else if not (foreign-abi-coherent plan (program-foreign-plans (writer-program w))) then unsupported w sp "foreign symbol has conflicting ABI contracts"
       else if not (primitive-immediate-arguments (foreign-inline plan) args) then unsupported w sp "an immarg primitive operand must be an immediate literal"
       else case expressions definitions locals (request-demand (ForeignDemand plan) w) args of
-        (evaluated, values) -> case foreign-marshal evaluated (foreign-parameters plan) values of
+        (evaluated, values) -> let boundary = (case foreign-inline plan of None -> True; Some body -> False) in
+          case foreign-marshal boundary evaluated (foreign-parameters plan) values of
           (ready, arguments) -> let result = foreign-result plan in let ty = foreign-llvm-type result in
             if same ty "void" then (line ready (cat ["  call void ", llvm-object-symbol (foreign-symbol plan), "(", join arguments, ")"]), "0")
             else let (next, value) = fresh ready "%foreign" in
-              foreign-result-word (line next (cat ["  ", value, " = call ", ty, " ", llvm-object-symbol (foreign-symbol plan), "(", join arguments, ")"])) result value
+              foreign-result-word (line next (cat ["  ", value, " = call ", if boundary then foreign-c-result result else ty, " ", llvm-object-symbol (foreign-symbol plan), "(", join arguments, ")"])) result value
   primitive-immediate-arguments :: Option InlinePrimitive -> List CoreTerm -> Bool
   primitive-immediate-arguments plan args = case plan of
     None -> True
@@ -2195,18 +2312,11 @@ module Bootstrap.RuntimeIr where
             (given, values) -> apply-values given field values
   apply-values :: Writer -> String -> List String -> (Writer, String)
   apply-values w function values = case values of Nil -> (w, function); Cons first rest -> case apply-one w function first of (done, result) -> apply-values done result rest
-  field-map-codes :: List Nat -> Nat -> Nat
-  field-map-codes codes factor = case codes of Nil -> 0; Cons first rest -> first * factor + field-map-codes rest (factor * 4)
-  request-object-shape :: Span -> List Nat -> Writer -> (Writer, Nat)
-  request-object-shape sp classes w = case w of
-    Writer next globals code errors (LayoutPlan groups tuples names cells) context ->
-      let packed = list-length classes + field-map-codes classes 4294967296 in
-      if wide-code classes then (refuse w sp wide-refusal, 0) else
-      case known-layout packed tuples of
-        Some id -> (w, id)
-        None -> if list-length classes > 16 || groups >= 1022 then (refuse w sp "dictionary needs an extended runtime descriptor", 0) else
-          let id = 64 * (groups + 1) in
-          (Writer next globals code errors (LayoutPlan (groups + 1) (Cons (id, packed) tuples) names (Cons (id, packed) cells)) context, id)
+  -- A dictionary's description covers its slots, which follow its raw
+  -- method-count word.
+  request-dictionary-shape :: Span -> List Nat -> Writer -> (Writer, Nat)
+  request-dictionary-shape sp classes w = if wide-code classes then (refuse w sp wide-refusal, 0) else if list-length classes > 15 then (refuse w sp "dictionary needs an extended runtime descriptor", 0)
+    else (w, shape-description 3 0 classes)
   dictionary-map :: CoreInstance -> List MethodSlot -> Writer -> Option (List Nat)
   dictionary-map owner fields w = case fields of
     Nil -> Some Nil
@@ -2251,7 +2361,7 @@ module Bootstrap.RuntimeIr where
         let scoped = with-representations bounds Nil w in
         let context = factory-bindings (scheme-requirements (instance-scheme factory)) 0 in
         case dictionary-map factory plans scoped of
-          Some fields -> case request-object-shape (Span 0 0 1 1) (Cons 0 fields) scoped of
+          Some fields -> case request-dictionary-shape (Span 0 0 1 1) fields scoped of
             (planned, descriptor) ->
               let started = line (line planned (cat ["define ", worker-linkage planned (dictionary-name (instance-name factory) classes), "i64 ", symbol-for-dictionary (instance-name factory) classes, "(", join (argument-words (value-parameters (list-length context) 0)), ") {"])) "entry:" in
               let count = list-length fields in
@@ -2259,13 +2369,14 @@ module Bootstrap.RuntimeIr where
               case fixed of
                 Some (ready, words) ->
                   let (declared, storage) = fresh ready "@dictionary" in
-                  let block = cat ["[", nat-to-string (count + 2), " x i64]"] in
-                  let stored = global declared (cat [storage, " = private unnamed_addr constant ", block, " [i64 ", nat-to-string (static-header 3 descriptor), ", i64 ", nat-to-string count, static-words (physical-words 0 count words), "], align 8"]) in
+                  let skip = static-prefix-words descriptor in
+                  let block = cat ["[", nat-to-string (count + 2 + skip), " x i64]"] in
+                  let stored = global (with-descriptor declared descriptor) (cat [storage, " = private unnamed_addr constant ", block, " [", static-prefix descriptor, "i64 ", nat-to-string (static-header 3 (description-field descriptor)), ", i64 ", nat-to-string count, static-words (physical-words 0 count words), "], align 8"]) in
                   let (done, result) = fresh stored "%v" in
-                  line (line (line done (cat ["  ", result, " = ptrtoint ptr getelementptr inbounds (", block, ", ptr ", storage, ", i64 0, i64 1) to i64"])) (cat ["  ret i64 ", result])) "}"
+                  line (line (line done (cat ["  ", result, " = ptrtoint ptr getelementptr inbounds (", block, ", ptr ", storage, ", i64 0, i64 ", nat-to-string (1 + skip), ") to i64"])) (cat ["  ret i64 ", result])) "}"
                 None ->
                   let (one, pointer) = fresh started "%ptr" in
-                  let allocated = line one (cat ["  ", pointer, " = call ptr @cinch_alloc_shaped(i64 ", nat-to-string (8 * (1 + count)), ", i64 3, i64 ", nat-to-string descriptor, ")"]) in
+                  let allocated = shaped-allocation one pointer (nat-to-string (8 * (1 + count))) 3 descriptor in
                   let initialized = store-fields allocated pointer 0 (Cons (nat-to-string count) (zeros count)) in
                   case initialize-values definitions factory classes context (given-bindings context 0) pointer (strict-fields initialized factory (instance-fields factory)) initialized of
                     (values, locals) -> let filled = dictionary-fields definitions factory classes context locals pointer plans values in
@@ -2532,7 +2643,7 @@ module Bootstrap.RuntimeIr where
       let (three, next) = fresh two "savednext" in
       let started = line (line (line three (cat ["  ", condition, " = icmp ult i64 ", nat-to-string index, ", ", filled])) (cat ["  br i1 ", condition, ", label %", duplicate, ", label %", next])) (cat [duplicate, ":"]) in
       case load-word started merged (nat-to-string index) of
-        (loaded, word) -> saved-dups rest (index + 1) filled merged (line (line (line loaded (count-call True word)) (cat ["  br label %", next])) (cat [next, ":"]))
+        (loaded, word) -> saved-dups rest (index + 1) filled merged (line (line (count-line True word loaded) (cat ["  br label %", next])) (cat [next, ":"]))
   load-arguments :: Nat -> Nat -> String -> Writer -> (Writer, List String)
   load-arguments count index merged w = if count == 0 then (w, Nil) else case load-word w merged (nat-to-string index) of
     (loaded, word) -> case load-arguments (count - 1) (index + 1) merged loaded of (done, words) -> (done, Cons word words)
@@ -2569,7 +2680,7 @@ module Bootstrap.RuntimeIr where
     let (one, words) = fresh w "%v" in
     let (two, bytes) = fresh one "%v" in
     let (three, pointer) = fresh two "%ptr" in
-    let allocated = line (line (line three (cat ["  ", words, " = add i64 ", total, ", 3"])) (cat ["  ", bytes, " = mul i64 ", words, ", 8"])) (cat ["  ", pointer, " = call ptr @cinch_alloc_shaped(i64 ", bytes, ", i64 2, i64 ", nat-to-string descriptor, ")"]) in
+    let allocated = shaped-allocation (line (line three (cat ["  ", words, " = add i64 ", total, ", 3"])) (cat ["  ", bytes, " = mul i64 ", words, ", 8"])) pointer bytes 2 descriptor in
     let prefix = [cat ["ptrtoint (ptr ", symbol (cat [name, ".app"]), " to i64)"], nat-to-string arity, total] in
     let stored = store-fields allocated pointer 0 prefix in
     let (four, destination) = fresh stored "%ptr" in
@@ -2581,7 +2692,7 @@ module Bootstrap.RuntimeIr where
     let saved-copy = line (line copied (cat ["  ", saved, " = getelementptr i64, ptr %self, i64 3"])) (cat ["  call ptr @memcpy(ptr ", destination, ", ptr ", saved, ", i64 ", saved-bytes, ")"]) in
     let argv-copy = line (line saved-copy (cat ["  ", incoming-bytes, " = mul i64 %argc, 8"])) (cat ["  ", incoming, " = getelementptr i8, ptr ", destination, ", i64 ", saved-bytes]) in
     let (nine, self-word) = fresh (saved-dups classes 0 filled destination (line argv-copy (cat ["  call ptr @memcpy(ptr ", incoming, ", ptr %argv, i64 ", incoming-bytes, ")"]))) "%v" in
-    let released = line (line nine (cat ["  ", self-word, " = ptrtoint ptr %self to i64"])) (count-call False self-word) in
+    let released = count-line False self-word (line nine (cat ["  ", self-word, " = ptrtoint ptr %self to i64"])) in
     let (ten, closure-word) = fresh released "%v" in
     line (line ten (cat ["  ", closure-word, " = ptrtoint ptr ", pointer, " to i64"])) (cat ["  ret i64 ", closure-word])
   -- The saturated call: `frame` holds the merged words and `total` is the
@@ -2643,7 +2754,7 @@ module Bootstrap.RuntimeIr where
     let saved-line = line one (cat ["  ", saved-bytes, " = mul i64 ", filled, ", 8"]) in
     let (merged, frame) = if arity == 0 then (saved-line, "%self") else merged-frame saved-line arity filled saved-bytes in
     let (two, self-word) = fresh (saved-dups classes 0 filled frame merged) "%v" in
-    let released = line (line two (cat ["  ", self-word, " = ptrtoint ptr %self to i64"])) (count-call False self-word) in
+    let released = count-line False self-word (line two (cat ["  ", self-word, " = ptrtoint ptr %self to i64"])) in
     app-saturate name classes frame filled saved-bytes total released
   term-fields :: CoreTerm -> Option (List CoreTerm)
   term-fields fields = case fields of
@@ -2740,18 +2851,8 @@ module Bootstrap.RuntimeIr where
   -- components have different classes per vector, so no single context
   -- types them all.
   request-class-layout :: Span -> List Nat -> Writer -> (Writer, Nat)
-  request-class-layout sp classes w = case w of
-    Writer next globals code errors (LayoutPlan groups tuples names cells) datas ->
-      let packed = list-length classes + class-field-map classes 4294967296 in
-      if wide-code classes then (refuse w sp wide-refusal, 0) else case known-layout packed tuples of
-
-        Some id -> (w, id)
-        None -> if list-length classes > 16 || groups >= 1022 then
-          (refuse w sp "polymorphic bundle layout needs an extended runtime descriptor", 0)
-          else let id = 64 * (groups + 1) in
-            (Writer next globals code errors (LayoutPlan (groups + 1) (Cons (id, packed) tuples) names (Cons (id, packed) cells)) datas, id)
-  class-field-map :: List Nat -> Nat -> Nat
-  class-field-map classes factor = case classes of Nil -> 0; Cons code rest -> code * factor + class-field-map rest (factor * 4)
+  request-class-layout sp classes w = if wide-code classes then (refuse w sp wide-refusal, 0) else if list-length classes > 16 then (refuse w sp "polymorphic bundle layout needs an extended runtime descriptor", 0)
+    else (w, shape-description 1 0 classes)
   tuple :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> (Writer, String)
   tuple definitions locals w sp fields = case term-fields fields of
     Some actual -> if list-length actual > 16 || not (field-words (writer-context w) actual) then unsupported w sp "tuple fields need an extended or polymorphic runtime layout" else
@@ -2761,34 +2862,30 @@ module Bootstrap.RuntimeIr where
           allocate-typed planned descriptor (typed-values (value-llvms (writer-context planned) (term-types actual)) values))
     None -> unsupported w sp "malformed tuple argument spine"
   -- A fieldless value is a static Obj. The header uses rc=0 and kind=1,
-  -- with the layout in bits48..63. Escaped blocks put the descriptor
-  -- before the header, so the payload address still has the header at -8.
+  -- with the layout field in bits 40..63. An escaped block puts its
+  -- descriptor's address before the header, so the payload address still
+  -- has the header at -8.
   --
-  -- The name is the descriptor, not a fresh counter, because a nullary
-  -- block's bytes are a pure function of its descriptor: same descriptor,
-  -- same two or three words. Naming by descriptor makes symbol identity
-  -- mean block identity, which is the rule the Rust seed already uses
-  -- (`dedupe_static_blocks` keeps the first line per symbol, and its
-  -- symbols are one per constructor unit). A per-site name made every
-  -- construction site its own definition: 7,126 definitions for 96
+  -- The name is the description, not a fresh counter, because a nullary
+  -- block's bytes are a pure function of its description: same
+  -- description, same two or three words. Naming by description makes
+  -- symbol identity mean block identity, which is the rule the Rust seed
+  -- already uses (`dedupe_static_blocks` keeps the first line per symbol,
+  -- and its symbols are one per constructor unit). A per-site name made
+  -- every construction site its own definition: 7,126 definitions for 96
   -- distinct blocks in the compiler's own module. `dedupe-globals` below
   -- then drops the repeats, so each block is defined once per module and
   -- every site references that one definition.
   static-constructor :: Writer -> Nat -> (Writer, String)
   static-constructor w descriptor =
-    let escaped = descriptor >= 65535 in
-    let layout = if escaped then (65535 :: Nat) else descriptor in
-    let header = nat-to-string (layout * 281474976710656 + 1099511627776) in
-    let words = if escaped then "3" else "2" in
-    let offset = if escaped then "2" else "1" in
-    let prefix = if escaped then cat ["i64 ", nat-to-string descriptor, ", "] else "" in
+    let skip = static-prefix-words descriptor in
     let storage = cat ["@empty-ctor", nat-to-string descriptor] in
-    let block = cat ["[", words, " x i64]"] in
-    let declared = global w (cat [storage, " = private unnamed_addr constant ", block,
-      " [", prefix, "i64 ", header, ", i64 0], align 8"]) in
+    let block = cat ["[", nat-to-string (2 + skip), " x i64]"] in
+    let declared = global (with-descriptor w descriptor) (cat [storage, " = private unnamed_addr constant ", block,
+      " [", static-prefix descriptor, "i64 ", nat-to-string (static-header 1 (description-field descriptor)), ", i64 0], align 8"]) in
     let (ready, result) = fresh declared "%v" in
     (line ready (cat ["  ", result, " = ptrtoint ptr getelementptr inbounds (", block,
-      ", ptr ", storage, ", i64 0, i64 ", offset, ") to i64"]), result)
+      ", ptr ", storage, ", i64 0, i64 ", nat-to-string (1 + skip), ") to i64"]), result)
   -- Drop repeated global definitions, keeping the first line per symbol.
   -- `static-constructor` names a nullary block by its descriptor, so two
   -- construction sites emit the same line and this keeps one of them.
@@ -2807,13 +2904,15 @@ module Bootstrap.RuntimeIr where
       Some name -> case hash-map-lookup name seen of
         Some _ -> dedupe-lines rest seen
         None -> Cons text (dedupe-lines rest (hash-map-insert name 1 seen))
-  -- The symbol of a nullary static block definition line, which is the
-  -- text from the `@` to the first space (`@empty-ctor<N> = ...`). Every
-  -- other global returns `None` and is passed through, so the filter can
-  -- only ever remove a repeated static block: the seed's
-  -- `dedupe_static_blocks` is scoped the same way, to `.blk#h` lines.
+  -- The symbol of a nullary static block or static descriptor definition
+  -- line, which is the text from the `@` to the first space
+  -- (`@empty-ctor<N> = ...`, `@cinch.desc.<N> = ...`). Both are named by
+  -- their content. Every other global returns `None` and is passed
+  -- through, so the filter can only ever remove a repeated content-named
+  -- constant: the seed's `dedupe_static_blocks` is scoped the same way, to
+  -- `.blk#h` lines.
   global-name :: String -> Option String
-  global-name text = if string-starts-with "@empty-ctor" text
+  global-name text = if string-starts-with "@empty-ctor" text || string-starts-with "@cinch.desc." text
     then case string-index-of " " text of
       None -> None
       Some stop -> Some (string-take stop text)
@@ -2837,7 +2936,7 @@ module Bootstrap.RuntimeIr where
     Nil -> static-constructor w descriptor
     Cons first rest ->
       let (allocated, pointer) = fresh w "%ptr" in
-      let ready = line allocated (cat ["  ", pointer, " = call ptr @cinch_alloc_ctor(i64 ", nat-to-string (8 * typed-payload values), ", i64 ", nat-to-string descriptor, ")"]) in
+      let ready = shaped-allocation allocated pointer (nat-to-string (8 * typed-payload values)) 1 descriptor in
       let filled = store-typed ready pointer 0 values in
       let (done, result) = fresh filled "%v" in
       (line done (cat ["  ", result, " = ptrtoint ptr ", pointer, " to i64"]), result)
@@ -2870,6 +2969,10 @@ module Bootstrap.RuntimeIr where
     let (one, flag) = fresh w "%v" in
     let (two, succeeded) = fresh one "matched" in
     line (line (line two (cat ["  ", flag, " = icmp ne i64 ", condition, ", 0"])) (cat ["  br i1 ", flag, ", label %", succeeded, ", label %", failed])) (cat [succeeded, ":"])
+  -- A constructor's tag is its header's low layout byte; 255 is the escape,
+  -- whose tag is word 0 of the descriptor addressed by the word before the
+  -- header. The test is always made: any block, another artifact's
+  -- included, may be escaped.
   constructor-tag :: Writer -> String -> (Writer, String)
   constructor-tag w value =
     let (one, pointer) = fresh w "%ptr" in
@@ -2882,24 +2985,24 @@ module Bootstrap.RuntimeIr where
     let (eight, joined-label) = fresh seven "tag-join" in
     let (nine, extended-slot) = fresh eight "%ptr" in
     let (ten, descriptor) = fresh nine "%v" in
-    let (eleven, shifted) = fresh ten "%v" in
+    let (eleven, descriptor-pointer) = fresh ten "%ptr" in
     let (twelve, extended-tag) = fresh eleven "%v" in
     let (thirteen, regular-tag) = fresh twelve "%v" in
     let (fourteen, tag) = fresh thirteen "%v" in
     let address = line (line fourteen (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"])) (cat ["  ", slot, " = getelementptr i64, ptr ", pointer, ", i64 -1"]) in
     let loaded = line address (cat ["  ", header, " = load atomic i64, ptr ", slot, " monotonic, align 8"]) in
     (emit-lines loaded [
-      cat ["  ", layout, " = lshr i64 ", header, ", 48"],
-      cat ["  ", escaped, " = icmp eq i64 ", layout, ", 65535"],
+      cat ["  ", layout, " = lshr i64 ", header, ", 40"],
+      cat ["  ", regular-tag, " = and i64 ", layout, ", 255"],
+      cat ["  ", escaped, " = icmp eq i64 ", regular-tag, ", 255"],
       cat ["  br i1 ", escaped, ", label %", extended-label, ", label %", regular-label],
       cat [extended-label, ":"],
       cat ["  ", extended-slot, " = getelementptr i64, ptr ", pointer, ", i64 -2"],
       cat ["  ", descriptor, " = load i64, ptr ", extended-slot],
-      cat ["  ", shifted, " = lshr i64 ", descriptor, ", 16"],
-      cat ["  ", extended-tag, " = and i64 ", shifted, ", 16777215"],
+      cat ["  ", descriptor-pointer, " = inttoptr i64 ", descriptor, " to ptr"],
+      cat ["  ", extended-tag, " = load i64, ptr ", descriptor-pointer],
       cat ["  br label %", joined-label],
       cat [regular-label, ":"],
-      cat ["  ", regular-tag, " = and i64 ", layout, ", 63"],
       cat ["  br label %", joined-label],
       cat [joined-label, ":"],
       cat ["  ", tag, " = phi i64 [ ", extended-tag, ", %", extended-label, " ], [ ", regular-tag, ", %", regular-label, " ]"]], tag)
@@ -3844,7 +3947,7 @@ module Bootstrap.RuntimeIr where
             let released = count-op False (core-type f) f-word (count-op False (core-type g) g-word called) in
             case load-word released out "0" of
               (first-loaded, first) -> case load-word first-loaded out "1" of
-                (second-loaded, second) -> case request-object-shape sp classes second-loaded of
+                (second-loaded, second) -> case request-tuple-shape sp classes second-loaded of
                   (planned, descriptor) -> allocate planned descriptor [first, second]
     (ready, other) -> unsupported ready sp "parBoth takes exactly two callbacks"
   pair-classes :: RuntimeContext -> UType -> Option (List Nat)
@@ -3898,7 +4001,7 @@ module Bootstrap.RuntimeIr where
               let pointed = line one (cat ["  ", pointer, " = inttoptr i64 ", word, " to ptr"]) in
               (case load-word pointed pointer "1" of
                 (loaded, owned) -> let cleared = store-fields loaded pointer 1 ["0"] in
-                  let released = line cleared (count-call False owned) in
+                  let released = count-line False owned cleared in
                   (count-op False cell word released, result)))
       else expression definitions locals w term
     other -> expression definitions locals w term
@@ -4077,7 +4180,7 @@ module Bootstrap.RuntimeIr where
                 let values = value-parameters count 0 in
                 let typed = typed-values (value-llvms context (core-constructor-fields c)) values in
                 let started = line (line planned (cat ["define ", worker-linkage planned (specialized-name name classes), "i64 ", symbol (specialized-name name classes), "(", join (typed-arguments typed), ") {"])) "entry:" in
-                case allocate-typed started (data-descriptor d descriptor tag) typed of
+                case allocate-typed started (data-descriptor descriptor tag) typed of
                   (allocated, result) -> line (line allocated (cat ["  ret i64 ", result])) "}"
         None -> refuse w (Span 0 0 1 1) "constructor worker needs representation specialization"
       None -> refuse w (Span 0 0 1 1) "constructor worker has no defining data"
@@ -4348,7 +4451,7 @@ module Bootstrap.RuntimeIr where
           ForeignDemand plan -> workers definitions (foreign-worker plan claimed)
           PrimitiveIntrinsicDemand symbol -> workers definitions (primitive-intrinsic-worker symbol claimed)
   declarations :: String
-  declarations = declarations-counting False
+  declarations = declarations-counting False True
   -- The four pooled parallel entries (runtime ABI 8). They are declared
   -- only when the program contains a parallel primitive, so a program that
   -- uses none emits the same IR bytes as before the builtins existed
@@ -4375,16 +4478,19 @@ module Bootstrap.RuntimeIr where
   par-preamble :: List CoreDefinition -> String
   par-preamble definitions = if par-used definitions then par-declarations else ""
   -- The module prelude. Debug counting swaps only the two count helpers,
-  -- so every other declaration and every call site is the same bytes.
-  declarations-counting :: Bool -> String
-  declarations-counting debug = cat [
+  -- so every other declaration and every call site is the same bytes. An
+  -- emission that does not reclaim emits neither helper, because no body
+  -- of it calls one.
+  declarations-counting :: Bool -> Bool -> String
+  declarations-counting debug reclaim = cat [
     "declare i64 @cinch_alloc(i64, i64)\ndeclare void @cinch_blackhole() noreturn\n",
-    "declare void @llvm.trap()\ndeclare ptr @cinch_alloc_ctor(i64, i64)\ndeclare ptr @cinch_alloc_shaped(i64, i64, i64)\ndeclare ptr @memcpy(ptr, ptr, i64)\ndeclare void @cinch_layouts_register(ptr, i64)\n",
+    "declare void @llvm.trap()\ndeclare ptr @cinch_alloc_ctor(i64, i64)\ndeclare ptr @cinch_alloc_shaped(i64, i64, i64)\ndeclare ptr @cinch_alloc_ctor_desc(i64, ptr)\ndeclare ptr @cinch_alloc_shaped_desc(i64, i64, ptr)\ndeclare ptr @memcpy(ptr, ptr, i64)\n",
     "declare void @cinch_dup_mt(i64)\ndeclare void @cinch_drop_mt(i64)\ndeclare void @cinch_drop_slow(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
-    if debug then debug-count-helpers else count-helpers,
+    if not reclaim then "" else if debug then debug-count-helpers else count-helpers,
     "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_int_from_nat(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_get(i64, i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
     "declare i64 @cinch_array_from_list(i64, i64)\ndeclare i64 @cinch_array_replicate(i64, i64, i64)\ndeclare i64 @cinch_array_len(i64)\ndeclare i64 @cinch_array_has(i64, i64)\ndeclare i64 @cinch_array_get(i64, i64)\ndeclare i64 @cinch_array_set(i64, i64, i64)\ndeclare i64 @cinch_array_slice(i64, i64, i64)\ndeclare i64 @cinch_array_append(i64, i64)\ndeclare i64 @cinch_tensor_reshape(i64, i64)\ndeclare i64 @cinch_tensor_shape(i64)\ndeclare i64 @cinch_tensor_data(i64)\ndeclare i64 @cinch_tensor_index(i64, i64)\ndeclare i64 @cinch_tensor_get(i64, i64)\ndeclare i64 @cinch_tensor_set(i64, i64, i64)\ndeclare i64 @cinch_columnar_column(i64)\ndeclare i64 @cinch_columnar_zip(i64, i64, i64)\ndeclare i64 @cinch_columnar_rows(i64)\ndeclare i64 @cinch_columnar_columns(i64)\ndeclare i64 @cinch_columnar_get(i64, i64)\ndeclare i64 @cinch_columnar_child(i64, i64)\ndeclare i64 @cinch_columnar_array(i64)\n",
     "declare i64 @cinch_text_f64_to_decimal(double)\ndeclare double @cinch_text_f64_from_decimal(i64)\n",
+    "declare i64 @cinch_slots_new(i64, i64)\ndeclare i64 @cinch_slots_move(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_slots_clear(i64, i64, i64)\ndeclare i64 @cinch_slots_fault(i64)\ndeclare i64 @cinch_nat_low_word(i64)\ndeclare void @llvm.prefetch.p0(ptr, i32, i32, i32)\n",
     "declare i64 @cinch_io_read(i64)\ndeclare i64 @cinch_text_sha256(i64)\ndeclare i64 @cinch_text_sha512(i64)\ndeclare i64 @cinch_text_sha1(i64)\ndeclare i64 @cinch_text_md5(i64)\ndeclare i64 @cinch_text_hmac_sha256(i64, i64)\n",
     "declare i64 @cinch_random_bytes(i64)\ndeclare i64 @cinch_fs_mkdir(i64, i64)\ndeclare i64 @cinch_fs_remove(i64, i64)\ndeclare i64 @cinch_fs_temp_dir()\ndeclare i64 @cinch_signal_send(i64, i64)\ndeclare i64 @cinch_arena_new(i64)\ndeclare i64 @cinch_arena_leave(i64)\ndeclare i64 @cinch_argv_count()\n",
     "declare i64 @cinch_net_tcp_connect(i64, i64)\ndeclare i64 @cinch_net_read(i64, i64)\ndeclare i64 @cinch_net_write(i64, i64)\ndeclare i64 @cinch_net_close(i64)\ndeclare i64 @cinch_net_resolve(i64, i64)\n",
@@ -4397,7 +4503,7 @@ module Bootstrap.RuntimeIr where
   -- The inline count operations of compiler/src/codegen.rs (rc_op), as two
   -- alwaysinline helpers. A word that is 0 or odd (an immediate) owns no
   -- block. Otherwise the header at -8 holds the signed count in its low
-  -- 40 bits; shifted left by 24 it compares as the count itself: positive
+  -- 35 bits; shifted left by 29 it compares as the count itself: positive
   -- is a count only this thread changes, updated in place; negative is a
   -- block shared with other tasks (the runtime's atomic paths); 0 is an
   -- immortal block, never written. A drop of the last reference calls
@@ -4406,14 +4512,14 @@ module Bootstrap.RuntimeIr where
   count-helpers = cat [
     "define internal void @cinch.typed.rc.dup(i64 %w) alwaysinline {\nentry:\n",
     "  %lo = and i64 %w, 1\n  %null = icmp eq i64 %w, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
-    "  %p = inttoptr i64 %w to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n  %h = load atomic i64, ptr %hp monotonic, align 8\n  %top = shl i64 %h, 24\n",
+    "  %p = inttoptr i64 %w to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n  %h = load atomic i64, ptr %hp monotonic, align 8\n  %top = shl i64 %h, 29\n",
     "  %plain = icmp sgt i64 %top, 0\n  br i1 %plain, label %inc, label %other\ninc:\n  %h1 = add i64 %h, 1\n  store i64 %h1, ptr %hp\n  br label %done\n",
     "other:\n  %shared = icmp ne i64 %top, 0\n  br i1 %shared, label %mt, label %done\nmt:\n  call void @cinch_dup_mt(i64 %w)\n  br label %done\ndone:\n  ret void\n}\n",
     "define internal void @cinch.typed.rc.drop(i64 %w) alwaysinline {\nentry:\n",
     "  %lo = and i64 %w, 1\n  %null = icmp eq i64 %w, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
-    "  %p = inttoptr i64 %w to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n  %h = load atomic i64, ptr %hp monotonic, align 8\n  %top = shl i64 %h, 24\n",
-    "  %plain = icmp sgt i64 %top, 16777216\n  br i1 %plain, label %dec, label %other\ndec:\n  %h1 = sub i64 %h, 1\n  store i64 %h1, ptr %hp\n  br label %done\n",
-    "other:\n  switch i64 %top, label %mt [\n    i64 0, label %done\n    i64 16777216, label %slow\n  ]\n",
+    "  %p = inttoptr i64 %w to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n  %h = load atomic i64, ptr %hp monotonic, align 8\n  %top = shl i64 %h, 29\n",
+    "  %plain = icmp sgt i64 %top, 536870912\n  br i1 %plain, label %dec, label %other\ndec:\n  %h1 = sub i64 %h, 1\n  store i64 %h1, ptr %hp\n  br label %done\n",
+    "other:\n  switch i64 %top, label %mt [\n    i64 0, label %done\n    i64 536870912, label %slow\n  ]\n",
     "slow:\n  call void @cinch_drop_slow(i64 %w)\n  br label %done\nmt:\n  call void @cinch_drop_mt(i64 %w)\n  br label %done\ndone:\n  ret void\n}\n"]
   -- The reference count debugging build (TargetProfile::rc_debug in
   -- compiler/src/core.rs): both helpers call the runtime's out-of-line
@@ -4431,15 +4537,15 @@ module Bootstrap.RuntimeIr where
   apply-entry-with-linkage linkage = cat ["define ", linkage, "i64 @__apply(i64 %closure, i64 %argc, ptr %argv) {\nentry:\n",
     "  %self = inttoptr i64 %closure to ptr\n  %code = load i64, ptr %self\n  %function = inttoptr i64 %code to ptr\n",
     "  %result = call i64 %function(ptr %self, i64 %argc, ptr %argv)\n  ret i64 %result\n}\n"]
-  entry :: Nat -> String
-  entry mode =
+  entry :: Nat -> Bool -> String
+  entry mode reclaim =
     let invocation = (if mode == 0 then cat ["  %result = call i64 ", symbol "main", "()\n"]
       else if mode == 1 then cat ["  %result = call i64 ", symbol "main", "(i64 0)\n"]
       else if mode == 3 then cat ["  %function = call i64 ", symbol "main", "()\n  %result = call i64 @__apply(i64 %function, i64 0, ptr null)\n"]
       else cat ["  %function = call i64 ", symbol "main", "()\n  %argv = alloca i64\n  store i64 0, ptr %argv\n  %result = call i64 @__apply(i64 %function, i64 1, ptr %argv)\n"]) in
     cat ["define i64 @cinch.typed.exit() {\nentry:\n", invocation,
-    "  %exit = call i64 @cinch_int_to_i64(i64 %result)\n  call void @cinch.typed.rc.drop(i64 %result)\n  ret i64 %exit\n}\n",
-    "define i32 @main(i32 %argc, ptr %argv) {\nentry:\n  call void @cinch_reclaim_enable()\n  %count = sext i32 %argc to i64\n  call i64 @cinch_argv_init(i64 %count, ptr %argv)\n",
+    "  %exit = call i64 @cinch_int_to_i64(i64 %result)\n", if reclaim then "  call void @cinch.typed.rc.drop(i64 %result)\n" else "", "  ret i64 %exit\n}\n",
+    "define i32 @main(i32 %argc, ptr %argv) {\nentry:\n", if reclaim then "  call void @cinch_reclaim_enable()\n" else "", "  %count = sext i32 %argc to i64\n  call i64 @cinch_argv_init(i64 %count, ptr %argv)\n",
     "  %exit = call i64 @cinch_run_main(ptr @cinch.typed.exit)\n  %checked = call i64 @cinch_exit_check(i64 %exit)\n  %code = trunc i64 %checked to i32\n  ret i32 %code\n}\n"]
   entry-parameters :: List Quant -> Bool
   entry-parameters qs = case qs of Nil -> True; Cons q rest -> erased-kind (quant-kind q) && entry-parameters rest
@@ -4466,15 +4572,7 @@ module Bootstrap.RuntimeIr where
   empty-writer :: ProgramInfo -> Writer
   empty-writer info = empty-writer-with-plan info NoInline
   empty-writer-with-plan :: ProgramInfo -> InlinePlan -> Writer
-  empty-writer-with-plan info plan = Writer 0 builder-new builder-new Nil (object-layouts (program-object info)) (RuntimeContext info Nil Nil Nil Nil plan)
-  prefix-cells :: Nat -> List Nat -> List (Nat, Nat)
-  prefix-cells index words = case words of Nil -> Nil; Cons first rest -> Cons (index, first) (prefix-cells (index + 1) rest)
-  object-layouts :: Option RuntimeObject -> LayoutPlan
-  object-layouts provider = case provider of
-    None -> LayoutPlan 0 Nil Nil Nil
-    Some value -> let words = object-words value in
-      if list-length words == 0 then LayoutPlan 0 Nil Nil Nil else
-        LayoutPlan ((list-length words + 63) / 64) Nil Nil (prefix-cells 0 words)
+  empty-writer-with-plan info plan = Writer 0 builder-new builder-new Nil (LayoutPlan Nil) (RuntimeContext info Nil Nil Nil Nil plan)
   -- Reached method vectors grow monotonically in a finite Raw/Obj/TObj
   -- space. Plan to a fixed point before emitting dictionary layouts, so
   -- every instance and every indirect projection uses one class slot table.
@@ -4615,8 +4713,9 @@ module Bootstrap.RuntimeIr where
   -- specializations. Every root and reached helper uses the same checked
   -- worker/layout planner as an executable, without an entry requirement.
   -- Only selected roots have external linkage. Generated helpers and the
-  -- closure dispatcher stay local; descriptor namespaces still require a
-  -- compatible provider layout prefix. Physical ABI metadata is separate.
+  -- closure dispatcher stay local. Blocks describe themselves, so nothing
+  -- about layouts is shared with the provider. Physical ABI metadata is
+  -- separate.
   -- The inliner is opt-in, as it is for a program: the plain entries emit
   -- every worker the roots reach, and a `-mode` entry takes the flag.
   emit-runtime-library-with-object :: CheckedProgram -> Option RuntimeObject -> List (String, List Nat) -> Result (List Diagnostic) String
@@ -4625,10 +4724,10 @@ module Bootstrap.RuntimeIr where
   emit-runtime-library-with-object-mode inlining checked provider roots =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
-    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty in
+    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty True in
     let plan = inline-plan inlining definitions info in
     case settled-workers-with-plan plan definitions roots info of
-      Writer next globals code Nil layouts datas -> Ok (cat [declarations, par-preamble definitions, dedupe-globals (builder-run globals), layout-table layouts, apply-entry-with-linkage "internal ", builder-run code])
+      Writer next globals code Nil layouts datas -> Ok (cat [declarations, par-preamble definitions, dedupe-globals (builder-run globals), apply-entry-with-linkage "internal ", builder-run code])
       Writer next globals code errors layouts datas -> Err errors
   -- Public ABI bridges and their metadata share this checked physical plan.
   -- The parameter prefix includes eager method values, dictionaries and
@@ -4707,18 +4806,6 @@ module Bootstrap.RuntimeIr where
               let bridged = library-bridge public (specialized-name name classes) params w in
               case library-bridges definitions rest (Cons (name, classes, public) seen) bridged of
                 (done, units) -> (done, JArr (library-unit public params result) units)
-  library-new-cells :: Nat -> List (Nat, Nat) -> List (Nat, Nat)
-  library-new-cells prefix cells = case cells of
-    Nil -> Nil
-    Cons (index, word) rest -> if index < prefix then library-new-cells prefix rest else Cons (index, word) (library-new-cells prefix rest)
-  library-layout-tail :: Nat -> Nat -> List (Nat, Nat) -> List Nat
-  library-layout-tail index end cells = if index >= end then Nil else Cons (layout-word index cells) (library-layout-tail (index + 1) end cells)
-  library-layout-words :: Writer -> LayoutPlan -> List Nat
-  library-layout-words w layouts = case layouts of
-    LayoutPlan groups tuples names cells ->
-      let prefix = (case program-object (writer-program w) of None -> Nil; Some provider -> object-words provider) in
-      let count = list-length prefix in
-      prefix <> library-layout-tail count (layout-count layouts) (library-new-cells count cells)
   -- Like the Native object collector, every non-generic checked definition
   -- is a physical root. This inventory grants no source visibility: exports
   -- remain in the independently checked interfaces. Do not synthesize a
@@ -4735,7 +4822,7 @@ module Bootstrap.RuntimeIr where
   runtime-library-default-roots :: CheckedProgram -> Result String (List (String, List Nat, String))
   runtime-library-default-roots checked =
     let typed = checked-elaboration checked in
-    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil None (Some Nil) (elaboration-effects typed) hash-map-empty in
+    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil None (Some Nil) (elaboration-effects typed) hash-map-empty True in
     case (library-default-definitions (elaboration-core typed), library-default-constructors (elaboration-data typed) (empty-writer info)) of
       (Ok definitions, Ok constructors) -> Ok (definitions <> constructors)
       (Err message, other) -> Err message
@@ -4785,34 +4872,25 @@ module Bootstrap.RuntimeIr where
   library-public-name name codes = case export-global name of
     Err message -> Err message
     Ok public -> Ok (cat [public, if list-length codes == 0 then "" else cat ["@", native-classes codes]])
-  library-type-facts :: List (String, Nat) -> List CoreData -> Json
-  library-type-facts names datas = case names of
-    Nil -> JObjEnd
-    Cons (key, descriptor) rest -> case library-layout-data key datas of
-      None -> library-type-facts rest datas
-      Some (d, codes) -> case library-public-name (core-data-name d) codes of
-        Err message -> library-type-facts rest datas
-        Ok public -> JObj public (if list-length (core-data-constructors d) <= 64 && descriptor < 65472 then JObj "group" (JNum (nat-to-int (descriptor / 64))) JObjEnd else
-          JObj "base" (JNum (nat-to-int descriptor)) (JObj "shared" (JBool False) JObjEnd)) (library-type-facts rest datas)
-  library-constructor-facts :: CoreData -> List Nat -> Nat -> Nat -> List CoreConstructor -> Json -> Json
-  library-constructor-facts d codes descriptor tag constructors rest = case constructors of
+  -- A constructor's facts, as the seed's object ABI states them: its tag,
+  -- arity, header layout field and whether the block is escaped.
+  library-constructor-facts :: CoreData -> List Nat -> List Nat -> Nat -> List CoreConstructor -> Json -> Json
+  library-constructor-facts d codes descriptions tag constructors rest = case constructors of
     Nil -> rest
     Cons c more -> case library-public-name (core-constructor-name c) codes of
-      Err message -> library-constructor-facts d codes descriptor (tag + 1) more rest
-      Ok public -> JObj public (JObj "tag" (JNum (nat-to-int tag))
+      Err message -> library-constructor-facts d codes descriptions (tag + 1) more rest
+      Ok public -> let description = data-descriptor descriptions tag in
+        JObj public (JObj "tag" (JNum (nat-to-int tag))
         (JObj "arity" (JNum (nat-to-int (list-length (core-constructor-fields c))))
-          (JObj "descriptor" (JNum (nat-to-int (data-descriptor d descriptor tag))) JObjEnd)))
-        (library-constructor-facts d codes descriptor (tag + 1) more rest)
-  library-constructor-layout-facts :: List (String, Nat) -> List CoreData -> Json
+          (JObj "descriptor" (JNum (nat-to-int (description-field description)))
+            (JObj "escaped" (JBool (description-escaped description)) JObjEnd))))
+        (library-constructor-facts d codes descriptions (tag + 1) more rest)
+  library-constructor-layout-facts :: List (String, List Nat) -> List CoreData -> Json
   library-constructor-layout-facts names datas = case names of
     Nil -> JObjEnd
     Cons (key, descriptor) rest -> case library-layout-data key datas of
       None -> library-constructor-layout-facts rest datas
       Some (d, codes) -> library-constructor-facts d codes descriptor 0 (core-data-constructors d) (library-constructor-layout-facts rest datas)
-  library-escaped :: List (String, Nat) -> List CoreData -> Bool
-  library-escaped names datas = case names of
-    Nil -> False
-    Cons (key, descriptor) rest -> (case library-layout-data key datas of Some (d, codes) -> list-length (core-data-constructors d) > 64 || descriptor >= 65472; None -> False) || library-escaped rest datas
   library-method-slot-facts :: List MethodSlot -> Json
   library-method-slot-facts plans = case plans of
     Nil -> JArrEnd
@@ -4833,66 +4911,65 @@ module Bootstrap.RuntimeIr where
     Cons first rest -> library-has-dictionary-demand rest
   library-object-facts :: Writer -> Json
   library-object-facts w = case w of
-    Writer next globals code errors (LayoutPlan groups tuples names cells) context ->
+    Writer next globals code errors (LayoutPlan names) context ->
       let datas = program-data (writer-program w) in
       let dictionary-demand = (case context of RuntimeContext info bounds rigids pending done inlining -> library-has-dictionary-demand done) in
-      JObj "method_families" (library-method-family-facts w (program-classes (writer-program w))) (JObj "unpublished_dictionaries" (JBool dictionary-demand) (JObj "types" (library-type-facts names datas)
-        (JObj "constructors" (library-constructor-layout-facts names datas)
-          (JObj "escaped_descriptors" (JBool (library-escaped names datas)) JObjEnd))))
+      JObj "method_families" (library-method-family-facts w (program-classes (writer-program w))) (JObj "unpublished_dictionaries" (JBool dictionary-demand)
+        (JObj "constructors" (library-constructor-layout-facts names datas) JObjEnd))
 
   -- The alias in each root is a physical symbol chosen by the caller from
   -- checked export identities. The pipeline owns that source-name authority.
   -- These are physical unit/layout facts, not a completed object manifest.
-  emit-runtime-library-artifact-with-object :: CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, List Nat, Json)
+  emit-runtime-library-artifact-with-object :: CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, Json)
   emit-runtime-library-artifact-with-object checked provider roots = case emit-runtime-library-artifact True False checked provider roots of
     Err errors -> Err errors
-    Ok (ir, words, units, facts) -> Ok (ir, words, units)
-  -- A closed dependency object never installs a shorter layout table from a
-  -- global constructor. The final consumer registers its complete compatible
-  -- prefix, including this object's actual descriptors, once before use.
-  emit-runtime-library-object-with-object :: CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, List Nat, Json, Json)
+    Ok (ir, units, facts) -> Ok (ir, units)
+  -- An object's facts are what a consumer's manifest records for it.
+  emit-runtime-library-object-with-object :: CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, Json, Json)
   emit-runtime-library-object-with-object checked provider roots = emit-runtime-library-artifact False False checked provider roots
   -- The inlining switch is the plan's first field: a measured run takes the
   -- same library with the copies turned off.
-  emit-runtime-library-object-with-object-mode :: Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, List Nat, Json, Json)
+  emit-runtime-library-object-with-object-mode :: Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, Json, Json)
   emit-runtime-library-object-with-object-mode inlining checked provider roots = emit-runtime-library-artifact False inlining checked provider roots
-  emit-runtime-library-artifact-with-object-mode :: Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, List Nat, Json)
+  emit-runtime-library-artifact-with-object-mode :: Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, Json)
   emit-runtime-library-artifact-with-object-mode inlining checked provider roots = case emit-runtime-library-artifact True inlining checked provider roots of
     Err errors -> Err errors
-    Ok (ir, words, units, facts) -> Ok (ir, words, units)
-  emit-runtime-library-artifact :: Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, List Nat, Json, Json)
-  emit-runtime-library-artifact register inlining checked provider roots =
+    Ok (ir, units, facts) -> Ok (ir, units)
+  -- `artifact` is a bare artifact (IR and units); otherwise the result also
+  -- carries the object's facts.
+  emit-runtime-library-artifact :: Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, Json, Json)
+  emit-runtime-library-artifact artifact inlining checked provider roots =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let selected = library-selected-roots roots in
-    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil provider (Some Nil) (elaboration-effects typed) hash-map-empty in
+    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil provider (Some Nil) (elaboration-effects typed) hash-map-empty True in
     let plan = inline-plan inlining definitions info in
     case library-bridges definitions roots Nil (settled-workers-with-plan plan definitions selected info) of
       (bridged, units) -> case workers definitions bridged of
         Writer next globals code Nil layouts context ->
-          let ir = cat [declarations, par-preamble definitions, dedupe-globals (builder-run globals), if register then layout-table layouts else "", apply-entry-with-linkage "internal ", builder-run code] in
-          Ok (ir, library-layout-words bridged layouts, units, if register then JObjEnd else library-object-facts (Writer next globals code Nil layouts context))
+          let ir = cat [declarations, par-preamble definitions, dedupe-globals (builder-run globals), apply-entry-with-linkage "internal ", builder-run code] in
+          Ok (ir, units, if artifact then JObjEnd else library-object-facts (Writer next globals code Nil layouts context))
         Writer next globals code errors layouts context -> Err errors
   emit-runtime-program :: CheckedProgram -> Result (List Diagnostic) String
   emit-runtime-program checked = emit-runtime-program-with-object checked None
-  emit-runtime-program-mode :: Bool -> CheckedProgram -> Result (List Diagnostic) String
-  emit-runtime-program-mode inlining checked = emit-runtime-program-with-object-mode inlining checked None
+  emit-runtime-program-mode :: Bool -> Bool -> CheckedProgram -> Result (List Diagnostic) String
+  emit-runtime-program-mode inlining reclaim checked = emit-runtime-program-with-object-mode inlining reclaim checked None
   emit-runtime-program-with-object :: CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
-  emit-runtime-program-with-object checked provider = emit-runtime-program-counting False checked provider
-  emit-runtime-program-with-object-mode :: Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
-  emit-runtime-program-with-object-mode inlining checked provider = emit-runtime-program-counting-mode inlining False checked provider
+  emit-runtime-program-with-object checked provider = emit-runtime-program-counting False True checked provider
+  emit-runtime-program-with-object-mode :: Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
+  emit-runtime-program-with-object-mode inlining reclaim checked provider = emit-runtime-program-counting-mode inlining False reclaim checked provider
   -- A debug-counting program routes its own count operations through the
   -- runtime's checked entries; a linked provider object keeps the counts
   -- it was compiled with. The inliner is opt-in, so the plain entry emits
   -- every worker a root reaches and a `-mode` entry takes the flag.
-  emit-runtime-program-counting :: Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
-  emit-runtime-program-counting debug checked provider = emit-runtime-program-counting-mode False debug checked provider
-  emit-runtime-program-counting-mode :: Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
-  emit-runtime-program-counting-mode inlining debug checked provider =
+  emit-runtime-program-counting :: Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
+  emit-runtime-program-counting debug reclaim checked provider = emit-runtime-program-counting-mode False debug reclaim checked provider
+  emit-runtime-program-counting-mode :: Bool -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
+  emit-runtime-program-counting-mode inlining debug reclaim checked provider =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let datas = elaboration-data typed in
-    let info = ProgramInfo datas (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil provider None (elaboration-effects typed) hash-map-empty in
+    let info = ProgramInfo datas (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil provider None (elaboration-effects typed) hash-map-empty reclaim in
     case definition "main" definitions of
       None -> Err [MkDiagnostic "bootstrap.runtime-ir" (Span 0 0 1 1) "runtime entry has no main definition"]
       Some d -> case entry-mode d of
@@ -4902,5 +4979,5 @@ module Bootstrap.RuntimeIr where
         Some mode -> let plan = inline-plan inlining definitions info in
           let settled = settled-workers-with-plan plan definitions [("main", Nil)] info in
           case (case constructor "main" datas of Some found -> workers definitions (demand-worker "main" Nil (empty-writer-with-plan (writer-program settled) plan)); None -> settled) of
-            Writer next globals code Nil layouts datas -> Ok (cat [declarations-counting debug, par-preamble definitions, dedupe-globals (builder-run globals), layout-table layouts, apply-entry, builder-run code, entry mode])
+            Writer next globals code Nil layouts datas -> Ok (cat [declarations-counting debug reclaim, par-preamble definitions, dedupe-globals (builder-run globals), apply-entry, builder-run code, entry mode reclaim])
             Writer next globals code errors layouts datas -> Err errors

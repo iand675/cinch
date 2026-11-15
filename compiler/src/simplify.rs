@@ -2611,6 +2611,259 @@ pub fn simplify(program: &mut Program, opts: &SimplifyOptions, report: &mut Simp
 /// program. Nothing is emitted for a foreign unit: its body is only ever
 /// copied into a caller of this program, and the definition stays in the
 /// object the artifact describes.
+// ------------------------------------------------ dictionary specialisation
+//
+// The inliner refuses a recursive group (it cannot unfold a loop), so a
+// loop that receives a dictionary calls its methods through `__apply` on
+// every iteration, even when every caller passes the same static instance:
+// `vec-sort` with `Ord Nat`, a hash-table probe with `Hash Nat`. This pass
+// is GHC's specialiser for that case: at a call whose argument is a
+// *closed* static value holding a dictionary (a static dictionary, or a
+// closure over such values), clone the callee with that parameter removed
+// and the value bound once at the clone's entry. Inside the clone the
+// parameter is a known local, so `direct-dict-call` and
+// `known-closure-call` make its calls direct and the inliner unfolds them.
+// A value with no dictionary in it (a top-level function, a closure over
+// plain values, a record of functions) is `specialise-arguments`' to copy
+// for: the two passes split the known-argument space by what the argument
+// is, so no site has two specialisations. A recursive call that
+// passes the parameter on unchanged passes the same value, so it lands on
+// the same clone (the memo is keyed by callee, class vector, position and
+// the value's structure), which is what turns the loop itself into a
+// specialised loop rather than one specialised iteration.
+//
+// Bounds: a callee over `SPEC_UNIT_NODES` is not cloned, a source unit has
+// at most `SPEC_CLONES_PER_UNIT` clones, and a linear parameter is never cloned
+// (binding it at entry would not change its use count, but the pass does
+// not need to argue about it). The value is evaluated once per call of the
+// clone, exactly where the caller evaluated it before.
+
+/// The largest callee the pass clones.
+const SPEC_UNIT_NODES: usize = 4_000;
+/// The most clones one source unit has, counting clones of its clones: a
+/// bound per function, so what one unit's callers pass never decides
+/// whether another unit is specialised.
+const SPEC_CLONES_PER_UNIT: usize = 8;
+
+#[derive(Default)]
+struct DictSpecState {
+    /// `callee|classes|position|value` to the clone's name.
+    memo: HashMap<String, String>,
+    /// Clones made so far, by source unit (the name before any `$s`).
+    per_unit: HashMap<String, usize>,
+    clones: usize,
+}
+
+/// The unit a clone was first made from.
+fn spec_source(name: &str) -> &str {
+    name.find("$s").map_or(name, |at| &name[..at])
+}
+
+/// What a call site needs to know about a callee to clone it.
+struct SpecTarget {
+    arity: usize,
+    /// Parameters worth cloning on: counted, mentioned, and not linear.
+    wants: Vec<bool>,
+    nodes: usize,
+    index: usize,
+}
+
+/// A closed static value: what an argument is when every word it is built
+/// from is known at compile time. Locals resolve through the bindings in
+/// scope (`env`), so a value let-bound before the call counts.
+fn resolve_static(e: &Core, env: &[(LocalId, Core)], tables: &Tables) -> Option<Core> {
+    match e {
+        Core::Var(x) => env.iter().rev().find(|(l, _)| l == x).map(|(_, v)| v.clone()),
+        Core::Global(g, _) => tables.arity.get(&g.0).is_some_and(|a| *a > 0).then(|| e.clone()),
+        Core::InstDict(g, subs, classes) => {
+            let subs = subs.iter().map(|s| resolve_static(s, env, tables)).collect::<Option<Vec<_>>>()?;
+            Some(Core::InstDict(g.clone(), subs, classes.clone()))
+        }
+        Core::Lam { fn_id, env: captured, classes } => {
+            let captured = captured.iter().map(|s| resolve_static(s, env, tables)).collect::<Option<Vec<_>>>()?;
+            Some(Core::Lam { fn_id: fn_id.clone(), env: captured, classes: classes.clone() })
+        }
+        _ => None,
+    }
+}
+
+/// Whether a closed static value has a dictionary in it.
+fn holds_dict(e: &Core) -> bool {
+    match e {
+        Core::InstDict(..) => true,
+        Core::Lam { env, .. } => env.iter().any(holds_dict),
+        _ => false,
+    }
+}
+
+/// Rewrite calls to clones in `e`, requesting the clones that do not exist
+/// yet. One argument per call per round: the next round sees the clone's
+/// call and may clone it on another position.
+fn spec_walk(
+    e: &mut Core,
+    env: &mut Vec<(LocalId, Core)>,
+    targets: &HashMap<String, SpecTarget>,
+    tables: &Tables,
+    state: &mut DictSpecState,
+    requests: &mut Vec<(String, usize, usize, Core)>,
+) -> bool {
+    match e {
+        Core::Let(l, _, value, body) => {
+            let mut changed = spec_walk(value, env, targets, tables, state, requests);
+            let bound = resolve_static(value, env, tables);
+            let pushed = bound.is_some();
+            if let Some(v) = bound {
+                env.push((*l, v));
+            }
+            changed |= spec_walk(body, env, targets, tables, state, requests);
+            if pushed {
+                env.pop();
+            }
+            return changed;
+        }
+        Core::App(head, args) => {
+            let mut changed = false;
+            for a in args.iter_mut() {
+                changed |= spec_walk(a, env, targets, tables, state, requests);
+            }
+            changed |= spec_walk(head, env, targets, tables, state, requests);
+            let Core::Global(g, classes) = &**head else { return changed };
+            let Some(target) = targets.get(&g.0) else { return changed };
+            if target.arity != args.len() {
+                return changed;
+            }
+            for i in 0..args.len() {
+                if !target.wants[i] {
+                    continue;
+                }
+                let Some(value) = resolve_static(&args[i], env, tables) else { continue };
+                if !holds_dict(&value) {
+                    continue;
+                }
+                let key = format!("{}|{:?}|{}|{:?}", g.0, classes, i, value);
+                let name = match state.memo.get(&key) {
+                    Some(name) => name.clone(),
+                    None => {
+                        let made = state.per_unit.entry(spec_source(&g.0).to_string()).or_default();
+                        if *made >= SPEC_CLONES_PER_UNIT {
+                            continue;
+                        }
+                        *made += 1;
+                        state.clones += 1;
+                        let name = format!("{}$s{}", g.0, state.clones);
+                        state.memo.insert(key, name.clone());
+                        requests.push((name.clone(), target.index, i, value));
+                        name
+                    }
+                };
+                let classes = classes.clone();
+                args.remove(i);
+                **head = Core::Global(GlobalId(name), classes);
+                return true;
+            }
+            changed
+        }
+        _ => {
+            let mut changed = false;
+            for k in child_slots(e) {
+                changed |= spec_walk(k, env, targets, tables, state, requests);
+            }
+            changed
+        }
+    }
+}
+
+/// The callee `src` with parameter `i` removed and bound to `value` at
+/// entry; the later parameters move down one place.
+fn spec_clone(src: &FnDef, name: String, i: usize, value: Core, fresh: &mut Fresh) -> FnDef {
+    let mut body = src.body.clone();
+    let mut renames: HashMap<LocalId, LocalId> = HashMap::new();
+    rename_binders(&mut body, &mut renames, fresh);
+    let bound = fresh.local();
+    subst(&mut body, LocalId(i), &Core::Var(bound));
+    for j in (i + 1)..src.params.len() {
+        subst(&mut body, LocalId(j), &Core::Var(LocalId(j - 1)));
+    }
+    let class = src.repr.params.get(i).copied().unwrap_or(Class::Obj);
+    let mut out = src.clone();
+    out.id = GlobalId(name);
+    out.body = Core::Let(bound, class, Box::new(value), Box::new(body));
+    out.params.remove(i);
+    if i < out.repr.params.len() {
+        out.repr.params.remove(i);
+    }
+    let shift = |k: usize| if k > i { k - 1 } else { k };
+    out.meta.linear = out.meta.linear.iter().filter(|(k, _)| *k != i).map(|(k, m)| (shift(*k), *m)).collect();
+    out.meta.pure_arrows = out.meta.pure_arrows.iter().filter(|k| **k != i).map(|k| shift(*k)).collect();
+    out.meta.dicts = out.meta.dicts.iter().filter(|(k, _)| *k != i).map(|(k, c)| (shift(*k), c.clone())).collect();
+    out
+}
+
+/// Run the pass to its fixpoint (bounded): rewrite calls whose static
+/// arguments have clones, create the clones that are missing, repeat over
+/// the new clones. `true` when anything changed.
+fn spec_static_args(program: &mut Program, tables: &mut Tables, fresh: &mut Fresh, state: &mut DictSpecState) -> bool {
+    let main = program.main.as_ref().map(|m| m.0.clone());
+    let mut any = false;
+    for _ in 0..16 {
+        let mut targets: HashMap<String, SpecTarget> = HashMap::new();
+        for (index, f) in program.fns.iter().enumerate() {
+            if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body || f.params.is_empty() || main.as_deref() == Some(f.id.0.as_str()) {
+                continue;
+            }
+            let size = nodes(&f.body);
+            if size > SPEC_UNIT_NODES {
+                continue;
+            }
+            let wants = (0..f.params.len())
+                .map(|i| {
+                    f.repr.params.get(i).is_some_and(|c| matches!(c, Class::Obj))
+                        && !f.meta.linear.iter().any(|(k, _)| *k == i)
+                        && mentions(&f.body, LocalId(i))
+                })
+                .collect::<Vec<_>>();
+            if wants.iter().any(|w| *w) {
+                targets.insert(f.id.0.clone(), SpecTarget { arity: f.params.len(), wants, nodes: size, index });
+            }
+        }
+        let mut requests: Vec<(String, usize, usize, Core)> = Vec::new();
+        let mut changed = false;
+        for f in program.fns.iter_mut() {
+            if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body {
+                continue;
+            }
+            let mut env = Vec::new();
+            changed |= spec_walk(&mut f.body, &mut env, &targets, tables, state, &mut requests);
+        }
+        for (name, index, i, value) in requests {
+            let clone = spec_clone(&program.fns[index], name, i, value, fresh);
+            tables.arity.insert(clone.id.0.clone(), clone.params.len());
+            program.fns.push(clone);
+            changed = true;
+        }
+        if !changed {
+            break;
+        }
+        any = true;
+    }
+    any
+}
+
+/// Under `CINCH_INLINE_TRACE`, name a site the inliner refused and the
+/// rule that refused it.
+fn trace_refusal(rule: &str, callee: &str) {
+    if opts_trace() {
+        eprintln!("cinch-inline-refused: {} <= {callee} ({rule})", current_unit());
+    }
+}
+
+/// A unit's own inlining allowance is its node count over this, plus
+/// [`UNIT_ALLOWANCE_FLOOR`].
+const UNIT_ALLOWANCE_DIVISOR: usize = 4;
+/// The allowance every unit has whatever its size, so a small loop body
+/// can take the handful of copies that make it straight-line code.
+const UNIT_ALLOWANCE_FLOOR: usize = 192;
+
 pub fn simplify_with_foreign(
     program: &mut Program,
     foreign: &[FnDef],
@@ -2625,19 +2878,28 @@ pub fn simplify_with_foreign(
     tables.extend(foreign);
     let mut ticks = Ticks::default();
     let mut fresh = Fresh { local: max_local(program), join: max_join(program) };
-    // Two percent of the program is the most inlining may add: a copy is
-    // code the linker and the instruction cache pay for, so the budget is
-    // what keeps the pass from trading a run-time win for an unbounded
-    // growth.
-    let mut budget = (program.fns.iter().map(|f| nodes(&f.body)).sum::<usize>() / 50).max(1_000);
+    // The growth bound is per unit: each has an allowance of its own (a
+    // quarter of its size, with a floor for small bodies), spent across
+    // every pass. A copy is code the linker and the instruction cache pay
+    // for, so the pass never trades a run-time win for unbounded growth,
+    // and the whole program grows at most by the sum of the allowances.
+    // What one unit inlines never decides what another may: a shared pool
+    // was spent in walk order, so the library units visited first used it
+    // up and the hot units after them, among them every specialised clone,
+    // were refused copies that grow nothing.
+    let mut allowances: HashMap<String, usize> = HashMap::new();
     program.inline.clear();
     let mut facts: HashMap<String, InlineFacts> = HashMap::new();
     // The benefit model's site tally, accumulated over every pass so the
     // artifact reports the whole run rather than the last pass.
     let mut benefit = BenefitTally::default();
+    let mut dict_specs = DictSpecState::default();
     let mut specs = SpecState::default();
     for _ in 0..opts.max_iterations {
         ticks.changed = false;
+        if opts.inline && spec_static_args(program, &mut tables, &mut fresh, &mut dict_specs) {
+            ticks.changed = true;
+        }
         if opts.specialise_arguments {
             specialise_arguments(program, &mut tables, &mut fresh, &mut specs, &mut ticks);
         }
@@ -2653,12 +2915,17 @@ pub fn simplify_with_foreign(
                     let mut here = InlineFacts::default();
                     let mut stack: Vec<String> = Vec::new();
                     let loop_body = table.is_loop(&f.id.0);
+                    let own = allowances
+                        .entry(f.id.0.clone())
+                        .or_insert_with(|| nodes(&body) / UNIT_ALLOWANCE_DIVISOR + UNIT_ALLOWANCE_FLOOR);
+                    let before = *own;
+                    let mut remaining = before;
                     inline_unit(
                         &mut body,
                         &table,
                         &tables,
                         &mut fresh,
-                        &mut budget,
+                        &mut remaining,
                         &mut here,
                         &mut ticks,
                         &mut stack,
@@ -2667,6 +2934,7 @@ pub fn simplify_with_foreign(
                         &mut benefit,
                         opts,
                     );
+                    *own = remaining;
                     f.body = body;
                     if here.sites > 0 {
                         let entry = facts.entry(f.id.0.clone()).or_default();
@@ -2711,6 +2979,7 @@ pub fn simplify_with_foreign(
     report.joins = ticks.joins;
     report.duplicated = ticks.duplicated;
     report.inlined = ticks.inline;
+    report.dict_specialised = dict_specs.clones;
     report.inlined_nodes = facts.values().map(|f| f.nodes as usize).sum();
     report.inline_model = match opts.inline_model {
         InlineModel::Threshold => "threshold",
@@ -2768,8 +3037,9 @@ pub fn simplify_with_foreign(
 //   caller's binders. The parameters are then renamed to fresh ids too, and
 //   the substitution replaces those: a caller's local that lands in the body
 //   can never be mistaken for a parameter still to be substituted.
-// - A node budget (two percent of the program by default) caps how much the
-//   pass may grow the program; a site that would pass it is left alone.
+// - A node allowance per unit (a quarter of its size plus a floor) caps how
+//   much the pass may grow that unit; a site that would pass it is left
+//   alone.
 //
 // Nothing is removed: the callee keeps its body, because other artifacts
 // and the program's interfaces name it.
@@ -4005,9 +4275,10 @@ fn inline_unit(
     // The stack rule: a unit already being unfolded in this chain is never
     // unfolded again, so a cycle of admitted units cannot recurse without
     // end. Independent of it, the depth cap bounds a long acyclic chain and
-    // the node budget bounds the program-wide growth.
+    // the unit's allowance bounds its growth.
     if depth >= opts.inline_depth || stack.iter().any(|name| name == &g.0) {
         tally.refused_chain += 1;
+        trace_refusal("chain", &g.0);
         return;
     }
     // A callee in a recursive group is refused at every site: its body
@@ -4017,6 +4288,7 @@ fn inline_unit(
     // what makes the benefit model's admission safe.
     if callee.recursive {
         tally.refused_recursive += 1;
+        trace_refusal("recursive", &g.0);
         return;
     }
     // A decision-bearing body is copied only where the decision folds: a
@@ -4034,6 +4306,7 @@ fn inline_unit(
         })
     {
         tally.refused_fold += 1;
+        trace_refusal("fold", &g.0);
         return;
     }
     let added = nodes(&callee.body);
@@ -4055,6 +4328,7 @@ fn inline_unit(
                 }
                 if callee.weight.saturating_sub(discount) > opts.inline_use_threshold {
                     tally.refused_size += 1;
+                    trace_refusal("size", &g.0);
                     return;
                 }
             }
@@ -4080,17 +4354,25 @@ fn inline_unit(
                 };
                 if growth.saturating_sub(removed) > allowance {
                     tally.refused_size += 1;
+                    trace_refusal("size", &g.0);
                     return;
                 }
             }
         }
     }
+    // What the copy grows the program by: its nodes less the call it
+    // replaces (the head and the argument slots). A delegation such as a
+    // specialised comparator (`lam x y = Ord_Nat.< x y`) replaces one call
+    // with another and grows nothing, so charging its whole size spent the
+    // budget on no growth at all and left the sites after it refused.
+    let growth = added.saturating_sub(args.len() + 1);
     if callee.charge {
-        if added > *budget {
+        if growth > *budget {
             tally.refused_budget += 1;
+            trace_refusal("budget", &g.0);
             return;
         }
-        *budget -= added;
+        *budget -= growth;
     }
     tally.inlined += 1;
     facts.sites += 1;
@@ -4341,8 +4623,8 @@ fn max_join(program: &Program) -> usize {
 // leaves the callee's body behind: a unit whose every call site was inlined
 // is never called again, and one that a rewrite emptied is never called at
 // all. Those units are code the artifact still pays for, and they are what
-// keeps the inliner's node budget (two percent of the program) the binding
-// constraint rather than the size of the program.
+// keeps the inliner's per-unit allowances the binding constraint rather
+// than the size of the program.
 //
 // `prune` is a reachability sweep over the call graph with the program's
 // real roots, run after inlining and before reference counting:
@@ -4401,6 +4683,21 @@ fn derived_from(unit: &str, name: &str) -> bool {
 /// (`keep`, in addition to the ones the program itself names): an object or
 /// package build's emitted modules and its object roots.
 pub fn prune(program: &mut Program, keep: &[String]) -> PruneReport {
+    prune_excluding(program, keep, &HashSet::new())
+}
+
+/// [`prune`], with the blanket roots (every constructor, primitive,
+/// boundary plan and instance) withheld from the units of `excluded`
+/// modules: a library object built for a target leaves out the modules
+/// that target never selects (a platform backend imported only `when os
+/// darwin`, on Linux), and their bindings stay only if a live unit really
+/// reaches them.
+pub fn prune_excluding(program: &mut Program, keep: &[String], excluded: &HashSet<String>) -> PruneReport {
+    let in_excluded = |name: &str| {
+        excluded
+            .iter()
+            .any(|m| name.len() > m.len() && name.starts_with(m.as_str()) && name.as_bytes()[m.len()] == b'.')
+    };
     let present: HashSet<&str> = program.fns.iter().map(|f| f.id.0.as_str()).collect();
     let mut live: HashSet<String> = HashSet::new();
     let mut work: Vec<String> = Vec::new();
@@ -4413,21 +4710,32 @@ pub fn prune(program: &mut Program, keep: &[String]) -> PruneReport {
         root(&main.0, &mut live, &mut work);
     }
     for name in program.plans.keys() {
-        root(name, &mut live, &mut work);
+        if !in_excluded(name) {
+            root(name, &mut live, &mut work);
+        }
     }
     for plan in program.foreigns.values() {
-        if plan.export {
+        if plan.export && !in_excluded(&plan.unit) {
             root(&plan.unit, &mut live, &mut work);
         }
     }
+    // An instance of an excluded module lives only when a live body builds
+    // its dictionary; the rest are roots with their methods.
+    let methods_of: HashMap<&str, &Vec<GlobalId>> =
+        program.instances.iter().map(|i| (i.id.0.as_str(), &i.methods)).collect();
+    let mut live_instances: HashSet<String> = HashSet::new();
     for inst in &program.instances {
+        if in_excluded(&inst.id.0) {
+            continue;
+        }
+        live_instances.insert(inst.id.0.clone());
         root(&inst.id.0, &mut live, &mut work);
         for m in &inst.methods {
             root(&m.0, &mut live, &mut work);
         }
     }
     for f in &program.fns {
-        if f.ctor.is_some() || f.prim.is_some() || f.meta.prim_body {
+        if (f.ctor.is_some() || f.prim.is_some() || f.meta.prim_body) && !in_excluded(&f.id.0) {
             root(&f.id.0, &mut live, &mut work);
         }
     }
@@ -4457,14 +4765,47 @@ pub fn prune(program: &mut Program, keep: &[String]) -> PruneReport {
         .map(|f| (f.id.0.as_str(), &f.body))
         .collect();
     let mut mentioned: Vec<String> = Vec::new();
+    // Every name a live body mentions, units or not: the foreign wrappers
+    // of an excluded module stay only if one of these calls them.
+    let mut reached: HashSet<String> = HashSet::new();
     while let Some(unit) = work.pop() {
         let Some(body) = bodies.get(unit.as_str()) else { continue };
         mentioned.clear();
         unit_mentions(body, &mut mentioned);
+        if !excluded.is_empty() {
+            reached.extend(mentioned.iter().cloned());
+        }
         for name in &mentioned {
             if present.contains(name.as_str()) && live.insert(name.clone()) {
                 work.push(name.clone());
             }
+            if let Some(methods) = methods_of.get(name.as_str()) {
+                if live_instances.insert(name.clone()) {
+                    for m in methods.iter() {
+                        if present.contains(m.0.as_str()) && live.insert(m.0.clone()) {
+                            work.push(m.0.clone());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // A data type is laid out whole: once any of its constructors is live
+    // at a class vector, so are its siblings at that vector (they have no
+    // bodies to follow). Code generation builds some prelude types itself
+    // and checks every constructor's payload against what it builds.
+    let siblings = |f: &FnDef| {
+        f.repr.data.as_ref().map(|d| (d.clone(), f.id.0[crate::repr::base_unit(&f.id.0).len()..].to_string()))
+    };
+    let live_types: HashSet<(String, String)> = program
+        .fns
+        .iter()
+        .filter(|f| f.ctor.is_some() && live.contains(&f.id.0))
+        .filter_map(siblings)
+        .collect();
+    for f in &program.fns {
+        if f.ctor.is_some() && siblings(f).is_some_and(|k| live_types.contains(&k)) {
+            live.insert(f.id.0.clone());
         }
     }
     let before: usize = program.fns.len();
@@ -4479,7 +4820,17 @@ pub fn prune(program: &mut Program, keep: &[String]) -> PruneReport {
     // The per-unit facts name units too; a removed unit's entry is stale.
     program.inline.retain(|unit, _| live.contains(unit));
     program.frame.retain(|unit, _| live.contains(unit));
+    if !excluded.is_empty() {
+        program.foreigns.retain(|name, plan| plan.export || !in_excluded(name) || reached.contains(name));
+        program.instances.retain(|i| !in_excluded(&i.id.0) || live_instances.contains(&i.id.0));
+    }
     PruneReport { kept: program.fns.len(), removed: before - program.fns.len(), removed_nodes }
+}
+
+/// [`unit_mentions`] for a caller outside the pass: every unit, instance
+/// and foreign name `e` mentions, appended to `out`.
+pub fn units_mentioned(e: &Core, out: &mut Vec<String>) {
+    unit_mentions(e, out);
 }
 
 /// Every unit the body `e` names anywhere: a direct call or a `Global` in
@@ -4489,6 +4840,13 @@ pub fn prune(program: &mut Program, keep: &[String]) -> PruneReport {
 fn unit_mentions(e: &Core, out: &mut Vec<String>) {
     match e {
         Core::Global(g, _) | Core::Ctor(g, _) => out.push(g.0.clone()),
+        // The instance whose dictionary this builds (its methods are
+        // reached through it, `prune_excluding`).
+        Core::InstDict(g, ..) => out.push(g.0.clone()),
+        // A string literal is a static block of its representation
+        // constructor, and a reuse allocates the constructor it names.
+        Core::ConstString { ctor, .. } | Core::Reuse { ctor, .. } => out.push(ctor.0.clone()),
+        Core::Foreign(name) => out.push(name.clone()),
         Core::Lam { fn_id, .. } => out.push(fn_id.0.clone()),
         Core::App(h, args) => {
             unit_mentions(h, out);

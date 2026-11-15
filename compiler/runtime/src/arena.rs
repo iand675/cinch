@@ -407,14 +407,14 @@ pub unsafe extern "C" fn cinch_arena_leave(handle: i64) -> i64 {
 /// The header a served block gets: its own kind and layout, and
 /// [`RC_IMMORTAL`] as its count ([`crate::block::allocate_block`] writes
 /// it into the grant).
-pub(crate) const fn arena_header(kind: u8, layout: u16) -> u64 {
+pub(crate) const fn arena_header(kind: u8, layout: u32) -> u64 {
     crate::block::header(RC_IMMORTAL, kind, layout)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::block::test_shapes::CONS_T;
+    use crate::block::test_shapes::{field_of, CONS_T};
     use crate::block::{allocate_ctor, ctor_tag_of, header_kind, header_layout, read_header, KIND_CTOR};
 
     /// The arena counters are process-wide, so a test that asserts their
@@ -435,21 +435,21 @@ mod tests {
         let desc = CONS_T;
         // A heap cell built before the arena. The first served cell below
         // owns it, and only the arena's teardown can return it.
-        let child = unsafe { allocate_ctor(16, desc, false) }.cast::<i64>();
+        let child = unsafe { allocate_ctor(16, field_of(desc), false) }.cast::<i64>();
         unsafe { child.write(0) };
         unsafe { child.add(1).write(0) };
         let arena = unsafe { new(0) };
         assert_eq!(current(), arena, "new enters the arena on this thread");
         let mut words = Vec::with_capacity(N);
         for i in 0..N {
-            let p = unsafe { allocate_ctor(16, desc, false) }.cast::<i64>();
+            let p = unsafe { allocate_ctor(16, field_of(desc), false) }.cast::<i64>();
             unsafe { p.write((i as i64) << 1 | 1) };
             unsafe { p.add(1).write(if i == 0 { child as usize as i64 } else { 0 }) };
             let h = unsafe { read_header(p.cast()) };
             assert_eq!(crate::block::rc(h), RC_IMMORTAL, "an arena block is uncounted");
             assert_eq!(header_kind(h), KIND_CTOR);
-            assert_eq!(header_layout(h), crate::block::ctor_layout_field(desc));
-            assert_eq!(unsafe { ctor_tag_of(p.cast()) }, desc & crate::block::CTOR_TAG_MASK);
+            assert_eq!(header_layout(h), field_of(desc));
+            assert_eq!(unsafe { ctor_tag_of(p.cast()) }, crate::block::shape_field_tag(field_of(desc)));
             // dup and drop write nothing: the header word is unchanged.
             unsafe { crate::rc::cinch_dup(p as usize as i64) };
             assert_eq!(unsafe { read_header(p.cast()) }, h, "a dup writes no count");

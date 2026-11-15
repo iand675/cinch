@@ -2587,8 +2587,9 @@ so the embedding sweep stays its own decision.
   type is accepted and each copy counts by its own representation.
   Destructured components generalize only when the bound value is a
   syntactic value. `TargetProfile::reclaim`
-  is on unless `CINCH_RECLAIM=0` in the compiler's environment, the switch
-  kept for leak-everything baselines and A/B debugging. The quote encoder
+  is on unless `--no-reclaim` is on the command line or `CINCH_RECLAIM=0`
+  is in the compiler's environment, the switch kept for leak-everything
+  baselines and A/B debugging; both front ends accept the word. The quote encoder
   gains `SET` (a `RefSet` used to encode as a shadowing `LET`), `DUP` and
   `DROP` and a `counted` flag on `PROJ`/`DEMAND`; the evaluator owns every
   value it produces and builds `BIG` constants when evaluated.

@@ -1001,6 +1001,10 @@ pub enum PrimOp {
     /// `cinch_stm_cell_new`), specialized by the value's representation
     /// (`crate::stm`).
     Stm { op: crate::stm::StmOp, classes: [Class; 2] },
+    /// Mutable slot arrays (`cinch.runtime.slots*`; runtime ABI,
+    /// `cinch_slots_*`), specialized by the element's representation
+    /// (`crate::slots`).
+    Slots { op: crate::slots::SlotOp, classes: [Class; 2] },
     /// Mathematical `Nat` operations on opaque runtime words
     /// (`cinch.runtime.nat*`; runtime ABI, `cinch_nat_*`).
     Nat(NatOp),
@@ -1170,6 +1174,11 @@ impl PrimOp {
                     return Some(Self::Stm { op, classes: [Class::Param(0), Class::Param(1)] });
                 }
             }
+            for op in crate::slots::SlotOp::ALL {
+                if name == op.name() {
+                    return Some(Self::Slots { op, classes: [Class::Param(0), Class::Param(1)] });
+                }
+            }
         }
         if let Some(name) = sym.strip_prefix("cinch.runtime.") {
             return Some(match name {
@@ -1278,6 +1287,7 @@ impl PrimOp {
         let n = match self {
             Array { op, packed, .. } => return format!("cinch.runtime.{}{}", op.name(), packed.map(|s| s.name()).unwrap_or("")),
             Stm { op, .. } => return format!("cinch.runtime.{}", op.name()),
+            Slots { op, .. } => return format!("cinch.runtime.{}", op.name()),
             Nat(op) => return format!("cinch.runtime.nat{}", op.name()),
             Int(op) => return format!("cinch.runtime.int{}", op.name()),
             Bytes(op) => return format!("cinch.runtime.bytes{}", op.name()),
@@ -1359,6 +1369,7 @@ impl PrimOp {
         match self {
             Array { op, packed, .. } => op.sig(packed).0.len(),
             Stm { op, .. } => op.sig().0.len(),
+            Slots { op, .. } => op.sig().0.len(),
             Bound { .. } => 0,
             Nat(NatOp::FromI64 | NatOp::ToI64 | NatOp::FromU128 | NatOp::ToU128)
             | Int(IntOp::FromI64 | IntOp::ToI64 | IntOp::Neg | IntOp::FromNat | IntOp::ToNat | IntOp::FromI128 | IntOp::ToI128)
@@ -1423,6 +1434,7 @@ impl PrimOp {
         match self {
             Array { op, packed, .. } => op.sig(packed),
             Stm { op, .. } => op.sig(),
+            Slots { op, .. } => op.sig(),
             Nat(NatOp::Add | NatOp::Sub | NatOp::Mul | NatOp::Div | NatOp::Rem) => {
                 (vec![Ty::Nat, Ty::Nat], Ty::Nat)
             }
@@ -3379,6 +3391,30 @@ pub struct Program {
     /// reads it: a lent reference is one the callee never stores or
     /// returns, so it cannot outlive the caller's activation.
     pub borrowed: std::collections::BTreeMap<String, Vec<bool>>,
+    /// The units of an open program whose lent convention lives in a
+    /// worker rather than at their own symbol (`crate::rc::insert_open`):
+    /// the symbol stays owned for callers in other artifacts, and the
+    /// direct calls the count pass placed go to the worker. Empty for a
+    /// closed program, where the symbol itself takes the lent convention.
+    pub lent_entries: std::collections::BTreeMap<String, LentEntry>,
+    /// Modules this artifact carries as private copies: defined here with
+    /// internal linkage, emitted only as far as the artifact's own units
+    /// reach them, and never part of its ABI. A package object and a
+    /// program linking package objects take the prelude this way, so each
+    /// artifact is self-contained for it and no two artifacts' copies can
+    /// meet at link time. Empty for a whole program, where every module is
+    /// simply emitted.
+    pub private_modules: Vec<String>,
+}
+
+/// Where a unit with lent parameters takes them ([`Program::lent_entries`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LentEntry {
+    /// Defined here: code generation runs the body in a worker of the
+    /// unit's tail width and makes the symbol an owned wrapper.
+    Local,
+    /// Defined by a linked object, which published its worker's width.
+    Imported { width: usize },
 }
 
 impl Program {
@@ -3401,6 +3437,8 @@ impl Program {
             stack: self.stack.clone(),
             inline: self.inline.clone(),
             borrowed: self.borrowed.clone(),
+            lent_entries: self.lent_entries.clone(),
+            private_modules: self.private_modules.clone(),
         }
     }
 }
@@ -4439,6 +4477,8 @@ pub struct OptReport {
 /// the fixed point cost.
 #[derive(Clone, Debug, Default)]
 pub struct SimplifyReport {
+    /// Dictionary-specialised clones made (`simplify::spec_static_args`).
+    pub dict_specialised: usize,
     /// The passes actually run, at most the iteration cap.
     pub iterations: usize,
     /// The iteration cap the run was given (`--max-simplifier-iterations`).
@@ -8811,6 +8851,8 @@ mod tests {
             frame: Default::default(),
             stack: Default::default(),
             borrowed: Default::default(),
+            lent_entries: Default::default(),
+            private_modules: Vec::new(),
             inline: Default::default(),
         };
         for reverse in [false, true] {
@@ -8866,6 +8908,8 @@ mod tests {
             frame: Default::default(),
             stack: Default::default(),
             borrowed: Default::default(),
+            lent_entries: Default::default(),
+            private_modules: Vec::new(),
             inline: Default::default(),
         };
         share_repeated_subterms(&mut program);

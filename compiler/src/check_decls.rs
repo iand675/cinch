@@ -9,6 +9,7 @@ fn prim_scheme(op: PrimOp) -> Scheme {
     match op {
         PrimOp::Array { op, packed, .. } => scheme.params = op.params(packed),
         PrimOp::Stm { op, .. } => scheme.params = op.params(),
+        PrimOp::Slots { op, .. } => scheme.params = op.params(),
         _ => {}
     }
     scheme
@@ -3607,13 +3608,13 @@ impl Checker {
                                 .map_err(|m| Error::at(f.span, crate::diagnostic!("intrinsic {} is declared {}, but {}", f.symbol, s.ty, m)))?;
                         }
                         let rendered = render_scheme(&s);
-                        let kind = if matches!(op, PrimOp::Array { .. } | PrimOp::Stm { .. }) {
+                        let kind = if matches!(op, PrimOp::Array { .. } | PrimOp::Stm { .. } | PrimOp::Slots { .. }) {
                             let (args, result) = op.sig();
                             let repr_params = args.iter().map(|t| crate::repr::repr_of(t, &expected.params, self, &mut |_| {})).collect();
                             // A cell read answers the value's own class,
                             // which the unit's copies resolve per vector;
                             // every array operation answers a block.
-                            let repr_result = matches!(op, PrimOp::Stm { .. })
+                            let repr_result = matches!(op, PrimOp::Stm { .. } | PrimOp::Slots { .. })
                                 .then(|| crate::repr::repr_of(&result, &expected.params, self, &mut |_| {}));
                             self.fns.push(FnDef {
                                 id: fn_id(&module, &f.name.text),
@@ -10826,6 +10827,8 @@ impl Checker {
             frame: Default::default(),
             stack: Default::default(),
             borrowed: Default::default(),
+            lent_entries: Default::default(),
+            private_modules: Vec::new(),
             inline: Default::default(),
         };
         crate::dictionary_values::lower(&mut program)?;

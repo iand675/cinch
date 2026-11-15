@@ -16,7 +16,7 @@ module Bootstrap.Object where
   export RuntimeObject, RuntimeUnit, parse-runtime-object, read-runtime-object
   export read-runtime-object-document
   export RuntimeObjectConfig, read-runtime-object-config, runtime-object-input-files, admit-runtime-object
-  export object-words, object-unit, unit-symbol, unit-closure, unit-params, unit-result
+  export object-unit, unit-symbol, unit-closure, unit-params, unit-result
   export llvm-object-symbol
   export object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit
   export object-string-layout, llvm-data-bytes
@@ -24,9 +24,7 @@ module Bootstrap.Object where
   data RuntimeUnit where
     RuntimeUnit :: String -> String -> String -> List Nat -> Option Nat -> RuntimeUnit
   data RuntimeObject where
-    RuntimeObject :: List Nat -> List RuntimeUnit -> List String -> List String -> Json -> Json -> Json -> Json -> RuntimeObject
-  object-words :: RuntimeObject -> List Nat
-  object-words value = case value of RuntimeObject words units exports instances dictionaries families constructors types -> words
+    RuntimeObject :: List RuntimeUnit -> List String -> List String -> Json -> Json -> Json -> RuntimeObject
   unit-symbol :: RuntimeUnit -> String
   unit-symbol value = case value of RuntimeUnit name key closure params result -> name
   unit-key :: RuntimeUnit -> String
@@ -62,7 +60,7 @@ module Bootstrap.Object where
   encoded-variant codes = case codes of Nil -> ""; other -> "$40" <> encoded-classes codes
   object-variant :: String -> List Nat -> RuntimeObject -> Option RuntimeUnit
   object-variant name codes value = case value of
-    RuntimeObject words units exports instances dictionaries families constructors types -> if has name exports then find-unit (name <> encoded-variant codes) units else None
+    RuntimeObject units exports instances dictionaries families constructors -> if has name exports then find-unit (name <> encoded-variant codes) units else None
   instance-symbols :: Json -> List String
   instance-symbols rows = case rows of
     JArr row rest -> (case field "id" row of JStr name -> Cons (interface-global name) (instance-symbols rest); other -> instance-symbols rest)
@@ -79,7 +77,7 @@ module Bootstrap.Object where
   -- a checked instance export and its actual selected native inventory row.
   object-dictionary :: String -> List Nat -> RuntimeObject -> Option (RuntimeUnit, String, Nat, List Nat)
   object-dictionary name codes value = case value of
-    RuntimeObject words units exports instances dictionaries families constructors types -> if not (has name instances) then None else
+    RuntimeObject units exports instances dictionaries families constructors -> if not (has name instances) then None else
       (case dictionary-row (name <> encoded-variant codes) dictionaries of
         Some (key, row) -> (case (field "class" row, field "context_arity" row, classes (field "fields" row), find-unit (key <> "$2emk") units) of
           (JStr owner, JNum count, Some fields, Some unit) -> if count < 0 then None else Some (unit, interface-global owner, nat-from-int count, fields)
@@ -93,7 +91,7 @@ module Bootstrap.Object where
   -- instance and checked declaring slot, never through ordinary value scope.
   object-conditional-unit :: String -> String -> Nat -> String -> List Nat -> RuntimeObject -> Option RuntimeUnit
   object-conditional-unit owner dictionary slot name codes value = case (codes, value) of
-    (Nil, RuntimeObject words units exports instances dictionaries families constructors types) -> if not (has dictionary instances) then None else
+    (Nil, RuntimeObject units exports instances dictionaries families constructors) -> if not (has dictionary instances) then None else
       (case dictionary-row dictionary dictionaries of
         Some (key, row) -> (case (field "class" row, field "context_arity" row, conditional-method-at slot (field "methods" row)) of
           (JStr actual-owner, JNum 0, Some method) -> if same owner (interface-global actual-owner) && same name (interface-global method) then find-unit name units else None
@@ -114,7 +112,7 @@ module Bootstrap.Object where
     other -> False
   object-closed-method-unit :: String -> String -> Nat -> RuntimeObject -> Option RuntimeUnit
   object-closed-method-unit owner factory slot value = case value of
-    RuntimeObject words units exports instances dictionaries families constructors types -> if not (has factory instances) then None else
+    RuntimeObject units exports instances dictionaries families constructors -> if not (has factory instances) then None else
       (case dictionary-row factory dictionaries of
         Some (key, row) -> (case (field "class" row, field "context_arity" row, classes (field "fields" row)) of
           (JStr actual-owner, JNum 0, Some fields) -> if not (same owner (interface-global actual-owner) && closed-function-fields units fields (field "methods" row)) then None else
@@ -148,15 +146,16 @@ module Bootstrap.Object where
       other -> None)
     other -> None
   object-family :: String -> RuntimeObject -> Option (Nat, List (Nat, Nat, List Nat))
-  object-family owner value = case value of RuntimeObject words units exports instances dictionaries families constructors types -> find-family owner families
+  object-family owner value = case value of RuntimeObject units exports instances dictionaries families constructors -> find-family owner families
   -- Runtime String is the defining library's private one-Bytes wrapper.
-  -- Check the actual descriptor and map; this does not bind StrBuf in source.
+  -- Check its actual description: an inline tag 0 whose one field (the
+  -- Bytes) is counted, header layout field 256. This does not bind StrBuf
+  -- in source.
   object-string-layout :: String -> RuntimeObject -> Option Nat
   object-string-layout name value = case value of
-    RuntimeObject prefix units exports instances dictionaries families constructors types -> if not (same name (global-data-string-string)) then None else
-      (case (field "group" (field "Data.String.String" types), field "descriptor" (field "Data.String.StrBuf" constructors), field "arity" (field "Data.String.StrBuf" constructors), field "tag" (field "Data.String.StrBuf" constructors)) of
-        (JNum group, JNum descriptor, JNum 1, JNum 0) -> if group < 0 || descriptor /= 64 * group then None else
-          (case at (nat-from-int descriptor) prefix of Some packed -> if packed == 4294967297 then Some (nat-from-int descriptor) else None; None -> None)
+    RuntimeObject units exports instances dictionaries families constructors -> if not (same name (global-data-string-string)) then None else
+      (case (field "descriptor" (field "Data.String.StrBuf" constructors), field "escaped" (field "Data.String.StrBuf" constructors), field "arity" (field "Data.String.StrBuf" constructors), field "tag" (field "Data.String.StrBuf" constructors)) of
+        (JNum descriptor, JBool False, JNum 1, JNum 0) -> if descriptor == 256 then Some (nat-from-int descriptor) else None
         other -> None)
   class-code :: Json -> Option Nat
   class-code doc = case doc of
@@ -198,26 +197,6 @@ module Bootstrap.Object where
     other -> other
   encode-families :: Json -> Json
   encode-families rows = case rows of JArr row rest -> JArr (encode-family-row row) (encode-families rest); other -> other
-  words :: Json -> Option (List Nat)
-  words doc = case doc of
-    JArr (JNum first) rest -> if first < 0 || first > 18446744073709551615 then None else
-      (case words rest of Some more -> Some (Cons (nat-from-int first) more); None -> None)
-    JArrEnd -> Some Nil
-    other -> None
-  at :: Nat -> List Nat -> Option Nat
-  at index items = case items of Nil -> None; Cons first rest -> if index == 0 then Some first else at (index - 1) rest
-  scan-map :: Nat -> Nat -> Bool
-  scan-map count bits = if count == 0 then bits == 0 else bits % 4 <= 2 && scan-map (count - 1) (bits / 4)
-  extended-map :: Nat -> Nat -> List Nat -> Bool
-  extended-map count index prefix = if count == 0 then True else case at index prefix of
-    None -> False
-    Some bits -> if count <= 32 then scan-map count bits else scan-map 32 bits && extended-map (count - 32) (index + 1) prefix
-  layout-rows :: Nat -> Nat -> List Nat -> List Nat -> Bool
-  layout-rows count entries rows prefix = if count == 0 then True else case rows of
-    Nil -> False
-    Cons first rest -> let size = first % 4294967296 in let map = first / 4294967296 in
-      (if size <= 16 then scan-map size map else map >= entries && map + ((size + 31) / 32) <= list-length prefix && extended-map size map prefix)
-      && layout-rows (count - 1) entries rest prefix
   -- The contracts the object carries, as the documents it already parsed:
   -- canonicalising each one and parsing it back derived nothing the document
   -- does not state, and the load derives its identity from the document
@@ -286,20 +265,17 @@ module Bootstrap.Object where
   -- one whole manifest parse per compile.
   parse-runtime-object :: String -> List LoadedInterface -> Bytes -> Json -> Result String RuntimeObject
   parse-runtime-object expected-triple interfaces code doc =
-    if not (case (field "schema" doc, field "runtime_abi" doc, field "word_size" doc, field "endian" doc, field "reclaim" doc, field "target" doc, field "escaped_descriptors" doc) of
-      (JNum 1, JNum actual-abi, JNum 64, JStr endian, JBool True, JStr actual, JBool False) -> actual-abi == runtime-abi-int && same endian "little" && same expected-triple actual
-      other -> False) then Err "runtime object target, ownership or descriptor ABI mismatch" else
+    if not (case (field "schema" doc, field "runtime_abi" doc, field "word_size" doc, field "endian" doc, field "reclaim" doc, field "target" doc, field "self_describing" doc) of
+      (JNum 1, JNum actual-abi, JNum 64, JStr endian, JBool True, JStr actual, JBool True) -> actual-abi == runtime-abi-int && same endian "little" && same expected-triple actual
+      other -> False) then Err "runtime object target, ownership or block ABI mismatch" else
       (case field "object_content_hash" doc of
         JStr hash -> if not (same hash (fnv-source-hash code)) then Err "runtime object code identity mismatch" else
-          (case (words (field "layout_words" doc), field "layout_entries" doc, units (field "units" doc) Nil, interface-files (field "interfaces" doc)) of
-            (Some prefix, JNum entries, Ok functions, Ok files) -> if entries < 0 || nat-from-int entries > list-length prefix || list-length prefix > 65408 then Err "runtime object layout prefix exceeds the supported descriptor space" else
-              if not (layout-rows (nat-from-int entries) (nat-from-int entries) prefix prefix) then Err "invalid runtime object pointer-map table" else
-              (case load-interface-set-from-documents files of
+          (case (units (field "units" doc) Nil, interface-files (field "interfaces" doc)) of
+            (Ok functions, Ok files) -> (case load-interface-set-from-documents files of
                 Err message -> Err message
-                Ok checked -> if matching-interfaces interfaces checked then Ok (RuntimeObject prefix functions (exported-symbols interfaces) (exported-instances interfaces) (encode-dictionary-keys (field "dictionaries" doc)) (encode-families (field "method_families" doc)) (field "constructors" doc) (field "types" doc)) else Err "runtime object checked interface identity mismatch")
-            (other, other-count, Err message, other-files) -> Err message
-            (other, other-count, other-units, Err message) -> Err message
-            other -> Err "malformed runtime object layout prefix")
+                Ok checked -> if matching-interfaces interfaces checked then Ok (RuntimeObject functions (exported-symbols interfaces) (exported-instances interfaces) (encode-dictionary-keys (field "dictionaries" doc)) (encode-families (field "method_families" doc)) (field "constructors" doc)) else Err "runtime object checked interface identity mismatch")
+            (Err message, other-files) -> Err message
+            (other-units, Err message) -> Err message)
         other -> Err "runtime object has no code identity")
 
   -- The build driver supplies cryptographic identities for both artifacts.
