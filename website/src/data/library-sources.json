@@ -1027,6 +1027,14 @@
       "public_methods": 0
     },
     {
+      "module": "Text.Utf16",
+      "path": "compiler/prelude/Text/Utf16.cinch",
+      "sha256": "fb5bfa4782fa832245102d8fc57818a374c4176c6a7c608f21a669030f54e8b8",
+      "embedded": false,
+      "values": 9,
+      "public_methods": 0
+    },
+    {
       "module": "Text.Yaml",
       "path": "compiler/prelude/Text/Yaml.cinch",
       "sha256": "2b4ec0c04c4395f8f1b42dd0b2e564ed2453dbc570d827a84fd693f7f1b06589",

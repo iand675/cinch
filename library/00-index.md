@@ -161,6 +161,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Show](Text.Show.md) | Embedded | Rendering values as String. The concrete formatting helpers are re-exported by Prelude; import this module for Show itself. |
 | [Text.Toml](Text.Toml.md) | Ship source | The module's supported TOML parsing/rendering surface and explicit unsupported/malformed cases. |
 | [Text.Uri](Text.Uri.md) | Ship source | URI parsing, rendering, components, and validation/error vocabulary. |
+| [Text.Utf16](Text.Utf16.md) | Ship source | UTF-16 scalar and surrogate operations, code-unit sequences and explicit-order byte codecs with SWAR ASCII blocks. |
 | [Text.Yaml](Text.Yaml.md) | Ship source | The module's supported YAML subset, structured values, and named parse errors; not an assertion of every YAML feature. |
 | [Text.Zlib](Text.Zlib.md) | Ship source | Compression/decompression operations and named malformed/unsupported-stream results. |
 
@@ -197,7 +198,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **130 source modules**: **65 embedded** and **65 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **131 source modules**: **65 embedded** and **66 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 
