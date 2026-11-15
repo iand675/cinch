@@ -180,3 +180,13 @@ Both locks pin the commit that removed the JIT's and the Wasm entry's last
 layout registrations (`52694cf6bd30`), seed source hash
 `ab6bede35ead5ae4f0320fefa7a00026218787fcc96acc1ebc2314dee9413514`, and
 `tooling/bootstrap.py` admits `runtime_abi` 10.
+
+Verified on that pin: the ladder reaches its fixed point (stage 2 and
+stage 3 emit identical compiler IR, with no layout table and every
+allocation carrying its layout field inline); `cargo test --lib` passes;
+`bootstrap_runtime_objects`, `bootstrap_runtime_library_abi`,
+`bootstrap_runtime_ir` and `arrays` pass against the ABI 10 runtime.
+`bootstrap_library_object` passes except its `i16` foreign client, the
+known missing sign extension of narrow foreign arguments, and
+`bootstrap_runtime_emit`'s CLI build lists its compiler sources by hand
+and lacks `Bootstrap.Expand`; neither is a header issue.
