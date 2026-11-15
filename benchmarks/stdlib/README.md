@@ -79,6 +79,38 @@ function bodies, not executed calls per byte. Many runtime arithmetic,
 ownership and byte-access calls remain; these pipelines are still candidates
 for further codegen and allocation work.
 
+## Primitive wrapper inlining
+
+`post-primitive-inlining-2026-11-15.json` measures the same driver and library
+sources as the suffix-traversal build, with forced LLVM inlining for immediate
+natural arithmetic/conversions and byte length/get/set/copy wrappers. Their
+ownership and bignum fallback paths inflated the generic inlining cost; exposing
+the wrappers lets LLVM simplify the common tagged paths at each call site.
+Runtime checks and fallback semantics remain intact. Allocating byte-buffer
+creation and unrelated primitives keep the ordinary policy.
+
+`interleaved-primitive-inlining-2026-11-15.json` alternates the retained
+executables. For 16 KiB inputs, medians changed as follows:
+
+| Pipeline | Before wrapper inlining | After |
+| --- | ---: | ---: |
+| Hex encode | 0.936 ms | 0.718 ms |
+| Base32 encode | 3.867 ms | 3.221 ms |
+| Base64 decode | 8.701 ms | 8.050 ms |
+| CRC-32C | 71.6 μs | 57.3 μs |
+| FNV-1a, 32 bit | 70.0 μs | 57.6 μs |
+| Stream read-all | 3.72 μs | 3.67 μs |
+
+The small-field binary and varint checks use 1,024 operations per sample to
+reduce timer noise; their medians stayed within 2%. The 32-byte stream case
+also improved. Executable size grew from 6,117,280 to 6,231,968 bytes (1.9%) for
+this multi-workload driver, including the static runtime. Assembly text grew
+more: inlining exposes cold fallback calls as well as hot arithmetic, so total
+static call counts are not a proxy for executed hot-path work. The alternating
+report retains the per-row iteration count and raw samples. This is evidence
+for the selected primitive policy, not a recommendation to force-inline every
+standard-library function.
+
 The reports explicitly record dirty source snapshots and their actual compiler
 binary/source identities. A parent commit in a report is not a claim that the
 uncommitted measured sources were already part of that commit. Comparing reports
