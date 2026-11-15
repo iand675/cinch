@@ -352,4 +352,4 @@ trips as itself.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Json.cinch`. Source SHA-256: `461861b69d963202733c7016f571b393cfc048e45c04eaf92cef036fcfaeb47b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Json.cinch`. Source SHA-256: `646cb9dacbfe1f64f18870031ca3fd708bb0b71021dff562f3661954f3e80f6c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
