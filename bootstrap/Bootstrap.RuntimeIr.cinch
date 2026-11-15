@@ -2452,7 +2452,7 @@ module Bootstrap.RuntimeIr where
       let (three, next) = fresh two "savednext" in
       let started = line (line (line three (cat ["  ", condition, " = icmp ult i64 ", nat-to-string index, ", ", filled])) (cat ["  br i1 ", condition, ", label %", duplicate, ", label %", next])) (cat [duplicate, ":"]) in
       case load-word started merged (nat-to-string index) of
-        (loaded, word) -> saved-dups rest (index + 1) filled merged (line (count-line True word (line loaded (cat ["  br label %", next]))) (cat [next, ":"]))
+        (loaded, word) -> saved-dups rest (index + 1) filled merged (line (line (count-line True word loaded) (cat ["  br label %", next])) (cat [next, ":"]))
   load-arguments :: Nat -> Nat -> String -> Writer -> (Writer, List String)
   load-arguments count index merged w = if count == 0 then (w, Nil) else case load-word w merged (nat-to-string index) of
     (loaded, word) -> case load-arguments (count - 1) (index + 1) merged loaded of (done, words) -> (done, Cons word words)
