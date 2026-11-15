@@ -1,8 +1,9 @@
 # Compiling continuation-passing code to direct code
 
 Status: implemented in the Rust seed (`compiler/src/simplify.rs`,
-`compiler/src/codegen.rs`, `compiler/src/stack.rs`). Conformance entry D430.
-Evidence: `compiler/tests/cps.rs`.
+`compiler/src/codegen.rs`, `compiler/src/stack.rs`). Conformance entries
+D430 and D431. Evidence: `compiler/tests/cps.rs`,
+`compiler/tests/calling_convention.rs`.
 
 Continuation-passing style is how Cinch code is written when it needs
 early exit, backtracking, resumable parsing, or a monad over `forall r.
@@ -15,7 +16,7 @@ step, plus a native stack frame per continuation that is never popped.
 The goal is for code written this way to compile to the loop it means:
 known continuations called directly or folded away, unknown ones
 tail-called in constant stack, and the closures that survive kept off the
-heap when they do not escape. Five rules do the work. Each is local,
+heap when they do not escape. Six rules do the work. Each is local,
 budgeted, and can be switched off for measurement.
 
 | # | Rule | Where | Switch |
@@ -25,8 +26,9 @@ budgeted, and can be switched off for measurement.
 | 3 | Project out of a known capturing dictionary or polytype bundle | simplifier | `--no-direct-dict-calls` |
 | 4 | Call-pattern specialisation on known closures, units and records of functions | simplifier | `--no-specialise-arguments` |
 | 5 | Frame-allocate a continuation a non-tail callee consumes | `stack.rs` | `--no-stack-alloc` |
+| 6 | Return a constructed product in registers | codegen | `CINCH_NO_CPR=1` (64-bit native targets) |
 
-## 1. Guaranteed tail calls through unknown closures
+## 1. Guaranteed tail calls and the internal convention
 
 The problem. A self tail call was already a jump, and a saturated known
 tail call with a matching signature was already `musttail`. A tail call
@@ -36,49 +38,114 @@ native frame. At `-O0` a CPS sum over ten million elements ran out of
 stack. At `-O2` LLVM's sibling-call optimisation sometimes rescued it,
 but nothing guaranteed it.
 
+### Which units run under `tailcc`
+
+On a 64-bit native target the internal convention is LLVM's `tailcc`
+wherever a tail call needs it, and the C convention everywhere else. The
+units under `tailcc` are exactly the units whose tail calls are
+guaranteed (`codegen.rs::tail_units`), the greatest fixed point of:
+
+- it makes a saturated tail call through a closure it does not know (on
+  a target with apply twins); or
+- it makes a saturated known tail call to another member, a function
+  unit of the same module whose result crosses like its own (the same
+  word or narrowed type, or the same product, section 6).
+
+A cycle of known tail calls (mutual recursion) keeps all of its members.
+A tail call to a unit outside the set is an ordinary call: the callee
+makes no tail call the set has to guarantee, and the tail calls among
+units outside the set form no cycle, so a chain of them is bounded by the
+program rather than by its input. This is what keeps a tail call into a
+small leaf, a class method that adds or compares, from moving the leaf
+under `tailcc`: on x86-64 every ordinary call into it would then pay the
+callee-pops adjustment below.
+
+Such a unit's body is `X#cc`, a `tailcc` function with the unit's own
+linkage, behind a C wrapper `X` with the unit's exact boundary (narrowed
+positions included). Every call inside the module goes to the body; the
+wrapper is the unit as the C side, another object, the runtime and the
+JIT see it, so the object ABI does not change. A call to a unit another
+module defines goes to its C symbol and is an ordinary call.
+
+`musttail` under `tailcc` does not compare parameter lists, only the
+result, so every tail call between two bodies is guaranteed whatever the
+arities and narrowings. That retired two pieces of the C convention's
+machinery on these targets: the closed tail set (a component of the
+tail-call graph was skipped whole when any member narrowed), and the
+widened `#tail` workers a recursive group of mixed arities lowered under.
+A tail group's narrowing now only needs the members' results to agree.
+
+Why not `tailcc` for every unit. On x86-64 `tailcc` is callee-pops: every
+ordinary call into a `tailcc` function is followed by a `sub $8, %rsp`,
+and its returns are `ret $8`. Putting every unit under it cost `fib 35`
+4.9% more instructions at `-O2` and 7.6% at `-O0`, and a loop calling a
+comparison method 5.9%. A unit outside the set keeps the C convention, and
+a program without guaranteed tail calls emits the code it did before. An
+apply twin that enters a C unit makes an ordinary call, which adds one
+frame that the next call does not grow. AArch64's `tailcc` costs nothing
+over the C convention, so the split only matters on x86-64; it is kept on
+both for one rule.
+
+Mach-O targets (`*-apple-darwin`) keep `tailcc` and every guaranteed
+known tail call, but not the unknown-tail-call fast path below: the
+prefix data holds the twin's address as an absolute integer in a code
+section, which Mach-O can only encode as a text relocation, and the linker
+refuses those. There an unknown tail call takes the ordinary `__apply`
+call, and no unit joins the `tailcc` set for making one.
+
+WebAssembly has no `tailcc` (LLVM's backend accepts only the C
+convention), and 32-bit targets keep the C convention too. There the
+closed widening of section D104 still applies: mixed-arity groups lower
+under their widest arity in `#tail` workers, and a group whose members
+narrow to different prototypes keeps the word.
+
+### Unknown tail calls
+
 The design follows GHC's LLVM backend, which places info tables next to
-code. Each unit in the *tail set* gets a private `tailcc` body `X#cc`
-behind a C-ABI wrapper `X` with the original name, so every existing
-caller, export and stub keeps working. Each apply stub `X.app` carries
-LLVM prefix data:
+code. Each apply stub `X.app` carries LLVM prefix data:
 
 ```
 define i64 @"X.app"(...) prefix <{ i64, i64 }> <{ i64 MAGIC, i64 ptrtoint (ptr @"X.tapp" to i64) }>
 ```
 
 `X.tapp` is the stub's tail twin. It has the same merge and saturation
-logic, but its exact-saturation path is `musttail call tailcc @"X#cc"`.
+logic, but its exact-saturation path is `musttail call tailcc @"X#cc"`
+when `X` runs under `tailcc`, and an ordinary call otherwise.
 
 A tail call through an unknown closure in a `tailcc` caller works as
 follows:
 
-1. Store the arguments (1 to 16) in the thread-local
-   `@cinch.tail.argv [16 x i64]`. A `musttail` call must have the caller's
-   signature, so the variable-length arguments cannot travel on the stack.
-2. Load the closure's code word.
-3. Compare the word at `code - 16` with the magic. On a match, `musttail
-   call tailcc` the twin at `code - 8`.
-4. Otherwise take the slow path: copy the arguments to a local buffer
-   and call `__apply` like any other call.
+1. Load the closure's code word and compare the word at `code - 16` with
+   the magic. On a match, `musttail call tailcc` the twin at `code - 8`.
+2. The twin takes the closure, the count and the first `tail_regs`
+   argument words in registers: four on x86-64 (`tailcc` there has six
+   integer argument registers) and six on AArch64 (eight). One signature
+   serves every call; unused register words are `poison`, so the
+   per-count fan-out of `caml_applyN` does not come back.
+3. Words beyond the registers (up to 16 in all) go in the thread-local
+   `@cinch.tail.argv` at their own indices. A `musttail` callee cannot
+   read the frame it replaced, so they cannot travel in the caller's
+   frame.
+4. Otherwise, a code word without the magic (an object built by an older
+   compiler) takes the slow path: copy the arguments to a local buffer and
+   call `__apply` like any other call.
 
-The twin copies the buffer into its own frame before it does anything
-else. A further tail call reuses the buffer, so it must not be read after
-that point.
+The twin stores the register words and copies any buffer words into its
+own frame before it does anything else. A further tail call reuses the
+buffer, so it must not be read after that point.
 
-The tail set's seeds are units with a saturated tail call whose head is
-not a global, constructor, primitive or foreign function. The set is
-closed over the undirected known-tail-call graph, so every edge between
-two members is a `musttail` between two `tailcc` bodies. A component is
-skipped whole if any member has a narrowed signature or a tail-width
-entry, which have their own calling conventions. The rule is off on
-32-bit targets and wasm, whose `musttail` support differs.
+The magic names the twin's signature. `CINCHTL1` was the buffer-only twin
+`(ptr, i64, ptr)`; `CINCHTL2` is the register twin. A caller never enters
+a twin of the other shape: an object built by the older compiler takes
+the slow path.
 
 Measured: the CPS sum over ten million elements (`tests/cps.rs`, which
-uses two million) completes at `-O0` in constant stack and leak-free. At
-`-O2` it takes the same time as before: the continuation chain itself is
-the cost, one closure per element, built once and called once. With the
-release runtime (see "The runtime profile" below) that sum takes 527 ms at
-`-O2` and 732 ms at `-O0`.
+uses two million) completes at `-O0` in constant stack and leak-free.
+With the release runtime (see "The runtime profile" below) that sum takes
+527 ms at `-O2` and 732 ms at `-O0`. Passing the words in registers took
+2.9% of its instructions at `-O2` and 3.2% at `-O0` off the buffer-only
+twin (valgrind instruction counts on x86-64; the wall clock on the shared
+measuring machine varied more than that between identical binaries).
 
 ## 2. Contification
 
@@ -265,13 +332,77 @@ removes the closure entirely and the loop takes 4 ms. That ordering is
 the point of the design: specialisation removes what it can see, and the
 frame keeps the rest off the heap.
 
+## 6. Multi-word results
+
+The problem. A function that returns a pair, a `(value, state)` step or a
+`split`, allocates the pair, returns its pointer, and the caller
+immediately takes it apart and frees it. GHC removes this with its
+constructed product result analysis and worker/wrapper split; Rust and
+Swift return small aggregates in two to four registers.
+
+The rule (`codegen.rs::cpr_units`). A unit is a product result when every
+leaf its tail position delivers is a saturated application of one
+constructor of one to three fields in the uniform word layout (or a
+`Reuse` of that constructor's cell), a self tail call, a tail call of
+another product result of the same constructor, a jump, or the fault
+path. The set is the greatest fixed point of that condition. Three fields
+is the portable bound: x86-64 returns `{ i64, i64, i64 }` in `rax`, `rdx`
+and `rcx`, and a fourth word makes LLVM return through memory, which is
+no better than the block.
+
+Code generation.
+
+- The unit's body `X#cc` returns the fields as an LLVM aggregate. A
+  constructor leaf returns its argument words and builds nothing; a
+  `Reuse` leaf does the same, and the kept cell is freed with the other
+  tokens on the way out. A tail call of another product result is a
+  `musttail` of the aggregate.
+- The C wrapper `X` calls the body and hands the fields to the
+  constructor's own unit, which allocates the block. The object ABI, the
+  JIT, the apply stubs and every caller that needs the block go through
+  it, so a product that escapes (stored, passed, captured, reached through
+  a closure) is boxed exactly once, where it is first needed.
+- A caller that takes the result apart never builds it
+  (`CoreEmitter::virtual_let`). `let t = e in body` qualifies when `e`'s
+  leaves all build the product or call a product result
+  (`product_leaves`), and `body` mentions `t` only as the scrutinee of a
+  `case` with the constructor's one alternative, as the block of a
+  `Release`, or in a `drop`. `e` is emitted with a field destination
+  (`Dest::Fields`): each leaf stores the field words into slots. The
+  `case` binds its fields from the slots; the `Release` is its unique path
+  without a cell (the moved fields already hold their references, the rest
+  are dropped, the reuse token is 0); a `drop` drops each counted field.
+  Any other mention keeps the ordinary boxed call.
+
+The field destination is what makes the rule reach unrolled recursion.
+`split` with its recursive call inlined builds the pair of the inner call
+inside a `case`, and the outer `case` takes it apart: the `let`'s value is
+that `case`, not a call, so a rule that only recognised calls took a
+quarter of the pairs away and this one takes all of them.
+
+A product result's body keeps the C convention unless it is in the
+`tailcc` set (section 1); the aggregate return is the same under both, and
+a tail call between two product results outside the set is an ordinary
+call of the aggregate.
+
+Measured, on `split` over two million elements: 6,000,007 blocks became
+4,000,006 (the list and the split cells remain; every pair is gone), and
+the instruction count fell 26.7% at `-O2` and 25.9% at `-O0`. A program
+with no product result emits identical code. Evidence:
+`tests/calling_convention.rs` (every run leak-checked, including products
+that escape into a list, through a closure, through a reused cell, and a
+product result tail-calling another a million deep) and
+`codegen::tests::a_product_result_tail_call_passes_the_aggregate_on`.
+
 ## Interactions
 
 - **Ordering.** Specialisation (4c) runs before inlining in each
   simplifier iteration. Contification (2) and the projection rules (3,
   4a, 4b) run in every pass. Frame allocation (5) runs after RC
-  insertion. `tailcc` (1) is decided at code generation, from the final
-  Core.
+  insertion. `tailcc` (1) and the product results (6) are decided at
+  code generation, from the final Core; the product results first,
+  because a tail call between two units is only guaranteed when their
+  results cross alike.
 - **Occurrence counts.** A rewrite can create a binder that the pass's
   occurrence table has not counted. A missing count now means "unknown",
   never "dead", so dead-binder elimination cannot drop such a binder.

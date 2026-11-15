@@ -57,10 +57,12 @@ pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) ->
     // until the selector decides how the selected compiler meets it.
     let TargetProfile {
         name, triple, os, arch, libc, os_version, word_size, endian, vector_shape, features,
-        fuel: _, measure: _, allow_eval, artifact, required, jpl, rc_debug, reclaim,
+        fuel: _, measure: _, allow_eval, artifact, required, jpl, rc_debug, reclaim, no_cpr: _,
     } = profile;
     // Fuel and measure are upper bounds on driving. The selected compiler
-    // performs no driving, so it meets every bound.
+    // performs no driving, so it meets every bound. Product results
+    // (`no_cpr`) are a code generation choice with no observable behaviour,
+    // so the selected compiler meets either setting.
     //
     // `name` is compared only when the request names a FOREIGN triple. A
     // `native()` request is the host itself under a different label
