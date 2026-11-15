@@ -135,6 +135,7 @@ pub fn build(args: &[String]) -> Result<PathBuf> {
     io(std::fs::write(&cpp_path, cpp))?;
     let cxx = std::env::var("CINCH_CXX").unwrap_or_else(|_| "c++".into());
     let mut includes = vec![out.clone(), root.to_path_buf()];
+    let mut cpp_defines = Vec::<String>::new();
     let mut objects = Vec::new();
     let mut sdk_record = serde_json::Value::Null;
     let mut sdk_minimum = String::from("4.5");
@@ -211,10 +212,31 @@ pub fn build(args: &[String]) -> Result<PathBuf> {
                 "target=template_debug",
                 "precision=single",
                 "debug_symbols=no",
+                "threads=yes",
+                "use_hot_reload=no",
+                "dev_build=no",
             ])
             .arg(format!("build_profile={}", profile.display()))
             .arg(format!("-j{jobs}"));
         run(&mut build)?;
+        // Keep the adapter's header ABI identical to this SDK build, including
+        // the platform/thread configuration. Hot reload is disabled on both.
+        cpp_defines.extend(
+            [
+                "GDEXTENSION",
+                "THREADS_ENABLED",
+                "DEBUG_ENABLED",
+                "NDEBUG",
+                "UNIX_ENABLED",
+            ]
+            .into_iter()
+            .map(str::to_string),
+        );
+        cpp_defines.push(if cfg!(target_os = "macos") {
+            "MACOS_ENABLED".into()
+        } else {
+            "LINUX_ENABLED".into()
+        });
         includes.extend([
             sdk.join("include"),
             sdk.join("gen/include"),
@@ -244,6 +266,9 @@ pub fn build(args: &[String]) -> Result<PathBuf> {
             .arg(source)
             .arg("-o")
             .arg(&object);
+        for define in &cpp_defines {
+            compile.arg(format!("-D{define}"));
+        }
         for include in &includes {
             compile.arg("-I").arg(include);
         }
@@ -339,7 +364,7 @@ pub fn build(args: &[String]) -> Result<PathBuf> {
         out.join("native-build.json"),
         serde_json::to_string_pretty(&serde_json::json!({
             "generator":env!("CARGO_PKG_VERSION"), "bindings":spec_path, "sources":spec.sources,
-            "native_sources":spec.native_sources, "inputs":source_inputs, "cxx":cxx, "godot_cpp":sdk_record,
+            "native_sources":spec.native_sources, "inputs":source_inputs, "cxx":cxx, "cpp_defines":cpp_defines, "godot_cpp":sdk_record,
             "library":library, "target":driver::target_profile(&opts)?.triple
         }))
         .map_err(|e| fail(e.to_string()))?,
