@@ -37,9 +37,9 @@
 //!
 //! # The two moves
 //!
-//! A `Dup` of `x` is placed immediately before the earliest step of the run
-//! that reads `x`. When the run holds several `Dup`s of the same value they
-//! move together and keep their multiplicity, because a `Dup` is one
+//! A `Dup` of `x` moves earlier only, to the run's first `Dup` of the same
+//! value, and never later. When the run holds several `Dup`s of one value
+//! they move together and keep their multiplicity, because a `Dup` is one
 //! reference and emitting one fewer would leave the run holding one less
 //! than it took. A `Drop` of `x` moves later, but only across steps that do
 //! not mention `x` at all: the counting pass puts a drop where a path stops
@@ -47,10 +47,23 @@
 //! sinking a drop past such a read would release a reference the read
 //! borrows.
 //!
-//! Both moves preserve the run's meaning step by step. Before the earliest
-//! read a `Dup` only adds a reference to a value that is still held by
-//! whoever the run inherited it from, and a `Drop` that crosses only steps
-//! free of its value releases a reference nobody can observe.
+//! Both moves preserve the run's meaning step by step. Before the run's
+//! first `Dup` of a value that value is still held by whoever the run
+//! inherited it from, so moving the other `Dup`s up to that point only
+//! extends the range over which its count is positive; and a `Drop` that
+//! crosses only steps free of its value releases a reference nobody can
+//! observe.
+//!
+//! Moving a `Dup` *down* to the first step that reads the value is unsound,
+//! and that is what this pass did until it was caught. The step that ends a
+//! value's life need not read it: a `Release` frees the block a field was
+//! loaded from, and a `Drop` releases the block itself, so a `Dup` placed
+//! after either reads a dead word. `design/reclamation.md` section 5 states
+//! the rule as the live range of the value, and Lean's `CoalesceRC` issues
+//! every `inc` at the first. Three reclamation programs and the bootstrap's
+//! own seed crashed under the earlier rule; the ownership verifier sees the
+//! moved program rather than the move, so it caught the fault only once it
+//! was run after this pass rather than inside the counting pass.
 
 use crate::core::{CAlt, CBranch, Core, LocalId, Program};
 use crate::repr::Class;
@@ -58,9 +71,9 @@ use std::collections::BTreeMap;
 
 /// Coalesce every unit's count operations in place. A profile that does not
 /// reclaim has none.
-pub fn coalesce(program: &mut Program, profile: &crate::core::TargetProfile) {
+pub fn coalesce(program: &mut Program, profile: &crate::core::TargetProfile) -> crate::Result<()> {
     if !profile.reclaim {
-        return;
+        return Ok(());
     }
     for f in &mut program.fns {
         if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body {
@@ -69,6 +82,15 @@ pub fn coalesce(program: &mut Program, profile: &crate::core::TargetProfile) {
         let body = std::mem::replace(&mut f.body, Core::Unit);
         f.body = run(&body);
     }
+    // This pass moves the count operations of a body the counting pass
+    // already balanced, so the balance has to be re-established on what it
+    // produced: a `Dup` moved past the step that ended the value's life is
+    // balanced where counting left it and unbalanced here, and only the
+    // moved program shows that.
+    if crate::rc::verifying() {
+        crate::rc::verify_program(program)?;
+    }
+    Ok(())
 }
 
 /// One step of a run: the node, minus the continuation the run carries.
@@ -200,19 +222,21 @@ fn rebuild(steps: &[Step], tail: Core) -> Core {
         }
         mentions.push(v);
     }
-    // Where a value's first `Dup` may go: the first step that reads it.
-    // Only `Let` values are read, so a step with no read of its own is not
-    // an anchor.
+    // Where a value's `Dup`s go: the position of the run's first `Dup` of
+    // it, and never any later. The first `Dup` is the earliest point the
+    // run is known to hold the value by its own reference, so moving the
+    // others up to it only lengthens the range over which the count is
+    // positive, which no operation can observe. Moving one *down* is what
+    // the earlier rule did, to the first step that read the value, and that
+    // is unsound: a step in between can end the value's life without
+    // reading it, because a `Release` or a `Drop` of the block a field was
+    // taken from frees the field's cell, and a `Dup` of it placed after
+    // that reads a dead word (`design/reclamation.md` section 5, the
+    // live-range rule; Lean's `CoalesceRC` moves every `inc` to the first).
     let mut dup_target: BTreeMap<usize, usize> = BTreeMap::new();
-    for (x, _) in steps.iter().filter_map(|s| match s {
-        Step::Dup(x, c) => Some((x.0, *c)),
-        _ => None,
-    }) {
-        if dup_target.contains_key(&x) {
-            continue;
-        }
-        if let Some(i) = steps.iter().position(|s| uses(s).contains(&x)) {
-            dup_target.insert(x, i);
+    for (i, s) in steps.iter().enumerate() {
+        if let Step::Dup(x, _) = s {
+            dup_target.entry(x.0).or_insert(i);
         }
     }
     // A `Drop` stays where it is unless the steps after it, up to the next
@@ -368,53 +392,97 @@ mod tests {
     }
 
     #[test]
-    fn a_dup_moves_to_the_first_use_and_keeps_its_multiplicity() {
+    fn a_dup_moves_up_to_the_first_dup_and_keeps_its_multiplicity() {
         // let a = f (v1)
+        // let b = g (v1)
         // dup v0
-        // let b = g (v0)
-        // dup v0
-        // drop v0
         // let c = h (v0)
-        // drop v0
+        // dup v0
         //   tail
         let body = Core::Let(
             LocalId(10),
             Class::Raw,
             Box::new(app("f", vec![var(1)])),
-            Box::new(dup(
-                0,
-                Core::Let(
-                    LocalId(11),
-                    Class::Raw,
-                    Box::new(app("g", vec![var(0)])),
-                    Box::new(dup(
-                        0,
-                        drop_(
-                            0,
-                            Core::Let(
-                                LocalId(12),
-                                Class::Raw,
-                                Box::new(app("h", vec![var(0)])),
-                                Box::new(drop_(0, app("k", vec![var(11)]))),
-                            ),
-                        ),
-                    )),
-                ),
+            Box::new(Core::Let(
+                LocalId(11),
+                Class::Raw,
+                Box::new(app("g", vec![var(1)])),
+                Box::new(dup(
+                    0,
+                    Core::Let(
+                        LocalId(12),
+                        Class::Raw,
+                        Box::new(app("h", vec![var(0)])),
+                        Box::new(dup(0, app("k", vec![var(12)]))),
+                    ),
+                )),
             )),
         );
         let mut before = Vec::new();
         order(&body, &mut before);
-        assert_eq!(before, vec![('d', 0), ('d', 0), ('x', 0), ('x', 0)]);
+        assert_eq!(before, vec![('d', 0), ('d', 0)]);
         let after = run(&body);
         let mut got = Vec::new();
         order(&after, &mut got);
-        // Both dups now sit before the first use of v0 and both drops
-        // after its last, so the run holds the value across all of it.
-        assert_eq!(got, vec![('d', 0), ('d', 0), ('x', 0), ('x', 0)]);
+        // Both dups now sit at the run's first `Dup` of v0, so the count is
+        // positive across the whole run and neither can read a released
+        // word.
+        assert_eq!(got, vec![('d', 0), ('d', 0)]);
         let Core::Let(..) = after else { panic!("the first let is the run's head") };
-        let Core::Dup(..) = nth_body(&after, 0) else {
-            panic!("the dups did not move to the first use: {after:?}");
+        let Core::Let(..) = nth_body(&after, 0) else { panic!("the second let follows") };
+        let Core::Dup(..) = nth_body(&after, 1) else {
+            panic!("the dups did not move up to the first: {after:?}");
         };
+    }
+
+    #[test]
+    fn a_dup_does_not_move_below_the_step_that_frees_its_cell() {
+        // A `Release` frees the block a pattern field was loaded from
+        // without reading that field, so a `Dup` of the field placed after
+        // the release dups a dead word. This is the bootstrap's own shape:
+        // `decls-refusals` dups the tail of its scrutinee after an arm has
+        // released the cell the tail came from, and the bootstrap then lost
+        // 14 of its 24 refusals.
+        //
+        // dup v1
+        // let a = case v0 of (release v0 (moved v2) ...)   <- v1's cell dies
+        // let b = case v1 of ...                            <- reads v1
+        //   dup v1                                          <- must not land here
+        let body = dup(
+            1,
+            Core::Let(
+                LocalId(10),
+                Class::Raw,
+                Box::new(Core::Release {
+                    block: LocalId(0),
+                    moved: vec![(LocalId(2), Class::Obj)],
+                    rest: Vec::new(),
+                    token: None,
+                    body: Box::new(app("f", vec![var(2)])),
+                }),
+                Box::new(Core::Let(
+                    LocalId(11),
+                    Class::Raw,
+                    Box::new(Core::Case {
+                        scrut: Box::new(var(1)),
+                        alts: vec![CAlt {
+                            pat: CPat::Wild,
+                            weight: None,
+                            body: Box::new(app("g", vec![])),
+                        }],
+                    }),
+                    Box::new(dup(1, app("k", vec![var(11)]))),
+                )),
+            ),
+        );
+        let after = run(&body);
+        let text = format!("{after:?}");
+        let release_at = text.find("Release").expect("the release survives");
+        let first_dup_at = text.find("Dup(LocalId(1)").expect("the dup survives");
+        assert!(
+            first_dup_at < release_at,
+            "a dup moved below the release that freed its cell: {text}"
+        );
     }
 
     /// The `n`-th continuation of a `let` spine.

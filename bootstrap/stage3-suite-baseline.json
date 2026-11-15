@@ -1,1416 +1,1440 @@
 {
- "date": "2026-11-13",
+ "date": "2026-11-14",
  "stage": 3,
- "compiler": "main at 5fc2d4ee: static block dedup, proposition-valued declaration schemes, benefit-and-size inlining, Ascii and Ordered as structural predicates",
- "targets": 234,
- "fully_passing": 145,
- "tests_passed": 928,
- "tests_failed": 631,
- "runner": "tooling/run_stage_targets.py --stage 3 --jobs 3 --all; bootstrap_function_preconditions re-run after its ignored case was removed",
+ "compiler": "main at 4eb24659: branch-reuse token settled at every exit (leak clean on --check and --emit-ir), Traversable method own vectors pinned",
+ "targets": 238,
+ "fully_passing": 146,
+ "tests_passed": 1445,
+ "tests_failed": 616,
+ "runner": "tooling/run_stage_targets.py --stage 3 --jobs 3 --all",
  "rows": [
   {
    "target": "alloc_accounting",
    "exit": 0,
-   "passed": 8,
+   "passed": 10,
    "failed": 0
   },
   {
    "target": "arena",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "argv",
    "exit": 0,
-   "passed": 2,
+   "passed": 4,
    "failed": 0
   },
   {
    "target": "arrays",
    "exit": 0,
-   "passed": 15,
+   "passed": 17,
    "failed": 0
   },
   {
    "target": "attributes",
    "exit": 101,
-   "passed": 14,
+   "passed": 16,
    "failed": 10
   },
   {
    "target": "bootstrap_abstract_nonzero_methods",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_abstract_nonzero_types",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_anonymous_contracts",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_argument_scopes",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_array_float_bits",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_body_bindings",
    "exit": 0,
-   "passed": 2,
+   "passed": 4,
    "failed": 0
   },
   {
    "target": "bootstrap_boolean_branches",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_buffer_aliases",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 1
   },
   {
    "target": "bootstrap_byte_observations",
    "exit": 101,
-   "passed": 2,
+   "passed": 4,
    "failed": 1
   },
   {
    "target": "bootstrap_check",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_checked_program",
    "exit": 0,
-   "passed": 2,
+   "passed": 4,
    "failed": 0
   },
   {
    "target": "bootstrap_collections",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_conditional_methods",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_contract",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_core",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_decisions",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_driver",
    "exit": 0,
-   "passed": 2,
+   "passed": 4,
    "failed": 0
   },
   {
    "target": "bootstrap_effect_types",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_effects",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 1
   },
   {
    "target": "bootstrap_eval",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_export_interfaces",
    "exit": 101,
-   "passed": 1,
+   "passed": 3,
    "failed": 2
   },
   {
    "target": "bootstrap_export_types",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_external_frontend",
    "exit": 101,
-   "passed": 5,
+   "passed": 7,
    "failed": 3
   },
   {
    "target": "bootstrap_function_preconditions",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_globals",
    "exit": 0,
-   "passed": 2,
+   "passed": 4,
    "failed": 0
   },
   {
    "target": "bootstrap_guarded_arithmetic",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_guarded_association",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_guarded_bodies",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_guarded_calls",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_handler_core",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_imported_nonzero",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_imported_preconditions",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_indices",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_infer",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 1
   },
   {
    "target": "bootstrap_instance_resolution",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_interface",
    "exit": 0,
-   "passed": 2,
+   "passed": 4,
    "failed": 0
   },
   {
    "target": "bootstrap_intrinsics",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 1
   },
   {
    "target": "bootstrap_ir",
    "exit": 0,
-   "passed": 2,
+   "passed": 4,
    "failed": 0
   },
   {
    "target": "bootstrap_ladder",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_lexer",
    "exit": 0,
-   "passed": 3,
+   "passed": 5,
    "failed": 0
   },
   {
    "target": "bootstrap_library_object",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_load",
    "exit": 0,
-   "passed": 2,
+   "passed": 4,
    "failed": 0
   },
   {
    "target": "bootstrap_machine_values",
    "exit": 0,
-   "passed": 2,
+   "passed": 4,
    "failed": 0
   },
   {
    "target": "bootstrap_manifest",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_measure_contracts",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_module_scopes",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_named_refinements",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_nominals",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_nonzero_source",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_nonzero_types",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_parse",
-   "exit": 0,
-   "passed": 2,
-   "failed": 0
+   "exit": 101,
+   "passed": 3,
+   "failed": 1
   },
   {
    "target": "bootstrap_pi",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_pipeline",
-   "exit": 0,
-   "passed": 2,
-   "failed": 0
+   "exit": 101,
+   "passed": 3,
+   "failed": 1
   },
   {
    "target": "bootstrap_proof",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_proof_arrows",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_proof_terms",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_proposition_types",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_refinement_closure",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_refinement_constructors",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_refinement_core",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_refinement_types",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_resolve",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_runtime_emit",
-   "exit": 0,
-   "passed": 1,
-   "failed": 0
+   "exit": 101,
+   "passed": 2,
+   "failed": 1
   },
   {
    "target": "bootstrap_runtime_ir",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_runtime_library",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_runtime_library_abi",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_runtime_objects",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_source_constructors",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_source_decisions",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_source_effects",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_source_handlers",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_source_instances",
    "exit": 0,
-   "passed": 3,
+   "passed": 5,
    "failed": 0
   },
   {
    "target": "bootstrap_source_paths",
    "exit": 0,
-   "passed": 3,
+   "passed": 5,
    "failed": 0
   },
   {
    "target": "bootstrap_source_pi",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_source_projection",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_source_proofs",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_source_refinements",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_test_runner",
    "exit": 0,
-   "passed": 2,
+   "passed": 4,
    "failed": 0
   },
   {
    "target": "bootstrap_total",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_total_indices",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_total_semantics",
    "exit": 0,
-   "passed": 3,
+   "passed": 5,
    "failed": 0
   },
   {
    "target": "bootstrap_type_syntax",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_typed_indices",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_typing",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_value_indices",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "bootstrap_value_kinds",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "canonical_artifacts",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "case_evidence",
    "exit": 101,
-   "passed": 17,
+   "passed": 19,
    "failed": 1
   },
   {
    "target": "class_defaults",
    "exit": 0,
-   "passed": 7,
+   "passed": 9,
    "failed": 0
   },
   {
    "target": "class_identity",
    "exit": 0,
-   "passed": 3,
+   "passed": 5,
    "failed": 0
   },
   {
    "target": "codata",
    "exit": 101,
-   "passed": 9,
+   "passed": 11,
    "failed": 1
   },
   {
    "target": "concurrency",
    "exit": 101,
-   "passed": 21,
+   "passed": 23,
    "failed": 3
   },
   {
    "target": "conditional_surface",
    "exit": 101,
-   "passed": 1,
-   "failed": 20
+   "passed": 4,
+   "failed": 19
   },
   {
    "target": "core_output",
    "exit": 0,
-   "passed": 21,
+   "passed": 23,
    "failed": 0
   },
   {
    "target": "dependent",
    "exit": 101,
-   "passed": 6,
+   "passed": 8,
    "failed": 13
   },
   {
    "target": "effects",
    "exit": 101,
-   "passed": 3,
+   "passed": 5,
    "failed": 15
   },
   {
    "target": "evidence_invalidation",
    "exit": 0,
-   "passed": 13,
+   "passed": 15,
    "failed": 0
   },
   {
    "target": "evolution",
    "exit": 101,
-   "passed": 5,
+   "passed": 7,
    "failed": 7
   },
   {
    "target": "exhaustion",
    "exit": 0,
-   "passed": 4,
+   "passed": 6,
    "failed": 0
   },
   {
    "target": "ffi",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 12
   },
   {
    "target": "fixity_interfaces",
    "exit": 0,
-   "passed": 2,
+   "passed": 4,
    "failed": 0
   },
   {
    "target": "folded_literal_ownership",
    "exit": 0,
-   "passed": 2,
+   "passed": 4,
    "failed": 0
   },
   {
    "target": "goal_tactics",
    "exit": 101,
-   "passed": 9,
+   "passed": 11,
    "failed": 4
   },
   {
    "target": "guard_coverage",
    "exit": 0,
-   "passed": 5,
+   "passed": 7,
    "failed": 0
   },
   {
    "target": "hk",
    "exit": 101,
-   "passed": 14,
+   "passed": 16,
    "failed": 10
   },
   {
    "target": "index_local_carriers",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 1
   },
   {
    "target": "integration",
    "exit": 101,
-   "passed": 38,
+   "passed": 40,
    "failed": 1
   },
   {
    "target": "interface_anonymous_contracts",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "interface_byte_observations",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "interface_class_contracts",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "interface_conditional_methods",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "interface_guarded_bodies",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 1
   },
   {
    "target": "interface_kinds",
    "exit": 0,
-   "passed": 4,
+   "passed": 6,
    "failed": 0
   },
   {
    "target": "interface_machine_contracts",
    "exit": 0,
-   "passed": 2,
+   "passed": 4,
    "failed": 0
   },
   {
    "target": "interface_method_bodies",
    "exit": 101,
-   "passed": 2,
+   "passed": 4,
    "failed": 7
   },
   {
    "target": "interface_nominals",
    "exit": 101,
-   "passed": 1,
+   "passed": 3,
    "failed": 1
   },
   {
    "target": "interface_preconditions",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "interface_prelude_overrides",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 1
   },
   {
    "target": "interface_primitive_bodies",
    "exit": 0,
-   "passed": 2,
+   "passed": 4,
    "failed": 0
   },
   {
    "target": "interface_refinement_closure",
    "exit": 0,
-   "passed": 2,
+   "passed": 4,
    "failed": 0
   },
   {
    "target": "interface_refinements",
    "exit": 0,
-   "passed": 4,
+   "passed": 6,
    "failed": 0
   },
   {
    "target": "interface_region_effects",
    "exit": 0,
-   "passed": 2,
+   "passed": 4,
    "failed": 0
   },
   {
    "target": "interface_total_bodies",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "intrinsic_objects",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 1
   },
   {
    "target": "json",
    "exit": 101,
-   "passed": 5,
+   "passed": 7,
    "failed": 4
   },
   {
    "target": "lattice",
    "exit": 101,
-   "passed": 1,
+   "passed": 3,
    "failed": 22
   },
   {
    "target": "laws",
    "exit": 101,
-   "passed": 5,
+   "passed": 7,
    "failed": 3
   },
   {
    "target": "letrec",
    "exit": 0,
-   "passed": 18,
+   "passed": 20,
    "failed": 0
   },
   {
    "target": "lib_algebra",
    "exit": 101,
-   "passed": 21,
+   "passed": 23,
    "failed": 1
   },
   {
    "target": "lib_base64",
    "exit": 0,
-   "passed": 7,
+   "passed": 9,
    "failed": 0
   },
   {
    "target": "lib_benchmark",
    "exit": 101,
-   "passed": 2,
+   "passed": 4,
    "failed": 1
   },
   {
    "target": "lib_bigdecimal",
    "exit": 0,
-   "passed": 10,
+   "passed": 12,
    "failed": 0
   },
   {
    "target": "lib_builder",
    "exit": 0,
-   "passed": 5,
+   "passed": 7,
    "failed": 0
   },
   {
    "target": "lib_category",
    "exit": 0,
-   "passed": 12,
+   "passed": 14,
    "failed": 0
   },
   {
    "target": "lib_char_tuple",
    "exit": 0,
-   "passed": 4,
+   "passed": 6,
    "failed": 0
   },
   {
    "target": "lib_civil_time",
    "exit": 0,
-   "passed": 10,
+   "passed": 12,
    "failed": 0
   },
   {
    "target": "lib_complex",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "lib_coverage",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 4
   },
   {
    "target": "lib_csv",
    "exit": 0,
-   "passed": 5,
+   "passed": 7,
    "failed": 0
   },
   {
    "target": "lib_digest",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 1
   },
   {
    "target": "lib_file_utils",
    "exit": 0,
-   "passed": 7,
+   "passed": 9,
    "failed": 0
   },
   {
    "target": "lib_find",
    "exit": 0,
-   "passed": 2,
+   "passed": 4,
    "failed": 0
   },
   {
    "target": "lib_foldable",
    "exit": 0,
-   "passed": 15,
+   "passed": 17,
    "failed": 0
   },
   {
    "target": "lib_function_ord",
    "exit": 0,
-   "passed": 9,
+   "passed": 11,
    "failed": 0
   },
   {
    "target": "lib_hash_keys",
    "exit": 0,
-   "passed": 5,
+   "passed": 7,
    "failed": 0
   },
   {
    "target": "lib_hashmap_real",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "lib_http",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "lib_list",
    "exit": 0,
-   "passed": 8,
+   "passed": 10,
    "failed": 0
   },
   {
    "target": "lib_map_set_ops",
    "exit": 0,
-   "passed": 7,
+   "passed": 9,
    "failed": 0
   },
   {
    "target": "lib_matrix",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 6
   },
   {
    "target": "lib_option_parser",
    "exit": 0,
-   "passed": 4,
+   "passed": 6,
    "failed": 0
   },
   {
    "target": "lib_option_result",
    "exit": 0,
-   "passed": 7,
+   "passed": 9,
    "failed": 0
   },
   {
    "target": "lib_pty",
    "exit": 0,
-   "passed": 2,
+   "passed": 4,
    "failed": 0
   },
   {
    "target": "lib_random",
    "exit": 0,
-   "passed": 4,
+   "passed": 6,
    "failed": 0
   },
   {
    "target": "lib_rational",
    "exit": 0,
-   "passed": 4,
+   "passed": 6,
    "failed": 0
   },
   {
    "target": "lib_resolv",
    "exit": 0,
-   "passed": 3,
+   "passed": 5,
    "failed": 0
   },
   {
    "target": "lib_shellwords",
    "exit": 0,
-   "passed": 6,
+   "passed": 8,
    "failed": 0
   },
   {
    "target": "lib_signal",
    "exit": 0,
-   "passed": 3,
+   "passed": 5,
    "failed": 0
   },
   {
    "target": "lib_string_io",
    "exit": 0,
-   "passed": 7,
+   "passed": 9,
    "failed": 0
   },
   {
    "target": "lib_test_runner",
    "exit": 0,
-   "passed": 5,
+   "passed": 7,
    "failed": 0
   },
   {
    "target": "lib_text_ops",
    "exit": 0,
-   "passed": 5,
+   "passed": 7,
    "failed": 0
   },
   {
    "target": "lib_toml",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 5
   },
   {
    "target": "lib_uri_ipaddr",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 20
   },
   {
    "target": "lib_yaml",
    "exit": 101,
-   "passed": 1,
+   "passed": 3,
    "failed": 9
   },
   {
    "target": "lib_zlib",
    "exit": 0,
-   "passed": 4,
+   "passed": 6,
    "failed": 0
   },
   {
    "target": "linear_facts",
    "exit": 101,
-   "passed": 4,
+   "passed": 6,
    "failed": 5
   },
   {
    "target": "llvm_contract",
    "exit": 101,
-   "passed": 12,
+   "passed": 18,
    "failed": 2
   },
   {
    "target": "modules",
    "exit": 0,
-   "passed": 17,
+   "passed": 19,
+   "failed": 0
+  },
+  {
+   "target": "narrow_boundary",
+   "exit": 0,
+   "passed": 8,
    "failed": 0
   },
   {
    "target": "native_closure_checks",
    "exit": 0,
-   "passed": 1,
+   "passed": 3,
    "failed": 0
   },
   {
    "target": "nominal_identity",
    "exit": 101,
-   "passed": 4,
+   "passed": 6,
    "failed": 3
   },
   {
    "target": "observability",
    "exit": 101,
-   "passed": 2,
+   "passed": 4,
    "failed": 5
   },
   {
    "target": "optimizer",
    "exit": 101,
-   "passed": 4,
+   "passed": 6,
    "failed": 12
   },
   {
    "target": "order_independence",
    "exit": 0,
-   "passed": 5,
+   "passed": 7,
    "failed": 0
   },
   {
    "target": "ownership",
    "exit": 101,
-   "passed": 23,
+   "passed": 25,
    "failed": 6
   },
   {
    "target": "package_prelude",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 5
+  },
+  {
+   "target": "par_map_in_compiler_sources",
+   "exit": 0,
+   "passed": 4,
+   "failed": 0
   },
   {
    "target": "parallel",
    "exit": 101,
-   "passed": 18,
+   "passed": 20,
    "failed": 1
   },
   {
    "target": "params",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 7
   },
   {
    "target": "parsers",
    "exit": 101,
-   "passed": 8,
+   "passed": 10,
    "failed": 1
   },
   {
    "target": "pattern_field_names",
    "exit": 101,
-   "passed": 3,
+   "passed": 5,
    "failed": 2
   },
   {
    "target": "platform",
    "exit": 101,
-   "passed": 6,
+   "passed": 8,
    "failed": 2
   },
   {
    "target": "prelude_lib",
    "exit": 101,
-   "passed": 11,
+   "passed": 13,
    "failed": 2
   },
   {
    "target": "prelude_split",
    "exit": 101,
-   "passed": 13,
+   "passed": 15,
    "failed": 3
   },
   {
    "target": "prim",
    "exit": 101,
-   "passed": 13,
+   "passed": 15,
    "failed": 13
   },
   {
    "target": "primitive_length_identity",
    "exit": 0,
-   "passed": 9,
+   "passed": 11,
    "failed": 0
   },
   {
    "target": "primitives",
    "exit": 101,
-   "passed": 28,
+   "passed": 30,
    "failed": 9
   },
   {
    "target": "proof_guarded_lets",
    "exit": 101,
-   "passed": 4,
+   "passed": 6,
    "failed": 3
   },
   {
    "target": "proof_value_identity",
    "exit": 101,
-   "passed": 4,
+   "passed": 6,
    "failed": 1
   },
   {
    "target": "qualified_identities",
    "exit": 101,
-   "passed": 2,
+   "passed": 4,
    "failed": 3
   },
   {
    "target": "range_facts",
    "exit": 101,
-   "passed": 5,
+   "passed": 7,
    "failed": 4
   },
   {
    "target": "reclamation",
    "exit": 101,
-   "passed": 15,
-   "failed": 4
+   "passed": 19,
+   "failed": 2
   },
   {
    "target": "reclamation_tasks",
    "exit": 0,
-   "passed": 3,
+   "passed": 5,
    "failed": 0
   },
   {
    "target": "refinements",
    "exit": 101,
-   "passed": 11,
+   "passed": 13,
    "failed": 16
   },
   {
    "target": "regex",
    "exit": 101,
-   "passed": 4,
+   "passed": 6,
    "failed": 1
   },
   {
    "target": "repr_classes",
    "exit": 0,
-   "passed": 3,
+   "passed": 5,
    "failed": 0
   },
   {
    "target": "reuse",
    "exit": 101,
-   "passed": 5,
+   "passed": 7,
    "failed": 1
   },
   {
    "target": "runtime_net_prims",
    "exit": 0,
-   "passed": 2,
+   "passed": 4,
    "failed": 0
   },
   {
    "target": "runtime_prims",
    "exit": 0,
-   "passed": 6,
+   "passed": 8,
    "failed": 0
   },
   {
    "target": "safe_bytes",
    "exit": 0,
-   "passed": 9,
+   "passed": 11,
    "failed": 0
   },
   {
    "target": "safe_division",
    "exit": 101,
-   "passed": 6,
+   "passed": 8,
    "failed": 1
   },
   {
    "target": "safe_subtraction",
    "exit": 101,
-   "passed": 8,
+   "passed": 10,
    "failed": 2
   },
   {
    "target": "safety",
    "exit": 101,
-   "passed": 2,
+   "passed": 4,
    "failed": 22
   },
   {
    "target": "small_nats",
    "exit": 101,
-   "passed": 5,
+   "passed": 7,
    "failed": 1
   },
   {
    "target": "stage_code_expectations",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 11
   },
   {
    "target": "staging",
    "exit": 101,
-   "passed": 8,
+   "passed": 10,
    "failed": 18
   },
   {
    "target": "stm",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 14
   },
   {
    "target": "string_literals",
    "exit": 101,
-   "passed": 6,
+   "passed": 8,
    "failed": 6
   },
   {
    "target": "surface",
    "exit": 101,
-   "passed": 2,
+   "passed": 4,
    "failed": 17
   },
   {
    "target": "sym",
    "exit": 101,
-   "passed": 2,
+   "passed": 4,
    "failed": 8
   },
   {
    "target": "syntax_choreography",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 8
   },
   {
    "target": "syntax_declaration_composition",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 12
   },
   {
    "target": "syntax_declaration_groups",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 11
   },
   {
    "target": "syntax_declaration_namespaces",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 8
   },
   {
    "target": "syntax_declarations",
    "exit": 101,
-   "passed": 6,
+   "passed": 8,
    "failed": 21
   },
   {
    "target": "syntax_effect_declarations",
    "exit": 101,
-   "passed": 1,
+   "passed": 3,
    "failed": 6
   },
   {
    "target": "syntax_index_evidence",
    "exit": 101,
-   "passed": 2,
+   "passed": 4,
    "failed": 12
   },
   {
    "target": "syntax_index_lambdas",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 7
   },
   {
    "target": "syntax_lambdas",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 8
   },
   {
    "target": "syntax_objects",
    "exit": 101,
-   "passed": 26,
-   "failed": 52
+   "passed": 31,
+   "failed": 49
   },
   {
    "target": "syntax_proof_patterns",
    "exit": 101,
-   "passed": 3,
+   "passed": 5,
    "failed": 15
   },
   {
    "target": "syntax_quoted_macro_scope",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 2
   },
   {
    "target": "syntax_runtime_proofs",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 12
   },
   {
    "target": "syntax_sigil_identifiers",
    "exit": 0,
-   "passed": 6,
+   "passed": 8,
    "failed": 0
   },
   {
    "target": "syntax_signature_scope",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 7
   },
   {
    "target": "syntax_structural_builders",
    "exit": 101,
-   "passed": 0,
+   "passed": 2,
    "failed": 14
   },
   {
    "target": "tail_calls",
    "exit": 0,
-   "passed": 3,
+   "passed": 5,
    "failed": 0
   },
   {
    "target": "targets",
    "exit": 101,
-   "passed": 7,
+   "passed": 9,
    "failed": 5
   },
   {
    "target": "temporal",
    "exit": 101,
-   "passed": 1,
-   "failed": 19
+   "passed": 16,
+   "failed": 7
+  },
+  {
+   "target": "trace",
+   "exit": 0,
+   "passed": 5,
+   "failed": 0
   },
   {
    "target": "unroll_hint",
    "exit": 101,
-   "passed": 4,
+   "passed": 6,
    "failed": 1
   },
   {
    "target": "wasm",
    "exit": 101,
-   "passed": 8,
+   "passed": 10,
    "failed": 5
+  },
+  {
+   "target": "wasm_target",
+   "exit": 0,
+   "passed": 12,
+   "failed": 0
   }
  ]
 }

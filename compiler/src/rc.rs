@@ -48,10 +48,16 @@
 //!
 //! # Verification
 //!
-//! In debug builds (and so in every test) [`verify`] re-derives the
-//! ownership of the transformed body and refuses any path on which an
-//! owned binder is not consumed exactly once: a compiler-bug trap at
-//! compile time (design/no-faults.md).
+//! [`verify`] re-derives the ownership of a transformed body and refuses any
+//! path on which an owned binder is not consumed exactly once: a
+//! compiler-bug trap at compile time (design/no-faults.md). It runs in every
+//! build, release included, because the bootstrap's own seed is a release
+//! binary and a check that only exists in a configuration nobody ships is a
+//! check that does not run. [`verify_program`] applies it to a whole
+//! program, and every pass after counting that moves or rewrites a body
+//! calls it on what it produced: a body can be balanced where the counting
+//! pass left it and unbalanced after a later move, which is exactly how
+//! `crate::coalesce` dupped a dead field for months.
 
 use crate::core::{CAlt, CBranch, CPat, Core, FnDef, GlobalId, LocalId, Program};
 use crate::repr::Class;
@@ -116,7 +122,7 @@ fn insert_with(mut program: Program, profile: &crate::core::TargetProfile, close
         }
         let borrowed = borrowed_params(&modes, f);
         let body = transform(f, &modes, &borrowed, &ctors);
-        if cfg!(debug_assertions) {
+        if verifying() {
             verify(f, &body, &modes, &borrowed).map_err(|m| {
                 if std::env::var_os("CINCH_RC_TRACE").is_some() {
                     eprintln!("cinch-rc: {}\n  input: {:?}\n  output: {:?}", f.id, f.body, body);
@@ -127,6 +133,35 @@ fn insert_with(mut program: Program, profile: &crate::core::TargetProfile, close
         f.body = body;
     }
     Ok(program)
+}
+
+/// Whether [`verify`] runs. On in every build, release included: the
+/// bootstrap's seed is a release binary, so a check gated on
+/// `debug_assertions` never ran on the artifact that ships.
+/// `CINCH_RC_VERIFY=0` turns it off, for a measurement that needs the pass
+/// out of the profile.
+pub(crate) fn verifying() -> bool {
+    static ON: std::sync::LazyLock<bool> =
+        std::sync::LazyLock::new(|| std::env::var_os("CINCH_RC_VERIFY").is_none_or(|v| v != "0"));
+    *ON
+}
+
+/// Re-derive the ownership of every unit of `program` with [`verify`], the
+/// modes it was counted with, and the parameters each unit only lends. A
+/// pass that runs after counting and moves or rewrites a body calls this on
+/// what it produced: the certificate has to cover the program code
+/// generation reads, not the one the counting pass handed over.
+pub fn verify_program(program: &Program) -> crate::Result<()> {
+    let modes: Modes = program.borrowed.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+    for f in &program.fns {
+        if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body {
+            continue;
+        }
+        let borrowed = borrowed_params(&modes, f);
+        verify(f, &f.body, &modes, &borrowed)
+            .map_err(|m| crate::Error::plain(format!("compiler bug: ownership verifier rejected {}: {m}", f.id)))?;
+    }
+    Ok(())
 }
 
 /// Borrowed parameter modes by unit name (`true` borrowed), for the units
@@ -771,14 +806,20 @@ fn insert_reuse_in_args(
 /// arm runs per path, so the token is read at most once per path:
 ///
 /// - an arm that allocates a compatible constructor writes into the kept
-///   cell;
-/// - an arm that allocates nothing compatible leaves the token unread,
-///   which is sound because the release already freed the block on its
-///   unique path (or dupped and dropped it on the shared one), so there is
-///   nothing left for that path to leak.
+///   cell and clears the token, because the cell is that arm's now;
+/// - an arm that allocates nothing compatible leaves the token set, and
+///   the cell the unique path kept is freed where that path leaves the
+///   release. The code generator owns that free (`emit_release` returns
+///   the token's slot, and the emitter settles it at the release body's
+///   every exit), because the pass cannot see the branch's arms as a
+///   single continuation: a code generator that emitted the arms and
+///   dropped the cell only on the reuse path leaked one block per call of
+///   the shape below, and the compiler's own leak check reported it.
 ///
-/// `Some` only when at least one arm took a pair, because otherwise the
-/// release would bind a token that no path reads.
+/// So the cell has exactly one owner on every path: the arm that reused
+/// it, or the exit that found the token still bound. `Some` only when at
+/// least one arm took a pair, because otherwise the release would bind a
+/// token that no path reads.
 fn branch_reuse(
     e: &Core,
     token: usize,

@@ -1,9 +1,9 @@
 {
-  "description": "ABI 9 Native seed that keeps a branch's release at its head; empty patch.",
+  "description": "ABI 9 Native seed with the fixed-frame apply stub family; empty patch.",
   "patch": "bootstrap/seed/stage0.patch",
   "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "revision": "1665ebdc917c7828d839ddeb5027ec2f80d63d5f",
+  "revision": "3f39effe4fb7b3353957a3bbf4649797cccc97d1",
   "runtime_abi": 9,
   "schema": 1,
-  "source_sha256": "62d4314a75eea42294c34edc2205170fc7cd608c9983e650945550c147211028"
+  "source_sha256": "26fe42d6bae2aad1200b6045c72583f9f937b37e9ea8a6937da7c71913fa6f4a"
 }

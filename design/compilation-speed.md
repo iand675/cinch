@@ -1206,6 +1206,242 @@ definitions instead of one. The cost is per reachable definition multiplied
 by the closure, not per module, which is the shape the re-gather above
 predicts and corroborates its conclusion from `bodies-match` independently.
 
+### 2.20 `typevars`: a guarded write walk, and what the axis still is (2026-11-13)
+
+Section 2.19 closed with a hypothesis about `typevars`: that
+`specialized-name` (`Bootstrap.RuntimeIr.cinch:352`) spells one digit per
+type parameter into the symbol, so a signature quantifying n variables
+mangles to a name O(n) long and rebuilt by `cat` per occurrence. The
+measurements below refute it; what the axis actually is, and the one change
+that removes most of it, follow.
+
+**Established: the naming scheme is not quadratic in occurrences.** The
+specialization appears in exactly two places in the emitted module, and
+there is one distinct name:
+
+| n | mangled name length | occurrences | distinct names |
+|---|---|---|---|
+| 64 | 70 | 2 | 1 |
+| 128 | 134 | 2 | 1 |
+| 256 | 262 | 2 | 1 |
+| 512 | 518 | 2 | 1 |
+
+`demand-seen`/`demand-key` (`RuntimeIr.cinch:415`, `:417`) key the pending
+`Demand` list on `specialized-name name classes`, so a repeated request for
+one specialization is dropped before its worker is emitted. Two occurrences
+of one O(n) name is O(n) of string work, and the axis grows by hundreds of
+millions of blocks. Whatever the axis is, "an O(n) name built O(n) times"
+is not it: the name is built twice.
+
+**Established: the cost is per call, not per program.** Splitting the same
+total arity into two calls of n/2 nearly halves the run at n=512 (515.1M to
+279.6M, same binary), so a single application spine of arity a costs a
+quadratic function of a. `sample` over the n=512 point puts 97.5% of the
+run under `Bootstrap.Core.map-term-types`/`map-types`, reached through
+`Bootstrap.Infer.proof-env-after-term` from `apply-open-argument`; no
+`Bootstrap.RuntimeIr` frame appears in the sample at all.
+
+**Established: the growth is in the checker, not the emitter.** On a clean
+directory per point, `--check` alone already shows the curve (32.9M at n=64
+to 479.7M at n=512, against 68.0M to 515.1M for `--emit-ir`). Subtracting
+the two is not a valid measure of the emitter's cost, because the modes do
+not do the same interface work, but it does bound it: the emitter can
+account for at most 35M of a 447M increase, and no `Bootstrap.RuntimeIr`
+frame appears in a sample of the n=512 point. The naming scheme is
+therefore not the site, and the profile's own answer is the frontend
+application spine.
+
+**The fix that landed.** `apply-spine` folds left over the arguments, and
+each step re-derives the write list of the whole accumulated term. That
+list is consumed in exactly one place, `proof-env-after-writes`
+(`Infer.cinch:2740`), which only clears the validity flag of
+`MkProofBinding` and `MkErasedBinding` entries. An environment holding
+neither is rebuilt entry for entry and returned unchanged, so
+
+```
+proof-env-invalidatable env = case env of
+  Nil -> False
+  Cons (MkProofBinding origin None fact) rest -> True
+  Cons (MkErasedBinding name predicate id origin None) rest -> True
+  Cons other rest -> proof-env-invalidatable rest
+```
+
+lets `proof-env-after-term` and the `discharge-checked-call` operand walk
+return the environment without running the substitution map. This is an
+identity, not an approximation, so it is name-stable by construction.
+
+**Measured, with the sweep and its control.**
+
+| axis | n | blocks before | blocks after | `k` before | `k` after | local after |
+|---|---|---|---|---|---|---|
+| typevars | 64/128/256/512 | 68.0M/75.8M/128.6M/515.1M | 65.6M/69.3M/91.3M/237.0M | 2.83 | **2.71** | 0.08, 0.40, 1.38 |
+
+The control reproduced at 6.09 blocks/byte, exponent 0.988. The largest
+point is 54% cheaper and the local exponent between 256 and 512 falls from
+1.83 to 1.38, so the term the guard removes was the dominant one, but the
+axis is still superlinear and `k` moves little because the floor dominates
+the two small points.
+
+**Re-measured at the merge.** The numbers above were taken on the lane's
+own base, which predates several stage builds. Re-running the axis on the
+merged tree reproduces the fit exactly: 65.7M/69.4M/91.4M/237.1M at
+64/128/256/512, `k` 2.71, local 0.08, 0.40, 1.38, 1232 IR lines at the
+largest point. The "before" column does not survive as a like-for-like
+comparison, because `main`'s stage 3 binary already reads 396,944,590
+blocks at n=512 rather than the lane base's 515.1M: the chain got cheaper
+in between, so the same guard now takes 40% off that point instead of 54%.
+What the merge had to preserve is the guard's effect and its output, not
+the percentage. The emitted IR is byte identical between the merged binary
+and `main`'s at n=512 (1232 lines, one sha256), which is the check that the
+merge kept the guard and changed nothing else.
+
+**Byte identity, verified.** `compiler.ll` and `cinch` are byte equal
+between stage 2 and stage 3, all 51 `.cinchif` files are byte equal, and the
+emitted IR for the axis is byte identical to the pre-fix binary at n=64,
+128, 256 and 512. No golden moved.
+
+**Parity.** The change's only source edit is `Bootstrap.Infer.cinch`, so
+the targets that compile it are the ones to score. Thirteen of them were
+run at the merge against `bootstrap/stage3-suite-baseline.json` (the
+re-recorded one, 238 targets), and the same thirteen on `main`'s own tree:
+
+| target | baseline | merged | `main` |
+|---|---|---|---|
+| `bootstrap_infer` | 2/1 | 2/1 | 2/1 |
+| `bootstrap_checked_program` | 4/0 | 4/0 | 4/0 |
+| `bootstrap_core` | 3/0 | 3/0 | 3/0 |
+| `bootstrap_export_types` | 3/0 | 3/0 | 3/0 |
+| `bootstrap_external_frontend` | 7/3 | 7/3 | 7/3 |
+| `bootstrap_parse` | 3/1 | 4/0 | 4/0 |
+| `bootstrap_source_constructors` | 3/0 | 3/0 | 3/0 |
+| `bootstrap_source_decisions` | 3/0 | 3/0 | 3/0 |
+| `bootstrap_source_pi` | 3/0 | 3/0 | 3/0 |
+| `bootstrap_source_projection` | 3/0 | 3/0 | 3/0 |
+| `bootstrap_source_proofs` | 3/0 | 3/0 | 3/0 |
+| `interface_method_bodies` | 4/7 | 4/7 | 4/7 |
+| `par_map_in_compiler_sources` | 4/0 | 4/0 | 4/0 |
+
+Twelve rows match the baseline exactly. `bootstrap_parse` is one test
+better than the baseline and reproduces that on `main`, so it is drift
+between the baseline and the current tree, not this change. The three
+targets that fail tests fail exactly the same named tests on both trees
+(`bootstrap_infer` one, `bootstrap_external_frontend` three,
+`interface_method_bodies` seven). On the comparison that means anything,
+this tree against an untouched tree of the same commit, the suite is
+unchanged.
+
+The change's earlier record was a full uncapped 234-target run on its lane
+base scoring 143 fully passing, 942 passing, 641 failing. That run is
+against a baseline which has since been re-recorded on `main` (238 targets,
+146 fully passing, 1445 passing, 616 failing), so it is history rather than
+a like-for-like row here.
+
+**What remains.** Two candidates, both measured as present and neither
+fixed here: the certificate refresh's per-`CDischarge` operand walk
+(`Bootstrap.Core.refresh-certificates`, which recomputes
+`call-operand-writes` at every level of a left-nested spine) and the
+interface exporter's `result-in`/`value-quantifiers`
+(`Bootstrap.ExportType`), which the post-fix profile ranks first. Both need
+their own byte-identity argument; the exporter one is delicate because it
+writes the published contract text.
+
+### 2.21 Reuse pairs by the construct that hosts them (2026-11-14)
+
+The reuse census (`tooling/reuse_census.py`) has counted pairs and
+classified what stops the spine walk since 2026-11-13, but it never split
+the pairs themselves by the construct that hosts the reuse. That split is
+the measurement the in-place work was missing. `case` and `app` were the
+dominant *blockers* of the straight-line search, and the obvious reading was
+that in-place work should chase them; the question this section answers is
+what the pairs that do collect actually look like, because a pass change
+aimed at a host that already collects every pair it can see buys nothing.
+
+**Method.** Owned Core for all 44 `bootstrap/*.cinch` modules, from a
+compiler built at `main` (`9f5c360f`, the seed at `3f39effe`; `rc.rs`,
+`coalesce.rs` and `core.rs` are byte-identical between the two revisions):
+
+```sh
+cargo build --locked --release --bin cinch   # compiler/, at main
+for f in bootstrap/*.cinch; do
+  cinch emit-ir "$f" -o /tmp/o.ll --dump-core owned >/dev/null 2>&1
+done
+python3 tooling/reuse_census.py build --by-host --why
+```
+
+The harness was extended for this run in two ways, and both matter for the
+numbers:
+
+- `spine` now follows `insert_reuse` into a call's arguments and a jump's
+  arguments, in order. The 2026-11-13 census predates both positions, so it
+  classified a `Cons` in a recursive call's argument as a `case`-blocked
+  opportunity when it is on the spine and gets reused. That is why `app`
+  falls from 1,237 blockers to 64 here. The pair count itself is decided by
+  `@token` and so is unaffected by the spine fix; the 2,634 token releases
+  here against the 2,064 of the 2026-11-13 census are the two pass
+  extensions landed since then (call arguments, then branch arms), not a
+  harness change.
+- `--by-host` walks each collected pair's body and records the innermost
+  `case` or `if` whose arm holds it (`spine` when the pair is on the
+  release body's straight line), plus whether the pair carries a non-empty
+  `@kept` mark, which is the store-skipping half of the extension.
+
+**The split.**
+
+| Host of the pair | Pairs | Share of pairs | Skip a store | Write the payload |
+| --- | --- | --- | --- | --- |
+| straight-line spine | 2,282 | 80.2% | 978 | 1,304 |
+| a `case` arm | 320 | 11.2% | 164 | 156 |
+| an `if` arm | 243 | 8.5% | 117 | 126 |
+| total | 2,845 | 100% | 1,259 | 1,586 |
+
+The population is 2,845 pairs over 18,263 releases in 5,944 units. The
+2,634 releases that bind a token host them: 2,532 host one pair, ninety host
+two, eleven host between four and forty-five (a `branch_reuse` copies one
+token's reuse into every arm that can take it), and one hosts none in this
+walk because a nested `release` sits between it and its reuse. That is a
+limit of the harness, not of the pass: the walk stops at a nested release
+because those pairs belong to the inner token, so 2,845 is a lower bound and
+the shortfall is one pair.
+
+**What the split says.** Four fifths of the pairs are on the straight line,
+so the spine is where the mechanism already works, and the branch positions
+contribute 563 pairs, 19.8%. `case` hosts 320 and `if` 243, which is the
+opposite ordering from the blocker table, where `case` outnumbers `if` 3.3
+to 1: `case` blocks the search far more often than it hosts a pair, because
+most `case`-blocked opportunities are arms that allocate nothing at all
+(the `no allocation` row), while an `if` arm is more often a rebuild.
+
+Store skipping is roughly uniform across hosts: 42.9% of spine pairs, 51.3%
+of `case`-arm pairs and 48.1% of `if`-arm pairs skip at least one store, so
+the extension pays at every position rather than only where it was designed.
+The shortfall noted above is `parse-paren-type` (`Bootstrap.Parse`), the
+`branch_reuse` shape: the release binds a token, its reuse sits inside an
+`if` arm, and a nested `release` in that arm is where the walk stops.
+
+Per module, the branch-hosted pairs concentrate in three: `Bootstrap.Core`
+99 (65 `case`, 34 `if`), `Bootstrap.ExportType` 78 (75 `case`, 3 `if`) and
+`Bootstrap.Infer` 78 (50 `case`, 28 `if`). `ExportType`'s 75 `case` pairs
+skip 75 stores, so its branch arms are rebuilds of the scrutinee's own
+fields and nothing else.
+
+**Did the coalesce fix change the population?** No, and it cannot. The fix
+(`82e49e18`, "Move a dup earlier, never later, in coalescing") moves `Dup`
+nodes upward within a straight-line run. Reuse insertion reads a release's
+body for the first constructor allocation on the spine, and a `Dup` body is
+one of the positions it walks through without changing the allocation it
+finds; a `Dup` that moves changes where the count operation sits, not which
+allocation is on the spine or whether one exists. The fix also cannot move a
+`Dup` across a branch, because coalescing operates within a run and a
+branch ends the run. The measurement agrees: `bootstrap/*.cinch` is
+byte-identical from `38a07a23` (the revision before the fix) to `main`, so
+the source population the census reads is the same file set, and the dumps
+the census parses are produced by the pass order counting-then-coalescing
+(`compiler/src/driver.rs:5676-5687`), which the fix did not reorder.
+
+**No pin.** This section and the `tooling/reuse_census.py` extension are the
+only changes: `tooling/` and `design/` are not seed sources, no file under
+`compiler/` changed, and neither lock moves.
+
 ## 3. The query graph (rustc, Salsa, Shake)
 
 The single largest structural gap. Today a build rechecks whatever the
