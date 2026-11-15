@@ -45,6 +45,14 @@ struct Template {
     Variant (*call)(void *, const StringName &, const Variant **, int64_t, GDExtensionCallError &);
 };
 static std::vector<std::shared_ptr<Template>> templates;
+static std::vector<std::pair<String, String>> compiled_sources;
+static bool current_source(const String &source, const String &path) {
+    for (auto &item : compiled_sources)
+        if (item.first == path)
+            return item.second == source;
+    return false;
+}
+
 static Dictionary property(const Field &f) {
     Dictionary p;
     p["name"] = f.name;
@@ -113,7 +121,8 @@ class CinchScript : public ScriptExtension {
     mutable std::set<uint64_t> owners;
     bool _editor_can_reload_from_file() override { return true; }
     bool _can_instantiate() const override {
-        return _is_valid() && (compiled->tool || !Engine::get_singleton()->is_editor_hint());
+        return compiled && _is_valid() &&
+               (compiled->tool || !Engine::get_singleton()->is_editor_hint());
     }
     Ref<Script> _get_base_script() const override { return {}; }
     StringName _get_global_name() const override {
@@ -161,7 +170,9 @@ class CinchScript : public ScriptExtension {
         return {};
     }
     bool _is_tool() const override { return compiled && compiled->tool; }
-    bool _is_valid() const override { return compiled && code == compiled->source; }
+    bool _is_valid() const override {
+        return compiled ? code == compiled->source : current_source(code, get_path());
+    }
     bool _is_abstract() const override { return false; }
     ScriptLanguage *_get_language() const override;
     bool _has_script_signal(const StringName &name) const override {
@@ -462,9 +473,9 @@ class CinchLanguage : public ScriptLanguageExtension {
                          bool) const override {
         Dictionary d;
         auto t = find_template(path);
-        d["valid"] = bool(t && code == t->source);
+        d["valid"] = current_source(code, path);
         Array errors;
-        if (!t || code != t->source) {
+        if (!current_source(code, path)) {
             Dictionary e;
             e["line"] = 1;
             e["column"] = 1;
@@ -658,5 +669,6 @@ static void terminate() {
         language = nullptr;
     }
     templates.clear();
+    compiled_sources.clear();
 }
 } // namespace cinch_scripts

@@ -6,6 +6,9 @@ func _enter_tree():
 
 func verify():
     assert(Engine.is_editor_hint())
+    var helper = load("res://GameLogic.cinch")
+    assert(helper is Script and helper.reload() == OK, "compiled helper modules must validate in the editor")
+    assert(not helper.can_instantiate(), "a helper module is not an attached script class")
     var mover = load("res://Mover.cinch")
     var tool = load("res://Tool.cinch")
     assert(mover is Script and not mover.can_instantiate())

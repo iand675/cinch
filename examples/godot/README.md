@@ -54,7 +54,9 @@ Both use `export_classes` in [bindings.json](bindings.json). Set
 `"script": "Mover.cinch"` to make a class an attached script. This path is
 relative to the project containing `bindings.json`, must stay inside it, and
 must identify a unique `.cinch` file. It is automatically included in the
-compilation. The other `sources` contain additional implementation modules.
+compilation. The other `sources` contain additional implementation modules. These also open
+with highlighting and validate against their compiled source snapshots; they
+do not become attachable script classes.
 
 A class needs a Cinch `name`, a C++ state type `cpp`, and a supported `base`:
 `godot::Node`, `Node2D`, `Node3D`, `Control`, `Resource`, or `RefCounted`, each

@@ -742,15 +742,11 @@ pub fn generate(b: &Bindings) -> Result<Generated> {
         {
             return Err(fail("invalid Godot entry or missing class"));
         }
-        let scripts = b.export_classes.iter().any(|c| c.script.is_some());
-        if scripts {
-            g.cpp.push_str(&super::script::generate(b)?);
-            g.cpp.push_str(include_str!("script_highlighter.hpp"));
-        }
+        // Native-class implementation modules are editor resources too.
+        g.cpp.push_str(&super::script::generate(b)?);
+        g.cpp.push_str(include_str!("script_highlighter.hpp"));
         g.cpp.push_str("\nstatic void cinch_godot_initialize(godot::ModuleInitializationLevel level) {\n  if (level == godot::MODULE_INITIALIZATION_LEVEL_EDITOR) {\n");
-        if scripts {
-            g.cpp.push_str("cinch_scripts::initialize_editor();\n");
-        }
+        g.cpp.push_str("cinch_scripts::initialize_editor();\n");
         g.cpp.push_str(
             "return; }\n  if (level != godot::MODULE_INITIALIZATION_LEVEL_SCENE) return;\n",
         );
@@ -763,15 +759,11 @@ pub fn generate(b: &Bindings) -> Result<Generated> {
             g.cpp
                 .push_str(&format!("  godot::ClassDB::{register}<{}>();\n", c.cpp));
         }
-        if scripts {
-            g.cpp.push_str("cinch_scripts::initialize();\n");
-        }
+        g.cpp.push_str("cinch_scripts::initialize();\n");
         g.cpp.push_str(
             "}\nstatic void cinch_godot_terminate(godot::ModuleInitializationLevel level) {\n",
         );
-        if scripts {
-            g.cpp.push_str("if(level==godot::MODULE_INITIALIZATION_LEVEL_EDITOR)cinch_scripts::terminate_editor();\nif(level==godot::MODULE_INITIALIZATION_LEVEL_SCENE)cinch_scripts::terminate();\n");
-        }
+        g.cpp.push_str("if(level==godot::MODULE_INITIALIZATION_LEVEL_EDITOR)cinch_scripts::terminate_editor();\nif(level==godot::MODULE_INITIALIZATION_LEVEL_SCENE)cinch_scripts::terminate();\n");
         g.cpp.push_str(&format!("}}\nextern \"C\" GDExtensionBool GDE_EXPORT {}(GDExtensionInterfaceGetProcAddress get_proc, GDExtensionClassLibraryPtr library, GDExtensionInitialization* initialization) {{\n  godot::GDExtensionBinding::InitObject init(get_proc, library, initialization);\n  init.register_initializer(cinch_godot_initialize);\n  init.register_terminator(cinch_godot_terminate);\n  init.set_minimum_library_initialization_level(godot::MODULE_INITIALIZATION_LEVEL_SCENE);\n  return init.init();\n}}\n", godot.entry_symbol));
     }
     g.exports = format!(

@@ -191,7 +191,8 @@ pub fn build(args: &[String]) -> Result<PathBuf> {
             .map(|b| b.rsplit("::").next().unwrap().to_string())
             .collect::<BTreeSet<_>>();
         enabled.extend(["OS", "Engine"].into_iter().map(str::to_string));
-        if spec.export_classes.iter().any(|c| c.script.is_some()) {
+        // Include source editing even when the project only exports native classes.
+        {
             enabled.extend(
                 [
                     "ScriptLanguageExtension",

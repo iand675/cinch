@@ -55,6 +55,17 @@ pub fn load_sources(b: &mut Bindings, root: &Path) -> Result<()> {
             }
         }
     }
+    if b.godot.is_some() {
+        for path in &b.sources {
+            if !b.script_sources.contains_key(path) {
+                b.script_sources.insert(
+                    path.clone(),
+                    std::fs::read_to_string(root.join(path))
+                        .map_err(|e| fail(format!("{path}: {e}")))?,
+                );
+            }
+        }
+    }
     Ok(())
 }
 fn string(s: &str) -> String {
@@ -102,6 +113,30 @@ fn check(s: &str, expr: &str) -> Result<String> {
 }
 pub fn generate(b: &Bindings) -> Result<String> {
     let mut tables = String::from("static void make_templates(){\n");
+    for (path, source) in &b.script_sources {
+        // External implementation modules cannot be opened as project resources.
+        if Path::new(path)
+            .components()
+            .all(|p| matches!(p, Component::Normal(_) | Component::CurDir))
+        {
+            let normalized = Path::new(path)
+                .components()
+                .filter_map(|p| {
+                    if let Component::Normal(p) = p {
+                        p.to_str()
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("/");
+            tables.push_str(&format!(
+                "compiled_sources.emplace_back({}, {});\n",
+                string(&format!("res://{normalized}")),
+                string(source)
+            ));
+        }
+    }
     let mut dispatch = String::new();
     for (i, c) in b
         .export_classes

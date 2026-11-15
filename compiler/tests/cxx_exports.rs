@@ -242,7 +242,7 @@ fn godot_registers_classes_calls_cinch_and_releases_instances() {
             "--out-dir".into(),
             out.to_string_lossy().into_owned(),
             "--godot-cpp".into(),
-            sdk
+            sdk.clone()
         ]),
         0
     );
@@ -282,6 +282,70 @@ fn godot_registers_classes_calls_cinch_and_releases_instances() {
             "opening and saving {script} must preserve Cinch layout"
         );
     }
+    // Native-only projects also need the language, source validation, and highlighting.
+    let native = tempfile::tempdir().unwrap();
+    copy_example(
+        source,
+        native.path(),
+        &[
+            "bindings.json",
+            "GameLogic.cinch",
+            "ValueLogic.cinch",
+            "Lifecycle.cpp",
+            "project.godot",
+            "main.tscn",
+            "addons/cinch_verify/plugin.cfg",
+        ],
+    );
+    let path = native.path().join("bindings.json");
+    let mut spec: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    spec["export_classes"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|c| c.get("script").is_none());
+    std::fs::write(&path, spec.to_string()).unwrap();
+    assert_eq!(
+        cxx::cli(&[
+            "build".into(),
+            path.to_string_lossy().into_owned(),
+            "--out-dir".into(),
+            native.path().join("build").to_string_lossy().into_owned(),
+            "--godot-cpp".into(),
+            sdk
+        ]),
+        0
+    );
+    std::fs::write(
+        native.path().join("addons/cinch_verify/verify.gd"),
+        r#"@tool
+extends EditorPlugin
+func _enter_tree():
+    call_deferred("verify")
+func verify():
+    assert(ClassDB.class_exists("CinchSpinner"))
+    var helper = load("res://GameLogic.cinch")
+    assert(helper is Script and helper.reload() == OK)
+    assert(not helper.can_instantiate())
+    EditorInterface.edit_script(helper)
+    for i in 5:
+        await get_tree().process_frame
+    var edit = EditorInterface.get_script_editor().get_current_editor().get_base_editor()
+    assert(edit.get_syntax_highlighter().is_class("CinchHighlighter"))
+    assert(edit.is_indent_using_spaces())
+    print("CINCH_GODOT_NATIVE_EDITOR_OK")
+    get_tree().quit(0)
+"#,
+    )
+    .unwrap();
+    let project = native.path().join("project.godot");
+    let config=std::fs::read_to_string(&project).unwrap()+"\n[editor_plugins]\nenabled=PackedStringArray(\"res://addons/cinch_verify/plugin.cfg\")\n";
+    std::fs::write(project, config).unwrap();
+    let output = run(Command::new(&godot)
+        .args(["--headless", "--editor", "--path"])
+        .arg(native.path())
+        .args(["--quit-after", "200"]));
+    assert_godot_clean(&output, "CINCH_GODOT_NATIVE_EDITOR_OK");
 }
 
 fn assert_godot_clean(output: &std::process::Output, marker: &str) {
