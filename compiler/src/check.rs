@@ -10662,7 +10662,15 @@ impl Checker {
     }
 
     fn subst_ty(t: &Ty, map: &HashMap<String, Ty>) -> Ty {
-        Checker::subst_full(t, map, &HashMap::new(), &HashMap::new())
+        // A nominal family argument can be a runtime identity. Destructuring
+        // such a family must substitute the identity in callback effect labels
+        // as well as in ordinary type positions; otherwise a callback retains
+        // the region spelling from its constructor declaration.
+        let regions = map.iter().filter_map(|(name, ty)| match ty {
+            Ty::Region(region) => Some((name.clone(), region.to_string())),
+            _ => None,
+        }).collect();
+        Checker::subst_full(t, map, &HashMap::new(), &regions)
     }
 
     /// Substitute type parameters (by type), row variables (by tail) and
