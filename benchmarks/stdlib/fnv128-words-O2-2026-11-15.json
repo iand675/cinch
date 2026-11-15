@@ -1,0 +1,224 @@
+{
+  "format": 1,
+  "opt_level": 2,
+  "label": "High/low-word FNV128 APIs, explicit O2 executable and assembly",
+  "commit": "dacd99f1d9ae2616ad8a36694d64b24efb3ec1a1",
+  "compiler_sha256": "3b3d4ac892b055c1acaa6c108a8eb62ceff31d883263afd439677dd38a2a7966",
+  "compiler_source_sha256": "cf16561e53da4059b3b3c560c4e082bf344cf3f24aa91dad035e6dd8d7654a43",
+  "runtime_source_sha256": "cc65783bd854ae6b6e820a5adb18e5f59f5aed5ec6a40e52b912fc283c12ca31",
+  "runner_sha256": "15c803793ed4b3fef2774f026d379587294f34f75c9e02ee043543532efe686e",
+  "working_tree_dirty": true,
+  "driver_sha256": "d79b16af70e3b25f9ebb64374cbb7e8dc8608dcb8fb1e007903a9937698cd9b2",
+  "sources": {
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Word": "1a563597517531debe37f7ab19616255dbc845d62ffed182abcdc5da9afe27ad",
+    "Effect.Ascii85": "ce62b87682e7b8b63754a346c01a3db666e0a062693fa958251dac6c89febb27",
+    "Effect.Stream": "6079746ad326c94b72c6c3b41f3cb5d652d67a0f7ced213031747e6e342bd7c1",
+    "Text.Ascii85": "3247c75afe5b1c77bbc62ddcf5340cdc063df2ed6af5d724489a84b45a7ef0d4",
+    "Text.Base32": "ae82b9c24657458ca5d6b0f33ee80b8ba8239cef592e793a926270cb45e308bd",
+    "Text.Base64": "54948138dd53d893cb82067bdaba883faa404e81e0013dd750c75f723c0b409d",
+    "Text.Binary": "9e8420191ef2f63969bdd1fa54f69724c835a6ada8041b548ee3de8154e71e4d",
+    "Text.Checksum": "92aeb92792906cc05fde3a49ec2e71800d8fe7a2372926b4a4665e015fd02c29",
+    "Text.Fnv": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+    "Text.Hex": "6a9bd7d383931fadbf35503562d57a26c92fd52f2d8f3961b6bdbdc29622e522",
+    "Text.Utf16": "fb5bfa4782fa832245102d8fc57818a374c4176c6a7c608f21a669030f54e8b8"
+  },
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "machine": "x86_64",
+  "cpu_affinity": [
+    0
+  ],
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "clang": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)",
+  "timing": "runtime monotonic clock around operation loop; preparation, startup and output excluded",
+  "measurement": "public API pipeline; encoding includes conversion to observable bytes; text decoders include bytes-to-text conversion; stream operations include adapter construction",
+  "iterations": 64,
+  "warmup_processes": 1,
+  "results": [
+    {
+      "workload": "fnv128",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        6240,
+        6530,
+        5979,
+        5969,
+        6089,
+        6169,
+        6159
+      ],
+      "checksum": 187536717,
+      "median_ns_per_operation": 96.234375,
+      "raw_mib_per_second": 317.1172268225361,
+      "reference_samples_ns": [
+        6018,
+        5579,
+        5639,
+        5729,
+        5529,
+        5378,
+        5317
+      ],
+      "reference_median_ns_per_operation": 87.171875
+    },
+    {
+      "workload": "fnv128",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        114760,
+        114429,
+        112857,
+        114199,
+        139146,
+        115632,
+        112667
+      ],
+      "checksum": 707394418,
+      "median_ns_per_operation": 1787.953125,
+      "raw_mib_per_second": 546.1902140191735,
+      "reference_samples_ns": [
+        114039,
+        117143,
+        117534,
+        118085,
+        138054,
+        154048,
+        116994
+      ],
+      "reference_median_ns_per_operation": 1836.46875
+    },
+    {
+      "workload": "fnv128",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        1983205,
+        14375461,
+        1882106,
+        2872352,
+        2730492,
+        2872753,
+        2691204
+      ],
+      "checksum": 272553921,
+      "median_ns_per_operation": 42663.9375,
+      "raw_mib_per_second": 366.23436362384507,
+      "reference_samples_ns": [
+        2418150,
+        2589814,
+        2408616,
+        2074601,
+        1985780,
+        2376338,
+        2381406
+      ],
+      "reference_median_ns_per_operation": 37209.46875
+    },
+    {
+      "workload": "fnv128a",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        10015,
+        10085,
+        8903,
+        11958,
+        6500,
+        10957,
+        10276
+      ],
+      "checksum": 273863839,
+      "median_ns_per_operation": 157.578125,
+      "raw_mib_per_second": 193.66633614278632,
+      "reference_samples_ns": [
+        11056,
+        11828,
+        11477,
+        11758,
+        12178,
+        8583,
+        8523
+      ],
+      "reference_median_ns_per_operation": 179.328125
+    },
+    {
+      "workload": "fnv128a",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        127498,
+        127449,
+        127629,
+        127840,
+        127919,
+        127810,
+        127348
+      ],
+      "checksum": 217223207,
+      "median_ns_per_operation": 1994.203125,
+      "raw_mib_per_second": 489.7006166310165,
+      "reference_samples_ns": [
+        205955,
+        206996,
+        253886,
+        258703,
+        253585,
+        361345,
+        268628
+      ],
+      "reference_median_ns_per_operation": 3966.96875
+    },
+    {
+      "workload": "fnv128a",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        2483186,
+        2139117,
+        2076564,
+        2453252,
+        2037116,
+        2892051,
+        2864290
+      ],
+      "checksum": 813793967,
+      "median_ns_per_operation": 38332.0625,
+      "raw_mib_per_second": 407.6222092145446,
+      "reference_samples_ns": [
+        4325544,
+        4159367,
+        4953002,
+        4293066,
+        4111887,
+        3958440,
+        4132067
+      ],
+      "reference_median_ns_per_operation": 64990.109375
+    }
+  ],
+  "compiler_path": "/workspace/dasl-stdlib-io/compiler/target/debug/cinch",
+  "executable_sha256": "12855a5e7847678454e3944c9045d7f28fe18f3664cca403cd879d79bd9e894d",
+  "llvm_sha256": "8e578bf62b85e99b39ecc4e86172b60162ca12d6e17411e1ab4857d40584cfd1",
+  "reference": {
+    "sdk": "go version go1.27.4 linux/amd64",
+    "source_sha256": "569c05a727bc258676ed663ff9c616937c47738515487d208df4208eccaea1f5",
+    "executable_sha256": "8926e067cd4649a9c0867b43718bc4c5b67c5128e336096ac308ac1eb94296d2",
+    "GOMAXPROCS": "1",
+    "workloads": [
+      "ascii85-encode",
+      "ascii85-decode",
+      "ascii85-stream-encode",
+      "ascii85-stream-decode",
+      "utf16le-encode",
+      "utf16le-decode",
+      "utf16be-encode",
+      "utf16be-decode",
+      "word-add64",
+      "word-mul64",
+      "word-div64",
+      "word-bits64",
+      "word-load",
+      "word-div64-proven",
+      "fnv128",
+      "fnv128a"
+    ],
+    "scope": "Equivalent public API results and observable checksums; allocation and immutable string semantics differ"
+  },
+  "artifacts": "/workspace/dasl-stdlib-io/build/benchmarks/fnv128-words-O2"
+}

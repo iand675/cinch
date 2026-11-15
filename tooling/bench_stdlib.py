@@ -31,6 +31,7 @@ WORKLOADS = (
     "ascii85-encode", "ascii85-decode", "ascii85-stream-encode", "ascii85-stream-decode",
     "utf16le-encode", "utf16le-decode", "utf16be-encode", "utf16be-decode",
     "word-add64", "word-mul64", "word-div64", "word-bits64", "word-load", "word-div64-proven",
+    "fnv128", "fnv128a",
 )
 
 SOURCE = r'''-- | Executable workload driver; output is elapsed_ns and an observable checksum.
@@ -180,7 +181,13 @@ module Main where
       let high = u16-to-u64 (wrapping-u64-to-u16 value) in
       case div-wide-proven-u64 high value 0x100000001 of
         (quotient, remainder) -> word-fingerprint (bit-xor-u64 quotient remainder)
+    else if eq-u32 mode __CODE_fnv128__ then wide-fingerprint (fnv128 b)
+    else if eq-u32 mode __CODE_fnv128a__ then wide-fingerprint (fnv128a b)
     else 1000000000
+
+  -- | Fold every 32-bit lane of a wide hash into the bounded observable checksum.
+  wide-fingerprint :: (U64, U64) -> Nat
+  wide-fingerprint value = case value of (high, low) -> word-fingerprint (bit-xor-u64 high low)
 
   -- | Select the workloads whose input represents text rather than arbitrary bytes.
   utf16-mode :: String -> Bool
@@ -310,6 +317,7 @@ def main() -> None:
     """Build once, warm up independently, and retain every measured sample."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--compiler", type=Path, default=ROOT / "compiler/target/debug/cinch")
+    parser.add_argument("--opt-level", type=int, choices=range(4), default=2, help="Use this Clang level for both the executable and retained assembly")
     parser.add_argument("--sizes", nargs="+", type=int, default=[32, 1024, 16384])
     parser.add_argument("--iterations", type=int, default=32)
     parser.add_argument("--samples", type=int, default=5)
@@ -330,7 +338,7 @@ def main() -> None:
     compiler = args.compiler.resolve()
     closure = source_closure(SOURCE)
     report = {
-        "format": 1, "label": args.label, "commit": run(["git", "rev-parse", "HEAD"], cwd=ROOT).stdout.strip(),
+        "format": 1, "opt_level": args.opt_level, "label": args.label, "commit": run(["git", "rev-parse", "HEAD"], cwd=ROOT).stdout.strip(),
         "compiler_sha256": digest(compiler),
         "compiler_source_sha256": source_digest(list((ROOT / "compiler/src").rglob("*.rs")) + [ROOT / "compiler/Cargo.toml", ROOT / "compiler/Cargo.lock", ROOT / "compiler/build.rs"]),
         "runtime_source_sha256": source_digest(list((ROOT / "compiler/runtime/src").rglob("*.*")) + [ROOT / "compiler/runtime/Cargo.toml"]),
@@ -359,7 +367,9 @@ def main() -> None:
             (work / f"{name}.cinch").write_bytes(path.read_bytes())
         (work / "Main.cinch").write_text(SOURCE)
         executable = work / "bench"
-        run([str(compiler), "build", str(work / "Main.cinch"), "-o", str(executable)], cwd=work)
+        run([str(compiler), "build", str(work / "Main.cinch"), "-o", str(executable), "--opt-level", str(args.opt_level)], cwd=work)
+        report["executable_sha256"] = digest(executable)
+        report["llvm_sha256"] = digest(executable.with_suffix(".ll"))
         reference = None
         reference_env = {**os.environ, "GOCACHE": "/tmp/cinch-go-benchmark-cache", "GOTELEMETRY": "off", "GOMAXPROCS": "1"}
         if args.reference_go:
@@ -368,7 +378,7 @@ def main() -> None:
             run([str(args.reference_go.resolve()), "build", "-o", str(reference), str(reference_source)], cwd=ROOT, env=reference_env)
             report["reference"] = {"sdk": run([str(args.reference_go.resolve()), "version"], env=reference_env).stdout.strip(),
                                    "source_sha256": digest(reference_source), "executable_sha256": digest(reference),
-                                   "GOMAXPROCS": "1", "workloads": [name for name in WORKLOADS if name.startswith(("ascii85-", "utf16", "word-"))],
+                                   "GOMAXPROCS": "1", "workloads": [name for name in WORKLOADS if name.startswith(("ascii85-", "utf16", "word-", "fnv128"))],
                                    "scope": "Equivalent public API results and observable checksums; allocation and immutable string semantics differ"}
         if args.artifacts:
             artifacts = args.artifacts.resolve()
@@ -380,7 +390,7 @@ def main() -> None:
                 shutil.copyfile(reference, artifacts / "reference")
                 (artifacts / "reference").chmod(0o755)
             (artifacts / "Main.cinch").write_text(SOURCE)
-            run([os.environ.get("CINCH_CLANG", "clang"), "-O2", "-S", "-x", "ir", str(artifacts / "bench.ll"), "-o", str(artifacts / "bench.s")])
+            run([os.environ.get("CINCH_CLANG", "clang"), f"-O{args.opt_level}", "-S", "-x", "ir", str(artifacts / "bench.ll"), "-o", str(artifacts / "bench.s")])
             report["artifacts"] = str(artifacts)
         for workload in args.workloads:
             for size in args.sizes:
@@ -402,7 +412,7 @@ def main() -> None:
                         "checksum": checksums[0], "median_ns_per_operation": median / args.iterations,
                         "raw_mib_per_second": (size * args.iterations * 1e9 / median / 1048576) if median and size and workload not in ("binary", "varint") and not workload.startswith("word-") else None}
                 report["results"].append(item)
-                if reference and workload.startswith(("ascii85-", "utf16", "word-")):
+                if reference and workload.startswith(("ascii85-", "utf16", "word-", "fnv128")):
                     reference_samples = []
                     for index in range(args.warmup + args.samples):
                         elapsed, checksum = map(int, run([str(reference), workload, str(size), str(args.iterations)], env=reference_env).stdout.split())
