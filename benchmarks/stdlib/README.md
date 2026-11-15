@@ -40,6 +40,44 @@ separate consumer tests.
 - `pre-rebase-word-ascii-2026-11-15.json`: native bounded loads and ASCII SWAR,
   before rebasing onto the newer upstream code generator. Its matching compiled
   artifacts remain in `build/benchmarks/pre-rebase` in the development lane.
+- `post-rebase-word-ascii-2026-11-15.json`: the same library and driver after
+  rebasing onto upstream `3492d1b1`. Checksum pipelines generally improved;
+  codec timings were mixed, so a rebase alone did not resolve their costs.
+- `post-conversion-fast-paths-2026-11-15.json`: the same library and driver with
+  immediate `Nat` conversion paths in codegen. Heap values and invalid inputs
+  keep the runtime fallback. Byte results box directly, and 32-bit targets
+  retain their smaller immediate range.
+- `interleaved-conversion-check-2026-11-15.json`: alternating runs of the
+  retained pre/post executables on CPU 0, with one warmup and five measured
+  runs each. Executable hashes and matching observable checksums are retained.
+  Validation processes were moved to CPUs 1–4 for these measurements.
+- `post-base32-tail-2026-11-15.json` and
+  `interleaved-base32-tail-check-2026-11-15.json`: Base32 resumes scalar
+  decoding at the first undecoded UTF-8 boundary. It previously unpacked the
+  entire original string to discard its already decoded SIMD prefix. The
+  alternating 16 KiB pipeline fell from 4.289 ms to 1.207 ms (3.55×), with
+  matching checksums; 32-byte and 1 KiB cases are retained too. Runtime tests
+  cover both alphabets, padding/newlines and Unicode errors after long prefixes.
+
+The alternating check gave the following median times for 16 KiB pipelines
+(32 operations per process). These are local measurements, not general speed
+guarantees:
+
+| Pipeline | Before conversion change | After | Ratio |
+| --- | ---: | ---: | ---: |
+| Hex encode | 1.079 ms | 0.929 ms | 1.16× |
+| Base32 encode | 4.345 ms | 4.043 ms | 1.07× |
+| Base32 decode | 4.645 ms | 4.396 ms | 1.06× |
+| Base64 decode | 9.151 ms | 8.650 ms | 1.06× |
+
+The full non-interleaved sweep initially showed slower decoder results; the
+alternating check did not reproduce that regression. Raw samples remain in
+both reports so this variation is visible. Assembly inspection found static
+call sites in `Text.Base32.encode-into` drop from 119 to 72 and those in
+`Text.Hex.encode-into` from 112 to 76. Static call counts describe generated
+function bodies, not executed calls per byte. Many runtime arithmetic,
+ownership and byte-access calls remain; these pipelines are still candidates
+for further codegen and allocation work.
 
 The reports explicitly record dirty source snapshots and their actual compiler
 binary/source identities. A parent commit in a report is not a claim that the

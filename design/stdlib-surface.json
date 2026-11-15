@@ -92,8 +92,10 @@
     },
     {
       "reference_package": "container/heap",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Mutable.Heap"
+      ],
       "remaining": [],
       "reference_declarations": 11
     },
@@ -108,8 +110,10 @@
     },
     {
       "reference_package": "container/ring",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Mutable.Deque"
+      ],
       "remaining": [],
       "reference_declarations": 10
     },
@@ -117,8 +121,8 @@
       "reference_package": "context",
       "status": "partial",
       "cinch_modules": [
-        "Effect.Concurrent",
-        "Effect.Clock"
+        "Effect.Clock",
+        "Effect.Concurrent"
       ],
       "remaining": [],
       "reference_declarations": 21
@@ -441,7 +445,8 @@
       ],
       "reference_declarations": 21,
       "tests": [
-        "lib_go_stdlib::base32_matches_go_rfc4648_both_alphabets_and_raw_forms"
+        "lib_go_stdlib::base32_matches_go_rfc4648_both_alphabets_and_raw_forms",
+        "lib_go_stdlib::base32_scalar_tails_follow_long_simd_prefixes"
       ],
       "benchmarks": [
         "base32-encode",
@@ -518,8 +523,8 @@
       "reference_package": "encoding/json",
       "status": "partial",
       "cinch_modules": [
-        "Text.Json",
-        "Data.Json"
+        "Data.Json",
+        "Text.Json"
       ],
       "remaining": [],
       "reference_declarations": 92
@@ -581,8 +586,8 @@
       "reference_package": "fmt",
       "status": "partial",
       "cinch_modules": [
-        "Text.Show",
-        "Text.Scan"
+        "Text.Scan",
+        "Text.Show"
       ],
       "remaining": [],
       "reference_declarations": 43
@@ -865,8 +870,8 @@
       "reference_package": "io/fs",
       "status": "partial",
       "cinch_modules": [
-        "Effect.Fs",
-        "Effect.Find"
+        "Effect.Find",
+        "Effect.Fs"
       ],
       "remaining": [],
       "reference_declarations": 105
@@ -885,8 +890,8 @@
       "reference_package": "iter",
       "status": "partial",
       "cinch_modules": [
-        "Data.Producer",
-        "Data.List"
+        "Data.List",
+        "Data.Producer"
       ],
       "remaining": [],
       "reference_declarations": 4
@@ -920,8 +925,11 @@
       "reference_package": "maps",
       "status": "partial",
       "cinch_modules": [
+        "Data.HashMap",
         "Data.Map",
-        "Data.HashMap"
+        "Data.Mutable.BTree",
+        "Data.Mutable.HashTable",
+        "Data.Mutable.IndexMap"
       ],
       "remaining": [],
       "reference_declarations": 10
@@ -939,10 +947,10 @@
       "reference_package": "math/big",
       "status": "partial",
       "cinch_modules": [
-        "Data.Nat",
+        "Data.BigDecimal",
         "Data.Int",
-        "Data.Rational",
-        "Data.BigDecimal"
+        "Data.Nat",
+        "Data.Rational"
       ],
       "remaining": [],
       "reference_declarations": 190
@@ -1009,9 +1017,9 @@
       "reference_package": "net",
       "status": "partial",
       "cinch_modules": [
+        "Data.IpAddr",
         "Effect.Net",
-        "Effect.Resolv",
-        "Data.IpAddr"
+        "Effect.Resolv"
       ],
       "remaining": [],
       "reference_declarations": 381
@@ -1274,8 +1282,9 @@
       "reference_package": "slices",
       "status": "partial",
       "cinch_modules": [
+        "Data.Array",
         "Data.List",
-        "Data.Array"
+        "Data.Mutable.Vec"
       ],
       "remaining": [],
       "reference_declarations": 40
@@ -1285,6 +1294,7 @@
       "status": "partial",
       "cinch_modules": [
         "Data.List",
+        "Data.Mutable.Vec",
         "Data.Sorted"
       ],
       "remaining": [],
@@ -1294,9 +1304,9 @@
       "reference_package": "strconv",
       "status": "partial",
       "cinch_modules": [
-        "Text.Show",
+        "Data.Machine",
         "Text.Scan",
-        "Data.Machine"
+        "Text.Show"
       ],
       "remaining": [
         "explicit-base and width-aware integer conversion",
@@ -1310,8 +1320,8 @@
       "status": "partial",
       "cinch_modules": [
         "Data.String",
-        "Text.Scan",
-        "Text.Builder"
+        "Text.Builder",
+        "Text.Scan"
       ],
       "remaining": [],
       "reference_declarations": 84
@@ -1354,9 +1364,9 @@
       "reference_package": "testing",
       "status": "partial",
       "cinch_modules": [
-        "Effect.Test",
         "Effect.Benchmark",
-        "Effect.Coverage"
+        "Effect.Coverage",
+        "Effect.Test"
       ],
       "remaining": [],
       "reference_declarations": 170

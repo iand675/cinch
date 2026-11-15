@@ -18,9 +18,9 @@ Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md).
 
 Unaligned little-endian machine-word access to byte buffers.
 Bounds are explicit preconditions in the public signatures. Reads and writes
-access exactly the proved byte range, preserving buffer ownership and lifetime;
-no raw pointer escapes into a pure primitive. Inline LLVM assembles the packed
-words consumed by SIMD and SWAR kernels. Wire order is independent of host
+access exactly the proved byte range. Private LLVM loads retain the backing
+buffer until completion; raw pointers never enter the public interface. The
+packed words feed SIMD and SWAR kernels. Wire order is independent of host
 endianness. Concurrent mutation follows the same rules as Data.Bytes.
 
 </details>
@@ -39,7 +39,7 @@ This module exports no type declarations.
 
 Read exactly 4 bytes as a little-endian U32. Alignment is unrestricted. The caller must prove pos + 4 <= bytes-len b; no tail bytes are read.
 
-[Source](/reference-sources/Data.Bytes.Word.cinch) · line 32
+[Source](/reference-sources/Data.Bytes.Word.cinch) · line 16
 
 <a id="value-62797465732d726561642d6c653634"></a>
 
@@ -49,7 +49,7 @@ Read exactly 4 bytes as a little-endian U32. Alignment is unrestricted. The call
 
 Read exactly 8 bytes as a little-endian U64. Alignment is unrestricted. The caller must prove pos + 8 <= bytes-len b; no tail bytes are read.
 
-[Source](/reference-sources/Data.Bytes.Word.cinch) · line 72
+[Source](/reference-sources/Data.Bytes.Word.cinch) · line 28
 
 <a id="value-62797465732d77726974652d6c653332"></a>
 
@@ -59,7 +59,7 @@ Read exactly 8 bytes as a little-endian U64. Alignment is unrestricted. The call
 
 Write exactly 4 low-to-high bytes of a U32. The caller must prove pos + 4 <= bytes-len b; bytes outside that range are preserved.
 
-[Source](/reference-sources/Data.Bytes.Word.cinch) · line 36
+[Source](/reference-sources/Data.Bytes.Word.cinch) · line 20
 
 <a id="value-62797465732d77726974652d6c653634"></a>
 
@@ -69,8 +69,8 @@ Write exactly 4 low-to-high bytes of a U32. The caller must prove pos + 4 <= byt
 
 Write exactly 8 low-to-high bytes of a U64. The caller must prove pos + 8 <= bytes-len b; bytes outside that range are preserved.
 
-[Source](/reference-sources/Data.Bytes.Word.cinch) · line 76
+[Source](/reference-sources/Data.Bytes.Word.cinch) · line 32
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Bytes/Word.cinch`. Source SHA-256: `f1b5d062f8657f5a47150da282e202fe021cf1260ff4824e3c172ff8cd004780`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Bytes/Word.cinch`. Source SHA-256: `a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

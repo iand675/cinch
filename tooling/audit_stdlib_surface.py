@@ -21,7 +21,7 @@ DEFAULT = ROOT / "design/stdlib-surface.json"
 HOMES = {
     "bufio": ["Effect.Stream"], "bytes": ["Data.Bytes", "Data.Bytes.Word", "Data.StringIo"],
     "cmp": ["Relation.Ord"], "compress/flate": ["Text.Zlib"], "compress/zlib": ["Text.Zlib"],
-    "container/list": ["Data.List"], "context": ["Effect.Concurrent", "Effect.Clock"],
+    "container/heap": ["Data.Mutable.Heap"], "container/list": ["Data.List"], "container/ring": ["Data.Mutable.Deque"], "context": ["Effect.Concurrent", "Effect.Clock"],
     "crypto/hmac": ["Text.Digest"], "crypto/md5": ["Text.Digest"], "crypto/rand": ["Effect.Random"],
     "crypto/sha1": ["Text.Digest"], "crypto/sha256": ["Text.Digest"], "crypto/sha512": ["Text.Digest"],
     "encoding/base32": ["Text.Base32"], "encoding/base64": ["Text.Base64"],
@@ -32,7 +32,7 @@ HOMES = {
     "hash/crc64": ["Text.Checksum"], "hash/fnv": ["Text.Fnv"], "hash/maphash": ["Data.HashMap"],
     "io": ["Effect.Stream"], "io/fs": ["Effect.Fs", "Effect.Find"],
     "io/ioutil": ["Effect.Fs", "Effect.Stream"], "iter": ["Data.Producer", "Data.List"],
-    "log": ["Effect.Log"], "log/slog": ["Effect.Log"], "maps": ["Data.Map", "Data.HashMap"],
+    "log": ["Effect.Log"], "log/slog": ["Effect.Log"], "maps": ["Data.Map", "Data.HashMap", "Data.Mutable.HashTable", "Data.Mutable.BTree", "Data.Mutable.IndexMap"],
     "math": ["Data.Machine"], "math/big": ["Data.Nat", "Data.Int", "Data.Rational", "Data.BigDecimal"],
     "math/bits": ["Algebra.Bits", "Data.Machine"], "math/cmplx": ["Data.Complex"],
     "math/rand": ["Effect.Random"], "math/rand/v2": ["Effect.Random"],
@@ -41,7 +41,7 @@ HOMES = {
     "os": ["Effect.Fs", "Effect.Process", "Effect.Stream"], "os/exec": ["Effect.Process"],
     "os/signal": ["Effect.Signal"], "path": ["Data.Path"], "path/filepath": ["Data.Path", "Effect.Find"],
     "regexp": ["Text.Regex"], "regexp/syntax": ["Text.Regex"],
-    "slices": ["Data.List", "Data.Array"], "sort": ["Data.List", "Data.Sorted"],
+    "slices": ["Data.List", "Data.Array", "Data.Mutable.Vec"], "sort": ["Data.List", "Data.Sorted", "Data.Mutable.Vec"],
     "strconv": ["Text.Show", "Text.Scan", "Data.Machine"], "strings": ["Data.String", "Text.Scan", "Text.Builder"],
     "sync": ["Effect.Stm"], "sync/atomic": ["Effect.Stm"], "syscall": ["Prim.Sys"],
     "testing": ["Effect.Test", "Effect.Benchmark", "Effect.Coverage"],
@@ -50,7 +50,7 @@ HOMES = {
 }
 
 EVIDENCE = {
-    "encoding/base32": (["lib_go_stdlib::base32_matches_go_rfc4648_both_alphabets_and_raw_forms"], ["base32-encode", "base32-decode"]),
+    "encoding/base32": (["lib_go_stdlib::base32_matches_go_rfc4648_both_alphabets_and_raw_forms", "lib_go_stdlib::base32_scalar_tails_follow_long_simd_prefixes"], ["base32-encode", "base32-decode"]),
     "encoding/binary": (["lib_go_stdlib::fixed_width_binary_matches_go_and_validates_writes", "lib_go_stdlib::varints_match_go_including_signed_extrema_and_malformed_input"], ["binary", "varint"]),
     "encoding/hex": (["lib_go_stdlib::hexadecimal_matches_go_and_names_invalid_bytes"], ["hex-encode", "hex-decode"]),
     "hash/adler32": (["lib_go_stdlib::checksums_match_go_and_update_over_every_split"], ["adler32"]),
@@ -99,6 +99,10 @@ def main() -> None:
     entries = []
     for name in sorted(packages):
         entry = dict(previous[name]) if name in previous else {"reference_package": name, "status": "partial" if name in HOMES else "unreviewed", "cinch_modules": HOMES.get(name, []), "remaining": []}
+        if name in HOMES:
+            entry["cinch_modules"] = sorted(set(entry.get("cinch_modules", []) + HOMES[name]))
+            if entry["status"] == "unreviewed":
+                entry["status"] = "partial"
         entry["reference_declarations"] = len(exported.get(name, []))
         if name in EVIDENCE:
             entry["tests"], entry["benchmarks"] = EVIDENCE[name]

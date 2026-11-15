@@ -9,16 +9,27 @@
 -- elements; the extra comparisons per level are cheap next to the
 -- misses they save.
 --
--- The ordering is part of the heap (`heap-new` takes the `Ord` instance's
--- `<`, `heap-new-by` any strict "comes first" relation), so a max-heap is
--- `heap-new-by (\x y -> y < x)` and no operation needs a dictionary.
+-- The ordering is supplied at each operation that compares, as C++'s
+-- `std::push_heap`/`std::pop_heap` take their comparator: `heap-push` and
+-- `heap-pop` order by the `Ord` instance (a min-heap), and the `-by` forms
+-- take any strict "comes first" relation, so a max-heap is
+-- `heap-push-by (\x y -> y < x)` with the matching `heap-pop-by`. Passing
+-- the ordering per call rather than storing it in the heap is what lets the
+-- compiler specialise it: a comparator stored in a value is a closure call
+-- on every comparison, one passed as a static argument is cloned into the
+-- sift loops and inlined (design/mutable-containers.md section 6). The
+-- contract that comes with it: every operation on one heap uses the same
+-- ordering, or the heap order is the mixture's (memory-safe, but not an
+-- order).
 --
 -- Costs: `heap-push` and `heap-pop` are O(log n) (amortised for the
 -- storage growth); `heap-peek` and `heap-length` are O(1);
 -- `heap-from-list` is Floyd's O(n) bottom-up build.
 --
 -- Sifting moves the element into a hole rather than swapping, so each
--- level costs one move and no reference count operation.
+-- level costs one move and no reference count operation, and a pop sinks
+-- its hole to a leaf before placing the last element (libstdc++'s
+-- bottom-up `__adjust_heap`), which saves a comparison per level.
 --
 -- The invariant that makes every read sound: slots below the length are
 -- written, and only those are read.
@@ -32,9 +43,9 @@ module Data.Mutable.Heap where
   import Data.Nat
   import Relation.Ord
 
-  export Heap, heap-new, heap-new-by, heap-with-capacity-by, heap-length, heap-is-empty
-  export heap-push, heap-pop, heap-peek, heap-clear, heap-from-list, heap-from-list-by
-  export heap-to-list, heap-drain
+  export Heap, heap-new, heap-with-capacity, heap-length, heap-is-empty
+  export heap-push, heap-push-by, heap-pop, heap-pop-by, heap-peek, heap-clear
+  export heap-from-list, heap-from-list-by, heap-to-list, heap-drain, heap-drain-by
 
   foreign import ccall "cinch.runtime.slotsNew" slots-new :: forall a. U64 -> Array a
   foreign import ccall "cinch.runtime.slotsLen" slots-len :: forall a. Array a -> U64
@@ -45,9 +56,9 @@ module Data.Mutable.Heap where
   foreign import ccall "cinch.runtime.slotsClear" slots-clear :: forall a. Array a -> U64 -> U64 -> Unit
   foreign import ccall "cinch.runtime.slotsFoldNat" fold-nat :: Nat -> U64
 
-  -- The ordering, the length word, and the cell holding the storage.
+  -- The length word and the cell holding the storage.
   data Heap r a where
-    MkHeap :: (a -> a -> Bool) -> Array U64 -> Array (Array a) -> Heap r a
+    MkHeap :: Array U64 -> Array (Array a) -> Heap r a
 
   inc :: U64 -> U64
   inc w = wrapping-add-u64 w 1
@@ -58,21 +69,17 @@ module Data.Mutable.Heap where
   to-nat :: U64 -> Nat
   to-nat w = nat-from-i64 (mask-i64 (wrapping-u64-to-i64 w) 9223372036854775807)
 
-  less-of :: forall r a. Heap r a -> (a -> a -> Bool)
-  less-of hp = case hp of
-    MkHeap less m c -> less
-
   len-of :: forall r a. Heap r a -> U64
   len-of hp = case hp of
-    MkHeap less m c -> slots-read m 0
+    MkHeap m c -> slots-read m 0
 
   set-len :: forall r a. Heap r a -> U64 -> Unit
   set-len hp n = case hp of
-    MkHeap less m c -> slots-write m 0 n
+    MkHeap m c -> slots-write m 0 n
 
   store-of :: forall r a. Heap r a -> Array a
   store-of hp = case hp of
-    MkHeap less m c -> slots-read c 0
+    MkHeap m c -> slots-read c 0
 
   -- Storage with room for `need` elements: doubling, floor 4.
   room-for :: forall r a. Heap r a -> U64 -> Array a
@@ -89,29 +96,24 @@ module Data.Mutable.Heap where
 
   install :: forall r a. Heap r a -> Array a -> Unit
   install hp fresh = case hp of
-    MkHeap less m c -> slots-write c 0 fresh
+    MkHeap m c -> slots-write c 0 fresh
 
   -- ------------------------------------------------------------------
   -- Construction
   -- ------------------------------------------------------------------
 
-  -- A min-heap under the `Ord` instance.
-  heap-new :: forall r a. using (o :: Ord a) => Unit ->{Mut r} Heap r a
-  heap-new u = heap-with-capacity-by (\x y -> x < y) 0
+  heap-new :: forall r a. Unit ->{Mut r} Heap r a
+  heap-new u = heap-with-capacity 0
 
-  -- A heap whose least element is the one `first` puts first: `first x
-  -- y` holds when x must come out before y (a strict order).
-  heap-new-by :: forall r a. (a -> a -> Bool) -> Unit ->{Mut r} Heap r a
-  heap-new-by first u = heap-with-capacity-by first 0
-
-  heap-with-capacity-by :: forall r a. (a -> a -> Bool) -> Nat ->{Mut r} Heap r a
-  heap-with-capacity-by first n =
+  -- An empty heap with room for `n` elements before its first growth.
+  heap-with-capacity :: forall r a. Nat ->{Mut r} Heap r a
+  heap-with-capacity n =
     let m = (slots-new 1 :: Array U64) in
     let zero = slots-write m 0 (0 :: U64) in
     let c = slots-new 1 in
     let fresh = slots-new (fold-nat n) in
     let installed = slots-write c 0 fresh in
-    MkHeap first m c
+    MkHeap m c
 
   heap-length :: forall r a. Heap r a ->{Mut r} Nat
   heap-length hp = to-nat (len-of hp)
@@ -123,24 +125,31 @@ module Data.Mutable.Heap where
   -- Push and pop
   -- ------------------------------------------------------------------
 
-  heap-push :: forall r a. Heap r a -> a ->{Mut r} Unit
-  heap-push hp x =
+  -- Push under the `Ord` instance (a min-heap).
+  heap-push :: forall r a. using (o :: Ord a) => Heap r a -> a ->{Mut r} Unit
+  heap-push hp x = heap-push-by (\p q -> p < q) hp x
+
+  -- Push under `first`: `first x y` holds when x must come out before y
+  -- (a strict order).
+  heap-push-by :: forall r a. (a -> a -> Bool) -> Heap r a -> a ->{Mut r} Unit
+  heap-push-by less hp x =
     let n = len-of hp in
     let s = room-for hp (inc n) in
-    let less = less-of hp in
-    let placed = sift-up less s n x in
+    let placed = sift-up less s 0 n x in
     set-len hp (inc n)
 
-  -- The hole is at i; move parents down until x fits, then fill it.
-  sift-up :: forall a. (a -> a -> Bool) -> Array a -> U64 -> a -> Unit
-  sift-up less s i x =
-    if eq-u64 i 0 then slots-write s 0 x
+  -- The hole is at i; move parents down until x fits, then fill it. The
+  -- climb stops at `top`, the root of the subtree being repaired (0 for a
+  -- push).
+  sift-up :: forall a. (a -> a -> Bool) -> Array a -> U64 -> U64 -> a -> Unit
+  sift-up less s top i x =
+    if eq-u64 i top then slots-write s i x
     else
       let p = wrapping-shr-u64 (dec i) 2 in
       let parent = slots-read s p in
       if less x parent then
         let moved = slots-write s i (slots-take s p) in
-        sift-up less s p x
+        sift-up less s top p x
       else slots-write s i x
 
   -- The least element.
@@ -151,9 +160,13 @@ module Data.Mutable.Heap where
       let s = store-of hp in
       Some (slots-read s 0)
 
-  -- Remove and return the least element.
-  heap-pop :: forall r a. Heap r a ->{Mut r} Option a
-  heap-pop hp =
+  -- Remove and return the least element under the `Ord` instance.
+  heap-pop :: forall r a. using (o :: Ord a) => Heap r a ->{Mut r} Option a
+  heap-pop hp = heap-pop-by (\p q -> p < q) hp
+
+  -- Remove and return the element `first` puts first.
+  heap-pop-by :: forall r a. (a -> a -> Bool) -> Heap r a ->{Mut r} Option a
+  heap-pop-by less hp =
     let n = len-of hp in
     if eq-u64 n 0 then None
     else
@@ -164,23 +177,29 @@ module Data.Mutable.Heap where
       if eq-u64 last 0 then Some top
       else
         let x = slots-take s last in
-        let less = less-of hp in
         let placed = sift-down less s 0 last x in
         Some top
 
-  -- The hole is at i in a heap of n elements; move the least child up
-  -- while it comes before x, then fill the hole with x.
+  -- The hole is at i in a heap of n elements: fill it with x. This is
+  -- the bottom-up repair libstdc++'s `__adjust_heap` makes: the hole first
+  -- falls to a leaf along the least children, with no comparison against
+  -- x, and x then climbs back from there. The element being placed is the
+  -- old last one, which nearly always belongs near the bottom, so the climb
+  -- is a step or two and every level of the descent saves the comparison
+  -- (and the read) a top-down sift spends on x.
   sift-down :: forall a. (a -> a -> Bool) -> Array a -> U64 -> U64 -> a -> Unit
-  sift-down less s i n x =
+  sift-down less s i n x = sift-up less s i (hole-down less s i n) x
+
+  -- Move the hole at i down to a leaf, promoting the least child at each
+  -- level; the leaf's index.
+  hole-down :: forall a. (a -> a -> Bool) -> Array a -> U64 -> U64 -> U64
+  hole-down less s i n =
     let first = inc (wrapping-shl-u64 i 2) in
     if lt-u64 first n then
       let best = least-child less s first (wrapping-add-u64 first 1) (if lt-u64 (wrapping-add-u64 first 4) n then wrapping-add-u64 first 4 else n) in
-      let child = slots-read s best in
-      if less child x then
-        let moved = slots-write s i (slots-take s best) in
-        sift-down less s best n x
-      else slots-write s i x
-    else slots-write s i x
+      let moved = slots-write s i (slots-take s best) in
+      hole-down less s best n
+    else i
 
   -- The index of the least of s[best], s[j .. end).
   least-child :: forall a. (a -> a -> Bool) -> Array a -> U64 -> U64 -> U64 -> U64
@@ -208,7 +227,7 @@ module Data.Mutable.Heap where
   -- down from the last one, O(n) in all.
   heap-from-list-by :: forall r a. (a -> a -> Bool) -> List a ->{Mut r} Heap r a
   heap-from-list-by first xs =
-    let hp = heap-with-capacity-by first 0 in
+    let hp = heap-with-capacity 0 in
     let n = write-all hp xs 0 in
     let s = store-of hp in
     let built = heapify first s n (if lt-u64 n 2 then (0 :: U64) else inc (wrapping-shr-u64 (wrapping-sub-u64 n 2) 2)) in
@@ -248,14 +267,18 @@ module Data.Mutable.Heap where
       let j = dec i in
       list-down s j (Cons (slots-read s j) acc)
 
-  -- Pop everything: the elements in the heap's order, leaving it empty.
-  heap-drain :: forall r a. Heap r a ->{Mut r} List a
-  heap-drain hp = drain-into hp Nil
+  -- Pop everything in `Ord` order, leaving the heap empty.
+  heap-drain :: forall r a. using (o :: Ord a) => Heap r a ->{Mut r} List a
+  heap-drain hp = heap-drain-by (\p q -> p < q) hp
 
-  drain-into :: forall r a. Heap r a -> List a ->{Mut r} List a
-  drain-into hp acc = case heap-pop hp of
+  -- Pop everything in `first`'s order, leaving the heap empty.
+  heap-drain-by :: forall r a. (a -> a -> Bool) -> Heap r a ->{Mut r} List a
+  heap-drain-by less hp = drain-into less hp Nil
+
+  drain-into :: forall r a. (a -> a -> Bool) -> Heap r a -> List a ->{Mut r} List a
+  drain-into less hp acc = case heap-pop-by less hp of
     None -> reverse-onto acc Nil
-    Some x -> drain-into hp (Cons x acc)
+    Some x -> drain-into less hp (Cons x acc)
 
   reverse-onto :: forall a. List a -> List a -> List a
   reverse-onto xs acc = case xs of
