@@ -1,0 +1,11 @@
+{
+  "module": "Native",
+  "opaque_types": ["Handle"],
+  "imports": [
+    {"name":"openHandle", "symbol":"_ZN6direct4openEv", "signature":"Unit ->{Foreign Cxx, IO, Diverge} Owned NativeHeap Handle"},
+    {"name":"readHandle", "symbol":"_ZNK6direct6Handle4readEv", "signature":"Borrowed Handle ->{Foreign Cxx, IO, Diverge} I64"},
+    {"name":"closeHandle", "symbol":"_ZN6direct6HandleD0Ev", "signature":"Owned NativeHeap Handle ->{Foreign Cxx, IO, Diverge} Unit"},
+    {"name":"liveCount", "symbol":"_ZN6direct4liveEv", "signature":"Unit ->{Foreign Cxx, IO, Diverge} I64"},
+    {"name":"add", "symbol":"_ZN6direct3addExx", "signature":"I64 -> I64 ->{Foreign Cxx, IO, Diverge} I64"}
+  ]
+}

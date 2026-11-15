@@ -1,0 +1,9 @@
+-- Generated native bindings; direct imports use the declared ABI contract.
+module Counter where
+  export Counter, addCounter, deleteCounter, getCounter, liveCount, newCounter
+  foreign import ccall "cinch_cxx_Counter_liveCount" liveCount :: Unit ->{Foreign Cxx, IO, Diverge} I64
+  opaque type Counter :: Type
+  foreign import ccall "cinch_cxx_Counter_newCounter" newCounter :: I64 ->{Foreign Cxx, IO, Diverge} Owned CounterCounterHeap Counter
+  foreign import ccall "cinch_cxx_Counter_deleteCounter" deleteCounter :: Owned CounterCounterHeap Counter ->{Foreign Cxx, IO, Diverge} Unit
+  foreign import ccall "cinch_cxx_Counter_addCounter" addCounter :: Borrowed Counter -> I64 ->{Foreign Cxx, IO, Diverge} I64
+  foreign import ccall "cinch_cxx_Counter_getCounter" getCounter :: Borrowed Counter ->{Foreign Cxx, IO, Diverge} I64

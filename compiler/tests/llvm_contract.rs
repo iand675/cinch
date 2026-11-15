@@ -962,3 +962,15 @@ module Main where
         );
     }
 }
+
+#[test]
+fn foreign_scalar_declarations_preserve_the_c_abi_parameter_types() {
+    let ir = ir_of("foreign-scalars", r#"
+module Main where
+  foreign import ccall "native_mix" mix :: I64 -> F64 ->{Foreign Native, IO} I64
+  main :: Unit ->{Foreign Native, IO} Int
+  main _ = 0
+"#);
+    let declaration = declare_of(&ir, "native_mix");
+    assert!(declaration.contains("(i64 noundef, double noundef)"), "{declaration}");
+}

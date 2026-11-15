@@ -128,7 +128,7 @@ impl LowerCx {
 /// read any unit's body. A whole-program *build* goes through
 /// [`emit_for`], which drops the units no entry point reaches.
 pub fn emit(program: &Program) -> Result<String> {
-    Ok(emit_module(&crate::core::TargetProfile::native(), program, false, &[], false)?.ir)
+    Ok(emit_module(&crate::core::TargetProfile::native(), program, false, &[], false, false)?.ir)
 }
 
 /// Emit one LLVM module for the program at `profile`'s target: a wasm32
@@ -137,7 +137,7 @@ pub fn emit(program: &Program) -> Result<String> {
 /// (primitive types specification section 2), and the cooperative task
 /// ABI (section 7).
 pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Result<String> {
-    Ok(emit_module(profile, program, false, &[], true)?.ir)
+    Ok(emit_module(profile, program, false, &[], true, false)?.ir)
 }
 
 /// Emit executable IR for only `modules`; every other module is an external
@@ -148,7 +148,68 @@ pub fn emit_for_modules(
     program: &Program,
     modules: &[String],
 ) -> Result<String> {
-    Ok(emit_module(profile, program, false, modules, false)?.ir)
+    Ok(emit_module(profile, program, false, modules, false, false)?.ir)
+}
+
+/// A self-contained native shared library: exports are entry roots, its
+/// runtime initializes at load time, and code contains no text relocations.
+pub fn emit_shared_for_modules(
+    profile: &crate::core::TargetProfile,
+    program: &Program,
+    modules: &[String],
+) -> Result<String> {
+    if profile.artifact != crate::core::ArtifactProfile::Native || program.main.is_some() {
+        return err("a shared library requires a native library module without main");
+    }
+    if !modules.is_empty() {
+        return err(
+            "shared libraries compile their full source closure; package objects are not supported",
+        );
+    }
+    let ir = emit_module(profile, program, false, modules, true, true)?.ir;
+    let public = program
+        .foreigns
+        .values()
+        .filter(|f| f.export)
+        .map(|f| format!("@{}(", quote(&f.symbol)))
+        .collect::<Vec<_>>();
+    // Cinch representation variants contain '@' (for example Cons@R), which
+    // ELF treats as symbol-version syntax for nonlocal definitions. Only the
+    // actual foreign exports belong to the shared library's public ABI.
+    let mut output = String::with_capacity(ir.len());
+    for line in ir.lines() {
+        if let Some(mut body) = line.strip_prefix("define ") {
+            if !public.iter().any(|name| line.contains(name)) {
+                loop {
+                    let prefix = [
+                        "internal ",
+                        "private ",
+                        "linkonce_odr ",
+                        "linkonce ",
+                        "weak_odr ",
+                        "weak ",
+                        "external ",
+                        "dso_local ",
+                        "hidden ",
+                        "protected ",
+                    ]
+                    .into_iter()
+                    .find(|p| body.starts_with(p));
+                    match prefix {
+                        Some(prefix) => body = &body[prefix.len()..],
+                        None => break,
+                    }
+                }
+                output.push_str("define internal ");
+                output.push_str(body);
+                output.push('\n');
+                continue;
+            }
+        }
+        output.push_str(line);
+        output.push('\n');
+    }
+    Ok(output)
 }
 
 /// A relocatable library module and its actual physical ABI. Its consumer
@@ -177,7 +238,7 @@ pub fn emit_object_for_modules(
     if program.main.is_some() {
         return err("object emission requires a library program without a process entry");
     }
-    emit_module(profile, program, true, modules, false)
+    emit_module(profile, program, true, modules, false, false)
 }
 
 /// The `target datalayout` string for a profile's target, in clang's own
@@ -232,6 +293,7 @@ fn emit_module(
     object: bool,
     emit_modules: &[String],
     prune: bool,
+    shared: bool,
 ) -> Result<EmittedObject> {
     // `emit_modules` names what this artifact ships; its private modules
     // (`Program::private_modules`) are defined here too, with internal
@@ -261,10 +323,12 @@ fn emit_module(
     // absolute integer, and Mach-O cannot encode an absolute address in a
     // code section: the assembler emits it as a text relocation, which the
     // linker refuses (`Illegal text-relocations`, arm64-apple-darwin). The
-    // unknown-tail-call fast path is therefore an ELF property, and a
-    // Mach-O target keeps the ordinary call from the slow path instead.
-    // Known tail calls under `tailcc` need no prefix data and stay.
-    reg.tail_apply = tail_conv && profile.os != "darwin";
+    // unknown-tail-call fast path is therefore a property of ELF
+    // executables, and a Mach-O target or a shared library (whose code
+    // must be position independent) keeps the ordinary call from the slow
+    // path instead. Known tail calls under `tailcc` need no prefix data and
+    // stay.
+    reg.tail_apply = tail_conv && !shared && profile.os != "darwin";
     reg.tail_regs = tail_regs(&profile.arch);
     if tail_conv {
         // The ordinary function units this module defines. A unit another
@@ -307,7 +371,7 @@ fn emit_module(
     // specification section 1; decision D65).
     let main_exit = match &program.main {
         Some(m) => Some(m),
-        None if object => None,
+        None if object || shared => None,
         None if program.foreigns.values().any(|p| p.export) => None,
         None => {
             return err(format!(
@@ -7731,7 +7795,7 @@ fn foreign_declare(plan: &ForeignPlan, reg: &Registry) -> String {
     {
         let byval = byvalue_attr(p, reg, false);
         let kind = if byval.is_empty() {
-            "ptr".to_string()
+            abi_llvm_ty(p).to_string()
         } else {
             format!("ptr {byval}")
         };

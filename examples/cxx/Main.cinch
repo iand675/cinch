@@ -1,0 +1,10 @@
+module Main where
+  import Counter
+
+  main :: Unit ->{Foreign Cxx, IO, Diverge} Int
+  main _ =
+    let c = newCounter 40 in
+    let n = addCounter c 2 in
+    let u = deleteCounter c in
+    let remaining = liveCount () in
+    if n == 42 then (if remaining == 0 then 0 else 2) else 1

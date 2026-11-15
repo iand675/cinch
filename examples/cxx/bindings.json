@@ -1,0 +1,18 @@
+{
+  "module": "Counter",
+  "header": "counter.hpp",
+  "functions": [
+    {"name": "liveCount", "cpp": "demo::live_count", "result": "I64"}
+  ],
+  "classes": [{
+    "name": "Counter",
+    "cpp": "demo::Counter",
+    "constructor": "newCounter",
+    "destructor": "deleteCounter",
+    "params": ["I64"],
+    "methods": [
+      {"name": "addCounter", "cpp": "add", "params": ["I64"], "result": "I64"},
+      {"name": "getCounter", "cpp": "get", "result": "I64"}
+    ]
+  }]
+}
