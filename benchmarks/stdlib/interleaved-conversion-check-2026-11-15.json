@@ -1,0 +1,104 @@
+{
+  "format": 1,
+  "measurement": "Interleaved repeats of retained executables; monotonic pipeline nanoseconds divided by 32 iterations",
+  "cpu_affinity": [
+    0
+  ],
+  "iterations": 32,
+  "binaries": {
+    "post-rebase": {
+      "path": "build/benchmarks/post-rebase/bench",
+      "sha256": "e44ec082e5d0b8bde7e5ea9a4296427daa50449bc312b442b22587ee3fb56774"
+    },
+    "conversion-fast-paths": {
+      "path": "build/benchmarks/conversion-fast-paths/bench",
+      "sha256": "b83e4a47885590f5272458cab8c343e22d6e7090ecdfc4365b41901e25a98b1c"
+    }
+  },
+  "results": [
+    {
+      "workload": "base32-decode",
+      "raw_input_bytes": 16384,
+      "samples_ns": {
+        "post-rebase": [
+          145466118,
+          143096026,
+          165527091,
+          151450807,
+          148651308
+        ],
+        "conversion-fast-paths": [
+          139745228,
+          154938018,
+          149870139,
+          140662650,
+          138787083
+        ]
+      },
+      "checksum": 534464
+    },
+    {
+      "workload": "base64-decode",
+      "raw_input_bytes": 16384,
+      "samples_ns": {
+        "post-rebase": [
+          293937686,
+          292825370,
+          280256459,
+          327705099,
+          281723479
+        ],
+        "conversion-fast-paths": [
+          309828739,
+          276725638,
+          289723756,
+          266544094,
+          276789474
+        ]
+      },
+      "checksum": 533104
+    },
+    {
+      "workload": "hex-encode",
+      "raw_input_bytes": 16384,
+      "samples_ns": {
+        "post-rebase": [
+          34703559,
+          33873468,
+          34524940,
+          34269134,
+          42518260
+        ],
+        "conversion-fast-paths": [
+          28746672,
+          28957169,
+          30035093,
+          29726177,
+          32875880
+        ]
+      },
+      "checksum": 1051856
+    },
+    {
+      "workload": "base32-encode",
+      "raw_input_bytes": 16384,
+      "samples_ns": {
+        "post-rebase": [
+          146188149,
+          167165804,
+          139030229,
+          127467248,
+          127097168
+        ],
+        "conversion-fast-paths": [
+          129391374,
+          121149634,
+          116139559,
+          176510616,
+          139505458
+        ]
+      },
+      "checksum": 842992
+    }
+  ]
+}

@@ -21,6 +21,7 @@ is not an available API.
 | `hash/crc32` | [Text.Checksum](../library/Text.Checksum.md) | IEEE, Castagnoli, Koopman and custom reflected polynomials, incremental update | Table acceleration, stream adapters, serialized state |
 | `hash/crc64` | [Text.Checksum](../library/Text.Checksum.md) | ISO, ECMA and custom reflected polynomials, incremental update | Table acceleration, stream adapters, serialized state |
 | `hash/fnv` | [Text.Fnv](../library/Text.Fnv.md) | FNV-1 and FNV-1a, 32 and 64 bits, incremental update | 128-bit variants, stream adapters, serialized state |
+| `io` | [Effect.Stream](../library/Effect.Stream.md) | Explicit reader/writer continuations, memory and borrowed-descriptor adapters, limited/concatenated/mirrored sources, broadcast sinks, exact/minimum/all reads, full writes, bulk and limited copies | Random access, seek/close/flush capabilities, pipes and cancellation, section/offset adapters |
 
 The five format/hash modules and their shared `Data.Bytes.Word` layer are
 Cinch source over existing base operations and inline LLVM/ASM, with no new
@@ -38,10 +39,25 @@ instruction after x86 feature detection. The explicit AArch64 `ArmCrc32`
 capability accelerates IEEE and Castagnoli. FNV unrolls eight ordered steps; its recurrence cannot
 be reassociated into independent lanes for a single message.
 
-`Data.Bytes.Word` retains checked byte access and buffer ownership at the
-boundary; the SIMD/SWAR kernels accept machine words rather than escaping
-raw pointers. Short tails retain the scalar semantics, and no block overreads
-its input. No benchmark speedup or table acceleration is claimed.
+`Data.Bytes.Word` proves complete read ranges before unaligned native LLVM
+loads and retains the backing owner until each load completes. Writes use
+checked byte access. SIMD/SWAR format kernels accept machine words; the raw
+load helper stays private. Short tails retain the scalar semantics, and no
+block overreads its input. Table acceleration is still open.
+
+`Effect.Stream` preserves advanced handles after failures and snapshots buffers
+retained by memory sources and sinks. Its native consumers run with reference
+count validation, poisoned freed memory, a bounded heap, and a zero-leak check.
+The callback representation required constructor schemes and substitutions to
+retain the callback's actual effect-region identity; cross-runtime handles are
+rejected by negative tests.
+
+The machine-readable [surface inventory](stdlib-surface.json) covers all 180
+public packages in the pinned reference SDK. It currently records 66 partial
+and 114 unreviewed packages, with none marked complete. Upstream mutable
+containers are included as implementation homes, not assumed full coverage.
+The [benchmark notes](../benchmarks/stdlib/README.md) describe measured public
+API pipelines and their limits. The full standard library goal remains open.
 
 Base32 discards unused low bits in the final symbol, like Go. Hex
 and Base32 return an error for the entire input, rather than Go's partial
@@ -102,7 +118,7 @@ cargo test --test lib_go_stdlib
 | Go area | Existing Cinch modules | Next work / limits |
 | --- | --- | --- |
 | `bytes`, `strings` | `Data.Bytes`, `Data.String`, `Text.Builder` | Search/split/replace coverage audit; streaming buffers |
-| `slices`, `sort`, `cmp`, `maps` | `Data.List`, `Data.Array`, `Data.Map`, `Data.HashMap`, `Relation.Ord` | Operation and complexity audit |
+| `slices`, `sort`, `cmp`, `maps` | `Data.List`, `Data.Array`, `Data.Map`, `Data.HashMap`, `Data.Mutable.Vec`, `Data.Mutable.HashTable`, `Data.Mutable.BTree`, `Data.Mutable.IndexMap`, `Relation.Ord` | Operation and complexity audit |
 | `strconv`, `fmt` | `Text.Show`, `Text.Scan`, `Data.Machine` | Explicit-base, bit-width-aware number parsing and quoting |
 | `unicode`, `unicode/utf8` | `Data.Char`, `Data.String` | Unicode property and case tables; current classification helpers are ASCII |
 | `encoding/base64`, `encoding/csv`, `encoding/json` | `Text.Base64`, `Text.Csv`, `Text.Json` | Format/options compatibility audit and streaming APIs |
@@ -112,7 +128,7 @@ cargo test --test lib_go_stdlib
 | `crypto/sha256`, `crypto/sha512`, `crypto/sha1`, `crypto/md5`, `crypto/hmac` | `Text.Digest` | Existing whole-buffer digests and HMAC-SHA256; streaming and other HMAC variants remain |
 | `crypto/rand`, `math/rand` | `Effect.Random` | Existing OS entropy and bounded draws; deterministic PRNG state remains |
 | Ciphers, signatures, X.509, TLS | None | Vetted backend integration, key/certificate types, AEAD, signing and TLS |
-| `io`, `bufio`, `io/fs` | `Effect.Io`, `Effect.Fs`, `Data.StringIo` | Shared readers/writers, EOF, short reads, buffering and bounded consumption |
+| `io`, `bufio`, `io/fs` | `Effect.Stream`, `Effect.Io`, `Effect.Fs`, `Data.StringIo` | Shared byte protocols and bounded bulk transfers now exist; buffered readers/writers, scanners, random access and lifecycle capabilities remain |
 | `os`, `os/exec`, `os/signal` | `Effect.Process`, `Effect.Fs`, `Effect.Signal` | Portability, environment and process lifecycle audit |
 | `path`, `path/filepath`, walking | `Data.Path`, `Effect.Find`, `Effect.FileUtils` | Existing POSIX lexical paths and walking; globbing and portability remain; Go path edge cases differ |
 | `time` | `Data.Date`, `Data.Time`, `Effect.Clock` | Layout parsing/formatting, timezone database and timers |
@@ -123,7 +139,7 @@ cargo test --test lib_go_stdlib
 | `regexp`, `text/scanner` | `Text.Regex`, `Text.Lex`, `Text.Scan` | Syntax and resource-behavior audit |
 | Templates and HTML | None | HTML escaping first; templates with explicit escaping policy later |
 | `math`, `math/bits`, `math/big`, `math/cmplx` | `Data.Machine`, `Algebra.Bits`, `Data.Int`, `Data.Rational`, `Data.Complex` | Transcendental functions, IEEE edge cases, numerical validation |
-| `container/heap`, `container/list`, `container/ring` | `Data.List` | Priority queues and deque/ring collections |
+| `container/heap`, `container/list`, `container/ring` | `Data.List`, `Data.Mutable.Heap`, `Data.Mutable.Deque` | Audit priority queue, mutable sequence and ring capabilities against the reference operations |
 
 See the [checked library index](../library/00-index.md) for the existing
 modules' actual exports and limits.

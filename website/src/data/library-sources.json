@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "base_manifest_sha256": "d2dc5ac709804bec58c8b708f35c34c92723aa44c5476fe321659cb2b4590fe2",
+  "base_manifest_sha256": "e43afe96027d28ed96f7feae39d2d72adc1430d76ab55847ed354cb4ef20e100",
   "modules": [
     {
       "module": "Algebra.Arithmetic",
@@ -141,7 +141,7 @@
     {
       "module": "Data.Bytes.Word",
       "path": "compiler/prelude/Data/Bytes/Word.cinch",
-      "sha256": "f1b5d062f8657f5a47150da282e202fe021cf1260ff4824e3c172ff8cd004780",
+      "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
       "embedded": false,
       "values": 4,
       "public_methods": 0
@@ -373,9 +373,9 @@
     {
       "module": "Data.Mutable.Heap",
       "path": "compiler/prelude/Data/Mutable/Heap.cinch",
-      "sha256": "7187bd2ef31d5d505e0a02e326528985252c32d129674a2d3fa2d397be8077cc",
+      "sha256": "0ff42c7b1f7a9ab5fedb7858d77b9687be658a1e928333a3a07144d24aeebd0a",
       "embedded": false,
-      "values": 13,
+      "values": 15,
       "public_methods": 0
     },
     {
@@ -423,7 +423,7 @@
       "path": "compiler/prelude/Data/Mutable.cinch",
       "sha256": "41f43a5edd93e517e7aa298c9ae7b3af24b56313cc49dd20dfaccd380713aeaa",
       "embedded": false,
-      "values": 207,
+      "values": 209,
       "public_methods": 0
     },
     {
@@ -517,7 +517,7 @@
     {
       "module": "Data.String",
       "path": "compiler/prelude/Data/String.cinch",
-      "sha256": "27a381efd32575a2b0ca0c4a0d9f3a9c982b64b731d672caad03ba04a997ae79",
+      "sha256": "3d35e3bb0d10e90d9f591765fc79f06c3a52c3a1d207fb0a42ad57c67b838a79",
       "embedded": true,
       "values": 27,
       "public_methods": 0
@@ -560,6 +560,14 @@
       "sha256": "6847730c2f3ac9f9200a4eef90a5ab7797facdc3555fb3e2f337f8b07569bc3a",
       "embedded": false,
       "values": 15,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Wide",
+      "path": "compiler/prelude/Data/Wide.cinch",
+      "sha256": "d475d7a4c34a7015f3e118fac9422d1283d7d6799b4e334a422f042344fb3133",
+      "embedded": true,
+      "values": 244,
       "public_methods": 0
     },
     {
@@ -739,6 +747,14 @@
       "public_methods": 0
     },
     {
+      "module": "Effect.Stream",
+      "path": "compiler/prelude/Effect/Stream.cinch",
+      "sha256": "ca55b0b65b41cf4583f3167ea6c8a6a23bcc821c8fe5cc45a828d0bc618564f7",
+      "embedded": false,
+      "values": 24,
+      "public_methods": 0
+    },
+    {
       "module": "Effect.Test",
       "path": "compiler/prelude/Effect/Test.cinch",
       "sha256": "25f23bc38d56b5f178e7c80980cf4f29a8e84544dee3c883d8c857cb462478e0",
@@ -829,7 +845,7 @@
     {
       "module": "Text.Base32",
       "path": "compiler/prelude/Text/Base32.cinch",
-      "sha256": "1497ed5e0adb806c86a2626c9719afdec1e83825331d6773d4e812e09fbd5569",
+      "sha256": "ae82b9c24657458ca5d6b0f33ee80b8ba8239cef592e793a926270cb45e308bd",
       "embedded": false,
       "values": 4,
       "public_methods": 0

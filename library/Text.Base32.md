@@ -67,7 +67,7 @@ Malformed Base32 text; an error carries no partial decoded output.
 
 Decode padded Base32, ignoring CR/LF. Incomplete quanta, misplaced padding, lowercase and unknown symbols return named errors.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 135
+[Source](/reference-sources/Text.Base32.cinch) · line 139
 
 <a id="value-6261736533322d656e636f6465"></a>
 
@@ -87,7 +87,7 @@ Encode with the selected alphabet and enough equals signs to complete an eight-c
 
 Decode unpadded Base32, ignoring CR/LF. Padding and impossible final-quantum lengths are errors.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 139
+[Source](/reference-sources/Text.Base32.cinch) · line 143
 
 <a id="value-6261736533322d7261772d656e636f6465"></a>
 
@@ -101,4 +101,4 @@ Encode with the selected alphabet and no padding. The output length is ceil(8 * 
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Base32.cinch`. Source SHA-256: `1497ed5e0adb806c86a2626c9719afdec1e83825331d6773d4e812e09fbd5569`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Base32.cinch`. Source SHA-256: `ae82b9c24657458ca5d6b0f33ee80b8ba8239cef592e793a926270cb45e308bd`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
