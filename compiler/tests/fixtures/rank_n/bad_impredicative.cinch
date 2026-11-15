@@ -1,0 +1,7 @@
+module Main where
+  ident :: forall a. a -> a
+  ident x = x
+  both :: (forall a. a -> a) -> I64
+  both f = f 1
+  main :: Int
+  main = int-from-i64 ((ident both) (\x -> x))

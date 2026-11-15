@@ -112,7 +112,7 @@ int main(void) {
   return (int)cinch_exit_check(good ? 0 : 239);
 }
 "#).unwrap();
-        let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/debug/libcinchruntime.a");
+        let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/release/libcinchruntime.a");
         let linked = Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into())).arg(&llvm).arg(dir.join("probe.c")).arg(runtime).args(["-lpthread", "-ldl", "-lm", "-o"]).arg(dir.join("probe")).output().unwrap();
         assert!(linked.status.success(), "{}", String::from_utf8_lossy(&linked.stderr));
         let output = Command::new(dir.join("probe")).env("CINCH_LEAK_CHECK", "1").env("CINCH_RC_DEBUG", "1").env("CINCH_HEAP_LIMIT", "32M").output().unwrap();
@@ -138,7 +138,7 @@ fn incremental_sessions_keep_captured_dictionary_values_current() {
         let execute = |session: &cinch::driver::incremental::Session, name: &str, expected: i32| {
             let ir = dir.join(format!("{name}.ll"));
             std::fs::write(&ir, session.ir_artifact().expect("linked dictionary IR")).unwrap();
-            let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/debug/libcinchruntime.a");
+            let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/release/libcinchruntime.a");
             let artifact = dir.join(name);
             let linked = Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into())).arg(&ir).arg(runtime).args(["-lpthread", "-ldl", "-lm", "-o"]).arg(&artifact).output().unwrap();
             assert!(linked.status.success(), "{}", String::from_utf8_lossy(&linked.stderr));

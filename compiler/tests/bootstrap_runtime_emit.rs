@@ -7,6 +7,7 @@ fn compiler_emit_mode_uses_the_typed_runtime_backend_and_preserves_refusals() {
     let dir = common::project("runtime_emit", &[
         ("Bootstrap.Check.cinch", include_str!("../../bootstrap/Bootstrap.Check.cinch")),
         ("Bootstrap.Resolve.cinch", include_str!("../../bootstrap/Bootstrap.Resolve.cinch")),
+        ("Bootstrap.Expand.cinch", include_str!("../../bootstrap/Bootstrap.Expand.cinch")),
         ("Bootstrap.Contracts.cinch", include_str!("../../bootstrap/Bootstrap.Contracts.cinch")),
         ("Bootstrap.Load.cinch", include_str!("../../bootstrap/Bootstrap.Load.cinch")),
         ("Bootstrap.Inputs.cinch", include_str!("../../bootstrap/Bootstrap.Inputs.cinch")),
@@ -30,7 +31,7 @@ fn compiler_emit_mode_uses_the_typed_runtime_backend_and_preserves_refusals() {
         assert!(common::read_output(&dir, "output.ll").contains("@cinch_int_add"));
         assert!(common::read_output(&dir, "output.ll.diagnostics").is_empty());
     }
-    let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/debug/libcinchruntime.a");
+    let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/release/libcinchruntime.a");
     let output = Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()))
         .arg(dir.join("output.ll")).arg(&runtime).args(["-lpthread", "-ldl", "-lm", "-o"]).arg(dir.join("artifact")).output().unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));

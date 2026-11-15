@@ -1,0 +1,7 @@
+module Main where
+  run :: (forall a. a -> a) -> I64
+  run f = f 1
+  inc :: I64 -> I64
+  inc n = n
+  main :: Int
+  main = int-from-i64 (run inc)

@@ -74,6 +74,11 @@ enum ECore {
     App(Box<ECore>, Vec<ECore>),
     /// Un-hoisted lambda: `params` are its pattern parameters.
     Lam { params: Vec<LocalId>, body: Box<ECore> },
+    /// Un-hoisted generalisation site (design/rank-n-polymorphism.md
+    /// section 4): `body` was checked at the fresh rigid `skolems`, the
+    /// polytype's type binders in order. Hoisting turns it into an
+    /// anonymous instance of the `#poly.<k>` family and an `InstDict`.
+    PolyIntro { skolems: Vec<String>, body: Box<ECore>, ty: Ty },
     /// Hoisted form after [`hoist_lambdas`].
     MkClos { fn_id: GlobalId, env: Vec<ECore> },
     Let(LocalId, Box<ECore>, Box<ECore>),
@@ -337,6 +342,7 @@ fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
             free_locals(body, bound, out);
             bound.truncate(n);
         }
+        ECore::PolyIntro { body, .. } => free_locals(body, bound, out),
         ECore::Let(l, v, body) => {
             free_locals(v, bound, out);
             let n = bound.len();
@@ -387,18 +393,60 @@ fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
     }
 }
 
+/// The family of a polytype: an anonymous single-method class named by its
+/// number of type binders (design/rank-n-polymorphism.md section 2). The
+/// name must not depend on anything a substitution of free outer type
+/// variables can change, or a projection and the dictionary it reads would
+/// disagree on the slot table.
+pub(crate) fn poly_family(scheme: &Scheme) -> String {
+    poly_family_of(scheme.params.len())
+}
+
+pub(crate) fn poly_family_of(k: usize) -> String {
+    format!("#poly.{k}")
+}
+
+/// The anonymous instance whose one method is generalisation unit `method`
+/// (`Main.f.poly3` is built by `Main.f.inst3`). Neither name is a prefix of
+/// the other's artifacts, so symbol attribution stays exact.
+pub(crate) fn poly_instance_id(method: &GlobalId) -> GlobalId {
+    match method.0.rsplit_once(".poly") {
+        Some((base, n)) => GlobalId(format!("{base}.inst{n}")),
+        None => GlobalId(format!("{}.inst", method.0)),
+    }
+}
+
 /// A lambda hoisted to a top level function; finalized by [`finalize_fn`].
 struct HoistedFn {
     id: GlobalId,
     /// `env ++ lambda parameters`, in ABI order.
     params: Vec<LocalId>,
     body: ECore,
+    /// Type parameters beyond the definition's: the skolems of every
+    /// generalisation site enclosing this unit, outermost first
+    /// (design/rank-n-polymorphism.md section 4).
+    extra: Vec<String>,
+    /// For a generalisation site's method unit: its family's binder count
+    /// and how many captured locals lead its parameters.
+    poly: Option<(usize, usize)>,
+    /// A strict method unit's result type (a dictionary slot stores the
+    /// computed value, which its result class counts).
+    result: Option<Ty>,
 }
 
 /// Replace lambda nodes with `MkClos` over hoisted functions.
 fn hoist_lambdas(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Vec<HoistedFn>) {
+    hoist_lambdas_in(e, hint, counter, fns, &[], &mut Vec::new())
+}
+
+/// [`hoist_lambdas`] inside a definition with type parameters `tparams`,
+/// under the generalisation skolems `scope`. A generalisation site becomes
+/// the method unit of an anonymous instance of its family, built by an
+/// `InstDict` over its captured locals at the enclosing unit's identity
+/// vector (design/rank-n-polymorphism.md section 4).
+fn hoist_lambdas_in(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Vec<HoistedFn>, tparams: &[String], scope: &mut Vec<String>) {
     match e {
-        ECore::LitFold { body, .. } => hoist_lambdas(body, hint, counter, fns),
+        ECore::LitFold { body, .. } => hoist_lambdas_in(body, hint, counter, fns, tparams, scope),
         ECore::Int(_)
         | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_)
         | ECore::Lit(_)
@@ -416,51 +464,51 @@ fn hoist_lambdas(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Vec<H
         | ECore::StrLit(_) => {}
         ECore::Quote { holes, body, .. } => {
             for h in holes {
-                hoist_lambdas(h, hint, counter, fns);
+                hoist_lambdas_in(h, hint, counter, fns, tparams, scope);
             }
             // The retained body is reified program text; its lambdas
             // hoist like any others (supercompilation section 7).
-            hoist_lambdas(body, hint, counter, fns);
+            hoist_lambdas_in(body, hint, counter, fns, tparams, scope);
         }
         ECore::DeclsQuote { holes, .. } => {
             for h in holes {
-                hoist_lambdas(h, hint, counter, fns);
+                hoist_lambdas_in(h, hint, counter, fns, tparams, scope);
             }
         }
-        ECore::DictProj(d, ..) => hoist_lambdas(d, hint, counter, fns),
-        ECore::Proj(d, ..) => hoist_lambdas(d, hint, counter, fns),
+        ECore::DictProj(d, ..) => hoist_lambdas_in(d, hint, counter, fns, tparams, scope),
+        ECore::Proj(d, ..) => hoist_lambdas_in(d, hint, counter, fns, tparams, scope),
         ECore::InstDict(_, args, _, _) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
             for a in args {
-                hoist_lambdas(a, hint, counter, fns);
+                hoist_lambdas_in(a, hint, counter, fns, tparams, scope);
             }
             if let ECore::App(f, _) = e {
-                hoist_lambdas(f, hint, counter, fns);
+                hoist_lambdas_in(f, hint, counter, fns, tparams, scope);
             }
         }
         ECore::Let(_, v, body) => {
-            hoist_lambdas(v, hint, counter, fns);
-            hoist_lambdas(body, hint, counter, fns);
+            hoist_lambdas_in(v, hint, counter, fns, tparams, scope);
+            hoist_lambdas_in(body, hint, counter, fns, tparams, scope);
         }
         ECore::If(c, t, f) => {
-            hoist_lambdas(c, hint, counter, fns);
-            hoist_lambdas(&mut t.body, hint, counter, fns);
-            hoist_lambdas(&mut f.body, hint, counter, fns);
+            hoist_lambdas_in(c, hint, counter, fns, tparams, scope);
+            hoist_lambdas_in(&mut t.body, hint, counter, fns, tparams, scope);
+            hoist_lambdas_in(&mut f.body, hint, counter, fns, tparams, scope);
         }
-        ECore::Demand(d, _) => hoist_lambdas(d, hint, counter, fns),
+        ECore::Demand(d, _) => hoist_lambdas_in(d, hint, counter, fns, tparams, scope),
         ECore::LazyAlloc => {}
-        ECore::LazyInit(_, t) => hoist_lambdas(t, hint, counter, fns),
+        ECore::LazyInit(_, t) => hoist_lambdas_in(t, hint, counter, fns, tparams, scope),
         ECore::BoxAlloc => {}
-        ECore::BoxInit(_, v, _) => hoist_lambdas(v, hint, counter, fns),
-        ECore::RefSet(_, v, _) => hoist_lambdas(v, hint, counter, fns),
-        ECore::BoxGet(v, _) | ECore::BoxClear(v, _) => hoist_lambdas(v, hint, counter, fns),
+        ECore::BoxInit(_, v, _) => hoist_lambdas_in(v, hint, counter, fns, tparams, scope),
+        ECore::RefSet(_, v, _) => hoist_lambdas_in(v, hint, counter, fns, tparams, scope),
+        ECore::BoxGet(v, _) | ECore::BoxClear(v, _) => hoist_lambdas_in(v, hint, counter, fns, tparams, scope),
         ECore::Case { scrut, alts } => {
-            hoist_lambdas(scrut, hint, counter, fns);
+            hoist_lambdas_in(scrut, hint, counter, fns, tparams, scope);
             for alt in alts {
-                hoist_lambdas(&mut alt.body, hint, counter, fns);
+                hoist_lambdas_in(&mut alt.body, hint, counter, fns, tparams, scope);
             }
         }
         ECore::Lam { params, body } => {
-            hoist_lambdas(body, hint, counter, fns);
+            hoist_lambdas_in(body, hint, counter, fns, tparams, scope);
             let mut free = Vec::new();
             free_locals(body, &mut Vec::new(), &mut free);
             let mut env: Vec<LocalId> =
@@ -474,11 +522,54 @@ fn hoist_lambdas(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Vec<H
                 id: id.clone(),
                 params: fn_params,
                 body: (**body).clone(),
+                extra: scope.clone(),
+                poly: None,
+                result: None,
             });
             *e = ECore::MkClos {
                 fn_id: id,
                 env: env.into_iter().map(ECore::Var).collect(),
             };
+        }
+        ECore::PolyIntro { skolems, body, ty } => {
+            // The instance's vector is the enclosing unit's identity.
+            let enclosing: Vec<Ty> = tparams.iter().chain(scope.iter()).map(|n| Ty::Param(n.clone().into())).collect();
+            let mark = scope.len();
+            scope.extend(skolems.iter().cloned());
+            // A lambda body is the method itself, so a slot holds the
+            // method's partial application rather than a computed closure.
+            let (lam_params, mut inner) = match std::mem::replace(&mut **body, ECore::Unit) {
+                ECore::Lam { params, body } if !params.is_empty() => (params, *body),
+                other => (Vec::new(), other),
+            };
+            let result = lam_params.is_empty().then(|| ty.clone());
+            hoist_lambdas_in(&mut inner, hint, counter, fns, tparams, scope);
+            let extra = scope.clone();
+            scope.truncate(mark);
+            let mut free = Vec::new();
+            free_locals(&inner, &mut Vec::new(), &mut free);
+            let mut env: Vec<LocalId> = free.into_iter().filter(|l| !lam_params.contains(l)).collect();
+            env.sort_by_key(|l| l.0);
+            env.dedup();
+            let mut fn_params = env.clone();
+            fn_params.extend(lam_params.iter().copied());
+            let n = *counter;
+            *counter += 1;
+            let id = GlobalId(format!("{hint}.poly{n}"));
+            fns.push(HoistedFn {
+                id: id.clone(),
+                params: fn_params,
+                body: inner,
+                extra,
+                poly: Some((skolems.len(), env.len())),
+                result,
+            });
+            *e = ECore::InstDict(
+                poly_instance_id(&id),
+                env.into_iter().map(ECore::Var).collect(),
+                enclosing,
+                true,
+            );
         }
     }
 }
@@ -538,6 +629,7 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
             }
             assign_locals(body, map, next);
         }
+        ECore::PolyIntro { body, .. } => assign_locals(body, map, next),
         ECore::Let(l, v, body) => {
             note_local(*l, map, next);
             assign_locals(v, map, next);
@@ -754,6 +846,7 @@ fn remap_ecore(e: &ECore, r: &Remap) -> ECore {
             params: params.iter().map(m).collect(),
             body: Box::new(remap_ecore(body, r)),
         },
+        ECore::PolyIntro { skolems, body, ty } => ECore::PolyIntro { skolems: skolems.clone(), body: Box::new(remap_ecore(body, r)), ty: ty.clone() },
         ECore::MkClos { fn_id, env } => ECore::MkClos {
             fn_id: r.unit(fn_id),
             env: env.iter().map(|a| remap_ecore(a, r)).collect(),
@@ -871,6 +964,7 @@ fn def_parts(e: &ECore, parts: &mut CopyParts) {
             parts.binders.extend(params.iter().copied());
             def_parts(body, parts);
         }
+        ECore::PolyIntro { body, .. } => def_parts(body, parts),
         ECore::Let(l, v, body) => {
             parts.binders.push(*l);
             def_parts(v, parts);
@@ -929,7 +1023,7 @@ fn resolve_lit_words(e: &mut ECore, lits: &[ECore]) {
                 resolve_lit_words(a, lits);
             }
         }
-        ECore::Lam { body, .. } => resolve_lit_words(body, lits),
+        ECore::Lam { body, .. } | ECore::PolyIntro { body, .. } => resolve_lit_words(body, lits),
         ECore::Let(_, v, body) => {
             resolve_lit_words(v, lits);
             resolve_lit_words(body, lits);
@@ -999,7 +1093,7 @@ fn resolve_idx_words(e: &mut ECore, vals: &[ECore]) {
                 resolve_idx_words(a, vals);
             }
         }
-        ECore::Lam { body, .. } => resolve_idx_words(body, vals),
+        ECore::Lam { body, .. } | ECore::PolyIntro { body, .. } => resolve_idx_words(body, vals),
         ECore::Let(_, v, body) => {
             resolve_idx_words(v, vals);
             resolve_idx_words(body, vals);
@@ -1109,7 +1203,7 @@ fn fold_blocked(e: &ECore) -> bool {
         // cannot be lowered yet, and closures have no constant reification.
         // Keep the ordinary runtime construction instead of trying to
         // lower an unhoisted lambda while folding its enclosing list.
-        ECore::Lam { .. } => true,
+        ECore::Lam { .. } | ECore::PolyIntro { .. } => true,
         ECore::Let(_, v, body) => fold_blocked(v) || fold_blocked(body),
         ECore::If(c, t, f) => {
             fold_blocked(c) || fold_blocked(&t.body) || fold_blocked(&f.body)
@@ -1410,7 +1504,7 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
             C::InstDict(symbol, args.iter().map(low).collect(), cx.classes(tys))
         }
         ECore::App(f, args) => C::App(Box::new(low(f)), args.iter().map(low).collect()),
-        ECore::Lam { .. } | ECore::Hole(_) | ECore::IdxPending(_) => {
+        ECore::Lam { .. } | ECore::PolyIntro { .. } | ECore::Hole(_) | ECore::IdxPending(_) => {
             unreachable!("lambda hoisting and dictionary solving run before lowering")
         }
         ECore::QuoteHole(idx) => C::SpliceVal(*idx),
@@ -2269,6 +2363,7 @@ fn stored_code_metas(ty: &Ty, out: &mut Vec<EitherMeta>) {
             stored_code_metas(dom, out);
             stored_code_metas(cod, out);
         }
+        Ty::Forall(scheme) => stored_code_metas(&scheme.ty, out),
         Ty::Ptr { pointee: inner, .. } | Ty::Thunk { inner, .. }
         | Ty::Lazy { inner, .. } | Ty::Later(inner) | Ty::Ref(_, inner)
         | Ty::Mut(_, inner) => stored_code_metas(inner, out),
@@ -2740,6 +2835,7 @@ fn all_regions(ty: &Ty, out: &mut Vec<String>) {
             all_regions(dom, out);
             all_regions(cod, out);
         }
+        Ty::Forall(scheme) => all_regions(&scheme.ty, out),
         Ty::Thunk { eff, inner } => {
             for l in &eff.labels {
                 if let Some(a) = &l.arg {
@@ -2943,6 +3039,10 @@ struct Checker {
     pending_rec: Vec<(crate::core::GlobalId, ECore)>,
     next_local: usize,
     param_counter: usize,
+    /// Names the binders of converted nested quantifiers, which must be
+    /// fresh so that substitution never captures them
+    /// (design/rank-n-polymorphism.md section 1).
+    forall_binder_counter: Cell<usize>,
     want_counter: usize,
     wants: Vec<Want>,
     /// Module currently being checked, used for unqualified resolution.
@@ -3766,6 +3866,7 @@ impl Checker {
             pending_rec: Vec::new(),
             next_local: 0,
             param_counter: 0,
+            forall_binder_counter: Cell::new(0),
             want_counter: 0,
             wants: Vec::new(),
             current_module: String::new(),
@@ -5300,6 +5401,8 @@ impl Checker {
             Ty::Fun(..) | Ty::Pi { .. } | Ty::Handler { .. }
             | Ty::Thunk { .. } | Ty::Later(_) | Ty::Lazy { .. }
             | Ty::Meta(_) | Ty::Param(_) | Ty::App(..) | Ty::Former(_) => true,
+            // A polymorphic value is a block of closures.
+            Ty::Forall(_) => true,
             Ty::Ref(_, inner) | Ty::Mut(_, inner) => self.value_may_hide_scope(inner, seen, fuel - 1),
             Ty::Tuple(items) => items.iter().any(|item| self.value_may_hide_scope(item, seen, fuel - 1)),
             Ty::Sigma { dom, cod, .. } => self.value_may_hide_scope(dom, seen, fuel - 1)
@@ -5381,6 +5484,9 @@ impl Checker {
             // not duplicable evidence.
             Ty::Later(_) => transferring,
             Ty::Fun(_, _, _, _) | Ty::Pi { .. } | Ty::Handler { .. } => transferring,
+            // A polymorphic value is a dictionary of closures: like a
+            // function, it is not duplicable evidence.
+            Ty::Forall(_) => transferring,
             // Index values and erased propositions occupy no runtime
             // representation that could be duplicated (core specification
             // section 3).
@@ -5473,6 +5579,10 @@ impl Checker {
     fn fresh_param(&mut self, base: &str) -> String {
         let n = self.param_counter;
         self.param_counter += 1;
+        // The counter alone makes the name unique, so a rigid copy of an
+        // already fresh name keeps its source spelling (`a#f3` becomes
+        // `a#17`, not `a#f3#17`).
+        let base = base.split('#').next().unwrap_or(base);
         format!("{base}#{n}")
     }
 
@@ -5766,7 +5876,7 @@ impl Checker {
                     self.fold_pass(a, unit, fold);
                 }
             }
-            ECore::Lam { body, .. } => self.fold_pass(body, unit, fold),
+            ECore::Lam { body, .. } | ECore::PolyIntro { body, .. } => self.fold_pass(body, unit, fold),
             ECore::Let(_, v, body) => {
                 self.fold_pass(v, unit, fold);
                 self.fold_pass(body, unit, fold);
@@ -8932,6 +9042,7 @@ impl Checker {
             Ty::Sigma { dom, cod, .. } => self
                 .ty_refine_mention(dom)
                 .or_else(|| self.ty_refine_mention(cod)),
+            Ty::Forall(scheme) => self.ty_refine_mention(&scheme.ty),
             Ty::Thunk { inner, .. } | Ty::Later(inner) | Ty::Lazy { inner, .. } => {
                 self.ty_refine_mention(inner)
             }
@@ -9568,10 +9679,7 @@ impl Checker {
                 let _ = span;
                 Ok(Ty::fun_mult(arg_ty, m, eff, self.conv_type(res, vars)?))
             }
-            ast::Type::Forall(_, _, span) => Err(Error::at(
-                *span,
-                "unexpected forall inside a type; quantifiers are only supported at the outermost position of a signature",
-            )),
+            ast::Type::Forall(binders, body, span) => self.conv_nested_forall(binders, body, vars, *span),
             ast::Type::Using(_, _, span) => Err(Error::at(
                 *span,
                 "using constraints are only supported at the outermost position of a signature",
@@ -9817,6 +9925,87 @@ impl Checker {
             // parameter.
             _ => ParamKind::Type,
         })
+    }
+
+    /// A nested quantifier (design/rank-n-polymorphism.md section 1): its
+    /// binders classify as rows, regions, types or type constructors from
+    /// their use in the body, exactly as a signature's do, and are renamed
+    /// apart so no later substitution can capture them.
+    fn conv_nested_forall(&self, binders: &[ast::TypeBinder], body: &ast::Type, vars: &[String], span: ast::Span) -> Result<Ty> {
+        let mut names: Vec<String> = Vec::new();
+        let mut hints = Vec::new();
+        let mut explicit_rows = Vec::new();
+        for b in binders {
+            if vars.contains(&b.name.text) || names.contains(&b.name.text) {
+                return Err(Error::at(b.name.span, format!(
+                    "the nested forall binder `{}` shadows a type variable already in scope; rename it", b.name.text)));
+            }
+            let row = matches!(b.ann.as_ref(), Some(ast::Type::Con(path, _)) if path.parts().as_slice() == ["Row"]);
+            if row { explicit_rows.push(b.name.text.clone()); }
+            let hint = if row { None } else { match &b.ann { Some(ann) => Some(self.binder_kind(ann, vars)?), None => None } };
+            names.push(b.name.text.clone());
+            hints.push((b.name.text.clone(), hint, b.name.span));
+        }
+        let mut rest = body;
+        while let ast::Type::Forall(more, inner, _) = rest {
+            // `forall a. forall b. T` is one quantifier over `a b`.
+            for b in more {
+                if vars.contains(&b.name.text) || names.contains(&b.name.text) {
+                    return Err(Error::at(b.name.span, format!(
+                        "the nested forall binder `{}` shadows a type variable already in scope; rename it", b.name.text)));
+                }
+                let hint = match &b.ann { Some(ann) => Some(self.binder_kind(ann, vars)?), None => None };
+                names.push(b.name.text.clone());
+                hints.push((b.name.text.clone(), hint, b.name.span));
+            }
+            rest = inner;
+        }
+        if let ast::Type::Using(_, _, using_span) = rest {
+            return Err(Error::at(*using_span,
+                "a nested forall cannot carry `using` constraints yet; lift them to the signature (design/rank-n-polymorphism.md section 7)"));
+        }
+        let mut scope = vars.to_vec();
+        scope.extend(names.iter().cloned());
+        let converted = self.conv_type(rest, &scope)?;
+        let (mut rows, mut regions) = (Vec::new(), Vec::new());
+        collect_row_names(&converted, &mut rows, &mut regions);
+        let row_params: Vec<String> = names.iter().filter(|n| rows.contains(n) || explicit_rows.contains(n)).cloned().collect();
+        let region_params: Vec<String> = names.iter().filter(|n| regions.contains(n) && !row_params.contains(n)).cloned().collect();
+        let converted = crate::types::regionize(&converted, &region_params);
+        let constraints = self.kind_constraints.borrow().clone();
+        let mut params = Vec::new();
+        let mut con_params = Vec::new();
+        for (name, hint, binder_span) in hints {
+            if row_params.contains(&name) || region_params.contains(&name) { continue; }
+            match self.resolve_binder_kind(&name, hint.as_ref(), &constraints, binder_span)? {
+                ParamKind::Type => params.push(name),
+                ParamKind::Con(n) => { con_params.push((name.clone(), n)); params.push(name); }
+                ParamKind::Val(_) | ParamKind::Prop => return Err(Error::at(binder_span, format!(
+                    "the nested forall binder `{name}` is used as a value or proposition; a nested quantifier binds only types, effect rows and regions"))),
+            }
+        }
+        let _ = span;
+        // Fresh binder names: `a` becomes `a#fN`.
+        let mut renaming = crate::types::VarRenaming::default();
+        let mut fresh = |name: &String| {
+            let n = self.forall_binder_counter.get();
+            self.forall_binder_counter.set(n + 1);
+            format!("{name}#f{n}")
+        };
+        let params: Vec<String> = params.iter().map(|p| { let f = fresh(p); renaming.types.insert(p.clone(), f.clone().into()); f }).collect();
+        let con_params = con_params.into_iter().map(|(p, n)| (renaming.types[&p].to_string(), n)).collect();
+        let row_params: Vec<String> = row_params.iter().map(|p| { let f = fresh(p); renaming.rows.insert(p.clone(), f.clone().into()); f }).collect();
+        let region_params: Vec<String> = region_params.iter().map(|p| { let f = fresh(p); renaming.regions.insert(p.clone(), f.clone().into()); f }).collect();
+        let mut scheme = Scheme::mono(converted.rename_vars(&renaming));
+        scheme.params = params;
+        scheme.con_params = con_params;
+        scheme.row_params = row_params;
+        scheme.region_params = region_params;
+        // A quantifier that binds nothing is its body.
+        if scheme.params.is_empty() && scheme.row_params.is_empty() && scheme.region_params.is_empty() {
+            return Ok(scheme.ty);
+        }
+        Ok(Ty::Forall(Box::new(scheme)))
     }
 
     fn conv_scheme(&self, ty: &ast::Type) -> Result<Scheme> {
@@ -10085,6 +10274,9 @@ impl Checker {
                 inner.insert(format!("$a{pos}"), (**d).clone());
                 if let Ty::Pi { var, .. } = t { inner.insert(var.clone().to_string(), (**d).clone()); }
                 self.check_length_type(c, &inner, pos + 1, span)?;
+            }
+            Ty::Forall(scheme) => {
+                self.check_length_type(&scheme.ty, env, pos, span)?;
             }
             Ty::Sigma { var, dom, cod } => {
                 self.check_length_type(dom, env, 0, span)?;
@@ -10436,6 +10628,7 @@ impl Checker {
                     cod: Box::new(cod),
                 }
             }
+            Ty::Forall(scheme) => Self::subst_under_forall(scheme, types, rows, regions, evidence),
             Ty::Adt(n, args) => Ty::Adt(
                 n.clone(),
                 args.iter()
@@ -10502,6 +10695,47 @@ impl Checker {
             }
             other => other.clone(),
         }
+    }
+
+    /// Substitute under a nested quantifier: its binders shadow the
+    /// substitution, and a binder that a substituted type mentions free is
+    /// renamed first, so nothing is captured.
+    fn subst_under_forall(
+        scheme: &Scheme, types: &HashMap<String, Ty>, rows: &HashMap<String, RowTail>,
+        regions: &HashMap<String, String>, evidence: &HashMap<IndexEvidence, ITerm>,
+    ) -> Ty {
+        let (mut types, mut rows, mut regions) = (types.clone(), rows.clone(), regions.clone());
+        for p in &scheme.params { types.remove(p); }
+        for p in &scheme.row_params { rows.remove(p); }
+        for p in &scheme.region_params { regions.remove(p); }
+        let captured = |name: &str| types.values().any(|t| t.mentions_param(name))
+            || rows.values().any(|t| matches!(t, RowTail::Rigid(r) if r.as_str() == name))
+            || regions.values().any(|r| r == name);
+        let mut renaming = crate::types::VarRenaming::default();
+        let mut inner = scheme.clone();
+        for (list, kind) in [(&mut inner.params, 0), (&mut inner.row_params, 1), (&mut inner.region_params, 2)] {
+            for p in list.iter_mut() {
+                if !captured(p) { continue; }
+                let mut fresh = format!("{p}$");
+                while captured(&fresh) || scheme.ty.mentions_param(&fresh) { fresh.push('$'); }
+                match kind {
+                    0 => { renaming.types.insert(p.clone(), fresh.clone().into()); }
+                    1 => { renaming.rows.insert(p.clone(), fresh.clone().into()); }
+                    _ => { renaming.regions.insert(p.clone(), fresh.clone().into()); }
+                }
+                *p = fresh;
+            }
+        }
+        for (name, _) in inner.con_params.iter_mut() {
+            if let Some(fresh) = renaming.types.get(name.as_str()) { *name = fresh.to_string(); }
+        }
+        let body = if renaming.types.is_empty() && renaming.rows.is_empty() && renaming.regions.is_empty() {
+            scheme.ty.clone()
+        } else {
+            scheme.ty.rename_vars(&renaming)
+        };
+        inner.ty = Checker::subst_namespaces(&body, &types, &rows, &regions, evidence);
+        Ty::Forall(Box::new(inner))
     }
 
     fn subst_bound_type(
@@ -11637,6 +11871,11 @@ impl Checker {
             ECore::Lam { params, body } => ECore::Lam {
                 params: params.clone(),
                 body: Box::new(self.fill_holes(body, sol)?),
+            },
+            ECore::PolyIntro { skolems, body, ty } => ECore::PolyIntro {
+                skolems: skolems.clone(),
+                body: Box::new(self.fill_holes(body, sol)?),
+                ty: ty.clone(),
             },
             ECore::MkClos { fn_id, env } => ECore::MkClos {
                 fn_id: fn_id.clone(),

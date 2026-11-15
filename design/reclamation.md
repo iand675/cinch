@@ -1007,12 +1007,32 @@ symptom is a segfault inside the allocator with no diagnostic at all.
 The release therefore stays at the head of the branch with the moved-field
 set the whole arm body computed, and only the `Reuse` moves. Every arm's
 reuse names the one token the head bound; exactly one arm runs per path, so
-the token is read at most once per path. An arm with no compatible
-allocation leaves the token unread, which is sound because the head's
-release already freed the block on its unique path (or dupped and dropped it
-on the shared one): that path has nothing left to leak. The expansion is
-applied only when at least one arm takes a pair, because otherwise the head
-would bind a token no path reads.
+the token is read at most once per path. An arm that allocates a compatible
+constructor writes into the kept cell and clears the token; an arm that
+allocates nothing compatible leaves it set.
+
+The token being set is what says the cell is still owed a free, and the
+code generator pays it. `emit_release` returns the token's slot, the
+emitter holds it for the scope of the release body, and the body's every
+exit settles it: the destination a decision delivers to, the join a `Jump`
+targets, the loop header a self tail call returns to, and the unit's return
+each test the slot and `cinch_free` the cell when it is still nonzero. So
+the cell has exactly one owner on every path, the arm that reused it or
+the exit that found the token bound.
+
+The pass alone cannot make that true, which is why the free is the code
+generator's: the arms are alternatives, and nothing in the pass represents
+"the branch's continuation" as one place to release from. The first version
+of this optimisation claimed the head's release already freed the block on
+its unique path, so an arm that reused nothing had nothing to leak. That
+was false against `emit_release`: on the unique path with a token bound the
+cell is stored into the token slot and not freed, and only a `Reuse` ever
+took it. A `case` whose arm rebuilds the block and whose other arm does not
+therefore leaked one block per call, which is a `step` that returns `Nil` on
+its `else` path. The compiler's own leak check caught it as exit 74 on
+every leak-checked invocation. The expansion is applied only when at least
+one arm takes a pair, because otherwise the head would bind a token no path
+reads.
 
 The regression shape is a branch whose head consumes a counted field of the
 dying block and whose alternatives both rebuild it. `Bootstrap.Total.infer`
@@ -1041,15 +1061,28 @@ whether the arm reads any of the block's fields; `moved` still carries only
 the counted ones.
 
 *Coalescing* (`coalesce.rs`, `CoalesceRC.lean`). Within a straight-line run a
-later dup of a value proves the value never passed through a state where it
-could be freed, so every dup may be issued at its first read, and a drop may
-move later across steps that do not mention the value at all. Our `Core`
-carries no count number, so this is a move and never a sum, and a dup keeps
-its multiplicity. The first version sank every drop past the last mention,
-which is unsound: the counting pass places a drop where a path stops needing
-the value, and a later step may read it again through a borrowed position.
-Three reclamation programs crashed with no leak line, and the ownership
-verifier cannot catch it because it sees the moved program, not the move.
+dup may be issued earlier, at the run's first dup of the same value, and a
+drop may move later across steps that do not mention the value at all. Our
+`Core` carries no count number, so this is a move and never a sum, and a dup
+keeps its multiplicity. A dup MUST NOT move later, to the first step that
+reads the value: the step that ends a value's life need not read it, because
+a `Release` frees the block a field was loaded from and a `Drop` releases the
+block itself, so a dup placed after either dups a dead word. That is the
+live-range rule above, and it is what the pass did wrong in two ways at once.
+
+The first version sank every drop past the last mention, which is unsound:
+the counting pass places a drop where a path stops needing the value, and a
+later step may read it again through a borrowed position. Three reclamation
+programs crashed with no leak line. The second version moved every dup *down*
+to its first read, which is the same fault on the other side, and it lost 14
+of the bootstrap's 24 refusals: the case scrutinee was dupped after the
+alternative's `Release` had already freed the cell it came from.
+
+The ownership verifier does catch both: it sees the moved program, and a dup
+of a value the run has already released fails `alive`. It did not catch
+either because it ran inside the counting pass, on the program *before*
+coalescing. `coalesce` now calls it on what it produced, so the certificate
+covers the artifact code generation reads.
 
 On the compiler's own 43,119-line bundle, one arm built from each side of the
 change, three interleaved pairs, `emit-ir` (the mode that runs the counting

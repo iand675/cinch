@@ -4416,8 +4416,8 @@ pub struct OptReport {
 /// the fixed point cost.
 #[derive(Clone, Debug, Default)]
 pub struct SimplifyReport {
-    /// Static-argument clones the specialiser made (`simplify::spec_static_args`).
-    pub specialised: usize,
+    /// Dictionary-specialised clones made (`simplify::spec_static_args`).
+    pub dict_specialised: usize,
     /// The passes actually run, at most the iteration cap.
     pub iterations: usize,
     /// The iteration cap the run was given (`--max-simplifier-iterations`).
@@ -4441,6 +4441,15 @@ pub struct SimplifyReport {
     /// Static dictionary projections turned into direct calls (rule
     /// `direct-dict-call`).
     pub dict_call: usize,
+    /// Local continuations called only in tail position, turned into join
+    /// points (rule `contify`).
+    pub contified: usize,
+    /// Calls of a known closure made direct calls of its unit (rule
+    /// `known-closure-call`).
+    pub closure_calls: usize,
+    /// Calls redirected to a copy of their callee specialised to a known
+    /// argument (rule `specialise-arguments`).
+    pub specialised: usize,
     /// Partial applications applied exactly once and merged into one
     /// saturated direct call (rule `saturate-partial`).
     pub saturate: usize,
@@ -4948,7 +4957,7 @@ fn pat_eq(a: &CPat, b: &CPat) -> bool {
 }
 
 /// The largest local id a term mentions (fresh ids must exceed it).
-fn max_local(e: &Core) -> usize {
+pub(crate) fn max_local(e: &Core) -> usize {
     let mut m = 0;
     walk_locals(e, &mut |l: LocalId| {
         m = m.max(l.0);
@@ -7373,6 +7382,12 @@ impl<'a> Driver<'a> {
         let definitions = self.defs;
         let f = definitions.get(&g.0)?;
         if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body || args.len() != f.params.len() {
+            return None;
+        }
+        // `#[inline(never)]` (attribute annotations specification section
+        // 5): the function must not be inlined, by driving either.
+        if f.hints.inline == Some(InlineHint::Never) {
+            self.site("unfold", Some("inline(never): the callee is never unfolded".to_string()));
             return None;
         }
         // Do not even copy a previously optimized callee that exceeds

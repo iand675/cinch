@@ -73,6 +73,12 @@ module Bootstrap.ExportType where
     Cons (id, name) rest -> same wanted name || scope-name-used wanted rest
   fresh-scoped-name :: String -> List (Nat, String) -> String
   fresh-scoped-name name scope = if scope-name-used name scope then fresh-scoped-name (string-concat name "-r") scope else name
+  forall-binder-names :: List Quant -> List (Nat, String) -> (String, List (Nat, String))
+  forall-binder-names qs scope = case qs of
+    Nil -> ("", scope)
+    Cons q rest -> let binder = argument-name (quant-name q) scope in
+      case forall-binder-names rest (Cons (quant-id q, binder) scope) of
+        (names, bound) -> (string-concat-all [" ", binder, names], bound)
   argument-name :: String -> List (Nat, String) -> String
   argument-name name scope = let fallback = fresh-name "p" (list-length scope) in
     fresh-scoped-name (case unpack name of
@@ -324,6 +330,10 @@ module Bootstrap.ExportType where
       join [Ok "(", type-in-style display scope predicate, Ok " ->", row-in scope row, Ok " ", type-in-style display scope result, Ok ")"]
       else Err "malformed erased proof arrow in interface"
     UTuple fields -> join [Ok "(", separated-style display scope ", " fields, Ok ")"]
+    -- design/rank-n-polymorphism.md section 5: the source spelling, which
+    -- the reader parses back through the nested-forall conversion.
+    UForall qs body -> case forall-binder-names qs scope of
+      (names, bound) -> join [Ok "(forall", Ok names, Ok ". ", type-in-style display bound body, Ok ")"]
     other -> Err "checked type has no portable interface representation"
   export-type :: UType -> Result String String
   export-type ty = type-in Nil ty

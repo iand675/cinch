@@ -1008,6 +1008,11 @@ impl Checker {
     fn infer(&mut self, env: &mut Env, term: &ast::Term) -> Result<(ECore, Ty)> {
         let scope = self.compile_time.then(|| self.code_quantifiers.clone());
         let (core, ty) = self.infer_inner(env, term)?;
+        // A synthesized polytype is used at a type: instantiate it
+        // (design/rank-n-polymorphism.md section 3). No metavariable is
+        // ever bound to a polytype, so the unzonked type answers exactly
+        // and this hot path pays no traversal.
+        let (core, ty) = if matches!(ty, Ty::Forall(_)) { self.poly_elim_all(core, ty) } else { (core, ty) };
         self.remember_runtime_index_reading(term, env, &core, &ty);
         Ok((self.code_expectation(core, &ty, term.span(), scope), ty))
     }
@@ -1193,6 +1198,11 @@ impl Checker {
                 let mut call_args: Vec<(Option<ITerm>, Ty, ast::Span)> = Vec::new();
                 for (position, a) in args.iter().enumerate() {
                     ty = self.uni.zonk(&ty);
+                    if matches!(ty, Ty::Forall(_)) {
+                        let (c, t) = self.poly_elim_all(core, ty);
+                        core = c;
+                        ty = t;
+                    }
                     let prefix_ty = ty.clone();
                     // Only a direct global carries a temporal call-step identity.
                     // Do not copy an arbitrarily large partial application.
@@ -2029,6 +2039,104 @@ impl Checker {
         }
     }
 
+    /// Instantiate a polytype-typed value at fresh metavariables: a
+    /// projection of its family's one method at the use's own class vector
+    /// (design/rank-n-polymorphism.md sections 3 and 4).
+    fn poly_elim(&mut self, value: ECore, scheme: &Scheme) -> (ECore, Ty) {
+        let ((ty, _, _, _), bindings) = self.instantiate_scoped(scheme);
+        let own: Vec<Ty> = scheme.params.iter()
+            .map(|p| bindings.types.get(p).cloned().unwrap_or_else(|| self.uni.fresh()))
+            .collect();
+        let family = poly_family(scheme);
+        (ECore::DictProj(Box::new(value), 0, Some((family, own)), ty.clone()), ty)
+    }
+
+    /// Whether `term` is a variable or a call whose declared type yields a
+    /// polytype once its arguments are applied. It reads declared types
+    /// only, so it has no effect on inference or usage.
+    fn synthesizes_polytype(&self, env: &Env, term: &ast::Term) -> bool {
+        let (head, arguments) = match term {
+            ast::Term::Var(p) => (p, 0),
+            ast::Term::App(f, args, _) => match &**f {
+                ast::Term::Var(p) => (p, args.len()),
+                _ => return false,
+            },
+            _ => return false,
+        };
+        let declared = if head.quals.is_empty() {
+            match env.lookup_name(&head.name) {
+                Some((_, local)) => local.ty,
+                None => match self.resolve_var(head, head.span()) { Ok(v) => v.scheme.ty, Err(_) => return false },
+            }
+        } else {
+            match self.resolve_var(head, head.span()) { Ok(v) => v.scheme.ty, Err(_) => return false }
+        };
+        let mut ty = self.uni.zonk(&declared);
+        for _ in 0..arguments {
+            ty = match ty {
+                Ty::Fun(_, _, _, cod) | Ty::Pi { cod, .. } => *cod,
+                _ => return false,
+            };
+        }
+        matches!(ty, Ty::Forall(_))
+    }
+
+    /// Instantiate every polytype at the top of an inferred type.
+    fn poly_elim_all(&mut self, mut core: ECore, ty: Ty) -> (ECore, Ty) {
+        let mut ty = self.uni.zonk(&ty);
+        while let Ty::Forall(scheme) = ty {
+            let (c, t) = self.poly_elim(core, &scheme);
+            core = c;
+            ty = self.uni.zonk(&t);
+        }
+        (core, ty)
+    }
+
+    /// Check a term against a polytype: skolemise its binders, check the
+    /// body under a skolem scope and a fresh performed-effect frame, and
+    /// require the body to be pure (design/rank-n-polymorphism.md
+    /// section 3).
+    fn check_poly_intro(&mut self, env: &mut Env, term: &ast::Term, scheme: &Scheme) -> Result<ECore> {
+        let expected = Ty::Forall(Box::new(scheme.clone()));
+        // A term that already synthesizes a polytype (a local of one, or a
+        // call whose result is one) passes through unchanged: rebuilding
+        // the dictionary would allocate and re-evaluate it per slot.
+        if self.synthesizes_polytype(env, term) {
+            let (core, actual) = self.infer_inner(env, term)?;
+            let actual = self.uni.zonk(&actual);
+            if matches!(actual, Ty::Forall(_)) {
+                self.uni.unify(&actual, &expected).map_err(|m| Error::at(term.span(), m))?;
+                return Ok(core);
+            }
+            return Err(Error::at(term.span(), crate::diagnostic!(
+                "expected the polymorphic type {}, but this has type {}", expected, actual)));
+        }
+        let (rigid, _, bindings) = self.rigidify(scheme);
+        let skolems: Vec<String> = scheme.params.iter()
+            .filter_map(|p| match bindings.types.get(p) { Some(Ty::Param(n)) => Some(n.to_string()), _ => None })
+            .collect();
+        let mark = self.uni.enter_skolems(skolems.clone());
+        let tparams_before = self.body_tparams.len();
+        self.body_tparams.extend(skolems.iter().cloned());
+        let saved = self.enter_perf();
+        // The body is evaluated once per reached class vector, so its
+        // captures count like a lambda body's: unboundedly.
+        self.lam_depth += 1;
+        let checked = self.check(env, term, &rigid);
+        self.lam_depth -= 1;
+        let performed = self.exit_perf(saved);
+        self.body_tparams.truncate(tparams_before);
+        self.uni.exit_skolems(mark);
+        let body = checked?;
+        if self.uni.unify_rows(&performed, &EffRow::pure()).is_err() {
+            return Err(Error::at(term.span(), crate::diagnostic!(
+                "a polymorphic value must be pure to build; this body performs {}",
+                self.uni.resolve_row(&performed)
+            )));
+        }
+        Ok(ECore::PolyIntro { skolems, body: Box::new(body), ty: rigid })
+    }
+
     fn check(&mut self, env: &mut Env, term: &ast::Term, expected: &Ty) -> Result<ECore> {
         let scope = self.compile_time.then(|| self.code_quantifiers.clone());
         let core = self.check_inner(env, term, expected)?;
@@ -2063,6 +2171,12 @@ impl Checker {
         // specification section 3).
         if let Ty::Prp(p) = self.uni.zonk(expected) {
             return self.check_proof(env, term, &p);
+        }
+        // A polytype is checked by generalisation
+        // (design/rank-n-polymorphism.md section 3). Predicativity keeps
+        // polytypes out of metavariable bindings, so no zonk is needed.
+        if let Ty::Forall(scheme) = expected {
+            return self.check_poly_intro(env, term, scheme);
         }
         // Constructor applications are type-directed: the expected type
         // solves the constructor's index parameters before its arguments
@@ -2363,7 +2477,9 @@ impl Checker {
             },
             _ => false,
         };
-        if !ordinary_app || matches!(self.uni.zonk(expected), Ty::Prp(_) | Ty::Sort(_)) {
+        // A polytype domain is checked by generalisation, never by
+        // subsumption of an inferred (and so instantiated) argument.
+        if !ordinary_app || matches!(self.uni.zonk(expected), Ty::Prp(_) | Ty::Sort(_) | Ty::Forall(_)) {
             return Ok((self.check(env, argument, expected)?, self.idx_of_term(argument, env).ok()));
         }
         // Ordinary applications use inference followed by subsumption in
@@ -9494,6 +9610,10 @@ impl Checker {
                 ctx_span,
                 "cannot pattern match on a dependent function value",
             )),
+            Ty::Forall(_) => Err(Error::at(
+                ctx_span,
+                "cannot pattern match on a polymorphic value; bind it with a variable and use it at a type",
+            )),
             Ty::Sort(s) => Err(Error::at(
                 ctx_span,
                 format!("cannot pattern match on the universe {s}"),
@@ -12537,6 +12657,14 @@ impl KnotFlow<'_> {
                 self.check_suspended(body)?;
                 free.iter().find_map(|local| self.locals.get(local).copied())
             }
+            // A generalisation body is built at dictionary construction:
+            // it is suspended exactly as a lambda body is.
+            ECore::PolyIntro { body, .. } => {
+                let mut free = Vec::new();
+                free_locals(body, &mut Vec::new(), &mut free);
+                self.check_suspended(body)?;
+                free.iter().find_map(|local| self.locals.get(local).copied())
+            }
             ECore::MkClos { fn_id, env } => {
                 let captured = self.values(env)?;
                 self.check_recursive_body(fn_id, captured)?;
@@ -12833,7 +12961,7 @@ fn rec_walk(
         }
         // A lambda body is a suspension position; a `~` memo body is one
         // because its thunk is a lambda.
-        ECore::Lam { body, .. } => rec_walk(body, guard + 1, owner, by_local, edges),
+        ECore::Lam { body, .. } | ECore::PolyIntro { body, .. } => rec_walk(body, guard + 1, owner, by_local, edges),
         ECore::Let(_, v, body) => {
             rec_walk(v, guard, owner, by_local, edges);
             rec_walk(body, guard, owner, by_local, edges);
@@ -12907,7 +13035,7 @@ fn rec_collect_refs(e: &ECore, by_local: &HashMap<LocalId, usize>, out: &mut Vec
                 rec_collect_refs(a, by_local, out);
             }
         }
-        ECore::Lam { body, .. } => rec_collect_refs(body, by_local, out),
+        ECore::Lam { body, .. } | ECore::PolyIntro { body, .. } => rec_collect_refs(body, by_local, out),
         ECore::Let(_, v, body) => {
             rec_collect_refs(v, by_local, out);
             rec_collect_refs(body, by_local, out);
@@ -12986,7 +13114,7 @@ fn top_rec_walk(e: &ECore, guard: i32, owner: usize, edges: &mut Vec<(usize, Glo
         }
         // A lambda body is a suspension position; a `~` memo body is one
         // because its thunk is a lambda.
-        ECore::Lam { body, .. } => top_rec_walk(body, guard + 1, owner, edges),
+        ECore::Lam { body, .. } | ECore::PolyIntro { body, .. } => top_rec_walk(body, guard + 1, owner, edges),
         ECore::Let(_, v, body) => {
             top_rec_walk(v, guard, owner, edges);
             top_rec_walk(body, guard, owner, edges);
@@ -13085,7 +13213,7 @@ fn subst_rec_refs(e: &mut ECore, subs: &HashMap<LocalId, RecSub>) {
                 subst_rec_refs(a, subs);
             }
         }
-        ECore::Lam { body, .. } => subst_rec_refs(body, subs),
+        ECore::Lam { body, .. } | ECore::PolyIntro { body, .. } => subst_rec_refs(body, subs),
         ECore::Let(_, v, body) => {
             subst_rec_refs(v, subs);
             subst_rec_refs(body, subs);

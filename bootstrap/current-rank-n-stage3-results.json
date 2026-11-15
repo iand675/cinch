@@ -1,0 +1,120 @@
+{
+  "compiler_leak_check": "off for the compiler process: Stage 3 leaks while compiling any program, including rank-1 ones and the letrec and argv targets, so the audited run_stage_targets gate fails every target independently of rank-N",
+  "fixed_point": "tooling/bootstrap.sh check: stages 2 and 3 reached a fixed point",
+  "host": "x86_64-unknown-linux-gnu, clang 20",
+  "procedure": "stage3 --emit-ir --interfaces <provider interfaces> --objects <provider objects>; clang with the provider library object and runtime; run under CINCH_LEAK_CHECK=1 CINCH_RC_DEBUG=1",
+  "results": [
+    {
+      "diagnostic": "bootstrap.check:5:15: polymorphic types differ in their quantifiers: expected (forall a b. (a -> (b -> a))), found (forall a. (a -> a))",
+      "exit": 4,
+      "fixture": "bad_arity",
+      "outcome": "refused"
+    },
+    {
+      "diagnostic": "bootstrap.check:9:34: a quantified type variable escapes its scope",
+      "exit": 4,
+      "fixture": "bad_escape",
+      "outcome": "refused"
+    },
+    {
+      "diagnostic": "bootstrap.check:7:31: a type variable cannot stand for a polymorphic type; annotate the binding with its polymorphic type: (forall a. (a -> a))",
+      "exit": 4,
+      "fixture": "bad_impredicative",
+      "outcome": "refused"
+    },
+    {
+      "diagnostic": "bootstrap.check:7:28: type mismatch: expected a, found I64 bootstrap.check:7:28: type mismatch: expected a, found I64",
+      "exit": 4,
+      "fixture": "bad_mono",
+      "outcome": "refused"
+    },
+    {
+      "diagnostic": "bootstrap.check:3:13: recursive field is negative or needs nested positivity evidence",
+      "exit": 4,
+      "fixture": "bad_positive",
+      "outcome": "refused"
+    },
+    {
+      "diagnostic": "bootstrap.check:2:21: a nested forall cannot carry `using` constraints yet; lift them to the signature (design/rank-n-polymorphism.md section 7)",
+      "exit": 4,
+      "fixture": "bad_using",
+      "outcome": "refused"
+    },
+    {
+      "exit": 42,
+      "fixture": "capture",
+      "leak": "live=0 immortal=0 leaked=0",
+      "outcome": "ran"
+    },
+    {
+      "exit": 42,
+      "fixture": "church",
+      "leak": "live=0 immortal=0 leaked=0",
+      "outcome": "ran"
+    },
+    {
+      "exit": 42,
+      "fixture": "eff_row",
+      "leak": "live=0 immortal=0 leaked=0",
+      "outcome": "ran"
+    },
+    {
+      "exit": 42,
+      "fixture": "generic",
+      "leak": "live=0 immortal=0 leaked=0",
+      "outcome": "ran"
+    },
+    {
+      "exit": 42,
+      "fixture": "hkt",
+      "leak": "live=0 immortal=0 leaked=0",
+      "outcome": "ran"
+    },
+    {
+      "exit": 42,
+      "fixture": "mixed",
+      "leak": "live=0 immortal=0 leaked=0",
+      "outcome": "ran"
+    },
+    {
+      "exit": 42,
+      "fixture": "opaque",
+      "leak": "live=0 immortal=0 leaked=0",
+      "outcome": "ran"
+    },
+    {
+      "exit": 42,
+      "fixture": "pass_through",
+      "leak": "live=0 immortal=0 leaked=0",
+      "outcome": "ran"
+    },
+    {
+      "exit": 42,
+      "fixture": "rank2",
+      "leak": "live=0 immortal=0 leaked=0",
+      "outcome": "ran"
+    },
+    {
+      "exit": 42,
+      "fixture": "rank3",
+      "leak": "live=0 immortal=0 leaked=0",
+      "outcome": "ran"
+    },
+    {
+      "exit": 42,
+      "fixture": "ret",
+      "leak": "live=0 immortal=0 leaked=0",
+      "outcome": "ran"
+    },
+    {
+      "exit": 42,
+      "fixture": "stored",
+      "leak": "live=0 immortal=0 leaked=0",
+      "outcome": "ran"
+    }
+  ],
+  "schema": 1,
+  "source_revision": "b742dda4f6d1f6df4f58e71197b784850a055129",
+  "stage3_sha256": "08d192ea8b73373953dc38751e39f3643d9236b0593e0a024e2b86e8b9d121e8",
+  "subject": "rank-N fixtures (compiler/tests/fixtures/rank_n) compiled by the self-hosted Stage 3"
+}

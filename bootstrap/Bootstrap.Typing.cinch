@@ -42,6 +42,24 @@ module Bootstrap.Typing where
   context-task-forwarder context name = case context of CheckedTypingContext kinds globals effects datas forwarders -> has name forwarders
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
+  poly-rigid-pairs :: List Quant -> List Nat -> List (Nat, UType)
+  poly-rigid-pairs qs ids = case (qs, ids) of
+    (Cons q rest, Cons id more) -> Cons (quant-id q, URigid id (quant-name q) 0 (quant-kind q)) (poly-rigid-pairs rest more)
+    other -> Nil
+  poly-rigid-scope :: List Quant -> List Nat -> TypeScope -> Option TypeScope
+  poly-rigid-scope qs ids scope = case (qs, ids) of
+    (Cons q rest, Cons id more) -> (case add-rigid-kind id (quant-kind q) scope of
+      Some bound -> poly-rigid-scope rest more bound
+      None -> None)
+    other -> Some scope
+  poly-argument-pairs :: List Quant -> List UType -> List (Nat, UType)
+  poly-argument-pairs qs args = case (qs, args) of
+    (Cons q rest, Cons arg more) -> Cons (quant-id q, arg) (poly-argument-pairs rest more)
+    other -> Nil
+  poly-arguments-wf :: TypingContext -> TypeScope -> List UType -> Bool
+  poly-arguments-wf context scope args = case args of
+    Nil -> True
+    Cons arg rest -> not (has-forall arg) && wf context scope arg && poly-arguments-wf context scope rest
   equal-type :: UType -> UType -> Bool
   equal-type a b = valid-type a && valid-type b && (case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (empty-store "Core typing")) of Nil -> True; other -> False)
   has :: String -> List String -> Bool
@@ -367,6 +385,23 @@ module Bootstrap.Typing where
       checked-term context scope gamma facts value
         && alternatives-typed context scope (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) value ty alternatives
     CTuple sp ty fields -> (case tuple-fields ty of Some types -> tuple-terms context scope gamma facts types fields; None -> False)
+    -- design/rank-n-polymorphism.md section 8: a generalisation's body has
+    -- the polytype's body opened at its rigid ids and performs nothing; an
+    -- instantiation opens its value's polytype at forall-free arguments.
+    CPolyIntro sp ty ids body -> (case ty of
+      UForall qs inner -> list-length ids == list-length qs && wf context scope ty
+        && equal-type (substitute-bound (poly-rigid-pairs qs ids) inner) (core-type body)
+        && effects-fit (core-effects body) (URow UEnd)
+        -- The skolems are in scope, as rigid variables, for the body only.
+        && (case poly-rigid-scope qs ids scope of
+          Some opened -> checked-term context opened gamma facts body
+          None -> False)
+      other -> False)
+    CPolyElim sp ty value args -> (case core-type value of
+      UForall qs inner -> list-length args == list-length qs && poly-arguments-wf context scope args
+        && equal-type ty (substitute-bound (poly-argument-pairs qs args) inner)
+        && checked-term context scope gamma facts value
+      other -> False)
     CPrimitive sp ty name args -> (if same name "copy-out" then copy-out-checked context ty args
       else if has name ["borrow", "mut-borrow"] then borrow-checked scope (same name "mut-borrow") ty args
       else if same name "ref-set" then ref-set-checked ty args
@@ -577,6 +612,7 @@ module Bootstrap.Typing where
     UFunEff a row b -> task-regions a <> task-regions row <> task-regions b
     UPi id name a row b -> task-regions a <> task-regions row <> task-regions b
     UTuple fields -> task-regions fields
+    UForall qs body -> task-regions body
     UArg first rest -> task-regions first <> task-regions rest
     URow labels -> task-regions labels
     URowJoin a b -> task-regions a <> task-regions b
@@ -949,6 +985,7 @@ module Bootstrap.Typing where
       UUsageArrow usage arrow -> task-type-holds-mut arrow
       UPi id name a row b -> task-type-holds-mut a || task-type-holds-mut b
       UTuple fields -> task-type-holds-mut fields
+      UForall qs body -> task-type-holds-mut body
       UArg first rest -> task-type-holds-mut first || task-type-holds-mut rest
       other -> False)
   task-types-hold-mut :: List UType -> Bool
@@ -965,6 +1002,7 @@ module Bootstrap.Typing where
       UUsageArrow usage arrow -> task-type-holds-memo arrow
       UPi id name a row b -> task-type-holds-memo a || task-type-holds-memo b
       UTuple fields -> task-type-holds-memo fields
+      UForall qs body -> task-type-holds-memo body
       UArg first rest -> task-type-holds-memo first || task-type-holds-memo rest
       other -> False)
   task-free-holds-memo :: List (Nat, UType) -> Bool

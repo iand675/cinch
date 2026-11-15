@@ -576,6 +576,36 @@ module Main where
 }
 
 #[test]
+fn inline_never_keeps_the_call_through_the_optimizer() {
+    // The hint is a promise about the optimizer, not only about LLVM:
+    // neither driving's unfold nor the simplifier's inliner may copy the
+    // body, so the call survives the full default pipeline. A small, pure,
+    // single-site callee is exactly what both would otherwise inline.
+    let src = r#"
+module Main where
+  #[inline(never)]
+  kept :: Nat -> Nat
+  kept x = x + 1
+
+  copied :: Nat -> Nat
+  copied x = x + 1
+
+  main :: Int
+  main = if kept 1 == 2 && copied 1 == 2 then 0 else 1
+"#;
+    let program = cinch::driver::check_sources(src, "<test>").expect("check");
+    let (optimized, _) = cinch::specialize::optimize(&program, &cinch::core::TargetProfile::native()).expect("optimize");
+    let ir = cinch::codegen::emit(&optimized).expect("emit");
+    let main = ir
+        .split("\ndefine ")
+        .find(|d| d.lines().next().is_some_and(|h| h.contains("@\"Main.main\"(")))
+        .expect("Main.main is emitted");
+    assert!(main.contains("@\"Main.kept\"("), "the inline(never) call was copied:\n{main}");
+    assert!(!main.contains("@\"Main.copied\"("), "the unhinted call is still inlined (the control):\n{main}");
+    assert_eq!(run_source(src).expect("run"), 0);
+}
+
+#[test]
 fn noinline_and_inline_never_together_are_a_duplicate() {
     expect_err(
         "noinline-plus-never",

@@ -406,7 +406,7 @@ fn cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume() {
     assert!(!client_llvm.contains("829054163"));
     assert!(client_llvm.lines().any(|line|
         line.contains("call i64 @__apply(i64 ") && line.contains(", i64 0, ptr ")));
-    let runtime = Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/debug/libcinchruntime.a");
+    let runtime = Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/release/libcinchruntime.a");
     let executable = dir.join("client");
     let linked = Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into())).arg(&client_ir).arg(&out).arg(&runtime).args(["-lpthread", "-ldl", "-lm", "-o"]).arg(&executable).output().unwrap();
     assert!(linked.status.success(), "{}", String::from_utf8_lossy(&linked.stderr));

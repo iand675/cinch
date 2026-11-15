@@ -113,6 +113,7 @@ module Bootstrap.CoreBody where
     URow labels -> dense-mix 163 (dense-type-digest labels) 0
     URowJoin a b -> dense-mix 167 (dense-type-digest a) (dense-type-digest b)
     UTuple fields -> dense-mix 173 (dense-type-digest fields) 0
+    UForall qs body -> dense-mix 181 (list-length qs) (dense-type-digest body)
     UArg first rest -> dense-mix 179 (dense-type-digest first) (dense-type-digest rest)
     UEnd -> 181
     UError -> 191
@@ -309,6 +310,8 @@ module Bootstrap.CoreBody where
       let (more, t2) = dense-handler-openings dense rest t1 in
       (JArr (JArr (JNum (nat-to-int key)) (JArr doc JArrEnd)) more, t2)
 
+  dense-ids :: List Nat -> Json
+  dense-ids ids = case ids of Nil -> JArrEnd; Cons id rest -> JArr (JNum (nat-to-int id)) (dense-ids rest)
   dense-term :: Bool -> CoreTerm -> List (Nat, UType) -> (Json, List (Nat, UType))
   dense-term dense term table = case term of
     CUse s ty name role actuals ->
@@ -450,6 +453,15 @@ module Bootstrap.CoreBody where
       let (doc, t1) = dense-type-doc dense ty table in
       let (f, t2) = dense-term dense fields t1 in
       (dense-node "tuple" [doc, f], t2)
+    CPolyIntro s ty ids body ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (b, t2) = dense-term dense body t1 in
+      (dense-node "poly-intro" [doc, dense-ids ids, b], t2)
+    CPolyElim s ty value args ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (v, t2) = dense-term dense value t1 in
+      let (types, t3) = dense-type-docs dense args t2 in
+      (dense-node "poly-elim" [doc, v, types], t3)
     CPrimitive s ty operation arguments ->
       let (doc, t1) = dense-type-doc dense ty table in
       let (a, t2) = dense-term dense arguments t1 in

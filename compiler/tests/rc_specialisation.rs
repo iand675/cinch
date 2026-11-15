@@ -468,3 +468,112 @@ fn core_unit<'a>(text: &'a str, name: &str) -> &'a str {
     let end = text[start..].find("\nend\n").expect("unit end");
     &text[start..start + end]
 }
+
+/// A branch with a `Reuse` on one arm and none on the other: the arm that
+/// rebuilds the block takes the kept cell, and the arm that does not must
+/// still see it freed.
+///
+/// This is the shape that made every leak-checked compiler invocation exit
+/// 74. `branch_reuse` keeps one tokenised `Release` at the head of the
+/// branch and moves only the `Reuse` into the arms, and its doc comment
+/// claimed an arm with no compatible allocation could leave the token
+/// unread because the release had already freed the block. It had not: on
+/// the unique path with a token bound `emit_release` stores the cell into
+/// the token slot and frees nothing, so only a `Reuse` ever released it.
+/// An arm that rebuilt nothing leaked one block per call.
+///
+/// The decision is pinned on the `Owned` Core dump, which is the only
+/// artifact that states it: one tokenised release at the head, one `Reuse`
+/// on one arm, and nothing on the other. The leak line is the behaviour
+/// that follows from the code generator settling that token at the
+/// release body's exits, and it is what the compiler's own nightly gate
+/// reports, so it is asserted too.
+#[test]
+fn a_branch_with_one_reusing_arm_frees_the_cell_on_the_other() {
+    const PROGRAM: &str = r#"
+module Main where
+  import Data.List
+
+  step :: List Int -> List Int
+  step xs = case xs of
+    Nil -> Nil
+    Cons h t -> if h > 0 then Cons h t else Nil
+
+  spin :: Int -> Int -> Int
+  spin n k = if n == 0 then 0 else spin (n - 1) (length (step (Cons k Nil)))
+
+  main :: Int
+  main = if spin 3 0 == 0 then 0 else 1
+"#;
+    let dir = std::env::temp_dir().join(format!("cinch_reuse_onesided_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("project directory");
+    std::fs::write(dir.join("Main.cinch"), PROGRAM).expect("write source");
+    let core = owned_core(&dir);
+    let step = core_unit(&core, "Main.step");
+    // One release, at the head of the branch, binding the token the reuse
+    // names.
+    assert_eq!(
+        step.matches("(release t0 @token(").count(),
+        1,
+        "the branch does not keep exactly one tokenised release at its head:\n{step}"
+    );
+    let token = step
+        .split("(release t0 @token(")
+        .nth(1)
+        .and_then(|rest| rest.split(')').next())
+        .expect("a token name");
+    // The arm that rebuilds the block takes the cell; the arm that returns
+    // `Nil` takes nothing. One reuse, not two, is the shape: a second one
+    // would be the both-arms-rebuild case, which never leaked.
+    assert_eq!(
+        step.matches(&format!("(reuse {token}")).count(),
+        1,
+        "the branch does not reuse the cell on exactly one arm:\n{step}"
+    );
+    // The other arm allocates no compatible constructor: it drops both
+    // moved fields instead of writing them into the kept cell. That is the
+    // arm the token is left bound on, and so the arm that must free.
+    let after_reuse = step.split("(reuse ").nth(1).expect("the reusing arm");
+    assert!(
+        after_reuse.contains("(drop t1") && after_reuse.contains("(drop t2"),
+        "the arm that reuses nothing does not drop the moved fields:\n{step}"
+    );
+    // The cell the one reusing arm did not take is freed on the other
+    // path, with and without frame allocation: this is the leak the
+    // compiler's own gate reported.
+    for no_stack in [false, true] {
+        let exe = dir.join(if no_stack { "prog_heap" } else { "prog" });
+        build_with(&dir, &exe, no_stack);
+        let mut cmd = Command::new(&exe);
+        cmd.env("CINCH_HEAP_LIMIT", "64M")
+            .env("CINCH_LEAK_CHECK", "1")
+            .env_remove("CINCH_ALLOC_STATS");
+        let out = cmd.output().expect("spawn program");
+        let err = String::from_utf8_lossy(&out.stderr);
+        assert_eq!(out.status.code(), Some(0), "no_stack_alloc {no_stack}: {err}");
+        assert!(
+            err.lines()
+                .any(|l| l.starts_with("cinch-leak:") && l.split_whitespace().any(|w| w == "leaked=0")),
+            "the one-sided reuse leaked (no_stack_alloc {no_stack}): {err}"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Build `dir`'s entry to `exe`, with frame allocation off when
+/// `no_stack` is set.
+fn build_with(dir: &Path, exe: &Path, no_stack: bool) {
+    let profile = TargetProfile { reclaim: true, rc_debug: false, ..TargetProfile::native() };
+    let opts = DriverOptions { no_stack_alloc: no_stack, ..DriverOptions::default() };
+    let (src, out) = (dir.join("Main.cinch"), exe.to_path_buf());
+    std::thread::Builder::new()
+        .stack_size(64 * 1024 * 1024)
+        .spawn(move || {
+            driver_with_profile_opts(Mode::Build, StageMode::Refresh, &src, Some(&out), &profile, &opts)
+        })
+        .expect("driver thread")
+        .join()
+        .expect("driver thread panicked")
+        .unwrap_or_else(|e| panic!("driver failed: {e}"));
+}

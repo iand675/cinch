@@ -172,6 +172,9 @@ pub fn repr_of(ty: &Ty, params: &[String], types: &dyn TypeReprs, miss: &mut dyn
         Ty::Fun(..) | Ty::Pi { .. } | Ty::Thunk { .. } | Ty::Later(_) | Ty::Lazy { .. } | Ty::Handler { .. } => {
             Class::Obj
         }
+        // A polymorphic value is its family's dictionary block
+        // (design/rank-n-polymorphism.md section 2).
+        Ty::Forall(_) => Class::Obj,
     }
 }
 

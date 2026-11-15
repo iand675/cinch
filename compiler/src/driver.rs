@@ -2,7 +2,7 @@
 
 use crate::parser::{parse_modules, FixityTable, ParsedModules};
 use crate::{check, codegen, layout, lexer, Error, Result};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 /// P29: Blaze-style incremental recompilation (the REAPER item graph,
@@ -1249,34 +1249,6 @@ fn str_of(v: &crate::interface::JsonValue, what: &str) -> Result<String> {
         .map_err(|e| Error::plain(format!("package manifest: {what}: {e}")))
 }
 
-/// The modules this target never selects: every import that names them
-/// carries a `when` condition that does not hold for `profile` (modules
-/// specification section 11), and no import names them unconditionally.
-/// The target's view of each importer already drops those imports
-/// (`check_decls::target_view`); this is the same decision read from the
-/// imported side, for the one consumer that roots modules rather than
-/// reaching them by import, a library object.
-fn unselected_modules<'a>(
-    modules: impl Iterator<Item = &'a crate::ast::Module>,
-    profile: &crate::core::TargetProfile,
-) -> Result<std::collections::HashSet<String>> {
-    let mut held: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let mut dropped: std::collections::HashSet<String> = std::collections::HashSet::new();
-    for m in modules {
-        for d in &m.decls {
-            if let crate::ast::Decl::Import(i) = d {
-                let name = i.path.parts().join(".");
-                if i.when.is_empty() || crate::core::WhenCond::lower(&i.when)?.holds(profile) {
-                    held.insert(name);
-                } else {
-                    dropped.insert(name);
-                }
-            }
-        }
-    }
-    Ok(dropped.into_iter().filter(|name| !held.contains(name)).collect())
-}
-
 /// The embedded `(path, source)` entry for a manifest path (the
 /// `include_str!` table).
 pub fn embedded_source(path: &str) -> Option<(&'static str, &'static str)> {
@@ -2367,6 +2339,45 @@ fn compile_time_roots(
 /// Ordinary code reaching a host-only module is the same fact without the
 /// compile-time context, and it is refused as unavailable for the target,
 /// naming the condition that would select it.
+/// The family modules that only a target-false `when` imports: another
+/// target's backend (`Prim.Sys.Darwin` on a Linux target, which
+/// `Prim.Sys` imports `when os darwin`). A standalone library object for
+/// this target must not root them: their units name that target's
+/// symbols (Darwin's `__error`), which this target's linker cannot
+/// resolve, and no code this target runs can reach them.
+fn unselected_backends<'a>(modules: impl Iterator<Item = &'a crate::ast::Module>, build: &crate::core::BuildProfiles) -> HashSet<String> {
+    let profile = crate::core::condition_context(build, crate::core::BuildContext::Emitted);
+    fn walk(d: &crate::ast::Decl, holds: bool, profile: &crate::core::TargetProfile,
+            selected: &mut HashSet<String>, gated: &mut HashSet<String>) {
+        match d {
+            crate::ast::Decl::Conditional { when, inner } => {
+                // An undecidable condition keeps the import: never drop a
+                // module some build of this target might need.
+                let here = crate::core::WhenCond::lower(when).map(|c| c.holds(profile)).unwrap_or(true);
+                walk(inner, holds && here, profile, selected, gated)
+            }
+            crate::ast::Decl::Attributed { inner, .. } => walk(inner, holds, profile, selected, gated),
+            crate::ast::Decl::Import(i) => {
+                // `import X when <clause> ...`: the clauses the checker reads
+                // to drop the import (`check_decls::prune_module`).
+                let here = i.when.is_empty()
+                    || crate::core::WhenCond::lower(&i.when).map(|c| c.holds(profile)).unwrap_or(true);
+                let name = i.path.parts().join(".");
+                if holds && here { selected.insert(name); } else { gated.insert(name); }
+            }
+            _ => {}
+        }
+    }
+    let (mut selected, mut gated) = (HashSet::new(), HashSet::new());
+    for m in modules {
+        for d in &m.decls {
+            walk(d, true, profile, &mut selected, &mut gated);
+        }
+    }
+    gated.retain(|module| !selected.contains(module));
+    gated
+}
+
 fn refuse_unavailable_modules(
     project: &Project,
     modules: &[crate::ast::Module],
@@ -2992,6 +3003,10 @@ fn write_artifacts(
         ("projection", (opt.simplify.projection as u64).into()),
         ("join_scope", (opt.simplify.join_scope as u64).into()),
         ("direct_dict_call", (opt.simplify.dict_call as u64).into()),
+        ("contify", (opt.simplify.contified as u64).into()),
+        ("known_closure_call", (opt.simplify.closure_calls as u64).into()),
+        ("specialise_arguments", (opt.simplify.specialised as u64).into()),
+        ("specialise_dictionaries", (opt.simplify.dict_specialised as u64).into()),
         ("saturate_partial", (opt.simplify.saturate as u64).into()),
         ("case_of_case", (opt.simplify.case_of_case as u64).into()),
         ("joins", (opt.simplify.joins as u64).into()),
@@ -3670,8 +3685,10 @@ pub(crate) fn ensure_runtime_dylib() -> Result<std::path::PathBuf> {
         return Ok(dylib);
     }
     let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime");
+    // The same profile as the archive beside it, or the library would land
+    // in another directory.
     let status = std::process::Command::new("cargo")
-        .args(["build", "--manifest-path"])
+        .args(["build", "--release", "--manifest-path"])
         .arg(runtime.join("Cargo.toml"))
         .arg("--target-dir")
         .arg(runtime.join("target"))
@@ -3685,10 +3702,15 @@ pub(crate) fn ensure_runtime_dylib() -> Result<std::path::PathBuf> {
     Ok(dylib)
 }
 
+/// The host runtime archive every native link uses, rebuilt when a runtime
+/// source is newer. It is always the release profile: generated code calls
+/// the runtime for every allocation, free and count slow path, and the
+/// unoptimised build costs an order of magnitude on each (an allocation was
+/// about 1,800 instructions against about 120, design/cps-optimisation.md).
+/// The bootstrap ladder links the same profile.
 fn ensure_runtime() -> Result<std::path::PathBuf> {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let runtime = manifest_dir.join("runtime");
-    let debug = runtime.join("target/debug/libcinchruntime.a");
     let release = runtime.join("target/release/libcinchruntime.a");
     // The rebuild holds the lock; a concurrent link waits rather than
     // reading a half-written archive.
@@ -3717,11 +3739,8 @@ fn ensure_runtime() -> Result<std::path::PathBuf> {
     if fresh(&release) {
         return Ok(release);
     }
-    if fresh(&debug) {
-        return Ok(debug);
-    }
     let status = std::process::Command::new("cargo")
-        .args(["build", "--manifest-path"])
+        .args(["build", "--release", "--manifest-path"])
         .arg(runtime.join("Cargo.toml"))
         .arg("--target-dir")
         .arg(runtime.join("target"))
@@ -3732,8 +3751,8 @@ fn ensure_runtime() -> Result<std::path::PathBuf> {
             "building compiler/runtime (cinchruntime) failed",
         ));
     }
-    if debug.exists() {
-        Ok(debug)
+    if release.exists() {
+        Ok(release)
     } else {
         Err(Error::plain(
             "libcinchruntime.a not found after building the runtime",
@@ -4426,6 +4445,13 @@ pub struct DriverOptions {
     /// taken against the same program with the inliner active
     /// (design/stack-allocation.md section 7).
     pub no_inline: bool,
+    /// `--no-contify`: keep a tail-only local continuation a closure
+    /// instead of a join point (design/cps-optimisation.md).
+    pub no_contify: bool,
+    /// `--no-specialise-arguments`: keep calls that pass a known unit,
+    /// closure or record of functions on the general callee
+    /// (design/cps-optimisation.md).
+    pub no_specialise_arguments: bool,
     /// `--inline-model <threshold|benefit>`: which site test the inliner
     /// uses (`crate::simplify::InlineModel`). Default `benefit`.
     pub inline_model: Option<String>,
@@ -4451,6 +4477,11 @@ pub struct DriverOptions {
     /// reserve (default 16 KiB); the rest of its allocations stay on the
     /// heap.
     pub stack_frame_limit: Option<u64>,
+    /// `--escape-report` (`CINCH_ESCAPE_REPORT=1`): print the escape
+    /// census after frame allocation, one row per class with its count,
+    /// its percentage and the payload bytes the refused allocations carry
+    /// (design/stack-allocation.md section 8).
+    pub escape_report: bool,
     /// The words the CLI forwards to the program `Mode::Run` executes:
     /// every argument after the entry file (`cinch run f.cinch a b`, or
     /// everything after `--` verbatim). They land on the built program's
@@ -4474,6 +4505,12 @@ impl DriverOptions {
         }
     }
 
+    /// Whether the escape census prints: `--escape-report` or
+    /// `CINCH_ESCAPE_REPORT=1` (design/stack-allocation.md section 8).
+    pub fn escape_report(&self) -> bool {
+        self.escape_report || std::env::var_os("CINCH_ESCAPE_REPORT").is_some()
+    }
+
     /// The simplifier budget these flags select: the pass cap, whether
     /// static dictionary projections become direct calls, and the defaults
     /// of the rules the flags do not reach (`case-of-case` and the node
@@ -4486,6 +4523,8 @@ impl DriverOptions {
             projection: !self.no_projection,
             saturate_partial: !self.no_saturate_partial,
             inline: !self.no_inline,
+            contify: !self.no_contify,
+            specialise_arguments: !self.no_specialise_arguments,
             inline_model: match self.inline_model.as_deref() {
                 Some("threshold") => crate::simplify::InlineModel::Threshold,
                 Some("benefit") | None => crate::simplify::InlineModel::Benefit,
@@ -4736,11 +4775,17 @@ impl<'a> CoreDump<'a> {
             );
         }
         if let Some(stack) = stack {
-            // Frame allocation (design/stack-allocation.md): what the pass
-            // put in the frames, and why the rest stayed on the heap.
+            // Frame allocation (design/stack-allocation.md section 8): what
+            // the pass put in the frames, and why the rest stayed on the
+            // heap. `refused` is the rule-level roll-up every earlier
+            // reader expects (one `escapes` row); `classes` is the census,
+            // one row per class with the count and the payload bytes those
+            // allocations carry.
             let mut refused: Vec<(&str, &u64)> =
                 stack.refused.iter().map(|(why, n)| (*why, n)).collect();
             refused.sort();
+            let classes: Vec<(&str, crate::stack::Tally)> =
+                stack.classes.iter().map(|(why, t)| (*why, *t)).collect();
             fields.insert(
                 "stack".to_string(),
                 J::obj([
@@ -4748,6 +4793,7 @@ impl<'a> CoreDump<'a> {
                     ("units", stack.units.into()),
                     ("slots", stack.slots.into()),
                     ("bytes", stack.bytes.into()),
+                    ("payload", stack.payload.into()),
                     ("candidates", stack.candidates.into()),
                     (
                         "refused",
@@ -4755,6 +4801,50 @@ impl<'a> CoreDump<'a> {
                             refused
                                 .into_iter()
                                 .map(|(why, n)| (why.to_string(), (*n).into()))
+                                .collect(),
+                        ),
+                    ),
+                    (
+                        "classes",
+                        J::Obj(
+                            classes
+                                .into_iter()
+                                .map(|(why, t)| {
+                                    (
+                                        why.to_string(),
+                                        J::obj([
+                                            ("count", t.count.into()),
+                                            ("bytes", t.bytes.into()),
+                                        ]),
+                                    )
+                                })
+                                .collect(),
+                        ),
+                    ),
+                    (
+                        "partial",
+                        J::obj([
+                            ("count", stack.partial.count.into()),
+                            ("bytes", stack.partial.bytes.into()),
+                        ]),
+                    ),
+                    ("largest", stack.largest.into()),
+                    ("largest_class", stack.largest_class.into()),
+                    (
+                        "positions",
+                        J::Obj(
+                            stack
+                                .positions
+                                .iter()
+                                .map(|(why, t)| {
+                                    (
+                                        why.to_string(),
+                                        J::obj([
+                                            ("count", t.count.into()),
+                                            ("bytes", t.bytes.into()),
+                                        ]),
+                                    )
+                                })
                                 .collect(),
                         ),
                     ),
@@ -4801,7 +4891,7 @@ cinch core: the annotated Core dump (design/core-output.md)
 usage:
   cinch core emit <file.cinch> [--stage=<name>] [--target <triple>] [-o <out.core>]
                      [--max-simplifier-iterations <n>] [--no-direct-dict-calls]
-                     [--case-of-case] [--no-inline] [--inline-model <threshold|benefit>] [--no-stack-alloc]
+                     [--case-of-case] [--no-inline] [--no-contify] [--no-specialise-arguments] [--inline-model <threshold|benefit>] [--no-stack-alloc]
                      [--stack-frame-limit <bytes>]
   cinch core verify <file.core>
   cinch core diff <a.core> <b.core>
@@ -4863,6 +4953,8 @@ fn core_emit(args: &[String]) -> i32 {
             "--no-projection" => opts.no_projection = true,
             "--no-saturate-partial" => opts.no_saturate_partial = true,
             "--no-inline" => opts.no_inline = true,
+            "--no-contify" => opts.no_contify = true,
+            "--no-specialise-arguments" => opts.no_specialise_arguments = true,
             "--inline-model" => {
                 i += 1;
                 match args.get(i) {
@@ -4875,6 +4967,7 @@ fn core_emit(args: &[String]) -> i32 {
             }
             "--case-of-case" => opts.case_of_case = true,
             "--no-stack-alloc" => opts.no_stack_alloc = true,
+            "--escape-report" => opts.escape_report = true,
             "--stack-frame-limit" => {
                 i += 1;
                 match args.get(i).and_then(|n| n.parse::<u64>().ok()) {
@@ -5465,12 +5558,13 @@ pub fn driver_with_profile_opts(
     // parsed declarations, which is why they run here rather than in the
     // loader.
     refuse_unavailable_modules(&project, &modules, &build)?;
-    // A library object roots every module's exported values (below), so
-    // it must not root a module the target never selects: a platform
-    // backend `Prim.Sys` imports only `when os darwin` is not part of a
-    // Linux object, and rooting it linked Darwin's `__error` errno accessor
-    // into one, which no Linux libc defines.
-    let unselected = unselected_modules(prelude.modules.iter().chain(modules.iter()), profile)?;
+    // The embedded family is parsed apart from the project's modules, and
+    // its `Prim.Sys` facade is where the target-conditional imports live.
+    let unselected = if mode == Mode::EmitObject {
+        unselected_backends(prelude.modules.iter().chain(modules.iter()), &build)
+    } else {
+        HashSet::new()
+    };
     let mut hashes: HashMap<String, String> = HashMap::new();
     let mut files: HashMap<String, String> = HashMap::new();
     for name in &project.order {
@@ -5743,6 +5837,14 @@ pub fn driver_with_profile_opts(
         };
         opt.simplify.pruned = pruned.removed;
         opt.simplify.pruned_nodes = pruned.removed_nodes;
+        // Foreign binding contracts are emitted whether or not a unit is
+        // reachable, so another target's backend keeps none: its symbols
+        // do not exist on this target, and nothing here can call them.
+        if !unselected.is_empty() {
+            let owned_by_unselected = |unit: &str| unselected.iter().any(|m| unit.starts_with(&format!("{m}.")));
+            program.foreigns.retain(|unit, _| !owned_by_unselected(unit));
+            program.fns.retain(|f| !owned_by_unselected(&f.id.0));
+        }
     }
     write_artifacts(
         &out_dir,
@@ -5801,7 +5903,7 @@ pub fn driver_with_profile_opts(
     // each value's dups to its first use in a run and its drops after its
     // last, which shortens the live ranges the backend carries.
     let mut program = program;
-    crate::coalesce::coalesce(&mut program, profile);
+    crate::coalesce::coalesce(&mut program, profile)?;
     // Frame allocation comes after counting, where every allocation and
     // every reference is explicit (design/stack-allocation.md): the pass
     // turns a block whose references all die in its activation into a
@@ -5811,6 +5913,14 @@ pub fn driver_with_profile_opts(
     // here, after specialization, reference counting and frame allocation.
     if dump.wants(crate::coretext::Stage::Lowered) && mode != Mode::Check {
         dump.write_lowered(&program, &opt, &ifaces, &mut core_rows)?;
+    }
+    // The escape census (design/stack-allocation.md section 8): the table
+    // is the deliverable of the pass's measurement, so it prints whenever
+    // the caller asked, at the one point the program's own decision is
+    // final and before any later stage can change it.
+    if opts.escape_report() {
+        let what = format!("{} ({mode:?})", path.display());
+        eprint!("{}", program.stack.table(&what));
     }
     if opts.core_only {
         dump.record(&manifest_path, &core_rows, Some(&program.stack))?;

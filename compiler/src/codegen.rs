@@ -251,6 +251,10 @@ fn emit_module(
         native: profile.artifact == crate::core::ArtifactProfile::Native,
     };
     let mut reg = Registry::build(program, (profile.word_size / 8) as usize)?;
+    reg.tail_apply = profile.word_size == 64 && profile.arch != "wasm32";
+    if !reg.tail_apply {
+        reg.tailcc.clear();
+    }
     reg.rc_debug = profile.rc_debug;
     reg.reclaim = profile.reclaim;
     reg.emit_modules = emit_modules.to_vec();
@@ -331,6 +335,12 @@ fn emit_module(
     // own `memcpy` is `(i32, i32, i32)`).
     let size_ty = if cx.size_ty() == "i32" { "i32" } else { "i64" };
     out.push_str(&format!("declare ptr @memcpy(ptr, ptr, {size_ty})\n"));
+    // The arguments of a guaranteed unknown tail call (`tailcc_units`): a
+    // `musttail` callee cannot read the frame it replaced, so they travel in
+    // a per-thread buffer the callee's apply twin copies out first.
+    if reg.tail_apply {
+        out.push_str(&format!("@cinch.tail.argv = internal thread_local global [{TAIL_ARGS} x i64] zeroinitializer\n"));
+    }
     // The count entry points (`compiler/runtime/src/rc.rs`, design/reclamation.md
     // sections 4 and 8): the slow paths of an inline dup or drop (the
     // zero crossing, and the atomic counts of blocks shared across tasks),
@@ -1064,6 +1074,15 @@ struct Registry {
     /// named here runs its body in the worker `tail_worker(name)`, which
     /// takes the mapped number of words.
     tail_width: HashMap<String, usize>,
+    /// Units whose body runs under LLVM's `tailcc` as `<unit>#cc`, behind a
+    /// C-ABI wrapper under the unit's own symbol ([`tailcc_units`]): every
+    /// tail call they make, to a known unit or to an unknown closure, is a
+    /// guaranteed `musttail`.
+    tailcc: HashSet<String>,
+    /// Guaranteed unknown tail calls are available: a 64-bit target whose
+    /// code is addressable memory, so an apply stub can carry prefix data
+    /// (not WebAssembly, whose function pointers are table indices).
+    tail_apply: bool,
     /// Each unit's parameter classes (concrete after the collector): the
     /// classes of the words a closure over the unit saves.
     unit_params: HashMap<String, Vec<Class>>,
@@ -1710,6 +1729,7 @@ impl Registry {
                 }
             }
         }
+        reg.tailcc = tailcc_units(p, &reg);
         Ok(reg)
     }
 
@@ -2620,6 +2640,9 @@ struct EmittedUnit {
     code: String,
     stub: String,
     clo: String,
+    /// A [`tailcc_units`] member's C-ABI entry under its own symbol, a
+    /// one-call wrapper into the `tailcc` body. Empty otherwise.
+    wrapper: String,
     scan: UnitScan,
     lang_facts: UnitLang,
 }
@@ -2821,6 +2844,17 @@ fn referenced_symbols(text: &str, units: &HashSet<String>) -> BTreeSet<String> {
         if units.contains(name) {
             out.insert(name.to_string());
         }
+        // A static dictionary block (`<instance>.dict`) is emitted by that
+        // instance's `.mk` factory, which is the unit that must stay. This
+        // is decided before the prefix rule: an anonymous instance of a
+        // polytype family (`Main.f.inst3`) is named under its definition,
+        // which the prefix rule would pick instead.
+        if let Some(mk) = name.split('#').next().and_then(|n| n.strip_suffix(".dict")).map(|id| format!("{id}.mk")) {
+            if units.contains(&mk) {
+                out.insert(mk);
+                continue;
+            }
+        }
         // A tail worker `<unit>#tail` is reached only through its unit,
         // which keeps its own one-word symbol for closures and exports
         // (`tail_worker`), so the worker keeps its parent.
@@ -2829,14 +2863,6 @@ fn referenced_symbols(text: &str, units: &HashSet<String>) -> BTreeSet<String> {
         }
         if let Some(unit) = owning_unit(name, units) {
             out.insert(unit.clone());
-        } else if let Some(id) = name.split('#').next().and_then(|n| n.strip_suffix(".dict")) {
-            // A static dictionary block (`<instance>.dict`) is emitted by
-            // that instance's `.mk` factory, which is the unit that must
-            // stay.
-            let mk = format!("{id}.mk");
-            if units.contains(&mk) {
-                out.insert(mk);
-            }
         }
     }
     out
@@ -3231,15 +3257,29 @@ fn assemble_unit(
         _ => (header, String::new()),
     };
     out.push_str(&head);
-    if let Some(group) = group {
+    if let Some(group) = &group {
         out.push(' ');
-        out.push_str(&group);
+        out.push_str(group);
     }
     out.push_str(&meta);
     out.push_str(" {\nentry:\n");
     out.push_str(&u.allocas);
     out.push_str(&u.code);
     out.push_str("}\n\n");
+    if !u.wrapper.is_empty() {
+        // The C-ABI wrapper of a `tailcc` body is the unit as every caller
+        // and the contract surface see it, and it does exactly what the
+        // body does: it carries the body's function attribute group (the
+        // memory effects, purity, hints), or a reader of `@X` sees none.
+        let wrapper = match &group {
+            Some(group) => u.wrapper.replacen(") {\nentry:", &format!(") {group} {{\nentry:"), 1),
+            None => u.wrapper.clone(),
+        };
+        out.push_str(&match linkage {
+            Some(linkage) => with_linkage(&wrapper, linkage),
+            None => wrapper,
+        });
+    }
     // The apply stub and the static closure are only reachable through a
     // use of the unit as a value. A unit called directly and never passed
     // as a function needs neither, and the stub is the largest single
@@ -3323,6 +3363,86 @@ fn reachable_units(
     let _ = &mut callees;
     seen
 }
+
+/// The units compiled under LLVM's `tailcc` (guaranteed tail calls through
+/// unknown closures). A unit qualifies when its body makes a saturated tail
+/// call to a value it does not know: a continuation, the case that otherwise
+/// grows the stack by a frame per call. The set is then closed over known
+/// tail-call edges, so a `tailcc` unit and a unit it tail-calls (or that
+/// tail-calls it) share a convention and D104's `musttail` between them stays
+/// legal. A component with a widened or narrowed member keeps the C
+/// convention, which `musttail` there already relies on.
+fn tailcc_units(p: &Program, reg: &Registry) -> HashSet<String> {
+    fn walk(e: &Core, tail: bool, unknown: &mut bool, edges: &mut Vec<String>, reg: &Registry) {
+        match e {
+            Core::App(head, args) if tail => {
+                match &**head {
+                    Core::Global(g, _) => {
+                        if reg.arity.get(&g.0) == Some(&args.len()) { edges.push(g.0.clone()); }
+                    }
+                    Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) => {}
+                    _ => *unknown = true,
+                }
+            }
+            Core::Let(_, _, _, b) | Core::Dup(_, _, b) | Core::Drop(_, _, b) => walk(b, tail, unknown, edges, reg),
+            Core::Release { body, .. } => walk(body, tail, unknown, edges, reg),
+            Core::If(_, a, b) => { walk(&a.body, tail, unknown, edges, reg); walk(&b.body, tail, unknown, edges, reg); }
+            Core::Case { alts, .. } => for alt in alts { walk(&alt.body, tail, unknown, edges, reg) },
+            Core::Join { body, rest, .. } => { walk(body, tail, unknown, edges, reg); walk(rest, tail, unknown, edges, reg); }
+            _ => {}
+        }
+    }
+    let mut seeds: Vec<String> = Vec::new();
+    let mut graph: HashMap<String, Vec<String>> = HashMap::new();
+    let mut blocked: HashSet<String> = HashSet::new();
+    for f in &p.fns {
+        if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body { continue; }
+        let name = &f.id.0;
+        if reg.tail_width.contains_key(name) || reg.narrow_sigs.contains_key(name) { blocked.insert(name.clone()); }
+        let mut unknown = false;
+        let mut edges = Vec::new();
+        walk(&f.body, true, &mut unknown, &mut edges, reg);
+        if unknown { seeds.push(name.clone()); }
+        for callee in &edges {
+            graph.entry(name.clone()).or_default().push(callee.clone());
+            graph.entry(callee.clone()).or_default().push(name.clone());
+        }
+    }
+    let defined: HashSet<&str> = p.fns.iter().filter(|f| f.prim.is_none() && f.ctor.is_none() && !f.meta.prim_body).map(|f| f.id.0.as_str()).collect();
+    let mut out: HashSet<String> = HashSet::new();
+    for seed in seeds {
+        if out.contains(&seed) { continue; }
+        // The component, by a worklist over the undirected tail-call graph.
+        let mut component: Vec<String> = vec![seed.clone()];
+        let mut seen: HashSet<String> = [seed].into_iter().collect();
+        let mut i = 0;
+        while i < component.len() {
+            let next = graph.get(&component[i]).cloned().unwrap_or_default();
+            for n in next {
+                if seen.insert(n.clone()) { component.push(n); }
+            }
+            i += 1;
+        }
+        if component.iter().any(|u| blocked.contains(u) || !defined.contains(u.as_str())) { continue; }
+        out.extend(component);
+    }
+    out
+}
+
+/// The private `tailcc` body of a [`tailcc_units`] member.
+fn tailcc_body(unit: &str) -> String {
+    format!("{unit}#cc")
+}
+
+/// The prefix word before a `.app` stub that says a `tailcc` twin follows
+/// it ("tables next to code", as GHC's LLVM backend lays out info tables).
+/// A code word whose prefix lacks it (an object built without twins) takes
+/// the ordinary call.
+const TAIL_APPLY_MAGIC: u64 = 0x4349_4e43_4854_4c31;
+
+/// Words a guaranteed unknown tail call may pass: the thread-local
+/// argument buffer's length.
+const TAIL_ARGS: usize = 16;
 
 /// Prefix `linkage ` to every top-level `define` in `text`. A unit's stub
 /// is a family of functions (the dispatcher, its per-arity entries and the
@@ -3501,7 +3621,21 @@ fn build_unit(
             }
         }
     }
-    let header = fn_header(name, arity, ret_range, &noundef_params, narrow);
+    let tailcc = reg.tailcc.contains(name) && matches!(body, UnitBody::Fn(_));
+    let header = if tailcc {
+        fn_header(&tailcc_body(name), arity, ret_range, &noundef_params, narrow).replacen("define ", "define tailcc ", 1)
+    } else {
+        fn_header(name, arity, ret_range, &noundef_params, narrow)
+    };
+    let wrapper = if tailcc {
+        let params: Vec<String> = (0..arity).map(|i| format!("i64 %p{i}")).collect();
+        format!(
+            "define i64 @{}({}) {{\nentry:\n  %r = call tailcc i64 @{}({})\n  ret i64 %r\n}}\n\n",
+            quote(name), params.join(", "), quote(&tailcc_body(name)), params.join(", ")
+        )
+    } else {
+        String::new()
+    };
     // The unit's own globals carry its static blocks and closure
     // descriptors, which name the units a body reaches as data rather
     // than by calling them.
@@ -3539,6 +3673,7 @@ fn build_unit(
         } else {
             clo_def(reg, name, arity)
         },
+        wrapper,
         scan,
         lang_facts: lang,
     })
@@ -3826,7 +3961,44 @@ fn clo_def(reg: &Registry, name: &str, arity: usize) -> String {
 /// call's intermediate result is consumed by the `__apply` that receives
 /// the rest.
 fn stub_def(reg: &Registry, name: &str, arity: usize) -> String {
+    // The C entry the runtime and `__apply` call, carrying the `tailcc`
+    // twin's address in its prefix data, and the twin itself.
+    let app = stub_def_with(reg, name, arity, false);
+    if !reg.tail_apply {
+        return app;
+    }
+    let tapp = stub_def_with(reg, name, arity, true);
+    let prefix = format!(
+        " prefix <{{ i64, i64 }}> <{{ i64 {TAIL_APPLY_MAGIC}, i64 ptrtoint (ptr @{} to i64) }}>",
+        quote(&format!("{name}.tapp"))
+    );
+    let marker = format!("define i64 @{}(ptr %self, i64 %argc, ptr %argv)", quote(&format!("{name}.app")));
+    let app = app.replacen(&marker, &format!("{marker}{prefix}"), 1);
+    format!("{app}{tapp}")
+}
+
+/// One apply stub. The `tailcc` twin (`tail`) is entered only by a
+/// guaranteed tail call, whose arguments arrive in a thread-local buffer: it
+/// copies them into its own frame first, because a later tail call reuses
+/// the buffer, and an exactly saturated call of a `tailcc` unit is itself a
+/// `musttail` (design note in [`tailcc_units`]).
+fn stub_def_with(reg: &Registry, name: &str, arity: usize, tail: bool) -> String {
     let mut b = Builder::new();
+    if tail {
+        let local = b.alloca_words(TAIL_ARGS);
+        let bytes = b.reg();
+        b.line(&format!("{bytes} = mul i64 %argc, 8"));
+        b.line(&format!("call ptr @memcpy(ptr {local}, ptr %argv.in, i64 {bytes})"));
+        b.line(&format!("%argv = getelementptr i8, ptr {local}, i64 0"));
+    }
+    let header = |b: &Builder| -> String {
+        let _ = b;
+        if tail {
+            format!("define tailcc i64 @{}(ptr %self, i64 %argc, ptr %argv.in)", quote(&format!("{name}.tapp")))
+        } else {
+            format!("define i64 @{}(ptr %self, i64 %argc, ptr %argv)", quote(&format!("{name}.app")))
+        }
+    };
     b.pointer_bytes = reg.pointer_bytes;
     b.rc_debug = reg.rc_debug;
     b.reclaim = reg.reclaim;
@@ -3838,11 +4010,9 @@ fn stub_def(reg: &Registry, name: &str, arity: usize) -> String {
         // no grow path and no second block to branch to.
         let nb = b.reg();
         b.line(&format!("{nb} = mul i64 {nf}, 8"));
-        stub_saturate(&mut b, reg, name, arity, &nf, &nb, &total, "%self");
-        return b.finish(&format!(
-            "define i64 @{}(ptr %self, i64 %argc, ptr %argv)",
-            quote(&format!("{name}.app"))
-        ));
+        stub_saturate(&mut b, reg, name, arity, &nf, &nb, &total, "%self", tail);
+        let h = header(&b);
+        return b.finish(&h);
     }
     let full = b.reg();
     b.line(&format!("{full} = icmp uge i64 {total}, {arity}"));
@@ -3855,11 +4025,9 @@ fn stub_def(reg: &Registry, name: &str, arity: usize) -> String {
     let nb = b.reg();
     b.line(&format!("{nb} = mul i64 {nf}, 8"));
     let frame = stub_merge_frame(&mut b, arity, &nf, &nb);
-    stub_saturate(&mut b, reg, name, arity, &nf, &nb, &total, &frame);
-    b.finish(&format!(
-        "define i64 @{}(ptr %self, i64 %argc, ptr %argv)",
-        quote(&format!("{name}.app"))
-    ))
+    stub_saturate(&mut b, reg, name, arity, &nf, &nb, &total, &frame, tail);
+    let h = header(&b);
+    b.finish(&h)
 }
 
 /// Fewer arguments than the arity: build a closure whose payload is the
@@ -3949,8 +4117,30 @@ fn stub_saturate(
     nb: &str,
     total: &str,
     frame: &str,
+    tail: bool,
 ) {
     stub_take_saved(b, reg, name, arity, frame, nf);
+    // The twin's exactly saturated call of a `tailcc` unit replaces its own
+    // frame; the over-applied path keeps the ordinary call.
+    if tail && reg.tailcc.contains(name) && reg.narrow_sigs.get(name).is_none() {
+        let ex = b.reg();
+        b.line(&format!("{ex} = sub i64 {total}, {arity}"));
+        let exact = b.reg();
+        b.line(&format!("{exact} = icmp eq i64 {ex}, 0"));
+        let lexact = b.label();
+        let lmore = b.label();
+        b.line(&format!("br i1 {exact}, label %{lexact}, label %{lmore}"));
+        b.start(&lexact);
+        let mut words = Vec::with_capacity(arity);
+        for i in 0..arity {
+            let w = b.load_at(frame, i * 8);
+            words.push(format!("i64 {w}"));
+        }
+        let r = b.reg();
+        b.line(&format!("{r} = musttail call tailcc i64 @{}({})", quote(&tailcc_body(name)), words.join(", ")));
+        b.line(&format!("ret i64 {r}"));
+        b.start(&lmore);
+    }
     // The stub's frame is a word array, and the callee may have a narrowed
     // signature (design/narrow-value-representation.md section 4). The
     // stub is the one caller that does not know the argument types from
@@ -4078,6 +4268,20 @@ fn stub_take_saved(
     b.line(&format!("br label %{ldone}"));
     b.start(&lshare);
     dup_saved(b);
+    // A frame closure (design/stack-allocation.md section 7.9) has no
+    // count: its call is the release of its payload, once, and a second
+    // release finds the marker. Its saved words were dupped for the call
+    // above, exactly as for a shared heap closure.
+    if reg.reclaim && !reg.rc_debug && reg.any_frame() {
+        let is_frame = b.reg();
+        b.line(&format!("{is_frame} = icmp sge i64 {top}, {RC_FRAME_RELEASED_TOP}"));
+        let (lframe, lcount) = (b.label(), b.label());
+        b.line(&format!("br i1 {is_frame}, label %{lframe}, label %{lcount}"));
+        b.start(&lframe);
+        b.line(&format!("call void @cinch_frame_release(i64 {selfw})"));
+        b.line(&format!("br label %{ldone}"));
+        b.start(&lcount);
+    }
     // The count is not one here: above one it drops in place; a closure
     // shared with other tasks drops atomically (and may be released, its
     // saved words already dupped for the call); an immortal (static)
@@ -7424,6 +7628,7 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result
         joins: HashMap::new(),
         frame: reg.frame.get(&f.id.0),
         frame_bases: HashMap::new(),
+        pending: Vec::new(),
     };
     // A narrowed parameter arrives at its own width and the body reads a
     // slot word, so the entry widens it once (design/narrow-value-
@@ -7695,14 +7900,32 @@ struct CoreEmitter<'a, 'b> {
     /// The `alloca` of each frame slot, by slot id: one entry block slot
     /// per allocation site, reused when a site executes again.
     frame_bases: HashMap<u32, String>,
+    /// The token slots of the `Release`s whose bodies the emitter is
+    /// currently inside, outermost first.
+    ///
+    /// A `Release` binds its token before its body runs and a `Reuse` that
+    /// takes the kept cell zeroes the slot as it reads it, so a nonzero
+    /// slot is a cell the unique path kept that the body did not reuse.
+    /// The cell must be freed where the path leaves the `Release`'s scope:
+    /// the destination the body delivers to, the join a `Jump` targets,
+    /// the loop header a self tail call returns to, or the return of the
+    /// unit. [`CoreEmitter::settle_tokens`] is that free.
+    pending: Vec<String>,
 }
 
-/// A join's code generation site: the block its body starts at, and the
-/// slot of each parameter.
+/// A join's code generation site: the block its body starts at, the slot
+/// of each parameter, and the `Release` depth the join was opened at.
+///
+/// A `Jump` settles the tokens from `base` up before it branches, so a
+/// release whose body ends in a jump frees the cell it kept there rather
+/// than leaving the join's block to free it: the join's block runs at the
+/// shallower depth, and the token's slot is only meaningful on the path
+/// that wrote it.
 #[derive(Clone)]
 struct JoinSite {
     label: String,
     slots: Vec<String>,
+    base: usize,
 }
 
 /// Where a value-position expression delivers its result: the function's
@@ -7715,7 +7938,7 @@ struct JoinSite {
 #[derive(Clone)]
 enum Dest {
     Ret,
-    Slot { slot: String, label: String },
+    Slot { slot: String, label: String, base: usize },
 }
 
 impl Dest {
@@ -7730,10 +7953,21 @@ impl Dest {
                 let w = ret.narrow(b, v);
                 b.line(&format!("ret {} {w}", ret.ty()));
             }
-            Dest::Slot { slot, label } => {
+            Dest::Slot { slot, label, .. } => {
                 b.line(&format!("store i64 {v}, ptr {slot}"));
                 b.line(&format!("br label %{label}"));
             }
+        }
+    }
+
+    /// How deep the `Release` scope was when this destination was made:
+    /// the tokens a path delivering here is leaving, and so the ones it
+    /// must settle ([`CoreEmitter::settle_tokens`]). The return leaves the
+    /// whole unit, so it settles every token in scope.
+    fn base(&self) -> usize {
+        match self {
+            Dest::Ret => 0,
+            Dest::Slot { base, .. } => *base,
         }
     }
 }
@@ -7746,6 +7980,49 @@ impl CoreEmitter<'_, '_> {
         let s = self.b.alloca_i64();
         self.slots.insert(x, s.clone());
         s
+    }
+
+    /// Free the cells behind the `Release` tokens from depth `from` up:
+    /// the releases this path is leaving whose bodies did not take the
+    /// cell.
+    ///
+    /// The test is a branch, not an unconditional call, because the path
+    /// that reused the cell zeroed the slot and pays one compare here. The
+    /// slot is written before the body runs and on every path, so the
+    /// branch reads a word this path stored.
+    ///
+    /// The free clears the slot, which is what makes this safe to reach
+    /// twice on one path: a body whose own exit already settled the token
+    /// (a decision's destination inside the release) leaves 0 behind, and
+    /// the outer settle reads it and does nothing.
+    fn settle_tokens(&mut self, from: usize) {
+        let from = from.min(self.pending.len());
+        for i in from..self.pending.len() {
+            let slot = self.pending[i].clone();
+            let t = self.b.reg();
+            self.b.line(&format!("{t} = load i64, ptr {slot}"));
+            let nz = self.b.reg();
+            self.b.line(&format!("{nz} = icmp ne i64 {t}, 0"));
+            let (lfree, lcont) = (self.b.label(), self.b.label());
+            self.b.line(&format!("br i1 {nz}, label %{lfree}, label %{lcont}"));
+            self.b.start(&lfree);
+            self.b.line(&format!("store i64 0, ptr {slot}"));
+            self.b.line(&format!("call void @cinch_free(i64 {t})"));
+            self.b.line(&format!("br label %{lcont}"));
+            self.b.start(&lcont);
+        }
+    }
+
+    /// Run `f` with `slot` in the `Release` scope: the body of the release
+    /// that bound it. Every exit from the body settles it.
+    fn in_release<T>(&mut self, slot: Option<String>, f: impl FnOnce(&mut Self) -> T) -> T {
+        let depth = self.pending.len();
+        if let Some(slot) = slot {
+            self.pending.push(slot);
+        }
+        let out = f(self);
+        self.pending.truncate(depth);
+        out
     }
 
     /// The first-class value of a code generation unit: its static closure
@@ -8232,8 +8509,17 @@ impl CoreEmitter<'_, '_> {
                 self.emit_reuse(*token, &ctor.0, args, already_set)
             }
             Core::Release { block, moved, rest, token, body } => {
-                self.emit_release(*block, moved, rest, *token)?;
-                self.emit_expr(body)
+                let slot = self.emit_release(*block, moved, rest, *token)?;
+                let depth = self.pending.len();
+                // The body produced its word, so the release is over: the
+                // cell it kept is freed here unless a `Reuse` took it. The
+                // word the body computed is a register, so freeing the cell
+                // it came from does not disturb it.
+                self.in_release(slot, |this| {
+                    let v = this.emit_expr(body)?;
+                    this.settle_tokens(depth);
+                    Ok(v)
+                })
             }
         }
     }
@@ -8272,13 +8558,21 @@ impl CoreEmitter<'_, '_> {
     /// a uniquely held block hands its moved fields over, drops the rest
     /// and is freed without visiting its fields; any other block dups the
     /// moved fields and is dropped.
+    ///
+    /// Returns the token's slot when the unique path can leave it bound,
+    /// which is the path that keeps the cell for a `Reuse`. The caller
+    /// holds that slot for the body's scope and settles it where the body
+    /// leaves ([`CoreEmitter::settle_tokens`]): the cell a `Reuse` did not
+    /// take is freed there, so every path owns it exactly once. Every
+    /// other path writes 0 to the slot before the body runs, so there is
+    /// nothing to settle and the slot is not returned.
     fn emit_release(
         &mut self,
         block: LocalId,
         moved: &[(LocalId, Class)],
         rest: &[(LocalId, Class)],
         token: Option<LocalId>,
-    ) -> Result<()> {
+    ) -> Result<Option<String>> {
         for x in std::iter::once(&block).chain(moved.iter().chain(rest).map(|(l, _)| l)) {
             if !self.bound.contains(x) {
                 return err(format!("count operation on unknown local {}", x.0));
@@ -8313,7 +8607,7 @@ impl CoreEmitter<'_, '_> {
                 rc_op(self.b, self.reg.rc_debug, true, &v, *c);
             }
             cold(self);
-            return Ok(());
+            return Ok(None);
         }
         let w = self.load_local(block);
         let shared = |this: &mut Self, w: &str| {
@@ -8324,9 +8618,11 @@ impl CoreEmitter<'_, '_> {
             rc_op(this.b, this.reg.rc_debug, true, w, Class::Obj);
         };
         if !self.b.reclaim || self.reg.rc_debug {
+            // Neither path keeps the cell, so the token is 0 on both and
+            // there is nothing for the body's exit to settle.
             shared(self, &w);
             cold(self);
-            return Ok(());
+            return Ok(None);
         }
         let (lunique, lshared, ljoin) = (self.b.label(), self.b.label(), self.b.label());
         let unique = self.b.reg();
@@ -8349,7 +8645,9 @@ impl CoreEmitter<'_, '_> {
         cold(self);
         self.b.line(&format!("br label %{ljoin}"));
         self.b.start(&ljoin);
-        Ok(())
+        // Only the unique path leaves the token bound; the shared path
+        // stored 0 into the slot.
+        Ok(tslot)
     }
 
     /// `Core::Reuse`: write `ctor`'s fields into the cell the token names
@@ -8408,6 +8706,13 @@ impl CoreEmitter<'_, '_> {
         // (`ExpandResetReuse.lean`), and both paths stay straight-line, so
         // the skip costs no branch per word.
         self.b.start(&lhot);
+        // The cell is this path's now, so the token stops naming it: the
+        // slot is cleared here, on the path that took the cell, and stays
+        // set on every path that did not. The exit that settles the token
+        // ([`CoreEmitter::settle_tokens`]) therefore frees exactly the
+        // cells no `Reuse` took, and each kept cell has one owner on every
+        // path: this reuse, or that free.
+        self.b.line(&format!("store i64 0, ptr {slot}"));
         let cell = self.b.reg();
         self.b.line(&format!("{cell} = inttoptr i64 {t} to ptr"));
         let field = desc_field(desc);
@@ -8714,7 +9019,7 @@ impl CoreEmitter<'_, '_> {
     fn emit_value(&mut self, e: &Core) -> Result<String> {
         let slot = self.b.alloca_i64();
         let label = self.b.label();
-        let dest = Dest::Slot { slot: slot.clone(), label: label.clone() };
+        let dest = Dest::Slot { slot: slot.clone(), label: label.clone(), base: self.pending.len() };
         self.emit_to(e, &dest)?;
         self.b.start(&label);
         let r = self.b.reg();
@@ -8747,12 +9052,13 @@ impl CoreEmitter<'_, '_> {
             }
             Core::Reuse { token, ctor, args, already_set } => {
                 let w = self.emit_reuse(*token, &ctor.0, args, already_set)?;
+                self.settle_tokens(dest.base());
                 dest.settle(self.b, &w, self.ret);
                 Ok(())
             }
             Core::Release { block, moved, rest, token, body } => {
-                self.emit_release(*block, moved, rest, *token)?;
-                self.emit_to(body, dest)
+                let slot = self.emit_release(*block, moved, rest, *token)?;
+                self.in_release(slot, |this| this.emit_to(body, dest))
             }
             Core::If(c, t, f) => {
                 let cv = self.emit_expr(c)?;
@@ -8784,9 +9090,16 @@ impl CoreEmitter<'_, '_> {
             // join's value.
             Core::Join { id, params, body, rest } => {
                 let site = self.enter_join(*id, params)?;
+                // The continuation is the join's own context, so it keeps
+                // the current scope. The block is entered by a `Jump`,
+                // which settled the tokens the jump was leaving, so it runs
+                // at the depth the join was opened at.
                 self.emit_to(rest, dest)?;
+                let depth = self.pending.len();
+                self.pending.truncate(site.base);
                 self.b.start(&site.label);
                 self.emit_to(body, dest)?;
+                self.pending.truncate(depth);
                 self.joins.remove(id);
                 Ok(())
             }
@@ -8809,6 +9122,12 @@ impl CoreEmitter<'_, '_> {
                 for (v, slot) in vals.iter().zip(&site.slots) {
                     self.b.line(&format!("store i64 {v}, ptr {slot}"));
                 }
+                // The jump leaves every `Release` opened inside the join's
+                // continuation behind: the join's block runs at the depth
+                // the join was opened at, so the tokens are settled on the
+                // path that jumps, where their slots hold this path's
+                // words.
+                self.settle_tokens(site.base);
                 self.b.line(&format!("br label %{}", site.label));
                 Ok(())
             }
@@ -8828,6 +9147,11 @@ impl CoreEmitter<'_, '_> {
                             let slot = self.slot(LocalId(i));
                             self.b.line(&format!("store i64 {v}, ptr {slot}"));
                         }
+                        // The back edge leaves every `Release` in the body
+                        // behind, so a cell the body kept and did not reuse
+                        // is freed before the next iteration overwrites the
+                        // token's slot.
+                        self.settle_tokens(dest.base());
                         let loop_label = self.loop_label.clone();
                         // The back edge is where LLVM reads the loop's
                         // unrolling policy (attribute annotations
@@ -8835,6 +9159,83 @@ impl CoreEmitter<'_, '_> {
                         // rides this terminator and no other.
                         let meta = self.loop_meta.suffix(&self.reg.meta_defs, &self.reg.meta_next);
                         self.b.line(&format!("br label %{loop_label}{meta}"));
+                        Ok(())
+                    }
+                    // A `tailcc` body tail-calling a unit of its own
+                    // component: `tailcc` lets `musttail` cross prototypes.
+                    Some((unit, _)) if self.reg.tailcc.contains(&self.unit) && self.reg.tailcc.contains(&unit) => {
+                        let mut vals = Vec::with_capacity(args.len());
+                        for a in args {
+                            vals.push(format!("i64 {}", self.emit_expr(a)?));
+                        }
+                        let r = self.b.reg();
+                        self.b.line(&format!("{r} = musttail call tailcc i64 @{}({})", quote(&tailcc_body(&unit)), vals.join(", ")));
+                        self.b.line(&format!("ret i64 {r}"));
+                        Ok(())
+                    }
+                    // A `tailcc` body never `musttail`s a C unit: the two
+                    // conventions differ. Such a callee is outside the
+                    // component (`tailcc_units`), so it does not call back.
+                    Some(_) if self.reg.tailcc.contains(&self.unit) => {
+                        let v = self.emit_app(f, args)?;
+                        self.b.line(&format!("ret i64 {v}"));
+                        Ok(())
+                    }
+                    // A saturated tail call of a closure this body does not
+                    // know: through the callee's `tailcc` apply twin, which
+                    // the code word's prefix data names, with the arguments in
+                    // the thread-local buffer rather than this frame (a
+                    // `musttail` callee may not read the frame it replaced).
+                    None if self.reg.tailcc.contains(&self.unit) && !args.is_empty() && args.len() <= TAIL_ARGS
+                        && !matches!(&**f, Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_)) =>
+                    {
+                        let fv = self.emit_expr(f)?;
+                        let mut vals = Vec::with_capacity(args.len());
+                        for a in args {
+                            vals.push(self.emit_expr(a)?);
+                        }
+                        for (i, v) in vals.iter().enumerate() {
+                            let p = self.b.reg();
+                            self.b.line(&format!("{p} = getelementptr inbounds i64, ptr @cinch.tail.argv, i64 {i}"));
+                            self.b.line(&format!("store i64 {v}, ptr {p}"));
+                        }
+                        let selfp = self.b.reg();
+                        self.b.line(&format!("{selfp} = inttoptr i64 {fv} to ptr"));
+                        let cw = self.b.reg();
+                        self.b.line(&format!("{cw} = load i64, ptr {selfp}"));
+                        let code = self.b.reg();
+                        self.b.line(&format!("{code} = inttoptr i64 {cw} to ptr"));
+                        let mp = self.b.reg();
+                        self.b.line(&format!("{mp} = getelementptr i8, ptr {code}, i64 -16"));
+                        let magic = self.b.reg();
+                        self.b.line(&format!("{magic} = load i64, ptr {mp}"));
+                        let ok = self.b.reg();
+                        self.b.line(&format!("{ok} = icmp eq i64 {magic}, {TAIL_APPLY_MAGIC}"));
+                        let fast = self.b.label();
+                        let slow = self.b.label();
+                        self.b.line(&format!("br i1 {ok}, label %{fast}, label %{slow}"));
+                        self.b.start(&fast);
+                        let tp = self.b.reg();
+                        self.b.line(&format!("{tp} = getelementptr i8, ptr {code}, i64 -8"));
+                        let tw = self.b.reg();
+                        self.b.line(&format!("{tw} = load i64, ptr {tp}"));
+                        let twin = self.b.reg();
+                        self.b.line(&format!("{twin} = inttoptr i64 {tw} to ptr"));
+                        let r = self.b.reg();
+                        self.b.line(&format!("{r} = musttail call tailcc i64 {twin}(ptr {selfp}, i64 {}, ptr @cinch.tail.argv)", vals.len()));
+                        self.b.line(&format!("ret i64 {r}"));
+                        // An object built without twins: the ordinary call,
+                        // from a copy the callee's own tail calls cannot
+                        // overwrite.
+                        self.b.start(&slow);
+                        let copy = self.b.alloca_words(vals.len());
+                        for (i, v) in vals.iter().enumerate() {
+                            let p = self.b.gep(&copy, i * 8);
+                            self.b.line(&format!("store i64 {v}, ptr {p}"));
+                        }
+                        let r2 = self.b.reg();
+                        self.b.line(&format!("{r2} = call i64 @__apply(i64 {fv}, i64 {}, ptr {copy})", vals.len()));
+                        self.b.line(&format!("ret i64 {r2}"));
                         Ok(())
                     }
                     Some((unit, arity))
@@ -8871,6 +9272,12 @@ impl CoreEmitter<'_, '_> {
                             }
                         };
                         let ty = self.ret.ty();
+                        // A `musttail` call must be followed by the `ret`
+                        // that consumes it and nothing else, so the tokens
+                        // are settled before the call: the arguments are
+                        // evaluated already, and a kept cell is freed on
+                        // this path.
+                        self.settle_tokens(dest.base());
                         let r = self.b.reg();
                         self.b.line(&format!("{r} = musttail call {ty} @{}({args})", quote(&sym)));
                         self.b.line(&format!("ret {ty} {r}"));
@@ -8883,6 +9290,7 @@ impl CoreEmitter<'_, '_> {
                         // this arm, and a narrowed `define` must return its
                         // narrowed type on every path.
                         let w = self.ret.narrow(self.b, &v);
+                        self.settle_tokens(dest.base());
                         self.b.line(&format!("ret {} {w}", self.ret.ty()));
                         Ok(())
                     }
@@ -8893,6 +9301,7 @@ impl CoreEmitter<'_, '_> {
                 // A terminating expression (the fault path, or a value that
                 // was delivered elsewhere) leaves nothing to settle.
                 if !self.b.terminated {
+                    self.settle_tokens(dest.base());
                     dest.settle(self.b, &v, self.ret);
                 }
                 Ok(())
@@ -8912,7 +9321,7 @@ impl CoreEmitter<'_, '_> {
             }
             slots.push(self.slot(*param));
         }
-        let site = JoinSite { label: self.b.label(), slots };
+        let site = JoinSite { label: self.b.label(), slots, base: self.pending.len() };
         if self.joins.insert(id, site.clone()).is_some() {
             return err(format!("join j{} is bound twice in one body", id.0));
         }
@@ -9026,7 +9435,10 @@ impl CoreEmitter<'_, '_> {
             }
             None => {
                 // The checker enforces coverage; an unmatched tag has no
-                // continuation, so the enclosing function returns 0.
+                // continuation, so the enclosing function returns 0. The
+                // return leaves every `Release` in scope, so it settles
+                // their tokens first.
+                self.settle_tokens(dest.base());
                 self.b.line(&format!("ret {} 0", self.ret.ty()));
             }
         }
@@ -9054,6 +9466,7 @@ mod tests {
             let runtime = manifest_dir.join("runtime");
             let out = Command::new("cargo")
                 .arg("build")
+                .arg("--release")
                 .arg("--manifest-path")
                 .arg(runtime.join("Cargo.toml"))
                 .arg("--target-dir")
@@ -9065,7 +9478,7 @@ mod tests {
                 "building compiler/runtime (cinchruntime) failed:\n{}",
                 String::from_utf8_lossy(&out.stderr)
             );
-            let lib = runtime.join("target/debug/libcinchruntime.a");
+            let lib = runtime.join("target/release/libcinchruntime.a");
             assert!(
                 lib.exists(),
                 "libcinchruntime.a not found after building the runtime"
@@ -9302,10 +9715,12 @@ mod tests {
             // checked user units rather than shipping the embedded prelude.
             p.fns.retain(|f| f.id.0.starts_with("Library.") || (f.id.0.starts_with("<builtin>.") && f.ctor.is_some()));
             p.instances.retain(|i| i.id.0.starts_with("Library."));
-            // The prelude's foreign wrappers too: kept, they bring every
-            // platform backend's bindings along, and Darwin's `__error`
-            // does not link on Linux.
-            p.foreigns.retain(|name, _| name.starts_with("Library."));
+            // The object holds the library's own units, so the foreign
+            // contracts of the modules trimmed above go too, as the driver's
+            // object path drops an unselected backend's (`driver.rs`): left
+            // in, every prelude wrapper is emitted, the Darwin syscall
+            // backend's `__error` among them, and a Linux link fails.
+            p.foreigns.retain(|unit, _| unit.starts_with("Library."));
             let p = crate::rc::insert(p, &profile).unwrap();
             let object = emit_object_for(&profile, &p).unwrap();
             assert!(!object.ir.contains("define i32 @main("));
@@ -12084,6 +12499,7 @@ fn prim_impl_unit(reg: &Registry, plan: &PrimPlan, idx: usize, asm: bool) -> Res
         code,
         stub: String::new(),
         clo: String::new(),
+        wrapper: String::new(),
         scan,
         // An `asm` fragment is opaque target code: it claims nothing.
         lang_facts: UnitLang {
@@ -12138,6 +12554,7 @@ fn prim_wrapper_unit(
         code: b.code,
         stub: stub_def(reg, name, plan.arity),
         clo: clo_def(reg, name, plan.arity),
+        wrapper: String::new(),
         scan,
         lang_facts: UnitLang {
             pure: plan.pure,

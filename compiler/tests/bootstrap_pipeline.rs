@@ -35,6 +35,7 @@ fn ladder() -> Vec<(&'static str, &'static str)> {
         ("Bootstrap.Builtin.cinch", include_str!("../../bootstrap/Bootstrap.Builtin.cinch")),
         ("Bootstrap.Report.cinch", REPORT),
         ("Bootstrap.Parse.cinch", PARSE),
+        ("Bootstrap.Expand.cinch", include_str!("../../bootstrap/Bootstrap.Expand.cinch")),
         ("Bootstrap.Resolve.cinch", RESOLVE),
         ("Bootstrap.Contracts.cinch", include_str!("../../bootstrap/Bootstrap.Contracts.cinch")),
         ("Bootstrap.Inputs.cinch", include_str!("../../bootstrap/Bootstrap.Inputs.cinch")),
@@ -184,7 +185,7 @@ fn erased_reflexivity(dir: &Path, exe: &Path) {
     let (code, stderr) = run_built(exe, dir, &args("--emit-ir"));
     assert_eq!(code, Some(0), "{stderr}\n{}", common::read_output(dir, "refl.ll.diagnostics"));
     let artifact = dir.join("refl.bin");
-    let runtime = Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/debug/libcinchruntime.a");
+    let runtime = Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/release/libcinchruntime.a");
     let mut clang = std::process::Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()));
     clang.arg(&ir).arg(runtime).arg("-o").arg(&artifact);
     if cfg!(target_os = "linux") { clang.args(["-ldl", "-lpthread", "-lm"]); }
@@ -223,7 +224,7 @@ fn staged_sources(dir: &Path, exe: &Path) {
     assert_eq!(exit, Some(0), "stage-checked generation: {diagnostic}");
     let (exit, diagnostic) = run("--emit-ir", generated);
     assert_eq!(exit, Some(0), "emit the checked generated declaration through typed IR: {diagnostic}");
-    let runtime = Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/debug/libcinchruntime.a");
+    let runtime = Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/release/libcinchruntime.a");
     let artifact = dir.join("staged.bin");
     let mut clang = std::process::Command::new("clang");
     clang.arg(&prefix).arg(runtime).arg("-o").arg(&artifact);
