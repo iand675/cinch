@@ -89,7 +89,7 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
     interfaces.sort();
     std::fs::write(dir.join("interfaces.json"), format!("{{\"schema\":1,\"interfaces\":[{}]}}", interfaces.join(","))).unwrap();
     let compiler = common::build(&dir, "Main.cinch", "runtime-ir").expect("build the Cinch runtime emitter");
-    let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/debug/libcinchruntime.a");
+    let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/release/libcinchruntime.a");
     assert!(runtime.is_file(), "the Native-built emitter must have built its shared runtime");
     let tag64 = format!("  data Tag where\n{}  main :: Int\n  main = case C63 of\n    C63 -> 137\n    _ -> 1\n",
         (0..64).map(|i| format!("    C{i} :: Tag\n")).collect::<String>());

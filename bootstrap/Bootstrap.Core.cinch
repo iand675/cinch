@@ -22,7 +22,7 @@ module Bootstrap.Core where
 
   export scoped-core-case-facts, scoped-core-case-rest-facts, core-alternative-covers, opening-value-types, opening-value-patterns
   export CorePattern, CPWild, CPProof, CPErasedValue, CPVar, erased-pattern, CPAs, CPConstructor, CPInt, CPString, CPChar, CPTuple, CPField, CPDone
-  export CoreTerm, CUse, CLocal, CInt, CString, CChar, CUnit, CApply, CLambda, CLet, CIf, CCase, CTuple, CPrimitive, CGuard
+  export CoreTerm, CUse, CLocal, CInt, CString, CChar, CUnit, CApply, CLambda, CPolyIntro, CPolyElim, CLet, CIf, CCase, CTuple, CPrimitive, CGuard
   export CRecursiveFunctions, CRecursiveValues, CRecursiveBinding, CRecursiveBindingsEnd
   export recursive-functions, recursive-function-ids, map-recursive-functions, recursive-proof-scope, recursive-value-writes
   export recursive-box-slots, recursive-member-use, recursive-captures
@@ -159,6 +159,7 @@ module Bootstrap.Core where
     URow labels -> effect-type-scope qs labels
     URowJoin a b -> effect-type-scope qs a && effect-type-scope qs b
     UTuple fields -> effect-type-scope qs fields
+    UForall inner body -> effect-type-scope (qs <> inner) body
     UArg a rest -> effect-type-scope qs a && effect-type-scope qs rest
     UCompare relation a b -> effect-type-scope qs a && effect-type-scope qs b
     UPropAnd a b -> effect-type-scope qs a && effect-type-scope qs b
@@ -327,6 +328,14 @@ module Bootstrap.Core where
     CIf :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm -> CoreTerm
     CCase :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm
     CTuple :: Span -> UType -> CoreTerm -> CoreTerm
+    -- Generalisation (design/rank-n-polymorphism.md section 8): the body was
+    -- checked at the rigid ids, which open the polytype's binders in order.
+    -- Its evaluation is pure: it builds one dictionary slot per reached
+    -- representation.
+    CPolyIntro :: Span -> UType -> List Nat -> CoreTerm -> CoreTerm
+    -- Instantiation: the value's polytype opened at the type arguments,
+    -- with the opened body as this term's type.
+    CPolyElim :: Span -> UType -> CoreTerm -> List UType -> CoreTerm
     CPrimitive :: Span -> UType -> String -> CoreTerm -> CoreTerm
     -- A checked operation obligation. The certificate contains citations,
     -- not an asserted goal or a cached hypothesis list.
@@ -498,6 +507,8 @@ module Bootstrap.Core where
     CAlternative sp pattern body rest -> handler-body-direct label names body && handler-body-direct label names rest
     CArgument sp first rest -> handler-body-direct label names first && handler-body-direct label names rest
     CTuple sp ty fields -> handler-body-direct label names fields
+    CPolyIntro sp ty poly-ids fields -> handler-body-direct label names fields
+    CPolyElim sp ty fields poly-args -> handler-body-direct label names fields
     CPrimitive sp ty name args -> handler-body-direct label names args
     CDecision sp ty predicate body -> handler-body-direct label names body
     CProved sp ty evidence body -> handler-body-direct label names body
@@ -536,6 +547,8 @@ module Bootstrap.Core where
     CAlternative sp pattern body rest -> resume-alternative-uses id body rest
     CArgument sp first rest -> resume-uses id first + resume-uses id rest
     CTuple sp ty fields -> resume-uses id fields
+    CPolyIntro sp ty poly-ids fields -> resume-uses id fields
+    CPolyElim sp ty fields poly-args -> resume-uses id fields
     CPrimitive sp ty name args -> resume-uses id args
     CDecision sp ty predicate body -> resume-uses id body
     CProved sp ty evidence body -> resume-uses id body
@@ -638,6 +651,8 @@ module Bootstrap.Core where
     CIf sp ty condition yes no -> [condition, yes, no]
     CCase sp ty value alts -> [value, alts]
     CTuple sp ty fields -> [fields]
+    CPolyIntro sp ty poly-ids fields -> [fields]
+    CPolyElim sp ty fields poly-args -> [fields]
     CPrimitive sp ty op args -> [args]
     CProved sp ty certificate body -> [body]
     CRefine sp ty certificate body -> [body]
@@ -799,6 +814,8 @@ module Bootstrap.Core where
     CIf s ty condition yes no -> ty
     CCase s ty value alts -> ty
     CTuple s ty fields -> ty
+    CPolyIntro s ty ids body -> ty
+    CPolyElim s ty value args -> ty
     CPrimitive s ty name args -> ty
     CProved s ty evidence body -> ty
     CRefine s ty evidence body -> ty
@@ -912,6 +929,9 @@ module Bootstrap.Core where
     CIf s ty condition yes no -> union-effects (core-effects condition) (union-effects (core-effects yes) (core-effects no))
     CCase s ty value alternatives -> union-effects (core-effects value) (core-effects alternatives)
     CTuple s ty fields -> core-effects fields
+    -- Building a polymorphic value performs nothing; its body was checked pure.
+    CPolyIntro s ty ids body -> URow UEnd
+    CPolyElim s ty value args -> core-effects value
     CPrimitive s ty name args -> if string-compare name "thunk-force" == 0 then
       (case args of
         CArgument at thunk (CArgumentsEnd end) -> (case deferral-parts (core-type thunk) of Some (row, result) -> union-effects (core-effects thunk) row; None -> UError)
@@ -1144,6 +1164,8 @@ module Bootstrap.Core where
     CIf s ty condition yes no -> CIf s (f ty) (map-term-types f condition) (map-term-types f yes) (map-term-types f no)
     CCase s ty value alts -> CCase s (f ty) (map-term-types f value) (map-term-types f alts)
     CTuple s ty fields -> CTuple s (f ty) (map-term-types f fields)
+    CPolyIntro s ty ids body -> CPolyIntro s (f ty) ids (map-term-types f body)
+    CPolyElim s ty value args -> CPolyElim s (f ty) (map-term-types f value) (map-types f args)
     CPrimitive s ty name args -> CPrimitive s (f ty) name (map-term-types f args)
     CProved s ty evidence body -> CProved s (f ty) evidence (map-term-types f body)
     CRefine s ty evidence body -> CRefine s (f ty) evidence (map-term-types f body)
@@ -1205,6 +1227,7 @@ module Bootstrap.Core where
     URow labels -> URow (freeze labels)
     URowJoin a b -> union-effects (freeze a) (freeze b)
     UTuple fields -> UTuple (freeze fields)
+    UForall qs body -> UForall (map-quant-kinds freeze qs) (freeze body)
     UArg x rest -> UArg (freeze x) (freeze rest)
     other -> ty
 
@@ -1246,6 +1269,7 @@ module Bootstrap.Core where
     URow labels -> type-metas st labels
     URowJoin a b -> type-metas st a <> type-metas st b
     UTuple fields -> type-metas st fields
+    UForall qs body -> type-metas st body
     UArg x rest -> type-metas st x <> type-metas st rest
     other -> Nil
   index-type-metas :: UType -> List Nat -> List (Nat, Kind)
@@ -1313,6 +1337,8 @@ module Bootstrap.Core where
     CIf s ty condition yes no -> type-metas st ty <> term-metas st condition <> term-metas st yes <> term-metas st no
     CCase s ty value alts -> type-metas st ty <> term-metas st value <> term-metas st alts
     CTuple s ty fields -> type-metas st ty <> term-metas st fields
+    CPolyIntro s ty poly-ids fields -> type-metas st ty <> term-metas st fields
+    CPolyElim s ty fields poly-args -> type-metas st ty <> term-metas st fields
     CPrimitive s ty name args -> type-metas st ty <> term-metas st args
     CProved s ty evidence body -> type-metas st ty <> term-metas st body
     CRefine s ty evidence body -> type-metas st ty <> term-metas st body
@@ -1396,6 +1422,7 @@ module Bootstrap.Core where
     URow labels -> closed-type labels
     URowJoin a b -> closed-type a && closed-type b
     UTuple fields -> closed-type fields
+    UForall qs body -> valid-type ty && closed-type body
     UArg x rest -> closed-type x && closed-type rest
     other -> True
   closed-kind :: Kind -> Bool
@@ -1514,6 +1541,8 @@ module Bootstrap.Core where
     CIf s ty condition yes no -> closed-runtime-type ty && valid-term condition && valid-term yes && valid-term no
     CCase s ty value alts -> closed-runtime-type ty && valid-term value && valid-term alts
     CTuple s ty fields -> closed-runtime-type ty && valid-term fields
+    CPolyIntro s ty poly-ids fields -> closed-runtime-type ty && valid-term fields
+    CPolyElim s ty fields poly-args -> closed-runtime-type ty && valid-term fields
     CPrimitive s ty name args -> closed-runtime-type ty && valid-term args
     CProved s ty evidence body -> closed-runtime-type ty && valid-term body
     CRefine s ty evidence body -> closed-runtime-type ty && valid-term body
@@ -1603,6 +1632,7 @@ module Bootstrap.Core where
     URow labels -> type-index-scope bound rigid labels
     URowJoin a b -> type-index-scope bound rigid a && type-index-scope bound rigid b
     UTuple fields -> type-index-scope bound rigid fields
+    UForall qs body -> type-index-scope bound rigid body
     UArg a rest -> type-index-scope bound rigid a && type-index-scope bound rigid rest
     UEnd -> True
     UError -> False
@@ -1719,6 +1749,8 @@ module Bootstrap.Core where
       CIf s ty condition yes no -> scoped-term-with universals values scope condition && scoped-term-with universals values scope yes && scoped-term-with universals values scope no
       CCase s ty value alternatives -> scoped-term-with universals values scope value && scoped-term-with universals values scope alternatives
       CTuple s ty fields -> scoped-term-with universals values scope fields
+      CPolyIntro s ty poly-ids fields -> scoped-term-with universals values scope fields
+      CPolyElim s ty fields poly-args -> scoped-term-with universals values scope fields
       CPrimitive s ty name args -> scoped-term-with universals values scope args
       CProved s ty evidence body -> scoped-term-with universals values scope body
       CRefine s ty evidence body -> scoped-term-with universals values scope body
@@ -1929,6 +1961,7 @@ module Bootstrap.Core where
     URow labels -> borrow-index-regions labels
     URowJoin a b -> borrow-index-regions a <> borrow-index-regions b
     UTuple fields -> borrow-index-regions fields
+    UForall qs body -> borrow-index-regions body
     other -> Nil
   volatile-borrow-index :: UType -> Bool
   volatile-borrow-index ty = case borrow-index-regions ty of Nil -> False; other -> True
@@ -2558,6 +2591,8 @@ module Bootstrap.Core where
     CCase s ty value alts -> let writes = core-mutable-writes value in
       proof-term gamma facts value && proof-case-alternatives (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) value alts
     CTuple s ty fields -> proof-term gamma facts fields
+    CPolyIntro s ty poly-ids fields -> proof-term gamma facts fields
+    CPolyElim s ty fields poly-args -> proof-term gamma facts fields
     CGuard s ty guard rhs -> proof-term gamma facts guard
       && proof-term (proof-after-writes gamma (scoped-branch-writes guard True)) (scoped-branch-facts gamma facts guard True) rhs
     CArgument s first rest -> proof-term gamma facts first && proof-after-term gamma facts first rest
@@ -2812,6 +2847,8 @@ module Bootstrap.Core where
       let writes = core-mutable-writes scrutinee in
       CCase s ty scrutinee (refresh-case-alternatives (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) scrutinee alts)
     CTuple s ty fields -> CTuple s ty (refresh-certificates gamma facts fields)
+    CPolyIntro s ty ids body -> CPolyIntro s ty ids (refresh-certificates gamma facts body)
+    CPolyElim s ty value args -> CPolyElim s ty (refresh-certificates gamma facts value) args
     CPrimitive s ty op args -> CPrimitive s ty op (refresh-certificates gamma facts args)
     CGuard s ty condition body -> let c = refresh-certificates gamma facts condition in
       CGuard s ty c (refresh-certificates (proof-after-writes gamma (scoped-branch-writes c True)) (scoped-branch-facts gamma facts c True) body)

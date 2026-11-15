@@ -93,7 +93,7 @@
 //! the artifact manifest). `--dump-core` prints `@frame(slots, bytes)` on a
 //! unit and marks each frame allocation's node with `@frame(f<slot>)`.
 
-use crate::core::{Core, FnDef, GlobalId, Program};
+use crate::core::{Core, FnDef, GlobalId, LocalId, Program};
 use crate::repr::Class;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -541,6 +541,15 @@ pub fn allocate(program: &mut Program, profile: &crate::core::TargetProfile, opt
         return;
     }
     let fns = Facts::of(program, opts.widen);
+    if opts.widen.consumes() {
+        for f in program.fns.iter_mut() {
+            if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body {
+                continue;
+            }
+            let mut next = crate::core::max_local(&f.body).max(f.arity()) + 1;
+            name_closure_args(&mut f.body, &fns, true, &mut next);
+        }
+    }
     let mut plans: BTreeMap<String, Plan> = BTreeMap::new();
     let mut report = Report { enabled: true, ..Report::default() };
     // The analysis only reads the units, so collect the plans and write
@@ -569,6 +578,82 @@ pub fn allocate(program: &mut Program, profile: &crate::core::TargetProfile, opt
     program.frame = plans;
     if cfg!(debug_assertions) {
         verify(program, opts);
+    }
+}
+
+/// Name the closures a non-tail call hands to a parameter its callee
+/// consumes (section 7.9): `f (lam ...)` becomes `let k = lam ... in f k`, so
+/// the closure is a `let`-bound allocation the frame rule can consider. Only
+/// a closure whose saved words are locals, literals or dups of a local is
+/// named: building it first then performs nothing but count increments, so
+/// moving it ahead of its sibling arguments changes no observable order.
+/// `tail` follows the same forms `Scan::go` threads it through; a call in
+/// tail position is left alone, since its arguments never take a slot.
+fn name_closure_args(e: &mut Core, facts: &Facts, tail: bool, next: &mut usize) {
+    fn simple(e: &Core) -> bool {
+        match e {
+            Core::Var(_) | Core::Int(_) | Core::Bool(_) | Core::Unit => true,
+            Core::Dup(_, _, body) => simple(body),
+            _ => false,
+        }
+    }
+    match e {
+        Core::Let(_, _, v, body) => {
+            name_closure_args(v, facts, false, next);
+            name_closure_args(body, facts, tail, next);
+        }
+        Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => name_closure_args(body, facts, tail, next),
+        Core::If(c, t, f) => {
+            name_closure_args(c, facts, false, next);
+            name_closure_args(&mut t.body, facts, tail, next);
+            name_closure_args(&mut f.body, facts, tail, next);
+        }
+        Core::Case { scrut, alts } => {
+            name_closure_args(scrut, facts, false, next);
+            for a in alts {
+                name_closure_args(&mut a.body, facts, tail, next);
+            }
+        }
+        Core::Join { body, rest, .. } => {
+            name_closure_args(body, facts, tail, next);
+            name_closure_args(rest, facts, tail, next);
+        }
+        Core::Quote { holes, .. } => {
+            for h in holes {
+                name_closure_args(h, facts, false, next);
+            }
+        }
+        Core::App(h, args) => {
+            name_closure_args(h, facts, false, next);
+            for a in args.iter_mut() {
+                name_closure_args(a, facts, false, next);
+            }
+            if tail {
+                return;
+            }
+            let Some(consumed) = callee_consumes(facts, h).filter(|c| c.len() == args.len()) else { return };
+            let mut named: Vec<(LocalId, Core)> = Vec::new();
+            for (i, a) in args.iter_mut().enumerate() {
+                if consumed[i] && matches!(a, Core::Lam { env, .. } if !env.is_empty() && env.iter().all(simple)) {
+                    let x = LocalId(*next);
+                    *next += 1;
+                    named.push((x, std::mem::replace(a, Core::Var(x))));
+                }
+            }
+            if named.is_empty() {
+                return;
+            }
+            let mut out = std::mem::replace(e, Core::Unit);
+            for (x, lam) in named.into_iter().rev() {
+                out = Core::Let(x, Class::Obj, Box::new(lam), Box::new(out));
+            }
+            *e = out;
+        }
+        _ => {
+            for k in crate::core::child_slots(e) {
+                name_closure_args(k, facts, false, next);
+            }
+        }
     }
 }
 
@@ -650,11 +735,12 @@ impl Facts {
     /// frame binder, so a parameter stored anywhere at all is an escape.
     fn summary(&self, f: &FnDef, widen: Widen) -> Vec<bool> {
         let mut s = Scan::with_frames(self, BTreeSet::new(), widen);
+        s.summary = Some((&f.id.0, f.arity()));
         s.unit(&f.body);
         (0..f.arity())
             .map(|i| {
                 counted(f.repr.params.get(i).copied().unwrap_or(Class::Raw))
-                    && s.uses.get(&i).is_some_and(|u| u.escapes() == 0 && u.duplicated == 0 && u.death > 0)
+                    && s.uses.get(&i).is_some_and(|u| u.escapes() == 0 && u.duplicated == 0 && u.death + u.applied > 0)
             })
             .collect()
     }
@@ -762,16 +848,22 @@ fn unit(f: &FnDef, facts: &Facts, opts: &Options, report: &mut Report) -> (Plan,
         if let Some(units) = scan.consumers.get(x) {
             receivers.extend(units.iter().cloned());
         }
+        // A frame closure's apply stub releases it when it is called, so
+        // the closure's own unit takes the frame arms too.
+        if let Shape::Closure { fn_id, .. } = &site.shape {
+            receivers.insert(fn_id.0.clone());
+        }
         if trace {
             eprintln!(
                 "cinch-stack: {} local {x}: slot {slot}, {} bytes, {counted_fields} counted field(s), \
-                 {} consumptions ({}, {} stored, {} in the callee's frame)",
+                 {} consumptions ({}, {} stored, {} in the callee's frame, {} applied)",
                 f.id,
                 site.bytes(),
-                u.death + u.consumed + u.stored,
+                u.death + u.consumed + u.stored + u.applied,
                 u.lent,
                 u.stored,
-                u.consumed
+                u.consumed,
+                u.applied
             );
         }
     }
@@ -891,7 +983,7 @@ fn eligible(x: usize, cand: &Cand, scan: &Scan<'_>) -> Result<(), Refusal> {
     if let Some(why) = u.first() {
         return Err(why);
     }
-    if u.death + u.consumed + u.stored == 0 {
+    if u.death + u.consumed + u.stored + u.applied == 0 {
         // No path releases the payload: the binder is dead on every path,
         // or handed to places that cannot release it. Refuse rather than
         // leak the payload.
@@ -1035,6 +1127,10 @@ struct Uses {
     /// References stored in a field of a block that is itself frame-bound:
     /// that block's release drops them.
     stored: u32,
+    /// References applied as a call's closure, or (in a parameter summary)
+    /// forwarded unchanged to the same position of a self-call: the apply
+    /// stub's frame arm releases the payload, once (section 7.9).
+    applied: u32,
     /// `Dup` operations: a second reference exists.
     duplicated: u32,
     /// References that leave the activation, by position: the census's
@@ -1112,8 +1208,20 @@ enum Role {
     /// An argument of a call whose parameter is lent: the callee only reads
     /// it.
     Lent,
-    /// The callee of an application: the closure is consumed by the call.
+    /// The callee of an application not in tail position: the apply stub
+    /// consumes the closure, and its frame arm releases a frame block's
+    /// payload.
     Head,
+    /// The callee of an application in tail position. The stub runs in the
+    /// frame that replaced this one, so a closure in this activation's slot
+    /// is gone by then: an escape for the allocating unit, a consumption in
+    /// a parameter summary (the parameter's block sits in a caller's frame,
+    /// which outlives the tail call).
+    TailHead,
+    /// A parameter passed unchanged to its own position of a self-call, in
+    /// a parameter summary: consumed exactly when the parameter is, which
+    /// is the summary being computed.
+    SelfForward,
     /// A closure's saved word.
     Capture,
     /// A `case` scrutinee.
@@ -1158,6 +1266,10 @@ struct Scan<'a> {
     /// for a `case`. The partial-escape census compares an escape's path
     /// with a consumption's ([`Uses::partial`]).
     path: Vec<u32>,
+    /// When the scan is a parameter summary, the unit it summarises: a tail
+    /// application of a parameter is then a consumption, and so is a
+    /// self-call forwarding a parameter to its own position.
+    summary: Option<(&'a str, usize)>,
 }
 
 impl<'a> Scan<'a> {
@@ -1170,6 +1282,7 @@ impl<'a> Scan<'a> {
             consumers: BTreeMap::new(),
             callee: None,
             path: Vec::new(),
+            summary: None,
         }
     }
 
@@ -1287,9 +1400,17 @@ impl<'a> Scan<'a> {
                             .filter(|c| c.len() == args.len()),
                     )
                 };
-                self.go(h, Role::Head, None, false);
+                self.go(h, if tail { Role::TailHead } else { Role::Head }, None, false);
                 let spawn = matches!(&**h, Core::Prim(crate::core::PrimOp::Conc(crate::core::ConcOp::Spawn)));
+                let self_call = match (&**h, self.summary) {
+                    (Core::Global(g, _), Some((unit, arity))) => g.0 == unit && args.len() == arity,
+                    _ => false,
+                };
                 for (i, a) in args.iter().enumerate() {
+                    if self_call && matches!(a, Core::Var(x) if x.0 == i) {
+                        self.go(a, Role::SelfForward, None, false);
+                        continue;
+                    }
                     if ctor {
                         // The fields of the allocation this value is: the
                         // binder the last `let` passed down.
@@ -1365,6 +1486,10 @@ impl<'a> Scan<'a> {
             // A read: the block stays the binder's own.
             Role::Scrutinee | Role::Project => self.uses_of(x).scrutinee += 1,
             Role::Lent => self.uses_of(x).lent += 1,
+            // An application ends the value: the apply stub's frame arm
+            // releases a frame closure's payload (section 7.9).
+            Role::Head | Role::SelfForward => self.applied(x),
+            Role::TailHead if self.summary.is_some() => self.applied(x),
             Role::Consumed => {
                 let path = self.path.clone();
                 let u = self.uses_of(x);
@@ -1402,7 +1527,20 @@ impl<'a> Scan<'a> {
             Role::Capture => self.escape(x, Refusal::Capture),
             Role::Store => self.escape(x, Refusal::Write),
             Role::Write => self.escape(x, Refusal::Write),
-            Role::Head => self.escape(x, Refusal::Head),
+            // A tail application of this activation's own frame closure: the
+            // stub runs in the frame that replaced this one (section 7.6).
+            Role::TailHead => self.escape(x, Refusal::Head),
+        }
+    }
+
+    /// Record that `x` is applied (or, in a summary, forwarded to its own
+    /// position), which ends the value, on the path the scan is on.
+    fn applied(&mut self, x: usize) {
+        let path = self.path.clone();
+        let u = self.uses_of(x);
+        u.applied += 1;
+        if u.consume_paths.len() < CONSUME_PATHS {
+            u.consume_paths.push(path);
         }
     }
 
@@ -1495,7 +1633,7 @@ fn verify(program: &Program, opts: &Options) {
                 site.fields.len()
             );
             assert!(
-                u.death + u.consumed + u.stored > 0,
+                u.death + u.consumed + u.stored + u.applied > 0,
                 "compiler bug: {unit}: frame binder {x} has no release"
             );
         }

@@ -20,6 +20,7 @@ module Main where
   sumPair p = case p of
     MkPair a b -> a * 10 + b
 
+  #[inline(never)]
   local :: Int -> Int
   local x = sumPair (MkPair x 2)
 
@@ -41,6 +42,7 @@ module Main where
   first t = case t of
     Tri a _ _ -> length a
 
+  #[inline(never)]
   local :: Int
   local = first (Tri (Cons 1 Nil) (Cons 2 Nil) (Cons 3 Nil))
 
@@ -59,6 +61,7 @@ module Main where
   unbox b = case b of
     Box n -> n
 
+  #[inline(never)]
   build :: Int -> Box
   build n = let r = Box n in r
 
@@ -98,10 +101,10 @@ fn cinch(dir: &Path, args: &[&str]) -> std::process::Output {
 fn emit_ir(dir: &Path, src: &str, flags: &[&str]) -> String {
     let entry = source(dir, src);
     let out = dir.join("prog.ll");
-    // `--no-inline` keeps the callee a unit of its own: dead-unit
-    // elimination removes a unit the inliner left with no caller
-    // (design/stack-allocation.md section 7.4), and every assertion here is
-    // about a named unit's body.
+    // `--no-inline` keeps the simplifier from copying callees, and every
+    // fixture marks the unit its assertions read `#[inline(never)]`, so
+    // driving does not unfold it into `main` either and dead-unit
+    // elimination (design/stack-allocation.md section 7.4) keeps it.
     let mut args: Vec<String> = vec!["emit-ir".into(), "--no-inline".into()];
     args.extend(flags.iter().map(|f| f.to_string()));
     args.push(entry.display().to_string());
@@ -331,6 +334,7 @@ module Main where
   data Holder where
     Holder :: Box (List Int) -> Int -> Holder
 
+  #[inline(never)]
   local :: Int
   local =
     let b = Box (Cons 1 Nil) in
@@ -424,9 +428,25 @@ fn the_frame_limit_keeps_allocations_on_the_heap() {
     );
     let stack = stack_of(&dir);
     assert!(refused(&stack, "frame-limit") >= 1, "{stack}");
-    // The manifest carries the census's byte column too: the block that the
-    // limit kept on the heap is a pair, so its payload is 16 bytes.
-    assert_eq!(class_bytes(&stack, "frame-limit"), 16, "{stack}");
+    // The manifest carries the census's byte column too, over the whole
+    // program: under `CINCH_NO_PRUNE` the library's unreached units are in
+    // it, and one of them (`Data.Producer.scalar-sum-wrap32`) holds a pair
+    // of its own. So the census is at least this block's 16 bytes, and the
+    // block itself is pinned by the per-binder trace: the limit kept
+    // `Main.local`'s pair, a 16-byte payload, on the heap.
+    assert!(class_bytes(&stack, "frame-limit") >= 16, "{stack}");
+    let traced = Command::new(env!("CARGO_BIN_EXE_cinch"))
+        .current_dir(&dir)
+        .env("CINCH_NO_PRUNE", "1")
+        .env("CINCH_STACK_TRACE", "1")
+        .args(["emit-ir", "--no-inline", "--max-simplifier-iterations", "0", "--stack-frame-limit", "0", "Main.cinch", "-o", "traced.ll"])
+        .output()
+        .expect("run cinch");
+    let trace = String::from_utf8_lossy(&traced.stderr);
+    assert!(
+        trace.lines().any(|l| l.starts_with("cinch-stack: Main.local ") && l.contains("refused (frame-limit), 16 byte(s)")),
+        "the limit did not refuse Main.local's 16-byte pair:\n{trace}"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 

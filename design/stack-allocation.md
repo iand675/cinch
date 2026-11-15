@@ -661,6 +661,47 @@ The queue, in expected-value order, with the numbers that justify each:
    which deletes the allocation instead of framing it; pin the Tarjan SCC
    analysis with a test.
 
+### 7.9 Continuations: application is a consumption (2026-11-14)
+
+A continuation handed to a callee that calls it once and returns was
+refused three ways. The changes are part of design/cps-optimisation.md,
+rule 5:
+
+- **Naming.** A closure that is a direct argument of a non-tail call to a
+  consuming parameter, with captures that are locals, literals or dups of
+  a local, is `let`-bound before the frame rule runs
+  (`stack::name_closure_args`). Building it performs only count
+  increments, so moving it ahead of its siblings changes no order.
+- **`Role::Head`.** A non-tail application of a frame binder is a
+  consumption (`Uses::applied`). In a parameter summary, a tail
+  application (`Role::TailHead`) and a self-call that forwards the
+  parameter to its own position (`Role::SelfForward`) are consumptions
+  too: the block sits in a caller's frame, which outlives the summarised
+  unit's tail calls. In the allocating unit, a tail application of its own
+  frame closure stays an escape (section 7.6).
+- **The apply stub's frame arm.** The stub's shared path read `RC_FRAME`
+  as a positive count and decremented it in place. That would have left
+  the payload unreleased and the marker corrupt, had a frame closure ever
+  been applied; the old rule refused every application, so none was. The
+  shared path now duplicates the saved words for the call and then
+  releases a frame closure's payload once (`cinch_frame_release`). The tail
+  twin shares the code. The closure's own unit joins
+  `Report::receives_frame`.
+
+Applying a closure is never a borrowed position (`rc.rs` borrow
+inference), so a frame closure is never lent to a callee that applies it,
+and the stub's release is the only one on its path. A `Dup` of a frame
+closure with a counted capture is still refused.
+
+Measured on a ten-million-iteration loop whose continuation captures a
+counted word, with specialisation and inlining off so the closure
+survives: 204 ms on the heap and 190 ms in the frame with the release
+runtime (1,155 ms and 922 ms against the unoptimised runtime the driver
+used to link, design/cps-optimisation.md "The runtime profile").
+`tests/cps.rs::a_consumed_continuation_takes_a_frame_slot` covers a
+non-tail application and a tail application in the callee, at `-O0` and
+`-O2`, under the leak check.
+
 ## 8. The escape census (2026-11-13)
 
 Section 7 measured the pass's reach as slots and refusals by reason. That is

@@ -1,0 +1,8 @@
+module Main where
+  -- The polymorphic value captures a counted and a raw local.
+  pick :: (forall a. a -> a -> a) -> (I64, String) -> (I64, String) -> (I64, String)
+  pick f p q = case p of (n, s) -> case q of (m, t) -> (f n m, f s t)
+  chooser :: Bool -> String -> (forall a. a -> a -> a)
+  chooser first tag = \x y -> if first && string-length tag > 0 then x else y
+  main :: Int
+  main = case pick (chooser True "keep") (40, "ab") (7, "xyz") of (n, s) -> int-from-i64 n + nat-to-int (string-length s)

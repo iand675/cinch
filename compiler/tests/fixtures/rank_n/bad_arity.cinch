@@ -1,0 +1,7 @@
+module Main where
+  run :: (forall a. a -> a) -> I64
+  run f = f 1
+  two :: (forall a b. a -> b -> a) -> I64
+  two g = run g
+  main :: Int
+  main = 0

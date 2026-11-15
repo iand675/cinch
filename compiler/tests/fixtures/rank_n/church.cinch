@@ -1,0 +1,17 @@
+module Main where
+  -- A polytype in a constructor field.
+  data Church where
+    Church :: (forall a. (a -> a) -> a -> a) -> Church
+  zero :: Church
+  zero = Church (\s z -> z)
+  succ :: Church -> Church
+  succ n = case n of Church k -> Church (\s z -> s (k s z))
+  add :: Church -> Church -> Church
+  add m n = case m of Church j -> case n of Church k -> Church (\s z -> j s (k s z))
+  to-nat :: Church -> Int
+  to-nat n = case n of Church k -> k (\x -> x + 1) (0 :: Int)
+  to-string :: Church -> String
+  to-string n = case n of Church k -> k (\x -> string-concat x "|") ""
+  main :: Int
+  main = let three = succ (succ (succ zero)) in
+    to-nat (add three (add three three)) * 4 + nat-to-int (string-length (to-string three)) + 3

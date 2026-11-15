@@ -15,6 +15,12 @@ module Bootstrap.Kinds where
     MkTypeScope :: List (Nat, Kind) -> List (Nat, Kind) -> List (Nat, Scheme) -> List Nat -> TypeScope
   empty-type-scope :: TypeScope
   empty-type-scope = MkTypeScope Nil Nil Nil Nil
+  -- A polytype's binders are in scope, as bound variables, over its body.
+  bind-quant-scope :: List Quant -> TypeScope -> TypeScope
+  bind-quant-scope qs scope = case qs of
+    Nil -> scope
+    Cons q rest -> case bind-quant-scope rest scope of
+      MkTypeScope bound rigid locals memos -> MkTypeScope (Cons (quant-id q, quant-kind q) bound) rigid locals memos
   scope-bound :: TypeScope -> List (Nat, Kind)
   scope-bound scope = case scope of MkTypeScope bound rigid locals memos -> bound
   scope-rigid :: TypeScope -> List (Nat, Kind)
@@ -103,6 +109,7 @@ module Bootstrap.Kinds where
     URow labels -> type-level labels
     URowJoin a b -> highest (type-level a) (type-level b)
     UTuple fields -> type-level fields
+    UForall qs body -> type-level body
     UArg a b -> highest (type-level a) (type-level b)
     UCompare op a b -> highest (type-level a) (type-level b)
     UPropAnd a b -> highest (type-level a) (type-level b)
@@ -180,6 +187,7 @@ module Bootstrap.Kinds where
     URow labels -> type-well-formed kinds scope labels
     URowJoin a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
     UTuple fields -> type-well-formed kinds scope fields
+    UForall qs body -> type-well-formed kinds (bind-quant-scope qs scope) body
     UArg first rest -> type-well-formed kinds scope first && type-well-formed kinds scope rest
     UCompare relation a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
     UPropAnd a b -> type-well-formed kinds scope a && type-well-formed kinds scope b

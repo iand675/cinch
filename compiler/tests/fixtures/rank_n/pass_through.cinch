@@ -1,0 +1,10 @@
+module Main where
+  -- A polymorphic argument passed on unchanged.
+  inner :: (forall a. a -> a) -> I64
+  inner f = case f True of
+    True -> f 42
+    False -> 0
+  outer :: (forall a. a -> a) -> I64
+  outer g = inner g
+  main :: Int
+  main = int-from-i64 (outer (\x -> x))

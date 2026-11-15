@@ -173,6 +173,8 @@ module Bootstrap.Dictionary where
     CCase sp ty value alternatives -> case resolve-term context scope value st of
       (out, checked) -> case resolve-term context scope alternatives checked of (alts, done) -> (CCase sp ty out alts, done)
     CTuple sp ty fields -> case resolve-term context scope fields st of (out, checked) -> (CTuple sp ty out, checked)
+    CPolyIntro sp ty ids body -> case resolve-term context scope body st of (out, checked) -> (CPolyIntro sp ty ids out, checked)
+    CPolyElim sp ty value args -> case resolve-term context scope value st of (out, checked) -> (CPolyElim sp ty out args, checked)
     CPrimitive sp ty name args -> case resolve-term context scope args st of (out, checked) -> (CPrimitive sp ty name out, checked)
     CProved sp ty evidence body -> case resolve-term context scope body st of (out, checked) -> (CProved sp ty evidence out, checked)
     CRefine sp ty evidence body -> case resolve-term context scope body st of (out, checked) -> (CRefine sp ty evidence out, checked)

@@ -2842,6 +2842,13 @@ pub enum Ty {
     /// A bare type former in prefix form: `(->)` (the pure total arrow
     /// family) or a structural tuple former `(,)`, `(,,)`, ...
     Former(Former),
+    /// A nested polymorphic type `forall as. T` (design/rank-n-polymorphism.md).
+    /// The scheme binds only `params` (with `con_params` naming the
+    /// higher-kinded ones), `row_params` and `region_params`; every other
+    /// namespace is empty. Binder names are fresh at conversion, and every
+    /// substitution is shadow-aware. At run time the value is a dictionary
+    /// block of the polytype's family (class `Obj`).
+    Forall(Box<Scheme>),
 }
 
 /// A bare type constructor former spellable in prefix position.
@@ -2905,6 +2912,7 @@ impl Ty {
             }
             Ty::Thunk { inner, .. } | Ty::Lazy { inner, .. } | Ty::Later(inner)
                 | Ty::Ref(_, inner) | Ty::Mut(_, inner) => inner.free_index_vars(out),
+            Ty::Forall(scheme) => scheme.ty.free_index_vars(out),
             Ty::Ptr { pointee, .. } => pointee.free_index_vars(out),
             Ty::Handler { input, output, .. } => { input.free_index_vars(out); output.free_index_vars(out); }
             _ => {}
@@ -3143,6 +3151,7 @@ impl Ty {
                 let (var, cod) = Self::substituted_codomain(var, dom, cod, substitution);
                 Ty::Sigma { var: var.into(), dom: Box::new(dom.substitute_index(substitution)), cod: Box::new(cod) }
             }
+            Ty::Forall(scheme) => scheme.map_forall_body(|body| body.substitute_index(substitution)),
             Ty::Thunk { eff, inner } => Ty::Thunk {
                 eff: eff.clone(),
                 inner: Box::new(inner.substitute_index(substitution)),
@@ -3192,6 +3201,7 @@ impl Ty {
                 dom.free_idx_metas(out);
                 cod.free_idx_metas(out);
             }
+            Ty::Forall(scheme) => scheme.ty.free_idx_metas(out),
             Ty::Thunk { inner, .. } | Ty::Later(inner) => inner.free_idx_metas(out),
             Ty::Lazy { inner, .. } => inner.free_idx_metas(out),
             Ty::Ref(_, inner) | Ty::Mut(_, inner) => inner.free_idx_metas(out),
@@ -3235,6 +3245,7 @@ impl Ty {
                 dom.free_metas(out);
                 cod.free_metas(out);
             }
+            Ty::Forall(scheme) => scheme.ty.free_metas(out),
             Ty::Thunk { eff, inner } => {
                 eff.free_metas(out);
                 inner.free_metas(out);
@@ -3298,6 +3309,7 @@ pub fn mentions_task(ty: &Ty) -> bool {
             mentions_task(a) || mentions_task(b)
         }
         Ty::Sigma { dom, cod, .. } => mentions_task(dom) || mentions_task(cod),
+        Ty::Forall(scheme) => mentions_task(&scheme.ty),
         Ty::Thunk { inner, .. } | Ty::Later(inner) | Ty::Lazy { inner, .. } => {
             mentions_task(inner)
         }
@@ -3322,6 +3334,7 @@ pub fn mentions_memo(ty: &Ty) -> bool {
             mentions_memo(a) || mentions_memo(b)
         }
         Ty::Sigma { dom, cod, .. } => mentions_memo(dom) || mentions_memo(cod),
+        Ty::Forall(scheme) => mentions_memo(&scheme.ty),
         Ty::Thunk { inner, .. } | Ty::Later(inner) => mentions_memo(inner),
         Ty::Ref(_, i) | Ty::Mut(_, i) => mentions_memo(i),
         Ty::Ptr { pointee, .. } => mentions_memo(pointee),
@@ -3485,6 +3498,150 @@ impl Spell for Ty {
             Ty::Sigma { var, dom, cod } => {
                 write!(f, "(Sigma ({var} :: {}). {})", s.of(dom), s.of(cod))
             }
+            Ty::Forall(scheme) => {
+                // Binders print by their source spelling, renamed apart from
+                // every free name of the body, so the rendering (an
+                // interface's scheme text) parses back to the same polytype.
+                let mut renaming = VarRenaming::default();
+                let mut spelled: Vec<String> = Vec::new();
+                let mut write_binder = |f: &mut fmt::Formatter<'_>, name: &String, kind: u8| -> fmt::Result {
+                    let base = skolem_spelling(name).to_string();
+                    let mut candidate = base.clone();
+                    let mut n = 0;
+                    while spelled.contains(&candidate) || (candidate != *name && scheme.ty.mentions_param(&candidate)) {
+                        n += 1;
+                        candidate = format!("{base}{n}");
+                    }
+                    let target: Interned = candidate.clone().into();
+                    match kind {
+                        0 => { renaming.types.insert(name.clone(), target); }
+                        1 => { renaming.rows.insert(name.clone(), target); }
+                        _ => { renaming.regions.insert(name.clone(), target); }
+                    }
+                    write!(f, " {candidate}")?;
+                    spelled.push(candidate);
+                    Ok(())
+                };
+                write!(f, "(forall")?;
+                for name in &scheme.params { write_binder(f, name, 0)?; }
+                for name in &scheme.row_params { write_binder(f, name, 1)?; }
+                for name in &scheme.region_params { write_binder(f, name, 2)?; }
+                write!(f, ". {})", s.of(&scheme.ty.rename_vars(&renaming)))
+            }
+        }
+    }
+}
+
+/// The source spelling of a skolem or nested binder name (`a` for
+/// `a#f3#17` and for a comparison's `$q4.a`).
+pub fn skolem_spelling(name: &str) -> &str {
+    let name = name.rsplit_once('.').map_or(name, |(_, last)| last);
+    name.split('#').next().unwrap_or(name)
+}
+
+/// A renaming of free type parameters, rigid row variables and region
+/// names, as [`Ty::rename_vars`] applies it.
+#[derive(Clone, Debug, Default)]
+pub struct VarRenaming {
+    pub types: HashMap<String, Interned>,
+    pub rows: HashMap<String, Interned>,
+    pub regions: HashMap<String, Interned>,
+}
+
+impl VarRenaming {
+    /// This renaming without the names a nested quantifier binds.
+    fn under(&self, scheme: &Scheme) -> VarRenaming {
+        let mut inner = self.clone();
+        for p in &scheme.params { inner.types.remove(p); }
+        for p in &scheme.row_params { inner.rows.remove(p); }
+        for p in &scheme.region_params { inner.regions.remove(p); }
+        inner
+    }
+
+    fn region(&self, r: &Interned) -> Interned {
+        self.regions.get(r.as_str()).cloned().unwrap_or_else(|| r.clone())
+    }
+
+    fn row(&self, row: &EffRow) -> EffRow {
+        EffRow {
+            labels: row.labels.iter().map(|l| EffLabel { head: l.head.clone(), arg: l.arg.as_ref().map(|a| self.region(a)) }).collect(),
+            tail: match &row.tail {
+                RowTail::Rigid(t) => RowTail::Rigid(self.rows.get(t.as_str()).cloned().unwrap_or_else(|| t.clone())),
+                other => other.clone(),
+            },
+        }
+    }
+}
+
+impl Ty {
+    /// Whether a polytype occurs anywhere inside this type (the
+    /// predicativity check of design/rank-n-polymorphism.md section 3).
+    pub fn contains_forall(&self) -> bool {
+        let mut found = false;
+        self.visit_shallow(&mut |t| found |= matches!(t, Ty::Forall(_)) || t.contains_forall());
+        found
+    }
+
+    /// Whether a rigid type parameter of this name occurs free.
+    pub fn mentions_param(&self, name: &str) -> bool {
+        match self {
+            Ty::Param(p) => p.as_str() == name,
+            Ty::Forall(scheme) if scheme.params.iter().any(|p| p == name) => false,
+            _ => {
+                let mut found = false;
+                self.visit_shallow(&mut |t| found |= t.mentions_param(name));
+                found
+            }
+        }
+    }
+
+    /// Visit the immediate component types (not index or proposition
+    /// terms, which carry no polytypes and no rigid type parameters that
+    /// a polytype could bind).
+    fn visit_shallow(&self, f: &mut impl FnMut(&Ty)) {
+        match self {
+            Ty::Adt(_, args) | Ty::Tuple(args) => args.iter().for_each(|a| f(a)),
+            Ty::App(h, args) => { f(h); args.iter().for_each(|a| f(a)); }
+            Ty::Fun(a, _, _, b) | Ty::Pi { dom: a, cod: b, .. } | Ty::Sigma { dom: a, cod: b, .. } => { f(a); f(b); }
+            Ty::Thunk { inner, .. } | Ty::Later(inner) | Ty::Lazy { inner, .. } | Ty::Ref(_, inner) | Ty::Mut(_, inner) => f(inner),
+            Ty::Ptr { pointee, .. } => f(pointee),
+            Ty::Handler { input, output, .. } => { f(input); f(output); }
+            Ty::Forall(scheme) => f(&scheme.ty),
+            _ => {}
+        }
+    }
+
+    /// Rename free type parameters, rigid row variables and region names.
+    /// A nested quantifier's own binders shadow the renaming. The new
+    /// names are always fresh skolems, so no capture can occur.
+    pub fn rename_vars(&self, r: &VarRenaming) -> Ty {
+        let go = |t: &Ty| t.rename_vars(r);
+        match self {
+            Ty::Param(p) => match r.types.get(p.as_str()) { Some(n) => Ty::Param(n.clone()), None => self.clone() },
+            Ty::Region(x) => Ty::Region(r.region(x)),
+            Ty::Adt(n, args) => Ty::Adt(n.clone(), args.iter().map(go).collect()),
+            Ty::Tuple(args) => Ty::Tuple(args.iter().map(go).collect()),
+            Ty::App(h, args) => Ty::App(Box::new(go(h)), args.iter().map(go).collect()),
+            Ty::Fun(a, m, e, b) => Ty::Fun(Box::new(go(a)), *m, r.row(e), Box::new(go(b))),
+            Ty::Pi { var, dom, mult, eff, cod } => Ty::Pi { var: var.clone(), dom: Box::new(go(dom)), mult: *mult, eff: r.row(eff), cod: Box::new(go(cod)) },
+            Ty::Sigma { var, dom, cod } => Ty::Sigma { var: var.clone(), dom: Box::new(go(dom)), cod: Box::new(go(cod)) },
+            Ty::Thunk { eff, inner } => Ty::Thunk { eff: r.row(eff), inner: Box::new(go(inner)) },
+            Ty::Later(inner) => Ty::Later(Box::new(go(inner))),
+            Ty::Lazy { eff, region, inner } => Ty::Lazy { eff: r.row(eff), region: r.region(region), inner: Box::new(go(inner)) },
+            Ty::Ref(x, inner) => Ty::Ref(r.region(x), Box::new(go(inner))),
+            Ty::Mut(x, inner) => Ty::Mut(r.region(x), Box::new(go(inner))),
+            Ty::Ptr { role, pointee } => Ty::Ptr { role: role.clone(), pointee: Box::new(go(pointee)) },
+            Ty::Handler { label, input, output, eff, resumption } => Ty::Handler {
+                label: EffLabel { head: label.head.clone(), arg: label.arg.as_ref().map(|a| r.region(a)) },
+                input: Box::new(go(input)), output: Box::new(go(output)), eff: r.row(eff), resumption: *resumption,
+            },
+            Ty::Idx(term) => Ty::Idx(Box::new(term.map_types(&mut |t| t.rename_vars(r)))),
+            Ty::Prp(prop) => Ty::Prp(Box::new(prop.map_types(&mut |t| t.rename_vars(r)))),
+            Ty::Forall(scheme) => {
+                let inner = r.under(scheme);
+                scheme.map_forall_body(|body| body.rename_vars(&inner))
+            }
+            _ => self.clone(),
         }
     }
 }
@@ -3631,6 +3788,18 @@ pub struct Scheme {
 }
 
 impl Scheme {
+    /// A polytype with this scheme's binders over a transformed body.
+    pub fn map_forall_body(&self, f: impl FnOnce(&Ty) -> Ty) -> Ty {
+        Ty::Forall(Box::new(Scheme { ty: f(&self.ty), ..self.clone() }))
+    }
+
+    /// Whether this scheme binds only what a nested quantifier may bind
+    /// (design/rank-n-polymorphism.md section 1).
+    pub fn is_nested_quantifier(&self) -> bool {
+        self.evidence_params.is_empty() && self.idx_params.is_empty() && self.val_params.is_empty()
+            && self.prop_params.is_empty() && self.ctx.is_empty() && self.obligs.is_empty()
+    }
+
     pub fn mono(ty: Ty) -> Scheme {
         Scheme {
             evidence_params: Vec::new(),
@@ -3701,6 +3870,7 @@ pub fn regionize(t: &Ty, regions: &[String]) -> Ty {
             dom: Box::new(regionize(dom, regions)),
             cod: Box::new(regionize(cod, regions)),
         },
+        Ty::Forall(scheme) => scheme.map_forall_body(|body| regionize(body, regions)),
         other => other.clone(),
     }
 }
@@ -3790,6 +3960,18 @@ pub fn collect_row_names(t: &Ty, rows: &mut Vec<String>, regions: &mut Vec<Strin
             collect_row_names(dom, rows, regions);
             collect_row_names(cod, rows, regions);
         }
+        // A nested quantifier's own rows and regions are not the
+        // signature's: only its free names classify outer binders.
+        Ty::Forall(scheme) => {
+            let (mut inner_rows, mut inner_regions) = (Vec::new(), Vec::new());
+            collect_row_names(&scheme.ty, &mut inner_rows, &mut inner_regions);
+            for row in inner_rows {
+                if !scheme.row_params.contains(&row) && !rows.contains(&row) { rows.push(row); }
+            }
+            for region in inner_regions {
+                if !scheme.region_params.contains(&region) && !regions.contains(&region) { regions.push(region); }
+            }
+        }
         _ => {}
     }
 }
@@ -3836,6 +4018,19 @@ pub struct Unifier {
     undo: Vec<Undo>,
     /// Number of snapshots taken and not yet rolled back or committed.
     open_snapshots: usize,
+    /// Skolem scopes now open, innermost last: polytype comparisons and
+    /// generalisation sites. A metavariable created before a scope opened
+    /// (its id is below the scope's watermark) may not be bound to a type
+    /// mentioning that scope's skolems (design/rank-n-polymorphism.md
+    /// section 3).
+    skolem_scopes: Vec<(usize, Vec<String>)>,
+    /// Names the next polytype comparison's skolems.
+    forall_counter: usize,
+    /// Metavariables promoted to an older level: binding an outer
+    /// metavariable to a type mentioning an inner one makes the inner one
+    /// as old as the outer, so it cannot later carry a skolem out by the
+    /// back door (level adjustment, as in OCaml's generalisation).
+    level_floor: HashMap<usize, usize>,
 }
 
 /// Entries per `ChunkVec` chunk.
@@ -3907,6 +4102,8 @@ impl<T: Clone> std::ops::IndexMut<usize> for ChunkVec<T> {
 /// The inverse of one `Unifier` mutation.
 #[derive(Clone)]
 enum Undo {
+    /// A metavariable's level before a skolem-scope promotion.
+    Promote(usize, Option<usize>),
     Provisional(bool),
     NewType,
     BindType(usize, Option<Ty>),
@@ -3945,6 +4142,10 @@ impl Unifier {
         while self.undo.len() > snapshot.undo_len {
             match self.undo.pop().expect("length checked") {
                 Undo::Provisional(old) => self.provisional_declarations = old,
+                Undo::Promote(id, old) => match old {
+                    Some(level) => { self.level_floor.insert(id, level); }
+                    None => { self.level_floor.remove(&id); }
+                },
                 Undo::NewType => { self.subst.pop(); }
                 Undo::BindType(id, old) => { self.set_type(id, old); }
                 Undo::NewRow => { self.row_subst.pop(); }
@@ -4265,6 +4466,7 @@ impl Unifier {
             Ty::Adt(_, args) | Ty::Tuple(args) => args.iter().any(|ty| self.prop_occurs_type(id, ty)),
             Ty::App(head, args) => self.prop_occurs_type(id, &head) || args.iter().any(|ty| self.prop_occurs_type(id, ty)),
             Ty::Fun(dom, _, _, cod) | Ty::Pi { dom, cod, .. } | Ty::Sigma { dom, cod, .. } => self.prop_occurs_type(id, &dom) || self.prop_occurs_type(id, &cod),
+            Ty::Forall(scheme) => self.prop_occurs_type(id, &scheme.ty),
             Ty::Thunk { inner, .. } | Ty::Lazy { inner, .. } | Ty::Later(inner) | Ty::Ref(_, inner) | Ty::Mut(_, inner) => self.prop_occurs_type(id, &inner),
             Ty::Ptr { pointee, .. } => self.prop_occurs_type(id, &pointee),
             Ty::Handler { input, output, .. } => self.prop_occurs_type(id, &input) || self.prop_occurs_type(id, &output),
@@ -4510,6 +4712,7 @@ impl Unifier {
             Ty::Adt(_, args) | Ty::Tuple(args) => args.iter().all(|ty| self.owns_value_metas_in_type(ty)),
             Ty::App(head, args) => self.owns_value_metas_in_type(head) && args.iter().all(|ty| self.owns_value_metas_in_type(ty)),
             Ty::Fun(dom, _, _, cod) | Ty::Pi { dom, cod, .. } | Ty::Sigma { dom, cod, .. } => self.owns_value_metas_in_type(dom) && self.owns_value_metas_in_type(cod),
+            Ty::Forall(scheme) => self.owns_value_metas_in_type(&scheme.ty),
             Ty::Thunk { inner, .. } | Ty::Lazy { inner, .. } | Ty::Later(inner) | Ty::Ref(_, inner) | Ty::Mut(_, inner) => self.owns_value_metas_in_type(inner),
             Ty::Ptr { pointee, .. } => self.owns_value_metas_in_type(pointee),
             Ty::Handler { input, output, .. } => self.owns_value_metas_in_type(input) && self.owns_value_metas_in_type(output),
@@ -4575,6 +4778,7 @@ impl Unifier {
                 dom: Box::new(z(&dom)),
                 cod: Box::new(z(&cod)),
             },
+            Ty::Forall(scheme) => scheme.map_forall_body(|body| z(body)),
             Ty::Idx(t) => Ty::Idx(Box::new(self.resolve_idx_types(&t, &mut |ty| self.zonk_in(ty, map)))),
             Ty::Prp(p) => Ty::Prp(Box::new(self.resolve_prop_types(&p, &mut |ty| self.zonk_in(ty, map)))),
             Ty::Thunk { eff, inner } => Ty::Thunk {
@@ -4702,6 +4906,7 @@ impl Unifier {
                 dom: Box::new(self.gen_ty(&dom, names)),
                 cod: Box::new(self.gen_ty(&cod, names)),
             },
+            Ty::Forall(scheme) => scheme.map_forall_body(|body| self.gen_ty(body, names)),
             Ty::Idx(t) => Ty::Idx(Box::new(self.resolve_idx_types(&t, &mut |ty| self.gen_ty(ty, names)))),
             Ty::Prp(p) => Ty::Prp(Box::new(self.resolve_prop_types(&p, &mut |ty| self.gen_ty(ty, names)))),
             Ty::Thunk { eff, inner } => Ty::Thunk {
@@ -4766,6 +4971,7 @@ impl Unifier {
             Ty::Fun(a, _, _, b) => self.occurs(id, &a) || self.occurs(id, &b),
             Ty::Pi { dom, cod, .. } => self.occurs(id, &dom) || self.occurs(id, &cod),
             Ty::Sigma { dom, cod, .. } => self.occurs(id, &dom) || self.occurs(id, &cod),
+            Ty::Forall(scheme) => self.occurs(id, &scheme.ty),
             Ty::Thunk { inner, .. } | Ty::Later(inner) => self.occurs(id, &inner),
             Ty::Lazy { inner, .. } => self.occurs(id, &inner),
             Ty::Ref(_, inner) | Ty::Mut(_, inner) => self.occurs(id, &inner),
@@ -5040,6 +5246,7 @@ impl Unifier {
                         self.zonk(&image)
                     ));
                 }
+                self.check_predicative(*m, &image)?;
                 self.bind_type(m.0, image.clone());
                 let rebuilt = eta(&image, &[], &xs);
                 return self.unify(&rebuilt, b);
@@ -5056,6 +5263,7 @@ impl Unifier {
                         self.zonk(&image)
                     ));
                 }
+                self.check_predicative(*m, &image)?;
                 self.bind_type(m.0, image.clone());
                 let rebuilt = eta(&image, &[], &ys);
                 return self.unify(a, &rebuilt);
@@ -5075,6 +5283,106 @@ impl Unifier {
         Ok(())
     }
 
+    /// A metavariable never stands for a polytype, and never for a type
+    /// that mentions a skolem of a polytype comparison now running.
+    fn check_predicative(&mut self, m: MetaId, t: &Ty) -> std::result::Result<(), String> {
+        // No metavariable is ever bound to a type containing a polytype
+        // (this check is what keeps it so), so the unzonked type answers
+        // the predicativity question without a traversal of the bindings.
+        if t.contains_forall() || matches!(t, Ty::Forall(_)) {
+            return Err(crate::diagnostic!(
+                "a type variable cannot stand for a polymorphic type ({}); annotate the binding with its polymorphic type",
+                self.zonk(t)
+            ));
+        }
+        // Escape needs the bindings: an inner metavariable may already
+        // stand for a skolem. Only scopes opened after `m`'s level
+        // constrain it, so outside every skolem scope this costs nothing.
+        if self.skolem_scopes.is_empty() {
+            return Ok(());
+        }
+        let level = self.level_floor.get(&m.0).copied().unwrap_or(m.0);
+        if !self.skolem_scopes.iter().any(|(watermark, _)| level < *watermark) {
+            return Ok(());
+        }
+        let z = self.zonk(t);
+        let outer = self.skolem_scopes.iter().filter(|(watermark, _)| level < *watermark);
+        if let Some(skolem) = outer.flat_map(|(_, names)| names).find(|k| z.mentions_param(k)) {
+            return Err(crate::diagnostic!(
+                "the polymorphic type variable `{}` would escape its `forall` (through {})",
+                skolem_spelling(skolem),
+                z
+            ));
+        }
+        let mut metas = Vec::new();
+        z.free_metas(&mut metas);
+        for meta in metas {
+            if let EitherMeta::Type(n) = meta {
+                let current = self.level_floor.get(&n.0).copied().unwrap_or(n.0);
+                if current > level {
+                    let old = self.level_floor.insert(n.0, level);
+                    self.log(|| Undo::Promote(n.0, old));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Two polytypes are equal when their binders agree in number and kind
+    /// and their bodies unify under one shared set of fresh skolems.
+    /// Polytypes are invariant: there is no subsumption between them.
+    fn unify_foralls(&mut self, s1: &Scheme, s2: &Scheme, a: &Ty, b: &Ty) -> std::result::Result<(), String> {
+        let arity = |s: &Scheme, p: &String| s.con_params.iter().find(|(n, _)| n == p).map_or(0, |(_, k)| *k);
+        let same_shape = s1.params.len() == s2.params.len()
+            && s1.row_params.len() == s2.row_params.len()
+            && s1.region_params.len() == s2.region_params.len()
+            && s1.params.iter().zip(&s2.params).all(|(x, y)| arity(s1, x) == arity(s2, y));
+        if !same_shape {
+            return Err(crate::diagnostic!(
+                "polymorphic types differ in their quantifiers: expected {}, got {}",
+                self.zonk(a),
+                self.zonk(b)
+            ));
+        }
+        let base = self.forall_counter;
+        self.forall_counter += 1;
+        let (mut r1, mut r2) = (VarRenaming::default(), VarRenaming::default());
+        let mut skolems = Vec::new();
+        for (i, (x, y)) in s1.params.iter().zip(&s2.params).enumerate() {
+            let k = format!("$q{base}.{}", x.split('#').next().unwrap_or(x));
+            let k = if i == 0 { k } else { format!("{k}{i}") };
+            r1.types.insert(x.clone(), k.clone().into());
+            r2.types.insert(y.clone(), k.clone().into());
+            skolems.push(k);
+        }
+        for (i, (x, y)) in s1.row_params.iter().zip(&s2.row_params).enumerate() {
+            let k: Interned = format!("$q{base}.row{i}").into();
+            r1.rows.insert(x.clone(), k.clone());
+            r2.rows.insert(y.clone(), k);
+        }
+        for (i, (x, y)) in s1.region_params.iter().zip(&s2.region_params).enumerate() {
+            let k: Interned = format!("$q{base}.region{i}").into();
+            r1.regions.insert(x.clone(), k.clone());
+            r2.regions.insert(y.clone(), k);
+        }
+        let mark = self.enter_skolems(skolems);
+        let result = self.unify(&s1.ty.rename_vars(&r1), &s2.ty.rename_vars(&r2));
+        self.exit_skolems(mark);
+        result
+    }
+
+    /// Open a skolem scope over `names`: metavariables that exist now may
+    /// not be bound to a type mentioning them until [`Self::exit_skolems`].
+    pub fn enter_skolems(&mut self, names: Vec<String>) -> usize {
+        let mark = self.skolem_scopes.len();
+        self.skolem_scopes.push((self.subst.len(), names));
+        mark
+    }
+
+    pub fn exit_skolems(&mut self, mark: usize) {
+        self.skolem_scopes.truncate(mark);
+    }
+
     pub fn unify(&mut self, a: &Ty, b: &Ty) -> std::result::Result<(), String> {
         let a = self.shallow(a);
         let b = self.shallow(b);
@@ -5092,6 +5400,7 @@ impl Unifier {
                         return Ok(());
                     }
                 }
+                self.check_predicative(*m, t)?;
                 if self.occurs(*m, t) {
                     return Err(crate::diagnostic!(
                         "cannot construct infinite type: {} in {}",
@@ -5108,6 +5417,7 @@ impl Unifier {
                 }
                 Ok(())
             }
+            (Ty::Forall(s1), Ty::Forall(s2)) => self.unify_foralls(s1, s2, &a, &b),
             (Ty::Tuple(a1), Ty::Tuple(a2)) if a1.len() == a2.len() => {
                 for (x, y) in a1.iter().zip(a2) {
                     self.unify(x, y)?;
@@ -5410,6 +5720,30 @@ pub fn ty_eq(a: &Ty, b: &Ty) -> bool {
             let mut fresh = "$conv".to_string();
             while c1.mentions_idx(&fresh) || c2.mentions_idx(&fresh) || fresh == v1 || fresh == v2 { fresh.push('$'); }
             ty_eq(&c1.subst_idx(&v1, &ITerm::Var(fresh.clone().into())), &c2.subst_idx(&v2, &ITerm::Var(fresh.into())))
+        }
+        (Ty::Forall(s1), Ty::Forall(s2)) => {
+            if s1.params.len() != s2.params.len() || s1.row_params.len() != s2.row_params.len()
+                || s1.region_params.len() != s2.region_params.len() || s1.con_params.len() != s2.con_params.len() {
+                return false;
+            }
+            // One fresh name family per comparison: a nested comparison's
+            // names never capture an enclosing one's.
+            static COMPARISONS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+            let n = COMPARISONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let (mut r1, mut r2) = (VarRenaming::default(), VarRenaming::default());
+            for (i, (x, y)) in s1.params.iter().zip(&s2.params).enumerate() {
+                r1.types.insert(x.clone(), format!("$conv{n}.{i}").into());
+                r2.types.insert(y.clone(), format!("$conv{n}.{i}").into());
+            }
+            for (i, (x, y)) in s1.row_params.iter().zip(&s2.row_params).enumerate() {
+                r1.rows.insert(x.clone(), format!("$conv{n}.row{i}").into());
+                r2.rows.insert(y.clone(), format!("$conv{n}.row{i}").into());
+            }
+            for (i, (x, y)) in s1.region_params.iter().zip(&s2.region_params).enumerate() {
+                r1.regions.insert(x.clone(), format!("$conv{n}.region{i}").into());
+                r2.regions.insert(y.clone(), format!("$conv{n}.region{i}").into());
+            }
+            ty_eq(&s1.ty.rename_vars(&r1), &s2.ty.rename_vars(&r2))
         }
         (Ty::Sigma { var: v1, dom: d1, cod: c1 }, Ty::Sigma { var: v2, dom: d2, cod: c2 }) => {
             if !ty_eq(d1, d2) {

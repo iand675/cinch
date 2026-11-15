@@ -101,7 +101,7 @@ uint64_t cinch_test_f64_bits(double value) { uint64_t bits; memcpy(&bits, &value
     std::fs::write(dir.join("batch.count"), vec![b'x'; cases.len()]).unwrap();
     let emitted = Command::new(&compiler).current_dir(&dir).output().unwrap();
     assert!(emitted.status.success(), "{}\n{}", common::read_output(&dir, "admission.diagnostics"), String::from_utf8_lossy(&emitted.stderr));
-    let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/debug/libcinchruntime.a");
+    let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/release/libcinchruntime.a");
     for (index, (width, patterns)) in cases.iter().enumerate() {
         assert_eq!(common::read_output(&dir, &format!("output-{index}.status")), "0", "F{width}: {}", common::read_output(&dir, &format!("output-{index}.diagnostics")));
         let executable = dir.join(format!("float-{width}"));

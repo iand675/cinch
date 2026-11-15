@@ -1,0 +1,6 @@
+module Main where
+  -- A nested quantifier over an effect row.
+  run :: (forall e. (Unit ->{|e} I64) ->{|e} I64) -> I64
+  run h = h (\u -> 21)
+  main :: Int
+  main = int-from-i64 (run (\k -> k ())) * 2

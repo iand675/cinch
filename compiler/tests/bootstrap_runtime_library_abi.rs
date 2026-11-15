@@ -164,7 +164,7 @@ int main(void) {
 }
 "#).unwrap();
     let clang = std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into());
-    let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/debug/libcinchruntime.a");
+    let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/release/libcinchruntime.a");
     let output = Command::new(clang).args(["-Wno-override-module", "library.ll", "caller.c"]).arg(runtime).args(["-lpthread", "-ldl", "-lm", "-o", "caller"]).current_dir(&dir).output().unwrap();
     assert!(output.status.success(), "actual ABI link: {}\n{}", String::from_utf8_lossy(&output.stderr), dir.display());
     let output = Command::new(dir.join("caller")).env("CINCH_HEAP_LIMIT", "32M").env("CINCH_RC_DEBUG", "1").env("CINCH_LEAK_CHECK", "1").output().unwrap();
