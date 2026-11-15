@@ -139,6 +139,14 @@
       "public_methods": 0
     },
     {
+      "module": "Data.Bytes.Word",
+      "path": "compiler/prelude/Data/Bytes/Word.cinch",
+      "sha256": "f1b5d062f8657f5a47150da282e202fe021cf1260ff4824e3c172ff8cd004780",
+      "embedded": false,
+      "values": 4,
+      "public_methods": 0
+    },
+    {
       "module": "Data.Bytes",
       "path": "compiler/prelude/Data/Bytes.cinch",
       "sha256": "b0ca021a04d0e01bb1028a934a79f9982f1fcb80110d7c4bf8085bf36607ec5c",
@@ -819,6 +827,14 @@
       "public_methods": 0
     },
     {
+      "module": "Text.Base32",
+      "path": "compiler/prelude/Text/Base32.cinch",
+      "sha256": "1497ed5e0adb806c86a2626c9719afdec1e83825331d6773d4e812e09fbd5569",
+      "embedded": false,
+      "values": 4,
+      "public_methods": 0
+    },
+    {
       "module": "Text.Base64",
       "path": "compiler/prelude/Text/Base64.cinch",
       "sha256": "54948138dd53d893cb82067bdaba883faa404e81e0013dd750c75f723c0b409d",
@@ -827,11 +843,27 @@
       "public_methods": 0
     },
     {
+      "module": "Text.Binary",
+      "path": "compiler/prelude/Text/Binary.cinch",
+      "sha256": "9e8420191ef2f63969bdd1fa54f69724c835a6ada8041b548ee3de8154e71e4d",
+      "embedded": false,
+      "values": 13,
+      "public_methods": 0
+    },
+    {
       "module": "Text.Builder",
       "path": "compiler/prelude/Text/Builder.cinch",
       "sha256": "c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b",
       "embedded": false,
       "values": 11,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Checksum",
+      "path": "compiler/prelude/Text/Checksum.cinch",
+      "sha256": "92aeb92792906cc05fde3a49ec2e71800d8fe7a2372926b4a4665e015fd02c29",
+      "embedded": false,
+      "values": 12,
       "public_methods": 0
     },
     {
@@ -856,6 +888,22 @@
       "sha256": "91f1b7630e30fefea87a0e50b97bc3d42d58e69c73b7d60c4c175d07513588d2",
       "embedded": false,
       "values": 7,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Fnv",
+      "path": "compiler/prelude/Text/Fnv.cinch",
+      "sha256": "a9168eed132ad92705149bb13b9a1130df1cc1458cdfa9d99bcecb0efa41b8e0",
+      "embedded": false,
+      "values": 8,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Hex",
+      "path": "compiler/prelude/Text/Hex.cinch",
+      "sha256": "6a9bd7d383931fadbf35503562d57a26c92fd52f2d8f3961b6bdbdc29622e522",
+      "embedded": false,
+      "values": 4,
       "public_methods": 0
     },
     {
