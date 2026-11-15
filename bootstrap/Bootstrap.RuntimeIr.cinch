@@ -3886,6 +3886,7 @@ module Bootstrap.RuntimeIr where
       else if same op "negate" && named (core-type input) "Int" then
       (case expression definitions locals w input of
         (ready, value) -> case call ready "@cinch_int_neg" [value] of (done, result) -> (count-op False (core-type input) value done, result))
+      else if same op "par-workers" then par-workers definitions locals w sp input
       else unsupported w sp "unary primitive needs runtime lowering"
     CArgument at first (CArgument bt second (CArgumentsEnd end)) ->
       if same op "par-both" then par-both definitions locals w sp ty first second
@@ -3982,6 +3983,14 @@ module Bootstrap.RuntimeIr where
         -- drops them after the call, and owns the result.
         (called, mapped) -> (count-op False (core-type callback) closure (count-op False (core-type array) input called), mapped)
     (ready, other) -> unsupported ready sp "parMap takes a callback and one array"
+  -- The participant budget: `cinch_par_set_workers(n)` and nothing else. The
+  -- method answers `Unit`, so the call's result is discarded and the value is
+  -- the one every `Unit` primitive produces. `n` crosses as a length.
+  par-workers :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> (Writer, String)
+  par-workers definitions locals w sp count = case expression definitions locals w count of
+    (counted, count-word) -> case call counted "@cinch_nat_to_len" [count-word] of
+      (converted, workers) -> case call converted (par-entry "par_set_workers") [workers] of
+        (called, ignored) -> (called, "0")
   -- The element class of an `Array a` result, as the scan code the array
   -- constructors take.
   array-element-class :: RuntimeContext -> UType -> Option Nat
@@ -4474,7 +4483,7 @@ module Bootstrap.RuntimeIr where
   children-par-used :: List CoreTerm -> Bool
   children-par-used terms = case terms of Nil -> False; Cons first rest -> term-par-used first || children-par-used rest
   par-operation :: String -> Bool
-  par-operation op = same op "par-both" || same op "par-tabulate" || same op "par-map"
+  par-operation op = same op "par-both" || same op "par-tabulate" || same op "par-map" || same op "par-workers"
   par-preamble :: List CoreDefinition -> String
   par-preamble definitions = if par-used definitions then par-declarations else ""
   -- The module prelude. Debug counting swaps only the two count helpers,

@@ -961,6 +961,12 @@ module Bootstrap.Core where
           CArgument at callback (CArgument bt array (CArgumentsEnd end)) ->
             union-effects (latent-row (core-type callback)) (union-effects (core-effects callback) (core-effects array))
           other -> UError)
+      -- The participant budget performs nothing: it names who runs the
+      -- branches, so its only effects are the ones its count has.
+      else if string-compare name "par-workers" == 0 then
+        (case args of
+          CArgument at count (CArgumentsEnd end) -> core-effects count
+          other -> UError)
       else core-effects args
     CProved s ty evidence body -> core-effects body
     CRefine s ty evidence body -> core-effects body

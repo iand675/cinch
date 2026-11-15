@@ -6,7 +6,7 @@ module Bootstrap.Resolve where
 
   import Bootstrap.Ast
   import Bootstrap.Nominal (interface-global, kernel-type-name, encode-identity, global-algebra-arithmetic-nonzero, global-data-bool-not, global-data-core-cons, global-data-core-nil)
-  import Bootstrap.Builtin (builtin-bindings, builtin-declarations, finite-index-declaration)
+  import Bootstrap.Builtin (builtin-bindings, builtin-declarations, finite-index-declaration, parallelism-declarations)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-exports, validate-interface-set)
   import Bootstrap.Inputs (embedded-library-home)
@@ -141,6 +141,12 @@ module Bootstrap.Resolve where
         None -> own-bindings home rest acc
         Some name -> own-bindings home rest (add-own home name acc)
 
+  -- A resolved method already names its binding; re-deriving the symbol from
+  -- the home would rebind it to a name the checker never registered.
+  add-own-symbol :: String -> String -> List Binding -> List Binding
+  add-own-symbol label symbol entries = case lookup-binding label entries of
+    Some b -> entries
+    None -> Cons (MkBinding label "<builtin>" symbol) entries
   add-own :: String -> String -> List Binding -> List Binding
   add-own home name entries = case lookup-binding name entries of
     Some b -> entries
@@ -154,10 +160,15 @@ module Bootstrap.Resolve where
     Some b -> entries
     None -> Cons (MkBinding name home name) entries
 
+  -- A class member is visible under its label whether it is still in source
+  -- form (`DSig`, which `rename-class-members` turns into a `DMethod`) or
+  -- already resolved. The kernel's classes are declared after renaming, so
+  -- they arrive as `DMethod` and would otherwise contribute no name.
   own-class-methods :: String -> List Decl -> List Binding -> List Binding
   own-class-methods home ds acc = case ds of
     Nil -> acc
     Cons (DSig s name ty) rest -> own-class-methods home rest (add-own home name acc)
+    Cons (DMethod s label symbol ty) rest -> own-class-methods home rest (add-own-symbol label symbol acc)
     Cons other rest -> own-class-methods home rest acc
 
   own-ctors :: String -> List (String, TypeExpr) -> List Binding -> List Binding
@@ -811,11 +822,6 @@ module Bootstrap.Resolve where
     -- its free names resolve where the template is written (decision D43).
     EQuote s body -> case rename-expr visible locals body of
       (renamed, errors) -> (EQuote s renamed, errors)
-    -- A macro call is expanded before resolution, so a surviving call means
-    -- the expander did not reach it. Its name is not a value reference and
-    -- must not be renamed: the expander resolves it against the macros in
-    -- scope, and renaming here would give it a global the macro never had.
-    EMacroCall s path tokens -> (e, fail s (cat ["macro invocation `", path, "!` was not expanded"]))
     ESplice s expression -> (e, fail s "a splice is only meaningful inside a quotation")
     EUnmodeled s text -> (e, fail s (cat ["unmodeled expression: ", text]))
     other -> (e, fail (expr-span e) "this expression requires further namespace elaboration")
@@ -945,11 +951,6 @@ module Bootstrap.Resolve where
     -- the catch-all below would claim namespace work is missing when the
     -- real gap is a surface form the parser does not accept yet.
     DUnmodeled s text -> (Cons d Nil, fail s (string-concat "the parser cannot model this declaration: " text))
-    -- A target-selected declaration is renamed as the declaration it
-    -- wraps. The wrapper itself names no value, so it adds no binding; the
-    -- clause atoms are compile-time predicates over the profile, not terms.
-    DConditional s clauses inner -> case rename-decl home visible declarations inner of
-      (renamed, errors) -> ([DConditional s clauses (decl-spine s renamed)], errors)
     other -> (Cons d Nil, fail (decl-span d) "this declaration requires further namespace elaboration")
 
   -- Whether this module declares a value of `name` a contract can attach to:
@@ -978,26 +979,13 @@ module Bootstrap.Resolve where
     Nil -> Nil
     Cons (patterns, body) rest -> patterns-names patterns
 
-  -- A liveness formula names a finite structured-concurrency obligation,
-  -- not a value: `joined` and `cleanup` are the two claim words the language
-  -- defines (core specification section 10), so they stay exactly as
-  -- written. Every other formula is specification notation over the
-  -- definition's parameters and resolves like a body.
-  claim-word :: Expr -> Bool
-  claim-word body = case body of
-    EVar s word -> same word "joined" || same word "cleanup"
-    other -> False
-
   rename-contract-clauses :: Visible -> List String -> List ContractClause -> (List ContractClause, List Diagnostic)
   rename-contract-clauses visible locals clauses = case clauses of
     Nil -> (Nil, Nil)
     Cons first rest -> case first of
-      ContractFormula s op body -> if claim-word body then
-          (case rename-contract-clauses visible locals rest of
-            (others, more) -> (Cons (ContractFormula s op body) others, more))
-        else case rename-expr visible locals body of
-          (renamed, errors) -> case rename-contract-clauses visible locals rest of
-            (others, more) -> (Cons (ContractFormula s op renamed) others, errors <> more)
+      ContractFormula s op body -> case rename-expr visible locals body of
+        (renamed, errors) -> case rename-contract-clauses visible locals rest of
+          (others, more) -> (Cons (ContractFormula s op renamed) others, errors <> more)
       ContractAssume s body -> case rename-expr visible locals body of
         (renamed, errors) -> case rename-contract-clauses visible locals rest of
           (others, more) -> (Cons (ContractAssume s renamed) others, errors <> more)
@@ -1205,11 +1193,27 @@ module Bootstrap.Resolve where
             other -> imported-record-references reference-set imported-records declarations) in
           let all-references = references <> kernel-references references declarations <> imported-class-references declarations declarations <> record-references in
           let all-reference-set = reference-index all-references in
+          -- The parallel interface is a kernel declaration: a program that
+          -- names `Parallelism` or one of its methods keeps it, exactly as
+          -- a source mention of a prelude family would.
+          let parallel = if parallelism-used all-reference-set then parallelism-declarations else Nil in
           let admitted = if referenced "b.Fin" all-reference-set then Cons finite-index-declaration declarations else declarations in
+          let admitted = admitted <> parallel in
           case materialize-externals all-reference-set admitted Nil of
             (body, errors) -> (MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp (contexts <> body))) Nil), errors)
         (done, errors) -> (p, errors)
       errors -> (p, errors)
+
+  -- A program that names the signature, one of its methods, or the host
+  -- instance keeps the kernel declarations. The instance is named so a
+  -- program that only spells `HostParallelism` still gets its dictionary.
+  -- The references are already resolved (the module was renamed before this
+  -- point), so the kernel's own symbols are what appear here.
+  parallelism-used :: HashMap String Bool -> Bool
+  parallelism-used references = referenced "b.Parallelism" references
+    || referenced "b.HostParallelism" references
+    || referenced "b.both" references || referenced "b.tabulate" references
+    || referenced "b.mapArray" references || referenced "b.workers" references
 
   source-scopes :: List Module -> List Scoped -> List Scoped
   source-scopes modules done = case done of
