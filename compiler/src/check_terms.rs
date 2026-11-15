@@ -12451,7 +12451,7 @@ enum RecSub {
 fn rec_initializer_stable(core: &ECore, partial: &impl Fn(LocalId, usize) -> bool) -> bool {
     let stable = |node: &ECore| rec_initializer_stable(node, partial);
     match core {
-        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_)
+        ECore::Int(_) | ECore::Wide(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_)
         | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Lit(_)
         | ECore::Bool(_) | ECore::Unit | ECore::Var(_)
         | ECore::Ctor(..) | ECore::Prim(_) | ECore::Lam { .. }
@@ -12726,7 +12726,7 @@ impl KnotFlow<'_> {
                 self.reject(captured)?;
                 None
             }
-            ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_)
+            ECore::Int(_) | ECore::Wide(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_)
             | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Lit(_)
             | ECore::Bool(_) | ECore::Unit | ECore::Global(..) | ECore::Ctor(..)
             | ECore::Prim(_) | ECore::Foreign(_) | ECore::LazyAlloc | ECore::BoxAlloc
@@ -12908,7 +12908,7 @@ fn rec_walk(
     match e {
         ECore::LitFold { body, .. } => rec_walk(body, guard, owner, by_local, edges),
         ECore::Var(l) => record(l, None),
-        ECore::Int(_)
+        ECore::Int(_) | ECore::Wide(_)
         | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_)
         | ECore::Lit(_)
         | ECore::Bool(_)
@@ -12993,7 +12993,7 @@ fn rec_collect_refs(e: &ECore, by_local: &HashMap<LocalId, usize>, out: &mut Vec
                 out.push(r);
             }
         }
-        ECore::Int(_)
+        ECore::Int(_) | ECore::Wide(_)
         | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_)
         | ECore::Lit(_)
         | ECore::Bool(_)
@@ -13069,7 +13069,7 @@ fn top_rec_walk(e: &ECore, guard: i32, owner: usize, edges: &mut Vec<(usize, Glo
         ECore::LitFold { body, .. } => top_rec_walk(body, guard, owner, edges),
         ECore::Global(g, _) => edges.push((owner, g.clone(), guard >= 1)),
         ECore::Var(_)
-        | ECore::Int(_)
+        | ECore::Int(_) | ECore::Wide(_)
         | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_)
         | ECore::Lit(_)
         | ECore::Bool(_)
@@ -13171,7 +13171,7 @@ fn subst_rec_refs(e: &mut ECore, subs: &HashMap<LocalId, RecSub>) {
             }
             None => {}
         },
-        ECore::Int(_)
+        ECore::Int(_) | ECore::Wide(_)
         | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_)
         | ECore::Lit(_)
         | ECore::Bool(_)

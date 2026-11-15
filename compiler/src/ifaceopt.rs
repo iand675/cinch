@@ -362,14 +362,9 @@ fn global_refs<'a>(e: &'a Core, out: &mut Vec<&'a str>) {
 fn decode_classes(text: &str) -> Result<Vec<Class>, ParseError> {
     let mut out = Vec::with_capacity(text.len());
     for c in text.chars() {
-        out.push(match c {
-            'R' => Class::Raw,
-            'O' => Class::Obj,
-            'T' => Class::TObj,
-            // A parameter class has no round-trippable spelling (the letter
-            // drops its index), and no exported body may carry one.
-            other => return Err(ParseError::from(format!("invalid representation class {other}"))),
-        });
+        // A parameter class has no round-trippable spelling (the letter
+        // drops its index), and no exported body may carry one.
+        out.push(Class::from_letter(c).ok_or_else(|| ParseError::from(format!("invalid representation class {c}")))?);
     }
     Ok(out)
 }
@@ -387,6 +382,7 @@ fn class_str(class: Class) -> String {
 pub fn encode_core(e: &Core) -> Option<JsonValue> {
     Some(match e {
         Core::Int(n) => JsonValue::Arr(vec!["int".into(), n.to_string().into()]),
+        Core::Wide(bits) => JsonValue::Arr(vec!["wide".into(), bits.to_string().into()]),
         Core::Bool(b) => JsonValue::Arr(vec!["bool".into(), (*b).into()]),
         Core::Unit => JsonValue::Arr(vec!["unit".into()]),
         Core::ConstBig { nat, digits } => {
@@ -576,6 +572,10 @@ pub fn decode_core(value: &JsonValue) -> Result<Core, ParseError> {
     let local = |i: usize| -> Result<LocalId, ParseError> { Ok(LocalId(num(arg(i)?)?)) };
     Ok(match tag {
         "int" => Core::Int(signed(arg(1)?)?),
+        "wide" => {
+            let text = arg(1)?.as_str()?;
+            Core::Wide(text.parse::<u128>().map_err(|_| ParseError::from(format!("invalid wide constant {text}")))?)
+        }
         "bool" => Core::Bool(arg(1)?.as_bool()?),
         "unit" => Core::Unit,
         "big" => Core::ConstBig { nat: arg(1)?.as_bool()?, digits: arg(2)?.as_str()?.to_string() },

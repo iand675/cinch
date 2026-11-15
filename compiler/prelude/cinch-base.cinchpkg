@@ -286,6 +286,11 @@
       "embedded": true
     },
     {
+      "name": "Data.Wide",
+      "path": "Data/Wide.cinch",
+      "embedded": true
+    },
+    {
       "name": "Data.Hash",
       "path": "Data/Hash.cinch",
       "embedded": true
@@ -383,6 +388,7 @@
     "Data.NonZero",
     "Data.Ascii",
     "Data.Set",
+    "Data.Wide",
     "Data.Hash",
     "Text.Codec",
     "Data.HashMap",

@@ -19,10 +19,37 @@ use std::collections::{HashMap, HashSet};
 
 // ---------------------------------------------------------------- elaboration IR
 
+/// The bit pattern of literal `digits` at wide scalar `s`, range checked
+/// exactly (primitive types specification section 7). The digits are a
+/// sign and a magnitude: `U128`'s maximum is `2^128 - 1`, which no `i128`
+/// holds, so the check runs on the magnitude as a `u128` and the signed
+/// bound `2^127` is compared as one.
+pub(crate) fn literal_wide(s: Scalar, digits: &str, span: ast::Span) -> Result<u128> {
+    let (negative, magnitude) = match digits.strip_prefix('-') {
+        Some(rest) => (true, rest),
+        None => (false, digits),
+    };
+    let out_of_range = || Error::at(span, format!("integer literal {digits} is out of range for {s}"));
+    let m: u128 = magnitude.parse().map_err(|_| out_of_range())?;
+    let fits = match (s.is_signed(), negative) {
+        (false, false) => true,
+        (false, true) => m == 0,
+        (true, false) => m < 1 << 127,
+        (true, true) => m <= 1 << 127,
+    };
+    if !fits {
+        return Err(out_of_range());
+    }
+    Ok(if negative { m.wrapping_neg() } else { m })
+}
+
 #[derive(Clone, Debug)]
 enum ECore {
     /// A raw `i64` word constant (machine scalar values).
     Int(i64),
+    /// A wide scalar constant (`I128`/`U128`): the value's 128-bit two's
+    /// complement bit pattern ([`crate::core::Core::Wide`]).
+    Wide(u128),
     /// A mathematical `Nat`/`Int` constant (decimal digit string with an
     /// optional leading `-`; `nat` selects the `Nat` runtime).
     ConstBig { nat: bool, digits: String },
@@ -318,7 +345,7 @@ fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
                 out.push(*l);
             }
         }
-        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(..)
+        ECore::Int(_) | ECore::Wide(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(..)
         | ECore::Ctor(..) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault
         | ECore::SyntaxLit(..) | ECore::StrLit(_) => {}
         ECore::Quote { holes, .. } | ECore::DeclsQuote { holes, .. } => {
@@ -447,7 +474,7 @@ fn hoist_lambdas(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Vec<H
 fn hoist_lambdas_in(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Vec<HoistedFn>, tparams: &[String], scope: &mut Vec<String>) {
     match e {
         ECore::LitFold { body, .. } => hoist_lambdas_in(body, hint, counter, fns, tparams, scope),
-        ECore::Int(_)
+        ECore::Int(_) | ECore::Wide(_)
         | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_)
         | ECore::Lit(_)
         | ECore::Bool(_)
@@ -599,7 +626,7 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
     match e {
         ECore::LitFold { body, .. } => assign_locals(body, map, next),
         ECore::Var(l) => note_local(*l, map, next),
-        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(..)
+        ECore::Int(_) | ECore::Wide(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(..)
         | ECore::Ctor(..) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault
         | ECore::SyntaxLit(..) | ECore::StrLit(_) => {}
         ECore::Quote { holes, body, .. } => {
@@ -782,6 +809,7 @@ fn remap_ecore(e: &ECore, r: &Remap) -> ECore {
         },
         ECore::Var(l) => ECore::Var(m(l)),
         ECore::Int(v) => ECore::Int(*v),
+        ECore::Wide(v) => ECore::Wide(*v),
         ECore::ConstBig { nat, digits } => ECore::ConstBig {
             nat: *nat,
             digits: digits.clone(),
@@ -922,7 +950,7 @@ struct CopyDeferred {
 
 fn def_parts(e: &ECore, parts: &mut CopyParts) {
     match e {
-        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_)
+        ECore::Int(_) | ECore::Wide(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_)
         | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Var(_) | ECore::Ctor(..) | ECore::Prim(_)
         | ECore::Foreign(_) | ECore::QuoteHole(_) | ECore::Fault
         | ECore::LazyAlloc | ECore::BoxAlloc | ECore::SyntaxLit(..) | ECore::StrLit(_) => {}
@@ -994,7 +1022,7 @@ fn resolve_lit_words(e: &mut ECore, lits: &[ECore]) {
     match e {
         ECore::LitFold { body, .. } => resolve_lit_words(body, lits),
         ECore::Lit(i) => *e = lits[*i].clone(),
-        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Bool(_) | ECore::Unit | ECore::Var(_)
+        ECore::Int(_) | ECore::Wide(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Bool(_) | ECore::Unit | ECore::Var(_)
         | ECore::Global(..)
         | ECore::Ctor(..) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault | ECore::LazyAlloc | ECore::BoxAlloc
         | ECore::SyntaxLit(..) | ECore::StrLit(_) => {}
@@ -1052,7 +1080,7 @@ fn resolve_idx_words(e: &mut ECore, vals: &[ECore]) {
     match e {
         ECore::LitFold { body, .. } => resolve_idx_words(body, vals),
         ECore::IdxPending(i) => *e = vals[*i].clone(),
-        ECore::Int(_)
+        ECore::Int(_) | ECore::Wide(_)
         | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_)
         | ECore::Lit(_)
         | ECore::Bool(_)
@@ -1167,7 +1195,7 @@ fn reify_value(v: &crate::core::Value, string_ctor: &str) -> Option<ECore> {
 /// collection literal around one keeps its runtime class call.
 fn fold_blocked(e: &ECore) -> bool {
     match e {
-        ECore::Int(_)
+        ECore::Int(_) | ECore::Wide(_)
         | ECore::ConstBig { .. }
         | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_)
         | ECore::Bool(_)
@@ -1378,7 +1406,7 @@ impl<'a> LowerCx<'a> {
             ECore::ConstBig { .. } => Some(Class::TObj),
             ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::MkClos { .. } | ECore::Lam { .. }
             | ECore::InstDict(..) | ECore::LazyAlloc | ECore::BoxAlloc | ECore::Quote { .. } => Some(Class::Obj),
-            ECore::Int(_) | ECore::Bool(_) | ECore::Unit | ECore::ConstSym(_) | ECore::LazyInit(..)
+            ECore::Int(_) | ECore::Wide(_) | ECore::Bool(_) | ECore::Unit | ECore::ConstSym(_) | ECore::LazyInit(..)
             | ECore::RefSet(..) | ECore::BoxClear(..) => Some(Class::Raw),
             ECore::App(f, _) if matches!(**f, ECore::Ctor(..)) => Some(Class::Obj),
             ECore::If(_, t, f) => self.expr_class(&t.body).or_else(|| self.expr_class(&f.body)),
@@ -1452,6 +1480,7 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
     let low = |x: &ECore| lower(x, cx);
     match e {
         ECore::Int(v) => C::Int(*v),
+        ECore::Wide(v) => C::Wide(*v),
         ECore::ConstBig { nat, digits } => C::ConstBig {
             nat: *nat,
             digits: digits.clone(),
@@ -5633,6 +5662,7 @@ impl Checker {
             Ty::Int => Ok(ECore::ConstBig { nat: false, digits: digits.to_string() }),
             Ty::Sym => Ok(ECore::ConstSym(digits.to_string())),
             Ty::Adt(..) if self.refine_view(ty).is_some() => self.literal_refined(ty, digits, span),
+            Ty::Prim(s) if s.is_wide() => Ok(ECore::Wide(literal_wide(*s, digits, span)?)),
             t => Ok(ECore::Int(self.literal_word(t, digits, span)?)),
         }
     }
@@ -5693,6 +5723,10 @@ impl Checker {
             Ty::Int | Ty::Nat => {
                 unreachable!("mathematical literals materialise through literal_const")
             }
+            Ty::Prim(s) if s.is_wide() => Err(Error::at(
+                span,
+                format!("internal error: the {s} literal {digits} reached the word literal path"),
+            )),
             Ty::Prim(s) if s.is_int_like() => {
                 // `Usize`/`Isize` take their width from the target
                 // profile (primitive types specification section 2: the
@@ -5832,7 +5866,7 @@ impl Checker {
                     }
                 }
             }
-            ECore::Int(_)
+            ECore::Int(_) | ECore::Wide(_)
             | ECore::ConstBig { .. }
             | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_)
             | ECore::Lit(_)
@@ -11863,7 +11897,7 @@ impl Checker {
                 Some(d) => dict_expr_ecore(d),
                 None => return Err(Error::plain("internal error: unsolved dictionary hole")),
             },
-            ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Lit(_) | ECore::Bool(_)
+            ECore::Int(_) | ECore::Wide(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Lit(_) | ECore::Bool(_)
             | ECore::Unit | ECore::Var(_) | ECore::Global(..)
             | ECore::Ctor(..) | ECore::Prim(_) | ECore::Foreign(_) | ECore::QuoteHole(_)
             | ECore::IdxPending(_) | ECore::Fault

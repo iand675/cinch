@@ -1,0 +1,72 @@
+-- Data.Wide: the wide scalar types `I128` and `U128` and their
+-- operations (design/wide-scalars.md).
+--
+-- The two types are the primitive types specification's optional
+-- 128-bit extension (section 2). Their names are kernel types like every
+-- machine scalar's; their operations live here, in a module a program
+-- imports explicitly (`import Data.Wide`), so the core prelude and every
+-- existing program are unchanged. Names follow decision D6, as in
+-- `Data.Machine`: `wrapping-add-i128`, `eq-u128`.
+--
+-- A wide value is unboxed: an LLVM `i128` in every local, parameter and
+-- result, never a word. Overflow is never implicit, exactly as for the
+-- narrower types: `wrapping` is two's complement wrap modulo 2^128 and
+-- `saturating` clamps to the bounds.
+--
+-- The bounds carry no refinement: the refinement solver's integer sorts
+-- are `i128` ranges, which cannot state `U128`'s maximum (2^128 - 1), so
+-- `max-bound-u128 :: U128` is declared plain until the solver carries a
+-- wider sort (design/wide-scalars.md section 4).
+--
+-- Phase 1 of the design lands in increments. This module carries what
+-- the emitter lowers so far: bounds, wrapping and saturating addition,
+-- subtraction, multiplication and negation, the bitwise operations, and
+-- comparison. The checked families, division, shifts, rotates, bit
+-- inspection, conversions and the instances follow.
+module Data.Wide where
+
+  export bit-and-i128, bit-and-u128, bit-not-i128, bit-not-u128, bit-or-i128, bit-or-u128, bit-xor-i128, bit-xor-u128, eq-i128, eq-u128, ge-i128, ge-u128, gt-i128, gt-u128, le-i128, le-u128, lt-i128, lt-u128, max-bound-i128, max-bound-u128, min-bound-i128, min-bound-u128, ne-i128, ne-u128, saturating-add-i128, saturating-add-u128, saturating-mul-i128, saturating-mul-u128, saturating-neg-i128, saturating-neg-u128, saturating-sub-i128, saturating-sub-u128, wrapping-add-i128, wrapping-add-u128, wrapping-mul-i128, wrapping-mul-u128, wrapping-neg-i128, wrapping-neg-u128, wrapping-sub-i128, wrapping-sub-u128
+
+  -- I128 (128 bits).
+  foreign import ccall "cinch.prim.minBoundI128" min-bound-i128 :: I128
+  foreign import ccall "cinch.prim.maxBoundI128" max-bound-i128 :: I128
+  foreign import ccall "cinch.prim.wrappingAddI128" wrapping-add-i128 :: I128 -> I128 -> I128
+  foreign import ccall "cinch.prim.wrappingSubI128" wrapping-sub-i128 :: I128 -> I128 -> I128
+  foreign import ccall "cinch.prim.wrappingMulI128" wrapping-mul-i128 :: I128 -> I128 -> I128
+  foreign import ccall "cinch.prim.saturatingAddI128" saturating-add-i128 :: I128 -> I128 -> I128
+  foreign import ccall "cinch.prim.saturatingSubI128" saturating-sub-i128 :: I128 -> I128 -> I128
+  foreign import ccall "cinch.prim.saturatingMulI128" saturating-mul-i128 :: I128 -> I128 -> I128
+  foreign import ccall "cinch.prim.wrappingNegI128" wrapping-neg-i128 :: I128 -> I128
+  foreign import ccall "cinch.prim.saturatingNegI128" saturating-neg-i128 :: I128 -> I128
+  foreign import ccall "cinch.prim.bitAndI128" bit-and-i128 :: I128 -> I128 -> I128
+  foreign import ccall "cinch.prim.bitOrI128" bit-or-i128 :: I128 -> I128 -> I128
+  foreign import ccall "cinch.prim.bitXorI128" bit-xor-i128 :: I128 -> I128 -> I128
+  foreign import ccall "cinch.prim.bitNotI128" bit-not-i128 :: I128 -> I128
+  foreign import ccall "cinch.prim.eqI128" eq-i128 :: I128 -> I128 -> Bool
+  foreign import ccall "cinch.prim.neI128" ne-i128 :: I128 -> I128 -> Bool
+  foreign import ccall "cinch.prim.ltI128" lt-i128 :: I128 -> I128 -> Bool
+  foreign import ccall "cinch.prim.leI128" le-i128 :: I128 -> I128 -> Bool
+  foreign import ccall "cinch.prim.gtI128" gt-i128 :: I128 -> I128 -> Bool
+  foreign import ccall "cinch.prim.geI128" ge-i128 :: I128 -> I128 -> Bool
+
+  -- U128 (128 bits).
+  foreign import ccall "cinch.prim.minBoundU128" min-bound-u128 :: U128
+  foreign import ccall "cinch.prim.maxBoundU128" max-bound-u128 :: U128
+  foreign import ccall "cinch.prim.wrappingAddU128" wrapping-add-u128 :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.wrappingSubU128" wrapping-sub-u128 :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.wrappingMulU128" wrapping-mul-u128 :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.saturatingAddU128" saturating-add-u128 :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.saturatingSubU128" saturating-sub-u128 :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.saturatingMulU128" saturating-mul-u128 :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.wrappingNegU128" wrapping-neg-u128 :: U128 -> U128
+  foreign import ccall "cinch.prim.saturatingNegU128" saturating-neg-u128 :: U128 -> U128
+  foreign import ccall "cinch.prim.bitAndU128" bit-and-u128 :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.bitOrU128" bit-or-u128 :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.bitXorU128" bit-xor-u128 :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.bitNotU128" bit-not-u128 :: U128 -> U128
+  foreign import ccall "cinch.prim.eqU128" eq-u128 :: U128 -> U128 -> Bool
+  foreign import ccall "cinch.prim.neU128" ne-u128 :: U128 -> U128 -> Bool
+  foreign import ccall "cinch.prim.ltU128" lt-u128 :: U128 -> U128 -> Bool
+  foreign import ccall "cinch.prim.leU128" le-u128 :: U128 -> U128 -> Bool
+  foreign import ccall "cinch.prim.gtU128" gt-u128 :: U128 -> U128 -> Bool
+  foreign import ccall "cinch.prim.geU128" ge-u128 :: U128 -> U128 -> Bool

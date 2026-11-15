@@ -20109,6 +20109,10 @@ impl Checker {
                 };
                 Ok(ECore::Int(w))
             }
+            (JsonVal::Num(d), Ty::Prim(s)) if s.is_wide() => {
+                let bits = crate::check::literal_wide(*s, d, span).map_err(|e| e.message)?;
+                Ok(ECore::Wide(bits))
+            }
             (JsonVal::Num(d), t @ Ty::Prim(_)) => {
                 let w = self.literal_word(t, d, span).map_err(|e| e.message)?;
                 Ok(ECore::Int(w))
@@ -21627,6 +21631,11 @@ impl Checker {
         use crate::core::Core;
         Ok(match e {
             Core::Int(i) => Value::Word(*i),
+            Core::Wide(_) => {
+                return Err(Error::plain(
+                    "compile-time evaluation does not hold `I128`/`U128` values yet (design/wide-scalars.md, phase 2)",
+                ))
+            }
             Core::ConstBig { nat, digits } => Value::Big {
                 nat: *nat,
                 digits: digits.clone(),
@@ -22017,6 +22026,14 @@ impl Checker {
     /// Primitive operation semantics for compile-time evaluation.
     fn eval_prim(&mut self, cx: &mut StageCx, op: PrimOp, args: &[Value]) -> Result<Value> {
         use crate::core::{ArithMode, ArithOp, BitOp, CmpOp, IntOp, NatOp, PrimOp, ShiftOp};
+        // The evaluator's machine values are words; an operation over a
+        // wide scalar would compute at the wrong width.
+        if op.touches_wide() {
+            return Err(Error::plain(format!(
+                "compile-time evaluation does not compute `{}` over `I128`/`U128` yet (design/wide-scalars.md, phase 2)",
+                op.symbol()
+            )));
+        }
         match op {
             PrimOp::Nat(nat) => {
                 // FromI64 consumes a machine word, not a mathematical
@@ -24238,7 +24255,9 @@ fn scalar_samples(s: &crate::types::Scalar) -> Vec<Value> {
         I64 => vec![w(-1), w(0), w(1), w(i64::MIN)],
         Usize | Isize => vec![w(0), w(1), w(-1)],
         Char => vec![w(0), w(65), w(0x10FFFF)],
-        F32 | F64 => Vec::new(),
+        // Not sampled: floats compare equal to nothing at NaN, and a wide
+        // scalar's values are not words the evaluator holds.
+        F32 | F64 | I128 | U128 => Vec::new(),
     }
 }
 

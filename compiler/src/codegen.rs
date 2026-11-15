@@ -230,6 +230,7 @@ fn emit_module(
     emit_modules: &[String],
     prune: bool,
 ) -> Result<EmittedObject> {
+    refuse_unlowered_wide(program)?;
     let cx = LowerCx {
         usize_bits: profile.word_size,
         coop_tasks: profile.artifact != crate::core::ArtifactProfile::Native,
@@ -559,6 +560,27 @@ fn emit_module(
         out.push_str(&format!("declare {w} @llvm.cttz.{w}({w}, i1)\n"));
         out.push_str(&format!("declare {w} @llvm.bitreverse.{w}({w})\n"));
     }
+    // The `i128` family, only for a program that reaches a wide scalar's
+    // primitive (design/wide-scalars.md section 5), so no other module's
+    // text changes.
+    if reg.prims.iter().any(|op| op.touches_wide()) {
+        for sign in ["s", "u"] {
+            for o in ["add", "sub", "mul"] {
+                out.push_str(&format!("declare {{ i128, i1 }} @llvm.{sign}{o}.with.overflow.i128(i128, i128)\n"));
+            }
+            for o in ["add", "sub"] {
+                out.push_str(&format!("declare i128 @llvm.{sign}{o}.sat.i128(i128, i128)\n"));
+            }
+        }
+        for f in ["fshl", "fshr"] {
+            out.push_str(&format!("declare i128 @llvm.{f}.i128(i128, i128, i128)\n"));
+        }
+        out.push_str("declare i128 @llvm.bswap.i128(i128)\n");
+        out.push_str("declare i128 @llvm.ctpop.i128(i128)\n");
+        out.push_str("declare i128 @llvm.ctlz.i128(i128, i1)\n");
+        out.push_str("declare i128 @llvm.cttz.i128(i128, i1)\n");
+        out.push_str("declare i128 @llvm.bitreverse.i128(i128)\n");
+    }
     out.push('\n');
     if object {
         out.push_str("declare i64 @__apply(i64, i64, ptr)\n");
@@ -793,6 +815,19 @@ fn emit_module(
     let mut closure_taken: HashSet<String> = HashSet::new();
     for u in &units {
         closure_taken.extend(u.scan.closures_taken.iter().cloned());
+    }
+    // A taken closure is reached through its apply stub, whose frame holds
+    // words; a unit with a wide boundary cannot be saturated from one
+    // until the stub boxes and unboxes (design/wide-scalars.md section 3).
+    if let Some(unit) = closure_taken
+        .iter()
+        .filter(|u| reg.narrow_sigs.get(*u).is_some_and(NarrowSig::is_wide))
+        .min()
+    {
+        return err(format!(
+            "`{}` has an `I128`/`U128` boundary and is used as a function value (a closure or a dictionary method), which code generation does not lower yet (design/wide-scalars.md, phase 1)",
+            crate::repr::base_unit(unit)
+        ));
     }
     for u in &units {
         let primitive = reg.prims.iter().any(|op| op.symbol() == u.name);
@@ -1123,6 +1158,7 @@ impl Registry {
                 Class::Raw => "R",
                 Class::Obj => "O",
                 Class::TObj => "T",
+                Class::Wide => "W",
                 Class::Param(_) => {
                     return err("object ABI contains an unresolved representation parameter")
                 }
@@ -1563,12 +1599,40 @@ impl Registry {
         // program's `main` is called by the runtime through a fixed
         // `i64 ()` pointer (`cinch_run_main`), so it keeps the word too.
         reg.tail_width = crate::core::tail_widths(p);
+        // A wide unit's boundary is its type, not an optimisation, so it is
+        // decided first and never dropped. A mixed-arity tail group lowers
+        // through one word-typed worker (`tail_width`), which a wide
+        // position cannot cross, so a group with a wide member is not
+        // widened: its calls are ordinary calls, and a self tail call is
+        // still a loop.
+        let is_wide_unit = |f: &FnDef| f.repr.result == Some(Class::Wide) || f.repr.params.contains(&Class::Wide);
+        let wide_units: HashSet<&str> = p.fns.iter().filter(|f| is_wide_unit(f)).map(|f| f.id.0.as_str()).collect();
+        if !wide_units.is_empty() {
+            for group in crate::core::tail_report(p) {
+                if group.members.iter().any(|m| wide_units.contains(m.as_str())) {
+                    for m in &group.members {
+                        reg.tail_width.remove(m);
+                    }
+                }
+            }
+        }
+        for f in p.fns.iter().filter(|f| is_wide_unit(f)) {
+            let base = NarrowSig::of(&f.meta.contract, reg.pointer_bytes);
+            let sig = base.with_wide(&f.repr.params, f.repr.result);
+            reg.narrow_sigs.insert(f.id.0.clone(), sig);
+        }
+        for op in &reg.prims {
+            if let Some(sig) = NarrowSig::of_wide_prim(*op) {
+                reg.narrow_sigs.insert(op.symbol(), sig);
+            }
+        }
         for f in &p.fns {
             if f.prim.is_some()
                 || f.ctor.is_some()
                 || f.meta.prim_body
                 || reg.tail_width.contains_key(&f.id.0)
                 || p.main.as_ref() == Some(&f.id)
+                || wide_units.contains(f.id.0.as_str())
             {
                 continue;
             }
@@ -1591,8 +1655,13 @@ impl Registry {
                 let proto = |name: &String| reg.narrow_sigs.get(name).map(NarrowSig::proto);
                 let first = group.members.first().map(&proto);
                 if group.members.iter().any(|m| Some(proto(m)) != first) {
+                    // A wide signature stays: it is the unit's type. The
+                    // group's calls between differing prototypes are then
+                    // ordinary calls (the `musttail` arm compares them).
                     for m in &group.members {
-                        reg.narrow_sigs.remove(m);
+                        if !reg.narrow_sigs.get(m).is_some_and(NarrowSig::is_wide) {
+                            reg.narrow_sigs.remove(m);
+                        }
                     }
                 }
             }
@@ -2027,12 +2096,14 @@ fn concrete(c: Class) -> Class {
     }
 }
 
-/// The pointer-map code (`block_kinds.rs`) of a word's class.
+/// The pointer-map code (`block_kinds.rs`) of a word's class. A `Wide`
+/// value is two words, each of them raw; a map is expanded to words
+/// before it reaches here, so `Wide` names each of its halves.
 fn scan_code(c: Class) -> u64 {
     match c {
         Class::Obj => block::SCAN_OBJ,
         Class::TObj => block::SCAN_TOBJ,
-        Class::Raw | Class::Param(_) => block::SCAN_RAW,
+        Class::Raw | Class::Wide | Class::Param(_) => block::SCAN_RAW,
     }
 }
 
@@ -3536,6 +3607,10 @@ fn build_unit(
     // apply stub read the one answer.
     let narrow = match &body {
         UnitBody::Fn(_) => reg.narrow_sigs.get(name),
+        // A primitive over wide scalars takes and gives `i128` at its wide
+        // positions (`NarrowSig::of_wide_prim`); every other primitive's
+        // boundary is the word.
+        UnitBody::Prim(op) if op.touches_wide() => reg.narrow_sigs.get(name),
         _ => None,
     };
     match &body {
@@ -3571,7 +3646,11 @@ fn build_unit(
             }
             let lent = reg.lent.get(name);
             b.ret_drops = borrowed(&|i| prim_consumes(*op, i) || lent.is_some_and(|m| m.get(i).copied().unwrap_or(false)));
-            prim_body(&mut b, cx, reg, name, *op);
+            if op.touches_wide() {
+                wide_prim_body(&mut b, *op)?;
+            } else {
+                prim_body(&mut b, cx, reg, name, *op);
+            }
         }
         UnitBody::Ctor(fields) => {
             let desc = reg.ctor_desc(name)?;
@@ -3787,6 +3866,7 @@ fn narrow_llvm_ty(bits: u32) -> &'static str {
         8 => "i8",
         16 => "i16",
         32 => "i32",
+        128 => "i128",
         _ => "i64",
     }
 }
@@ -3809,6 +3889,11 @@ struct Cross {
 
 impl Cross {
     const WORD: Cross = Cross { bits: 64, sext: false };
+    /// A wide position (`Class::Wide`, design/wide-scalars.md): the value
+    /// is an `i128` on both sides of the boundary and in the body, so
+    /// crossing converts nothing. Unlike a narrowed position it is not an
+    /// optimisation the registry may drop; it is the value's own type.
+    const WIDE: Cross = Cross { bits: 128, sext: false };
 
     /// `n` resolved on a target whose pointers are `pointer_bytes` wide:
     /// a `csize` crossing is the slot unless the pointer is narrower.
@@ -3824,16 +3909,26 @@ impl Cross {
     }
 
     fn is_word(self) -> bool {
-        self.bits >= 64
+        self.bits == 64
+    }
+
+    fn is_wide(self) -> bool {
+        self.bits == 128
+    }
+
+    /// A narrowed position: fewer bits than the word.
+    fn is_narrow(self) -> bool {
+        self.bits < 64
     }
 
     fn ty(self) -> &'static str {
         narrow_llvm_ty(self.bits)
     }
 
-    /// The slot word of a value that crossed at this width.
+    /// The slot word of a value that crossed at this width (a wide value
+    /// is its own slot value).
     fn widen(self, b: &mut Builder, v: &str) -> String {
-        if self.is_word() {
+        if !self.is_narrow() {
             return v.to_string();
         }
         let ext = if self.sext { "sext" } else { "zext" };
@@ -3845,7 +3940,7 @@ impl Cross {
     /// The narrowed value of the slot word `v`. Every value of a narrowed
     /// position fits its width, so the truncation drops nothing.
     fn narrow(self, b: &mut Builder, v: &str) -> String {
-        if self.is_word() {
+        if !self.is_narrow() {
             return v.to_string();
         }
         let w = b.reg();
@@ -3872,6 +3967,42 @@ impl NarrowSig {
 
     fn is_word(&self) -> bool {
         self.ret.is_word() && self.params.iter().all(|p| p.is_word())
+    }
+
+    /// Whether any position is wide: such a signature is the unit's own
+    /// type, never dropped for a prototype mismatch.
+    fn is_wide(&self) -> bool {
+        self.ret.is_wide() || self.params.iter().any(|p| p.is_wide())
+    }
+
+    /// The boundary of a unit whose classes name a wide position: `WIDE`
+    /// there, and the narrowed crossing (or the word) everywhere else.
+    fn with_wide(mut self, params: &[Class], ret: Option<Class>) -> NarrowSig {
+        if self.params.len() < params.len() {
+            self.params.resize(params.len(), Cross::WORD);
+        }
+        for (i, c) in params.iter().enumerate() {
+            if *c == Class::Wide {
+                self.params[i] = Cross::WIDE;
+            }
+        }
+        if ret == Some(Class::Wide) {
+            self.ret = Cross::WIDE;
+        }
+        self
+    }
+
+    /// The boundary of a primitive over wide scalars, from its signature.
+    fn of_wide_prim(op: PrimOp) -> Option<NarrowSig> {
+        if !op.touches_wide() {
+            return None;
+        }
+        let (params, ret) = prim_sig(op)?;
+        let cross = |t: &crate::types::Ty| match t {
+            crate::types::Ty::Prim(s) if s.is_wide() => Cross::WIDE,
+            _ => Cross::WORD,
+        };
+        Some(NarrowSig { params: params.iter().map(cross).collect(), ret: cross(&ret) })
     }
 
     fn param(&self, i: usize) -> Cross {
@@ -4492,6 +4623,16 @@ impl Builder {
         r
     }
 
+    /// A slot of LLVM type `ty`: the word, or `i128` for a wide value.
+    fn alloca_ty(&mut self, ty: &str) -> String {
+        if ty == "i64" {
+            return self.alloca_i64();
+        }
+        let r = self.reg();
+        self.allocas.push_str(&format!("  {r} = alloca {ty}, align 16\n"));
+        r
+    }
+
     fn alloca_words(&mut self, n: usize) -> String {
         let r = self.reg();
         self.allocas
@@ -4569,7 +4710,64 @@ fn int_ty(s: Scalar) -> &'static str {
         8 => "i8",
         16 => "i16",
         32 => "i32",
+        128 => "i128",
         _ => "i64",
+    }
+}
+
+/// Refuse, by name, a wide scalar in a position the emitter does not
+/// lower yet (design/wide-scalars.md section 10). The word paths assume
+/// one `i64` per value, so a `Wide` class reaching one would be invalid IR
+/// at best; this is the one auditable list of what phase 1 still refuses.
+/// The emitter lowers locals, parameters, results, direct calls, joins,
+/// decisions and the wide primitives; the edge pass (word positions) and
+/// constructor fields are later increments.
+fn refuse_unlowered_wide(program: &Program) -> Result<()> {
+    for f in &program.fns {
+        let unit = crate::repr::base_unit(&f.id.0);
+        let refuse = |what: &str| {
+            err(format!(
+                "`{unit}` holds an `I128` or `U128` value in {what}, which code generation does not lower yet (design/wide-scalars.md, phase 1)"
+            ))
+        };
+        if f.ctor.is_some() && f.repr.fields.contains(&Class::Wide) {
+            return refuse("a constructor field");
+        }
+        let mut found: Option<&'static str> = None;
+        let mut walk = |e: &Core| {
+            let what = match e {
+                Core::Proj(_, p) if p.class == Class::Wide => Some("a constructor field"),
+                Core::DictProj(_, _, _, Class::Wide) => Some("a dictionary slot"),
+                Core::Demand(_, Class::Wide) => Some("a lazy cell"),
+                Core::BoxGet(_, Class::Wide)
+                | Core::BoxClear(_, Class::Wide)
+                | Core::BoxInit(_, _, Class::Wide)
+                | Core::RefSet(_, _, Class::Wide) => Some("a mutable cell"),
+                Core::Prim(PrimOp::Par { classes, .. }) if classes.contains(&Class::Wide) => {
+                    Some("a parallel task's payload")
+                }
+                _ => None,
+            };
+            if found.is_none() {
+                found = what;
+            }
+        };
+        visit_core(&f.body, &mut walk);
+        if let Some(what) = found {
+            return refuse(what);
+        }
+    }
+    Ok(())
+}
+
+/// Every node of `e`, outermost first.
+fn visit_core(e: &Core, f: &mut impl FnMut(&Core)) {
+    f(e);
+    if let Core::App(h, _) = e {
+        visit_core(h, f);
+    }
+    for k in crate::core::child_slots_imm(e) {
+        visit_core(k, f);
     }
 }
 
@@ -4909,6 +5107,148 @@ fn arith_overflow(
             ret(b, &out);
         }
     }
+}
+
+/// The body of a primitive over a wide scalar (design/wide-scalars.md
+/// section 5). Its wide operands arrive as `i128` (`%p0`, `%p1`) and a
+/// wide result returns as one, so each operation is the LLVM instruction
+/// at width 128 with nothing to canonicalise afterwards: the value is its
+/// own width. A result that is a word (a comparison's `Bool`) returns as
+/// the word. The operations that build an `Option` are the constructor
+/// increment's (`Some@W` holds a two-word field), and the rest of the
+/// surface is phase 2's; both are refused by name here.
+fn wide_prim_body(b: &mut Builder, op: PrimOp) -> Result<()> {
+    use PrimOp::*;
+    let not_yet = |what: &str| {
+        err(format!(
+            "`{}` ({what}) over `I128`/`U128` is not lowered yet (design/wide-scalars.md section 10)",
+            op.symbol()
+        ))
+    };
+    let ret128 = |b: &mut Builder, v: &str| b.line(&format!("ret i128 {v}"));
+    match op {
+        Bound { ty, max } => {
+            let bits = if max { ty.max_bound_bits() } else { ty.min_bound_bits() };
+            ret128(b, &(bits as i128).to_string());
+        }
+        Arith { ty, op: aop, mode } => {
+            let inst = match aop {
+                ArithOp::Add => "add",
+                ArithOp::Sub => "sub",
+                ArithOp::Mul => "mul",
+            };
+            match mode {
+                ArithMode::Wrapping => {
+                    let r = b.reg();
+                    b.line(&format!("{r} = {inst} i128 %p0, %p1"));
+                    ret128(b, &r);
+                }
+                ArithMode::Saturating => {
+                    let signed = ty.is_signed();
+                    let (min, max) = (ty.min_bound_bits() as i128, ty.max_bound_bits() as i128);
+                    let out = if aop != ArithOp::Mul {
+                        // `llvm.{s,u}{add,sub}.sat` is the operation.
+                        let r = b.reg();
+                        b.line(&format!(
+                            "{r} = call i128 @llvm.{}{inst}.sat.i128(i128 %p0, i128 %p1)",
+                            if signed { "s" } else { "u" }
+                        ));
+                        r
+                    } else {
+                        // No saturating multiply intrinsic: the overflow
+                        // flag picks the bound the product points to.
+                        let res = b.reg();
+                        b.line(&format!(
+                            "{res} = call {{ i128, i1 }} @llvm.{}mul.with.overflow.i128(i128 %p0, i128 %p1)",
+                            if signed { "s" } else { "u" }
+                        ));
+                        let val = b.reg();
+                        b.line(&format!("{val} = extractvalue {{ i128, i1 }} {res}, 0"));
+                        let flag = b.reg();
+                        b.line(&format!("{flag} = extractvalue {{ i128, i1 }} {res}, 1"));
+                        let bound = if signed {
+                            let sa = b.reg();
+                            b.line(&format!("{sa} = icmp slt i128 %p0, 0"));
+                            let sb = b.reg();
+                            b.line(&format!("{sb} = icmp slt i128 %p1, 0"));
+                            let same = b.reg();
+                            b.line(&format!("{same} = icmp eq i1 {sa}, {sb}"));
+                            let r = b.reg();
+                            b.line(&format!("{r} = select i1 {same}, i128 {max}, i128 {min}"));
+                            r
+                        } else {
+                            max.to_string()
+                        };
+                        let r = b.reg();
+                        b.line(&format!("{r} = select i1 {flag}, i128 {bound}, i128 {val}"));
+                        r
+                    };
+                    ret128(b, &out);
+                }
+                ArithMode::Checked => return not_yet("an `Option` result"),
+            }
+        }
+        Neg { ty, mode } => match mode {
+            ArithMode::Wrapping => {
+                let r = b.reg();
+                b.line(&format!("{r} = sub i128 0, %p0"));
+                ret128(b, &r);
+            }
+            ArithMode::Saturating => {
+                // Signed: `-minBound` clamps to `maxBound`. Unsigned: every
+                // negation is at most zero, so it clamps to zero.
+                if ty.is_signed() {
+                    let is_min = b.reg();
+                    b.line(&format!("{is_min} = icmp eq i128 %p0, {}", ty.min_bound_bits() as i128));
+                    let r = b.reg();
+                    b.line(&format!("{r} = sub i128 0, %p0"));
+                    let out = b.reg();
+                    b.line(&format!("{out} = select i1 {is_min}, i128 {}, i128 {r}", ty.max_bound_bits() as i128));
+                    ret128(b, &out);
+                } else {
+                    ret128(b, "0");
+                }
+            }
+            ArithMode::Checked => return not_yet("an `Option` result"),
+        },
+        Bit { op: bop, .. } => {
+            let inst = match bop {
+                BitOp::And => "and",
+                BitOp::Or => "or",
+                BitOp::Xor => "xor",
+            };
+            let r = b.reg();
+            b.line(&format!("{r} = {inst} i128 %p0, %p1"));
+            ret128(b, &r);
+        }
+        BitNot { .. } => {
+            let r = b.reg();
+            b.line(&format!("{r} = xor i128 %p0, -1"));
+            ret128(b, &r);
+        }
+        Cmp { ty, op: cop } => {
+            let pred = match (cop, ty.is_signed()) {
+                (CmpOp::Eq, _) => "eq",
+                (CmpOp::Ne, _) => "ne",
+                (CmpOp::Lt, true) => "slt",
+                (CmpOp::Le, true) => "sle",
+                (CmpOp::Gt, true) => "sgt",
+                (CmpOp::Ge, true) => "sge",
+                (CmpOp::Lt, false) => "ult",
+                (CmpOp::Le, false) => "ule",
+                (CmpOp::Gt, false) => "ugt",
+                (CmpOp::Ge, false) => "uge",
+            };
+            let c = b.reg();
+            b.line(&format!("{c} = icmp {pred} i128 %p0, %p1"));
+            let r = b.reg();
+            b.line(&format!("{r} = zext i1 {c} to i64"));
+            ret(b, &r);
+        }
+        CheckedDiv { .. } | CheckedRem { .. } => return not_yet("an `Option` result"),
+        _ => return not_yet("phase 2's surface"),
+    }
+    Ok(())
 }
 
 fn rt_call(b: &mut Builder, f: &str, args: &[String]) -> String {
@@ -7717,6 +8057,7 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result
         loop_meta: crate::loopmeta::LoopMeta::new(f.hints.unroll),
         bound: bound.into_iter().collect(),
         slots: HashMap::new(),
+        wide: wide_locals(f),
         joins: HashMap::new(),
         frame: reg.frame.get(&f.id.0),
         frame_bases: HashMap::new(),
@@ -7733,9 +8074,16 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result
     // not `254`), while an unsigned scalar, a float's bits, a pointer and
     // a `Nat` zero-extend.
     for i in 0..f.arity() {
+        let ty = e.local_ty(LocalId(i));
+        if (ty == "i128") != cross(i).is_wide() {
+            return err(format!(
+                "{}: parameter {i}'s class and its boundary disagree about width (design/wide-scalars.md)",
+                f.id.0
+            ));
+        }
         let slot = e.slot(LocalId(i));
         let w = cross(i).widen(e.b, &format!("%p{i}"));
-        e.b.line(&format!("store i64 {w}, ptr {slot}"));
+        e.b.line(&format!("store {ty} {w}, ptr {slot}"));
     }
     // P20's `#[checked-params]` row re-states as `llvm.assume` operand
     // bundles at the entry (design/llvm-contract-attributes.md item 4):
@@ -7785,10 +8133,58 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result
     e.emit_tail(&f.body)
 }
 
+/// The locals of `f` whose class is `Wide`: its wide parameters and every
+/// wide binder in its body (`Let`, a case variable or constructor field,
+/// a join parameter). Their slots are `i128`.
+fn wide_locals(f: &FnDef) -> HashSet<LocalId> {
+    fn walk(e: &Core, out: &mut HashSet<LocalId>) {
+        match e {
+            Core::Let(x, Class::Wide, _, _) => {
+                out.insert(*x);
+            }
+            Core::Join { params, .. } => {
+                out.extend(params.iter().filter(|(_, c)| *c == Class::Wide).map(|(x, _)| *x));
+            }
+            Core::Case { alts, .. } => {
+                for a in alts {
+                    match &a.pat {
+                        CPat::Var(x, Class::Wide) => {
+                            out.insert(*x);
+                        }
+                        CPat::Con { fields, classes, .. } => {
+                            for (x, c) in fields.iter().zip(classes) {
+                                if *c == Class::Wide {
+                                    out.insert(*x);
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+        for k in crate::core::child_slots_imm(e) {
+            walk(k, out);
+        }
+    }
+    let mut out: HashSet<LocalId> = f
+        .repr
+        .params
+        .iter()
+        .enumerate()
+        .filter(|(_, c)| **c == Class::Wide)
+        .map(|(i, _)| LocalId(i))
+        .collect();
+    walk(&f.body, &mut out);
+    out
+}
+
 /// The primitive operations mentioned in a body.
 fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
     match e {
         Core::Int(_)
+        | Core::Wide(_)
         | Core::ConstBig { .. }
         | Core::ConstBytes(_)
         | Core::ConstString { .. }
@@ -7870,6 +8266,7 @@ fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
 fn collect_binders(e: &Core, out: &mut Vec<LocalId>) {
     match e {
         Core::Int(_)
+        | Core::Wide(_)
         | Core::ConstBig { .. }
         | Core::ConstBytes(_)
         | Core::ConstString { .. }
@@ -7981,6 +8378,9 @@ struct CoreEmitter<'a, 'b> {
     loop_meta: crate::loopmeta::LoopMeta,
     bound: HashSet<LocalId>,
     slots: HashMap<LocalId, String>,
+    /// The locals whose class is `Wide` (design/wide-scalars.md): their
+    /// slots are `i128`, and every store and load of them is.
+    wide: HashSet<LocalId>,
     /// The joins in scope, by id. A `Jump` branches to its join's block and
     /// stores its arguments in the parameter slots; the join's block reads
     /// them (the slots are entry allocas, so a jump from any depth is the
@@ -8017,6 +8417,8 @@ struct CoreEmitter<'a, 'b> {
 struct JoinSite {
     label: String,
     slots: Vec<String>,
+    /// Each parameter slot's LLVM type (`i64`, or `i128` for a wide one).
+    tys: Vec<&'static str>,
     base: usize,
 }
 
@@ -8030,7 +8432,7 @@ struct JoinSite {
 #[derive(Clone)]
 enum Dest {
     Ret,
-    Slot { slot: String, label: String, base: usize },
+    Slot { slot: String, label: String, base: usize, ty: &'static str },
 }
 
 impl Dest {
@@ -8045,8 +8447,8 @@ impl Dest {
                 let w = ret.narrow(b, v);
                 b.line(&format!("ret {} {w}", ret.ty()));
             }
-            Dest::Slot { slot, label, .. } => {
-                b.line(&format!("store i64 {v}, ptr {slot}"));
+            Dest::Slot { slot, label, ty, .. } => {
+                b.line(&format!("store {ty} {v}, ptr {slot}"));
                 b.line(&format!("br label %{label}"));
             }
         }
@@ -8069,9 +8471,79 @@ impl CoreEmitter<'_, '_> {
         if let Some(s) = self.slots.get(&x) {
             return s.clone();
         }
-        let s = self.b.alloca_i64();
+        let ty = self.local_ty(x);
+        let s = self.b.alloca_ty(ty);
         self.slots.insert(x, s.clone());
         s
+    }
+
+    /// A local's LLVM type: `i128` for a `Wide` binder, else the word.
+    fn local_ty(&self, x: LocalId) -> &'static str {
+        if self.wide.contains(&x) {
+            "i128"
+        } else {
+            "i64"
+        }
+    }
+
+    /// Whether `e`'s value is wide: an `i128` operand rather than a word.
+    /// A binder's class is authoritative (`Self::wide`); an unbound
+    /// expression is wide when it is a wide literal, a wide local, a call
+    /// of a unit whose result crosses wide, a wide field, or a form that
+    /// delivers one of those.
+    fn rep_wide(&self, e: &Core) -> bool {
+        match e {
+            Core::Wide(_) => true,
+            Core::Var(x) => self.wide.contains(x),
+            Core::App(f, args) => self
+                .known_unit(f)
+                .filter(|(_, arity)| *arity == args.len())
+                .and_then(|(unit, _)| self.reg.narrow_sigs.get(&unit))
+                .is_some_and(|s| s.ret.is_wide()),
+            // A zero-arity unit as a value is its call (`unit_value`): a
+            // thunk, a constant, or a nullary primitive such as a bound.
+            Core::Global(..) | Core::Prim(_) | Core::Foreign(_) => self
+                .known_unit(e)
+                .filter(|(_, arity)| *arity == 0)
+                .and_then(|(unit, _)| self.reg.narrow_sigs.get(&unit))
+                .is_some_and(|s| s.ret.is_wide()),
+            Core::Proj(_, f) => f.class == Class::Wide,
+            Core::Let(_, _, _, body)
+            | Core::Dup(_, _, body)
+            | Core::Drop(_, _, body)
+            | Core::Release { body, .. } => self.rep_wide(body),
+            Core::If(_, t, f) => self.rep_wide(&t.body) || self.rep_wide(&f.body),
+            Core::Case { alts, .. } => alts.iter().any(|a| self.rep_wide(&a.body)),
+            Core::Join { body, rest, .. } => self.rep_wide(rest) || self.rep_wide(body),
+            _ => false,
+        }
+    }
+
+    fn rep_ty(&self, e: &Core) -> &'static str {
+        if self.rep_wide(e) {
+            "i128"
+        } else {
+            "i64"
+        }
+    }
+
+    /// Store `v`, the value of `e`, into local `x`'s slot, refusing a
+    /// value whose width disagrees with the binder's class: a wide binder
+    /// fed by a word position (an indirect call, a cell) is a position the
+    /// edge pass boxes, not one this emitter can reinterpret.
+    fn store_local(&mut self, x: LocalId, e: &Core, v: &str) -> Result<()> {
+        let ty = self.local_ty(x);
+        if (ty == "i128") != self.rep_wide(e) {
+            return err(format!(
+                "{} binds {} from {} position, which code generation does not convert yet (design/wide-scalars.md, phase 1)",
+                self.unit,
+                if ty == "i128" { "a wide value" } else { "a word" },
+                if ty == "i128" { "a word" } else { "a wide" }
+            ));
+        }
+        let slot = self.slot(x);
+        self.b.line(&format!("store {ty} {v}, ptr {slot}"));
+        Ok(())
     }
 
     /// Free the cells behind the `Release` tokens from depth `from` up:
@@ -8123,6 +8595,13 @@ impl CoreEmitter<'_, '_> {
         let arity = self.reg.arity_of(name)?;
         if arity == 0 {
             return Ok(call_unit(self.b, self.reg, name, &[]));
+        }
+        if self.reg.narrow_sigs.get(name).is_some_and(NarrowSig::is_wide) {
+            return err(format!(
+                "{}: {} is used as a value, and a function with an `I128`/`U128` boundary cannot cross the word-typed apply frame yet (design/wide-scalars.md, phase 1)",
+                self.unit,
+                crate::repr::base_unit(name)
+            ));
         }
         let r = self.b.reg();
         self.b.line(&format!(
@@ -8185,6 +8664,10 @@ impl CoreEmitter<'_, '_> {
                 "internal error: a compile-time value reached code generation (staging values never enter target code)",
             )),
             Core::Int(i) => Ok(i.to_string()),
+            // Reached only once a wide position lowers it as `i128`: the
+            // gate at the top of `emit_module` refuses wide programs until
+            // then (design/wide-scalars.md, phase 1).
+            Core::Wide(bits) => Ok((*bits as i128).to_string()),
             Core::ConstSym(sym) => {
                 // A constant `Sym`: the name is a private constant and
                 // the runtime's intern table materialises the cell from
@@ -8334,9 +8817,10 @@ impl CoreEmitter<'_, '_> {
                 if !self.bound.contains(x) {
                     return err(format!("unbound local {}", x.0));
                 }
+                let ty = self.local_ty(*x);
                 let slot = self.slot(*x);
                 let r = self.b.reg();
-                self.b.line(&format!("{r} = load i64, ptr {slot}"));
+                self.b.line(&format!("{r} = load {ty}, ptr {slot}"));
                 Ok(r)
             }
             Core::Global(id, _) => self.unit_value(&id.0),
@@ -8438,6 +8922,13 @@ impl CoreEmitter<'_, '_> {
             Core::App(f, args) => self.emit_app(f, args),
             Core::Lam { fn_id, env, .. } => {
                 let arity = self.reg.arity_of(&fn_id.0)?;
+                if self.reg.narrow_sigs.get(&fn_id.0).is_some_and(NarrowSig::is_wide) {
+                    return err(format!(
+                        "{}: a closure over {}, whose boundary is wide, is not lowered yet: its apply frame holds words (design/wide-scalars.md, phase 1)",
+                        self.unit,
+                        crate::repr::base_unit(&fn_id.0)
+                    ));
+                }
                 if env.len() > arity {
                     return err(format!(
                         "lambda over {} captures {} values, above its arity {arity}",
@@ -8472,8 +8963,7 @@ impl CoreEmitter<'_, '_> {
                     return err(format!("let binds unknown local {}", x.0));
                 }
                 let v = self.emit_let(*x, e)?;
-                let slot = self.slot(*x);
-                self.b.line(&format!("store i64 {v}, ptr {slot}"));
+                self.store_local(*x, e, &v)?;
                 self.emit_expr(body)
             }
             // A decision delivers its value to a destination, so its
@@ -8986,6 +9476,7 @@ impl CoreEmitter<'_, '_> {
 
     /// The current word of a bound local.
     fn load_local(&mut self, x: LocalId) -> String {
+        debug_assert!(!self.wide.contains(&x), "a wide local is never counted");
         let slot = self.slot(x);
         let w = self.b.reg();
         self.b.line(&format!("{w} = load i64, ptr {slot}"));
@@ -9035,6 +9526,13 @@ impl CoreEmitter<'_, '_> {
                     None
                 };
                 let Some(sig) = narrow else {
+                    if args.iter().any(|a| self.rep_wide(a)) {
+                        return err(format!(
+                            "{}: {} takes words, and is passed an `I128`/`U128` value (design/wide-scalars.md, phase 1)",
+                            self.unit,
+                            crate::repr::base_unit(&unit)
+                        ));
+                    }
                     let r = self.b.reg();
                     self.b.line(&format!(
                         "{r} = call i64 @{}({}){rng}",
@@ -9051,6 +9549,13 @@ impl CoreEmitter<'_, '_> {
                 let mut args_ty: Vec<String> = Vec::with_capacity(vals.len());
                 for (i, v) in vals.iter().enumerate() {
                     let c = sig.param(i);
+                    if c.is_wide() != self.rep_wide(&args[i]) {
+                        return err(format!(
+                            "{}: argument {i} of {} has a width its parameter does not (design/wide-scalars.md, phase 1)",
+                            self.unit,
+                            crate::repr::base_unit(&unit)
+                        ));
+                    }
                     let w = c.narrow(self.b, v);
                     args_ty.push(format!("{} {w}", c.ty()));
                 }
@@ -9068,6 +9573,12 @@ impl CoreEmitter<'_, '_> {
                 ));
                 return Ok(sig.ret.widen(self.b, &r));
             }
+        }
+        if args.iter().any(|a| self.rep_wide(a)) {
+            return err(format!(
+                "{}: an `I128`/`U128` argument to a call through the apply frame is not lowered yet: the frame holds words (design/wide-scalars.md, phase 1)",
+                self.unit
+            ));
         }
         let fv = self.emit_expr(f)?;
         let mut vals = Vec::with_capacity(args.len());
@@ -9109,13 +9620,14 @@ impl CoreEmitter<'_, '_> {
     /// in front of them deliver through [`CoreEmitter::emit_to`], so a
     /// `Jump` inside them still reaches the one destination of this value.
     fn emit_value(&mut self, e: &Core) -> Result<String> {
-        let slot = self.b.alloca_i64();
+        let ty = self.rep_ty(e);
+        let slot = self.b.alloca_ty(ty);
         let label = self.b.label();
-        let dest = Dest::Slot { slot: slot.clone(), label: label.clone(), base: self.pending.len() };
+        let dest = Dest::Slot { slot: slot.clone(), label: label.clone(), base: self.pending.len(), ty };
         self.emit_to(e, &dest)?;
         self.b.start(&label);
         let r = self.b.reg();
-        self.b.line(&format!("{r} = load i64, ptr {slot}"));
+        self.b.line(&format!("{r} = load {ty}, ptr {slot}"));
         Ok(r)
     }
 
@@ -9127,13 +9639,12 @@ impl CoreEmitter<'_, '_> {
     /// destination, so a value-position jump is not a special case.
     fn emit_to(&mut self, e: &Core, dest: &Dest) -> Result<()> {
         match e {
-            Core::Let(x, _, v, body) => {
+            Core::Let(x, _, value, body) => {
                 if !self.bound.contains(x) {
                     return err(format!("let binds unknown local {}", x.0));
                 }
-                let v = self.emit_let(*x, v)?;
-                let slot = self.slot(*x);
-                self.b.line(&format!("store i64 {v}, ptr {slot}"));
+                let v = self.emit_let(*x, value)?;
+                self.store_local(*x, value, &v)?;
                 self.emit_to(body, dest)
             }
             // Count operations precede what they guard, so a tail call
@@ -9211,8 +9722,14 @@ impl CoreEmitter<'_, '_> {
                         site.slots.len()
                     ));
                 }
-                for (v, slot) in vals.iter().zip(&site.slots) {
-                    self.b.line(&format!("store i64 {v}, ptr {slot}"));
+                for (i, ((v, slot), ty)) in vals.iter().zip(&site.slots).zip(&site.tys).enumerate() {
+                    if (*ty == "i128") != self.rep_wide(&args[i]) {
+                        return err(format!(
+                            "{}: a jump to join j{} passes a value whose width disagrees with its parameter (design/wide-scalars.md, phase 1)",
+                            self.unit, id.0
+                        ));
+                    }
+                    self.b.line(&format!("store {ty} {v}, ptr {slot}"));
                 }
                 // The jump leaves every `Release` opened inside the join's
                 // continuation behind: the join's block runs at the depth
@@ -9236,8 +9753,9 @@ impl CoreEmitter<'_, '_> {
                             vals.push(self.emit_expr(a)?);
                         }
                         for (i, v) in vals.iter().enumerate() {
+                            let ty = self.local_ty(LocalId(i));
                             let slot = self.slot(LocalId(i));
-                            self.b.line(&format!("store i64 {v}, ptr {slot}"));
+                            self.b.line(&format!("store {ty} {v}, ptr {slot}"));
                         }
                         // The back edge leaves every `Release` in the body
                         // behind, so a cell the body kept and did not reuse
@@ -9407,13 +9925,15 @@ impl CoreEmitter<'_, '_> {
     /// per-site code beyond the stores.
     fn enter_join(&mut self, id: JoinId, params: &[(LocalId, Class)]) -> Result<JoinSite> {
         let mut slots = Vec::with_capacity(params.len());
+        let mut tys = Vec::with_capacity(params.len());
         for (param, _) in params {
             if !self.bound.contains(param) {
                 return err(format!("join j{} binds unknown local {}", id.0, param.0));
             }
             slots.push(self.slot(*param));
+            tys.push(self.local_ty(*param));
         }
-        let site = JoinSite { label: self.b.label(), slots, base: self.pending.len() };
+        let site = JoinSite { label: self.b.label(), slots, tys, base: self.pending.len() };
         if self.joins.insert(id, site.clone()).is_some() {
             return err(format!("join j{} is bound twice in one body", id.0));
         }
@@ -9433,15 +9953,34 @@ impl CoreEmitter<'_, '_> {
     /// reaches the same destination through its join's block.
     fn emit_case_to(&mut self, scrut: &Core, alts: &[CAlt<Core>], dest: &Dest) -> Result<()> {
         let sv = self.emit_expr(scrut)?;
+        let scrut_wide = self.rep_wide(scrut);
+        if scrut_wide {
+            // A wide scrutinee is a scalar, not a block: only a variable
+            // or a wildcard alternative can match it, and nothing reads a
+            // header.
+            if alts.iter().any(|a| matches!(a.pat, CPat::Con { .. })) {
+                return err(format!("{}: a constructor pattern cannot match an `I128`/`U128` scrutinee", self.unit));
+            }
+        }
         let sp = self.b.reg();
-        self.b.line(&format!("{sp} = inttoptr i64 {sv} to ptr"));
+        if scrut_wide {
+            self.b.line(&format!("{sp} = inttoptr i64 0 to ptr"));
+        } else {
+            self.b.line(&format!("{sp} = inttoptr i64 {sv} to ptr"));
+        }
         let mut cons: Vec<(usize, &Vec<LocalId>, &Core, Option<u32>)> = Vec::new();
         let mut default: Option<(Option<LocalId>, &Core, Option<u32>)> = None;
         for a in alts {
             match &a.pat {
-                CPat::Con { tag, fields, .. } => {
+                CPat::Con { tag, fields, classes } => {
                     if cons.iter().any(|(t, _, _, _)| t == tag) {
                         return err(format!("duplicate case tag {tag}"));
+                    }
+                    if classes.contains(&Class::Wide) {
+                        return err(format!(
+                            "{}: a constructor field of class `Wide` is not lowered yet (design/wide-scalars.md, phase 1)",
+                            self.unit
+                        ));
                     }
                     cons.push((*tag, fields, &a.body, a.weight));
                 }
@@ -9520,8 +10059,15 @@ impl CoreEmitter<'_, '_> {
                     if !self.bound.contains(&x) {
                         return err(format!("pattern binds unknown local {}", x.0));
                     }
+                    let ty = self.local_ty(x);
+                    if (ty == "i128") != scrut_wide {
+                        return err(format!(
+                            "{}: a case binder's width disagrees with its scrutinee (design/wide-scalars.md, phase 1)",
+                            self.unit
+                        ));
+                    }
                     let s = self.slot(x);
-                    self.b.line(&format!("store i64 {sv}, ptr {s}"));
+                    self.b.line(&format!("store {ty} {sv}, ptr {s}"));
                 }
                 self.emit_to(rhs, dest)?;
             }
@@ -11407,6 +11953,9 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
         Core::Int(v) => {
             q_imm(out, quote_op::INT);
             q_imm(out, *v as u64);
+        }
+        Core::Wide(_) => {
+            return err("a quotation cannot reify an `I128`/`U128` constant yet (design/wide-scalars.md, phase 2)")
         }
         Core::ConstBig { nat, digits } => match immediate_word(reg.pointer_bytes, *nat, digits) {
             // A small literal is already its runtime word: the raw `INT`

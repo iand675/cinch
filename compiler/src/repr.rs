@@ -1,10 +1,13 @@
 //! Representation classes of words (reclamation design section 2.2;
 //! layouts and specialization design section 2, option C).
 //!
-//! Every `Core` value is one `i64` word. A word's class says what a
-//! reclamation pass may do with it: `Raw` words are never counted, `Obj`
-//! words are always counted pointers (possibly to immortal blocks), and
-//! `TObj` words are either an immediate with low bit 1 or an `Obj`.
+//! Every `Core` value is one `i64` word, except a wide scalar's. A
+//! word's class says what a reclamation pass may do with it: `Raw` words
+//! are never counted, `Obj` words are always counted pointers (possibly
+//! to immortal blocks), and `TObj` words are either an immediate with low
+//! bit 1 or an `Obj`. `Wide` is the one class that is not a word: an
+//! `I128`/`U128` value held as LLVM `i128`, never counted, two words in
+//! any layout (`design/wide-scalars.md`).
 //! Classes are attached to binders, constructor fields and instantiation
 //! sites during lowering, while the checker still knows the types. Option
 //! C's collector copies each polymorphic unit once per reached vector of
@@ -23,6 +26,11 @@ pub enum Class {
     Obj,
     /// A `Nat`/`Int` word: an immediate with low bit 1, or a pointer.
     TObj,
+    /// An `I128`/`U128` value: LLVM `i128` in a wide position, two raw
+    /// words in a layout, never counted. A word-uniform position (the
+    /// apply frame, a closure environment, a dictionary value slot, a
+    /// cell) holds it boxed, as an `Obj` word (`crate::wide`).
+    Wide,
     /// The class of the enclosing unit's type parameter at this index.
     /// Only a polymorphic unit's generic body carries it; the collector
     /// substitutes every one before emission.
@@ -44,11 +52,33 @@ impl Class {
         matches!(self, Class::Param(_))
     }
 
+    /// The words this class occupies in a layout: two for `Wide`, one
+    /// for every word class.
+    pub fn words(self) -> usize {
+        if self == Class::Wide {
+            2
+        } else {
+            1
+        }
+    }
+
+    /// The class's suffix letter, or `None` for a letter no class has.
+    pub fn from_letter(c: char) -> Option<Class> {
+        Some(match c {
+            'R' => Class::Raw,
+            'O' => Class::Obj,
+            'T' => Class::TObj,
+            'W' => Class::Wide,
+            _ => return None,
+        })
+    }
+
     fn letter(self) -> char {
         match self {
             Class::Raw => 'R',
             Class::Obj => 'O',
             Class::TObj => 'T',
+            Class::Wide => 'W',
             Class::Param(_) => 'P',
         }
     }
@@ -88,7 +118,7 @@ pub fn base_unit(sym: &str) -> std::borrow::Cow<'_, str> {
     while i < b.len() {
         if b[i] == b'@' {
             let mut j = i + 1;
-            while j < b.len() && matches!(b[j], b'R' | b'O' | b'T') {
+            while j < b.len() && matches!(b[j], b'R' | b'O' | b'T' | b'W') {
                 j += 1;
             }
             if j > i + 1 && (j == b.len() || b[j] == b'.' || b[j] == b'#') {
@@ -131,6 +161,7 @@ pub trait TypeReprs {
 pub fn repr_of(ty: &Ty, params: &[String], types: &dyn TypeReprs, miss: &mut dyn FnMut(&Ty)) -> Class {
     match ty {
         Ty::Int | Ty::Nat => Class::TObj,
+        Ty::Prim(s) if s.is_wide() => Class::Wide,
         Ty::Bool | Ty::Unit | Ty::Sym | Ty::Prim(_) | Ty::Region(_) | Ty::Ptr { .. } => Class::Raw,
         // Erased evidence and types occupy no counted word.
         Ty::Sort(_) | Ty::Idx(_) | Ty::Prp(_) => Class::Raw,

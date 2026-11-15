@@ -29,6 +29,11 @@ use std::fmt;
 /// bootstrap compiler targets 64-bit platforms only (the runtime word is
 /// `i64` everywhere), so they are 64 bits here; a wasm32 profile would make
 /// them 32 bits and is out of scope for this slice.
+///
+/// `I128` and `U128` are the exception to the one-word rule: they are the
+/// wide scalars (`design/wide-scalars.md`), held as LLVM `i128` in the
+/// `Wide` representation class, never in a word. Their names are kernel
+/// types like every scalar's; their operations live in `Data.Wide`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Scalar {
     I8,
@@ -44,11 +49,13 @@ pub enum Scalar {
     Char,
     Usize,
     Isize,
+    I128,
+    U128,
 }
 
 impl Scalar {
     /// Every scalar, in declaration order.
-    pub const ALL: [Scalar; 13] = [
+    pub const ALL: [Scalar; 15] = [
         Scalar::I8,
         Scalar::I16,
         Scalar::I32,
@@ -62,12 +69,14 @@ impl Scalar {
         Scalar::Char,
         Scalar::Usize,
         Scalar::Isize,
+        Scalar::I128,
+        Scalar::U128,
     ];
 
     /// The scalars integer arithmetic, bit operations and integer
     /// conversions range over: everything but `F32`, `F64` and `Char`
     /// (primitive types specification, section 4).
-    pub const INT_LIKE: [Scalar; 10] = [
+    pub const INT_LIKE: [Scalar; 12] = [
         Scalar::I8,
         Scalar::I16,
         Scalar::I32,
@@ -78,6 +87,8 @@ impl Scalar {
         Scalar::U64,
         Scalar::Usize,
         Scalar::Isize,
+        Scalar::I128,
+        Scalar::U128,
     ];
 
     pub const FLOATS: [Scalar; 2] = [Scalar::F32, Scalar::F64];
@@ -99,6 +110,8 @@ impl Scalar {
             Char => "Char",
             Usize => "Usize",
             Isize => "Isize",
+            I128 => "I128",
+            U128 => "U128",
         }
     }
 
@@ -119,6 +132,8 @@ impl Scalar {
             Char => "char",
             Usize => "usize",
             Isize => "isize",
+            I128 => "i128",
+            U128 => "u128",
         }
     }
 
@@ -138,6 +153,8 @@ impl Scalar {
             "Char" => Char,
             "Usize" => Usize,
             "Isize" => Isize,
+            "I128" => I128,
+            "U128" => U128,
             _ => return None,
         })
     }
@@ -151,7 +168,14 @@ impl Scalar {
             I32 | U32 | F32 => 32,
             I64 | U64 | F64 | Usize | Isize => 64,
             Char => 32,
+            I128 | U128 => 128,
         }
+    }
+
+    /// A wide scalar: held as `i128` in the `Wide` class, never in a
+    /// word (`design/wide-scalars.md`).
+    pub fn is_wide(self) -> bool {
+        matches!(self, Scalar::I128 | Scalar::U128)
     }
 
     /// Size in bytes (primitive types specification section 2: the
@@ -178,8 +202,8 @@ impl Scalar {
     pub fn is_signed(self) -> bool {
         use Scalar::*;
         match self {
-            I8 | I16 | I32 | I64 | Isize => true,
-            U8 | U16 | U32 | U64 | Usize | Char | F32 | F64 => false,
+            I8 | I16 | I32 | I64 | Isize | I128 => true,
+            U8 | U16 | U32 | U64 | Usize | Char | F32 | F64 | U128 => false,
         }
     }
 
@@ -193,6 +217,7 @@ impl Scalar {
             I64 | Isize => i64::MIN,
             U8 | U16 | U32 | U64 | Usize | Char => 0,
             F32 | F64 => panic!("floats have no bounds"),
+            I128 | U128 => panic!("a wide scalar has no word bound; use `min_bound_bits`"),
         }
     }
 
@@ -211,6 +236,30 @@ impl Scalar {
             U64 | Usize => -1,
             Char => 0x10FFFF,
             F32 | F64 => panic!("floats have no bounds"),
+            I128 | U128 => panic!("a wide scalar has no word bound; use `max_bound_bits`"),
+        }
+    }
+
+    /// The smallest value of an integer scalar as its two's complement
+    /// bit pattern at the scalar's own width (`I128`'s is `1 << 127`).
+    pub fn min_bound_bits(self) -> u128 {
+        debug_assert!(self.is_int_like());
+        if self.is_signed() {
+            1u128 << (self.width() - 1)
+        } else {
+            0
+        }
+    }
+
+    /// The largest value of an integer scalar as its bit pattern at the
+    /// scalar's own width (`U128`'s is all ones).
+    pub fn max_bound_bits(self) -> u128 {
+        debug_assert!(self.is_int_like());
+        let ones = u128::MAX >> (128 - self.width());
+        if self.is_signed() {
+            ones >> 1
+        } else {
+            ones
         }
     }
 
@@ -1478,6 +1527,16 @@ impl IntSort {
         }
         if s == Scalar::Char {
             return Some(IntSort::Bounded(0, 0x10FFFF));
+        }
+        // The sorts are `i128` ranges. `I128`'s is exactly the whole of
+        // `i128`; `U128`'s maximum, 2^128 - 1, is beyond every `i128`, so a
+        // `U128` has no integer sort, like a float: the solver draws no
+        // facts about it, which only ever proves less
+        // (design/wide-scalars.md section 4).
+        match s {
+            Scalar::I128 => return Some(IntSort::Bounded(i128::MIN, i128::MAX)),
+            Scalar::U128 => return None,
+            _ => {}
         }
         let w = s.width();
         Some(if s.is_signed() {

@@ -1805,6 +1805,10 @@ impl<B> CAlt<B> {
 pub enum Core {
     /// Raw `i64` word constant (machine scalar values and words).
     Int(i64),
+    /// A wide scalar constant (`I128`/`U128`, `design/wide-scalars.md`):
+    /// the value's 128-bit two's complement bit pattern. Its class is
+    /// `Wide`; code generation emits it as an `i128` operand.
+    Wide(u128),
     /// Mathematical `Nat`/`Int` constant, carried as a decimal digit
     /// string with an optional leading `-` (`nat` selects the `Nat`
     /// runtime). Code generation folds a value in the runtime's immediate
@@ -3663,7 +3667,7 @@ fn tail_groups(program: &Program) -> Vec<(TailGroup, Option<usize>)> {
         out: &mut Vec<String>,
     ) {
         match e {
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Var(_)
+            Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Var(_)
             | Core::Global(..) | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_)
             | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc
             | Core::SyntaxLit(..) | Core::StrLit(_) => {}
@@ -3974,7 +3978,7 @@ fn calls_walk(
     out: &mut Vec<CallSite>,
 ) {
     match e {
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit
+        Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit
         | Core::Var(_) | Core::Global(..) | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_)
         | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc
         | Core::SyntaxLit(..) | Core::StrLit(_) => {}
@@ -4875,6 +4879,7 @@ pub fn condition_context(build: &BuildProfiles, context: BuildContext) -> &Targe
 fn core_eq(a: &Core, b: &Core) -> bool {
     match (a, b) {
         (Core::Int(x), Core::Int(y)) => x == y,
+        (Core::Wide(x), Core::Wide(y)) => x == y,
         (Core::ConstBig { nat: n1, digits: d1 }, Core::ConstBig { nat: n2, digits: d2 }) => {
             n1 == n2 && d1 == d2
         }
@@ -4949,7 +4954,7 @@ pub(crate) fn max_local(e: &Core) -> usize {
 pub fn walk_locals(e: &Core, f: &mut impl FnMut(LocalId)) {
     match e {
         Core::Var(l) => f(*l),
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+        Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
         | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
         | Core::StrLit(_) => {}
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => walk_locals(d, f),
@@ -5059,7 +5064,7 @@ fn use_range(e: &Core, l: LocalId) -> (usize, usize) {
                 (0, 0)
             }
         }
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+        Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
         | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
         | Core::StrLit(_) => (0, 0),
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => use_range(d, l),
@@ -5196,7 +5201,7 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
         };
         match e {
             Core::Var(l) => note(*l, map, next),
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+            Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
             | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
             | Core::StrLit(_) => {}
             Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => assign(d, map, next),
@@ -5299,6 +5304,7 @@ pub(crate) fn rename_core_locals(e: &Core, map: &HashMap<LocalId, LocalId>) -> C
         Core::Var(l) => Core::Var(*map.get(l).unwrap_or(l)),
         Core::SpliceVal(i) => Core::SpliceVal(*i),
         Core::Int(v) => Core::Int(*v),
+        Core::Wide(v) => Core::Wide(*v),
         Core::ConstBig { nat, digits } => Core::ConstBig { nat: *nat, digits: digits.clone() },
         Core::ConstBytes(b) => Core::ConstBytes(b.clone()),
         Core::ConstString { ctor, bytes } => Core::ConstString {
@@ -5461,6 +5467,7 @@ fn instantiate(
             }
             Core::SpliceVal(i) => Core::SpliceVal(*i),
             Core::Int(v) => Core::Int(*v),
+            Core::Wide(v) => Core::Wide(*v),
             Core::ConstBig { nat, digits } => Core::ConstBig { nat: *nat, digits: digits.clone() },
             Core::ConstBytes(b) => Core::ConstBytes(b.clone()),
             Core::ConstString { ctor, bytes } => Core::ConstString {
@@ -5650,6 +5657,7 @@ fn match_pat(
     }
     match (pat, sub) {
         (Core::Int(x), Core::Int(y)) => x == y,
+        (Core::Wide(x), Core::Wide(y)) => x == y,
         (Core::ConstBig { nat: n1, digits: d1 }, Core::ConstBig { nat: n2, digits: d2 }) => {
             n1 == n2 && d1 == d2
         }
@@ -5766,6 +5774,35 @@ fn pat_shape_eq(a: &CPat, b: &CPat, cb: &mut Vec<Option<Class>>) -> bool {
 
 // ------------------------------------------------------- constant folding
 
+/// Whether an operation ranges over a wide scalar: its own scalar, a
+/// conversion's either end, or a packed array's element. Read from the
+/// operation itself, not its signature, because `PrimOp::sig` is defined
+/// only for the operations a foreign import can name.
+fn prim_touches_wide(op: PrimOp) -> bool {
+    use PrimOp::*;
+    match op {
+        Bound { ty, .. }
+        | Arith { ty, .. }
+        | Neg { ty, .. }
+        | CheckedDiv { ty }
+        | CheckedRem { ty }
+        | Shift { ty, .. }
+        | Rotate { ty, .. }
+        | Bit { ty, .. }
+        | BitNot { ty }
+        | BitScan { ty, .. }
+        | Cmp { ty, .. }
+        | FloatBin { ty, .. }
+        | FloatUn { ty, .. }
+        | FCmp { ty, .. }
+        | FClass { ty, .. }
+        | TotalOrder { ty } => ty.is_wide(),
+        Conv { from, to, .. } => from.is_wide() || to.is_wide(),
+        Array { packed, .. } => packed.is_some_and(Scalar::is_wide),
+        _ => false,
+    }
+}
+
 /// Word width and signedness of a machine scalar (the word model stores
 /// every scalar as its raw `i64` bit pattern, zero/sign extended).
 fn scalar_bits(s: Scalar) -> (u32, bool) {
@@ -5782,6 +5819,9 @@ fn scalar_bits(s: Scalar) -> (u32, bool) {
         Usize | Isize => (64, s == Isize),
         Char => (32, false),
         F32 | F64 => (64, false),
+        // Never folded here: `fold_prim` refuses any operation over a
+        // wide scalar, whose values are not words.
+        I128 | U128 => (128, s == I128),
     }
 }
 
@@ -5884,6 +5924,11 @@ fn fold_prim(op: PrimOp, args: &[Core], ctors: &FoldCtors) -> Option<Core> {
     use self::big::Big;
     if let PrimOp::Sym(sop) = op {
         return fold_sym(sop, args);
+    }
+    // The folder computes over `i64` words; an operation that takes or
+    // gives a wide scalar is left to the emitter.
+    if prim_touches_wide(op) {
+        return None;
     }
     let words: Vec<i64> = args
         .iter()
@@ -6199,7 +6244,7 @@ fn has_alloc(e: &Core) -> bool {
             Core::Prim(PrimOp::Delay) => *found = true,
             Core::Reuse { .. } => *found = true,
             Core::App(head, _) if matches!(&**head, Core::Ctor(id, _) if id.0 == MUTABLE_CELL) => *found = true,
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+            Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
             | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
             | Core::Fault | Core::SyntaxLit(..) | Core::StrLit(_)
             | Core::Var(_) => {}
@@ -6261,7 +6306,7 @@ struct OptCx {
 fn scan_calls(e: &Core, f: &mut impl FnMut(&GlobalId)) {
     match e {
         Core::Global(g, _) => f(g),
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Ctor(..)
+        Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Ctor(..)
         | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..) | Core::StrLit(_)
         | Core::Var(_) => {}
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => scan_calls(d, f),
@@ -6334,7 +6379,7 @@ fn scan_memo(e: &Core, n: &mut usize) {
         Core::LazyAlloc | Core::LazyInit(_, _) | Core::BoxAlloc | Core::BoxInit(..)
         | Core::RefSet(_, _, _)
         | Core::BoxGet(..) | Core::BoxClear(..) | Core::Demand(..) => *n += 1,
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+        Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
         | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
         | Core::Fault | Core::SyntaxLit(..) | Core::StrLit(_)
         | Core::Var(_) => {}
@@ -6413,7 +6458,7 @@ fn weights_ok(e: &Core) -> bool {
                     go(&a.body, ok);
                 }
             }
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+            Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
             | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
             | Core::StrLit(_) | Core::Var(_) => {}
             Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => {
@@ -6458,7 +6503,7 @@ fn scope_ok(e: &Core, nparams: usize) -> bool {
     fn go(e: &Core, bound: &mut std::collections::HashSet<LocalId>) -> bool {
         match e {
             Core::Var(l) => bound.contains(l),
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+            Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
             | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
             | Core::StrLit(_) => true,
             Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => {
@@ -6617,7 +6662,7 @@ fn body_impure(e: &Core) -> bool {
                     *bad = true;
                 }
             }
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+            Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
             | Core::Ctor(..) | Core::SpliceVal(_) | Core::LazyAlloc | Core::BoxAlloc
             | Core::SyntaxLit(..) | Core::StrLit(_) | Core::Var(_) => {}
             Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => {
@@ -7408,7 +7453,7 @@ impl<'a> Driver<'a> {
             }
             let atom = matches!(
                 arg,
-                Core::Var(_) | Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_)
+                Core::Var(_) | Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_)
                     | Core::Unit | Core::Global(..) | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_)
             );
             if atom {
@@ -7496,7 +7541,7 @@ fn drop_dead(
 pub(crate) fn child_slots(e: &mut Core) -> Vec<&mut Core> {
     let mut out: Vec<&mut Core> = Vec::new();
     match e {
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+        Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
         | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
         | Core::StrLit(_) | Core::Var(_) => {}
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => {
@@ -7589,6 +7634,54 @@ pub fn subst_classes(e: &mut Core, cv: &[Class]) {
     }
 }
 
+/// Every representation class written in `e`, at exactly the sites
+/// [`subst_classes`] rewrites: the read-only twin, so a check over the
+/// classes a body uses cannot miss a site the collector substitutes.
+pub fn for_each_class(e: &Core, f: &mut impl FnMut(Class)) {
+    let mut all = |cs: &[Class], f: &mut dyn FnMut(Class)| cs.iter().for_each(|c| f(*c));
+    match e {
+        Core::Global(_, v) | Core::Ctor(_, v) | Core::InstDict(_, _, v) | Core::Lam { classes: v, .. } => all(v, f),
+        Core::DictProj(_, _, site, c) => {
+            if let Some(s) = site {
+                all(&s.own, f);
+            }
+            f(*c);
+        }
+        Core::Proj(_, p) => f(p.class),
+        Core::Demand(_, c) | Core::BoxGet(_, c) | Core::BoxClear(_, c) | Core::BoxInit(_, _, c) | Core::RefSet(_, _, c) => f(*c),
+        Core::Dup(_, c, _) | Core::Drop(_, c, _) => f(*c),
+        Core::Let(_, c, _, _) => f(*c),
+        // Joins are made after the collector runs, so their classes are
+        // concrete and `subst_classes` has nothing to rewrite; a reader
+        // still sees them.
+        Core::Join { params, .. } => params.iter().for_each(|(_, c)| f(*c)),
+        Core::Prim(PrimOp::Par { op, classes }) => all(&classes[..op.class_count().min(classes.len())], f),
+        Core::Case { alts, .. } => {
+            for a in alts {
+                match &a.pat {
+                    CPat::Var(_, c) => f(*c),
+                    CPat::Con { classes, .. } => all(classes, f),
+                    CPat::Wild => {}
+                }
+            }
+        }
+        Core::Quote { body: Some(b), .. } => for_each_class(b, f),
+        Core::App(h, _) => for_each_class(h, f),
+        _ => {}
+    }
+    for k in child_slots_imm(e) {
+        for_each_class(k, f);
+    }
+}
+
+impl PrimOp {
+    /// Whether the operation's signature mentions a wide scalar anywhere,
+    /// including inside an `Option` result (`design/wide-scalars.md`).
+    pub fn touches_wide(self) -> bool {
+        prim_touches_wide(self)
+    }
+}
+
 /// The constructor a scrutinee applies, if it is a known one.
 fn ctor_shape(e: &Core, defs: &HashMap<String, FnDef>) -> (Option<usize>, Vec<Core>) {
     match e {
@@ -7618,6 +7711,7 @@ pub(crate) fn alpha_eq(a: &Core, b: &Core) -> bool {
                 None => x == y,
             },
             (Core::Int(x), Core::Int(y)) => x == y,
+            (Core::Wide(x), Core::Wide(y)) => x == y,
             (
                 Core::ConstBig { nat: n1, digits: d1 },
                 Core::ConstBig { nat: n2, digits: d2 },
@@ -8124,7 +8218,7 @@ pub(crate) fn child_slots_imm(e: &Core) -> Vec<&Core> {
 /// collecting them.
 fn each_child<'a>(e: &'a Core, visit: &mut impl FnMut(&'a Core)) {
     match e {
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+        Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
         | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
         | Core::StrLit(_) | Core::Var(_) => {}
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => visit(d),
@@ -8381,6 +8475,7 @@ fn share_head(e: &Core, h: &mut impl std::hash::Hasher) {
     std::mem::discriminant(e).hash(h);
     match e {
         Core::Int(n) => n.hash(h),
+        Core::Wide(n) => n.hash(h),
         Core::ConstBig { nat, digits } => (nat, digits).hash(h),
         Core::ConstBytes(b) => b.hash(h),
         Core::ConstString { ctor, bytes } => (ctor, bytes).hash(h),
@@ -8556,6 +8651,7 @@ fn share_match(a: &Core, b: &Core, classes: &HashMap<usize, Class>) -> Option<Ha
         fn go(&mut self, a: &Core, b: &Core) -> bool {
             match (a, b) {
                 (Core::Int(x), Core::Int(y)) => x == y,
+                (Core::Wide(x), Core::Wide(y)) => x == y,
                 (Core::ConstBig { nat: n1, digits: d1 }, Core::ConstBig { nat: n2, digits: d2 }) => n1 == n2 && d1 == d2,
                 (Core::ConstBytes(x), Core::ConstBytes(y)) => x == y,
                 (Core::ConstString { ctor: c1, bytes: b1 }, Core::ConstString { ctor: c2, bytes: b2 }) => c1 == c2 && b1 == b2,

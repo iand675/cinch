@@ -668,6 +668,7 @@ impl<'a> Printer<'a> {
     fn expr(&mut self, e: &Core) -> Node {
         match e {
             Core::Int(value) => Node::list("int").child(Node::atom(value.to_string())),
+            Core::Wide(bits) => Node::list("wide").child(Node::atom(bits.to_string())),
             Core::ConstBig { nat: true, digits } => {
                 Node::list("nat").child(Node::atom(format!("\"{}\"", escape_text(digits))))
             }
@@ -1028,6 +1029,7 @@ fn class_letter(class: Class) -> char {
         Class::Raw => 'R',
         Class::Obj => 'O',
         Class::TObj => 'T',
+        Class::Wide => 'W',
         Class::Param(index) => char::from(b'0' + (index % 10) as u8),
     }
 }
@@ -1038,6 +1040,7 @@ fn class_letter(class: Class) -> char {
 fn class_text(class: Class) -> String {
     match class {
         Class::Raw => "uncounted".to_string(),
+        Class::Wide => "uncounted wide".to_string(),
         Class::Obj | Class::TObj => "owned".to_string(),
         Class::Param(index) => format!("param({index})"),
     }
@@ -1373,7 +1376,7 @@ fn walk_units(body: &Core, f: &mut impl FnMut(&str)) {
             }
         }
         Core::ConstBig { .. }
-        | Core::Int(_)
+        | Core::Int(_) | Core::Wide(_)
         | Core::ConstBytes(_)
         | Core::ConstString { .. }
         | Core::ConstSym(_)
