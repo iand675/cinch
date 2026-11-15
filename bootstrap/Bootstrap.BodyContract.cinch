@@ -262,7 +262,7 @@ module Bootstrap.BodyContract where
   -- actual context's function, not merely a body graph supplied by the type.
   body-kind-authorized :: List BodyBinding -> Kind -> Bool
   body-kind-authorized bindings kind = case kind of
-    KValue payload -> (case value-carrier kind of Some carrier -> body-type-authorized bindings carrier; None -> False)
+    KValue carrier -> body-type-authorized bindings carrier
     KFun a b -> body-kind-authorized bindings a && body-kind-authorized bindings b
     other -> True
   body-type-authorized :: List BodyBinding -> UType -> Bool

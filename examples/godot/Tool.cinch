@@ -1,0 +1,11 @@
+module Tool where
+  import GameApi
+
+  created :: Borrowed CinchTool ->{Foreign Cxx, IO} Unit
+  created self = setCinchToolCount self 42
+
+  ready :: Borrowed CinchTool ->{Foreign Cxx, IO} Unit
+  ready self = setCinchToolCount self 99
+
+  advance :: Borrowed CinchTool -> I64 ->{Foreign Cxx, IO} I64
+  advance self n = let value = wrapping-add-i64 (getCinchToolCount self) n in let u = setCinchToolCount self value in value

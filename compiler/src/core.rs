@@ -4270,6 +4270,11 @@ pub struct TargetProfile {
     /// wrappers, dictionary construction and projections. On by default;
     /// with it off, nothing is counted and every block leaks.
     pub reclaim: bool,
+    /// Constructed product results (`design/cps-optimisation.md`,
+    /// "Multi-word results"): a unit that always returns one small
+    /// constructor returns its fields in registers. On by default;
+    /// `CINCH_NO_CPR=1` turns it off for measurement.
+    pub no_cpr: bool,
 }
 
 /// The build host's `(os, arch, libc)` as last-resort defaults for the
@@ -4353,6 +4358,7 @@ impl TargetProfile {
             jpl: false,
             rc_debug: false,
             reclaim: reclaim_from_env(),
+            no_cpr: no_cpr_from_env(),
         }
     }
 
@@ -4393,6 +4399,7 @@ impl TargetProfile {
             jpl: false,
             rc_debug: false,
             reclaim: reclaim_from_env(),
+            no_cpr: no_cpr_from_env(),
         }
     }
 }
@@ -4403,6 +4410,10 @@ impl TargetProfile {
 /// bug compare against.
 fn reclaim_from_env() -> bool {
     std::env::var_os("CINCH_RECLAIM").is_none_or(|v| v != "0")
+}
+
+fn no_cpr_from_env() -> bool {
+    std::env::var_os("CINCH_NO_CPR").is_some_and(|v| v != "0")
 }
 
 impl TargetProfile {

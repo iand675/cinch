@@ -102,7 +102,7 @@ module Bootstrap.Export where
     other -> Nil
   kind-measures :: Kind -> List TotalFunction
   kind-measures kind = case kind of
-    KValue payload -> (case value-carrier kind of Some carrier -> type-measures carrier; None -> Nil)
+    KValue carrier -> type-measures carrier
     KFun a b -> kind-measures a <> kind-measures b
     other -> Nil
   parameter-measures :: List Quant -> List TotalFunction

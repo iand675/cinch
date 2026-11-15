@@ -3199,6 +3199,10 @@ fn write_artifacts(
             }),
         ),
     ]);
+    let native_inputs = opts.native_objects.iter().map(|path| {
+        let bytes = std::fs::read(path).map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
+        Ok(J::obj([("path", path.display().to_string().into()), ("hash", crate::interface::content_hash_bytes(&bytes).into())]))
+    }).collect::<Result<Vec<_>>>()?;
     let doc = J::obj([
         ("entry", entry.into()),
         ("runtime_abi", crate::interface::RUNTIME_ABI_VERSION.into()),
@@ -3235,6 +3239,8 @@ fn write_artifacts(
         (
             "link",
             J::obj([
+                ("shared", opts.shared.into()),
+                ("native_objects", J::Arr(native_inputs)),
                 ("local", link_plan.local.into()),
                 (
                     "raw",
@@ -3796,6 +3802,7 @@ struct LinkTarget<'a> {
     archive: Option<&'a Path>,
     /// `-O<n>` for clang; 0 is clang's own default and is not spelled.
     opt_level: u8,
+    shared: bool,
 }
 
 /// Does this target have a C library and start files under it? A target
@@ -3825,6 +3832,7 @@ fn link_target<'a>(
         flavor,
         archive: opts.runtime_archive.as_deref(),
         opt_level,
+        shared: opts.shared,
     }
 }
 
@@ -3841,8 +3849,34 @@ fn link_for(
     if let LinkFlavor::Freestanding(triple) = target.flavor {
         return link_freestanding(ir_path, out, objects, plan, triple, target);
     }
+    // Never truncate a library mapped by a running editor or game. Link next
+    // to the destination, then replace the directory entry atomically.
+    let shared_stage = if target.shared {
+        Some(tempfile::Builder::new().prefix(".cinch-link-").tempdir_in(out.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new(".")))
+            .map_err(|e| Error::plain(format!("cannot stage shared library: {e}")))?)
+    } else { None };
+    let staged_out = shared_stage.as_ref().map(|dir| dir.path().join("library"));
+    let link_out = staged_out.as_deref().unwrap_or(out);
     let mut cmd = std::process::Command::new(clang());
     cmd.arg(ir_path);
+    if target.shared {
+        cmd.arg("-fPIC");
+        let darwin = match target.flavor {
+            LinkFlavor::Cross(triple) => triple.contains("darwin"),
+            _ => cfg!(target_os = "macos"),
+        };
+        cmd.arg(if darwin { "-dynamiclib" } else { "-shared" });
+        if darwin {
+            let name = out.file_name().ok_or_else(|| Error::plain("a shared library needs a filename"))?.to_string_lossy();
+            cmd.arg("-Xlinker").arg("-install_name").arg("-Xlinker").arg(format!("@rpath/{name}"));
+        }
+        if !darwin {
+            // Keep each extension's runtime/layout table private, even when
+            // multiple Cinch libraries are loaded into the same host.
+            cmd.args(["-Wl,-Bsymbolic", "-Wl,--exclude-libs,ALL", "-Wl,-z,defs"]);
+        }
+    }
+
     if target.opt_level > 0 {
         cmd.arg(format!("-O{}", target.opt_level));
     }
@@ -3866,7 +3900,7 @@ fn link_for(
         // Returned above: clang's driver is not what links this one.
         LinkFlavor::Freestanding(_) => unreachable!("the freestanding link returns before this"),
     }
-    cmd.arg("-o").arg(out);
+    cmd.arg("-o").arg(link_out);
     for word in plan.words() {
         cmd.arg(word);
     }
@@ -3916,6 +3950,9 @@ fn link_for(
                 format!(": {detail}")
             }
         )));
+    }
+    if let Some(staged) = staged_out {
+        std::fs::rename(&staged, out).map_err(|e| Error::plain(format!("cannot publish shared library {}: {e}", out.display())))?;
     }
     Ok(())
 }
@@ -4373,6 +4410,11 @@ fn scratch_dir(tag: &str) -> Result<std::path::PathBuf> {
 /// The flags a compile takes that are neither a mode nor a profile.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct DriverOptions {
+    /// Build a native shared library with load-time layout registration.
+    pub shared: bool,
+    /// Explicit native objects/archives linked into the artifact.
+    pub native_objects: Vec<PathBuf>,
+
     /// Concrete representation variants demanded by a library consumer.
     /// Used only by `EmitObject`; an empty list preserves ordinary roots.
     pub object_roots: Vec<crate::specialize::ObjectRoot>,
@@ -5469,6 +5511,20 @@ pub fn driver_with_profile_opts(
     // derives one from the other.
     let build = crate::core::BuildProfiles::of_target(profile);
     let profile = &build.target;
+    if opts.shared && !opts.package_objects.is_empty() {
+        return Err(Error::plain("shared libraries compile their full source closure; package objects are not supported"));
+    }
+    for native in &opts.native_objects {
+        if native.to_string_lossy().starts_with('-') || !native.is_file() {
+            return Err(Error::plain(format!("--native-object requires an existing file, not a linker option: {}", native.display())));
+        }
+    }
+    if opts.shared && (mode != Mode::Build || profile.artifact != crate::core::ArtifactProfile::Native || !matches!(profile.os.as_str(), "linux" | "darwin")) {
+        return Err(Error::plain("--shared applies to native build only"));
+    }
+    if !opts.native_objects.is_empty() && !matches!(mode, Mode::Build | Mode::Run) {
+        return Err(Error::plain("--native-object applies to build and run"));
+    }
     let project = load_project_for(path, &build)?;
     // The final link is built from the closure, not from a string: every
     // contribution is tagged with the package that asked for it, raw
@@ -5914,12 +5970,9 @@ pub fn driver_with_profile_opts(
     // An executable emitted whole calls its units only from itself, so
     // parameters may be inferred borrowed; an object, a module subset or
     // a link against package objects keeps every parameter owned.
-    // An object, a module subset or a link against package objects is open:
-    // its units infer modes too, and each one that lends keeps an owned
-    // public symbol over a lent worker, while the units the linked objects
-    // define are called with the modes those objects published
-    // (`crate::rc::insert_open`, `package_lent_modes`).
-    let closed = mode != Mode::EmitObject && emit_modules.is_empty() && opts.package_objects.is_empty();
+    // Open objects and libraries infer modes too, keeping an owned public
+    // symbol over each lent worker (`insert_open`, `package_lent_modes`).
+    let closed = !opts.shared && mode != Mode::EmitObject && emit_modules.is_empty() && opts.package_objects.is_empty();
     let program = if closed {
         crate::rc::insert_closed(program, profile)?
     } else {
@@ -5972,7 +6025,9 @@ pub fn driver_with_profile_opts(
             &out_dir,
         );
     }
-    let ir = if emit_modules.is_empty() {
+    let ir = if opts.shared {
+        codegen::emit_shared_for_modules(profile, &program, &emit_modules)?
+    } else if emit_modules.is_empty() {
         codegen::emit_for(profile, &program)?
     } else {
         codegen::emit_for_modules(profile, &program, &emit_modules)?
@@ -5992,11 +6047,14 @@ pub fn driver_with_profile_opts(
         Mode::Build => {
             let out = out
                 .map(|p| p.to_path_buf())
-                .unwrap_or_else(|| path.with_extension(""));
+                .unwrap_or_else(|| path.with_extension(if opts.shared {
+                    if profile.os == "darwin" { "dylib" } else { "so" }
+                } else { "" }));
             let ir_path = out.with_extension("ll");
             std::fs::write(&ir_path, &ir)
                 .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
-            let objects = object_paths(&opts.package_objects);
+            let mut objects = object_paths(&opts.package_objects);
+            objects.extend(opts.native_objects.iter().map(|p| p.to_string_lossy().into_owned()));
             let refs: Vec<&str> = objects.iter().map(String::as_str).collect();
             link_for(&ir_path, &out, &refs, &link_plan, &link_target(profile, opts))?;
             Ok(0)
@@ -6010,7 +6068,8 @@ pub fn driver_with_profile_opts(
             let exe = tmp.join(if is_freestanding(profile) { "program.wasm" } else { "program" });
             std::fs::write(&ir_path, ir)
                 .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
-            let objects = object_paths(&opts.package_objects);
+            let mut objects = object_paths(&opts.package_objects);
+            objects.extend(opts.native_objects.iter().map(|p| p.to_string_lossy().into_owned()));
             let refs: Vec<&str> = objects.iter().map(String::as_str).collect();
             if is_freestanding(profile) {
                 link_for(&ir_path, &exe, &refs, &link_plan, &link_target(profile, opts))?;

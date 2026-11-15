@@ -89,10 +89,17 @@ fn source(dir: &Path, src: &str) -> PathBuf {
 /// the reachability sweep then removes the now uncalled unit
 /// (design/stack-allocation.md section 7.4), which is the sweep's subject and
 /// not this file's.
+/// Run the CLI. The suite pins the stack pass alone, so product results
+/// (design/cps-optimisation.md section 6) are off: with them, a `let`-bound
+/// pair that is only taken apart is never built at all, and a fixture whose
+/// pass is disabled or refused would show no heap allocation to assert on.
+/// With the pass on, a frame site is never taken apart, so nothing the pass
+/// decides changes.
 fn cinch(dir: &Path, args: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_cinch"))
         .current_dir(dir)
         .env("CINCH_NO_PRUNE", "1")
+        .env("CINCH_NO_CPR", "1")
         .args(args)
         .output()
         .expect("run cinch")
@@ -123,7 +130,15 @@ fn emit_ir(dir: &Path, src: &str, flags: &[&str]) -> String {
 /// The body of the unit `name` in `ir`, from its `define` line to its
 /// closing brace.
 fn body<'a>(ir: &'a str, name: &str) -> &'a str {
-    let head = format!("@\"{name}\"(");
+    // A unit whose tail calls are guaranteed has its body under
+    // `<unit>#cc`, behind a one-call C wrapper under its own symbol
+    // (design/cps-optimisation.md section 1).
+    let separate = format!("@\"{name}#cc\"(");
+    let head = if ir.lines().any(|l| l.starts_with("define ") && l.contains(&separate)) {
+        separate
+    } else {
+        format!("@\"{name}\"(")
+    };
     let start = ir
         .lines()
         .scan(0usize, |at, line| {
@@ -438,6 +453,7 @@ fn the_frame_limit_keeps_allocations_on_the_heap() {
     let traced = Command::new(env!("CARGO_BIN_EXE_cinch"))
         .current_dir(&dir)
         .env("CINCH_NO_PRUNE", "1")
+        .env("CINCH_NO_CPR", "1")
         .env("CINCH_STACK_TRACE", "1")
         .args(["emit-ir", "--no-inline", "--max-simplifier-iterations", "0", "--stack-frame-limit", "0", "Main.cinch", "-o", "traced.ll"])
         .output()

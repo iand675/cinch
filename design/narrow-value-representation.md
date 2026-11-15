@@ -120,6 +120,10 @@ functions; the user chose the per-function stub.
   size case.
 - `range` metadata stops carrying facts that the type could carry
   directly.
+- The other direction, a result wider than a word, is taken for small
+  constructed products: a unit that always returns one constructor of up
+  to three word fields returns them as an aggregate
+  (`design/cps-optimisation.md` section 6, D431).
 
 ## 6 What must not break
 

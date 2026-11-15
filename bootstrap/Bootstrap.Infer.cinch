@@ -653,7 +653,7 @@ module Bootstrap.Infer where
               None -> case convert external kinds (quant-locals qs <> locals) body checked of
                 (converted, done) -> (nested-forall-type qs converted, done)
   nested-forall-type :: List Quant -> UType -> UType
-  nested-forall-type qs body = case qs of Nil -> body; more -> UForall qs body
+  nested-forall-type qs body = case qs of Nil -> body; more -> UForall (quants-of qs) body
   shadowed-parameter :: List (String, UType) -> List TypeParam -> Option String
   shadowed-parameter locals params = case params of
     Nil -> None
@@ -664,7 +664,7 @@ module Bootstrap.Infer where
   nested-value-binder qs = case qs of
     Nil -> None
     Cons q rest -> case quant-kind q of
-      KValue payload -> Some (quant-name q)
+      KValue carrier -> Some (quant-name q)
       KProp -> Some (quant-name q)
       other -> nested-value-binder rest
   next-bound-id :: List (String, UType) -> Nat
@@ -1255,7 +1255,7 @@ module Bootstrap.Infer where
   term-annotation-parameters params = case params of
     Nil -> True
     Cons q rest -> case quant-kind q of
-      KValue payload -> False
+      KValue carrier -> False
       KProp -> False
       other -> term-annotation-parameters rest
   unbound-annotation-regions :: List (String, UType) -> List String -> List String
@@ -2021,7 +2021,7 @@ module Bootstrap.Infer where
     (Nil, Nil) -> True
     (Cons parameter rest, Cons argument tail) ->
       (case quant-kind parameter of
-        KValue payload -> True
+        KValue carrier -> True
         other -> case argument of
           UBound id name kind -> id == quant-id parameter && kind-equal kind (quant-kind parameter)
           other -> False) && constructor-result-parameters rest tail
@@ -3196,7 +3196,7 @@ module Bootstrap.Infer where
     (term, checked) -> poly-elim-all (expr-span expr) term checked
   poly-elim-all :: Span -> CoreTerm -> Store -> (CoreTerm, Store)
   poly-elim-all sp term st = case normalize st (core-type term) of
-    UForall qs inner -> case open-scheme False (MkScheme qs inner) st of
+    UForall qs inner -> case open-scheme False (MkScheme (quants-list qs) inner) st of
       (opened, pairs, next) -> poly-elim-all sp (CPolyElim sp opened term (pair-types pairs)) next
     other -> (term, st)
   pair-types :: List (Nat, UType) -> List UType
@@ -3217,7 +3217,7 @@ module Bootstrap.Infer where
         (case infer-raw classes kinds families env locals expr st of
           (term, checked) -> (term, unify sp expected (core-type term) checked))
       else let outer = store-level st in
-        case instantiate-params True qs (enter-level st) of
+        case instantiate-params True (quants-list qs) (enter-level st) of
           (pairs, opened) -> case check classes kinds families env locals expr (substitute-bound pairs inner) opened of
             (body, checked) ->
               let restored = restore-level outer checked in

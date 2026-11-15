@@ -2774,7 +2774,7 @@ module Bootstrap.RuntimeIr where
   -- table; the two never meet, because no library export has a polytype.
   poly-bundle :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> List Nat -> CoreTerm -> (Writer, String)
   poly-bundle definitions locals w sp ty ids body = case ty of
-    UForall qs inner -> let binders = poly-class-binders qs ids in
+    UForall qs inner -> let binders = poly-class-binders (quants-list qs) ids in
       if list-length binders > 2 then unsupported w sp "a polymorphic value with more than two type binders needs an extended runtime descriptor (its 3^k bundle exceeds 16 words)" else
       case poly-components definitions locals w sp binders body (class-vectors (list-length binders)) of
         (built, values, classes) -> if list-length (writer-errors built) > list-length (writer-errors w) then (built, "0") else
@@ -2836,7 +2836,7 @@ module Bootstrap.RuntimeIr where
   writer-errors w = case w of Writer next globals code errors layouts context -> errors
   poly-project :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> CoreTerm -> List UType -> (Writer, String)
   poly-project definitions locals w sp ty value args = case core-type value of
-    UForall qs inner -> (case class-vector (writer-context w) (select-positions (poly-class-positions qs 0) args) of
+    UForall qs inner -> (case class-vector (writer-context w) (select-positions (poly-class-positions (quants-list qs) 0) args) of
       None -> unsupported w sp "an instantiation needs known runtime representations"
       -- A bundle holds one component per Raw/Obj/TObj vector; a Wide
       -- vector has none, and its base-3 index would name another's.

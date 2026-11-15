@@ -1061,6 +1061,68 @@ still the representation: `value-kind` still encodes, so every consumer
 that builds a kind from a carrier pays one. The next step in this area is
 the `Kind` representation itself, not another caller rewrite.
 
+### 2.20 `Kind` holds its carrier directly (2026-11-15)
+
+Section 2.17 removed the callers that were round-tripping a type through
+`KValue`, and closed by naming the next step: "the `Kind` representation
+itself, not another caller rewrite." This is that step. `KValue` held a
+`Json` document, so every kind observation of a type encoded the whole type
+tree and parsed it back; it now holds the `UType` directly
+(`design/mutual-data-groups.md` section 8), which is what the SCC data
+ordering landed for.
+
+**The harness.** `experiments/kind-holds/measure.py`, two arms, three
+interleaved repeats each, a fresh `CINCH_STORE` per run, `CINCH_ALLOC_STATS=1`
+reading `blocks` and `bytes` from the runtime's line. Both arms are the same
+stage-3 compiler built from this tree, one before the change and one after;
+each arm's compiler is paired with the `base-interfaces.json` the build that
+produced it emitted, so neither is measured against another tree's
+interfaces.
+
+| workload | counter | before | after | change |
+|---|---|---|---|---|
+| two-line `--check` | blocks | 28,607,902 | 28,378,590 | -229,312 (-0.80%) |
+| two-line `--check` | bytes | 679,264,453 | 674,474,423 | -4,790,030 (-0.71%) |
+| toolkit `--check` | blocks | 146,217,063 | 128,418,735 | -17,798,328 (-12.17%) |
+| toolkit `--check` | bytes | 3,360,179,588 | 2,991,867,000 | -368,312,588 (-10.96%) |
+
+Every arm repeats its block count exactly across the three repeats. Peak
+live heap is unchanged (18,039,654 to 18,038,235 on the two-line program,
+24,697,343 to 24,695,700 on the toolkit), so this removed work rather than
+retaining memory.
+
+**Why the two-line program barely moves.** Its cost is loading and
+elaborating 51 interface contracts, and the interfaces are the artifact
+boundary: they arrive as JSON and their `Kind` documents are still parsed by
+`read-kind-tree`. The in-memory round trip this change removes is paid per
+kind observation of a type the compiler itself built, which is what the
+toolkit's 4,058 lines of real checking do and what a three-line program
+mostly does not.
+
+**The gates.** Fixed point: stage 2 and stage 3 emit byte-identical
+`compiler.ll`, byte-identical binaries, and byte-identical content for all
+51 `.cinchif` interfaces, so no `Kind` JSON form on disk changed. Three
+smokes pass (fib, precedence, refusal). `cinch-leak: live=0 immortal=0
+leaked=0` on both `--check` and `--emit-ir`, each exiting 0. `cargo test
+--lib` is 278 passed, 0 failed. Through `tooling/run_stage_targets.py
+--stage 3`, the five targets that exercise this engine are at their
+documented per-test parity: `bootstrap_value_kinds`, `bootstrap_pi` and
+`bootstrap_value_indices` pass 4/4 each, `dependent` is 13 passed / 9
+failed and `bootstrap_infer` is 3 passed / 1 failed, the same totals and
+the same failing test names `design/mutual-data-groups.md` section 6
+records for the SCC change. Nothing newly fails.
+
+**What it cost.** `UForall` cannot hold `List Quant`: `Quant` names `Kind`,
+which names `UType`, so those declarations are one recursive group and
+clause 4 of the positivity rule admits a group member only as a direct
+occurrence, never nested inside `List`. `UForall` holds a `Quants` spine
+(`QEnd`/`QCons`) instead, and `quants-of`/`quants-list`/`quants-length`
+convert at the boundary where the rest of the type engine speaks
+`List Quant`. That conversion is proportional to a polytype's binder count,
+not to the size of a type tree, which is the quantity the round trip was
+proportional to. `Scheme` keeps `List Quant`, because `Scheme` is outside
+the group.
+
 ### 2.18 The frontend is superlinear in definition count (2026-11-13)
 
 Found while sizing the `huge-module` workload for the `-j` sweep, and

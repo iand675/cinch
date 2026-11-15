@@ -399,3 +399,26 @@ artifacts, contract-only `iface_hash`, and `.cinchif` dependency chain
 are the starting advantages; the acceptance is latency (unchanged
 rebuild cost grows with graph traversal only) and a cache that is
 advisory, never load-bearing.
+
+## Native C++
+
+`cinch cxx bindings.json --out-dir DIR` supports exact native symbol imports
+with full FFI signatures and no generated C++ shim. It also generates opaque
+owned class bindings, constructors, borrowed methods, consuming destructors,
+and scalar function imports through C++17 C ABI shims. See the [runnable example and binding
+format](../examples/cxx/README.md). Destruction is explicit and checked by the
+existing linear ownership rules. Direct imports require a no-unwind ABI contract;
+shim calls catch exceptions and terminate.
+
+`cinch cxx build bindings.json --out-dir DIR` generates and builds C exports
+and native C++ classes implemented in Cinch, including instance fields,
+constructor/destructor hooks, inherited calls, and virtual overrides. It also
+builds a Godot GDExtension when the specification enables `godot`.
+See the [C/C++ host example](../examples/cxx/exports/README.md) and
+[Godot example](../examples/godot/README.md) for supported types and setup.
+
+`cinch build Library.cinch --shared -o libLibrary.so` emits a self-contained
+native shared library with load-time runtime initialization. `--native-object`
+adds an explicit object/archive to `build` or `run`. Linux shared libraries
+keep their runtime symbols private; successful links replace the output
+atomically so editors can keep using an already loaded library.

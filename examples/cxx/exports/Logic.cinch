@@ -1,0 +1,36 @@
+module Logic where
+  import HostApi
+
+  foreign import ccall "example_note_destroyed" noteDestroyed :: I64 ->{Foreign Cxx, IO} Unit
+  foreign import ccall "example_destroyed" readDestroyed :: Unit ->{Foreign Cxx, IO} I64
+
+  add :: I64 -> I64 -> I64
+  add a b = wrapping-add-i64 a b
+
+  created :: Borrowed Counter ->{Foreign Cxx, IO} Unit
+  created self = setCounterCount self 1
+
+  destroy :: Borrowed Counter ->{Foreign Cxx, IO} Unit
+  destroy self = noteDestroyed (getCounterCount self)
+
+  increment :: Borrowed Counter -> I64 ->{Foreign Cxx, IO} I64
+  increment self amount =
+    let n = wrapping-add-i64 (getCounterCount self) amount in
+    let u = setCounterCount self n in n
+
+  value :: Borrowed Counter ->{Foreign Cxx, IO} I64
+  value self = getCounterCount self
+
+  destroyed :: Unit ->{Foreign Cxx, IO} I64
+  destroyed _ = readDestroyed ()
+
+  buildValues :: I64 -> List I64 ->{Diverge} List I64
+  buildValues n acc = if n == 0 then acc else buildValues (wrapping-sub-i64 n 1) (Cons n acc)
+
+  countValues :: List I64 -> I64 ->{Diverge} I64
+  countValues xs n = case xs of
+    Nil -> n
+    Cons value rest -> countValues rest (wrapping-add-i64 n 1)
+
+  heap-length :: I64 ->{Diverge} I64
+  heap-length n = countValues (buildValues n Nil) 0

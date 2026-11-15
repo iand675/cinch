@@ -1,0 +1,626 @@
+{
+  "module": "GameApi",
+  "sources": [
+    "GameLogic.cinch",
+    "ValueLogic.cinch"
+  ],
+  "native_sources": [
+    "Lifecycle.cpp"
+  ],
+  "godot": {},
+  "export_classes": [
+    {
+      "name": "CinchSpinner",
+      "cpp": "demo::CinchSpinner",
+      "base": "godot::Node2D",
+      "fields": [
+        {
+          "name": "count",
+          "type": "I64",
+          "initial": 0
+        }
+      ],
+      "constructor": {
+        "function": "GameLogic.created",
+        "effects": [
+          "Foreign Cxx",
+          "IO"
+        ]
+      },
+      "destructor": {
+        "function": "GameLogic.destroy",
+        "effects": [
+          "Foreign Cxx",
+          "IO"
+        ]
+      },
+      "methods": [
+        {
+          "name": "advance",
+          "function": "GameLogic.advance",
+          "params": [
+            "I64"
+          ],
+          "result": "I64",
+          "effects": [
+            "Foreign Cxx",
+            "IO"
+          ]
+        },
+        {
+          "name": "destructions",
+          "function": "GameLogic.destructions",
+          "result": "I64",
+          "effects": [
+            "Foreign Cxx",
+            "IO"
+          ]
+        },
+        {
+          "name": "_process",
+          "function": "GameLogic.tick",
+          "params": [
+            "F64"
+          ],
+          "result": "Unit",
+          "effects": [
+            "Foreign Cxx",
+            "IO"
+          ],
+          "override": true
+        }
+      ],
+      "native_methods": [
+        {
+          "name": "rotate",
+          "cpp": "rotate",
+          "params": [
+            "F64"
+          ],
+          "result": "Unit"
+        }
+      ]
+    },
+    {
+      "name": "CinchValues",
+      "cpp": "demo::CinchValues",
+      "base": "godot::RefCounted",
+      "fields": [
+        {
+          "name": "label",
+          "type": "String",
+          "initial": "Cinch \u03bb \ud83c\udf0d"
+        },
+        {
+          "name": "enabled",
+          "type": "Bool",
+          "initial": true
+        },
+        {
+          "name": "offset",
+          "type": "Vector2",
+          "initial": [
+            1,
+            2
+          ]
+        },
+        {
+          "name": "items",
+          "type": "Array",
+          "initial": [
+            1,
+            "two",
+            {
+              "nested": true
+            }
+          ]
+        },
+        {
+          "name": "table",
+          "type": "Dictionary",
+          "initial": {
+            "hello": "world"
+          }
+        },
+        {
+          "name": "payload",
+          "type": "Variant",
+          "initial": {
+            "key": [
+              1,
+              2
+            ]
+          }
+        }
+      ],
+      "methods": [
+        {
+          "name": "echoString",
+          "function": "ValueLogic.echoString",
+          "params": [
+            "String"
+          ],
+          "result": "String",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        },
+        {
+          "name": "echoStringName",
+          "function": "ValueLogic.echoStringName",
+          "params": [
+            "StringName"
+          ],
+          "result": "StringName",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        },
+        {
+          "name": "echoBool",
+          "function": "ValueLogic.echoBool",
+          "params": [
+            "Bool"
+          ],
+          "result": "Bool",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        },
+        {
+          "name": "echoVector2",
+          "function": "ValueLogic.echoVector2",
+          "params": [
+            "Vector2"
+          ],
+          "result": "Vector2",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        },
+        {
+          "name": "echoVector3",
+          "function": "ValueLogic.echoVector3",
+          "params": [
+            "Vector3"
+          ],
+          "result": "Vector3",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        },
+        {
+          "name": "echoVector4",
+          "function": "ValueLogic.echoVector4",
+          "params": [
+            "Vector4"
+          ],
+          "result": "Vector4",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        },
+        {
+          "name": "echoVector2i",
+          "function": "ValueLogic.echoVector2i",
+          "params": [
+            "Vector2i"
+          ],
+          "result": "Vector2i",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        },
+        {
+          "name": "echoVector3i",
+          "function": "ValueLogic.echoVector3i",
+          "params": [
+            "Vector3i"
+          ],
+          "result": "Vector3i",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        },
+        {
+          "name": "echoVector4i",
+          "function": "ValueLogic.echoVector4i",
+          "params": [
+            "Vector4i"
+          ],
+          "result": "Vector4i",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        },
+        {
+          "name": "echoColor",
+          "function": "ValueLogic.echoColor",
+          "params": [
+            "Color"
+          ],
+          "result": "Color",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        },
+        {
+          "name": "echoVariant",
+          "function": "ValueLogic.echoVariant",
+          "params": [
+            "Variant"
+          ],
+          "result": "Variant",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        },
+        {
+          "name": "echoArray",
+          "function": "ValueLogic.echoArray",
+          "params": [
+            "Array"
+          ],
+          "result": "Array",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        },
+        {
+          "name": "echoDictionary",
+          "function": "ValueLogic.echoDictionary",
+          "params": [
+            "Dictionary"
+          ],
+          "result": "Dictionary",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        },
+        {
+          "name": "echoObject",
+          "function": "ValueLogic.echoObject",
+          "params": [
+            "Object"
+          ],
+          "result": "Object",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        },
+        {
+          "name": "arrayAppend",
+          "function": "ValueLogic.arrayAppend",
+          "params": [
+            "Array",
+            "Variant"
+          ],
+          "result": "Array",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        },
+        {
+          "name": "callObject",
+          "function": "ValueLogic.callObject",
+          "params": [
+            "Object",
+            "String",
+            "Array"
+          ],
+          "result": "Variant",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        },
+        {
+          "name": "getObject",
+          "function": "ValueLogic.getObject",
+          "params": [
+            "Object",
+            "String"
+          ],
+          "result": "Variant",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        },
+        {
+          "name": "setObject",
+          "function": "ValueLogic.setObject",
+          "params": [
+            "Object",
+            "String",
+            "Variant"
+          ],
+          "result": "Unit",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        },
+        {
+          "name": "exerciseCollections",
+          "function": "ValueLogic.exerciseCollections",
+          "result": "I64",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        },
+        {
+          "name": "duplicateDictionary",
+          "function": "ValueLogic.duplicateDictionary",
+          "params": [
+            "Dictionary"
+          ],
+          "result": "Dictionary",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        },
+        {
+          "name": "emitVariant",
+          "function": "ValueLogic.emitVariant",
+          "params": [
+            "Variant"
+          ],
+          "result": "Unit",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        }
+      ],
+      "signals": [
+        {
+          "name": "delivered",
+          "params": [
+            "Variant"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "CinchMover",
+      "cpp": "demo::MoverState",
+      "base": "godot::Node2D",
+      "script": "Mover.cinch",
+      "fields": [
+        {
+          "name": "count",
+          "type": "I64",
+          "initial": 1
+        },
+        {
+          "name": "label",
+          "type": "String",
+          "initial": "Mover"
+        },
+        {
+          "name": "offset",
+          "type": "Vector2",
+          "initial": [
+            2,
+            3
+          ]
+        },
+        {
+          "name": "payload",
+          "type": "Variant",
+          "initial": null
+        }
+      ],
+      "signals": [
+        {
+          "name": "changed",
+          "params": [
+            "I64",
+            "String"
+          ]
+        }
+      ],
+      "constructor": {
+        "function": "Mover.created",
+        "effects": [
+          "Foreign Cxx",
+          "IO",
+          "Diverge"
+        ]
+      },
+      "destructor": {
+        "function": "Mover.destroy",
+        "effects": [
+          "Foreign Cxx",
+          "IO",
+          "Diverge"
+        ]
+      },
+      "methods": [
+        {
+          "name": "advance",
+          "function": "Mover.advance",
+          "params": [
+            "I64"
+          ],
+          "result": "I64",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        },
+        {
+          "name": "_process",
+          "function": "Mover.tick",
+          "params": [
+            "F64"
+          ],
+          "result": "Unit",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        },
+        {
+          "name": "connect_changed",
+          "function": "Mover.connectChanged",
+          "params": [
+            "Object",
+            "String",
+            "I64"
+          ],
+          "result": "I64",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        },
+        {
+          "name": "disconnect_changed",
+          "function": "Mover.disconnectChanged",
+          "params": [
+            "Object",
+            "String"
+          ],
+          "result": "I64",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        }
+      ],
+      "native_methods": [
+        {
+          "name": "translate",
+          "cpp": "translate",
+          "params": [
+            "Vector2"
+          ],
+          "result": "Unit"
+        }
+      ]
+    },
+    {
+      "name": "CinchTool",
+      "cpp": "demo::ToolState",
+      "base": "godot::Node2D",
+      "script": "Tool.cinch",
+      "tool": true,
+      "fields": [
+        {
+          "name": "count",
+          "type": "I64",
+          "initial": 8
+        }
+      ],
+      "constructor": {
+        "function": "Tool.created",
+        "effects": [
+          "Foreign Cxx",
+          "IO"
+        ]
+      },
+      "methods": [
+        {
+          "name": "_ready",
+          "function": "Tool.ready",
+          "result": "Unit",
+          "effects": [
+            "Foreign Cxx",
+            "IO"
+          ]
+        },
+        {
+          "name": "advance",
+          "function": "Tool.advance",
+          "params": [
+            "I64"
+          ],
+          "result": "I64",
+          "effects": [
+            "Foreign Cxx",
+            "IO"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "CinchResource",
+      "cpp": "demo::ResourceState",
+      "base": "godot::Resource",
+      "script": "ResourceLogic.cinch",
+      "fields": [
+        {
+          "name": "label",
+          "type": "String",
+          "initial": "Resource \u03bb"
+        }
+      ],
+      "destructor": {
+        "function": "ResourceLogic.destroy",
+        "effects": [
+          "Foreign Cxx",
+          "IO"
+        ]
+      },
+      "methods": [
+        {
+          "name": "echo",
+          "function": "ResourceLogic.echo",
+          "params": [
+            "String"
+          ],
+          "result": "String",
+          "effects": [
+            "Foreign Cxx",
+            "IO",
+            "Diverge"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -109,7 +109,7 @@ module Bootstrap.Core where
   effect-quant-name name qs = case qs of Nil -> False; Cons q rest -> string-compare name (quant-name q) == 0 || effect-quant-name name rest
   effect-kind-scope :: List Quant -> Kind -> Bool
   effect-kind-scope qs kind = valid-kind kind && (case kind of
-    KValue payload -> (case value-carrier kind of Some ty -> effect-type-scope qs ty; None -> False)
+    KValue carrier -> effect-type-scope qs carrier
     KFun a b -> effect-kind-scope qs a && effect-kind-scope qs b
     other -> True)
   effect-quants-scoped :: List Quant -> List Quant -> Bool
@@ -159,7 +159,7 @@ module Bootstrap.Core where
     URow labels -> effect-type-scope qs labels
     URowJoin a b -> effect-type-scope qs a && effect-type-scope qs b
     UTuple fields -> effect-type-scope qs fields
-    UForall inner body -> effect-type-scope (qs <> inner) body
+    UForall inner body -> effect-type-scope (qs <> quants-list inner) body
     UArg a rest -> effect-type-scope qs a && effect-type-scope qs rest
     UCompare relation a b -> effect-type-scope qs a && effect-type-scope qs b
     UPropAnd a b -> effect-type-scope qs a && effect-type-scope qs b
@@ -1230,7 +1230,7 @@ module Bootstrap.Core where
     URow labels -> URow (freeze labels)
     URowJoin a b -> union-effects (freeze a) (freeze b)
     UTuple fields -> UTuple (freeze fields)
-    UForall qs body -> UForall (map-quant-kinds freeze qs) (freeze body)
+    UForall qs body -> UForall (quants-of (map-quant-kinds freeze (quants-list qs))) (freeze body)
     UArg x rest -> UArg (freeze x) (freeze rest)
     other -> ty
 
@@ -1278,7 +1278,7 @@ module Bootstrap.Core where
   index-type-metas :: UType -> List Nat -> List (Nat, Kind)
   index-type-metas carrier ids = case ids of Nil -> Nil; Cons id rest -> Cons (id, value-kind carrier) (index-type-metas carrier rest)
   kind-type-metas :: Store -> Kind -> List (Nat, Kind)
-  kind-type-metas st kind = case kind of KValue payload -> (case value-carrier kind of Some carrier -> type-metas st carrier; None -> Nil); KFun a b -> kind-type-metas st a <> kind-type-metas st b; other -> Nil
+  kind-type-metas st kind = case kind of KValue carrier -> type-metas st carrier; KFun a b -> kind-type-metas st a <> kind-type-metas st b; other -> Nil
   types-metas :: Store -> List UType -> List (Nat, Kind)
   types-metas st types = case types of Nil -> Nil; Cons ty rest -> type-metas st ty <> types-metas st rest
   given-metas :: Store -> List CoreGiven -> List (Nat, Kind)
@@ -1429,7 +1429,7 @@ module Bootstrap.Core where
     UArg x rest -> closed-type x && closed-type rest
     other -> True
   closed-kind :: Kind -> Bool
-  closed-kind kind = case kind of KValue payload -> (case value-carrier kind of Some carrier -> closed-type carrier; None -> False); KFun a b -> closed-kind a && closed-kind b; other -> True
+  closed-kind kind = case kind of KValue carrier -> closed-type carrier; KFun a b -> closed-kind a && closed-kind b; other -> True
   closed-quants :: List Quant -> Bool
   closed-quants qs = case qs of Nil -> True; Cons q rest -> valid-kind (quant-kind q) && closed-kind (quant-kind q) && closed-quants rest
   closed-types :: List UType -> Bool
@@ -1596,7 +1596,7 @@ module Bootstrap.Core where
   -- do not authorize a value index with the same printed name or number.
   kind-index-scope :: List Nat -> List Nat -> Kind -> Bool
   kind-index-scope bound rigid kind = case kind of
-    KValue payload -> case value-carrier kind of Some carrier -> type-index-scope bound rigid carrier; None -> False
+    KValue carrier -> type-index-scope bound rigid carrier
     KFun a b -> kind-index-scope bound rigid a && kind-index-scope bound rigid b
     other -> True
   type-index-scope :: List Nat -> List Nat -> UType -> Bool

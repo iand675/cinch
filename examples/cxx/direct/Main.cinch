@@ -1,0 +1,11 @@
+module Main where
+  import Native
+
+  main :: Unit ->{Foreign Cxx, IO, Diverge} Int
+  main _ =
+    let h = openHandle () in
+    let n = readHandle h in
+    let r = add n 2 in
+    let u = closeHandle h in
+    let remaining = liveCount () in
+    if r == 42 then (if remaining == 0 then 0 else 2) else 1

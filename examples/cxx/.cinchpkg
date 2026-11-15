@@ -1,0 +1,29 @@
+{
+  "name": "demo/cxx-counter",
+  "version": "0.1.0",
+  "modules": [
+    {
+      "name": "Counter",
+      "path": "Counter.cinch"
+    },
+    {
+      "name": "Main",
+      "path": "Main.cinch"
+    }
+  ],
+  "order": [
+    "Counter",
+    "Main"
+  ],
+  "local_link": {
+    "libdirs": [
+      "."
+    ]
+  },
+  "link": {
+    "libs": [
+      "counter",
+      "stdc++"
+    ]
+  }
+}

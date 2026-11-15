@@ -1,0 +1,24 @@
+module GameLogic where
+  import GameApi
+
+  foreign import ccall "example_godot_created" noteCreated :: Unit ->{Foreign Cxx, IO} Unit
+  foreign import ccall "example_godot_destroyed" noteDestroyed :: Unit ->{Foreign Cxx, IO} Unit
+  foreign import ccall "example_godot_destructions" readDestructions :: Unit ->{Foreign Cxx, IO} I64
+
+  created :: Borrowed CinchSpinner ->{Foreign Cxx, IO} Unit
+  created self = let u = setCinchSpinnerCount self 0 in noteCreated ()
+
+  destroy :: Borrowed CinchSpinner ->{Foreign Cxx, IO} Unit
+  destroy self = let n = getCinchSpinnerCount self in noteDestroyed ()
+
+  advance :: Borrowed CinchSpinner -> I64 ->{Foreign Cxx, IO} I64
+  advance self amount =
+    let n = wrapping-add-i64 (getCinchSpinnerCount self) amount in
+    let u = setCinchSpinnerCount self n in n
+
+  destructions :: Borrowed CinchSpinner ->{Foreign Cxx, IO} I64
+  destructions self = let n = getCinchSpinnerCount self in readDestructions ()
+
+  tick :: Borrowed CinchSpinner -> F64 ->{Foreign Cxx, IO} Unit
+  tick self delta =
+    let n = advance self 1 in rotateCinchSpinner self delta

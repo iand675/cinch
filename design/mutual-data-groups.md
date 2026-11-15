@@ -300,3 +300,91 @@ Nesting stays refused, but not by this discipline: the untyped rung reaches
 ```
 bootstrap.check:4:13: unknown type constructor or unbound variable: List
 ```
+
+## 8 Giving `Kind` the type directly
+
+Status: landed in the self-hosted compiler. This is the step section 6 named
+as "still open", and it is the reason the feature exists.
+
+### 8.1 What changed
+
+`KValue :: Json -> Kind` becomes `KValue :: UType -> Kind`. The `Kind`,
+`Quants`, `Quant` and `UType` declarations are now one mutually recursive
+group, and `value-kind` is `KValue carrier` rather than
+`KValue (carrier-tree carrier)`, so `value-carrier` is a field projection
+rather than a document parse. The encode and decode are gone from every
+in-memory path.
+
+### 8.2 Why the binders are a spine
+
+The group is `{Kind, Quants, Quant, UType}` and every occurrence is a direct
+constructor field, which is what clause 4 requires. `UForall` could not keep
+`List Quant`: `Quant` names `Kind`, `Kind` names `UType`, and `UType` would
+name `List Quant`, so the group member `Quant` would occur nested inside
+another type constructor. The probes, through `--check` on a stage-3
+compiler:
+
+```cinch
+data Kind where KType :: Kind; KValue :: UType -> Kind
+data Quant where MkQuant :: Kind -> Quant
+data UType where UForall :: List Quant -> UType; UEnd :: UType
+```
+
+is refused at the `UForall` field:
+
+```
+bootstrap.check:9:16: recursive field is negative or needs nested positivity evidence
+```
+
+while the same declarations with `Quants`/`QCons` in place of `List Quant`
+are accepted. So `UForall` holds a `Quants` spine, `QCons` and `QEnd`, which
+is the same encoding `Bootstrap.Ast` already uses for statement lists. The
+spine is not a workaround for the positivity rule being wrong: clause 4 is
+the honest boundary section 2 records, and a `List` inside a recursive group
+would need positivity-preserving nesting, which stays open.
+
+`Scheme` keeps `List Quant`. `Scheme` is not in the group (`Kind` and `UType`
+never name it), so its binder list is a member-free `List` and clause 4 does
+not apply. It is a probe result, not an assumption:
+
+```cinch
+data Scheme where MkScheme :: List Quant -> UType -> Scheme
+```
+accepted, in the same module as the group above.
+
+### 8.3 The boundary the spine costs
+
+The type engine speaks `List Quant` in 135 signature positions, because a
+binder list is what a scheme, a class and an effect declaration carry. The
+spine converts at the boundary: `quants-of`, `quants-list` and
+`quants-length`, in `Bootstrap.Type`. A spine of `n` binders converts in
+`n` steps, so the conversion is proportional to the binder count of one
+polytype and not to the size of a type tree, which is the quantity the round
+trip was proportional to.
+
+That is the deliberate trade: 20 `UForall` arms convert, and every other
+`List Quant` position keeps its existing type.
+
+### 8.4 What the artifact boundary keeps
+
+`kind-tree` still writes a `KValue` as `["value", <carrier tree>]` and
+`read-kind-tree` still reads it back, because an interface contract is
+JSON on disk. What is gone is the in-memory round trip: nothing encodes a
+type to read its own kind any more. Section 8.6 states the on-disk claim.
+
+### 8.5 Measurements
+
+See `design/compilation-speed.md` section 2.20 for the before and after
+block and byte counts on the two-line program and the toolkit bundle, and
+for the gate results.
+
+### 8.6 The stored form
+
+No `Kind` JSON form changed. `kind-tree`'s `KValue` arm still writes the
+same `["value", <carrier tree>]` document it wrote before, and
+`read-kind-tree` still accepts exactly that document, so every `.cinchif`
+written by the previous compiler reads identically and every interface
+identity (FNV-1a 64 over the canonical projection) is unchanged. The
+fixed point confirms it: stage 2 and stage 3 emit byte-identical
+`compiler.ll` and all 51 interfaces, which cannot happen if a written
+document changed.

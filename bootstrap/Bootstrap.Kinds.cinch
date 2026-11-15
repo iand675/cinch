@@ -82,7 +82,7 @@ module Bootstrap.Kinds where
   highest :: Nat -> Nat -> Nat
   highest a b = if a > b then a else b
   kind-level :: Kind -> Nat
-  kind-level kind = case kind of KFun a b -> highest (kind-level a) (kind-level b); KValue payload -> (case value-carrier kind of Some ty -> type-level ty; None -> 0); other -> 0
+  kind-level kind = case kind of KFun a b -> highest (kind-level a) (kind-level b); KValue carrier -> type-level carrier; other -> 0
   index-level :: IndexTerm -> Nat
   index-level value = case value of
     IRigid id name level -> level
@@ -140,7 +140,7 @@ module Bootstrap.Kinds where
   kind-well-formed :: List (String, Kind) -> TypeScope -> Kind -> Bool
   kind-well-formed kinds scope kind = valid-kind kind && (case kind of
     KFun domain result -> kind-well-formed kinds scope domain && kind-well-formed kinds scope result
-    KValue payload -> (case value-carrier kind of Some carrier -> type-well-formed kinds scope carrier; None -> False)
+    KValue carrier -> type-well-formed kinds scope carrier
     other -> True)
   index-binding :: UType -> Nat -> List (Nat, Kind) -> Bool
   index-binding carrier id entries = case lookup-id id entries of
@@ -187,7 +187,7 @@ module Bootstrap.Kinds where
     URow labels -> type-well-formed kinds scope labels
     URowJoin a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
     UTuple fields -> type-well-formed kinds scope fields
-    UForall qs body -> type-well-formed kinds (bind-quant-scope qs scope) body
+    UForall qs body -> type-well-formed kinds (bind-quant-scope (quants-list qs) scope) body
     UArg first rest -> type-well-formed kinds scope first && type-well-formed kinds scope rest
     UCompare relation a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
     UPropAnd a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
@@ -224,7 +224,7 @@ module Bootstrap.Kinds where
   argument-well-formed :: List (String, Kind) -> TypeScope -> UType -> Bool
   argument-well-formed kinds scope ty = type-well-formed kinds scope ty && (case type-kind ty of
     KType -> proper-type ty
-    KValue payload -> typed-index-admissible ty
+    KValue carrier -> typed-index-admissible ty
     other -> True)
   nominal-seen :: List (String, Kind) -> List (String, Kind) -> List String -> Bool
   nominal-seen all entries names = case entries of

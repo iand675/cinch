@@ -67,7 +67,7 @@ module Bootstrap.ExportNominal where
   kind-references :: Kind -> Result String (List String)
   kind-references kind = case kind of
     KFun a b -> combine (kind-references a) (kind-references b)
-    KValue tree -> case value-carrier kind of Some carrier -> type-references carrier; None -> Err "invalid checked value kind"
+    KValue carrier -> type-references carrier
     other -> Ok Nil
   quant-references :: List Quant -> Result String (List String)
   quant-references quants = case quants of Nil -> Ok Nil; Cons q rest -> combine (kind-references (quant-kind q)) (quant-references rest)

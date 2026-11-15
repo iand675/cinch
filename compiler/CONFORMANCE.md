@@ -209,7 +209,7 @@ and dash-style prelude function names.
 | --- | --- |
 | Dash identifiers and the minus whitespace contract (D102) | done (lexer + ast; whole minus table unit-tested (D128/D129); digits excluded from the right of a glue dash so `x-1` subtracts) |
 | Multi-binding `let` and guarded `letrec` (D103): recursion only under lambda/`~`/`delay`, eager cycles rejected with the fix named | done (fixpoint boxes with black-hole fault 70 (D131-D137); `tests/letrec.rs` 9/9) |
-| Tail recursion in constant stack, self and mutual (D104) | done (loop-header self-jumps + `musttail` mutual groups, widened to the group's widest arity when members' arities differ (`core.rs::tail_widths`, `@"<unit>#tail"` workers); 1,000,000-deep proofs on an 8 MiB stack, mixed-arity included; `tail_calls` manifest section with Tarjan SCC marks and fallback reasons (D138-D139); `tests/surface.rs` run-tests, `tests/tail_calls.rs`) |
+| Tail recursion in constant stack, self and mutual (D104) | done (loop-header self-jumps + `musttail` mutual groups: under `tailcc` on 64-bit native targets at the members' own arities (D430), and on C-convention targets widened to the group's widest arity when members' arities differ (`core.rs::tail_widths`, `@"<unit>#tail"` workers)); 1,000,000-deep proofs on an 8 MiB stack, mixed-arity included; `tail_calls` manifest section with Tarjan SCC marks and fallback reasons (D138-D139); `tests/surface.rs` run-tests, `tests/tail_calls.rs`) |
 | `[...]`/`{k => v}` literals desugaring to `FromList`/`FromMap`, with the prelude `Map` (D105) | done (`FromList`/`FromMap` classes, `Map` BST, expected-type instance selection, D92 fold pass with `literal_folds` boundary (D142/D147); `tests/surface.rs`) |
 | Dash-style prelude function names (D106) | done (all 911 prelude-declared functions/methods renamed; compiler-side name references moved; builtin surface values and intrinsic symbols unchanged (D130)) |
 | Export declarations and re-exports (`export module X`, `export A.b`); imports private until re-exported (D107) | done (surface is exactly the named set with `export` decls (D143/D146); fixities follow exported operator bindings; instances/foreign table stay module-owned) |
@@ -886,12 +886,20 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   `bootstrap/current-rank-n-stage3-results.json`.
 - **D430 (compiling continuation-passing code, design/cps-optimisation.md)**:
   five optimisations, none of which changes observable behaviour. (1) On
-  64-bit native targets, a tail call through an unknown closure is
-  guaranteed: units in the closed tail set get a private `tailcc` body
-  behind their C-ABI name, every apply stub carries prefix data naming
-  its `musttail` tail twin, and an unknown tail call passes up to 16
-  arguments through a thread-local buffer, so a continuation chain runs
-  in constant stack at every optimisation level. (2) A local
+  64-bit native targets, every tail call between two function units of a
+  module whose results cross alike and whose callee itself makes such a
+  call, and every tail call through an unknown closure, is guaranteed: the
+  units making them get a
+  `tailcc` body `X#cc` behind their C-ABI name (`codegen.rs::tail_units`:
+  the greatest fixed point of "makes an unknown tail call, or a known tail
+  call to a member"; a tail call into a unit outside it, which makes no
+  tail call to guarantee, is an ordinary call, and such a unit keeps the C
+  convention, because x86-64's callee-pops `tailcc` costs every ordinary
+  call into it), every apply stub carries prefix data
+  naming its `musttail` tail twin, and an unknown tail call passes its
+  first four (x86-64) or six (AArch64) words in registers and the rest of
+  up to 16 through a thread-local buffer, so a continuation chain runs in
+  constant stack at every optimisation level. (2) A local
   continuation that is only tail-called becomes a join point
   (`--no-contify`). (3) A projection out of a known capturing dictionary,
   including a rank-N polytype, becomes a direct call of the method with
@@ -905,6 +913,17 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   consumes takes a frame slot: application counts as a consumption, and
   the apply stub releases a frame closure's payload once. Evidence:
   `tests/cps.rs`, which runs every test under the leak check.
+- **D431 (multi-word results, design/cps-optimisation.md section 6)**: on
+  64-bit native targets a unit whose every tail leaf builds one
+  constructor of one to three word fields (or reuses its cell, or
+  tail-calls another such unit) returns the fields as an LLVM aggregate
+  from its body `X#cc`; its C wrapper `X` boxes them through the
+  constructor's unit, so the object ABI, closures and the JIT are
+  unchanged. A caller's `let` whose value always builds that product and
+  whose body only takes it apart (`case` with the one alternative,
+  `Release`, `drop`) never allocates the block. `CINCH_NO_CPR=1` turns the
+  rule off. Evidence: `tests/calling_convention.rs` (leak-checked) and the
+  codegen unit tests.
 - **D221-D227 (P18 continuation, reported)**: `unsafe` is a per-body
   prefix (`unsafe <family> { ... }`) with `unsafe prim ... where` sugar
   folding into bodies at parse, recognized contextually so `unsafe`

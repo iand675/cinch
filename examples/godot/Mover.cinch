@@ -1,0 +1,25 @@
+module Mover where
+  import GameApi
+  foreign import ccall "example_godot_destroyed" noteDestroyed :: Unit ->{Foreign Cxx, IO} Unit
+
+  created :: Borrowed CinchMover ->{Foreign Cxx, IO, Diverge} Unit
+  created self = setCinchMoverCount self 1
+
+  destroy :: Borrowed CinchMover ->{Foreign Cxx, IO, Diverge} Unit
+  destroy self = noteDestroyed ()
+
+  advance :: Borrowed CinchMover -> I64 ->{Foreign Cxx, IO, Diverge} I64
+  advance self amount =
+    let n = wrapping-add-i64 (getCinchMoverCount self) amount in
+    let u = setCinchMoverCount self n in
+    let v = emitCinchMoverChanged self n (getCinchMoverLabel self) in n
+
+  tick :: Borrowed CinchMover -> F64 ->{Foreign Cxx, IO, Diverge} Unit
+  tick self delta =
+    let n = advance self 1 in translateCinchMover self (getCinchMoverOffset self)
+
+  connectChanged :: Borrowed CinchMover -> MaybeNull (RawPtr GDObject) -> String -> I64 ->{Foreign Cxx, IO, Diverge} I64
+  connectChanged self receiver method flags = gdSignalConnect (getCinchMoverObject self) "changed" receiver method flags
+
+  disconnectChanged :: Borrowed CinchMover -> MaybeNull (RawPtr GDObject) -> String ->{Foreign Cxx, IO, Diverge} I64
+  disconnectChanged self receiver method = gdSignalDisconnect (getCinchMoverObject self) "changed" receiver method 0
