@@ -283,3 +283,65 @@ decline a wide constructor rather than learn its layout: in-place reuse
 The constant folder and the compile-time evaluator refuse wide
 operations; a `U128` has no solver sort.
 
+
+## 12 What landed in phase 4, without the pin move
+
+Phase 4 is section 9's first half: the stage compiler checks and lowers
+wide scalars itself. The provider lock and the seed pin do not move, so
+`Data.Wide` stays out of reach of stage programs, and the ABI version
+stays put (section 11). A stage program reaches the wide operations
+through the intrinsics `Bootstrap.Builtin.wide-intrinsic` checks:
+equality and wrapping addition and subtraction, at `I128` and `U128`.
+Kernel `==` and `/=` work on both as well.
+
+**The class.** `Bootstrap.RuntimeIr.value-word-class` gives `I128` and
+`U128` code 3, Wide. It is never counted (`count-op`), and the class
+letter is `W` everywhere a class is printed or read: specialization
+names, object variants (`Bootstrap.Object`), library metadata and layout
+keys. A Wide specialization of a generic worker is its own copy,
+`name.r3`, as the seed's `@W` copies are.
+
+**The LLVM type follows the class.** `value-llvm` is `i128` for Wide.
+It types each place a value crosses:
+
+- worker headers and returns, both the definition's and the constructor's;
+- direct, builtin and external calls (`typed-call`);
+- joins: an `if` phi or select, and a `case` slot (a wide scrutinee or
+  result always takes the chain, whose tests and slot are typed);
+- literal patterns (`icmp eq i128`);
+- the foreign marshal, which passes `i128` through as C's `__int128`.
+
+A U128 literal at or above 2^127 is written in two's complement, since
+LLVM reads a decimal constant as signed.
+
+**Fields are payload words.** A wide field takes two raw words, so it
+adds two `0` codes to the pointer map (`field-map`). Its access is
+8-aligned, as every payload word is. Layout limits count words
+(`payload-words`), not fields.
+
+**Every word position refuses by name** (`wide-refusal`), because code 3
+is the runtime's invalid map code. This covers:
+
+- closure shapes, which takes in partial applications, lambdas, recursive
+  locals, proof continuations, method closures and `__apply` arguments;
+- dictionary and bundle layouts;
+- array elements, knot slots, mutable cells and memo cells;
+- library bridges.
+
+A closure that would return a wide value is refused where it is made.
+The places are a lambda, a partial application, a proof stage, a
+recursive local and a dictionary method. So no `__apply` ever answers
+one.
+
+**Tail groups stay word-only.** A definition with a wide parameter or
+result does not join a tail group. A Wide specialization of a group
+member is an ordinary worker that the group's transfers call.
+
+`compiler/tests/bootstrap_wide.rs` runs the lowering end to end under
+the leak checker, refusals included.
+
+Still to come:
+
+- the pin move, which brings `Data.Wide`'s units into stage programs, a
+  `W`-reading provider, and the ABI version bump;
+- the fixed point with a stage compiler that itself uses wide values.
