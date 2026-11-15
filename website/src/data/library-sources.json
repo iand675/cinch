@@ -571,6 +571,14 @@
       "public_methods": 0
     },
     {
+      "module": "Data.Word",
+      "path": "compiler/prelude/Data/Word.cinch",
+      "sha256": "1a563597517531debe37f7ab19616255dbc845d62ffed182abcdc5da9afe27ad",
+      "embedded": false,
+      "values": 32,
+      "public_methods": 0
+    },
+    {
       "module": "Effect.Ascii85",
       "path": "compiler/prelude/Effect/Ascii85.cinch",
       "sha256": "ce62b87682e7b8b63754a346c01a3db666e0a062693fa958251dac6c89febb27",

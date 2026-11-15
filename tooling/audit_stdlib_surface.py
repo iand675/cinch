@@ -35,7 +35,7 @@ HOMES = {
     "io/ioutil": ["Effect.Fs", "Effect.Stream"], "iter": ["Data.Producer", "Data.List"],
     "log": ["Effect.Log"], "log/slog": ["Effect.Log"], "maps": ["Data.Map", "Data.HashMap", "Data.Mutable.HashTable", "Data.Mutable.BTree", "Data.Mutable.IndexMap"],
     "math": ["Data.Machine"], "math/big": ["Data.Nat", "Data.Int", "Data.Rational", "Data.BigDecimal"],
-    "math/bits": ["Algebra.Bits", "Data.Machine"], "math/cmplx": ["Data.Complex"],
+    "math/bits": ["Algebra.Bits", "Data.Machine", "Data.Word"], "math/cmplx": ["Data.Complex"],
     "math/rand": ["Effect.Random"], "math/rand/v2": ["Effect.Random"],
     "net": ["Effect.Net", "Effect.Resolv", "Data.IpAddr"], "net/http": ["Effect.Http"],
     "net/netip": ["Data.IpAddr"], "net/url": ["Text.Uri"],
@@ -51,6 +51,7 @@ HOMES = {
 }
 
 EVIDENCE = {
+    "math/bits": (["lib_word_ops::word_bit_operations_match_reference_widths_and_rotations", "lib_word_ops::word_wide_arithmetic_matches_reference_carry_borrow_and_products", "lib_word_ops::word_division_matches_reference_and_names_invalid_inputs"], ["word-add64", "word-mul64", "word-div64", "word-bits64", "word-load"]),
     "unicode/utf16": (["lib_utf16::utf16_matches_scalar_and_surrogate_reference_vectors", "lib_utf16::utf16_byte_codecs_match_text_and_reject_odd_lengths"], ["utf16le-encode", "utf16le-decode", "utf16be-encode", "utf16be-decode"]),
     "encoding/ascii85": (["lib_ascii85::ascii85_matches_independent_vectors_and_all_chunk_splits", "lib_ascii85::ascii85_stream_adapters_preserve_chunk_and_failure_contracts"], ["ascii85-encode", "ascii85-decode", "ascii85-stream-encode", "ascii85-stream-decode"]),
     "encoding/base32": (["lib_go_stdlib::base32_matches_go_rfc4648_both_alphabets_and_raw_forms", "lib_go_stdlib::base32_scalar_tails_follow_long_simd_prefixes"], ["base32-encode", "base32-decode"]),

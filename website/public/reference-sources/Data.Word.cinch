@@ -1,0 +1,357 @@
+-- | Fixed-width word utilities and checked double-width unsigned arithmetic.
+-- Carry and borrow values use Bool. Wide products return high then low words;
+-- division returns quotient then remainder and names zero-divisor/overflow errors.
+-- Bit reversal is supplied by Data.Machine. Byte reversal and wide
+-- arithmetic use inline LLVM with exact double-width intermediates. Native-width
+-- operations follow Usize's target width.
+module Data.Word where
+
+  import Data.Bool
+  import Data.Machine
+  import Data.Result
+
+  export WordDivisionError, WordDivideByZero, WordQuotientOverflow
+  export word-bits
+  export bit-length-u8, bit-length-u16, bit-length-u32, bit-length-u64, bit-length-usize
+  export reverse-bytes-u16, reverse-bytes-u32, reverse-bytes-u64, reverse-bytes-usize
+  export rotate-signed-u8, rotate-signed-u16, rotate-signed-u32, rotate-signed-u64, rotate-signed-usize
+  export add-carry-u32, add-carry-u64, add-carry-usize
+  export sub-borrow-u32, sub-borrow-u64, sub-borrow-usize
+  export mul-wide-u32, mul-wide-u64, mul-wide-usize
+  export div-wide-u32, div-wide-u64, div-wide-usize
+  export div-wide-proven-u32, div-wide-proven-u64
+  export rem-wide-u32, rem-wide-u64, rem-wide-usize
+
+  -- | An undefined unsigned division is an explicit result, never a machine trap.
+  data WordDivisionError where
+    -- | The divisor is zero.
+    WordDivideByZero :: WordDivisionError
+    -- | The quotient cannot fit in one result word because the high dividend word is at least the divisor.
+    WordQuotientOverflow :: WordDivisionError
+
+  -- | The native unsigned word width, 32 or 64, determined by the target's Usize operations.
+  word-bits :: U32
+  word-bits = leading-zeros-usize 0
+
+  -- | The significant bit count of a U8; zero has length zero.
+  bit-length-u8 :: U8 -> U32
+  bit-length-u8 value = wrapping-sub-u32 8 (leading-zeros-u8 value)
+
+
+  -- | Rotate a U8 left by a signed count; negative counts rotate right and counts wrap by the width.
+  rotate-signed-u8 :: U8 -> I64 -> U8
+  rotate-signed-u8 value count = rotate-left-u8 value (wrapping-i64-to-u32 count)
+
+  -- | The significant bit count of a U16; zero has length zero.
+  bit-length-u16 :: U16 -> U32
+  bit-length-u16 value = wrapping-sub-u32 16 (leading-zeros-u16 value)
+
+
+  -- | Reverse byte order within a U16; bit order within each byte is preserved.
+  reverse-bytes-u16 :: U16 -> U16
+  reverse-bytes-u16 value = wrapping-u64-to-u16 (wrapping-shr-u64 (swap64 (wrapping-u16-to-u64 value)) 48)
+
+  -- | Rotate a U16 left by a signed count; negative counts rotate right and counts wrap by the width.
+  rotate-signed-u16 :: U16 -> I64 -> U16
+  rotate-signed-u16 value count = rotate-left-u16 value (wrapping-i64-to-u32 count)
+
+  -- | The significant bit count of a U32; zero has length zero.
+  bit-length-u32 :: U32 -> U32
+  bit-length-u32 value = wrapping-sub-u32 32 (leading-zeros-u32 value)
+
+
+  -- | Reverse byte order within a U32; bit order within each byte is preserved.
+  reverse-bytes-u32 :: U32 -> U32
+  reverse-bytes-u32 value = wrapping-u64-to-u32 (wrapping-shr-u64 (swap64 (wrapping-u32-to-u64 value)) 32)
+
+  -- | Rotate a U32 left by a signed count; negative counts rotate right and counts wrap by the width.
+  rotate-signed-u32 :: U32 -> I64 -> U32
+  rotate-signed-u32 value count = rotate-left-u32 value (wrapping-i64-to-u32 count)
+
+  -- | The significant bit count of a U64; zero has length zero.
+  bit-length-u64 :: U64 -> U32
+  bit-length-u64 value = wrapping-sub-u32 64 (leading-zeros-u64 value)
+
+
+  -- | Reverse byte order within a U64; bit order within each byte is preserved.
+  reverse-bytes-u64 :: U64 -> U64
+  reverse-bytes-u64 value = swap64 value
+
+  -- | Rotate a U64 left by a signed count; negative counts rotate right and counts wrap by the width.
+  rotate-signed-u64 :: U64 -> I64 -> U64
+  rotate-signed-u64 value count = rotate-left-u64 value (wrapping-i64-to-u32 count)
+
+  -- | The significant bit count of a Usize; zero has length zero.
+  bit-length-usize :: Usize -> U32
+  bit-length-usize value = wrapping-sub-u32 word-bits (leading-zeros-usize value)
+
+
+  -- | Reverse byte order within a Usize; bit order within each byte is preserved.
+  reverse-bytes-usize :: Usize -> Usize
+  reverse-bytes-usize value = wrapping-u64-to-usize (wrapping-shr-u64 (swap64 (wrapping-usize-to-u64 value)) (wrapping-sub-u32 64 word-bits))
+
+  -- | Rotate a Usize left by a signed count; negative counts rotate right and counts wrap by the width.
+  rotate-signed-usize :: Usize -> I64 -> Usize
+  rotate-signed-usize value count = rotate-left-usize value (wrapping-i64-to-u32 count)
+
+  -- | Add two 32-bit words and a carry, returning the low word and the outgoing carry.
+  add-carry-u32 :: U32 -> U32 -> Bool -> (U32, Bool)
+  add-carry-u32 a b carry =
+    let total = add32 a b (if carry then 1 else 0) in
+    (wrapping-u64-to-u32 total, ne-u64 (wrapping-shr-u64 total 32) 0)
+
+  -- | Add two 64-bit words and a carry, returning the low word and the outgoing carry.
+  add-carry-u64 :: U64 -> U64 -> Bool -> (U64, Bool)
+  add-carry-u64 a b carry =
+    let c = if carry then (1 :: U64) else 0 in
+    (wrapping-add-u64 (wrapping-add-u64 a b) c, ne-u64 (carry64 a b c) 0)
+
+  -- | Subtract a 32-bit word and an incoming borrow, returning the low word and outgoing borrow.
+  sub-borrow-u32 :: U32 -> U32 -> Bool -> (U32, Bool)
+  sub-borrow-u32 a b borrow =
+    let total = sub32 a b (if borrow then 1 else 0) in
+    (wrapping-u64-to-u32 total, ne-u64 (wrapping-shr-u64 total 32) 0)
+
+  -- | Subtract a 64-bit word and an incoming borrow, returning the low word and outgoing borrow.
+  sub-borrow-u64 :: U64 -> U64 -> Bool -> (U64, Bool)
+  sub-borrow-u64 a b borrow =
+    let c = if borrow then (1 :: U64) else 0 in
+    (wrapping-sub-u64 (wrapping-sub-u64 a b) c, ne-u64 (borrow64 a b c) 0)
+
+  -- | The exact 64-bit product of two 32-bit words, returned high word first.
+  mul-wide-u32 :: U32 -> U32 -> (U32, U32)
+  mul-wide-u32 a b = let product = wrapping-mul-u64 (u32-to-u64 a) (u32-to-u64 b) in
+    (wrapping-u64-to-u32 (wrapping-shr-u64 product 32), wrapping-u64-to-u32 product)
+
+  -- | The exact 128-bit product of two 64-bit words, returned high word first.
+  mul-wide-u64 :: U64 -> U64 -> (U64, U64)
+  mul-wide-u64 a b = (multiply-high64 a b, wrapping-mul-u64 a b)
+
+  -- | Divide a high/low 64-bit dividend by a 32-bit divisor, with a checked one-word quotient.
+  div-wide-u32 :: U32 -> U32 -> U32 -> Result WordDivisionError (U32, U32)
+  div-wide-u32 high low divisor =
+    case decide (divisor /= 0) of
+      No witness -> Err WordDivideByZero
+      Yes witness -> if high < divisor then let result = divide32 high low divisor in
+        Ok (wrapping-u64-to-u32 result, wrapping-u64-to-u32 (wrapping-shr-u64 result 32))
+        else Err WordQuotientOverflow
+
+  -- | Divide a high/low 128-bit dividend by a 64-bit divisor, with a checked one-word quotient.
+  div-wide-u64 :: U64 -> U64 -> U64 -> Result WordDivisionError (U64, U64)
+  div-wide-u64 high low divisor =
+    case decide (divisor /= 0) of
+      No witness -> Err WordDivideByZero
+      Yes witness -> if high < divisor then Ok (quotient64 high low divisor, remainder64 high low divisor)
+        else Err WordQuotientOverflow
+
+  -- | Divide a double-width dividend when the caller proves a nonzero divisor
+  -- and a fitting quotient. The tuple result avoids allocating an error sum.
+  div-wide-proven-u32 :: using (divisor /= 0, high < divisor) => (high :: U32) -> U32 -> (divisor :: U32) -> (U32, U32)
+  div-wide-proven-u32 high low divisor = let result = divide32 high low divisor in
+    (wrapping-u64-to-u32 result, wrapping-u64-to-u32 (wrapping-shr-u64 result 32))
+
+  -- | Divide a double-width dividend under nonzero-divisor and quotient-fit proofs.
+  -- The tuple result permits unboxed worker returns for already validated inputs.
+  div-wide-proven-u64 :: using (divisor /= 0, high < divisor) => (high :: U64) -> U64 -> (divisor :: U64) -> (U64, U64)
+  div-wide-proven-u64 high low divisor = (quotient64 high low divisor, remainder64 high low divisor)
+
+  -- | The remainder of a high/low 64-bit dividend. The high word need not be below the divisor.
+  rem-wide-u32 :: U32 -> U32 -> U32 -> Result WordDivisionError U32
+  rem-wide-u32 high low divisor =
+    case decide (divisor /= 0) of
+      No witness -> Err WordDivideByZero
+      Yes witness -> Ok (wrapping-u64-to-u32 (remainder32 high low divisor))
+
+  -- | The remainder of a high/low 128-bit dividend. The high word need not be below the divisor.
+  rem-wide-u64 :: U64 -> U64 -> U64 -> Result WordDivisionError U64
+  rem-wide-u64 high low divisor =
+    case decide (divisor /= 0) of
+      No witness -> Err WordDivideByZero
+      Yes witness -> Ok (remainder64 high low divisor)
+
+  -- | Add native words and a carry, returning the low word and outgoing carry.
+  add-carry-usize :: Usize -> Usize -> Bool -> (Usize, Bool)
+  add-carry-usize a b flag =
+    if eq-u32 word-bits 32 then case add-carry-u32 (wrapping-usize-to-u32 a) (wrapping-usize-to-u32 b) flag of
+      (value, next) -> (wrapping-u32-to-usize value, next)
+    else case add-carry-u64 (wrapping-usize-to-u64 a) (wrapping-usize-to-u64 b) flag of
+      (value, next) -> (wrapping-u64-to-usize value, next)
+
+  -- | Subtract native words and a borrow, returning the low word and outgoing borrow.
+  sub-borrow-usize :: Usize -> Usize -> Bool -> (Usize, Bool)
+  sub-borrow-usize a b flag =
+    if eq-u32 word-bits 32 then case sub-borrow-u32 (wrapping-usize-to-u32 a) (wrapping-usize-to-u32 b) flag of
+      (value, next) -> (wrapping-u32-to-usize value, next)
+    else case sub-borrow-u64 (wrapping-usize-to-u64 a) (wrapping-usize-to-u64 b) flag of
+      (value, next) -> (wrapping-u64-to-usize value, next)
+
+  -- | The exact double-width product of native words, returned high word first.
+  mul-wide-usize :: Usize -> Usize -> (Usize, Usize)
+  mul-wide-usize a b =
+    if eq-u32 word-bits 32 then case mul-wide-u32 (wrapping-usize-to-u32 a) (wrapping-usize-to-u32 b) of
+      (high, low) -> (wrapping-u32-to-usize high, wrapping-u32-to-usize low)
+    else case mul-wide-u64 (wrapping-usize-to-u64 a) (wrapping-usize-to-u64 b) of
+      (high, low) -> (wrapping-u64-to-usize high, wrapping-u64-to-usize low)
+
+  -- | Divide a high/low native double word, checking zero and quotient overflow.
+  div-wide-usize :: Usize -> Usize -> Usize -> Result WordDivisionError (Usize, Usize)
+  div-wide-usize high low divisor =
+    if eq-u32 word-bits 32 then case div-wide-u32 (wrapping-usize-to-u32 high) (wrapping-usize-to-u32 low) (wrapping-usize-to-u32 divisor) of
+      Err error -> Err error
+      Ok pair -> case pair of (q, r) -> Ok (wrapping-u32-to-usize q, wrapping-u32-to-usize r)
+    else case div-wide-u64 (wrapping-usize-to-u64 high) (wrapping-usize-to-u64 low) (wrapping-usize-to-u64 divisor) of
+      Err error -> Err error
+      Ok pair -> case pair of (q, r) -> Ok (wrapping-u64-to-usize q, wrapping-u64-to-usize r)
+
+  -- | The remainder of a high/low native double word, checking only for a zero divisor.
+  rem-wide-usize :: Usize -> Usize -> Usize -> Result WordDivisionError Usize
+  rem-wide-usize high low divisor =
+    if eq-u32 word-bits 32 then case rem-wide-u32 (wrapping-usize-to-u32 high) (wrapping-usize-to-u32 low) (wrapping-usize-to-u32 divisor) of
+      Err error -> Err error
+      Ok value -> Ok (wrapping-u32-to-usize value)
+    else case rem-wide-u64 (wrapping-usize-to-u64 high) (wrapping-usize-to-u64 low) (wrapping-usize-to-u64 divisor) of
+      Err error -> Err error
+      Ok value -> Ok (wrapping-u64-to-usize value)
+
+  -- | Swap all eight byte positions, preserving each byte's bits.
+  prim swap64 :: U64 -> U64 where
+    llvm {
+      %result = call i64 @llvm.bswap.i64(i64 %0)
+      ret i64 %result
+    }
+
+  -- | Sum 32-bit operands and a private zero/one carry in a packed low-word/carry result.
+  prim add32 :: U32 -> U32 -> U32 -> U64 where
+    llvm {
+      %a = zext i32 %0 to i64
+      %b = zext i32 %1 to i64
+      %c = zext i32 %2 to i64
+      %sum = add i64 %a, %b
+      %result = add i64 %sum, %c
+      ret i64 %result
+    }
+
+  -- | Subtract 32-bit operands and a private zero/one borrow, packing the borrow above the low word.
+  prim sub32 :: U32 -> U32 -> U32 -> U64 where
+    llvm {
+      %a = zext i32 %0 to i64
+      %b = zext i32 %1 to i64
+      %c = zext i32 %2 to i64
+      %subtrahend = add i64 %b, %c
+      %difference = sub i64 %a, %subtrahend
+      %low = and i64 %difference, 4294967295
+      %borrow = icmp ult i64 %a, %subtrahend
+      %flag = zext i1 %borrow to i64
+      %high = shl i64 %flag, 32
+      %result = or i64 %low, %high
+      ret i64 %result
+    }
+
+  -- | Return the carry bit from a 128-bit sum of two words and a private zero/one carry.
+  prim carry64 :: U64 -> U64 -> U64 -> U64 where
+    llvm {
+      %a = zext i64 %0 to i128
+      %b = zext i64 %1 to i128
+      %c = zext i64 %2 to i128
+      %sum = add i128 %a, %b
+      %total = add i128 %sum, %c
+      %high = lshr i128 %total, 64
+      %result = trunc i128 %high to i64
+      ret i64 %result
+    }
+
+  -- | Return the borrow bit after subtracting a word and private zero/one borrow.
+  prim borrow64 :: U64 -> U64 -> U64 -> U64 where
+    llvm {
+      %a = zext i64 %0 to i128
+      %b = zext i64 %1 to i128
+      %c = zext i64 %2 to i128
+      %subtrahend = add i128 %b, %c
+      %borrow = icmp ult i128 %a, %subtrahend
+      %result = zext i1 %borrow to i64
+      ret i64 %result
+    }
+
+  -- | The high half of an exact unsigned 128-bit product.
+  prim multiply-high64 :: U64 -> U64 -> U64 where
+    llvm {
+      %a = zext i64 %0 to i128
+      %b = zext i64 %1 to i128
+      %product = mul i128 %a, %b
+      %high = lshr i128 %product, 64
+      %result = trunc i128 %high to i64
+      ret i64 %result
+    }
+
+  -- | Pack a checked 32-bit quotient and remainder. The caller proves nonzero divisor and a fitting quotient.
+  divide32 :: using (divisor /= 0) => U32 -> U32 -> (divisor :: U32) -> U64
+  divide32 high low divisor = divide32-raw high low divisor
+
+  -- | Raw arithmetic under the checked wrapper's nonzero-divisor contract.
+  -- The private fragment's assumption is recorded as explicit primitive trust.
+  prim divide32-raw :: U32 -> U32 -> U32 -> U64 where
+    unsafe llvm {
+      %a = zext i32 %0 to i64
+      %high = shl i64 %a, 32
+      %low = zext i32 %1 to i64
+      %dividend = or i64 %high, %low
+      %divisor = zext i32 %2 to i64
+      %quotient = udiv i64 %dividend, %divisor
+      %remainder = urem i64 %dividend, %divisor
+      %upper = shl i64 %remainder, 32
+      %result = or i64 %quotient, %upper
+      ret i64 %result
+    }
+
+  -- | Reduce a double-width 32-bit dividend; the caller has checked the nonzero divisor.
+  remainder32 :: using (divisor /= 0) => U32 -> U32 -> (divisor :: U32) -> U64
+  remainder32 high low divisor = remainder32-raw high low divisor
+
+  -- | Raw arithmetic under the checked wrapper's nonzero-divisor contract.
+  -- The private fragment's assumption is recorded as explicit primitive trust.
+  prim remainder32-raw :: U32 -> U32 -> U32 -> U64 where
+    unsafe llvm {
+      %a = zext i32 %0 to i64
+      %high = shl i64 %a, 32
+      %low = zext i32 %1 to i64
+      %dividend = or i64 %high, %low
+      %divisor = zext i32 %2 to i64
+      %result = urem i64 %dividend, %divisor
+      ret i64 %result
+    }
+
+  -- | The low quotient word of checked double-width division; caller checks zero and quotient overflow.
+  quotient64 :: using (divisor /= 0) => U64 -> U64 -> (divisor :: U64) -> U64
+  quotient64 high low divisor = quotient64-raw high low divisor
+
+  -- | Raw arithmetic under the checked wrapper's nonzero-divisor contract.
+  -- The private fragment's assumption is recorded as explicit primitive trust.
+  prim quotient64-raw :: U64 -> U64 -> U64 -> U64 where
+    unsafe llvm {
+      %a = zext i64 %0 to i128
+      %high = shl i128 %a, 64
+      %low = zext i64 %1 to i128
+      %dividend = or i128 %high, %low
+      %divisor = zext i64 %2 to i128
+      %wide = udiv i128 %dividend, %divisor
+      %result = trunc i128 %wide to i64
+      ret i64 %result
+    }
+
+  -- | The remainder of double-width division; caller checks the nonzero divisor.
+  remainder64 :: using (divisor /= 0) => U64 -> U64 -> (divisor :: U64) -> U64
+  remainder64 high low divisor = remainder64-raw high low divisor
+
+  -- | Raw arithmetic under the checked wrapper's nonzero-divisor contract.
+  -- The private fragment's assumption is recorded as explicit primitive trust.
+  prim remainder64-raw :: U64 -> U64 -> U64 -> U64 where
+    unsafe llvm {
+      %a = zext i64 %0 to i128
+      %high = shl i128 %a, 64
+      %low = zext i64 %1 to i128
+      %dividend = or i128 %high, %low
+      %divisor = zext i64 %2 to i128
+      %wide = urem i128 %dividend, %divisor
+      %result = trunc i128 %wide to i64
+      ret i64 %result
+    }
