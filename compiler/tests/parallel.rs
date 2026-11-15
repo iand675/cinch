@@ -525,6 +525,180 @@ module Main where
     );
 }
 
+// ------------------------------------------------------------------
+// The `Share` judgement itself, pinned on both front ends.
+//
+// `Share` is structural (`design/parallel-evaluation.md` section 2.3,
+// `design/ownership-and-usage.md` section 3, core specification section 7's
+// ownership rules). The seed and the self-hosted checker disagreed in three
+// places, and these tests are what keeps them agreeing:
+//
+// - a builtin array former (`Array`, `Tensor`, `Columnar`) has no `CoreData`
+//   declaration, so a structural walk that reads only declarations refused
+//   `Array Nat` as a capture even though its element is `Share`;
+// - `parMap`'s element type must be `Share` (section 2.3), which the
+//   self-hosted checker did not check at all;
+// - `String` is `StrBuf :: Bytes -> String`, so it is not `Share`; the
+//   self-hosted checker listed the printed name as a scalar.
+//
+// Every case here runs through `common::drive`, so the same assertion holds
+// under the seed and under `CINCH_TEST_COMPILER`'s self-hosted frontend.
+// ------------------------------------------------------------------
+
+/// An immutable `Array` of a `Share` element is `Share`: the array is one
+/// block read by every participant, and its element type is what decides
+/// sharing (section 2.3). `Array` is a builtin former rather than a
+/// declaration, so the structural walk must recurse into the argument.
+#[test]
+fn an_array_of_a_shareable_element_is_a_shareable_capture() {
+    expect_ok(
+        "parallel-share-array-capture",
+        r#"
+module Main where
+  import Data.Array
+  import Data.Nat
+
+  total :: Array Nat -> Nat
+  total a = array-length a
+
+  table :: Array Nat -> Nat
+  table a = array-length (parTabulate 1 (\i -> total a))
+
+  main :: Int
+  main = if table (array-replicate 3 7) == 1 then 0 else 1
+"#,
+        0,
+    );
+}
+
+/// The same fact one level down: a local ADT whose only field is an `Array`
+/// of `Share` elements is `Share`, because the field is.
+#[test]
+fn a_declared_type_holding_an_array_is_a_shareable_capture() {
+    expect_ok(
+        "parallel-share-array-field",
+        r#"
+module Main where
+  import Data.Array
+  import Data.Nat
+
+  data Held where
+    Held :: Array Nat -> Held
+
+  width :: Held -> Nat
+  width h = 1
+
+  table :: Held -> Nat
+  table h = array-length (parTabulate 1 (\i -> width h))
+
+  main :: Int
+  main = if table (Held (array-replicate 2 5)) == 1 then 0 else 1
+"#,
+        0,
+    );
+}
+
+/// `parMap`'s element type must be `Share`, because the input becomes one
+/// array every participant reads (section 2.3). `Bytes` is a mutable
+/// buffer, so an element of `Bytes` is refused; the seed has always refused
+/// it and the self-hosted checker must too.
+#[test]
+fn a_par_map_over_bytes_elements_is_rejected() {
+    expect_err(
+        "parallel-share-element-bytes",
+        r#"
+module Main where
+  import Data.Array
+  import Data.Bytes
+
+  keep :: Bytes -> Bytes
+  keep b = b
+
+  bad :: List Bytes -> List Bytes
+  bad xs = parMap (\b -> keep b) xs
+
+  main :: Int
+  main = 0
+"#,
+        "parMap's element type must be Share",
+    );
+}
+
+/// A `String` is `StrBuf :: Bytes -> String` behind a module-private
+/// constructor (`compiler/prelude/Data/String.cinch:70-71`), and `Bytes` is
+/// transfer-only, so a `String` is not `Share` (section 1.2 states the
+/// consequence, and the `share` attribute that would lift it, section 2.4
+/// item 2, is not implemented). Both a capture and a `parMap` element are
+/// therefore refused.
+#[test]
+fn a_string_capture_is_rejected() {
+    expect_err(
+        "parallel-share-string-capture",
+        r#"
+module Main where
+  import Data.Array
+  import Data.Nat
+  import Data.String (String, string-length)
+
+  table :: String -> Nat
+  table s = array-length (parTabulate 1 (\i -> string-length s))
+
+  main :: Int
+  main = 0
+"#,
+        "a parallel capture must be Share",
+    );
+}
+
+#[test]
+fn a_par_map_over_string_elements_is_rejected() {
+    expect_err(
+        "parallel-share-element-string",
+        r#"
+module Main where
+  import Data.Array
+  import Data.String (String)
+
+  keep :: String -> String
+  keep s = s
+
+  bad :: List String -> List String
+  bad xs = parMap (\s -> keep s) xs
+
+  main :: Int
+  main = 0
+"#,
+        "parMap's element type must be Share",
+    );
+}
+
+/// The negative control for the array cases: `Array` recurses into its
+/// element, so an array of `Bytes` is still refused. Without this, teaching
+/// the walk the array formers could be "any `Array` is `Share`", which would
+/// be unsound for a mutable element.
+#[test]
+fn an_array_of_bytes_is_not_a_shareable_capture() {
+    expect_err(
+        "parallel-share-array-bytes",
+        r#"
+module Main where
+  import Data.Array
+  import Data.Bytes
+  import Data.Nat
+
+  total :: Array Bytes -> Nat
+  total a = array-length a
+
+  bad :: Array Bytes -> Nat
+  bad a = array-length (parTabulate 1 (\i -> total a))
+
+  main :: Int
+  main = 0
+"#,
+        "a parallel capture must be Share",
+    );
+}
+
 #[test]
 fn a_rigid_row_callback_is_rejected() {
     expect_err(

@@ -514,11 +514,24 @@ module Bootstrap.Typing where
     Cons other rest -> task-signature owner rest
   -- Structural Copy/Share uses checked complete data declarations. Unknown
   -- carriers and mutable buffers do not acquire sharing from a printed name.
+  -- `String` is not in the scalar list: it is `StrBuf :: Bytes -> String`
+  -- (module-private, `Data.String`), so its sharing is whatever its fields
+  -- are, and `Bytes` is transfer-only. `design/parallel-evaluation.md`
+  -- section 1.2 states the same fact, and the `share` attribute that would
+  -- change it (section 2.4 item 2) is not implemented.
   task-shareable :: TypingContext -> List UType -> Nat -> UType -> Bool
   task-shareable context seen fuel ty = if fuel == 0 then False else case task-base ty of
-    UCon name KType -> if has name ["Int", "Nat", "Bool", "Unit", "Char", "String", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64"] || same name (global-data-string-string) then True else task-data-property context True seen fuel ty
+    UCon name KType -> if has name ["Int", "Nat", "Bool", "Unit", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64"] then True else task-data-property context True seen fuel ty
     UTuple fields -> task-fields-property context True seen fuel fields
-    UApp (UCon name kind) owner -> if same name "b.Io" then True else task-data-property context True seen fuel ty
+    -- `Array`, `Tensor` and `Columnar` are builtin type formers, not
+    -- declarations, so no `CoreData` describes them and the structural walk
+    -- below would have no field to read. Their element type decides sharing,
+    -- exactly as it does in the seed's `structural_usage` and in
+    -- `copyable-type` (design/parallel-evaluation.md section 2.3: an
+    -- immutable `Array` is `Share` iff every element is).
+    UApp (UCon name kind) element -> if same name "b.Io" then True
+      else if array-type-name name && kind-equal kind (KFun KType KType) then task-shareable context seen (fuel - 1) element
+      else task-data-property context True seen fuel ty
     UApp (UApp (UCon name kind) owner) region -> if same name "b.Scope" then True
       else (case borrow-type-parts (task-base ty) of
         Some (False, lifetime, carrier) -> task-shareable context seen (fuel - 1) carrier
@@ -1372,9 +1385,16 @@ module Bootstrap.Typing where
     CPrimitive sp ty op (CArgument at first (CArgument bt second (CArgumentsEnd end))) | same op "par-tabulate" ->
       first-task-error (par-callback-error context owned bound sp "parTabulate" True second)
         (first-task-error (par-term-error context owned bound first) (par-term-error context owned bound second))
+    -- `parMap`'s input becomes one array every participant reads, so its
+    -- element type must be `Share` (section 2.3). The elaboration lowered
+    -- the list through `array-from-list`, so the checked input's type is
+    -- already `Array elem` and `element-of` reads the element directly.
+    -- Results have no constraint: each is built by one participant and
+    -- moves to the caller at the join, like a task result.
     CPrimitive sp ty op (CArgument at callback (CArgument bt input (CArgumentsEnd end))) | same op "par-map" ->
-      first-task-error (par-callback-error context owned bound sp "parMap" True callback)
-        (first-task-error (par-term-error context owned bound callback) (par-term-error context owned bound input))
+      first-task-error (par-element-error context sp (core-type input))
+        (first-task-error (par-callback-error context owned bound sp "parMap" True callback)
+          (first-task-error (par-term-error context owned bound callback) (par-term-error context owned bound input)))
     CPrimitive sp ty op args -> par-children-error context owned bound (term-children term)
     CLambda sp ty p body -> par-term-error context owned (par-binding p bound) body
     CLet sp ty id name sc rhs body -> first-task-error (par-term-error context owned bound rhs) (par-term-error context owned (Cons (id, name, scheme-body sc) bound) body)
@@ -1383,6 +1403,18 @@ module Bootstrap.Typing where
   par-children-error context owned bound terms = case terms of
     Nil -> None
     Cons first rest -> first-task-error (par-term-error context owned bound first) (par-children-error context owned bound rest)
+  -- `parMap`'s element type (section 2.3): the input array is read by every
+  -- participant, so a non-`Share` element is refused. The checked input is
+  -- the `Array elem` the elaboration produced, so `element-of` reads the
+  -- element. An element the check cannot name is not silently accepted: the
+  -- seed refuses an undetermined element the same way.
+  par-element-error :: TypingContext -> Span -> UType -> Option (Span, String)
+  par-element-error context sp input = case element-of input of
+    None -> None
+    Some element -> if task-shareable context Nil 64 element then None else
+      Some (sp, string-concat-all ["parMap's element type must be Share: ", display-type-text element,
+        " is stored in the shared input array, which every participant reads (design/parallel-evaluation.md section 2.3)",
+        par-blocker-clause context element])
   -- One callback's captures, classified. A callback that is not a literal
   -- has no readable captures and was refused at the call site already.
   par-callback-error :: TypingContext -> List Nat -> List (Nat, String, UType) -> Span -> String -> Bool -> CoreTerm -> Option (Span, String)
@@ -1438,7 +1470,7 @@ module Bootstrap.Typing where
   task-blocker context seen fuel ty = if fuel == 0 then None else if task-seen-type ty seen then None else
     case task-type-spine ty Nil of
       (UCon name kind, args) -> case task-data name (context-data context) of
-        None -> Some (string-concat-all ["the type ", type-text ty,
+        None -> Some (string-concat-all ["the type ", display-type-text ty,
           " has no checked declaration in this module, so its constructor fields cannot be read: ",
           "an imported type contributes a nominal row only, and a parallel capture needs the ",
           "field types of every constructor (design/parallel-evaluation.md section 2.3)"])
