@@ -129,44 +129,56 @@ recursive implementation would make the recursion depth a source property.
 
 ## 4 The self-hosted compiler
 
-Status: this section is the specified change, not a landed one. The seed
-side in section 3 is implemented, tested and green; the self-hosted edits
-below are written and reviewed as a patch against
-`bootstrap/Bootstrap.Infer.cinch` but are not applied in this lane, so no
-stage has been built with them. Section 6 therefore records no numbers.
+Status: landed. The seed side in section 3 and the self-hosted side below
+are both implemented and green; section 6 records the numbers. The shape
+differs from the earlier sketch in two places, both recorded below: the
+kind pass needed no new pre-pass, and `register` had to thread the module's
+whole declaration list.
 
 `bootstrap/Bootstrap.Infer.cinch`:
 
-- `collect-kinds` becomes three passes. `collect-data-heads` registers every
-  data name with its arity and `KType` parameter kinds, `collect-data-kinds`
-  replaces each with the checked kind (a parameter kind may itself name a
-  data declaration, so the arity must exist first), and
-  `collect-kinds-rest` is the old walk with the data branch removed. A
-  forward reference inside a constructor type therefore resolves, because
-  constructor types convert in `register`, after the kind context is
-  complete.
-- `data-group-of` computes the group by mutual reachability
-  (`reachable ds a b && reachable ds b a`), which is the strongly connected
-  component by definition. The declaration counts are small, and the
-  definition is easier to review than a functional Tarjan.
+- `collect-kinds` needed no new pre-pass. Its existing data branch already
+  registers every data name with its checked kind before `register` converts
+  any constructor type, so a forward reference inside a constructor type
+  already resolved once `data-order` stopped refusing it. Adding a
+  `collect-data-heads` pass would have duplicated that registration, and a
+  second registration is a duplicate-name refusal.
+- `data-group` computes the group by mutual reachability (`data-reaches ds
+  Nil (Cons first Nil) name && data-reaches ds Nil (Cons name Nil) first`),
+  which is the strongly connected component by definition. The declaration
+  counts are small (147 across the whole bootstrap tree, 19 in the largest
+  module), and the definition is easier to review than a functional Tarjan.
+  `data-names-and-records` is the candidate set, so a record is a member.
+- `register` threads the module's whole declaration list as a new first
+  parameter, `all`. It used to recurse on the tail being walked, so
+  `data-group` computed from that tail saw only the declarations after the
+  one being registered: a cycle whose negative field sat on a later
+  declaration was never judged, and `data A = MkA B` / `data B = MkB (A ->
+  B)` was accepted while the same two declarations in the other order were
+  refused. A group is a property of the module, so the module is what the
+  check reads.
 - `positive` takes a group instead of an owner: `occurs-group` in every
   place `occurs-owner` appeared, `group-member` at the head position, and
   two new clauses that refuse a group occurrence inside a refinement
   (`URefineFormer`, `URefine`) or a required proposition (`URequire`)
   carrier.
 - `register-ctors` and `check-positive` take the group; `register`'s data
-  branch computes it. `register-imported-codata` passes a one-member group.
+  branch computes it from `all`. `register-imported-codata` passes a
+  one-member group, which is what an imported codata type is.
 - `data-order` is deleted. It refused every forward data reference because
   SCC-wide positivity did not exist; the group-aware `check-positive` now
   decides, and a forward reference that forms no cycle is judged by its
   one-member group exactly as before.
-- `needs-inference` gains `recursive-data-needs`: a data declaration whose
-  constructor arguments name a data type of the module takes the elaborated
-  path, because the fast path has no positivity check at all. This is what
-  makes the discipline apply to every data declaration rather than only to
-  the ones the elaborated path happened to see. A declaration with no
-  constructor arguments naming a data type (an enumeration) keeps the fast
-  path.
+- `needs-inference` is unchanged, deliberately. The sketch added
+  `recursive-data-needs` to route every data declaration with a recursive
+  constructor to the elaborated path, because the untyped rung has no
+  positivity check at all. Measured, the case does not arise: every
+  bootstrap data declaration already takes the elaborated path, so the
+  routing would have added a probe with no module it changes. It is left
+  out rather than added unverified, and it stays the right change if a
+  future program reaches a recursive data declaration through the fast
+  path. The untyped rung's lack of a positivity check is a pre-existing gap
+  in that rung, not something this change introduces or closes.
 
 ## 5 The interface
 
@@ -195,17 +207,96 @@ So the schema version is unchanged and the pins are untouched.
 
 ## 6 Measurements
 
-None yet: the step that would pay for the feature (giving `Kind` a direct
-`UType` field) needs the self-hosted change in section 4 first. The
-baseline it will be compared against exists: `build/bootstrap/stage1`
-built from the current sources, and `tooling/run_stage_targets.py --stage
-1 --out /tmp/mutual-data/run-1` over `dependent hk goal_tactics
-bootstrap_refinement_closure bootstrap_load bootstrap_infer
-bootstrap_typing prim ownership` (3 of 9 targets pass at that baseline;
-the per-test pass/fail list is in that directory's `summary.json`).
+Landed and measured against `main` at `b05253a7`, both sides through
+`tooling/run_stage_targets.py --stage 3`:
+
+- `dependent`: 9 passed / 13 failed before, 13 passed / 9 failed after. The
+  four that flip are exactly `mutual_data_two_declaration_cycle_runs`,
+  `mutual_data_three_declaration_cycle_runs`,
+  `mutual_data_cycle_through_a_record_runs` and
+  `mutual_data_accepts_a_forward_reference_without_a_cycle`. Nothing newly
+  fails, and `mutual_data_rejections_remain` passes on both sides, so the
+  negative, nested, record-negative and refinement-cycle refusals are
+  untouched.
+- `bootstrap_infer`: 3 passed / 1 failed on both sides, the same test.
+- `bootstrap_check`, `bootstrap_typing`, `bootstrap_load` and
+  `bootstrap_refinement_closure` pass on both sides.
+- The fixed point holds: stage 2 and stage 3 agree byte for byte on the
+  compiler and on all 51 interfaces, and the three smokes pass.
+- `cargo test --lib`: 276 passed, 0 failed.
+
+The admission count over the compiler's own sources is zero. A census over
+`bootstrap/*.cinch` finds no constructor or field type naming a data or
+record declaration written later in the same module, so no bootstrap module
+was refused before this change and none is newly admitted. The feature is
+proven by the tests above and by the probes in section 6.1, not by a
+bootstrap module that started compiling.
+
+The step that pays for the feature is still open: giving `Kind` a direct
+`UType` field. This change is what unblocks it, and it is not part of it.
 
 ## 7 What this does not decide
 
 - Positivity-preserving nesting, so `List T` inside a group stays refused.
 - Mutual codata groups and their guardedness interaction.
 - Type synonyms, which the surface does not have.
+
+## 6.1 The two outcomes, quoted
+
+Through `build/bootstrap/stage3/cinch --check`:
+
+Accepted, a two-declaration positive cycle in either textual order:
+
+```cinch
+module Main where
+  data A where
+    MkA :: B -> A
+  data B where
+    MkB :: A -> B
+  main :: Int
+  main = 0
+```
+
+Refused, the same cycle with the occurrence under a function arrow's domain:
+
+```cinch
+module Main where
+  data A where
+    AHere :: A
+    AToB :: (B -> A) -> A
+  data B where
+    BToA :: A -> B
+  main :: Int
+  main = 0
+```
+
+```
+bootstrap.check:4:14: recursive field is negative or needs nested positivity evidence
+```
+
+The same program with the negative field on the second declaration is
+refused at the same message, and that is the case that used to be accepted
+when `register` read its group from the tail being walked.
+
+A record in a cycle is judged the same way, which is what makes it a
+member rather than a bystander:
+
+```cinch
+module Main where
+  data A where
+    AHere :: A
+    AToR :: Wrap -> A
+  record Wrap where
+    f :: A -> A
+```
+
+```
+bootstrap.check:5:3: recursive field is negative or needs nested positivity evidence
+```
+
+Nesting stays refused, but not by this discipline: the untyped rung reaches
+`data A = MkA (List B)` first and reports the unknown constructor.
+
+```
+bootstrap.check:4:13: unknown type constructor or unbound variable: List
+```
