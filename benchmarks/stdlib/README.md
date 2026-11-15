@@ -183,7 +183,7 @@ bounds and read-only mutation tests verify the changed paths separately.
 1,024 and 16,384 input UTF-8 bytes. The input is ASCII (including controls),
 mutated once per operation without invalidating UTF-8 or UTF-16. Input text
 preparation is outside timing; public conversions and result consumption remain
-inside. The reference driver now lives in `tooling/bench_text_reference.go`
+inside. The reference driver now lives in `tooling/bench_stdlib_reference.go`
 and uses the SDK's UTF-16 scalar APIs plus explicit byte-order reads/writes.
 The reports record its source and executable identities.
 
@@ -203,3 +203,32 @@ entry. This simplifies their representation, but alternating runs showed no
 consistent large-input speedup: encoding stayed within 1%, little-endian
 decoding within 1%, and big-endian decoding improved about 2%. The flag change
 is not presented as a performance fix for the remaining gap.
+
+## Word arithmetic and measurement controls
+
+`word-ops-string-dispatch-2026-11-15.json` records an initial tiny-operation
+sweep dominated by repeated workload-name comparisons in the timed loop.
+The driver now resolves a workload to an unboxed code before starting the clock;
+numeric dispatch, mutation, the loop and checksum consumption remain timed.
+The independent SDK driver uses the same arrangement. This harness correction
+is not a standard-library performance improvement. Reports with different driver
+hashes must not be used to attribute a compiler change.
+
+`word-ops-before-divrem-2026-11-15.json` and `word-ops-2026-11-15.json`
+use identical driver and library sources, before and after immediate `Nat`
+division/remainder lowering. A zero divisor, heap operand and out-of-width
+immediate retain the checked runtime path. `interleaved-word-divrem-2026-11-15.json`
+alternates the retained executables for 100,000 iterations per process, with
+one warmup and nine measured samples. Local medians improve roughly 2–4%; raw
+samples and the load-only control remain visible. Assembly confirms immediate
+constant remainders become masks or reciprocal multiplies, while cold runtime
+calls remain present. This does not remove ownership and dispatch costs.
+
+`word-ops-proven-2026-11-15.json` adds proof-bearing division. It measures about
+114 ns per operation versus 148 ns for the checked-result form and a 100 ns
+load/checksum control in this local sweep. The operands and observable checksums
+match. The tuple form permits the compiler's unboxed worker return; the checked
+form keeps its named error results. Assembly still contains a portable
+`__udivti3` helper for generic double-width division and two constructor allocations
+in the checked form. No claim of instruction-level or SDK throughput parity is
+made: these are small-field public pipelines, so whole-buffer MiB/s is omitted.

@@ -1,4 +1,4 @@
-// Reference text-codec public-API pipelines for tooling/bench_stdlib.py.
+// Reference standard-library public-API pipelines for tooling/bench_stdlib.py.
 // Inputs, mutations and observable checksums match the Cinch workload driver.
 // Allocation strategies and immutable string guarantees remain implementation-specific.
 package main
@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math/bits"
 	"os"
 	"strconv"
 	"strings"
@@ -23,15 +24,15 @@ func encoded(input []byte) []byte {
 }
 
 // unitOrder selects the explicit UTF-16 wire byte order.
-func unitOrder(mode string) binary.ByteOrder {
-	if strings.HasPrefix(mode, "utf16be-") {
+func unitOrder(mode int) binary.ByteOrder {
+	if mode == 23 || mode == 24 {
 		return binary.BigEndian
 	}
 	return binary.LittleEndian
 }
 
 // encodedUnits converts valid UTF-8 text to UTF-16 through the reference scalar API.
-func encodedUnits(mode string, input []byte) []byte {
+func encodedUnits(mode int, input []byte) []byte {
 	units := utf16.Encode([]rune(string(input)))
 	out := make([]byte, len(units)*2)
 	order := unitOrder(mode)
@@ -49,19 +50,30 @@ func fingerprint(input []byte) uint64 {
 	return uint64(len(input)) + uint64(input[0]) + uint64(input[len(input)-1])
 }
 
+// wordFingerprint consumes both halves while matching the bounded Cinch checksum.
+func wordFingerprint(value uint64) uint64 { return uint64(uint32(value) ^ uint32(value>>32)) }
+
+// inputWord reads one field, matching the short-buffer zero fallback.
+func inputWord(input []byte) uint64 {
+	if len(input) < 8 {
+		return 0
+	}
+	return binary.LittleEndian.Uint64(input)
+}
+
 // operation exercises a public buffer or stream pipeline and consumes its output.
-func operation(mode string, input []byte) uint64 {
+func operation(mode int, input []byte) uint64 {
 	switch mode {
-	case "ascii85-encode":
+	case 17:
 		return fingerprint([]byte(string(encoded(input))))
-	case "ascii85-decode":
+	case 18:
 		out := make([]byte, len(input)*4+4)
 		n, _, err := ascii85.Decode(out, []byte(string(input)), true)
 		if err != nil {
 			return 1000000000
 		}
 		return fingerprint(out[:n])
-	case "ascii85-stream-encode":
+	case 19:
 		var sink bytes.Buffer
 		writer := ascii85.NewEncoder(&sink)
 		if _, err := writer.Write(input); err != nil {
@@ -71,22 +83,74 @@ func operation(mode string, input []byte) uint64 {
 			return 1000000000
 		}
 		return fingerprint(sink.Bytes())
-	case "ascii85-stream-decode":
+	case 20:
 		// The source snapshot matches reader-from-bytes's aliasing contract.
 		out, err := io.ReadAll(ascii85.NewDecoder(bytes.NewReader(bytes.Clone(input))))
 		if err != nil {
 			return 1000000000
 		}
 		return fingerprint(out)
-	case "utf16le-encode", "utf16be-encode":
+	case 21, 23:
 		return fingerprint(encodedUnits(mode, input))
-	case "utf16le-decode", "utf16be-decode":
+	case 22, 24:
 		units := make([]uint16, len(input)/2)
 		order := unitOrder(mode)
 		for i := range units {
 			units[i] = order.Uint16(input[i*2:])
 		}
 		return fingerprint([]byte(string(utf16.Decode(units))))
+	case 25:
+		value := inputWord(input)
+		sum, carry := bits.Add64(value, 0x9e3779b97f4a7c15, value&1)
+		return wordFingerprint(sum) + carry
+	case 26:
+		high, low := bits.Mul64(inputWord(input), 0x9e3779b97f4a7c15)
+		return wordFingerprint(high ^ low)
+	case 27, 30:
+		value := inputWord(input)
+		q, r := bits.Div64(value&65535, value, 0x100000001)
+		return wordFingerprint(q ^ r)
+	case 28:
+		value := inputWord(input)
+		return wordFingerprint(bits.Reverse64(value) ^ bits.RotateLeft64(bits.ReverseBytes64(value), -13))
+	case 29:
+		return wordFingerprint(inputWord(input))
+	default:
+		panic("unsupported reference workload")
+	}
+}
+
+// workloadCode resolves command-line text outside the measured interval.
+func workloadCode(name string) int {
+	switch name {
+	case "ascii85-encode":
+		return 17
+	case "ascii85-decode":
+		return 18
+	case "ascii85-stream-encode":
+		return 19
+	case "ascii85-stream-decode":
+		return 20
+	case "utf16le-encode":
+		return 21
+	case "utf16le-decode":
+		return 22
+	case "utf16be-encode":
+		return 23
+	case "utf16be-decode":
+		return 24
+	case "word-add64":
+		return 25
+	case "word-mul64":
+		return 26
+	case "word-div64":
+		return 27
+	case "word-bits64":
+		return 28
+	case "word-load":
+		return 29
+	case "word-div64-proven":
+		return 30
 	default:
 		panic("unsupported reference workload")
 	}
@@ -97,7 +161,9 @@ func main() {
 	if len(os.Args) != 4 {
 		panic("expected workload, byte count and iteration count")
 	}
-	mode := os.Args[1]
+	name := os.Args[1]
+	mode := workloadCode(name)
+	isUTF16 := mode >= 21 && mode <= 24
 	size, sizeErr := strconv.Atoi(os.Args[2])
 	iterations, countErr := strconv.Atoi(os.Args[3])
 	if sizeErr != nil || countErr != nil || size < 0 || iterations <= 0 {
@@ -106,13 +172,13 @@ func main() {
 	input := make([]byte, size)
 	for i := range input {
 		input[i] = byte(i*37 + 11)
-		if strings.HasPrefix(mode, "utf16") {
+		if isUTF16 {
 			input[i] %= 128
 		}
 	}
-	decoding := strings.HasSuffix(mode, "decode")
+	decoding := strings.HasSuffix(name, "decode")
 	if decoding {
-		if strings.HasPrefix(mode, "utf16") {
+		if isUTF16 {
 			input = encodedUnits(mode, input)
 		} else {
 			input = encoded(input)
@@ -122,9 +188,9 @@ func main() {
 	start := time.Now()
 	for i := 0; i < iterations; i++ {
 		if len(input) > 0 {
-			if strings.HasPrefix(mode, "utf16") {
+			if isUTF16 {
 				index := 0
-				if mode == "utf16be-decode" {
+				if mode == 24 {
 					index = 1
 				}
 				input[index] = byte(i % 128)
