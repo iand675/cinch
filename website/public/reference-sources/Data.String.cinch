@@ -149,9 +149,12 @@ module Data.String where
       None -> None
       Some c -> Some (c, w)
 
+  -- | Validate UTF-8 from a byte boundary. Complete ASCII words are checked
+  -- with SWAR; non-ASCII sequences and tails retain scalar validation.
   utf8-valid-from :: Bytes -> Nat -> Bool
   utf8-valid-from b i =
     if i >= bytes-len b then True
+    else if i + 8 <= bytes-len b && ascii-block b i then utf8-valid-from b (i + 8)
     else case utf8-at b i of
       None -> False
       Some p -> case p of
@@ -382,3 +385,25 @@ module Data.String where
   -- nothing.
   implicit instance Hash_String :: Hash String where
     hash s = hash (string-bytes-raw s)
+
+  -- | Validate exactly eight available ASCII bytes using one unaligned word load.
+  -- The owner is retained through the load, and no byte beyond the proved range
+  -- is touched. The high-bit mask works in either host byte order.
+  ascii-block :: using (i + 8 <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> Bool
+  ascii-block b i = eq-u64 (string-held b (ascii-mask (bytes-data b) (nat-to-i64 i))) 0
+
+  -- | Keep an owning byte buffer live until a private raw read has completed.
+  string-held :: forall a. Bytes -> a -> a
+  string-held b value = case bytes-len b of
+    _ -> value
+
+  -- | Read eight bounded bytes and retain only their high bits. This private
+  -- kernel relies on the caller's range proof and backing-buffer lifetime.
+  prim ascii-mask :: I64 -> I64 -> U64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %word = load i64, ptr %at, align 1
+      %mask = and i64 %word, 9259542123273814144
+      ret i64 %mask
+    }

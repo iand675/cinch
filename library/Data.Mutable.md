@@ -135,9 +135,9 @@ replaced when the table grows.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Heap</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
-The ordering, the length word, and the cell holding the storage.
+The length word and the cell holding the storage.
 
-[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 49
+[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 60
 
 <a id="type-496e6465784d6170"></a>
 
@@ -1212,17 +1212,27 @@ An empty table that holds `n` entries before its first growth.
 
 Drop every element; the capacity stays.
 
-[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 194
+[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 213
 
 <a id="value-686561702d647261696e"></a>
 
 ## `heap-drain`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-drain</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Heap</span>.<span class="tok-constructor">Heap</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-drain</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">o</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Heap</span>.<span class="tok-constructor">Heap</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)</code></pre>
 
-Pop everything: the elements in the heap's order, leaving it empty.
+Pop everything in `Ord` order, leaving the heap empty.
 
-[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 252
+[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 271
+
+<a id="value-686561702d647261696e2d6279"></a>
+
+## `heap-drain-by`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-drain-by</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Heap</span>.<span class="tok-constructor">Heap</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
+
+Pop everything in `first`'s order, leaving the heap empty.
+
+[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 275
 
 <a id="value-686561702d66726f6d2d6c697374"></a>
 
@@ -1232,7 +1242,7 @@ Pop everything: the elements in the heap's order, leaving it empty.
 
 Lists
 
-[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 204
+[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 223
 
 <a id="value-686561702d66726f6d2d6c6973742d6279"></a>
 
@@ -1243,7 +1253,7 @@ Lists
 Floyd's build: write the list in, then sift every internal node
 down from the last one, O(n) in all.
 
-[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 209
+[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 228
 
 <a id="value-686561702d69732d656d707479"></a>
 
@@ -1265,22 +1275,11 @@ down from the last one, O(n) in all.
 
 ## `heap-new`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-new</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">o</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Heap</span>.<span class="tok-constructor">Heap</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-new</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Heap</span>.<span class="tok-constructor">Heap</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>)</code></pre>
 
-A min-heap under the `Ord` instance.
+Construction
 
-[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 99
-
-<a id="value-686561702d6e65772d6279"></a>
-
-## `heap-new-by`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-new-by</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>)) -&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Heap</span>.<span class="tok-constructor">Heap</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code></pre>
-
-A heap whose least element is the one `first` puts first: `first x
-y` holds when x must come out before y (a strict order).
-
-[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 104
+[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 105
 
 <a id="value-686561702d7065656b"></a>
 
@@ -1290,27 +1289,48 @@ y` holds when x must come out before y (a strict order).
 
 The least element.
 
-[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 147
+[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 156
 
 <a id="value-686561702d706f70"></a>
 
 ## `heap-pop`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-pop</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Heap</span>.<span class="tok-constructor">Heap</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-pop</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">o</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Heap</span>.<span class="tok-constructor">Heap</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
 
-Remove and return the least element.
+Remove and return the least element under the `Ord` instance.
 
-[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 155
+[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 164
+
+<a id="value-686561702d706f702d6279"></a>
+
+## `heap-pop-by`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-pop-by</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Heap</span>.<span class="tok-constructor">Heap</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
+
+Remove and return the element `first` puts first.
+
+[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 168
 
 <a id="value-686561702d70757368"></a>
 
 ## `heap-push`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-push</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Heap</span>.<span class="tok-constructor">Heap</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-push</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">o</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Heap</span>.<span class="tok-constructor">Heap</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
 
-Push and pop
+Push under the `Ord` instance (a min-heap).
 
-[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 126
+[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 129
+
+<a id="value-686561702d707573682d6279"></a>
+
+## `heap-push-by`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-push-by</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Heap</span>.<span class="tok-constructor">Heap</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)))</code></pre>
+
+Push under `first`: `first x y` holds when x must come out before y
+(a strict order).
+
+[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 134
 
 <a id="value-686561702d746f2d6c697374"></a>
 
@@ -1320,15 +1340,17 @@ Push and pop
 
 The elements in storage order (a heap order, not a sorted one).
 
-[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 239
+[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 258
 
-<a id="value-686561702d776974682d63617061636974792d6279"></a>
+<a id="value-686561702d776974682d6361706163697479"></a>
 
-## `heap-with-capacity-by`
+## `heap-with-capacity`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-with-capacity-by</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>)) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Heap</span>.<span class="tok-constructor">Heap</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-with-capacity</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Heap</span>.<span class="tok-constructor">Heap</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Data.Mutable.Heap.cinch)
+An empty heap with room for `n` elements before its first growth.
+
+[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 109
 
 <a id="value-696e6465782d6d61702d636c656172"></a>
 

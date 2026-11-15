@@ -6326,6 +6326,81 @@ fn rt_call(b: &mut Builder, f: &str, args: &[String]) -> String {
     r
 }
 
+/// Decode an immediate natural locally; heap naturals retain the runtime's
+/// range checks. Narrow targets decode at pointer width, matching the ABI.
+fn nat_to_i64_word(b: &mut Builder, word: &str) -> String {
+    let tag = b.reg();
+    b.line(&format!("{tag} = and i64 {word}, 1"));
+    let immediate = b.reg();
+    b.line(&format!("{immediate} = icmp ne i64 {tag}, 0"));
+    let (fast_l, slow_l, done_l) = (b.label(), b.label(), b.label());
+    b.line(&format!(
+        "br i1 {immediate}, label %{fast_l}, label %{slow_l}"
+    ));
+    b.start(&fast_l);
+    let narrow = b.to_size(word.to_string());
+    let decoded = b.reg();
+    b.line(&format!("{decoded} = lshr {} {narrow}, 1", b.size_ty()));
+    let fast = if b.pointer_bytes == 4 {
+        let wide = b.reg();
+        b.line(&format!("{wide} = zext i32 {decoded} to i64"));
+        wide
+    } else {
+        decoded
+    };
+    b.line(&format!("br label %{done_l}"));
+    b.start(&slow_l);
+    let slow = rt_call(b, "cinch_nat_to_i64", &[format!("i64 {word}")]);
+    b.line(&format!("br label %{done_l}"));
+    b.start(&done_l);
+    let result = b.reg();
+    b.line(&format!(
+        "{result} = phi i64 [ {fast}, %{fast_l} ], [ {slow}, %{slow_l} ]"
+    ));
+    result
+}
+
+/// Encode a nonnegative machine value directly when its proven bound fits
+/// the target's immediate payload. Otherwise retain the runtime fallback
+/// for large values and invalid negative inputs, including hand-built Core.
+fn nat_from_i64_word(b: &mut Builder, value: &str, known_upper: Option<u64>) -> String {
+    let fits = known_upper.is_some_and(|upper| upper <= nat_immediate_max(b.pointer_bytes));
+    let labels = if fits {
+        None
+    } else {
+        let immediate = b.reg();
+        b.line(&format!(
+            "{immediate} = icmp ule i64 {value}, {}",
+            nat_immediate_max(b.pointer_bytes)
+        ));
+        let labels = (b.label(), b.label(), b.label());
+        b.line(&format!(
+            "br i1 {immediate}, label %{}, label %{}",
+            labels.0, labels.1
+        ));
+        b.start(&labels.0);
+        Some(labels)
+    };
+    let shifted = b.reg();
+    b.line(&format!("{shifted} = shl i64 {value}, 1"));
+    let fast = b.reg();
+    b.line(&format!("{fast} = or i64 {shifted}, 1"));
+    if let Some((fast_l, slow_l, done_l)) = labels {
+        b.line(&format!("br label %{done_l}"));
+        b.start(&slow_l);
+        let slow = rt_call(b, "cinch_nat_from_i64", &[format!("i64 {value}")]);
+        b.line(&format!("br label %{done_l}"));
+        b.start(&done_l);
+        let result = b.reg();
+        b.line(&format!(
+            "{result} = phi i64 [ {fast}, %{fast_l} ], [ {slow}, %{slow_l} ]"
+        ));
+        result
+    } else {
+        fast
+    }
+}
+
 /// The count field shifted to the top of the word: the count's sign is
 /// the word's, and a count of `n` reads as `n << RC_TOP_SHIFT`, so one
 /// signed compare separates the plain, atomic and immortal cases.
@@ -6699,7 +6774,10 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                                 fast_exit = ok.clone();
                             } else {
                                 let carry = b.reg();
-                                b.line(&format!("{carry} = icmp ugt i64 {sum}, {}", nat_immediate_max(b.pointer_bytes)));
+                                b.line(&format!(
+                                    "{carry} = icmp ugt i64 {sum}, {}",
+                                    nat_immediate_max(b.pointer_bytes)
+                                ));
                                 let ok = b.label();
                                 b.line(&format!("br i1 {carry}, label %{slow_l}, label %{ok}"));
                                 b.line(&format!("{ok}:"));
@@ -6735,12 +6813,20 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     b.line(&format!("br label %{done_l}"));
                     b.line(&format!("{done_l}:"));
                     let phi = b.reg();
-                    b.line(&format!("{phi} = phi i64 [ {out}, %{fast_exit} ], [ {slow}, %{slow_l} ]"));
+                    b.line(&format!(
+                        "{phi} = phi i64 [ {out}, %{fast_exit} ], [ {slow}, %{slow_l} ]"
+                    ));
                     ret(b, &phi);
                 }
-                // A conversion is one runtime call whatever the width,
-                // and the bignum operations have no immediate form to
-                // take (a product overflows the payload at once).
+                crate::core::NatOp::FromI64 => {
+                    let r = nat_from_i64_word(b, "%p0", None);
+                    ret(b, &r);
+                }
+                crate::core::NatOp::ToI64 => {
+                    let r = nat_to_i64_word(b, "%p0");
+                    ret(b, &r);
+                }
+                // The remaining operations retain their runtime paths.
                 _ => {
                     let args: Vec<String> = (0..op.arity()).map(|i| format!("i64 %p{i}")).collect();
                     let r = rt_call(b, n.extern_name(), &args);
@@ -6856,8 +6942,8 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
         }
         Bytes(k) => {
             // The `Bytes` externs take machine counts, indices and byte
-            // values; the intrinsic units convert `Nat` words through
-            // `cinch_nat_to_i64` and results back through `cinch_nat_from_i64`.
+            // values; immediate `Nat` words convert locally, with runtime
+            // fallbacks for heap naturals and invalid Core inputs.
             // Every index is below a buffer length (its obligation) and
             // every byte value below 256 (its type), so those conversions
             // never leave `i64` range; a length goes through
@@ -6872,22 +6958,22 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                 }
                 BytesOp::Len => {
                     let l = rt_call(b, k.extern_name(), &args);
-                    let r = rt_call(b, "cinch_nat_from_i64", &[format!("i64 {l}")]);
+                    let r = nat_from_i64_word(b, &l, Some(i64::MAX as u64));
                     ret(b, &r);
                 }
                 BytesOp::Get => {
-                    let i = rt_call(b, "cinch_nat_to_i64", &[args[1].clone()]);
+                    let i = nat_to_i64_word(b, "%p1");
                     let v = rt_call(b, k.extern_name(), &[args[0].clone(), format!("i64 {i}")]);
                     // `Bytes` data is untrusted (foreign spans wrap into
                     // buffers): the byte freezes before it can branch
                     // or compare (the plan note's poison containment).
                     let v = freeze_word(b, &v);
-                    let r = rt_call(b, "cinch_nat_from_i64", &[format!("i64 {v}")]);
+                    let r = nat_from_i64_word(b, &v, Some(255));
                     ret(b, &r);
                 }
                 BytesOp::Set => {
-                    let i = rt_call(b, "cinch_nat_to_i64", &[args[1].clone()]);
-                    let v = rt_call(b, "cinch_nat_to_i64", &[args[2].clone()]);
+                    let i = nat_to_i64_word(b, "%p1");
+                    let v = nat_to_i64_word(b, "%p2");
                     let _ = rt_call(
                         b,
                         k.extern_name(),
@@ -6896,9 +6982,9 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     ret(b, "0");
                 }
                 BytesOp::Copy => {
-                    let di = rt_call(b, "cinch_nat_to_i64", &[args[2].clone()]);
-                    let si = rt_call(b, "cinch_nat_to_i64", &[args[3].clone()]);
-                    let n = rt_call(b, "cinch_nat_to_i64", &[args[4].clone()]);
+                    let di = nat_to_i64_word(b, "%p2");
+                    let si = nat_to_i64_word(b, "%p3");
+                    let n = nat_to_i64_word(b, "%p4");
                     let _ = rt_call(
                         b,
                         k.extern_name(),
@@ -13274,6 +13360,59 @@ int main(void) {{
         let scaled = app(p(PrimOp::Nat(NatOp::Mul)), vec![sum, cnat("4")]);
         let body = app(p(PrimOp::Nat(NatOp::ToI64)), vec![scaled]);
         assert_eq!(run("nat_arith_round_trip", &main_prog(vec![], body)), 20);
+    }
+
+    /// Conversion fast paths preserve every immediate boundary, including
+    /// the all-ones tagged representation of the largest signed word.
+    #[test]
+    fn nat_machine_conversions_preserve_boundaries() {
+        for value in [0, 255, 2147483647, 2147483648, i64::MAX] {
+            let natural = app(p(PrimOp::Nat(NatOp::FromI64)), vec![n(value)]);
+            let raw = app(p(PrimOp::Nat(NatOp::ToI64)), vec![natural]);
+            let equal = app(p(cmp(CmpOp::Eq)), vec![raw, n(value)]);
+            assert_eq!(run("nat_conversion_boundary", &main_prog(vec![], equal)), 1);
+        }
+    }
+
+    /// Hand-built Core still reaches the defined fault path on either
+    /// conversion's invalid inputs instead of wrapping into an immediate.
+    #[test]
+    fn nat_machine_conversions_retain_faults() {
+        let negative = app(p(PrimOp::Nat(NatOp::FromI64)), vec![n(-1)]);
+        assert_eq!(run("nat_from_negative", &main_prog(vec![], negative)), 71);
+        let overflow = app(
+            p(PrimOp::Nat(NatOp::ToI64)),
+            vec![cnat("9223372036854775808")],
+        );
+        assert_eq!(run("nat_to_overflow", &main_prog(vec![], overflow)), 71);
+    }
+
+    /// Narrow targets decode pointer-width payloads and retain allocation
+    /// fallbacks above their smaller immediate range; bytes always fit.
+    #[test]
+    fn nat_conversion_ir_respects_pointer_width() {
+        for pointer_bytes in [4, 8] {
+            let mut b = Builder::new();
+            b.pointer_bytes = pointer_bytes;
+            nat_to_i64_word(&mut b, "%p0");
+            assert!(b.code.contains("@cinch_nat_to_i64"));
+            if pointer_bytes == 4 {
+                assert!(b.code.contains("trunc i64 %p0 to i32"));
+                assert!(b.code.contains("lshr i32"));
+                assert!(b.code.contains("zext i32"));
+            } else {
+                assert!(b.code.contains("lshr i64 %p0, 1"));
+            }
+            let mut b = Builder::new();
+            b.pointer_bytes = pointer_bytes;
+            nat_from_i64_word(&mut b, "%p0", Some(i64::MAX as u64));
+            assert_eq!(b.code.contains("@cinch_nat_from_i64"), pointer_bytes == 4);
+            let mut b = Builder::new();
+            b.pointer_bytes = pointer_bytes;
+            nat_from_i64_word(&mut b, "%p0", Some(255));
+            assert!(!b.code.contains("call"));
+            assert!(b.code.contains("shl i64 %p0, 1"));
+        }
     }
 
     #[test]

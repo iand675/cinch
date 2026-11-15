@@ -71,7 +71,7 @@ never one a caller retains.
 Byte-wise comparison; UTF-8 preserves scalar value order under
 byte-wise lexicographic order, so this is also code point order.
 
-[Source](/reference-sources/Data.String.cinch) · line 341
+[Source](/reference-sources/Data.String.cinch) · line 344
 
 <a id="value-636f70792d62797465732d696e746f"></a>
 
@@ -83,7 +83,7 @@ Concatenation (O(n + m) copies). The range copy is the runtime's
 `memmove` (`bytes-copy-range`, with its two range obligations): a
 loop here boxed a `Nat` for every index step.
 
-[Source](/reference-sources/Data.String.cinch) · line 233
+[Source](/reference-sources/Data.String.cinch) · line 236
 
 <a id="value-656d7074792d737472696e67"></a>
 
@@ -104,7 +104,7 @@ string, `unpack` its inverse (new conversions: no `String`/`List
 Char` pair existed before). `pack` constructs a fresh string (the
 wrap/copy discipline: the buffer is fresh and never aliased).
 
-[Source](/reference-sources/Data.String.cinch) · line 312
+[Source](/reference-sources/Data.String.cinch) · line 315
 
 <a id="value-737472696e672d627974652d696e6465782d66726f6d"></a>
 
@@ -118,7 +118,7 @@ passes the end, and the result says so. A sequence whose width runs
 past the end is malformed, as `utf8-at` decides; the step restates
 that end test, so it answers `i` as a malformed sequence does.
 
-[Source](/reference-sources/Data.String.cinch) · line 286
+[Source](/reference-sources/Data.String.cinch) · line 289
 
 <a id="value-737472696e672d627974652d6c656e677468"></a>
 
@@ -144,7 +144,7 @@ that end test, so it answers `i` as a malformed sequence does.
 
 The scalar value at code point index `n`, by scan (O(n)).
 
-[Source](/reference-sources/Data.String.cinch) · line 185
+[Source](/reference-sources/Data.String.cinch) · line 188
 
 <a id="value-737472696e672d636f6d70617265"></a>
 
@@ -156,7 +156,7 @@ Compares the two backings in place: `string-to-bytes` would copy
 both operands first, and the lexer's keyword table compares every
 identifier against dozens of literals.
 
-[Source](/reference-sources/Data.String.cinch) · line 353
+[Source](/reference-sources/Data.String.cinch) · line 356
 
 <a id="value-737472696e672d636f6e636174"></a>
 
@@ -180,7 +180,7 @@ quadratic in the result's length. The concatenation of valid UTF-8
 is valid UTF-8, so the buffer wraps without a decode. This is the
 `Monoid String` instance's `mconcat`.
 
-[Source](/reference-sources/Data.String.cinch) · line 252
+[Source](/reference-sources/Data.String.cinch) · line 255
 
 <a id="value-737472696e672d66726f6d2d6279746573"></a>
 
@@ -206,7 +206,7 @@ is valid UTF-8, so the buffer wraps without a decode. This is the
 
 Length in Unicode scalar values (O(n) scan).
 
-[Source](/reference-sources/Data.String.cinch) · line 173
+[Source](/reference-sources/Data.String.cinch) · line 176
 
 <a id="value-737472696e672d726570656174"></a>
 
@@ -218,7 +218,7 @@ Length in Unicode scalar values (O(n) scan).
 numeric-format sites spelled out as fixed byte runs): one buffer of
 `n` copies, made once and filled in place.
 
-[Source](/reference-sources/Data.String.cinch) · line 269
+[Source](/reference-sources/Data.String.cinch) · line 272
 
 <a id="value-737472696e672d736c696365"></a>
 
@@ -230,7 +230,7 @@ The code point range [start, end); indices past the end clamp and a
 reversed range yields the empty string (the span's subtraction
 takes its `start < end` evidence from the test).
 
-[Source](/reference-sources/Data.String.cinch) · line 298
+[Source](/reference-sources/Data.String.cinch) · line 301
 
 <a id="value-737472696e672d746f2d6279746573"></a>
 
@@ -296,7 +296,7 @@ every value its width admits (`cp < 128` in the first branch, `cp /
 2^22` in the last, past which the unmasked lead byte did not fit a
 byte at all).
 
-[Source](/reference-sources/Data.String.cinch) · line 213
+[Source](/reference-sources/Data.String.cinch) · line 216
 
 <a id="value-757466382d656e636f64652d7769647468"></a>
 
@@ -333,7 +333,10 @@ the low bits, which is the same number for every lead byte
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">utf8-valid-from</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.String.cinch)
+Validate UTF-8 from a byte boundary. Complete ASCII words are checked
+with SWAR; non-ASCII sequences and tails retain scalar validation.
+
+[Source](/reference-sources/Data.String.cinch) · line 154
 
 <a id="value-757466382d7769647468"></a>
 
@@ -372,4 +375,4 @@ with its type).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/String.cinch`. Source SHA-256: `27a381efd32575a2b0ca0c4a0d9f3a9c982b64b731d672caad03ba04a997ae79`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Data/String.cinch`. Source SHA-256: `3d35e3bb0d10e90d9f591765fc79f06c3a52c3a1d207fb0a42ad57c67b838a79`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

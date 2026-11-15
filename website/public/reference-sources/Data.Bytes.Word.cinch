@@ -1,8 +1,8 @@
 -- | Unaligned little-endian machine-word access to byte buffers.
 -- Bounds are explicit preconditions in the public signatures. Reads and writes
--- access exactly the proved byte range, preserving buffer ownership and lifetime;
--- no raw pointer escapes into a pure primitive. Inline LLVM assembles the packed
--- words consumed by SIMD and SWAR kernels. Wire order is independent of host
+-- access exactly the proved byte range. Private LLVM loads retain the backing
+-- buffer until completion; raw pointers never enter the public interface. The
+-- packed words feed SIMD and SWAR kernels. Wire order is independent of host
 -- endianness. Concurrent mutation follows the same rules as Data.Bytes.
 module Data.Bytes.Word where
 
@@ -12,25 +12,9 @@ module Data.Bytes.Word where
 
   export bytes-read-le32, bytes-read-le64, bytes-write-le32, bytes-write-le64
 
-  -- | Assemble four byte scalars into a canonical little-endian word using inline LLVM shifts and masks.
-  prim pack32 :: U8 -> U8 -> U8 -> U8 -> U32 where
-    llvm {
-      %b0 = zext i8 %0 to i32
-      %b1 = zext i8 %1 to i32
-      %s1 = shl i32 %b1, 8
-      %b2 = zext i8 %2 to i32
-      %s2 = shl i32 %b2, 16
-      %b3 = zext i8 %3 to i32
-      %s3 = shl i32 %b3, 24
-      %v0 = or i32 %b0, %s1
-      %v1 = or i32 %v0, %s2
-      %v2 = or i32 %v1, %s3
-      ret i32 %v2
-    }
-
   -- | Read exactly 4 bytes as a little-endian U32. Alignment is unrestricted. The caller must prove pos + 4 <= bytes-len b; no tail bytes are read.
   bytes-read-le32 :: using (pos + 4 <= bytes-len b) => (b :: Bytes) -> (pos :: Nat) -> U32
-  bytes-read-le32 b pos = pack32 (wrapping-i64-to-u8 (nat-to-i64 (bytes-get b pos))) (wrapping-i64-to-u8 (nat-to-i64 (bytes-get b (pos + 1)))) (wrapping-i64-to-u8 (nat-to-i64 (bytes-get b (pos + 2)))) (wrapping-i64-to-u8 (nat-to-i64 (bytes-get b (pos + 3))))
+  bytes-read-le32 b pos = hold-bytes b (load-le32 (bytes-data b) (nat-to-i64 pos))
 
   -- | Write exactly 4 low-to-high bytes of a U32. The caller must prove pos + 4 <= bytes-len b; bytes outside that range are preserved.
   bytes-write-le32 :: using (pos + 4 <= bytes-len b) => (b :: Bytes) -> (pos :: Nat) -> U32 -> Unit
@@ -40,37 +24,9 @@ module Data.Bytes.Word where
     let w2 = bytes-set b (pos + 2) (u8-to-nat (wrapping-u32-to-u8 (wrapping-shr-u32 x 16))) in
     bytes-set b (pos + 3) (u8-to-nat (wrapping-u32-to-u8 (wrapping-shr-u32 x 24)))
 
-  -- | Assemble eight byte scalars into a canonical little-endian word using inline LLVM shifts and masks.
-  prim pack64 :: U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U64 where
-    llvm {
-      %b0 = zext i8 %0 to i64
-      %b1 = zext i8 %1 to i64
-      %s1 = shl i64 %b1, 8
-      %b2 = zext i8 %2 to i64
-      %s2 = shl i64 %b2, 16
-      %b3 = zext i8 %3 to i64
-      %s3 = shl i64 %b3, 24
-      %b4 = zext i8 %4 to i64
-      %s4 = shl i64 %b4, 32
-      %b5 = zext i8 %5 to i64
-      %s5 = shl i64 %b5, 40
-      %b6 = zext i8 %6 to i64
-      %s6 = shl i64 %b6, 48
-      %b7 = zext i8 %7 to i64
-      %s7 = shl i64 %b7, 56
-      %v0 = or i64 %b0, %s1
-      %v1 = or i64 %v0, %s2
-      %v2 = or i64 %v1, %s3
-      %v3 = or i64 %v2, %s4
-      %v4 = or i64 %v3, %s5
-      %v5 = or i64 %v4, %s6
-      %v6 = or i64 %v5, %s7
-      ret i64 %v6
-    }
-
   -- | Read exactly 8 bytes as a little-endian U64. Alignment is unrestricted. The caller must prove pos + 8 <= bytes-len b; no tail bytes are read.
   bytes-read-le64 :: using (pos + 8 <= bytes-len b) => (b :: Bytes) -> (pos :: Nat) -> U64
-  bytes-read-le64 b pos = pack64 (wrapping-i64-to-u8 (nat-to-i64 (bytes-get b pos))) (wrapping-i64-to-u8 (nat-to-i64 (bytes-get b (pos + 1)))) (wrapping-i64-to-u8 (nat-to-i64 (bytes-get b (pos + 2)))) (wrapping-i64-to-u8 (nat-to-i64 (bytes-get b (pos + 3)))) (wrapping-i64-to-u8 (nat-to-i64 (bytes-get b (pos + 4)))) (wrapping-i64-to-u8 (nat-to-i64 (bytes-get b (pos + 5)))) (wrapping-i64-to-u8 (nat-to-i64 (bytes-get b (pos + 6)))) (wrapping-i64-to-u8 (nat-to-i64 (bytes-get b (pos + 7))))
+  bytes-read-le64 b pos = hold-bytes b (load-le64 (bytes-data b) (nat-to-i64 pos))
 
   -- | Write exactly 8 low-to-high bytes of a U64. The caller must prove pos + 8 <= bytes-len b; bytes outside that range are preserved.
   bytes-write-le64 :: using (pos + 8 <= bytes-len b) => (b :: Bytes) -> (pos :: Nat) -> U64 -> Unit
@@ -83,3 +39,41 @@ module Data.Bytes.Word where
     let w5 = bytes-set b (pos + 5) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 x 40))) in
     let w6 = bytes-set b (pos + 6) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 x 48))) in
     bytes-set b (pos + 7) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 x 56)))
+
+  -- | Load exactly 4 bytes from a proved private address, normalizing host endianness.
+  prim load-le32 :: I64 -> I64 -> U32 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %word = load i32, ptr %at, align 1
+      ret i32 %word
+    } when endian little
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %word = load i32, ptr %at, align 1
+      %value = call i32 @llvm.bswap.i32(i32 %word)
+      ret i32 %value
+    } when endian big
+
+  -- | Load exactly 8 bytes from a proved private address, normalizing host endianness.
+  prim load-le64 :: I64 -> I64 -> U64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %word = load i64, ptr %at, align 1
+      ret i64 %word
+    } when endian little
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %word = load i64, ptr %at, align 1
+      %value = call i64 @llvm.bswap.i64(i64 %word)
+      ret i64 %value
+    } when endian big
+
+  -- | Keep the backing buffer alive until a raw load has completed. The strict
+  -- argument and runtime length read retain the owner across inline kernels.
+  hold-bytes :: forall a. Bytes -> a -> a
+  hold-bytes b value = case bytes-len b of
+    _ -> value
