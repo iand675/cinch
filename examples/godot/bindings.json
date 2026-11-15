@@ -1,0 +1,20 @@
+{
+  "module":"GameApi",
+  "sources":["GameLogic.cinch"],
+  "native_sources":["Lifecycle.cpp"],
+  "godot":{},
+  "export_classes":[{
+    "name":"CinchSpinner", "cpp":"demo::CinchSpinner", "base":"godot::Node2D",
+    "fields":[{"name":"count","type":"I64","initial":0}],
+    "constructor":{"function":"GameLogic.created","effects":["Foreign Cxx","IO"]},
+    "destructor":{"function":"GameLogic.destroy","effects":["Foreign Cxx","IO"]},
+    "methods":[
+      {"name":"advance","function":"GameLogic.advance","params":["I64"],"result":"I64","effects":["Foreign Cxx","IO"]},
+      {"name":"destructions","function":"GameLogic.destructions","result":"I64","effects":["Foreign Cxx","IO"]},
+      {"name":"_process","function":"GameLogic.tick","params":["F64"],"result":"Unit","effects":["Foreign Cxx","IO"],"override":true}
+    ],
+    "native_methods":[
+      {"name":"rotate","cpp":"rotate","params":["F64"],"result":"Unit"}
+    ]
+  }]
+}

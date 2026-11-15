@@ -1,0 +1,100 @@
+{
+  "module": "HostApi",
+  "sources": [
+    "Logic.cinch"
+  ],
+  "native_sources": [
+    "Lifecycle.cpp"
+  ],
+  "exports": [
+    {
+      "name": "add",
+      "function": "Logic.add",
+      "params": [
+        "I64",
+        "I64"
+      ],
+      "result": "I64"
+    },
+    {
+      "name": "destroyed",
+      "function": "Logic.destroyed",
+      "result": "I64",
+      "effects": [
+        "Foreign Cxx",
+        "IO"
+      ]
+    },
+    {
+      "name": "heapLength",
+      "function": "Logic.heap-length",
+      "params": [
+        "I64"
+      ],
+      "result": "I64",
+      "effects": [
+        "Diverge"
+      ]
+    }
+  ],
+  "export_classes": [
+    {
+      "name": "Counter",
+      "cpp": "demo::Counter",
+      "fields": [
+        {
+          "name": "count",
+          "type": "I64",
+          "initial": 0
+        },
+        {
+          "name": "ratio",
+          "type": "F64",
+          "initial": 1e+100
+        },
+        {
+          "name": "negativeZero",
+          "type": "F64",
+          "initial": -0.0
+        }
+      ],
+      "constructor": {
+        "function": "Logic.created",
+        "effects": [
+          "Foreign Cxx",
+          "IO"
+        ]
+      },
+      "destructor": {
+        "function": "Logic.destroy",
+        "effects": [
+          "Foreign Cxx",
+          "IO"
+        ]
+      },
+      "methods": [
+        {
+          "name": "add",
+          "function": "Logic.increment",
+          "params": [
+            "I64"
+          ],
+          "result": "I64",
+          "effects": [
+            "Foreign Cxx",
+            "IO"
+          ]
+        },
+        {
+          "name": "value",
+          "function": "Logic.value",
+          "result": "I64",
+          "effects": [
+            "Foreign Cxx",
+            "IO"
+          ]
+        }
+      ]
+    }
+  ]
+}

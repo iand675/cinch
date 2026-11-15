@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[node name="CinchSpinner" type="CinchSpinner"]
+position = Vector2(320, 240)
+
+[node name="Shape" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-40, -40, 40, -40, 40, 40, -40, 40)
+color = Color(0.3, 0.8, 0.6, 1)

@@ -113,3 +113,10 @@ by-value classes, pointer-returning methods, callbacks, operators, implicit
 conversions to owners, automatic header discovery, and library unloading.
 Keep those behind an explicitly authored shim for now. It does not provide
 scheduler-aware blocking calls or thread transfer guarantees.
+
+## Foreign exports
+
+The bindgen also generates C exports and C++ classes implemented in Cinch,
+with automatic shared-library builds and lifecycle hooks. See the
+[C/C++ host example](exports/README.md) and the
+[Godot gameplay extension](../godot/README.md).
