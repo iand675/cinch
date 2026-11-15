@@ -47,10 +47,11 @@ HOMES = {
     "sync": ["Effect.Stm"], "sync/atomic": ["Effect.Stm"], "syscall": ["Prim.Sys"],
     "testing": ["Effect.Test", "Effect.Benchmark", "Effect.Coverage"],
     "text/scanner": ["Text.Lex", "Text.Scan"], "time": ["Data.Date", "Data.Time", "Effect.Clock"],
-    "unicode": ["Data.Char"], "unicode/utf8": ["Data.Char", "Data.String"],
+    "unicode": ["Data.Char"], "unicode/utf16": ["Text.Utf16"], "unicode/utf8": ["Data.Char", "Data.String"],
 }
 
 EVIDENCE = {
+    "unicode/utf16": (["lib_utf16::utf16_matches_scalar_and_surrogate_reference_vectors", "lib_utf16::utf16_byte_codecs_match_text_and_reject_odd_lengths"], ["utf16le-encode", "utf16le-decode", "utf16be-encode", "utf16be-decode"]),
     "encoding/ascii85": (["lib_ascii85::ascii85_matches_independent_vectors_and_all_chunk_splits", "lib_ascii85::ascii85_stream_adapters_preserve_chunk_and_failure_contracts"], ["ascii85-encode", "ascii85-decode", "ascii85-stream-encode", "ascii85-stream-decode"]),
     "encoding/base32": (["lib_go_stdlib::base32_matches_go_rfc4648_both_alphabets_and_raw_forms", "lib_go_stdlib::base32_scalar_tails_follow_long_simd_prefixes"], ["base32-encode", "base32-decode"]),
     "encoding/binary": (["lib_go_stdlib::fixed_width_binary_matches_go_and_validates_writes", "lib_go_stdlib::varints_match_go_including_signed_extrema_and_malformed_input"], ["binary", "varint"]),
@@ -120,7 +121,7 @@ def main() -> None:
               "completion_rule": "A package is complete only after operation-level capability mapping, implemented public declarations, runtime/error tests and relevant benchmarks have been reviewed. Module presence alone is partial coverage.",
               "packages": entries}
     args.output.write_text(json.dumps(report, indent=2) + "\n")
-    print(f"Recorded {len(entries)} packages: {sum(p['status']=='partial' for p in entries)} partial, {sum(p['status']=='unreviewed' for p in entries)} unreviewed")
+    print(f"Recorded {len(entries)} packages: {sum(p['status']=='complete' for p in entries)} complete, {sum(p['status']=='partial' for p in entries)} partial, {sum(p['status']=='unreviewed' for p in entries)} unreviewed")
 
 
 if __name__ == "__main__":

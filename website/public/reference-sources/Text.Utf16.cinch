@@ -1,0 +1,226 @@
+-- | UTF-16 code units, surrogate pairs and explicit-byte-order text conversion.
+-- Invalid scalar inputs and unpaired surrogates become U+FFFD. Byte decoders
+-- reject an odd final byte; a byte-order mark is ordinary text, never inferred
+-- or removed. Buffer codecs process four ASCII units at once using inline
+-- LLVM SWAR widening and narrowing, with bounded loads and exact scalar tails.
+module Text.Utf16 where
+
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Binary
+
+  export utf16-is-surrogate, utf16-rune-length, utf16-encode-rune, utf16-decode-rune
+  export utf16-encode, utf16-decode, utf16-append-rune
+  export Utf16Error, OddUtf16ByteCount, utf16-encode-bytes, utf16-decode-bytes
+
+  -- | An incomplete byte sequence, carrying the offset of its unpaired final byte.
+  data Utf16Error where
+    -- | The zero-based offset of a final byte without its second code-unit byte.
+    OddUtf16ByteCount :: Nat -> Utf16Error
+
+  -- | Whether a numeric code point lies in the high or low surrogate range.
+  utf16-is-surrogate :: I64 -> Bool
+  utf16-is-surrogate r = ge-i64 r 55296 && lt-i64 r 57344
+
+  -- | One or two code units for a scalar, or None for a negative, surrogate or out-of-range input.
+  utf16-rune-length :: I64 -> Option Nat
+  utf16-rune-length r =
+    if lt-i64 r 0 || gt-i64 r 1114111 || utf16-is-surrogate r then None
+    else Some (if lt-i64 r 65536 then 1 else 2)
+
+  -- | Encode a supplementary scalar as a surrogate pair. All other inputs return two U+FFFD units.
+  utf16-encode-rune :: I64 -> (U16, U16)
+  utf16-encode-rune r =
+    if ge-i64 r 65536 && le-i64 r 1114111 then
+      let value = wrapping-i64-to-u32 (wrapping-sub-i64 r 65536) in
+      (wrapping-u32-to-u16 (wrapping-add-u32 55296 (wrapping-shr-u32 value 10)),
+       wrapping-u32-to-u16 (wrapping-add-u32 56320 (bit-and-u32 value 1023)))
+    else (65533, 65533)
+
+  -- | Decode a high/low surrogate pair, returning U+FFFD if either position is invalid.
+  utf16-decode-rune :: I64 -> I64 -> I64
+  utf16-decode-rune high low =
+    if ge-i64 high 55296 && lt-i64 high 56320 && ge-i64 low 56320 && lt-i64 low 57344 then
+      wrapping-add-i64 65536 (wrapping-add-i64 (wrapping-mul-i64 (wrapping-sub-i64 high 55296) 1024) (wrapping-sub-i64 low 56320))
+    else 65533
+
+  -- | Prepend one scalar's units, replacing any invalid scalar with U+FFFD.
+  prepend-rune :: I64 -> List U16 -> List U16
+  prepend-rune r rest = case utf16-rune-length r of
+    None -> Cons 65533 rest
+    Some width -> if width == 1 then Cons (wrapping-i64-to-u16 r) rest
+      else case utf16-encode-rune r of (high, low) -> Cons high (Cons low rest)
+
+  -- | Encode numeric scalar values in order; invalid scalar values each produce one replacement unit.
+  utf16-encode :: List I64 -> List U16
+  utf16-encode scalars = case scalars of
+    Nil -> Nil
+    Cons r rest -> prepend-rune r (utf16-encode rest)
+
+  -- | Append one scalar to an immutable code-unit list, preserving its existing units.
+  -- This copies the list spine in linear time; byte codecs avoid list-spine construction.
+  utf16-append-rune :: List U16 -> I64 -> List U16
+  utf16-append-rune units r = case units of
+    Nil -> prepend-rune r Nil
+    Cons unit rest -> Cons unit (utf16-append-rune rest r)
+
+  -- | Construct a scalar after surrogate validation; the replacement is also a valid scalar.
+  scalar :: I64 -> Char
+  scalar r = case u32-to-char (wrapping-i64-to-u32 r) of Some c -> c; None -> '\u{FFFD}'
+
+  -- | Decode code units in order, replacing each unpaired surrogate independently.
+  utf16-decode :: List U16 -> List Char
+  utf16-decode units = case units of
+    Nil -> Nil
+    Cons first rest -> let high = u16-to-i64 first in
+      if ge-i64 high 55296 && lt-i64 high 56320 then case rest of
+        Cons second more -> let low = u16-to-i64 second in
+          if ge-i64 low 56320 && lt-i64 low 57344 then Cons (scalar (utf16-decode-rune high low)) (utf16-decode more)
+          else Cons '\u{FFFD}' (utf16-decode rest)
+        Nil -> Cons '\u{FFFD}' Nil
+      else if utf16-is-surrogate high then Cons '\u{FFFD}' (utf16-decode rest)
+      else Cons (scalar high) (utf16-decode rest)
+
+  -- | Copy the initialized output prefix into a separately owned exact-sized buffer.
+  prefix :: Bytes -> Nat -> Bytes
+  prefix b n = if n <= bytes-len b then
+    let out = bytes-new n in let copied = bytes-copy-range out b 0 0 n in out
+    else bytes-new 0
+
+  -- | Swap the two bytes within each packed code unit; applying this twice is the identity.
+  prim swap-units :: U64 -> U64 where
+    llvm {
+      %lo = and i64 %0, 71777214294589695
+      %hi = and i64 %0, -71777214294589696
+      %left = shl i64 %lo, 8
+      %right = lshr i64 %hi, 8
+      %result = or i64 %left, %right
+      ret i64 %result
+    }
+
+  -- | Widen four low-to-high ASCII bytes to four low-to-high UTF-16 units using SWAR.
+  prim widen-ascii :: U32 -> U64 where
+    llvm {
+      %wide = zext i32 %0 to i64
+      %shift16 = shl i64 %wide, 16
+      %spread16 = or i64 %wide, %shift16
+      %pairs = and i64 %spread16, 281470681808895
+      %shift8 = shl i64 %pairs, 8
+      %spread8 = or i64 %pairs, %shift8
+      %result = and i64 %spread8, 71777214294589695
+      ret i64 %result
+    }
+
+  -- | Compact four ASCII code units to four low-to-high bytes using SWAR.
+  prim narrow-ascii :: U64 -> U32 where
+    llvm {
+      %shift8 = lshr i64 %0, 8
+      %merge8 = or i64 %0, %shift8
+      %pairs = and i64 %merge8, 281470681808895
+      %shift16 = lshr i64 %pairs, 16
+      %merge16 = or i64 %pairs, %shift16
+      %result = trunc i64 %merge16 to i32
+      ret i32 %result
+    }
+
+  -- | Resolve the public byte-order constructor once, before entering a buffer loop.
+  is-big-endian :: ByteOrder -> Bool
+  is-big-endian order = case order of LittleEndian -> False; BigEndian -> True
+
+  -- | Normalize packed code-unit bytes using an unboxed loop flag.
+  ordered :: Bool -> U64 -> U64
+  ordered big word = if big then swap-units word else word
+
+  -- | Store exactly one unit within a proved two-byte range.
+  put-unit :: using (i + 2 <= bytes-len out) => Bool -> (out :: Bytes) -> (i :: Nat) -> U16 -> Unit
+  put-unit big out i value =
+    let low = u8-to-nat (wrapping-u16-to-u8 value) in
+    let high = u8-to-nat (wrapping-u16-to-u8 (wrapping-shr-u16 value 8)) in
+    if big then let written = bytes-set out i high in bytes-set out (i + 1) low
+    else let written = bytes-set out i low in bytes-set out (i + 1) high
+
+  -- | Read exactly one unit within a proved two-byte range, without speculative tail loads.
+  get-unit :: using (i + 2 <= bytes-len b) => Bool -> (b :: Bytes) -> (i :: Nat) -> I64
+  get-unit big b i =
+    let first = nat-to-i64 (bytes-get b i) in let second = nat-to-i64 (bytes-get b (i + 1)) in
+    if big then wrapping-add-i64 (wrapping-mul-i64 first 256) second
+    else wrapping-add-i64 first (wrapping-mul-i64 second 256)
+
+  -- | Encode valid UTF-8 text to explicit-order UTF-16 bytes, with no added byte-order mark.
+  utf16-encode-bytes :: ByteOrder -> String -> Bytes
+  utf16-encode-bytes order text =
+    let input = string-to-bytes text in
+    let out = bytes-new (bytes-len input * 2) in
+    prefix out (encode-from (is-big-endian order) input 0 out 0)
+
+  -- | Widen complete ASCII words, otherwise encode one validated source scalar.
+  encode-from :: Bool -> Bytes -> Nat -> Bytes -> Nat -> Nat
+  encode-from big input i out oi =
+    if i + 4 <= bytes-len input && oi + 8 <= bytes-len out then
+      let word = bytes-read-le32 input i in
+      if eq-u32 (bit-and-u32 word 2155905152) 0 then
+        let written = bytes-write-le64 out oi (ordered big (widen-ascii word)) in
+        encode-from big input (i + 4) out (oi + 8)
+      else encode-scalar big input i out oi
+    else encode-scalar big input i out oi
+
+  -- | Encode a scalar tail using one unit or a surrogate pair; the input is valid String storage.
+  encode-scalar :: Bool -> Bytes -> Nat -> Bytes -> Nat -> Nat
+  encode-scalar big input i out oi = case utf8-at input i of
+    None -> oi
+    Some pair -> case pair of
+      (c, width) -> let r = nat-to-i64 (char-code c) in
+        if lt-i64 r 65536 && oi + 2 <= bytes-len out then
+          let written = put-unit big out oi (wrapping-i64-to-u16 r) in
+          encode-from big input (i + width) out (oi + 2)
+        else if oi + 4 <= bytes-len out then case utf16-encode-rune r of
+          (high, low) -> let a = put-unit big out oi high in
+            let b = put-unit big out (oi + 2) low in encode-from big input (i + width) out (oi + 4)
+        else oi
+
+  -- | Decode explicit-order UTF-16 bytes. An odd byte count is an error before conversion.
+  -- Unpaired surrogates become U+FFFD; byte-order marks remain in the resulting text.
+  utf16-decode-bytes :: ByteOrder -> Bytes -> Result Utf16Error String
+  utf16-decode-bytes order input =
+    if 0 < bytes-len input && nat-rem (bytes-len input) 2 == 1 then Err (OddUtf16ByteCount (bytes-len input - 1)) else
+    let out = bytes-new (bytes-len input * 2) in
+    let count = decode-from (is-big-endian order) input 0 out 0 in
+    case string-from-bytes (prefix out count) of Some text -> Ok text; None -> Ok empty-string
+
+  -- | Narrow complete four-unit ASCII blocks, with scalar surrogate handling elsewhere.
+  decode-from :: Bool -> Bytes -> Nat -> Bytes -> Nat -> Nat
+  decode-from big input i out oi =
+    if i + 8 <= bytes-len input && oi + 4 <= bytes-len out then
+      let word = ordered big (bytes-read-le64 input i) in
+      if eq-u64 (bit-and-u64 word 18410996206198128512) 0 then
+        let written = bytes-write-le32 out oi (narrow-ascii word) in
+        decode-from big input (i + 8) out (oi + 4)
+      else decode-scalar big input i out oi
+    else decode-scalar big input i out oi
+
+  -- | Emit one valid scalar and resume at its already determined input boundary.
+  emit-scalar :: Bool -> Bytes -> Nat -> Bytes -> Nat -> I64 -> Nat
+  emit-scalar big input next out oi r =
+    let cp = char-code (scalar r) in
+    if oi + utf8-encode-width cp <= bytes-len out then
+      let written = utf8-encode-into out oi cp in decode-from big input next out (oi + utf8-encode-width cp)
+    else oi
+
+  -- | Consume a valid pair together; an unpaired surrogate consumes only its own unit.
+  decode-scalar :: Bool -> Bytes -> Nat -> Bytes -> Nat -> Nat
+  decode-scalar big input i out oi =
+    if i + 2 <= bytes-len input then
+      let first = get-unit big input i in
+      if ge-i64 first 55296 && lt-i64 first 56320 && i + 4 <= bytes-len input then
+        let second = get-unit big input (i + 2) in
+        if ge-i64 second 56320 && lt-i64 second 57344 then emit-scalar big input (i + 4) out oi (utf16-decode-rune first second)
+        else emit-scalar big input (i + 2) out oi 65533
+      else emit-scalar big input (i + 2) out oi (if utf16-is-surrogate first then 65533 else first)
+    else oi
