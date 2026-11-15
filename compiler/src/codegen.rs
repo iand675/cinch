@@ -13070,6 +13070,16 @@ int main(void) {{
         let prog = main_prog(vec![k, call], app(g("T.call"), vec![g("T.k"), n(21)]));
         assert_eq!(run("unknown_tail_registers", &prog), 42);
         let ir = emit(&prog).expect("emit");
+        // Mach-O cannot encode an absolute address in a code section, so an
+        // apply stub carries no prefix data there and the twin does not
+        // exist; the call takes the ordinary path from a copy, which the
+        // frame-preserving fallback covers (see `emit_module`'s
+        // `tail_apply`). The result above is the contract either way.
+        if cfg!(target_os = "macos") {
+            assert!(!ir.contains("@\"T.k.tapp\""), "no twin on Mach-O: {ir}");
+            assert!(!ir.contains("musttail call tailcc i64 %"), "no tailcc musttail: {ir}");
+            return;
+        }
         let regs = tail_regs(std::env::consts::ARCH);
         let words: String = (0..regs).map(|i| format!(", i64 %a{i}")).collect();
         assert!(ir.contains(&format!("@\"T.k.tapp\"(ptr %self, i64 %argc{words})")), "{ir}");
