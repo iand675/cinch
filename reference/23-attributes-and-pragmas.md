@@ -575,7 +575,7 @@ foreign import ccall "sum_big" sum-big :: Big ->{Foreign Lib, Diverge} I64
 foreign import ccall "make_big" make-big :: I64 ->{Foreign Lib, Diverge} Big
 ```
 
-`Big` is a `#[repr(C)]` record with an admitted explicit layout. Without either attribute, an aggregate parameter crosses as a pointer to a call-scoped layout copy, and an aggregate result is refused. `#[byval]` selects the admitted parameter copy and spells the declaration with `byref(<layout>) align <n>`, which states the pointee layout without silently changing the machine convention; it is not LLVM's `byval` keyword. `#[sret]` selects the result-out buffer and spells a `void` LLVM result with an `sret(<layout>)` pointer parameter. Both are visible in `cinch emit-ir` output and are asserted by `compiler/tests/llvm_contract.rs`.
+`Big` is a `#[repr(C)]` record with an admitted explicit layout. Without either attribute, an aggregate parameter crosses as a pointer to a call-scoped layout copy, and an aggregate result is refused. `#[byval]` passes the aggregate parameter by value, and `#[sret]` returns the aggregate result by value, both as the target's C calling convention places them: in registers, as a `byval(<layout>)` stack copy, as a pointer to the caller's copy, or, for a result, through an `sret(<layout>)` buffer with a `void` LLVM result. The [aggregate crossings](15-ffi-layout-and-attributes.md#aggregate-crossings-byval-and-sret) section has the per-target table. Both are visible in `cinch emit-ir` output and are asserted by `compiler/tests/llvm_contract.rs`.
 
 Neither name takes arguments. `#[byval]` with no aggregate parameter, `#[sret]` with no aggregate result, and either name on a reserved intrinsic declaration are refused:
 
@@ -616,7 +616,7 @@ The following are not attributes, and the compiler rejects them in `#[...]` posi
 | `unsafe` | A declaration modifier | `unsafe prim ...` |
 | `ignore e` | A term of type `Unit` that discards its argument on purpose (`ignore` is a builtin application, not syntax) | Expression position |
 | `stage`, `macro`, `corec`, `proof`, `spec` | Declaration modifiers | Before the declaration name |
-| `nonnull`, `noundef`, `willreturn`, `nofree`, `captures(none)`, `!range` | LLVM output names the backend derives from checked facts | Emitted IR only |
+| `nonnull`, `noundef`, `willreturn`, `nofree`, `nocapture`, `!range` | LLVM output names the backend derives from checked facts | Emitted IR only |
 
 The `#[ignore]` attribute does not exist. `#[ignore]` on a declaration is an unknown name, and `#[ignore]` in expression position is a parse error:
 
@@ -640,4 +640,4 @@ cinch: 2:3: unknown attribute `ignore`: outside the `meta` namespace, an attribu
 
 # Implementation authority
 
-Lexing and parsing: `compiler/src/lexer.rs::lex_attr`, `compiler/src/parser.rs::parse_attr_list` and `parse_sig_or_equation`. Validation and checking: `compiler/src/check_decls.rs::validate_attr_site`, `validate_module_attrs`, `weight_value`, `parse_repr_args`, `SafetySet::fill_from`, and the per-assertion checks in `verify_definition_safety`. Recording: `compiler/src/interface.rs` (`AbiLayout`, `assertions`). Code generation: `compiler/src/codegen.rs` (attribute groups, branch-weight metadata, `byref`/`sret` spellings). Behaviour suites: `compiler/tests/attributes.rs`, `safety.rs`, `llvm_contract.rs`, `ffi.rs`, `prim.rs`, `repr_classes.rs`. The [attribute specification](../specifications/attribute-annotations-specification.md) carries the intended semantics and its dated amendments; current acceptance follows the Rust paths listed here.
+Lexing and parsing: `compiler/src/lexer.rs::lex_attr`, `compiler/src/parser.rs::parse_attr_list` and `parse_sig_or_equation`. Validation and checking: `compiler/src/check_decls.rs::validate_attr_site`, `validate_module_attrs`, `weight_value`, `parse_repr_args`, `SafetySet::fill_from`, and the per-assertion checks in `verify_definition_safety`. Recording: `compiler/src/interface.rs` (`AbiLayout`, `assertions`). Code generation: `compiler/src/codegen.rs` (attribute groups, branch-weight metadata) and `compiler/src/cabi.rs` (the by-value aggregate conventions). Behaviour suites: `compiler/tests/attributes.rs`, `safety.rs`, `llvm_contract.rs`, `ffi.rs`, `prim.rs`, `repr_classes.rs`. The [attribute specification](../specifications/attribute-annotations-specification.md) carries the intended semantics and its dated amendments; current acceptance follows the Rust paths listed here.

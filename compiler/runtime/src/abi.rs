@@ -620,6 +620,26 @@ pub unsafe extern "C" fn cinch_nat_to_i64(word: i64) -> i64 {
     }
 }
 
+/// A `u128` (`U128`) as a `Nat` word (design/wide-scalars.md section 5).
+#[unsafe(no_mangle)]
+pub extern "C" fn cinch_nat_from_u128(v: u128) -> i64 {
+    nat_word_u128(v)
+}
+
+/// The value of a `Nat` word as a `u128`. Well-typed code proves the
+/// value fits (`nat-to-u128`'s obligation), so one that does not is a
+/// compiler-bug trap.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_nat_to_u128(word: i64) -> u128 {
+    if is_immediate(word) {
+        return nat_immediate_value(word) as u128;
+    }
+    match unsafe { as_nat(word) }.to_u128_exact() {
+        Ok(v) => v,
+        Err(e) => raise(e),
+    }
+}
+
 /// The low 64 bits of a boxed `Nat` (the value modulo 2^64): the slow path
 /// of `slotsFoldNat`, which folds an immediate inline. Total: every `Nat`
 /// has low bits, so this is how a `Hash` digest of any size becomes the
@@ -781,6 +801,27 @@ pub unsafe extern "C" fn cinch_int_to_i64(word: i64) -> i64 {
         return int_immediate_value(word);
     }
     match unsafe { as_int(word) }.to_i64() {
+        Ok(v) => v,
+        Err(e) => raise(e),
+    }
+}
+
+/// An `i128` (`I128`) as an `Int` word (design/wide-scalars.md section 5):
+/// an immediate inside the immediate range, a box above it.
+#[unsafe(no_mangle)]
+pub extern "C" fn cinch_int_from_i128(v: i128) -> i64 {
+    int_word_i128(v)
+}
+
+/// The value of an `Int` word as an `i128`. Well-typed code proves the
+/// value fits (`int-to-i128`'s obligation), so one that does not is a
+/// compiler-bug trap.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_int_to_i128(word: i64) -> i128 {
+    if is_immediate(word) {
+        return i128::from(int_immediate_value(word));
+    }
+    match unsafe { as_int(word) }.to_i128() {
         Ok(v) => v,
         Err(e) => raise(e),
     }

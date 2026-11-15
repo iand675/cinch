@@ -8,7 +8,7 @@ module Bootstrap.Builtin where
   import Data.Json
   import Text.Lex (Span)
 
-  export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, intrinsic-contract, array-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation, platform-intrinsic, total-primitive
+  export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, intrinsic-contract, array-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation, wide-intrinsic, platform-intrinsic, total-primitive
 
   nat-arithmetic-extern :: String -> Option String
   nat-arithmetic-extern symbol =
@@ -29,6 +29,21 @@ module Bootstrap.Builtin where
     else if string-compare symbol "cinch.prim.neI64" == 0 then Some ("I64Ne", ["I64", "I64"], "Bool")
     else None
 
+  -- The wide scalars' natively lowered intrinsics (design/wide-scalars.md):
+  -- the same equality and wrapping arithmetic the 64-bit carriers have here,
+  -- at LLVM `i128`. The answer is the checked scheme and the operation.
+  wide-intrinsic :: String -> Option (String, String)
+  wide-intrinsic symbol =
+    if string-compare symbol "cinch.prim.eqI128" == 0 then Some ("I128 -> I128 -> Bool", "eq")
+    else if string-compare symbol "cinch.prim.neI128" == 0 then Some ("I128 -> I128 -> Bool", "ne")
+    else if string-compare symbol "cinch.prim.wrappingAddI128" == 0 then Some ("I128 -> I128 -> I128", "add")
+    else if string-compare symbol "cinch.prim.wrappingSubI128" == 0 then Some ("I128 -> I128 -> I128", "sub")
+    else if string-compare symbol "cinch.prim.eqU128" == 0 then Some ("U128 -> U128 -> Bool", "eq")
+    else if string-compare symbol "cinch.prim.neU128" == 0 then Some ("U128 -> U128 -> Bool", "ne")
+    else if string-compare symbol "cinch.prim.wrappingAddU128" == 0 then Some ("U128 -> U128 -> U128", "add")
+    else if string-compare symbol "cinch.prim.wrappingSubU128" == 0 then Some ("U128 -> U128 -> U128", "sub")
+    else None
+
   u32-wrapping-operation :: String -> Option String
   u32-wrapping-operation symbol =
     if string-compare symbol "cinch.prim.wrappingAddU32" == 0 then Some "add"
@@ -47,6 +62,8 @@ module Bootstrap.Builtin where
     else if string-compare symbol "cinch.prim.wrappingAddI64" == 0 then Some ("I64 -> I64 -> I64", symbol)
     else if string-compare symbol "cinch.prim.wrappingSubI64" == 0 then Some ("I64 -> I64 -> I64", symbol)
     else if (case u32-wrapping-operation symbol of Some operation -> True; None -> False) then Some ("U32 -> U32 -> U32", symbol)
+    else if (case wide-intrinsic symbol of Some found -> True; None -> False) then
+      (case wide-intrinsic symbol of Some (scheme, operation) -> Some (scheme, symbol); None -> None)
     else case platform-intrinsic symbol of
       Some (scheme, external, arguments, result) -> Some (scheme, external)
       None -> numeric-intrinsic-contract symbol

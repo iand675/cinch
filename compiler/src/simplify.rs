@@ -438,7 +438,7 @@ impl Scope {
 /// known-constructor substitution safe in a strict language.
 fn is_value(e: &Core, tables: &Tables) -> bool {
     match e {
-        Core::Int(_)
+        Core::Int(_) | Core::Wide(_)
         | Core::ConstBig { .. }
         | Core::ConstBytes(_)
         | Core::ConstString { .. }
@@ -996,7 +996,7 @@ fn weighted(e: &Core, tables: &Tables) -> usize {
         Core::Prim(_) => 10,
         Core::Foreign(_) => 20,
         Core::Var(_)
-        | Core::Int(_)
+        | Core::Int(_) | Core::Wide(_)
         | Core::Bool(_)
         | Core::Unit
         | Core::ConstBig { .. }
@@ -1037,7 +1037,7 @@ fn weighted(e: &Core, tables: &Tables) -> usize {
 /// lambda, a unit whose body is a value, a primop.
 fn interesting_arg(e: &Core, tables: &Tables) -> bool {
     match e {
-        Core::Int(_)
+        Core::Int(_) | Core::Wide(_)
         | Core::Bool(_)
         | Core::Unit
         | Core::ConstBig { .. }
@@ -1925,7 +1925,7 @@ fn projection(e: &mut Core, scope: &Scope, tables: &Tables) -> bool {
 fn static_field(e: &Core) -> bool {
     match e {
         Core::Lam { env, .. } => env.is_empty(),
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_)
+        Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_)
         | Core::Unit | Core::Global(..) | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) => true,
         Core::App(head, args) => matches!(&**head, Core::Ctor(..)) && args.iter().all(static_field),
         _ => false,
@@ -2106,6 +2106,11 @@ fn specialise_arguments(program: &mut Program, tables: &mut Tables, fresh: &mut 
                 if !interesting_param(&def.body, LocalId(i), &callee, i) { continue; }
                 let n = def.params.len();
                 let copy_id = GlobalId(format!("{callee}.sp{}", specs.made));
+                // The copy's trailing parameters are locals n.. of its own,
+                // so every local it mints (the renamed binders and the
+                // entry `let`) must lie past them; the program-wide counter
+                // can sit lower in a small program.
+                fresh.local = fresh.local.max(n + shape.free.len());
                 let mut body = def.body.clone();
                 let mut renames: HashMap<LocalId, LocalId> = HashMap::new();
                 rename_binders(&mut body, &mut renames, fresh);
@@ -2337,7 +2342,7 @@ fn contify(e: &mut Core, tables: &Tables, fresh: &mut Fresh, inside: &[String]) 
 
 /// A closure capture `contify` may read where the closure stood.
 fn capture_value(e: &Core) -> bool {
-    matches!(e, Core::Var(_) | Core::Int(_) | Core::Bool(_) | Core::Unit | Core::Global(..) | Core::ConstSym(_) | Core::ConstString { .. })
+    matches!(e, Core::Var(_) | Core::Int(_) | Core::Wide(_) | Core::Bool(_) | Core::Unit | Core::Global(..) | Core::ConstSym(_) | Core::ConstString { .. })
 }
 
 /// The number of occurrences of `k` in `e` when every one is a saturated
@@ -3212,7 +3217,7 @@ impl Refusal {
 /// emits no instruction for them.
 fn code_size(e: &Core, tables: &Tables) -> usize {
     match e {
-        Core::Int(_)
+        Core::Int(_) | Core::Wide(_)
         | Core::Bool(_)
         | Core::Unit
         | Core::ConstBig { .. }
@@ -3967,7 +3972,7 @@ fn unfold_body(
 ) -> bool {
     let value = |child: &Core, shape: &mut Shape| unfold_body(child, tables, admit, false, shape);
     match e {
-        Core::Int(_)
+        Core::Int(_) | Core::Wide(_)
         | Core::Bool(_)
         | Core::Unit
         | Core::ConstBig { .. }
@@ -4487,7 +4492,7 @@ fn rename_binders(e: &mut Core, renames: &mut HashMap<LocalId, LocalId>, fresh: 
         // caller's body does not bind.
         Core::Var(x) => rename(x, renames),
         Core::Global(..) | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) => {}
-        Core::Int(_)
+        Core::Int(_) | Core::Wide(_)
         | Core::ConstBig { .. }
         | Core::ConstBytes(_)
         | Core::ConstString { .. }

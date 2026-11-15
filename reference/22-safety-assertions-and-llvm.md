@@ -233,13 +233,13 @@ Beyond the assertion restatements above, the backend translates other establishe
 | An `Io`-headed or mutating definition | `memory(read)` or `memory(readwrite)` instead |
 | `#[no-alloc]` | `nofree` |
 | A totality proof | `willreturn` |
-| A non-escaping borrow | `captures(none)`, as in `declare void @"fix_borrow"(ptr captures(none) nonnull)` |
+| A non-escaping borrow | `nocapture`, as in `declare void @"fix_borrow"(ptr nocapture nonnull)` (LLVM 21 and newer read it as `captures(none)`) |
 | A scalars-only signature | `noundef` on each scalar parameter |
 | A bounded return type (`U8`, `U32`, a `Fin` index) | `range(...)` on the define, and `!range` metadata where a call's result range is statable |
 | `#[checked-params]` and boundary facts | `llvm.assume` with `align`, `nonnull`, `dereferenceable` or `range` operand bundles |
 | A read from an untrusted buffer, pointer or foreign input | `freeze` before a branch or comparison |
 | A fault exit | `noreturn` and a dead successor |
-| A foreign aggregate boundary | `byval` and `sret` |
+| A foreign aggregate boundary | The target's C convention: register pieces, `byval`, a pointer to the caller's copy, or `sret` |
 | A `prim` immediate parameter, an `asm` fragment | `immarg`, and `llvm.sideeffect` for the assembly |
 
 These names describe emitted IR. They are not source attributes: writing `#[nonnull]` on a Cinch definition does not exist and does not prove anything. Fast-math flags are not a default permission to reassociate IEEE arithmetic, and a reserved or opaque primitive body keeps its explicit trust and containment status rather than becoming proved by its own annotation.

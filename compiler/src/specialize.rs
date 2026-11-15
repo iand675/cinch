@@ -73,10 +73,8 @@ pub fn parse_object_roots(text: &str) -> crate::Result<Vec<ObjectRoot>> {
             let get = |key: &str| row.get(key).ok_or_else(|| crate::Error::plain(format!("object root is missing {key}")));
             let text = |key: &str| -> crate::Result<String> { Ok(get(key)?.as_str().map_err(invalid)?.to_string()) };
             let vector = |key: &str| -> crate::Result<Vec<Class>> {
-                text(key)?.chars().map(|c| match c {
-                    'R' => Ok(Class::Raw), 'O' => Ok(Class::Obj), 'T' => Ok(Class::TObj),
-                    _ => Err(crate::Error::plain("object root vectors contain only R/O/T")),
-                }).collect()
+                text(key)?.chars().map(|c| Class::from_letter(c)
+                    .ok_or_else(|| crate::Error::plain("object root vectors contain only R/O/T/W"))).collect()
             };
             let allowed: &[&str] = if key == "methods" { &["class", "slot", "own"] } else { &["symbol", "classes"] };
             if row.keys().any(|k| !allowed.contains(&k.as_str())) {

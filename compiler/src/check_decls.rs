@@ -67,6 +67,11 @@ fn prim_result_promise(op: PrimOp) -> Option<(PTerm, Option<PTerm>)> {
         ),
         PrimOp::Nat(NatOp::FromI64 | NatOp::ToI64)
         | PrimOp::Int(IntOp::FromI64 | IntOp::ToI64 | IntOp::FromNat | IntOp::ToNat) => (same(), None),
+        // `I128`'s `Int` conversions keep the value as the `I64` ones do
+        // (a true fact the solver may combine with others, though a wide
+        // scalar has no sort of its own to bound it); a `U128`'s `Nat`
+        // conversions promise nothing.
+        PrimOp::Int(IntOp::FromI128 | IntOp::ToI128) => (same(), None),
         PrimOp::Nat(NatOp::Rem) => (and(PTerm::Cmp(IdxCmp::Lt, it(), arg(1)), le(it(), arg(0))), None),
         PrimOp::Nat(NatOp::Div) => (le(it(), arg(0)), None),
         PrimOp::Nat(NatOp::Cmp) | PrimOp::Int(IntOp::Cmp) => (range(-1, 1), None),
@@ -1352,6 +1357,7 @@ impl Checker {
                         by_value: false,
                         tag: 0,
                         fields: Vec::new(),
+                        leaves: Vec::new(),
                     })
                     .collect();
                 let has_ret_ptr = b.call.ret.is_some();
@@ -1369,6 +1375,7 @@ impl Checker {
                         by_value: false,
                         tag: 0,
                         fields: Vec::new(),
+                        leaves: Vec::new(),
                     });
                 }
                 let result = AbiParam {
@@ -1388,6 +1395,7 @@ impl Checker {
                     by_value: false,
                     tag: 0,
                     fields: Vec::new(),
+                    leaves: Vec::new(),
                 };
                 self.foreign_plans.push((
                     unit.clone(),
@@ -1515,6 +1523,7 @@ impl Checker {
                 by_value: false,
                 tag: 0,
                 fields: Vec::new(),
+                leaves: Vec::new(),
             };
             let mut params = vec![word_param.clone()];
             if arity == 2 {
@@ -1541,6 +1550,7 @@ impl Checker {
                         by_value: false,
                         tag: 0,
                         fields: Vec::new(),
+                        leaves: Vec::new(),
                     },
                     deallocator: String::new(),
                     canon: None,
@@ -11729,6 +11739,7 @@ impl Checker {
             by_value: false,
             tag: 0,
             fields: Vec::new(),
+            leaves: Vec::new(),
         };
         match ty {
             Ty::Unit => Ok(p),
@@ -11873,8 +11884,10 @@ impl Checker {
                         shape: self.field_shape(fty, f.size),
                         range: fty.value_range(),
                     });
+                    self.c_leaves(fty, f.offset, f.size, &mut p.leaves);
                     slot += 1;
                 }
+                p.leaves.sort_by_key(|l| l.offset);
                 Ok(p)
             }
             other => Err(Error::plain(crate::diagnostic!(
@@ -20104,6 +20117,10 @@ impl Checker {
                 };
                 Ok(ECore::Int(w))
             }
+            (JsonVal::Num(d), Ty::Prim(s)) if s.is_wide() => {
+                let bits = crate::check::literal_wide(*s, d, span).map_err(|e| e.message)?;
+                Ok(ECore::Wide(bits))
+            }
             (JsonVal::Num(d), t @ Ty::Prim(_)) => {
                 let w = self.literal_word(t, d, span).map_err(|e| e.message)?;
                 Ok(ECore::Int(w))
@@ -21622,6 +21639,11 @@ impl Checker {
         use crate::core::Core;
         Ok(match e {
             Core::Int(i) => Value::Word(*i),
+            Core::Wide(_) => {
+                return Err(Error::plain(
+                    "compile-time evaluation does not hold `I128`/`U128` values yet (design/wide-scalars.md, phase 2)",
+                ))
+            }
             Core::ConstBig { nat, digits } => Value::Big {
                 nat: *nat,
                 digits: digits.clone(),
@@ -22012,6 +22034,14 @@ impl Checker {
     /// Primitive operation semantics for compile-time evaluation.
     fn eval_prim(&mut self, cx: &mut StageCx, op: PrimOp, args: &[Value]) -> Result<Value> {
         use crate::core::{ArithMode, ArithOp, BitOp, CmpOp, IntOp, NatOp, PrimOp, ShiftOp};
+        // The evaluator's machine values are words; an operation over a
+        // wide scalar would compute at the wrong width.
+        if op.touches_wide() {
+            return Err(Error::plain(format!(
+                "compile-time evaluation does not compute `{}` over `I128`/`U128` yet (design/wide-scalars.md, phase 2)",
+                op.symbol()
+            )));
+        }
         match op {
             PrimOp::Nat(nat) => {
                 // FromI64 consumes a machine word, not a mathematical
@@ -22023,6 +22053,7 @@ impl Checker {
                 };
                 let b = if args.len() > 1 { big_of(&args[1], "`Nat`")? } else { Big::zero() };
                 Ok(match nat {
+                    NatOp::FromU128 | NatOp::ToU128 => unreachable!("refused at `eval_prim`'s entry (`touches_wide`)"),
                     NatOp::Add => big_value(a.add(&b), true),
                     NatOp::Mul => big_value(a.mul(&b), true),
                     NatOp::Sub => {
@@ -22066,6 +22097,7 @@ impl Checker {
                 };
                 let b = if args.len() > 1 { big_of(&args[1], "`Int`")? } else { Big::zero() };
                 Ok(match int {
+                    IntOp::FromI128 | IntOp::ToI128 => unreachable!("refused at `eval_prim`'s entry (`touches_wide`)"),
                     IntOp::Add => big_value(a.add(&b), false),
                     IntOp::Sub => big_value(a.sub(&b), false),
                     IntOp::Mul => big_value(a.mul(&b), false),
@@ -24233,7 +24265,9 @@ fn scalar_samples(s: &crate::types::Scalar) -> Vec<Value> {
         I64 => vec![w(-1), w(0), w(1), w(i64::MIN)],
         Usize | Isize => vec![w(0), w(1), w(-1)],
         Char => vec![w(0), w(65), w(0x10FFFF)],
-        F32 | F64 => Vec::new(),
+        // Not sampled: floats compare equal to nothing at NaN, and a wide
+        // scalar's values are not words the evaluator holds.
+        F32 | F64 | I128 | U128 => Vec::new(),
     }
 }
 

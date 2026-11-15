@@ -317,6 +317,10 @@ pub enum NatOp {
     FromI64,
     /// `natToI64`: value as a machine integer; the caller proves it fits.
     ToI64,
+    /// `natFromU128`: a `U128` as a `Nat` word (design/wide-scalars.md).
+    FromU128,
+    /// `natToU128`: value as a `U128`; the caller proves it fits.
+    ToU128,
 }
 
 impl NatOp {
@@ -330,6 +334,8 @@ impl NatOp {
             NatOp::Cmp => "Cmp",
             NatOp::FromI64 => "FromI64",
             NatOp::ToI64 => "ToI64",
+            NatOp::FromU128 => "FromU128",
+            NatOp::ToU128 => "ToU128",
         }
     }
 
@@ -344,6 +350,8 @@ impl NatOp {
             NatOp::Cmp => "cinch_nat_cmp",
             NatOp::FromI64 => "cinch_nat_from_i64",
             NatOp::ToI64 => "cinch_nat_to_i64",
+            NatOp::FromU128 => "cinch_nat_from_u128",
+            NatOp::ToU128 => "cinch_nat_to_u128",
         }
     }
 }
@@ -372,6 +380,10 @@ pub enum IntOp {
     /// (the caller proves `0 <= x`; a negative one is a compiler-bug
     /// trap).
     ToNat,
+    /// `intFromI128`: an `I128` as an `Int` word (design/wide-scalars.md).
+    FromI128,
+    /// `intToI128`: value as an `I128`; the caller proves it fits.
+    ToI128,
 }
 
 impl IntOp {
@@ -388,6 +400,8 @@ impl IntOp {
             IntOp::ToI64 => "ToI64",
             IntOp::FromNat => "FromNat",
             IntOp::ToNat => "ToNat",
+            IntOp::FromI128 => "FromI128",
+            IntOp::ToI128 => "ToI128",
         }
     }
 
@@ -405,6 +419,8 @@ impl IntOp {
             IntOp::ToI64 => "cinch_int_to_i64",
             IntOp::FromNat => "cinch_int_from_nat",
             IntOp::ToNat => "cinch_int_to_nat",
+            IntOp::FromI128 => "cinch_int_from_i128",
+            IntOp::ToI128 => "cinch_int_to_i128",
         }
     }
 }
@@ -1174,6 +1190,8 @@ impl PrimOp {
                 "natCmp" => Nat(NatOp::Cmp),
                 "natFromI64" => Nat(NatOp::FromI64),
                 "natToI64" => Nat(NatOp::ToI64),
+                "natFromU128" => Nat(NatOp::FromU128),
+                "natToU128" => Nat(NatOp::ToU128),
                 "intAdd" => Int(IntOp::Add),
                 "intSub" => Int(IntOp::Sub),
                 "intMul" => Int(IntOp::Mul),
@@ -1183,6 +1201,8 @@ impl PrimOp {
                 "intCmp" => Int(IntOp::Cmp),
                 "intFromI64" => Int(IntOp::FromI64),
                 "intToI64" => Int(IntOp::ToI64),
+                "intFromI128" => Int(IntOp::FromI128),
+                "intToI128" => Int(IntOp::ToI128),
                 "intFromNat" => Int(IntOp::FromNat),
                 "intToNat" => Int(IntOp::ToNat),
                 "bytesNew" => Bytes(BytesOp::New),
@@ -1351,8 +1371,8 @@ impl PrimOp {
             Stm { op, .. } => op.sig().0.len(),
             Slots { op, .. } => op.sig().0.len(),
             Bound { .. } => 0,
-            Nat(NatOp::FromI64 | NatOp::ToI64)
-            | Int(IntOp::FromI64 | IntOp::ToI64 | IntOp::Neg | IntOp::FromNat | IntOp::ToNat)
+            Nat(NatOp::FromI64 | NatOp::ToI64 | NatOp::FromU128 | NatOp::ToU128)
+            | Int(IntOp::FromI64 | IntOp::ToI64 | IntOp::Neg | IntOp::FromNat | IntOp::ToNat | IntOp::FromI128 | IntOp::ToI128)
             | Bytes(BytesOp::New | BytesOp::Len | BytesOp::Data)
             | Utf8(Utf8Op::Validate | Utf8Op::CountChars | Utf8Op::Encode)
             | Text(
@@ -1423,6 +1443,8 @@ impl PrimOp {
             Nat(NatOp::Cmp) => (vec![Ty::Nat, Ty::Nat], i64t),
             Nat(NatOp::FromI64) => (vec![i64t], Ty::Nat),
             Nat(NatOp::ToI64) => (vec![Ty::Nat], i64t),
+            Nat(NatOp::FromU128) => (vec![prim(Scalar::U128)], Ty::Nat),
+            Nat(NatOp::ToU128) => (vec![Ty::Nat], prim(Scalar::U128)),
             Int(IntOp::Add | IntOp::Sub | IntOp::Mul | IntOp::Div | IntOp::Rem) => {
                 (vec![Ty::Int, Ty::Int], Ty::Int)
             }
@@ -1432,6 +1454,8 @@ impl PrimOp {
             Int(IntOp::ToI64) => (vec![Ty::Int], i64t),
             Int(IntOp::FromNat) => (vec![Ty::Nat], Ty::Int),
             Int(IntOp::ToNat) => (vec![Ty::Int], Ty::Nat),
+            Int(IntOp::FromI128) => (vec![prim(Scalar::I128)], Ty::Int),
+            Int(IntOp::ToI128) => (vec![Ty::Int], prim(Scalar::I128)),
             Bytes(BytesOp::New) => (vec![Ty::Nat], Ty::Bytes),
             Bytes(BytesOp::Len) => (vec![Ty::Bytes], Ty::Nat),
             Bytes(BytesOp::Get) => (vec![Ty::Bytes, Ty::Nat], Ty::Nat),
@@ -1817,6 +1841,10 @@ impl<B> CAlt<B> {
 pub enum Core {
     /// Raw `i64` word constant (machine scalar values and words).
     Int(i64),
+    /// A wide scalar constant (`I128`/`U128`, `design/wide-scalars.md`):
+    /// the value's 128-bit two's complement bit pattern. Its class is
+    /// `Wide`; code generation emits it as an `i128` operand.
+    Wide(u128),
     /// Mathematical `Nat`/`Int` constant, carried as a decimal digit
     /// string with an optional leading `-` (`nat` selects the `Nat`
     /// runtime). Code generation folds a value in the runtime's immediate
@@ -2917,6 +2945,12 @@ pub struct ProjField {
     pub access: Option<FieldAccess>,
     pub class: Class,
     pub mutable: bool,
+    /// The classes of the runtime fields before `slot`, when one of them
+    /// may be `Wide` (design/wide-scalars.md): a wide field takes two
+    /// payload words, so the field's word offset is `slot` plus the wide
+    /// classes here. Empty means every earlier field is one word, which
+    /// is every projection but a record's or a tuple's.
+    pub before: Vec<Class>,
 }
 
 pub(crate) const MUTABLE_CELL: &str = "<builtin>.MutCell";
@@ -2929,7 +2963,13 @@ impl ProjField {
     }
 
     pub fn slot(slot: usize, class: Class) -> ProjField {
-        ProjField { slot, access: None, class, mutable: false }
+        ProjField { slot, access: None, class, mutable: false, before: Vec::new() }
+    }
+
+    /// The payload word the field starts at: its slot, plus one word for
+    /// each wide field before it.
+    pub fn word(&self) -> usize {
+        self.slot + self.before.iter().filter(|c| **c == Class::Wide).count()
     }
 }
 
@@ -2989,8 +3029,10 @@ pub enum AbiClass {
     Scalar(crate::types::Scalar),
     /// Any pointer role, including opaque handles: crossing as `ptr`.
     Ptr,
-    /// An aggregate crossing by const-pointer to a call-scoped C-layout
-    /// copy (parameters only; a foreign result cannot be an aggregate).
+    /// A C-layout aggregate: by default a parameter crossing by
+    /// const-pointer to a call-scoped copy; with `by_value`, a struct
+    /// passed or returned by value as the target's C convention says
+    /// (`crate::cabi`). A result is an aggregate only by value.
     Aggregate,
 }
 
@@ -3138,19 +3180,38 @@ pub struct AbiParam {
     /// (0 asserts none, as for `RawPtr` and opaque handles). This is the
     /// `align` parameter attribute and the `align` operand bundle.
     pub pointee_align: u64,
-    /// The native by-value spelling of the crossing (the plan note
-    /// `design/llvm-contract-attributes.md`): an aggregate parameter
-    /// crosses `byval(<layout>)` and an aggregate result crosses
-    /// `sret(<layout>)` (the platform's by-value struct ABI, spelled for
-    /// LLVM rather than guessed). Without it an aggregate parameter
-    /// crosses as D66's const-pointer to a call-scoped copy and an
-    /// aggregate result is rejected.
+    /// The aggregate crosses by value (`#[byval]` parameters, the
+    /// `#[sret]` result): where the bytes travel, in registers, as a
+    /// stack copy, behind a pointer or through a result buffer, is the
+    /// target's C convention's decision over `leaves`, made in
+    /// `crate::cabi` rather than guessed. Without it an aggregate
+    /// parameter crosses as D66's const-pointer to a call-scoped copy
+    /// and an aggregate result is rejected.
     pub by_value: bool,
     /// For aggregates: the constructor tag of the boxed block built on
     /// the way in (the C-layout field plan is `fields`).
     pub tag: u64,
     /// For aggregates: the C-layout field plan (recorded offsets).
     pub fields: Vec<FieldAccess>,
+    /// For aggregates: the machine scalars the C ABI sees in the
+    /// aggregate, nested aggregates flattened, in offset order. A
+    /// by-value crossing's passing mode is a function of these and the
+    /// target's calling convention (`crate::cabi`), never of the Cinch
+    /// field plan: the field plan stores bits, while the classifier
+    /// needs to know which bits live in a float register.
+    pub leaves: Vec<CLeaf>,
+}
+
+/// One machine scalar inside a C aggregate, as the target's calling
+/// convention classifies it: its byte offset from the aggregate's base,
+/// its byte width, and whether it is a floating-point value (SysV's
+/// SSE class, AAPCS64's homogeneous floating-point aggregates) or an
+/// integer, pointer or `Bool` (SysV's INTEGER class).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CLeaf {
+    pub offset: u64,
+    pub size: u64,
+    pub float: bool,
 }
 
 /// One foreign binding's contract and marshalling plan (foreign function
@@ -3680,7 +3741,7 @@ fn tail_groups(program: &Program) -> Vec<(TailGroup, Option<usize>)> {
         out: &mut Vec<String>,
     ) {
         match e {
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Var(_)
+            Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Var(_)
             | Core::Global(..) | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_)
             | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc
             | Core::SyntaxLit(..) | Core::StrLit(_) => {}
@@ -3991,7 +4052,7 @@ fn calls_walk(
     out: &mut Vec<CallSite>,
 ) {
     match e {
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit
+        Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit
         | Core::Var(_) | Core::Global(..) | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_)
         | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc
         | Core::SyntaxLit(..) | Core::StrLit(_) => {}
@@ -4905,6 +4966,7 @@ pub fn condition_context(build: &BuildProfiles, context: BuildContext) -> &Targe
 fn core_eq(a: &Core, b: &Core) -> bool {
     match (a, b) {
         (Core::Int(x), Core::Int(y)) => x == y,
+        (Core::Wide(x), Core::Wide(y)) => x == y,
         (Core::ConstBig { nat: n1, digits: d1 }, Core::ConstBig { nat: n2, digits: d2 }) => {
             n1 == n2 && d1 == d2
         }
@@ -4979,7 +5041,7 @@ pub(crate) fn max_local(e: &Core) -> usize {
 pub fn walk_locals(e: &Core, f: &mut impl FnMut(LocalId)) {
     match e {
         Core::Var(l) => f(*l),
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+        Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
         | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
         | Core::StrLit(_) => {}
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => walk_locals(d, f),
@@ -5089,7 +5151,7 @@ fn use_range(e: &Core, l: LocalId) -> (usize, usize) {
                 (0, 0)
             }
         }
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+        Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
         | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
         | Core::StrLit(_) => (0, 0),
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => use_range(d, l),
@@ -5226,7 +5288,7 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
         };
         match e {
             Core::Var(l) => note(*l, map, next),
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+            Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
             | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
             | Core::StrLit(_) => {}
             Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => assign(d, map, next),
@@ -5329,6 +5391,7 @@ pub(crate) fn rename_core_locals(e: &Core, map: &HashMap<LocalId, LocalId>) -> C
         Core::Var(l) => Core::Var(*map.get(l).unwrap_or(l)),
         Core::SpliceVal(i) => Core::SpliceVal(*i),
         Core::Int(v) => Core::Int(*v),
+        Core::Wide(v) => Core::Wide(*v),
         Core::ConstBig { nat, digits } => Core::ConstBig { nat: *nat, digits: digits.clone() },
         Core::ConstBytes(b) => Core::ConstBytes(b.clone()),
         Core::ConstString { ctor, bytes } => Core::ConstString {
@@ -5491,6 +5554,7 @@ fn instantiate(
             }
             Core::SpliceVal(i) => Core::SpliceVal(*i),
             Core::Int(v) => Core::Int(*v),
+            Core::Wide(v) => Core::Wide(*v),
             Core::ConstBig { nat, digits } => Core::ConstBig { nat: *nat, digits: digits.clone() },
             Core::ConstBytes(b) => Core::ConstBytes(b.clone()),
             Core::ConstString { ctor, bytes } => Core::ConstString {
@@ -5680,6 +5744,7 @@ fn match_pat(
     }
     match (pat, sub) {
         (Core::Int(x), Core::Int(y)) => x == y,
+        (Core::Wide(x), Core::Wide(y)) => x == y,
         (Core::ConstBig { nat: n1, digits: d1 }, Core::ConstBig { nat: n2, digits: d2 }) => {
             n1 == n2 && d1 == d2
         }
@@ -5796,6 +5861,36 @@ fn pat_shape_eq(a: &CPat, b: &CPat, cb: &mut Vec<Option<Class>>) -> bool {
 
 // ------------------------------------------------------- constant folding
 
+/// Whether an operation ranges over a wide scalar: its own scalar, a
+/// conversion's either end, or a packed array's element. Read from the
+/// operation itself, not its signature, because `PrimOp::sig` is defined
+/// only for the operations a foreign import can name.
+fn prim_touches_wide(op: PrimOp) -> bool {
+    use PrimOp::*;
+    match op {
+        Bound { ty, .. }
+        | Arith { ty, .. }
+        | Neg { ty, .. }
+        | CheckedDiv { ty }
+        | CheckedRem { ty }
+        | Shift { ty, .. }
+        | Rotate { ty, .. }
+        | Bit { ty, .. }
+        | BitNot { ty }
+        | BitScan { ty, .. }
+        | Cmp { ty, .. }
+        | FloatBin { ty, .. }
+        | FloatUn { ty, .. }
+        | FCmp { ty, .. }
+        | FClass { ty, .. }
+        | TotalOrder { ty } => ty.is_wide(),
+        Conv { from, to, .. } => from.is_wide() || to.is_wide(),
+        Array { packed, .. } => packed.is_some_and(Scalar::is_wide),
+        Nat(NatOp::FromU128 | NatOp::ToU128) | Int(IntOp::FromI128 | IntOp::ToI128) => true,
+        _ => false,
+    }
+}
+
 /// Word width and signedness of a machine scalar (the word model stores
 /// every scalar as its raw `i64` bit pattern, zero/sign extended).
 fn scalar_bits(s: Scalar) -> (u32, bool) {
@@ -5812,6 +5907,9 @@ fn scalar_bits(s: Scalar) -> (u32, bool) {
         Usize | Isize => (64, s == Isize),
         Char => (32, false),
         F32 | F64 => (64, false),
+        // Never folded here: `fold_prim` refuses any operation over a
+        // wide scalar, whose values are not words.
+        I128 | U128 => (128, s == I128),
     }
 }
 
@@ -5914,6 +6012,11 @@ fn fold_prim(op: PrimOp, args: &[Core], ctors: &FoldCtors) -> Option<Core> {
     use self::big::Big;
     if let PrimOp::Sym(sop) = op {
         return fold_sym(sop, args);
+    }
+    // The folder computes over `i64` words; an operation that takes or
+    // gives a wide scalar is left to the emitter.
+    if prim_touches_wide(op) {
+        return None;
     }
     let words: Vec<i64> = args
         .iter()
@@ -6073,6 +6176,7 @@ fn fold_prim(op: PrimOp, args: &[Core], ctors: &FoldCtors) -> Option<Core> {
         PrimOp::Nat(nop) => {
             let bs = bigs?;
             match nop {
+                NatOp::FromU128 | NatOp::ToU128 => unreachable!("a wide conversion is not folded (`prim_touches_wide`)"),
                 NatOp::Add => {
                     let v = bs[0].1.add(&bs[1].1);
                     Some(Core::ConstBig { nat: true, digits: v.to_dec() })
@@ -6114,6 +6218,7 @@ fn fold_prim(op: PrimOp, args: &[Core], ctors: &FoldCtors) -> Option<Core> {
         PrimOp::Int(iop) => {
             let bs = bigs?;
             match iop {
+                IntOp::FromI128 | IntOp::ToI128 => unreachable!("a wide conversion is not folded (`prim_touches_wide`)"),
                 IntOp::Add => {
                     let v = bs[0].1.add(&bs[1].1);
                     Some(Core::ConstBig { nat: false, digits: v.to_dec() })
@@ -6229,7 +6334,7 @@ fn has_alloc(e: &Core) -> bool {
             Core::Prim(PrimOp::Delay) => *found = true,
             Core::Reuse { .. } => *found = true,
             Core::App(head, _) if matches!(&**head, Core::Ctor(id, _) if id.0 == MUTABLE_CELL) => *found = true,
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+            Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
             | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
             | Core::Fault | Core::SyntaxLit(..) | Core::StrLit(_)
             | Core::Var(_) => {}
@@ -6291,7 +6396,7 @@ struct OptCx {
 fn scan_calls(e: &Core, f: &mut impl FnMut(&GlobalId)) {
     match e {
         Core::Global(g, _) => f(g),
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Ctor(..)
+        Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Ctor(..)
         | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..) | Core::StrLit(_)
         | Core::Var(_) => {}
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => scan_calls(d, f),
@@ -6364,7 +6469,7 @@ fn scan_memo(e: &Core, n: &mut usize) {
         Core::LazyAlloc | Core::LazyInit(_, _) | Core::BoxAlloc | Core::BoxInit(..)
         | Core::RefSet(_, _, _)
         | Core::BoxGet(..) | Core::BoxClear(..) | Core::Demand(..) => *n += 1,
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+        Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
         | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
         | Core::Fault | Core::SyntaxLit(..) | Core::StrLit(_)
         | Core::Var(_) => {}
@@ -6443,7 +6548,7 @@ fn weights_ok(e: &Core) -> bool {
                     go(&a.body, ok);
                 }
             }
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+            Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
             | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
             | Core::StrLit(_) | Core::Var(_) => {}
             Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => {
@@ -6488,7 +6593,7 @@ fn scope_ok(e: &Core, nparams: usize) -> bool {
     fn go(e: &Core, bound: &mut std::collections::HashSet<LocalId>) -> bool {
         match e {
             Core::Var(l) => bound.contains(l),
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+            Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
             | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
             | Core::StrLit(_) => true,
             Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => {
@@ -6647,7 +6752,7 @@ fn body_impure(e: &Core) -> bool {
                     *bad = true;
                 }
             }
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+            Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
             | Core::Ctor(..) | Core::SpliceVal(_) | Core::LazyAlloc | Core::BoxAlloc
             | Core::SyntaxLit(..) | Core::StrLit(_) | Core::Var(_) => {}
             Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => {
@@ -7438,7 +7543,7 @@ impl<'a> Driver<'a> {
             }
             let atom = matches!(
                 arg,
-                Core::Var(_) | Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_)
+                Core::Var(_) | Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_)
                     | Core::Unit | Core::Global(..) | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_)
             );
             if atom {
@@ -7526,7 +7631,7 @@ fn drop_dead(
 pub(crate) fn child_slots(e: &mut Core) -> Vec<&mut Core> {
     let mut out: Vec<&mut Core> = Vec::new();
     match e {
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+        Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
         | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
         | Core::StrLit(_) | Core::Var(_) => {}
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => {
@@ -7591,7 +7696,10 @@ pub fn subst_classes(e: &mut Core, cv: &[Class]) {
             }
             *c = c.subst(cv);
         }
-        Core::Proj(_, f) => f.class = f.class.subst(cv),
+        Core::Proj(_, f) => {
+            f.class = f.class.subst(cv);
+            sub(&mut f.before);
+        }
         Core::Demand(_, c) | Core::BoxGet(_, c) | Core::BoxClear(_, c) | Core::BoxInit(_, _, c) | Core::RefSet(_, _, c) => *c = c.subst(cv),
         Core::Dup(_, c, _) | Core::Drop(_, c, _) => *c = c.subst(cv),
         Core::Let(_, c, _, _) => *c = c.subst(cv),
@@ -7616,6 +7724,57 @@ pub fn subst_classes(e: &mut Core, cv: &[Class]) {
     }
     for k in child_slots(e) {
         subst_classes(k, cv);
+    }
+}
+
+/// Every representation class written in `e`, at exactly the sites
+/// [`subst_classes`] rewrites: the read-only twin, so a check over the
+/// classes a body uses cannot miss a site the collector substitutes.
+pub fn for_each_class(e: &Core, f: &mut impl FnMut(Class)) {
+    let mut all = |cs: &[Class], f: &mut dyn FnMut(Class)| cs.iter().for_each(|c| f(*c));
+    match e {
+        Core::Global(_, v) | Core::Ctor(_, v) | Core::InstDict(_, _, v) | Core::Lam { classes: v, .. } => all(v, f),
+        Core::DictProj(_, _, site, c) => {
+            if let Some(s) = site {
+                all(&s.own, f);
+            }
+            f(*c);
+        }
+        Core::Proj(_, p) => {
+            f(p.class);
+            all(&p.before, f);
+        }
+        Core::Demand(_, c) | Core::BoxGet(_, c) | Core::BoxClear(_, c) | Core::BoxInit(_, _, c) | Core::RefSet(_, _, c) => f(*c),
+        Core::Dup(_, c, _) | Core::Drop(_, c, _) => f(*c),
+        Core::Let(_, c, _, _) => f(*c),
+        // Joins are made after the collector runs, so their classes are
+        // concrete and `subst_classes` has nothing to rewrite; a reader
+        // still sees them.
+        Core::Join { params, .. } => params.iter().for_each(|(_, c)| f(*c)),
+        Core::Prim(PrimOp::Par { op, classes }) => all(&classes[..op.class_count().min(classes.len())], f),
+        Core::Case { alts, .. } => {
+            for a in alts {
+                match &a.pat {
+                    CPat::Var(_, c) => f(*c),
+                    CPat::Con { classes, .. } => all(classes, f),
+                    CPat::Wild => {}
+                }
+            }
+        }
+        Core::Quote { body: Some(b), .. } => for_each_class(b, f),
+        Core::App(h, _) => for_each_class(h, f),
+        _ => {}
+    }
+    for k in child_slots_imm(e) {
+        for_each_class(k, f);
+    }
+}
+
+impl PrimOp {
+    /// Whether the operation's signature mentions a wide scalar anywhere,
+    /// including inside an `Option` result (`design/wide-scalars.md`).
+    pub fn touches_wide(self) -> bool {
+        prim_touches_wide(self)
     }
 }
 
@@ -7648,6 +7807,7 @@ pub(crate) fn alpha_eq(a: &Core, b: &Core) -> bool {
                 None => x == y,
             },
             (Core::Int(x), Core::Int(y)) => x == y,
+            (Core::Wide(x), Core::Wide(y)) => x == y,
             (
                 Core::ConstBig { nat: n1, digits: d1 },
                 Core::ConstBig { nat: n2, digits: d2 },
@@ -8154,7 +8314,7 @@ pub(crate) fn child_slots_imm(e: &Core) -> Vec<&Core> {
 /// collecting them.
 fn each_child<'a>(e: &'a Core, visit: &mut impl FnMut(&'a Core)) {
     match e {
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+        Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
         | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
         | Core::StrLit(_) | Core::Var(_) => {}
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => visit(d),
@@ -8411,6 +8571,7 @@ fn share_head(e: &Core, h: &mut impl std::hash::Hasher) {
     std::mem::discriminant(e).hash(h);
     match e {
         Core::Int(n) => n.hash(h),
+        Core::Wide(n) => n.hash(h),
         Core::ConstBig { nat, digits } => (nat, digits).hash(h),
         Core::ConstBytes(b) => b.hash(h),
         Core::ConstString { ctor, bytes } => (ctor, bytes).hash(h),
@@ -8586,6 +8747,7 @@ fn share_match(a: &Core, b: &Core, classes: &HashMap<usize, Class>) -> Option<Ha
         fn go(&mut self, a: &Core, b: &Core) -> bool {
             match (a, b) {
                 (Core::Int(x), Core::Int(y)) => x == y,
+                (Core::Wide(x), Core::Wide(y)) => x == y,
                 (Core::ConstBig { nat: n1, digits: d1 }, Core::ConstBig { nat: n2, digits: d2 }) => n1 == n2 && d1 == d2,
                 (Core::ConstBytes(x), Core::ConstBytes(y)) => x == y,
                 (Core::ConstString { ctor: c1, bytes: b1 }, Core::ConstString { ctor: c2, bytes: b2 }) => c1 == c2 && b1 == b2,

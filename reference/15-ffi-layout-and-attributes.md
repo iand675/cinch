@@ -227,15 +227,26 @@ module Main where
   main u = if sumBig (mkBig 5) == 18 then 0 else 1
 ```
 
-This program checks but cannot link from the CLI, because `sum_big` and `mk_big` have no implementation in this repository. The declarations it emits are the point:
+This program checks but cannot link from the CLI, because `sum_big` and `mk_big` have no implementation in this repository. The declarations it emits are the point. On x86-64 Linux or macOS:
 
 ```
 %"__sl_layout_0" = type [24 x i8]
-declare void @"mk_big"(ptr sret(%__sl_layout_0) align 8, ptr noundef)
-declare i64 @"sum_big"(ptr byref(%__sl_layout_0) align 8 nonnull align 8)
+declare void @"mk_big"(ptr sret(%__sl_layout_0) align 8, i64 noundef)
+declare i64 @"sum_big"(ptr byval(%__sl_layout_0) align 8)
 ```
 
-`sret` makes the result an explicit out-buffer and the LLVM result `void`. The parameter spelling is `byref(%layout)` rather than LLVM's `byval` keyword, because `byval` has a different machine meaning on some targets; the pointee type states the layout without changing the convention. Each attribute is refused where its claim is false:
+On arm64, `sum_big` takes `(ptr nonnull align 8)` instead.
+
+LLVM does not lower a C struct passed by value; clang decides, per target, where the bytes go, and the compiler makes the same decision from the target's C calling convention and the aggregate's scalar fields (`compiler/src/cabi.rs`):
+
+| Convention | Parameter | Result |
+| --- | --- | --- |
+| System V x86-64 (Linux, macOS) | Up to 16 bytes in registers, one `i64` per integer eightbyte and `double`, `<2 x float>` or `float` per floating-point one; larger, misaligned, or out of registers, a `byval` stack copy | Up to 16 bytes in registers; larger, `sret` |
+| AAPCS64 (arm64 Linux, macOS) | One to four floats or doubles of one width as `[N x float]` or `[N x double]`; otherwise up to 16 bytes as `i64` or `[2 x i64]`, larger as a pointer to the caller's copy | The same registers; larger, `sret` |
+| Microsoft x64 | A 1, 2, 4 or 8-byte struct as an integer of that size; otherwise a pointer to the caller's copy | The same integer; otherwise `sret` |
+| wasm32 | A struct of exactly one scalar as that scalar; otherwise `byval` | The same scalar; otherwise `sret` |
+
+So the 24-byte `Big` above takes a stack copy on x86-64 and a pointer on arm64, and both return it through `sret`, a result buffer with a `void` LLVM result. A struct of two `I64` fields would cross as `(i64, i64)` on x86-64 and `([2 x i64])` on arm64, and return as `{ i64, i64 }` or `[2 x i64]`. An aggregate holding a 16-byte scalar, or crossing by value on a target with no convention here, is refused rather than guessed. Each attribute is also refused where its claim is false:
 
 | Claim | Refusal |
 | --- | --- |

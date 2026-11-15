@@ -86,6 +86,18 @@ impl Int {
         self.to_i64().is_ok()
     }
 
+    /// Convert to an `i128`, faulting when the value does not fit.
+    pub(crate) fn to_i128(&self) -> Result<i128> {
+        let u = crate::nat::magnitude_to_u128(&self.limbs)?;
+        // `i128::MIN` has magnitude 2^127 and is the only value whose
+        // magnitude exceeds `i128::MAX`.
+        let limit = (i128::MAX as u128) + u128::from(self.negative);
+        if u > limit {
+            return Err(Error::OutOfRange);
+        }
+        Ok(if self.negative { (u as i128).wrapping_neg() } else { u as i128 })
+    }
+
     /// `self + other`.
     pub fn add(&self, other: &Int) -> Int {
         add_parts(self.negative, &self.limbs, other.negative, &other.limbs)

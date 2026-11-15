@@ -252,7 +252,7 @@ module Bootstrap.Infer where
 
   needs-type :: TypeExpr -> Bool
   needs-type ty = case ty of
-    TName s name -> has name ["Nat", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "F32", "F64"]
+    TName s name -> has name ["Nat", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "I128", "U128", "F32", "F64"]
     TForall s qs body -> True
     TFun s a b -> needs-type a || needs-type b
     TFunEff s a row b -> True
@@ -351,7 +351,7 @@ module Bootstrap.Infer where
   parameter-names-for-check ps = case ps of Nil -> Nil; Cons p rest -> Cons (param-name p) (parameter-names-for-check rest)
 
   primitive :: String -> Bool
-  primitive name = has name ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "F32", "F64"]
+  primitive name = has name ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "I128", "U128", "F32", "F64"]
   primitive-type :: String -> UType
   primitive-type name = UCon (if same name "()" then "Unit" else name) KType
   literal-type :: TypeContext -> String -> UType
@@ -361,7 +361,7 @@ module Bootstrap.Infer where
       other -> primitive-type name)
     else primitive-type name
   primitive-kinds :: TypeContext
-  primitive-kinds = MkTypeContext ([("(->)", arrow-constructor-kind)] <> ownership-type-kinds <> foreign-pointer-kinds <> array-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "F32", "F64"])) ))) Nil Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil
+  primitive-kinds = MkTypeContext ([("(->)", arrow-constructor-kind)] <> ownership-type-kinds <> foreign-pointer-kinds <> array-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "I128", "U128", "F32", "F64"])) ))) Nil Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil
   foreign-pointer-kinds :: List (String, Kind)
   foreign-pointer-kinds = [("RawPtr", KFun KType KType), ("Borrowed", KFun KType KType), ("MaybeNull", KFun KType KType)]
   array-kinds :: List (String, Kind)
@@ -4601,7 +4601,7 @@ module Bootstrap.Infer where
             other -> add-error sp "equality needs an Eq dictionary for this type" sb)
     else term-error sp "operator needs dictionary or NonZero proof elaboration" st
   comparable-names :: List String
-  comparable-names = ["Int", "Nat", "Bool", "Unit", "String", "Char", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "Isize", "Usize", global-data-string-string]
+  comparable-names = ["Int", "Nat", "Bool", "Unit", "String", "Char", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "Isize", "Usize", "I128", "U128", global-data-string-string]
   comparable :: UType -> Bool
   comparable ty = case ty of UCon name KType -> has name comparable-names; other -> False
   tuple-type :: UType -> UType
@@ -4640,7 +4640,7 @@ module Bootstrap.Infer where
     PAnn s inner annotation -> case convert False kinds (value-locals env locals) annotation st of
       (ty, sa) -> bind-pattern classes kinds families env locals inner expected (unify s expected ty (expect-type s ty sa))
     PLitInt s text -> let actual = normalize st expected in
-      let carrier = if integer-carrier actual || (case actual of UMeta id KType -> True; other -> False) then expected else primitive-type "Int" in
+      let carrier = if integer-carrier actual || wide-carrier actual || (case actual of UMeta id KType -> True; other -> False) then expected else primitive-type "Int" in
       case checked-literal s carrier text (unify s expected carrier st) of
         (CInt at ty literal, checked) -> (env, CPInt s expected literal, checked)
         (other, checked) -> (env, CPWild s UError, checked)

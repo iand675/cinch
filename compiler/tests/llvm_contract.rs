@@ -7,6 +7,7 @@
 mod common;
 use cinch::driver::check_sources;
 use common::source_frontend::run_source_objects;
+use std::collections::HashMap;
 
 /// The emitted LLVM IR of one checked source (every IR test carries a
 /// `main`, which code generation requires).
@@ -14,6 +15,21 @@ fn ir_of(name: &str, src: &str) -> String {
     let program =
         check_sources(src, "<test>").unwrap_or_else(|e| panic!("{name}: check failed: {e}"));
     cinch::codegen::emit(&program).unwrap_or_else(|e| panic!("{name}: emit failed: {e}"))
+}
+
+/// The emitted LLVM IR of one checked source for another target: the
+/// host's profile with its triple, architecture and operating system
+/// replaced (a C convention is a function of these alone).
+fn ir_for(name: &str, src: &str, arch: &str, vendor: &str, os: &str) -> String {
+    let program =
+        check_sources(src, "<test>").unwrap_or_else(|e| panic!("{name}: check failed: {e}"));
+    let profile = cinch::core::TargetProfile {
+        triple: format!("{arch}-{vendor}-{os}"),
+        arch: arch.to_string(),
+        os: os.to_string(),
+        ..cinch::core::TargetProfile::native()
+    };
+    cinch::codegen::emit_for(&profile, &program).unwrap_or_else(|e| panic!("{name}: emit failed: {e}"))
 }
 
 /// The one line of `ir` defining one unit (`define ...`).
@@ -26,17 +42,24 @@ fn define_of(ir: &str, unit: &str) -> String {
         .to_string()
 }
 
+/// The attribute group number a `define` line references (`#N`), if
+/// it carries one.
+fn group_ref(define: &str) -> Option<&str> {
+    let (_, tail) = define.split_once(" #")?;
+    Some(
+        tail.split_whitespace()
+            .next()
+            .expect("an attribute group number"),
+    )
+}
+
 /// The text of one unit's function attribute group (empty when the
 /// unit carries no group).
 fn attrs_of(ir: &str, unit: &str) -> String {
     let define = define_of(ir, unit);
-    let Some((_, tail)) = define.split_once(" #") else {
+    let Some(n) = group_ref(&define) else {
         return String::new();
     };
-    let n = tail
-        .split_whitespace()
-        .next()
-        .expect("an attribute group number");
     let head = format!("attributes #{n} = {{ ");
     ir.lines()
         .find_map(|l| l.strip_prefix(&head).and_then(|r| r.strip_suffix(" }")))
@@ -45,35 +68,69 @@ fn attrs_of(ir: &str, unit: &str) -> String {
 }
 
 /// The unit name a `define` line defines (`@"a b"(` or `@ab(`).
-fn unit_name_of(line: &str) -> Option<String> {
+fn unit_name_of(line: &str) -> Option<&str> {
     let (_, after) = line.split_once('@')?;
     if let Some(rest) = after.strip_prefix('"') {
         let end = rest.find('"')?;
-        return Some(rest[..end].to_string());
+        return Some(&rest[..end]);
     }
     let end = after.find('(')?;
-    Some(after[..end].to_string())
+    Some(&after[..end])
 }
 
-/// The body of one unit's define, or `None` when the unit is not
-/// emitted (a pruned or inlined unit).
-fn body_of_opt(ir: &str, unit: &str) -> Option<String> {
-    let quoted = format!("@\"{unit}\"(");
-    let bare = format!("@{unit}(");
+/// One emitted `define`: its unit name, its body lines (between `{` and
+/// `}`) and its attribute group text.
+struct Define<'a> {
+    name: &'a str,
+    body: Vec<&'a str>,
+    attrs: &'a str,
+}
+
+/// Every emitted `define` of a module, read in one pass over the IR.
+///
+/// A whole-module check that resolves each define by name rescans the
+/// module once per define, and the module carries the whole prelude, so
+/// that check is quadratic in the IR. Here the attribute groups are
+/// indexed once and each body is collected as the walk passes it, which
+/// keeps the check linear. A define whose body never closes (truncated
+/// IR) is left out, as a by-name lookup would leave it out.
+fn defines_of(ir: &str) -> Vec<Define<'_>> {
+    let groups: HashMap<&str, &str> = ir
+        .lines()
+        .filter_map(|l| {
+            let (n, text) = l.strip_prefix("attributes #")?.split_once(" = { ")?;
+            Some((n, text.strip_suffix(" }")?))
+        })
+        .collect();
+    let mut defines = Vec::new();
     let mut lines = ir.lines();
-    while let Some(l) = lines.next() {
-        if l.starts_with("define ") && (l.contains(&quoted) || l.contains(&bare)) {
-            let mut body = String::new();
-            for l in lines.by_ref() {
-                if l == "}" {
-                    return Some(body);
-                }
-                body.push_str(l);
-                body.push('\n');
-            }
+    while let Some(line) = lines.next() {
+        if !line.starts_with("define ") {
+            continue;
         }
+        let mut body = Vec::new();
+        let mut closed = false;
+        for l in lines.by_ref() {
+            if l == "}" {
+                closed = true;
+                break;
+            }
+            body.push(l);
+        }
+        let Some(name) = unit_name_of(line) else { continue };
+        if !closed {
+            continue;
+        }
+        let attrs = match group_ref(line) {
+            None => "",
+            Some(n) => groups
+                .get(n)
+                .copied()
+                .unwrap_or_else(|| panic!("{name}: attribute group #{n} missing in {ir}")),
+        };
+        defines.push(Define { name, body, attrs });
     }
-    None
+    defines
 }
 
 /// The body of one unit's define (its lines between `{` and `}`).
@@ -259,6 +316,12 @@ module Main where
     assert!(
         !declare_of(&ir, "fix_take").contains("nocapture"),
         "an escaping raw pointer must not carry nocapture\n{ir}"
+    );
+    // The spelling every supported LLVM reads: `captures(...)` is new in
+    // LLVM 20, and LLVM 21 onward reads `nocapture` as `captures(none)`.
+    assert!(
+        !ir.contains("captures("),
+        "the emitted IR must not use the LLVM 20+ `captures(...)` spelling\n{ir}"
     );
 }
 
@@ -609,9 +672,7 @@ module Main where
 
 #[test]
 fn byval_and_sret_spell_the_aggregate_boundary() {
-    let ir = ir_of(
-        "byval-spelling",
-        r#"
+    let src = r#"
 module Main where
   #[repr(C)]
   record Big where
@@ -627,22 +688,31 @@ module Main where
 
   main :: Unit ->{Foreign Fix, Diverge} Int
   main _ = if sumBig (mkBig 5) == 18 then 0 else 1
-"#,
-    );
-    // The by-value parameter crosses as the caller's copy spelled
-    // with its layout (`byref` states the pointee type without
-    // changing the passing convention; `byval` can mean a different
-    // machine convention than the C side's by-value aggregates).
-    let byval = declare_of(&ir, "sum_big");
+"#;
+    // A 24-byte struct is past every register rule. System V passes it
+    // as a stack copy (`byval`, with its layout); AAPCS64 passes a
+    // pointer to the caller's copy, a plain `ptr`. Both return it through
+    // the caller's result buffer (`sret`, returning void).
+    let sysv = ir_for("byval-sysv", src, "x86_64", "unknown", "linux");
+    let byval = declare_of(&sysv, "sum_big");
     assert!(
-        byval.contains("byref(%__sl_layout_0)") && byval.contains("align 8"),
-        "an aggregate parameter must spell its by-value copy with the layout\n{byval}\n{ir}"
+        byval.contains("ptr byval(%__sl_layout_0) align 8"),
+        "System V passes a 24-byte aggregate as a byval copy\n{byval}\n{sysv}"
     );
-    let sret = declare_of(&ir, "mk_big");
+    let aapcs = ir_for("byval-aapcs", src, "aarch64", "apple", "darwin");
+    let reference = declare_of(&aapcs, "sum_big");
     assert!(
-        sret.starts_with("declare void ") && sret.contains("sret(%__sl_layout_0)"),
-        "an aggregate result must spell sret and return void\n{sret}\n{ir}"
+        reference.contains("(ptr nonnull align 8)"),
+        "AAPCS64 passes a 24-byte aggregate by reference, as a plain pointer\n{reference}\n{aapcs}"
     );
+    for ir in [&sysv, &aapcs] {
+        assert!(!ir.contains("byref("), "no convention here passes by `byref`\n{ir}");
+        let sret = declare_of(ir, "mk_big");
+        assert!(
+            sret.starts_with("declare void ") && sret.contains("ptr sret(%__sl_layout_0) align 8, i64"),
+            "a 24-byte aggregate result is an sret buffer, then the scalar parameter\n{sret}\n{ir}"
+        );
+    }
     // Without the spellings the D66 default applies: a const-pointer
     // crossing states no layout and no result-out buffer.
     let plain = ir_of(
@@ -737,6 +807,199 @@ module Main where
         Ok(code) => assert_eq!(code, 0, "byval/sret round trip: expected exit 0, got {code}"),
         Err(e) => panic!("byval/sret round trip: compilation failed: {e}"),
     }
+}
+
+#[test]
+fn small_aggregates_cross_in_the_registers_c_uses() {
+    // The register rules, against real C on the host: a 16-byte integer
+    // pair (System V INTEGER+INTEGER, AAPCS64 `[2 x i64]`), a double and
+    // an integer (SSE+INTEGER), three floats in 12 bytes (`<2 x float>`
+    // then `float`; an AAPCS64 HFA), three doubles (System V MEMORY; an
+    // AAPCS64 HFA in registers), a pair arriving when only one integer
+    // register is left (System V moves it to the stack whole, and the
+    // scalar after it still takes the register), and the export side,
+    // where C passes and receives a pair by value.
+    use std::io::Write;
+    let dir = std::env::temp_dir().join(format!("slp27-small-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("scratch dir");
+    let c_path = dir.join("small.c");
+    let o_path = dir.join("small.o");
+    let mut f = std::fs::File::create(&c_path).expect("write fixture");
+    f.write_all(
+        br#"struct Pair { long a; long b; };
+struct Mix { double x; long n; };
+struct F3 { float a; float b; float c; };
+struct D3 { double a; double b; double c; };
+struct Pair mk_pair(long a) { struct Pair p = { a, a + 1 }; return p; }
+long long sum_pair(struct Pair p) { return p.a + p.b; }
+struct Mix mk_mix(long n) { struct Mix m = { n + 0.5, n }; return m; }
+long long read_mix(struct Mix m) { return (long long)(m.x * 2) * 10 + m.n; }
+struct F3 mk_f3(long n) { struct F3 f = { n, n + 0.25f, n + 0.5f }; return f; }
+long long read_f3(struct F3 f) { return (long long)((f.a + f.b + f.c) * 4); }
+struct D3 mk_d3(long n) { struct D3 d = { n, n + 0.25, n + 0.5 }; return d; }
+long long read_d3(struct D3 d) { return (long long)((d.a + d.b + d.c) * 4); }
+long long late_pair(long a, long b, long c, long d, long e, struct Pair p, long f) {
+  return a + b + c + d + e + p.a * 100 + p.b * 1000 + f * 10000;
+}
+extern long long cinch_sum_pair(struct Pair p);
+extern struct Pair cinch_swap(struct Pair p);
+long long call_back(long a) {
+  struct Pair p = { a, a * 2 };
+  struct Pair q = cinch_swap(p);
+  return cinch_sum_pair(p) * 100 + q.a * 10 + q.b;
+}
+"#,
+    )
+    .expect("write fixture");
+    drop(f);
+    let clang = std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".to_string());
+    let status = std::process::Command::new(&clang)
+        .arg("-c")
+        .arg(&c_path)
+        .arg("-o")
+        .arg(&o_path)
+        .status()
+        .expect("run clang");
+    assert!(status.success(), "clang failed to compile the C fixture");
+
+    let src = r#"
+module Main where
+  #[repr(C)]
+  record Pair where
+    a :: I64
+    b :: I64
+
+  #[repr(C)]
+  record Mix where
+    x :: F64
+    n :: I64
+
+  #[repr(C)]
+  record F3 where
+    a :: F32
+    b :: F32
+    c :: F32
+
+  #[repr(C)]
+  record D3 where
+    a :: F64
+    b :: F64
+    c :: F64
+
+  #[sret]
+  foreign import ccall "mk_pair" mkPair :: I64 ->{Foreign Fix, Diverge} Pair
+  #[byval]
+  foreign import ccall "sum_pair" sumPair :: Pair ->{Foreign Fix, Diverge} I64
+  #[sret]
+  foreign import ccall "mk_mix" mkMix :: I64 ->{Foreign Fix, Diverge} Mix
+  #[byval]
+  foreign import ccall "read_mix" readMix :: Mix ->{Foreign Fix, Diverge} I64
+  #[sret]
+  foreign import ccall "mk_f3" mkF3 :: I64 ->{Foreign Fix, Diverge} F3
+  #[byval]
+  foreign import ccall "read_f3" readF3 :: F3 ->{Foreign Fix, Diverge} I64
+  #[sret]
+  foreign import ccall "mk_d3" mkD3 :: I64 ->{Foreign Fix, Diverge} D3
+  #[byval]
+  foreign import ccall "read_d3" readD3 :: D3 ->{Foreign Fix, Diverge} I64
+  #[byval]
+  foreign import ccall "late_pair" latePair :: I64 -> I64 -> I64 -> I64 -> I64 -> Pair -> I64 ->{Foreign Fix, Diverge} I64
+  foreign import ccall "call_back" callBack :: I64 ->{Foreign Fix, Diverge} I64
+
+  cinchSumPair :: Pair -> I64
+  cinchSumPair p = wrapping-add-i64 p.a p.b
+
+  #[byval]
+  foreign export ccall "cinch_sum_pair" cinchSumPair :: Pair -> I64
+
+  cinchSwap :: Pair -> Pair
+  cinchSwap p = Pair { a = p.b, b = p.a }
+
+  #[byval]
+  #[sret]
+  foreign export ccall "cinch_swap" cinchSwap :: Pair -> Pair
+
+  main :: Unit ->{Foreign Fix, Diverge} Int
+  main _ =
+    if sumPair (mkPair 5) == 11 then
+      (if readMix (mkMix 3) == 73 then
+        (if readF3 (mkF3 1) == 15 then
+          (if readD3 (mkD3 1) == 15 then
+            (if latePair 1 2 3 4 5 (mkPair 7) 9 == 98715 then
+              (if callBack 3 == 963 then 0 else 6)
+            else 5)
+          else 4)
+        else 3)
+      else 2)
+    else 1
+"#;
+    // The expected values: 5+6; (3.5*2)*10+3; (1+1.25+1.5)*4 twice;
+    // 15 + 7*100 + 8*1000 + 9*10000; (3+6)*100 + 6*10 + 3.
+    let o = o_path.to_string_lossy().into_owned();
+    match run_source_objects(src, &[&o]) {
+        Ok(code) => assert_eq!(code, 0, "small by-value aggregates: expected exit 0, got {code}"),
+        Err(e) => panic!("small by-value aggregates: compilation failed: {e}"),
+    }
+}
+
+#[test]
+fn small_aggregates_spell_each_conventions_registers() {
+    // The same declarations per target, without running them: the
+    // spelling is a function of the convention, and both are checked on
+    // any host.
+    let src = r#"
+module Main where
+  #[repr(C)]
+  record Pair where
+    a :: I64
+    b :: I64
+
+  #[repr(C)]
+  record F3 where
+    a :: F32
+    b :: F32
+    c :: F32
+
+  #[repr(C)]
+  record D3 where
+    a :: F64
+    b :: F64
+    c :: F64
+
+  #[byval]
+  foreign import ccall "sum_pair" sumPair :: Pair ->{Foreign Fix, Diverge} I64
+  #[sret]
+  foreign import ccall "mk_pair" mkPair :: I64 ->{Foreign Fix, Diverge} Pair
+  #[byval]
+  foreign import ccall "read_f3" readF3 :: F3 ->{Foreign Fix, Diverge} I64
+  #[byval]
+  foreign import ccall "read_d3" readD3 :: D3 ->{Foreign Fix, Diverge} I64
+  #[sret]
+  foreign import ccall "mk_d3" mkD3 :: I64 ->{Foreign Fix, Diverge} D3
+  #[sret]
+  foreign import ccall "mk_f3" mkF3 :: I64 ->{Foreign Fix, Diverge} F3
+
+  main :: Unit ->{Foreign Fix, Diverge} Int
+  main _ = if sumPair (mkPair 1) == readF3 (mkF3 1) then 0 else if readD3 (mkD3 1) == 0 then 1 else 2
+"#;
+    let sysv = ir_for("small-sysv", src, "x86_64", "unknown", "linux");
+    let expect = |ir: &str, symbol: &str, spelled: &str| {
+        let d = declare_of(ir, symbol);
+        assert!(d.contains(spelled), "{symbol}: expected `{spelled}`\n{d}\n{ir}");
+    };
+    expect(&sysv, "sum_pair", "@\"sum_pair\"(i64, i64)");
+    expect(&sysv, "mk_pair", "declare { i64, i64 } @\"mk_pair\"(i64");
+    expect(&sysv, "read_f3", "@\"read_f3\"(<2 x float>, float)");
+    expect(&sysv, "read_d3", "@\"read_d3\"(ptr byval(");
+    expect(&sysv, "mk_d3", "declare void @\"mk_d3\"(ptr sret(");
+    expect(&sysv, "mk_f3", "declare { <2 x float>, float } @\"mk_f3\"(i64");
+    let aapcs = ir_for("small-aapcs", src, "aarch64", "apple", "darwin");
+    expect(&aapcs, "sum_pair", "@\"sum_pair\"([2 x i64])");
+    expect(&aapcs, "mk_pair", "declare [2 x i64] @\"mk_pair\"(i64");
+    expect(&aapcs, "read_f3", "@\"read_f3\"([3 x float])");
+    expect(&aapcs, "read_d3", "@\"read_d3\"([3 x double])");
+    expect(&aapcs, "mk_d3", "declare [3 x double] @\"mk_d3\"(i64");
+    expect(&aapcs, "mk_f3", "declare [3 x float] @\"mk_f3\"(i64");
 }
 
 #[test]
@@ -836,20 +1099,14 @@ module Main where
     // must not carry `norecurse`. The check is over the IR rather than a
     // named unit so a renamed or specialized symbol cannot slip past it.
     let mut checked = 0;
-    for line in ir.lines() {
-        if !line.starts_with("define ") {
-            continue;
-        }
-        let Some(name) = unit_name_of(line) else { continue };
-        let Some(body) = body_of_opt(&ir, &name) else { continue };
-        let calls_self = body
-            .lines()
-            .any(|l| l.contains(&format!("@{name}(")) || l.contains(&format!("\"{name}\"(")));
+    for Define { name, body, attrs } in defines_of(&ir) {
+        let bare = format!("@{name}(");
+        let quoted = format!("\"{name}\"(");
+        let calls_self = body.iter().any(|l| l.contains(&bare) || l.contains(&quoted));
         if !calls_self {
             continue;
         }
         checked += 1;
-        let attrs = attrs_of(&ir, &name);
         assert!(
             !attrs.contains("norecurse"),
             "{name} calls itself and must not claim norecurse, got {attrs:?}\n{ir}"
@@ -947,12 +1204,7 @@ module Main where
     );
     // No unit in the module may claim both, and no unit may claim
     // `noreturn` while its body has a reachable `ret`.
-    for line in ir.lines() {
-        if !line.starts_with("define ") {
-            continue;
-        }
-        let Some(name) = unit_name_of(line) else { continue };
-        let attrs = attrs_of(&ir, &name);
+    for Define { name, attrs, .. } in defines_of(&ir) {
         if !attrs.contains("noreturn") {
             continue;
         }

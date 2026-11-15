@@ -264,6 +264,7 @@ pub const EMBEDDED_SOURCES: &[(&str, &str)] = &[
         include_str!("../prelude/Data/Ascii.cinch"),
     ),
     ("Data/Set.cinch", include_str!("../prelude/Data/Set.cinch")),
+    ("Data/Wide.cinch", include_str!("../prelude/Data/Wide.cinch")),
     (
         "Data/Hash.cinch",
         include_str!("../prelude/Data/Hash.cinch"),

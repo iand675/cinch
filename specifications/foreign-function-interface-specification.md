@@ -117,7 +117,23 @@ D-numbers) that amend or interpret this chapter's normative text.
   word. The LLVM spelling of the aggregate parameter is
   `byref(%__sl_layout_N)` with `sret` results, never `byval`:
   disassembly against clang-compiled C proves `byval` segfaults where
-  the C ABI passes a pointer to the caller's copy (D190).
+  the C ABI passes a pointer to the caller's copy (D190). Superseded by
+  the by-value conventions amendment of 2026-11-15.
+- **By-value aggregate conventions, 2026-11-15.** This amends the D66
+  and D190 notes. A `#[byval]` parameter or `#[sret]` result crosses as
+  the target's C calling convention places that struct, decided from the
+  target and the aggregate's scalar fields (`compiler/src/cabi.rs`):
+  System V x86-64 classifies eightbytes into INTEGER and SSE registers
+  up to 16 bytes, with a `byval` stack copy for larger, misaligned or
+  out-of-register structs, and `sret` for larger results; AAPCS64 passes
+  homogeneous floating-point aggregates in vector registers, other
+  composites up to 16 bytes in general registers, and larger ones by
+  pointer to the caller's copy; Microsoft x64 passes 1, 2, 4 and 8-byte
+  structs as integers and others by reference; wasm32 passes a
+  single-scalar struct as the scalar and others `byval`. D190's
+  disassembly was AAPCS64's by-reference rule; the single `byref`
+  spelling read garbage on x86-64. A by-value crossing with no
+  convention for the target, or holding a 16-byte scalar, is refused.
 - **Effect honesty (D68, D97), 2026-10-28.** This amends section 4:
   foreign rows are closed and explicit; an import's result arrow names
   at least one accounted label (`Foreign <boundary>`, `IO`, `Global`,

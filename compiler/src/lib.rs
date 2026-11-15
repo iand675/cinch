@@ -8,6 +8,7 @@
 pub mod analysis;
 pub mod arrays;
 pub mod ast;
+pub mod cabi;
 pub mod check;
 pub mod cinchdoc;
 pub mod coalesce;
@@ -41,6 +42,7 @@ pub mod stm;
 pub mod slots;
 pub mod store;
 pub mod types;
+pub mod wide;
 pub mod total;
 pub mod syntax;
 

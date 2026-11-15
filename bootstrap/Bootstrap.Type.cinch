@@ -42,7 +42,7 @@ module Bootstrap.Type where
   export generalize-with, generalize-application-with, abstract-metas, substitute-rigid-types
   export fresh-id, substitute-bound, fresh-for-types, pi-dependent, unify-kind, kind-free-bound
   export type-all-ids, integer-carrier, integer-literal-valid, integer-bounds
-  export number-literal-carrier, number-literal-valid, number-literal-error, float-literal-bits
+  export number-literal-carrier, wide-carrier, number-literal-valid, number-literal-error, float-literal-bits
 
   data Kind where
     KType :: Kind
@@ -1619,6 +1619,10 @@ module Bootstrap.Type where
       else if same-tag name "U16" then Some (0, 65535)
       else if same-tag name "U32" then Some (0, 4294967295)
       else if same-tag name "U64" || same-tag name "Usize" then Some (0, 18446744073709551615)
+      -- The wide scalars (design/wide-scalars.md): their bounds are exact
+      -- here because the carrier arithmetic is `Int`'s.
+      else if same-tag name "I128" then Some (-170141183460469231731687303715884105728, 170141183460469231731687303715884105727)
+      else if same-tag name "U128" then Some (0, 340282366920938463463374607431768211455)
       else None
     other -> None
   integer-literal-valid :: UType -> Int -> Bool
@@ -1631,7 +1635,12 @@ module Bootstrap.Type where
       else None
     other -> None
   number-literal-carrier :: UType -> Bool
-  number-literal-carrier carrier = integer-carrier carrier || (case float-literal-format carrier of Some format -> True; None -> False)
+  number-literal-carrier carrier = integer-carrier carrier || wide-carrier carrier || (case float-literal-format carrier of Some format -> True; None -> False)
+  -- The wide scalars take integer literals within their 128-bit bounds,
+  -- but they are not promotable: the refinement solver has no sort for
+  -- them (design/wide-scalars.md section 4).
+  wide-carrier :: UType -> Bool
+  wide-carrier carrier = case carrier of UCon name KType -> same-tag name "I128" || same-tag name "U128"; other -> False
   number-literal-valid :: UType -> Int -> Bool
   number-literal-valid carrier value = integer-literal-valid carrier value
     || (case float-literal-bits carrier value False of Some word -> True; None -> False)
