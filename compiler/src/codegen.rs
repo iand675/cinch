@@ -4177,6 +4177,14 @@ fn build_unit(
     };
     match &body {
         UnitBody::Prim(op) => {
+            // Expose tagged immediate paths to the caller's constant/range
+            // simplification. Ownership fallbacks otherwise inflate LLVM's
+            // generic inlining cost for these bounded wrapper operations.
+            if matches!(op,
+                PrimOp::Nat(crate::core::NatOp::Add | crate::core::NatOp::Sub | crate::core::NatOp::Cmp | crate::core::NatOp::FromI64 | crate::core::NatOp::ToI64)
+                | PrimOp::Bytes(BytesOp::Len | BytesOp::Get | BytesOp::Set | BytesOp::Copy)) {
+                hints.inline = Some(crate::core::InlineHint::Always);
+            }
             // A primitive that returns `Option` or `Ordering` boxes its
             // results as the prelude ADTs do: zero-field constructors are
             // static blocks whose headers carry their layout ids (`None`;
