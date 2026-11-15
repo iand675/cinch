@@ -139,6 +139,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | Module | Distribution | Purpose |
 | --- | --- | --- |
 | [Text.Args](Text.Args.md) | Ship source | Command-line argument processing and its named value/error vocabulary. |
+| [Text.Ascii85](Text.Ascii85.md) | Ship source | ASCII85 buffer and incremental codecs with SIMD word quanta, zero-word compression, byte-offset errors and explicit finalization. |
 | [Text.Base32](Text.Base32.md) | Ship source | RFC 4648 standard and extended-hex Base32, with padded and raw forms and named decoding errors. |
 | [Text.Base64](Text.Base64.md) | Ship source | Base64 encoding/decoding over bytes with explicit invalid-input results. |
 | [Text.Binary](Text.Binary.md) | Ship source | Little- and big-endian integer encoding, checked buffer access, and signed/unsigned varints. |
@@ -167,6 +168,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 | Module | Distribution | Purpose |
 | --- | --- | --- |
+| [Effect.Ascii85](Effect.Ascii85.md) | Ship source | ASCII85 encoding writers and decoding byte readers with explicit finalization, bounded read-ahead and sticky stream errors. |
 | [Effect.Benchmark](Effect.Benchmark.md) | Ship source | Benchmark case execution and timing/reporting helpers over runtime clocks. |
 | [Effect.Clock](Effect.Clock.md) | Embedded | Runtime monotonic and wall-clock readings under an I/O capability. Clocks are not ambient compile-time inputs. |
 | [Effect.Concurrent](Effect.Concurrent.md) | Embedded | Shipped task/worker vocabulary supplementing the compiler-installed structured scope and join operations. |
@@ -195,7 +197,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **128 source modules**: **65 embedded** and **63 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **130 source modules**: **65 embedded** and **65 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

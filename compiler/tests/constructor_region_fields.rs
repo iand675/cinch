@@ -48,7 +48,7 @@ fn callback_cannot_be_relabelled_as_another_runtime() {
     let source = format!("{ACTION}\nmodule Main where\n  import Action\n  bad :: forall r s. using (io :: Io r) => Action s -> Unit ->{{IO r}} Nat\n  bad action unit = apply action unit\n  main :: Int\n  main = 0\n");
     let result = std::thread::Builder::new()
         .stack_size(64 * 1024 * 1024)
-        .spawn(move || cinch::driver::check_sources(&source, "different-runtime.cinch"))
+        .spawn(move || common::source_frontend::check_sources(&source, "different-runtime.cinch"))
         .unwrap()
         .join()
         .unwrap();
@@ -61,7 +61,7 @@ fn callback_region_cannot_be_a_numeric_family_index() {
     let source = "module Main where\n  data Indexed (r :: Nat) where\n    Action :: (Unit ->{IO r} Nat) -> Indexed r\n  main :: Int\n  main = 0\n";
     let result = std::thread::Builder::new()
         .stack_size(64 * 1024 * 1024)
-        .spawn(move || cinch::driver::check_sources(source, "indexed-runtime.cinch"))
+        .spawn(move || common::source_frontend::check_sources(source, "indexed-runtime.cinch"))
         .unwrap()
         .join()
         .unwrap();

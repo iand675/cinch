@@ -6441,6 +6441,139 @@ fn nat_from_i64_word(b: &mut Builder, value: &str, known_upper: Option<u64>) -> 
     }
 }
 
+/// Read or update a validated byte-buffer payload directly. Null/wrong-kind
+/// buffers, read-only writes, invalid indices and invalid byte values retain
+/// the runtime's checked fault path. The ABI layout is an i64 length followed
+/// by a target-width data pointer; header reads match the runtime's atomics.
+fn bytes_access_word(b: &mut Builder, op: BytesOp) -> String {
+    let index = matches!(op, BytesOp::Get | BytesOp::Set).then(|| nat_to_i64_word(b, "%p1"));
+    let value = (op == BytesOp::Set).then(|| nat_to_i64_word(b, "%p2"));
+    let (header_l, payload_l, slow_l, done_l) = (b.label(), b.label(), b.label(), b.label());
+    let null = b.reg();
+    b.line(&format!("{null} = icmp eq i64 %p0, 0"));
+    b.line(&format!("br i1 {null}, label %{slow_l}, label %{header_l}"));
+    b.start(&header_l);
+    let payload = b.reg();
+    b.line(&format!("{payload} = inttoptr i64 %p0 to ptr"));
+    let header_ptr = b.reg();
+    b.line(&format!(
+        "{header_ptr} = getelementptr i8, ptr {payload}, i64 -8"
+    ));
+    let header = header_load(b, &header_ptr);
+    let shifted = b.reg();
+    b.line(&format!(
+        "{shifted} = lshr i64 {header}, {}",
+        block::KIND_SHIFT
+    ));
+    let kind = b.reg();
+    b.line(&format!(
+        "{kind} = and i64 {shifted}, {}",
+        (1u64 << block::KIND_BITS) - 1
+    ));
+    let heap = b.reg();
+    b.line(&format!(
+        "{heap} = icmp eq i64 {kind}, {}",
+        block::KIND_BYTES
+    ));
+    let valid = if op == BytesOp::Set {
+        heap
+    } else {
+        let readonly = b.reg();
+        b.line(&format!(
+            "{readonly} = icmp eq i64 {kind}, {}",
+            block::KIND_BYTES_STATIC
+        ));
+        let either = b.reg();
+        b.line(&format!("{either} = or i1 {heap}, {readonly}"));
+        either
+    };
+    b.line(&format!(
+        "br i1 {valid}, label %{payload_l}, label %{slow_l}"
+    ));
+    b.start(&payload_l);
+    let len = b.reg();
+    b.line(&format!("{len} = load i64, ptr {payload}, align 8"));
+    let mut fast_exit = payload_l;
+    if let Some(index) = &index {
+        let inside = b.reg();
+        b.line(&format!("{inside} = icmp ult i64 {index}, {len}"));
+        let valid = if let Some(value) = &value {
+            let byte = b.reg();
+            b.line(&format!("{byte} = icmp ule i64 {value}, 255"));
+            let both = b.reg();
+            b.line(&format!("{both} = and i1 {inside}, {byte}"));
+            both
+        } else {
+            inside
+        };
+        let access_l = b.label();
+        b.line(&format!(
+            "br i1 {valid}, label %{access_l}, label %{slow_l}"
+        ));
+        b.start(&access_l);
+        fast_exit = access_l;
+    }
+    let fast = if op == BytesOp::Len {
+        len
+    } else {
+        let data_at = b.reg();
+        b.line(&format!(
+            "{data_at} = getelementptr i8, ptr {payload}, i64 8"
+        ));
+        let data = b.reg();
+        b.line(&format!(
+            "{data} = load ptr, ptr {data_at}, align {}",
+            b.pointer_bytes
+        ));
+        if let Some(index) = &index {
+            let at = b.reg();
+            b.line(&format!("{at} = getelementptr i8, ptr {data}, i64 {index}"));
+            if let Some(value) = &value {
+                let byte = b.reg();
+                b.line(&format!("{byte} = trunc i64 {value} to i8"));
+                b.line(&format!("store i8 {byte}, ptr {at}, align 1"));
+                "0".to_string()
+            } else {
+                let byte = b.reg();
+                b.line(&format!("{byte} = load i8, ptr {at}, align 1"));
+                let frozen = b.reg();
+                b.line(&format!("{frozen} = freeze i8 {byte}"));
+                let wide = b.reg();
+                b.line(&format!("{wide} = zext i8 {frozen} to i64"));
+                wide
+            }
+        } else {
+            let word = b.reg();
+            b.line(&format!("{word} = ptrtoint ptr {data} to i64"));
+            let empty = b.reg();
+            b.line(&format!("{empty} = icmp eq i64 {len}, 0"));
+            let selected = b.reg();
+            // The runtime exposes the empty slice's nonnull dangling address.
+            b.line(&format!(
+                "{selected} = select i1 {empty}, i64 1, i64 {word}"
+            ));
+            selected
+        }
+    };
+    b.line(&format!("br label %{done_l}"));
+    b.start(&slow_l);
+    let mut args = vec!["i64 %p0".to_string()];
+    if let Some(index) = &index {
+        args.push(format!("i64 {index}"));
+    }
+    if let Some(value) = &value {
+        args.push(format!("i64 {value}"));
+    }
+    let slow = rt_call(b, op.extern_name(), &args);
+    b.line(&format!("br label %{done_l}"));
+    b.start(&done_l);
+    let result = b.reg();
+    b.line(&format!(
+        "{result} = phi i64 [ {fast}, %{fast_exit} ], [ {slow}, %{slow_l} ]"
+    ));
+    result
+}
+
 /// The count field shifted to the top of the word: the count's sign is
 /// the word's, and a count of `n` reads as `n << RC_TOP_SHIFT`, so one
 /// signed compare separates the plain, atomic and immortal cases.
@@ -6998,13 +7131,12 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     ret(b, &r);
                 }
                 BytesOp::Len => {
-                    let l = rt_call(b, k.extern_name(), &args);
+                    let l = bytes_access_word(b, k);
                     let r = nat_from_i64_word(b, &l, Some(i64::MAX as u64));
                     ret(b, &r);
                 }
                 BytesOp::Get => {
-                    let i = nat_to_i64_word(b, "%p1");
-                    let v = rt_call(b, k.extern_name(), &[args[0].clone(), format!("i64 {i}")]);
+                    let v = bytes_access_word(b, k);
                     // `Bytes` data is untrusted (foreign spans wrap into
                     // buffers): the byte freezes before it can branch
                     // or compare (the plan note's poison containment).
@@ -7013,13 +7145,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     ret(b, &r);
                 }
                 BytesOp::Set => {
-                    let i = nat_to_i64_word(b, "%p1");
-                    let v = nat_to_i64_word(b, "%p2");
-                    let _ = rt_call(
-                        b,
-                        k.extern_name(),
-                        &[args[0].clone(), format!("i64 {i}"), format!("i64 {v}")],
-                    );
+                    let _ = bytes_access_word(b, k);
                     ret(b, "0");
                 }
                 BytesOp::Copy => {
@@ -7044,7 +7170,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     // `Bytes` becomes something the kernel can be handed.
                     // Nothing to box and nothing to freeze, because the
                     // value is used as a pointer, never as a branch.
-                    let p = rt_call(b, k.extern_name(), &args);
+                    let p = bytes_access_word(b, k);
                     ret(b, &p);
                 }
                 BytesOp::Compare => {
@@ -13514,6 +13640,49 @@ int main(void) {{
             )),
         );
         assert_eq!(run("bytes_set_bad_value", &main_prog(vec![], set_bad)), 71);
+    }
+
+    /// Direct byte access accepts read-only constants for reads, retains their
+    /// mutation fault, and preserves the runtime's empty-slice address contract.
+    #[test]
+    fn bytes_direct_access_preserves_readonly_and_empty_contracts() {
+        // A String's private backing is static; ConstBytes instead creates
+        // a fresh mutable copy and cannot exercise the read-only branch.
+        let backing = |bytes| Core::Proj(
+            Box::new(Core::ConstString { ctor: gid("Test.StrBuf"), bytes }),
+            crate::core::ProjField::slot(0, Class::Obj),
+        );
+        let string_ctor = || ctor_fn("Test.StrBuf", &["bytes"], 0, 1);
+        let get = app(
+            p(PrimOp::Nat(NatOp::ToI64)),
+            vec![app(
+                p(PrimOp::Bytes(BytesOp::Get)),
+                vec![backing(vec![0, 255]), cnat("1")],
+            )],
+        );
+        assert_eq!(run("bytes_readonly_get", &main_prog(vec![string_ctor()], get)), 255);
+        let write = app(
+            p(PrimOp::Bytes(BytesOp::Set)),
+            vec![backing(vec![7]), cnat("0"), cnat("1")],
+        );
+        assert_eq!(run("bytes_readonly_write", &main_prog(vec![string_ctor()], write)), 71);
+        for bytes in [
+            backing(vec![]),
+            app(p(PrimOp::Bytes(BytesOp::New)), vec![cnat("0")]),
+        ] {
+            let data = app(p(PrimOp::Bytes(BytesOp::Data)), vec![bytes]);
+            let equal = app(p(cmp(CmpOp::Eq)), vec![data, n(1)]);
+            assert_eq!(run("bytes_empty_pointer", &main_prog(vec![string_ctor()], equal)), 1);
+        }
+    }
+
+    /// Corrupt buffer kinds and null handles must reach the existing fault path.
+    #[test]
+    fn bytes_direct_access_retains_kind_and_null_faults() {
+        for bytes in [n(0), cnat("18446744073709551616")] {
+            let len = app(p(PrimOp::Bytes(BytesOp::Len)), vec![bytes]);
+            assert_eq!(run("bytes_invalid_handle", &main_prog(vec![], len)), 71);
+        }
     }
 
     #[test]

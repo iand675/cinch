@@ -20,7 +20,8 @@ Timing uses the runtime monotonic clock around the operation loop. Compilation,
 process startup, input preparation and printing are excluded. Input mutation,
 result consumption and workload dispatch are included. Results are public API
 pipelines: encoders include conversion to observable output bytes, decoders
-include conversion of input bytes to text, and stream measurements include
+include conversion of input bytes to text when the API takes text, and stream
+measurements include
 adapter construction. Binary/varint pipelines do not report a whole-buffer
 throughput because they access only a small field. These are not isolated
 instruction timings.
@@ -132,3 +133,46 @@ The second command lists the exact reference declarations for operation-level
 review. Complete coverage requires an idiomatic capability mapping, working
 implementations, error/runtime tests, and relevant benchmarks. The broad standard
 library goal remains open; these measurements do not establish full coverage.
+
+## ASCII85 and checked byte access
+
+The ASCII85 driver adds whole-buffer and stream encode/decode pipelines.
+`--reference-go /path/to/sdk/bin/go` also measures an independent program calling
+the reference SDK's buffer and stream APIs. Both programs mutate the same input,
+consume the same output fingerprint, and must produce matching checksums.
+The reference process uses `GOMAXPROCS=1`. Allocation strategies and immutable
+string guarantees differ; these are useful public API comparisons, not identical
+allocation microbenchmarks.
+
+- `ascii85-2026-11-15.json` records the initial mixed block/fringe implementation.
+- `ascii85-fixed-loop-2026-11-15.json` separates full encoding words from the
+  incremental fringe; the improvement was small.
+- `ascii85-reference-2026-11-15.json` adds the independent SDK measurements.
+- `ascii85-direct-bytes-2026-11-15.json` includes the code generator's checked
+  direct access to byte payloads. The compiler executable is copied before
+  hashing and building so a concurrent Cargo build cannot replace it. These
+  samples overlap compiler validation and show substantial scheduling variation.
+- `interleaved-ascii85-byte-access-2026-11-15.json` alternates the retained
+  before/after executables and reference executable on CPU 0, with validation
+  confined to CPUs 1–4. It records actual executable hashes and raw samples.
+
+For 16 KiB inputs, the alternating measurements (64 operations per process) are:
+
+| Pipeline | Before direct byte access | After | Reference SDK |
+| --- | ---: | ---: | ---: |
+| Buffer encode | 563 μs | 503 μs | 53.2 μs |
+| Buffer decode | 641 μs | 553 μs | 51.7 μs |
+| Stream encode | 464 μs | 423 μs | 74.3 μs |
+| Stream decode | 625 μs | 552 μs | 77.8 μs |
+
+The change improves these local large-buffer medians by roughly 9–14%, while
+small-input results are mixed. The remaining 6–11× gap is recorded work, not
+performance parity. All variants have matching observable checksums.
+
+Assembly inspection finds call-free SIMD digit kernels (72 and 49 assembly
+lines for encoding and decoding respectively), surrounded by much larger
+buffer loops. The new payload paths avoid runtime calls on valid byte length,
+get, set and data accesses. Cold fault calls remain in the assembly, as do
+natural-number and ownership fallbacks, so counting every static call does not
+measure executed calls per byte. Reference-count validation, poisoned frees,
+bounds and read-only mutation tests verify the changed paths separately.
