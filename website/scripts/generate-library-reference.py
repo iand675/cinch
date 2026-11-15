@@ -149,7 +149,7 @@ DESCRIPTIONS = {
 'Data.Bytes.Word':'Bounds-proved unaligned little-endian machine-word reads and writes for SIMD and SWAR processing.',
 'Data.Word':'Bit lengths, byte reversal, signed rotations and checked carry/borrow, wide multiply, divide and remainder operations over fixed and native-width words.',
 'Data.Wide':'Unboxed 128-bit integers with checked, wrapping and saturating arithmetic, bit operations, numeric conversions and explicit overflow policies.',
-'Text.Fnv':'Incremental 32- and 64-bit FNV-1 and FNV-1a hashing with explicit wrapping arithmetic.',
+'Text.Fnv':'Incremental 32-, 64- and 128-bit FNV-1 and FNV-1a hashing with explicit wrapping arithmetic.',
 'Text.Digest':'Digest and HMAC operations over bytes. Availability of a legacy digest is not a recommendation for a security protocol.',
 'Text.Shellwords':'Shell-style word splitting/joining; this is data parsing, not execution of a shell command.',
 'Text.Zlib':'Compression/decompression operations and named malformed/unsupported-stream results.',

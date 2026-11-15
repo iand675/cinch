@@ -8,6 +8,7 @@ import (
 	"encoding/ascii85"
 	"encoding/binary"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"math/bits"
 	"os"
@@ -115,6 +116,14 @@ func operation(mode int, input []byte) uint64 {
 		return wordFingerprint(bits.Reverse64(value) ^ bits.RotateLeft64(bits.ReverseBytes64(value), -13))
 	case 29:
 		return wordFingerprint(inputWord(input))
+	case 31, 32:
+		hash := fnv.New128()
+		if mode == 32 {
+			hash = fnv.New128a()
+		}
+		hash.Write(input)
+		sum := hash.Sum(nil)
+		return wordFingerprint(binary.BigEndian.Uint64(sum[:8]) ^ binary.BigEndian.Uint64(sum[8:]))
 	default:
 		panic("unsupported reference workload")
 	}
@@ -151,6 +160,10 @@ func workloadCode(name string) int {
 		return 29
 	case "word-div64-proven":
 		return 30
+	case "fnv128":
+		return 31
+	case "fnv128a":
+		return 32
 	default:
 		panic("unsupported reference workload")
 	}

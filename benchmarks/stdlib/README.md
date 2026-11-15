@@ -11,6 +11,15 @@ python3 tooling/bench_stdlib.py \
   --output build/benchmarks/current.json
 ```
 
+The driver now explicitly uses `--opt-level 2` for both the executable and
+retained assembly. `--opt-level 0`, `1` or `3` selects another level and records
+it in the report. Earlier reports omitted this flag, so their executables used
+the CLI default `-O0`; their retained assembly was generated separately at
+`-O2`. Those historical timings describe unoptimized execution. Their assembly
+inspections show optimized code structure, rather than the exact instructions
+executed by the measured binaries. Earlier comparisons with the independently
+optimized SDK must not be read as optimized throughput parity measurements.
+
 `--cpu` can pin the driver and measured processes to one allowed CPU. Use the
 same CPU, arguments and workload-driver hash when comparing compiler changes.
 `--artifacts` retains the exact executable, LLVM, assembly and driver source for
@@ -232,3 +241,31 @@ form keeps its named error results. Assembly still contains a portable
 `__udivti3` helper for generic double-width division and two constructor allocations
 in the checked form. No claim of instruction-level or SDK throughput parity is
 made: these are small-field public pipelines, so whole-buffer MiB/s is omitted.
+
+## Explicit optimization and 128-bit hash coverage
+
+`interleaved-word-divrem-O2-2026-11-15.json` rebuilds the retained matching
+before/after LLVM at `-O2`, links both with the same runtime archive, and
+alternates nine measured runs after warmup. The report records LLVM, runtime and
+executable hashes. Compiler validation runs on CPUs 1–4 while timing uses CPU 0.
+This separates the immediate-natural division change from changing optimization
+levels; it does not compare an unoptimized baseline to an optimized result.
+
+The 128-bit FNV APIs return high/low U64 pairs. Their kernels use full i128
+arithmetic internally and consume eight ordered bytes per block; short tails
+remain exact. A single-message FNV recurrence cannot be reassociated into SIMD
+lanes. The public carrier works with both compilers and on 32-bit targets.
+Correctness tests compare independent SDK digests, arbitrary previous states,
+every two-chunk split, block tails and a one-MiB buffer under leak validation.
+
+`optimized-stdlib-2026-11-15.json` is the fresh explicit-O2 baseline for 27
+public pipelines at three input sizes (81 rows). `fnv128-words-O2-2026-11-15.json`
+uses longer sampling for the two new hash variants. Both include matching
+independent SDK checksums for the supported reference workloads. Raw samples
+show variation between runs; neither report changes the historical measurements.
+
+Wide-value compiler regressions separately verify that borrowed calls retain
+i128 return temporaries while releasing arguments, and that extracted shared
+helpers retain i128 returns. A 200,000-step loop runs without intermediate
+wide boxes or stack growth; this is tested independently of the pair-based
+FNV API.
