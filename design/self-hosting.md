@@ -2836,10 +2836,12 @@ reverse), so they are recorded rather than fixed.
   hiding (stage-quotation-module))`. The seed accepts the duplicate. The
   remedy is to export the name from one module and read it from there, which
   is how `Bootstrap.Nominal` now owns the stage code identity.
-- A data type declared after a type that mentions it is refused:
-  `forward data reference needs SCC positivity checking`. The seed accepts the
-  same ordering. The remedy is to declare the carried type first, which is
-  why `StageTemplate` precedes `StageValue` in `Bootstrap.StageEval`.
+- A data type declared after a type that mentions it used to be refused:
+  `forward data reference needs SCC positivity checking`. That refusal is
+  gone: a data declaration may now name one written later, and each
+  declaration's strongly connected group is what the positivity discipline
+  judges (design/mutual-data-groups.md section 4). The seed and the
+  self-hosted compiler agree on the ordering.
 
 ## Next implementation sequence
 
