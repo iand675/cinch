@@ -283,21 +283,29 @@ def group_of(name: str) -> str:
 
 def _skip_operand(text: str, at: int) -> int:
     """The end of the type or constant starting at `at`: a bracketed group
-    (`<{ i64, i64 }>`, `{ ... }`, `[ ... ]`, `( ... )`) or one word, with
-    any parenthesised tail a constant expression carries."""
+    (`<{ i64, i64 }>`, `{ ... }`, `[ ... ]`, `( ... )`, quoted symbols
+    skipped whole) or one word, with any parenthesised tail a constant
+    expression carries."""
     while at < len(text) and text[at] == " ":
         at += 1
     opening = {"<": ">", "{": "}", "[": "]", "(": ")"}
     if at < len(text) and text[at] in opening:
         depth = 0
-        for offset in range(at, len(text)):
+        offset = at
+        while offset < len(text):
             ch = text[offset]
-            if ch in "<{[(":
+            if ch == '"':
+                # A quoted symbol may spell brackets (`@"Ord_Nat.<="`).
+                offset += 1
+                while offset < len(text) and text[offset] != '"':
+                    offset += 2 if text[offset] == "\\" else 1
+            elif ch in "<{[(":
                 depth += 1
             elif ch in ">}])":
                 depth -= 1
                 if depth == 0:
                     return offset + 1
+            offset += 1
         raise ShardError(f"unbalanced function data: {text[at:at + 60]!r}")
     end = at
     while end < len(text) and text[end] not in " (":

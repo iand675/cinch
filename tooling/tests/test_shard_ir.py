@@ -16,6 +16,11 @@ class DeclarationTests(unittest.TestCase):
                   '<{ i64 4848492524724309041, i64 ptrtoint (ptr @"X.tapp" to i64) }> #3 {\n  ret i64 0\n}\n')
         self.assertEqual(shard_ir.declaration_for(define), 'declare i64 @"X.app"(ptr %self, i64 %argc, ptr %argv) #3\n')
 
+    def test_quoted_symbols_in_function_data_may_spell_brackets(self):
+        define = ('define i64 @"Ord_Nat.<=.app"(ptr %self, i64 %argc, ptr %argv) prefix <{ i64, i64 }> '
+                  '<{ i64 1, i64 ptrtoint (ptr @"Ord_Nat.<=.tapp" to i64) }> #2 {\n  ret i64 0\n}\n')
+        self.assertEqual(shard_ir.declaration_for(define), 'declare i64 @"Ord_Nat.<=.app"(ptr %self, i64 %argc, ptr %argv) #2\n')
+
     def test_linkage_is_removed_and_attributes_kept(self):
         self.assertEqual(shard_ir.declaration_for("define internal i64 @f(i64 %x) #1 {\n}\n"), "declare i64 @f(i64 %x) #1\n")
 
