@@ -11,6 +11,9 @@ usage:
   cinch emit-object <library.cinch> [-o <out.o>] [--object-roots <roots.json>] [--rebuild]
   cinch build <file.cinch> [-o <out>] [--rebuild]
   cinch run <file.cinch> [args...] [--rebuild] compile and run; exit code is the program's
+  cinch cxx <bindings.json> --out-dir <dir>  generate C++ bindings
+  cinch cxx build <bindings.json> --out-dir <dir> [--godot-cpp <dir>]
+                                   build native exports and classes
   cinch lsp                        run the language server over stdio
   cinch core emit <file.cinch> [--stage=<name>] [--target <triple>] [-o <out.core>]
                                    write the Core dump codegen consumes
@@ -40,6 +43,8 @@ flags:
   -o <path>   the output path (emit-ir, emit-object and build)
   --object-roots <path>  concrete library variants demanded by a consumer
   --package-object <path>  link an installed package object in build/run
+  --shared              build a native shared library (without main)
+  --native-object <path> link a native object/archive (repeatable)
   --opt-level <0|1|2|3>  clang's optimization level for build, run and
               emit-object (default 0 for build and run, 2 for emit-object)
   --max-simplifier-iterations <n>  the Core simplifier's pass cap over the
@@ -113,6 +118,7 @@ fn main() {
         Some("build") => (Mode::Build, &args[1..]),
         Some("run") => (Mode::Run, &args[1..]),
         Some("core") => exit(cinch::driver::core_cli(&args[1..])),
+        Some("cxx") => exit(cinch::cxx::cli(&args[1..])),
         Some("doc") => exit(cinch::cinchdoc::cli(&args[1..])),
         Some("repl") => {
             if let Err(error) = cinch::repl::run() {
@@ -378,6 +384,14 @@ fn main() {
                         eprintln!("cinch: --target needs a triple such as aarch64-apple-darwin");
                         exit(2);
                     }
+                }
+            }
+            "--shared" => opts.shared = true,
+            "--native-object" => {
+                i += 1;
+                match rest.get(i) {
+                    Some(path) => opts.native_objects.push(PathBuf::from(path)),
+                    None => { eprintln!("cinch: --native-object needs a path"); exit(2); }
                 }
             }
             "--runtime-archive" => {

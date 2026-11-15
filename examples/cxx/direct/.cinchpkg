@@ -1,0 +1,11 @@
+{
+  "name": "demo/direct-cxx",
+  "version": "0.1.0",
+  "modules": [
+    {"name": "Native", "path": "Native.cinch"},
+    {"name": "Main", "path": "Main.cinch"}
+  ],
+  "order": ["Native", "Main"],
+  "link": {"libs": ["native", "stdc++"]},
+  "local_link": {"libdirs": ["."]}
+}
