@@ -165,9 +165,13 @@ fn stage_lowers_wide_scalars_at_i128_and_refuses_word_positions() {
                 assert!(ir.lines().any(|line| line.starts_with("define ") && line.contains("m.Main.unbox.r3")), "a Wide specialization of a generic worker");
             }
             "generic-and-recursive" => {
-                assert!(ir.lines().any(|line| line.starts_with("define ") && line.contains("m.Main.repeat-keep.r3") && line.contains("(i128 %arg0, i64 %arg1)")), "the Wide specialization is an ordinary typed worker:\n{ir}");
+                assert!(ir.lines().any(|line| line.starts_with("define ") && line.contains("m.Main.repeat$2dkeep.r3") && line.contains("(i128 %arg0, i64 %arg1)")), "the Wide specialization is an ordinary typed worker:\n{ir}");
             }
-            "foreign-int128" => assert!(ir.contains("declare i128 @cinch_test_wide_mix(i128, i128)"), "the C boundary is __int128:\n{ir}"),
+            "foreign-int128" => {
+                // The object symbol spells every byte of the C name as an escape.
+                let symbol: String = "cinch_test_wide_mix".bytes().map(|b| format!("\\{b:02X}")).collect();
+                assert!(ir.contains(&format!("declare i128 @\"{symbol}\"(i128, i128)")), "the C boundary is __int128:\n{ir}");
+            }
             _ => {}
         }
         std::fs::write(dir.join("output.ll"), &ir).unwrap();
