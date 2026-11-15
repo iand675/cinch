@@ -4181,7 +4181,7 @@ fn build_unit(
             // simplification. Ownership fallbacks otherwise inflate LLVM's
             // generic inlining cost for these bounded wrapper operations.
             if matches!(op,
-                PrimOp::Nat(crate::core::NatOp::Add | crate::core::NatOp::Sub | crate::core::NatOp::Cmp | crate::core::NatOp::FromI64 | crate::core::NatOp::ToI64)
+                PrimOp::Nat(crate::core::NatOp::Add | crate::core::NatOp::Sub | crate::core::NatOp::Cmp | crate::core::NatOp::Div | crate::core::NatOp::Rem | crate::core::NatOp::FromI64 | crate::core::NatOp::ToI64)
                 | PrimOp::Bytes(BytesOp::Len | BytesOp::Get | BytesOp::Set | BytesOp::Copy)) {
                 hints.inline = Some(crate::core::InlineHint::Always);
             }
@@ -6409,6 +6409,69 @@ fn nat_from_i64_word(b: &mut Builder, value: &str, known_upper: Option<u64>) -> 
     }
 }
 
+/// Divide or reduce immediate naturals without crossing the runtime boundary.
+/// A zero divisor, heap operand or out-of-width immediate keeps the original
+/// checked runtime path. Both results fit the input immediate range, including
+/// on 32-bit targets, so their tagged representation needs no allocation.
+fn nat_divrem_word(b: &mut Builder, operation: crate::core::NatOp) -> String {
+    debug_assert!(matches!(
+        operation,
+        crate::core::NatOp::Div | crate::core::NatOp::Rem
+    ));
+    let both = b.reg();
+    b.line(&format!("{both} = and i64 %p0, %p1"));
+    let tag = b.reg();
+    b.line(&format!("{tag} = and i64 {both}, 1"));
+    let tagged = b.reg();
+    b.line(&format!("{tagged} = icmp ne i64 {tag}, 0"));
+    let nonzero = b.reg();
+    b.line(&format!("{nonzero} = icmp ne i64 %p1, 1"));
+    let mut valid = b.reg();
+    b.line(&format!("{valid} = and i1 {tagged}, {nonzero}"));
+    if b.pointer_bytes < 8 {
+        let maximum = (nat_immediate_max(b.pointer_bytes) << 1) | 1;
+        for operand in ["%p0", "%p1"] {
+            let fits = b.reg();
+            b.line(&format!("{fits} = icmp ule i64 {operand}, {maximum}"));
+            let next = b.reg();
+            b.line(&format!("{next} = and i1 {valid}, {fits}"));
+            valid = next;
+        }
+    }
+    let (fast_l, slow_l, done_l) = (b.label(), b.label(), b.label());
+    b.line(&format!("br i1 {valid}, label %{fast_l}, label %{slow_l}"));
+    b.start(&fast_l);
+    let left = b.reg();
+    b.line(&format!("{left} = lshr i64 %p0, 1"));
+    let right = b.reg();
+    b.line(&format!("{right} = lshr i64 %p1, 1"));
+    let value = b.reg();
+    let opcode = if operation == crate::core::NatOp::Div {
+        "udiv"
+    } else {
+        "urem"
+    };
+    b.line(&format!("{value} = {opcode} i64 {left}, {right}"));
+    let shifted = b.reg();
+    b.line(&format!("{shifted} = shl i64 {value}, 1"));
+    let fast = b.reg();
+    b.line(&format!("{fast} = or i64 {shifted}, 1"));
+    b.line(&format!("br label %{done_l}"));
+    b.start(&slow_l);
+    let slow = rt_call(
+        b,
+        operation.extern_name(),
+        &["i64 %p0".into(), "i64 %p1".into()],
+    );
+    b.line(&format!("br label %{done_l}"));
+    b.start(&done_l);
+    let result = b.reg();
+    b.line(&format!(
+        "{result} = phi i64 [ {fast}, %{fast_l} ], [ {slow}, %{slow_l} ]"
+    ));
+    result
+}
+
 /// Read or update a validated byte-buffer payload directly. Null/wrong-kind
 /// buffers, read-only writes, invalid indices and invalid byte values retain
 /// the runtime's checked fault path. The ABI layout is an i64 length followed
@@ -6958,6 +7021,10 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                         "{phi} = phi i64 [ {out}, %{fast_exit} ], [ {slow}, %{slow_l} ]"
                     ));
                     ret(b, &phi);
+                }
+                crate::core::NatOp::Div | crate::core::NatOp::Rem => {
+                    let result = nat_divrem_word(b, n);
+                    ret(b, &result);
                 }
                 crate::core::NatOp::FromI64 => {
                     let r = nat_from_i64_word(b, "%p0", None);
@@ -13485,6 +13552,58 @@ int main(void) {{
             run("nat_sub_faults_on_negative", &main_prog(vec![], body)),
             71
         );
+    }
+
+    /// Quotients and remainders agree across immediate boundaries and heap operands.
+    #[test]
+    fn nat_divrem_preserves_immediates_and_heap_results() {
+        let cases = [
+            ("0", "1", "0", "0"),
+            ("17", "5", "3", "2"),
+            ("9223372036854775807", "3", "3074457345618258602", "1"),
+            ("9223372036854775808", "3", "3074457345618258602", "2"),
+            ("9223372036854775815", "9223372036854775809", "1", "6"),
+            ("17", "9223372036854775808", "0", "17"),
+            (
+                "1000000000000000000000000000000",
+                "100000000000000000000",
+                "10000000000",
+                "0",
+            ),
+        ];
+        for (left, right, quotient, remainder) in cases {
+            for (operation, expected) in [(NatOp::Div, quotient), (NatOp::Rem, remainder)] {
+                let value = app(p(PrimOp::Nat(operation)), vec![cnat(left), cnat(right)]);
+                let comparison = app(p(PrimOp::Nat(NatOp::Cmp)), vec![value, cnat(expected)]);
+                let equal = app(p(cmp(CmpOp::Eq)), vec![comparison, n(0)]);
+                assert_eq!(run("nat_divrem_boundary", &main_prog(vec![], equal)), 1);
+            }
+        }
+    }
+
+    /// Both zero-divisor operations must preserve the runtime's checked fault.
+    #[test]
+    fn nat_divrem_zero_divisor_retains_runtime_faults() {
+        for operation in [NatOp::Div, NatOp::Rem] {
+            for left in ["17", "9223372036854775808"] {
+                let value = app(p(PrimOp::Nat(operation)), vec![cnat(left), cnat("0")]);
+                assert_eq!(run("nat_divrem_zero", &main_prog(vec![], value)), 71);
+            }
+        }
+    }
+
+    /// Narrow-target fast paths only encode values that fit that target's tag payload.
+    #[test]
+    fn nat_divrem_ir_respects_pointer_width() {
+        for pointer_bytes in [4, 8] {
+            let mut b = Builder::new();
+            b.pointer_bytes = pointer_bytes;
+            nat_divrem_word(&mut b, NatOp::Rem);
+            assert!(b.code.contains("@cinch_nat_rem"));
+            assert!(b.code.contains("urem i64"));
+            assert!(b.code.contains("icmp ne i64 %p1, 1"));
+            assert_eq!(b.code.contains("4294967295"), pointer_bytes == 4);
+        }
     }
 
     #[test]

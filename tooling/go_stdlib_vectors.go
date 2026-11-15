@@ -12,10 +12,133 @@ import (
 	"hash/crc32"
 	"hash/crc64"
 	"hash/fnv"
+	"math/bits"
 	"os"
 	"strconv"
 	"unicode/utf16"
 )
+
+// checkedWordDivision records the reference API's fault as well as its successful result.
+func checkedWordDivision(width int, high, low, divisor uint64) (quotient, remainder uint64, failed bool) {
+	defer func() {
+		if recover() != nil {
+			failed = true
+		}
+	}()
+	if width == 32 {
+		q, r := bits.Div32(uint32(high), uint32(low), uint32(divisor))
+		return uint64(q), uint64(r), false
+	}
+	q, r := bits.Div64(high, low, divisor)
+	return q, r, false
+}
+
+// wordVectors exercises exact arithmetic, width boundaries, signed rotates and division faults.
+func wordVectors() map[string]interface{} {
+	values := []uint64{0, 1, 2, 127, 128, 255, 256, 65535, 65536, 0x7fffffff, 0x80000000, 0xffffffff, 1 << 32, 1 << 63, ^uint64(0)}
+	scalars := []map[string]interface{}{}
+	for _, width := range []int{8, 16, 32, 64} {
+		for _, input := range values {
+			value := input
+			if width < 64 {
+				value &= (uint64(1) << width) - 1
+			}
+			var reversed, swapped uint64
+			var length, leading, trailing, ones int
+			rotates := []map[string]interface{}{}
+			for _, count := range []int{-129, -65, -64, -33, -1, 0, 1, 32, 63, 64, 129} {
+				var rotated uint64
+				switch width {
+				case 8:
+					rotated = uint64(bits.RotateLeft8(uint8(value), count))
+				case 16:
+					rotated = uint64(bits.RotateLeft16(uint16(value), count))
+				case 32:
+					rotated = uint64(bits.RotateLeft32(uint32(value), count))
+				case 64:
+					rotated = bits.RotateLeft64(value, count)
+				}
+				rotates = append(rotates, map[string]interface{}{"count": count, "value": rotated})
+			}
+			switch width {
+			case 8:
+				x := uint8(value)
+				reversed, swapped = uint64(bits.Reverse8(x)), value
+				length, leading, trailing, ones = bits.Len8(x), bits.LeadingZeros8(x), bits.TrailingZeros8(x), bits.OnesCount8(x)
+			case 16:
+				x := uint16(value)
+				reversed, swapped = uint64(bits.Reverse16(x)), uint64(bits.ReverseBytes16(x))
+				length, leading, trailing, ones = bits.Len16(x), bits.LeadingZeros16(x), bits.TrailingZeros16(x), bits.OnesCount16(x)
+			case 32:
+				x := uint32(value)
+				reversed, swapped = uint64(bits.Reverse32(x)), uint64(bits.ReverseBytes32(x))
+				length, leading, trailing, ones = bits.Len32(x), bits.LeadingZeros32(x), bits.TrailingZeros32(x), bits.OnesCount32(x)
+			case 64:
+				reversed, swapped = bits.Reverse64(value), bits.ReverseBytes64(value)
+				length, leading, trailing, ones = bits.Len64(value), bits.LeadingZeros64(value), bits.TrailingZeros64(value), bits.OnesCount64(value)
+			}
+			scalars = append(scalars, map[string]interface{}{"width": width, "value": value, "reverse": reversed, "swap": swapped, "length": length, "leading": leading, "trailing": trailing, "ones": ones, "rotates": rotates})
+		}
+	}
+	arithmetic, divisions := []map[string]interface{}{}, []map[string]interface{}{}
+	for _, width := range []int{32, 64} {
+		mask := ^uint64(0)
+		if width == 32 {
+			mask = 0xffffffff
+		}
+		pairs := [][2]uint64{{0, 0}, {0, mask}, {mask, 0}, {mask, mask}, {1, mask}, {mask, 1}, {1, 1}, {mask >> 1, mask >> 1}, {mask >> 1, mask>>1 + 1}}
+		state := uint64(42)
+		for i := 0; i < 16; i++ {
+			state = state*6364136223846793005 + 1
+			a := state & mask
+			state = state*6364136223846793005 + 1
+			pairs = append(pairs, [2]uint64{a, state & mask})
+		}
+		for _, pair := range pairs {
+			a, b := pair[0], pair[1]
+			for _, carry := range []uint64{0, 1} {
+				var sum, cout, difference, borrow, high, low uint64
+				if width == 32 {
+					x, c := bits.Add32(uint32(a), uint32(b), uint32(carry))
+					y, d := bits.Sub32(uint32(a), uint32(b), uint32(carry))
+					h, l := bits.Mul32(uint32(a), uint32(b))
+					sum, cout, difference, borrow, high, low = uint64(x), uint64(c), uint64(y), uint64(d), uint64(h), uint64(l)
+				} else {
+					sum, cout = bits.Add64(a, b, carry)
+					difference, borrow = bits.Sub64(a, b, carry)
+					high, low = bits.Mul64(a, b)
+				}
+				arithmetic = append(arithmetic, map[string]interface{}{"width": width, "a": a, "b": b, "carry": carry == 1, "sum": sum, "out_carry": cout == 1, "difference": difference, "borrow": borrow == 1, "high": high, "low": low})
+			}
+		}
+		triples := [][3]uint64{{0, 0, 0}, {1, mask, 0}, {0, mask, 1}, {1, 0, 1}, {1, mask, 2}, {mask, mask, mask}, {mask - 1, mask, mask}, {0, 0, mask}, {mask >> 1, mask, mask}}
+		for _, pair := range pairs {
+			divisor := pair[1]
+			if divisor == 0 {
+				divisor = 1
+			}
+			triples = append(triples, [3]uint64{pair[0] % divisor, pair[1], divisor})
+		}
+		for _, triple := range triples {
+			high, low, divisor := triple[0], triple[1], triple[2]
+			q, r, failed := checkedWordDivision(width, high, low, divisor)
+			var remainder uint64
+			if divisor != 0 {
+				if width == 32 {
+					remainder = uint64(bits.Rem32(uint32(high), uint32(low), uint32(divisor)))
+				} else {
+					remainder = bits.Rem64(high, low, divisor)
+				}
+			}
+			divisions = append(divisions, map[string]interface{}{"width": width, "high": high, "low": low, "divisor": divisor, "quotient": q, "remainder": r, "failed": failed, "modulus": remainder})
+		}
+	}
+	reverseBytes := make([]byte, 256)
+	for i := range reverseBytes {
+		reverseBytes[i] = bits.Reverse8(uint8(i))
+	}
+	return map[string]interface{}{"scalars": scalars, "arithmetic": arithmetic, "divisions": divisions, "reverse8_hex": hex.EncodeToString(reverseBytes), "native_bits": bits.UintSize}
+}
 
 // utf16Vectors records scalar boundaries, surrogate errors and byte-order-independent units.
 func utf16Vectors() map[string]interface{} {
@@ -114,7 +237,7 @@ func main() {
 	}
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(map[string]interface{}{"buffers": checks, "words": words, "signed": signed, "ascii85_decodes": asciiDecodes, "utf16": utf16Vectors()}); err != nil {
+	if err := encoder.Encode(map[string]interface{}{"buffers": checks, "words": words, "signed": signed, "ascii85_decodes": asciiDecodes, "utf16": utf16Vectors(), "word_ops": wordVectors()}); err != nil {
 		panic(err)
 	}
 }

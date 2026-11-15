@@ -983,13 +983,39 @@
     },
     {
       "reference_package": "math/bits",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
         "Algebra.Bits",
-        "Data.Machine"
+        "Data.Machine",
+        "Data.Word"
       ],
       "remaining": [],
-      "reference_declarations": 52
+      "reference_declarations": 52,
+      "tests": [
+        "lib_word_ops::word_bit_operations_match_reference_widths_and_rotations",
+        "lib_word_ops::word_wide_arithmetic_matches_reference_carry_borrow_and_products",
+        "lib_word_ops::word_division_matches_reference_and_names_invalid_inputs"
+      ],
+      "benchmarks": [
+        "word-add64",
+        "word-mul64",
+        "word-div64",
+        "word-bits64",
+        "word-load"
+      ],
+      "capability_mapping": {
+        "UintSize": "Data.Word.word-bits derives 32/64 from the target Usize intrinsic",
+        "LeadingZeros, TrailingZeros, OnesCount": "Data.Machine leading-zeros/count-ones/trailing-zeros families and Algebra.Bits methods cover U8/U16/U32/U64/Usize, including zero",
+        "Len": "Data.Word.bit-length-u8/u16/u32/u64/usize",
+        "Reverse": "Data.Machine.reverse-bits-u8/u16/u32/u64/usize, using LLVM bit-reversal lowering",
+        "ReverseBytes": "Data.Word.reverse-bytes-u16/u32/u64/usize, using inline LLVM byte swaps",
+        "RotateLeft": "Data.Word.rotate-signed-u8/u16/u32/u64/usize, with I64 counts reduced modulo the width",
+        "Add, Sub": "Data.Word.add-carry and sub-borrow for U32/U64/Usize, with Boolean incoming/outgoing flags",
+        "Mul": "Data.Word.mul-wide for U32/U64/Usize, returning high then low",
+        "Div": "Data.Word.div-wide for U32/U64/Usize returns quotient/remainder or explicit zero/overflow errors; proven U32/U64 forms return tuples under checked preconditions",
+        "Rem": "Data.Word.rem-wide for U32/U64/Usize accepts high words above the divisor and explicitly rejects zero"
+      },
+      "review": "All reference capability families mapped to fixed and native widths. Independent edge/random arithmetic, every eight-bit reversal, signed rotation boundaries, zero/overflow errors and guarded raw kernels are tested. Usize paths also cross-compile for 32-bit Wasm; ARM and big-endian PowerPC checks compile kernels without claiming execution on those targets. All ten word-operation tests also pass with the updated self-built compiler, including proof-bearing division and signed/unsigned machine ordering boundaries. Functional coverage does not assert matching allocation costs or division throughput."
     },
     {
       "reference_package": "math/cmplx",
