@@ -7,6 +7,7 @@ fn example() -> Bindings {
 }
 fn copy_example(from: &Path, to: &Path, files: &[&str]) {
     for file in files {
+        std::fs::create_dir_all(to.join(file).parent().unwrap()).unwrap();
         std::fs::copy(from.join(file), to.join(file)).unwrap();
     }
 }
@@ -216,6 +217,14 @@ fn godot_registers_classes_calls_cinch_and_releases_instances() {
         &[
             "bindings.json",
             "GameLogic.cinch",
+            "ValueLogic.cinch",
+            "Mover.cinch",
+            "Tool.cinch",
+            "ResourceLogic.cinch",
+            "mover.tscn",
+            "signal_receiver.gd",
+            "addons/cinch_verify/plugin.cfg",
+            "addons/cinch_verify/verify.gd",
             "Lifecycle.cpp",
             "project.godot",
             "main.tscn",
@@ -243,6 +252,141 @@ fn godot_registers_classes_calls_cinch_and_releases_instances() {
     let output = run(Command::new(&godot)
         .args(["--headless", "--path"])
         .arg(dir.path())
-        .args(["--script", "test.gd", "--quit-after", "120"]));
-    assert!(String::from_utf8_lossy(&output.stdout).contains("CINCH_GODOT_OK"));
+        .args(["--script", "test.gd", "--quit-after", "120"])
+        .env("CINCH_ALLOC_STATS", "1"));
+    assert_godot_clean(&output, "CINCH_GODOT_OK");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stats = stderr
+        .lines()
+        .find(|line| line.starts_with("cinch-alloc:"))
+        .expect("rich callbacks must exercise the Cinch heap");
+    assert!(
+        stats.split_whitespace().any(|word| word == "live=0"),
+        "{stats}"
+    );
+    let project = dir.path().join("project.godot");
+    let mut config = std::fs::read_to_string(&project).unwrap();
+    config.push_str(
+        "\n[editor_plugins]\nenabled=PackedStringArray(\"res://addons/cinch_verify/plugin.cfg\")\n",
+    );
+    std::fs::write(project, config).unwrap();
+    let output = run(Command::new(&godot)
+        .args(["--headless", "--editor", "--path"])
+        .arg(dir.path())
+        .args(["--quit-after", "200"]));
+    assert_godot_clean(&output, "CINCH_GODOT_EDITOR_OK");
+    for script in ["Mover.cinch", "Tool.cinch", "ResourceLogic.cinch"] {
+        assert_eq!(
+            std::fs::read(dir.path().join(script)).unwrap(),
+            std::fs::read(source.join(script)).unwrap(),
+            "opening and saving {script} must preserve Cinch layout"
+        );
+    }
+}
+
+fn assert_godot_clean(output: &std::process::Output, marker: &str) {
+    let log = format!(
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        log.contains(marker) && !log.contains("ERROR:") && !log.contains("leaked"),
+        "{log}"
+    );
+}
+
+#[test]
+fn godot_scripts_check_values_ownership_and_source_metadata_without_an_sdk() {
+    let root = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../examples/godot"));
+    let mut spec: Bindings =
+        serde_json::from_str(include_str!("../../examples/godot/bindings.json")).unwrap();
+    let mut implementation = String::new();
+    for path in &spec.sources {
+        implementation.push_str(&std::fs::read_to_string(root.join(path)).unwrap());
+        implementation.push('\n');
+    }
+    for class in &spec.export_classes {
+        if let Some(path) = &class.script {
+            let source = std::fs::read_to_string(root.join(path)).unwrap();
+            implementation.push_str(&source);
+            implementation.push('\n');
+            spec.script_sources.insert(path.clone(), source);
+        }
+    }
+    let (api, _) = cxx::generate(&spec).unwrap();
+    let extra = cxx::exports::extra_files(&spec).unwrap();
+    cinch::driver::check_sources(
+        &format!("{api}\n{implementation}\n{}", extra["GameApiExports.cinch"]),
+        "<godot bindings>",
+    )
+    .unwrap();
+    // Native Variant owners are linear too: copying gives a new owner; dropping is mandatory.
+    let bad = format!("{}\n  main :: Unit ->{{Foreign Cxx, IO}} I64\n  main _ = let v = gdVariantInt 42 in gdVariantAsInt v\n", api.replace("module GameApi where", "module Main where"));
+    assert!(cinch::driver::check_sources(&bad, "<godot ownership>").is_err());
+    spec.godot = None;
+    assert!(cxx::generate(&spec)
+        .unwrap_err()
+        .to_string()
+        .contains("require godot"));
+}
+
+#[test]
+fn godot_script_paths_are_project_local_and_unique_before_output() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("Script.cinch"), "module Logic where\n").unwrap();
+    let original = serde_json::json!({"module":"Api", "godot":{}, "export_classes":[{"name":"Script", "cpp":"State", "base":"godot::Node", "script":"Script.cinch"}]});
+    for script in [
+        "../outside.cinch",
+        "/absolute.cinch",
+        "wrong.cpp",
+        "dir/../Script.cinch",
+    ] {
+        let mut spec = original.clone();
+        spec["export_classes"][0]["script"] = script.into();
+        let path = dir.path().join("bindings.json");
+        std::fs::write(&path, spec.to_string()).unwrap();
+        let out = dir.path().join("generated");
+        assert_ne!(
+            cxx::cli(&[
+                path.to_string_lossy().into_owned(),
+                "--out-dir".into(),
+                out.to_string_lossy().into_owned()
+            ]),
+            0
+        );
+        assert!(!out.exists());
+    }
+    let mut duplicate = original.clone();
+    let mut second = original["export_classes"][0].clone();
+    second["name"] = "Second".into();
+    second["cpp"] = "SecondState".into();
+    duplicate["export_classes"]
+        .as_array_mut()
+        .unwrap()
+        .push(second);
+    let path = dir.path().join("bindings.json");
+    std::fs::write(&path, duplicate.to_string()).unwrap();
+    assert_ne!(
+        cxx::cli(&[
+            path.to_string_lossy().into_owned(),
+            "--out-dir".into(),
+            dir.path().join("generated").to_string_lossy().into_owned()
+        ]),
+        0
+    );
+}
+
+#[test]
+fn generating_from_a_relative_spec_path_works_without_a_source_parent_component() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = Path::new(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../examples/cxx/exports"
+    ));
+    run(Command::new(env!("CARGO_BIN_EXE_cinch"))
+        .current_dir(root)
+        .args(["cxx", "bindings.json", "--out-dir"])
+        .arg(dir.path()));
+    assert!(dir.path().join("HostApi.hpp").is_file());
 }

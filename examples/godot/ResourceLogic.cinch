@@ -1,0 +1,9 @@
+module ResourceLogic where
+  import GameApi
+  foreign import ccall "example_godot_destroyed" noteDestroyed :: Unit ->{Foreign Cxx, IO} Unit
+
+  destroy :: Borrowed CinchResource ->{Foreign Cxx, IO} Unit
+  destroy self = noteDestroyed ()
+
+  echo :: Borrowed CinchResource -> String ->{Foreign Cxx, IO, Diverge} String
+  echo self text = text

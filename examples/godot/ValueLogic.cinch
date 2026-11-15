@@ -1,0 +1,92 @@
+module ValueLogic where
+  import GameApi
+
+  echoString :: Borrowed CinchValues -> String ->{Foreign Cxx, IO, Diverge} String
+  echoString self value = value
+
+  echoStringName :: Borrowed CinchValues -> String ->{Foreign Cxx, IO, Diverge} String
+  echoStringName self value = value
+
+  echoBool :: Borrowed CinchValues -> Bool ->{Foreign Cxx, IO, Diverge} Bool
+  echoBool self value = value
+
+  echoVector2 :: Borrowed CinchValues -> GDVector2 ->{Foreign Cxx, IO, Diverge} GDVector2
+  echoVector2 self value = value
+
+  echoVector3 :: Borrowed CinchValues -> GDVector3 ->{Foreign Cxx, IO, Diverge} GDVector3
+  echoVector3 self value = value
+
+  echoVector4 :: Borrowed CinchValues -> GDVector4 ->{Foreign Cxx, IO, Diverge} GDVector4
+  echoVector4 self value = value
+
+  echoVector2i :: Borrowed CinchValues -> GDVector2i ->{Foreign Cxx, IO, Diverge} GDVector2i
+  echoVector2i self value = value
+
+  echoVector3i :: Borrowed CinchValues -> GDVector3i ->{Foreign Cxx, IO, Diverge} GDVector3i
+  echoVector3i self value = value
+
+  echoVector4i :: Borrowed CinchValues -> GDVector4i ->{Foreign Cxx, IO, Diverge} GDVector4i
+  echoVector4i self value = value
+
+  echoColor :: Borrowed CinchValues -> GDColor ->{Foreign Cxx, IO, Diverge} GDColor
+  echoColor self value = value
+
+  echoVariant :: Borrowed CinchValues -> Borrowed GDVariant ->{Foreign Cxx, IO, Diverge} Owned GDHeap GDVariant
+  echoVariant self value = gdVariantCopy value
+
+  echoArray :: Borrowed CinchValues -> Borrowed GDArray ->{Foreign Cxx, IO, Diverge} Owned GDHeap GDArray
+  echoArray self value = gdArrayCopy value
+
+  echoDictionary :: Borrowed CinchValues -> Borrowed GDDictionary ->{Foreign Cxx, IO, Diverge} Owned GDHeap GDDictionary
+  echoDictionary self value = gdDictionaryCopy value
+
+  echoObject :: Borrowed CinchValues -> MaybeNull (RawPtr GDObject) ->{Foreign Cxx, IO, Diverge} MaybeNull (RawPtr GDObject)
+  echoObject self value = value
+
+  arrayAppend :: Borrowed CinchValues -> Borrowed GDArray -> Borrowed GDVariant ->{Foreign Cxx, IO, Diverge} Owned GDHeap GDArray
+  arrayAppend self array value = let u = gdArrayAppend array value in gdArrayCopy array
+  callObject :: Borrowed CinchValues -> MaybeNull (RawPtr GDObject) -> String -> Borrowed GDArray ->{Foreign Cxx, IO, Diverge} Owned GDHeap GDVariant
+  callObject self object method args = gdObjectCall object method args
+  getObject :: Borrowed CinchValues -> MaybeNull (RawPtr GDObject) -> String ->{Foreign Cxx, IO, Diverge} Owned GDHeap GDVariant
+  getObject self object key = gdObjectGet object key
+  setObject :: Borrowed CinchValues -> MaybeNull (RawPtr GDObject) -> String -> Borrowed GDVariant ->{Foreign Cxx, IO, Diverge} Unit
+  setObject self object key value = gdObjectSet object key value
+
+  exerciseCollections :: Borrowed CinchValues ->{Foreign Cxx, IO, Diverge} I64
+  exerciseCollections self =
+    let dict = gdDictionaryNew () in
+    let key = gdValueString "answer λ" in
+    let value = gdVariantInt 42 in
+    let insert = gdDictionarySet dict key value in
+    let present = gdDictionaryHas dict key in
+    let keys = gdDictionaryKeys dict in
+    let keyCount = gdArraySize keys in
+    let firstKey = gdArrayGet keys 0 in
+    let got = gdDictionaryGet dict firstKey in
+    let n = gdVariantAsInt got in
+    let array = gdArrayNew () in
+    let append = gdArrayAppend array got in
+    let update = gdArraySet array 0 value in
+    let copy = gdArrayDuplicate array in
+    let copied = gdArrayGet copy 0 in
+    let m = gdVariantAsInt copied in
+    let remove = gdArrayRemove array 0 in
+    let size = gdArraySize array in
+    let erase = gdDictionaryRemove dict key in
+    let remaining = gdDictionarySize dict in
+    let d0 = gdVariantDelete copied in
+    let d1 = gdArrayDelete copy in
+    let d2 = gdArrayDelete array in
+    let d3 = gdVariantDelete got in
+    let d4 = gdVariantDelete firstKey in
+    let d5 = gdArrayDelete keys in
+    let d6 = gdVariantDelete value in
+    let d7 = gdVariantDelete key in
+    let d8 = gdDictionaryDelete dict in
+    if present == 1 then (if keyCount == 1 then (if size == 0 then (if remaining == 0 then (if n == m then n else 0) else 0) else 0) else 0) else 0
+
+  duplicateDictionary :: Borrowed CinchValues -> Borrowed GDDictionary ->{Foreign Cxx, IO, Diverge} Owned GDHeap GDDictionary
+  duplicateDictionary self dict = gdDictionaryDuplicate dict
+
+  emitVariant :: Borrowed CinchValues -> Borrowed GDVariant ->{Foreign Cxx, IO, Diverge} Unit
+  emitVariant self value = emitCinchValuesDelivered self value

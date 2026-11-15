@@ -67,6 +67,8 @@ Ordinary exported classes also provide `newCounter` and `deleteCounter` in
 Cinch, with a paired linear `Owned` handle, and corresponding C ABI factories.
 C++ callers can use normal stack allocation, `new`/`delete`, or `unique_ptr`.
 Godot classes instead use Godot's object allocation and lifetime protocol.
+Godot output also supports strings, vectors, Variants, collections, signals,
+and attached editor scripts; see the [Godot example](../../godot/README.md).
 
 `sources` lists the authored Cinch files in the compilation, including any
 project modules they import. `native_sources` optionally lists C++ source

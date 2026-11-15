@@ -119,4 +119,4 @@ scheduler-aware blocking calls or thread transfer guarantees.
 The bindgen also generates C exports and C++ classes implemented in Cinch,
 with automatic shared-library builds and lifecycle hooks. See the
 [C/C++ host example](exports/README.md) and the
-[Godot gameplay extension](../godot/README.md).
+[Godot classes and editor scripts](../godot/README.md).

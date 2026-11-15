@@ -2,6 +2,8 @@
 //! Optional C++ shims handle scalar APIs, methods and class allocation.
 mod build;
 pub mod exports;
+mod godot;
+mod script;
 use crate::{Error, Result};
 use serde::Deserialize;
 use std::collections::BTreeSet;
@@ -35,6 +37,8 @@ pub struct Bindings {
     pub libraries: Vec<String>,
     #[serde(default)]
     pub godot: Option<exports::Godot>,
+    #[serde(skip)]
+    pub script_sources: std::collections::BTreeMap<String, String>,
 }
 
 /// An exact linker symbol and the full signature supported by native FFI.
@@ -247,6 +251,9 @@ pub fn generate(bindings: &Bindings) -> Result<(String, String)> {
         register(name, *upper)?;
     }
     let mut cinch = format!("-- Generated native bindings; direct imports use the declared ABI contract.\nmodule {} where\n", bindings.module);
+    if bindings.godot.is_some() {
+        cinch.push_str("  import Data.String as GodotString\n");
+    }
     if !names.is_empty() {
         cinch.push_str(&format!(
             "  export {}\n",
@@ -355,7 +362,11 @@ pub fn cli(args: &[String]) -> i32 {
             return Err(fail("usage: cinch cxx bindings.json --out-dir DIR"));
         }
         let input = std::fs::read_to_string(&args[0]).map_err(|e| fail(e.to_string()))?;
-        let spec: Bindings = serde_json::from_str(&input).map_err(|e| fail(e.to_string()))?;
+        let mut spec: Bindings = serde_json::from_str(&input).map_err(|e| fail(e.to_string()))?;
+        script::load_sources(
+            &mut spec,
+            Path::new(&args[0]).parent().unwrap_or(Path::new(".")),
+        )?;
         let (cinch, cpp) = generate(&spec)?;
         let dir = Path::new(&args[2]);
         // Qualified module names map to the same module tree as authored Cinch.

@@ -60,8 +60,9 @@ pub fn build(args: &[String]) -> Result<PathBuf> {
     }
     let spec_path = io(std::fs::canonicalize(&args[0]))?;
     let root = spec_path.parent().unwrap();
-    let spec: Bindings = serde_json::from_str(&io(std::fs::read_to_string(&spec_path))?)
+    let mut spec: Bindings = serde_json::from_str(&io(std::fs::read_to_string(&spec_path))?)
         .map_err(|e| fail(e.to_string()))?;
+    super::script::load_sources(&mut spec, root)?;
     if spec.exports.is_empty() && spec.export_classes.is_empty() {
         return Err(fail("cxx build needs exported functions or classes"));
     }
@@ -91,7 +92,12 @@ pub fn build(args: &[String]) -> Result<PathBuf> {
     let extra = exports::extra_files(&spec)?;
     let mut implementations = String::new();
     for source in &spec.sources {
-        implementations.push_str(&io(std::fs::read_to_string(root.join(source)))?);
+        // Compile exactly the source revision embedded in each script descriptor.
+        let text = match spec.script_sources.get(source) {
+            Some(snapshot) => snapshot.clone(),
+            None => io(std::fs::read_to_string(root.join(source)))?,
+        };
+        implementations.push_str(&text);
         implementations.push('\n');
     }
     io(std::fs::create_dir_all(&args[2]))?;
@@ -184,7 +190,27 @@ pub fn build(args: &[String]) -> Result<PathBuf> {
             .filter_map(|c| c.base.as_ref())
             .map(|b| b.rsplit("::").next().unwrap().to_string())
             .collect::<BTreeSet<_>>();
-        enabled.insert("OS".into());
+        enabled.extend(["OS", "Engine"].into_iter().map(str::to_string));
+        if spec.export_classes.iter().any(|c| c.script.is_some()) {
+            enabled.extend(
+                [
+                    "ScriptLanguageExtension",
+                    "ScriptExtension",
+                    "ResourceFormatLoader",
+                    "ResourceFormatSaver",
+                    "ResourceLoader",
+                    "ResourceSaver",
+                    "EditorInterface",
+                    "EditorPlugin",
+                    "ScriptEditor",
+                    "EditorSyntaxHighlighter",
+                    "TextEdit",
+                    "CodeEdit",
+                ]
+                .into_iter()
+                .map(str::to_string),
+            );
+        }
         let profile = out.join("godot-build-profile.json");
         io(std::fs::write(
             &profile,
@@ -322,7 +348,10 @@ pub fn build(args: &[String]) -> Result<PathBuf> {
         .iter()
         .chain(spec.native_sources.iter())
         .map(|p| {
-            let bytes = io(std::fs::read(root.join(p)))?;
+            let bytes = match spec.script_sources.get(p) {
+                Some(snapshot) => snapshot.as_bytes().to_vec(),
+                None => io(std::fs::read(root.join(p)))?,
+            };
             Ok(serde_json::json!({"path":p, "hash":crate::interface::content_hash_bytes(&bytes)}))
         })
         .collect::<Result<Vec<_>>>()?;
