@@ -176,3 +176,30 @@ get, set and data accesses. Cold fault calls remain in the assembly, as do
 natural-number and ownership fallbacks, so counting every static call does not
 measure executed calls per byte. Reference-count validation, poisoned frees,
 bounds and read-only mutation tests verify the changed paths separately.
+
+## UTF-16 ASCII pipelines
+
+`utf16-ascii-2026-11-15.json` measures both wire byte orders at zero, 32,
+1,024 and 16,384 input UTF-8 bytes. The input is ASCII (including controls),
+mutated once per operation without invalidating UTF-8 or UTF-16. Input text
+preparation is outside timing; public conversions and result consumption remain
+inside. The reference driver now lives in `tooling/bench_text_reference.go`
+and uses the SDK's UTF-16 scalar APIs plus explicit byte-order reads/writes.
+The reports record its source and executable identities.
+
+The four-unit SWAR widening/narrowing paths are exercised here. These timings
+do not characterize mixed Unicode or surrogate-heavy text. At 16 KiB, this
+local sweep records roughly 634–661 μs for encoding and 429–444 μs for decoding,
+versus 137–139 μs and 177–180 μs for the corresponding reference pipelines.
+Checksums match. Correctness tests separately cover Unicode scalars, malformed
+surrogates, every single code unit and short tails under poisoned-memory and
+reference-count checks. Remaining natural-number and ownership costs also
+apply to these loops; the benchmark makes no performance-parity claim.
+
+`utf16-before-order-2026-11-15.json` and
+`interleaved-utf16-order-2026-11-15.json` retain the byte-order experiment.
+Private loops now carry a `Bool` resolved from the public constructor once at
+entry. This simplifies their representation, but alternating runs showed no
+consistent large-input speedup: encoding stayed within 1%, little-endian
+decoding within 1%, and big-endian decoding improved about 2%. The flag change
+is not presented as a performance fix for the remaining gap.

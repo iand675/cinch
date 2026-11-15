@@ -1503,10 +1503,32 @@
     },
     {
       "reference_package": "unicode/utf16",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "complete",
+      "cinch_modules": [
+        "Text.Utf16"
+      ],
       "remaining": [],
-      "reference_declarations": 7
+      "reference_declarations": 7,
+      "tests": [
+        "lib_utf16::utf16_matches_scalar_and_surrogate_reference_vectors",
+        "lib_utf16::utf16_byte_codecs_match_text_and_reject_odd_lengths"
+      ],
+      "benchmarks": [
+        "utf16le-encode",
+        "utf16le-decode",
+        "utf16be-encode",
+        "utf16be-decode"
+      ],
+      "capability_mapping": {
+        "IsSurrogate": "utf16-is-surrogate accepts numeric code points, including invalid scalar values",
+        "RuneLen": "utf16-rune-length returns Some 1/2 for a valid scalar, None for the invalid sentinel case",
+        "EncodeRune": "utf16-encode-rune returns a high/low U16 pair or the replacement pair",
+        "DecodeRune": "utf16-decode-rune accepts numeric pair positions and returns a scalar or U+FFFD",
+        "Encode": "utf16-encode maps List I64 to List U16, replacing each invalid input scalar",
+        "Decode": "utf16-decode maps List U16 to List Char with replacement of unpaired surrogates",
+        "AppendRune": "utf16-append-rune preserves existing units and appends a valid encoding or replacement; immutable list-spine copying is documented"
+      },
+      "review": "All seven reference declarations have an idiomatic functional mapping. Additional explicit-order byte codecs use bounded SWAR ASCII blocks. Sequence append is linear on immutable lists; benchmarks explicitly cover ASCII byte-codec pipelines, not all Unicode workloads. All functional mappings passed runtime tests under both the Rust compiler and the frozen self-built candidate, with poisoned frees, reference-count validation and zero leaks. Independent ASCII pipeline benchmarks are retained; complete means functional coverage, not equal allocation complexity or measured throughput."
     },
     {
       "reference_package": "unicode/utf8",

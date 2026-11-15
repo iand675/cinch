@@ -29,6 +29,7 @@ WORKLOADS = (
     "crc64", "fnv32a", "fnv64a", "binary", "varint",
     "stream-copy-buffer", "stream-copy-discard", "stream-read-all",
     "ascii85-encode", "ascii85-decode", "ascii85-stream-encode", "ascii85-stream-decode",
+    "utf16le-encode", "utf16le-decode", "utf16be-encode", "utf16be-decode",
 )
 
 SOURCE = r'''-- | Executable workload driver; output is elapsed_ns and an observable checksum.
@@ -41,6 +42,7 @@ module Main where
   import Text.Fnv
   import Text.Ascii85
   import Effect.Ascii85
+  import Text.Utf16
   import Effect.Clock
   import Effect.Process
   import Effect.Stream
@@ -138,15 +140,36 @@ module Main where
       case stream-read-all 4096 (ascii85-reader (reader-from-bytes b)) of
         (Err _, _) -> 1000000000
         (Ok out, _) -> fingerprint out
+    else if mode == "utf16le-encode" then fingerprint (utf16-encode-bytes LittleEndian (text b))
+    else if mode == "utf16be-encode" then fingerprint (utf16-encode-bytes BigEndian (text b))
+    else if mode == "utf16le-decode" then case utf16-decode-bytes LittleEndian b of
+      Err _ -> 1000000000
+      Ok out -> fingerprint (string-to-bytes out)
+    else if mode == "utf16be-decode" then case utf16-decode-bytes BigEndian b of
+      Err _ -> 1000000000
+      Ok out -> fingerprint (string-to-bytes out)
     else 1000000000
+
+  -- | Select the workloads whose input represents text rather than arbitrary bytes.
+  utf16-mode :: String -> Bool
+  utf16-mode mode = mode == "utf16le-encode" || mode == "utf16le-decode" || mode == "utf16be-encode" || mode == "utf16be-decode"
+
+  -- | Prepare ASCII text outside timing so every iteration has valid scalar input.
+  ascii-input :: Bytes -> Nat -> Unit
+  ascii-input b i = if i < bytes-len b then
+    let stored = bytes-set b i (nat-rem (bytes-get b i) 128) in ascii-input b (i + 1)
+    else ()
 
   -- | Prepare valid encoded inputs outside timing for decoding workloads.
   prepare :: String -> Bytes -> Bytes
   prepare mode b =
+    let normalized = if utf16-mode mode then ascii-input b 0 else () in
     if mode == "hex-decode" then string-to-bytes (hex-encode b)
     else if mode == "base32-decode" then string-to-bytes (base32-encode Base32Standard b)
     else if mode == "base64-decode" then string-to-bytes (base64-encode b)
     else if mode == "ascii85-decode" || mode == "ascii85-stream-decode" then string-to-bytes (ascii85-encode b)
+    else if mode == "utf16le-decode" then utf16-encode-bytes LittleEndian (text b)
+    else if mode == "utf16be-decode" then utf16-encode-bytes BigEndian (text b)
     else b
 
   -- | Change input each iteration to prevent invariant work from being hoisted.
@@ -155,12 +178,14 @@ module Main where
     if mode == "hex-decode" then 48 + nat-rem iteration 10
     else if mode == "base32-decode" || mode == "base64-decode" then 65 + nat-rem iteration 26
     else if mode == "ascii85-decode" || mode == "ascii85-stream-decode" then 33 + nat-rem iteration 85
+    else if utf16-mode mode then nat-rem iteration 128
     else nat-rem iteration 256
 
   -- | Mutate a proved byte position before each operation, including decoders.
   change :: String -> Bytes -> Nat -> Unit
   change mode b iteration =
-    if 0 < bytes-len b then
+    if mode == "utf16be-decode" && 1 < bytes-len b then bytes-set b 1 (change-byte mode iteration)
+    else if 0 < bytes-len b then
       bytes-set b 0 (change-byte mode iteration)
     else ()
 
@@ -248,7 +273,7 @@ def main() -> None:
     parser.add_argument("--warmup", type=int, default=1)
     parser.add_argument("--workloads", nargs="+", choices=WORKLOADS, default=list(WORKLOADS))
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--reference-go", type=Path, help="Also measure the independent ASCII85 reference pipelines with this SDK")
+    parser.add_argument("--reference-go", type=Path, help="Also measure independent ASCII85 and UTF-16 reference pipelines with this SDK")
     parser.add_argument("--cpu", type=int, help="Pin this run and its children to one allowed CPU on supported hosts")
     parser.add_argument("--label", default="", help="Describe the measured source snapshot without replacing its hashes")
     parser.add_argument("--artifacts", type=Path, help="Keep the compiled driver, LLVM and assembly for codegen investigation")
@@ -296,11 +321,11 @@ def main() -> None:
         reference_env = {**os.environ, "GOCACHE": "/tmp/cinch-go-benchmark-cache", "GOTELEMETRY": "off", "GOMAXPROCS": "1"}
         if args.reference_go:
             reference = work / "reference"
-            reference_source = ROOT / "tooling/bench_ascii85_reference.go"
+            reference_source = ROOT / "tooling/bench_text_reference.go"
             run([str(args.reference_go.resolve()), "build", "-o", str(reference), str(reference_source)], cwd=ROOT, env=reference_env)
             report["reference"] = {"sdk": run([str(args.reference_go.resolve()), "version"], env=reference_env).stdout.strip(),
                                    "source_sha256": digest(reference_source), "executable_sha256": digest(reference),
-                                   "GOMAXPROCS": "1", "workloads": [name for name in WORKLOADS if name.startswith("ascii85-")],
+                                   "GOMAXPROCS": "1", "workloads": [name for name in WORKLOADS if name.startswith(("ascii85-", "utf16"))],
                                    "scope": "Equivalent public API results and observable checksums; allocation and immutable string semantics differ"}
         if args.artifacts:
             artifacts = args.artifacts.resolve()
@@ -334,7 +359,7 @@ def main() -> None:
                         "checksum": checksums[0], "median_ns_per_operation": median / args.iterations,
                         "raw_mib_per_second": (size * args.iterations * 1e9 / median / 1048576) if median and size and workload not in ("binary", "varint") else None}
                 report["results"].append(item)
-                if reference and workload.startswith("ascii85-"):
+                if reference and workload.startswith(("ascii85-", "utf16")):
                     reference_samples = []
                     for index in range(args.warmup + args.samples):
                         elapsed, checksum = map(int, run([str(reference), workload, str(size), str(args.iterations)], env=reference_env).stdout.split())
