@@ -1,4 +1,4 @@
--- | Deterministic 32- and 64-bit FNV-1 and FNV-1a hashing over bytes.
+-- | Deterministic 32-, 64- and 128-bit FNV-1 and FNV-1a hashing over bytes.
 -- Overflow wraps explicitly. Update functions accept a finished hash, so chunked
 -- and concatenated input agree. Empty input yields the offset basis, and empty
 -- updates leave the state unchanged. Inline LLVM unrolls eight ordered steps at
@@ -12,8 +12,8 @@ module Text.Fnv where
   import Data.Machine
   import Data.Nat
 
-  export fnv32, fnv32a, fnv64, fnv64a
-  export fnv32-update, fnv32a-update, fnv64-update, fnv64a-update
+  export fnv32, fnv32a, fnv64, fnv64a, fnv128, fnv128a
+  export fnv32-update, fnv32a-update, fnv64-update, fnv64a-update, fnv128-update, fnv128a-update
 
   -- | Compute 32-bit FNV-1, multiplying before xor, with offset basis 0x811C9DC5.
   fnv32 :: Bytes -> U32
@@ -201,4 +201,265 @@ module Text.Fnv where
       %f7 = xor i64 %m7, %v7
       %r7 = select i1 %alternate, i64 %a7, i64 %f7
       ret i64 %r7
+    }
+
+  -- | Compute 128-bit FNV-1 with the standard offset basis, returning high word then low word.
+  -- Two U64 words preserve the full hash on every target without a wide-scalar ABI dependency.
+  fnv128 :: Bytes -> (U64, U64)
+  fnv128 b = fnv128-update (0x6c62272e07bb0142, 0x62b821756295c58d) b
+
+  -- | Compute 128-bit FNV-1a, returning high word then low word.
+  -- This deterministic hash is non-cryptographic; serialization byte order is chosen separately.
+  fnv128a :: Bytes -> (U64, U64)
+  fnv128a b = fnv128a-update (0x6c62272e07bb0142, 0x62b821756295c58d) b
+
+  -- | Continue a 128-bit FNV-1 state given as high and low words. Empty input preserves both words.
+  fnv128-update :: (U64, U64) -> Bytes -> (U64, U64)
+  fnv128-update previous b = case previous of (high, low) -> fold128 False b 0 high low
+
+  -- | Continue a high/low 128-bit FNV-1a state; arbitrary input chunking preserves the final result.
+  fnv128a-update :: (U64, U64) -> Bytes -> (U64, U64)
+  fnv128a-update previous b = case previous of (high, low) -> fold128 True b 0 high low
+
+  -- | Consume eight-byte blocks in order, then an exact scalar tail, with modulo-2^128 overflow.
+  -- No reassociation across byte positions is valid for this recurrence.
+  fold128 :: Bool -> Bytes -> Nat -> U64 -> U64 -> (U64, U64)
+  fold128 alternate b i high low =
+    if i + 8 <= bytes-len b then
+      let word = bytes-read-le64 b i in
+      let upper = if alternate then fnv128a-high high low word else fnv128-high high low word in
+      let lower = if alternate then fnv128a-low high low word else fnv128-low high low word in
+      fold128 alternate b (i + 8) upper lower
+    else if i < bytes-len b then
+      let v = wrapping-i64-to-u8 (nat-to-i64 (bytes-get b i)) in
+      let upper = fnv128-step-high high low v (if alternate then 1 else 0) in
+      let lower = if alternate then wrapping-mul-u64 (bit-xor-u64 low (u8-to-u64 v)) 315 else bit-xor-u64 (wrapping-mul-u64 low 315) (u8-to-u64 v) in
+      fold128 alternate b (i + 1) upper lower
+    else (high, low)
+
+  -- | Compute one high-word step with the xor order selected before the wide multiply.
+  prim fnv128-step-high :: U64 -> U64 -> U8 -> U8 -> U64 where
+    llvm {
+      %byte = zext i8 %2 to i64
+      %xored = xor i64 %1, %byte
+      %alternate = icmp ne i8 %3, 0
+      %lo = select i1 %alternate, i64 %xored, i64 %1
+      %hi = zext i64 %0 to i128
+      %shifted = shl i128 %hi, 64
+      %low = zext i64 %lo to i128
+      %state = or i128 %shifted, %low
+      %product = mul i128 %state, 309485009821345068724781371
+      %upper = lshr i128 %product, 64
+      %result = trunc i128 %upper to i64
+      ret i64 %result
+    }
+
+  -- | Compute the low word of eight ordered FNV-1 steps.
+  -- Fixed-width arguments keep the fragment portable across primitive ABI targets.
+  prim fnv128-low :: U64 -> U64 -> U64 -> U64 where
+    llvm {
+      %upper = zext i64 %0 to i128
+      %shifted = shl i128 %upper, 64
+      %lower = zext i64 %1 to i128
+      %state = or i128 %shifted, %lower
+      %s0 = lshr i64 %2, 0
+      %v0 = and i64 %s0, 255
+      %b0 = zext i64 %v0 to i128
+      %m0 = mul i128 %state, 309485009821345068724781371
+      %r0 = xor i128 %m0, %b0
+      %s1 = lshr i64 %2, 8
+      %v1 = and i64 %s1, 255
+      %b1 = zext i64 %v1 to i128
+      %m1 = mul i128 %r0, 309485009821345068724781371
+      %r1 = xor i128 %m1, %b1
+      %s2 = lshr i64 %2, 16
+      %v2 = and i64 %s2, 255
+      %b2 = zext i64 %v2 to i128
+      %m2 = mul i128 %r1, 309485009821345068724781371
+      %r2 = xor i128 %m2, %b2
+      %s3 = lshr i64 %2, 24
+      %v3 = and i64 %s3, 255
+      %b3 = zext i64 %v3 to i128
+      %m3 = mul i128 %r2, 309485009821345068724781371
+      %r3 = xor i128 %m3, %b3
+      %s4 = lshr i64 %2, 32
+      %v4 = and i64 %s4, 255
+      %b4 = zext i64 %v4 to i128
+      %m4 = mul i128 %r3, 309485009821345068724781371
+      %r4 = xor i128 %m4, %b4
+      %s5 = lshr i64 %2, 40
+      %v5 = and i64 %s5, 255
+      %b5 = zext i64 %v5 to i128
+      %m5 = mul i128 %r4, 309485009821345068724781371
+      %r5 = xor i128 %m5, %b5
+      %s6 = lshr i64 %2, 48
+      %v6 = and i64 %s6, 255
+      %b6 = zext i64 %v6 to i128
+      %m6 = mul i128 %r5, 309485009821345068724781371
+      %r6 = xor i128 %m6, %b6
+      %s7 = lshr i64 %2, 56
+      %v7 = and i64 %s7, 255
+      %b7 = zext i64 %v7 to i128
+      %m7 = mul i128 %r6, 309485009821345068724781371
+      %r7 = xor i128 %m7, %b7
+      %result = trunc i128 %r7 to i64
+      ret i64 %result
+    }
+
+  -- | Compute the high word of eight ordered FNV-1 steps.
+  -- Fixed-width arguments keep the fragment portable across primitive ABI targets.
+  prim fnv128-high :: U64 -> U64 -> U64 -> U64 where
+    llvm {
+      %upper = zext i64 %0 to i128
+      %shifted = shl i128 %upper, 64
+      %lower = zext i64 %1 to i128
+      %state = or i128 %shifted, %lower
+      %s0 = lshr i64 %2, 0
+      %v0 = and i64 %s0, 255
+      %b0 = zext i64 %v0 to i128
+      %m0 = mul i128 %state, 309485009821345068724781371
+      %r0 = xor i128 %m0, %b0
+      %s1 = lshr i64 %2, 8
+      %v1 = and i64 %s1, 255
+      %b1 = zext i64 %v1 to i128
+      %m1 = mul i128 %r0, 309485009821345068724781371
+      %r1 = xor i128 %m1, %b1
+      %s2 = lshr i64 %2, 16
+      %v2 = and i64 %s2, 255
+      %b2 = zext i64 %v2 to i128
+      %m2 = mul i128 %r1, 309485009821345068724781371
+      %r2 = xor i128 %m2, %b2
+      %s3 = lshr i64 %2, 24
+      %v3 = and i64 %s3, 255
+      %b3 = zext i64 %v3 to i128
+      %m3 = mul i128 %r2, 309485009821345068724781371
+      %r3 = xor i128 %m3, %b3
+      %s4 = lshr i64 %2, 32
+      %v4 = and i64 %s4, 255
+      %b4 = zext i64 %v4 to i128
+      %m4 = mul i128 %r3, 309485009821345068724781371
+      %r4 = xor i128 %m4, %b4
+      %s5 = lshr i64 %2, 40
+      %v5 = and i64 %s5, 255
+      %b5 = zext i64 %v5 to i128
+      %m5 = mul i128 %r4, 309485009821345068724781371
+      %r5 = xor i128 %m5, %b5
+      %s6 = lshr i64 %2, 48
+      %v6 = and i64 %s6, 255
+      %b6 = zext i64 %v6 to i128
+      %m6 = mul i128 %r5, 309485009821345068724781371
+      %r6 = xor i128 %m6, %b6
+      %s7 = lshr i64 %2, 56
+      %v7 = and i64 %s7, 255
+      %b7 = zext i64 %v7 to i128
+      %m7 = mul i128 %r6, 309485009821345068724781371
+      %r7 = xor i128 %m7, %b7
+      %high = lshr i128 %r7, 64
+      %result = trunc i128 %high to i64
+      ret i64 %result
+    }
+
+  -- | Compute the low word of eight ordered FNV-1a steps.
+  -- Fixed-width arguments keep the fragment portable across primitive ABI targets.
+  prim fnv128a-low :: U64 -> U64 -> U64 -> U64 where
+    llvm {
+      %upper = zext i64 %0 to i128
+      %shifted = shl i128 %upper, 64
+      %lower = zext i64 %1 to i128
+      %state = or i128 %shifted, %lower
+      %s0 = lshr i64 %2, 0
+      %v0 = and i64 %s0, 255
+      %b0 = zext i64 %v0 to i128
+      %x0 = xor i128 %state, %b0
+      %r0 = mul i128 %x0, 309485009821345068724781371
+      %s1 = lshr i64 %2, 8
+      %v1 = and i64 %s1, 255
+      %b1 = zext i64 %v1 to i128
+      %x1 = xor i128 %r0, %b1
+      %r1 = mul i128 %x1, 309485009821345068724781371
+      %s2 = lshr i64 %2, 16
+      %v2 = and i64 %s2, 255
+      %b2 = zext i64 %v2 to i128
+      %x2 = xor i128 %r1, %b2
+      %r2 = mul i128 %x2, 309485009821345068724781371
+      %s3 = lshr i64 %2, 24
+      %v3 = and i64 %s3, 255
+      %b3 = zext i64 %v3 to i128
+      %x3 = xor i128 %r2, %b3
+      %r3 = mul i128 %x3, 309485009821345068724781371
+      %s4 = lshr i64 %2, 32
+      %v4 = and i64 %s4, 255
+      %b4 = zext i64 %v4 to i128
+      %x4 = xor i128 %r3, %b4
+      %r4 = mul i128 %x4, 309485009821345068724781371
+      %s5 = lshr i64 %2, 40
+      %v5 = and i64 %s5, 255
+      %b5 = zext i64 %v5 to i128
+      %x5 = xor i128 %r4, %b5
+      %r5 = mul i128 %x5, 309485009821345068724781371
+      %s6 = lshr i64 %2, 48
+      %v6 = and i64 %s6, 255
+      %b6 = zext i64 %v6 to i128
+      %x6 = xor i128 %r5, %b6
+      %r6 = mul i128 %x6, 309485009821345068724781371
+      %s7 = lshr i64 %2, 56
+      %v7 = and i64 %s7, 255
+      %b7 = zext i64 %v7 to i128
+      %x7 = xor i128 %r6, %b7
+      %r7 = mul i128 %x7, 309485009821345068724781371
+      %result = trunc i128 %r7 to i64
+      ret i64 %result
+    }
+
+  -- | Compute the high word of eight ordered FNV-1a steps.
+  -- Fixed-width arguments keep the fragment portable across primitive ABI targets.
+  prim fnv128a-high :: U64 -> U64 -> U64 -> U64 where
+    llvm {
+      %upper = zext i64 %0 to i128
+      %shifted = shl i128 %upper, 64
+      %lower = zext i64 %1 to i128
+      %state = or i128 %shifted, %lower
+      %s0 = lshr i64 %2, 0
+      %v0 = and i64 %s0, 255
+      %b0 = zext i64 %v0 to i128
+      %x0 = xor i128 %state, %b0
+      %r0 = mul i128 %x0, 309485009821345068724781371
+      %s1 = lshr i64 %2, 8
+      %v1 = and i64 %s1, 255
+      %b1 = zext i64 %v1 to i128
+      %x1 = xor i128 %r0, %b1
+      %r1 = mul i128 %x1, 309485009821345068724781371
+      %s2 = lshr i64 %2, 16
+      %v2 = and i64 %s2, 255
+      %b2 = zext i64 %v2 to i128
+      %x2 = xor i128 %r1, %b2
+      %r2 = mul i128 %x2, 309485009821345068724781371
+      %s3 = lshr i64 %2, 24
+      %v3 = and i64 %s3, 255
+      %b3 = zext i64 %v3 to i128
+      %x3 = xor i128 %r2, %b3
+      %r3 = mul i128 %x3, 309485009821345068724781371
+      %s4 = lshr i64 %2, 32
+      %v4 = and i64 %s4, 255
+      %b4 = zext i64 %v4 to i128
+      %x4 = xor i128 %r3, %b4
+      %r4 = mul i128 %x4, 309485009821345068724781371
+      %s5 = lshr i64 %2, 40
+      %v5 = and i64 %s5, 255
+      %b5 = zext i64 %v5 to i128
+      %x5 = xor i128 %r4, %b5
+      %r5 = mul i128 %x5, 309485009821345068724781371
+      %s6 = lshr i64 %2, 48
+      %v6 = and i64 %s6, 255
+      %b6 = zext i64 %v6 to i128
+      %x6 = xor i128 %r5, %b6
+      %r6 = mul i128 %x6, 309485009821345068724781371
+      %s7 = lshr i64 %2, 56
+      %v7 = and i64 %s7, 255
+      %b7 = zext i64 %v7 to i128
+      %x7 = xor i128 %r6, %b7
+      %r7 = mul i128 %x7, 309485009821345068724781371
+      %high = lshr i128 %r7, 64
+      %result = trunc i128 %high to i64
+      ret i64 %result
     }

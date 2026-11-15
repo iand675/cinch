@@ -25,7 +25,7 @@ is not an available API.
 | `hash/adler32` | [Text.Checksum](../library/Text.Checksum.md) | Whole-buffer checksum and incremental update | Stream adapters, serialized state |
 | `hash/crc32` | [Text.Checksum](../library/Text.Checksum.md) | IEEE, Castagnoli, Koopman and custom reflected polynomials, incremental update | Table acceleration, stream adapters, serialized state |
 | `hash/crc64` | [Text.Checksum](../library/Text.Checksum.md) | ISO, ECMA and custom reflected polynomials, incremental update | Table acceleration, stream adapters, serialized state |
-| `hash/fnv` | [Text.Fnv](../library/Text.Fnv.md) | FNV-1 and FNV-1a, 32 and 64 bits, incremental update | 128-bit variants, stream adapters, serialized state |
+| `hash/fnv` | [Text.Fnv](../library/Text.Fnv.md) | FNV-1 and FNV-1a, 32, 64 and 128 bits, high/low-word 128-bit states, incremental update | Stream adapters, serialized state |
 | `io` | [Effect.Stream](../library/Effect.Stream.md) | Explicit reader/writer continuations, memory and borrowed-descriptor adapters, limited/concatenated/mirrored sources, broadcast sinks, exact/minimum/all reads, full writes, bulk and limited copies | Random access, seek/close/flush capabilities, pipes and cancellation, section/offset adapters |
 
 The format/hash modules and their shared `Data.Bytes.Word` layer are

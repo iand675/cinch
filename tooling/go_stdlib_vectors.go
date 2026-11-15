@@ -185,10 +185,13 @@ func main() {
 		ascii := make([]byte, ascii85.MaxEncodedLen(len(b)))
 		ascii = ascii[:ascii85.Encode(ascii, b)]
 		f32, f32a, f64, f64a := fnv.New32(), fnv.New32a(), fnv.New64(), fnv.New64a()
+		f128, f128a := fnv.New128(), fnv.New128a()
 		f32.Write(b)
 		f32a.Write(b)
 		f64.Write(b)
 		f64a.Write(b)
+		f128.Write(b)
+		f128a.Write(b)
 		checks = append(checks, map[string]string{
 			"ascii85":          string(ascii),
 			"hex":              hex.EncodeToString(b),
@@ -204,6 +207,8 @@ func main() {
 			"fnv32a":           strconv.FormatUint(uint64(f32a.Sum32()), 10),
 			"fnv64":            strconv.FormatUint(f64.Sum64(), 10),
 			"fnv64a":           strconv.FormatUint(f64a.Sum64(), 10),
+			"fnv128_hex":       hex.EncodeToString(f128.Sum(nil)),
+			"fnv128a_hex":      hex.EncodeToString(f128a.Sum(nil)),
 		})
 	}
 	words := []map[string]string{}

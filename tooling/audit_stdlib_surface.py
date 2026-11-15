@@ -60,7 +60,7 @@ EVIDENCE = {
     "hash/adler32": (["lib_go_stdlib::checksums_match_go_and_update_over_every_split"], ["adler32"]),
     "hash/crc32": (["lib_go_stdlib::checksums_match_go_and_update_over_every_split"], ["crc32", "crc32c"]),
     "hash/crc64": (["lib_go_stdlib::checksums_match_go_and_update_over_every_split"], ["crc64"]),
-    "hash/fnv": (["lib_go_stdlib::fnv_matches_go_and_updates_over_every_split"], ["fnv32a", "fnv64a"]),
+    "hash/fnv": (["lib_go_stdlib::fnv_matches_go_and_updates_over_every_split", "lib_fnv128::fnv128_matches_reference_vectors_and_every_chunk_split", "lib_fnv128::fnv128_updates_preserve_arbitrary_high_bits_and_exact_tails"], ["fnv32a", "fnv64a", "fnv128", "fnv128a"]),
     "io": (["lib_stream"], ["stream-copy-buffer", "stream-copy-discard", "stream-read-all"]),
     "unicode/utf8": (["lib_word_utf8"], []),
 }
