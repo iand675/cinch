@@ -583,6 +583,10 @@ fn emit_module(
         out.push_str("declare i128 @llvm.ctlz.i128(i128, i1)\n");
         out.push_str("declare i128 @llvm.cttz.i128(i128, i1)\n");
         out.push_str("declare i128 @llvm.bitreverse.i128(i128)\n");
+        out.push_str("declare i64 @cinch_int_from_i128(i128)\n");
+        out.push_str("declare i128 @cinch_int_to_i128(i64)\n");
+        out.push_str("declare i64 @cinch_nat_from_u128(i128)\n");
+        out.push_str("declare i128 @cinch_nat_to_u128(i64)\n");
     }
     out.push('\n');
     if object {
@@ -5210,6 +5214,7 @@ fn ret_option_wide(b: &mut Builder, reg: &Registry, name: &str, none_if: &str, v
 /// `Option`'s block) returns as the word. The rest of the surface is
 /// phase 2's and is refused by name here.
 fn wide_prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: PrimOp) -> Result<()> {
+    use crate::core::{IntOp, NatOp};
     use PrimOp::*;
     // `Usize`/`Isize` take the target's width (a conversion's other end).
     let op = op.resolve_widths(cx.usize_bits);
@@ -5433,6 +5438,21 @@ fn wide_prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op:
             b.line(&format!("{f} = {inst} i128 %p0 to {fty}"));
             let w = float_to_word(b, to, &f);
             ret(b, &w);
+        }
+        // The bignum conversions cross into the runtime with the C ABI's
+        // `__int128` (Rust's `i128`/`u128`): the word side is the `Int` or
+        // `Nat` word, owned by the caller as for the `I64` conversions.
+        Int(IntOp::FromI128) | Nat(NatOp::FromU128) => {
+            let f = if matches!(op, Int(_)) { "cinch_int_from_i128" } else { "cinch_nat_from_u128" };
+            let r = b.reg();
+            b.line(&format!("{r} = call i64 @{f}(i128 %p0)"));
+            ret(b, &r);
+        }
+        Int(IntOp::ToI128) | Nat(NatOp::ToU128) => {
+            let f = if matches!(op, Int(_)) { "cinch_int_to_i128" } else { "cinch_nat_to_u128" };
+            let r = b.reg();
+            b.line(&format!("{r} = call i128 @{f}(i64 %p0)"));
+            ret128(b, &r);
         }
         CheckedDiv { ty } | CheckedRem { ty } => {
             // `None` on a zero divisor and on `minBound / -1` for the

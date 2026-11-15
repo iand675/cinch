@@ -1528,15 +1528,14 @@ impl IntSort {
         if s == Scalar::Char {
             return Some(IntSort::Bounded(0, 0x10FFFF));
         }
-        // The sorts are `i128` ranges. `I128`'s is exactly the whole of
-        // `i128`; `U128`'s maximum, 2^128 - 1, is beyond every `i128`, so a
-        // `U128` has no integer sort, like a float: the solver draws no
-        // facts about it, which only ever proves less
-        // (design/wide-scalars.md section 4).
-        match s {
-            Scalar::I128 => return Some(IntSort::Bounded(i128::MIN, i128::MAX)),
-            Scalar::U128 => return None,
-            _ => {}
+        // The sorts are `i128` ranges whose bounds the difference-constraint
+        // solver negates and sums: `U128`'s maximum, 2^128 - 1, is beyond
+        // every `i128`, and `I128`'s bounds are `i128`'s own, which those
+        // operations overflow. So neither wide scalar has an integer sort,
+        // like a float: the solver draws no facts about them, which only
+        // ever proves less (design/wide-scalars.md section 4).
+        if s.is_wide() {
+            return None;
         }
         let w = s.width();
         Some(if s.is_signed() {

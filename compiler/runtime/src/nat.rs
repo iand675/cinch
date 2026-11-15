@@ -128,6 +128,11 @@ impl Nat {
         magnitude_to_u64(&self.limbs).ok()
     }
 
+    /// The value as a `u128`, faulting when it does not fit.
+    pub(crate) fn to_u128_exact(&self) -> Result<u128> {
+        magnitude_to_u128(&self.limbs)
+    }
+
     /// Wrap a normalized magnitude (the output of the `limbs` operations
     /// and of the magnitude functions below).
     pub(crate) fn from_limbs(limbs: Vec<u32>) -> Nat {
@@ -232,6 +237,14 @@ impl Ord for Nat {
 }
 
 /// Magnitude to `u64`, faulting when more than two limbs are present.
+/// A normalized magnitude of at most four limbs as a `u128`.
+pub(crate) fn magnitude_to_u128(v: &[u32]) -> Result<u128> {
+    if v.len() > 4 {
+        return Err(Error::OutOfRange);
+    }
+    Ok(v.iter().rev().fold(0u128, |acc, l| (acc << 32) | u128::from(*l)))
+}
+
 pub(crate) fn magnitude_to_u64(v: &[u32]) -> Result<u64> {
     match v.len() {
         0 => Ok(0),

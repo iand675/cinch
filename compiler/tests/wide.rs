@@ -434,6 +434,58 @@ module Main where
 }
 
 #[test]
+fn int_nat_conversions_and_show_cross_the_runtime_at_128_bits() {
+    // The bignum runtime takes and gives `__int128`: `I128`'s minimum and
+    // `U128`'s maximum become the `Int` and `Nat` of the same value, the
+    // checked forms answer `None` one past each bound (and for a negative
+    // `Int` at `U128`), and `Show` prints the decimal through `Int`.
+    run_ok("wide-bignum", r#"
+module Main where
+  import Data.Wide
+  import Text.Show
+
+  isNone :: forall a. Option a -> Bool
+  isNone o = case o of
+    None -> True
+    Some _ -> False
+
+  #[inline(never)]
+  round-trip :: I128 -> Option I128
+  round-trip x = checked-int-to-i128 (int-from-i128 x)
+
+  main :: Int
+  main =
+    if int-from-i128 min-bound-i128 == -170141183460469231731687303715884105728 then
+      (if int-from-u128 max-bound-u128 == 340282366920938463463374607431768211455 then
+        (if nat-from-u128 max-bound-u128 == 340282366920938463463374607431768211455 then
+          (case checked-int-to-i128 170141183460469231731687303715884105727 of
+            None -> 4
+            Some v -> if eq-i128 v max-bound-i128 then
+                (if isNone (checked-int-to-i128 170141183460469231731687303715884105728) then
+                  (if isNone (checked-int-to-u128 (-1)) then
+                    (case checked-nat-to-u128 340282366920938463463374607431768211455 of
+                      None -> 8
+                      Some u -> if eq-u128 u max-bound-u128 then
+                          (if isNone (checked-nat-to-i128 170141183460469231731687303715884105728) then
+                            (if show (-12 :: I128) == "-12" then
+                              (if show max-bound-u128 == "340282366920938463463374607431768211455" then
+                                (case round-trip (-7) of
+                                  None -> 13
+                                  Some r -> if eq-i128 r (-7) then 0 else 14)
+                              else 12)
+                            else 11)
+                          else 10)
+                        else 9)
+                  else 7)
+                else 6)
+              else 5)
+        else 3)
+      else 2)
+    else 1
+"#);
+}
+
+#[test]
 fn unlowered_wide_positions_are_refused_by_name() {
     // A `repr(C)` record's wide field is a C `__int128` at its recorded
     // offset, which is the foreign boundary's increment: refused, naming

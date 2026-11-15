@@ -66,6 +66,11 @@ fn prim_result_promise(op: PrimOp) -> Option<(PTerm, Option<PTerm>)> {
         ),
         PrimOp::Nat(NatOp::FromI64 | NatOp::ToI64)
         | PrimOp::Int(IntOp::FromI64 | IntOp::ToI64 | IntOp::FromNat | IntOp::ToNat) => (same(), None),
+        // `I128`'s `Int` conversions keep the value as the `I64` ones do
+        // (a true fact the solver may combine with others, though a wide
+        // scalar has no sort of its own to bound it); a `U128`'s `Nat`
+        // conversions promise nothing.
+        PrimOp::Int(IntOp::FromI128 | IntOp::ToI128) => (same(), None),
         PrimOp::Nat(NatOp::Rem) => (and(PTerm::Cmp(IdxCmp::Lt, it(), arg(1)), le(it(), arg(0))), None),
         PrimOp::Nat(NatOp::Div) => (le(it(), arg(0)), None),
         PrimOp::Nat(NatOp::Cmp) | PrimOp::Int(IntOp::Cmp) => (range(-1, 1), None),
@@ -22045,6 +22050,7 @@ impl Checker {
                 };
                 let b = if args.len() > 1 { big_of(&args[1], "`Nat`")? } else { Big::zero() };
                 Ok(match nat {
+                    NatOp::FromU128 | NatOp::ToU128 => unreachable!("refused at `eval_prim`'s entry (`touches_wide`)"),
                     NatOp::Add => big_value(a.add(&b), true),
                     NatOp::Mul => big_value(a.mul(&b), true),
                     NatOp::Sub => {
@@ -22088,6 +22094,7 @@ impl Checker {
                 };
                 let b = if args.len() > 1 { big_of(&args[1], "`Int`")? } else { Big::zero() };
                 Ok(match int {
+                    IntOp::FromI128 | IntOp::ToI128 => unreachable!("refused at `eval_prim`'s entry (`touches_wide`)"),
                     IntOp::Add => big_value(a.add(&b), false),
                     IntOp::Sub => big_value(a.sub(&b), false),
                     IntOp::Mul => big_value(a.mul(&b), false),

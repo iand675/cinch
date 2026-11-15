@@ -23,16 +23,19 @@
 -- families of addition, subtraction, multiplication and negation, checked
 -- division and remainder, the bitwise operations, checked and wrapping
 -- shifts, rotates, bit inspection, comparison, conversions with every
--- other numeric type, and the `Eq`, `Ord` and `Bits` instances.
--- Conversions with `Int` and `Nat`, and `Show`, follow.
+-- other numeric type and with `Int` and `Nat`, and the `Eq`, `Ord`,
+-- `Bits` and `Show` instances.
 module Data.Wide where
 
   import Data.Option
   import Relation.Eq
   import Relation.Ord
   import Algebra.Bits
+  import Data.Int
+  import Data.Nat
+  import Text.Show
 
-  export bit-and-i128, bit-and-u128, bit-not-i128, bit-not-u128, bit-or-i128, bit-or-u128, bit-xor-i128, bit-xor-u128, checked-add-i128, checked-add-u128, checked-div-i128, checked-div-u128, checked-f32-to-i128, checked-f32-to-u128, checked-f64-to-i128, checked-f64-to-u128, checked-i128-to-i128, checked-i128-to-i16, checked-i128-to-i32, checked-i128-to-i64, checked-i128-to-i8, checked-i128-to-isize, checked-i128-to-u128, checked-i128-to-u16, checked-i128-to-u32, checked-i128-to-u64, checked-i128-to-u8, checked-i128-to-usize, checked-i16-to-i128, checked-i16-to-u128, checked-i32-to-i128, checked-i32-to-u128, checked-i64-to-i128, checked-i64-to-u128, checked-i8-to-i128, checked-i8-to-u128, checked-isize-to-i128, checked-isize-to-u128, checked-mul-i128, checked-mul-u128, checked-neg-i128, checked-neg-u128, checked-rem-i128, checked-rem-u128, checked-shl-i128, checked-shl-u128, checked-shr-i128, checked-shr-u128, checked-sub-i128, checked-sub-u128, checked-u128-to-i128, checked-u128-to-i16, checked-u128-to-i32, checked-u128-to-i64, checked-u128-to-i8, checked-u128-to-isize, checked-u128-to-u128, checked-u128-to-u16, checked-u128-to-u32, checked-u128-to-u64, checked-u128-to-u8, checked-u128-to-usize, checked-u16-to-i128, checked-u16-to-u128, checked-u32-to-i128, checked-u32-to-u128, checked-u64-to-i128, checked-u64-to-u128, checked-u8-to-i128, checked-u8-to-u128, checked-usize-to-i128, checked-usize-to-u128, count-ones-i128, count-ones-u128, eq-i128, eq-u128, ge-i128, ge-u128, gt-i128, gt-u128, i128-to-f32, i128-to-f64, i128-to-i128, i16-to-i128, i32-to-i128, i64-to-i128, i8-to-i128, isize-to-i128, le-i128, le-u128, leading-zeros-i128, leading-zeros-u128, lt-i128, lt-u128, max-bound-i128, max-bound-u128, min-bound-i128, min-bound-u128, ne-i128, ne-u128, reverse-bits-i128, reverse-bits-u128, rotate-left-i128, rotate-left-u128, rotate-right-i128, rotate-right-u128, saturating-add-i128, saturating-add-u128, saturating-f32-to-i128, saturating-f32-to-u128, saturating-f64-to-i128, saturating-f64-to-u128, saturating-i128-to-i128, saturating-i128-to-i16, saturating-i128-to-i32, saturating-i128-to-i64, saturating-i128-to-i8, saturating-i128-to-isize, saturating-i128-to-u128, saturating-i128-to-u16, saturating-i128-to-u32, saturating-i128-to-u64, saturating-i128-to-u8, saturating-i128-to-usize, saturating-i16-to-i128, saturating-i16-to-u128, saturating-i32-to-i128, saturating-i32-to-u128, saturating-i64-to-i128, saturating-i64-to-u128, saturating-i8-to-i128, saturating-i8-to-u128, saturating-isize-to-i128, saturating-isize-to-u128, saturating-mul-i128, saturating-mul-u128, saturating-neg-i128, saturating-neg-u128, saturating-sub-i128, saturating-sub-u128, saturating-u128-to-i128, saturating-u128-to-i16, saturating-u128-to-i32, saturating-u128-to-i64, saturating-u128-to-i8, saturating-u128-to-isize, saturating-u128-to-u128, saturating-u128-to-u16, saturating-u128-to-u32, saturating-u128-to-u64, saturating-u128-to-u8, saturating-u128-to-usize, saturating-u16-to-i128, saturating-u16-to-u128, saturating-u32-to-i128, saturating-u32-to-u128, saturating-u64-to-i128, saturating-u64-to-u128, saturating-u8-to-i128, saturating-u8-to-u128, saturating-usize-to-i128, saturating-usize-to-u128, swap-bytes-i128, swap-bytes-u128, trailing-zeros-i128, trailing-zeros-u128, u128-to-f32, u128-to-f64, u128-to-u128, u16-to-i128, u16-to-u128, u32-to-i128, u32-to-u128, u64-to-i128, u64-to-u128, u8-to-i128, u8-to-u128, usize-to-i128, usize-to-u128, wrapping-add-i128, wrapping-add-u128, wrapping-i128-to-i128, wrapping-i128-to-i16, wrapping-i128-to-i32, wrapping-i128-to-i64, wrapping-i128-to-i8, wrapping-i128-to-isize, wrapping-i128-to-u128, wrapping-i128-to-u16, wrapping-i128-to-u32, wrapping-i128-to-u64, wrapping-i128-to-u8, wrapping-i128-to-usize, wrapping-i16-to-i128, wrapping-i16-to-u128, wrapping-i32-to-i128, wrapping-i32-to-u128, wrapping-i64-to-i128, wrapping-i64-to-u128, wrapping-i8-to-i128, wrapping-i8-to-u128, wrapping-isize-to-i128, wrapping-isize-to-u128, wrapping-mul-i128, wrapping-mul-u128, wrapping-neg-i128, wrapping-neg-u128, wrapping-shl-i128, wrapping-shl-u128, wrapping-shr-i128, wrapping-shr-u128, wrapping-sub-i128, wrapping-sub-u128, wrapping-u128-to-i128, wrapping-u128-to-i16, wrapping-u128-to-i32, wrapping-u128-to-i64, wrapping-u128-to-i8, wrapping-u128-to-isize, wrapping-u128-to-u128, wrapping-u128-to-u16, wrapping-u128-to-u32, wrapping-u128-to-u64, wrapping-u128-to-u8, wrapping-u128-to-usize, wrapping-u16-to-i128, wrapping-u16-to-u128, wrapping-u32-to-i128, wrapping-u32-to-u128, wrapping-u64-to-i128, wrapping-u64-to-u128, wrapping-u8-to-i128, wrapping-u8-to-u128, wrapping-usize-to-i128, wrapping-usize-to-u128
+  export bit-and-i128, bit-and-u128, bit-not-i128, bit-not-u128, bit-or-i128, bit-or-u128, bit-xor-i128, bit-xor-u128, checked-add-i128, checked-add-u128, checked-div-i128, checked-div-u128, checked-f32-to-i128, checked-f32-to-u128, checked-f64-to-i128, checked-f64-to-u128, checked-i128-to-i128, checked-i128-to-i16, checked-i128-to-i32, checked-i128-to-i64, checked-i128-to-i8, checked-i128-to-isize, checked-i128-to-u128, checked-i128-to-u16, checked-i128-to-u32, checked-i128-to-u64, checked-i128-to-u8, checked-i128-to-usize, checked-i16-to-i128, checked-i16-to-u128, checked-i32-to-i128, checked-i32-to-u128, checked-i64-to-i128, checked-i64-to-u128, checked-i8-to-i128, checked-i8-to-u128, checked-int-to-i128, checked-int-to-u128, checked-isize-to-i128, checked-isize-to-u128, checked-mul-i128, checked-mul-u128, checked-nat-to-i128, checked-nat-to-u128, checked-neg-i128, checked-neg-u128, checked-rem-i128, checked-rem-u128, checked-shl-i128, checked-shl-u128, checked-shr-i128, checked-shr-u128, checked-sub-i128, checked-sub-u128, checked-u128-to-i128, checked-u128-to-i16, checked-u128-to-i32, checked-u128-to-i64, checked-u128-to-i8, checked-u128-to-isize, checked-u128-to-u128, checked-u128-to-u16, checked-u128-to-u32, checked-u128-to-u64, checked-u128-to-u8, checked-u128-to-usize, checked-u16-to-i128, checked-u16-to-u128, checked-u32-to-i128, checked-u32-to-u128, checked-u64-to-i128, checked-u64-to-u128, checked-u8-to-i128, checked-u8-to-u128, checked-usize-to-i128, checked-usize-to-u128, count-ones-i128, count-ones-u128, eq-i128, eq-u128, ge-i128, ge-u128, gt-i128, gt-u128, i128-to-f32, i128-to-f64, i128-to-i128, i16-to-i128, i32-to-i128, i64-to-i128, i8-to-i128, int-from-i128, int-from-u128, int-to-i128, isize-to-i128, le-i128, le-u128, leading-zeros-i128, leading-zeros-u128, lt-i128, lt-u128, max-bound-i128, max-bound-u128, min-bound-i128, min-bound-u128, nat-from-u128, nat-to-u128, ne-i128, ne-u128, reverse-bits-i128, reverse-bits-u128, rotate-left-i128, rotate-left-u128, rotate-right-i128, rotate-right-u128, saturating-add-i128, saturating-add-u128, saturating-f32-to-i128, saturating-f32-to-u128, saturating-f64-to-i128, saturating-f64-to-u128, saturating-i128-to-i128, saturating-i128-to-i16, saturating-i128-to-i32, saturating-i128-to-i64, saturating-i128-to-i8, saturating-i128-to-isize, saturating-i128-to-u128, saturating-i128-to-u16, saturating-i128-to-u32, saturating-i128-to-u64, saturating-i128-to-u8, saturating-i128-to-usize, saturating-i16-to-i128, saturating-i16-to-u128, saturating-i32-to-i128, saturating-i32-to-u128, saturating-i64-to-i128, saturating-i64-to-u128, saturating-i8-to-i128, saturating-i8-to-u128, saturating-isize-to-i128, saturating-isize-to-u128, saturating-mul-i128, saturating-mul-u128, saturating-neg-i128, saturating-neg-u128, saturating-sub-i128, saturating-sub-u128, saturating-u128-to-i128, saturating-u128-to-i16, saturating-u128-to-i32, saturating-u128-to-i64, saturating-u128-to-i8, saturating-u128-to-isize, saturating-u128-to-u128, saturating-u128-to-u16, saturating-u128-to-u32, saturating-u128-to-u64, saturating-u128-to-u8, saturating-u128-to-usize, saturating-u16-to-i128, saturating-u16-to-u128, saturating-u32-to-i128, saturating-u32-to-u128, saturating-u64-to-i128, saturating-u64-to-u128, saturating-u8-to-i128, saturating-u8-to-u128, saturating-usize-to-i128, saturating-usize-to-u128, swap-bytes-i128, swap-bytes-u128, trailing-zeros-i128, trailing-zeros-u128, u128-to-f32, u128-to-f64, u128-to-u128, u16-to-i128, u16-to-u128, u32-to-i128, u32-to-u128, u64-to-i128, u64-to-u128, u8-to-i128, u8-to-u128, usize-to-i128, usize-to-u128, wrapping-add-i128, wrapping-add-u128, wrapping-i128-to-i128, wrapping-i128-to-i16, wrapping-i128-to-i32, wrapping-i128-to-i64, wrapping-i128-to-i8, wrapping-i128-to-isize, wrapping-i128-to-u128, wrapping-i128-to-u16, wrapping-i128-to-u32, wrapping-i128-to-u64, wrapping-i128-to-u8, wrapping-i128-to-usize, wrapping-i16-to-i128, wrapping-i16-to-u128, wrapping-i32-to-i128, wrapping-i32-to-u128, wrapping-i64-to-i128, wrapping-i64-to-u128, wrapping-i8-to-i128, wrapping-i8-to-u128, wrapping-isize-to-i128, wrapping-isize-to-u128, wrapping-mul-i128, wrapping-mul-u128, wrapping-neg-i128, wrapping-neg-u128, wrapping-shl-i128, wrapping-shl-u128, wrapping-shr-i128, wrapping-shr-u128, wrapping-sub-i128, wrapping-sub-u128, wrapping-u128-to-i128, wrapping-u128-to-i16, wrapping-u128-to-i32, wrapping-u128-to-i64, wrapping-u128-to-i8, wrapping-u128-to-isize, wrapping-u128-to-u128, wrapping-u128-to-u16, wrapping-u128-to-u32, wrapping-u128-to-u64, wrapping-u128-to-u8, wrapping-u128-to-usize, wrapping-u16-to-i128, wrapping-u16-to-u128, wrapping-u32-to-i128, wrapping-u32-to-u128, wrapping-u64-to-i128, wrapping-u64-to-u128, wrapping-u8-to-i128, wrapping-u8-to-u128, wrapping-usize-to-i128, wrapping-usize-to-u128
 
   -- I128 (128 bits).
   foreign import ccall "cinch.prim.minBoundI128" min-bound-i128 :: I128
@@ -278,6 +281,42 @@ module Data.Wide where
   foreign import ccall "cinch.prim.saturatingF64ToI128" saturating-f64-to-i128 :: F64 -> I128
   foreign import ccall "cinch.prim.checkedF64ToU128" checked-f64-to-u128 :: F64 -> Option U128
   foreign import ccall "cinch.prim.saturatingF64ToU128" saturating-f64-to-u128 :: F64 -> U128
+
+  -- The mathematical types. Every `I128` is an `Int` and every `U128` a
+  -- `Nat`, keeping the value; the other direction states the range it
+  -- needs (a guard supplies it), and the `checked` forms answer `None`
+  -- outside it (primitive types specification section 7). The `I128`
+  -- pair keeps the value as a refinement, as `Data.Int`'s `I64` pair does.
+  -- A wide scalar has no solver sort (its range is past the solver's
+  -- `i128` arithmetic), so no bound follows from its type: a guard, or a
+  -- `checked` form, supplies `int-to-i128`'s range. The runtime carries
+  -- the 128-bit value across with the C ABI's `__int128`.
+  foreign import ccall "cinch.runtime.intFromI128" int-from-i128 :: (x :: I128) -> refined (r == x) Int
+  foreign import ccall "cinch.runtime.intToI128" int-to-i128 :: using (-170141183460469231731687303715884105728 <= x, x <= 170141183460469231731687303715884105727) => (x :: Int) -> refined (r == x) I128
+  foreign import ccall "cinch.runtime.natFromU128" nat-from-u128 :: U128 -> Nat
+  foreign import ccall "cinch.runtime.natToU128" nat-to-u128 :: using (n <= 340282366920938463463374607431768211455) => (n :: Nat) -> U128
+
+  checked-int-to-i128 :: Int -> Option I128
+  checked-int-to-i128 x = if -170141183460469231731687303715884105728 <= x && x <= 170141183460469231731687303715884105727 then Some (int-to-i128 x) else None
+
+  checked-nat-to-u128 :: Nat -> Option U128
+  checked-nat-to-u128 n = if n <= 340282366920938463463374607431768211455 then Some (nat-to-u128 n) else None
+
+  int-from-u128 :: U128 -> Int
+  int-from-u128 x = nat-to-int (nat-from-u128 x)
+
+  checked-int-to-u128 :: Int -> Option U128
+  checked-int-to-u128 x = if 0 <= x then checked-nat-to-u128 (nat-from-int x) else None
+
+  checked-nat-to-i128 :: Nat -> Option I128
+  checked-nat-to-i128 n = checked-int-to-i128 (nat-to-int n)
+
+  -- `Show` is the decimal of the value, through `Int`.
+  implicit instance Show_I128 :: Show I128 where
+    show x = int-to-string (int-from-i128 x)
+
+  implicit instance Show_U128 :: Show U128 where
+    show x = nat-to-string (nat-from-u128 x)
 
   -- The order instances: signed order on `I128`, unsigned on `U128`
   -- (primitive types specification section 8).

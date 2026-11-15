@@ -317,6 +317,10 @@ pub enum NatOp {
     FromI64,
     /// `natToI64`: value as a machine integer; the caller proves it fits.
     ToI64,
+    /// `natFromU128`: a `U128` as a `Nat` word (design/wide-scalars.md).
+    FromU128,
+    /// `natToU128`: value as a `U128`; the caller proves it fits.
+    ToU128,
 }
 
 impl NatOp {
@@ -330,6 +334,8 @@ impl NatOp {
             NatOp::Cmp => "Cmp",
             NatOp::FromI64 => "FromI64",
             NatOp::ToI64 => "ToI64",
+            NatOp::FromU128 => "FromU128",
+            NatOp::ToU128 => "ToU128",
         }
     }
 
@@ -344,6 +350,8 @@ impl NatOp {
             NatOp::Cmp => "cinch_nat_cmp",
             NatOp::FromI64 => "cinch_nat_from_i64",
             NatOp::ToI64 => "cinch_nat_to_i64",
+            NatOp::FromU128 => "cinch_nat_from_u128",
+            NatOp::ToU128 => "cinch_nat_to_u128",
         }
     }
 }
@@ -372,6 +380,10 @@ pub enum IntOp {
     /// (the caller proves `0 <= x`; a negative one is a compiler-bug
     /// trap).
     ToNat,
+    /// `intFromI128`: an `I128` as an `Int` word (design/wide-scalars.md).
+    FromI128,
+    /// `intToI128`: value as an `I128`; the caller proves it fits.
+    ToI128,
 }
 
 impl IntOp {
@@ -388,6 +400,8 @@ impl IntOp {
             IntOp::ToI64 => "ToI64",
             IntOp::FromNat => "FromNat",
             IntOp::ToNat => "ToNat",
+            IntOp::FromI128 => "FromI128",
+            IntOp::ToI128 => "ToI128",
         }
     }
 
@@ -405,6 +419,8 @@ impl IntOp {
             IntOp::ToI64 => "cinch_int_to_i64",
             IntOp::FromNat => "cinch_int_from_nat",
             IntOp::ToNat => "cinch_int_to_nat",
+            IntOp::FromI128 => "cinch_int_from_i128",
+            IntOp::ToI128 => "cinch_int_to_i128",
         }
     }
 }
@@ -1165,6 +1181,8 @@ impl PrimOp {
                 "natCmp" => Nat(NatOp::Cmp),
                 "natFromI64" => Nat(NatOp::FromI64),
                 "natToI64" => Nat(NatOp::ToI64),
+                "natFromU128" => Nat(NatOp::FromU128),
+                "natToU128" => Nat(NatOp::ToU128),
                 "intAdd" => Int(IntOp::Add),
                 "intSub" => Int(IntOp::Sub),
                 "intMul" => Int(IntOp::Mul),
@@ -1174,6 +1192,8 @@ impl PrimOp {
                 "intCmp" => Int(IntOp::Cmp),
                 "intFromI64" => Int(IntOp::FromI64),
                 "intToI64" => Int(IntOp::ToI64),
+                "intFromI128" => Int(IntOp::FromI128),
+                "intToI128" => Int(IntOp::ToI128),
                 "intFromNat" => Int(IntOp::FromNat),
                 "intToNat" => Int(IntOp::ToNat),
                 "bytesNew" => Bytes(BytesOp::New),
@@ -1340,8 +1360,8 @@ impl PrimOp {
             Array { op, packed, .. } => op.sig(packed).0.len(),
             Stm { op, .. } => op.sig().0.len(),
             Bound { .. } => 0,
-            Nat(NatOp::FromI64 | NatOp::ToI64)
-            | Int(IntOp::FromI64 | IntOp::ToI64 | IntOp::Neg | IntOp::FromNat | IntOp::ToNat)
+            Nat(NatOp::FromI64 | NatOp::ToI64 | NatOp::FromU128 | NatOp::ToU128)
+            | Int(IntOp::FromI64 | IntOp::ToI64 | IntOp::Neg | IntOp::FromNat | IntOp::ToNat | IntOp::FromI128 | IntOp::ToI128)
             | Bytes(BytesOp::New | BytesOp::Len | BytesOp::Data)
             | Utf8(Utf8Op::Validate | Utf8Op::CountChars | Utf8Op::Encode)
             | Text(
@@ -1411,6 +1431,8 @@ impl PrimOp {
             Nat(NatOp::Cmp) => (vec![Ty::Nat, Ty::Nat], i64t),
             Nat(NatOp::FromI64) => (vec![i64t], Ty::Nat),
             Nat(NatOp::ToI64) => (vec![Ty::Nat], i64t),
+            Nat(NatOp::FromU128) => (vec![prim(Scalar::U128)], Ty::Nat),
+            Nat(NatOp::ToU128) => (vec![Ty::Nat], prim(Scalar::U128)),
             Int(IntOp::Add | IntOp::Sub | IntOp::Mul | IntOp::Div | IntOp::Rem) => {
                 (vec![Ty::Int, Ty::Int], Ty::Int)
             }
@@ -1420,6 +1442,8 @@ impl PrimOp {
             Int(IntOp::ToI64) => (vec![Ty::Int], i64t),
             Int(IntOp::FromNat) => (vec![Ty::Nat], Ty::Int),
             Int(IntOp::ToNat) => (vec![Ty::Int], Ty::Nat),
+            Int(IntOp::FromI128) => (vec![prim(Scalar::I128)], Ty::Int),
+            Int(IntOp::ToI128) => (vec![Ty::Int], prim(Scalar::I128)),
             Bytes(BytesOp::New) => (vec![Ty::Nat], Ty::Bytes),
             Bytes(BytesOp::Len) => (vec![Ty::Bytes], Ty::Nat),
             Bytes(BytesOp::Get) => (vec![Ty::Bytes, Ty::Nat], Ty::Nat),
@@ -5811,6 +5835,7 @@ fn prim_touches_wide(op: PrimOp) -> bool {
         | TotalOrder { ty } => ty.is_wide(),
         Conv { from, to, .. } => from.is_wide() || to.is_wide(),
         Array { packed, .. } => packed.is_some_and(Scalar::is_wide),
+        Nat(NatOp::FromU128 | NatOp::ToU128) | Int(IntOp::FromI128 | IntOp::ToI128) => true,
         _ => false,
     }
 }
@@ -6100,6 +6125,7 @@ fn fold_prim(op: PrimOp, args: &[Core], ctors: &FoldCtors) -> Option<Core> {
         PrimOp::Nat(nop) => {
             let bs = bigs?;
             match nop {
+                NatOp::FromU128 | NatOp::ToU128 => unreachable!("a wide conversion is not folded (`prim_touches_wide`)"),
                 NatOp::Add => {
                     let v = bs[0].1.add(&bs[1].1);
                     Some(Core::ConstBig { nat: true, digits: v.to_dec() })
@@ -6141,6 +6167,7 @@ fn fold_prim(op: PrimOp, args: &[Core], ctors: &FoldCtors) -> Option<Core> {
         PrimOp::Int(iop) => {
             let bs = bigs?;
             match iop {
+                IntOp::FromI128 | IntOp::ToI128 => unreachable!("a wide conversion is not folded (`prim_touches_wide`)"),
                 IntOp::Add => {
                     let v = bs[0].1.add(&bs[1].1);
                     Some(Core::ConstBig { nat: false, digits: v.to_dec() })

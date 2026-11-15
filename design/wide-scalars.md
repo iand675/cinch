@@ -119,7 +119,11 @@ the wide types are parsed into a sign and a `u128` magnitude, then
 checked against the type's range, which fits that pair exactly.
 
 The refinement solver's integer sorts are `IntSort::Bounded(i128, i128)`,
-which cannot state `U128`'s range. The bounds are therefore declared
+which cannot state `U128`'s range, and whose bounds the difference
+constraints negate and sum, which `I128`'s own (`i128::MIN`) overflows. So
+neither wide scalar has a sort: the solver draws no facts about them,
+which only ever proves less, and a guard or a `checked` form supplies a
+range (`int-to-i128`'s precondition). The bounds are therefore declared
 without refinements (`max-bound-u128 :: U128`, not `refined (r == ...)`)
 until the solver carries a wider sort. Section 2 of the specification
 does not require the refinements; the narrow types' bounds have them
