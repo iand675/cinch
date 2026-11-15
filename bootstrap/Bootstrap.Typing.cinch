@@ -182,7 +182,7 @@ module Bootstrap.Typing where
     CPAs sp ty id name inner -> case add-local-scheme id (mono ty) scope of Some bound -> pattern-scope context bound expected inner; None -> None
     CPConstructor sp ty name actuals constructor fields -> if wf context scope constructor && actual-types context scope actuals then constructor-fields context scope expected constructor fields else None
     CPTuple sp ty fields -> case tuple-fields ty of Some types -> tuple-patterns context scope types fields; None -> None
-    CPInt sp ty text -> if integer-carrier ty then Some scope else None
+    CPInt sp ty text -> if integer-carrier ty || wide-carrier ty then Some scope else None
     CPString sp ty text -> if string-type ty then Some scope else None
     CPChar sp ty text -> if type-is "Char" ty && char-value text then Some scope else None
     other -> None
@@ -244,7 +244,7 @@ module Bootstrap.Typing where
   mathematical :: UType -> Bool
   mathematical ty = type-is "Int" ty || type-is "Nat" ty
   comparable :: UType -> Bool
-  comparable ty = integer-carrier ty || type-is "Bool" ty || type-is "Unit" ty || type-is "Char" ty || string-type ty
+  comparable ty = integer-carrier ty || wide-carrier ty || type-is "Bool" ty || type-is "Unit" ty || type-is "Char" ty || string-type ty
   primitive-types :: UType -> String -> CoreTerm -> Bool
   primitive-types ty name arguments = case arguments of
     CArgumentsEnd sp -> type-is "Bool" ty && has name ["decision-true", "decision-false"]
