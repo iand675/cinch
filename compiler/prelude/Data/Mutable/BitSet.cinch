@@ -1,0 +1,248 @@
+-- Data.Mutable.BitSet: the dynamic bitset (`boost::dynamic_bitset`,
+-- C++ `std::vector<bool>` done as words).
+--
+-- A `BitSet r` stores bit i in bit i mod 64 of word i / 64 of one raw slot
+-- array, so a test or a set is one load, one mask and (for a set) one
+-- store, and the whole-set operations run a word at a time: `bitset-count`
+-- is a popcount per word, the unions and intersections are one `or`/`and`
+-- per word, and `bitset-next-set` skips 64 clear bits per step with a
+-- trailing-zero count.
+--
+-- The set grows on demand: setting a bit past the current words doubles
+-- the word count until it fits (a move of raw words). Reading a bit past
+-- the words is just `False`, so there is no "length" a reader can step
+-- off; `bitset-capacity` reports the bits currently backed.
+--
+-- The trusted core is the private `cinch.runtime.slots*` imports (the
+-- compiler's `slots.rs`); none of them leaves the module. Raw words have
+-- no holes: every word of the array is written (zero) when it is made.
+module Data.Mutable.BitSet where
+
+  import Data.Machine
+  import Data.Option
+  import Data.Nat
+
+  export BitSet, bitset-new, bitset-capacity, bitset-test, bitset-set, bitset-clear, bitset-toggle
+  export bitset-count, bitset-is-empty, bitset-next-set, bitset-to-list, bitset-clear-all
+  export bitset-union-with, bitset-intersect-with, bitset-difference-with, bitset-from-list
+
+  foreign import ccall "cinch.runtime.slotsNew" slots-new :: forall a. U64 -> Array a
+  foreign import ccall "cinch.runtime.slotsLen" slots-len :: forall a. Array a -> U64
+  foreign import ccall "cinch.runtime.slotsRead" slots-read :: forall a. Array a -> U64 -> a
+  foreign import ccall "cinch.runtime.slotsWrite" slots-write :: forall a. Array a -> U64 -> a -> Unit
+  foreign import ccall "cinch.runtime.slotsMove" slots-move :: forall a. Array a -> U64 -> Array a -> U64 -> U64 -> Unit
+  foreign import ccall "cinch.runtime.slotsClear" slots-clear :: forall a. Array a -> U64 -> U64 -> Unit
+  foreign import ccall "cinch.runtime.slotsFoldNat" fold-nat :: Nat -> U64
+
+  -- One cell holding the current words.
+  data BitSet r where
+    MkBitSet :: Array (Array U64) -> BitSet r
+
+  inc :: U64 -> U64
+  inc w = wrapping-add-u64 w 1
+
+  to-nat :: U64 -> Nat
+  to-nat w = nat-from-i64 (mask-i64 (wrapping-u64-to-i64 w) 9223372036854775807)
+
+  word-of :: U64 -> U64
+  word-of i = wrapping-shr-u64 i 6
+
+  bit-of :: U64 -> U64
+  bit-of i = wrapping-shl-u64 1 (wrapping-u64-to-u32 (bit-and-u64 i 63))
+
+  words-of :: forall r. BitSet r -> Array U64
+  words-of b = case b of
+    MkBitSet c -> slots-read c 0
+
+  -- Zeroed words: raw slots are written when the array is made.
+  zeroed :: U64 -> Array U64
+  zeroed n =
+    let w = (slots-new n :: Array U64) in
+    let z = slots-clear w 0 n in
+    w
+
+  -- The words, grown first when word `need` is past them.
+  room-for :: forall r. BitSet r -> U64 -> Array U64
+  room-for b need = case b of
+    MkBitSet c ->
+      let w = slots-read c 0 in
+      let n = slots-len w in
+      if lt-u64 need n then w
+      else
+        let fresh = zeroed (grown n (inc need)) in
+        let moved = slots-move fresh 0 w 0 n in
+        let installed = slots-write c 0 fresh in
+        fresh
+
+  grown :: U64 -> U64 -> U64
+  grown n need =
+    let doubled = if lt-u64 n 1 then (1 :: U64) else wrapping-add-u64 n n in
+    if lt-u64 doubled need then grown doubled need else doubled
+
+  -- An empty set with `n` bits backed before its first growth.
+  bitset-new :: forall r. Nat ->{Mut r} BitSet r
+  bitset-new n =
+    let c = slots-new 1 in
+    let installed = slots-write c 0 (zeroed (wrapping-shr-u64 (wrapping-add-u64 (fold-nat n) 63) 6)) in
+    MkBitSet c
+
+  bitset-capacity :: forall r. BitSet r ->{Mut r} Nat
+  bitset-capacity b =
+    let w = words-of b in
+    to-nat (wrapping-shl-u64 (slots-len w) 6)
+
+  bitset-test :: forall r. BitSet r -> Nat ->{Mut r} Bool
+  bitset-test b i =
+    let w = words-of b in
+    let ix = fold-nat i in
+    let wi = word-of ix in
+    if i < to-nat (wrapping-shl-u64 (slots-len w) 6) then ne-u64 (bit-and-u64 (slots-read w wi) (bit-of ix)) 0 else False
+
+  bitset-set :: forall r. BitSet r -> Nat ->{Mut r} Unit
+  bitset-set b i =
+    let ix = fold-nat i in
+    let wi = word-of ix in
+    let w = room-for b wi in
+    let written = slots-write w wi (bit-or-u64 (slots-read w wi) (bit-of ix)) in
+    written
+
+  bitset-clear :: forall r. BitSet r -> Nat ->{Mut r} Unit
+  bitset-clear b i =
+    let w = words-of b in
+    let ix = fold-nat i in
+    let wi = word-of ix in
+    if i < to-nat (wrapping-shl-u64 (slots-len w) 6) then
+      let written = slots-write w wi (bit-and-u64 (slots-read w wi) (bit-not-u64 (bit-of ix))) in
+      written
+    else ()
+
+  bitset-toggle :: forall r. BitSet r -> Nat ->{Mut r} Unit
+  bitset-toggle b i =
+    let ix = fold-nat i in
+    let wi = word-of ix in
+    let w = room-for b wi in
+    let written = slots-write w wi (bit-xor-u64 (slots-read w wi) (bit-of ix)) in
+    written
+
+  -- The number of set bits: one popcount per word.
+  bitset-count :: forall r. BitSet r ->{Mut r} Nat
+  bitset-count b =
+    let w = words-of b in
+    to-nat (count-from w 0 (slots-len w) 0)
+
+  count-from :: Array U64 -> U64 -> U64 -> U64 -> U64
+  count-from w i n acc =
+    if lt-u64 i n then count-from w (inc i) n (wrapping-add-u64 acc (u32-to-u64 (count-ones-u64 (slots-read w i)))) else acc
+
+  bitset-is-empty :: forall r. BitSet r ->{Mut r} Bool
+  bitset-is-empty b =
+    let w = words-of b in
+    empty-from w 0 (slots-len w)
+
+  empty-from :: Array U64 -> U64 -> U64 -> Bool
+  empty-from w i n = if lt-u64 i n then (if eq-u64 (slots-read w i) 0 then empty-from w (inc i) n else False) else True
+
+  -- The least set bit at or above `i`.
+  bitset-next-set :: forall r. BitSet r -> Nat ->{Mut r} Option Nat
+  bitset-next-set b i =
+    let w = words-of b in
+    let n = slots-len w in
+    if i < to-nat (wrapping-shl-u64 n 6) then
+      let ix = fold-nat i in
+      let wi = word-of ix in
+      let first = bit-and-u64 (slots-read w wi) (bit-not-u64 (wrapping-sub-u64 (bit-of ix) 1)) in
+      next-from w wi first n
+    else None
+
+  next-from :: Array U64 -> U64 -> U64 -> U64 -> Option Nat
+  next-from w wi bits n =
+    if ne-u64 bits 0 then Some (to-nat (wrapping-add-u64 (wrapping-shl-u64 wi 6) (u32-to-u64 (trailing-zeros-u64 bits))))
+    else
+      let nw = inc wi in
+      if lt-u64 nw n then next-from w nw (slots-read w nw) n else None
+
+  -- The set bits, ascending.
+  bitset-to-list :: forall r. BitSet r ->{Mut r} List Nat
+  bitset-to-list b =
+    let w = words-of b in
+    list-down w (slots-len w) Nil
+
+  list-down :: Array U64 -> U64 -> List Nat -> List Nat
+  list-down w i acc =
+    if eq-u64 i 0 then acc
+    else
+      let wi = wrapping-sub-u64 i 1 in
+      list-down w wi (bits-down wi (slots-read w wi) acc)
+
+  -- The set bits of one word, highest first onto acc.
+  bits-down :: U64 -> U64 -> List Nat -> List Nat
+  bits-down wi bits acc =
+    if eq-u64 bits 0 then acc
+    else
+      let top = wrapping-sub-u64 63 (u32-to-u64 (leading-zeros-u64 bits)) in
+      bits-down wi (bit-and-u64 bits (bit-not-u64 (wrapping-shl-u64 1 (wrapping-u64-to-u32 top)))) (Cons (to-nat (wrapping-add-u64 (wrapping-shl-u64 wi 6) top)) acc)
+
+  bitset-clear-all :: forall r. BitSet r ->{Mut r} Unit
+  bitset-clear-all b =
+    let w = words-of b in
+    let cleared = slots-clear w 0 (slots-len w) in
+    cleared
+
+  bitset-from-list :: forall r. List Nat ->{Mut r} BitSet r
+  bitset-from-list xs =
+    let b = bitset-new 64 in
+    let filled = set-all b xs in
+    b
+
+  set-all :: forall r. BitSet r -> List Nat ->{Mut r} Unit
+  set-all b xs = case xs of
+    Nil -> ()
+    Cons x rest ->
+      let s = bitset-set b x in
+      set-all b rest
+
+  -- `a` becomes a | b (growing to b's words).
+  bitset-union-with :: forall r. BitSet r -> BitSet r ->{Mut r} Unit
+  bitset-union-with a b =
+    let wb = words-of b in
+    let nb = slots-len wb in
+    let wa = if eq-u64 nb 0 then words-of a else room-for a (wrapping-sub-u64 nb 1) in
+    combine-or wa wb 0 nb
+
+  combine-or :: Array U64 -> Array U64 -> U64 -> U64 -> Unit
+  combine-or wa wb i n =
+    if lt-u64 i n then
+      let written = slots-write wa i (bit-or-u64 (slots-read wa i) (slots-read wb i)) in
+      combine-or wa wb (inc i) n
+    else ()
+
+  -- `a` becomes a & b.
+  bitset-intersect-with :: forall r. BitSet r -> BitSet r ->{Mut r} Unit
+  bitset-intersect-with a b =
+    let wa = words-of a in
+    let wb = words-of b in
+    combine-and wa wb 0 (slots-len wa) (slots-len wb)
+
+  combine-and :: Array U64 -> Array U64 -> U64 -> U64 -> U64 -> Unit
+  combine-and wa wb i na nb =
+    if lt-u64 i na then
+      let other = if lt-u64 i nb then slots-read wb i else 0 in
+      let written = slots-write wa i (bit-and-u64 (slots-read wa i) other) in
+      combine-and wa wb (inc i) na nb
+    else ()
+
+  -- `a` becomes a & ~b.
+  bitset-difference-with :: forall r. BitSet r -> BitSet r ->{Mut r} Unit
+  bitset-difference-with a b =
+    let wa = words-of a in
+    let wb = words-of b in
+    let na = slots-len wa in
+    let nb = slots-len wb in
+    combine-andnot wa wb 0 (if lt-u64 na nb then na else nb)
+
+  combine-andnot :: Array U64 -> Array U64 -> U64 -> U64 -> Unit
+  combine-andnot wa wb i n =
+    if lt-u64 i n then
+      let written = slots-write wa i (bit-and-u64 (slots-read wa i) (bit-not-u64 (slots-read wb i))) in
+      combine-andnot wa wb (inc i) n
+    else ()

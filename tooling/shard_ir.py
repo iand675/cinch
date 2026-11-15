@@ -281,6 +281,60 @@ def group_of(name: str) -> str:
     return FALLBACK_GROUP
 
 
+def _skip_operand(text: str, at: int) -> int:
+    """The end of the type or constant starting at `at`: a bracketed group
+    (`<{ i64, i64 }>`, `{ ... }`, `[ ... ]`, `( ... )`, quoted symbols
+    skipped whole) or one word, with any parenthesised tail a constant
+    expression carries."""
+    while at < len(text) and text[at] == " ":
+        at += 1
+    opening = {"<": ">", "{": "}", "[": "]", "(": ")"}
+    if at < len(text) and text[at] in opening:
+        depth = 0
+        offset = at
+        while offset < len(text):
+            ch = text[offset]
+            if ch == '"':
+                # A quoted symbol may spell brackets (`@"Ord_Nat.<="`).
+                offset += 1
+                while offset < len(text) and text[offset] != '"':
+                    offset += 2 if text[offset] == "\\" else 1
+            elif ch in "<{[(":
+                depth += 1
+            elif ch in ">}])":
+                depth -= 1
+                if depth == 0:
+                    return offset + 1
+            offset += 1
+        raise ShardError(f"unbalanced function data: {text[at:at + 60]!r}")
+    end = at
+    while end < len(text) and text[end] not in " (":
+        end += 1
+    if end < len(text) and text[end] == "(":
+        return _skip_operand(text, end)
+    return end
+
+
+def _without_function_data(attrs: str) -> str:
+    """A define's trailing words without its `prefix`/`prologue` data.
+
+    Function data belongs to the definition: the declaration in another
+    shard names the same symbol, and keeping the data there would make it
+    reference symbols (an apply stub's `tailcc` twin) that shard neither
+    defines nor declares."""
+    words = attrs
+    for keyword in ("prefix", "prologue"):
+        while True:
+            found = re.search(rf"(?:^|\s){keyword}\s", words)
+            if found is None:
+                break
+            start = found.start()
+            after_type = _skip_operand(words, found.end())
+            after_value = _skip_operand(words, after_type)
+            words = (words[:start] + words[after_value:]).strip()
+    return re.sub(r"\s+", " ", words).strip()
+
+
 def declaration_for(define_text: str) -> str:
     """A `declare` with the same signature and attribute group as a `define`."""
     # The signature is the first line; the body follows it. The line ends
@@ -313,7 +367,7 @@ def declaration_for(define_text: str) -> str:
     if end is None:
         raise ShardError(f"define has an unbalanced parameter list: {define_text[:60]!r}")
     params = rest[1:end]
-    attrs = rest[end + 1:].strip()
+    attrs = _without_function_data(rest[end + 1:].strip())
     line = f"declare {' '.join(words)} {match.group(0)}({params})"
     if attrs:
         line += f" {attrs}"

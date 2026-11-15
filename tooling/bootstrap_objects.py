@@ -181,7 +181,7 @@ def provider(driver):
         metadata = driver.read_json(directory / "library.abi.json")
         if (metadata.get("schema") != 1 or metadata.get("runtime_abi") != lock["runtime_abi"]
                 or metadata.get("word_size") != 64 or metadata.get("endian") != "little"
-                or metadata.get("reclaim") is not True or metadata.get("escaped_descriptors") is not False):
+                or metadata.get("reclaim") is not True or metadata.get("self_describing") is not True):
             raise driver.BootstrapError("library object has an incompatible runtime/descriptor ABI")
         package = driver.read_json(snapshot / "compiler/prelude/cinch-base.cinchpkg")
         interfaces = admitted_interfaces(driver, metadata, package, directory)

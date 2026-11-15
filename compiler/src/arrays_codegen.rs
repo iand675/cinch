@@ -124,7 +124,9 @@ pub(super) fn emit(
                     vec![
                         arg(0),
                         arg(1),
-                        format!("i64 {}", reg.shape_desc(&classes, 0)),
+                        // The pair the zip builds per row, as a
+                        // description word the runtime allocates from.
+                        format!("i64 {}", super::description_word(reg.shape_desc(&classes, 0))),
                     ],
                 ),
                 _ => unreachable!(),

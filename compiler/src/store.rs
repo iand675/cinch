@@ -408,6 +408,7 @@ pub fn package_key_for(
     line(&mut text, "runtime_abi", &interface::RUNTIME_ABI_VERSION.to_string());
     line(&mut text, "language", interface::LANGUAGE_VERSION);
     line(&mut text, "compiler", env!("CARGO_PKG_VERSION"));
+    line(&mut text, "compiler_build", env!("CINCH_BUILD_ID"));
     line(&mut text, "profile", &profile_identity(profile));
     line(&mut text, "adapters", &format!("{adapters:?}"));
     for name in &pkg.order {
@@ -559,6 +560,15 @@ impl Store {
             }
             selected.push(iface);
         }
+        // The key names the compiler build and every input the artifacts
+        // are a function of, and an entry is only ever installed whole (one
+        // rename of a staged directory), so an entry whose manifest records
+        // this key and whose interfaces are all present is this compile's
+        // set: keeping it needs no rendering. Verifying contents is the
+        // loader's job (`Store::load`), as for any other fault.
+        if !rebuild && bodies.is_empty() && self.entry_present(pkg, &key, &selected) {
+            return Ok(Outcome::Verified(key));
+        }
         let expected = expected_records(&selected, bodies)?;
         let dir = self.entry_dir(pkg, &key);
         let manifest_path = dir.join(ENTRY_MANIFEST);
@@ -640,6 +650,24 @@ impl Store {
         } else {
             Outcome::Wrote(key)
         })
+    }
+
+    /// Whether the entry for `key` was installed (its manifest records the
+    /// key) and holds an interface for each of `modules`.
+    fn entry_present(&self, pkg: &Package, key: &str, modules: &[&Iface]) -> bool {
+        let dir = self.entry_dir(pkg, key);
+        let Ok(text) = std::fs::read_to_string(dir.join(ENTRY_MANIFEST)) else {
+            return false;
+        };
+        let recorded = parse_json(&text).ok().and_then(|doc| match doc {
+            JsonValue::Obj(fields) => match fields.get("key") {
+                Some(JsonValue::Str(k)) => Some(k.clone()),
+                _ => None,
+            },
+            _ => None,
+        });
+        recorded.as_deref() == Some(key)
+            && modules.iter().all(|iface| Kind::Interface.path_in(&dir, &iface.module).is_file())
     }
 
     /// Load one entry: the interfaces for every module, and the paths of

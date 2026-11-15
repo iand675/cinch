@@ -2606,6 +2606,7 @@ fn write_artifacts(
     opts: &DriverOptions,
     link_plan: &LinkPlan,
     write_optimisations: bool,
+    contract_hashes: &std::collections::BTreeMap<&str, String>,
 ) -> Result<()> {
     std::fs::create_dir_all(out_dir)
         .map_err(|e| Error::plain(format!("{}: {e}", out_dir.display())))?;
@@ -2642,7 +2643,10 @@ fn write_artifacts(
     }
     let mut modules: Vec<(&str, String)> = ifaces
         .iter()
-        .map(|i| (i.module.as_str(), i.iface_hash()))
+        .map(|i| {
+            let hash = contract_hashes.get(i.module.as_str()).cloned().unwrap_or_else(|| i.iface_hash());
+            (i.module.as_str(), hash)
+        })
         .collect();
     modules.sort();
     let mut prims: Vec<String> = Vec::new();
@@ -3002,6 +3006,7 @@ fn write_artifacts(
         ("contify", (opt.simplify.contified as u64).into()),
         ("known_closure_call", (opt.simplify.closure_calls as u64).into()),
         ("specialise_arguments", (opt.simplify.specialised as u64).into()),
+        ("specialise_dictionaries", (opt.simplify.dict_specialised as u64).into()),
         ("saturate_partial", (opt.simplify.saturate as u64).into()),
         ("case_of_case", (opt.simplify.case_of_case as u64).into()),
         ("joins", (opt.simplify.joins as u64).into()),
@@ -3923,6 +3928,17 @@ fn link_for(
             ),
             _ => String::new(),
         };
+        // An old clang fails on the IR's first newer attribute with a
+        // parse error that reads like corrupt IR; the version is asked for
+        // only now, so a working link never pays for the probe.
+        let version = match clang_major() {
+            Ok((name, Some(major))) if major < CLANG_MIN_MAJOR => format!(
+                "\n`{name}` reports clang {major}, and the emitted IR needs clang {CLANG_MIN_MAJOR} \
+                 or newer; CINCH_CLANG names the clang to use"
+            ),
+            _ => String::new(),
+        };
+        let hint = format!("{hint}{version}");
         return Err(Error::plain(format!(
             "{} failed to link {}{}{hint}",
             clang(),
@@ -3940,17 +3956,24 @@ fn link_for(
     Ok(())
 }
 
-/// The clang major version a freestanding link requires: the emitted IR
-/// carries `range(...)` attributes on the units whose result is known to
-/// be a small integer, and LLVM 20 is the first release that parses them.
-/// An older clang reports `expected type` on the first one, which reads
-/// like corrupt IR rather than an old assembler.
-pub const FREESTANDING_CLANG_MAJOR: u32 = 20;
+/// The oldest clang whose LLVM reads the IR cinch emits. The floor is set
+/// by `range(...)` return attributes on the units whose result is known to
+/// be a small integer, which LLVM 19 is the first release to parse: an
+/// older clang reports `expected type` on the first one, which reads like
+/// corrupt IR rather than an old assembler.
+///
+/// Every other attribute is spelled so the whole range from this floor to
+/// current LLVM reads it. A borrowed pointer is `nocapture`, not
+/// `captures(none)`: 19 rejects the newer spelling, 20 reads both, and 21
+/// onwards upgrades `nocapture` to `captures(none)` as it parses
+/// (`LLParser`'s `kw_nocapture` case), so the one spelling means the same
+/// fact on every version.
+pub const CLANG_MIN_MAJOR: u32 = 19;
 
-/// The clang a freestanding link assembles with, and the version it
+/// The clang the build assembles and links with, and the major version it
 /// reported. `CINCH_CLANG` still names the compiler; this only reads the
 /// version back so a refusal can name the compiler it found.
-pub fn freestanding_clang() -> Result<(String, Option<u32>)> {
+pub fn clang_major() -> Result<(String, Option<u32>)> {
     let clang = clang();
     let output = std::process::Command::new(&clang)
         .arg("-dM")
@@ -3960,7 +3983,7 @@ pub fn freestanding_clang() -> Result<(String, Option<u32>)> {
         .arg(if cfg!(windows) { "NUL" } else { "/dev/null" })
         .output()
         .map_err(|e| Error::plain(format!(
-            "target wasm32-unknown-unknown: assembling needs clang, and `{clang}` did not run: {e}; \
+            "assembling needs clang, and `{clang}` did not run: {e}; \
              CINCH_CLANG names the clang to use"
         )))?;
     let text = String::from_utf8_lossy(&output.stdout);
@@ -3994,14 +4017,14 @@ fn link_freestanding(
     triple: &str,
     target: &LinkTarget<'_>,
 ) -> Result<()> {
-    let (clang, major) = freestanding_clang()?;
+    let (clang, major) = clang_major()?;
     if let Some(major) = major {
-        if major < FREESTANDING_CLANG_MAJOR {
+        if major < CLANG_MIN_MAJOR {
             return Err(Error::plain(format!(
                 "target `{triple}`: `{clang}` reports clang {major}, and assembling the emitted \
-                 module needs clang {FREESTANDING_CLANG_MAJOR} or newer, because the IR carries \
+                 module needs clang {CLANG_MIN_MAJOR} or newer, because the IR carries \
                  `range(...)` attributes that older LLVM rejects as `expected type`; \
-                 CINCH_CLANG names a newer clang (Apple clang 21 and LLVM 20 both read them)"
+                 CINCH_CLANG names a newer clang"
             )));
         }
     }
@@ -4404,6 +4427,11 @@ pub struct DriverOptions {
     /// recorded modules are excluded from emitted IR and resolved from the
     /// object at link time.
     pub package_objects: Vec<PathBuf>,
+    /// Objects this build calls into but does not link (a package object's
+    /// already-built dependencies): only their published lent conventions
+    /// are read (`package_lent_modes`), and the object records the ones it
+    /// used so its final link can check them.
+    pub lent_objects: Vec<PathBuf>,
     /// `--rebuild`: rewrite the package-store entry for this compile's
     /// key even when the entry is intact and matches it, instead of
     /// leaving it alone. The compile path never fails over an entry's
@@ -4514,6 +4542,11 @@ pub struct DriverOptions {
     /// its percentage and the payload bytes the refused allocations carry
     /// (design/stack-allocation.md section 8).
     pub escape_report: bool,
+    /// `--no-reclaim`: build the leak-everything baseline, the same profile
+    /// `CINCH_RECLAIM=0` selects, as a command-line word. Nothing is
+    /// counted, so no ownership operation is emitted and every block the
+    /// program allocates stays live (design/reclamation.md).
+    pub no_reclaim: bool,
     /// The words the CLI forwards to the program `Mode::Run` executes:
     /// every argument after the entry file (`cinch run f.cinch a b`, or
     /// everything after `--` verbatim). They land on the built program's
@@ -4924,7 +4957,7 @@ usage:
   cinch core emit <file.cinch> [--stage=<name>] [--target <triple>] [-o <out.core>]
                      [--max-simplifier-iterations <n>] [--no-direct-dict-calls]
                      [--case-of-case] [--no-inline] [--no-contify] [--no-specialise-arguments] [--inline-model <threshold|benefit>] [--no-stack-alloc]
-                     [--stack-frame-limit <bytes>]
+                     [--stack-frame-limit <bytes>] [--no-reclaim]
   cinch core verify <file.core>
   cinch core diff <a.core> <b.core>
 
@@ -4999,6 +5032,7 @@ fn core_emit(args: &[String]) -> i32 {
             }
             "--case-of-case" => opts.case_of_case = true,
             "--no-stack-alloc" => opts.no_stack_alloc = true,
+            "--no-reclaim" => opts.no_reclaim = true,
             "--escape-report" => opts.escape_report = true,
             "--stack-frame-limit" => {
                 i += 1;
@@ -5196,6 +5230,13 @@ pub fn target_profile(opts: &DriverOptions) -> Result<crate::core::TargetProfile
         profile.os_version = Some(version.trim().to_string());
         profile.name = format!("{}-os{}", profile.name, profile.os_version.as_deref().unwrap_or("-"));
     }
+    // `--no-reclaim` is the command-line spelling of `CINCH_RECLAIM=0`: the
+    // same profile field, so `crate::rc` inserts nothing, code generation
+    // emits no ownership operation, and the artifact manifest records
+    // `reclaim: false` for a consumer to refuse (design/reclamation.md).
+    if opts.no_reclaim {
+        profile.reclaim = false;
+    }
     Ok(profile)
 }
 
@@ -5238,6 +5279,66 @@ pub fn driver_with_profile(
 
 pub(crate) fn package_execution_path(object: &Path) -> PathBuf {
     object.with_file_name("build").join("package.cinchif")
+}
+
+/// The lent conventions the package objects publish: each unit row with a
+/// `lent` vector (its worker only borrows those parameters) and the width
+/// of the worker that takes them (`lent_width`). A row without them is a
+/// unit whose symbol is owned, which is every unit of an older object.
+fn package_lent_modes(objects: &[PathBuf]) -> Result<std::collections::BTreeMap<String, (Vec<bool>, usize)>> {
+    let mut out = std::collections::BTreeMap::new();
+    for object in objects {
+        let abi = read_package_execution(object)?;
+        for unit in abi.get("units").and_then(serde_json::Value::as_array).into_iter().flatten() {
+            let (Some(symbol), Some(lent), Some(width)) = (
+                unit.get("symbol").and_then(serde_json::Value::as_str),
+                unit.get("lent").and_then(serde_json::Value::as_array),
+                unit.get("lent_width").and_then(serde_json::Value::as_u64),
+            ) else {
+                continue;
+            };
+            let modes: Option<Vec<bool>> = lent.iter().map(serde_json::Value::as_bool).collect();
+            let Some(modes) = modes else {
+                return Err(Error::plain(format!("{}: malformed lent modes for {symbol}", object.display())));
+            };
+            out.insert(symbol.to_string(), (modes, width as usize));
+        }
+    }
+    Ok(out)
+}
+
+/// Refuse a link whose objects disagree about a lent convention: every
+/// `lent_imports` row an object recorded (what its calls into another
+/// object assumed) must be exactly what the linked objects publish.
+/// Modes follow from bodies, so a dependency rebuilt from changed source
+/// can move them while its contract stays put; this is the check that
+/// turns that into "rebuild the dependent" rather than a count imbalance.
+fn check_lent_imports(
+    objects: &[PathBuf],
+    published: &std::collections::BTreeMap<String, (Vec<bool>, usize)>,
+) -> Result<()> {
+    for object in objects {
+        let abi = read_package_execution(object)?;
+        for row in abi.get("lent_imports").and_then(serde_json::Value::as_array).into_iter().flatten() {
+            let symbol = row.get("symbol").and_then(serde_json::Value::as_str).unwrap_or("");
+            let modes: Option<Vec<bool>> = row
+                .get("lent")
+                .and_then(serde_json::Value::as_array)
+                .and_then(|m| m.iter().map(serde_json::Value::as_bool).collect());
+            let width = row.get("lent_width").and_then(serde_json::Value::as_u64).map(|w| w as usize);
+            let agrees = match (modes, width, published.get(symbol)) {
+                (Some(m), Some(w), Some((pm, pw))) => &m == pm && w == *pw,
+                _ => false,
+            };
+            if !agrees {
+                return Err(Error::plain(format!(
+                    "{}: compiled against a lent convention for {symbol} that the linked objects do not publish; rebuild it against the current dependency objects",
+                    object.display()
+                )));
+            }
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn read_package_execution(path: &Path) -> Result<serde_json::Value> {
@@ -5596,7 +5697,10 @@ pub fn driver_with_profile_opts(
         &project.module_preludes,
     )?;
     // Metadata boundary checks (design note, section 3).
-    crate::interface::verify_chain(&ifaces).map_err(|e| Error::plain(e.to_string()))?;
+    // Each interface's contract hash, rendered once for this compile: the
+    // chain check and the artifacts written below both read it.
+    let contract_hashes = crate::interface::contract_hashes(&ifaces);
+    crate::interface::verify_chain_with(&ifaces, &contract_hashes).map_err(|e| Error::plain(e.to_string()))?;
     crate::interface::check_coherence(&ifaces).map_err(|e| Error::plain(e.to_string()))?;
     // Interface optimisations (design/inline-unfolding-policy.md section
     // 12, mechanism A): the unfoldings a library artifact carries join the
@@ -5666,6 +5770,44 @@ pub fn driver_with_profile_opts(
     if let Some(owned) = &owned_program {
         dump.write(owned, crate::coretext::Stage::Owned, &ifaces, &mut core_rows)?;
     }
+    // A closed program is pruned by reach before it is optimised: the
+    // embedded prelude is checked whole, but driving, specialisation, the
+    // simplifier and code generation only see what the program reaches, so
+    // a two-line program no longer optimises the whole base library to
+    // emit a few hundred lines. The prelude's constructors, instances and
+    // primitives are not roots of their own here (an instance lives when a
+    // live body builds its dictionary); a rewrite rule's template is a
+    // root, since driving may introduce what it names. The sweep after
+    // inlining still runs, with the full rules.
+    let closed_build = matches!(mode, Mode::Build | Mode::Run | Mode::EmitIr)
+        && emit_modules.is_empty()
+        && opts.package_objects.is_empty()
+        && opts.interface_optimisations.is_none();
+    if closed_build && std::env::var_os("CINCH_NO_PRUNE").is_none() {
+        let mut roots: Vec<String> = Vec::new();
+        let mut mentioned: Vec<String> = Vec::new();
+        for rule in &program.rewrites {
+            crate::simplify::units_mentioned(&rule.template, &mut mentioned);
+            if let Some(require) = &rule.require {
+                crate::simplify::units_mentioned(require, &mut mentioned);
+            }
+        }
+        roots.extend(mentioned);
+        for a in &adapters {
+            for b in &a.bindings {
+                if b.export {
+                    roots.push(b.impl_unit.clone());
+                }
+            }
+        }
+        let prelude_modules: std::collections::HashSet<String> = prelude
+            .modules
+            .iter()
+            .map(|m| m.name.text.clone())
+            .filter(|m| !project.order.contains(m))
+            .collect();
+        crate::simplify::prune_excluding(&mut program, &roots, &prelude_modules);
+    }
     // Specialization (supercompilation and JIT specification sections
     // 2-5): every residual program is rechecked before installation, and
     // the report records where specialization stopped.
@@ -5699,6 +5841,23 @@ pub fn driver_with_profile_opts(
     // nothing: it emits no artifact.
     // `CINCH_NO_PRUNE=1` takes the measurement the other way: the same
     // program with every unit the sweep would remove still in it.
+    // A module subset (a package object, or a program linking package
+    // objects) carries the embedded prelude as private copies: whatever its
+    // own units reach is defined here with internal linkage, so the
+    // artifact needs nothing from another one for it, and two artifacts'
+    // copies never meet at link time (`Program::private_modules`). A
+    // prelude module this project shadows with its own source is an
+    // ordinary emitted module.
+    program.private_modules = if emit_modules.is_empty() {
+        Vec::new()
+    } else {
+        prelude
+            .modules
+            .iter()
+            .map(|m| m.name.text.clone())
+            .filter(|m| !emit_modules.contains(m))
+            .collect()
+    };
     if mode != Mode::Check && std::env::var_os("CINCH_NO_PRUNE").is_none() {
         let mut roots: Vec<String> = if mode == Mode::EmitObject {
             emit_modules.clone()
@@ -5753,7 +5912,16 @@ pub fn driver_with_profile_opts(
                 }
             }
         }
-        let pruned = crate::simplify::prune(&mut program, &roots);
+        // Private modules are kept only as far as this artifact reaches
+        // them: none of their constructors, instances or primitives is a
+        // root of its own.
+        let pruned = if mode == Mode::EmitObject || !program.private_modules.is_empty() {
+            let mut excluded = unselected.clone();
+            excluded.extend(program.private_modules.iter().cloned());
+            crate::simplify::prune_excluding(&mut program, &roots, &excluded)
+        } else {
+            crate::simplify::prune(&mut program, &roots)
+        };
         opt.simplify.pruned = pruned.removed;
         opt.simplify.pruned_nodes = pruned.removed_nodes;
         // Foreign binding contracts are emitted whether or not a unit is
@@ -5780,6 +5948,7 @@ pub fn driver_with_profile_opts(
         opts,
         &link_plan,
         opts.emit_interface_optimisations || mode == Mode::EmitObject,
+        &contract_hashes,
     )?;
     if mode == Mode::Check {
         // A check reaches no later stage, so `--dump-core=owned` and
@@ -5800,11 +5969,17 @@ pub fn driver_with_profile_opts(
     // An executable emitted whole calls its units only from itself, so
     // parameters may be inferred borrowed; an object, a module subset or
     // a link against package objects keeps every parameter owned.
+    // Open objects and libraries infer modes too, keeping an owned public
+    // symbol over each lent worker (`insert_open`, `package_lent_modes`).
     let closed = !opts.shared && mode != Mode::EmitObject && emit_modules.is_empty() && opts.package_objects.is_empty();
     let program = if closed {
         crate::rc::insert_closed(program, profile)?
     } else {
-        crate::rc::insert(program, profile)?
+        let sources: Vec<PathBuf> = opts.package_objects.iter().chain(&opts.lent_objects).cloned().collect();
+        let imported = package_lent_modes(&sources)?;
+        check_lent_imports(&opts.package_objects, &imported)?;
+        let boundary = crate::rc::Boundary { modules: &emit_modules, imported: &imported, closed: false };
+        crate::rc::insert_open(program, profile, &boundary)?
     };
     // Coalescing comes after counting and after the reuse insertion inside
     // it, which reads the dups where counting put them (Lean's order:

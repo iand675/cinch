@@ -123,7 +123,8 @@ defaults are constructed separately for each instance.
 Declare `signals: [{"name":"changed","params":["I64","String"]}]` on a class.
 The generator exposes `emit<Class>Changed self count label` to Cinch. Emitting
 with no listeners is supported. `get<Class>Object self` accesses the engine
-object for signal and dynamic-call helpers.
+object for signal and dynamic-call helpers. `get<Class>ObjectId self` supplies
+the engine identity directly.
 
 `gdSignalConnect source signal receiver method flags` uses native Cinch strings
 for the signal and method names and returns Godot's error code. Flags are

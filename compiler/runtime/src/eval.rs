@@ -52,8 +52,8 @@
 //! | 8 | `IF` | `[cond, then, else]` | evaluate `cond`, then exactly one branch |
 //! | 9 | `CASE` | `[scrutinee, ncon, cons..., default]` | select by the scrutinee block's constructor tag (in its header); each `con` is `[tag, nfields, fields..., body]` binding the block's field words; `default` is `[0]` (none), `[1, body]` (wildcard) or `[2, slot, body]` (variable) |
 //! | 10 | `APP` | `[fn, nargs, args...]` | apply through the closure apply-stub convention |
-//! | 11 | `LAM` | `[stub, shape, arity, nenv, env...]` | allocate the closure block `{ stub; arity; nenv; env... }` of a hoisted lambda, whose header carries the shape descriptor `shape` (`block_kinds.rs`'s `shape_desc`) |
-//! | 12 | `CTOR` | `[desc, nfields, fields...]` | allocate the constructor block `{ fields... }` whose header carries the constructor descriptor `desc` (a layout id, or an escaped descriptor: `block_kinds.rs`) |
+//! | 11 | `LAM` | `[stub, shape, arity, nenv, env...]` | allocate the closure block `{ stub; arity; nenv; env... }` of a hoisted lambda, described by the word `shape` (`block_kinds.rs`'s `inline_description`, or a static descriptor's address) |
+//! | 12 | `CTOR` | `[desc, nfields, fields...]` | allocate the constructor block `{ fields... }` described by the word `desc` (an inline layout field or a static descriptor's address: `block_kinds.rs`'s `inline_description`) |
 //! | 13 | `PROJ` | `[value, mode, ..., counted]` | mode 0 `[slot]` loads the block's field word at `8 * slot`; mode 1 `[offset, size, signed]` loads a boundary-layout scalar at `offset`; mode 2 `[offset]` loads a boundary-layout word at `offset`; `counted` 1 dups the loaded word (never for mode 1) |
 //! | 14 | `FAULT` | | the program's own fault (exit 70) |
 //! | 15 | `LAZY_ALLOC` | | allocate `{ 0; 0; 0 }`: an empty memo cell |
@@ -975,7 +975,7 @@ fn eval_lam(
         saved.push(eval(e, env, holes)?);
     }
     let words = crate::block::CLOSURE_PREFIX_WORDS as usize + saved.len();
-    let p = unsafe { crate::block::allocate_shaped(words * 8, crate::block::KIND_CLOSURE, shape, false) }.cast::<i64>();
+    let p = unsafe { crate::block::allocate_described(words * 8, crate::block::KIND_CLOSURE, shape, false) }.cast::<i64>();
     let clo = p as usize as i64;
     unsafe {
         word_set(p, 0, stub);
@@ -993,7 +993,7 @@ fn eval_ctor(desc: u64, fields: &[Node], env: &mut [i64], holes: &[i64]) -> Resu
     for f in fields {
         vals.push(eval(f, env, holes)?);
     }
-    let p = unsafe { crate::block::allocate_ctor(vals.len() * 8, desc, false) }.cast::<i64>();
+    let p = unsafe { crate::block::allocate_described(vals.len() * 8, crate::block::KIND_CTOR, desc, false) }.cast::<i64>();
     unsafe {
         for (i, v) in vals.iter().enumerate() {
             word_set(p, 8 * i, *v);

@@ -29,22 +29,20 @@ module Main where
       (Some vector, Some more) -> Some (Cons (name, vector, public) more)
       other -> None
     other -> None
-  compile :: Bytes -> List (String, List Nat, String) -> (Int, String, String, Json, List Nat)
+  compile :: Bytes -> List (String, List Nat, String) -> (Int, String, String, Json)
   compile bytes selected = case parse-program "library.source" bytes of
-    Failed errors -> (3, "", "parse failed", JArrEnd, Nil)
+    Failed errors -> (3, "", "parse failed", JArrEnd)
     Parsed program Nil -> case resolve-program-with program Nil of
       (resolved, Nil) -> case check-and-retain resolved of
-        Err errors -> (4, "", render-diagnostics errors, JArrEnd, Nil)
+        Err errors -> (4, "", render-diagnostics errors, JArrEnd)
         Ok checked -> case emit-runtime-library-artifact-with-object checked None selected of
-          Err errors -> (5, "", render-diagnostics errors, JArrEnd, Nil)
-          Ok (ir, layouts, units) -> (0, ir, "", units, layouts)
-      (resolved, errors) -> (4, "", render-diagnostics errors, JArrEnd, Nil)
-    Parsed program errors -> (3, "", "parse produced recovery errors", JArrEnd, Nil)
-  words-json :: List Nat -> Json
-  words-json values = case values of Nil -> JArrEnd; Cons first rest -> JArr (JNum (nat-to-int first)) (words-json rest)
-  store :: forall r. using (io :: Io r) => String -> (Int, String, String, Json, List Nat) ->{IO r} Int
+          Err errors -> (5, "", render-diagnostics errors, JArrEnd)
+          Ok (ir, units) -> (0, ir, "", units)
+      (resolved, errors) -> (4, "", render-diagnostics errors, JArrEnd)
+    Parsed program errors -> (3, "", "parse produced recovery errors", JArrEnd)
+  store :: forall r. using (io :: Io r) => String -> (Int, String, String, Json) ->{IO r} Int
   store prefix result = case result of
-    (status, ir, diagnostics, units, layouts) -> case fs-write (path-from-string (prefix <> ".ll")) (string-to-bytes ir) of
+    (status, ir, diagnostics, units) -> case fs-write (path-from-string (prefix <> ".ll")) (string-to-bytes ir) of
       Err error -> 6
       Ok _ -> case fs-write (path-from-string (prefix <> ".diagnostics")) (string-to-bytes diagnostics) of
         Err error -> 6
@@ -52,9 +50,7 @@ module Main where
           Err error -> 6
           Ok _ -> case fs-write (path-from-string (prefix <> ".units.json")) (canonical-bytes units) of
             Err error -> 6
-            Ok _ -> case fs-write (path-from-string (prefix <> ".layouts.json")) (canonical-bytes (words-json layouts)) of
-              Err error -> 6
-              Ok _ -> 0
+            Ok _ -> 0
   batch :: forall r. using (io :: Io r) => Nat ->{IO r} Int
   batch count = if count == 0 then 0 else
     let suffix = nat-to-string (count - 1) in

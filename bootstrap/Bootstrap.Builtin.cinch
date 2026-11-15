@@ -57,6 +57,7 @@ module Bootstrap.Builtin where
     else if string-compare symbol "cinch.runtime.bytesLen" == 0 then Some ("Bytes -> Nat", "cinch_bytes_len")
     else if string-compare symbol "cinch.runtime.bytesGet" == 0 then Some ("Bytes -> Nat -> refined (0 <= out && out <= 255) Nat", "cinch_bytes_get")
     else if string-compare symbol "cinch.runtime.bytesNew" == 0 then Some ("Nat -> Bytes", "cinch_bytes_new")
+    else if string-compare symbol "cinch.runtime.slotsFoldNat" == 0 then Some ("Nat -> U64", "cinch_nat_low_word")
     else case nat-arithmetic-extern symbol of
       Some external -> Some ("Nat -> Nat -> Nat", external)
       None -> case array-plan symbol of
@@ -243,6 +244,14 @@ module Bootstrap.Builtin where
     else if string-compare symbol "cinch.runtime.columnarColumn" == 0 then Some (12, 0, "forall a. Array a -> Columnar a")
     else if string-compare symbol "cinch.runtime.columnarZip" == 0 then Some (13, 0, "forall a b. Columnar a -> Columnar b -> Option (Columnar (a, b))")
     else if string-compare symbol "cinch.runtime.columnarRows" == 0 then Some (14, 0, "forall a. Columnar a -> Nat")
+    else if string-compare symbol "cinch.runtime.slotsNew" == 0 then Some (20, 0, "forall a. U64 -> Array a")
+    else if string-compare symbol "cinch.runtime.slotsLen" == 0 then Some (21, 0, "forall a. Array a -> U64")
+    else if string-compare symbol "cinch.runtime.slotsRead" == 0 then Some (22, 0, "forall a. Array a -> U64 -> a")
+    else if string-compare symbol "cinch.runtime.slotsWrite" == 0 then Some (23, 0, "forall a. Array a -> U64 -> a -> Unit")
+    else if string-compare symbol "cinch.runtime.slotsTake" == 0 then Some (24, 0, "forall a. Array a -> U64 -> a")
+    else if string-compare symbol "cinch.runtime.slotsMove" == 0 then Some (25, 0, "forall a. Array a -> U64 -> Array a -> U64 -> U64 -> Unit")
+    else if string-compare symbol "cinch.runtime.slotsClear" == 0 then Some (26, 0, "forall a. Array a -> U64 -> U64 -> Unit")
+    else if string-compare symbol "cinch.runtime.slotsPrefetch" == 0 then Some (27, 0, "forall a. Array a -> U64 -> Unit")
     else if string-compare symbol "cinch.runtime.columnarColumns" == 0 then Some (15, 0, "forall a. Columnar a -> Nat")
     else if string-compare symbol "cinch.runtime.columnarGet" == 0 then Some (16, 0, "forall a. Columnar a -> Nat -> Option a")
     else if string-compare symbol "cinch.runtime.columnarLeft" == 0 then Some (17, 0, "forall a b. Columnar (a, b) -> Option (Columnar a)")
@@ -284,6 +293,9 @@ module Bootstrap.Builtin where
     else if operation == 17 then "cinch_columnar_child"
     else if operation == 18 then "cinch_columnar_child"
     else if operation == 19 then "cinch_columnar_array"
+    else if operation == 20 then "cinch_slots_new"
+    else if operation == 25 then "cinch_slots_move"
+    else if operation == 26 then "cinch_slots_clear"
     else ""
 
   builtin-syntax-metadata :: String -> Option Json

@@ -171,17 +171,18 @@ fn header_blocks_count_constructor_cells_with_their_header() {
     common::cleanup(&dir_b);
 }
 
-/// A data type of 70 constructors, more than one layout group's 64 tags,
-/// so every constructor is escaped (`block_kinds.rs`): its tag lives in a
-/// descriptor word before the header. `n` cells of the one-field `C69`
-/// are chained and counted, and `rank` matches constructors on both
-/// sides of tag 64, by name and by wildcard.
+/// A data type of 300 constructors, more than a header's 255 inline tags,
+/// so the constructors from tag 255 on are escaped (`block_kinds.rs`):
+/// their tag lives in a static descriptor the word before the header points
+/// to. `n` cells of the one-field `C299` are chained and counted, and
+/// `rank` matches constructors on both sides of tag 255, by name and by
+/// wildcard.
 fn escaped_program(n: usize) -> String {
     let mut ctors = String::new();
-    for i in 0..69 {
+    for i in 0..299 {
         ctors.push_str(&format!("    C{i} :: Big\n"));
     }
-    ctors.push_str("    C69 :: Big -> Big\n");
+    ctors.push_str("    C299 :: Big -> Big\n");
     format!(
         r#"
 module Main where
@@ -194,25 +195,25 @@ module Main where
   build :: I64 -> Big -> Big
   build n acc = case eq64 n 0 of
     True -> acc
-    False -> build (sub64 n 1) (C69 acc)
+    False -> build (sub64 n 1) (C299 acc)
 
   count :: Big -> I64 -> I64
   count b k = case b of
-    C69 t -> count t (add64 k 1)
+    C299 t -> count t (add64 k 1)
     C0 -> k
     _ -> sub64 0 1
 
   rank :: Big -> I64
   rank b = case b of
     C0 -> 0
-    C63 -> 63
-    C64 -> 64
-    C68 -> 68
+    C254 -> 254
+    C255 -> 255
+    C298 -> 298
     _ -> 99
 
   main :: Unit -> Int
   main u = case eq64 (count (build {n} C0) 0) {n} of
-    True -> case eq64 (add64 (add64 (rank C63) (rank C64)) (add64 (rank C68) (rank (C69 C1)))) 294 of
+    True -> case eq64 (add64 (add64 (rank C254) (rank C255)) (add64 (rank C298) (rank (C299 C1)))) 906 of
       True -> 0
       False -> 2
     False -> 1
@@ -221,8 +222,8 @@ module Main where
 }
 
 /// Escaped constructors match correctly, and each heap cell pays exactly
-/// its descriptor word: a one-field `C69` cell is 24 bytes (field, header,
-/// descriptor), and nothing else allocates per cell.
+/// its descriptor word: a one-field `C299` cell is 24 bytes (field, header,
+/// descriptor pointer), and nothing else allocates per cell.
 #[test]
 fn escaped_constructors_match_and_carry_one_descriptor_word() {
     let (dir_a, small) = built("esc_small", &escaped_program(1000));

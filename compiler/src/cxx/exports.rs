@@ -565,22 +565,28 @@ pub fn generate(b: &Bindings) -> Result<Generated> {
         }
         if b.godot.is_some() {
             let owner_name = format!("get{}Object", c.name);
+            let identity_name = format!("get{}ObjectId", c.name);
             let owner_symbol = format!("{prefix}_{}_object", c.name);
             cx.reserve(&owner_symbol)?;
             api_import(
                 &mut g,
-                &owner_name,
+                &identity_name,
                 &owner_symbol,
                 &[borrowed.clone()],
-                "Object",
+                "U64",
                 true,
             )?;
+            g.names.push((owner_name.clone(), false));
+            // A Borrowed receiver promises not to capture its address, including
+            // in the return value. Resolve its engine identity in a separate call
+            // rather than returning a base pointer that aliases a native receiver.
+            g.api.push_str(&format!("  {owner_name} :: {borrowed} ->{{Foreign Cxx, IO}} MaybeNull (RawPtr GDObject)\n  {owner_name} self = gdObjectFromId ({identity_name} self)\n"));
             let owner = if c.script.is_some() {
                 format!("static_cast<{}*>(a0)->_cinch_owner", c.cpp)
             } else {
                 format!("static_cast<{}*>(a0)", c.cpp)
             };
-            api_bodies.push_str(&format!("extern \"C\" void* {owner_symbol}(void* a0) noexcept {{ return static_cast<godot::Object*>({owner}); }}\n"));
+            api_bodies.push_str(&format!("extern \"C\" uint64_t {owner_symbol}(void* a0) noexcept {{ auto* owner=static_cast<godot::Object*>({owner}); return owner ? owner->get_instance_id() : 0; }}\n"));
             let mut signal_names = BTreeSet::new();
             for signal in &c.signals {
                 if !cpp_name(&signal.name)

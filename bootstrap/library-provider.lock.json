@@ -1,7 +1,7 @@
 {
-  "description": "ABI 9 library producer with the fixed-frame apply stub family.",
-  "revision": "a222e808b13605c840bb2612e7b76fc9106dbdf6",
-  "runtime_abi": 9,
+  "description": "ABI 10 library producer: self-describing block headers, merged with main (through the no-reclaim switch), narrow C arguments extended.",
+  "revision": "ab294c68b24fa093a84813e09e0b9f5f33667e7f",
+  "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "b69e818b6efbc822ba7c4835cecdbf083596a6f0151ade065d72c7de85a1a97f"
+  "source_sha256": "c559c794935bbbf52d60118abd95c7207621ab1059c7e4695f40d99e8f0dfabd"
 }

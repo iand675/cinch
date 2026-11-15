@@ -455,7 +455,8 @@ pub unsafe extern "C" fn cinch_columnar_get(a: i64, i: i64) -> i64 {
         } else if visited {
             let right = values.pop().unwrap();
             let left = values.pop().unwrap();
-            let p = unsafe { block::allocate_ctor(16, desc as u64, false) }.cast::<i64>();
+            // The pair's description word, as the zip recorded it.
+            let p = unsafe { block::allocate_described(16, block::KIND_CTOR, desc as u64, false) }.cast::<i64>();
             unsafe {
                 p.write(left);
                 p.add(1).write(right);

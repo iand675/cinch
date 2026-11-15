@@ -238,7 +238,7 @@ module Main where
 // ---------------------- usage-derived parameter attributes (item 2)
 
 #[test]
-fn captures_none_marks_only_non_escaping_borrows() {
+fn nocapture_marks_only_non_escaping_borrows() {
     let ir = ir_of(
         "captures",
         r#"
@@ -250,13 +250,15 @@ module Main where
   main = 0
 "#,
     );
+    // Spelled `nocapture`, which every supported LLVM reads and 21 onwards
+    // upgrades to `captures(none)` (`driver::CLANG_MIN_MAJOR`).
     assert!(
-        declare_of(&ir, "fix_borrow").contains("captures(none)"),
-        "a non-escaping borrow must carry captures(none)\n{ir}"
+        declare_of(&ir, "fix_borrow").contains("nocapture"),
+        "a non-escaping borrow must carry nocapture\n{ir}"
     );
     assert!(
-        !declare_of(&ir, "fix_take").contains("captures(none)"),
-        "an escaping raw pointer must not carry captures(none)\n{ir}"
+        !declare_of(&ir, "fix_take").contains("nocapture"),
+        "an escaping raw pointer must not carry nocapture\n{ir}"
     );
 }
 

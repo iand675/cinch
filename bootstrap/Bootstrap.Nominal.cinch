@@ -387,7 +387,7 @@ module Bootstrap.Nominal where
     TName s name -> if has name ["Diverge", "Blocking", "Global", "Fail", "Reentrant", "ThreadAffine"] then (label, Nil)
       else fail s "resolved effect label needs a kernel contract"
     TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) ->
-      if has name ["IO", "Async", "Cancel", "Eval"] && has region locals then (label, Nil)
+      if has name ["IO", "Async", "Cancel", "Eval", "Mut"] && has region locals then (label, Nil)
       else fail s "resolved effect label has an unknown identity or region"
     other -> fail (type-expr-span label) "resolved effect label needs region elaboration"
   qualify-resolved :: Json -> TypeExpr -> (TypeExpr, List Diagnostic)
