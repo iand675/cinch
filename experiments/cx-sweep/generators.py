@@ -159,6 +159,26 @@ def identifier(n):
     return program(f"{name} :: Int -> Int\n{name} v = v\nmain :: Int\nmain = {name} 0\n")
 
 
+def required_spine(n):
+    """`main` reaches one left-nested chain of n calls to a required function.
+
+    This is the axis `refresh-certificates` grows on, and the recorded axes do
+    not reach it: `depth` and `definitions` are dominated by inference
+    (`apply-open-argument`), and no `CDischarge` frame appears in either. A
+    call to a function whose contract carries a precondition becomes a
+    `CDischarge` in checked Core, so a left-nested chain of them is n nested
+    discharges over a prefix that grows by one per level.
+
+    The precondition is `True`, deliberately: it keeps the obligation proof
+    constant so the axis measures the seal pass and not the prover.
+    """
+    expr = "0"
+    for _ in range(n):
+        expr = f"(step {expr})"
+    return program("step :: using (True) => (n :: Nat) -> Nat\nstep n = n\n"
+                   f"use :: Nat\nuse = {expr}\nmain :: Int\nmain = if use == 0 then 0 else 1\n")
+
+
 # --------------------------------------------------------------------- table
 
 
@@ -173,6 +193,8 @@ AXES = {
     "imports": (imports, "imports per module (fan-in)", (8, 16, 32, 64)),
     "string": (string_literal, "length of one string literal", (256, 512, 1024, 2048)),
     "identifier": (identifier, "length of one identifier", (64, 128, 256, 512)),
+    "required": (required_spine, "nested calls to a required function",
+                 (256, 512, 1024, 2048)),
 }
 
 # The control: a known linear law the harness must reproduce. `--check` over a
