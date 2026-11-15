@@ -79,6 +79,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.Ascii](Data.Ascii.md) | Embedded | ASCII-refined values and checked construction at text boundaries. |
 | [Data.BigDecimal](Data.BigDecimal.md) | Ship source | Decimal arithmetic with explicit precision/scale and rounding/error behaviour in the exported API. |
 | [Data.Bool](Data.Bool.md) | Embedded | Boolean operations and their comparison instances. |
+| [Data.Bytes.Word](Data.Bytes.Word.md) | Ship source | Bounds-proved unaligned little-endian machine-word reads and writes for SIMD and SWAR processing. |
 | [Data.Bytes](Data.Bytes.md) | Embedded | Mutable byte buffers with length, construction, copy, and bounds/range-aware access operations. |
 | [Data.Char](Data.Char.md) | Embedded | Unicode scalar values and checked character/code conversions, with range information for safe use. |
 | [Data.Columnar](Data.Columnar.md) | Ship source | Columnar leaves over typed arrays, zipped into nested pairs that share their buffers. A length mismatch is None. |
@@ -137,11 +138,16 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | Module | Distribution | Purpose |
 | --- | --- | --- |
 | [Text.Args](Text.Args.md) | Ship source | Command-line argument processing and its named value/error vocabulary. |
+| [Text.Base32](Text.Base32.md) | Ship source | RFC 4648 standard and extended-hex Base32, with padded and raw forms and named decoding errors. |
 | [Text.Base64](Text.Base64.md) | Ship source | Base64 encoding/decoding over bytes with explicit invalid-input results. |
+| [Text.Binary](Text.Binary.md) | Ship source | Little- and big-endian integer encoding, checked buffer access, and signed/unsigned varints. |
 | [Text.Builder](Text.Builder.md) | Ship source | An efficient text-construction vocabulary for assembling many fragments before rendering. |
+| [Text.Checksum](Text.Checksum.md) | Ship source | Incremental Adler-32, CRC-32 and CRC-64 checksums with explicit reflected polynomials. |
 | [Text.Codec](Text.Codec.md) | Embedded | Encoding/decoding signatures and codec helpers with explicit failure results. |
 | [Text.Csv](Text.Csv.md) | Ship source | CSV parsing/rendering with explicit field, record, and malformed-input handling. |
 | [Text.Digest](Text.Digest.md) | Ship source | Digest and HMAC operations over bytes. Availability of a legacy digest is not a recommendation for a security protocol. |
+| [Text.Fnv](Text.Fnv.md) | Ship source | Incremental 32- and 64-bit FNV-1 and FNV-1a hashing with explicit wrapping arithmetic. |
+| [Text.Hex](Text.Hex.md) | Ship source | Lowercase hexadecimal encoding and case-insensitive decoding with named errors and byte offsets. |
 | [Text.Json](Text.Json.md) | Ship source | JSON parsing and rendering over Data.Json, with explicit errors and builder-based output. |
 | [Text.Lex](Text.Lex.md) | Ship source | A source-distributed lexer toolkit: tokens, spans, and lexical errors for compiler/parser clients. |
 | [Text.OptionParser](Text.OptionParser.md) | Ship source | Declarative option specifications, short/long forms, conversion, positionals, usage, and named parse errors. |
@@ -187,7 +193,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **120 source modules**: **64 embedded** and **56 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **126 source modules**: **64 embedded** and **62 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

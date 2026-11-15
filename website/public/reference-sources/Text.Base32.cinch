@@ -1,0 +1,378 @@
+-- | RFC 4648 Base32 with standard and extended-hex alphabets.
+-- Both padded and raw encodings are available. Decoding ignores CR and LF, accepts
+-- uppercase alphabet characters only, and validates the complete final quantum.
+-- Unused low bits of the final symbol are discarded. No partial decoded buffer
+-- is returned on error. Complete quanta use inline LLVM SIMD lanes; padding,
+-- newlines, malformed input and short tails use the same scalar error rules.
+module Text.Base32 where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Machine
+  import Data.Char
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  export Base32Alphabet, Base32Standard, Base32Hex
+  export Base32Error, InvalidBase32Character, InvalidBase32Length, InvalidBase32Padding
+  export base32-encode, base32-decode, base32-raw-encode, base32-raw-decode
+
+  -- | The fixed 32-symbol alphabet for a Base32 encoding.
+  data Base32Alphabet where
+    -- | The RFC 4648 alphabet A through Z followed by 2 through 7.
+    Base32Standard :: Base32Alphabet
+    -- | The RFC 4648 extended-hex alphabet 0 through 9 followed by A through V.
+    Base32Hex :: Base32Alphabet
+
+  -- | Malformed Base32 text; an error carries no partial decoded output.
+  data Base32Error where
+    -- | A scalar outside the selected uppercase alphabet; CR and LF are ignored separately.
+    InvalidBase32Character :: Char -> Base32Error
+    -- | The number of alphabet symbols does not form a complete padded or raw final quantum.
+    InvalidBase32Length :: Nat -> Base32Error
+    -- | Padding is forbidden, misplaced, incomplete, excessive, or followed by more data.
+    InvalidBase32Padding :: Base32Error
+
+  -- | Compute a positive power of two for the bounded bit accumulator.
+  power-two :: Nat -> refined (0 < out) Nat
+  power-two n = if n == 0 then 1 else 2 * power-two (n - 1)
+
+  -- | Render the low five bits in the selected fixed alphabet.
+  alphabet-char :: Base32Alphabet -> Nat -> Char
+  alphabet-char alphabet n =
+    let table = case alphabet of
+                  Base32Standard -> "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+                  Base32Hex -> "0123456789ABCDEFGHIJKLMNOPQRSTUV" in
+    case string-char-at table (nat-rem n 32) of
+      Some c -> c
+      None -> 'A'
+
+  -- | Look up an uppercase alphabet scalar, returning None for punctuation, padding, lowercase or an unknown symbol.
+  alphabet-value :: Base32Alphabet -> Char -> Option Nat
+  alphabet-value alphabet c =
+    let n = char-code c in
+    case alphabet of
+      Base32Standard ->
+        if n >= 65 && n <= 90 then Some (n - 65)
+        else if n >= 50 && n <= 55 then Some (n - 24)
+        else None
+      Base32Hex ->
+        if n >= 48 && n <= 57 then Some (n - 48)
+        else if n >= 65 && n <= 86 then Some (n - 55)
+        else None
+
+  -- | Encode the remaining scalar bytes and at most four carried bits, returning alphabet characters without padding.
+  encode-from :: Base32Alphabet -> Bytes -> Nat -> Nat -> Nat -> List Char -> List Char
+  encode-from alphabet b i acc bits out =
+    if bits >= 5 then
+      let remaining = bits - 5 in
+      let factor = power-two remaining in
+      encode-from alphabet b i (nat-rem acc factor) remaining (Cons (alphabet-char alphabet (nat-div acc factor)) out)
+    else if i < bytes-len b then
+      encode-from alphabet b (i + 1) (acc * 256 + bytes-get b i) (bits + 8) out
+    else if bits > 0 then reverse (Cons (alphabet-char alphabet (acc * power-two (5 - bits))) out)
+    else reverse out
+
+  -- | Encode with the selected alphabet and no padding. The output length is ceil(8 * byte-count / 5).
+  base32-raw-encode :: Base32Alphabet -> Bytes -> String
+  base32-raw-encode alphabet b =
+    let out = bytes-new (nat-div (bytes-len b * 8 + 4) 5) in
+    let filled = encode-into alphabet b 0 out 0 in
+    case string-from-bytes out of
+      Some text -> text
+      None -> empty-string
+
+  -- | Encode with the selected alphabet and enough equals signs to complete an eight-character quantum. Empty input stays empty.
+  base32-encode :: Base32Alphabet -> Bytes -> String
+  base32-encode alphabet b =
+    let raw = base32-raw-encode alphabet b in
+    string-concat raw (string-repeat (nat-rem (8 - nat-rem (string-length raw) 8) 8) "=")
+
+  -- | Discard only CR and LF; spaces and other Unicode whitespace remain invalid input.
+  without-newlines :: List Char -> List Char
+  without-newlines cs = case cs of
+    Nil -> Nil
+    Cons c rest -> if char-code c == 10 || char-code c == 13 then without-newlines rest else Cons c (without-newlines rest)
+
+  -- | Check that every remaining scalar is an equals sign.
+  all-pads :: List Char -> Bool
+  all-pads cs = case cs of
+    Nil -> True
+    Cons c rest -> if char-code c == 61 then all-pads rest else False
+
+  -- | Recognize the only possible raw final-quantum lengths: 0, 2, 4, 5 and 7 symbols.
+  valid-tail :: Nat -> Bool
+  valid-tail n = n == 0 || n == 2 || n == 4 || n == 5 || n == 7
+
+  -- | Decode scalar quanta from the carried bit state. Validate padding and final length before returning the collected bytes.
+  decode-from :: Base32Alphabet -> Bool -> List Char -> Nat -> Nat -> Nat -> List (InRange 0 255 Nat) -> Result Base32Error Bytes
+  decode-from alphabet padded cs count acc bits out =
+    if bits >= 8 then
+      let remaining = bits - 8 in
+      let factor = power-two remaining in
+      let byte = nat-rem (nat-div acc factor) 256 in
+      decode-from alphabet padded cs count (nat-rem acc factor) remaining (Cons byte out)
+    else case cs of
+      Nil ->
+        let tail = nat-rem count 8 in
+        if padded then
+          (if tail == 0 then Ok (bytes-from-list (reverse out)) else Err (InvalidBase32Length count))
+        else if valid-tail tail then Ok (bytes-from-list (reverse out)) else Err (InvalidBase32Length count)
+      Cons c rest ->
+        if char-code c == 61 then
+          let tail = nat-rem count 8 in
+          if padded && tail > 0 && valid-tail tail && list-length cs == 8 - tail && all-pads cs then Ok (bytes-from-list (reverse out))
+          else Err InvalidBase32Padding
+        else case alphabet-value alphabet c of
+          None -> Err (InvalidBase32Character c)
+          Some v -> decode-from alphabet padded rest (count + 1) (acc * 32 + v) (bits + 5) out
+
+  -- | Decode padded Base32, ignoring CR/LF. Incomplete quanta, misplaced padding, lowercase and unknown symbols return named errors.
+  base32-decode :: Base32Alphabet -> String -> Result Base32Error Bytes
+  base32-decode alphabet s = decode-blocks alphabet True s (string-to-bytes s) 0 Nil
+
+  -- | Decode unpadded Base32, ignoring CR/LF. Padding and impossible final-quantum lengths are errors.
+  base32-raw-decode :: Base32Alphabet -> String -> Result Base32Error Bytes
+  base32-raw-decode alphabet s = decode-blocks alphabet False s (string-to-bytes s) 0 Nil
+
+  -- | Encode five packed bytes into eight alphabet bytes with SIMD bit-field lanes; mode 0 is standard, mode 1 is extended hex.
+  prim encode5 :: U64 -> U8 -> U64 where
+    llvm {
+      %in0 = or i64 %0, 0
+      %v = bitcast i64 %in0 to <8 x i8>
+      %a = shufflevector <8 x i8> %v, <8 x i8> zeroinitializer, <8 x i32> <i32 0, i32 0, i32 1, i32 1, i32 2, i32 3, i32 3, i32 4>
+      %b = shufflevector <8 x i8> %v, <8 x i8> zeroinitializer, <8 x i32> <i32 8, i32 1, i32 8, i32 2, i32 3, i32 8, i32 4, i32 8>
+      %aw = zext <8 x i8> %a to <8 x i16>
+      %bw = zext <8 x i8> %b to <8 x i16>
+      %as = shl <8 x i16> %aw, <i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8>
+      %word = or <8 x i16> %as, %bw
+      %shift = lshr <8 x i16> %word, <i16 11, i16 6, i16 9, i16 4, i16 7, i16 10, i16 5, i16 8>
+      %narrow = trunc <8 x i16> %shift to <8 x i8>
+      %n = and <8 x i8> %narrow, <i8 31, i8 31, i8 31, i8 31, i8 31, i8 31, i8 31, i8 31>
+      %hex = icmp ne i8 %1, 0
+      %sletter = icmp uge <8 x i8> %n, <i8 26, i8 26, i8 26, i8 26, i8 26, i8 26, i8 26, i8 26>
+      %sbase = select <8 x i1> %sletter, <8 x i8> <i8 24, i8 24, i8 24, i8 24, i8 24, i8 24, i8 24, i8 24>, <8 x i8> <i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65>
+      %hletter = icmp uge <8 x i8> %n, <i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10>
+      %hbase = select <8 x i1> %hletter, <8 x i8> <i8 55, i8 55, i8 55, i8 55, i8 55, i8 55, i8 55, i8 55>, <8 x i8> <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>
+      %base = select i1 %hex, <8 x i8> %hbase, <8 x i8> %sbase
+      %ascii = add <8 x i8> %n, %base
+      %result = bitcast <8 x i8> %ascii to i64
+      ret i64 %result
+    } when endian little
+    llvm {
+      %in0 = call i64 @llvm.bswap.i64(i64 %0)
+      %v = bitcast i64 %in0 to <8 x i8>
+      %a = shufflevector <8 x i8> %v, <8 x i8> zeroinitializer, <8 x i32> <i32 0, i32 0, i32 1, i32 1, i32 2, i32 3, i32 3, i32 4>
+      %b = shufflevector <8 x i8> %v, <8 x i8> zeroinitializer, <8 x i32> <i32 8, i32 1, i32 8, i32 2, i32 3, i32 8, i32 4, i32 8>
+      %aw = zext <8 x i8> %a to <8 x i16>
+      %bw = zext <8 x i8> %b to <8 x i16>
+      %as = shl <8 x i16> %aw, <i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8>
+      %word = or <8 x i16> %as, %bw
+      %shift = lshr <8 x i16> %word, <i16 11, i16 6, i16 9, i16 4, i16 7, i16 10, i16 5, i16 8>
+      %narrow = trunc <8 x i16> %shift to <8 x i8>
+      %n = and <8 x i8> %narrow, <i8 31, i8 31, i8 31, i8 31, i8 31, i8 31, i8 31, i8 31>
+      %hex = icmp ne i8 %1, 0
+      %sletter = icmp uge <8 x i8> %n, <i8 26, i8 26, i8 26, i8 26, i8 26, i8 26, i8 26, i8 26>
+      %sbase = select <8 x i1> %sletter, <8 x i8> <i8 24, i8 24, i8 24, i8 24, i8 24, i8 24, i8 24, i8 24>, <8 x i8> <i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65>
+      %hletter = icmp uge <8 x i8> %n, <i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10>
+      %hbase = select <8 x i1> %hletter, <8 x i8> <i8 55, i8 55, i8 55, i8 55, i8 55, i8 55, i8 55, i8 55>, <8 x i8> <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>
+      %base = select i1 %hex, <8 x i8> %hbase, <8 x i8> %sbase
+      %ascii = add <8 x i8> %n, %base
+      %result = bitcast <8 x i8> %ascii to i64
+      %out = call i64 @llvm.bswap.i64(i64 %result)
+      ret i64 %out
+    } when endian big
+
+  -- | Validate eight alphabet lanes and decode five bytes; bits 56..63 flag bad lanes.
+  prim decode8 :: U64 -> U8 -> U64 where
+    llvm {
+      %in0 = or i64 %0, 0
+      %v = bitcast i64 %in0 to <8 x i8>
+      %hex = icmp ne i8 %1, 0
+      %dlo = icmp uge <8 x i8> %v, <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>
+      %dhi = icmp ule <8 x i8> %v, <i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57>
+      %digit = and <8 x i1> %dlo, %dhi
+      %hlo = icmp uge <8 x i8> %v, <i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65>
+      %hhi = icmp ule <8 x i8> %v, <i8 86, i8 86, i8 86, i8 86, i8 86, i8 86, i8 86, i8 86>
+      %halpha = and <8 x i1> %hlo, %hhi
+      %hvalid = or <8 x i1> %digit, %halpha
+      %slo = icmp uge <8 x i8> %v, <i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65>
+      %shi = icmp ule <8 x i8> %v, <i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90>
+      %salpha = and <8 x i1> %slo, %shi
+      %nlo = icmp uge <8 x i8> %v, <i8 50, i8 50, i8 50, i8 50, i8 50, i8 50, i8 50, i8 50>
+      %nhi = icmp ule <8 x i8> %v, <i8 55, i8 55, i8 55, i8 55, i8 55, i8 55, i8 55, i8 55>
+      %sdigit = and <8 x i1> %nlo, %nhi
+      %svalid = or <8 x i1> %salpha, %sdigit
+      %valid = select i1 %hex, <8 x i1> %hvalid, <8 x i1> %svalid
+      %bad = xor <8 x i1> %valid, <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>
+      %mask = bitcast <8 x i1> %bad to i8
+      %sb = select <8 x i1> %salpha, <8 x i8> <i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65>, <8 x i8> <i8 24, i8 24, i8 24, i8 24, i8 24, i8 24, i8 24, i8 24>
+      %hb = select <8 x i1> %digit, <8 x i8> <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>, <8 x i8> <i8 55, i8 55, i8 55, i8 55, i8 55, i8 55, i8 55, i8 55>
+      %base = select i1 %hex, <8 x i8> %hb, <8 x i8> %sb
+      %n = sub <8 x i8> %v, %base
+      %wide = zext <8 x i8> %n to <8 x i64>
+      %v0 = extractelement <8 x i64> %wide, i32 0
+      %v1 = extractelement <8 x i64> %wide, i32 1
+      %v2 = extractelement <8 x i64> %wide, i32 2
+      %v3 = extractelement <8 x i64> %wide, i32 3
+      %v4 = extractelement <8 x i64> %wide, i32 4
+      %v5 = extractelement <8 x i64> %wide, i32 5
+      %v6 = extractelement <8 x i64> %wide, i32 6
+      %v7 = extractelement <8 x i64> %wide, i32 7
+      %s0 = shl i64 %v0, 35
+      %r0 = or i64 0, %s0
+      %s1 = shl i64 %v1, 30
+      %r1 = or i64 %r0, %s1
+      %s2 = shl i64 %v2, 25
+      %r2 = or i64 %r1, %s2
+      %s3 = shl i64 %v3, 20
+      %r3 = or i64 %r2, %s3
+      %s4 = shl i64 %v4, 15
+      %r4 = or i64 %r3, %s4
+      %s5 = shl i64 %v5, 10
+      %r5 = or i64 %r4, %s5
+      %s6 = shl i64 %v6, 5
+      %r6 = or i64 %r5, %s6
+      %s7 = shl i64 %v7, 0
+      %r7 = or i64 %r6, %s7
+      %b0 = lshr i64 %r7, 32
+      %m0 = and i64 %b0, 255
+      %o0 = shl i64 %m0, 0
+      %p0 = or i64 0, %o0
+      %b1 = lshr i64 %r7, 24
+      %m1 = and i64 %b1, 255
+      %o1 = shl i64 %m1, 8
+      %p1 = or i64 %p0, %o1
+      %b2 = lshr i64 %r7, 16
+      %m2 = and i64 %b2, 255
+      %o2 = shl i64 %m2, 16
+      %p2 = or i64 %p1, %o2
+      %b3 = lshr i64 %r7, 8
+      %m3 = and i64 %b3, 255
+      %o3 = shl i64 %m3, 24
+      %p3 = or i64 %p2, %o3
+      %b4 = lshr i64 %r7, 0
+      %m4 = and i64 %b4, 255
+      %o4 = shl i64 %m4, 32
+      %p4 = or i64 %p3, %o4
+      %error = zext i8 %mask to i64
+      %es = shl i64 %error, 56
+      %result = or i64 %p4, %es
+      ret i64 %result
+    } when endian little
+    llvm {
+      %in0 = call i64 @llvm.bswap.i64(i64 %0)
+      %v = bitcast i64 %in0 to <8 x i8>
+      %hex = icmp ne i8 %1, 0
+      %dlo = icmp uge <8 x i8> %v, <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>
+      %dhi = icmp ule <8 x i8> %v, <i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57>
+      %digit = and <8 x i1> %dlo, %dhi
+      %hlo = icmp uge <8 x i8> %v, <i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65>
+      %hhi = icmp ule <8 x i8> %v, <i8 86, i8 86, i8 86, i8 86, i8 86, i8 86, i8 86, i8 86>
+      %halpha = and <8 x i1> %hlo, %hhi
+      %hvalid = or <8 x i1> %digit, %halpha
+      %slo = icmp uge <8 x i8> %v, <i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65>
+      %shi = icmp ule <8 x i8> %v, <i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90>
+      %salpha = and <8 x i1> %slo, %shi
+      %nlo = icmp uge <8 x i8> %v, <i8 50, i8 50, i8 50, i8 50, i8 50, i8 50, i8 50, i8 50>
+      %nhi = icmp ule <8 x i8> %v, <i8 55, i8 55, i8 55, i8 55, i8 55, i8 55, i8 55, i8 55>
+      %sdigit = and <8 x i1> %nlo, %nhi
+      %svalid = or <8 x i1> %salpha, %sdigit
+      %valid = select i1 %hex, <8 x i1> %hvalid, <8 x i1> %svalid
+      %bad = xor <8 x i1> %valid, <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>
+      %mask = bitcast <8 x i1> %bad to i8
+      %sb = select <8 x i1> %salpha, <8 x i8> <i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65>, <8 x i8> <i8 24, i8 24, i8 24, i8 24, i8 24, i8 24, i8 24, i8 24>
+      %hb = select <8 x i1> %digit, <8 x i8> <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>, <8 x i8> <i8 55, i8 55, i8 55, i8 55, i8 55, i8 55, i8 55, i8 55>
+      %base = select i1 %hex, <8 x i8> %hb, <8 x i8> %sb
+      %n = sub <8 x i8> %v, %base
+      %wide = zext <8 x i8> %n to <8 x i64>
+      %v0 = extractelement <8 x i64> %wide, i32 0
+      %v1 = extractelement <8 x i64> %wide, i32 1
+      %v2 = extractelement <8 x i64> %wide, i32 2
+      %v3 = extractelement <8 x i64> %wide, i32 3
+      %v4 = extractelement <8 x i64> %wide, i32 4
+      %v5 = extractelement <8 x i64> %wide, i32 5
+      %v6 = extractelement <8 x i64> %wide, i32 6
+      %v7 = extractelement <8 x i64> %wide, i32 7
+      %s0 = shl i64 %v0, 35
+      %r0 = or i64 0, %s0
+      %s1 = shl i64 %v1, 30
+      %r1 = or i64 %r0, %s1
+      %s2 = shl i64 %v2, 25
+      %r2 = or i64 %r1, %s2
+      %s3 = shl i64 %v3, 20
+      %r3 = or i64 %r2, %s3
+      %s4 = shl i64 %v4, 15
+      %r4 = or i64 %r3, %s4
+      %s5 = shl i64 %v5, 10
+      %r5 = or i64 %r4, %s5
+      %s6 = shl i64 %v6, 5
+      %r6 = or i64 %r5, %s6
+      %s7 = shl i64 %v7, 0
+      %r7 = or i64 %r6, %s7
+      %b0 = lshr i64 %r7, 32
+      %m0 = and i64 %b0, 255
+      %o0 = shl i64 %m0, 0
+      %p0 = or i64 0, %o0
+      %b1 = lshr i64 %r7, 24
+      %m1 = and i64 %b1, 255
+      %o1 = shl i64 %m1, 8
+      %p1 = or i64 %p0, %o1
+      %b2 = lshr i64 %r7, 16
+      %m2 = and i64 %b2, 255
+      %o2 = shl i64 %m2, 16
+      %p2 = or i64 %p1, %o2
+      %b3 = lshr i64 %r7, 8
+      %m3 = and i64 %b3, 255
+      %o3 = shl i64 %m3, 24
+      %p3 = or i64 %p2, %o3
+      %b4 = lshr i64 %r7, 0
+      %m4 = and i64 %b4, 255
+      %o4 = shl i64 %m4, 32
+      %p4 = or i64 %p3, %o4
+      %error = zext i8 %mask to i64
+      %es = shl i64 %error, 56
+      %result = or i64 %p4, %es
+      ret i64 %result
+    } when endian big
+
+  -- | Select the machine alphabet flag without changing the public sum type.
+  alphabet-mode :: Base32Alphabet -> U8
+  alphabet-mode alphabet = case alphabet of
+    Base32Standard -> 0
+    Base32Hex -> 1
+
+  -- | Encode complete five-byte quanta with SIMD and copy the at-most-seven
+  -- character scalar tail. Every read and write proves its complete range.
+  encode-into :: Base32Alphabet -> Bytes -> Nat -> Bytes -> Nat -> Unit
+  encode-into alphabet b i out oi =
+    if i + 5 <= bytes-len b && oi + 8 <= bytes-len out then
+      let lo = u32-to-u64 (bytes-read-le32 b i) in
+      let hi = wrapping-i64-to-u64 (nat-to-i64 (bytes-get b (i + 4))) in
+      let word = bit-or-u64 lo (wrapping-shl-u64 hi 32) in
+      let stored = bytes-write-le64 out oi (encode5 word (alphabet-mode alphabet)) in
+      encode-into alphabet b (i + 5) out (oi + 8)
+    else
+      let tail = string-to-bytes (pack (encode-from alphabet b i 0 0 Nil)) in
+      if oi + bytes-len tail <= bytes-len out then bytes-copy-range out tail oi 0 (bytes-len tail) else ()
+
+  -- | Decode complete ASCII quanta in SIMD lanes. Padding, newlines, Unicode
+  -- errors and short tails use the scalar decoder from the first such block,
+  -- preserving the already decoded prefix and the full error contract.
+  decode-blocks :: Base32Alphabet -> Bool -> String -> Bytes -> Nat -> List (InRange 0 255 Nat) -> Result Base32Error Bytes
+  decode-blocks alphabet padded text b i out =
+    if i + 8 <= bytes-len b then
+      let word = decode8 (bytes-read-le64 b i) (alphabet-mode alphabet) in
+      if eq-u64 (wrapping-shr-u64 word 56) 0 then
+        let b0 = u8-to-nat (wrapping-u64-to-u8 word) in
+        let b1 = u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 word 8)) in
+        let b2 = u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 word 16)) in
+        let b3 = u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 word 24)) in
+        let b4 = u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 word 32)) in
+        decode-blocks alphabet padded text b (i + 8) (Cons b4 (Cons b3 (Cons b2 (Cons b1 (Cons b0 out)))))
+      else decode-from alphabet padded (without-newlines (drop i (unpack text))) i 0 0 out
+    else decode-from alphabet padded (without-newlines (drop i (unpack text))) i 0 0 out

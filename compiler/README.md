@@ -1,5 +1,8 @@
 # Cinch bootstrap compiler
 
+The [standard library coverage against Go](../design/stdlib-parity-go.md)
+tracks implemented equivalents, compatibility tests, and remaining work.
+
 A first compiler for the language designed in this repository. The surface
 syntax is the draft 0.2 grammar in
 [`specifications/surface-syntax-and-grammar.md`](../specifications/surface-syntax-and-grammar.md);

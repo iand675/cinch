@@ -1,0 +1,188 @@
+-- | Hexadecimal conversion between byte buffers and text.
+-- Encoding emits two lowercase ASCII characters per byte. Decoding accepts either
+-- case, without whitespace or prefixes. Invalid-byte offsets count UTF-8 bytes;
+-- an invalid final byte takes precedence over an odd-length error. No partial
+-- buffer is returned on error. Complete blocks use inline LLVM SIMD nibble lanes;
+-- short tails and precise error reporting use the scalar path.
+module Text.Hex where
+
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Machine
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  export HexError, OddHexLength, InvalidHexByte
+  export hex-encode, hex-decode, hex-encoded-length, hex-decoded-length
+
+  -- | The entire hexadecimal input could not be decoded; no partial buffer accompanies an error.
+  data HexError where
+    -- | The final valid hexadecimal digit has no matching low digit.
+    OddHexLength :: HexError
+    -- | An invalid UTF-8 byte, represented by its zero-based byte offset followed by its value.
+    InvalidHexByte :: Nat -> Nat -> HexError
+
+  -- | The exact encoded character and byte count for a buffer of the given length: twice its length.
+  hex-encoded-length :: Nat -> Nat
+  hex-encoded-length n = n * 2
+
+  -- | The maximum complete decoded byte count for an encoded length: floor(length / 2). This does not validate the input.
+  hex-decoded-length :: Nat -> Nat
+  hex-decoded-length n = nat-div n 2
+
+  -- | Render a nibble as its lowercase ASCII byte; the defensive out-of-range result is the digit zero.
+  hex-digit :: Nat -> InRange 0 255 Nat
+  hex-digit n = if n < 10 then n + 48 else if n < 16 then n + 87 else 48
+
+  -- | Encode all bytes as lowercase hexadecimal ASCII. Empty input produces empty text; complete blocks use SIMD and the tail is exact.
+  hex-encode :: Bytes -> String
+  hex-encode b =
+    let out = bytes-new (bytes-len b * 2) in
+    let filled = encode-into b 0 out 0 in
+    case string-from-bytes out of
+      Some s -> s
+      None -> empty-string
+
+  -- | Recognize an ASCII hexadecimal byte of either case, retaining its four-bit range.
+  hex-value :: Nat -> Option (InRange 0 15 Nat)
+  hex-value n =
+    if n >= 48 && n <= 57 then Some (n - 48)
+    else if n >= 65 && n <= 70 then Some (n - 55)
+    else if n >= 97 && n <= 102 then Some (n - 87)
+    else None
+
+  -- | Decode one pair or report its exact invalid-byte offset. A final invalid byte is checked before reporting odd length.
+  decode-step :: Bytes -> Nat -> List (InRange 0 255 Nat) -> Result HexError Bytes
+  decode-step b i acc =
+    if i < bytes-len b then
+      let a = bytes-get b i in
+      case hex-value a of
+        None -> Err (InvalidHexByte i a)
+        Some hi ->
+          if i + 1 < bytes-len b then
+            let c = bytes-get b (i + 1) in
+            case hex-value c of
+              None -> Err (InvalidHexByte (i + 1) c)
+              Some lo -> decode-from b (i + 2) (Cons (hi * 16 + lo) acc)
+          else Err OddHexLength
+    else Ok (bytes-from-list (reverse acc))
+
+  -- | Decode either-case hexadecimal text. Whitespace and prefixes are invalid; errors identify the first invalid byte or an unmatched final digit.
+  hex-decode :: String -> Result HexError Bytes
+  hex-decode s = decode-from (string-to-bytes s) 0 Nil
+
+  -- | Encode four packed bytes as eight lowercase ASCII hex bytes using SIMD nibble lanes.
+  prim encode4 :: U32 -> U64 where
+    llvm {
+      %in0 = or i32 %0, 0
+      %v = bitcast i32 %in0 to <4 x i8>
+      %pairs = shufflevector <4 x i8> %v, <4 x i8> poison, <8 x i32> <i32 0, i32 0, i32 1, i32 1, i32 2, i32 2, i32 3, i32 3>
+      %shifted = lshr <8 x i8> %pairs, <i8 4, i8 0, i8 4, i8 0, i8 4, i8 0, i8 4, i8 0>
+      %n = and <8 x i8> %shifted, <i8 15, i8 15, i8 15, i8 15, i8 15, i8 15, i8 15, i8 15>
+      %letter = icmp ugt <8 x i8> %n, <i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9>
+      %base = select <8 x i1> %letter, <8 x i8> <i8 87, i8 87, i8 87, i8 87, i8 87, i8 87, i8 87, i8 87>, <8 x i8> <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>
+      %ascii = add <8 x i8> %n, %base
+      %result = bitcast <8 x i8> %ascii to i64
+      ret i64 %result
+    } when endian little
+    llvm {
+      %in0 = call i32 @llvm.bswap.i32(i32 %0)
+      %v = bitcast i32 %in0 to <4 x i8>
+      %pairs = shufflevector <4 x i8> %v, <4 x i8> poison, <8 x i32> <i32 0, i32 0, i32 1, i32 1, i32 2, i32 2, i32 3, i32 3>
+      %shifted = lshr <8 x i8> %pairs, <i8 4, i8 0, i8 4, i8 0, i8 4, i8 0, i8 4, i8 0>
+      %n = and <8 x i8> %shifted, <i8 15, i8 15, i8 15, i8 15, i8 15, i8 15, i8 15, i8 15>
+      %letter = icmp ugt <8 x i8> %n, <i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9>
+      %base = select <8 x i1> %letter, <8 x i8> <i8 87, i8 87, i8 87, i8 87, i8 87, i8 87, i8 87, i8 87>, <8 x i8> <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>
+      %ascii = add <8 x i8> %n, %base
+      %result = bitcast <8 x i8> %ascii to i64
+      %out = call i64 @llvm.bswap.i64(i64 %result)
+      ret i64 %out
+    } when endian big
+
+  -- | Decode eight ASCII bytes in SIMD lanes; bits 32..39 flag invalid lanes and the low word holds four bytes.
+  prim decode8 :: U64 -> U64 where
+    llvm {
+      %in0 = or i64 %0, 0
+      %v = bitcast i64 %in0 to <8 x i8>
+      %folded = or <8 x i8> %v, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %dlo = icmp uge <8 x i8> %v, <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>
+      %dhi = icmp ule <8 x i8> %v, <i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57>
+      %digit = and <8 x i1> %dlo, %dhi
+      %alo = icmp uge <8 x i8> %folded, <i8 97, i8 97, i8 97, i8 97, i8 97, i8 97, i8 97, i8 97>
+      %ahi = icmp ule <8 x i8> %folded, <i8 102, i8 102, i8 102, i8 102, i8 102, i8 102, i8 102, i8 102>
+      %alpha = and <8 x i1> %alo, %ahi
+      %valid = or <8 x i1> %digit, %alpha
+      %bad = xor <8 x i1> %valid, <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>
+      %mask = bitcast <8 x i1> %bad to i8
+      %d = sub <8 x i8> %v, <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>
+      %a = sub <8 x i8> %folded, <i8 87, i8 87, i8 87, i8 87, i8 87, i8 87, i8 87, i8 87>
+      %n = select <8 x i1> %digit, <8 x i8> %d, <8 x i8> %a
+      %hi = shufflevector <8 x i8> %n, <8 x i8> poison, <4 x i32> <i32 0, i32 2, i32 4, i32 6>
+      %lo = shufflevector <8 x i8> %n, <8 x i8> poison, <4 x i32> <i32 1, i32 3, i32 5, i32 7>
+      %hs = shl <4 x i8> %hi, <i8 4, i8 4, i8 4, i8 4>
+      %joined = or <4 x i8> %hs, %lo
+      %packed = bitcast <4 x i8> %joined to i32
+      %payload = zext i32 %packed to i64
+      %m = zext i8 %mask to i64
+      %ms = shl i64 %m, 32
+      %result = or i64 %payload, %ms
+      ret i64 %result
+    } when endian little
+    llvm {
+      %in0 = call i64 @llvm.bswap.i64(i64 %0)
+      %v = bitcast i64 %in0 to <8 x i8>
+      %folded = or <8 x i8> %v, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %dlo = icmp uge <8 x i8> %v, <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>
+      %dhi = icmp ule <8 x i8> %v, <i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57>
+      %digit = and <8 x i1> %dlo, %dhi
+      %alo = icmp uge <8 x i8> %folded, <i8 97, i8 97, i8 97, i8 97, i8 97, i8 97, i8 97, i8 97>
+      %ahi = icmp ule <8 x i8> %folded, <i8 102, i8 102, i8 102, i8 102, i8 102, i8 102, i8 102, i8 102>
+      %alpha = and <8 x i1> %alo, %ahi
+      %valid = or <8 x i1> %digit, %alpha
+      %bad = xor <8 x i1> %valid, <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>
+      %mask = bitcast <8 x i1> %bad to i8
+      %d = sub <8 x i8> %v, <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>
+      %a = sub <8 x i8> %folded, <i8 87, i8 87, i8 87, i8 87, i8 87, i8 87, i8 87, i8 87>
+      %n = select <8 x i1> %digit, <8 x i8> %d, <8 x i8> %a
+      %hi = shufflevector <8 x i8> %n, <8 x i8> poison, <4 x i32> <i32 0, i32 2, i32 4, i32 6>
+      %lo = shufflevector <8 x i8> %n, <8 x i8> poison, <4 x i32> <i32 1, i32 3, i32 5, i32 7>
+      %hs = shl <4 x i8> %hi, <i8 4, i8 4, i8 4, i8 4>
+      %joined = or <4 x i8> %hs, %lo
+      %packed = bitcast <4 x i8> %joined to i32
+      %canonical = call i32 @llvm.bswap.i32(i32 %packed)
+      %payload = zext i32 %canonical to i64
+      %m = zext i8 %mask to i64
+      %ms = shl i64 %m, 32
+      %result = or i64 %payload, %ms
+      ret i64 %result
+    } when endian big
+
+  -- | Fill complete four-byte SIMD blocks, then the exact scalar tail.
+  encode-into :: Bytes -> Nat -> Bytes -> Nat -> Unit
+  encode-into b i out oi =
+    if i + 4 <= bytes-len b && oi + 8 <= bytes-len out then
+      let stored = bytes-write-le64 out oi (encode4 (bytes-read-le32 b i)) in
+      encode-into b (i + 4) out (oi + 8)
+    else if i < bytes-len b && oi + 2 <= bytes-len out then
+      let v = bytes-get b i in
+      let hi = bytes-set out oi (hex-digit (nat-div v 16)) in
+      let lo = bytes-set out (oi + 1) (hex-digit (nat-rem v 16)) in
+      encode-into b (i + 1) out (oi + 2)
+    else ()
+
+  -- | Decode scalar quanta from the carried bit state. Validate padding and final length before returning the collected bytes.
+  decode-from :: Bytes -> Nat -> List (InRange 0 255 Nat) -> Result HexError Bytes
+  decode-from b i acc =
+    if i + 8 <= bytes-len b then
+      let w = decode8 (bytes-read-le64 b i) in
+      if eq-u64 (wrapping-shr-u64 w 32) 0 then
+        let b0 = u8-to-nat (wrapping-u64-to-u8 w) in
+        let b1 = u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 w 8)) in
+        let b2 = u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 w 16)) in
+        let b3 = u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 w 24)) in
+        decode-from b (i + 8) (Cons b3 (Cons b2 (Cons b1 (Cons b0 acc))))
+      else decode-step b i acc
+    else decode-step b i acc

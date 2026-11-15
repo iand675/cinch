@@ -583,8 +583,77 @@ module Text.Json where
   -- characters are refused; `\uXXXX` decodes with surrogate pairing.
   -- ---------------------------------------------------------------------------
 
+  -- The result of the escape-free scan: the string's span in the source
+  -- (`end` is the offset of the closing quotation mark, `after` the cursor
+  -- past it), the escape that forces the character scanner, or the refusal
+  -- the scan already decided.
+  data JScan where
+    JScanPlain :: Nat -> JState -> JScan
+    JScanEscaped :: JScan
+    JScanRefused :: ParseError -> JScan
+
+  -- The string's opening quotation mark has been consumed. A body with no
+  -- backslash is the source's own bytes between the marks, so the scan
+  -- records that span and the string is built from one slice. The
+  -- per-character accumulator this replaces allocated a cons cell, a
+  -- decoded `Char` and the `utf8-at` pair behind it for every byte of every
+  -- string, which is what made reading an interface set cost ten blocks per
+  -- JSON byte (design/compilation-speed.md section 2.18).
   scan-string-at :: JState -> JReply String
-  scan-string-at s0 = scan-string-body (advance1 s0) Nil
+  scan-string-at s0 =
+    let s1 = advance1 s0 in
+    case scan-string-plain s1 of
+      JScanRefused e -> JErr True e
+      JScanEscaped -> scan-string-body s1 Nil
+      JScanPlain end after ->
+        let src = state-src s1 in
+        if end <= bytes-len src then
+          case string-from-bytes (bytes-slice src (state-off s1) end) of
+            Some t -> JOk True t after Nil
+            -- Unreachable: the scan decoded every byte it stepped over, so
+            -- the span is valid UTF-8. The character scanner is the honest
+            -- total answer, and it re-derives the same refusal at the same
+            -- byte if the two ever disagree.
+            None -> scan-string-body s1 Nil
+        else scan-string-body s1 Nil
+
+  -- The escape-free scan: step to the closing quotation mark, refusing the
+  -- two things a body may not carry raw. The tests run in the character
+  -- scanner's own order (quote, backslash, control byte, UTF-8 sequence),
+  -- so every refusal lands on the same byte with the same span.
+  --
+  -- A byte below 128 that is neither a quotation mark nor a backslash and
+  -- not a control byte is one scalar of width one, so it steps without
+  -- decoding. `utf8-at` answers exactly `(the byte, 1)` there, and this
+  -- branch is the one every ASCII string takes: an interface is almost
+  -- entirely ASCII, and `utf8-at` allocates the `Option` and the pair it
+  -- returns.
+  --
+  -- The loop reads the buffer by index rather than through the cursor,
+  -- because a cursor step allocates a `JState` and a `peek-byte` allocates
+  -- an `Option` per byte. It carries the column alone: a raw line break is
+  -- a control byte, refused below, so nothing in a string body advances the
+  -- line. One `JState` is built per decision, none per byte.
+  scan-string-plain :: JState -> JScan
+  scan-string-plain s =
+    scan-string-plain-from (state-src s) (state-off s) (state-line s) (state-col s)
+
+  scan-string-plain-from :: (src :: Bytes) -> (i :: Nat) -> (line :: Nat) -> (c :: Nat) -> JScan
+  scan-string-plain-from src i line c =
+    if i < bytes-len src then
+      let b = bytes-get src i in
+      if nat-cmp b 34 == 0 then JScanPlain i (JState src (i + 1) line (c + 1))
+      else if nat-cmp b 92 == 0 then JScanEscaped
+      else if nat-cmp b 32 < 0 then
+        JScanRefused (EUnexpected (Span i i line c) (Some (byte-item b)) (label-items "string character"))
+      else if nat-cmp b 128 < 0 then scan-string-plain-from src (i + 1) line (c + 1)
+      else case utf8-at src i of
+        -- A decoded scalar is one column whatever its width: the lead byte
+        -- advances the column and its continuation bytes do not.
+        Some pair -> case pair of
+          (_, w) -> scan-string-plain-from src (i + w) line (c + 1)
+        None -> JScanRefused (EUnexpected (Span i i line c) (Some (byte-item b)) (label-items "string character"))
+    else JScanRefused (EUnexpected (Span i i line c) (Some IEnd) (label-items "string"))
 
   scan-string-body :: JState -> List Char -> JReply String
   scan-string-body s acc = case peek-byte s of

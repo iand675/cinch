@@ -1,0 +1,230 @@
+-- | Unsigned fixed-width integers and signed/unsigned variable-length wire encodings.
+-- Reads accept zero-based byte offsets and return named errors for short input.
+-- Varint reads also return the number of consumed bytes, excluding the offset.
+-- Encoders allocate fresh buffers; put operations check the complete destination
+-- range before writing. Signed varints use zigzag encoding across the full I64
+-- range. Fixed-width words use inline LLVM byte swaps; varint prefix detection
+-- and payload compaction use SWAR, with an exact scalar tail.
+module Text.Binary where
+
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+
+  export ByteOrder, LittleEndian, BigEndian
+  export BinaryError, UnexpectedBinaryEnd, BinaryVarintOverflow
+  export binary-u16, binary-u32, binary-u64
+  export binary-read-u16, binary-read-u32, binary-read-u64
+  export binary-put-u16, binary-put-u32, binary-put-u64
+  export binary-uvarint, binary-varint, binary-read-uvarint, binary-read-varint
+
+  -- | Byte significance for fixed-width wire encodings; independent of host byte order.
+  data ByteOrder where
+    -- | Store the least significant byte first.
+    LittleEndian :: ByteOrder
+    -- | Store the most significant byte first.
+    BigEndian :: ByteOrder
+
+  -- | A binary input or destination cannot satisfy the requested operation.
+  data BinaryError where
+    -- | The complete fixed-width field, destination range or terminated varint is unavailable.
+    UnexpectedBinaryEnd :: BinaryError
+    -- | A varint would require more than 64 payload bits, including an invalid tenth byte.
+    BinaryVarintOverflow :: BinaryError
+
+  -- | Expand the low word into exactly the requested number of little-endian bytes.
+  word-bytes :: U64 -> Nat -> List (InRange 0 255 Nat)
+  word-bytes x n =
+    if n == 0 then Nil
+    else Cons (u8-to-nat (wrapping-u64-to-u8 x)) (word-bytes (wrapping-shr-u64 x 8) (n - 1))
+
+  -- | Allocate a fixed-width encoding, reversing byte order when the wire format requires it.
+  encode-word :: ByteOrder -> U64 -> Nat -> Bytes
+  encode-word order x n = case order of
+    LittleEndian -> bytes-from-list (word-bytes x n)
+    BigEndian -> bytes-from-list (reverse (word-bytes x n))
+
+  -- | Allocate exactly 2 bytes encoding an unsigned 16-bit value in the selected byte order.
+  binary-u16 :: ByteOrder -> U16 -> Bytes
+  binary-u16 order x = encode-word order (u16-to-u64 x) 2
+
+  -- | Allocate exactly 4 bytes encoding an unsigned 32-bit value in the selected byte order.
+  binary-u32 :: ByteOrder -> U32 -> Bytes
+  binary-u32 order x =
+    let out = bytes-new 4 in
+    let stored = bytes-write-le32 out 0 (ordered32 order x) in
+    out
+
+  -- | Allocate exactly 8 bytes encoding an unsigned 64-bit value in the selected byte order.
+  binary-u64 :: ByteOrder -> U64 -> Bytes
+  binary-u64 order x =
+    let out = bytes-new 8 in
+    let stored = bytes-write-le64 out 0 (ordered64 order x) in
+    out
+
+  -- | Read a short fixed-width field while preserving the requested byte order; stop with a named error at the first missing byte.
+  read-word :: ByteOrder -> Bytes -> Nat -> Nat -> U32 -> U64 -> Result BinaryError U64
+  read-word order b pos n shift acc =
+    if n == 0 then Ok acc
+    else if pos < bytes-len b then
+      let v = wrapping-i64-to-u64 (nat-to-i64 (bytes-get b pos)) in
+      case order of
+        LittleEndian -> read-word order b (pos + 1) (n - 1) (wrapping-add-u32 shift 8) (bit-or-u64 acc (wrapping-shl-u64 v shift))
+        BigEndian -> read-word order b (pos + 1) (n - 1) shift (bit-or-u64 (wrapping-shl-u64 acc 8) v)
+    else Err UnexpectedBinaryEnd
+
+  -- | Read an unsigned 16-bit field at the zero-based byte offset. Fewer than 2 available bytes returns UnexpectedBinaryEnd; trailing bytes are untouched.
+  binary-read-u16 :: ByteOrder -> Bytes -> Nat -> Result BinaryError U16
+  binary-read-u16 order b pos = case read-word order b pos 2 0 0 of
+    Err e -> Err e
+    Ok x -> Ok (wrapping-u64-to-u16 x)
+
+  -- | Read an unsigned 32-bit field at the zero-based byte offset. Fewer than 4 available bytes returns UnexpectedBinaryEnd; trailing bytes are untouched.
+  binary-read-u32 :: ByteOrder -> Bytes -> Nat -> Result BinaryError U32
+  binary-read-u32 order b pos =
+    if pos + 4 <= bytes-len b then Ok (ordered32 order (bytes-read-le32 b pos))
+    else Err UnexpectedBinaryEnd
+
+  -- | Read an unsigned 64-bit field at the zero-based byte offset. Fewer than 8 available bytes returns UnexpectedBinaryEnd; trailing bytes are untouched.
+  binary-read-u64 :: ByteOrder -> Bytes -> Nat -> Result BinaryError U64
+  binary-read-u64 order b pos =
+    if pos + 8 <= bytes-len b then Ok (ordered64 order (bytes-read-le64 b pos))
+    else Err UnexpectedBinaryEnd
+
+  -- | Copy a complete encoded field only after proving that its entire destination range fits.
+  put-word :: Bytes -> Nat -> Bytes -> Result BinaryError Unit
+  put-word dst pos src =
+    if pos + bytes-len src <= bytes-len dst then Ok (bytes-copy-range dst src pos 0 (bytes-len src))
+    else Err UnexpectedBinaryEnd
+
+  -- | Write an unsigned 16-bit field into an existing buffer at the zero-based offset. Check all 2 destination bytes before mutation; failure leaves the buffer unchanged.
+  binary-put-u16 :: ByteOrder -> Bytes -> Nat -> U16 -> Result BinaryError Unit
+  binary-put-u16 order dst pos x = put-word dst pos (binary-u16 order x)
+
+  -- | Write an unsigned 32-bit field into an existing buffer at the zero-based offset. Check all 4 destination bytes before mutation; failure leaves the buffer unchanged.
+  binary-put-u32 :: ByteOrder -> Bytes -> Nat -> U32 -> Result BinaryError Unit
+  binary-put-u32 order dst pos x =
+    if pos + 4 <= bytes-len dst then Ok (bytes-write-le32 dst pos (ordered32 order x))
+    else Err UnexpectedBinaryEnd
+
+  -- | Write an unsigned 64-bit field into an existing buffer at the zero-based offset. Check all 8 destination bytes before mutation; failure leaves the buffer unchanged.
+  binary-put-u64 :: ByteOrder -> Bytes -> Nat -> U64 -> Result BinaryError Unit
+  binary-put-u64 order dst pos x =
+    if pos + 8 <= bytes-len dst then Ok (bytes-write-le64 dst pos (ordered64 order x))
+    else Err UnexpectedBinaryEnd
+
+  -- | Emit seven payload bits per byte, setting continuation bits until the remaining payload is below 128.
+  uvarint-bytes :: U64 -> List (InRange 0 255 Nat)
+  uvarint-bytes x =
+    if lt-u64 x 128 then Cons (u8-to-nat (wrapping-u64-to-u8 x)) Nil
+    else Cons (u8-to-nat (wrapping-u64-to-u8 (bit-or-u64 (bit-and-u64 x 127) 128))) (uvarint-bytes (wrapping-shr-u64 x 7))
+
+  -- | Encode a U64 in one to ten little-endian base-128 bytes, with the high bit marking continuation. The emitted representation is minimal.
+  binary-uvarint :: U64 -> Bytes
+  binary-uvarint x = bytes-from-list (uvarint-bytes x)
+
+  -- | Zigzag-encode an I64, then encode it as an unsigned varint. Zero maps to 0, -1 to 1, and 1 to 2; both I64 extrema are supported.
+  binary-varint :: I64 -> Bytes
+  binary-varint x = binary-uvarint (bit-xor-u64 (wrapping-shl-u64 (wrapping-i64-to-u64 x) 1) (wrapping-i64-to-u64 (wrapping-shr-i64 x 63)))
+
+  -- | Read at most ten scalar bytes; reject overflow before a wrapping shift could discard payload bits.
+  read-uvarint :: Bytes -> Nat -> Nat -> U32 -> U64 -> Result BinaryError (U64, Nat)
+  read-uvarint b pos used shift acc =
+    if pos < bytes-len b then
+      let v = bytes-get b pos in
+      if used == 9 && v > 1 then Err BinaryVarintOverflow
+      else
+        let w = wrapping-i64-to-u64 (nat-to-i64 (nat-rem v 128)) in
+        let next = bit-or-u64 acc (wrapping-shl-u64 w shift) in
+        if v < 128 then Ok (next, used + 1)
+        else read-uvarint b (pos + 1) (used + 1) (wrapping-add-u32 shift 7) next
+    else Err UnexpectedBinaryEnd
+
+  -- | Read a terminated unsigned varint at the byte offset and return (value, bytes-consumed). Nonminimal encodings are accepted; incomplete input and 64-bit overflow are distinct errors.
+  binary-read-uvarint :: Bytes -> Nat -> Result BinaryError (U64, Nat)
+  binary-read-uvarint b pos =
+    if pos + 8 <= bytes-len b then
+      let word = bytes-read-le64 b pos in
+      let ends = bit-and-u64 (bit-not-u64 word) 0x8080808080808080 in
+      if eq-u64 ends 0 then read-uvarint b pos 0 0 0
+      else
+        let n = nat-div (u32-to-nat (trailing-zeros-u64 ends)) 8 + 1 in
+        let shift = wrapping-i64-to-u32 (nat-to-i64 (nat-rem (n * 7) 64)) in
+        let mask = wrapping-sub-u64 (wrapping-shl-u64 1 shift) 1 in
+        Ok (bit-and-u64 (compress-varint8 word) mask, n)
+    else read-uvarint b pos 0 0 0
+
+  -- | Read and inverse-zigzag an unsigned varint at the byte offset, returning (signed-value, bytes-consumed). Shares the unsigned decoder's truncation and overflow errors.
+  binary-read-varint :: Bytes -> Nat -> Result BinaryError (I64, Nat)
+  binary-read-varint b pos = case binary-read-uvarint b pos of
+    Err e -> Err e
+    Ok (u, n) ->
+      let x = wrapping-u64-to-i64 (wrapping-shr-u64 u 1) in
+      if eq-u64 (bit-and-u64 u 1) 1 then Ok (bit-not-i64 x, n) else Ok (x, n)
+
+  -- | Reverse a 32-bit word with the target byte-swap instruction.
+  prim swap32 :: U32 -> U32 where
+    llvm {
+      %r = call i32 @llvm.bswap.i32(i32 %0)
+      ret i32 %r
+    }
+
+  -- | Convert a wire byte order to the packed little-endian word convention.
+  ordered32 :: ByteOrder -> U32 -> U32
+  ordered32 order x = case order of
+    LittleEndian -> x
+    BigEndian -> swap32 x
+
+  -- | Reverse a 64-bit word with the target byte-swap instruction.
+  prim swap64 :: U64 -> U64 where
+    llvm {
+      %r = call i64 @llvm.bswap.i64(i64 %0)
+      ret i64 %r
+    }
+
+  -- | Convert a wire byte order to the packed little-endian word convention.
+  ordered64 :: ByteOrder -> U64 -> U64
+  ordered64 order x = case order of
+    LittleEndian -> x
+    BigEndian -> swap64 x
+
+  -- | Compact eight seven-bit payloads in a packed word; continuation-bit detection is done separately.
+  prim compress-varint8 :: U64 -> U64 where
+    llvm {
+      %s0 = lshr i64 %0, 0
+      %m0 = and i64 %s0, 127
+      %b0 = shl i64 %m0, 0
+      %a0 = or i64 0, %b0
+      %s1 = lshr i64 %0, 8
+      %m1 = and i64 %s1, 127
+      %b1 = shl i64 %m1, 7
+      %a1 = or i64 %a0, %b1
+      %s2 = lshr i64 %0, 16
+      %m2 = and i64 %s2, 127
+      %b2 = shl i64 %m2, 14
+      %a2 = or i64 %a1, %b2
+      %s3 = lshr i64 %0, 24
+      %m3 = and i64 %s3, 127
+      %b3 = shl i64 %m3, 21
+      %a3 = or i64 %a2, %b3
+      %s4 = lshr i64 %0, 32
+      %m4 = and i64 %s4, 127
+      %b4 = shl i64 %m4, 28
+      %a4 = or i64 %a3, %b4
+      %s5 = lshr i64 %0, 40
+      %m5 = and i64 %s5, 127
+      %b5 = shl i64 %m5, 35
+      %a5 = or i64 %a4, %b5
+      %s6 = lshr i64 %0, 48
+      %m6 = and i64 %s6, 127
+      %b6 = shl i64 %m6, 42
+      %a6 = or i64 %a5, %b6
+      %s7 = lshr i64 %0, 56
+      %m7 = and i64 %s7, 127
+      %b7 = shl i64 %m7, 49
+      %a7 = or i64 %a6, %b7
+      ret i64 %a7
+    }
