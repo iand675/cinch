@@ -571,6 +571,14 @@
       "public_methods": 0
     },
     {
+      "module": "Effect.Ascii85",
+      "path": "compiler/prelude/Effect/Ascii85.cinch",
+      "sha256": "ce62b87682e7b8b63754a346c01a3db666e0a062693fa958251dac6c89febb27",
+      "embedded": false,
+      "values": 5,
+      "public_methods": 0
+    },
+    {
       "module": "Effect.Benchmark",
       "path": "compiler/prelude/Effect/Benchmark.cinch",
       "sha256": "59fcce379631b8530523a7370db82c170c0e5d6e0a7b5961e80fd270883e8ba3",
@@ -749,7 +757,7 @@
     {
       "module": "Effect.Stream",
       "path": "compiler/prelude/Effect/Stream.cinch",
-      "sha256": "ca55b0b65b41cf4583f3167ea6c8a6a23bcc821c8fe5cc45a828d0bc618564f7",
+      "sha256": "6079746ad326c94b72c6c3b41f3cb5d652d67a0f7ced213031747e6e342bd7c1",
       "embedded": false,
       "values": 24,
       "public_methods": 0
@@ -840,6 +848,14 @@
       "sha256": "d32463cc68034db08180c0417761348dd772852b1d99a3d24db7d6e3492a91ec",
       "embedded": false,
       "values": 7,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Ascii85",
+      "path": "compiler/prelude/Text/Ascii85.cinch",
+      "sha256": "3247c75afe5b1c77bbc62ddcf5340cdc063df2ed6af5d724489a84b45a7ef0d4",
+      "embedded": false,
+      "values": 12,
       "public_methods": 0
     },
     {

@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/ascii85"
 	"encoding/base32"
 	"encoding/binary"
 	"encoding/hex"
@@ -35,12 +36,15 @@ func main() {
 	}
 	checks := []map[string]string{}
 	for _, b := range inputs {
+		ascii := make([]byte, ascii85.MaxEncodedLen(len(b)))
+		ascii = ascii[:ascii85.Encode(ascii, b)]
 		f32, f32a, f64, f64a := fnv.New32(), fnv.New32a(), fnv.New64(), fnv.New64a()
 		f32.Write(b)
 		f32a.Write(b)
 		f64.Write(b)
 		f64a.Write(b)
 		checks = append(checks, map[string]string{
+			"ascii85":          string(ascii),
 			"hex":              hex.EncodeToString(b),
 			"base32":           base32.StdEncoding.EncodeToString(b),
 			"base32_hex":       base32.HexEncoding.EncodeToString(b),
@@ -74,9 +78,20 @@ func main() {
 		n := binary.PutVarint(b, x)
 		signed = append(signed, map[string]string{"value": strconv.FormatInt(x, 10), "varint": hex.EncodeToString(b[:n])})
 	}
+	// Cover compression, ignored controls, noncanonical groups and malformed tails.
+	asciiDecodes := []map[string]string{}
+	for _, text := range []string{"", "z", "zz z", "!!!!!", "uuuuu", "s8W-!", "!!", "!!!", "!!!!", "!\x00!\t!\r!\n!", "!", "z!", "!z", "!!!!z", "!!!!!~", "v", "\xff", "\xc3\xa9", "<~!!!!!~>", "z~>"} {
+		out := make([]byte, len(text)*4+4)
+		n, _, err := ascii85.Decode(out, []byte(text), true)
+		offset := ""
+		if err != nil {
+			offset = strconv.FormatInt(int64(err.(ascii85.CorruptInputError)), 10)
+		}
+		asciiDecodes = append(asciiDecodes, map[string]string{"encoded_hex": hex.EncodeToString([]byte(text)), "decoded_hex": hex.EncodeToString(out[:n]), "error_offset": offset})
+	}
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(map[string]interface{}{"buffers": checks, "words": words, "signed": signed}); err != nil {
+	if err := encoder.Encode(map[string]interface{}{"buffers": checks, "words": words, "signed": signed, "ascii85_decodes": asciiDecodes}); err != nil {
 		panic(err)
 	}
 }

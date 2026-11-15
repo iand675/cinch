@@ -622,11 +622,13 @@ module Bootstrap.RuntimeIr where
   erased-decision-fields fields = case fields of
     CPField sp (CPProof at predicate id name) (CPDone end) -> True
     other -> False
+  -- | Match constructor parameters while erasing runtime identities and preserving
+  -- the representation-bearing type and machine-width arguments.
   regular-parameters :: List Quant -> List Quant -> Bool
   regular-parameters expected actual = case (expected, actual) of
     (Nil, Nil) -> True
     (Cons q rest, Cons p more) -> if quant-id q == quant-id p then
-      kind-equal (quant-kind q) (quant-kind p) && (kind-equal (quant-kind q) KType || (case value-carrier (quant-kind q) of Some carrier -> True; None -> False)) && regular-parameters rest more
+      kind-equal (quant-kind q) (quant-kind p) && (kind-equal (quant-kind q) KType || kind-equal (quant-kind q) KRegion || (case value-carrier (quant-kind q) of Some carrier -> True; None -> False)) && regular-parameters rest more
       else (case value-carrier (quant-kind q) of Some carrier -> regular-parameters rest actual; None -> False)
     (Cons q rest, Nil) -> (case value-carrier (quant-kind q) of Some carrier -> regular-parameters rest Nil; None -> False)
     other -> False
@@ -822,6 +824,19 @@ module Bootstrap.RuntimeIr where
     CQualifiedUse sp ty name role actuals evidence -> True
     CMethod sp ty name owner slot actuals evidence -> True
     other -> False
+
+  -- | Region-polymorphic values keep one representation and are evaluated once.
+  -- Runtime identities remain checked statically and never become payload words.
+  erased-region-parameters :: List Quant -> Bool
+  erased-region-parameters parameters = case parameters of
+    Nil -> True
+    Cons parameter rest -> kind-equal (quant-kind parameter) KRegion && erased-region-parameters rest
+
+  -- | Instantiating only region identities does not change a local value's representation.
+  erased-region-arguments :: List UType -> Bool
+  erased-region-arguments arguments = case arguments of
+    Nil -> True
+    Cons argument rest -> kind-equal (type-kind argument) KRegion && erased-region-arguments rest
   specialize-local :: Nat -> Scheme -> CoreTerm -> CoreTerm -> CoreTerm
   specialize-local id scheme value term = case term of
     CLocal sp ty key name actuals -> if id == key then map-term-types (substitute-bound (actual-pairs (scheme-params scheme) actuals)) value else term
@@ -1041,7 +1056,7 @@ module Bootstrap.RuntimeIr where
     CChar sp ty text -> if named ty "Char" then (case char-word text of Some word -> (w, word); None -> unsupported w sp "invalid typed character literal") else unsupported w sp "character literal has no checked Char carrier"
     CString sp ty text -> string-literal w sp ty text
     CUnit sp ty -> (w, "0")
-    CLocal sp ty id name Nil -> case deferred-constructor id locals of
+    CLocal sp ty id name actuals -> if not (erased-region-arguments actuals) then unsupported w sp "local type arguments need representation specialization" else case deferred-constructor id locals of
       Some (ctor, actuals, args) -> direct-call definitions locals w sp ctor actuals args
       None -> case knot-local id locals of
         Some (declared, slot) -> knot-read w declared slot
@@ -1078,7 +1093,7 @@ module Bootstrap.RuntimeIr where
       else if deferred-let w id sc rhs body then (case deferred-value (writer-data w) rhs of
         Some (ctor, actuals, args) -> expression definitions (Cons (DeferredConstructor id (scheme-body sc) ctor actuals args) locals) w body
         None -> unsupported w sp "deferred constructor let failed its checked representation")
-      else if (case scheme-params sc of Nil -> True; other -> False) && scheme-supported (writer-context w) sc && word-type (writer-context w) (scheme-body sc) then
+      else if erased-region-parameters (scheme-params sc) && scheme-supported (writer-context w) sc && word-type (writer-context w) (scheme-body sc) then
       (case expression definitions locals w rhs of
         (bound, value) -> case expression definitions (Cons (Local id (scheme-body sc) value) locals) bound body of
           (done, result) -> (count-op False (scheme-body sc) value done, result))
@@ -1739,8 +1754,10 @@ module Bootstrap.RuntimeIr where
     Cons symbol rest -> primitive-intrinsics rest (request-demand (PrimitiveIntrinsicDemand symbol) w)
   primitive-intrinsic-worker :: String -> Writer -> Writer
   primitive-intrinsic-worker symbol w = if same symbol "@llvm.sideeffect" then global w "declare void @llvm.sideeffect()" else
+    if same symbol "@llvm.vector.reduce.add.v16i32" then global w "declare i32 @llvm.vector.reduce.add.v16i32(<16 x i32>)" else
     (case reverse (string-split-on "." symbol) of
-      Cons ty rest -> global w (cat ["declare { ", ty, ", i1 } ", symbol, "(", ty, ", ", ty, ")"])
+      Cons ty rest -> if string-starts-with "@llvm.bswap." symbol then global w (cat ["declare ", ty, " ", symbol, "(", ty, ")"])
+        else global w (cat ["declare { ", ty, ", i1 } ", symbol, "(", ty, ", ", ty, ")"])
       Nil -> refuse w (Span 0 0 1 1) "inline intrinsic is missing its checked result width")
   foreign-abi-compatible :: ForeignPlan -> ForeignPlan -> Bool
   foreign-abi-compatible first second = same (foreign-llvm-type (foreign-result first)) (foreign-llvm-type (foreign-result second))

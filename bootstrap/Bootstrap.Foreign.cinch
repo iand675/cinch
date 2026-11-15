@@ -8,6 +8,7 @@ module Bootstrap.Foreign where
   import Bootstrap.Interface (fnv-source-hash)
   import Data.Json
   import Data.Nat (nat-to-int)
+  import Data.Machine (eq-u8)
   import Text.Show (nat-to-string)
   import Text.Scan (string-contains, string-split-on, string-starts-with, string-words)
   import Algebra.Semigroup
@@ -170,6 +171,7 @@ module Bootstrap.Foreign where
   has-index value values = case values of Nil -> False; Cons first rest -> value == first || has-index value rest
   allowed-intrinsic :: String -> Bool
   allowed-intrinsic symbol = has symbol [
+    "@llvm.bswap.i16", "@llvm.bswap.i32", "@llvm.bswap.i64", "@llvm.vector.reduce.add.v16i32",
     "@llvm.sadd.with.overflow.i8", "@llvm.sadd.with.overflow.i16", "@llvm.sadd.with.overflow.i32", "@llvm.sadd.with.overflow.i64",
     "@llvm.uadd.with.overflow.i8", "@llvm.uadd.with.overflow.i16", "@llvm.uadd.with.overflow.i32", "@llvm.uadd.with.overflow.i64",
     "@llvm.ssub.with.overflow.i8", "@llvm.ssub.with.overflow.i16", "@llvm.ssub.with.overflow.i32", "@llvm.ssub.with.overflow.i64",
@@ -205,36 +207,39 @@ module Bootstrap.Foreign where
   first-ir-return result words = case words of
     Cons operation (Cons actual (Cons operand Nil)) -> same operation "ret" && same actual result
     other -> False
-  contained-ir :: String -> List String -> Bool -> List String -> Result String (List String)
-  contained-ir result lines returned symbols = case lines of
+  -- | Validate one straight-line fragment. Explicitly trusted bodies may read
+  -- raw memory; their source identity remains a recorded primitive assumption.
+  contained-ir :: String -> Bool -> List String -> Bool -> List String -> Result String (List String)
+  contained-ir result trusted lines returned symbols = case lines of
     Nil -> if returned then Ok symbols else Err "containment (grammar): an LLVM fragment needs one final return"
     Cons line rest -> let words = ir-line-words line in
       (case ir-instruction words of
-        Nil -> if list-length words == 0 then contained-ir result rest returned symbols
+        Nil -> if list-length words == 0 then contained-ir result trusted rest returned symbols
           else Err "containment (grammar): an LLVM result binding needs an instruction"
         Cons operation arguments ->
           if ir-has-word ["invoke", "callbr", "resume", "catchswitch", "catchpad", "cleanuppad", "cleanupret", "catchret", "landingpad"] words then
             Err "containment (no-unwind): the inline body may unwind"
           else if ir-has-word ["define", "declare"] words then Err "containment (signature discipline): a fragment declares extra parameters or results"
-          else if ir-has-word ["store", "load", "atomicrmw", "cmpxchg", "fence", "volatile"] words then
+          else if ir-has-word ["store", "atomicrmw", "cmpxchg", "fence", "volatile"] words || (not trusted && ir-has-word ["load"] words) then
             Err "containment (determinism of effects): this LLVM memory operation has no checked buffer contract"
           else if returned then Err "containment (grammar): an instruction follows the return"
           else if not (ir-no-unsafe-punctuation line) then Err "containment (no-escape): unsupported LLVM labels, metadata or quoted operands"
-          else if ir-has-word ["br", "switch", "indirectbr", "alloca", "getelementptr", "unreachable", "ptr", "inttoptr", "ptrtoint", "asm", "va_arg"] words then
+          else if ir-has-word ["br", "switch", "indirectbr", "alloca", "unreachable", "ptrtoint", "asm", "va_arg"] words || (not trusted && ir-has-word ["getelementptr", "ptr", "inttoptr"] words) then
             Err "containment (no-escape): jumps, allocation, pointers and embedded assembly are forbidden"
           else if same operation "ret" then
-            if first-ir-return result words && list-length (ir-symbols arguments) == 0 then contained-ir result rest True symbols
+            if first-ir-return result words && list-length (ir-symbols arguments) == 0 then contained-ir result trusted rest True symbols
             else Err "containment (signature discipline): LLVM return disagrees with the declared result"
           else if same operation "call" && not (has "call" arguments) then (case ir-symbols arguments of
-            [symbol] -> if allowed-intrinsic symbol then contained-ir result rest False (if has symbol symbols then symbols else Cons symbol symbols)
+            [symbol] -> if allowed-intrinsic symbol then contained-ir result trusted rest False (if has symbol symbols then symbols else Cons symbol symbols)
               else Err "containment (no-escape): the call has no checked intrinsic or uses contract"
             other -> Err "containment (no-escape): an indirect or ambiguous call is forbidden")
           else if has "call" arguments || list-length (ir-symbols arguments) /= 0 then
             Err "containment (no-escape): unchecked calls and symbols are forbidden"
           else if has operation ["add", "sub", "mul", "udiv", "sdiv", "urem", "srem", "shl", "lshr", "ashr", "and", "or", "xor",
               "fadd", "fsub", "fmul", "fdiv", "frem", "fneg", "icmp", "fcmp", "select", "extractvalue", "insertvalue",
-              "trunc", "zext", "sext", "fptrunc", "fpext", "fptoui", "fptosi", "uitofp", "sitofp", "bitcast", "freeze"] then
-            contained-ir result rest False symbols
+              "trunc", "zext", "sext", "fptrunc", "fpext", "fptoui", "fptosi", "uitofp", "sitofp", "bitcast", "freeze",
+              "extractelement", "insertelement", "shufflevector"] || (trusted && has operation ["inttoptr", "getelementptr", "load"]) then
+            contained-ir result trusted rest False symbols
           else Err (string-concat "containment (grammar): unsupported LLVM instruction " operation))
   condition-operand :: Expr -> String
   condition-operand expression = case expression of
@@ -245,7 +250,8 @@ module Bootstrap.Foreign where
   condition-spelling head argument = let name = condition-operand argument in
     if string-length name == 0 then "" else
       (case reverse (string-split-on "." head) of
-        Cons last rest -> if same last "arch" || same last "Available" then string-concat-all [last, " ", name] else ""
+        Cons last rest -> if same last "arch" || same last "Available" then string-concat-all [last, " ", name]
+          else if same last "endian" && has name ["little", "big"] then string-concat-all [last, " ", name] else ""
         Nil -> "")
   primitive-condition :: Expr -> String
   primitive-condition expression = case expression of
@@ -253,6 +259,24 @@ module Bootstrap.Foreign where
     EApp sp (ECon at predicate (EArgsEnd end)) argument -> condition-spelling predicate argument
     ECon sp predicate (EArg at argument (EArgsEnd end)) -> condition-spelling predicate argument
     other -> ""
+
+  -- | Observe the executable's native byte order without pointers or memory.
+  -- This backend invokes the native linker and has no cross-target ABI mode.
+  prim native-first-byte :: U32 -> U8 where
+    llvm {
+      %bytes = bitcast i32 %0 to <4 x i8>
+      %first = extractelement <4 x i8> %bytes, i32 0
+      ret i8 %first
+    }
+
+  -- | Select a native-endian LLVM alternative. Other target conditions retain
+  -- their existing fallback policy until the backend carries that target evidence.
+  native-endian-condition :: Expr -> Bool
+  native-endian-condition expression =
+    let condition = primitive-condition expression in
+    if same condition "endian little" then eq-u8 (native-first-byte 1) 1
+    else if same condition "endian big" then eq-u8 (native-first-byte 1) 0
+    else False
   condition-text :: Option Expr -> String
   condition-text when = case when of Some expression -> primitive-condition expression; None -> ""
   immediate-text :: List Nat -> String
@@ -282,8 +306,10 @@ module Bootstrap.Foreign where
   contained-assembly fragment = let words = string-words (pack (ir-token-chars (unpack fragment))) in
     list-length words /= 0 && not (ir-has-word ["syscall", "svc", "int", "udf", "brk", "hlt", "ud2", "trap",
       "call", "callq", "bl", "blr", "ret", "jmp", "br"] words)
-  checked-prim-bodies :: List PrimBody -> Nat -> String -> Option (String, List String, List Nat) -> Option PrimitiveAssembly -> String -> Result String InlinePrimitive
-  checked-prim-bodies bodies arity result baseline assembly missing = case bodies of
+  -- | Prefer a matching native-endian body over the fallback regardless of order,
+  -- while rejecting duplicate defaults and ambiguous matching alternatives.
+  checked-prim-bodies :: List PrimBody -> Nat -> String -> Option (String, List String, List Nat) -> Bool -> Bool -> Option PrimitiveAssembly -> String -> Result String InlinePrimitive
+  checked-prim-bodies bodies arity result baseline seen-default selected-endian assembly missing = case bodies of
     Nil -> (case baseline of Some (fragment, symbols, immediates) -> Ok (InlinePrimitiveBody fragment symbols immediates assembly); None -> Err (string-concat "no LLVM baseline for " missing))
     Cons (MkPrimBody sp family fragment unverified when justification uses immediates) rest ->
       if not (immediate-indices-valid arity immediates Nil) then Err "duplicate or out-of-range immarg parameter"
@@ -292,18 +318,22 @@ module Bootstrap.Foreign where
       else if same family "asm" && not (contained-assembly fragment) then Err "containment (no-escape): the assembly has an empty or escaping fragment"
       else if list-length uses /= 0 then Err "inline primitive uses entries need checked foreign contracts"
       else if (case when of Some condition -> string-length (primitive-condition condition) == 0; None -> False) then
-        Err "a `when` condition is Available <capability> or arch <name>"
+        Err "a `when` condition is Available <capability>, arch <name>, or endian little/big"
       else (case justification of
         Some evidence -> Err "inline primitive justification needs a checked law identity"
-        None -> if same family "llvm" then (case contained-ir result (string-split-on "\n" fragment) False Nil of
+        None -> if same family "llvm" then (case contained-ir result unverified (string-split-on "\n" fragment) False Nil of
           Err message -> Err message
-          Ok symbols -> (case (when, baseline) of
-            (None, None) -> checked-prim-bodies rest arity result (Some (fragment, symbols, immediates)) assembly missing
-            (None, Some prior) -> Err "duplicate LLVM baseline in an inline primitive"
-            (Some condition, prior) -> checked-prim-bodies rest arity result prior assembly (primitive-condition condition)))
+          Ok symbols -> (case when of
+            None -> if seen-default then Err "duplicate LLVM baseline in an inline primitive"
+              else checked-prim-bodies rest arity result (if selected-endian then baseline else Some (fragment, symbols, immediates)) True selected-endian assembly missing
+            Some condition ->
+              if native-endian-condition condition then
+                (if selected-endian then Err "ambiguous matching endian bodies in an inline primitive"
+                 else checked-prim-bodies rest arity result (Some (fragment, symbols, immediates)) seen-default True assembly missing)
+              else checked-prim-bodies rest arity result baseline seen-default selected-endian assembly (primitive-condition condition)))
           else if same family "asm" then (case (when, assembly) of
-            (Some condition, prior) -> checked-prim-bodies rest arity result baseline prior (primitive-condition condition)
-            (None, None) -> checked-prim-bodies rest arity result baseline (Some (AssemblyFragment fragment immediates)) "an unselected assembly body"
+            (Some condition, prior) -> checked-prim-bodies rest arity result baseline seen-default selected-endian prior (primitive-condition condition)
+            (None, None) -> checked-prim-bodies rest arity result baseline seen-default selected-endian (Some (AssemblyFragment fragment immediates)) "an unselected assembly body"
             (None, Some prior) -> Err "duplicate unconditional assembly body in an inline primitive")
           else Err (string-concat "unsupported inline target-IR family " family))
   primitive-plan :: String -> Scheme -> List PrimBody -> Result String ForeignPlan
@@ -311,7 +341,7 @@ module Bootstrap.Foreign where
     if not (contract-scheme-closed scheme) || list-length (scheme-params scheme) /= 0 || list-length (scheme-requirements scheme) /= 0 then
       Err "a prim declaration needs a monomorphic checked signature"
     else (case (export-global name, primitive-parameters (scheme-body scheme) Nil) of
-      (Ok symbol, Ok (arguments, result)) -> (case checked-prim-bodies bodies (list-length arguments) (foreign-llvm-type result) None None "the current target profile" of
+      (Ok symbol, Ok (arguments, result)) -> (case checked-prim-bodies bodies (list-length arguments) (foreign-llvm-type result) None False False None "the current target profile" of
         Ok body -> Ok (Plan (string-concat symbol ".llvm") scheme arguments result
           (Some (body, primitive-identity symbol (primitive-body-text bodies), primitive-trust symbol bodies)))
         Err message -> Err message)
