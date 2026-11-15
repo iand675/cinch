@@ -587,13 +587,22 @@ the block is in, and both states are counts no heap block can reach:
   `cinch_drop_slow` releases the payload instead of freeing stack memory
   (under `CINCH_RC_DEBUG=1` it traps: the debug paths go through
   `cinch_drop`, which owns that case).
-- The inline fast paths each module emits (`rc_helpers`) exclude both
+- The inline fast paths each module emits (`rc_helpers` in
+  `compiler/src/codegen.rs`, `count-helpers` in
+  `bootstrap/Bootstrap.RuntimeIr.cinch`) exclude both
   markers with one signed compare and give them a frame arm: a drop calls
   `cinch_frame_release`, a dup does nothing. The arms are present only in a
   module that can hold or receive a frame block: its own frame slots, or a
   callee the pass hands a frame block to (`stack::Report::receives_frame`).
   A program the pass left alone emits the helper it always emitted, which is
   what keeps `--no-stack-alloc` byte-identical to the pre-pass IR.
+  The two emitters name their helpers differently and both names are the
+  count decision: the seed defines `cinch.rc.{dup,drop}.{obj,tobj}` plus
+  `cinch.rc.unique` for a drop specialisation, and the self-hosted emitter
+  defines `cinch.typed.rc.{dup,drop}` as `alwaysinline`. A test that looks
+  for one spelling reads zero on the other emitter's module and cannot tell
+  a counted build from a baseline, so an assertion on this decision names
+  every spelling (`COUNT_HELPERS` in `compiler/tests/reclamation.rs`).
 - Code generation still releases a frame binder's payload itself at the
   reference's death (`CoreEmitter::frame_release`): the counted byte offsets
   are known statically, so that path is a fixed list of drops with no call

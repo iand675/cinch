@@ -139,11 +139,53 @@ fn a_profile_that_does_not_reclaim_emits_no_ownership_and_leaks() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// Every name a count operation can be spelled with, because the two
+/// emitters behind `drive_with_profile` name their helpers differently:
+/// `compiler/src/codegen.rs` (the Native seed) defines
+/// `cinch.rc.{dup,drop}.{obj,tobj}` plus the `cinch.rc.unique` test a drop
+/// specialisation asks, while `bootstrap/Bootstrap.RuntimeIr.cinch`
+/// (`count-helpers`) defines the two alwaysinline helpers
+/// `cinch.typed.rc.{dup,drop}`. Both are the same decision from the same
+/// `reclaim` flag, so the assertion names the whole set: a spelling that
+/// is neither listed nor gated fails here instead of matching nothing.
+const COUNT_HELPERS: &[&str] = &[
+    "cinch.rc.dup.obj",
+    "cinch.rc.dup.tobj",
+    "cinch.rc.drop.obj",
+    "cinch.rc.drop.tobj",
+    "cinch.rc.unique",
+    "cinch.typed.rc.dup",
+    "cinch.typed.rc.drop",
+];
+
+/// The callee a call line names, or `None`. A call is `call void @f(...)`
+/// or `%v = call i1 @f(...)`, so the form is the `call` keyword, not the
+/// start of the line; a `define` names its callee too and is counted apart.
+fn callee(line: &str) -> Option<&str> {
+    let at = line.find(" @")?;
+    let rest = &line[at + 2..];
+    Some(&rest[..rest.find('(')?])
+}
+
+/// Whether `line` calls a helper named in [`COUNT_HELPERS`], whatever
+/// result it binds.
+fn calls_count_helper(line: &str) -> bool {
+    let is_call = line.trim_start().starts_with("call ") || line.contains(" call ");
+    is_call && callee(line).is_some_and(|name| COUNT_HELPERS.contains(&name))
+}
+
+/// Whether `line` defines one: the definition carries the same decision as
+/// the call, because an emitter that does not count emits no body to call.
+fn defines_count_helper(line: &str) -> bool {
+    line.starts_with("define ") && callee(line).is_some_and(|name| COUNT_HELPERS.contains(&name))
+}
+
 /// The same switch one level down, where it is cheapest to see: the emitted
-/// module itself. A counted build of this program calls the count helpers;
-/// the leak baseline calls none of them, and says so at the runtime by
-/// leaving `cinch_reclaim_enable` out of its constructor too. Both halves
-/// are asserted, so a flag that silently did nothing fails here.
+/// module itself. A counted build of this program both defines the count
+/// helpers and calls them; the leak baseline does neither, and says so at
+/// the runtime by leaving `cinch_reclaim_enable` out of its constructor
+/// too. Both halves are asserted, so a flag that silently did nothing fails
+/// here.
 #[test]
 fn the_leak_baseline_emits_no_count_call_and_does_not_enable_reclaiming() {
     let dir = project("leakyir", LISTS);
@@ -156,10 +198,30 @@ fn the_leak_baseline_emits_no_count_call_and_does_not_enable_reclaiming() {
     };
     let counted = emit("counted.ll", true);
     let leaky = emit("leaky.ll", false);
-    // A call, not a declaration: the declarations stay in the module.
-    let calls = |text: &str| text.lines().filter(|l| l.trim_start().starts_with("call void @cinch.rc.")).count();
+    // A call, not a declaration: both emitters declare every runtime symbol
+    // they may use whether or not this module reaches it, so a declaration
+    // carries no decision. The counted module calls and defines the
+    // helpers; the baseline does neither.
+    let calls = |text: &str| text.lines().filter(|l| calls_count_helper(l)).count();
+    let defines = |text: &str| text.lines().filter(|l| defines_count_helper(l)).count();
     assert!(calls(&counted) > 0, "a counted build must count: {counted}");
+    assert!(defines(&counted) > 0, "a counted build must define the helpers it calls: {counted}");
     assert_eq!(calls(&leaky), 0, "the leak baseline emitted a count operation");
+    assert_eq!(defines(&leaky), 0, "the leak baseline defined a count helper no body may call");
+    // The failure this assertion exists to prevent is not a wrong count, it
+    // is a marker that matches nothing: `@cinch.rc.` matched no line of a
+    // self-hosted module for as long as the typed emitter spelled its
+    // helpers `@cinch.typed.rc.`, and both arms read zero. So the counted
+    // module must also name no helper-shaped symbol outside COUNT_HELPERS,
+    // which is what a renamed or newly spelled helper would look like.
+    let unrecognised: Vec<&str> = counted
+        .lines()
+        .filter(|l| l.trim_start().starts_with("call "))
+        .filter_map(|l| callee(l))
+        .filter(|name| name.contains(".rc.") && !COUNT_HELPERS.contains(name))
+        .collect();
+    assert!(unrecognised.is_empty(),
+        "count helpers outside COUNT_HELPERS: {unrecognised:?}; re-pin the list rather than let the arms read zero");
     assert!(counted.contains("call void @cinch_reclaim_enable()"),
         "a counted build tells the runtime it reclaims");
     assert!(!leaky.contains("call void @cinch_reclaim_enable()"),
