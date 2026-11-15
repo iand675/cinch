@@ -73,6 +73,8 @@ module Bootstrap.Foreign where
     else if has name ["I16", "U16"] then Some (2, same name "I16")
     else if has name ["I32", "U32", "F32"] then Some (4, same name "I32")
     else if has name ["I64", "U64", "Isize", "Usize", "F64"] then Some (8, same name "I64" || same name "Isize")
+    -- C's `__int128`: LLVM `i128` (design/wide-scalars.md section 7).
+    else if has name ["I128", "U128"] then Some (16, same name "I128")
     else None
   foreign-pointer :: UType -> Bool
   foreign-pointer ty = case ty of
