@@ -7128,7 +7128,7 @@ fn foreign_declare(plan: &ForeignPlan, reg: &Registry) -> String {
     {
         let byval = byvalue_attr(p, reg, false);
         let kind = if byval.is_empty() {
-            "ptr".to_string()
+            abi_llvm_ty(p).to_string()
         } else {
             format!("ptr {byval}")
         };

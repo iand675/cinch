@@ -399,3 +399,11 @@ artifacts, contract-only `iface_hash`, and `.cinchif` dependency chain
 are the starting advantages; the acceptance is latency (unchanged
 rebuild cost grows with graph traversal only) and a cache that is
 advisory, never load-bearing.
+
+## Native C++
+
+`cinch cxx bindings.json --out-dir DIR` generates opaque owned class bindings,
+constructors, borrowed methods, consuming destructors, and scalar function
+imports through C++17 C ABI shims. See the [runnable example and binding
+format](../examples/cxx/README.md). Destruction is explicit and checked by the
+existing linear ownership rules; exceptions terminate inside the shim.

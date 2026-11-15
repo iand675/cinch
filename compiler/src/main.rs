@@ -11,6 +11,7 @@ usage:
   cinch emit-object <library.cinch> [-o <out.o>] [--object-roots <roots.json>] [--rebuild]
   cinch build <file.cinch> [-o <out>] [--rebuild]
   cinch run <file.cinch> [args...] [--rebuild] compile and run; exit code is the program's
+  cinch cxx <bindings.json> --out-dir <dir>  generate C++ bindings
   cinch lsp                        run the language server over stdio
   cinch core emit <file.cinch> [--stage=<name>] [--target <triple>] [-o <out.core>]
                                    write the Core dump codegen consumes
@@ -109,6 +110,7 @@ fn main() {
         Some("build") => (Mode::Build, &args[1..]),
         Some("run") => (Mode::Run, &args[1..]),
         Some("core") => exit(cinch::driver::core_cli(&args[1..])),
+        Some("cxx") => exit(cinch::cxx::cli(&args[1..])),
         Some("doc") => exit(cinch::cinchdoc::cli(&args[1..])),
         Some("repl") => {
             if let Err(error) = cinch::repl::run() {
