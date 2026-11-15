@@ -566,3 +566,94 @@ module Main where
         "boundary-layout",
     );
 }
+
+/// Compile a wide-value consumer with poisoned frees and verify every allocation is released.
+fn run_counted_wide_case(source: &str) -> String {
+    let directory = tempfile::tempdir().unwrap();
+    std::fs::write(directory.path().join("Main.cinch"), source).unwrap();
+    let executable = directory.path().join("consumer");
+    let profile = cinch::core::TargetProfile {
+        reclaim: true,
+        rc_debug: true,
+        ..cinch::core::TargetProfile::native()
+    };
+    common::drive_with_profile(
+        cinch::driver::Mode::Build,
+        cinch::check::StageMode::Refresh,
+        directory.path(),
+        "Main.cinch",
+        Some(executable.clone()),
+        &profile,
+    )
+    .unwrap();
+    let output = std::process::Command::new(&executable)
+        .env("CINCH_RC_DEBUG", "1")
+        .env("CINCH_LEAK_CHECK", "1")
+        .env("CINCH_HEAP_LIMIT", "16M")
+        .output()
+        .unwrap();
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&output.stderr).contains("leaked=0"));
+    std::fs::read_to_string(executable.with_extension("ll")).unwrap()
+}
+
+/// Borrowed arguments die after their call, while its return retains the full i128 carrier.
+#[test]
+fn borrowed_wide_results_release_temporary_buffers_without_boxing() {
+    run_counted_wide_case(
+        r#"module Main where
+  import Data.Wide
+  -- | Keep the call boundary opaque so argument release happens after a wide result returns.
+  #[inline(never)]
+  wide-read :: Bytes -> U128
+  wide-read bytes =
+    let high = u64-to-u128 (wrapping-i64-to-u64 (nat-to-i64 (bytes-len bytes))) in
+    let low = if 0 < bytes-len bytes then u64-to-u128 (wrapping-i64-to-u64 (nat-to-i64 (bytes-get bytes 0))) else 0 in
+    bit-or-u128 (wrapping-shl-u128 high 64) low
+  -- | The temporary byte buffer must be released without boxing its wide return.
+  main :: Int
+  main = if eq-u128 (wide-read (bytes-new 16)) 295147905179352825856 then 0 else 1
+"#,
+    );
+}
+
+/// Shared wide-returning subterms retain tail calls through loops deeper than the native stack.
+#[test]
+fn extracted_wide_returns_keep_a_constant_stack() {
+    let steps = (1..=20)
+        .map(|i| format!("      let x{i} = wrapping-add-u128 x{} 1 in\n", i - 1))
+        .collect::<String>();
+    let source = format!(
+        r#"module Main where
+  import Data.Wide
+  -- | Alternate starting increments while sharing the repeated wide-returning body.
+  spin :: Nat -> U128 -> U128
+  spin n acc = if n == 0 then acc else
+    if nat-rem n 2 == 0 then
+      let x0 = wrapping-add-u128 acc 1 in
+{steps}      spin (n - 1) x20
+    else
+      let x0 = wrapping-add-u128 acc 2 in
+{steps}      spin (n - 1) x20
+  -- | Two hundred thousand iterations require constant stack space and exact wide arithmetic.
+  main :: Int
+  main = if eq-u128 (spin 200000 0) 4300000 then 0 else 1
+"#
+    );
+    let ir = run_counted_wide_case(&source);
+    assert!(
+        ir.lines().any(|line| line.starts_with("define ")
+            && line.contains("i128 @")
+            && line.contains(".shared")),
+        "the repeated wide body must actually reach a shared helper"
+    );
+    assert!(
+        !ir.contains("<builtin>.WideBox"),
+        "direct wide returns must stay unboxed"
+    );
+}

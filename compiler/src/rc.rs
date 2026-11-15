@@ -812,6 +812,8 @@ struct CtorFact {
 struct Ctors {
     by_unit: HashMap<String, CtorFact>,
     by_data: HashMap<String, Vec<(usize, CtorFact)>>,
+    /// Saturated units whose return value must stay in an unboxed i128 temporary.
+    wide_results: std::collections::HashSet<String>,
 }
 
 impl Ctors {
@@ -834,7 +836,11 @@ impl Ctors {
             }
             by_unit.insert(f.id.0.clone(), fact);
         }
-        Ctors { by_unit, by_data }
+        let wide_results = program.fns.iter()
+            .filter(|f| f.repr.result == Some(Class::Wide))
+            .map(|f| f.id.0.clone())
+            .collect();
+        Ctors { by_unit, by_data, wide_results }
     }
 
     /// The constructor a `case` arm's `tag` names inside `data`, which is
@@ -1586,12 +1592,24 @@ impl Pass<'_> {
         let mut call = Core::App(Box::new(head), args);
         let drops: Vec<usize> = reads.iter().copied().filter(|x| owned.contains(x) && !live.contains(x)).collect();
         if !drops.is_empty() {
-            let r = self.fresh(Class::Raw);
+            // A borrowed call's result survives the argument releases. Preserve
+            // wide scalars here: a word temporary would make the later edge
+            // pass insert a box after ownership accounting, leaking that box.
+            let wide = match &call {
+                Core::App(head, _) => match &**head {
+                    Core::Global(g, _) => self.ctors.wide_results.contains(&g.0),
+                    Core::Prim(op) => crate::codegen::prim_result_class(*op) == Some(Class::Wide),
+                    _ => false,
+                },
+                _ => false,
+            };
+            let class = if wide { Class::Wide } else { Class::Raw };
+            let r = self.fresh(class);
             let mut after = Core::Var(LocalId(r));
             for x in drops.into_iter().rev() {
                 after = self.rc(true, x, after);
             }
-            call = Core::Let(LocalId(r), Class::Raw, Box::new(call), Box::new(after));
+            call = Core::Let(LocalId(r), class, Box::new(call), Box::new(after));
         }
         call
     }
