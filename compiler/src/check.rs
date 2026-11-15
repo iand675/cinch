@@ -95,7 +95,10 @@ enum ECore {
     DictProj(Box<ECore>, usize, Option<(String, Vec<Ty>)>, Ty),
     /// Record field projection: load the field from the record block.
     /// The type is the field's, for its representation class.
-    Proj(Box<ECore>, crate::core::ProjField, Ty),
+    /// A field projection: the container, the field, the field's type,
+    /// and the types of the runtime fields before it when one may be
+    /// wide (`ProjField::before`; empty means all one word).
+    Proj(Box<ECore>, crate::core::ProjField, Ty, Vec<Ty>),
     /// A dictionary, with the instance's own parameter types.
     InstDict(GlobalId, Vec<ECore>, Vec<Ty>, bool),
     App(Box<ECore>, Vec<ECore>),
@@ -859,7 +862,9 @@ fn remap_ecore(e: &ECore, r: &Remap) -> ECore {
                 r.ty(t),
             )
         }
-        ECore::Proj(d, i, t) => ECore::Proj(Box::new(remap_ecore(d, r)), i.clone(), r.ty(t)),
+        ECore::Proj(d, i, t, before) => {
+            ECore::Proj(Box::new(remap_ecore(d, r)), i.clone(), r.ty(t), before.iter().map(|b| r.ty(b)).collect())
+        }
         ECore::InstDict(g, args, t, explicit) => ECore::InstDict(
             g.clone(),
             args.iter().map(|a| remap_ecore(a, r)).collect(),
@@ -1401,7 +1406,7 @@ impl<'a> LowerCx<'a> {
                 _ => self.expr_class(b),
             },
             ECore::LitFold { body, .. } => self.expr_class(body),
-            ECore::Proj(_, _, t) | ECore::DictProj(.., t) | ECore::Demand(_, t) | ECore::BoxGet(_, t)
+            ECore::Proj(_, _, t, _) | ECore::DictProj(.., t) | ECore::Demand(_, t) | ECore::BoxGet(_, t)
             | ECore::BoxInit(_, _, t) => Some(self.class(t)),
             ECore::ConstBig { .. } => Some(Class::TObj),
             ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::MkClos { .. } | ECore::Lam { .. }
@@ -1519,9 +1524,14 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
             }),
             cx.class(ty),
         ),
-        ECore::Proj(d, f, ty) => {
-            C::Proj(Box::new(low(d)), crate::core::ProjField { class: cx.class(ty), ..f.clone() })
-        }
+        ECore::Proj(d, f, ty, before) => C::Proj(
+            Box::new(low(d)),
+            crate::core::ProjField {
+                class: cx.class(ty),
+                before: before.iter().map(|t| cx.class(t)).collect(),
+                ..f.clone()
+            },
+        ),
         ECore::InstDict(g, args, tys, explicit) => {
             let own = cx.ck.self_instance.and_then(|index| cx.ck.instance_list.get(index));
             let is_self = cx.runtime && !*explicit && own.is_some_and(|instance| {
@@ -11928,7 +11938,9 @@ impl Checker {
             ECore::DictProj(d, i, s, t) => {
                 ECore::DictProj(Box::new(self.fill_holes(d, sol)?), *i, s.clone(), t.clone())
             }
-            ECore::Proj(d, i, t) => ECore::Proj(Box::new(self.fill_holes(d, sol)?), i.clone(), t.clone()),
+            ECore::Proj(d, i, t, before) => {
+                ECore::Proj(Box::new(self.fill_holes(d, sol)?), i.clone(), t.clone(), before.clone())
+            }
             ECore::InstDict(g, args, t, explicit) => ECore::InstDict(
                 g.clone(),
                 args.iter()

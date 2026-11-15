@@ -1065,10 +1065,11 @@ fn cand_of(e: &Core, facts: &Facts) -> Option<Cand> {
             }
             let words = args.len() as u32;
             let bytes = u64::from(words) * 8;
-            if *boundary {
+            if *boundary || fields.contains(&Class::Wide) {
                 // A boundary layout records its fields at offsets this
-                // lowering does not reproduce, so the site is sized and
-                // refused.
+                // lowering does not reproduce, and a wide field takes two
+                // payload words where this lowering stores one per field,
+                // so the site is sized and refused.
                 let site = payload(words, 0, fields, Shape::Ctor { ctor: g.clone(), arity: words });
                 return Some(Cand { site: Some(site), blocked: Some(Refusal::Layout), bytes });
             }

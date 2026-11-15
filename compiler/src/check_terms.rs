@@ -1814,13 +1814,22 @@ impl Checker {
                     info.field_erased[..idx].iter().filter(|e| !**e).count();
                 let v = self.qualified.get(&(info.module.clone(), info.name.clone())).cloned()
                     .ok_or_else(|| Error::at(*span, crate::diagnostic!("unknown constructor for {}", crate::spelling::Nominal(&rec_name))))?;
-                let field_ty = match &v.kind {
-                    ValueKind::Ctor { field_tys, ty_params, .. } => {
+                // The field's type, and the types of the runtime fields
+                // before it: a wide one takes two payload words, so the
+                // projection's offset depends on them (`ProjField::before`).
+                let (field_ty, before_tys) = match &v.kind {
+                    ValueKind::Ctor { field_tys, ty_params, field_erased, .. } => {
                         let mut map = HashMap::new();
                         for (p, a) in ty_params.iter().zip(&args) {
                             map.insert(p.clone(), a.clone());
                         }
-                        Self::subst_ty(&field_tys[idx], &map)
+                        let before: Vec<Ty> = field_tys[..idx]
+                            .iter()
+                            .zip(field_erased.iter())
+                            .filter(|(_, e)| !**e)
+                            .map(|(t, _)| Self::subst_ty(t, &map))
+                            .collect();
+                        (Self::subst_ty(&field_tys[idx], &map), before)
                     }
                     _ => {
                         return Err(Error::at(*span, crate::diagnostic!("{} has no constructor", crate::spelling::Nominal(&rec_name))));
@@ -1849,9 +1858,11 @@ impl Checker {
                                     ),
                                     class: Class::Raw,
                                     mutable: false,
+                                    before: Vec::new(),
                                 },
                                 // The stored observation closure.
                                 Ty::fun(Ty::Unit, field_ty.clone()),
+                                before_tys,
                             ),
                             vec![ECore::Unit],
                         ),
@@ -1871,8 +1882,10 @@ impl Checker {
                             ),
                             class: Class::Raw,
                             mutable: false,
+                            before: Vec::new(),
                         },
                         field_ty.clone(),
+                        before_tys,
                     ),
                     field_ty,
                 ))
@@ -6107,6 +6120,7 @@ impl Checker {
                         Box::new(operand),
                         ProjField::slot(0, Class::Raw),
                         Ty::Bytes,
+                        Vec::new(),
                     ),
                     other => {
                         return Err(Error::at(
@@ -6591,7 +6605,7 @@ impl Checker {
     }
 
     fn read_mutable_cell(cell: ECore, payload: &Ty) -> ECore {
-        ECore::Proj(Box::new(cell), ProjField::mutable_cell(), payload.clone())
+        ECore::Proj(Box::new(cell), ProjField::mutable_cell(), payload.clone(), Vec::new())
     }
 
     // Structural matches already give each mutable field its own local
@@ -8225,7 +8239,7 @@ impl Checker {
                     let fl = self.fresh_local();
                     self.note_local_ty(fl, &comps[i]);
                     let field =
-                        ECore::Proj(Box::new(ECore::Var(l)), ProjField::slot(i, Class::Raw), comps[i].clone());
+                        ECore::Proj(Box::new(ECore::Var(l)), ProjField::slot(i, Class::Raw), comps[i].clone(), comps[..i].to_vec());
                     let fdef = def.as_ref().map(|d| ECore::Let(l, Box::new(d.clone()), Box::new(field.clone())));
                     out.push((fl, field));
                     self.destructure_bind(env, item, fl, &comps[i], fdef, out)?;
@@ -10968,10 +10982,12 @@ impl Checker {
         };
         let vtable = self.extents[idx].vtable;
         // A vtable slot holds the handler clause's closure.
+        // The vtable's slots are clause closures, each one word.
         let mut core = ECore::Proj(
             Box::new(ECore::Var(vtable)),
             ProjField::slot(slot, Class::Raw),
             Ty::fun(Ty::Unit, Ty::Unit),
+            Vec::new(),
         );
         for (l, _) in done {
             core = app_spine(core, vec![ECore::Var(*l)]);
@@ -11688,6 +11704,7 @@ impl Checker {
                 Box::new(ECore::Var(hv)),
                 ProjField::slot(0, Class::Raw),
                 Ty::fun(Ty::Unit, Ty::Unit),
+                Vec::new(),
             ),
             vec![ECore::Var(pv)],
         );
@@ -12457,7 +12474,7 @@ fn rec_initializer_stable(core: &ECore, partial: &impl Fn(LocalId, usize) -> boo
         | ECore::Ctor(..) | ECore::Prim(_) | ECore::Lam { .. }
         | ECore::LazyAlloc | ECore::BoxAlloc => true,
         ECore::LitFold { body, .. } => stable(body),
-        ECore::Proj(value, field, _) => !field.mutable && stable(value),
+        ECore::Proj(value, field, ..) => !field.mutable && stable(value),
         ECore::App(head, args) => {
             let known_stable = match &**head {
                 ECore::Ctor(..) => true,
@@ -12542,7 +12559,7 @@ impl KnotFlow<'_> {
         let ty = match node {
             ECore::Var(local) => self.checker.local_tys.get(local)?,
             ECore::MkClos { fn_id, .. } | ECore::Global(fn_id, _) => &self.functions.get(fn_id)?.0,
-            ECore::Proj(_, _, ty) | ECore::DictProj(.., ty) | ECore::Demand(_, ty)
+            ECore::Proj(_, _, ty, _) | ECore::DictProj(.., ty) | ECore::Demand(_, ty)
             | ECore::BoxGet(_, ty) | ECore::BoxInit(_, _, ty) => ty,
             _ => return None,
         };
@@ -12622,7 +12639,7 @@ impl KnotFlow<'_> {
                 // The runtime faults before an uninitialized slot yields a value.
                 None
             }
-            ECore::Proj(value, _, ty) | ECore::DictProj(value, .., ty)
+            ECore::Proj(value, _, ty, _) | ECore::DictProj(value, .., ty)
             | ECore::Demand(value, ty) | ECore::BoxGet(value, ty) => {
                 let captured = self.value(value)?;
                 self.in_type(captured, ty)

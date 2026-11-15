@@ -1753,14 +1753,19 @@ impl Registry {
             };
             let map = match self.plan_of(&f.id.0) {
                 Some(plan) => boundary_map(plan, &f.repr.fields),
-                None if f.repr.fields.len() == fields => f.repr.fields.clone(),
+                // One class per payload word: a wide field is two raw
+                // words (design/wide-scalars.md section 2).
+                None if f.repr.fields.len() == fields => word_map(&f.repr.fields),
                 // A constructor lowering gave no classes (the builtin
                 // index family's): never counted.
                 None => vec![Class::Raw; fields],
             };
             if let Some(d) = f.repr.data.as_deref() {
                 if let Some((name, _)) = BUILT_TYPES.iter().find(|(k, _)| *k == d) {
-                    built.entry(name).or_default().insert(tag, map.len() as u64);
+                    // Fields, not words: `Some@W`'s one field is two words,
+                    // and the blocks the primitives build follow the same
+                    // field layout.
+                    built.entry(name).or_default().insert(tag, fields as u64);
                 }
             }
             if types
@@ -1845,7 +1850,8 @@ impl Registry {
     fn closure_desc(&self, unit: &str) -> u64 {
         let mut map = vec![Class::Raw; block::CLOSURE_PREFIX_WORDS as usize];
         match self.unit_params.get(unit) {
-            Some(params) => map.extend(params.iter().copied()),
+            // A saved wide argument is boxed in the closure.
+            Some(params) => map.extend(params.iter().copied().map(frame_class)),
             None => map.extend(std::iter::repeat_n(
                 Class::Raw,
                 self.arity.get(unit).copied().unwrap_or(0),
@@ -2094,6 +2100,34 @@ fn concrete(c: Class) -> Class {
     } else {
         c
     }
+}
+
+/// A constructor's per-word map from its per-field classes: a wide field
+/// is two raw words, every other field one word of its class.
+fn word_map(fields: &[Class]) -> Vec<Class> {
+    let mut out = Vec::with_capacity(fields.len());
+    for c in fields {
+        if *c == Class::Wide {
+            out.extend([Class::Raw, Class::Raw]);
+        } else {
+            out.push(*c);
+        }
+    }
+    out
+}
+
+/// The payload byte offset of each field, from its per-field classes: a
+/// wide field takes two words.
+fn field_offsets(fields: &[Class]) -> Vec<usize> {
+    let mut at = 0;
+    fields
+        .iter()
+        .map(|c| {
+            let here = at;
+            at += 8 * c.words();
+            here
+        })
+        .collect()
 }
 
 /// The pointer-map code (`block_kinds.rs`) of a word's class. A `Wide`
@@ -3611,6 +3645,8 @@ fn build_unit(
         // positions (`NarrowSig::of_wide_prim`); every other primitive's
         // boundary is the word.
         UnitBody::Prim(op) if op.touches_wide() => reg.narrow_sigs.get(name),
+        // A constructor with a wide field takes that field as an `i128`.
+        UnitBody::Ctor(_) => reg.narrow_sigs.get(name).filter(|s| s.is_wide()),
         _ => None,
     };
     match &body {
@@ -3647,7 +3683,7 @@ fn build_unit(
             let lent = reg.lent.get(name);
             b.ret_drops = borrowed(&|i| prim_consumes(*op, i) || lent.is_some_and(|m| m.get(i).copied().unwrap_or(false)));
             if op.touches_wide() {
-                wide_prim_body(&mut b, *op)?;
+                wide_prim_body(&mut b, reg, name, *op)?;
             } else {
                 prim_body(&mut b, cx, reg, name, *op);
             }
@@ -4275,7 +4311,10 @@ fn stub_saturate(
     for i in 0..arity {
         let w = b.load_at(frame, i * 8);
         let c = narrow.map_or(Cross::WORD, |s| s.param(i));
-        let n = c.narrow(b, &w);
+        // A wide argument crosses the frame boxed (design/wide-scalars.md
+        // section 3): the stub takes the box's reference and passes the
+        // `i128` it holds.
+        let n = if c.is_wide() { wide_unbox(b, reg, &w) } else { c.narrow(b, &w) };
         args.push(format!("{} {n}", c.ty()));
     }
     let ret = narrow.map_or(Cross::WORD, |s| s.ret);
@@ -4291,8 +4330,8 @@ fn stub_saturate(
         ));
     }
     // The frame and the excess-word path work in words, so a narrowed
-    // result widens straight back.
-    let r = ret.widen(b, &r);
+    // result widens straight back, and a wide one goes back boxed.
+    let r = if ret.is_wide() { wide_box(b, reg, &r) } else { ret.widen(b, &r) };
     let ex = b.reg();
     b.line(&format!("{ex} = sub i64 {total}, {arity}"));
     let hx = b.reg();
@@ -4316,6 +4355,39 @@ fn stub_saturate(
     b.line(&format!("ret i64 {res}"));
 }
 
+/// The class a word-uniform position (an apply frame, a closure's saved
+/// words) gives a value of class `c`: a wide value is boxed there, so its
+/// word is a counted pointer (design/wide-scalars.md section 3).
+fn frame_class(c: Class) -> Class {
+    if c == Class::Wide {
+        Class::Obj
+    } else {
+        c
+    }
+}
+
+/// Box the `i128` value `v` for a word position: one 16-byte block of two
+/// raw words, held by the returned (owned) word.
+fn wide_box(b: &mut Builder, reg: &Registry, v: &str) -> String {
+    let p = b.reg();
+    b.line(&ctor_alloc_call(&p, 16, reg.shape_desc(&[Class::Raw, Class::Raw], 0)));
+    b.line(&format!("store i128 {v}, ptr {p}, align 8"));
+    let w = b.reg();
+    b.line(&format!("{w} = ptrtoint ptr {p} to i64"));
+    w
+}
+
+/// Unbox the owned box word `w` from a word position: the `i128` it
+/// holds, with the box's reference consumed.
+fn wide_unbox(b: &mut Builder, reg: &Registry, w: &str) -> String {
+    let p = b.reg();
+    b.line(&format!("{p} = inttoptr i64 {w} to ptr"));
+    let v = b.reg();
+    b.line(&format!("{v} = load i128, ptr {p}, align 8"));
+    rc_op(b, reg.rc_debug, true, w, Class::Obj);
+    v
+}
+
 /// The release half of an apply stub: `copy` holds the `nf` saved words
 /// just copied out of `%self`, which now owns nothing the copy needs.
 fn stub_take_saved(
@@ -4337,6 +4409,7 @@ fn stub_take_saved(
                 .get(name)
                 .and_then(|cs| cs.get(i))
                 .copied()
+                .map(frame_class)
                 .unwrap_or(Class::Raw)
         })
         .collect();
@@ -4730,13 +4803,18 @@ fn refuse_unlowered_wide(program: &Program) -> Result<()> {
                 "`{unit}` holds an `I128` or `U128` value in {what}, which code generation does not lower yet (design/wide-scalars.md, phase 1)"
             ))
         };
-        if f.ctor.is_some() && f.repr.fields.contains(&Class::Wide) {
-            return refuse("a constructor field");
+        if f.ctor.is_some()
+            && f.repr.fields.contains(&Class::Wide)
+            && (program.plans.contains_key(&f.id.0) || program.plans.contains_key(unit.as_ref()))
+        {
+            return refuse("a boundary-layout (`repr(C)`) field");
         }
         let mut found: Option<&'static str> = None;
         let mut walk = |e: &Core| {
             let what = match e {
-                Core::Proj(_, p) if p.class == Class::Wide => Some("a constructor field"),
+                Core::Proj(_, p) if p.class == Class::Wide && p.access.is_some() => {
+                    Some("a boundary-layout (`repr(C)`) field")
+                }
                 Core::DictProj(_, _, _, Class::Wide) => Some("a dictionary slot"),
                 Core::Demand(_, Class::Wide) => Some("a lazy cell"),
                 Core::BoxGet(_, Class::Wide)
@@ -5109,15 +5187,38 @@ fn arith_overflow(
     }
 }
 
+/// Return `None` when `none_if` holds and `Some v` otherwise, for a wide
+/// `v`: the `Some@W` block's one field is an `i128` over two raw payload
+/// words, the layout the program's own `Option` copy at `W` has.
+fn ret_option_wide(b: &mut Builder, reg: &Registry, name: &str, none_if: &str, v: &str) {
+    let lnone = b.label();
+    let lsome = b.label();
+    b.line(&format!("br i1 {none_if}, label %{lnone}, label %{lsome}"));
+    b.start(&lnone);
+    ensure_static_ctor(b, reg, name, reg.shape_desc(&[], TAG_NONE));
+    let w = b.reg();
+    b.line(&format!(
+        "{w} = ptrtoint ptr {blk} to i64",
+        blk = static_payload(&format!("{name}.blk"), reg.shape_desc(&[], TAG_NONE))
+    ));
+    b.line(&format!("ret i64 {w}"));
+    b.start(&lsome);
+    let p = b.reg();
+    b.line(&ctor_alloc_call(&p, 16, reg.shape_desc(&[Class::Raw, Class::Raw], TAG_SOME)));
+    b.line(&format!("store i128 {v}, ptr {p}, align 8"));
+    let w = b.reg();
+    b.line(&format!("{w} = ptrtoint ptr {p} to i64"));
+    b.line(&format!("ret i64 {w}"));
+}
+
 /// The body of a primitive over a wide scalar (design/wide-scalars.md
 /// section 5). Its wide operands arrive as `i128` (`%p0`, `%p1`) and a
 /// wide result returns as one, so each operation is the LLVM instruction
 /// at width 128 with nothing to canonicalise afterwards: the value is its
-/// own width. A result that is a word (a comparison's `Bool`) returns as
-/// the word. The operations that build an `Option` are the constructor
-/// increment's (`Some@W` holds a two-word field), and the rest of the
-/// surface is phase 2's; both are refused by name here.
-fn wide_prim_body(b: &mut Builder, op: PrimOp) -> Result<()> {
+/// own width. A result that is a word (a comparison's `Bool`, an
+/// `Option`'s block) returns as the word. The rest of the surface is
+/// phase 2's and is refused by name here.
+fn wide_prim_body(b: &mut Builder, reg: &Registry, name: &str, op: PrimOp) -> Result<()> {
     use PrimOp::*;
     let not_yet = |what: &str| {
         err(format!(
@@ -5185,7 +5286,18 @@ fn wide_prim_body(b: &mut Builder, op: PrimOp) -> Result<()> {
                     };
                     ret128(b, &out);
                 }
-                ArithMode::Checked => return not_yet("an `Option` result"),
+                ArithMode::Checked => {
+                    let res = b.reg();
+                    b.line(&format!(
+                        "{res} = call {{ i128, i1 }} @llvm.{}{inst}.with.overflow.i128(i128 %p0, i128 %p1)",
+                        if ty.is_signed() { "s" } else { "u" }
+                    ));
+                    let val = b.reg();
+                    b.line(&format!("{val} = extractvalue {{ i128, i1 }} {res}, 0"));
+                    let flag = b.reg();
+                    b.line(&format!("{flag} = extractvalue {{ i128, i1 }} {res}, 1"));
+                    ret_option_wide(b, reg, name, &flag, &val);
+                }
             }
         }
         Neg { ty, mode } => match mode {
@@ -5209,7 +5321,19 @@ fn wide_prim_body(b: &mut Builder, op: PrimOp) -> Result<()> {
                     ret128(b, "0");
                 }
             }
-            ArithMode::Checked => return not_yet("an `Option` result"),
+            ArithMode::Checked => {
+                // Signed: `-minBound` overflows. Unsigned: only `-0` is a
+                // value of the type.
+                let bad = b.reg();
+                if ty.is_signed() {
+                    b.line(&format!("{bad} = icmp eq i128 %p0, {}", ty.min_bound_bits() as i128));
+                } else {
+                    b.line(&format!("{bad} = icmp ne i128 %p0, 0"));
+                }
+                let r = b.reg();
+                b.line(&format!("{r} = sub i128 0, %p0"));
+                ret_option_wide(b, reg, name, &bad, &r);
+            }
         },
         Bit { op: bop, .. } => {
             let inst = match bop {
@@ -5245,7 +5369,54 @@ fn wide_prim_body(b: &mut Builder, op: PrimOp) -> Result<()> {
             b.line(&format!("{r} = zext i1 {c} to i64"));
             ret(b, &r);
         }
-        CheckedDiv { .. } | CheckedRem { .. } => return not_yet("an `Option` result"),
+        CheckedDiv { ty } | CheckedRem { ty } => {
+            // `None` on a zero divisor and on `minBound / -1` for the
+            // signed type (primitive types specification section 4). The
+            // division runs only on the `Some` path, so neither undefined
+            // case reaches `sdiv`; LLVM lowers it to `__divti3` and kin
+            // where the target has no 128-bit divide.
+            let z = b.reg();
+            b.line(&format!("{z} = icmp eq i128 %p1, 0"));
+            let bad = if ty.is_signed() {
+                let m1 = b.reg();
+                b.line(&format!("{m1} = icmp eq i128 %p1, -1"));
+                let mb = b.reg();
+                b.line(&format!("{mb} = icmp eq i128 %p0, {}", ty.min_bound_bits() as i128));
+                let ov = b.reg();
+                b.line(&format!("{ov} = and i1 {m1}, {mb}"));
+                let r = b.reg();
+                b.line(&format!("{r} = or i1 {z}, {ov}"));
+                r
+            } else {
+                z
+            };
+            let lnone = b.label();
+            let lsome = b.label();
+            b.line(&format!("br i1 {bad}, label %{lnone}, label %{lsome}"));
+            b.start(&lnone);
+            ensure_static_ctor(b, reg, name, reg.shape_desc(&[], TAG_NONE));
+            let w = b.reg();
+            b.line(&format!(
+                "{w} = ptrtoint ptr {blk} to i64",
+                blk = static_payload(&format!("{name}.blk"), reg.shape_desc(&[], TAG_NONE))
+            ));
+            b.line(&format!("ret i64 {w}"));
+            b.start(&lsome);
+            let inst = match (matches!(op, CheckedDiv { .. }), ty.is_signed()) {
+                (true, true) => "sdiv",
+                (true, false) => "udiv",
+                (false, true) => "srem",
+                (false, false) => "urem",
+            };
+            let q = b.reg();
+            b.line(&format!("{q} = {inst} i128 %p0, %p1"));
+            let p = b.reg();
+            b.line(&ctor_alloc_call(&p, 16, reg.shape_desc(&[Class::Raw, Class::Raw], TAG_SOME)));
+            b.line(&format!("store i128 {q}, ptr {p}, align 8"));
+            let w = b.reg();
+            b.line(&format!("{w} = ptrtoint ptr {p} to i64"));
+            b.line(&format!("ret i64 {w}"));
+        }
         _ => return not_yet("phase 2's surface"),
     }
     Ok(())
@@ -7040,6 +7211,24 @@ fn ctor_body(
         b.line(&ctor_alloc_call(&p, plan.payload, desc));
         for (i, fa) in plan.fields.iter().enumerate() {
             store_field_word(b, reg, &p, fa, &format!("%p{i}"));
+        }
+        let w = b.reg();
+        b.line(&format!("{w} = ptrtoint ptr {p} to i64"));
+        b.line(&format!("ret i64 {w}"));
+        return;
+    }
+    let classes = reg.unit_params.get(name).filter(|c| c.len() == fields);
+    if let Some(classes) = classes.filter(|c| c.contains(&Class::Wide)) {
+        // A wide field is an `i128` parameter stored over two payload
+        // words (8-aligned: the allocator aligns the payload to 8).
+        let offsets = field_offsets(classes);
+        let bytes: usize = classes.iter().map(|c| 8 * c.words()).sum();
+        let p = b.reg();
+        b.line(&ctor_alloc_call(&p, bytes, desc));
+        for (i, (c, off)) in classes.iter().zip(&offsets).enumerate() {
+            let at = if *off == 0 { p.clone() } else { b.gep(&p, *off) };
+            let ty = if *c == Class::Wide { "i128" } else { "i64" };
+            b.line(&format!("store {ty} %p{i}, ptr {at}, align 8"));
         }
         let w = b.reg();
         b.line(&format!("{w} = ptrtoint ptr {p} to i64"));
@@ -8867,8 +9056,15 @@ impl CoreEmitter<'_, '_> {
                         rc_op(self.b, self.reg.rc_debug, false, &r, idx.class);
                     }
                     Ok(r)
+                } else if idx.class == Class::Wide {
+                    // A wide field: an `i128` over two payload words,
+                    // never counted.
+                    let at = self.b.gep(&p, idx.word() * 8);
+                    let r = self.b.reg();
+                    self.b.line(&format!("{r} = load i128, ptr {at}, align 8"));
+                    Ok(r)
                 } else {
-                    let r = self.b.load_at(&p, idx.slot * 8);
+                    let r = self.b.load_at(&p, idx.word() * 8);
                     rc_op(self.b, self.reg.rc_debug, false, &r, idx.class);
                     Ok(r)
                 }
@@ -9155,6 +9351,11 @@ impl CoreEmitter<'_, '_> {
         rest: &[(LocalId, Class)],
         token: Option<LocalId>,
     ) -> Result<Option<String>> {
+        // A wide field is never counted, so a release has nothing to do
+        // with it on either path; only the counted words are visited.
+        let moved: Vec<(LocalId, Class)> = moved.iter().copied().filter(|(_, c)| *c != Class::Wide).collect();
+        let rest: Vec<(LocalId, Class)> = rest.iter().copied().filter(|(_, c)| *c != Class::Wide).collect();
+        let (moved, rest) = (moved.as_slice(), rest.as_slice());
         for x in std::iter::once(&block).chain(moved.iter().chain(rest).map(|(l, _)| l)) {
             if !self.bound.contains(x) {
                 return err(format!("count operation on unknown local {}", x.0));
@@ -9969,6 +10170,9 @@ impl CoreEmitter<'_, '_> {
             self.b.line(&format!("{sp} = inttoptr i64 {sv} to ptr"));
         }
         let mut cons: Vec<(usize, &Vec<LocalId>, &Core, Option<u32>)> = Vec::new();
+        // Each constructor alternative's field classes, by tag: a wide
+        // field is two payload words and an `i128` binder.
+        let mut con_classes: HashMap<usize, &Vec<Class>> = HashMap::new();
         let mut default: Option<(Option<LocalId>, &Core, Option<u32>)> = None;
         for a in alts {
             match &a.pat {
@@ -9976,12 +10180,7 @@ impl CoreEmitter<'_, '_> {
                     if cons.iter().any(|(t, _, _, _)| t == tag) {
                         return err(format!("duplicate case tag {tag}"));
                     }
-                    if classes.contains(&Class::Wide) {
-                        return err(format!(
-                            "{}: a constructor field of class `Wide` is not lowered yet (design/wide-scalars.md, phase 1)",
-                            self.unit
-                        ));
-                    }
+                    con_classes.insert(*tag, classes);
                     cons.push((*tag, fields, &a.body, a.weight));
                 }
                 CPat::Var(x, _) => {
@@ -10039,15 +10238,34 @@ impl CoreEmitter<'_, '_> {
             self.b.line(&sw);
         }
 
-        for ((_, fields, rhs, _), l) in cons.iter().zip(&alt_labels) {
+        for ((tag, fields, rhs, _), l) in cons.iter().zip(&alt_labels) {
             self.b.start(l);
+            let classes = con_classes.get(tag).filter(|c| c.len() == fields.len());
+            let offsets = match classes {
+                Some(c) => field_offsets(c),
+                None => (0..fields.len()).map(|i| i * 8).collect(),
+            };
             for (i, x) in fields.iter().enumerate() {
                 if !self.bound.contains(x) {
                     return err(format!("pattern binds unknown local {}", x.0));
                 }
-                let w = self.b.load_at(&sp, i * 8);
+                let ty = self.local_ty(*x);
+                if (ty == "i128") != classes.is_some_and(|c| c[i] == Class::Wide) {
+                    return err(format!(
+                        "{}: a pattern binder's width disagrees with its field's class (design/wide-scalars.md)",
+                        self.unit
+                    ));
+                }
+                let w = if ty == "i128" {
+                    let at = self.b.gep(&sp, offsets[i]);
+                    let r = self.b.reg();
+                    self.b.line(&format!("{r} = load i128, ptr {at}, align 8"));
+                    r
+                } else {
+                    self.b.load_at(&sp, offsets[i])
+                };
                 let s = self.slot(*x);
-                self.b.line(&format!("store i64 {w}, ptr {s}"));
+                self.b.line(&format!("store {ty} {w}, ptr {s}"));
             }
             self.emit_to(rhs, dest)?;
         }

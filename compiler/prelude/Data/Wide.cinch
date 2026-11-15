@@ -19,17 +19,25 @@
 -- wider sort (design/wide-scalars.md section 4).
 --
 -- Phase 1 of the design lands in increments. This module carries what
--- the emitter lowers so far: bounds, wrapping and saturating addition,
--- subtraction, multiplication and negation, the bitwise operations, and
--- comparison. The checked families, division, shifts, rotates, bit
--- inspection, conversions and the instances follow.
+-- the emitter lowers so far: bounds, the checked, wrapping and saturating
+-- families of addition, subtraction, multiplication and negation, checked
+-- division and remainder, the bitwise operations, and comparison. Shifts,
+-- rotates, bit inspection, conversions and the instances follow.
 module Data.Wide where
 
-  export bit-and-i128, bit-and-u128, bit-not-i128, bit-not-u128, bit-or-i128, bit-or-u128, bit-xor-i128, bit-xor-u128, eq-i128, eq-u128, ge-i128, ge-u128, gt-i128, gt-u128, le-i128, le-u128, lt-i128, lt-u128, max-bound-i128, max-bound-u128, min-bound-i128, min-bound-u128, ne-i128, ne-u128, saturating-add-i128, saturating-add-u128, saturating-mul-i128, saturating-mul-u128, saturating-neg-i128, saturating-neg-u128, saturating-sub-i128, saturating-sub-u128, wrapping-add-i128, wrapping-add-u128, wrapping-mul-i128, wrapping-mul-u128, wrapping-neg-i128, wrapping-neg-u128, wrapping-sub-i128, wrapping-sub-u128
+  import Data.Option
+
+  export bit-and-i128, bit-and-u128, bit-not-i128, bit-not-u128, bit-or-i128, bit-or-u128, bit-xor-i128, bit-xor-u128, checked-add-i128, checked-add-u128, checked-div-i128, checked-div-u128, checked-mul-i128, checked-mul-u128, checked-neg-i128, checked-neg-u128, checked-rem-i128, checked-rem-u128, checked-sub-i128, checked-sub-u128, eq-i128, eq-u128, ge-i128, ge-u128, gt-i128, gt-u128, le-i128, le-u128, lt-i128, lt-u128, max-bound-i128, max-bound-u128, min-bound-i128, min-bound-u128, ne-i128, ne-u128, saturating-add-i128, saturating-add-u128, saturating-mul-i128, saturating-mul-u128, saturating-neg-i128, saturating-neg-u128, saturating-sub-i128, saturating-sub-u128, wrapping-add-i128, wrapping-add-u128, wrapping-mul-i128, wrapping-mul-u128, wrapping-neg-i128, wrapping-neg-u128, wrapping-sub-i128, wrapping-sub-u128
 
   -- I128 (128 bits).
   foreign import ccall "cinch.prim.minBoundI128" min-bound-i128 :: I128
   foreign import ccall "cinch.prim.maxBoundI128" max-bound-i128 :: I128
+  foreign import ccall "cinch.prim.checkedAddI128" checked-add-i128 :: I128 -> I128 -> Option I128
+  foreign import ccall "cinch.prim.checkedSubI128" checked-sub-i128 :: I128 -> I128 -> Option I128
+  foreign import ccall "cinch.prim.checkedMulI128" checked-mul-i128 :: I128 -> I128 -> Option I128
+  foreign import ccall "cinch.prim.checkedNegI128" checked-neg-i128 :: I128 -> Option I128
+  foreign import ccall "cinch.prim.checkedDivI128" checked-div-i128 :: I128 -> I128 -> Option I128
+  foreign import ccall "cinch.prim.checkedRemI128" checked-rem-i128 :: I128 -> I128 -> Option I128
   foreign import ccall "cinch.prim.wrappingAddI128" wrapping-add-i128 :: I128 -> I128 -> I128
   foreign import ccall "cinch.prim.wrappingSubI128" wrapping-sub-i128 :: I128 -> I128 -> I128
   foreign import ccall "cinch.prim.wrappingMulI128" wrapping-mul-i128 :: I128 -> I128 -> I128
@@ -52,6 +60,12 @@ module Data.Wide where
   -- U128 (128 bits).
   foreign import ccall "cinch.prim.minBoundU128" min-bound-u128 :: U128
   foreign import ccall "cinch.prim.maxBoundU128" max-bound-u128 :: U128
+  foreign import ccall "cinch.prim.checkedAddU128" checked-add-u128 :: U128 -> U128 -> Option U128
+  foreign import ccall "cinch.prim.checkedSubU128" checked-sub-u128 :: U128 -> U128 -> Option U128
+  foreign import ccall "cinch.prim.checkedMulU128" checked-mul-u128 :: U128 -> U128 -> Option U128
+  foreign import ccall "cinch.prim.checkedNegU128" checked-neg-u128 :: U128 -> Option U128
+  foreign import ccall "cinch.prim.checkedDivU128" checked-div-u128 :: U128 -> U128 -> Option U128
+  foreign import ccall "cinch.prim.checkedRemU128" checked-rem-u128 :: U128 -> U128 -> Option U128
   foreign import ccall "cinch.prim.wrappingAddU128" wrapping-add-u128 :: U128 -> U128 -> U128
   foreign import ccall "cinch.prim.wrappingSubU128" wrapping-sub-u128 :: U128 -> U128 -> U128
   foreign import ccall "cinch.prim.wrappingMulU128" wrapping-mul-u128 :: U128 -> U128 -> U128

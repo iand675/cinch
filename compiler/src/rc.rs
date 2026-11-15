@@ -668,8 +668,12 @@ impl Ctors {
             let Some((tag, fields)) = f.ctor else {
                 continue;
             };
+            // A wide field takes two payload words, so a constructor with
+            // one is, like a boundary layout, not word-for-word
+            // interchangeable with a uniform constructor of its field count.
             let planned = program.plans.contains_key(&f.id.0)
-                || program.plans.contains_key(crate::repr::base_unit(&f.id.0).as_ref());
+                || program.plans.contains_key(crate::repr::base_unit(&f.id.0).as_ref())
+                || f.repr.fields.contains(&Class::Wide);
             let fact = CtorFact { fields, planned, data: f.repr.data.clone(), classes: f.repr.fields.clone() };
             if let Some(d) = &f.repr.data {
                 by_data.entry(d.clone()).or_default().push((tag, fact.clone()));

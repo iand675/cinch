@@ -373,6 +373,10 @@ fn class_str(class: Class) -> String {
     letters(&[class])
 }
 
+fn class_str_all(classes: &[Class]) -> String {
+    letters(classes)
+}
+
 // -------------------------------------------------------------------- Core
 //
 // One canonical array per node, the tag first. The subset is exactly the
@@ -418,6 +422,7 @@ pub fn encode_core(e: &Core) -> Option<JsonValue> {
             class_str(field.class).into(),
             encode_access(field.access.as_ref()),
             field.mutable.into(),
+            class_str_all(&field.before).into(),
         ]),
         Core::DictProj(inner, index, site, class) => {
             if site.is_some() {
@@ -605,11 +610,18 @@ pub fn decode_core(value: &JsonValue) -> Result<Core, ParseError> {
         "foreign" => Core::Foreign(arg(1)?.as_str()?.to_string()),
         "proj" => Core::Proj(
             Box::new(decode_core(arg(1)?)?),
+            // The encoder's order: slot, class, access, mutable, and the
+            // earlier fields' classes (absent in an interface written
+            // before wide fields, where every earlier field is a word).
             ProjField {
                 slot: num(arg(2)?)?,
-                access: decode_access(arg(3)?)?,
-                class: one_class(4)?,
+                class: one_class(3)?,
+                access: decode_access(arg(4)?)?,
                 mutable: arg(5)?.as_bool()?,
+                before: match parts.get(6) {
+                    Some(v) => decode_classes(v.as_str()?)?,
+                    None => Vec::new(),
+                },
             },
         ),
         "dictproj" => {

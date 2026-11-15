@@ -2909,6 +2909,12 @@ pub struct ProjField {
     pub access: Option<FieldAccess>,
     pub class: Class,
     pub mutable: bool,
+    /// The classes of the runtime fields before `slot`, when one of them
+    /// may be `Wide` (design/wide-scalars.md): a wide field takes two
+    /// payload words, so the field's word offset is `slot` plus the wide
+    /// classes here. Empty means every earlier field is one word, which
+    /// is every projection but a record's or a tuple's.
+    pub before: Vec<Class>,
 }
 
 pub(crate) const MUTABLE_CELL: &str = "<builtin>.MutCell";
@@ -2921,7 +2927,13 @@ impl ProjField {
     }
 
     pub fn slot(slot: usize, class: Class) -> ProjField {
-        ProjField { slot, access: None, class, mutable: false }
+        ProjField { slot, access: None, class, mutable: false, before: Vec::new() }
+    }
+
+    /// The payload word the field starts at: its slot, plus one word for
+    /// each wide field before it.
+    pub fn word(&self) -> usize {
+        self.slot + self.before.iter().filter(|c| **c == Class::Wide).count()
     }
 }
 
@@ -7606,7 +7618,10 @@ pub fn subst_classes(e: &mut Core, cv: &[Class]) {
             }
             *c = c.subst(cv);
         }
-        Core::Proj(_, f) => f.class = f.class.subst(cv),
+        Core::Proj(_, f) => {
+            f.class = f.class.subst(cv);
+            sub(&mut f.before);
+        }
         Core::Demand(_, c) | Core::BoxGet(_, c) | Core::BoxClear(_, c) | Core::BoxInit(_, _, c) | Core::RefSet(_, _, c) => *c = c.subst(cv),
         Core::Dup(_, c, _) | Core::Drop(_, c, _) => *c = c.subst(cv),
         Core::Let(_, c, _, _) => *c = c.subst(cv),
@@ -7647,7 +7662,10 @@ pub fn for_each_class(e: &Core, f: &mut impl FnMut(Class)) {
             }
             f(*c);
         }
-        Core::Proj(_, p) => f(p.class),
+        Core::Proj(_, p) => {
+            f(p.class);
+            all(&p.before, f);
+        }
         Core::Demand(_, c) | Core::BoxGet(_, c) | Core::BoxClear(_, c) | Core::BoxInit(_, _, c) | Core::RefSet(_, _, c) => f(*c),
         Core::Dup(_, c, _) | Core::Drop(_, c, _) => f(*c),
         Core::Let(_, c, _, _) => f(*c),

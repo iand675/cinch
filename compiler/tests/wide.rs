@@ -156,11 +156,108 @@ module Main where
 }
 
 #[test]
+fn wide_fields_take_two_words_in_records_tuples_and_generic_copies() {
+    // A record mixing word and wide fields lays out 1 + 2 + 1 + 2 words,
+    // so every field after a wide one is projected at its word offset; a
+    // tuple component and a generic constructor reached at `I128` (the
+    // collector's `@W` copy) hold an `i128`; and the checked families
+    // answer `Option` through `Some@W`, a two-word field.
+    run_ok("wide-fields", r#"
+module Main where
+  import Data.Wide
+
+  record Mixed where
+    tag :: I64
+    big :: U128
+    after :: I64
+    small :: I128
+
+  data Box a where
+    MkBox :: a -> Box a
+
+  #[inline(never)]
+  unbox :: forall a. Box a -> a
+  unbox b = case b of
+    MkBox x -> x
+
+  #[inline(never)]
+  mk :: U128 -> Mixed
+  mk v = Mixed { tag = 7, big = v, after = 9, small = -3 }
+
+  #[inline(never)]
+  pair :: I128 -> (I64, I128)
+  pair x = (5, x)
+
+  main :: Int
+  main =
+    let m = mk 340282366920938463463374607431768211455 in
+    if m.tag == 7 then
+      (if eq-u128 m.big max-bound-u128 then
+        (if m.after == 9 then
+          (if eq-i128 m.small (-3) then
+            (case checked-add-u128 max-bound-u128 1 of
+              Some _ -> 5
+              None -> case checked-mul-i128 3 (-170141183460469231731687303715884105) of
+                None -> 6
+                Some p -> if eq-i128 p (-510423550381407695195061911147652315) then
+                    (case checked-div-i128 min-bound-i128 (-1) of
+                      Some _ -> 8
+                      None -> case checked-rem-u128 17 5 of
+                        None -> 9
+                        Some r -> if eq-u128 r 2 then
+                            (case pair 12 of
+                              (a, b) -> if a == 5 then
+                                  (if eq-i128 (unbox (MkBox b)) 12 then 0 else 12)
+                                else 11)
+                          else 10)
+                  else 7)
+          else 4)
+        else 3)
+      else 2)
+    else 1
+"#);
+}
+
+#[test]
+fn a_counted_field_after_a_wide_one_is_found_by_its_map() {
+    // The pointer map describes words: the wide field is two raw words,
+    // so the `String` after it is word 2, and reclamation counts it
+    // there. A map that put it at word 1 would read half the `i128` as a
+    // pointer.
+    run_ok(
+        "wide-map",
+        r#"
+module Main where
+  import Data.Wide
+
+  record Tagged where
+    n :: I128
+    label :: String
+
+  #[inline(never)]
+  mk :: I128 -> String -> Tagged
+  mk n s = Tagged { n = n, label = s }
+
+  #[inline(never)]
+  size :: Tagged -> Nat
+  size t = string-length t.label
+
+  main :: Int
+  main =
+    let a = mk (-1) "wide" in
+    let b = mk 170141183460469231731687303715884105727 "words" in
+    if size a == 4 then (if size b == 5 then (if eq-i128 b.n max-bound-i128 then 0 else 3) else 2) else 1
+"#,
+    );
+}
+
+#[test]
 fn unlowered_wide_positions_are_refused_by_name() {
     // A function with a wide boundary used as a value would be applied
-    // through the word-typed apply frame; a constructor field of class
-    // `Wide` needs a two-word slot. Both are later increments of phase 1,
-    // and each is refused, naming the unit, rather than miscompiled.
+    // through the word-typed apply frame, and a `repr(C)` record's wide
+    // field is a C `__int128` at its recorded offset (the boundary
+    // increment). Both are later increments, and each is refused, naming
+    // the unit, rather than miscompiled.
     expect_refused(
         "wide-closure",
         r#"
@@ -174,25 +271,5 @@ module Main where
   main = if eq-i128 (twice wrapping-neg-i128 5) 5 then 0 else 1
 "#,
         "I128",
-    );
-    expect_refused(
-        "wide-field",
-        r#"
-module Main where
-  import Data.Wide
-
-  record Pair where
-    hi :: I128
-    lo :: I128
-
-  #[inline(never)]
-  mk :: I128 -> Pair
-  mk x = Pair { hi = x, lo = x }
-
-  main :: Int
-  main = case mk 1 of
-    Pair { hi = h, lo = _ } -> if eq-i128 h 1 then 0 else 1
-"#,
-        "constructor field",
     );
 }
