@@ -1,0 +1,214 @@
+{
+  "format": 1,
+  "description": "Alternating retained executables before/after immediate Nat division/remainder; identical workload and library sources.",
+  "iterations": 100000,
+  "cpu_affinity": [
+    0
+  ],
+  "driver_sha256": "7a65f04a418ad041fd69bf4785a21a5b7b4d23e261598a9c60df0c0458f859ee",
+  "sources": {
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Word": "7c2bc2223074ca6939a2841271b198a5678f2e5154d1618003a7dd28d776a6f3",
+    "Effect.Ascii85": "ce62b87682e7b8b63754a346c01a3db666e0a062693fa958251dac6c89febb27",
+    "Effect.Stream": "6079746ad326c94b72c6c3b41f3cb5d652d67a0f7ced213031747e6e342bd7c1",
+    "Text.Ascii85": "3247c75afe5b1c77bbc62ddcf5340cdc063df2ed6af5d724489a84b45a7ef0d4",
+    "Text.Base32": "ae82b9c24657458ca5d6b0f33ee80b8ba8239cef592e793a926270cb45e308bd",
+    "Text.Base64": "54948138dd53d893cb82067bdaba883faa404e81e0013dd750c75f723c0b409d",
+    "Text.Binary": "9e8420191ef2f63969bdd1fa54f69724c835a6ada8041b548ee3de8154e71e4d",
+    "Text.Checksum": "92aeb92792906cc05fde3a49ec2e71800d8fe7a2372926b4a4665e015fd02c29",
+    "Text.Fnv": "a9168eed132ad92705149bb13b9a1130df1cc1458cdfa9d99bcecb0efa41b8e0",
+    "Text.Hex": "6a9bd7d383931fadbf35503562d57a26c92fd52f2d8f3961b6bdbdc29622e522",
+    "Text.Utf16": "fb5bfa4782fa832245102d8fc57818a374c4176c6a7c608f21a669030f54e8b8"
+  },
+  "executables": {
+    "before": {
+      "path": "/workspace/dasl-stdlib-io/build/benchmarks/word-ops-before-divrem/bench",
+      "sha256": "1591b4cbcfe3b98f6a64f5543f5f068917f047e6a324c1105873de6ecf18b5ad"
+    },
+    "after": {
+      "path": "/workspace/dasl-stdlib-io/build/benchmarks/word-ops/bench",
+      "sha256": "2589d6b8f33607a006422a54c478ea3e17e6c410a3def781756444d16b46fbc1"
+    }
+  },
+  "results": [
+    {
+      "workload": "word-add64",
+      "raw_input_bytes": 8,
+      "checksum": 549899129,
+      "samples_ns": {
+        "before": [
+          11551430,
+          11237716,
+          11348984,
+          12096951,
+          11675796,
+          15575927,
+          11524258,
+          11657810,
+          12415860
+        ],
+        "after": [
+          10587168,
+          11686953,
+          11259710,
+          11914936,
+          12163641,
+          10837725,
+          10700338,
+          10899588,
+          11375064
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 116.5781,
+        "after": 112.5971
+      }
+    },
+    {
+      "workload": "word-mul64",
+      "raw_input_bytes": 8,
+      "checksum": 917561878,
+      "samples_ns": {
+        "before": [
+          11093780,
+          11252870,
+          10349840,
+          12211813,
+          11246850,
+          11755767,
+          10903734,
+          11728726,
+          12136571
+        ],
+        "after": [
+          10894310,
+          11211537,
+          11030074,
+          10631194,
+          10627929,
+          10564894,
+          10168488,
+          13492100,
+          10909102
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 112.5287,
+        "after": 108.9431
+      }
+    },
+    {
+      "workload": "word-div64",
+      "raw_input_bytes": 8,
+      "checksum": 413061799,
+      "samples_ns": {
+        "before": [
+          15132630,
+          15382958,
+          15997472,
+          15301665,
+          15926234,
+          16039826,
+          15573654,
+          15405621,
+          15328645
+        ],
+        "after": [
+          16763455,
+          14658706,
+          14071492,
+          16615592,
+          14883665,
+          14171704,
+          14784766,
+          14131353,
+          14822223
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 154.05621,
+        "after": 147.84766
+      }
+    },
+    {
+      "workload": "word-bits64",
+      "raw_input_bytes": 8,
+      "checksum": 617581761,
+      "samples_ns": {
+        "before": [
+          10901090,
+          11024306,
+          11684810,
+          11194341,
+          10794830,
+          11626992,
+          11977261,
+          11179819,
+          11845932
+        ],
+        "after": [
+          10874150,
+          12216691,
+          11020129,
+          10885727,
+          11163626,
+          11038026,
+          10340285,
+          11493061,
+          10733578
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 111.94341,
+        "after": 110.20129
+      }
+    },
+    {
+      "workload": "word-load",
+      "raw_input_bytes": 8,
+      "checksum": 40183630,
+      "samples_ns": {
+        "before": [
+          10630332,
+          10794039,
+          10376941,
+          11261142,
+          10097942,
+          10906989,
+          11147341,
+          10543502,
+          10678024
+        ],
+        "after": [
+          10475199,
+          9996659,
+          10217671,
+          10528549,
+          10802101,
+          9922036,
+          10951295,
+          10115232,
+          10147225
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 106.78024,
+        "after": 102.17671
+      }
+    }
+  ],
+  "snapshots": {
+    "before": {
+      "report": "word-ops-before-divrem-2026-11-15.json",
+      "compiler_sha256": "9c6ae51acfdd52e63e88919dff7e888a7249349f88baaec20801efec7819a96b",
+      "compiler_source_sha256": "3d4343b4cd387bc37f32c6038d95b9d294afcaccfbae957adb2ac5eaf7388340",
+      "runtime_source_sha256": "cc65783bd854ae6b6e820a5adb18e5f59f5aed5ec6a40e52b912fc283c12ca31"
+    },
+    "after": {
+      "report": "word-ops-2026-11-15.json",
+      "compiler_sha256": "1e0d873654451ec6231f463067ee2a713958497913dd2c7441bdf1b4364ee0c1",
+      "compiler_source_sha256": "beb9302422d32d73885ef528e93e8f1028c2529245871763f5b4a9be36e0202b",
+      "runtime_source_sha256": "cc65783bd854ae6b6e820a5adb18e5f59f5aed5ec6a40e52b912fc283c12ca31"
+    }
+  }
+}

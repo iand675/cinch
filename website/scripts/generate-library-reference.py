@@ -149,6 +149,7 @@ DESCRIPTIONS = {
 'Text.Hex':'Lowercase hexadecimal encoding and case-insensitive decoding with named errors and byte offsets.',
 'Text.Checksum':'Incremental Adler-32, CRC-32 and CRC-64 checksums with explicit reflected polynomials.',
 'Data.Bytes.Word':'Bounds-proved unaligned little-endian machine-word reads and writes for SIMD and SWAR processing.',
+'Data.Word':'Bit lengths, byte reversal, signed rotations and checked carry/borrow, wide multiply, divide and remainder operations over fixed and native-width words.',
 'Data.Wide':'Unboxed 128-bit integers with checked, wrapping and saturating arithmetic, bit operations, numeric conversions and explicit overflow policies.',
 'Text.Fnv':'Incremental 32- and 64-bit FNV-1 and FNV-1a hashing with explicit wrapping arithmetic.',
 'Text.Digest':'Digest and HMAC operations over bytes. Availability of a legacy digest is not a recommendation for a security protocol.',

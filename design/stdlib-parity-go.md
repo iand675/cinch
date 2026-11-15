@@ -7,7 +7,7 @@ explicit effects, bounds, overflow policies, and `Result` errors. Matching a
 Go wire format does not require copying its object model or panic behavior.
 
 The coverage inventory is checked with the Rust compiler. Targeted ASCII85,
-UTF-16, stream, word/UTF-8 and constructor-identity suites also run with the updated
+UTF-16, stream, word utilities, word/UTF-8 and constructor-identity suites also run with the updated
 self-built compiler. An existing module does
 not imply full parity with the corresponding Go package. Planned work below
 is not an available API.
@@ -16,6 +16,7 @@ is not an available API.
 
 | Go package | Cinch module | Implemented surface | Remaining scope |
 | --- | --- | --- | --- |
+| `math/bits` | [Data.Word](../library/Data.Word.md), `Data.Machine`, `Algebra.Bits` | All fixed/native-width count and reversal families, significant length, signed rotations, carry/borrow, exact wide multiply, checked and proof-bearing division/remainder | All 52 reference declarations mapped; portable 128-bit division helpers and checked-result allocations remain performance costs |
 | `unicode/utf16` | [Text.Utf16](../library/Text.Utf16.md) | Scalar length, surrogate classification/pairs, sequence encode/decode, append, explicit-order byte codecs, replacement policy | All seven reference capabilities mapped and tested; byte-codec throughput and immutable-list append costs are documented |
 | `encoding/binary` | [Text.Binary](../library/Text.Binary.md) | U16/U32/U64, both byte orders, offset reads, checked writes, unsigned and zigzag I64 varints, consumed byte count | Float/aggregate codecs, stream and append operations |
 | `encoding/hex` | [Text.Hex](../library/Text.Hex.md) | Lowercase encoder, either-case decoder, length helpers, invalid-byte offsets | Dumps, stream and append operations |
@@ -59,10 +60,10 @@ retain the callback's actual effect-region identity; cross-runtime handles are
 rejected by negative tests.
 
 The machine-readable [surface inventory](stdlib-surface.json) covers all 180
-public packages in the pinned reference SDK. It currently records 67 partial
-and 112 unreviewed packages, with UTF-16 functionally complete. Its seven
-reference operations have reviewed capability mappings and independent runtime
-fixtures; completion does not assert matching allocation complexity or speed. Upstream mutable
+public packages in the pinned reference SDK. It currently records two functionally complete, 66 partial
+and 112 unreviewed packages. UTF-16 and word bit/arithmetic utilities have
+reviewed capability mappings, independent runtime fixtures and self-built
+compiler checks; completion does not assert matching allocation complexity or speed. Upstream mutable
 containers are included as implementation homes, not assumed full coverage.
 The [benchmark notes](../benchmarks/stdlib/README.md) describe measured public
 API pipelines and their limits. The full standard library goal remains open.
@@ -127,6 +128,10 @@ cross-target checks do not claim execution on that hardware.
 [UTF-16 tests](../compiler/tests/lib_utf16.rs) compare all scalar/pair APIs
 against independent fixtures, exhaust all 65,536 individual code units, and
 check both byte orders, odd byte counts, marks and SWAR block tails.
+[Word-operation tests](../compiler/tests/lib_word_ops.rs) compare fixed/native
+widths against independent edge and random fixtures, exhaust eight-bit reversal,
+and verify carry/borrow, signed rotations, division faults and proof preconditions.
+Cross compilation covers 32-bit Wasm, ARM and big-endian PowerPC kernels.
 Separate checks cover offsets, truncation, failed writes without mutation,
 malformed encodings, and updates at every split of a check string, including
 empty chunks. The fixture generator calls Go's actual standard packages.

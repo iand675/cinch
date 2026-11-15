@@ -3920,6 +3920,10 @@ module Bootstrap.RuntimeIr where
       else if same op "memo-init" then memo-init definitions locals w sp first second
       else if same op "ref-set" then write-borrow-word definitions locals w sp first second
       else if number (core-type first) then binary definitions locals w sp op first second
+      else if (same op "<" || same op "<=" || same op ">" || same op ">=") && (raw-integer (core-type first) || wide-scalar (core-type first)) then
+        (case expressions definitions locals w [first, second] of
+          (ready, [a, b]) -> compare-typed ready (if wide-scalar (core-type first) then "i128" else "i64") (machine-ordering (core-type first) op) a b
+          other -> unsupported w sp "malformed machine ordering arguments")
       else if (same op "==" || same op "/=") && scalar (core-type first) then
         (case expressions definitions locals w [first, second] of
           (ready, [a, b]) -> compare-word ready (if same op "==" then "eq" else "ne") a b
@@ -4075,6 +4079,13 @@ module Bootstrap.RuntimeIr where
               (count-op False (core-type cell-term) cell (count-op False carrier old replaced), "0"))
   compare-word :: Writer -> String -> String -> String -> (Writer, String)
   compare-word w predicate a b = compare-typed w "i64" predicate a b
+  -- | Lower checked machine ordering without treating unsigned high bits as signs.
+  -- Narrow scalar words already carry their ABI sign or zero extension; wide
+  -- scalars retain their i128 carrier instead of being truncated to one word.
+  machine-ordering :: UType -> String -> String
+  machine-ordering ty op =
+    let signed = named ty "I8" || named ty "I16" || named ty "I32" || named ty "I64" || named ty "Isize" || named ty "I128" in
+    cat [if signed then "s" else "u", if same op "<" then "lt" else if same op "<=" then "le" else if same op ">" then "gt" else "ge"]
   -- The Bool word of an integer comparison at an LLVM width.
   compare-typed :: Writer -> String -> String -> String -> String -> (Writer, String)
   compare-typed w ty predicate a b = let (one, flag) = fresh w "%v" in let (two, result) = fresh one "%v" in
