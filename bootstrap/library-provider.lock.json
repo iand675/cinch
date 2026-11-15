@@ -1,7 +1,7 @@
 {
-  "description": "ABI 10 library producer: self-describing block headers, no layout table or layout ids in the object ABI.",
-  "revision": "52694cf6bd30f9995343d2cd6a55171ed694cec0",
+  "description": "ABI 10 library producer: self-describing block headers, merged with main, narrow C arguments extended.",
+  "revision": "0a31d7f57a9b8a2abe79ef89e21f44c0477cc017",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "ab6bede35ead5ae4f0320fefa7a00026218787fcc96acc1ebc2314dee9413514"
+  "source_sha256": "e585da9a6bcc909c5a3cb12f6275043b95c45a877ec5ccf719cbd3bad6695edd"
 }
