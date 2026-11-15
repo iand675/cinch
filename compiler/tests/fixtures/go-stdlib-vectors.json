@@ -461,6 +461,1814 @@
       "varint": "feffffffffffffffff01"
     }
   ],
+  "utf16": {
+    "pairs": [
+      {
+        "decoded": 65533,
+        "high": -2147483648,
+        "low": -2147483648
+      },
+      {
+        "decoded": 65533,
+        "high": -2147483648,
+        "low": -1
+      },
+      {
+        "decoded": 65533,
+        "high": -2147483648,
+        "low": 0
+      },
+      {
+        "decoded": 65533,
+        "high": -2147483648,
+        "low": 127
+      },
+      {
+        "decoded": 65533,
+        "high": -2147483648,
+        "low": 128
+      },
+      {
+        "decoded": 65533,
+        "high": -2147483648,
+        "low": 55295
+      },
+      {
+        "decoded": 65533,
+        "high": -2147483648,
+        "low": 55296
+      },
+      {
+        "decoded": 65533,
+        "high": -2147483648,
+        "low": 56319
+      },
+      {
+        "decoded": 65533,
+        "high": -2147483648,
+        "low": 56320
+      },
+      {
+        "decoded": 65533,
+        "high": -2147483648,
+        "low": 57343
+      },
+      {
+        "decoded": 65533,
+        "high": -2147483648,
+        "low": 57344
+      },
+      {
+        "decoded": 65533,
+        "high": -2147483648,
+        "low": 65535
+      },
+      {
+        "decoded": 65533,
+        "high": -2147483648,
+        "low": 65536
+      },
+      {
+        "decoded": 65533,
+        "high": -2147483648,
+        "low": 128512
+      },
+      {
+        "decoded": 65533,
+        "high": -2147483648,
+        "low": 1114111
+      },
+      {
+        "decoded": 65533,
+        "high": -2147483648,
+        "low": 1114112
+      },
+      {
+        "decoded": 65533,
+        "high": -2147483648,
+        "low": 2147483647
+      },
+      {
+        "decoded": 65533,
+        "high": -1,
+        "low": -2147483648
+      },
+      {
+        "decoded": 65533,
+        "high": -1,
+        "low": -1
+      },
+      {
+        "decoded": 65533,
+        "high": -1,
+        "low": 0
+      },
+      {
+        "decoded": 65533,
+        "high": -1,
+        "low": 127
+      },
+      {
+        "decoded": 65533,
+        "high": -1,
+        "low": 128
+      },
+      {
+        "decoded": 65533,
+        "high": -1,
+        "low": 55295
+      },
+      {
+        "decoded": 65533,
+        "high": -1,
+        "low": 55296
+      },
+      {
+        "decoded": 65533,
+        "high": -1,
+        "low": 56319
+      },
+      {
+        "decoded": 65533,
+        "high": -1,
+        "low": 56320
+      },
+      {
+        "decoded": 65533,
+        "high": -1,
+        "low": 57343
+      },
+      {
+        "decoded": 65533,
+        "high": -1,
+        "low": 57344
+      },
+      {
+        "decoded": 65533,
+        "high": -1,
+        "low": 65535
+      },
+      {
+        "decoded": 65533,
+        "high": -1,
+        "low": 65536
+      },
+      {
+        "decoded": 65533,
+        "high": -1,
+        "low": 128512
+      },
+      {
+        "decoded": 65533,
+        "high": -1,
+        "low": 1114111
+      },
+      {
+        "decoded": 65533,
+        "high": -1,
+        "low": 1114112
+      },
+      {
+        "decoded": 65533,
+        "high": -1,
+        "low": 2147483647
+      },
+      {
+        "decoded": 65533,
+        "high": 0,
+        "low": -2147483648
+      },
+      {
+        "decoded": 65533,
+        "high": 0,
+        "low": -1
+      },
+      {
+        "decoded": 65533,
+        "high": 0,
+        "low": 0
+      },
+      {
+        "decoded": 65533,
+        "high": 0,
+        "low": 127
+      },
+      {
+        "decoded": 65533,
+        "high": 0,
+        "low": 128
+      },
+      {
+        "decoded": 65533,
+        "high": 0,
+        "low": 55295
+      },
+      {
+        "decoded": 65533,
+        "high": 0,
+        "low": 55296
+      },
+      {
+        "decoded": 65533,
+        "high": 0,
+        "low": 56319
+      },
+      {
+        "decoded": 65533,
+        "high": 0,
+        "low": 56320
+      },
+      {
+        "decoded": 65533,
+        "high": 0,
+        "low": 57343
+      },
+      {
+        "decoded": 65533,
+        "high": 0,
+        "low": 57344
+      },
+      {
+        "decoded": 65533,
+        "high": 0,
+        "low": 65535
+      },
+      {
+        "decoded": 65533,
+        "high": 0,
+        "low": 65536
+      },
+      {
+        "decoded": 65533,
+        "high": 0,
+        "low": 128512
+      },
+      {
+        "decoded": 65533,
+        "high": 0,
+        "low": 1114111
+      },
+      {
+        "decoded": 65533,
+        "high": 0,
+        "low": 1114112
+      },
+      {
+        "decoded": 65533,
+        "high": 0,
+        "low": 2147483647
+      },
+      {
+        "decoded": 65533,
+        "high": 127,
+        "low": -2147483648
+      },
+      {
+        "decoded": 65533,
+        "high": 127,
+        "low": -1
+      },
+      {
+        "decoded": 65533,
+        "high": 127,
+        "low": 0
+      },
+      {
+        "decoded": 65533,
+        "high": 127,
+        "low": 127
+      },
+      {
+        "decoded": 65533,
+        "high": 127,
+        "low": 128
+      },
+      {
+        "decoded": 65533,
+        "high": 127,
+        "low": 55295
+      },
+      {
+        "decoded": 65533,
+        "high": 127,
+        "low": 55296
+      },
+      {
+        "decoded": 65533,
+        "high": 127,
+        "low": 56319
+      },
+      {
+        "decoded": 65533,
+        "high": 127,
+        "low": 56320
+      },
+      {
+        "decoded": 65533,
+        "high": 127,
+        "low": 57343
+      },
+      {
+        "decoded": 65533,
+        "high": 127,
+        "low": 57344
+      },
+      {
+        "decoded": 65533,
+        "high": 127,
+        "low": 65535
+      },
+      {
+        "decoded": 65533,
+        "high": 127,
+        "low": 65536
+      },
+      {
+        "decoded": 65533,
+        "high": 127,
+        "low": 128512
+      },
+      {
+        "decoded": 65533,
+        "high": 127,
+        "low": 1114111
+      },
+      {
+        "decoded": 65533,
+        "high": 127,
+        "low": 1114112
+      },
+      {
+        "decoded": 65533,
+        "high": 127,
+        "low": 2147483647
+      },
+      {
+        "decoded": 65533,
+        "high": 128,
+        "low": -2147483648
+      },
+      {
+        "decoded": 65533,
+        "high": 128,
+        "low": -1
+      },
+      {
+        "decoded": 65533,
+        "high": 128,
+        "low": 0
+      },
+      {
+        "decoded": 65533,
+        "high": 128,
+        "low": 127
+      },
+      {
+        "decoded": 65533,
+        "high": 128,
+        "low": 128
+      },
+      {
+        "decoded": 65533,
+        "high": 128,
+        "low": 55295
+      },
+      {
+        "decoded": 65533,
+        "high": 128,
+        "low": 55296
+      },
+      {
+        "decoded": 65533,
+        "high": 128,
+        "low": 56319
+      },
+      {
+        "decoded": 65533,
+        "high": 128,
+        "low": 56320
+      },
+      {
+        "decoded": 65533,
+        "high": 128,
+        "low": 57343
+      },
+      {
+        "decoded": 65533,
+        "high": 128,
+        "low": 57344
+      },
+      {
+        "decoded": 65533,
+        "high": 128,
+        "low": 65535
+      },
+      {
+        "decoded": 65533,
+        "high": 128,
+        "low": 65536
+      },
+      {
+        "decoded": 65533,
+        "high": 128,
+        "low": 128512
+      },
+      {
+        "decoded": 65533,
+        "high": 128,
+        "low": 1114111
+      },
+      {
+        "decoded": 65533,
+        "high": 128,
+        "low": 1114112
+      },
+      {
+        "decoded": 65533,
+        "high": 128,
+        "low": 2147483647
+      },
+      {
+        "decoded": 65533,
+        "high": 55295,
+        "low": -2147483648
+      },
+      {
+        "decoded": 65533,
+        "high": 55295,
+        "low": -1
+      },
+      {
+        "decoded": 65533,
+        "high": 55295,
+        "low": 0
+      },
+      {
+        "decoded": 65533,
+        "high": 55295,
+        "low": 127
+      },
+      {
+        "decoded": 65533,
+        "high": 55295,
+        "low": 128
+      },
+      {
+        "decoded": 65533,
+        "high": 55295,
+        "low": 55295
+      },
+      {
+        "decoded": 65533,
+        "high": 55295,
+        "low": 55296
+      },
+      {
+        "decoded": 65533,
+        "high": 55295,
+        "low": 56319
+      },
+      {
+        "decoded": 65533,
+        "high": 55295,
+        "low": 56320
+      },
+      {
+        "decoded": 65533,
+        "high": 55295,
+        "low": 57343
+      },
+      {
+        "decoded": 65533,
+        "high": 55295,
+        "low": 57344
+      },
+      {
+        "decoded": 65533,
+        "high": 55295,
+        "low": 65535
+      },
+      {
+        "decoded": 65533,
+        "high": 55295,
+        "low": 65536
+      },
+      {
+        "decoded": 65533,
+        "high": 55295,
+        "low": 128512
+      },
+      {
+        "decoded": 65533,
+        "high": 55295,
+        "low": 1114111
+      },
+      {
+        "decoded": 65533,
+        "high": 55295,
+        "low": 1114112
+      },
+      {
+        "decoded": 65533,
+        "high": 55295,
+        "low": 2147483647
+      },
+      {
+        "decoded": 65533,
+        "high": 55296,
+        "low": -2147483648
+      },
+      {
+        "decoded": 65533,
+        "high": 55296,
+        "low": -1
+      },
+      {
+        "decoded": 65533,
+        "high": 55296,
+        "low": 0
+      },
+      {
+        "decoded": 65533,
+        "high": 55296,
+        "low": 127
+      },
+      {
+        "decoded": 65533,
+        "high": 55296,
+        "low": 128
+      },
+      {
+        "decoded": 65533,
+        "high": 55296,
+        "low": 55295
+      },
+      {
+        "decoded": 65533,
+        "high": 55296,
+        "low": 55296
+      },
+      {
+        "decoded": 65533,
+        "high": 55296,
+        "low": 56319
+      },
+      {
+        "decoded": 65536,
+        "high": 55296,
+        "low": 56320
+      },
+      {
+        "decoded": 66559,
+        "high": 55296,
+        "low": 57343
+      },
+      {
+        "decoded": 65533,
+        "high": 55296,
+        "low": 57344
+      },
+      {
+        "decoded": 65533,
+        "high": 55296,
+        "low": 65535
+      },
+      {
+        "decoded": 65533,
+        "high": 55296,
+        "low": 65536
+      },
+      {
+        "decoded": 65533,
+        "high": 55296,
+        "low": 128512
+      },
+      {
+        "decoded": 65533,
+        "high": 55296,
+        "low": 1114111
+      },
+      {
+        "decoded": 65533,
+        "high": 55296,
+        "low": 1114112
+      },
+      {
+        "decoded": 65533,
+        "high": 55296,
+        "low": 2147483647
+      },
+      {
+        "decoded": 65533,
+        "high": 56319,
+        "low": -2147483648
+      },
+      {
+        "decoded": 65533,
+        "high": 56319,
+        "low": -1
+      },
+      {
+        "decoded": 65533,
+        "high": 56319,
+        "low": 0
+      },
+      {
+        "decoded": 65533,
+        "high": 56319,
+        "low": 127
+      },
+      {
+        "decoded": 65533,
+        "high": 56319,
+        "low": 128
+      },
+      {
+        "decoded": 65533,
+        "high": 56319,
+        "low": 55295
+      },
+      {
+        "decoded": 65533,
+        "high": 56319,
+        "low": 55296
+      },
+      {
+        "decoded": 65533,
+        "high": 56319,
+        "low": 56319
+      },
+      {
+        "decoded": 1113088,
+        "high": 56319,
+        "low": 56320
+      },
+      {
+        "decoded": 1114111,
+        "high": 56319,
+        "low": 57343
+      },
+      {
+        "decoded": 65533,
+        "high": 56319,
+        "low": 57344
+      },
+      {
+        "decoded": 65533,
+        "high": 56319,
+        "low": 65535
+      },
+      {
+        "decoded": 65533,
+        "high": 56319,
+        "low": 65536
+      },
+      {
+        "decoded": 65533,
+        "high": 56319,
+        "low": 128512
+      },
+      {
+        "decoded": 65533,
+        "high": 56319,
+        "low": 1114111
+      },
+      {
+        "decoded": 65533,
+        "high": 56319,
+        "low": 1114112
+      },
+      {
+        "decoded": 65533,
+        "high": 56319,
+        "low": 2147483647
+      },
+      {
+        "decoded": 65533,
+        "high": 56320,
+        "low": -2147483648
+      },
+      {
+        "decoded": 65533,
+        "high": 56320,
+        "low": -1
+      },
+      {
+        "decoded": 65533,
+        "high": 56320,
+        "low": 0
+      },
+      {
+        "decoded": 65533,
+        "high": 56320,
+        "low": 127
+      },
+      {
+        "decoded": 65533,
+        "high": 56320,
+        "low": 128
+      },
+      {
+        "decoded": 65533,
+        "high": 56320,
+        "low": 55295
+      },
+      {
+        "decoded": 65533,
+        "high": 56320,
+        "low": 55296
+      },
+      {
+        "decoded": 65533,
+        "high": 56320,
+        "low": 56319
+      },
+      {
+        "decoded": 65533,
+        "high": 56320,
+        "low": 56320
+      },
+      {
+        "decoded": 65533,
+        "high": 56320,
+        "low": 57343
+      },
+      {
+        "decoded": 65533,
+        "high": 56320,
+        "low": 57344
+      },
+      {
+        "decoded": 65533,
+        "high": 56320,
+        "low": 65535
+      },
+      {
+        "decoded": 65533,
+        "high": 56320,
+        "low": 65536
+      },
+      {
+        "decoded": 65533,
+        "high": 56320,
+        "low": 128512
+      },
+      {
+        "decoded": 65533,
+        "high": 56320,
+        "low": 1114111
+      },
+      {
+        "decoded": 65533,
+        "high": 56320,
+        "low": 1114112
+      },
+      {
+        "decoded": 65533,
+        "high": 56320,
+        "low": 2147483647
+      },
+      {
+        "decoded": 65533,
+        "high": 57343,
+        "low": -2147483648
+      },
+      {
+        "decoded": 65533,
+        "high": 57343,
+        "low": -1
+      },
+      {
+        "decoded": 65533,
+        "high": 57343,
+        "low": 0
+      },
+      {
+        "decoded": 65533,
+        "high": 57343,
+        "low": 127
+      },
+      {
+        "decoded": 65533,
+        "high": 57343,
+        "low": 128
+      },
+      {
+        "decoded": 65533,
+        "high": 57343,
+        "low": 55295
+      },
+      {
+        "decoded": 65533,
+        "high": 57343,
+        "low": 55296
+      },
+      {
+        "decoded": 65533,
+        "high": 57343,
+        "low": 56319
+      },
+      {
+        "decoded": 65533,
+        "high": 57343,
+        "low": 56320
+      },
+      {
+        "decoded": 65533,
+        "high": 57343,
+        "low": 57343
+      },
+      {
+        "decoded": 65533,
+        "high": 57343,
+        "low": 57344
+      },
+      {
+        "decoded": 65533,
+        "high": 57343,
+        "low": 65535
+      },
+      {
+        "decoded": 65533,
+        "high": 57343,
+        "low": 65536
+      },
+      {
+        "decoded": 65533,
+        "high": 57343,
+        "low": 128512
+      },
+      {
+        "decoded": 65533,
+        "high": 57343,
+        "low": 1114111
+      },
+      {
+        "decoded": 65533,
+        "high": 57343,
+        "low": 1114112
+      },
+      {
+        "decoded": 65533,
+        "high": 57343,
+        "low": 2147483647
+      },
+      {
+        "decoded": 65533,
+        "high": 57344,
+        "low": -2147483648
+      },
+      {
+        "decoded": 65533,
+        "high": 57344,
+        "low": -1
+      },
+      {
+        "decoded": 65533,
+        "high": 57344,
+        "low": 0
+      },
+      {
+        "decoded": 65533,
+        "high": 57344,
+        "low": 127
+      },
+      {
+        "decoded": 65533,
+        "high": 57344,
+        "low": 128
+      },
+      {
+        "decoded": 65533,
+        "high": 57344,
+        "low": 55295
+      },
+      {
+        "decoded": 65533,
+        "high": 57344,
+        "low": 55296
+      },
+      {
+        "decoded": 65533,
+        "high": 57344,
+        "low": 56319
+      },
+      {
+        "decoded": 65533,
+        "high": 57344,
+        "low": 56320
+      },
+      {
+        "decoded": 65533,
+        "high": 57344,
+        "low": 57343
+      },
+      {
+        "decoded": 65533,
+        "high": 57344,
+        "low": 57344
+      },
+      {
+        "decoded": 65533,
+        "high": 57344,
+        "low": 65535
+      },
+      {
+        "decoded": 65533,
+        "high": 57344,
+        "low": 65536
+      },
+      {
+        "decoded": 65533,
+        "high": 57344,
+        "low": 128512
+      },
+      {
+        "decoded": 65533,
+        "high": 57344,
+        "low": 1114111
+      },
+      {
+        "decoded": 65533,
+        "high": 57344,
+        "low": 1114112
+      },
+      {
+        "decoded": 65533,
+        "high": 57344,
+        "low": 2147483647
+      },
+      {
+        "decoded": 65533,
+        "high": 65535,
+        "low": -2147483648
+      },
+      {
+        "decoded": 65533,
+        "high": 65535,
+        "low": -1
+      },
+      {
+        "decoded": 65533,
+        "high": 65535,
+        "low": 0
+      },
+      {
+        "decoded": 65533,
+        "high": 65535,
+        "low": 127
+      },
+      {
+        "decoded": 65533,
+        "high": 65535,
+        "low": 128
+      },
+      {
+        "decoded": 65533,
+        "high": 65535,
+        "low": 55295
+      },
+      {
+        "decoded": 65533,
+        "high": 65535,
+        "low": 55296
+      },
+      {
+        "decoded": 65533,
+        "high": 65535,
+        "low": 56319
+      },
+      {
+        "decoded": 65533,
+        "high": 65535,
+        "low": 56320
+      },
+      {
+        "decoded": 65533,
+        "high": 65535,
+        "low": 57343
+      },
+      {
+        "decoded": 65533,
+        "high": 65535,
+        "low": 57344
+      },
+      {
+        "decoded": 65533,
+        "high": 65535,
+        "low": 65535
+      },
+      {
+        "decoded": 65533,
+        "high": 65535,
+        "low": 65536
+      },
+      {
+        "decoded": 65533,
+        "high": 65535,
+        "low": 128512
+      },
+      {
+        "decoded": 65533,
+        "high": 65535,
+        "low": 1114111
+      },
+      {
+        "decoded": 65533,
+        "high": 65535,
+        "low": 1114112
+      },
+      {
+        "decoded": 65533,
+        "high": 65535,
+        "low": 2147483647
+      },
+      {
+        "decoded": 65533,
+        "high": 65536,
+        "low": -2147483648
+      },
+      {
+        "decoded": 65533,
+        "high": 65536,
+        "low": -1
+      },
+      {
+        "decoded": 65533,
+        "high": 65536,
+        "low": 0
+      },
+      {
+        "decoded": 65533,
+        "high": 65536,
+        "low": 127
+      },
+      {
+        "decoded": 65533,
+        "high": 65536,
+        "low": 128
+      },
+      {
+        "decoded": 65533,
+        "high": 65536,
+        "low": 55295
+      },
+      {
+        "decoded": 65533,
+        "high": 65536,
+        "low": 55296
+      },
+      {
+        "decoded": 65533,
+        "high": 65536,
+        "low": 56319
+      },
+      {
+        "decoded": 65533,
+        "high": 65536,
+        "low": 56320
+      },
+      {
+        "decoded": 65533,
+        "high": 65536,
+        "low": 57343
+      },
+      {
+        "decoded": 65533,
+        "high": 65536,
+        "low": 57344
+      },
+      {
+        "decoded": 65533,
+        "high": 65536,
+        "low": 65535
+      },
+      {
+        "decoded": 65533,
+        "high": 65536,
+        "low": 65536
+      },
+      {
+        "decoded": 65533,
+        "high": 65536,
+        "low": 128512
+      },
+      {
+        "decoded": 65533,
+        "high": 65536,
+        "low": 1114111
+      },
+      {
+        "decoded": 65533,
+        "high": 65536,
+        "low": 1114112
+      },
+      {
+        "decoded": 65533,
+        "high": 65536,
+        "low": 2147483647
+      },
+      {
+        "decoded": 65533,
+        "high": 128512,
+        "low": -2147483648
+      },
+      {
+        "decoded": 65533,
+        "high": 128512,
+        "low": -1
+      },
+      {
+        "decoded": 65533,
+        "high": 128512,
+        "low": 0
+      },
+      {
+        "decoded": 65533,
+        "high": 128512,
+        "low": 127
+      },
+      {
+        "decoded": 65533,
+        "high": 128512,
+        "low": 128
+      },
+      {
+        "decoded": 65533,
+        "high": 128512,
+        "low": 55295
+      },
+      {
+        "decoded": 65533,
+        "high": 128512,
+        "low": 55296
+      },
+      {
+        "decoded": 65533,
+        "high": 128512,
+        "low": 56319
+      },
+      {
+        "decoded": 65533,
+        "high": 128512,
+        "low": 56320
+      },
+      {
+        "decoded": 65533,
+        "high": 128512,
+        "low": 57343
+      },
+      {
+        "decoded": 65533,
+        "high": 128512,
+        "low": 57344
+      },
+      {
+        "decoded": 65533,
+        "high": 128512,
+        "low": 65535
+      },
+      {
+        "decoded": 65533,
+        "high": 128512,
+        "low": 65536
+      },
+      {
+        "decoded": 65533,
+        "high": 128512,
+        "low": 128512
+      },
+      {
+        "decoded": 65533,
+        "high": 128512,
+        "low": 1114111
+      },
+      {
+        "decoded": 65533,
+        "high": 128512,
+        "low": 1114112
+      },
+      {
+        "decoded": 65533,
+        "high": 128512,
+        "low": 2147483647
+      },
+      {
+        "decoded": 65533,
+        "high": 1114111,
+        "low": -2147483648
+      },
+      {
+        "decoded": 65533,
+        "high": 1114111,
+        "low": -1
+      },
+      {
+        "decoded": 65533,
+        "high": 1114111,
+        "low": 0
+      },
+      {
+        "decoded": 65533,
+        "high": 1114111,
+        "low": 127
+      },
+      {
+        "decoded": 65533,
+        "high": 1114111,
+        "low": 128
+      },
+      {
+        "decoded": 65533,
+        "high": 1114111,
+        "low": 55295
+      },
+      {
+        "decoded": 65533,
+        "high": 1114111,
+        "low": 55296
+      },
+      {
+        "decoded": 65533,
+        "high": 1114111,
+        "low": 56319
+      },
+      {
+        "decoded": 65533,
+        "high": 1114111,
+        "low": 56320
+      },
+      {
+        "decoded": 65533,
+        "high": 1114111,
+        "low": 57343
+      },
+      {
+        "decoded": 65533,
+        "high": 1114111,
+        "low": 57344
+      },
+      {
+        "decoded": 65533,
+        "high": 1114111,
+        "low": 65535
+      },
+      {
+        "decoded": 65533,
+        "high": 1114111,
+        "low": 65536
+      },
+      {
+        "decoded": 65533,
+        "high": 1114111,
+        "low": 128512
+      },
+      {
+        "decoded": 65533,
+        "high": 1114111,
+        "low": 1114111
+      },
+      {
+        "decoded": 65533,
+        "high": 1114111,
+        "low": 1114112
+      },
+      {
+        "decoded": 65533,
+        "high": 1114111,
+        "low": 2147483647
+      },
+      {
+        "decoded": 65533,
+        "high": 1114112,
+        "low": -2147483648
+      },
+      {
+        "decoded": 65533,
+        "high": 1114112,
+        "low": -1
+      },
+      {
+        "decoded": 65533,
+        "high": 1114112,
+        "low": 0
+      },
+      {
+        "decoded": 65533,
+        "high": 1114112,
+        "low": 127
+      },
+      {
+        "decoded": 65533,
+        "high": 1114112,
+        "low": 128
+      },
+      {
+        "decoded": 65533,
+        "high": 1114112,
+        "low": 55295
+      },
+      {
+        "decoded": 65533,
+        "high": 1114112,
+        "low": 55296
+      },
+      {
+        "decoded": 65533,
+        "high": 1114112,
+        "low": 56319
+      },
+      {
+        "decoded": 65533,
+        "high": 1114112,
+        "low": 56320
+      },
+      {
+        "decoded": 65533,
+        "high": 1114112,
+        "low": 57343
+      },
+      {
+        "decoded": 65533,
+        "high": 1114112,
+        "low": 57344
+      },
+      {
+        "decoded": 65533,
+        "high": 1114112,
+        "low": 65535
+      },
+      {
+        "decoded": 65533,
+        "high": 1114112,
+        "low": 65536
+      },
+      {
+        "decoded": 65533,
+        "high": 1114112,
+        "low": 128512
+      },
+      {
+        "decoded": 65533,
+        "high": 1114112,
+        "low": 1114111
+      },
+      {
+        "decoded": 65533,
+        "high": 1114112,
+        "low": 1114112
+      },
+      {
+        "decoded": 65533,
+        "high": 1114112,
+        "low": 2147483647
+      },
+      {
+        "decoded": 65533,
+        "high": 2147483647,
+        "low": -2147483648
+      },
+      {
+        "decoded": 65533,
+        "high": 2147483647,
+        "low": -1
+      },
+      {
+        "decoded": 65533,
+        "high": 2147483647,
+        "low": 0
+      },
+      {
+        "decoded": 65533,
+        "high": 2147483647,
+        "low": 127
+      },
+      {
+        "decoded": 65533,
+        "high": 2147483647,
+        "low": 128
+      },
+      {
+        "decoded": 65533,
+        "high": 2147483647,
+        "low": 55295
+      },
+      {
+        "decoded": 65533,
+        "high": 2147483647,
+        "low": 55296
+      },
+      {
+        "decoded": 65533,
+        "high": 2147483647,
+        "low": 56319
+      },
+      {
+        "decoded": 65533,
+        "high": 2147483647,
+        "low": 56320
+      },
+      {
+        "decoded": 65533,
+        "high": 2147483647,
+        "low": 57343
+      },
+      {
+        "decoded": 65533,
+        "high": 2147483647,
+        "low": 57344
+      },
+      {
+        "decoded": 65533,
+        "high": 2147483647,
+        "low": 65535
+      },
+      {
+        "decoded": 65533,
+        "high": 2147483647,
+        "low": 65536
+      },
+      {
+        "decoded": 65533,
+        "high": 2147483647,
+        "low": 128512
+      },
+      {
+        "decoded": 65533,
+        "high": 2147483647,
+        "low": 1114111
+      },
+      {
+        "decoded": 65533,
+        "high": 2147483647,
+        "low": 1114112
+      },
+      {
+        "decoded": 65533,
+        "high": 2147483647,
+        "low": 2147483647
+      }
+    ],
+    "scalars": [
+      {
+        "encoded": [
+          65533
+        ],
+        "length": -1,
+        "pair": [
+          65533,
+          65533
+        ],
+        "surrogate": false,
+        "value": -2147483648
+      },
+      {
+        "encoded": [
+          65533
+        ],
+        "length": -1,
+        "pair": [
+          65533,
+          65533
+        ],
+        "surrogate": false,
+        "value": -1
+      },
+      {
+        "encoded": [
+          0
+        ],
+        "length": 1,
+        "pair": [
+          65533,
+          65533
+        ],
+        "surrogate": false,
+        "value": 0
+      },
+      {
+        "encoded": [
+          127
+        ],
+        "length": 1,
+        "pair": [
+          65533,
+          65533
+        ],
+        "surrogate": false,
+        "value": 127
+      },
+      {
+        "encoded": [
+          128
+        ],
+        "length": 1,
+        "pair": [
+          65533,
+          65533
+        ],
+        "surrogate": false,
+        "value": 128
+      },
+      {
+        "encoded": [
+          55295
+        ],
+        "length": 1,
+        "pair": [
+          65533,
+          65533
+        ],
+        "surrogate": false,
+        "value": 55295
+      },
+      {
+        "encoded": [
+          65533
+        ],
+        "length": -1,
+        "pair": [
+          65533,
+          65533
+        ],
+        "surrogate": true,
+        "value": 55296
+      },
+      {
+        "encoded": [
+          65533
+        ],
+        "length": -1,
+        "pair": [
+          65533,
+          65533
+        ],
+        "surrogate": true,
+        "value": 56319
+      },
+      {
+        "encoded": [
+          65533
+        ],
+        "length": -1,
+        "pair": [
+          65533,
+          65533
+        ],
+        "surrogate": true,
+        "value": 56320
+      },
+      {
+        "encoded": [
+          65533
+        ],
+        "length": -1,
+        "pair": [
+          65533,
+          65533
+        ],
+        "surrogate": true,
+        "value": 57343
+      },
+      {
+        "encoded": [
+          57344
+        ],
+        "length": 1,
+        "pair": [
+          65533,
+          65533
+        ],
+        "surrogate": false,
+        "value": 57344
+      },
+      {
+        "encoded": [
+          65535
+        ],
+        "length": 1,
+        "pair": [
+          65533,
+          65533
+        ],
+        "surrogate": false,
+        "value": 65535
+      },
+      {
+        "encoded": [
+          55296,
+          56320
+        ],
+        "length": 2,
+        "pair": [
+          55296,
+          56320
+        ],
+        "surrogate": false,
+        "value": 65536
+      },
+      {
+        "encoded": [
+          55357,
+          56832
+        ],
+        "length": 2,
+        "pair": [
+          55357,
+          56832
+        ],
+        "surrogate": false,
+        "value": 128512
+      },
+      {
+        "encoded": [
+          56319,
+          57343
+        ],
+        "length": 2,
+        "pair": [
+          56319,
+          57343
+        ],
+        "surrogate": false,
+        "value": 1114111
+      },
+      {
+        "encoded": [
+          65533
+        ],
+        "length": -1,
+        "pair": [
+          65533,
+          65533
+        ],
+        "surrogate": false,
+        "value": 1114112
+      },
+      {
+        "encoded": [
+          65533
+        ],
+        "length": -1,
+        "pair": [
+          65533,
+          65533
+        ],
+        "surrogate": false,
+        "value": 2147483647
+      }
+    ],
+    "sequences": [
+      {
+        "decoded_hex": "",
+        "normalized_units": [],
+        "units": []
+      },
+      {
+        "decoded_hex": "00",
+        "normalized_units": [
+          0
+        ],
+        "units": [
+          0
+        ]
+      },
+      {
+        "decoded_hex": "4142434445",
+        "normalized_units": [
+          65,
+          66,
+          67,
+          68,
+          69
+        ],
+        "units": [
+          65,
+          66,
+          67,
+          68,
+          69
+        ]
+      },
+      {
+        "decoded_hex": "efbbbf41efbfbe",
+        "normalized_units": [
+          65279,
+          65,
+          65534
+        ],
+        "units": [
+          65279,
+          65,
+          65534
+        ]
+      },
+      {
+        "decoded_hex": "efbfbd",
+        "normalized_units": [
+          65533
+        ],
+        "units": [
+          55296
+        ]
+      },
+      {
+        "decoded_hex": "efbfbd",
+        "normalized_units": [
+          65533
+        ],
+        "units": [
+          56320
+        ]
+      },
+      {
+        "decoded_hex": "efbfbd41",
+        "normalized_units": [
+          65533,
+          65
+        ],
+        "units": [
+          55296,
+          65
+        ]
+      },
+      {
+        "decoded_hex": "efbfbdf0908080",
+        "normalized_units": [
+          65533,
+          55296,
+          56320
+        ],
+        "units": [
+          55296,
+          55296,
+          56320
+        ]
+      },
+      {
+        "decoded_hex": "efbfbdefbfbd",
+        "normalized_units": [
+          65533,
+          65533
+        ],
+        "units": [
+          56320,
+          56320
+        ]
+      },
+      {
+        "decoded_hex": "f48fbfbf",
+        "normalized_units": [
+          56319,
+          57343
+        ],
+        "units": [
+          56319,
+          57343
+        ]
+      },
+      {
+        "decoded_hex": "ed9fbff0908080ee8080",
+        "normalized_units": [
+          55295,
+          55296,
+          56320,
+          57344
+        ],
+        "units": [
+          55295,
+          55296,
+          56320,
+          57344
+        ]
+      },
+      {
+        "decoded_hex": "414243f09f988044454647",
+        "normalized_units": [
+          65,
+          66,
+          67,
+          55357,
+          56832,
+          68,
+          69,
+          70,
+          71
+        ],
+        "units": [
+          65,
+          66,
+          67,
+          55357,
+          56832,
+          68,
+          69,
+          70,
+          71
+        ]
+      }
+    ]
+  },
   "words": [
     {
       "be16": "0000",

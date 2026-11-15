@@ -7,7 +7,7 @@ explicit effects, bounds, overflow policies, and `Result` errors. Matching a
 Go wire format does not require copying its object model or panic behavior.
 
 The coverage inventory is checked with the Rust compiler. Targeted ASCII85,
-stream, word/UTF-8 and constructor-identity suites also run with the updated
+UTF-16, stream, word/UTF-8 and constructor-identity suites also run with the updated
 self-built compiler. An existing module does
 not imply full parity with the corresponding Go package. Planned work below
 is not an available API.
@@ -16,6 +16,7 @@ is not an available API.
 
 | Go package | Cinch module | Implemented surface | Remaining scope |
 | --- | --- | --- | --- |
+| `unicode/utf16` | [Text.Utf16](../library/Text.Utf16.md) | Scalar length, surrogate classification/pairs, sequence encode/decode, append, explicit-order byte codecs, replacement policy | All seven reference capabilities mapped and tested; byte-codec throughput and immutable-list append costs are documented |
 | `encoding/binary` | [Text.Binary](../library/Text.Binary.md) | U16/U32/U64, both byte orders, offset reads, checked writes, unsigned and zigzag I64 varints, consumed byte count | Float/aggregate codecs, stream and append operations |
 | `encoding/hex` | [Text.Hex](../library/Text.Hex.md) | Lowercase encoder, either-case decoder, length helpers, invalid-byte offsets | Dumps, stream and append operations |
 | `encoding/ascii85` | [Text.Ascii85](../library/Text.Ascii85.md), [Effect.Ascii85](../library/Effect.Ascii85.md) | Whole buffers, incremental feed/finish, absolute byte errors, streaming reader/writer adapters, zero-word shorthand, control-byte tolerance and wrapped arithmetic | Caller-supplied buffers, decoded prefix/progress on errors, allocation and ownership costs |
@@ -33,6 +34,8 @@ compiler intrinsics or foreign libraries. They follow the existing
 `Text.Zlib` retains its standalone `adler32` and `crc32` exports; the new
 incremental checksum API does not depend on compression.
 
+UTF-16 uses SWAR to widen four ASCII bytes or narrow four ASCII code units;
+non-ASCII scalars and surrogate pairs retain their precise scalar behavior.
 ASCII85, Hex and Base32 use LLVM SIMD lanes for complete encoding/decoding quanta.
 Adler-32 reduces sixteen byte lanes and their weights in parallel. Fixed
 binary fields use native word assembly and LLVM byte swaps, and varints use
@@ -57,7 +60,9 @@ rejected by negative tests.
 
 The machine-readable [surface inventory](stdlib-surface.json) covers all 180
 public packages in the pinned reference SDK. It currently records 67 partial
-and 113 unreviewed packages, with none marked complete. Upstream mutable
+and 112 unreviewed packages, with UTF-16 functionally complete. Its seven
+reference operations have reviewed capability mappings and independent runtime
+fixtures; completion does not assert matching allocation complexity or speed. Upstream mutable
 containers are included as implementation homes, not assumed full coverage.
 The [benchmark notes](../benchmarks/stdlib/README.md) describe measured public
 API pipelines and their limits. The full standard library goal remains open.
@@ -119,6 +124,9 @@ two-chunk split, empty feeds, malformed input after complete words, streaming
 short writes, sticky failures and mutable-alias isolation. They inspect the
 emitted SIMD and compile its kernels for AArch64 and big-endian PowerPC; those
 cross-target checks do not claim execution on that hardware.
+[UTF-16 tests](../compiler/tests/lib_utf16.rs) compare all scalar/pair APIs
+against independent fixtures, exhaust all 65,536 individual code units, and
+check both byte orders, odd byte counts, marks and SWAR block tails.
 Separate checks cover offsets, truncation, failed writes without mutation,
 malformed encodings, and updates at every split of a check string, including
 empty chunks. The fixture generator calls Go's actual standard packages.

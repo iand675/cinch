@@ -1,4 +1,4 @@
-// Reference ASCII85 public-API pipelines for tooling/bench_stdlib.py.
+// Reference text-codec public-API pipelines for tooling/bench_stdlib.py.
 // Inputs, mutations and observable checksums match the Cinch workload driver.
 // Allocation strategies and immutable string guarantees remain implementation-specific.
 package main
@@ -6,18 +6,39 @@ package main
 import (
 	"bytes"
 	"encoding/ascii85"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf16"
 )
 
 // encoded allocates and returns an unframed complete ASCII85 encoding.
 func encoded(input []byte) []byte {
 	out := make([]byte, ascii85.MaxEncodedLen(len(input)))
 	return out[:ascii85.Encode(out, input)]
+}
+
+// unitOrder selects the explicit UTF-16 wire byte order.
+func unitOrder(mode string) binary.ByteOrder {
+	if strings.HasPrefix(mode, "utf16be-") {
+		return binary.BigEndian
+	}
+	return binary.LittleEndian
+}
+
+// encodedUnits converts valid UTF-8 text to UTF-16 through the reference scalar API.
+func encodedUnits(mode string, input []byte) []byte {
+	units := utf16.Encode([]rune(string(input)))
+	out := make([]byte, len(units)*2)
+	order := unitOrder(mode)
+	for i, unit := range units {
+		order.PutUint16(out[i*2:], unit)
+	}
+	return out
 }
 
 // fingerprint consumes the same length and boundary bytes as the Cinch driver.
@@ -57,6 +78,15 @@ func operation(mode string, input []byte) uint64 {
 			return 1000000000
 		}
 		return fingerprint(out)
+	case "utf16le-encode", "utf16be-encode":
+		return fingerprint(encodedUnits(mode, input))
+	case "utf16le-decode", "utf16be-decode":
+		units := make([]uint16, len(input)/2)
+		order := unitOrder(mode)
+		for i := range units {
+			units[i] = order.Uint16(input[i*2:])
+		}
+		return fingerprint([]byte(string(utf16.Decode(units))))
 	default:
 		panic("unsupported reference workload")
 	}
@@ -76,16 +106,29 @@ func main() {
 	input := make([]byte, size)
 	for i := range input {
 		input[i] = byte(i*37 + 11)
+		if strings.HasPrefix(mode, "utf16") {
+			input[i] %= 128
+		}
 	}
 	decoding := strings.HasSuffix(mode, "decode")
 	if decoding {
-		input = encoded(input)
+		if strings.HasPrefix(mode, "utf16") {
+			input = encodedUnits(mode, input)
+		} else {
+			input = encoded(input)
+		}
 	}
 	var checksum uint64
 	start := time.Now()
 	for i := 0; i < iterations; i++ {
 		if len(input) > 0 {
-			if decoding {
+			if strings.HasPrefix(mode, "utf16") {
+				index := 0
+				if mode == "utf16be-decode" {
+					index = 1
+				}
+				input[index] = byte(i % 128)
+			} else if decoding {
 				input[0] = byte(33 + i%85)
 			} else {
 				input[0] = byte(i % 256)

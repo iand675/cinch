@@ -14,7 +14,30 @@ import (
 	"hash/fnv"
 	"os"
 	"strconv"
+	"unicode/utf16"
 )
+
+// utf16Vectors records scalar boundaries, surrogate errors and byte-order-independent units.
+func utf16Vectors() map[string]interface{} {
+	scalars := []map[string]interface{}{}
+	values := []rune{-2147483648, -1, 0, 127, 128, 0xd7ff, 0xd800, 0xdbff, 0xdc00, 0xdfff, 0xe000, 0xffff, 0x10000, 0x1f600, 0x10ffff, 0x110000, 2147483647}
+	for _, r := range values {
+		high, low := utf16.EncodeRune(r)
+		scalars = append(scalars, map[string]interface{}{"value": int64(r), "length": utf16.RuneLen(r), "surrogate": utf16.IsSurrogate(r), "pair": []uint16{uint16(high), uint16(low)}, "encoded": utf16.Encode([]rune{r})})
+	}
+	sequences := []map[string]interface{}{}
+	for _, units := range [][]uint16{{}, {0}, {65, 66, 67, 68, 69}, {0xfeff, 65, 0xfffe}, {0xd800}, {0xdc00}, {0xd800, 65}, {0xd800, 0xd800, 0xdc00}, {0xdc00, 0xdc00}, {0xdbff, 0xdfff}, {0xd7ff, 0xd800, 0xdc00, 0xe000}, {65, 66, 67, 0xd83d, 0xde00, 68, 69, 70, 71}} {
+		decoded := utf16.Decode(units)
+		sequences = append(sequences, map[string]interface{}{"units": units, "decoded_hex": hex.EncodeToString([]byte(string(decoded))), "normalized_units": utf16.Encode(decoded)})
+	}
+	pairs := []map[string]interface{}{}
+	for _, high := range values {
+		for _, low := range values {
+			pairs = append(pairs, map[string]interface{}{"high": int64(high), "low": int64(low), "decoded": int64(utf16.DecodeRune(high, low))})
+		}
+	}
+	return map[string]interface{}{"scalars": scalars, "sequences": sequences, "pairs": pairs}
+}
 
 func main() {
 	inputs := [][]byte{[]byte(""), []byte("f"), []byte("fo"), []byte("foo"), []byte("foob"), []byte("fooba"), []byte("foobar"), []byte("123456789"), []byte("abc")}
@@ -91,7 +114,7 @@ func main() {
 	}
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(map[string]interface{}{"buffers": checks, "words": words, "signed": signed, "ascii85_decodes": asciiDecodes}); err != nil {
+	if err := encoder.Encode(map[string]interface{}{"buffers": checks, "words": words, "signed": signed, "ascii85_decodes": asciiDecodes, "utf16": utf16Vectors()}); err != nil {
 		panic(err)
 	}
 }
