@@ -74,6 +74,10 @@ flags:
               stayed on the heap) with its count, percentage and the payload
               bytes those allocations carry (CINCH_ESCAPE_REPORT=1 does the
               same; design/stack-allocation.md section 8)
+  --no-reclaim  build the leak-everything baseline instead of the counted
+              one: no ownership operation is emitted, so every block the
+              program allocates stays live until exit (the same profile
+              CINCH_RECLAIM=0 selects, as a flag; design/reclamation.md)
   --dump-core <stage>  also write build/<entry>.core at that pipeline point:
               checked (solved and elaborated are aliases), owned, or lowered
               (the default stage, and the exact code generation input); a
@@ -342,6 +346,7 @@ fn main() {
                 }
             }
             "--emit-interface-optimisations" => opts.emit_interface_optimisations = true,
+            "--no-reclaim" => opts.no_reclaim = true,
             "--no-stack-alloc" => opts.no_stack_alloc = true,
             "--stack-frame-limit" => {
                 i += 1;

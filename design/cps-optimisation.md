@@ -45,7 +45,8 @@ wherever a tail call needs it, and the C convention everywhere else. The
 units under `tailcc` are exactly the units whose tail calls are
 guaranteed (`codegen.rs::tail_units`), the greatest fixed point of:
 
-- it makes a saturated tail call through a closure it does not know; or
+- it makes a saturated tail call through a closure it does not know (on
+  a target with apply twins); or
 - it makes a saturated known tail call to another member, a function
   unit of the same module whose result crosses like its own (the same
   word or narrowed type, or the same product, section 6).
@@ -84,6 +85,13 @@ apply twin that enters a C unit makes an ordinary call, which adds one
 frame that the next call does not grow. AArch64's `tailcc` costs nothing
 over the C convention, so the split only matters on x86-64; it is kept on
 both for one rule.
+
+Mach-O targets (`*-apple-darwin`) keep `tailcc` and every guaranteed
+known tail call, but not the unknown-tail-call fast path below: the
+prefix data holds the twin's address as an absolute integer in a code
+section, which Mach-O can only encode as a text relocation, and the linker
+refuses those. There an unknown tail call takes the ordinary `__apply`
+call, and no unit joins the `tailcc` set for making one.
 
 WebAssembly has no `tailcc` (LLVM's backend accepts only the C
 convention), and 32-bit targets keep the C convention too. There the

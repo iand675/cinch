@@ -24,7 +24,9 @@ def publish_interfaces(manifest, source, prefix):
 
 # Target profile flags the staged compiler accepts in any position before its
 # paths. The selectors in compiler/tests/common put them after the mode word.
-PROFILE_FLAGS = ("--rc-debug",)
+# `--no-reclaim` is one of them: it is a word, not a path, so a caller that
+# leaves it in the argument list would hand it to the compiler as a source.
+PROFILE_FLAGS = ("--rc-debug", "--no-reclaim")
 
 
 def compile_client(compiler, objects, runtime, args):

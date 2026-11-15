@@ -190,10 +190,10 @@ $ cinch build Main.cinch -o example && CINCH_ALLOC_STATS=1 ./example
 cinch-alloc: blocks=13 bytes=394 peak=210 header-blocks=7 header-bytes=176 immortal=0 freed=7 live=0
 ```
 
-`CINCH_RECLAIM=0` builds the leak-everything baseline the same code compares against, and the counters show the difference:
+`--no-reclaim` (or `CINCH_RECLAIM=0` in the compiler's environment) builds the leak-everything baseline the same code compares against. The flag is the command-line spelling of the same profile field, so the build emits no ownership operation at all; the counters show the difference:
 
 ```text
-$ CINCH_RECLAIM=0 cinch build Main.cinch -o leaky && CINCH_ALLOC_STATS=1 ./leaky
+$ cinch build Main.cinch -o leaky --no-reclaim && CINCH_ALLOC_STATS=1 ./leaky
 cinch-alloc: blocks=13 bytes=394 peak=322 header-blocks=7 header-bytes=176 immortal=0 freed=0 live=7
 ```
 

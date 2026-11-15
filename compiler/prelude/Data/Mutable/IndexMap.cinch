@@ -1,0 +1,650 @@
+-- Data.Mutable.IndexMap: the insertion-ordered hash map (Facebook F14's
+-- `F14VectorMap`, Rust's `indexmap`, Python's `dict`).
+--
+-- Entries live densely in insertion order in three parallel slot arrays
+-- (keys, values, and each key's 64-bit digest), and a separate index finds
+-- them: the same chunked table as `Data.Mutable.HashTable` (8-slot chunks,
+-- 7-bit tags matched eight at a time, F14 overflow counts instead of
+-- tombstones), whose slots hold entry positions rather than entries. So:
+--
+--   * iteration is a walk over a dense array, in insertion order, with no
+--     empty slots to skip, which is F14's argument for the vector layout;
+--   * entries are addressable by position (`index-map-get-index`), and a
+--     key's position is a lookup away (`index-map-index-of`);
+--   * the index is rebuilt from the stored digests when it grows, so keys
+--     are never rehashed (an expensive `Hash`, a long `String`, pays once).
+--
+-- Removal comes in the two flavours `indexmap` offers. `swap-remove` is
+-- O(1): the last entry moves into the hole (its index slot is found by its
+-- stored digest and re-pointed), so the order of the rest changes.
+-- `shift-remove` keeps the order: the tail moves down one place (one
+-- memmove) and every index slot past the hole is re-pointed, which is O(n).
+--
+-- The invariant that makes every read sound: entries below the length are
+-- written and the rest empty; an index slot is read only when its control
+-- byte is full, and a full index slot always names an entry below the
+-- length.
+--
+-- The trusted core is the private `cinch.runtime.slots*` imports (the
+-- compiler's `slots.rs`); none of them leaves the module.
+module Data.Mutable.IndexMap where
+
+  import Data.Machine
+  import Data.Option
+  import Data.Nat
+  import Data.Hash
+  import Relation.Eq
+
+  export IndexMap, index-map-new, index-map-size, index-map-is-empty, index-map-insert
+  export index-map-lookup, index-map-lookup-or, index-map-member, index-map-index-of, index-map-get-index
+  export index-map-swap-remove, index-map-shift-remove, index-map-pop, index-map-clear
+  export index-map-fold, index-map-to-list, index-map-keys, index-map-values, index-map-from-list
+
+  foreign import ccall "cinch.runtime.slotsNew" slots-new :: forall a. U64 -> Array a
+  foreign import ccall "cinch.runtime.slotsLen" slots-len :: forall a. Array a -> U64
+  foreign import ccall "cinch.runtime.slotsRead" slots-read :: forall a. Array a -> U64 -> a
+  foreign import ccall "cinch.runtime.slotsWrite" slots-write :: forall a. Array a -> U64 -> a -> Unit
+  foreign import ccall "cinch.runtime.slotsTake" slots-take :: forall a. Array a -> U64 -> a
+  foreign import ccall "cinch.runtime.slotsMove" slots-move :: forall a. Array a -> U64 -> Array a -> U64 -> U64 -> Unit
+  foreign import ccall "cinch.runtime.slotsClear" slots-clear :: forall a. Array a -> U64 -> U64 -> Unit
+  foreign import ccall "cinch.runtime.slotsFoldNat" fold-nat :: Nat -> U64
+
+  -- The dense entries: keys, values, digests.
+  data Dense k v where
+    Dense :: Array k -> Array v -> Array U64 -> Dense k v
+
+  -- The index: `words` (the chunk mask at 0, then per chunk g its control
+  -- word at 1 + 2g and overflow count at 2 + 2g) and `pos` (the entry
+  -- position of each full slot).
+  data Index where
+    Index :: Array U64 -> Array U64 -> Index
+
+  -- The length word, and the cells holding the current entries and index.
+  data IndexMap r k v where
+    MkIndexMap :: Array U64 -> Array (Dense k v) -> Array Index -> IndexMap r k v
+
+  -- ------------------------------------------------------------------
+  -- Words (the table's, as in Data.Mutable.HashTable)
+  -- ------------------------------------------------------------------
+
+  inc :: U64 -> U64
+  inc w = wrapping-add-u64 w 1
+
+  dec :: U64 -> U64
+  dec w = wrapping-sub-u64 w 1
+
+  to-nat :: U64 -> Nat
+  to-nat w = nat-from-i64 (mask-i64 (wrapping-u64-to-i64 w) 9223372036854775807)
+
+  absent :: U64
+  absent = 0xffffffffffffffff
+
+  lanes :: U64
+  lanes = 0x0101010101010101
+
+  highs :: U64
+  highs = 0x8080808080808080
+
+  mix :: U64 -> U64
+  mix z =
+    let a = wrapping-mul-u64 (bit-xor-u64 z (wrapping-shr-u64 z 30)) 0xbf58476d1ce4e5b9 in
+    let b = wrapping-mul-u64 (bit-xor-u64 a (wrapping-shr-u64 a 27)) 0x94d049bb133111eb in
+    bit-xor-u64 b (wrapping-shr-u64 b 31)
+
+  digest :: forall k. using (h :: Hash k) => k -> U64
+  digest x = mix (fold-nat (hash x))
+
+  tag-of :: U64 -> U64
+  tag-of d = bit-or-u64 (wrapping-shr-u64 d 57) 0x80
+
+  stride-of :: U64 -> U64
+  stride-of t = bit-or-u64 (wrapping-shl-u64 t 1) 1
+
+  match-tag :: U64 -> U64 -> U64
+  match-tag ctrl t =
+    let x = bit-xor-u64 ctrl (wrapping-mul-u64 t lanes) in
+    bit-and-u64 (bit-and-u64 (wrapping-sub-u64 x lanes) (bit-not-u64 x)) highs
+
+  empties :: U64 -> U64
+  empties ctrl = bit-and-u64 (bit-not-u64 ctrl) highs
+
+  fulls :: U64 -> U64
+  fulls ctrl = bit-and-u64 ctrl highs
+
+  lowest :: U64 -> U64
+  lowest m = wrapping-shr-u64 (u32-to-u64 (trailing-zeros-u64 m)) 3
+
+  rest-of :: U64 -> U64
+  rest-of m = bit-and-u64 m (dec m)
+
+  byte-shift :: U64 -> U32
+  byte-shift j = wrapping-u64-to-u32 (wrapping-shl-u64 j 3)
+
+  ctrl-at :: Array U64 -> U64 -> U64
+  ctrl-at w g = slots-read w (inc (wrapping-shl-u64 g 1))
+
+  set-ctrl :: Array U64 -> U64 -> U64 -> Unit
+  set-ctrl w g c = slots-write w (inc (wrapping-shl-u64 g 1)) c
+
+  overflow-at :: Array U64 -> U64 -> U64
+  overflow-at w g = slots-read w (wrapping-add-u64 2 (wrapping-shl-u64 g 1))
+
+  set-overflow :: Array U64 -> U64 -> U64 -> Unit
+  set-overflow w g n = slots-write w (wrapping-add-u64 2 (wrapping-shl-u64 g 1)) n
+
+  mask-of :: Array U64 -> U64
+  mask-of w = slots-read w 0
+
+  next-chunk :: U64 -> U64 -> U64 -> U64
+  next-chunk g stride mask = bit-and-u64 (wrapping-add-u64 g stride) mask
+
+  -- ------------------------------------------------------------------
+  -- The handle's fields
+  -- ------------------------------------------------------------------
+
+  len-of :: forall r k v. IndexMap r k v -> U64
+  len-of t = case t of
+    MkIndexMap m d i -> slots-read m 0
+
+  set-len :: forall r k v. IndexMap r k v -> U64 -> Unit
+  set-len t n = case t of
+    MkIndexMap m d i -> slots-write m 0 n
+
+  dense-of :: forall r k v. IndexMap r k v -> Dense k v
+  dense-of t = case t of
+    MkIndexMap m d i -> slots-read d 0
+
+  index-of :: forall r k v. IndexMap r k v -> Index
+  index-of t = case t of
+    MkIndexMap m d i -> slots-read i 0
+
+  -- ------------------------------------------------------------------
+  -- The index
+  -- ------------------------------------------------------------------
+
+  -- An index of `chunks` empty chunks.
+  fresh-index :: U64 -> Index
+  fresh-index chunks =
+    let w = (slots-new (inc (wrapping-shl-u64 chunks 1)) :: Array U64) in
+    let z = slots-clear w 0 (slots-len w) in
+    let m = slots-write w 0 (dec chunks) in
+    let pos = (slots-new (wrapping-shl-u64 chunks 3) :: Array U64) in
+    let zp = slots-clear pos 0 (slots-len pos) in
+    Index w pos
+
+  limit-of :: U64 -> U64
+  limit-of mask = wrapping-mul-u64 (inc mask) 7
+
+  chunks-for :: U64 -> U64 -> U64
+  chunks-for n chunks = if lt-u64 (limit-of (dec chunks)) n then chunks-for n (wrapping-shl-u64 chunks 1) else chunks
+
+  -- The index slot whose entry holds `key`, or `absent`.
+  find-slot :: forall k. using (eq :: Eq k) => Array U64 -> Array U64 -> Array k -> k -> U64 -> U64
+  find-slot w pos ks key d =
+    let t = tag-of d in
+    let mask = mask-of w in
+    probe w pos ks key t (stride-of t) mask (bit-and-u64 d mask) 0
+
+  probe :: forall k. using (eq :: Eq k) => Array U64 -> Array U64 -> Array k -> k -> U64 -> U64 -> U64 -> U64 -> U64 -> U64
+  probe w pos ks key t stride mask g n =
+    let hit = scan-key pos ks key (wrapping-shl-u64 g 3) (match-tag (ctrl-at w g) t) in
+    if ne-u64 hit absent then hit
+    else if eq-u64 (overflow-at w g) 0 then absent
+    else if lt-u64 mask n then absent
+    else probe w pos ks key t stride mask (next-chunk g stride mask) (inc n)
+
+  scan-key :: forall k. using (eq :: Eq k) => Array U64 -> Array k -> k -> U64 -> U64 -> U64
+  scan-key pos ks key base m =
+    if eq-u64 m 0 then absent
+    else
+      let slot = wrapping-add-u64 base (lowest m) in
+      if slots-read ks (slots-read pos slot) == key then slot else scan-key pos ks key base (rest-of m)
+
+  -- The index slot naming entry `e` (digest `d`), or `absent`.
+  slot-of-entry :: Array U64 -> Array U64 -> U64 -> U64 -> U64
+  slot-of-entry w pos e d =
+    let t = tag-of d in
+    let mask = mask-of w in
+    probe-entry w pos e t (stride-of t) mask (bit-and-u64 d mask) 0
+
+  probe-entry :: Array U64 -> Array U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64
+  probe-entry w pos e t stride mask g n =
+    let hit = scan-entry pos e (wrapping-shl-u64 g 3) (match-tag (ctrl-at w g) t) in
+    if ne-u64 hit absent then hit
+    else if eq-u64 (overflow-at w g) 0 then absent
+    else if lt-u64 mask n then absent
+    else probe-entry w pos e t stride mask (next-chunk g stride mask) (inc n)
+
+  scan-entry :: Array U64 -> U64 -> U64 -> U64 -> U64
+  scan-entry pos e base m =
+    if eq-u64 m 0 then absent
+    else
+      let slot = wrapping-add-u64 base (lowest m) in
+      if eq-u64 (slots-read pos slot) e then slot else scan-entry pos e base (rest-of m)
+
+  -- Point a free index slot on `d`'s probe at entry `e`.
+  place :: Array U64 -> Array U64 -> U64 -> U64 -> Unit
+  place w pos e d =
+    let t = tag-of d in
+    let mask = mask-of w in
+    place-from w pos e t (stride-of t) mask (bit-and-u64 d mask)
+
+  place-from :: Array U64 -> Array U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> Unit
+  place-from w pos e t stride mask g =
+    let c = ctrl-at w g in
+    let free = empties c in
+    if eq-u64 free 0 then
+      let counted = set-overflow w g (inc (overflow-at w g)) in
+      place-from w pos e t stride mask (next-chunk g stride mask)
+    else
+      let j = lowest free in
+      let written = slots-write pos (wrapping-add-u64 (wrapping-shl-u64 g 3) j) e in
+      set-ctrl w g (bit-or-u64 c (wrapping-shl-u64 t (byte-shift j)))
+
+  -- Free index slot `slot` of an entry with digest `d`: clear its byte and
+  -- take back the overflow counts its probe left.
+  unplace :: Array U64 -> U64 -> U64 -> Unit
+  unplace w slot d =
+    let g = wrapping-shr-u64 slot 3 in
+    let j = bit-and-u64 slot 7 in
+    let cleared = set-ctrl w g (bit-and-u64 (ctrl-at w g) (bit-not-u64 (wrapping-shl-u64 0xff (byte-shift j)))) in
+    let t = tag-of d in
+    let mask = mask-of w in
+    uncount w (stride-of t) mask (bit-and-u64 d mask) g
+
+  uncount :: Array U64 -> U64 -> U64 -> U64 -> U64 -> Unit
+  uncount w stride mask g until =
+    if eq-u64 g until then ()
+    else
+      let n = overflow-at w g in
+      let taken = set-overflow w g (if eq-u64 n 0 then (0 :: U64) else dec n) in
+      uncount w stride mask (next-chunk g stride mask) until
+
+  -- An index for `n` entries, built from the stored digests.
+  rebuild :: Array U64 -> U64 -> U64 -> Index
+  rebuild hs n chunks =
+    let fresh = fresh-index chunks in
+    let placed = place-all fresh hs 0 n in
+    fresh
+
+  place-all :: Index -> Array U64 -> U64 -> U64 -> Unit
+  place-all ix hs e n =
+    if lt-u64 e n then
+      let p = place-in ix e (slots-read hs e) in
+      place-all ix hs (inc e) n
+    else ()
+
+  place-in :: Index -> U64 -> U64 -> Unit
+  place-in ix e d = case ix of
+    Index w pos -> place w pos e d
+
+  -- ------------------------------------------------------------------
+  -- Construction and size
+  -- ------------------------------------------------------------------
+
+  index-map-new :: forall r k v. Unit ->{Mut r} IndexMap r k v
+  index-map-new u =
+    let m = (slots-new 1 :: Array U64) in
+    let z = slots-write m 0 (0 :: U64) in
+    let d = slots-new 1 in
+    let dense = (Dense (slots-new 4) (slots-new 4) (slots-new 4) :: Dense k v) in
+    let wd = slots-write d 0 dense in
+    let i = slots-new 1 in
+    let wi = slots-write i 0 (fresh-index 1) in
+    MkIndexMap m d i
+
+  index-map-size :: forall r k v. IndexMap r k v ->{Mut r} Nat
+  index-map-size t = to-nat (len-of t)
+
+  index-map-is-empty :: forall r k v. IndexMap r k v ->{Mut r} Bool
+  index-map-is-empty t = eq-u64 (len-of t) 0
+
+  -- ------------------------------------------------------------------
+  -- Lookup
+  -- ------------------------------------------------------------------
+
+  -- The entry position of `key`, or `absent`.
+  entry-of :: forall r k v. using (h :: Hash k, eq :: Eq k) => IndexMap r k v -> k -> U64
+  entry-of t key =
+    let dn = dense-of t in
+    let ix = index-of t in
+    let e = entry-in dn ix key (digest key) in
+    e
+
+  entry-in :: forall k v. using (eq :: Eq k) => Dense k v -> Index -> k -> U64 -> U64
+  entry-in dn ix key d = case dn of
+    Dense ks vs hs -> case ix of
+      Index w pos ->
+        let slot = find-slot w pos ks key d in
+        if eq-u64 slot absent then absent else slots-read pos slot
+
+  index-map-lookup :: forall r k v. using (h :: Hash k, eq :: Eq k) => IndexMap r k v -> k ->{Mut r} Option v
+  index-map-lookup t key =
+    let e = entry-of t key in
+    if eq-u64 e absent then None
+    else
+      let dn = dense-of t in
+      Some (value-at dn e)
+
+  value-at :: forall k v. Dense k v -> U64 -> v
+  value-at dn e = case dn of
+    Dense ks vs hs -> slots-read vs e
+
+  key-at :: forall k v. Dense k v -> U64 -> k
+  key-at dn e = case dn of
+    Dense ks vs hs -> slots-read ks e
+
+  index-map-lookup-or :: forall r k v. using (h :: Hash k, eq :: Eq k) => IndexMap r k v -> k -> v ->{Mut r} v
+  index-map-lookup-or t key dflt =
+    let e = entry-of t key in
+    if eq-u64 e absent then dflt
+    else
+      let dn = dense-of t in
+      value-at dn e
+
+  index-map-member :: forall r k v. using (h :: Hash k, eq :: Eq k) => IndexMap r k v -> k ->{Mut r} Bool
+  index-map-member t key = ne-u64 (entry-of t key) absent
+
+  -- The position of `key` in insertion order.
+  index-map-index-of :: forall r k v. using (h :: Hash k, eq :: Eq k) => IndexMap r k v -> k ->{Mut r} Option Nat
+  index-map-index-of t key =
+    let e = entry-of t key in
+    if eq-u64 e absent then None else Some (to-nat e)
+
+  -- The entry at position `i` in insertion order.
+  index-map-get-index :: forall r k v. IndexMap r k v -> Nat ->{Mut r} Option (k, v)
+  index-map-get-index t i =
+    if i < to-nat (len-of t) then
+      let dn = dense-of t in
+      let e = fold-nat i in
+      Some (key-at dn e, value-at dn e)
+    else None
+
+  -- ------------------------------------------------------------------
+  -- Insertion
+  -- ------------------------------------------------------------------
+
+  -- Set `key` to `val`: a present key keeps its position (and its stored
+  -- key); a new one goes at the end.
+  index-map-insert :: forall r k v. using (h :: Hash k, eq :: Eq k) => IndexMap r k v -> k -> v ->{Mut r} Unit
+  index-map-insert t key val =
+    let d = digest key in
+    let dn = dense-of t in
+    let ix = index-of t in
+    let e = entry-in dn ix key d in
+    if ne-u64 e absent then
+      let written = write-value dn e val in
+      written
+    else append t key val d
+
+  write-value :: forall k v. Dense k v -> U64 -> v -> Unit
+  write-value dn e val = case dn of
+    Dense ks vs hs -> slots-write vs e val
+
+  append :: forall r k v. IndexMap r k v -> k -> v -> U64 -> Unit
+  append t key val d =
+    let n = len-of t in
+    let dn = dense-room t (inc n) in
+    let written = write-entry dn n key val d in
+    let sized = set-len t (inc n) in
+    let ix = index-room t (inc n) in
+    let placed = place-in ix n d in
+    ()
+
+  write-entry :: forall k v. Dense k v -> U64 -> k -> v -> U64 -> Unit
+  write-entry dn e key val d = case dn of
+    Dense ks vs hs ->
+      let a = slots-write ks e key in
+      let b = slots-write vs e val in
+      slots-write hs e d
+
+  -- Dense storage with room for `need` entries: doubling, moving each
+  -- array's live prefix.
+  dense-room :: forall r k v. IndexMap r k v -> U64 -> Dense k v
+  dense-room t need = case t of
+    MkIndexMap m cell i ->
+      let dn = slots-read cell 0 in
+      case dn of
+        Dense ks vs hs ->
+          let cap = slots-len ks in
+          if lt-u64 cap need then
+            let newcap = if lt-u64 (wrapping-add-u64 cap cap) need then need else wrapping-add-u64 cap cap in
+            let fresh = (Dense (slots-new newcap) (slots-new newcap) (slots-new newcap) :: Dense k v) in
+            let moved = move-dense dn fresh (slots-read m 0) in
+            let installed = slots-write cell 0 fresh in
+            fresh
+          else dn
+
+  move-dense :: forall k v. Dense k v -> Dense k v -> U64 -> Unit
+  move-dense old fresh n = case old of
+    Dense ks vs hs -> case fresh of
+      Dense ks2 vs2 hs2 ->
+        let a = slots-move ks2 0 ks 0 n in
+        let b = slots-move vs2 0 vs 0 n in
+        slots-move hs2 0 hs 0 n
+
+  -- An index that takes `need` entries: the current one, or one rebuilt
+  -- from the digests at twice the chunks (no key is rehashed).
+  index-room :: forall r k v. IndexMap r k v -> U64 -> Index
+  index-room t need = case t of
+    MkIndexMap m dcell icell ->
+      let ix = slots-read icell 0 in
+      case ix of
+        Index w pos ->
+          let mask = mask-of w in
+          if lt-u64 (limit-of mask) need then
+            let dn = slots-read dcell 0 in
+            let fresh = rebuild-from dn (dec need) (chunks-for need (wrapping-shl-u64 (inc mask) 1)) in
+            let installed = slots-write icell 0 fresh in
+            fresh
+          else ix
+
+  -- The new entry (at position need - 1) is placed by the caller.
+  rebuild-from :: forall k v. Dense k v -> U64 -> U64 -> Index
+  rebuild-from dn n chunks = case dn of
+    Dense ks vs hs -> rebuild hs n chunks
+
+  -- ------------------------------------------------------------------
+  -- Removal
+  -- ------------------------------------------------------------------
+
+  -- Remove `key` by moving the last entry into its place: O(1), and the
+  -- moved entry changes position.
+  index-map-swap-remove :: forall r k v. using (h :: Hash k, eq :: Eq k) => IndexMap r k v -> k ->{Mut r} Option v
+  index-map-swap-remove t key =
+    let d = digest key in
+    let dn = dense-of t in
+    let ix = index-of t in
+    let n = len-of t in
+    let got = swap-remove-in dn ix key d n in
+    let shrunk = shrink-if t got in
+    got
+
+  shrink-if :: forall r k v. IndexMap r k v -> Option v -> Unit
+  shrink-if t got = case got of
+    None -> ()
+    Some v -> set-len t (dec (len-of t))
+
+  swap-remove-in :: forall k v. using (eq :: Eq k) => Dense k v -> Index -> k -> U64 -> U64 -> Option v
+  swap-remove-in dn ix key d n = case dn of
+    Dense ks vs hs -> case ix of
+      Index w pos ->
+        let slot = find-slot w pos ks key d in
+        if eq-u64 slot absent then None
+        else
+          let e = slots-read pos slot in
+          let freed = unplace w slot d in
+          let gone = slots-take ks e in
+          let val = slots-take vs e in
+          let last = dec n in
+          let filled = if eq-u64 e last then () else move-last ks vs hs w pos e last in
+          Some val
+
+  -- Entry `last` moves to the hole at `e`, and its index slot follows.
+  move-last :: forall k v. Array k -> Array v -> Array U64 -> Array U64 -> Array U64 -> U64 -> U64 -> Unit
+  move-last ks vs hs w pos e last =
+    let dl = slots-read hs last in
+    let s = slot-of-entry w pos last dl in
+    let mk = slots-move ks e ks last 1 in
+    let mv = slots-move vs e vs last 1 in
+    let mh = slots-write hs e dl in
+    if eq-u64 s absent then () else slots-write pos s e
+
+  -- Remove `key` keeping the order of the rest: the tail moves down one
+  -- place and every index slot past the hole is re-pointed (O(n)).
+  index-map-shift-remove :: forall r k v. using (h :: Hash k, eq :: Eq k) => IndexMap r k v -> k ->{Mut r} Option v
+  index-map-shift-remove t key =
+    let d = digest key in
+    let dn = dense-of t in
+    let ix = index-of t in
+    let n = len-of t in
+    let got = shift-remove-in dn ix key d n in
+    let shrunk = shrink-if t got in
+    got
+
+  shift-remove-in :: forall k v. using (eq :: Eq k) => Dense k v -> Index -> k -> U64 -> U64 -> Option v
+  shift-remove-in dn ix key d n = case dn of
+    Dense ks vs hs -> case ix of
+      Index w pos ->
+        let slot = find-slot w pos ks key d in
+        if eq-u64 slot absent then None
+        else
+          let e = slots-read pos slot in
+          let freed = unplace w slot d in
+          let gone = slots-take ks e in
+          let val = slots-take vs e in
+          let tail = wrapping-sub-u64 (dec n) e in
+          let mk = slots-move ks e ks (inc e) tail in
+          let mv = slots-move vs e vs (inc e) tail in
+          let mh = slots-move hs e hs (inc e) tail in
+          let renumbered = renumber w pos e 0 (inc (mask-of w)) in
+          Some val
+
+  -- Every full index slot naming an entry past `e` now names the one
+  -- before it.
+  renumber :: Array U64 -> Array U64 -> U64 -> U64 -> U64 -> Unit
+  renumber w pos e g n =
+    if lt-u64 g n then
+      let done = renumber-chunk pos e (wrapping-shl-u64 g 3) (fulls (ctrl-at w g)) in
+      renumber w pos e (inc g) n
+    else ()
+
+  renumber-chunk :: Array U64 -> U64 -> U64 -> U64 -> Unit
+  renumber-chunk pos e base m =
+    if eq-u64 m 0 then ()
+    else
+      let slot = wrapping-add-u64 base (lowest m) in
+      let p = slots-read pos slot in
+      let fixed = if lt-u64 e p then slots-write pos slot (dec p) else () in
+      renumber-chunk pos e base (rest-of m)
+
+  -- Remove and return the last entry.
+  index-map-pop :: forall r k v. IndexMap r k v ->{Mut r} Option (k, v)
+  index-map-pop t =
+    let n = len-of t in
+    if eq-u64 n 0 then None
+    else
+      let dn = dense-of t in
+      let ix = index-of t in
+      let got = pop-in dn ix (dec n) in
+      let shrunk = set-len t (dec n) in
+      Some got
+
+  pop-in :: forall k v. Dense k v -> Index -> U64 -> (k, v)
+  pop-in dn ix last = case dn of
+    Dense ks vs hs -> case ix of
+      Index w pos ->
+        let d = slots-read hs last in
+        let s = slot-of-entry w pos last d in
+        let freed = if eq-u64 s absent then () else unplace w s d in
+        (slots-take ks last, slots-take vs last)
+
+  index-map-clear :: forall r k v. IndexMap r k v ->{Mut r} Unit
+  index-map-clear t =
+    let dn = dense-of t in
+    let n = len-of t in
+    let cleared = clear-dense dn n in
+    let ix = index-of t in
+    let reset = clear-index ix in
+    set-len t 0
+
+  clear-dense :: forall k v. Dense k v -> U64 -> Unit
+  clear-dense dn n = case dn of
+    Dense ks vs hs ->
+      let a = slots-clear ks 0 n in
+      slots-clear vs 0 n
+
+  clear-index :: Index -> Unit
+  clear-index ix = case ix of
+    Index w pos ->
+      let mask = mask-of w in
+      let z = slots-clear w 0 (slots-len w) in
+      slots-write w 0 mask
+
+  -- ------------------------------------------------------------------
+  -- Order
+  -- ------------------------------------------------------------------
+
+  -- A left fold in insertion order.
+  index-map-fold :: forall r k v b. (b -> k -> v -> b) -> b -> IndexMap r k v ->{Mut r} b
+  index-map-fold f z t =
+    let dn = dense-of t in
+    let r = fold-dense f z dn 0 (len-of t) in
+    r
+
+  fold-dense :: forall k v b. (b -> k -> v -> b) -> b -> Dense k v -> U64 -> U64 -> b
+  fold-dense f z dn i n = case dn of
+    Dense ks vs hs -> fold-from f z ks vs i n
+
+  fold-from :: forall k v b. (b -> k -> v -> b) -> b -> Array k -> Array v -> U64 -> U64 -> b
+  fold-from f z ks vs i n =
+    if lt-u64 i n then fold-from f (f z (slots-read ks i) (slots-read vs i)) ks vs (inc i) n else z
+
+  index-map-to-list :: forall r k v. IndexMap r k v ->{Mut r} List (k, v)
+  index-map-to-list t =
+    let dn = dense-of t in
+    let r = list-dense dn (len-of t) in
+    r
+
+  list-dense :: forall k v. Dense k v -> U64 -> List (k, v)
+  list-dense dn n = case dn of
+    Dense ks vs hs -> list-down ks vs n Nil
+
+  list-down :: forall k v. Array k -> Array v -> U64 -> List (k, v) -> List (k, v)
+  list-down ks vs i acc =
+    if eq-u64 i 0 then acc
+    else
+      let j = dec i in
+      list-down ks vs j (Cons (slots-read ks j, slots-read vs j) acc)
+
+  index-map-keys :: forall r k v. IndexMap r k v ->{Mut r} List k
+  index-map-keys t = firsts (index-map-to-list t)
+
+  index-map-values :: forall r k v. IndexMap r k v ->{Mut r} List v
+  index-map-values t = seconds (index-map-to-list t)
+
+  firsts :: forall k v. List (k, v) -> List k
+  firsts kvs = case kvs of
+    Nil -> Nil
+    Cons p rest -> case p of
+      (k, v) -> Cons k (firsts rest)
+
+  seconds :: forall k v. List (k, v) -> List v
+  seconds kvs = case kvs of
+    Nil -> Nil
+    Cons p rest -> case p of
+      (k, v) -> Cons v (seconds rest)
+
+  index-map-from-list :: forall r k v. using (h :: Hash k, eq :: Eq k) => List (k, v) ->{Mut r} IndexMap r k v
+  index-map-from-list kvs =
+    let t = index-map-new () in
+    let filled = insert-all t kvs in
+    t
+
+  insert-all :: forall r k v. using (h :: Hash k, eq :: Eq k) => IndexMap r k v -> List (k, v) ->{Mut r} Unit
+  insert-all t kvs = case kvs of
+    Nil -> ()
+    Cons p rest -> case p of
+      (k, v) ->
+        let inserted = index-map-insert t k v in
+        insert-all t rest

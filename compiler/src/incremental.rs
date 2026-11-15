@@ -1299,6 +1299,7 @@ impl Session {
             // An incremental session writes interfaces for its store, not
             // a library's unfoldings for a consumer.
             false,
+            &crate::interface::contract_hashes(&ifaces),
         )?;
         report.chain_ok = self.chain_ok();
 
@@ -1446,6 +1447,8 @@ impl Session {
             frame: Default::default(),
             stack: Default::default(),
             borrowed: Default::default(),
+            lent_entries: Default::default(),
+            private_modules: Vec::new(),
             inline: Default::default(),
         };
         let mut state = crate::driver::query::QueryState::of(
@@ -2054,6 +2057,8 @@ impl Session {
             frame: Default::default(),
             stack: Default::default(),
             borrowed: Default::default(),
+            lent_entries: Default::default(),
+            private_modules: Vec::new(),
             inline: Default::default(),
                 });
             }
@@ -2108,6 +2113,8 @@ impl Session {
             frame: Default::default(),
             stack: Default::default(),
             borrowed: Default::default(),
+            lent_entries: Default::default(),
+            private_modules: Vec::new(),
             inline: Default::default(),
         })
     }

@@ -540,21 +540,18 @@ module Wide where
     );
 }
 
-/// A freestanding module registers its own layout table (WebAssembly and
-/// WASI specification section 2).
+/// A freestanding module turns reference counting on from its own entry
+/// (WebAssembly and WASI specification section 2).
 ///
-/// `llvm.global_ctors` is how a native process registers it: libc runs
-/// the constructors before `main`. A bare Wasm module has no `_start` and
-/// no libc, so nothing ran them, the table stayed empty, and every shaped
-/// block answered `shaped block with no registered layout`. That surfaced
-/// as a trap inside the runtime's `release` on the first `map` over a
-/// closure with saved words, nowhere near the cause.
-///
-/// The Wasm entry therefore calls the initialiser itself. A host that
-/// also calls `__wasm_call_ctors` runs it twice, and
-/// `cinch_layouts_register` is a plain store, so the repeat is free.
+/// `llvm.global_ctors` is how a native process does it: libc runs the
+/// constructors before `main`. A bare Wasm module has no `_start` and no
+/// libc, so nothing would run them, and the runtime would never learn the
+/// program counts references. Blocks describe themselves, so there is no
+/// layout table to register (`design/self-describing-blocks.md`): the entry
+/// calls the reclaim initialiser when the module has one. A host that also
+/// calls `__wasm_call_ctors` enables counting twice, which is idempotent.
 #[test]
-fn the_wasm_entry_registers_the_layout_table_itself() {
+fn the_wasm_entry_enables_reclamation_itself() {
     let src = r#"
 module Wide where
   import Data.List
@@ -582,9 +579,11 @@ module Wide where
         .split("define i32 @main()")
         .nth(1)
         .expect("a wasm module has the plain main shape");
-    assert!(
-        main.contains("call void @__cinch_layouts_init()"),
-        "the wasm entry registers the layout table itself:\n{main}"
+    assert!(!ir.contains("__cinch_layouts_init") && !ir.contains("cinch_layouts_register"), "no layout table is registered");
+    assert_eq!(
+        main.contains("call void @__cinch_reclaim_init()"),
+        ir.contains("define internal void @__cinch_reclaim_init()"),
+        "the wasm entry enables reclamation itself exactly when the module counts:\n{main}"
     );
     assert!(
         main.contains("call i64 @") && main.contains("@cinch_exit_check"),

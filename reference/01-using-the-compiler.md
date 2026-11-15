@@ -207,7 +207,7 @@ cinch build --target wasm32-unknown-unknown Main.cinch -o prog.wasm
 cinch run --target wasm32-unknown-unknown Main.cinch    # exits with the program's `main` result
 ```
 
-Two tools beyond a native toolchain are needed, and each refusal names what is missing: clang 20 or newer (the emitted IR carries `range(...)` attributes older LLVM rejects as `expected type`), and `wasm-ld` (found beside clang, then on `PATH`, or named by `CINCH_WASM_LD`).
+Two tools beyond a native toolchain are needed, and each refusal names what is missing: clang 19 or newer (the emitted IR carries `range(...)` attributes older LLVM rejects as `expected type`), and `wasm-ld` (found beside clang, then on `PATH`, or named by `CINCH_WASM_LD`).
 
 A flag that expects a value and does not get one is a usage error, exit 2:
 
@@ -456,7 +456,7 @@ The declaration-level machinery exists in the library: `compiler/src/incremental
 
 | Variable | Read by | Effect |
 | --- | --- | --- |
-| `CINCH_CLANG` | the linker step of `build` and `run` | The clang executable to invoke instead of `clang` on `PATH`. |
+| `CINCH_CLANG` | the linker step of `build` and `run` | The clang executable to invoke instead of `clang` on `PATH`. It must be clang 19 or newer; a link that fails with an older one says so. |
 | `CINCH_STORE` | every compile | The package-store root, replacing the per-user default. |
 | `CINCH_STAGE_MODE` | every compile | `refresh` (default), `replay`, or `live`. Anything else falls back to `refresh`. It decides how compile-time staging inputs are observed, so a program with no staged inputs compiles identically under all three. |
 | `CINCH_RECLAIM` | every compile | Reclamation is inserted unless this is `0`. `CINCH_RECLAIM=0 cinch emit-ir Main.cinch -o norecl.ll` emits 148438 lines of IR where the default emits 333682 for a program whose body is `main = 0`, and the `cinch_drop_mt`, `cinch_dup_mt`, `cinch_free`, and `cinch_reclaim_enable` calls are absent. |

@@ -1138,7 +1138,7 @@ module Bootstrap.Infer where
     TName s name -> if same name "IO" then (UCon "#kernel.ForeignIO" KEffect, st) else if has name ["Diverge", "Blocking", "Global", "Fail", "Reentrant", "ThreadAffine"] then (UCon name KEffect, st)
       else convert-declared-effect kinds locals label st
     TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) ->
-      if has name ["IO", "Async", "Cancel", "Eval", "Foreign"] then (case lookup-local region locals of
+      if has name ["IO", "Async", "Cancel", "Eval", "Foreign", "Mut"] then (case lookup-local region locals of
         Some ty -> if kind-equal (type-kind ty) KRegion then (UApp (UCon name (KFun KRegion KEffect)) ty, st)
           else bad r "effect argument must have kind Region" st
         None -> bad r "unbound effect region" st)
@@ -1338,7 +1338,7 @@ module Bootstrap.Infer where
         TName r region -> Cons region (region-names first <> region-names value)
         other -> region-names first <> region-names value)
       else region-names first <> region-names second <> region-names value
-    TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) -> if has name ["Io", "b.Io", "IO", "Async", "Cancel", "Eval", "Foreign"] then [region] else Nil
+    TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) -> if has name ["Io", "b.Io", "IO", "Async", "Cancel", "Eval", "Foreign", "Mut"] then [region] else Nil
     TApp s f xs -> region-names f <> region-names xs
     TFun s a b -> region-names a <> region-names b
     TFunEff s a row b -> region-names a <> region-names row <> region-names b
@@ -1950,26 +1950,44 @@ module Bootstrap.Infer where
     UForall qs body -> occurs-owner name body
     UArg x rest -> occurs-owner name x || occurs-owner name rest
     other -> False
-  positive :: String -> UType -> Bool
-  positive owner ty = case ty of
-    UPi id name a row b -> not (occurs-owner owner a) && positive owner b
-    UFun a b -> not (occurs-owner owner a) && positive owner b
-    UFunEff a row b -> not (occurs-owner owner a) && positive owner b
-    UUsageArrow usage arrow -> positive owner arrow
-    UProofFun predicate row result -> not (occurs-owner owner predicate || occurs-owner owner row) && positive owner result
-    UApp f x -> if occurs-owner owner ty then
+  -- A data declaration's strongly connected group is what the positivity
+  -- discipline judges (core specification section 2, mutual inductive
+  -- groups). A declaration on no cycle is the one-member group, so its
+  -- check reads exactly as the single-declaration rule did.
+  occurs-group :: List String -> UType -> Bool
+  occurs-group group ty = case group of
+    Nil -> False
+    Cons first rest -> occurs-owner first ty || occurs-group rest ty
+  positive :: List String -> UType -> Bool
+  positive group ty = case ty of
+    UPi id name a row b -> not (occurs-group group a) && positive group b
+    UFun a b -> not (occurs-group group a) && positive group b
+    UFunEff a row b -> not (occurs-group group a) && positive group b
+    UUsageArrow usage arrow -> positive group arrow
+    UProofFun predicate row result -> not (occurs-group group predicate || occurs-group group row) && positive group result
+    UApp f x -> if occurs-group group ty then
       (case deferral-parts ty of
-        Some (row, result) -> not (occurs-owner owner row) && positive owner result
-        None -> (case root-name ty of Some name -> same name owner && positive-arguments owner ty; None -> False))
+        Some (row, result) -> not (occurs-group group row) && positive group result
+        None -> (case root-name ty of Some name -> has name group && positive-arguments group ty; None -> False))
       else True
-    UTuple xs -> positive owner xs
-    UForall qs body -> positive owner body
-    UArg x rest -> positive owner x && positive owner rest
+    UTuple xs -> positive group xs
+    UForall qs body -> positive group body
+    UArg x rest -> positive group x && positive group rest
+    -- A refinement's carrier is the value, so a group occurrence there is a
+    -- structural occurrence and the former is not established as
+    -- positivity-preserving (core specification section 2, clause 4). A
+    -- named refinement's own body is judged the same way. The predicate is
+    -- erased evidence and is not a component.
+    URefine id name carrier predicate -> not (occurs-group group carrier)
+    URefineFormer name ids body -> not (occurs-group group body)
+    -- A required proposition is erased evidence; the carrier it guards keeps
+    -- the polarity of its own position.
+    URequire predicates body -> not (occurs-group group predicates) && positive group body
     other -> True
-  positive-arguments :: String -> UType -> Bool
-  positive-arguments owner ty = case ty of UApp f x -> not (occurs-owner owner x) && positive-arguments owner f; other -> True
-  check-positive :: Span -> String -> List UType -> Store -> Store
-  check-positive sp owner args st = case args of Nil -> st; Cons a rest -> check-positive sp owner rest (if positive owner a then st else add-error sp "recursive field is negative or needs nested positivity evidence" st)
+  positive-arguments :: List String -> UType -> Bool
+  positive-arguments group ty = case ty of UApp f x -> not (occurs-group group x) && positive-arguments group f; other -> True
+  check-positive :: Span -> List String -> List UType -> Store -> Store
+  check-positive sp group args st = case args of Nil -> st; Cons a rest -> check-positive sp group rest (if positive group a then st else add-error sp "recursive field is negative or needs nested positivity evidence" st)
   applied-family :: String -> Kind -> List Quant -> UType
   applied-family name k qs = apply-quantifiers (UCon name k) qs
   apply-quantifiers :: UType -> List Quant -> UType
@@ -2008,8 +2026,8 @@ module Bootstrap.Infer where
           UBound id name kind -> id == quant-id parameter && kind-equal kind (quant-kind parameter)
           other -> False) && constructor-result-parameters rest tail
     other -> False
-  register-ctors :: TypeContext -> String -> List Quant -> List (String, TypeExpr) -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-ctors kinds owner qs cs env st = case cs of
+  register-ctors :: TypeContext -> String -> List String -> List Quant -> List (String, TypeExpr) -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-ctors kinds owner group qs cs env st = case cs of
     Nil -> (env, st)
     Cons (name, ty) rest -> case make-scheme False Nil kinds qs ty st of
       (raw, ss) ->
@@ -2019,8 +2037,8 @@ module Bootstrap.Infer where
         let sr = (if not shape then add-error (type-expr-span ty) "constructor must return its saturated declaring family" ss
           else if constructor-result-parameters qs (constructor-result-arguments result Nil) then ss
           else add-error (type-expr-span ty) "constructor result type mismatch: only value indices may differ from declaring parameters" ss) in
-        let sp = check-positive (type-expr-span ty) owner (domains (scheme-body sc)) sr in
-        case add-binding (type-expr-span ty) name sc "constructor" env sp of (e, se) -> register-ctors kinds owner qs rest e se
+        let sp = check-positive (type-expr-span ty) group (domains (scheme-body sc)) sr in
+        case add-binding (type-expr-span ty) name sc "constructor" env sp of (e, se) -> register-ctors kinds owner group qs rest e se
   source-effect-kind :: List Quant -> Kind
   source-effect-kind qs = case qs of Nil -> KEffect; Cons q rest -> KFun (quant-kind q) (source-effect-kind rest)
   operation-syntax :: Span -> List TypeParam -> TypeExpr -> TypeExpr
@@ -2217,59 +2235,62 @@ module Bootstrap.Infer where
     Cons (name, ty) rest -> case make-scheme False classes kinds Nil (operation-syntax (type-expr-span ty) ps ty) st of
       (sc, ss) -> case add-binding (type-expr-span ty) name sc "operation" env ss of
         (more, checked) -> register-operations classes kinds ps rest more checked
-  register :: List Json -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register rows classes kinds ds env st = case ds of
+  -- `all` is the module's whole declaration list, which the reference graph
+  -- needs: a declaration's group is a property of the module, so it cannot be
+  -- read from the tail being walked.
+  register :: List Decl -> List Json -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register all rows classes kinds ds env st = case ds of
     Nil -> (env, st)
     Cons d rest -> case d of
       DSig s name ty -> case make-scheme False classes kinds Nil ty st of
-        (sc, ss) -> case register-source-value s name sc kinds env ss of (e, se) -> register rows classes kinds rest e se
+        (sc, ss) -> case register-source-value s name sc kinds env ss of (e, se) -> register all rows classes kinds rest e se
       DClass s name ps members -> case find-class name (context-source-classes kinds) of
         Some description -> case register-source-methods description (decls-of members) env st of
-          (more, checked) -> register rows classes kinds rest more checked
-        None -> register rows classes kinds rest env (add-error s "source signature has no checked defining contract" st)
+          (more, checked) -> register all rows classes kinds rest more checked
+        None -> register all rows classes kinds rest env (add-error s "source signature has no checked defining contract" st)
       DInstance sp flag name ps head-type members -> case source-instance-scheme sp classes kinds ps head-type st of
         (sc, checked) -> case add-binding sp name sc (if flag then "implicit-instance" else "instance") env checked of
-          (more, final) -> register rows classes kinds rest more final
+          (more, final) -> register all rows classes kinds rest more final
       DEffect s owner ps ops -> case register-operations classes kinds ps ops env st of
-        (e, se) -> register rows classes kinds rest e se
+        (e, se) -> register all rows classes kinds rest e se
       DData s owner ps cs -> case parameters False kinds Nil ps 0 Nil st of
-        (qs, sq) -> case register-ctors kinds owner qs cs env sq of (e, se) -> register rows classes kinds rest e se
-      DRecord s owner ps fields -> register rows classes kinds rest env st
-      DCodata s owner ps observations -> register rows classes kinds rest env st
+        (qs, sq) -> case register-ctors kinds owner (data-group all owner) qs cs env sq of (e, se) -> register all rows classes kinds rest e se
+      DRecord s owner ps fields -> register all rows classes kinds rest env st
+      DCodata s owner ps observations -> register all rows classes kinds rest env st
       DForeign s direction abi symbol name ty -> case register-intrinsic s direction abi symbol name ty classes kinds env st of
-        (e, se) -> register rows classes kinds rest e se
+        (e, se) -> register all rows classes kinds rest e se
       DPrim s name ty bodies -> case make-scheme False classes kinds Nil ty st of
         (scheme, checked) -> let actual = map-scheme-types (normalize checked) scheme in
           (case (lookup-binding name env, primitive-plan name actual bodies) of
-            (Some prior, result) -> register rows classes kinds rest env (add-error s "duplicate primitive binding" checked)
-            (None, Err error) -> register rows classes kinds rest env (add-error s error checked)
-            (None, Ok plan) -> register rows classes kinds rest (Cons (MkForeignBinding name actual plan) env) checked)
+            (Some prior, result) -> register all rows classes kinds rest env (add-error s "duplicate primitive binding" checked)
+            (None, Err error) -> register all rows classes kinds rest env (add-error s error checked)
+            (None, Ok plan) -> register all rows classes kinds rest (Cons (MkForeignBinding name actual plan) env) checked)
       DExternal s name category (Some ty) metadata ->
-        case register-external s name category ty metadata rows classes kinds env st of (e, se) -> register rows classes kinds rest e se
+        case register-external s name category ty metadata rows classes kinds env st of (e, se) -> register all rows classes kinds rest e se
       DExternal s name category None metadata -> if same category "builtin" then
-        (case register-kernel s name metadata classes kinds env st of (e, se) -> register rows classes kinds rest e se)
-        else if same category "builtin-constructor" then (case register-decision-constructor s name metadata env st of (e, se) -> register rows classes kinds rest e se)
-        else if same category "builtin-syntax" then (case register-decision-syntax s name metadata env st of (e, se) -> register rows classes kinds rest e se)
+        (case register-kernel s name metadata classes kinds env st of (e, se) -> register all rows classes kinds rest e se)
+        else if same category "builtin-constructor" then (case register-decision-constructor s name metadata env st of (e, se) -> register all rows classes kinds rest e se)
+        else if same category "builtin-syntax" then (case register-decision-syntax s name metadata env st of (e, se) -> register all rows classes kinds rest e se)
         else if same category "type" && (case field "kind" metadata of JStr kind -> same kind "codata"; other -> False) then
           (case register-imported-codata s name classes kinds metadata env st of
-            (more, checked) -> register rows classes kinds rest more checked)
-        else if same category "type" || same category "signature" || same category "instance" then register rows classes kinds rest env st
-        else register rows classes kinds rest env (add-error s (unsupported-import category name) st)
-      DSource s name metadata -> register rows classes kinds rest env st
-      DInterface s name hash metadata -> register rows classes kinds rest env st
-      DFun s name clauses -> register rows classes kinds rest env st
-      DProof s body -> register rows classes kinds rest env st
-      DRewrite s name syntax -> register rows classes kinds rest env st
+            (more, checked) -> register all rows classes kinds rest more checked)
+        else if same category "type" || same category "signature" || same category "instance" then register all rows classes kinds rest env st
+        else register all rows classes kinds rest env (add-error s (unsupported-import category name) st)
+      DSource s name metadata -> register all rows classes kinds rest env st
+      DInterface s name hash metadata -> register all rows classes kinds rest env st
+      DFun s name clauses -> register all rows classes kinds rest env st
+      DProof s body -> register all rows classes kinds rest env st
+      DRewrite s name syntax -> register all rows classes kinds rest env st
       -- Its kind was checked above. An opaque type introduces no value
       -- binding, constructor, field or closed data family.
-      DOpaque s name params kind -> register rows classes kinds rest env st
-      DRefine s name params binder predicate -> register rows classes kinds rest env st
-      DExport s text items -> register rows classes kinds rest env st
+      DOpaque s name params kind -> register all rows classes kinds rest env st
+      DRefine s name params binder predicate -> register all rows classes kinds rest env st
+      DExport s text items -> register all rows classes kinds rest env st
       -- A temporal contract binds no value: it is verified after the
       -- definition it names has been elaborated (its write log and its
       -- recursion), which is the pass `temporal-contracts` runs.
-      DContract s keyword name subject clauses -> register rows classes kinds rest env st
-      other -> register rows classes kinds rest env (add-error (decl-span d) (unsupported-decl d) st)
+      DContract s keyword name subject clauses -> register all rows classes kinds rest env st
+      other -> register all rows classes kinds rest env (add-error (decl-span d) (unsupported-decl d) st)
   storage-observation-body :: Nat -> UType -> Option UType
   storage-observation-body remaining ty = if remaining == 0 then Some ty else
     (case ty of
@@ -2285,7 +2306,7 @@ module Bootstrap.Infer where
           case (scheme-requirements sc, storage-observation-body (json-length (field "fields" metadata)) (scheme-body sc)) of
             (Nil, Some body) -> add-binding sp (record-storage-name True owner)
               (MkScheme (scheme-params sc) body) "constructor" env
-              (check-positive sp owner (domains body) valid)
+              (check-positive sp (Cons owner Nil) (domains body) valid)
             other -> (env, add-error sp "imported codata observations need a checked observation scheme" valid)
       other -> (env, add-error sp "imported codata has no checked observation contract" st)
   register-source-value :: Span -> String -> Scheme -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
@@ -2641,7 +2662,10 @@ module Bootstrap.Infer where
         else (env, add-error sp "builtin contract disagrees with the kernel" st)
       None -> (env, add-error sp "unknown kernel builtin" st)
 
-  -- Reject mutual data recursion until SCC-wide positivity is checked.
+  -- The module's data and record declarations resolve as one block: a data
+  -- declaration may name one written later, and the positivity discipline
+  -- judges each declaration's strongly connected group (core specification
+  -- section 2, mutual inductive groups; design/mutual-data-groups.md).
   data-names :: List Decl -> List String
   data-names ds = case ds of Nil -> Nil; Cons (DData s name ps cs) rest -> Cons name (data-names rest); Cons d rest -> data-names rest
   type-names :: TypeExpr -> List String
@@ -2653,17 +2677,81 @@ module Bootstrap.Infer where
     TArg s x rest -> type-names x <> type-names rest
     TForall s qs body -> type-names body
     other -> Nil
-  order-names :: Span -> List String -> List String -> List String -> Store -> Store
-  order-names sp names all seen st = case names of
-    Nil -> st
-    Cons n rest -> order-names sp rest all seen (if has n all && not (has n seen) then add-error sp "forward data reference needs SCC positivity checking" st else st)
-  order-ctors :: List (String, TypeExpr) -> List String -> List String -> Store -> Store
-  order-ctors cs all seen st = case cs of Nil -> st; Cons (name, ty) rest -> order-ctors rest all seen (order-names (type-expr-span ty) (type-names ty) all seen st)
-  data-order :: List Decl -> List String -> List String -> Store -> Store
-  data-order ds all seen st = case ds of
-    Nil -> st
-    Cons (DData s name ps cs) rest -> data-order rest all (Cons name seen) (order-ctors cs all (Cons name seen) st)
-    Cons d rest -> data-order rest all seen st
+  -- Every type name a declaration's body mentions, walking the formers the
+  -- source grammar puts between a field and its type. `type-names` above is
+  -- the reference set the fast-path probe reads, so this walker is separate
+  -- and only the reference graph uses it: an evidence field's carrier and a
+  -- dependent binder's carrier are structural occurrences too.
+  structural-type-names :: TypeExpr -> List String
+  structural-type-names ty = case ty of
+    TName s name -> Cons name Nil
+    TNegate s body -> structural-type-names body
+    TIndexLambda s binder body -> structural-type-names body
+    TFun s a b -> structural-type-names a <> structural-type-names b
+    TFunEff s a row b -> structural-type-names a <> structural-type-names row <> structural-type-names b
+    TUsageArrow s usage arrow -> structural-type-names arrow
+    TRow s labels tail -> structural-type-names labels
+    TApp s f xs -> structural-type-names f <> structural-type-names xs
+    TTuple s xs -> structural-type-names xs
+    TForall s qs body -> structural-type-names qs <> structural-type-names body
+    TQuantifier s name only kind rest -> structural-type-names kind <> structural-type-names rest
+    TArg s x rest -> structural-type-names x <> structural-type-names rest
+    TBound s name carrier rest -> structural-type-names carrier <> structural-type-names rest
+    TEvidenceField s label carrier -> structural-type-names carrier
+    TRefined s predicate carrier -> structural-type-names predicate <> structural-type-names carrier
+    TInfix s op a b -> structural-type-names a <> structural-type-names b
+    TUsing s bounds body -> structural-type-names bounds <> structural-type-names body
+    other -> Nil
+  -- The data names a declaration's body mentions. A record is a data
+  -- declaration with one constructor, so its fields are walked the same
+  -- way: excluding records would leave a cycle `A -> R -> A` unchecked
+  -- when `R`'s field is negative (design/mutual-data-groups.md section 2).
+  declaration-data-references :: Decl -> List String
+  declaration-data-references d = case d of
+    DData s name ps cs -> ctor-data-references cs
+    DRecord s name ps fields -> ctor-data-references fields
+    other -> Nil
+  ctor-data-references :: List (String, TypeExpr) -> List String
+  ctor-data-references cs = case cs of Nil -> Nil; Cons (name, ty) rest -> structural-type-names ty <> ctor-data-references rest
+  declared-data-name :: Decl -> String
+  declared-data-name d = case d of DData s name ps cs -> name; DRecord s name ps fields -> name; other -> ""
+  -- Every edge out of `from`. A record contributes through both of its
+  -- forms (the single-constructor data it lowers to and its own field list),
+  -- so the union is the complete edge set whatever the fields' shape.
+  data-edges :: List Decl -> String -> List String
+  data-edges ds from = case ds of
+    Nil -> Nil
+    Cons d rest -> if same (declared-data-name d) from then declaration-data-references d <> data-edges rest from else data-edges rest from
+  data-reaches :: List Decl -> List String -> List String -> String -> Bool
+  data-reaches ds visited pending goal = case pending of
+    Nil -> False
+    Cons first rest -> if same first goal then True
+      else if has first visited then data-reaches ds visited rest goal
+      else data-reaches ds (Cons first visited) (rest <> data-edges ds first) goal
+  -- The group a name belongs to, by mutual reachability: `b` is reachable
+  -- from `a` when a chain of constructor field types leads from `a` to `b`,
+  -- and two names lie in one strongly connected component exactly when each
+  -- reaches the other. The declaration counts are small, so the definition
+  -- is easier to review than a functional Tarjan. A name on no cycle is its
+  -- own group, which keeps its diagnostic exactly what the
+  -- single-declaration rule gave.
+  data-group :: List Decl -> String -> List String
+  data-group ds name = data-group-members ds name (data-names-and-records ds)
+  data-names-and-records :: List Decl -> List String
+  data-names-and-records ds = case ds of
+    Nil -> Nil
+    Cons (DData s name ps cs) rest -> Cons name (data-names-and-records rest)
+    Cons (DRecord s name ps fields) rest -> Cons name (data-names-and-records rest)
+    Cons d rest -> data-names-and-records rest
+  data-group-members :: List Decl -> String -> List String -> List String
+  data-group-members ds name candidates = case candidates of
+    Nil -> Cons name Nil
+    Cons first rest ->
+      let more = data-group-members ds name rest in
+      if has first more then more
+      else if data-reaches ds Nil (Cons first Nil) name && data-reaches ds Nil (Cons name Nil) first
+        then Cons first more
+        else more
 
   term-error :: Span -> String -> Store -> (CoreTerm, Store)
   term-error sp message st = (CError sp, add-error sp message st)
@@ -6218,8 +6306,11 @@ module Bootstrap.Infer where
     let initial = empty-store label in
     let guarded = if has-codata then check-codata-bodies original (codata-call-graph original) original initial else initial in
     let contracts = check-imported-refinements ds Nil guarded in
-    let start = data-order ds (data-names ds) Nil contracts in
-    let (source-kinds, source-store) = collect-kinds ds primitive-kinds start in
+    -- Every data head registers before any constructor type converts
+    -- (`collect-kinds`), so a data declaration may name one written later;
+    -- `register` judges each declaration's strongly connected group
+    -- (core specification section 2, mutual inductive groups).
+    let (source-kinds, source-store) = collect-kinds ds primitive-kinds contracts in
     let rows = class-rows ds in
     let (instance-kinds, instance-store) = source-instance-nominals ds rows source-kinds source-store in
     let (nominal-kinds, sk) = collect-nominal-kinds ds instance-kinds instance-store in
@@ -6233,7 +6324,7 @@ module Bootstrap.Infer where
     let (import-kinds, import-body-store) = collect-body-contracts ds classes class-kinds class-store in
     let (method-kinds, method-store) = collect-imported-total-methods interfaces ds rows classes import-kinds import-body-store in
     let (kinds, body-store) = if enable then add-source-bodies (source-total-bodies interfaces label m classes method-kinds) method-kinds method-store else (method-kinds, method-store) in
-    let (values, sv) = register rows classes kinds ds (context-body-bindings kinds <> builtins) body-store in
+    let (values, sv) = register ds rows classes kinds ds (context-body-bindings kinds <> builtins) body-store in
     let (proofs, proof-store) = register-source-proofs kinds ds ds values sv in
     let (ordinary-env, si) = register-implicit-instances classes kinds ds proofs proof-store in
     let (uncached-env, registration-store) = register-conditional-instances rows classes kinds ds ordinary-env si in
