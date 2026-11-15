@@ -235,10 +235,32 @@ fn emit_module(
         coop_tasks: profile.artifact != crate::core::ArtifactProfile::Native,
         native: profile.artifact == crate::core::ArtifactProfile::Native,
     };
-    let mut reg = Registry::build(program, (profile.word_size / 8) as usize)?;
-    reg.tail_apply = profile.word_size == 64 && profile.arch != "wasm32";
-    if !reg.tail_apply {
-        reg.tailcc.clear();
+    // The internal convention is a target property (`tail_conv`): where
+    // LLVM's `tailcc` exists and an apply stub can carry prefix data, the
+    // units whose tail calls are guaranteed run under it ([`tail_units`])
+    // and the rest keep the C convention; elsewhere (WebAssembly, whose
+    // backend has only the C convention, and 32-bit targets) the C
+    // convention and its widened tail workers stay.
+    let tail_conv = profile.word_size == 64 && profile.arch != "wasm32";
+    let mut reg = Registry::build(program, (profile.word_size / 8) as usize, tail_conv)?;
+    reg.tail_apply = tail_conv;
+    reg.tail_regs = tail_regs(&profile.arch);
+    if tail_conv {
+        // The ordinary function units this module defines. A unit another
+        // module defines is reached through its C symbol; a primitive keeps
+        // its declared ABI; a constructor or `prim` declaration unit is a
+        // fixed-shape leaf.
+        reg.fn_units = program
+            .fns
+            .iter()
+            .filter(|f| f.prim.is_none() && f.ctor.is_none() && !f.meta.prim_body && emitted_symbol(&f.id.0, emit_modules))
+            .map(|f| f.id.0.clone())
+            .collect();
+        if !profile.no_cpr {
+            reg.products = product_ctors(program, &reg);
+            reg.cpr = cpr_units(program, &reg);
+        }
+        reg.tailcc = tail_units(program, &reg);
     }
     reg.rc_debug = profile.rc_debug;
     reg.reclaim = profile.reclaim;
@@ -317,9 +339,10 @@ fn emit_module(
     // own `memcpy` is `(i32, i32, i32)`).
     let size_ty = if cx.size_ty() == "i32" { "i32" } else { "i64" };
     out.push_str(&format!("declare ptr @memcpy(ptr, ptr, {size_ty})\n"));
-    // The arguments of a guaranteed unknown tail call (`tailcc_units`): a
-    // `musttail` callee cannot read the frame it replaced, so they travel in
-    // a per-thread buffer the callee's apply twin copies out first.
+    // The arguments of a guaranteed unknown tail call that do not fit the
+    // twin's registers ([`tail_regs`]): a `musttail` callee cannot read the
+    // frame it replaced, so they travel in a per-thread buffer the callee's
+    // apply twin copies out first.
     if reg.tail_apply {
         out.push_str(&format!("@cinch.tail.argv = internal thread_local global [{TAIL_ARGS} x i64] zeroinitializer\n"));
     }
@@ -1028,15 +1051,40 @@ struct Registry {
     /// named here runs its body in the worker `tail_worker(name)`, which
     /// takes the mapped number of words.
     tail_width: HashMap<String, usize>,
-    /// Units whose body runs under LLVM's `tailcc` as `<unit>#cc`, behind a
-    /// C-ABI wrapper under the unit's own symbol ([`tailcc_units`]): every
-    /// tail call they make, to a known unit or to an unknown closure, is a
-    /// guaranteed `musttail`.
+    /// Guaranteed tail calls run under LLVM's `tailcc` (the target has it
+    /// and can carry an apply stub's prefix data). Fixed when the registry
+    /// is built, because the tail widths and the narrowing of tail groups
+    /// depend on it.
+    tail_conv: bool,
+    /// The units this module defines whose body runs under `tailcc` as
+    /// `<unit>#cc`, behind a C-ABI wrapper under the unit's own symbol:
+    /// the units whose tail calls are guaranteed ([`tail_units`]). Calls
+    /// inside the module go to the body; the wrapper is the unit as the C
+    /// side, another object, the runtime and the JIT see it. Every other
+    /// unit keeps the C convention under its own symbol, because on x86-64
+    /// `tailcc` is callee-pops and costs every ordinary call into it a
+    /// stack adjustment.
     tailcc: HashSet<String>,
+    /// The ordinary function units this module defines, when
+    /// [`Registry::tail_conv`] holds: the candidates for a `tailcc` body
+    /// and a product result.
+    fn_units: HashSet<String>,
     /// Guaranteed unknown tail calls are available: a 64-bit target whose
     /// code is addressable memory, so an apply stub can carry prefix data
     /// (not WebAssembly, whose function pointers are table indices).
     tail_apply: bool,
+    /// The argument words an unknown tail call passes in registers
+    /// ([`tail_regs`]); the rest travel in `@cinch.tail.argv`.
+    tail_regs: usize,
+    /// The units of this module whose body `<unit>#cc` returns a
+    /// constructed product in registers ([`cpr_units`]). A caller that
+    /// takes the result apart never builds the block; one that needs it
+    /// boxes it beside the call ([`box_product`]); the C wrapper and the
+    /// apply stubs box it too.
+    cpr: HashMap<String, Cpr>,
+    /// The constructors a product result may return in registers, by unit
+    /// name ([`product_ctors`]).
+    products: HashMap<String, Cpr>,
     /// Each unit's parameter classes (concrete after the collector): the
     /// classes of the words a closure over the unit saves.
     unit_params: HashMap<String, Vec<Class>>,
@@ -1161,7 +1209,7 @@ impl Registry {
         let globals: HashSet<String> = names
             .iter()
             .flat_map(|name| {
-                ["", ".app", ".clo", ".blk", ".clo#h", ".blk#h", "#tail"]
+                ["", ".app", ".tapp", ".clo", ".blk", ".clo#h", ".blk#h", "#tail", "#cc"]
                     .map(|suffix| format!("{name}{suffix}"))
             })
             .collect();
@@ -1429,8 +1477,9 @@ impl Registry {
 }
 
 impl Registry {
-    fn build(p: &Program, pointer_bytes: usize) -> Result<Registry> {
+    fn build(p: &Program, pointer_bytes: usize, tail_conv: bool) -> Result<Registry> {
         let mut reg = Registry::default();
+        reg.tail_conv = tail_conv;
         // Set first: the narrowed signatures below resolve `csize`
         // crossings against it.
         reg.pointer_bytes = pointer_bytes;
@@ -1557,7 +1606,10 @@ impl Registry {
         // widened unit's symbol wraps a word-typed tail worker. The
         // program's `main` is called by the runtime through a fixed
         // `i64 ()` pointer (`cinch_run_main`), so it keeps the word too.
-        reg.tail_width = crate::core::tail_widths(p);
+        // Under `tailcc` a `musttail` call may cross prototypes, so a
+        // recursive group of mixed arities needs no widened worker: its
+        // members call each other at their own arities.
+        reg.tail_width = if tail_conv { HashMap::new() } else { crate::core::tail_widths(p) };
         for f in &p.fns {
             if f.prim.is_some()
                 || f.ctor.is_some()
@@ -1581,9 +1633,20 @@ impl Registry {
         // so this rarely fires; on a 32-bit one it is what keeps a group
         // mixing, say, an `I64` parameter with a pointer one in constant
         // stack.
+        //
+        // Under `tailcc` only the results have to agree: `musttail` there
+        // does not compare parameter lists, but the call's value is what
+        // the caller returns.
         if !reg.narrow_sigs.is_empty() {
             for group in crate::core::tail_report(p) {
-                let proto = |name: &String| reg.narrow_sigs.get(name).map(NarrowSig::proto);
+                let proto = |name: &String| {
+                    let sig = reg.narrow_sigs.get(name);
+                    if tail_conv {
+                        Some((Vec::new(), sig.map_or(Cross::WORD, |s| s.ret).ty()))
+                    } else {
+                        sig.map(NarrowSig::proto)
+                    }
+                };
                 let first = group.members.first().map(&proto);
                 if group.members.iter().any(|m| Some(proto(m)) != first) {
                     for m in &group.members {
@@ -1610,7 +1673,7 @@ impl Registry {
         // and must not collide with the runtime helpers.
         let mut globals: HashSet<String> = HashSet::new();
         for unit in reg.arity.keys() {
-            for suffix in ["", ".app", ".clo", ".blk", ".clo#h", ".blk#h", "#tail"] {
+            for suffix in ["", ".app", ".tapp", ".clo", ".blk", ".clo#h", ".blk#h", "#tail", "#cc"] {
                 let full = format!("{unit}{suffix}");
                 for reserved in ["main", "__apply", "malloc", "memcpy"] {
                     if full == reserved {
@@ -1626,7 +1689,6 @@ impl Registry {
                 }
             }
         }
-        reg.tailcc = tailcc_units(p, &reg);
         Ok(reg)
     }
 
@@ -1652,6 +1714,21 @@ impl Registry {
         match self.tail_width.get(unit) {
             Some(&width) => (tail_worker(unit), width),
             None => (unit.to_string(), arity),
+        }
+    }
+
+    /// The symbol a direct call of `unit` names and the convention keyword
+    /// the call carries: the unit's `tailcc` body when this module defines
+    /// one, else `sym` (its C symbol or widened worker) under the C
+    /// convention, which needs no keyword.
+    fn direct(&self, unit: &str, sym: String) -> (String, &'static str) {
+        // A product result's body returns an aggregate, so a caller that
+        // wants the word and cannot box it beside the call (an apply stub)
+        // calls the C wrapper, which boxes it.
+        if self.tailcc.contains(unit) && !self.cpr.contains_key(unit) {
+            (tailcc_body(unit), "tailcc ")
+        } else {
+            (sym, "")
         }
     }
 }
@@ -2689,9 +2766,13 @@ struct EmittedUnit {
     code: String,
     stub: String,
     clo: String,
-    /// A [`tailcc_units`] member's C-ABI entry under its own symbol, a
-    /// one-call wrapper into the `tailcc` body. Empty otherwise.
+    /// The C-ABI entry under the unit's own symbol when its body is
+    /// separate ([`tailcc_body`]): a one-call wrapper into the `tailcc`
+    /// body, or the boxing wrapper of a product result. Empty otherwise.
     wrapper: String,
+    /// Whether the wrapper carries the body's attribute group: it does
+    /// exactly what the body does, except where it boxes a product result.
+    wrapper_group: bool,
     scan: UnitScan,
     lang_facts: UnitLang,
 }
@@ -2771,18 +2852,28 @@ fn mem_operand(line: &str) -> Option<String> {
     None
 }
 
-/// The callee symbol of a `call` line.
+/// The callee symbol of a `call` line. A unit's `tailcc` body
+/// (`<unit>#cc`) answers as the unit: the call graph, the reachable set
+/// and the contract classification are all keyed by unit name. A call
+/// through a register (an unknown tail call's apply twin) answers as
+/// `__apply`, the indirect application it stands for.
 fn callee_symbol(line: &str) -> Option<String> {
     let i = line.find("call ")?;
     let rest = &line[i + "call ".len()..];
-    let at = rest.find('@')?;
-    let rest = &rest[at + 1..];
-    if let Some(q) = rest.strip_prefix('"') {
-        let end = q.find('"')?;
-        return Some(q[..end].to_string());
+    let open = rest.find('(')?;
+    let at = rest.find('@');
+    if at.is_none_or(|at| at > open) && rest[..open].split_whitespace().last().is_some_and(|w| w.starts_with('%')) {
+        return Some("__apply".to_string());
     }
-    let end = rest.find('(')?;
-    Some(rest[..end].to_string())
+    let rest = &rest[at? + 1..];
+    let sym = if let Some(q) = rest.strip_prefix('"') {
+        let end = q.find('"')?;
+        &q[..end]
+    } else {
+        let end = rest.find('(')?;
+        &rest[..end]
+    };
+    Some(sym.strip_suffix("#cc").unwrap_or(sym).to_string())
 }
 
 /// The units whose closure artifact (`.clo` or `.app`) `text` names.
@@ -3304,8 +3395,8 @@ fn assemble_unit(
         // body does: it carries the body's function attribute group (the
         // memory effects, purity, hints), or a reader of `@X` sees none.
         let wrapper = match &group {
-            Some(group) => u.wrapper.replacen(") {\nentry:", &format!(") {group} {{\nentry:"), 1),
-            None => u.wrapper.clone(),
+            Some(group) if u.wrapper_group => u.wrapper.replacen(") {\nentry:", &format!(") {group} {{\nentry:"), 1),
+            _ => u.wrapper.clone(),
         };
         out.push_str(&match linkage {
             Some(linkage) => with_linkage(&wrapper, linkage),
@@ -3395,72 +3486,413 @@ fn reachable_units(
     seen
 }
 
-/// The units compiled under LLVM's `tailcc` (guaranteed tail calls through
-/// unknown closures). A unit qualifies when its body makes a saturated tail
-/// call to a value it does not know: a continuation, the case that otherwise
-/// grows the stack by a frame per call. The set is then closed over known
-/// tail-call edges, so a `tailcc` unit and a unit it tail-calls (or that
-/// tail-calls it) share a convention and D104's `musttail` between them stays
-/// legal. A component with a widened or narrowed member keeps the C
-/// convention, which `musttail` there already relies on.
-fn tailcc_units(p: &Program, reg: &Registry) -> HashSet<String> {
-    fn walk(e: &Core, tail: bool, unknown: &mut bool, edges: &mut Vec<String>, reg: &Registry) {
+/// A constructed product result (GHC's CPR property): every return path
+/// of the unit builds one constructor, or tail-calls a unit that does. Its
+/// body `<unit>#cc` returns that constructor's fields in registers as an
+/// LLVM aggregate instead of a pointer to a fresh block, and a caller that
+/// takes the result apart never allocates the block at all.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Cpr {
+    /// The constructor unit every return path builds.
+    ctor: String,
+    /// Its tag, which a caller's `case` must match.
+    tag: usize,
+    /// Its field classes (one word each), which a caller's count
+    /// operations on the vanished block apply field by field.
+    fields: Vec<Class>,
+}
+
+impl Cpr {
+    /// The aggregate the body returns: `{ i64, i64 }` for a pair.
+    fn ty(&self) -> String {
+        format!("{{ {} }}", vec!["i64"; self.fields.len()].join(", "))
+    }
+}
+
+/// The most fields a product result returns in registers. Three is what
+/// x86-64 returns in `rax`, `rdx` and `rcx`; a fourth word makes LLVM
+/// return the aggregate through memory, which is no better than the block.
+/// AArch64 returns eight, so the bound is the portable one.
+const CPR_MAX_FIELDS: usize = 3;
+
+/// The units whose body runs under `tailcc`, which are exactly the units
+/// whose tail calls are guaranteed (`musttail`). A unit is one when it
+///
+/// - makes a saturated tail call through a closure it does not know (when
+///   the target has apply twins), or
+/// - makes a saturated known tail call to another member: a function unit
+///   of this module whose result crosses like its own (the same product,
+///   or the same word or narrowed type). `tailcc` lets the parameter lists
+///   differ.
+///
+/// The set is the greatest fixed point of that rule, so a cycle of known
+/// tail calls (mutual recursion) keeps all of its members. A tail call to a
+/// unit outside the set is an ordinary call: such a unit makes no tail call
+/// the set has to guarantee, and the tail calls among units outside it form
+/// no cycle, so a chain of them is bounded by the program, not by its
+/// input. That keeps a tail call into a small leaf (a class method that
+/// adds) from moving the leaf under `tailcc`, where on x86-64 every
+/// ordinary call into it would pay the callee-pops stack adjustment.
+///
+/// A self tail call is a jump and counts for neither rule. An apply twin
+/// enters a unit outside the set with an ordinary call, which adds one
+/// frame that the next call does not grow.
+fn tail_units(p: &Program, reg: &Registry) -> HashSet<String> {
+    fn result(reg: &Registry, unit: &str) -> (Option<String>, &'static str) {
+        (
+            reg.cpr.get(unit).map(|c| c.ctor.clone()),
+            reg.narrow_sigs.get(unit).map_or(Cross::WORD, |s| s.ret).ty(),
+        )
+    }
+    /// The unit's known tail callees that could be guaranteed, and whether
+    /// it makes an unknown tail call.
+    fn walk(e: &Core, unit: &str, reg: &Registry, known: &mut Vec<String>, unknown: &mut bool) {
         match e {
-            Core::App(head, args) if tail => {
-                match &**head {
-                    Core::Global(g, _) => {
-                        if reg.arity.get(&g.0) == Some(&args.len()) { edges.push(g.0.clone()); }
+            Core::App(head, args) => match &**head {
+                Core::Global(g, _) => {
+                    if g.0 != unit
+                        && reg.arity.get(&g.0) == Some(&args.len())
+                        && reg.fn_units.contains(&g.0)
+                        && result(reg, &g.0) == result(reg, unit)
+                    {
+                        known.push(g.0.clone());
                     }
-                    Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) => {}
-                    _ => *unknown = true,
+                }
+                Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) => {}
+                _ => {
+                    if reg.tail_apply
+                        && (1..=TAIL_ARGS).contains(&args.len())
+                        && result(reg, unit) == (None, Cross::WORD.ty())
+                    {
+                        *unknown = true;
+                    }
+                }
+            },
+            Core::Let(_, _, _, b) | Core::Dup(_, _, b) | Core::Drop(_, _, b) => walk(b, unit, reg, known, unknown),
+            Core::Release { body, .. } => walk(body, unit, reg, known, unknown),
+            Core::If(_, a, b) => {
+                walk(&a.body, unit, reg, known, unknown);
+                walk(&b.body, unit, reg, known, unknown);
+            }
+            Core::Case { alts, .. } => {
+                for a in alts {
+                    walk(&a.body, unit, reg, known, unknown);
                 }
             }
-            Core::Let(_, _, _, b) | Core::Dup(_, _, b) | Core::Drop(_, _, b) => walk(b, tail, unknown, edges, reg),
-            Core::Release { body, .. } => walk(body, tail, unknown, edges, reg),
-            Core::If(_, a, b) => { walk(&a.body, tail, unknown, edges, reg); walk(&b.body, tail, unknown, edges, reg); }
-            Core::Case { alts, .. } => for alt in alts { walk(&alt.body, tail, unknown, edges, reg) },
-            Core::Join { body, rest, .. } => { walk(body, tail, unknown, edges, reg); walk(rest, tail, unknown, edges, reg); }
+            Core::Join { body, rest, .. } => {
+                walk(body, unit, reg, known, unknown);
+                walk(rest, unit, reg, known, unknown);
+            }
             _ => {}
         }
     }
-    let mut seeds: Vec<String> = Vec::new();
-    let mut graph: HashMap<String, Vec<String>> = HashMap::new();
-    let mut blocked: HashSet<String> = HashSet::new();
+    let mut edges: HashMap<&str, (Vec<String>, bool)> = HashMap::new();
     for f in &p.fns {
-        if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body { continue; }
-        let name = &f.id.0;
-        if reg.tail_width.contains_key(name) || reg.narrow_sigs.contains_key(name) { blocked.insert(name.clone()); }
-        let mut unknown = false;
-        let mut edges = Vec::new();
-        walk(&f.body, true, &mut unknown, &mut edges, reg);
-        if unknown { seeds.push(name.clone()); }
-        for callee in &edges {
-            graph.entry(name.clone()).or_default().push(callee.clone());
-            graph.entry(callee.clone()).or_default().push(name.clone());
+        if !reg.fn_units.contains(&f.id.0) {
+            continue;
+        }
+        let (mut known, mut unknown) = (Vec::new(), false);
+        walk(&f.body, &f.id.0, reg, &mut known, &mut unknown);
+        if unknown || !known.is_empty() {
+            edges.insert(f.id.0.as_str(), (known, unknown));
         }
     }
-    let defined: HashSet<&str> = p.fns.iter().filter(|f| f.prim.is_none() && f.ctor.is_none() && !f.meta.prim_body).map(|f| f.id.0.as_str()).collect();
-    let mut out: HashSet<String> = HashSet::new();
-    for seed in seeds {
-        if out.contains(&seed) { continue; }
-        // The component, by a worklist over the undirected tail-call graph.
-        let mut component: Vec<String> = vec![seed.clone()];
-        let mut seen: HashSet<String> = [seed].into_iter().collect();
-        let mut i = 0;
-        while i < component.len() {
-            let next = graph.get(&component[i]).cloned().unwrap_or_default();
-            for n in next {
-                if seen.insert(n.clone()) { component.push(n); }
-            }
-            i += 1;
+    let mut out: HashSet<String> = edges.keys().map(|u| u.to_string()).collect();
+    loop {
+        let gone: Vec<String> = out
+            .iter()
+            .filter(|u| {
+                let (known, unknown) = &edges[u.as_str()];
+                !unknown && !known.iter().any(|g| out.contains(g))
+            })
+            .cloned()
+            .collect();
+        if gone.is_empty() {
+            return out;
         }
-        if component.iter().any(|u| blocked.contains(u) || !defined.contains(u.as_str())) { continue; }
-        out.extend(component);
+        for u in gone {
+            out.remove(&u);
+        }
     }
-    out
 }
 
-/// The private `tailcc` body of a [`tailcc_units`] member.
+/// The constructors a product result may return in registers: one to
+/// [`CPR_MAX_FIELDS`] fields in the uniform word layout, with concrete
+/// field classes. A boundary layout (a C struct, packed fields) is not a
+/// word per field.
+fn product_ctors(p: &Program, reg: &Registry) -> HashMap<String, Cpr> {
+    p.fns
+        .iter()
+        .filter_map(|f| {
+            f.ctor?;
+            let ctor = f.id.0.as_str();
+            let (tag, n) = *reg.ctors.get(ctor)?;
+            let fields = &f.repr.fields;
+            ((1..=CPR_MAX_FIELDS).contains(&n)
+                && fields.len() == n
+                && reg.plan_of(ctor).is_none()
+                && fields.iter().all(|c| !c.is_param()))
+            .then(|| (ctor.to_string(), Cpr { ctor: ctor.to_string(), tag, fields: fields.clone() }))
+        })
+        .collect()
+}
+
+/// The units whose result is a constructed product ([`Cpr`]). A candidate
+/// is a function unit of this module ([`Registry::fn_units`]), other than
+/// the program's entry, whose every tail leaf (the forms [`CoreEmitter::emit_to`]
+/// delivers to the return) is a saturated application of one constructor
+/// (or a `Reuse` of its cell), a self tail call, a saturated tail call of
+/// another unit, a jump, or the fault path. The set is the greatest fixed
+/// point: a unit whose leaves call a unit outside it, or one building a
+/// different constructor, leaves it, until nothing changes.
+///
+/// A constructor qualifies when it has one to [`CPR_MAX_FIELDS`] fields
+/// in the uniform word layout: a boundary layout (a C struct, packed
+/// fields) is not a word per field.
+fn cpr_units(p: &Program, reg: &Registry) -> HashMap<String, Cpr> {
+    enum Leaf {
+        Ctor(String),
+        Call(String),
+    }
+    fn leaves(e: &Core, unit: &str, reg: &Registry, out: &mut Vec<Leaf>) -> bool {
+        match e {
+            Core::Let(_, _, _, b) | Core::Dup(_, _, b) | Core::Drop(_, _, b) => leaves(b, unit, reg, out),
+            Core::Release { body, .. } => leaves(body, unit, reg, out),
+            Core::If(_, a, b) => leaves(&a.body, unit, reg, out) && leaves(&b.body, unit, reg, out),
+            Core::Case { alts, .. } => alts.iter().all(|a| leaves(&a.body, unit, reg, out)),
+            Core::Join { body, rest, .. } => leaves(body, unit, reg, out) && leaves(rest, unit, reg, out),
+            Core::Jump { .. } | Core::Fault => true,
+            Core::Reuse { ctor, args, .. } => {
+                out.push(Leaf::Ctor(ctor.0.clone()));
+                reg.ctors.get(&ctor.0).map(|c| c.1) == Some(args.len())
+            }
+            Core::App(head, args) => match &**head {
+                Core::Ctor(id, _) if reg.ctors.get(&id.0).map(|c| c.1) == Some(args.len()) => {
+                    out.push(Leaf::Ctor(id.0.clone()));
+                    true
+                }
+                Core::Global(g, _) if reg.arity.get(&g.0) == Some(&args.len()) => {
+                    if g.0 != unit {
+                        out.push(Leaf::Call(g.0.clone()));
+                    }
+                    true
+                }
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+    let product = |ctor: &str| -> Option<Cpr> { reg.products.get(ctor).cloned() };
+    let mut calls: HashMap<String, Vec<String>> = HashMap::new();
+    let mut out: HashMap<String, Cpr> = HashMap::new();
+    let mut open: Vec<String> = Vec::new();
+    for f in &p.fns {
+        let name = &f.id.0;
+        if !reg.fn_units.contains(name) || p.main.as_ref() == Some(&f.id) {
+            continue;
+        }
+        if reg.narrow_sigs.get(name).is_some_and(|s| !s.ret.is_word()) {
+            continue;
+        }
+        let mut found = Vec::new();
+        if !leaves(&f.body, name, reg, &mut found) {
+            continue;
+        }
+        let mut ctor: Option<&str> = None;
+        let mut mixed = false;
+        let mut called = Vec::new();
+        for leaf in &found {
+            match leaf {
+                Leaf::Ctor(c) => match ctor {
+                    Some(k) if k != c => mixed = true,
+                    _ => ctor = Some(c),
+                },
+                Leaf::Call(g) => called.push(g.clone()),
+            }
+        }
+        if mixed {
+            continue;
+        }
+        match ctor {
+            Some(k) => match product(k) {
+                Some(cpr) => {
+                    out.insert(name.clone(), cpr);
+                }
+                None => continue,
+            },
+            None if called.is_empty() => continue,
+            None => open.push(name.clone()),
+        }
+        calls.insert(name.clone(), called);
+    }
+    // A unit whose leaves only call takes its product from a callee.
+    loop {
+        let mut progress = false;
+        open.retain(|u| {
+            let known = calls[u].iter().find_map(|g| out.get(g).cloned());
+            match known {
+                Some(cpr) => {
+                    out.insert(u.clone(), cpr);
+                    progress = true;
+                    false
+                }
+                None => true,
+            }
+        });
+        if !progress {
+            break;
+        }
+    }
+    // The greatest fixed point: every called leaf must return the same
+    // product.
+    loop {
+        let bad: Vec<String> = out
+            .iter()
+            .filter(|(u, cpr)| calls[*u].iter().any(|g| out.get(g) != Some(cpr)))
+            .map(|(u, _)| u.clone())
+            .collect();
+        if bad.is_empty() {
+            return out;
+        }
+        for u in bad {
+            out.remove(&u);
+        }
+    }
+}
+
+/// The product a value-position expression always builds, when it does
+/// ([`CoreEmitter::virtual_let`]): every leaf the destination-passing
+/// emitter delivers is a saturated application of one product constructor
+/// ([`Registry::products`]), a `Reuse` of its cell, a call of a unit
+/// returning it ([`Registry::cpr`]), a jump to a join inside the value, or
+/// the fault path, and at least one leaf builds or calls.
+fn product_leaves(e: &Core, reg: &Registry) -> Option<Cpr> {
+    fn go<'r>(e: &Core, reg: &'r Registry, found: &mut Option<&'r Cpr>) -> bool {
+        let mut agree = |c: &'r Cpr| match found {
+            Some(k) => *k == c,
+            None => {
+                *found = Some(c);
+                true
+            }
+        };
+        match e {
+            Core::Let(_, _, _, b) | Core::Dup(_, _, b) | Core::Drop(_, _, b) => go(b, reg, found),
+            Core::Release { body, .. } => go(body, reg, found),
+            Core::If(_, a, b) => go(&a.body, reg, found) && go(&b.body, reg, found),
+            Core::Case { alts, .. } => alts.iter().all(|a| go(&a.body, reg, found)),
+            Core::Join { body, rest, .. } => go(body, reg, found) && go(rest, reg, found),
+            Core::Jump { .. } | Core::Fault => true,
+            Core::Reuse { ctor, args, .. } => {
+                reg.products.get(&ctor.0).is_some_and(|c| c.fields.len() == args.len() && agree(c))
+            }
+            Core::App(head, args) => match &**head {
+                Core::Ctor(id, _) => reg.products.get(&id.0).is_some_and(|c| c.fields.len() == args.len() && agree(c)),
+                Core::Global(g, _) => {
+                    reg.arity.get(&g.0) == Some(&args.len()) && reg.cpr.get(&g.0).is_some_and(|c| agree(c))
+                }
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+    let mut found = None;
+    (go(e, reg, &mut found) && found.is_some()).then(|| found.cloned()).flatten()
+}
+
+/// Whether `body` mentions the product-result local `x` only to take it
+/// apart ([`CoreEmitter::virtual_let`]): as the scrutinee of a `case`
+/// whose one alternative is the constructor's, as a `Release`'s block, or
+/// in a `drop`. Every mention is counted, and a mention the walk below
+/// does not reach as one of those (inside an argument, a closure's
+/// environment, a `dup`) leaves the totals unequal, so the answer is no.
+fn product_uses_only_take_apart(body: &Core, x: LocalId, cpr: &Cpr) -> bool {
+    // `inside` is whether `e` is under an alternative of a `case` on `x`: a
+    // `Release` of `x` drops the alternative's unused binders, so it is only
+    // understood where they are bound.
+    fn visit(e: &Core, x: LocalId, cpr: &Cpr, inside: bool, allowed: &mut usize, ok: &mut bool) {
+        match e {
+            Core::Case { scrut, alts } => {
+                let on_x = match &**scrut {
+                    Core::Var(v) if *v == x => {
+                        *allowed += 1;
+                        let single = alts.len() == 1
+                            && matches!(&alts[0].pat, CPat::Con { tag, fields, .. }
+                                if *tag == cpr.tag && fields.len() == cpr.fields.len());
+                        if !single {
+                            *ok = false;
+                        }
+                        true
+                    }
+                    other => {
+                        visit(other, x, cpr, inside, allowed, ok);
+                        false
+                    }
+                };
+                for a in alts {
+                    visit(&a.body, x, cpr, inside || on_x, allowed, ok);
+                }
+            }
+            Core::Release { block, body, .. } => {
+                if *block == x {
+                    *allowed += 1;
+                    if !inside {
+                        *ok = false;
+                    }
+                }
+                visit(body, x, cpr, inside, allowed, ok);
+            }
+            Core::Drop(l, _, b) => {
+                if *l == x {
+                    *allowed += 1;
+                }
+                visit(b, x, cpr, inside, allowed, ok);
+            }
+            Core::Dup(_, _, b) => visit(b, x, cpr, inside, allowed, ok),
+            Core::Let(_, _, v, b) => {
+                visit(v, x, cpr, inside, allowed, ok);
+                visit(b, x, cpr, inside, allowed, ok);
+            }
+            Core::If(c, t, f) => {
+                visit(c, x, cpr, inside, allowed, ok);
+                visit(&t.body, x, cpr, inside, allowed, ok);
+                visit(&f.body, x, cpr, inside, allowed, ok);
+            }
+            Core::Join { body, rest, .. } => {
+                visit(body, x, cpr, inside, allowed, ok);
+                visit(rest, x, cpr, inside, allowed, ok);
+            }
+            _ => {}
+        }
+    }
+    let mut total = 0;
+    crate::core::walk_locals(body, &mut |l| {
+        if l == x {
+            total += 1;
+        }
+    });
+    let (mut allowed, mut ok) = (0, true);
+    visit(body, x, cpr, false, &mut allowed, &mut ok);
+    ok && allowed > 0 && total == allowed
+}
+
+/// Box the product aggregate `r` (of `cpr`'s type) into its constructor's
+/// block through the constructor's own unit, answering the block word.
+fn box_product(b: &mut Builder, cpr: &Cpr, r: &str) -> String {
+    let mut words = Vec::with_capacity(cpr.fields.len());
+    for i in 0..cpr.fields.len() {
+        let w = b.reg();
+        b.line(&format!("{w} = extractvalue {} {r}, {i}", cpr.ty()));
+        words.push(format!("i64 {w}"));
+    }
+    let block = b.reg();
+    b.line(&format!("{block} = call i64 @{}({})", quote(&cpr.ctor), words.join(", ")));
+    block
+}
+
+/// The separate body of a [`Registry::tailcc`] unit or a product result
+/// ([`Registry::cpr`]), behind the C wrapper under the unit's own symbol.
+/// It has the unit's own linkage, so a body and its wrapper are visible
+/// alike.
 fn tailcc_body(unit: &str) -> String {
     format!("{unit}#cc")
 }
@@ -3468,12 +3900,29 @@ fn tailcc_body(unit: &str) -> String {
 /// The prefix word before a `.app` stub that says a `tailcc` twin follows
 /// it ("tables next to code", as GHC's LLVM backend lays out info tables).
 /// A code word whose prefix lacks it (an object built without twins) takes
-/// the ordinary call.
-const TAIL_APPLY_MAGIC: u64 = 0x4349_4e43_4854_4c31;
+/// the ordinary call. The word names the twin's signature too: `CINCHTL1`
+/// was the buffer-only twin `(ptr, i64, ptr)`, and `CINCHTL2` is the
+/// register twin `(ptr, i64, i64 x tail_regs)`, so a caller never enters a
+/// twin of the other shape (an object built by an older compiler takes the
+/// ordinary call instead).
+const TAIL_APPLY_MAGIC: u64 = 0x4349_4e43_4854_4c32;
 
 /// Words a guaranteed unknown tail call may pass: the thread-local
 /// argument buffer's length.
 const TAIL_ARGS: usize = 16;
+
+/// The argument words a guaranteed unknown tail call passes in registers:
+/// what the target's `tailcc` has left after the twin's closure and count.
+/// x86-64 passes six integer arguments in registers and AArch64 eight.
+/// One twin signature serves every call, whatever it supplies (the rest
+/// are `poison`), so the per-count fan-out of `caml_applyN` does not come
+/// back.
+fn tail_regs(arch: &str) -> usize {
+    match arch {
+        "aarch64" => 6,
+        _ => 4,
+    }
+}
 
 /// Prefix `linkage ` to every top-level `define` in `text`. A unit's stub
 /// is a family of functions (the dispatcher, its per-arity entries and the
@@ -3631,17 +4080,56 @@ fn build_unit(
             }
         }
     }
-    let tailcc = reg.tailcc.contains(name) && matches!(body, UnitBody::Fn(_));
-    let header = if tailcc {
-        fn_header(&tailcc_body(name), arity, ret_range, &noundef_params, narrow).replacen("define ", "define tailcc ", 1)
-    } else {
-        fn_header(name, arity, ret_range, &noundef_params, narrow)
+    let fn_body = matches!(body, UnitBody::Fn(_));
+    let tailcc = fn_body && reg.tailcc.contains(name);
+    let cpr = if fn_body { reg.cpr.get(name) } else { None };
+    let cc = if tailcc { "tailcc " } else { "" };
+    let header = match cpr {
+        // A product result's body returns the constructor's fields: the
+        // header's result is the aggregate, and a word's `range` does not
+        // apply to it.
+        Some(cpr) => fn_header(&tailcc_body(name), arity, None, &noundef_params, narrow)
+            .replacen("define i64 ", &format!("define {cc}{} ", cpr.ty()), 1),
+        None if tailcc => {
+            fn_header(&tailcc_body(name), arity, ret_range, &noundef_params, narrow).replacen("define ", "define tailcc ", 1)
+        }
+        None => fn_header(name, arity, ret_range, &noundef_params, narrow),
     };
-    let wrapper = if tailcc {
-        let params: Vec<String> = (0..arity).map(|i| format!("i64 %p{i}")).collect();
+    // The C wrapper keeps the unit's boundary exactly as it was, narrowed
+    // positions included: the object ABI, a foreign consumer and the JIT
+    // call `@X` and never learn that the body moved.
+    let cross = |i: usize| narrow.map_or(Cross::WORD, |s| s.param(i));
+    let wrapper = if let Some(cpr) = cpr {
+        // The C wrapper of a product result boxes it: it calls the body and
+        // hands the fields to the constructor's own unit, which allocates
+        // the block every C-side caller, closure and object consumer expects.
+        let args: Vec<String> = (0..arity).map(|i| format!("{} %p{i}", cross(i).ty())).collect();
+        let mut text = format!(
+            "{} {{\nentry:\n  %r = call {cc}{} @{}({})\n",
+            fn_header(name, arity, None, &noundef_params, narrow),
+            cpr.ty(),
+            quote(&tailcc_body(name)),
+            args.join(", ")
+        );
+        let mut words = Vec::with_capacity(cpr.fields.len());
+        for i in 0..cpr.fields.len() {
+            text.push_str(&format!("  %f{i} = extractvalue {} %r, {i}\n", cpr.ty()));
+            words.push(format!("i64 %f{i}"));
+        }
+        text.push_str(&format!(
+            "  %b = call i64 @{}({})\n  ret i64 %b\n}}\n\n",
+            quote(&cpr.ctor),
+            words.join(", ")
+        ));
+        text
+    } else if tailcc {
+        let ret = narrow.map_or(Cross::WORD, |s| s.ret).ty();
+        let args: Vec<String> = (0..arity).map(|i| format!("{} %p{i}", cross(i).ty())).collect();
         format!(
-            "define i64 @{}({}) {{\nentry:\n  %r = call tailcc i64 @{}({})\n  ret i64 %r\n}}\n\n",
-            quote(name), params.join(", "), quote(&tailcc_body(name)), params.join(", ")
+            "{} {{\nentry:\n  %r = call tailcc {ret} @{}({})\n  ret {ret} %r\n}}\n\n",
+            fn_header(name, arity, ret_range, &noundef_params, narrow),
+            quote(&tailcc_body(name)),
+            args.join(", ")
         )
     } else {
         String::new()
@@ -3663,6 +4151,11 @@ fn build_unit(
         .extend(closures_named(&body_text, reg.unit_symbols()));
     scan.closures_taken
         .extend(closures_named(&unit_globals, reg.unit_symbols()));
+    // The boxing wrapper calls the constructor's unit, which the body
+    // itself no longer reaches.
+    if let Some(cpr) = cpr {
+        scan.refs.insert(cpr.ctor.clone());
+    }
     // A worker is never a first-class value: closures and the apply
     // stub reach it through the unit's own symbol.
     let worker = matches!(body, UnitBody::TailWorker(_));
@@ -3684,6 +4177,9 @@ fn build_unit(
             clo_def(reg, name, arity)
         },
         wrapper,
+        // The body's attributes describe the body. A boxing wrapper
+        // allocates where its body does not, so it carries none of them.
+        wrapper_group: cpr.is_none(),
         scan,
         lang_facts: lang,
     })
@@ -3895,9 +4391,18 @@ fn call_unit(b: &mut Builder, reg: &Registry, name: &str, args: &[String]) -> St
         let n = c.narrow(b, a);
         typed.push(format!("{} {n}", c.ty()));
     }
+    // A product result is boxed here, beside the body call, for the same
+    // reason a direct call boxes it ([`CoreEmitter::emit_app`]).
+    if let Some(cpr) = reg.cpr.get(name) {
+        let cc = if reg.tailcc.contains(name) { "tailcc " } else { "" };
+        let r = b.reg();
+        b.line(&format!("{r} = call {cc}{} @{}({})", cpr.ty(), quote(&tailcc_body(name)), typed.join(", ")));
+        return box_product(b, cpr, &r);
+    }
     let ret = sig.map_or(Cross::WORD, |s| s.ret);
+    let (sym, cc) = reg.direct(name, name.to_string());
     let r = b.reg();
-    b.line(&format!("{r} = call {} @{}({})", ret.ty(), quote(name), typed.join(", ")));
+    b.line(&format!("{r} = call {cc}{} @{}({})", ret.ty(), quote(&sym), typed.join(", ")));
     ret.widen(b, &r)
 }
 
@@ -3965,23 +4470,45 @@ fn stub_def(reg: &Registry, name: &str, arity: usize) -> String {
 }
 
 /// One apply stub. The `tailcc` twin (`tail`) is entered only by a
-/// guaranteed tail call, whose arguments arrive in a thread-local buffer: it
-/// copies them into its own frame first, because a later tail call reuses
-/// the buffer, and an exactly saturated call of a `tailcc` unit is itself a
-/// `musttail` (design note in [`tailcc_units`]).
+/// guaranteed tail call, whose first [`tail_regs`] words arrive in
+/// registers and the rest in a thread-local buffer: it stores both into its
+/// own frame first, because a later tail call reuses the buffer, and an
+/// exactly saturated call of a `tailcc` unit is itself a `musttail`
+/// (design note in [`tail_units`]).
 fn stub_def_with(reg: &Registry, name: &str, arity: usize, tail: bool) -> String {
     let mut b = Builder::new();
+    let regs = reg.tail_regs;
     if tail {
+        // The first `regs` words arrive in registers and the rest, when a
+        // call passes more, in the thread-local buffer at the same
+        // indices. Both land in this frame before anything else runs,
+        // because a later tail call reuses the buffer.
         let local = b.alloca_words(TAIL_ARGS);
+        for i in 0..regs {
+            b.store_at(&local, i * 8, &format!("%a{i}"));
+        }
+        let over = b.reg();
+        b.line(&format!("{over} = icmp ugt i64 %argc, {regs}"));
+        let (lspill, lgo) = (b.label(), b.label());
+        b.line(&format!("br i1 {over}, label %{lspill}, label %{lgo}"));
+        b.start(&lspill);
+        let rest = b.reg();
+        b.line(&format!("{rest} = sub i64 %argc, {regs}"));
         let bytes = b.reg();
-        b.line(&format!("{bytes} = mul i64 %argc, 8"));
-        b.line(&format!("call ptr @memcpy(ptr {local}, ptr %argv.in, i64 {bytes})"));
+        b.line(&format!("{bytes} = mul i64 {rest}, 8"));
+        let dst = b.gep(&local, regs * 8);
+        let src = b.reg();
+        b.line(&format!("{src} = getelementptr inbounds i64, ptr @cinch.tail.argv, i64 {regs}"));
+        b.line(&format!("call ptr @memcpy(ptr {dst}, ptr {src}, i64 {bytes})"));
+        b.line(&format!("br label %{lgo}"));
+        b.start(&lgo);
         b.line(&format!("%argv = getelementptr i8, ptr {local}, i64 0"));
     }
     let header = |b: &Builder| -> String {
         let _ = b;
         if tail {
-            format!("define tailcc i64 @{}(ptr %self, i64 %argc, ptr %argv.in)", quote(&format!("{name}.tapp")))
+            let words: Vec<String> = (0..regs).map(|i| format!(", i64 %a{i}")).collect();
+            format!("define tailcc i64 @{}(ptr %self, i64 %argc{})", quote(&format!("{name}.tapp")), words.concat())
         } else {
             format!("define i64 @{}(ptr %self, i64 %argc, ptr %argv)", quote(&format!("{name}.app")))
         }
@@ -4108,8 +4635,12 @@ fn stub_saturate(
 ) {
     stub_take_saved(b, reg, name, arity, frame, nf);
     // The twin's exactly saturated call of a `tailcc` unit replaces its own
-    // frame; the over-applied path keeps the ordinary call.
-    if tail && reg.tailcc.contains(name) && reg.narrow_sigs.get(name).is_none() {
+    // frame; the over-applied path keeps the ordinary call. `musttail`
+    // under `tailcc` lets the parameters differ from the twin's, but the
+    // value is what the twin returns, so a narrowed result keeps the
+    // ordinary call.
+    let narrow = reg.narrow_sigs.get(name);
+    if tail && reg.tailcc.contains(name) && !reg.cpr.contains_key(name) && narrow.is_none_or(|s| s.ret.is_word()) {
         let ex = b.reg();
         b.line(&format!("{ex} = sub i64 {total}, {arity}"));
         let exact = b.reg();
@@ -4121,7 +4652,9 @@ fn stub_saturate(
         let mut words = Vec::with_capacity(arity);
         for i in 0..arity {
             let w = b.load_at(frame, i * 8);
-            words.push(format!("i64 {w}"));
+            let c = narrow.map_or(Cross::WORD, |s| s.param(i));
+            let n = c.narrow(b, &w);
+            words.push(format!("{} {n}", c.ty()));
         }
         let r = b.reg();
         b.line(&format!("{r} = musttail call tailcc i64 @{}({})", quote(&tailcc_body(name)), words.join(", ")));
@@ -4134,7 +4667,6 @@ fn stub_saturate(
     // the source, so it converts here: each word narrows to the callee's
     // proved width, which is exactly the marshal the design calls for at
     // the indirect boundary.
-    let narrow = reg.narrow_sigs.get(name);
     let mut args = Vec::with_capacity(arity);
     for i in 0..arity {
         let w = b.load_at(frame, i * 8);
@@ -4144,16 +4676,9 @@ fn stub_saturate(
     }
     let ret = narrow.map_or(Cross::WORD, |s| s.ret);
     let ret_ty = ret.ty();
+    let (sym, cc) = reg.direct(name, name.to_string());
     let r = b.reg();
-    if arity == 0 {
-        b.line(&format!("{r} = call {ret_ty} @{}()", quote(name)));
-    } else {
-        b.line(&format!(
-            "{r} = call {ret_ty} @{}({})",
-            quote(name),
-            args.join(", ")
-        ));
-    }
+    b.line(&format!("{r} = call {cc}{ret_ty} @{}({})", quote(&sym), args.join(", ")));
     // The frame and the excess-word path work in words, so a narrowed
     // result widens straight back.
     let r = ret.widen(b, &r);
@@ -7609,6 +8134,8 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result
         frame: reg.frame.get(&f.id.0),
         frame_bases: HashMap::new(),
         pending: Vec::new(),
+        cpr: reg.cpr.get(&f.id.0).cloned(),
+        virt: HashMap::new(),
     };
     // A narrowed parameter arrives at its own width and the body reads a
     // slot word, so the entry widens it once (design/narrow-value-
@@ -7891,6 +8418,15 @@ struct CoreEmitter<'a, 'b> {
     /// the loop header a self tail call returns to, or the return of the
     /// unit. [`CoreEmitter::settle_tokens`] is that free.
     pending: Vec<String>,
+    /// This unit's own product result ([`Cpr`]): every tail leaf returns
+    /// the constructor's fields as an aggregate.
+    cpr: Option<Cpr>,
+    /// The results of product-result calls that were never boxed, by the
+    /// local the `let` bound: the slot of each field word and the field's
+    /// class. The local's only uses are a `case` on it, which binds the
+    /// fields from the slots, and the count operations of the block that
+    /// does not exist, which act on the fields.
+    virt: HashMap<LocalId, (Vec<String>, Vec<Class>)>,
 }
 
 /// A join's code generation site: the block its body starts at, the slot
@@ -7919,6 +8455,12 @@ struct JoinSite {
 enum Dest {
     Ret,
     Slot { slot: String, label: String, base: usize },
+    /// A product that is never boxed ([`CoreEmitter::virtual_let`]): each
+    /// leaf stores the constructor's field words into `slots` and branches
+    /// to `label`. Only a leaf that builds the product (or calls a unit
+    /// returning it) delivers here; [`product_leaves`] admitted the value
+    /// on that condition.
+    Fields { slots: Vec<String>, label: String, base: usize },
 }
 
 impl Dest {
@@ -7937,6 +8479,19 @@ impl Dest {
                 b.line(&format!("store i64 {v}, ptr {slot}"));
                 b.line(&format!("br label %{label}"));
             }
+            // A word cannot be a product's fields; the emitter refuses
+            // such a leaf before it gets here.
+            Dest::Fields { .. } => b.line("unreachable"),
+        }
+    }
+
+    /// Deliver a product's field words.
+    fn settle_fields(&self, b: &mut Builder, vals: &[String]) {
+        if let Dest::Fields { slots, label, .. } = self {
+            for (v, slot) in vals.iter().zip(slots) {
+                b.line(&format!("store i64 {v}, ptr {slot}"));
+            }
+            b.line(&format!("br label %{label}"));
         }
     }
 
@@ -7947,7 +8502,7 @@ impl Dest {
     fn base(&self) -> usize {
         match self {
             Dest::Ret => 0,
-            Dest::Slot { base, .. } => *base,
+            Dest::Slot { base, .. } | Dest::Fields { base, .. } => *base,
         }
     }
 }
@@ -8359,6 +8914,9 @@ impl CoreEmitter<'_, '_> {
                 if !self.bound.contains(x) {
                     return err(format!("let binds unknown local {}", x.0));
                 }
+                if self.virtual_let(*x, e, body)? {
+                    return self.emit_expr(body);
+                }
                 let v = self.emit_let(*x, e)?;
                 let slot = self.slot(*x);
                 self.b.line(&format!("store i64 {v}, ptr {slot}"));
@@ -8509,6 +9067,15 @@ impl CoreEmitter<'_, '_> {
         if !self.bound.contains(&x) {
             return err(format!("count operation on unknown local {}", x.0));
         }
+        // The count of a block that was never built is its fields' counts.
+        if let Some((slots, classes)) = self.virt.get(&x).cloned() {
+            for (s, c) in slots.iter().zip(classes) {
+                let w = self.b.reg();
+                self.b.line(&format!("{w} = load i64, ptr {s}"));
+                rc_op(self.b, self.reg.rc_debug, matches!(e, Core::Drop(..)), &w, c);
+            }
+            return Ok(());
+        }
         // A frame block carries no count: a `dup` is a second static
         // reference (which the pass refuses unless the payload holds
         // nothing counted, so this arm is the backstop), and a `drop`
@@ -8565,6 +9132,19 @@ impl CoreEmitter<'_, '_> {
         }
         // The token's slot first: both paths write it before the body runs.
         let tslot = token.map(|t| self.slot(t));
+        // A product result that was never boxed is the unique path without
+        // a cell: the moved fields already hold their references, the rest
+        // are dropped, and there is nothing to keep for a reuse.
+        if self.virt.contains_key(&block) {
+            for (r, c) in rest {
+                let v = self.load_local(*r);
+                rc_op(self.b, self.reg.rc_debug, true, &v, *c);
+            }
+            if let Some(slot) = &tslot {
+                self.b.line(&format!("store i64 0, ptr {slot}"));
+            }
+            return Ok(None);
+        }
         let cold = |this: &mut Self| {
             if let Some(slot) = &tslot {
                 this.b.line(&format!("store i64 0, ptr {slot}"));
@@ -8898,6 +9478,16 @@ impl CoreEmitter<'_, '_> {
             }
         }
         if let Some((unit, arity)) = self.known_unit(f) {
+            if arity == args.len() && self.reg.cpr.contains_key(&unit) {
+                // A product result that is needed as a block: call the body
+                // and box the fields here, through the constructor's unit,
+                // so the body scan of this unit sees the allocation (the C
+                // wrapper boxes too, but a call of it would classify as the
+                // body, which allocates nothing).
+                let cpr = self.reg.cpr[&unit].clone();
+                let r = self.call_product(&unit, args)?;
+                return Ok(box_product(self.b, &cpr, &r));
+            }
             if arity == args.len() {
                 let mut vals = Vec::with_capacity(args.len());
                 for a in args {
@@ -8917,6 +9507,7 @@ impl CoreEmitter<'_, '_> {
                 // member of a tail-call group one signature), so a
                 // narrowed call never goes to one.
                 let (sym, width) = self.reg.tail_sig(&unit, arity);
+                let (sym, cc) = self.reg.direct(&unit, sym);
                 let narrow = if width == arity {
                     self.reg.narrow_sigs.get(&unit)
                 } else {
@@ -8925,7 +9516,7 @@ impl CoreEmitter<'_, '_> {
                 let Some(sig) = narrow else {
                     let r = self.b.reg();
                     self.b.line(&format!(
-                        "{r} = call i64 @{}({}){rng}",
+                        "{r} = call {cc}i64 @{}({}){rng}",
                         quote(&sym),
                         padded_args(&vals, width)
                     ));
@@ -8949,7 +9540,7 @@ impl CoreEmitter<'_, '_> {
                 let rng = if sig.ret.is_word() { rng } else { String::new() };
                 let r = self.b.reg();
                 self.b.line(&format!(
-                    "{r} = call {} @{}({}){rng}",
+                    "{r} = call {cc}{} @{}({}){rng}",
                     sig.ret.ty(),
                     quote(&sym),
                     args_ty.join(", ")
@@ -9019,6 +9610,9 @@ impl CoreEmitter<'_, '_> {
                 if !self.bound.contains(x) {
                     return err(format!("let binds unknown local {}", x.0));
                 }
+                if self.virtual_let(*x, v, body)? {
+                    return self.emit_to(body, dest);
+                }
                 let v = self.emit_let(*x, v)?;
                 let slot = self.slot(*x);
                 self.b.line(&format!("store i64 {v}, ptr {slot}"));
@@ -9029,6 +9623,59 @@ impl CoreEmitter<'_, '_> {
             Core::Dup(x, class, body) | Core::Drop(x, class, body) => {
                 self.emit_count(e, *x, *class)?;
                 self.emit_to(body, dest)
+            }
+            // A product delivered as fields: the same, into the slots.
+            Core::Reuse { args, .. } if matches!(dest, Dest::Fields { .. }) => {
+                let mut vals = Vec::with_capacity(args.len());
+                for a in args {
+                    vals.push(self.emit_expr(a)?);
+                }
+                self.settle_tokens(dest.base());
+                dest.settle_fields(self.b, &vals);
+                Ok(())
+            }
+            Core::App(f, args) if matches!(dest, Dest::Fields { .. }) => {
+                let known = self.known_unit(f).filter(|(_, arity)| *arity == args.len());
+                let mut vals = Vec::with_capacity(args.len());
+                match known {
+                    Some((unit, _)) if matches!(&**f, Core::Ctor(..)) && self.reg.products.contains_key(&unit) => {
+                        for a in args {
+                            vals.push(self.emit_expr(a)?);
+                        }
+                    }
+                    Some((unit, _)) if self.reg.cpr.contains_key(&unit) => {
+                        let cpr = self.reg.cpr[&unit].clone();
+                        let r = self.call_product(&unit, args)?;
+                        for i in 0..cpr.fields.len() {
+                            let w = self.b.reg();
+                            self.b.line(&format!("{w} = extractvalue {} {r}, {i}", cpr.ty()));
+                            vals.push(w);
+                        }
+                    }
+                    _ => {
+                        return err(format!(
+                            "internal error: an unboxed product's leaf in {} neither builds it nor calls a unit returning it",
+                            self.unit
+                        ))
+                    }
+                }
+                self.settle_tokens(dest.base());
+                dest.settle_fields(self.b, &vals);
+                Ok(())
+            }
+            // A product result's leaf never needs the cell: the fields are
+            // the result, and the kept cell is freed with the other tokens.
+            Core::Reuse { ctor, args, .. } if matches!(dest, Dest::Ret) && self.cpr.is_some() => {
+                if self.cpr.as_ref().is_some_and(|c| c.ctor != ctor.0) {
+                    return err(format!("internal error: a product result of {} reuses a cell for {}", self.unit, ctor.0));
+                }
+                let mut vals = Vec::with_capacity(args.len());
+                for a in args {
+                    vals.push(self.emit_expr(a)?);
+                }
+                self.settle_tokens(dest.base());
+                self.ret_product(&vals);
+                Ok(())
             }
             Core::Reuse { token, ctor, args, already_set } => {
                 let w = self.emit_reuse(*token, &ctor.0, args, already_set)?;
@@ -9141,32 +9788,104 @@ impl CoreEmitter<'_, '_> {
                         self.b.line(&format!("br label %{loop_label}{meta}"));
                         Ok(())
                     }
-                    // A `tailcc` body tail-calling a unit of its own
-                    // component: `tailcc` lets `musttail` cross prototypes.
-                    Some((unit, _)) if self.reg.tailcc.contains(&self.unit) && self.reg.tailcc.contains(&unit) => {
+                    // A product result's own constructor: its fields are
+                    // the result, and no block is built.
+                    Some((unit, _))
+                        if matches!(&**f, Core::Ctor(..)) && self.cpr.as_ref().is_some_and(|c| c.ctor == unit) =>
+                    {
                         let mut vals = Vec::with_capacity(args.len());
                         for a in args {
-                            vals.push(format!("i64 {}", self.emit_expr(a)?));
+                            vals.push(self.emit_expr(a)?);
                         }
-                        let r = self.b.reg();
-                        self.b.line(&format!("{r} = musttail call tailcc i64 @{}({})", quote(&tailcc_body(&unit)), vals.join(", ")));
-                        self.b.line(&format!("ret i64 {r}"));
+                        self.settle_tokens(dest.base());
+                        self.ret_product(&vals);
                         Ok(())
                     }
-                    // A `tailcc` body never `musttail`s a C unit: the two
-                    // conventions differ. Such a callee is outside the
-                    // component (`tailcc_units`), so it does not call back.
-                    Some(_) if self.reg.tailcc.contains(&self.unit) => {
-                        let v = self.emit_app(f, args)?;
-                        self.b.line(&format!("ret i64 {v}"));
+                    // A product result tail-calling another that builds the
+                    // same constructor: the aggregate passes through.
+                    Some((unit, _))
+                        if self.cpr.is_some()
+                            && self.reg.cpr.get(&unit) == self.cpr.as_ref()
+                            && self.reg.tailcc.contains(&self.unit)
+                            && self.reg.tailcc.contains(&unit) =>
+                    {
+                        let mut vals = Vec::with_capacity(args.len());
+                        for a in args {
+                            vals.push(self.emit_expr(a)?);
+                        }
+                        let sig = self.reg.narrow_sigs.get(&unit);
+                        let mut typed = Vec::with_capacity(vals.len());
+                        for (i, v) in vals.iter().enumerate() {
+                            let c = sig.map_or(Cross::WORD, |s| s.param(i));
+                            let n = c.narrow(self.b, v);
+                            typed.push(format!("{} {n}", c.ty()));
+                        }
+                        self.settle_tokens(dest.base());
+                        let ty = self.cpr.as_ref().map(Cpr::ty).unwrap_or_default();
+                        let r = self.b.reg();
+                        self.b.line(&format!("{r} = musttail call tailcc {ty} @{}({})", quote(&tailcc_body(&unit)), typed.join(", ")));
+                        self.b.line(&format!("ret {ty} {r}"));
+                        Ok(())
+                    }
+                    // The same, to a product result outside the `tailcc`
+                    // set: an ordinary call, whose callee makes no tail call
+                    // to guarantee ([`tail_units`]).
+                    Some((unit, _)) if self.cpr.is_some() && self.reg.cpr.get(&unit) == self.cpr.as_ref() => {
+                        let r = self.call_product(&unit, args)?;
+                        self.settle_tokens(dest.base());
+                        let ty = self.cpr.as_ref().map(Cpr::ty).unwrap_or_default();
+                        self.b.line(&format!("ret {ty} {r}"));
+                        Ok(())
+                    }
+                    _ if self.cpr.is_some() => err(format!(
+                        "internal error: {} returns a product, and one of its tail leaves is a call that does not",
+                        self.unit
+                    )),
+                    // A `tailcc` body tail-calling another body of this
+                    // module. `tailcc` lets `musttail` cross prototypes, so
+                    // the arities and the narrowed parameters may differ;
+                    // the call's value is what this body returns, so the
+                    // results must agree. Every such call is guaranteed
+                    // constant stack, recursive group or not.
+                    Some((unit, _))
+                        if self.reg.tailcc.contains(&self.unit)
+                            && self.reg.tailcc.contains(&unit)
+                            && !self.reg.cpr.contains_key(&unit)
+                            && self.reg.narrow_sigs.get(&unit).map_or(Cross::WORD, |s| s.ret).ty() == self.ret.ty() =>
+                    {
+                        let mut vals = Vec::with_capacity(args.len());
+                        for a in args {
+                            vals.push(self.emit_expr(a)?);
+                        }
+                        let sig = self.reg.narrow_sigs.get(&unit);
+                        let mut typed = Vec::with_capacity(vals.len());
+                        for (i, v) in vals.iter().enumerate() {
+                            let c = sig.map_or(Cross::WORD, |s| s.param(i));
+                            let n = c.narrow(self.b, v);
+                            typed.push(format!("{} {n}", c.ty()));
+                        }
+                        // The `ret` must follow the call directly, so a
+                        // kept cell is freed before it.
+                        self.settle_tokens(dest.base());
+                        let ty = self.ret.ty();
+                        let r = self.b.reg();
+                        self.b.line(&format!("{r} = musttail call tailcc {ty} @{}({})", quote(&tailcc_body(&unit)), typed.join(", ")));
+                        self.b.line(&format!("ret {ty} {r}"));
                         Ok(())
                     }
                     // A saturated tail call of a closure this body does not
                     // know: through the callee's `tailcc` apply twin, which
-                    // the code word's prefix data names, with the arguments in
-                    // the thread-local buffer rather than this frame (a
-                    // `musttail` callee may not read the frame it replaced).
-                    None if self.reg.tailcc.contains(&self.unit) && !args.is_empty() && args.len() <= TAIL_ARGS
+                    // the code word's prefix data names. The first
+                    // `tail_regs` words go in registers and the rest in the
+                    // thread-local buffer, never in this frame (a `musttail`
+                    // callee may not read the frame it replaced). The twin
+                    // returns a word, so a narrowed result keeps the
+                    // ordinary call.
+                    None if self.reg.tail_apply
+                        && self.reg.tailcc.contains(&self.unit)
+                        && self.ret.is_word()
+                        && !args.is_empty()
+                        && args.len() <= TAIL_ARGS
                         && !matches!(&**f, Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_)) =>
                     {
                         let fv = self.emit_expr(f)?;
@@ -9174,7 +9893,9 @@ impl CoreEmitter<'_, '_> {
                         for a in args {
                             vals.push(self.emit_expr(a)?);
                         }
-                        for (i, v) in vals.iter().enumerate() {
+                        self.settle_tokens(dest.base());
+                        let regs = self.reg.tail_regs;
+                        for (i, v) in vals.iter().enumerate().skip(regs) {
                             let p = self.b.reg();
                             self.b.line(&format!("{p} = getelementptr inbounds i64, ptr @cinch.tail.argv, i64 {i}"));
                             self.b.line(&format!("store i64 {v}, ptr {p}"));
@@ -9193,7 +9914,7 @@ impl CoreEmitter<'_, '_> {
                         self.b.line(&format!("{ok} = icmp eq i64 {magic}, {TAIL_APPLY_MAGIC}"));
                         let fast = self.b.label();
                         let slow = self.b.label();
-                        self.b.line(&format!("br i1 {ok}, label %{fast}, label %{slow}"));
+                        self.b.line(&format!("br i1 {ok}, label %{fast}, label %{slow}, !prof {}", self.reg.branch_weights(&[1000, 1])));
                         self.b.start(&fast);
                         let tp = self.b.reg();
                         self.b.line(&format!("{tp} = getelementptr i8, ptr {code}, i64 -8"));
@@ -9201,12 +9922,19 @@ impl CoreEmitter<'_, '_> {
                         self.b.line(&format!("{tw} = load i64, ptr {tp}"));
                         let twin = self.b.reg();
                         self.b.line(&format!("{twin} = inttoptr i64 {tw} to ptr"));
+                        let words: Vec<String> = (0..regs)
+                            .map(|i| format!(", i64 {}", vals.get(i).map_or("poison", String::as_str)))
+                            .collect();
                         let r = self.b.reg();
-                        self.b.line(&format!("{r} = musttail call tailcc i64 {twin}(ptr {selfp}, i64 {}, ptr @cinch.tail.argv)", vals.len()));
+                        self.b.line(&format!(
+                            "{r} = musttail call tailcc i64 {twin}(ptr {selfp}, i64 {}{})",
+                            vals.len(),
+                            words.concat()
+                        ));
                         self.b.line(&format!("ret i64 {r}"));
-                        // An object built without twins: the ordinary call,
-                        // from a copy the callee's own tail calls cannot
-                        // overwrite.
+                        // A code word without the prefix (an object built
+                        // before twins existed): the ordinary call, from a
+                        // copy the callee's own tail calls cannot overwrite.
                         self.b.start(&slow);
                         let copy = self.b.alloca_words(vals.len());
                         for (i, v) in vals.iter().enumerate() {
@@ -9218,8 +9946,17 @@ impl CoreEmitter<'_, '_> {
                         self.b.line(&format!("ret i64 {r2}"));
                         Ok(())
                     }
+                    // The C convention's mutual tail call (a target
+                    // without `tailcc`, or a callee another object
+                    // defines, which is never `musttail` from a body).
+                    // A product result is never this arm's callee: its C
+                    // symbol is the boxing wrapper, which the body scan
+                    // would read as the body that allocates nothing, so the
+                    // call boxes beside itself in the arm below.
                     Some((unit, arity))
-                        if self.reg.tail_sig(&unit, arity).1 == self.width
+                        if !self.reg.tailcc.contains(&self.unit)
+                            && !self.reg.cpr.contains_key(&unit)
+                            && self.reg.tail_sig(&unit, arity).1 == self.width
                             // `musttail` needs the callee's prototype to be
                             // the caller's exactly, parameters included, so
                             // the two narrowed signatures must agree. On a
@@ -9276,6 +10013,32 @@ impl CoreEmitter<'_, '_> {
                     }
                 }
             }
+            // A product result's fault leaf: the path never returns, so the
+            // aggregate after it only keeps the block well formed.
+            Core::Fault if matches!(dest, Dest::Ret) && self.cpr.is_some() => {
+                self.emit_expr(e)?;
+                if !self.b.terminated {
+                    let ty = self.cpr.as_ref().map(Cpr::ty).unwrap_or_default();
+                    self.b.line(&format!("ret {ty} zeroinitializer"));
+                }
+                Ok(())
+            }
+            Core::Fault if matches!(dest, Dest::Fields { .. }) => {
+                self.emit_expr(e)?;
+                if !self.b.terminated {
+                    self.b.line("unreachable");
+                }
+                Ok(())
+            }
+            other if matches!(dest, Dest::Fields { .. }) => err(format!(
+                "internal error: an unboxed product's leaf in {} does not build it: {:?}",
+                self.unit,
+                std::mem::discriminant(other)
+            )),
+            other if matches!(dest, Dest::Ret) && self.cpr.is_some() => err(format!(
+                "internal error: {} returns a product, and one of its tail leaves does not build it",
+                self.unit
+            )),
             other => {
                 let v = self.emit_expr(other)?;
                 // A terminating expression (the fault path, or a value that
@@ -9319,7 +10082,90 @@ impl CoreEmitter<'_, '_> {
     /// can; in a value position it is a slot and a block. Each alternative
     /// goes through [`CoreEmitter::emit_to`], so a `Jump` in an alternative
     /// reaches the same destination through its join's block.
+    /// Return `vals` as this product result's aggregate.
+    fn ret_product(&mut self, vals: &[String]) {
+        let ty = self.cpr.as_ref().map(Cpr::ty).unwrap_or_default();
+        let mut agg = "poison".to_string();
+        for (i, v) in vals.iter().enumerate() {
+            let r = self.b.reg();
+            self.b.line(&format!("{r} = insertvalue {ty} {agg}, i64 {v}, {i}"));
+            agg = r;
+        }
+        self.b.line(&format!("ret {ty} {agg}"));
+    }
+
+    /// `let x = f args in body` where `f` returns a product ([`Cpr`]) and
+    /// `body` only takes `x` apart: call `f`'s body, keep the field words
+    /// in slots, and never build the block. Answers whether it did.
+    ///
+    /// `body` may mention `x` only as the scrutinee of a `case` with the
+    /// constructor's one alternative, as the block of a `Release`, or in a
+    /// `drop`. Any other mention (an argument, a stored value, a `dup`, a
+    /// capture) needs the block, so the ordinary call boxes it.
+    fn virtual_let(&mut self, x: LocalId, v: &Core, body: &Core) -> Result<bool> {
+        if self.frame_site(x).is_some() {
+            return Ok(false);
+        }
+        let Some(cpr) = product_leaves(v, self.reg) else {
+            return Ok(false);
+        };
+        if !product_uses_only_take_apart(body, x, &cpr) {
+            return Ok(false);
+        }
+        let slots: Vec<String> = cpr.fields.iter().map(|_| self.b.alloca_i64()).collect();
+        let label = self.b.label();
+        let dest = Dest::Fields { slots: slots.clone(), label: label.clone(), base: self.pending.len() };
+        self.emit_to(v, &dest)?;
+        self.b.start(&label);
+        self.virt.insert(x, (slots, cpr.fields.clone()));
+        Ok(true)
+    }
+
+    /// Call product-result `unit`'s body with `args`, answering the
+    /// aggregate register.
+    fn call_product(&mut self, unit: &str, args: &[Core]) -> Result<String> {
+        let mut vals = Vec::with_capacity(args.len());
+        for a in args {
+            vals.push(self.emit_expr(a)?);
+        }
+        let sig = self.reg.narrow_sigs.get(unit);
+        let mut typed = Vec::with_capacity(vals.len());
+        for (i, v) in vals.iter().enumerate() {
+            let c = sig.map_or(Cross::WORD, |s| s.param(i));
+            let n = c.narrow(self.b, v);
+            typed.push(format!("{} {n}", c.ty()));
+        }
+        let ty = self.reg.cpr[unit].ty();
+        let cc = if self.reg.tailcc.contains(unit) { "tailcc " } else { "" };
+        let r = self.b.reg();
+        self.b.line(&format!("{r} = call {cc}{ty} @{}({})", quote(&tailcc_body(unit)), typed.join(", ")));
+        Ok(r)
+    }
+
     fn emit_case_to(&mut self, scrut: &Core, alts: &[CAlt<Core>], dest: &Dest) -> Result<()> {
+        // A product result that was never boxed: one alternative, whose
+        // binders take the field words ([`CoreEmitter::virtual_let`]
+        // admitted the local only for this shape).
+        if let Core::Var(t) = scrut {
+            if let Some((slots, _)) = self.virt.get(t).cloned() {
+                let (Some(alt), 1) = (alts.first(), alts.len()) else {
+                    return err("internal error: a case on an unboxed product result has more than one alternative");
+                };
+                let CPat::Con { fields, .. } = &alt.pat else {
+                    return err("internal error: a case on an unboxed product result binds no fields");
+                };
+                for (x, s) in fields.iter().zip(&slots) {
+                    if !self.bound.contains(x) {
+                        return err(format!("pattern binds unknown local {}", x.0));
+                    }
+                    let w = self.b.reg();
+                    self.b.line(&format!("{w} = load i64, ptr {s}"));
+                    let slot = self.slot(*x);
+                    self.b.line(&format!("store i64 {w}, ptr {slot}"));
+                }
+                return self.emit_to(&alt.body, dest);
+            }
+        }
         let sv = self.emit_expr(scrut)?;
         let sp = self.b.reg();
         self.b.line(&format!("{sp} = inttoptr i64 {sv} to ptr"));
@@ -9419,7 +10265,10 @@ impl CoreEmitter<'_, '_> {
                 // return leaves every `Release` in scope, so it settles
                 // their tokens first.
                 self.settle_tokens(dest.base());
-                self.b.line(&format!("ret {} 0", self.ret.ty()));
+                match &self.cpr {
+                    Some(cpr) => self.b.line(&format!("ret {} zeroinitializer", cpr.ty())),
+                    None => self.b.line(&format!("ret {} 0", self.ret.ty())),
+                }
             }
         }
 
@@ -10677,6 +11526,9 @@ int main(void) {{
         // The self call is a jump back to the loop header: the emitted
         // unit never calls itself.
         let ir = emit(&prog).expect("emit");
+        // Its only tail call is that jump, so it keeps the C convention
+        // under its own symbol (no `tailcc` body, no wrapper).
+        assert!(!ir.contains("T.sum#cc"), "{ir}");
         let unit = ir
             .split("define i64 @\"T.sum\"")
             .nth(1)
@@ -10719,8 +11571,8 @@ int main(void) {{
         assert_eq!(run("mutual_tail_ping_pong", &prog), 1);
         let ir = emit(&prog).expect("emit");
         assert!(
-            ir.contains("musttail call i64 @\"T.pong\"")
-                && ir.contains("musttail call i64 @\"T.ping\""),
+            ir.contains("musttail call tailcc i64 @\"T.pong#cc\"")
+                && ir.contains("musttail call tailcc i64 @\"T.ping#cc\""),
             "mutual tail calls must be tail-marked:\n{ir}"
         );
     }
@@ -10785,10 +11637,14 @@ int main(void) {{
         assert!(ir.contains("musttail call i64 @\"T.ping\"(i64 "), "{ir}");
 
         // The same pair on a 64-bit target: `csize` is the slot, so only
-        // the `U8` would narrow, and the group rule leaves both words.
+        // the `U8` narrows. Under `tailcc` a `musttail` call may cross
+        // prototypes, so the group keeps the narrowing and its constant
+        // stack both: only the results have to agree.
         let ir = emit(&differ).expect("emit");
         assert!(ir.contains("define i64 @\"T.pong\"(i64 %p0)"), "{ir}");
-        assert!(ir.contains("musttail call i64 @\"T.ping\"(i64 "), "{ir}");
+        assert!(ir.contains("define i64 @\"T.ping\"(i8 %p0)"), "{ir}");
+        assert!(ir.contains("musttail call tailcc i64 @\"T.ping#cc\"(i8 "), "{ir}");
+        assert!(ir.contains("musttail call tailcc i64 @\"T.pong#cc\"(i64 "), "{ir}");
     }
 
     #[test]
@@ -10837,14 +11693,115 @@ int main(void) {{
     }
 
     #[test]
+    fn a_product_result_tail_call_passes_the_aggregate_on() {
+        // `cd` and `ce` tail-call each other and return `pair acc n` when
+        // `n` reaches 0, and `start n = cd n 0` is one tail call of `cd`,
+        // so all three return the pair's two words: the calls between them
+        // are `musttail` calls of the aggregate, and `main` takes the
+        // result apart without a block. The C symbols keep the one-word
+        // boundary.
+        let mut pair = ctor_fn("T.pair", &["a", "b"], 0, 2);
+        pair.repr.fields = vec![Class::Raw, Class::Raw];
+        let step = |id: &str, other: &str| {
+            fndef(
+                id,
+                &["n", "acc"],
+                Core::If(
+                    Box::new(app(p(cmp(CmpOp::Eq)), vec![v(0), n(0)])),
+                    CBranch::new(app(ct("T.pair"), vec![v(1), v(0)])),
+                    CBranch::new(app(
+                        g(other),
+                        vec![
+                            app(p(arith(ArithOp::Sub)), vec![v(0), n(1)]),
+                            app(p(arith(ArithOp::Add)), vec![v(1), n(3)]),
+                        ],
+                    )),
+                ),
+            )
+        };
+        let (cd, ce) = (step("T.cd", "T.ce"), step("T.ce", "T.cd"));
+        let start = fndef("T.start", &["n"], app(g("T.cd"), vec![v(0), n(0)]));
+        let body = Core::Let(
+            LocalId(0),
+            Class::Obj,
+            Box::new(app(g("T.start"), vec![n(1000)])),
+            Box::new(Core::Case {
+                scrut: Box::new(v(0)),
+                alts: vec![CAlt {
+                    pat: CPat::con(0, vec![LocalId(1), LocalId(2)]),
+                    weight: None,
+                    body: Box::new(Core::If(
+                        Box::new(app(p(cmp(CmpOp::Eq)), vec![v(1), n(3000)])),
+                        CBranch::new(n(0)),
+                        CBranch::new(n(1)),
+                    )),
+                }],
+            }),
+        );
+        let prog = main_prog(vec![pair, cd, ce, start], body);
+        assert_eq!(run("product_result_tail_call", &prog), 0);
+        let ir = emit(&prog).expect("emit");
+        assert!(ir.contains("define tailcc { i64, i64 } @\"T.start#cc\"(i64 %p0)"), "{ir}");
+        assert!(ir.contains("musttail call tailcc { i64, i64 } @\"T.cd#cc\"("), "{ir}");
+        assert!(ir.contains("musttail call tailcc { i64, i64 } @\"T.ce#cc\"("), "{ir}");
+        assert!(ir.contains("call tailcc { i64, i64 } @\"T.start#cc\"(i64 1000)"), "{ir}");
+        assert!(ir.contains("define i64 @\"T.start\"(i64 %p0)"), "{ir}");
+
+        // A product result tail-calling one that makes no tail call of its
+        // own needs no guarantee: both keep the C convention, and the call
+        // is an ordinary call of the aggregate.
+        let mut pair = ctor_fn("T.pair", &["a", "b"], 0, 2);
+        pair.repr.fields = vec![Class::Raw, Class::Raw];
+        let leaf = fndef("T.leaf", &["n"], app(ct("T.pair"), vec![v(0), v(0)]));
+        let wrap = fndef("T.wrap", &["n"], app(g("T.leaf"), vec![app(p(arith(ArithOp::Add)), vec![v(0), n(1)])]));
+        let body = Core::Let(
+            LocalId(0),
+            Class::Obj,
+            Box::new(app(g("T.wrap"), vec![n(41)])),
+            Box::new(Core::Case {
+                scrut: Box::new(v(0)),
+                alts: vec![CAlt {
+                    pat: CPat::con(0, vec![LocalId(1), LocalId(2)]),
+                    weight: None,
+                    body: Box::new(v(1)),
+                }],
+            }),
+        );
+        let prog = main_prog(vec![pair, leaf, wrap], body);
+        assert_eq!(run("product_result_leaf_call", &prog), 42);
+        let ir = emit(&prog).expect("emit");
+        assert!(ir.contains("define { i64, i64 } @\"T.wrap#cc\"(i64 %p0)"), "{ir}");
+        assert!(ir.contains("call { i64, i64 } @\"T.leaf#cc\"("), "{ir}");
+        assert!(!ir.contains("musttail call { i64, i64 }"), "{ir}");
+    }
+
+    #[test]
+    fn an_unknown_tail_call_passes_its_words_in_registers() {
+        // The apply twin takes the closure, the count and the register
+        // words; the thread-local buffer only carries what does not fit.
+        let k = fndef("T.k", &["a", "b"], app(p(arith(ArithOp::Add)), vec![v(0), v(1)]));
+        let call = fndef("T.call", &["f", "x"], app(v(0), vec![v(1), v(1)]));
+        let prog = main_prog(vec![k, call], app(g("T.call"), vec![g("T.k"), n(21)]));
+        assert_eq!(run("unknown_tail_registers", &prog), 42);
+        let ir = emit(&prog).expect("emit");
+        let regs = tail_regs(std::env::consts::ARCH);
+        let words: String = (0..regs).map(|i| format!(", i64 %a{i}")).collect();
+        assert!(ir.contains(&format!("@\"T.k.tapp\"(ptr %self, i64 %argc{words})")), "{ir}");
+        let call = ir.split("define tailcc i64 @\"T.call#cc\"").nth(1).and_then(|r| r.split("\n}\n").next()).expect("T.call body");
+        assert!(call.contains("musttail call tailcc i64 %"), "{call}");
+        assert!(!call.contains("@cinch.tail.argv"), "two words fit the registers: {call}");
+    }
+
+    #[test]
     fn mixed_arity_mutual_tail_calls_run_in_constant_stack() {
         // `f a b = if a == 0 then 0 else g (a - 1)` and `g x = f x x`
-        // tail-call each other across arities. `musttail` needs identical
-        // prototypes, so the group lowers under its widest arity: `g`'s
-        // body runs in the two-word worker `T.g#tail` and both mutual
-        // calls are `musttail` (surface grammar local amendments section
-        // 9). From `f 1000000 0` the cycle is 2,000,001 calls deep, which
-        // a frame per call could not reach on the 8 MiB test stack.
+        // tail-call each other across arities. Under `tailcc` a `musttail`
+        // call may cross prototypes, so both mutual calls are `musttail`
+        // at their own arities (surface grammar local amendments section
+        // 9); a C-convention target lowers the group under its widest
+        // arity instead, in the two-word worker `T.g#tail`. From
+        // `f 1000000 0` the cycle is 2,000,001 calls deep, which a frame
+        // per call could not reach on the 8 MiB test stack.
         let f = fndef(
             "T.f",
             &["a", "b"],
@@ -10862,12 +11819,20 @@ int main(void) {{
         assert_eq!(run("mixed_arity_mutual_tail", &prog), 0);
         let ir = emit(&prog).expect("emit");
         assert!(
-            ir.contains("musttail call i64 @\"T.g#tail\"(")
-                && ir.contains("musttail call i64 @\"T.f\"("),
+            ir.contains("musttail call tailcc i64 @\"T.g#cc\"(i64 ")
+                && ir.contains("musttail call tailcc i64 @\"T.f#cc\"(i64 "),
             "mixed-arity mutual tail calls must be tail-marked:\n{ir}"
         );
+        assert!(!ir.contains("T.g#tail"), "{ir}");
         // `T.g` keeps its own one-word symbol for closures and exports.
         assert!(ir.contains("define i64 @\"T.g\"(i64 %p0)"), "{ir}");
+        // The C convention still widens the group.
+        let wasm = crate::core::TargetProfile::wasm32(crate::core::ArtifactProfile::CoreWasm);
+        let ir = emit_for(&wasm, &prog).expect("emit");
+        assert!(
+            ir.contains("musttail call i64 @\"T.g#tail\"(") && ir.contains("musttail call i64 @\"T.f\"("),
+            "the C convention's mixed-arity group must be widened:\n{ir}"
+        );
         assert_eq!(crate::core::tail_widths(&prog).get("T.g"), Some(&2));
         let groups = crate::core::tail_report(&prog);
         assert_eq!(groups.len(), 1, "{groups:?}");
@@ -12475,6 +13440,7 @@ fn prim_impl_unit(reg: &Registry, plan: &PrimPlan, idx: usize, asm: bool) -> Res
         stub: String::new(),
         clo: String::new(),
         wrapper: String::new(),
+        wrapper_group: true,
         scan,
         // An `asm` fragment is opaque target code: it claims nothing.
         lang_facts: UnitLang {
@@ -12530,6 +13496,7 @@ fn prim_wrapper_unit(
         stub: stub_def(reg, name, plan.arity),
         clo: clo_def(reg, name, plan.arity),
         wrapper: String::new(),
+        wrapper_group: true,
         scan,
         lang_facts: UnitLang {
             pure: plan.pure,

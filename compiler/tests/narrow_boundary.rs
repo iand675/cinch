@@ -23,6 +23,16 @@ fn emit(name: &str, src: &str) -> String {
         .unwrap_or_else(|e| panic!("{name}: emit failed: {e}"))
 }
 
+/// The body of `unit`: its `tailcc` body `<unit>#cc` when it has one (a
+/// unit whose tail calls are guaranteed, design/cps-optimisation.md section
+/// 1), else the definition under its own symbol.
+fn body_of<'a>(ir: &'a str, unit: &str) -> Option<&'a str> {
+    let separate = format!("define tailcc i64 @\"{unit}#cc\"(");
+    let own = format!("@\"{unit}\"(");
+    let needle = if ir.contains(&separate) { separate } else { own };
+    ir.split(&needle).nth(1).and_then(|rest| rest.split("\n}\n").next())
+}
+
 /// The `define` line of `unit`, so a test can read its exact prototype.
 fn define_of<'a>(ir: &'a str, unit: &str) -> &'a str {
     let needle = format!("@\"{unit}\"(");
@@ -92,10 +102,7 @@ module Main where
 "#
             ),
         );
-        let body = ir
-            .split(&format!("@\"Main.f\"("))
-            .nth(1)
-            .and_then(|rest| rest.split("\n}\n").next())
+        let body = body_of(&ir, "Main.f")
             .unwrap_or_else(|| panic!("Main.f's body for {ty}"));
         assert!(
             body.contains(&format!("{ext} ")) && body.contains("%p0 to i64"),
@@ -120,10 +127,7 @@ module Main where
 "#
             ),
         );
-        let body = ir
-            .split(&format!("@\"Main.f\"("))
-            .nth(1)
-            .and_then(|rest| rest.split("\n}\n").next())
+        let body = body_of(&ir, "Main.f")
             .unwrap_or_else(|| panic!("Main.f's body for {ty}"));
         assert!(
             body.contains(&format!("{ext} ")) && body.contains("%p0 to i64"),
