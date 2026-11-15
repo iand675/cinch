@@ -4098,6 +4098,20 @@ impl Checker {
                                 Ty::fun_mult(t.clone(), *m, EffRow::pure(), rest)
                             };
                         }
+                        // Callback fields can mention a family parameter as a
+                        // runtime identity. Quantify that namespace
+                        // exactly as an ordinary function signature does;
+                        // treating them as type metavariables leaves the
+                        // callback's effect label fixed to its source spelling.
+                        let mut row_params = Vec::new();
+                        let mut region_params = Vec::new();
+                        collect_row_names(&scheme_ty, &mut row_params, &mut region_params);
+                        for name in &region_params {
+                            if params.iter().zip(&param_kinds).any(|(parameter, kind)| parameter == name && !matches!(kind, ParamKind::Type)) {
+                                return Err(Error::at(c.name.span, format!("runtime identity {name} cannot also be an index or higher-kinded family parameter")));
+                            }
+                        }
+                        type_params.retain(|name| !region_params.contains(name));
                         let scheme = Scheme {
             evidence_params: Vec::new(),
             con_params: higher_kinded_parameters(&params, &param_kinds),
@@ -4107,9 +4121,9 @@ impl Checker {
                             val_params: Vec::new(),
                             prop_params: Vec::new(),
                             row_params: Vec::new(),
-                            region_params: Vec::new(),
+                            region_params: region_params.clone(),
                             ctx: Vec::new(),
-                            ty: scheme_ty,
+                            ty: crate::types::regionize(&scheme_ty, &region_params),
                         };
                         self.remember_interface_constructor(&module, &c.name.text, &c.ty, &scheme, &data.params);
                         self.add_value(

@@ -1,0 +1,1518 @@
+{
+  "format": 1,
+  "reference_sdk": "go version go1.27.4 linux/amd64",
+  "scope": "All public reference packages; internal/vendor implementation packages excluded. Language/runtime-specific packages remain open until an idiomatic mapping is reviewed.",
+  "completion_rule": "A package is complete only after operation-level capability mapping, implemented public declarations, runtime/error tests and relevant benchmarks have been reviewed. Module presence alone is partial coverage.",
+  "packages": [
+    {
+      "reference_package": "archive/tar",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 85
+    },
+    {
+      "reference_package": "archive/zip",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 78
+    },
+    {
+      "reference_package": "bufio",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Stream"
+      ],
+      "remaining": [
+        "buffered readers and writers",
+        "scanner split functions and token limits",
+        "peek/discard/unread contracts"
+      ],
+      "reference_declarations": 80
+    },
+    {
+      "reference_package": "bytes",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Bytes",
+        "Data.Bytes.Word",
+        "Data.StringIo"
+      ],
+      "remaining": [],
+      "reference_declarations": 102
+    },
+    {
+      "reference_package": "cmp",
+      "status": "partial",
+      "cinch_modules": [
+        "Relation.Ord"
+      ],
+      "remaining": [],
+      "reference_declarations": 4
+    },
+    {
+      "reference_package": "compress/bzip2",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 3
+    },
+    {
+      "reference_package": "compress/flate",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Zlib"
+      ],
+      "remaining": [],
+      "reference_declarations": 38
+    },
+    {
+      "reference_package": "compress/gzip",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 33
+    },
+    {
+      "reference_package": "compress/lzw",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 15
+    },
+    {
+      "reference_package": "compress/zlib",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Zlib"
+      ],
+      "remaining": [],
+      "reference_declarations": 25
+    },
+    {
+      "reference_package": "container/heap",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 11
+    },
+    {
+      "reference_package": "container/list",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.List"
+      ],
+      "remaining": [],
+      "reference_declarations": 21
+    },
+    {
+      "reference_package": "container/ring",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 10
+    },
+    {
+      "reference_package": "context",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Concurrent",
+        "Effect.Clock"
+      ],
+      "remaining": [],
+      "reference_declarations": 21
+    },
+    {
+      "reference_package": "crypto",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 69
+    },
+    {
+      "reference_package": "crypto/aes",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 5
+    },
+    {
+      "reference_package": "crypto/cipher",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 37
+    },
+    {
+      "reference_package": "crypto/des",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 6
+    },
+    {
+      "reference_package": "crypto/dsa",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 24
+    },
+    {
+      "reference_package": "crypto/ecdh",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 23
+    },
+    {
+      "reference_package": "crypto/ecdsa",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 37
+    },
+    {
+      "reference_package": "crypto/ed25519",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 24
+    },
+    {
+      "reference_package": "crypto/elliptic",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 43
+    },
+    {
+      "reference_package": "crypto/fips140",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 4
+    },
+    {
+      "reference_package": "crypto/hkdf",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 3
+    },
+    {
+      "reference_package": "crypto/hmac",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Digest"
+      ],
+      "remaining": [],
+      "reference_declarations": 2
+    },
+    {
+      "reference_package": "crypto/hpke",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 51
+    },
+    {
+      "reference_package": "crypto/md5",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Digest"
+      ],
+      "remaining": [],
+      "reference_declarations": 6
+    },
+    {
+      "reference_package": "crypto/mldsa",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 39
+    },
+    {
+      "reference_package": "crypto/mlkem",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 34
+    },
+    {
+      "reference_package": "crypto/mlkem/mlkemtest",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 2
+    },
+    {
+      "reference_package": "crypto/pbkdf2",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 1
+    },
+    {
+      "reference_package": "crypto/rand",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Random"
+      ],
+      "remaining": [],
+      "reference_declarations": 5
+    },
+    {
+      "reference_package": "crypto/rc4",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 7
+    },
+    {
+      "reference_package": "crypto/rsa",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 61
+    },
+    {
+      "reference_package": "crypto/sha1",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Digest"
+      ],
+      "remaining": [],
+      "reference_declarations": 6
+    },
+    {
+      "reference_package": "crypto/sha256",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Digest"
+      ],
+      "remaining": [],
+      "reference_declarations": 10
+    },
+    {
+      "reference_package": "crypto/sha3",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 32
+    },
+    {
+      "reference_package": "crypto/sha512",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Digest"
+      ],
+      "remaining": [],
+      "reference_declarations": 18
+    },
+    {
+      "reference_package": "crypto/subtle",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 8
+    },
+    {
+      "reference_package": "crypto/tls",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 352
+    },
+    {
+      "reference_package": "crypto/x509",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 336
+    },
+    {
+      "reference_package": "crypto/x509/pkix",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 51
+    },
+    {
+      "reference_package": "database/sql",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 166
+    },
+    {
+      "reference_package": "database/sql/driver",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 128
+    },
+    {
+      "reference_package": "debug/buildinfo",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 3
+    },
+    {
+      "reference_package": "debug/dwarf",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 637
+    },
+    {
+      "reference_package": "debug/elf",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 3296
+    },
+    {
+      "reference_package": "debug/gosym",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 55
+    },
+    {
+      "reference_package": "debug/macho",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 458
+    },
+    {
+      "reference_package": "debug/pe",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 347
+    },
+    {
+      "reference_package": "debug/plan9obj",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 38
+    },
+    {
+      "reference_package": "embed",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 4
+    },
+    {
+      "reference_package": "encoding",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 12
+    },
+    {
+      "reference_package": "encoding/ascii85",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 7
+    },
+    {
+      "reference_package": "encoding/asn1",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 73
+    },
+    {
+      "reference_package": "encoding/base32",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Base32"
+      ],
+      "remaining": [
+        "custom alphabets and padding",
+        "reader/writer adapters"
+      ],
+      "reference_declarations": 21,
+      "tests": [
+        "lib_go_stdlib::base32_matches_go_rfc4648_both_alphabets_and_raw_forms"
+      ],
+      "benchmarks": [
+        "base32-encode",
+        "base32-decode"
+      ]
+    },
+    {
+      "reference_package": "encoding/base64",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Base64"
+      ],
+      "remaining": [],
+      "reference_declarations": 24
+    },
+    {
+      "reference_package": "encoding/binary",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Binary"
+      ],
+      "remaining": [
+        "aggregate and floating-point codecs",
+        "reader/writer adapters",
+        "append operations"
+      ],
+      "reference_declarations": 36,
+      "tests": [
+        "lib_go_stdlib::fixed_width_binary_matches_go_and_validates_writes",
+        "lib_go_stdlib::varints_match_go_including_signed_extrema_and_malformed_input"
+      ],
+      "benchmarks": [
+        "binary",
+        "varint"
+      ]
+    },
+    {
+      "reference_package": "encoding/csv",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Csv"
+      ],
+      "remaining": [],
+      "reference_declarations": 34
+    },
+    {
+      "reference_package": "encoding/gob",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 17
+    },
+    {
+      "reference_package": "encoding/hex",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Hex"
+      ],
+      "remaining": [
+        "dump formatting",
+        "reader/writer adapters",
+        "append operations"
+      ],
+      "reference_declarations": 15,
+      "tests": [
+        "lib_go_stdlib::hexadecimal_matches_go_and_names_invalid_bytes"
+      ],
+      "benchmarks": [
+        "hex-encode",
+        "hex-decode"
+      ]
+    },
+    {
+      "reference_package": "encoding/json",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Json",
+        "Data.Json"
+      ],
+      "remaining": [],
+      "reference_declarations": 92
+    },
+    {
+      "reference_package": "encoding/json/jsontext",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 113
+    },
+    {
+      "reference_package": "encoding/json/v2",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 45
+    },
+    {
+      "reference_package": "encoding/pem",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 7
+    },
+    {
+      "reference_package": "encoding/xml",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 83
+    },
+    {
+      "reference_package": "errors",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Result"
+      ],
+      "remaining": [],
+      "reference_declarations": 7
+    },
+    {
+      "reference_package": "expvar",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 39
+    },
+    {
+      "reference_package": "flag",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.OptionParser"
+      ],
+      "remaining": [],
+      "reference_declarations": 93
+    },
+    {
+      "reference_package": "fmt",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Show",
+        "Text.Scan"
+      ],
+      "remaining": [],
+      "reference_declarations": 43
+    },
+    {
+      "reference_package": "go/ast",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 486
+    },
+    {
+      "reference_package": "go/build",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 105
+    },
+    {
+      "reference_package": "go/build/constraint",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 30
+    },
+    {
+      "reference_package": "go/constant",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 50
+    },
+    {
+      "reference_package": "go/doc",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 77
+    },
+    {
+      "reference_package": "go/doc/comment",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 55
+    },
+    {
+      "reference_package": "go/format",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 2
+    },
+    {
+      "reference_package": "go/importer",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 5
+    },
+    {
+      "reference_package": "go/parser",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 22
+    },
+    {
+      "reference_package": "go/printer",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 18
+    },
+    {
+      "reference_package": "go/scanner",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 24
+    },
+    {
+      "reference_package": "go/token",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 223
+    },
+    {
+      "reference_package": "go/types",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 509
+    },
+    {
+      "reference_package": "go/version",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 3
+    },
+    {
+      "reference_package": "hash",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Hash"
+      ],
+      "remaining": [],
+      "reference_declarations": 32
+    },
+    {
+      "reference_package": "hash/adler32",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Checksum"
+      ],
+      "remaining": [],
+      "reference_declarations": 4,
+      "tests": [
+        "lib_go_stdlib::checksums_match_go_and_update_over_every_split"
+      ],
+      "benchmarks": [
+        "adler32"
+      ]
+    },
+    {
+      "reference_package": "hash/crc32",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Checksum"
+      ],
+      "remaining": [],
+      "reference_declarations": 16,
+      "tests": [
+        "lib_go_stdlib::checksums_match_go_and_update_over_every_split"
+      ],
+      "benchmarks": [
+        "crc32",
+        "crc32c"
+      ]
+    },
+    {
+      "reference_package": "hash/crc64",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Checksum"
+      ],
+      "remaining": [],
+      "reference_declarations": 11,
+      "tests": [
+        "lib_go_stdlib::checksums_match_go_and_update_over_every_split"
+      ],
+      "benchmarks": [
+        "crc64"
+      ]
+    },
+    {
+      "reference_package": "hash/fnv",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Fnv"
+      ],
+      "remaining": [
+        "128-bit variants",
+        "streaming hash-state adapters",
+        "serialized state"
+      ],
+      "reference_declarations": 6,
+      "tests": [
+        "lib_go_stdlib::fnv_matches_go_and_updates_over_every_split"
+      ],
+      "benchmarks": [
+        "fnv32a",
+        "fnv64a"
+      ]
+    },
+    {
+      "reference_package": "hash/maphash",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.HashMap"
+      ],
+      "remaining": [],
+      "reference_declarations": 24
+    },
+    {
+      "reference_package": "html",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 2
+    },
+    {
+      "reference_package": "html/template",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 76
+    },
+    {
+      "reference_package": "image",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 281
+    },
+    {
+      "reference_package": "image/color",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 78
+    },
+    {
+      "reference_package": "image/color/palette",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 2
+    },
+    {
+      "reference_package": "image/draw",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 25
+    },
+    {
+      "reference_package": "image/gif",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 22
+    },
+    {
+      "reference_package": "image/jpeg",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 15
+    },
+    {
+      "reference_package": "image/png",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 24
+    },
+    {
+      "reference_package": "index/suffixarray",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 7
+    },
+    {
+      "reference_package": "io",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Stream"
+      ],
+      "remaining": [
+        "ReaderAt/WriterAt and sections",
+        "seek/close/flush contracts",
+        "pipes and cancellation",
+        "stream adapters for codecs"
+      ],
+      "reference_declarations": 107,
+      "tests": [
+        "lib_stream"
+      ],
+      "benchmarks": [
+        "stream-copy-buffer",
+        "stream-copy-discard",
+        "stream-read-all"
+      ]
+    },
+    {
+      "reference_package": "io/fs",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Fs",
+        "Effect.Find"
+      ],
+      "remaining": [],
+      "reference_declarations": 105
+    },
+    {
+      "reference_package": "io/ioutil",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Fs",
+        "Effect.Stream"
+      ],
+      "remaining": [],
+      "reference_declarations": 16
+    },
+    {
+      "reference_package": "iter",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Producer",
+        "Data.List"
+      ],
+      "remaining": [],
+      "reference_declarations": 4
+    },
+    {
+      "reference_package": "log",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Log"
+      ],
+      "remaining": [],
+      "reference_declarations": 51
+    },
+    {
+      "reference_package": "log/slog",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Log"
+      ],
+      "remaining": [],
+      "reference_declarations": 172
+    },
+    {
+      "reference_package": "log/syslog",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 71
+    },
+    {
+      "reference_package": "maps",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Map",
+        "Data.HashMap"
+      ],
+      "remaining": [],
+      "reference_declarations": 10
+    },
+    {
+      "reference_package": "math",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Machine"
+      ],
+      "remaining": [],
+      "reference_declarations": 133
+    },
+    {
+      "reference_package": "math/big",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Nat",
+        "Data.Int",
+        "Data.Rational",
+        "Data.BigDecimal"
+      ],
+      "remaining": [],
+      "reference_declarations": 190
+    },
+    {
+      "reference_package": "math/bits",
+      "status": "partial",
+      "cinch_modules": [
+        "Algebra.Bits",
+        "Data.Machine"
+      ],
+      "remaining": [],
+      "reference_declarations": 52
+    },
+    {
+      "reference_package": "math/cmplx",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Complex"
+      ],
+      "remaining": [],
+      "reference_declarations": 27
+    },
+    {
+      "reference_package": "math/rand",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Random"
+      ],
+      "remaining": [],
+      "reference_declarations": 47
+    },
+    {
+      "reference_package": "math/rand/v2",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Random"
+      ],
+      "remaining": [],
+      "reference_declarations": 60
+    },
+    {
+      "reference_package": "mime",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 16
+    },
+    {
+      "reference_package": "mime/multipart",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 37
+    },
+    {
+      "reference_package": "mime/quotedprintable",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 8
+    },
+    {
+      "reference_package": "net",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Net",
+        "Effect.Resolv",
+        "Data.IpAddr"
+      ],
+      "remaining": [],
+      "reference_declarations": 381
+    },
+    {
+      "reference_package": "net/http",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Http"
+      ],
+      "remaining": [],
+      "reference_declarations": 505
+    },
+    {
+      "reference_package": "net/http/cgi",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 14
+    },
+    {
+      "reference_package": "net/http/cookiejar",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 9
+    },
+    {
+      "reference_package": "net/http/fcgi",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 4
+    },
+    {
+      "reference_package": "net/http/httptest",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 33
+    },
+    {
+      "reference_package": "net/http/httptrace",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 32
+    },
+    {
+      "reference_package": "net/http/httputil",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 53
+    },
+    {
+      "reference_package": "net/http/pprof",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 6
+    },
+    {
+      "reference_package": "net/mail",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 20
+    },
+    {
+      "reference_package": "net/netip",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.IpAddr"
+      ],
+      "remaining": [],
+      "reference_declarations": 80
+    },
+    {
+      "reference_package": "net/rpc",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 57
+    },
+    {
+      "reference_package": "net/rpc/jsonrpc",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 5
+    },
+    {
+      "reference_package": "net/smtp",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 27
+    },
+    {
+      "reference_package": "net/textproto",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 64
+    },
+    {
+      "reference_package": "net/url",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Uri"
+      ],
+      "remaining": [],
+      "reference_declarations": 62
+    },
+    {
+      "reference_package": "os",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Fs",
+        "Effect.Process",
+        "Effect.Stream"
+      ],
+      "remaining": [],
+      "reference_declarations": 285
+    },
+    {
+      "reference_package": "os/exec",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Process"
+      ],
+      "remaining": [],
+      "reference_declarations": 49
+    },
+    {
+      "reference_package": "os/signal",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Signal"
+      ],
+      "remaining": [],
+      "reference_declarations": 6
+    },
+    {
+      "reference_package": "os/user",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 23
+    },
+    {
+      "reference_package": "path",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Path"
+      ],
+      "remaining": [],
+      "reference_declarations": 9
+    },
+    {
+      "reference_package": "path/filepath",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Path",
+        "Effect.Find"
+      ],
+      "remaining": [],
+      "reference_declarations": 32
+    },
+    {
+      "reference_package": "plugin",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 4
+    },
+    {
+      "reference_package": "reflect",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 265
+    },
+    {
+      "reference_package": "regexp",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Regex"
+      ],
+      "remaining": [],
+      "reference_declarations": 50
+    },
+    {
+      "reference_package": "regexp/syntax",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Regex"
+      ],
+      "remaining": [],
+      "reference_declarations": 178
+    },
+    {
+      "reference_package": "runtime",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 130
+    },
+    {
+      "reference_package": "runtime/cgo",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 5
+    },
+    {
+      "reference_package": "runtime/coverage",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 5
+    },
+    {
+      "reference_package": "runtime/debug",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 37
+    },
+    {
+      "reference_package": "runtime/metrics",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 27
+    },
+    {
+      "reference_package": "runtime/pprof",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 19
+    },
+    {
+      "reference_package": "runtime/race",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 0
+    },
+    {
+      "reference_package": "runtime/trace",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 21
+    },
+    {
+      "reference_package": "slices",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.List",
+        "Data.Array"
+      ],
+      "remaining": [],
+      "reference_declarations": 40
+    },
+    {
+      "reference_package": "sort",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.List",
+        "Data.Sorted"
+      ],
+      "remaining": [],
+      "reference_declarations": 40
+    },
+    {
+      "reference_package": "strconv",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Show",
+        "Text.Scan",
+        "Data.Machine"
+      ],
+      "remaining": [
+        "explicit-base and width-aware integer conversion",
+        "float/complex conversion policies",
+        "quoting/unquoting and append operations"
+      ],
+      "reference_declarations": 45
+    },
+    {
+      "reference_package": "strings",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.String",
+        "Text.Scan",
+        "Text.Builder"
+      ],
+      "remaining": [],
+      "reference_declarations": 84
+    },
+    {
+      "reference_package": "structs",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 1
+    },
+    {
+      "reference_package": "sync",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Stm"
+      ],
+      "remaining": [],
+      "reference_declarations": 46
+    },
+    {
+      "reference_package": "sync/atomic",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Stm"
+      ],
+      "remaining": [],
+      "reference_declarations": 94
+    },
+    {
+      "reference_package": "syscall",
+      "status": "partial",
+      "cinch_modules": [
+        "Prim.Sys"
+      ],
+      "remaining": [],
+      "reference_declarations": 12809
+    },
+    {
+      "reference_package": "testing",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Test",
+        "Effect.Benchmark",
+        "Effect.Coverage"
+      ],
+      "remaining": [],
+      "reference_declarations": 170
+    },
+    {
+      "reference_package": "testing/cryptotest",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 1
+    },
+    {
+      "reference_package": "testing/fstest",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 15
+    },
+    {
+      "reference_package": "testing/iotest",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 10
+    },
+    {
+      "reference_package": "testing/quick",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 21
+    },
+    {
+      "reference_package": "testing/slogtest",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 2
+    },
+    {
+      "reference_package": "testing/synctest",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 3
+    },
+    {
+      "reference_package": "text/scanner",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Lex",
+        "Text.Scan"
+      ],
+      "remaining": [],
+      "reference_declarations": 59
+    },
+    {
+      "reference_package": "text/tabwriter",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 19
+    },
+    {
+      "reference_package": "text/template",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 39
+    },
+    {
+      "reference_package": "text/template/parse",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 262
+    },
+    {
+      "reference_package": "time",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Date",
+        "Data.Time",
+        "Effect.Clock"
+      ],
+      "remaining": [],
+      "reference_declarations": 189
+    },
+    {
+      "reference_package": "time/tzdata",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 0
+    },
+    {
+      "reference_package": "unicode",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Char"
+      ],
+      "remaining": [
+        "Unicode property tables",
+        "Unicode case mappings",
+        "versioned classification evidence"
+      ],
+      "reference_declarations": 344
+    },
+    {
+      "reference_package": "unicode/utf16",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 7
+    },
+    {
+      "reference_package": "unicode/utf8",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Char",
+        "Data.String"
+      ],
+      "remaining": [],
+      "reference_declarations": 23,
+      "tests": [
+        "lib_word_utf8"
+      ],
+      "benchmarks": []
+    },
+    {
+      "reference_package": "unique",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 3
+    },
+    {
+      "reference_package": "unsafe",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 0
+    },
+    {
+      "reference_package": "uuid",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 13
+    },
+    {
+      "reference_package": "weak",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 3
+    }
+  ]
+}
