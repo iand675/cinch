@@ -1,4 +1,4 @@
--- Generated C++ bindings; trusted native calls, exceptions terminate.
+-- Generated native bindings; direct imports use the declared ABI contract.
 module Counter where
   export Counter, addCounter, deleteCounter, getCounter, liveCount, newCounter
   foreign import ccall "cinch_cxx_Counter_liveCount" liveCount :: Unit ->{Foreign Cxx, IO, Diverge} I64

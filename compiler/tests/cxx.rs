@@ -14,7 +14,10 @@ fn source(bindings: &Bindings, body: &str) -> String {
     // the separate-module form of exactly these declarations.
     format!(
         "{}\n{}",
-        module.replace("module Counter where", "module Main where"),
+        module.replace(
+            &format!("module {} where", bindings.module),
+            "module Main where"
+        ),
         body
     )
 }
@@ -128,4 +131,80 @@ fn exceptions_cannot_unwind_across_the_boundary() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert_eq!(Command::new(exe).status().unwrap().code(), Some(86));
+}
+
+fn direct_spec() -> Bindings {
+    serde_json::from_str(include_str!("../../examples/cxx/direct/bindings.json")).unwrap()
+}
+
+#[test]
+fn direct_imports_call_real_cpp_symbols_without_shims() {
+    let bindings = direct_spec();
+    let (module, cpp) = generate(&bindings).unwrap();
+    assert!(cpp.is_empty());
+    assert!(!module.contains("cinch_cxx_"));
+    let dir = tempfile::tempdir().unwrap();
+    let input = dir.path().join("native.cpp");
+    let object = dir.path().join("native.o");
+    // This is the library implementation, with ordinary C++ linkage. There
+    // are no extern-C wrappers and the generator's C++ output is empty.
+    std::fs::write(&input, include_str!("../../examples/cxx/direct/Native.cpp")).unwrap();
+    let output = Command::new(std::env::var("CINCH_CXX").unwrap_or_else(|_| "c++".into()))
+        .args(["-std=c++17", "-c", "-fPIC"])
+        .arg(&input)
+        .arg("-o")
+        .arg(&object)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let program = source(&bindings, "  main :: Unit ->{Foreign Cxx, IO, Diverge} Int\n  main _ = let h = openHandle () in let n = readHandle h in let r = add n 2 in let u = closeHandle h in let alive = liveCount () in if r == 42 then (if alive == 0 then 0 else 2) else 1\n");
+    let stdlib = if cfg!(target_os = "macos") {
+        "-lc++"
+    } else {
+        "-lstdc++"
+    };
+    assert_eq!(
+        run_source_objects(&program, &[object.to_str().unwrap(), stdlib]).unwrap(),
+        0
+    );
+}
+
+#[test]
+fn direct_signatures_use_native_validation_and_reject_extra_declarations() {
+    let mut s = direct_spec();
+    s.imports[4].signature = "I64 ->{Foreign Cxx, IO} Text".into();
+    let program = source(&s, "  main :: Unit -> Int\n  main _ = 0\n");
+    assert!(check_sources(&program, "<direct>").is_err());
+    s.imports[4].signature =
+        "I64 ->{Foreign Cxx, IO} I64\n  injected :: I64\n  injected = 42".into();
+    assert!(generate(&s).is_err());
+    s = direct_spec();
+    s.imports[4].symbol.clear();
+    assert!(generate(&s).is_err());
+    s = direct_spec();
+    s.imports[4].name = s.imports[0].name.clone();
+    assert!(generate(&s).is_err());
+}
+
+#[test]
+fn direct_only_cli_emits_only_the_cinch_module() {
+    let dir = tempfile::tempdir().unwrap();
+    let input = dir.path().join("bindings.json");
+    let out = dir.path().join("out");
+    std::fs::write(&input, r#"{"module":"Native.Math","imports":[{"name":"add","symbol":"_ZN6direct3addExx","signature":"I64 -> I64 ->{Foreign Cxx, IO} I64"}]}"#).unwrap();
+    assert_eq!(
+        cinch::cxx::cli(&[
+            input.to_str().unwrap().into(),
+            "--out-dir".into(),
+            out.to_str().unwrap().into()
+        ]),
+        0
+    );
+    let module = std::fs::read_to_string(out.join("Native/Math.cinch")).unwrap();
+    assert!(module.contains("foreign import ccall \"_ZN6direct3addExx\" add"));
+    assert!(!out.join("Native_Math.cpp").exists());
 }

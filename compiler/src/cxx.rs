@@ -1,5 +1,5 @@
-//! Explicit C++ binding generation. C++ owns layout, overload resolution and
-//! destruction; Cinch sees only fixed-width scalars and linear opaque pointers.
+//! Native binding generation: exact linker symbols use the existing FFI.
+//! Optional C++ shims handle scalar APIs, methods and class allocation.
 use crate::{Error, Result};
 use serde::Deserialize;
 use std::collections::BTreeSet;
@@ -9,11 +9,26 @@ use std::path::Path;
 #[serde(deny_unknown_fields)]
 pub struct Bindings {
     pub module: String,
+    #[serde(default)]
     pub header: String,
+    #[serde(default)]
+    pub imports: Vec<DirectImport>,
+    #[serde(default)]
+    pub opaque_types: Vec<String>,
     #[serde(default)]
     pub functions: Vec<Function>,
     #[serde(default)]
     pub classes: Vec<Class>,
+}
+
+/// An exact linker symbol and the full signature supported by native FFI.
+/// No C++ code is generated for these entries.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DirectImport {
+    pub name: String,
+    pub symbol: String,
+    pub signature: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -108,14 +123,68 @@ fn arguments(params: &[String]) -> Result<(Vec<String>, Vec<String>)> {
     Ok((declarations, names))
 }
 
-/// Generate a checked-surface module and a C++17 translation unit. Every
-/// wrapper catches all C++ exceptions and terminates: no unwinder can cross
-/// the C ABI. This is a trusted native boundary, not a verification claim.
+fn validate_opaque_name(name: &str) -> Result<()> {
+    if scalar(name).is_ok()
+        || [
+            "Owned",
+            "Borrowed",
+            "RawPtr",
+            "Retained",
+            "Out",
+            "MaybeNull",
+            "Int",
+            "Nat",
+            "Bool",
+            "Type",
+        ]
+        .contains(&name)
+    {
+        return Err(fail(format!(
+            "opaque name `{name}` shadows a boundary type"
+        )));
+    }
+    Ok(())
+}
+
+fn direct_declaration(import: &DirectImport) -> Result<String> {
+    if import.symbol.is_empty() || import.symbol.chars().any(char::is_control) {
+        return Err(fail(
+            "a direct import needs a nonempty linker symbol without control characters",
+        ));
+    }
+    // The lexer uses the same quoted-string escapes as JSON. Keep symbol
+    // identity literal, including decorated C++ names, quotes and backslashes.
+    let symbol = serde_json::to_string(&import.symbol).map_err(|e| fail(e.to_string()))?;
+    let decl = format!(
+        "  foreign import ccall {symbol} {} :: {}\n",
+        import.name, import.signature
+    );
+    let snippet = format!("module Direct where\n{decl}");
+    let tokens = crate::layout::layout(crate::lexer::lex(&snippet)?)?;
+    let parsed = crate::parser::parse_module(&tokens, &crate::parser::FixityTable::default())?;
+    // Parse the full native signature, but never allow it to introduce more
+    // source declarations. ABI admissibility stays with the ordinary checker.
+    match parsed.module.decls.as_slice() {
+        [crate::ast::Decl::Foreign(f)]
+            if f.name.text == import.name && f.symbol == import.symbol =>
+        {
+            Ok(decl)
+        }
+        _ => Err(fail(
+            "a direct import signature must contain exactly one foreign declaration",
+        )),
+    }
+}
+
+/// Generate a native module and, when requested, a C++17 shim. Direct imports
+/// preserve exact linker identities and native signatures. Only shim calls
+/// catch exceptions; direct imports require a no-unwind contract.
 pub fn generate(bindings: &Bindings) -> Result<(String, String)> {
     if !bindings.module.split('.').all(|s| identifier(s, true)) {
         return Err(fail("module must be a qualified Cinch module name"));
     }
-    if bindings.header.is_empty()
+    let needs_cpp = !bindings.functions.is_empty() || !bindings.classes.is_empty();
+    if (needs_cpp && bindings.header.is_empty())
         || bindings
             .header
             .chars()
@@ -123,8 +192,8 @@ pub fn generate(bindings: &Bindings) -> Result<(String, String)> {
     {
         return Err(fail("invalid header path"));
     }
-    if bindings.functions.is_empty() && bindings.classes.is_empty() {
-        return Err(fail("at least one function or class is required"));
+    if !needs_cpp && bindings.imports.is_empty() {
+        return Err(fail("at least one import, function or class is required"));
     }
     let prefix = format!("cinch_cxx_{}", bindings.module.replace('.', "_"));
     let mut names = BTreeSet::new();
@@ -134,30 +203,18 @@ pub fn generate(bindings: &Bindings) -> Result<(String, String)> {
         }
         Ok(())
     };
+    for import in &bindings.imports {
+        register(&import.name, false)?;
+    }
+    for name in &bindings.opaque_types {
+        validate_opaque_name(name)?;
+        register(name, true)?;
+    }
     for f in &bindings.functions {
         register(&f.name, false)?;
     }
     for c in &bindings.classes {
-        if scalar(&c.name).is_ok()
-            || [
-                "Owned",
-                "Borrowed",
-                "RawPtr",
-                "Retained",
-                "Out",
-                "MaybeNull",
-                "Int",
-                "Nat",
-                "Bool",
-                "Type",
-            ]
-            .contains(&c.name.as_str())
-        {
-            return Err(fail(format!(
-                "class name `{}` shadows a boundary type",
-                c.name
-            )));
-        }
+        validate_opaque_name(&c.name)?;
         register(&c.name, true)?;
         register(&c.constructor, false)?;
         register(&c.destructor, false)?;
@@ -165,8 +222,17 @@ pub fn generate(bindings: &Bindings) -> Result<(String, String)> {
             register(&m.name, false)?;
         }
     }
-    let mut cinch = format!("-- Generated C++ bindings; trusted native calls, exceptions terminate.\nmodule {} where\n  export {}\n", bindings.module, names.into_iter().collect::<Vec<_>>().join(", "));
+    let mut cinch = format!("-- Generated native bindings; direct imports use the declared ABI contract.\nmodule {} where\n  export {}\n", bindings.module, names.into_iter().collect::<Vec<_>>().join(", "));
     let mut cpp = format!("// Generated by cinch cxx. Do not let exceptions cross the C ABI.\n#include <cstdint>\n#include <exception>\n#include \"{}\"\n", bindings.header);
+    if !needs_cpp {
+        cpp.clear();
+    }
+    for name in &bindings.opaque_types {
+        cinch.push_str(&format!("  opaque type {name} :: Type\n"));
+    }
+    for import in &bindings.imports {
+        cinch.push_str(&direct_declaration(import)?);
+    }
     let declare = |out: &mut String, name: &str, params: &[String], result: &str| {
         let args = if params.is_empty() {
             "Unit".to_string()
@@ -262,11 +328,13 @@ pub fn cli(args: &[String]) -> i32 {
             .with_extension("cinch");
         std::fs::create_dir_all(module_path.parent().unwrap()).map_err(|e| fail(e.to_string()))?;
         std::fs::write(module_path, cinch).map_err(|e| fail(e.to_string()))?;
-        std::fs::write(
-            dir.join(format!("{}.cpp", spec.module.replace('.', "_"))),
-            cpp,
-        )
-        .map_err(|e| fail(e.to_string()))?;
+        if !cpp.is_empty() {
+            std::fs::write(
+                dir.join(format!("{}.cpp", spec.module.replace('.', "_"))),
+                cpp,
+            )
+            .map_err(|e| fail(e.to_string()))?;
+        }
         Ok(())
     };
     match run() {

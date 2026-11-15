@@ -1,0 +1,9 @@
+-- Generated native bindings; direct imports use the declared ABI contract.
+module Native where
+  export Handle, add, closeHandle, liveCount, openHandle, readHandle
+  opaque type Handle :: Type
+  foreign import ccall "_ZN6direct4openEv" openHandle :: Unit ->{Foreign Cxx, IO, Diverge} Owned NativeHeap Handle
+  foreign import ccall "_ZNK6direct6Handle4readEv" readHandle :: Borrowed Handle ->{Foreign Cxx, IO, Diverge} I64
+  foreign import ccall "_ZN6direct6HandleD0Ev" closeHandle :: Owned NativeHeap Handle ->{Foreign Cxx, IO, Diverge} Unit
+  foreign import ccall "_ZN6direct4liveEv" liveCount :: Unit ->{Foreign Cxx, IO, Diverge} I64
+  foreign import ccall "_ZN6direct3addExx" add :: I64 -> I64 ->{Foreign Cxx, IO, Diverge} I64

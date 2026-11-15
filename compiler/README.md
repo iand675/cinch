@@ -402,8 +402,10 @@ advisory, never load-bearing.
 
 ## Native C++
 
-`cinch cxx bindings.json --out-dir DIR` generates opaque owned class bindings,
-constructors, borrowed methods, consuming destructors, and scalar function
-imports through C++17 C ABI shims. See the [runnable example and binding
+`cinch cxx bindings.json --out-dir DIR` supports exact native symbol imports
+with full FFI signatures and no generated C++ shim. It also generates opaque
+owned class bindings, constructors, borrowed methods, consuming destructors,
+and scalar function imports through C++17 C ABI shims. See the [runnable example and binding
 format](../examples/cxx/README.md). Destruction is explicit and checked by the
-existing linear ownership rules; exceptions terminate inside the shim.
+existing linear ownership rules. Direct imports require a no-unwind ABI contract;
+shim calls catch exceptions and terminate.
