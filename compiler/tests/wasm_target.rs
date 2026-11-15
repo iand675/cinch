@@ -339,9 +339,8 @@ main =
   else 0
 ";
 
-/// A closure passed to `map` and folded: the apply stub, the static
-/// closure block, and the layout table registration, which a freestanding
-/// module runs from its own entry.
+/// A closure passed to `map` and folded: the apply stub and the static
+/// closure block, whose header describes its own saved fields.
 const CLOSURE_LIST: &str = "\
 module Main where
 

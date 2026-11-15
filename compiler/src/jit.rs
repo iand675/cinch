@@ -149,9 +149,11 @@ pub struct JitEngine {
     jit: LLVMOrcLLJITRef,
     context: LLVMOrcThreadSafeContextRef,
     llvm_context: LLVMContextRef,
-    /// Whether a package object's recorded layout prefix is registered in
-    /// this engine. The runtime accepts one combined table per process.
-    package_layouts: bool,
+    /// Whether this engine has enabled reclamation for a package object
+    /// built with it (once per process, before any library code runs).
+    reclaim_enabled: bool,
+    /// Whether the package glue (`__apply`, the reclaim entry) is defined.
+    package_glue: bool,
 }
 
 impl JitEngine {
@@ -205,7 +207,8 @@ impl JitEngine {
                 jit,
                 context,
                 llvm_context,
-                package_layouts: false,
+                reclaim_enabled: false,
+                package_glue: false,
             })
         }
     }
@@ -290,40 +293,35 @@ impl JitEngine {
     }
 
     /// Add one installed package object (`package.o` beside its
-    /// `build/package.cinchif`) and register the layout prefix that interface
-    /// records.
+    /// `build/package.cinchif`).
     ///
     /// The manifest is validated against this host's native profile and the
-    /// object bytes before anything enters the engine, and the recorded
-    /// layout words are registered with the runtime as the process's one
-    /// combined table (with `cinch_reclaim_enable` when the object was built
-    /// with reclamation), exactly as a native consumer must before calling
-    /// library code. The returned inventory names the units the object
-    /// defines, with their physical arities.
+    /// object bytes before anything enters the engine. Blocks describe
+    /// themselves (`design/self-describing-blocks.md`), so nothing is
+    /// registered: the object only needs reclamation enabled when it was
+    /// built with it, exactly as a native consumer's `main` does. The
+    /// returned inventory names the units the object defines, with their
+    /// physical arities.
     pub fn add_package_object(&mut self, object: &Path) -> Result<PackageObject> {
-        if self.package_layouts {
-            return Err(Error::plain(
-                "this engine already registered a package layout prefix; one process registers one combined table",
-            ));
-        }
         let abi = read_package_abi(object)?;
         verify_package_interfaces(object, &abi.interfaces)?;
-        let registration = layout_registration_ir(&abi.layout_words, abi.reclaim);
-        self.add_ir(&registration, "package-layouts")?;
+        if !self.package_glue {
+            self.add_ir(&package_glue_ir(), "package-glue")?;
+            self.package_glue = true;
+        }
         self.add_object_file(object)?;
-        self.call_void("cinch_jit_register_package_layouts")?;
-        self.package_layouts = true;
+        if abi.reclaim && !self.reclaim_enabled {
+            self.call_void("cinch_jit_enable_reclaim")?;
+            self.reclaim_enabled = true;
+        }
         Ok(PackageObject {
             object: object.to_path_buf(),
             units: abi.units,
-            layout_words: abi.layout_words.len(),
         })
     }
 
-    /// Add a package object whose layout prefix is already covered by the
-    /// package object added later. Dependency objects are linked before the
-    /// root so their external symbols resolve; only the root registers the
-    /// combined layout prefix.
+    /// Add a package object the root package object depends on. Dependency
+    /// objects are linked before the root so their external symbols resolve.
     pub fn add_package_object_dependency(&mut self, object: &Path) -> Result<PackageObject> {
         let abi = read_package_abi(object)?;
         verify_package_interfaces(object, &abi.interfaces)?;
@@ -331,7 +329,6 @@ impl JitEngine {
         Ok(PackageObject {
             object: object.to_path_buf(),
             units: abi.units,
-            layout_words: abi.layout_words.len(),
         })
     }
 
@@ -388,19 +385,16 @@ impl Drop for JitEngine {
 }
 
 /// One installed package object added to a [`JitEngine`]: the units its
-/// physical manifest defines, with their arities, and the size of the
-/// layout prefix registered before them.
+/// physical manifest defines, with their arities.
 pub struct PackageObject {
     pub object: PathBuf,
     pub units: BTreeMap<String, usize>,
-    pub layout_words: usize,
 }
 
 /// The parts of an installed object's physical manifest the JIT consumes.
 struct PackageAbi {
     units: BTreeMap<String, usize>,
     interfaces: BTreeMap<String, String>,
-    layout_words: Vec<u64>,
     reclaim: bool,
 }
 
@@ -545,17 +539,15 @@ fn read_package_abi(object: &Path) -> Result<PackageAbi> {
         })?;
         inventory.insert(symbol.to_string(), arity);
     }
-    let layout_words = fields
-        .get("layout_words")
-        .ok_or_else(|| manifest_error(&manifest_path, "missing layout_words"))?
-        .as_array()
-        .map_err(|e| manifest_error(&manifest_path, format!("layout_words: {e}")))?
-        .iter()
-        .map(|word| {
-            word.as_num()
-                .map_err(|e| manifest_error(&manifest_path, format!("layout word: {e}")))
-        })
-        .collect::<Result<Vec<u64>>>()?;
+    match fields.get("self_describing").map(|v| v.as_bool()) {
+        Some(Ok(true)) => {}
+        _ => {
+            return Err(manifest_error(
+                &manifest_path,
+                "the object predates self-describing blocks (runtime_abi 10)",
+            ))
+        }
+    }
     let mut interfaces = BTreeMap::new();
     if let Some(rows) = fields.get("interfaces") {
         for row in rows
@@ -581,7 +573,6 @@ fn read_package_abi(object: &Path) -> Result<PackageAbi> {
     Ok(PackageAbi {
         units: inventory,
         interfaces,
-        layout_words,
         reclaim,
     })
 }
@@ -635,50 +626,28 @@ entry:
 
 ";
 
-/// The module a JIT session must provide beside a package object: the
-/// consumer's `__apply`, and the object's recorded layout prefix registered
-/// with the runtime. The prefix is immutable, so registering exactly it is
-/// the valid combined table for a process that adds no consumer layouts.
-fn layout_registration_ir(words: &[u64], reclaim: bool) -> String {
-    let table = if words.is_empty() {
-        "[0 x i64] zeroinitializer".to_string()
-    } else {
-        format!(
-            "[{} x i64] [{}]",
-            words.len(),
-            words
-                .iter()
-                .map(|word| format!("i64 {}", *word as i64))
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
-    };
-    let enable = if reclaim {
-        "  call void @cinch_reclaim_enable()\n"
-    } else {
-        ""
-    };
+/// The module a JIT session provides beside its first package object: the
+/// consumer's `__apply`, and an external entry that turns counting on.
+fn package_glue_ir() -> String {
     format!(
-        "{apply}@__cinch_package_layouts = internal constant {table}\n\
-         declare void @cinch_layouts_register(ptr, i64)\n\
-         declare void @cinch_reclaim_enable()\n\
-         define void @cinch_jit_register_package_layouts() {{\n\
-         entry:\n{enable}  call void @cinch_layouts_register(ptr @__cinch_package_layouts, i64 {count})\n  ret void\n}}\n",
-        apply = APPLY_DEF,
-        count = words.len()
+        "{apply}declare void @cinch_reclaim_enable()\n\
+         define void @cinch_jit_enable_reclaim() {{\n\
+         entry:\n  call void @cinch_reclaim_enable()\n  ret void\n}}\n",
+        apply = APPLY_DEF
     )
 }
 
 /// Run a textual LLVM module's `main` against a runtime dylib.
 #[cfg(feature = "jit")]
 pub fn run_main(ir: &str, runtime: &Path) -> Result<i32> {
-    // Executable IR carries a private `__cinch_layouts_init`, and ORC does
-    // not run `llvm.global_ctors` automatically. Expose a tiny external
-    // installer and call it once, before any generated constructor or drop.
-    let install = ir.contains("@__cinch_layouts_init");
+    // Executable IR that counts references carries a private
+    // `__cinch_reclaim_init` constructor, and ORC does not run
+    // `llvm.global_ctors` automatically. Expose a tiny external installer
+    // and call it once, before any generated code runs.
+    let install = ir.contains("@__cinch_reclaim_init");
     let ir = if install {
         format!(
-            "{ir}\ndefine void @cinch_jit_install_layouts() {{\nentry:\n  call void @__cinch_layouts_init()\n  ret void\n}}\n"
+            "{ir}\ndefine void @cinch_jit_install_reclaim() {{\nentry:\n  call void @__cinch_reclaim_init()\n  ret void\n}}\n"
         )
     } else {
         ir.to_string()
@@ -686,7 +655,7 @@ pub fn run_main(ir: &str, runtime: &Path) -> Result<i32> {
     let mut engine = JitEngine::new(Some(runtime))?;
     engine.add_ir(&ir, "cinch-jit")?;
     if install {
-        engine.call_void("cinch_jit_install_layouts")?;
+        engine.call_void("cinch_jit_install_reclaim")?;
     }
     engine.call_main()
 }
@@ -823,7 +792,6 @@ mod tests {
                     .add_package_object(&installed.object)
                     .expect("load installed package object");
                 assert_eq!(package.units.get("Library.value"), Some(&0));
-                assert!(package.layout_words > 0, "the object records a layout prefix");
                 // `value :: Int` is the runtime word `42 << 1 | 1`; looking up
                 // and calling the unit is the ABI's zero-arity form.
                 assert_eq!(engine.call_i64("Library.value").expect("call unit"), 85);

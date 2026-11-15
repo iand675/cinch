@@ -914,23 +914,17 @@ fn emit_module(
             // it was: the command line reaches it through the platform
             // layer a Wasm target actually provides.
             //
-            // The layout table is registered here rather than left to
-            // `llvm.global_ctors`: a freestanding module has no `_start`
-            // and no libc, so nothing runs the constructors and the
-            // table stayed empty. Every shaped block then answered
-            // `shaped block with no registered layout`, which surfaced as
-            // a trap inside `release` on the first `map` over a closure
-            // with saved words, nowhere near the cause. A host that does
-            // call `__wasm_call_ctors` runs the same registration twice;
-            // `cinch_layouts_register` is idempotent, so that is free.
+            // A freestanding module has no `_start` and no libc, so nothing
+            // runs `llvm.global_ctors`: the entry turns counting on itself
+            // (`__cinch_reclaim_init`). A host that does call
+            // `__wasm_call_ctors` enables it twice, which is idempotent.
+            let init = if reg.reclaim { "  call void @__cinch_reclaim_init()\n" } else { "" };
             out.push_str(&format!(
-                "define i32 @main() {{\nentry:\n  call void @__cinch_layouts_init()\n  %r = call i64 @{}()\n  %x = call i64 @cinch_exit_check(i64 %r)\n  %c = trunc i64 %x to i32\n  ret i32 %c\n}}\n",
+                "define i32 @main() {{\nentry:\n{init}  %r = call i64 @{}()\n  %x = call i64 @cinch_exit_check(i64 %r)\n  %c = trunc i64 %x to i32\n  ret i32 %c\n}}\n",
                 quote(main_unit)
             ));
         }
     }
-    // The constructor layout table, complete now that every unit has
-    // asked for its descriptors.
     // Every escaped descriptor the units asked for, and the module
     // constructor that turns counting on. An object leaves the latter to
     // the program that links it.
