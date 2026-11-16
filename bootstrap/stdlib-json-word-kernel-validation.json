@@ -1,0 +1,63 @@
+{
+  "production_source_sha256": "7f976b62e406a8e9ea517f850da5ef226bf97388b1ed7dd2acb017af9637a1a1",
+  "primitive_sha256": "34ec7b0961ee78ebefdc583b7f5e86a387b18af7da4bd0ff6abbddef8ca58d8e",
+  "consumer_sha256": "2aeb9617635883ed7890cfc99d828162e20d263822f92f5860cd9eaedd01c06f",
+  "word_module_sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+  "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+  "runtime_archive_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "runner_sha256": "f8f26439ec32690015aad400b7c89108069eef66a86c4a68917c18a576416ffc",
+  "cases_per_run": 2048,
+  "cpu_affinity": [
+    2
+  ],
+  "compiler_host_stack_kib": 65536,
+  "runs": [
+    {
+      "opt_level": 0,
+      "poisoned": false,
+      "heap_limit": "32M",
+      "stack_limit": "8M",
+      "executable_sha256": "e471fe06ebe520580dce54f7bd72d3781f841eb2ad106d15c00d7e6b4b98cefb",
+      "observation": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=11 bytes=345 peak=321 header-blocks=4 header-bytes=96 immortal=0 freed=4 live=0\n"
+    },
+    {
+      "opt_level": 0,
+      "poisoned": true,
+      "heap_limit": "256M",
+      "stack_limit": "8M",
+      "executable_sha256": "e471fe06ebe520580dce54f7bd72d3781f841eb2ad106d15c00d7e6b4b98cefb",
+      "observation": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=11 bytes=345 peak=321 header-blocks=4 header-bytes=96 immortal=0 freed=4 live=0\n"
+    },
+    {
+      "opt_level": 2,
+      "poisoned": false,
+      "heap_limit": "32M",
+      "stack_limit": "8M",
+      "executable_sha256": "b5c533ca33586b33f32b110812f9e94982fd50cf2e8564b50eb92b343b7da7df",
+      "observation": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=11 bytes=345 peak=321 header-blocks=4 header-bytes=96 immortal=0 freed=4 live=0\n"
+    },
+    {
+      "opt_level": 2,
+      "poisoned": true,
+      "heap_limit": "256M",
+      "stack_limit": "8M",
+      "executable_sha256": "b5c533ca33586b33f32b110812f9e94982fd50cf2e8564b50eb92b343b7da7df",
+      "observation": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=11 bytes=345 peak=321 header-blocks=4 header-bytes=96 immortal=0 freed=4 live=0\n"
+    }
+  ],
+  "foreign_targets": [
+    {
+      "triple": "wasm32-unknown-unknown",
+      "llvm_sha256": "ff92c087b6523578558d15f82fb8b837d9d3852fad8ef839f7219bdd7d32bfdb",
+      "object_sha256": "10384851c01d4bdc66e7807a4e5c3aa605d747fd2d2bc78520bd535abec2132e",
+      "object_bytes": 23665
+    },
+    {
+      "triple": "aarch64-unknown-linux-gnu",
+      "llvm_sha256": "f2de20a154c76676e35929591b0001e175aebd3924c692ebb9375043f15316c6",
+      "object_sha256": "6808982604daa41c6f3de96cdae35eeb42f1b6cf9c8f2b8f2ca3239b24637494",
+      "object_bytes": 25672
+    }
+  ],
+  "foreign_execution_claimed": false
+}

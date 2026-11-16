@@ -8,6 +8,10 @@ fn run(source: &str) {
     let directory = tempfile::tempdir().unwrap();
     for (name, contents) in [
         (
+            "Text.Base64.Encoding",
+            include_str!("../prelude/Text/Base64/Encoding.cinch"),
+        ),
+        (
             "Text.Json.Codec",
             include_str!("../prelude/Text/Json/Codec.cinch"),
         ),
@@ -89,6 +93,43 @@ fn json_record_name_matching_matches_independent_observations() {
 #[test]
 fn json_record_policies_callbacks_and_large_values_are_bounded() {
     run(include_str!("fixtures/json-codec-codec-control.cinch"));
+}
+
+/// Every signed/unsigned machine width preserves independent null/type/range outcomes.
+#[test]
+fn json_integer_widths_match_independent_observations() {
+    run(include_str!("fixtures/json-codec-integer.cinch"));
+}
+
+/// Binary slices and fixed byte arrays preserve independent text and partial numeric updates.
+#[test]
+fn json_binary_values_match_independent_observations() {
+    run(include_str!("fixtures/json-codec-binary.cinch"));
+}
+
+/// Malformed binary prefixes preserve prior aliases, exact progress and large bounded pipelines.
+#[test]
+fn json_binary_partial_updates_aliases_and_policies_are_bounded() {
+    run(include_str!("fixtures/json-codec-binary-control.cinch"));
+}
+
+/// The actual production SWAR primitives agree with a scalar model for every byte in every lane.
+#[test]
+fn json_word_kernels_match_every_lane_byte() {
+    let source = include_str!("../prelude/Text/Json/Codec.cinch");
+    let mut consumer = String::from("-- | Independent JSON word primitive validation.\nmodule Main where\n  import Data.Machine\n  import Data.Bytes.Word\n");
+    for name in ["decimal-eight", "binary-linebreak-eight"] {
+        let start = source.find(&format!("  prim {name} ::")).unwrap();
+        let rest = &source[start..];
+        let end = rest.find("\n  -- |").unwrap_or(rest.len());
+        consumer.push_str("  -- | Exact production word primitive.\n");
+        consumer.push_str(&rest[..end]);
+        consumer.push('\n');
+    }
+    consumer.push_str(include_str!(
+        "fixtures/json-codec-word-kernel-body.cinch.inc"
+    ));
+    run(&consumer);
 }
 
 /// Every public/private declaration and constructor owns canonical standard-library documentation.
