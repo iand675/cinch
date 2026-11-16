@@ -394,5 +394,6 @@
   "interfaces_sha256": "e2140bc97b9f30a3739c1a142f0d22c290a02602bcc66ff7342f408cf6d18a67",
   "checkpoint_role": "Pre-extension observation only; this older frontend does not admit the new sealed-array recursive shape.",
   "fixture_selection": "The first18 source vectors, before the two preserved nested-value-binder cases were appended.",
-  "compiler_provenance": "Preserved fc183 mutation-family Stage3; compiler source4de3bd70, verified fixed point, interfaces and changed-source rebuild."
+  "compiler_provenance": "Preserved fc183 mutation-family Stage3; compiler source4de3bd70, verified fixed point, interfaces and changed-source rebuild.",
+  "fixture_revision": "de2424ed:compiler/tests/fixtures/nested-array-positivity-vectors.json"
 }
