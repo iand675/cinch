@@ -1,0 +1,628 @@
+{
+  "format": 1,
+  "compiler_host_stack_bytes": 67108864,
+  "counts": {
+    "F32": 361,
+    "F64": 361,
+    "String": 100,
+    "I16": 25,
+    "I32": 25,
+    "I64": 25,
+    "I8": 25,
+    "Int": 25,
+    "Isize": 25,
+    "Nat": 25,
+    "U16": 25,
+    "U32": 25,
+    "U64": 25,
+    "U8": 25,
+    "Usize": 25,
+    "Default": 107
+  },
+  "vectors_sha256": "b7fb4783bb3153888c836fc6a2a3c4cc999943ec86e1950d0b8ca4c33ccc426c",
+  "library_sha256": "7e437b4122c760c518349817b0cef1eebd11df6171139be05bab7736b010f918",
+  "foreign_source_sha256": "892daff74b0bd8a7636afbebf9ea96f6ce40f9f987339cb323d98c448f4dffe8",
+  "foreign_object_sha256": "58bdcc3489f7f0ea07ae3f8e6fb233a8271a9378008d3ef043c9dcf1b01f3591",
+  "frontends": {
+    "rust": {
+      "compiler": "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+      "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+      "runtime": "/workspace/dasl-stdlib-io/compiler/runtime/target/release/libcinchruntime.a",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac"
+    }
+  },
+  "runs": [
+    {
+      "target_triple": "x86_64-unknown-linux-gnu",
+      "target_source": "LLVM",
+      "reference_native_word_bits": 64,
+      "frontend": "rust",
+      "case": "F32",
+      "compile_seconds": 3.0066481370013207,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/rust-F32.ll"
+      ],
+      "stdout": "",
+      "stderr": "",
+      "ir_sha256": "b2ccce5760e8c9541daad4ccd7d3ba987a47e3d4cbc0732f10dea871422dc869",
+      "executable_sha256": "faf762d9306a7d8594ad90a0ca061d6917bfd4b0c817244f608bae06f19419ae",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "consumer_source_sha256": "f336db2d03e662448e05637c0a381b05e353c1753b488df740ad68a49547ea72",
+      "consumer_source_path": "/workspace/dasl-stdlib-compare/build/compare/final-cad70/F32.source"
+    },
+    {
+      "target_triple": "x86_64-unknown-linux-gnu",
+      "target_source": "LLVM",
+      "reference_native_word_bits": 64,
+      "frontend": "rust",
+      "case": "F64",
+      "compile_seconds": 3.1378681249916553,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/rust-F64.ll"
+      ],
+      "stdout": "",
+      "stderr": "",
+      "ir_sha256": "83951a0d979bf5126efa4e51767ed68e3ca5fa9d83df184fa46d906ce67ab354",
+      "executable_sha256": "ea4b7a45a2eb4f51c60d44dcad8f3ca0a63257674c5d5ac529aaa253deefbda3",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "consumer_source_sha256": "af4feb7f5ac101191ebc12c04d5d26fc2a61edb3b18794ff65458356f86e1a88",
+      "consumer_source_path": "/workspace/dasl-stdlib-compare/build/compare/final-cad70/F64.source"
+    },
+    {
+      "target_triple": "x86_64-unknown-linux-gnu",
+      "target_source": "LLVM",
+      "reference_native_word_bits": 64,
+      "frontend": "rust",
+      "case": "String",
+      "compile_seconds": 3.011851054005092,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/rust-String.ll"
+      ],
+      "stdout": "",
+      "stderr": "",
+      "ir_sha256": "222a595876dfd1aa888ff2aba7dbacf14e78ee9823baa1e50a972887537b192c",
+      "executable_sha256": "9bf0686b690c39e59d3de54d668f3e4a3defa8ec162bbce09a7061ff77c51d85",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "consumer_source_sha256": "ef78f57575483b86afb886670b38d971960c8719d1093c43fa1473fcef51ee6a",
+      "consumer_source_path": "/workspace/dasl-stdlib-compare/build/compare/final-cad70/String.source"
+    },
+    {
+      "target_triple": "x86_64-unknown-linux-gnu",
+      "target_source": "LLVM",
+      "reference_native_word_bits": 64,
+      "frontend": "rust",
+      "case": "I16",
+      "compile_seconds": 3.090964832008467,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/rust-I16.ll"
+      ],
+      "stdout": "",
+      "stderr": "",
+      "ir_sha256": "1a400c38384a666450ddb7a091652c4f2a16cf4476f325e33145fedb8f62b54c",
+      "executable_sha256": "cc40c28423bbd46ced0dd4471f93a298b0ec6b34edd984fcf74f1af0876dd435",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "consumer_source_sha256": "6fd55461e35c1369e2a4382d2daf955b1100e42c3bda0bf7d1c6b899f84ead29",
+      "consumer_source_path": "/workspace/dasl-stdlib-compare/build/compare/final-cad70/I16.source"
+    },
+    {
+      "target_triple": "x86_64-unknown-linux-gnu",
+      "target_source": "LLVM",
+      "reference_native_word_bits": 64,
+      "frontend": "rust",
+      "case": "I32",
+      "compile_seconds": 3.0096742449968588,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/rust-I32.ll"
+      ],
+      "stdout": "",
+      "stderr": "",
+      "ir_sha256": "32a701c84e0a44b57493c68a7e70f8d851ce0d72218a2cc8814233737583a611",
+      "executable_sha256": "2dee44d842c41ba053be9df8eb58fc7f051b986da4eb01b77713e59d97d65c5c",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "consumer_source_sha256": "da7bbe8f7645a1fc6400d09e107c95367ed483b1c08fb0c30620b44c8f5ce0e3",
+      "consumer_source_path": "/workspace/dasl-stdlib-compare/build/compare/final-cad70/I32.source"
+    },
+    {
+      "target_triple": "x86_64-unknown-linux-gnu",
+      "target_source": "LLVM",
+      "reference_native_word_bits": 64,
+      "frontend": "rust",
+      "case": "I64",
+      "compile_seconds": 2.61683173799247,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/rust-I64.ll"
+      ],
+      "stdout": "",
+      "stderr": "",
+      "ir_sha256": "76672f06f65b815002c807b4ef5af931ff758ad6a5e11c9c25ea44cef46816ba",
+      "executable_sha256": "c8e89a1655af63136d4603b22649c42d4b310ce1829f14359f8b9c29c8f18a84",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "consumer_source_sha256": "7ea6e223e900d1518a9acb213065de72173b83ad41fb07e70820cc06393a746f",
+      "consumer_source_path": "/workspace/dasl-stdlib-compare/build/compare/final-cad70/I64.source"
+    },
+    {
+      "target_triple": "x86_64-unknown-linux-gnu",
+      "target_source": "LLVM",
+      "reference_native_word_bits": 64,
+      "frontend": "rust",
+      "case": "I8",
+      "compile_seconds": 2.7160045229975367,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/rust-I8.ll"
+      ],
+      "stdout": "",
+      "stderr": "",
+      "ir_sha256": "1140e556ed769cc713839dcf025888782c0ac4e9672cf49f35a3373e0f0c3edc",
+      "executable_sha256": "4ffa192d0dca34c7ba79938191af5924b1c0c4a1eb6e79362899a718295f6994",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "consumer_source_sha256": "75fdf8375254d2d6e66b14948135dda010575d7ba8e4e95c571b7e931a900ca7",
+      "consumer_source_path": "/workspace/dasl-stdlib-compare/build/compare/final-cad70/I8.source"
+    },
+    {
+      "target_triple": "x86_64-unknown-linux-gnu",
+      "target_source": "LLVM",
+      "reference_native_word_bits": 64,
+      "frontend": "rust",
+      "case": "Int",
+      "compile_seconds": 2.53655099599564,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/rust-Int.ll"
+      ],
+      "stdout": "",
+      "stderr": "",
+      "ir_sha256": "6c3907611bc1dda162df1b8ba872c202d8eb092f0cca04d0af6ebc896d1db374",
+      "executable_sha256": "6414ef73428be42f5c0f741d6d9f6dfa078d9de698469a0ca6232f0ba3f4a486",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "consumer_source_sha256": "982e8044cb9b6d910c30d19711cf8a69d2ec69b3026c71050d481ec2d51e8420",
+      "consumer_source_path": "/workspace/dasl-stdlib-compare/build/compare/final-cad70/Int.source"
+    },
+    {
+      "target_triple": "x86_64-unknown-linux-gnu",
+      "target_source": "LLVM",
+      "reference_native_word_bits": 64,
+      "frontend": "rust",
+      "case": "Isize",
+      "compile_seconds": 2.669139677003841,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/rust-Isize.ll"
+      ],
+      "stdout": "",
+      "stderr": "",
+      "ir_sha256": "af8a1775427b39215b3da0a358eb3d9d604b684445e12c511ea0bcace753a14a",
+      "executable_sha256": "632be051c8381bf8250627223d61f13352787fc8613b2b69c3ebec4a2754e7c2",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "consumer_source_sha256": "76c08861df9aca8ce894dca566c06bc3a616bb9bc138508f420133c61292f0c9",
+      "consumer_source_path": "/workspace/dasl-stdlib-compare/build/compare/final-cad70/Isize.source"
+    },
+    {
+      "target_triple": "x86_64-unknown-linux-gnu",
+      "target_source": "LLVM",
+      "reference_native_word_bits": 64,
+      "frontend": "rust",
+      "case": "Nat",
+      "compile_seconds": 3.2542492799984757,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/rust-Nat.ll"
+      ],
+      "stdout": "",
+      "stderr": "",
+      "ir_sha256": "5221aba2abf01953a8c84fcf642c96ea64753cdce9a88987811d0c4bc96fdf44",
+      "executable_sha256": "bbed1df5b7b5e7e590d924535c0ec16ab303adfb1310c5fe5c35aab056fd8258",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "consumer_source_sha256": "8fe75c76fbc3853e921e8783dd03e95f6746cf82796fea121ca910d241449662",
+      "consumer_source_path": "/workspace/dasl-stdlib-compare/build/compare/final-cad70/Nat.source"
+    },
+    {
+      "target_triple": "x86_64-unknown-linux-gnu",
+      "target_source": "LLVM",
+      "reference_native_word_bits": 64,
+      "frontend": "rust",
+      "case": "U16",
+      "compile_seconds": 2.8634582929953467,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/rust-U16.ll"
+      ],
+      "stdout": "",
+      "stderr": "",
+      "ir_sha256": "bcdfcbe9575ba1f9de0a85dd33cf55fb0b4feae3accc0df59864101ea1e304a1",
+      "executable_sha256": "7a1c71b26458bedb19042bd54bac5b496184d1ab3a824a3c23eb1c62c1ba3c56",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "consumer_source_sha256": "e4d4f4dc28e6d43731e8780e792f4eb973798cb26518aad6a4afe628fc6b4ad3",
+      "consumer_source_path": "/workspace/dasl-stdlib-compare/build/compare/final-cad70/U16.source"
+    },
+    {
+      "target_triple": "x86_64-unknown-linux-gnu",
+      "target_source": "LLVM",
+      "reference_native_word_bits": 64,
+      "frontend": "rust",
+      "case": "U32",
+      "compile_seconds": 3.4341649870038964,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/rust-U32.ll"
+      ],
+      "stdout": "",
+      "stderr": "",
+      "ir_sha256": "752abdc1ef4cd35a164e4512d50c57e277681ee50a3b42cabf7a572901df747e",
+      "executable_sha256": "e270c1da4d73c8005329e177c9fdfb3337a0a4fe64c85e7b5773b4802c3d969e",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "consumer_source_sha256": "7c462ffc4806acd7a70eec195e1a6beb55fb5307c29ef6c00bcfddf87b394c3d",
+      "consumer_source_path": "/workspace/dasl-stdlib-compare/build/compare/final-cad70/U32.source"
+    },
+    {
+      "target_triple": "x86_64-unknown-linux-gnu",
+      "target_source": "LLVM",
+      "reference_native_word_bits": 64,
+      "frontend": "rust",
+      "case": "U64",
+      "compile_seconds": 3.044625795999309,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/rust-U64.ll"
+      ],
+      "stdout": "",
+      "stderr": "",
+      "ir_sha256": "2ad19bd4645d4d67a9a1ac28a5a4c198e8642ecec059bae0bafd92933fcdf530",
+      "executable_sha256": "f581661c04a36b2adef169ebf66fbffeb39ac0d6fad5ee079630f35e8690f01f",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "consumer_source_sha256": "04c1a9187278f60492f431cbc484c510ed2e01340e6c5430d15e31ad1509bc0f",
+      "consumer_source_path": "/workspace/dasl-stdlib-compare/build/compare/final-cad70/U64.source"
+    },
+    {
+      "target_triple": "x86_64-unknown-linux-gnu",
+      "target_source": "LLVM",
+      "reference_native_word_bits": 64,
+      "frontend": "rust",
+      "case": "U8",
+      "compile_seconds": 3.1209629730001325,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/rust-U8.ll"
+      ],
+      "stdout": "",
+      "stderr": "",
+      "ir_sha256": "e1f653de58266fb7787a5e8317bb92aa514471ca34f67ea7619c5a7599e2b95e",
+      "executable_sha256": "bada927cad8d1e4c2a6ebfa74d3dc0058bb82502c316a1dffce9c97126a35fcd",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "consumer_source_sha256": "a972e6094d9b98d95e8789cbe267de42da52cef6abedf3729d1236c84eacbfc0",
+      "consumer_source_path": "/workspace/dasl-stdlib-compare/build/compare/final-cad70/U8.source"
+    },
+    {
+      "target_triple": "x86_64-unknown-linux-gnu",
+      "target_source": "LLVM",
+      "reference_native_word_bits": 64,
+      "frontend": "rust",
+      "case": "Usize",
+      "compile_seconds": 2.7003610039973864,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/rust-Usize.ll"
+      ],
+      "stdout": "",
+      "stderr": "",
+      "ir_sha256": "1d3c00b12878ce7a4e04f12e4a183ce5487146ea272e9e65b458881a5adc95f0",
+      "executable_sha256": "d81f159df79701820dce4e155a32c68f5785ba0a98b3584664ee43be355d9536",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "consumer_source_sha256": "e70890d054146068b6e990368cb4da3cd14cc0087eb24551e70039a590933216",
+      "consumer_source_path": "/workspace/dasl-stdlib-compare/build/compare/final-cad70/Usize.source"
+    },
+    {
+      "target_triple": "x86_64-unknown-linux-gnu",
+      "target_source": "LLVM",
+      "reference_native_word_bits": 64,
+      "frontend": "rust",
+      "case": "Default",
+      "compile_seconds": 3.5441370340122376,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/compare/final-cad70/rust-Default.ll"
+      ],
+      "stdout": "",
+      "stderr": "",
+      "ir_sha256": "a7b9697bc554a2ce01123ca120208436101e71460c5732d58167d1f81cec0b77",
+      "executable_sha256": "877e8ba8471fce204128efed01c66dd3b4d436359280634b92a3e1b9b7169dc5",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "consumer_source_sha256": "8fe00482d60203220850ba9f3585a077d44a8f720ce8b463df07727961ab3e5d",
+      "consumer_source_path": "/workspace/dasl-stdlib-compare/build/compare/final-cad70/Default.source"
+    }
+  ]
+}

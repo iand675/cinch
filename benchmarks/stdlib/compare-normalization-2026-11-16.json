@@ -1,0 +1,5 @@
+{
+  "change": "Remove one empty line at EOF; functional declarations unchanged.",
+  "before_sha256": "7e437b4122c760c518349817b0cef1eebd11df6171139be05bab7736b010f918",
+  "after_sha256": "2c8339cfe0420a3ad27bed174308286e4c7e377318adf18dd8dcd5ce172686cb"
+}

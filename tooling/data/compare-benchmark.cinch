@@ -1,0 +1,87 @@
+-- | Time observable public comparison and selection loops over runtime inputs.
+module Main where
+  import Data.Compare
+  import Data.Machine
+  import Data.Ordering
+  import Data.String
+  import Data.Char
+  import Data.Int
+  import Data.Nat
+  import Text.Show
+  import Effect.Clock
+  import Effect.Process
+  import Effect.Io
+
+  -- | Parse a nonnegative decimal harness argument outside the measured interval.
+  decimal :: String -> Nat
+  decimal s = decimal-from (unpack s) 0
+  -- | Consume validated decimal digits; malformed input becomes zero.
+  decimal-from :: List Char -> Nat -> Nat
+  decimal-from cs n = case cs of
+    Nil -> n
+    Cons c rest -> case digit-value c of
+      None -> 0
+      Some d -> decimal-from rest (n * 10 + d)
+
+  -- | Turn a public comparison result into the signed reference checksum.
+  code :: Ordering -> I64
+  code x = case x of LT -> -1; EQ -> 0; GT -> 1
+
+  -- | Construct a quiet NaN without relying on literal parsing or global float equality.
+  prim fixture-nan :: I64 -> F64 where
+    llvm {
+      %r = bitcast i64 9221120237041090560 to double
+      ret double %r
+    }
+
+  -- | Select runtime string operands from a fixed UTF-8 corpus.
+  string-at :: I64 -> String
+  string-at i = if eq-i64 i 0 then "" else if eq-i64 i 1 then "alpha" else if eq-i64 i 2 then "alpine" else if eq-i64 i 3 then "é" else "雪"
+
+  -- | Extract a nonnegative remainder with an explicitly checked machine operation.
+  remainder :: I64 -> I64 -> I64
+  remainder x n = case checked-rem-i64 x n of None -> 0; Some r -> r
+
+  -- | Observe both public generic order operations, including their NaN policy.
+  operation :: U32 -> I64 -> I64
+  operation mode i =
+    let x = wrapping-sub-i64 (remainder i 257) 128 in
+    let y = wrapping-sub-i64 (remainder i 193) 96 in
+    if eq-u32 mode 0 then wrapping-add-i64 (code (compare x y)) (if less x y then 3 else 0)
+    else if eq-u32 mode 1 then
+      let a = if eq-i64 (remainder i 17) 0 then fixture-nan i else i64-to-f64 x in
+      let b = i64-to-f64 y in
+      wrapping-add-i64 (code (compare a b)) (if less a b then 3 else 0)
+    else if eq-u32 mode 2 then first-non-default (Cons (0 :: I64) (Cons 0 (Cons x (Cons y Nil))))
+    else
+      let a = string-at (remainder i 5) in
+      let b = string-at (remainder i 3) in
+      wrapping-add-i64 (code (compare a b)) (if less a b then 3 else 0)
+
+  -- | Keep the checksum observable and operands dynamic throughout the measured loop.
+  repeat :: U32 -> I64 -> I64 -> I64 -> I64
+  repeat mode n i acc =
+    if lt-i64 i n then repeat mode n (wrapping-add-i64 i 1) (wrapping-add-i64 acc (operation mode i))
+    else acc
+
+  -- | Time a complete public API loop, excluding parsing and printed output.
+  measure :: forall r. using (io :: Io r) => String -> Nat ->{IO r} Int
+  measure mode count =
+    if count <= 9223372036854775807 then
+      let n = nat-to-i64 count in
+      let modeCode = if mode == "integer" then (0 :: U32) else if mode == "float" then 1 else if mode == "choice" then 2 else 3 in
+      let start = clock-monotonic-ns () in
+      let result = repeat modeCode n 0 0 in
+      let end = clock-monotonic-ns () in
+      let printed = ioWrite (string-to-bytes (string-concat (nat-to-string (saturating-sub end start)) (string-concat " " (string-concat (int-to-string (int-from-i64 result)) "\n")))) in
+      0
+    else 2
+
+  -- | Read the selected workload and runtime iteration count from the harness.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    case process-args () of
+      Err _ -> 2
+      Ok args -> case args of
+        Cons mode (Cons count Nil) -> measure mode (decimal count)
+        _ -> 2

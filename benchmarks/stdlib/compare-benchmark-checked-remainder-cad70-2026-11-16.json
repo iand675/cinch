@@ -1,0 +1,410 @@
+{
+  "format": 1,
+  "compiler": "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+  "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "library_sha256": "2c8339cfe0420a3ad27bed174308286e4c7e377318adf18dd8dcd5ce172686cb",
+  "driver_sha256": "9edfadaea2e425abe578516769ae9df85b8a383a082c07cb8cdc84eeb0ec4887",
+  "reference_source_sha256": "49dd0b6db63e161376b817be3f6a1f3744fafec541a321bd6c1a167b2ff9ec4e",
+  "cpu_affinity": [
+    0
+  ],
+  "opt_level": 2,
+  "iterations": [
+    1000,
+    10000,
+    100000
+  ],
+  "samples": 7,
+  "profile": {
+    "heap": "32M",
+    "stack": "8M",
+    "poison": false,
+    "leak_check": true
+  },
+  "scope": "Complete public scalar comparison/less or first-non-default pipeline; includes loop, dispatch, arithmetic and selection container construction. No timing threshold. Different allocation and compiler policies remain visible.",
+  "results": [
+    {
+      "mode": "integer",
+      "iterations": 1000,
+      "checksum": 1581,
+      "raw_samples_ns": {
+        "cinch": [
+          35273,
+          35023,
+          35093,
+          35063,
+          35002,
+          35133,
+          35173
+        ],
+        "reference": [
+          2914,
+          2895,
+          2965,
+          2864,
+          2804,
+          2885,
+          3154
+        ]
+      },
+      "median_ns_per_iteration": {
+        "cinch": 35.093,
+        "reference": 2.895
+      },
+      "cinch_over_reference": 12.121934369602764
+    },
+    {
+      "mode": "integer",
+      "iterations": 10000,
+      "checksum": 15265,
+      "raw_samples_ns": {
+        "cinch": [
+          369036,
+          390388,
+          551811,
+          421455,
+          384809,
+          347924,
+          347874
+        ],
+        "reference": [
+          52839,
+          52609,
+          53551,
+          51988,
+          53441,
+          53741,
+          52569
+        ]
+      },
+      "median_ns_per_iteration": {
+        "cinch": 38.4809,
+        "reference": 5.2839
+      },
+      "cinch_over_reference": 7.282669997539696
+    },
+    {
+      "mode": "integer",
+      "iterations": 100000,
+      "checksum": 149436,
+      "raw_samples_ns": {
+        "cinch": [
+          3798451,
+          3613983,
+          3578510,
+          3703067,
+          3933184,
+          3791310,
+          3583817
+        ],
+        "reference": [
+          404930,
+          344849,
+          374995,
+          346912,
+          371419,
+          381094,
+          388084
+        ]
+      },
+      "median_ns_per_iteration": {
+        "cinch": 37.03067,
+        "reference": 3.74995
+      },
+      "cinch_over_reference": 9.87497699969333
+    },
+    {
+      "mode": "float",
+      "iterations": 1000,
+      "checksum": 1606,
+      "raw_samples_ns": {
+        "cinch": [
+          53481,
+          53811,
+          53540,
+          53461,
+          53590,
+          53440,
+          53630
+        ],
+        "reference": [
+          3906,
+          3816,
+          3926,
+          3826,
+          4016,
+          3836,
+          3916
+        ]
+      },
+      "median_ns_per_iteration": {
+        "cinch": 53.54,
+        "reference": 3.906
+      },
+      "cinch_over_reference": 13.707117255504352
+    },
+    {
+      "mode": "float",
+      "iterations": 10000,
+      "checksum": 15545,
+      "raw_samples_ns": {
+        "cinch": [
+          549267,
+          529427,
+          569698,
+          530168,
+          530649,
+          642388,
+          529417
+        ],
+        "reference": [
+          61472,
+          56845,
+          60702,
+          60611,
+          62444,
+          60271,
+          57506
+        ]
+      },
+      "median_ns_per_iteration": {
+        "cinch": 53.0649,
+        "reference": 6.0611
+      },
+      "cinch_over_reference": 8.754994967910116
+    },
+    {
+      "mode": "float",
+      "iterations": 100000,
+      "checksum": 152411,
+      "raw_samples_ns": {
+        "cinch": [
+          5485643,
+          5819044,
+          5537991,
+          5593475,
+          5455186,
+          5386403,
+          5583600
+        ],
+        "reference": [
+          475517,
+          436347,
+          433574,
+          458461,
+          461856,
+          479613,
+          548947
+        ]
+      },
+      "median_ns_per_iteration": {
+        "cinch": 55.37991,
+        "reference": 4.61856
+      },
+      "cinch_over_reference": 11.990730877156516
+    },
+    {
+      "mode": "choice",
+      "iterations": 1000,
+      "checksum": -3080,
+      "raw_samples_ns": {
+        "cinch": [
+          125509,
+          125499,
+          125018,
+          126030,
+          125098,
+          125109,
+          194423
+        ],
+        "reference": [
+          3325,
+          3325,
+          3435,
+          3315,
+          3435,
+          3275,
+          3305
+        ]
+      },
+      "median_ns_per_iteration": {
+        "cinch": 125.499,
+        "reference": 3.325
+      },
+      "cinch_over_reference": 37.74406015037594
+    },
+    {
+      "mode": "choice",
+      "iterations": 10000,
+      "checksum": -1690,
+      "raw_samples_ns": {
+        "cinch": [
+          1304525,
+          1490675,
+          1444996,
+          1278195,
+          1335702,
+          1424816,
+          1347019
+        ],
+        "reference": [
+          57587,
+          56115,
+          55934,
+          103296,
+          57236,
+          56175,
+          30546
+        ]
+      },
+      "median_ns_per_iteration": {
+        "cinch": 134.7019,
+        "reference": 5.6175
+      },
+      "cinch_over_reference": 23.978976412995106
+    },
+    {
+      "mode": "choice",
+      "iterations": 100000,
+      "checksum": -3010,
+      "raw_samples_ns": {
+        "cinch": [
+          13579333,
+          13505561,
+          13397520,
+          12923204,
+          12791446,
+          12695101,
+          13031037
+        ],
+        "reference": [
+          376407,
+          400243,
+          443528,
+          400603,
+          410107,
+          401165,
+          409426
+        ]
+      },
+      "median_ns_per_iteration": {
+        "cinch": 130.31037,
+        "reference": 4.01165
+      },
+      "cinch_over_reference": 32.4829858038463
+    },
+    {
+      "mode": "string",
+      "iterations": 1000,
+      "checksum": 998,
+      "raw_samples_ns": {
+        "cinch": [
+          89054,
+          110085,
+          88584,
+          89154,
+          89054,
+          89124,
+          89045
+        ],
+        "reference": [
+          35684,
+          9595,
+          9715,
+          9605,
+          9795,
+          9695,
+          9735
+        ]
+      },
+      "median_ns_per_iteration": {
+        "cinch": 89.054,
+        "reference": 9.715
+      },
+      "cinch_over_reference": 9.166649511065364
+    },
+    {
+      "mode": "string",
+      "iterations": 10000,
+      "checksum": 9998,
+      "raw_samples_ns": {
+        "cinch": [
+          921748,
+          893105,
+          874447,
+          895118,
+          897521,
+          937172,
+          1018183
+        ],
+        "reference": [
+          139471,
+          141983,
+          160472,
+          137096,
+          136576,
+          135374,
+          140222
+        ]
+      },
+      "median_ns_per_iteration": {
+        "cinch": 89.7521,
+        "reference": 13.9471
+      },
+      "cinch_over_reference": 6.435180073276881
+    },
+    {
+      "mode": "string",
+      "iterations": 100000,
+      "checksum": 99998,
+      "raw_samples_ns": {
+        "cinch": [
+          9197743,
+          9817046,
+          10059280,
+          9075510,
+          9409022,
+          9635834,
+          9480008
+        ],
+        "reference": [
+          940957,
+          1058284,
+          1459608,
+          1291796,
+          1226347,
+          1256333,
+          1329342
+        ]
+      },
+      "median_ns_per_iteration": {
+        "cinch": 94.80008,
+        "reference": 12.56333
+      },
+      "cinch_over_reference": 7.545776478051598
+    }
+  ],
+  "compile": {
+    "command": [
+      "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+      "emit-ir",
+      "/workspace/dasl-stdlib-compare/build/compare/bench-cad70/Main.cinch",
+      "-o",
+      "/workspace/dasl-stdlib-compare/build/compare/bench-cad70/bench.ll"
+    ],
+    "stdout": "",
+    "stderr": ""
+  },
+  "target_triple": "x86_64-unknown-linux-gnu",
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "machine": "x86_64",
+  "clang": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)",
+  "reference_GOMAXPROCS": 1,
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "executable_sha256": "600df4ed5e7c2c9a97d2af99923625716223e20d16be85f5b25571a6c63c5713",
+  "llvm_sha256": "30fd20d485dfab2c5c219e2abd956ec0a6ae4cc2ffaf89a5a7d2c541fc5491ce",
+  "assembly_sha256": "19c6f36f7a940ad36938f6a75ac6fa0945fc445b04d3732ad7768357c1c2c05f",
+  "reference_executable_sha256": "8f21445e04d602e2ca0bd249fdc44c78a30f2ecad666db2550a24352fb6da333",
+  "sdk": "go version go1.27.4 linux/amd64"
+}
