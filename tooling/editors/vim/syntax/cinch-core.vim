@@ -33,8 +33,8 @@ syntax match cinchCoreStructure "^unit\>"
 syntax keyword cinchCoreKeyword forall refine with
 syntax keyword cinchCoreBoolean true false
 
-" Ownership classes (section 10: owned, borrowed, lent, uncounted, immortal).
-syntax keyword cinchCoreClass owned borrowed lent uncounted immortal
+" Representation and legacy ownership classes.
+syntax keyword cinchCoreClass obj owned borrowed lent uncounted immortal
 
 " The unit name on its `unit <Name> :: <type>` line. Dictionary units are
 " named `$d.<Class>.<Type>`; the binding group below wins on those.
@@ -46,12 +46,12 @@ syntax match cinchCoreDictBinding "\$static\>"
 
 " Annotations: `@span`, `@class`, `@captures`, `@specialised`, `@rewrite`,
 " `@prim`, `@resolved`, `@tailrec`, `@join`, `@stage`.
-syntax match cinchCoreAnnotation "@[A-Za-z_]\+"
+syntax match cinchCoreAnnotation "@[A-Za-z_][A-Za-z0-9_-]*"
 " A parameter's class prints as `@<class>` (section 4 example) as well as
 " `@ <class>` (section 10). The `@` belongs to the annotation spelling, so
 " the class match starts at the `@` and skips it with `hs=s+1`; being
 " defined after the annotation it wins that tie.
-syntax match cinchCoreClass "@\%(owned\|borrowed\|lent\|uncounted\|immortal\)\>"hs=s+1
+syntax match cinchCoreClass "@\%(obj\|owned\|borrowed\|lent\|uncounted\|immortal\)\>"hs=s+1
 
 " Canonical s-expression heads, one node form per name in section 8.2.
 syntax match cinchCoreNode "\%((\)\@<=\%(int\|nat\|bytes\|string\|sym\|bool\|unit\|local\|global\|ctor\|prim\|foreign\|app\|lam\|dictproj\|proj\|instdict\|let\|if\|case\|alt\|pat\|dup\|drop\|release\|boxinit\|boxget\|boxclear\|refset\|quote\|splice\|syntaxlit\|demand\)\>"

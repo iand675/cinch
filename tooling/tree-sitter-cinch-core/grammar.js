@@ -102,7 +102,7 @@ module.exports = grammar({
       seq(
         '@',
         choice(
-          // `@class owned` is the spelled out form; `@owned` is the
+          // `@class obj` is the spelled out form; `@obj` is the
           // printed one (section 4), optionally with the ownership counts.
           seq('class', $.class),
           seq($.class, optional($.ownership_counts)),
@@ -147,7 +147,7 @@ module.exports = grammar({
     param: ($) => seq($.name, '::', $.type, '@', $.class),
 
     class: ($) =>
-      choice('owned', 'borrowed', 'lent', 'uncounted', 'immortal'),
+      choice('obj', 'owned', 'borrowed', 'lent', 'uncounted', 'immortal'),
 
     // Types print in surface like canonical form. `forall a b. T` binds the
     // whole rest; arrows associate right; application is juxtaposition.

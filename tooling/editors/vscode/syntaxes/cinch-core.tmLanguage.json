@@ -82,20 +82,20 @@
     "classes": {
       "patterns": [
         {
-          "match": "@(owned|borrowed|lent|uncounted|immortal)\\b",
+          "match": "@(obj|owned|borrowed|lent|uncounted|immortal)\\b",
           "captures": {
             "1": { "name": "storage.modifier.ownership.cinch-core" }
           }
         },
         {
           "name": "storage.modifier.ownership.cinch-core",
-          "match": "\\b(owned|borrowed|lent|uncounted|immortal)\\b"
+          "match": "\\b(obj|owned|borrowed|lent|uncounted|immortal)\\b"
         }
       ]
     },
     "annotations": {
       "patterns": [
-        { "name": "storage.type.annotation.cinch-core", "match": "@[A-Za-z_]+" }
+        { "name": "storage.type.annotation.cinch-core", "match": "@[A-Za-z_][A-Za-z0-9_-]*" }
       ]
     },
     "literals": {

@@ -36,7 +36,7 @@ a symbol character, so `regexp-opt` cannot anchor it.")
 s-expression head.")
 
 (defconst cinch-core-classes
-  '("owned" "borrowed" "lent" "uncounted" "immortal")
+  '("obj" "owned" "borrowed" "lent" "uncounted" "immortal")
   "Ownership classes (section 10).")
 
 (defconst cinch-core-forms
@@ -66,10 +66,10 @@ s-expression head.")
    ;; Record words, ownership classes and annotations.
    (cons (regexp-opt cinch-core-keywords 'symbols) 'font-lock-keyword-face)
    (cons (regexp-opt cinch-core-classes 'symbols) 'font-lock-builtin-face)
-   '("@[A-Za-z_]+" (0 font-lock-preprocessor-face))
+   '("@[A-Za-z_][A-Za-z0-9_-]*" (0 font-lock-preprocessor-face))
    ;; A parameter's class prints `@<class>` as well as `@ <class>`, so the
    ;; class word wins inside an annotation; group 1 leaves `@` alone.
-   '("@\\(owned\\|borrowed\\|lent\\|uncounted\\|immortal\\)\\_>"
+   '("@\\(obj\\|owned\\|borrowed\\|lent\\|uncounted\\|immortal\\)\\_>"
      (1 font-lock-builtin-face))
 
    ;; S-expression heads.

@@ -77,16 +77,16 @@ contexts:
   annotations:
     # `@span`, `@class`, `@captures`, `@specialised`, `@rewrite`, `@prim`,
     # `@resolved`, `@tailrec`, `@join`, `@stage`.
-    - match: '@[A-Za-z_]+'
+    - match: '@[A-Za-z_][A-Za-z0-9_-]*'
       scope: storage.type.annotation.cinch-core
 
   classes:
     # A parameter's class prints `@<class>` as well as `@ <class>`, so the
     # class rule sits after the annotation rule and wins the `@` position.
-    - match: '@(owned|borrowed|lent|uncounted|immortal)\b'
+    - match: '@(obj|owned|borrowed|lent|uncounted|immortal)\b'
       captures:
         1: storage.modifier.ownership.cinch-core
-    - match: '\b(owned|borrowed|lent|uncounted|immortal)\b'
+    - match: '\b(obj|owned|borrowed|lent|uncounted|immortal)\b'
       scope: storage.modifier.ownership.cinch-core
 
   literals:

@@ -208,3 +208,28 @@ end
       (annotation_args))
     (local_ref
       (name))))
+
+==========================================
+unit: inferred borrow modes are separate from the object representation
+==========================================
+core 1
+unit Main.read :: Box->Bool
+  @params box :: Box @obj
+  @borrow-modes(1)
+  body (bool true)
+end
+
+---
+
+(source_file
+  (header)
+  (unit
+    (unit_name (name))
+    (type (name) (type (name)))
+    (annotation
+      (params
+        (param (name) (type (name)) (class))))
+    (annotation
+      (annotation_name (name))
+      (annotation_args))
+    (bool_lit)))
