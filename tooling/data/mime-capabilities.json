@@ -1,0 +1,132 @@
+{
+  "pinned_sdk": "go1.27.4",
+  "package": "mime",
+  "declaration_count": 16,
+  "package_status": "complete",
+  "rows": [
+    {
+      "declaration": "const BEncoding = 98",
+      "capabilities": [
+        "Text.Mime.mime-b-encoding"
+      ],
+      "status": "implemented"
+    },
+    {
+      "declaration": "const BEncoding WordEncoder",
+      "capabilities": [
+        "Text.Mime.mime-b-encoding"
+      ],
+      "status": "implemented"
+    },
+    {
+      "declaration": "const QEncoding = 113",
+      "capabilities": [
+        "Text.Mime.mime-q-encoding"
+      ],
+      "status": "implemented"
+    },
+    {
+      "declaration": "const QEncoding WordEncoder",
+      "capabilities": [
+        "Text.Mime.mime-q-encoding"
+      ],
+      "status": "implemented"
+    },
+    {
+      "declaration": "func AddExtensionType(string, string) error",
+      "capabilities": [
+        "Text.Mime.mime-registry-add"
+      ],
+      "status": "implemented"
+    },
+    {
+      "declaration": "func ExtensionsByType(string) ([]string, error)",
+      "capabilities": [
+        "Text.Mime.mime-registry-extensions"
+      ],
+      "status": "implemented"
+    },
+    {
+      "declaration": "func FormatMediaType(string, map[string]string) string",
+      "capabilities": [
+        "Text.Mime.mime-format-media-type"
+      ],
+      "status": "implemented"
+    },
+    {
+      "declaration": "func ParseMediaType(string) (string, map[string]string, error)",
+      "capabilities": [
+        "Text.Mime.mime-parse-media-type",
+        "Text.Mime.mime-media-base",
+        "Text.Mime.mime-media-parameters",
+        "Text.Mime.mime-media-error"
+      ],
+      "status": "implemented"
+    },
+    {
+      "declaration": "func TypeByExtension(string) string",
+      "capabilities": [
+        "Text.Mime.mime-registry-type"
+      ],
+      "status": "implemented"
+    },
+    {
+      "declaration": "method (*WordDecoder) Decode(string) (string, error)",
+      "capabilities": [
+        "Effect.Mime.mime-word-decode"
+      ],
+      "status": "implemented"
+    },
+    {
+      "declaration": "method (*WordDecoder) DecodeHeader(string) (string, error)",
+      "capabilities": [
+        "Effect.Mime.mime-header-decode"
+      ],
+      "status": "implemented"
+    },
+    {
+      "declaration": "method (WordEncoder) Encode(string, string) string",
+      "capabilities": [
+        "Text.Mime.mime-word-encode-bytes"
+      ],
+      "status": "implemented"
+    },
+    {
+      "declaration": "type WordDecoder struct",
+      "capabilities": [
+        "Effect.Mime.MimeWordDecoder",
+        "Effect.Mime.mime-word-decoder"
+      ],
+      "status": "implemented"
+    },
+    {
+      "declaration": "type WordDecoder struct, CharsetReader func(string, io.Reader) (io.Reader, error)",
+      "capabilities": [
+        "Effect.Mime.mime-word-decoder-charset-reader",
+        "Effect.Mime.mime-word-decoder-with-charset-reader",
+        "Effect.Mime.MimeCharsetReader"
+      ],
+      "status": "implemented"
+    },
+    {
+      "declaration": "type WordEncoder uint8",
+      "capabilities": [
+        "Text.Mime.MimeWordEncoder",
+        "Text.Mime.mime-word-encoder-byte"
+      ],
+      "status": "implemented"
+    },
+    {
+      "declaration": "var ErrInvalidMediaParameter error",
+      "capabilities": [
+        "Text.Mime.MimeInvalidMediaParameter"
+      ],
+      "status": "implemented"
+    }
+  ],
+  "review": "benchmarks/stdlib/mime-notes.md",
+  "runtime_evidence": "benchmarks/stdlib/mime-coverage-complete-2026-11-16.json",
+  "parent_ci": "benchmarks/stdlib/mime-parent-runtime-ci-2026-11-16.json",
+  "representation": "Wire values preserve arbitrary bytes. Checked String conveniences validate UTF-8. Registry state is explicit and immutable; host associations are supplied by the caller. Charset callbacks preserve arbitrary typed caller failures and advanced reader observations.",
+  "performance_limits": "Both admitted frontend baselines retain all raw samples, codec regressions and the registry context population difference. Newer Native-family admission and performance remain a separate follow-up."
+}

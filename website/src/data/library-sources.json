@@ -835,6 +835,14 @@
       "public_methods": 0
     },
     {
+      "module": "Effect.Mime",
+      "path": "compiler/prelude/Effect/Mime.cinch",
+      "sha256": "1211c316b96474b7ed1d997092520055aca5cabba4b3c262d1a6f9d490fca215",
+      "embedded": false,
+      "values": 16,
+      "public_methods": 0
+    },
+    {
       "module": "Effect.Net",
       "path": "compiler/prelude/Effect/Net.cinch",
       "sha256": "a2cb8234289a30c321ff66c01032badecda44207e910c715466821db78321a46",
@@ -1232,6 +1240,14 @@
       "sha256": "bce5acadcde6ac5967b29c6eed2933e31df83451561d3ee9165e5d3beb2a2032",
       "embedded": false,
       "values": 18,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Mime",
+      "path": "compiler/prelude/Text/Mime.cinch",
+      "sha256": "399fb3c576ab4f4c13a0749dfa25dc72af00078636758a86e73c942018fd46a6",
+      "embedded": false,
+      "values": 29,
       "public_methods": 0
     },
     {

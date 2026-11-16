@@ -1,0 +1,43 @@
+{
+  "description": "Full MIME capability integration with checked source-distributed library reference pages",
+  "source_commits": [
+    "ecaa7ea6",
+    "9da00e80",
+    "d6e2f146",
+    "4c15582a"
+  ],
+  "parent_gate": {
+    "target": "lib_mime",
+    "passed": 2,
+    "seconds": 90.53,
+    "log_sha256": "de7630d354308b26743bc890dba4c535884631e833492a161814c75dd8adb52e",
+    "compiler_sha256": "9fb99c0cc9589977cf5e4acde5accee69fecc5c68d61c601d6d2235f93b61d71",
+    "source_modules": {
+      "Text.Mime": "399fb3c576ab4f4c13a0749dfa25dc72af00078636758a86e73c942018fd46a6",
+      "Effect.Mime": "1211c316b96474b7ed1d997092520055aca5cabba4b3c262d1a6f9d490fca215"
+    }
+  },
+  "documentation": {
+    "modules": 183,
+    "value_exports": 4789,
+    "public_methods": 115,
+    "diagnostics": 0,
+    "orphans": 0,
+    "validation_log_sha256": "381bd31438b789585f795ecdfabdcad967dd4dd5602bf693b9cbb7975d2f1f4f",
+    "drift_check": "passed"
+  },
+  "capability_mapping": "tooling/data/mime-capabilities.json",
+  "full_runtime_evidence": "benchmarks/stdlib/mime-coverage-complete-2026-11-16.json",
+  "performance_review": "benchmarks/stdlib/mime-notes.md",
+  "inventory": {
+    "complete": 23,
+    "partial": 49,
+    "unreviewed": 108
+  },
+  "limitations": [
+    "The full 180-package standard library initiative remains active.",
+    "Both admitted frozen frontend/provider epochs retain their complete MIME functional and public pipeline benchmark evidence. The newer Native family remains dependent on a separate admission repair.",
+    "Several codec pipelines remain slower than the independent reference; all samples and SIMD/scalar regressions remain recorded.",
+    "Portable object emission is not cross-target runtime execution. Registry comparisons preserve their explicitly different context populations."
+  ]
+}

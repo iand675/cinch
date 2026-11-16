@@ -30,6 +30,7 @@ HOMES = {
     "encoding/binary": ["Text.Binary", "Text.Binary.Layout", "Effect.Binary"], "encoding/csv": ["Text.Csv", "Text.Csv.Record", "Effect.Csv"], "encoding/hex": ["Text.Hex", "Effect.Hex"],
     "encoding/json": ["Text.Json", "Text.Json.Value", "Text.Json.Codec", "Text.Json.Binary32", "Data.Json"], "errors": ["Data.Result"],
     "encoding/pem": ["Text.Pem", "Effect.Pem"],
+    "mime": ["Text.Mime", "Effect.Mime"],
     "flag": ["Text.OptionParser"], "fmt": ["Text.Show", "Text.Scan"],
     "hash": ["Data.Hash"], "hash/adler32": ["Text.Checksum", "Text.Adler32", "Effect.Adler32"], "hash/crc32": ["Text.Checksum"],
     "hash/crc64": ["Text.Checksum", "Text.Crc64", "Effect.Crc64"], "hash/fnv": ["Text.Fnv", "Text.Fnv.State", "Effect.Fnv"], "hash/maphash": ["Data.HashMap"],
