@@ -21,4 +21,5 @@ Independent Rust scalar operations test the actual staging primitive interpreter
 across eight signed and unsigned scalar types and both target word sizes. A combined public consumer
 also exercises the actual generate/quote path at O0 and O2 with ordinary and
 poisoned-free profiles. The original failed observations remain unchanged;
-post-repair results are recorded separately after the parent gates pass.
+post-repair results are recorded in
+`bootstrap/stdlib-staged-word-parent-results.json`: all 380 parent tests passed.
