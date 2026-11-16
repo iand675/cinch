@@ -77,8 +77,8 @@
     "diagnostic": "positiv"
   },
   {
-    "name": "shadowed-array-binder",
-    "source": "-- | Exercise one sealed finite-payload typing contract.\nmodule Main where\n  -- | A local higher-kinded parameter has no primitive authority.\n  data Arena (Array :: Type -> Type) where\n    -- | The same spelling must not grant evidence to the bound constructor.\n    Pool :: Array (Arena Array) -> Arena Array\n  -- | Keep the fixture executable independent from its unused type declarations.\n  main :: Int\n  main = 0\n",
+    "name": "higher-kinded-nested-in-tuple",
+    "source": "-- | Keep unknown constructor variance refused even inside certified tuple storage.\nmodule Main where\n  -- | Bind an ordinary higher-kinded source parameter with no primitive certificate.\n  data Arena (f :: Type -> Type) where\n    -- | Tuple nesting cannot hide the recursive occurrence under an unknown head.\n    Pool :: Array (Nat, f (Arena f)) -> Arena f\n  -- | Keep the executable independent from the candidate type's inhabitance.\n  main :: Int\n  main = 0\n",
     "accepted": false,
     "kinds": {},
     "diagnostic": "positiv"

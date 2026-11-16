@@ -135,9 +135,9 @@ module Main where
   check-case10 :: Unit -> Bool
   check-case10 unit = verdict (evaluate "-- | Exercise one sealed finite-payload typing contract.\nmodule Main where\n  -- | A recursive fixture with the exact candidate payload position.\n  data Arena (f :: Type -> Type) where\n    -- | Carry the candidate field without changing its recursive type.\n    Pool :: Array (f (Arena f)) -> Arena f\n  -- | Keep the fixture executable independent from its unused type declarations.\n  main :: Int\n  main = 0\n" False "positiv" Nil)
 
-  -- | Check the shadowed-array-binder source and its exact strict-positivity obligations.
+  -- | Check the higher-kinded-nested-in-tuple source and its exact strict-positivity obligations.
   check-case11 :: Unit -> Bool
-  check-case11 unit = verdict (evaluate "-- | Exercise one sealed finite-payload typing contract.\nmodule Main where\n  -- | A local higher-kinded parameter has no primitive authority.\n  data Arena (Array :: Type -> Type) where\n    -- | The same spelling must not grant evidence to the bound constructor.\n    Pool :: Array (Arena Array) -> Arena Array\n  -- | Keep the fixture executable independent from its unused type declarations.\n  main :: Int\n  main = 0\n" False "positiv" Nil)
+  check-case11 unit = verdict (evaluate "-- | Keep unknown constructor variance refused even inside certified tuple storage.\nmodule Main where\n  -- | Bind an ordinary higher-kinded source parameter with no primitive certificate.\n  data Arena (f :: Type -> Type) where\n    -- | Tuple nesting cannot hide the recursive occurrence under an unknown head.\n    Pool :: Array (Nat, f (Arena f)) -> Arena f\n  -- | Keep the executable independent from the candidate type's inhabitance.\n  main :: Int\n  main = 0\n" False "positiv" Nil)
 
   -- | Check the ordinary-wrapper source and its exact strict-positivity obligations.
   check-case12 :: Unit -> Bool
