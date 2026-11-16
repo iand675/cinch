@@ -1,0 +1,1513 @@
+{
+  "format": 1,
+  "opt_level": 2,
+  "label": "All six FNV variants: digest/checkpoint APIs and bounded 64-byte copying with a scalar-state worker; explicit O2",
+  "commit": "b7749a9f8cc1c74763bb9146cb7e7b47cade1840",
+  "compiler_sha256": "2953cb0246737ee110c139fbff4a8968c2da7de271da4b55aff7d94f63c94e84",
+  "compiler_source_sha256": "61ab9b3cc29cc9ee7831b2e1001d0bba63ae5a1a23df42c8d431469230380961",
+  "runtime_source_sha256": "cc65783bd854ae6b6e820a5adb18e5f59f5aed5ec6a40e52b912fc283c12ca31",
+  "runner_sha256": "725f5ab52c8c8c0f599b231cdeb3e3ff447acf5aebdd94d1a6577539aff179f1",
+  "working_tree_dirty": true,
+  "driver_sha256": "8addf55b7b96f95ed0c0246b77b2c6ae46b3d21aedd60d999e841bb90dc6b2b9",
+  "sources": {
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Word": "1a563597517531debe37f7ab19616255dbc845d62ffed182abcdc5da9afe27ad",
+    "Effect.Ascii85": "ce62b87682e7b8b63754a346c01a3db666e0a062693fa958251dac6c89febb27",
+    "Effect.Fnv": "7253c58aac971fe5a2879b5cfda24593dbc52cd69bdbaff1d7ddfdf1c9db5464",
+    "Effect.Hex": "e53cb32a3da3f471f746fe04bcd8ef54d4fc774608d236b60da57a9af60c550b",
+    "Effect.Stream": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33",
+    "Text.Ascii85": "6550cb8d1b45de4b2d0ca392ad31b6cae716213b003f1789ae7d0281948d222b",
+    "Text.Base32": "ae82b9c24657458ca5d6b0f33ee80b8ba8239cef592e793a926270cb45e308bd",
+    "Text.Base64": "54948138dd53d893cb82067bdaba883faa404e81e0013dd750c75f723c0b409d",
+    "Text.Binary": "9e8420191ef2f63969bdd1fa54f69724c835a6ada8041b548ee3de8154e71e4d",
+    "Text.Checksum": "92aeb92792906cc05fde3a49ec2e71800d8fe7a2372926b4a4665e015fd02c29",
+    "Text.Fnv": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+    "Text.Fnv.State": "32143ed6a2a86719094a7ff3dffcd7811a51d0b7c8aae7630fe1fe0487ecd673",
+    "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+    "Text.Utf16": "fb5bfa4782fa832245102d8fc57818a374c4176c6a7c608f21a669030f54e8b8"
+  },
+  "source_overrides": {},
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "machine": "x86_64",
+  "cpu_affinity": [
+    0
+  ],
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "clang": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)",
+  "timing": "runtime monotonic clock around operation loop; preparation, startup and output excluded",
+  "measurement": "public API pipeline; encoding includes conversion to observable bytes; text decoders include bytes-to-text conversion; stream operations include adapter construction",
+  "iterations": 64,
+  "warmup_processes": 1,
+  "results": [
+    {
+      "workload": "fnv-state32",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        103035,
+        13901,
+        14241,
+        14382,
+        14071,
+        14632,
+        13931
+      ],
+      "checksum": 17032,
+      "median_ns_per_operation": 222.515625,
+      "raw_mib_per_second": 137.1480233129696,
+      "reference_samples_ns": [
+        5839,
+        5759,
+        5738,
+        5778,
+        5739,
+        6099,
+        6210
+      ],
+      "reference_median_ns_per_operation": 90.28125
+    },
+    {
+      "workload": "fnv-state32",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        106420,
+        104838,
+        105088,
+        104858,
+        125469,
+        105078,
+        104658
+      ],
+      "checksum": 17041,
+      "median_ns_per_operation": 1641.84375,
+      "raw_mib_per_second": 594.7962465977655,
+      "reference_samples_ns": [
+        99770,
+        98969,
+        101793,
+        101293,
+        99350,
+        98719,
+        100071
+      ],
+      "reference_median_ns_per_operation": 1558.90625
+    },
+    {
+      "workload": "fnv-state32",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        1530677,
+        1524968,
+        1590618,
+        1512199,
+        1511418,
+        1620902,
+        1589685
+      ],
+      "checksum": 15929,
+      "median_ns_per_operation": 23916.828125,
+      "raw_mib_per_second": 653.3056941470996,
+      "reference_samples_ns": [
+        1730788,
+        1239498,
+        1643257,
+        1688845,
+        1744409,
+        1702456,
+        1714333
+      ],
+      "reference_median_ns_per_operation": 26600.875
+    },
+    {
+      "workload": "fnv-state32a",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        26340,
+        24767,
+        24657,
+        25929,
+        26079,
+        25158,
+        25509
+      ],
+      "checksum": 15587,
+      "median_ns_per_operation": 398.578125,
+      "raw_mib_per_second": 76.56611392057705,
+      "reference_samples_ns": [
+        9304,
+        9444,
+        9194,
+        11307,
+        9554,
+        9555,
+        62314
+      ],
+      "reference_median_ns_per_operation": 149.28125
+    },
+    {
+      "workload": "fnv-state32a",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        151979,
+        148163,
+        177818,
+        152570,
+        152149,
+        150847,
+        153401
+      ],
+      "checksum": 21629,
+      "median_ns_per_operation": 2377.328125,
+      "raw_mib_per_second": 410.78153652012173,
+      "reference_samples_ns": [
+        149305,
+        159781,
+        108464,
+        113471,
+        113571,
+        139951,
+        111968
+      ],
+      "reference_median_ns_per_operation": 1774.546875
+    },
+    {
+      "workload": "fnv-state32a",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        2007976,
+        1542044,
+        1514232,
+        1559971,
+        1632080,
+        1695204,
+        1562615
+      ],
+      "checksum": 23066,
+      "median_ns_per_operation": 24415.859375,
+      "raw_mib_per_second": 639.9528994665992,
+      "reference_samples_ns": [
+        1529194,
+        1651959,
+        1533010,
+        1495914,
+        1569325,
+        1503747,
+        1490646
+      ],
+      "reference_median_ns_per_operation": 23893.65625
+    },
+    {
+      "workload": "fnv-state64",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        14772,
+        14181,
+        15383,
+        19369,
+        15463,
+        15794,
+        15814
+      ],
+      "checksum": 18081,
+      "median_ns_per_operation": 241.609375,
+      "raw_mib_per_second": 126.3095777016103,
+      "reference_samples_ns": [
+        6811,
+        5839,
+        6089,
+        5678,
+        30596,
+        6159,
+        6890
+      ],
+      "reference_median_ns_per_operation": 96.234375
+    },
+    {
+      "workload": "fnv-state64",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        103646,
+        103817,
+        103937,
+        125910,
+        161294,
+        104117,
+        104087
+      ],
+      "checksum": 17365,
+      "median_ns_per_operation": 1626.359375,
+      "raw_mib_per_second": 600.459231220037,
+      "reference_samples_ns": [
+        99631,
+        100481,
+        98308,
+        117988,
+        100822,
+        100922,
+        102694
+      ],
+      "reference_median_ns_per_operation": 1575.34375
+    },
+    {
+      "workload": "fnv-state64",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        1466590,
+        1488954,
+        1625710,
+        1470125,
+        1466871,
+        1511197,
+        1511298
+      ],
+      "checksum": 16745,
+      "median_ns_per_operation": 23264.90625,
+      "raw_mib_per_second": 671.6124205314603,
+      "reference_samples_ns": [
+        1517086,
+        1651519,
+        1591959,
+        1613522,
+        1484236,
+        1510977,
+        1494512
+      ],
+      "reference_median_ns_per_operation": 23704.46875
+    },
+    {
+      "workload": "fnv-state64a",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        16044,
+        16365,
+        15644,
+        15743,
+        15483,
+        15884,
+        15523
+      ],
+      "checksum": 18156,
+      "median_ns_per_operation": 245.984375,
+      "raw_mib_per_second": 124.06307565267103,
+      "reference_samples_ns": [
+        5909,
+        5799,
+        5789,
+        26560,
+        5719,
+        5879,
+        5879
+      ],
+      "reference_median_ns_per_operation": 91.859375
+    },
+    {
+      "workload": "fnv-state64a",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        103897,
+        124468,
+        104106,
+        106030,
+        178439,
+        103897,
+        102685
+      ],
+      "checksum": 10042,
+      "median_ns_per_operation": 1626.65625,
+      "raw_mib_per_second": 600.3496436324515,
+      "reference_samples_ns": [
+        101112,
+        101433,
+        100542,
+        98799,
+        114362,
+        101613,
+        100562
+      ],
+      "reference_median_ns_per_operation": 1579.875
+    },
+    {
+      "workload": "fnv-state64a",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        1552560,
+        1554903,
+        1470065,
+        1472750,
+        1492349,
+        1485378,
+        1472499
+      ],
+      "checksum": 10669,
+      "median_ns_per_operation": 23209.03125,
+      "raw_mib_per_second": 673.2293059409793,
+      "reference_samples_ns": [
+        1513310,
+        1498999,
+        1493361,
+        1500111,
+        1504978,
+        1685460,
+        1580271
+      ],
+      "reference_median_ns_per_operation": 23515.28125
+    },
+    {
+      "workload": "fnv-state128",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        25999,
+        23325,
+        23706,
+        23245,
+        24247,
+        23205,
+        101483
+      ],
+      "checksum": 17102,
+      "median_ns_per_operation": 370.40625,
+      "raw_mib_per_second": 82.38947945667763,
+      "reference_samples_ns": [
+        5538,
+        5488,
+        5558,
+        5548,
+        5539,
+        5499,
+        5488
+      ],
+      "reference_median_ns_per_operation": 86.53125
+    },
+    {
+      "workload": "fnv-state128",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        153962,
+        134823,
+        132240,
+        131889,
+        210878,
+        131598,
+        132670
+      ],
+      "checksum": 17455,
+      "median_ns_per_operation": 2072.96875,
+      "raw_mib_per_second": 471.0936911132886,
+      "reference_samples_ns": [
+        140993,
+        118118,
+        117357,
+        117577,
+        109084,
+        152390,
+        118118
+      ],
+      "reference_median_ns_per_operation": 1845.59375
+    },
+    {
+      "workload": "fnv-state128",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        1859562,
+        1848345,
+        2132945,
+        2246766,
+        1850059,
+        1881455,
+        1876478
+      ],
+      "checksum": 17511,
+      "median_ns_per_operation": 29319.96875,
+      "raw_mib_per_second": 532.9132555777365,
+      "reference_samples_ns": [
+        1965332,
+        2052674,
+        1983008,
+        2023589,
+        1532720,
+        1948035,
+        2031672
+      ],
+      "reference_median_ns_per_operation": 30984.5
+    },
+    {
+      "workload": "fnv-state128a",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        23215,
+        23475,
+        23916,
+        93140,
+        51808,
+        24076,
+        23675
+      ],
+      "checksum": 17251,
+      "median_ns_per_operation": 373.6875,
+      "raw_mib_per_second": 81.66603947148353,
+      "reference_samples_ns": [
+        8393,
+        8352,
+        8373,
+        8263,
+        8573,
+        8302,
+        8513
+      ],
+      "reference_median_ns_per_operation": 130.828125
+    },
+    {
+      "workload": "fnv-state128a",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        164588,
+        144989,
+        145610,
+        407554,
+        145960,
+        145660,
+        186321
+      ],
+      "checksum": 18818,
+      "median_ns_per_operation": 2280.625,
+      "raw_mib_per_second": 428.19950671416825,
+      "reference_samples_ns": [
+        257929,
+        250317,
+        251569,
+        252380,
+        259140,
+        252911,
+        252260
+      ],
+      "reference_median_ns_per_operation": 3943.4375
+    },
+    {
+      "workload": "fnv-state128a",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        2204162,
+        3841029,
+        2203291,
+        2062928,
+        2112574,
+        2061256,
+        2064101
+      ],
+      "checksum": 18136,
+      "median_ns_per_operation": 33008.96875,
+      "raw_mib_per_second": 473.3561995934817,
+      "reference_samples_ns": [
+        4527493,
+        4194852,
+        4149333,
+        4085577,
+        4062131,
+        4026118,
+        4236625
+      ],
+      "reference_median_ns_per_operation": 64833.328125
+    },
+    {
+      "workload": "fnv-roundtrip32",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        36485,
+        36475,
+        37746,
+        36815,
+        37146,
+        36795,
+        35654
+      ],
+      "checksum": 32040,
+      "median_ns_per_operation": 574.921875,
+      "raw_mib_per_second": 53.0812610409023,
+      "reference_samples_ns": [
+        8743,
+        8453,
+        9474,
+        8563,
+        8332,
+        8533,
+        8413
+      ],
+      "reference_median_ns_per_operation": 133.328125
+    },
+    {
+      "workload": "fnv-roundtrip32",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        128354,
+        130917,
+        129405,
+        151258,
+        126881,
+        128113,
+        127392
+      ],
+      "checksum": 31921,
+      "median_ns_per_operation": 2005.53125,
+      "raw_mib_per_second": 486.93457157548653,
+      "reference_samples_ns": [
+        103546,
+        116596,
+        102485,
+        103516,
+        103686,
+        102995,
+        100411
+      ],
+      "reference_median_ns_per_operation": 1617.4375
+    },
+    {
+      "workload": "fnv-roundtrip32",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        1708736,
+        1702976,
+        1714704,
+        1639421,
+        1637208,
+        1550457,
+        1533811
+      ],
+      "checksum": 30809,
+      "median_ns_per_operation": 25615.953125,
+      "raw_mib_per_second": 609.9714472365548,
+      "reference_samples_ns": [
+        1844549,
+        1527903,
+        1568905,
+        1653973,
+        1734554,
+        1601233,
+        1743487
+      ],
+      "reference_median_ns_per_operation": 25843.328125
+    },
+    {
+      "workload": "fnv-roundtrip32a",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        37617,
+        150777,
+        112730,
+        37306,
+        37397,
+        85489,
+        37586
+      ],
+      "checksum": 30659,
+      "median_ns_per_operation": 587.765625,
+      "raw_mib_per_second": 51.92133875641333,
+      "reference_samples_ns": [
+        8963,
+        8873,
+        8863,
+        8883,
+        9695,
+        8943,
+        8753
+      ],
+      "reference_median_ns_per_operation": 138.796875
+    },
+    {
+      "workload": "fnv-roundtrip32a",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        146951,
+        127412,
+        127332,
+        126661,
+        180502,
+        128814,
+        127171
+      ],
+      "checksum": 42973,
+      "median_ns_per_operation": 1990.8125,
+      "raw_mib_per_second": 490.53464351866387,
+      "reference_samples_ns": [
+        105669,
+        103796,
+        103656,
+        105129,
+        103265,
+        103927,
+        104538
+      ],
+      "reference_median_ns_per_operation": 1623.859375
+    },
+    {
+      "workload": "fnv-roundtrip32a",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        1622756,
+        1659070,
+        1564979,
+        1617027,
+        1535534,
+        1680913,
+        1637929
+      ],
+      "checksum": 44410,
+      "median_ns_per_operation": 25355.5625,
+      "raw_mib_per_second": 616.2355893307436,
+      "reference_samples_ns": [
+        1512009,
+        1779272,
+        1482604,
+        1495934,
+        1516836,
+        1488013,
+        1739932
+      ],
+      "reference_median_ns_per_operation": 23625.140625
+    },
+    {
+      "workload": "fnv-roundtrip64",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        43175,
+        41353,
+        41933,
+        58448,
+        43706,
+        41553,
+        41533
+      ],
+      "checksum": 33601,
+      "median_ns_per_operation": 655.203125,
+      "raw_mib_per_second": 46.57727803877614,
+      "reference_samples_ns": [
+        12128,
+        10366,
+        10876,
+        10847,
+        9544,
+        8984,
+        8563
+      ],
+      "reference_median_ns_per_operation": 161.96875
+    },
+    {
+      "workload": "fnv-roundtrip64",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        135705,
+        134212,
+        131838,
+        246131,
+        134643,
+        139160,
+        149926
+      ],
+      "checksum": 32501,
+      "median_ns_per_operation": 2120.390625,
+      "raw_mib_per_second": 460.5578276408386,
+      "reference_samples_ns": [
+        104357,
+        126952,
+        123816,
+        102074,
+        112369,
+        105509,
+        102224
+      ],
+      "reference_median_ns_per_operation": 1648.578125
+    },
+    {
+      "workload": "fnv-roundtrip64",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        1588925,
+        1580322,
+        1622465,
+        1858922,
+        1680793,
+        1997991,
+        1789477
+      ],
+      "checksum": 31881,
+      "median_ns_per_operation": 26262.390625,
+      "raw_mib_per_second": 594.9572612451385,
+      "reference_samples_ns": [
+        1646902,
+        4033739,
+        1777118,
+        1674113,
+        1226869,
+        1660101,
+        1640322
+      ],
+      "reference_median_ns_per_operation": 25939.078125
+    },
+    {
+      "workload": "fnv-roundtrip64a",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        46290,
+        69164,
+        43655,
+        45369,
+        42024,
+        166661,
+        44728
+      ],
+      "checksum": 34764,
+      "median_ns_per_operation": 708.890625,
+      "raw_mib_per_second": 43.049769666512375,
+      "reference_samples_ns": [
+        8864,
+        8884,
+        8673,
+        82364,
+        8512,
+        8903,
+        8733
+      ],
+      "reference_median_ns_per_operation": 138.5
+    },
+    {
+      "workload": "fnv-roundtrip64a",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        154913,
+        129715,
+        252370,
+        129836,
+        130016,
+        130026,
+        170917
+      ],
+      "checksum": 19354,
+      "median_ns_per_operation": 2031.65625,
+      "raw_mib_per_second": 480.6730961500008,
+      "reference_samples_ns": [
+        235695,
+        104106,
+        104828,
+        104768,
+        104367,
+        104407,
+        105449
+      ],
+      "reference_median_ns_per_operation": 1637.0
+    },
+    {
+      "workload": "fnv-roundtrip64a",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        1527622,
+        1513191,
+        1525630,
+        1496856,
+        1496475,
+        1491548,
+        1637969
+      ],
+      "checksum": 19981,
+      "median_ns_per_operation": 23643.609375,
+      "raw_mib_per_second": 660.8551068569665,
+      "reference_samples_ns": [
+        1585870,
+        1491487,
+        1778400,
+        1297505,
+        1505899,
+        1525609,
+        1584468
+      ],
+      "reference_median_ns_per_operation": 23837.640625
+    },
+    {
+      "workload": "fnv-roundtrip128",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        105619,
+        55434,
+        54852,
+        55804,
+        54602,
+        54352,
+        55153
+      ],
+      "checksum": 33646,
+      "median_ns_per_operation": 861.765625,
+      "raw_mib_per_second": 35.41285152212935,
+      "reference_samples_ns": [
+        9995,
+        9795,
+        9704,
+        9795,
+        9694,
+        9685,
+        28854
+      ],
+      "reference_median_ns_per_operation": 153.046875
+    },
+    {
+      "workload": "fnv-roundtrip128",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        163546,
+        163166,
+        376257,
+        163466,
+        165620,
+        164088,
+        165039
+      ],
+      "checksum": 33615,
+      "median_ns_per_operation": 2563.875,
+      "raw_mib_per_second": 380.8931792696602,
+      "reference_samples_ns": [
+        146731,
+        142265,
+        141924,
+        178779,
+        124097,
+        141564,
+        121333
+      ],
+      "reference_median_ns_per_operation": 2217.5625
+    },
+    {
+      "workload": "fnv-roundtrip128",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        1945843,
+        1894295,
+        1860293,
+        1890419,
+        1874595,
+        1874054,
+        1873794
+      ],
+      "checksum": 33671,
+      "median_ns_per_operation": 29290.546875,
+      "raw_mib_per_second": 533.4485582219093,
+      "reference_samples_ns": [
+        1973904,
+        1956178,
+        2088848,
+        2001476,
+        2035478,
+        1461272,
+        1790578
+      ],
+      "reference_median_ns_per_operation": 30842.25
+    },
+    {
+      "workload": "fnv-roundtrip128a",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        111278,
+        55694,
+        55414,
+        55895,
+        55974,
+        56054,
+        57487
+      ],
+      "checksum": 33859,
+      "median_ns_per_operation": 874.59375,
+      "raw_mib_per_second": 34.89343266516597,
+      "reference_samples_ns": [
+        12889,
+        12308,
+        12469,
+        12499,
+        12308,
+        12229,
+        12579
+      ],
+      "reference_median_ns_per_operation": 194.828125
+    },
+    {
+      "workload": "fnv-roundtrip128a",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        177738,
+        399051,
+        177939,
+        177888,
+        177778,
+        175986,
+        229436
+      ],
+      "checksum": 36834,
+      "median_ns_per_operation": 2779.5,
+      "raw_mib_per_second": 351.34466630688974,
+      "reference_samples_ns": [
+        262346,
+        255926,
+        333663,
+        254354,
+        255895,
+        270017,
+        495647
+      ],
+      "reference_median_ns_per_operation": 4099.15625
+    },
+    {
+      "workload": "fnv-roundtrip128a",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        2114397,
+        2201538,
+        2114918,
+        2162920,
+        2202689,
+        2266796,
+        2209039
+      ],
+      "checksum": 36152,
+      "median_ns_per_operation": 34399.03125,
+      "raw_mib_per_second": 454.22790794435525,
+      "reference_samples_ns": [
+        4702808,
+        4371809,
+        4201312,
+        4081781,
+        4086890,
+        4342063,
+        4210976
+      ],
+      "reference_median_ns_per_operation": 65796.5
+    },
+    {
+      "workload": "fnv-stream32",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        42334,
+        41663,
+        41893,
+        62044,
+        40441,
+        42184,
+        42163
+      ],
+      "checksum": 19080,
+      "median_ns_per_operation": 658.796875,
+      "raw_mib_per_second": 46.323198064653845,
+      "reference_samples_ns": [
+        8352,
+        8413,
+        8393,
+        8403,
+        8293,
+        8513,
+        8333
+      ],
+      "reference_median_ns_per_operation": 131.140625
+    },
+    {
+      "workload": "fnv-stream32",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        266411,
+        240974,
+        243156,
+        240342,
+        314514,
+        241163,
+        260042
+      ],
+      "checksum": 82577,
+      "median_ns_per_operation": 3799.3125,
+      "raw_mib_per_second": 257.03663491750154,
+      "reference_samples_ns": [
+        137908,
+        121794,
+        121373,
+        142435,
+        154062,
+        119911,
+        142024
+      ],
+      "reference_median_ns_per_operation": 2154.8125
+    },
+    {
+      "workload": "fnv-stream32",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        3715740,
+        3615599,
+        3411000,
+        3587406,
+        3526915,
+        3493815,
+        3624683
+      ],
+      "checksum": 1064505,
+      "median_ns_per_operation": 56053.21875,
+      "raw_mib_per_second": 278.75294850931283,
+      "reference_samples_ns": [
+        1889858,
+        1849217,
+        2147957,
+        1492700,
+        1931270,
+        1868476,
+        1943559
+      ],
+      "reference_median_ns_per_operation": 29529.03125
+    },
+    {
+      "workload": "fnv-stream32a",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        41743,
+        41893,
+        62514,
+        41563,
+        41893,
+        40200,
+        41342
+      ],
+      "checksum": 17635,
+      "median_ns_per_operation": 652.234375,
+      "raw_mib_per_second": 46.78928203531131,
+      "reference_samples_ns": [
+        8332,
+        8413,
+        8352,
+        8413,
+        8203,
+        8392,
+        9173
+      ],
+      "reference_median_ns_per_operation": 131.125
+    },
+    {
+      "workload": "fnv-stream32a",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        240592,
+        239251,
+        262415,
+        239651,
+        335215,
+        241744,
+        240032
+      ],
+      "checksum": 87165,
+      "median_ns_per_operation": 3759.25,
+      "raw_mib_per_second": 259.77588614750283,
+      "reference_samples_ns": [
+        117617,
+        120872,
+        142605,
+        122474,
+        186592,
+        119971,
+        119450
+      ],
+      "reference_median_ns_per_operation": 1888.625
+    },
+    {
+      "workload": "fnv-stream32a",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        4304407,
+        3801379,
+        3889251,
+        3626135,
+        3888390,
+        3889773,
+        3397350
+      ],
+      "checksum": 1071642,
+      "median_ns_per_operation": 60756.09375,
+      "raw_mib_per_second": 257.1758491303599,
+      "reference_samples_ns": [
+        1879633,
+        1893985,
+        1917149,
+        1871491,
+        2046654,
+        2012964,
+        1665480
+      ],
+      "reference_median_ns_per_operation": 29593.515625
+    },
+    {
+      "workload": "fnv-stream64",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        46851,
+        43446,
+        44177,
+        45249,
+        43926,
+        44087,
+        43756
+      ],
+      "checksum": 20129,
+      "median_ns_per_operation": 688.859375,
+      "raw_mib_per_second": 44.30160818381836,
+      "reference_samples_ns": [
+        8603,
+        8353,
+        8232,
+        8293,
+        8323,
+        8122,
+        8143
+      ],
+      "reference_median_ns_per_operation": 129.578125
+    },
+    {
+      "workload": "fnv-stream64",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        296587,
+        243447,
+        311219,
+        243427,
+        459783,
+        287614,
+        448296
+      ],
+      "checksum": 82901,
+      "median_ns_per_operation": 4634.171875,
+      "raw_mib_per_second": 210.73074679604971,
+      "reference_samples_ns": [
+        108784,
+        224799,
+        136435,
+        120181,
+        120722,
+        145930,
+        119069
+      ],
+      "reference_median_ns_per_operation": 1886.28125
+    },
+    {
+      "workload": "fnv-stream64",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        3456279,
+        3470040,
+        3390840,
+        3436609,
+        3474337,
+        3557782,
+        3804323
+      ],
+      "checksum": 1065321,
+      "median_ns_per_operation": 54219.375,
+      "raw_mib_per_second": 288.1811160678263,
+      "reference_samples_ns": [
+        2056559,
+        1953324,
+        1916598,
+        2030160,
+        7180050,
+        5566690,
+        2101697
+      ],
+      "reference_median_ns_per_operation": 32133.734375
+    },
+    {
+      "workload": "fnv-stream64a",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        47442,
+        46420,
+        44307,
+        44296,
+        44096,
+        45278,
+        43896
+      ],
+      "checksum": 20204,
+      "median_ns_per_operation": 692.296875,
+      "raw_mib_per_second": 44.081634956101745,
+      "reference_samples_ns": [
+        8303,
+        10135,
+        8723,
+        8503,
+        8393,
+        9935,
+        8222
+      ],
+      "reference_median_ns_per_operation": 132.859375
+    },
+    {
+      "workload": "fnv-stream64a",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        263467,
+        242776,
+        243787,
+        242436,
+        244518,
+        264638,
+        243147
+      ],
+      "checksum": 75578,
+      "median_ns_per_operation": 3809.171875,
+      "raw_mib_per_second": 256.3713405554849,
+      "reference_samples_ns": [
+        118719,
+        114302,
+        118879,
+        140201,
+        119520,
+        119600,
+        119300
+      ],
+      "reference_median_ns_per_operation": 1864.0625
+    },
+    {
+      "workload": "fnv-stream64a",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        3436068,
+        3691163,
+        3492724,
+        3699395,
+        3473285,
+        3565694,
+        3448948
+      ],
+      "checksum": 1059245,
+      "median_ns_per_operation": 54573.8125,
+      "raw_mib_per_second": 286.30948222648,
+      "reference_samples_ns": [
+        1805161,
+        1997992,
+        1930830,
+        1798019,
+        2221498,
+        1822657,
+        1904941
+      ],
+      "reference_median_ns_per_operation": 29764.703125
+    },
+    {
+      "workload": "fnv-stream128",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        51538,
+        53391,
+        52088,
+        53120,
+        53380,
+        52840,
+        51197
+      ],
+      "checksum": 19150,
+      "median_ns_per_operation": 825.625,
+      "raw_mib_per_second": 36.96300151400454,
+      "reference_samples_ns": [
+        7871,
+        7942,
+        7852,
+        7602,
+        7882,
+        7801,
+        7732
+      ],
+      "reference_median_ns_per_operation": 122.6875
+    },
+    {
+      "workload": "fnv-stream128",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        287443,
+        289266,
+        311079,
+        287694,
+        288605,
+        291128,
+        289456
+      ],
+      "checksum": 82991,
+      "median_ns_per_operation": 4519.78125,
+      "raw_mib_per_second": 216.0641070848285,
+      "reference_samples_ns": [
+        157388,
+        156306,
+        111518,
+        156917,
+        161203,
+        159160,
+        155034
+      ],
+      "reference_median_ns_per_operation": 2451.828125
+    },
+    {
+      "workload": "fnv-stream128",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        4115442,
+        4236654,
+        4373191,
+        4022041,
+        4224877,
+        4287261,
+        4184667
+      ],
+      "checksum": 1066087,
+      "median_ns_per_operation": 66013.703125,
+      "raw_mib_per_second": 236.69328124818782,
+      "reference_samples_ns": [
+        1991200,
+        2341769,
+        2179734,
+        2184222,
+        2242970,
+        2241899,
+        2555862
+      ],
+      "reference_median_ns_per_operation": 35029.671875
+    },
+    {
+      "workload": "fnv-stream128a",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        53270,
+        53040,
+        53250,
+        53761,
+        53911,
+        52670,
+        54151
+      ],
+      "checksum": 19299,
+      "median_ns_per_operation": 832.34375,
+      "raw_mib_per_second": 36.66463300168951,
+      "reference_samples_ns": [
+        10326,
+        10396,
+        10326,
+        10436,
+        10376,
+        10616,
+        10215
+      ],
+      "reference_median_ns_per_operation": 162.125
+    },
+    {
+      "workload": "fnv-stream128a",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        304839,
+        300493,
+        302926,
+        299963,
+        340323,
+        301665,
+        305981
+      ],
+      "checksum": 84354,
+      "median_ns_per_operation": 4733.21875,
+      "raw_mib_per_second": 206.32101569360174,
+      "reference_samples_ns": [
+        269677,
+        272331,
+        271930,
+        269637,
+        295866,
+        269026,
+        271079
+      ],
+      "reference_median_ns_per_operation": 4235.609375
+    },
+    {
+      "workload": "fnv-stream128a",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        4902489,
+        4878202,
+        4438659,
+        4261643,
+        4757380,
+        4390877,
+        4471658
+      ],
+      "checksum": 1066712,
+      "median_ns_per_operation": 69869.65625,
+      "raw_mib_per_second": 223.63069805427875,
+      "reference_samples_ns": [
+        4352009,
+        4242334,
+        4553703,
+        4415024,
+        4377016,
+        4254081,
+        4318939
+      ],
+      "reference_median_ns_per_operation": 68000.140625
+    }
+  ],
+  "compiler_path": "/workspace/dasl-stdlib-io/build/ascii85-complete-bench/compiler",
+  "executable_sha256": "de1141e1badf1b26e84d6fdf8d8218e7462e0d1b06c6050f5946d91f199cebd0",
+  "llvm_sha256": "fd9aee559f1a305bc9f9c2a27175283cd706118c5d9d65f1708465ce3be89a89",
+  "reference": {
+    "sdk": "go version go1.27.4 linux/amd64",
+    "source_sha256": "7b8b314ec6e33ccba869fc8487b3423f3834028972715a14e3fd086292df1e5d",
+    "executable_sha256": "8bebe147ef0ed87232022fd774e6b056b9cf6d1012cf55b5968b275171473dc1",
+    "GOMAXPROCS": "1",
+    "workloads": [
+      "hex-encode",
+      "hex-decode",
+      "ascii85-encode",
+      "ascii85-decode",
+      "ascii85-stream-encode",
+      "ascii85-stream-decode",
+      "utf16le-encode",
+      "utf16le-decode",
+      "utf16be-encode",
+      "utf16be-decode",
+      "word-add64",
+      "word-mul64",
+      "word-div64",
+      "word-bits64",
+      "word-load",
+      "word-div64-proven",
+      "fnv128",
+      "fnv128a",
+      "hex-append-encode",
+      "hex-append-decode",
+      "hex-into-encode",
+      "hex-into-decode",
+      "hex-dump",
+      "hex-stream-encode",
+      "hex-stream-decode",
+      "hex-stream-dump",
+      "hex-bytes-encode",
+      "hex-prefix-decode",
+      "ascii85-bytes-encode",
+      "ascii85-into-encode",
+      "ascii85-into-decode",
+      "ascii85-prefix-decode",
+      "ascii85-controls-decode",
+      "ascii85-controls-prefix-decode",
+      "ascii85-offset-decode",
+      "fnv-state32",
+      "fnv-state32a",
+      "fnv-state64",
+      "fnv-state64a",
+      "fnv-state128",
+      "fnv-state128a",
+      "fnv-roundtrip32",
+      "fnv-roundtrip32a",
+      "fnv-roundtrip64",
+      "fnv-roundtrip64a",
+      "fnv-roundtrip128",
+      "fnv-roundtrip128a",
+      "fnv-stream32",
+      "fnv-stream32a",
+      "fnv-stream64",
+      "fnv-stream64a",
+      "fnv-stream128",
+      "fnv-stream128a"
+    ],
+    "scope": "Equivalent public API results and observable checksums; allocation and immutable string semantics differ"
+  },
+  "artifacts": "/workspace/dasl-stdlib-io/build/fnv-state-bench-worker"
+}

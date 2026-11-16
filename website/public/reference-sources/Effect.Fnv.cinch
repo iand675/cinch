@@ -1,0 +1,60 @@
+-- | FNV hashing sinks with explicit, inspectable continuation states.
+-- Every write accepts its entire input and preserves earlier hash handles.
+-- Stream copying returns the advanced source and hash even on source failure.
+-- No adapter retains input buffers or closes borrowed readers.
+module Effect.Fnv where
+
+  import Effect.Stream
+  import Text.Fnv.State
+  import Data.Bytes
+  import Data.Nat
+  import Data.Result
+
+  export FnvWriter, fnv-writer, fnv-writer-state, fnv-write, fnv-hashing-writer, fnv-copy
+
+  -- | An immutable scalar hash sink with no borrowed runtime resources.
+  -- Generic ByteWriter adapters carry their own runtime identity.
+  data FnvWriter where
+    -- | Private immutable scalar state; no input buffers are retained.
+    FnvSink :: FnvState -> FnvWriter
+
+  -- | Begin a sink from any initial or restored FNV state.
+  fnv-writer :: FnvState -> FnvWriter
+  fnv-writer state = FnvSink state
+
+  -- | Inspect the current hash without advancing the sink or changing earlier handles.
+  fnv-writer-state :: FnvWriter -> FnvState
+  fnv-writer-state writer = case writer of FnvSink state -> state
+
+  -- | Hash every input byte and return its accepted count and advanced sink.
+  -- Empty input succeeds without changing the digest; resource exhaustion follows runtime policy.
+  fnv-write :: forall r. using (io :: Io r) => FnvWriter -> Bytes ->{IO r} (Nat, FnvWriter)
+  fnv-write writer input = case writer of
+    FnvSink state -> (bytes-len input, FnvSink (fnv-state-update state input))
+
+  -- | Expose a hash-only sink through the generic writer protocol for composition.
+  -- Use FnvWriter or fnv-copy when the advanced hash must remain directly inspectable.
+  fnv-hashing-writer :: forall r. using (io :: Io r) => FnvState -> ByteWriter r
+  fnv-hashing-writer state = writer-adapter (fnv-writer state)
+
+  -- | Carry the advanced scalar hash through successive generic writer callbacks.
+  writer-adapter :: forall r. using (io :: Io r) => FnvWriter -> ByteWriter r
+  writer-adapter writer = stream-writer (\input -> case fnv-write writer input of
+    (count, next) -> (Ok count, writer-adapter next))
+
+  -- | Hash a reader through EOF, returning the accepted count and both advanced handles.
+  -- A zero chunk size is rejected without reading. Source errors retain the hash of
+  -- every earlier successful chunk and the advanced source returned with the failure.
+  fnv-copy :: forall r. using (io :: Io r) => Nat -> ByteReader r -> FnvWriter ->{IO r} (Result StreamError Nat, (ByteReader r, FnvWriter))
+  fnv-copy chunk source writer =
+    if chunk == 0 then (Err StreamInvalidChunkSize, (source, writer))
+    else case copy-from chunk source (fnv-writer-state writer) 0 of
+      (result, (next, state)) -> (result, (next, FnvSink state))
+
+  -- | Advance bounded reader chunks with only the scalar state in the recursive worker.
+  -- The public sink wrapper is built once on return, avoiding one allocation per chunk.
+  copy-from :: forall r. using (io :: Io r) => Nat -> ByteReader r -> FnvState -> Nat ->{IO r} (Result StreamError Nat, (ByteReader r, FnvState))
+  copy-from chunk source state count = case stream-read source chunk of
+    (Err error, next) -> (Err error, (next, state))
+    (Ok input, next) -> if bytes-len input == 0 then (Ok count, (next, state))
+      else copy-from chunk next (fnv-state-update state input) (count + bytes-len input)

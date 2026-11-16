@@ -1,0 +1,179 @@
+-- | Persistent FNV hash states, digest bytes and versioned binary checkpoints.
+-- All six width/order variants retain their identity across updates and reset.
+-- Digests use network byte order. Retaining a state branches a computation:
+-- later updates never change earlier states, and returned buffers are fresh.
+-- Checkpoints contain a four-byte variant identifier followed by the digest;
+-- loading requires a matching variant and exact size. These hashes do not
+-- authenticate data, including their serialized checkpoints.
+module Text.Fnv.State where
+
+  import Text.Fnv
+  import Text.Binary
+  import Data.Bool
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  export FnvState, fnv32-state, fnv32a-state, fnv64-state, fnv64a-state, fnv128-state, fnv128a-state
+  export fnv-state-update, fnv-state-reset, fnv-state-size, fnv-state-block-size
+  export fnv-state-word32, fnv-state-word64, fnv-state-words128
+  export fnv-state-sum, fnv-state-append, fnv-state-save, fnv-state-append-save, fnv-state-load
+  export FnvStateError, InvalidFnvStateIdentifier, InvalidFnvStateSize, fnv-state-error-message
+
+  -- | An immutable hash accumulator with a fixed width and multiplication/xor order.
+  data FnvState where
+    -- | Private 32-bit state; True selects xor before multiplication.
+    State32 :: Bool -> U32 -> FnvState
+    -- | Private 64-bit state; True selects xor before multiplication.
+    State64 :: Bool -> U64 -> FnvState
+    -- | Private 128-bit state, storing the high word before the low word.
+    State128 :: Bool -> U64 -> U64 -> FnvState
+
+  -- | Initial 32-bit FNV-1 state, multiplying before xor.
+  fnv32-state :: FnvState
+  fnv32-state = State32 False 0x811C9DC5
+
+  -- | Initial 32-bit FNV-1a state, applying xor before multiplication.
+  fnv32a-state :: FnvState
+  fnv32a-state = State32 True 0x811C9DC5
+
+  -- | Initial 64-bit FNV-1 state, multiplying before xor.
+  fnv64-state :: FnvState
+  fnv64-state = State64 False 0xCBF29CE484222325
+
+  -- | Initial 64-bit FNV-1a state, applying xor before multiplication.
+  fnv64a-state :: FnvState
+  fnv64a-state = State64 True 0xCBF29CE484222325
+
+  -- | Initial 128-bit FNV-1 state, retaining both words without truncation.
+  fnv128-state :: FnvState
+  fnv128-state = State128 False 0x6C62272E07BB0142 0x62B821756295C58D
+
+  -- | Initial 128-bit FNV-1a state, retaining both words without truncation.
+  fnv128a-state :: FnvState
+  fnv128a-state = State128 True 0x6C62272E07BB0142 0x62B821756295C58D
+
+  -- | Continue a state with all input bytes using the ordered native-word kernels.
+  -- Input is consumed during this call; no mutable input buffer is retained.
+  fnv-state-update :: FnvState -> Bytes -> FnvState
+  fnv-state-update state input = case state of
+    State32 alternate value -> State32 alternate (if alternate then fnv32a-update value input else fnv32-update value input)
+    State64 alternate value -> State64 alternate (if alternate then fnv64a-update value input else fnv64-update value input)
+    State128 alternate high low -> case (if alternate then fnv128a-update (high, low) input else fnv128-update (high, low) input) of
+      (upper, lower) -> State128 alternate upper lower
+
+  -- | Return the initial offset basis of the same variant, preserving the original state.
+  fnv-state-reset :: FnvState -> FnvState
+  fnv-state-reset state = case state of
+    State32 alternate value -> if alternate then fnv32a-state else fnv32-state
+    State64 alternate value -> if alternate then fnv64a-state else fnv64-state
+    State128 alternate high low -> if alternate then fnv128a-state else fnv128-state
+
+  -- | Number of digest bytes: four, eight or sixteen according to the fixed width.
+  fnv-state-size :: FnvState -> Nat
+  fnv-state-size state = case state of
+    State32 alternate value -> 4
+    State64 alternate value -> 8
+    State128 alternate high low -> 16
+
+  -- | Preferred input granularity in bytes. FNV accepts every individual byte.
+  fnv-state-block-size :: FnvState -> Nat
+  fnv-state-block-size state = 1
+
+  -- | Observe a 32-bit state as a machine word; other widths return None.
+  fnv-state-word32 :: FnvState -> Option U32
+  fnv-state-word32 state = case state of
+    State32 alternate value -> Some value
+    other -> None
+
+  -- | Observe a 64-bit state as a machine word; other widths return None.
+  fnv-state-word64 :: FnvState -> Option U64
+  fnv-state-word64 state = case state of
+    State64 alternate value -> Some value
+    other -> None
+
+  -- | Observe a 128-bit state's high and low words; other widths return None.
+  fnv-state-words128 :: FnvState -> Option (U64, U64)
+  fnv-state-words128 state = case state of
+    State128 alternate high low -> Some (high, low)
+    other -> None
+
+  -- | Join two buffers into fresh storage without retaining mutable aliases.
+  join :: Bytes -> Bytes -> Bytes
+  join first last =
+    let n = bytes-len first in
+    let out = bytes-new (n + bytes-len last) in
+    let a = bytes-copy-range out first 0 0 n in
+    let b = bytes-copy-range out last n 0 (bytes-len last) in out
+
+  -- | Return fresh digest bytes in network order without advancing or resetting the state.
+  fnv-state-sum :: FnvState -> Bytes
+  fnv-state-sum state = case state of
+    State32 alternate value -> binary-u32 BigEndian value
+    State64 alternate value -> binary-u64 BigEndian value
+    State128 alternate high low -> join (binary-u64 BigEndian high) (binary-u64 BigEndian low)
+
+  -- | Append digest bytes to a copied prefix, leaving both the prefix and state unchanged.
+  fnv-state-append :: Bytes -> FnvState -> Bytes
+  fnv-state-append prefix state = join prefix (fnv-state-sum state)
+
+  -- | Variant tag used after the three ASCII identifier bytes f, n and v.
+  state-tag :: FnvState -> InRange 0 255 Nat
+  state-tag state = case state of
+    State32 alternate value -> if alternate then 2 else 1
+    State64 alternate value -> if alternate then 4 else 3
+    State128 alternate high low -> if alternate then 6 else 5
+
+  -- | Serialize the variant identifier and all hash bits in fresh network-order bytes.
+  -- The identifier is fnv followed by a tag from 1 through 6, ordered by width
+  -- and then by FNV-1 versus FNV-1a. Checkpoints have lengths 8, 12 or 20.
+  fnv-state-save :: FnvState -> Bytes
+  fnv-state-save state = fnv-state-append (bytes-from-u8s [102, 110, 118, wrapping-i64-to-u8 (nat-to-i64 (state-tag state))]) state
+
+  -- | Append a binary checkpoint to a copied prefix without changing either argument.
+  fnv-state-append-save :: Bytes -> FnvState -> Bytes
+  fnv-state-append-save prefix state = join prefix (fnv-state-save state)
+
+  -- | A checkpoint's variant identity or complete byte length is invalid.
+  data FnvStateError where
+    -- | The four-byte identifier is absent, unknown or belongs to a different variant.
+    InvalidFnvStateIdentifier :: FnvStateError
+    -- | Expected complete checkpoint length and actual input length.
+    InvalidFnvStateSize :: Nat -> Nat -> FnvStateError
+
+  -- | Render a state-loading diagnostic without exposing implementation-specific type names.
+  fnv-state-error-message :: FnvStateError -> String
+  fnv-state-error-message error = case error of
+    InvalidFnvStateIdentifier -> "FNV state identifier does not match the selected variant"
+    InvalidFnvStateSize expected actual -> string-concat "FNV state requires " (string-concat (nat-to-string expected) (string-concat " bytes; received " (nat-to-string actual)))
+
+  -- | Restore a checkpoint of the template's variant. The template and input remain unchanged.
+  -- All bit patterns are valid hash states. Identifier checks precede exact-size checks;
+  -- loading one variant into another is an identifier error even when their widths agree.
+  fnv-state-load :: FnvState -> Bytes -> Result FnvStateError FnvState
+  fnv-state-load template input =
+    if 4 <= bytes-len input then
+      if bytes-get input 0 == 102 && bytes-get input 1 == 110 && bytes-get input 2 == 118 && bytes-get input 3 == state-tag template then
+        let expected = 4 + fnv-state-size template in
+        if bytes-len input == expected then restore template input
+        else Err (InvalidFnvStateSize expected (bytes-len input))
+      else Err InvalidFnvStateIdentifier
+    else Err InvalidFnvStateIdentifier
+
+  -- | Read a validated network-order checkpoint into its matching scalar carrier.
+  restore :: FnvState -> Bytes -> Result FnvStateError FnvState
+  restore template input = case template of
+    State32 alternate old -> case binary-read-u32 BigEndian input 4 of
+      Ok value -> Ok (State32 alternate value)
+      Err error -> Err (InvalidFnvStateSize 8 (bytes-len input))
+    State64 alternate old -> case binary-read-u64 BigEndian input 4 of
+      Ok value -> Ok (State64 alternate value)
+      Err error -> Err (InvalidFnvStateSize 12 (bytes-len input))
+    State128 alternate old-high old-low -> case binary-read-u64 BigEndian input 4 of
+      Err error -> Err (InvalidFnvStateSize 20 (bytes-len input))
+      Ok high -> case binary-read-u64 BigEndian input 12 of
+        Ok low -> Ok (State128 alternate high low)
+        Err error -> Err (InvalidFnvStateSize 20 (bytes-len input))
