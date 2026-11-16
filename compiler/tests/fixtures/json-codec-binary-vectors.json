@@ -1,0 +1,1286 @@
+{
+  "typed": [
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "6e756c6c",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "6e756c6c",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "6e756c6c",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "5b5d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2222",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "5b5d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b302c302c305d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "5b315d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2241513d3d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "5b315d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b312c302c305d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "5b312c322c3235355d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2241514c2f22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "5b312c322c3235355d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b312c322c3235355d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "number 256",
+        "type": "uint8",
+        "field": "0",
+        "text": "json: cannot unmarshal number 256 into .0 of type uint8"
+      },
+      "input_hex": "5b3235365d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2242773d3d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "number 256",
+        "type": "uint8",
+        "field": "0",
+        "text": "json: cannot unmarshal number 256 into .0 of type uint8"
+      },
+      "input_hex": "5b3235365d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c302c305d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "number 256",
+        "type": "uint8",
+        "field": "1",
+        "text": "json: cannot unmarshal number 256 into .1 of type uint8"
+      },
+      "input_hex": "5b312c3235362c335d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224151674422",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "number 256",
+        "type": "uint8",
+        "field": "1",
+        "text": "json: cannot unmarshal number 256 into .1 of type uint8"
+      },
+      "input_hex": "5b312c3235362c335d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b312c382c335d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "5b6e756c6c2c325d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224277493d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "5b6e756c6c2c325d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c322c305d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 14,
+        "value": "string",
+        "type": "uint8",
+        "field": "4",
+        "text": "json: cannot unmarshal string into .4 of type uint8"
+      },
+      "input_hex": "5b312c322c332c342c22626164225d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "22415149444241413d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "5b312c322c332c342c22626164225d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b312c322c335d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "bool",
+        "type": "[]uint8",
+        "text": "json: cannot unmarshal bool into Go value of type []uint8"
+      },
+      "input_hex": "74727565",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224277673d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "bool",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal bool into Go value of type [3]uint8"
+      },
+      "input_hex": "74727565",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 2,
+        "value": "number",
+        "type": "[]uint8",
+        "text": "json: cannot unmarshal number into Go value of type []uint8"
+      },
+      "input_hex": "3432",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224277673d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 2,
+        "value": "number",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal number into Go value of type [3]uint8"
+      },
+      "input_hex": "3432",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "object",
+        "type": "[]uint8",
+        "text": "json: cannot unmarshal object into Go value of type []uint8"
+      },
+      "input_hex": "7b7d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224277673d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "object",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal object into Go value of type [3]uint8"
+      },
+      "input_hex": "7b7d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2222",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2222",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 2,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "2222",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2241414543412f383d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2241414543412f383d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 10,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "2241414543412f383d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2241423d3d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2241413d3d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "2241423d3d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2241415c6e454322",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224141454322",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 8,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "2241415c6e454322",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "string",
+        "type": "[]uint8",
+        "text": "json: cannot unmarshal string into Go value of type []uint8: illegal base64 data at input byte 0"
+      },
+      "input_hex": "223f22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224277673d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "223f22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "string",
+        "type": "[]uint8",
+        "text": "json: cannot unmarshal string into Go value of type []uint8: illegal base64 data at input byte 0"
+      },
+      "input_hex": "224122",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224277673d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "224122",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "string",
+        "type": "[]uint8",
+        "text": "json: cannot unmarshal string into Go value of type []uint8: illegal base64 data at input byte 0"
+      },
+      "input_hex": "22414122",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224277673d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "22414122",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 5,
+        "value": "string",
+        "type": "[]uint8",
+        "text": "json: cannot unmarshal string into Go value of type []uint8: illegal base64 data at input byte 0"
+      },
+      "input_hex": "2241414122",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224277673d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 5,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "2241414122",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 5,
+        "value": "string",
+        "type": "[]uint8",
+        "text": "json: cannot unmarshal string into Go value of type []uint8: illegal base64 data at input byte 3"
+      },
+      "input_hex": "2241413d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224277673d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 5,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "2241413d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 7,
+        "value": "string",
+        "type": "[]uint8",
+        "text": "json: cannot unmarshal string into Go value of type []uint8: illegal base64 data at input byte 4"
+      },
+      "input_hex": "2241413d3d3d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224141673d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 7,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "2241413d3d3d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 7,
+        "value": "string",
+        "type": "[]uint8",
+        "text": "json: cannot unmarshal string into Go value of type []uint8: illegal base64 data at input byte 4"
+      },
+      "input_hex": "22414141413d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224277673d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 7,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "22414141413d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 7,
+        "value": "string",
+        "type": "[]uint8",
+        "text": "json: cannot unmarshal string into Go value of type []uint8: illegal base64 data at input byte 4"
+      },
+      "input_hex": "2241413d3d7822",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224277673d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 7,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "2241413d3d7822",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 8,
+        "value": "string",
+        "type": "[]uint8",
+        "text": "json: cannot unmarshal string into Go value of type []uint8: illegal base64 data at input byte 2"
+      },
+      "input_hex": "2241415c74454322",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224277673d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 8,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "2241415c74454322",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 8,
+        "value": "string",
+        "type": "[]uint8",
+        "text": "json: cannot unmarshal string into Go value of type []uint8: illegal base64 data at input byte 0"
+      },
+      "input_hex": "225c756438303022",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224277673d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 8,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "225c756438303022",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2222",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2222",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 2,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "2222",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2245513d3d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2245513d3d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "2245513d3d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "224553343d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224553343d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "224553343d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "224553354c22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224553354c22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "224553354c22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "224553354c6149576976773d3d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224553354c6149576976773d3d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 14,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "224553354c6149576976773d3d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "224553354c614957697639773d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224553354c614957697639773d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 14,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "224553354c614957697639773d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "224553354c6149576976397a35466a4e516259716e22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224553354c6149576976397a35466a4e516259716e22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 22,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "224553354c6149576976397a35466a4e516259716e22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "224553354c6149576976397a35466a4e516259716e78413d3d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224553354c6149576976397a35466a4e516259716e78413d3d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 26,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "224553354c6149576976397a35466a4e516259716e78413d3d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "224553354c6149576976397a35466a4e516259716e784f453d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224553354c6149576976397a35466a4e516259716e784f453d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 26,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "224553354c6149576976397a35466a4e516259716e784f453d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b73796559444944316164773d3d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b73796559444944316164773d3d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 46,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b73796559444944316164773d3d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b7379655944494431616435513d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b7379655944494431616435513d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 46,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b7379655944494431616435513d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b7379655944494431616435537822",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b7379655944494431616435537822",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 46,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b7379655944494431616435537822",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b737965594449443161643553787a7573494a554a66664a6d32302f414e4b6b646b675a3637325055534c3078706871504133666f5822",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b737965594449443161643553787a7573494a554a66664a6d32302f414e4b6b646b675a3637325055534c3078706871504133666f5822",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 86,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b737965594449443161643553787a7573494a554a66664a6d32302f414e4b6b646b675a3637325055534c3078706871504133666f5822",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b737965594449443161643553787a7573494a554a66664a6d32302f414e4b6b646b675a3637325055534c3078706871504133666f584e413d3d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b737965594449443161643553787a7573494a554a66664a6d32302f414e4b6b646b675a3637325055534c3078706871504133666f584e413d3d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 90,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b737965594449443161643553787a7573494a554a66664a6d32302f414e4b6b646b675a3637325055534c3078706871504133666f584e413d3d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b737965594449443161643553787a7573494a554a66664a6d32302f414e4b6b646b675a3637325055534c3078706871504133666f584e46453d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b737965594449443161643553787a7573494a554a66664a6d32302f414e4b6b646b675a3637325055534c3078706871504133666f584e46453d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 90,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b737965594449443161643553787a7573494a554a66664a6d32302f414e4b6b646b675a3637325055534c3078706871504133666f584e46453d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b737965594449443161643553787a7573494a554a66664a6d32302f414e4b6b646b675a3637325055534c3078706871504133666f584e46467569366a46347638634f565a7a6b4b334b35775168506c74346c624c5037416b6d513242396d72665538513472534757436e377a5a39684d7754577148704d48652b786731556d2b4d7163626a41423036563353527273766f4253492f58486d57733944744369644559583662754e58794479784a5a6f4f67766472334644464f6134696c77742f3847545a5463493271782b5142486a7459645a4b767a4f6b4749304264657065303065344c4b4556696635793531764d514c55706e684b472b322f67564d6b397369616244345030614e3152786a7176493551496650466c326b37444e3667636b515635376d4c585337777770526d4f416e62725822",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b737965594449443161643553787a7573494a554a66664a6d32302f414e4b6b646b675a3637325055534c3078706871504133666f584e46467569366a46347638634f565a7a6b4b334b35775168506c74346c624c5037416b6d513242396d72665538513472534757436e377a5a39684d7754577148704d48652b786731556d2b4d7163626a41423036563353527273766f4253492f58486d57733944744369644559583662754e58794479784a5a6f4f67766472334644464f6134696c77742f3847545a5463493271782b5142486a7459645a4b767a4f6b4749304264657065303065344c4b4556696635793531764d514c55706e684b472b322f67564d6b397369616244345030614e3152786a7176493551496650466c326b37444e3667636b515635376d4c585337777770526d4f416e62725822",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 342,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b737965594449443161643553787a7573494a554a66664a6d32302f414e4b6b646b675a3637325055534c3078706871504133666f584e46467569366a46347638634f565a7a6b4b334b35775168506c74346c624c5037416b6d513242396d72665538513472534757436e377a5a39684d7754577148704d48652b786731556d2b4d7163626a41423036563353527273766f4253492f58486d57733944744369644559583662754e58794479784a5a6f4f67766472334644464f6134696c77742f3847545a5463493271782b5142486a7459645a4b767a4f6b4749304264657065303065344c4b4556696635793531764d514c55706e684b472b322f67564d6b397369616244345030614e3152786a7176493551496650466c326b37444e3667636b515635376d4c585337777770526d4f416e62725822",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b737965594449443161643553787a7573494a554a66664a6d32302f414e4b6b646b675a3637325055534c3078706871504133666f584e46467569366a46347638634f565a7a6b4b334b35775168506c74346c624c5037416b6d513242396d72665538513472534757436e377a5a39684d7754577148704d48652b786731556d2b4d7163626a41423036563353527273766f4253492f58486d57733944744369644559583662754e58794479784a5a6f4f67766472334644464f6134696c77742f3847545a5463493271782b5142486a7459645a4b767a4f6b4749304264657065303065344c4b4556696635793531764d514c55706e684b472b322f67564d6b397369616244345030614e3152786a7176493551496650466c326b37444e3667636b515635376d4c585337777770526d4f416e62725839413d3d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b737965594449443161643553787a7573494a554a66664a6d32302f414e4b6b646b675a3637325055534c3078706871504133666f584e46467569366a46347638634f565a7a6b4b334b35775168506c74346c624c5037416b6d513242396d72665538513472534757436e377a5a39684d7754577148704d48652b786731556d2b4d7163626a41423036563353527273766f4253492f58486d57733944744369644559583662754e58794479784a5a6f4f67766472334644464f6134696c77742f3847545a5463493271782b5142486a7459645a4b767a4f6b4749304264657065303065344c4b4556696635793531764d514c55706e684b472b322f67564d6b397369616244345030614e3152786a7176493551496650466c326b37444e3667636b515635376d4c585337777770526d4f416e62725839413d3d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 346,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b737965594449443161643553787a7573494a554a66664a6d32302f414e4b6b646b675a3637325055534c3078706871504133666f584e46467569366a46347638634f565a7a6b4b334b35775168506c74346c624c5037416b6d513242396d72665538513472534757436e377a5a39684d7754577148704d48652b786731556d2b4d7163626a41423036563353527273766f4253492f58486d57733944744369644559583662754e58794479784a5a6f4f67766472334644464f6134696c77742f3847545a5463493271782b5142486a7459645a4b767a4f6b4749304264657065303065344c4b4556696635793531764d514c55706e684b472b322f67564d6b397369616244345030614e3152786a7176493551496650466c326b37444e3667636b515635376d4c585337777770526d4f416e62725839413d3d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b737965594449443161643553787a7573494a554a66664a6d32302f414e4b6b646b675a3637325055534c3078706871504133666f584e46467569366a46347638634f565a7a6b4b334b35775168506c74346c624c5037416b6d513242396d72665538513472534757436e377a5a39684d7754577148704d48652b786731556d2b4d7163626a41423036563353527273766f4253492f58486d57733944744369644559583662754e58794479784a5a6f4f67766472334644464f6134696c77742f3847545a5463493271782b5142486a7459645a4b767a4f6b4749304264657065303065344c4b4556696635793531764d514c55706e684b472b322f67564d6b397369616244345030614e3152786a7176493551496650466c326b37444e3667636b515635376d4c585337777770526d4f416e6272583942453d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b737965594449443161643553787a7573494a554a66664a6d32302f414e4b6b646b675a3637325055534c3078706871504133666f584e46467569366a46347638634f565a7a6b4b334b35775168506c74346c624c5037416b6d513242396d72665538513472534757436e377a5a39684d7754577148704d48652b786731556d2b4d7163626a41423036563353527273766f4253492f58486d57733944744369644559583662754e58794479784a5a6f4f67766472334644464f6134696c77742f3847545a5463493271782b5142486a7459645a4b767a4f6b4749304264657065303065344c4b4556696635793531764d514c55706e684b472b322f67564d6b397369616244345030614e3152786a7176493551496650466c326b37444e3667636b515635376d4c585337777770526d4f416e6272583942453d22",
+      "type": "Bytes"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 346,
+        "value": "string",
+        "type": "[3]uint8",
+        "text": "json: cannot unmarshal string into Go value of type [3]uint8"
+      },
+      "input_hex": "224553354c6149576976397a35466a4e516259716e784f482b477a6856636f2b737965594449443161643553787a7573494a554a66664a6d32302f414e4b6b646b675a3637325055534c3078706871504133666f584e46467569366a46347638634f565a7a6b4b334b35775168506c74346c624c5037416b6d513242396d72665538513472534757436e377a5a39684d7754577148704d48652b786731556d2b4d7163626a41423036563353527273766f4253492f58486d57733944744369644559583662754e58794479784a5a6f4f67766472334644464f6134696c77742f3847545a5463493271782b5142486a7459645a4b767a4f6b4749304264657065303065344c4b4556696635793531764d514c55706e684b472b322f67564d6b397369616244345030614e3152786a7176493551496650466c326b37444e3667636b515635376d4c585337777770526d4f416e6272583942453d22",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "5b372c382c395d",
+      "type": "ByteArray3"
+    }
+  ]
+}

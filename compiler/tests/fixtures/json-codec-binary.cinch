@@ -1,0 +1,306 @@
+-- | Independent JSON value and formatting consumer with runtime inputs and complete byte comparisons.
+module Main where
+  import Text.Json.Value
+  import Text.Json.Codec
+  import Data.Array
+  import Data.Machine
+  -- | Keep input preparation live through front-end evaluation.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+  -- | Observe a finite float's complete IEEE bit pattern without decimal rendering.
+  prim float-bits :: F64 -> U64 where
+    llvm {
+      %value = bitcast double %0 to i64
+      ret i64 %value
+    }
+  -- | Snapshot fixture bytes through a runtime-sized destination.
+  runtime-bytes :: Bytes -> Bytes
+  runtime-bytes input =
+    let size = u32-to-nat (runtime-size (wrapping-i64-to-u32 (nat-to-i64 (bytes-len input)))) in
+    let out = bytes-new size in
+    if bytes-len input <= bytes-len out then let copied = bytes-copy-range out input 0 0 (bytes-len input) in out else bytes-new 0
+  -- | Compare complete bytes, including embedded NUL and malformed UTF-8.
+  same-bytes :: Bytes -> Bytes -> Bool
+  same-bytes left right = eq-i64 (bytes-compare left right) 0
+  -- | Compare syntax failures using original offsets and neutral JSON diagnostic text.
+  syntax-error :: JsonError -> Nat -> String -> Bool
+  syntax-error actual offset message = case actual of JsonSyntaxError at text -> at == offset && text == message; other -> False
+  -- | Check validation and exact retained raw source for a complete valid document.
+  valid-case :: Bytes -> Bytes -> Bool
+  valid-case input raw = json-valid input && (case json-document input of Err error -> False; Ok document -> same-bytes (json-value-source (json-document-value document)) raw && same-bytes (json-document-input document) input)
+  -- | Check named syntax failure before a document or output can escape.
+  invalid-case :: Bytes -> Nat -> String -> Bool
+  invalid-case input offset message = not (json-valid input) && (case json-document input of Err error -> syntax-error error offset message; Ok document -> False)
+  -- | Compare the entire compact output or its exact original syntax refusal.
+  compact-case :: Bytes -> Bytes -> Bool -> Nat -> String -> Bool
+  compact-case input expected valid offset message = case json-compact input of
+    Ok out -> valid && same-bytes out expected
+    Err error -> not valid && syntax-error error offset message
+  -- | Compare indentation, including arbitrary line prefixes and preserved trailing whitespace.
+  indent-case :: Bytes -> String -> String -> Bytes -> Bool -> Nat -> String -> Bool
+  indent-case input prefix step expected valid offset message = case json-indent input prefix step of
+    Ok out -> valid && same-bytes out expected
+    Err error -> not valid && syntax-error error offset message
+  -- | Compare raw-byte indentation fragments independently of scalar text validity.
+  indent-byte-case :: Bytes -> Bytes -> Bytes -> Bytes -> Bool -> Nat -> String -> Bool
+  indent-byte-case input prefix step expected valid offset message = case json-indent-bytes input prefix step of
+    Ok out -> valid && same-bytes out expected
+    Err error -> not valid && syntax-error error offset message
+  -- | Compare quoted arbitrary bytes and their decoded replacement-scalar text.
+  quote-case :: Bytes -> Bool -> Bytes -> Bytes -> Bool
+  quote-case input html expected decoded =
+    let out = json-quote-bytes input html in same-bytes out expected && (case json-document out of
+      Err error -> False
+      Ok document -> case json-value-string (json-document-value document) of None -> False; Some text -> same-bytes (string-to-bytes text) decoded)
+  -- | Compare valid number spellings and integer/float conversions without a rounding-based oracle.
+  number-case :: String -> Bool -> I64 -> Bool -> U64 -> Bool
+  number-case text integer-ok integer float-ok bits = case json-number text of
+    Err error -> False
+    Ok number -> json-number-text number == text
+      && (case json-number-int64 number of Ok actual -> integer-ok && eq-i64 actual integer; Err error -> not integer-ok)
+      && (case json-number-float64 number of Ok actual -> float-ok && eq-u64 (float-bits actual) bits; Err error -> not float-ok)
+  -- | Reject malformed number spellings at construction rather than admitting an invalid number value.
+  number-invalid :: String -> Bool
+  number-invalid text = case json-number text of Err error -> True; Ok value -> False
+  -- | Preserve a failing fixture index within a bounded group.
+  first-failure :: List Bool -> Nat -> Nat
+  first-failure checks index = case checks of Nil -> 0; Cons first rest -> if first then first-failure rest (index + 1) else index
+  -- | Preserve the first failing group without constructing one enormous evaluation body.
+  first-result :: List Nat -> Nat
+  first-result groups = case groups of Nil -> 0; Cons first rest -> if first > 0 then first else first-result rest
+
+  -- | Application record used by independent field update/omission observations.
+  data ApplicationRecord where
+    -- | Identifier, display text, enabled flag, quoted integer and omitted-zero integer.
+    App :: I64 -> String -> Bool -> I64 -> I64 -> ApplicationRecord
+  -- | Read the application's identifier field.
+  app-id :: ApplicationRecord -> I64
+  app-id value = case value of App ident name enabled quoted zero -> ident
+  -- | Functionally install an identifier while preserving unrelated fields.
+  app-id-set :: I64 -> ApplicationRecord -> ApplicationRecord
+  app-id-set next value = case value of App ident name enabled quoted zero -> App next name enabled quoted zero
+  -- | Read the application's display name.
+  app-name :: ApplicationRecord -> String
+  app-name value = case value of App ident name enabled quoted zero -> name
+  -- | Functionally install display text while preserving unrelated fields.
+  app-name-set :: String -> ApplicationRecord -> ApplicationRecord
+  app-name-set next value = case value of App ident name enabled quoted zero -> App ident next enabled quoted zero
+  -- | Read the application's enabled flag.
+  app-enabled :: ApplicationRecord -> Bool
+  app-enabled value = case value of App ident name enabled quoted zero -> enabled
+  -- | Functionally install the enabled flag while preserving unrelated fields.
+  app-enabled-set :: Bool -> ApplicationRecord -> ApplicationRecord
+  app-enabled-set next value = case value of App ident name enabled quoted zero -> App ident name next quoted zero
+  -- | Read the quoted integer field.
+  app-quoted :: ApplicationRecord -> I64
+  app-quoted value = case value of App ident name enabled quoted zero -> quoted
+  -- | Functionally install the quoted integer while preserving unrelated fields.
+  app-quoted-set :: I64 -> ApplicationRecord -> ApplicationRecord
+  app-quoted-set next value = case value of App ident name enabled quoted zero -> App ident name enabled next zero
+  -- | Read the omitted-zero integer field.
+  app-zero :: ApplicationRecord -> I64
+  app-zero value = case value of App ident name enabled quoted zero -> zero
+  -- | Functionally install the omitted-zero field while preserving unrelated fields.
+  app-zero-set :: I64 -> ApplicationRecord -> ApplicationRecord
+  app-zero-set next value = case value of App ident name enabled quoted zero -> App ident name enabled quoted next
+  -- | Construct an independent application zero value.
+  app-default :: Unit -> ApplicationRecord
+  app-default unit = App 0 "" False 0 0
+  -- | Classify the application's actual complete zero value.
+  app-is-zero :: ApplicationRecord -> Bool
+  app-is-zero value = case value of App ident name enabled quoted zero -> eq-i64 ident 0 && name == "" && not enabled && eq-i64 quoted 0 && eq-i64 zero 0
+  -- | Describe explicit application fields with omission, naming and quoted-number metadata.
+  app-type :: Unit -> JsonType ApplicationRecord
+  app-type unit = json-record-type "ApplicationRecord" app-default app-is-zero [
+    json-field-with "id" (json-field-options False False False 0 True JsonFieldDefaultMatch) json-int64-type app-id app-id-set,
+    json-field-with "name" (json-field-options False False False 0 True JsonFieldDefaultMatch) json-string-type app-name app-name-set,
+    json-field-with "enabled" (json-field-options True False False 0 True JsonFieldDefaultMatch) json-bool-type app-enabled app-enabled-set,
+    json-field-with "quoted" (json-field-options False False True 0 True JsonFieldDefaultMatch) json-int64-type app-quoted app-quoted-set,
+    json-field-with "zero" (json-field-options False True False 0 True JsonFieldDefaultMatch) json-int64-type app-zero app-zero-set]
+  -- | Construct a known valid initial exact number through the public checked constructor.
+  initial-number :: Unit -> JsonNumber
+  initial-number unit = case json-number "7" of Ok value -> value; Err error -> json-empty-number
+  -- | Inspect the semantic error family without conflating path context with an underlying cause.
+  error-family :: JsonError -> String
+  error-family error = case error of
+    JsonSyntaxError at text -> "syntax"
+    JsonTypeError expected actual at path -> "type"
+    JsonTypeCause expected actual at path cause -> "type"
+    JsonPathError path cause -> error-family cause
+    JsonCustomError label cause -> "custom"
+    JsonValueError label text -> "value"
+    other -> "other"
+  -- | Compare the complete remarshal of a partially updated value.
+  typed-value-ok :: forall a. JsonType a -> a -> Bytes -> Bool
+  typed-value-ok descriptor value expected = case json-marshal descriptor value of
+    Ok output -> same-bytes output expected
+    Err error -> False
+  -- | Treat absent optional diagnostic metadata as the empty reference field.
+  optional-text :: Option String -> String
+  optional-text value = case value of None -> ""; Some text -> text
+  -- | Compare the original structured error independently of conversion success.
+  typed-error-ok :: Option JsonError -> String -> Nat -> String -> String -> String -> Bool
+  typed-error-ok error family offset actual expected-type path = case error of
+    None -> family == ""
+    Some value -> error-family value == family && json-error-offset value == offset && optional-text (json-error-value value) == actual && optional-text (json-error-type value) == expected-type && json-error-path value == path
+  -- | Compare complete partial-update state and original error metadata against an independent observation.
+  typed-case :: forall a. JsonType a -> Bytes -> a -> Bytes -> String -> Nat -> String -> String -> String -> Bool
+  typed-case descriptor input prior expected family offset actual expected-type path =
+    let decoded = json-update descriptor (runtime-bytes input) prior in
+    typed-value-ok descriptor (json-decoded-value decoded) expected && typed-error-ok (json-decoded-error decoded) family offset actual expected-type path
+
+  -- | Evaluate bounded independent binary checks with global failure indexes.
+  check-batch0 :: Unit -> Nat
+  check-batch0 unit = first-failure [
+      (typed-case json-byte-slice-type (string-to-bytes "null") (Some (bytes-from-list [7,8])) (string-to-bytes "null") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "null") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "" 0 "" "" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "[]") (Some (bytes-from-list [7,8])) (string-to-bytes "\"\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "[]") (bytes-from-list [7,8,9]) (string-to-bytes "[0,0,0]") "" 0 "" "" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "[1]") (Some (bytes-from-list [7,8])) (string-to-bytes "\"AQ==\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "[1]") (bytes-from-list [7,8,9]) (string-to-bytes "[1,0,0]") "" 0 "" "" "")] 1
+
+  -- | Evaluate bounded independent binary checks with global failure indexes.
+  check-batch1 :: Unit -> Nat
+  check-batch1 unit = first-failure [
+      (typed-case json-byte-slice-type (string-to-bytes "[1,2,255]") (Some (bytes-from-list [7,8])) (string-to-bytes "\"AQL/\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "[1,2,255]") (bytes-from-list [7,8,9]) (string-to-bytes "[1,2,255]") "" 0 "" "" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "[256]") (Some (bytes-from-list [7,8])) (string-to-bytes "\"Bw==\"") "type" 4 "number 256" "U8" "[0]"),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "[256]") (bytes-from-list [7,8,9]) (string-to-bytes "[7,0,0]") "type" 4 "number 256" "U8" "[0]"),
+      (typed-case json-byte-slice-type (string-to-bytes "[1,256,3]") (Some (bytes-from-list [7,8])) (string-to-bytes "\"AQgD\"") "type" 6 "number 256" "U8" "[1]"),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "[1,256,3]") (bytes-from-list [7,8,9]) (string-to-bytes "[1,8,3]") "type" 6 "number 256" "U8" "[1]")] 7
+
+  -- | Evaluate bounded independent binary checks with global failure indexes.
+  check-batch2 :: Unit -> Nat
+  check-batch2 unit = first-failure [
+      (typed-case json-byte-slice-type (string-to-bytes "[null,2]") (Some (bytes-from-list [7,8])) (string-to-bytes "\"BwI=\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "[null,2]") (bytes-from-list [7,8,9]) (string-to-bytes "[7,2,0]") "" 0 "" "" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "[1,2,3,4,\"bad\"]") (Some (bytes-from-list [7,8])) (string-to-bytes "\"AQIDBAA=\"") "type" 14 "string" "U8" "[4]"),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "[1,2,3,4,\"bad\"]") (bytes-from-list [7,8,9]) (string-to-bytes "[1,2,3]") "" 0 "" "" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "true") (Some (bytes-from-list [7,8])) (string-to-bytes "\"Bwg=\"") "type" 4 "boolean" "Bytes" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "true") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 4 "boolean" "Array" "")] 13
+
+  -- | Evaluate bounded independent binary checks with global failure indexes.
+  check-batch3 :: Unit -> Nat
+  check-batch3 unit = first-failure [
+      (typed-case json-byte-slice-type (string-to-bytes "42") (Some (bytes-from-list [7,8])) (string-to-bytes "\"Bwg=\"") "type" 2 "number" "Bytes" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "42") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 2 "number" "Array" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "{}") (Some (bytes-from-list [7,8])) (string-to-bytes "\"Bwg=\"") "type" 1 "object" "Bytes" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "{}") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 1 "object" "Array" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "\"\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 2 "string" "Array" "")] 19
+
+  -- | Evaluate bounded independent binary checks with global failure indexes.
+  check-batch4 :: Unit -> Nat
+  check-batch4 unit = first-failure [
+      (typed-case json-byte-slice-type (string-to-bytes "\"AAECA/8=\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"AAECA/8=\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"AAECA/8=\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 10 "string" "Array" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "\"AB==\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"AA==\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"AB==\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 6 "string" "Array" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "\"AA\\nEC\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"AAEC\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"AA\\nEC\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 8 "string" "Array" "")] 25
+
+  -- | Evaluate bounded independent binary checks with global failure indexes.
+  check-batch5 :: Unit -> Nat
+  check-batch5 unit = first-failure [
+      (typed-case json-byte-slice-type (string-to-bytes "\"?\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"Bwg=\"") "type" 3 "string" "Bytes" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"?\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 3 "string" "Array" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "\"A\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"Bwg=\"") "type" 3 "string" "Bytes" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"A\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 3 "string" "Array" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "\"AA\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"Bwg=\"") "type" 4 "string" "Bytes" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"AA\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 4 "string" "Array" "")] 31
+
+  -- | Evaluate bounded independent binary checks with global failure indexes.
+  check-batch6 :: Unit -> Nat
+  check-batch6 unit = first-failure [
+      (typed-case json-byte-slice-type (string-to-bytes "\"AAA\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"Bwg=\"") "type" 5 "string" "Bytes" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"AAA\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 5 "string" "Array" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "\"AA=\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"Bwg=\"") "type" 5 "string" "Bytes" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"AA=\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 5 "string" "Array" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "\"AA===\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"AAg=\"") "type" 7 "string" "Bytes" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"AA===\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 7 "string" "Array" "")] 37
+
+  -- | Evaluate bounded independent binary checks with global failure indexes.
+  check-batch7 :: Unit -> Nat
+  check-batch7 unit = first-failure [
+      (typed-case json-byte-slice-type (string-to-bytes "\"AAAA=\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"Bwg=\"") "type" 7 "string" "Bytes" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"AAAA=\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 7 "string" "Array" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "\"AA==x\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"Bwg=\"") "type" 7 "string" "Bytes" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"AA==x\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 7 "string" "Array" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "\"AA\\tEC\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"Bwg=\"") "type" 8 "string" "Bytes" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"AA\\tEC\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 8 "string" "Array" "")] 43
+
+  -- | Evaluate bounded independent binary checks with global failure indexes.
+  check-batch8 :: Unit -> Nat
+  check-batch8 unit = first-failure [
+      (typed-case json-byte-slice-type (string-to-bytes "\"\\ud800\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"Bwg=\"") "type" 8 "string" "Bytes" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"\\ud800\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 8 "string" "Array" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "\"\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 2 "string" "Array" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "\"EQ==\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"EQ==\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"EQ==\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 6 "string" "Array" "")] 49
+
+  -- | Evaluate bounded independent binary checks with global failure indexes.
+  check-batch9 :: Unit -> Nat
+  check-batch9 unit = first-failure [
+      (typed-case json-byte-slice-type (string-to-bytes "\"ES4=\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"ES4=\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"ES4=\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 6 "string" "Array" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "\"ES5L\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"ES5L\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"ES5L\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 6 "string" "Array" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "\"ES5LaIWivw==\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"ES5LaIWivw==\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"ES5LaIWivw==\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 14 "string" "Array" "")] 55
+
+  -- | Evaluate bounded independent binary checks with global failure indexes.
+  check-batch10 :: Unit -> Nat
+  check-batch10 unit = first-failure [
+      (typed-case json-byte-slice-type (string-to-bytes "\"ES5LaIWiv9w=\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"ES5LaIWiv9w=\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"ES5LaIWiv9w=\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 14 "string" "Array" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqn\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqn\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqn\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 22 "string" "Array" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxA==\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxA==\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxA==\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 26 "string" "Array" "")] 61
+
+  -- | Evaluate bounded independent binary checks with global failure indexes.
+  check-batch11 :: Unit -> Nat
+  check-batch11 unit = first-failure [
+      (typed-case json-byte-slice-type (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOE=\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOE=\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOE=\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 26 "string" "Array" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1adw==\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1adw==\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1adw==\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 46 "string" "Array" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1ad5Q=\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1ad5Q=\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1ad5Q=\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 46 "string" "Array" "")] 67
+
+  -- | Evaluate bounded independent binary checks with global failure indexes.
+  check-batch12 :: Unit -> Nat
+  check-batch12 unit = first-failure [
+      (typed-case json-byte-slice-type (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1ad5Sx\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1ad5Sx\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1ad5Sx\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 46 "string" "Array" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1ad5SxzusIJUJffJm20/ANKkdkgZ672PUSL0xphqPA3foX\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1ad5SxzusIJUJffJm20/ANKkdkgZ672PUSL0xphqPA3foX\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1ad5SxzusIJUJffJm20/ANKkdkgZ672PUSL0xphqPA3foX\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 86 "string" "Array" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1ad5SxzusIJUJffJm20/ANKkdkgZ672PUSL0xphqPA3foXNA==\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1ad5SxzusIJUJffJm20/ANKkdkgZ672PUSL0xphqPA3foXNA==\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1ad5SxzusIJUJffJm20/ANKkdkgZ672PUSL0xphqPA3foXNA==\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 90 "string" "Array" "")] 73
+
+  -- | Evaluate bounded independent binary checks with global failure indexes.
+  check-batch13 :: Unit -> Nat
+  check-batch13 unit = first-failure [
+      (typed-case json-byte-slice-type (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1ad5SxzusIJUJffJm20/ANKkdkgZ672PUSL0xphqPA3foXNFE=\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1ad5SxzusIJUJffJm20/ANKkdkgZ672PUSL0xphqPA3foXNFE=\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1ad5SxzusIJUJffJm20/ANKkdkgZ672PUSL0xphqPA3foXNFE=\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 90 "string" "Array" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1ad5SxzusIJUJffJm20/ANKkdkgZ672PUSL0xphqPA3foXNFFui6jF4v8cOVZzkK3K5wQhPlt4lbLP7AkmQ2B9mrfU8Q4rSGWCn7zZ9hMwTWqHpMHe+xg1Um+MqcbjAB06V3SRrsvoBSI/XHmWs9DtCidEYX6buNXyDyxJZoOgvdr3FDFOa4ilwt/8GTZTcI2qx+QBHjtYdZKvzOkGI0Bdepe00e4LKEVif5y51vMQLUpnhKG+2/gVMk9siabD4P0aN1RxjqvI5QIfPFl2k7DN6gckQV57mLXS7wwpRmOAnbrX\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1ad5SxzusIJUJffJm20/ANKkdkgZ672PUSL0xphqPA3foXNFFui6jF4v8cOVZzkK3K5wQhPlt4lbLP7AkmQ2B9mrfU8Q4rSGWCn7zZ9hMwTWqHpMHe+xg1Um+MqcbjAB06V3SRrsvoBSI/XHmWs9DtCidEYX6buNXyDyxJZoOgvdr3FDFOa4ilwt/8GTZTcI2qx+QBHjtYdZKvzOkGI0Bdepe00e4LKEVif5y51vMQLUpnhKG+2/gVMk9siabD4P0aN1RxjqvI5QIfPFl2k7DN6gckQV57mLXS7wwpRmOAnbrX\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1ad5SxzusIJUJffJm20/ANKkdkgZ672PUSL0xphqPA3foXNFFui6jF4v8cOVZzkK3K5wQhPlt4lbLP7AkmQ2B9mrfU8Q4rSGWCn7zZ9hMwTWqHpMHe+xg1Um+MqcbjAB06V3SRrsvoBSI/XHmWs9DtCidEYX6buNXyDyxJZoOgvdr3FDFOa4ilwt/8GTZTcI2qx+QBHjtYdZKvzOkGI0Bdepe00e4LKEVif5y51vMQLUpnhKG+2/gVMk9siabD4P0aN1RxjqvI5QIfPFl2k7DN6gckQV57mLXS7wwpRmOAnbrX\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 342 "string" "Array" ""),
+      (typed-case json-byte-slice-type (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1ad5SxzusIJUJffJm20/ANKkdkgZ672PUSL0xphqPA3foXNFFui6jF4v8cOVZzkK3K5wQhPlt4lbLP7AkmQ2B9mrfU8Q4rSGWCn7zZ9hMwTWqHpMHe+xg1Um+MqcbjAB06V3SRrsvoBSI/XHmWs9DtCidEYX6buNXyDyxJZoOgvdr3FDFOa4ilwt/8GTZTcI2qx+QBHjtYdZKvzOkGI0Bdepe00e4LKEVif5y51vMQLUpnhKG+2/gVMk9siabD4P0aN1RxjqvI5QIfPFl2k7DN6gckQV57mLXS7wwpRmOAnbrX9A==\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1ad5SxzusIJUJffJm20/ANKkdkgZ672PUSL0xphqPA3foXNFFui6jF4v8cOVZzkK3K5wQhPlt4lbLP7AkmQ2B9mrfU8Q4rSGWCn7zZ9hMwTWqHpMHe+xg1Um+MqcbjAB06V3SRrsvoBSI/XHmWs9DtCidEYX6buNXyDyxJZoOgvdr3FDFOa4ilwt/8GTZTcI2qx+QBHjtYdZKvzOkGI0Bdepe00e4LKEVif5y51vMQLUpnhKG+2/gVMk9siabD4P0aN1RxjqvI5QIfPFl2k7DN6gckQV57mLXS7wwpRmOAnbrX9A==\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1ad5SxzusIJUJffJm20/ANKkdkgZ672PUSL0xphqPA3foXNFFui6jF4v8cOVZzkK3K5wQhPlt4lbLP7AkmQ2B9mrfU8Q4rSGWCn7zZ9hMwTWqHpMHe+xg1Um+MqcbjAB06V3SRrsvoBSI/XHmWs9DtCidEYX6buNXyDyxJZoOgvdr3FDFOa4ilwt/8GTZTcI2qx+QBHjtYdZKvzOkGI0Bdepe00e4LKEVif5y51vMQLUpnhKG+2/gVMk9siabD4P0aN1RxjqvI5QIfPFl2k7DN6gckQV57mLXS7wwpRmOAnbrX9A==\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 346 "string" "Array" "")] 79
+
+  -- | Evaluate bounded independent binary checks with global failure indexes.
+  check-batch14 :: Unit -> Nat
+  check-batch14 unit = first-failure [
+      (typed-case json-byte-slice-type (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1ad5SxzusIJUJffJm20/ANKkdkgZ672PUSL0xphqPA3foXNFFui6jF4v8cOVZzkK3K5wQhPlt4lbLP7AkmQ2B9mrfU8Q4rSGWCn7zZ9hMwTWqHpMHe+xg1Um+MqcbjAB06V3SRrsvoBSI/XHmWs9DtCidEYX6buNXyDyxJZoOgvdr3FDFOa4ilwt/8GTZTcI2qx+QBHjtYdZKvzOkGI0Bdepe00e4LKEVif5y51vMQLUpnhKG+2/gVMk9siabD4P0aN1RxjqvI5QIfPFl2k7DN6gckQV57mLXS7wwpRmOAnbrX9BE=\"") (Some (bytes-from-list [7,8])) (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1ad5SxzusIJUJffJm20/ANKkdkgZ672PUSL0xphqPA3foXNFFui6jF4v8cOVZzkK3K5wQhPlt4lbLP7AkmQ2B9mrfU8Q4rSGWCn7zZ9hMwTWqHpMHe+xg1Um+MqcbjAB06V3SRrsvoBSI/XHmWs9DtCidEYX6buNXyDyxJZoOgvdr3FDFOa4ilwt/8GTZTcI2qx+QBHjtYdZKvzOkGI0Bdepe00e4LKEVif5y51vMQLUpnhKG+2/gVMk9siabD4P0aN1RxjqvI5QIfPFl2k7DN6gckQV57mLXS7wwpRmOAnbrX9BE=\"") "" 0 "" "" ""),
+      (typed-case (json-fixed-bytes-type 3) (string-to-bytes "\"ES5LaIWiv9z5FjNQbYqnxOH+GzhVco+syeYDID1ad5SxzusIJUJffJm20/ANKkdkgZ672PUSL0xphqPA3foXNFFui6jF4v8cOVZzkK3K5wQhPlt4lbLP7AkmQ2B9mrfU8Q4rSGWCn7zZ9hMwTWqHpMHe+xg1Um+MqcbjAB06V3SRrsvoBSI/XHmWs9DtCidEYX6buNXyDyxJZoOgvdr3FDFOa4ilwt/8GTZTcI2qx+QBHjtYdZKvzOkGI0Bdepe00e4LKEVif5y51vMQLUpnhKG+2/gVMk9siabD4P0aN1RxjqvI5QIfPFl2k7DN6gckQV57mLXS7wwpRmOAnbrX9BE=\"") (bytes-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 346 "string" "Array" "")] 85
+
+  -- | Print the original failing observation and return a nonzero status on failure.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let failed = first-result [check-batch0 (),check-batch1 (),check-batch2 (),check-batch3 (),check-batch4 (),check-batch5 (),check-batch6 (),check-batch7 (),check-batch8 (),check-batch9 (),check-batch10 (),check-batch11 (),check-batch12 (),check-batch13 (),check-batch14 ()] in
+    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string failed) "\n")) in
+    if failed == 0 then 0 else 1

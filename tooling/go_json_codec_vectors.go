@@ -317,8 +317,66 @@ func fieldCodecCases() map[string]any {
 	return map[string]any{"field_matching": rows}
 }
 
+// integerCodecCases preserves width-specific range errors independently from partially updated values.
+func integerCodecCases() map[string]any {
+	rows := []map[string]any{}
+	inputs := []string{"null", "0", "-0", "1", "-1", "127", "128", "-128", "-129", "255", "256", "32767", "32768", "-32768", "-32769", "65535", "65536", "2147483647", "2147483648", "-2147483648", "-2147483649", "4294967295", "4294967296", "9223372036854775807", "9223372036854775808", "-9223372036854775808", "-9223372036854775809", "18446744073709551615", "18446744073709551616", "12345678", "1234567890123456", "12345678901234567890", "9999999999999999999999999999999999999999", "1.0", "1e1", "\"1\"", "true", "[]", "{}"}
+	types := []struct {
+		label string
+		value any
+	}{{"I8", int8(7)}, {"I16", int16(7)}, {"I32", int32(7)}, {"I64", int64(7)}, {"Isize", int(7)}, {"U8", uint8(7)}, {"U16", uint16(7)}, {"U32", uint32(7)}, {"U64", uint64(7)}, {"Usize", uint(7)}}
+	for _, item := range types {
+		for _, text := range inputs {
+			value := reflect.New(reflect.TypeOf(item.value))
+			value.Elem().Set(reflect.ValueOf(item.value))
+			rows = append(rows, typedCase(item.label, []byte(text), value.Interface()))
+		}
+	}
+	return map[string]any{"typed": rows}
+}
+
+// binaryCodecCases observes binary text, numeric-array updates and fixed byte-array limits.
+func binaryCodecCases() map[string]any {
+	rows := []map[string]any{}
+	inputs := []string{"null", "[]", "[1]", "[1,2,255]", "[256]", "[1,256,3]", "[null,2]", "[1,2,3,4,\"bad\"]", "true", "42", "{}", "\"\"", "\"AAECA/8=\"", "\"AB==\"", "\"AA\\nEC\"", "\"?\"", "\"A\"", "\"AA\"", "\"AAA\"", "\"AA=\"", "\"AA===\"", "\"AAAA=\"", "\"AA==x\"", "\"AA\\tEC\"", "\"\\ud800\""}
+	for _, n := range []int{0, 1, 2, 3, 7, 8, 15, 16, 17, 31, 32, 33, 63, 64, 65, 255, 256, 257} {
+		raw := make([]byte, n)
+		for i := range raw {
+			raw[i] = byte(i*29 + 17)
+		}
+		encoded, err := json.Marshal(raw)
+		if err != nil {
+			panic(err)
+		}
+		inputs = append(inputs, string(encoded))
+	}
+	for _, text := range inputs {
+		value := []byte{7, 8}
+		rows = append(rows, typedCase("Bytes", []byte(text), &value))
+		array := [3]byte{7, 8, 9}
+		rows = append(rows, typedCase("ByteArray3", []byte(text), &array))
+	}
+	return map[string]any{"typed": rows}
+}
+
 // main spans malformed grammar, byte/escape boundaries and exact finite-number ranges.
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "--binary-codecs" {
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(binaryCodecCases()); err != nil {
+			panic(err)
+		}
+		return
+	}
+	if len(os.Args) == 2 && os.Args[1] == "--integer-codecs" {
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(integerCodecCases()); err != nil {
+			panic(err)
+		}
+		return
+	}
 	if len(os.Args) == 2 && os.Args[1] == "--field-codecs" {
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")

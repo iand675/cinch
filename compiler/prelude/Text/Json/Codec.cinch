@@ -3,9 +3,11 @@
 -- can retain a partially updated value together with its first structured error.
 module Text.Json.Codec where
   import Text.Json.Value
+  import Text.Base64.Encoding
   import Data.Array
   import Data.Bool
   import Data.Bytes
+  import Data.Bytes.Word
   import Data.Char
   import Data.Int
   import Data.List
@@ -16,6 +18,8 @@ module Text.Json.Codec where
   import Data.String
   import Data.Unicode.Kernel
 
+  export json-bytes-type, json-byte-slice-type, json-fixed-bytes-type
+  export json-uint64-type, json-int8-type, json-int16-type, json-int32-type, json-isize-type, json-uint8-type, json-uint16-type, json-uint32-type, json-usize-type
   export JsonPolicy, JsonPolicies, JsonPolicyOption, json-default-policies, json-empty-policies, json-policies, json-policy-enabled, json-configure-policies
   export JsonAddressableMethodsOnly, JsonByteArrayNumbers, JsonNamedBytesAsBinary, JsonDurationNanoseconds, JsonPreserveNameDelimiters, JsonPreserveScalarNull, JsonOmitEmptyApplicationValues, JsonLooseBase64Padding, JsonLooseTimestamps, JsonContinueAfterTypeErrors, JsonQuoteScalarFields, JsonAllowArrayLengthMismatch
   export json-addressable-methods-only, json-byte-array-numbers, json-named-bytes-as-binary, json-duration-nanoseconds, json-preserve-name-delimiters, json-preserve-scalar-null, json-omit-empty-application-values, json-loose-base64-padding, json-loose-timestamps, json-continue-after-type-errors, json-quote-scalar-fields, json-allow-array-length-mismatch
@@ -47,7 +51,7 @@ module Text.Json.Codec where
     JsonPreserveScalarNull :: JsonPolicy
     -- | Empty-field omission uses the application value classification.
     JsonOmitEmptyApplicationValues :: JsonPolicy
-    -- | Binary text decoding accepts nonzero unused padding bits.
+    -- | Binary text permits embedded CR/LF while preserving the padded alphabet grammar.
     JsonLooseBase64Padding :: JsonPolicy
     -- | Time descriptors permit the explicitly documented compatibility spellings.
     JsonLooseTimestamps :: JsonPolicy
@@ -138,7 +142,7 @@ module Text.Json.Codec where
   json-omit-empty-application-values :: Bool -> JsonPolicyOption
   json-omit-empty-application-values enabled = PolicyOption JsonOmitEmptyApplicationValues enabled
 
-  -- | Binary text decoding accepts nonzero unused padding bits.
+  -- | Binary text permits embedded CR/LF while preserving the padded alphabet grammar.
   json-loose-base64-padding :: Bool -> JsonPolicyOption
   json-loose-base64-padding enabled = PolicyOption JsonLooseBase64Padding enabled
 
@@ -1128,3 +1132,309 @@ module Text.Json.Codec where
     let candidates = record-candidates fields 0 TreeEmpty in
     let visible = record-visible-fields fields 0 candidates Nil in
     Type label JsonObjectKind initial zero (\value -> False) (record-encode visible) (record-update label initial candidates visible)
+
+  -- | Decode eight validated ASCII decimal lanes in parallel, returning 100000000 for malformed input.
+  -- The input word is explicitly little-endian, independent of the target byte order.
+  prim decimal-eight :: U64 -> U64 where
+    llvm {
+      %digits = sub i64 %0, 3472328296227680304
+      %upper = sub i64 4123389851770370361, %0
+      %outside = or i64 %digits, %upper
+      %bad = and i64 %outside, 9259542123273814144
+      %valid = icmp eq i64 %bad, 0
+      %times10 = mul i64 %digits, 10
+      %next = lshr i64 %digits, 8
+      %pairs0 = add i64 %times10, %next
+      %pairs = and i64 %pairs0, 71777214294589695
+      %times100 = mul i64 %pairs, 100
+      %nextpair = lshr i64 %pairs, 16
+      %quads0 = add i64 %times100, %nextpair
+      %quads = and i64 %quads0, 281470681808895
+      %times10000 = mul i64 %quads, 10000
+      %nextquad = lshr i64 %quads, 32
+      %full0 = add i64 %times10000, %nextquad
+      %full = and i64 %full0, 4294967295
+      %out = select i1 %valid, i64 %full, i64 100000000
+      ret i64 %out
+    }
+
+  -- | Accumulate unsigned decimal digits with eight-lane SWAR blocks and explicit overflow refusal.
+  unsigned-digits :: Bytes -> Nat -> U64 -> Option U64
+  unsigned-digits input at total =
+    if at + 8 <= bytes-len input then
+      let group = decimal-eight (bytes-read-le64 input at) in
+      if lt-u64 group 100000000 && (lt-u64 total 184467440737 || (eq-u64 total 184467440737 && le-u64 group 9551615)) then unsigned-digits input (at + 8) (wrapping-add-u64 (wrapping-mul-u64 total 100000000) group) else None
+    else if at < bytes-len input then
+      let byte = bytes-get input at in
+      if byte >= 48 && byte <= 57 then
+        let digit = wrapping-i64-to-u64 (nat-to-i64 (byte - 48)) in
+        if lt-u64 total 1844674407370955161 || (eq-u64 total 1844674407370955161 && le-u64 digit 5) then unsigned-digits input (at + 1) (wrapping-add-u64 (wrapping-mul-u64 total 10) digit) else None
+      else None
+    else Some total
+
+  -- | Parse a nonempty unsigned decimal spelling; signs and fractional/exponent forms are refused.
+  unsigned-text :: String -> Option U64
+  unsigned-text text = let input = string-to-bytes text in if bytes-len input > 0 then unsigned-digits input 0 0 else None
+
+  -- | Convert an unsigned machine value exactly through two bounded mathematical halves.
+  unsigned-natural :: U64 -> Nat
+  unsigned-natural value = u32-to-nat (wrapping-u64-to-u32 (wrapping-shr-u64 value 32)) * 4294967296 + u32-to-nat (wrapping-u64-to-u32 value)
+
+  -- | Encode the full unsigned64 range without a signed intermediate or floating conversion.
+  uint64-encode :: JsonWriteOptions -> U64 -> Result JsonError Bytes
+  uint64-encode options value = Ok (numeric-encoded options (nat-to-string (unsigned-natural value)))
+
+  -- | Decode unsigned integers with exact spelling/range diagnostics and ordinary null policies.
+  uint64-update :: JsonReadOptions -> JsonValue -> U64 -> JsonDecoded U64
+  uint64-update options source prior = case json-value-kind source of
+    JsonNullKind -> null-scalar options prior 0
+    other -> case numeric-source options source of
+      Err error -> json-decoded-with-error prior (JsonTypeError "U64" (case json-value-string source of Some text -> string-concat "number " text; None -> source-description source) (source-error-offset source) "")
+      Ok token -> case json-value-number token of
+        None -> type-mismatch "U64" source prior
+        Some number -> case unsigned-text (json-number-text number) of
+          Some value -> json-decoded-ok value
+          None -> json-decoded-with-error prior (JsonTypeError "U64" (string-concat "number " (json-number-text number)) (json-value-end source) "")
+
+  -- | Full-range unsigned64 numbers with checked parsing and SWAR decimal blocks.
+  json-uint64-type :: JsonType U64
+  json-uint64-type = Type "U64" JsonNumberKind (\unit -> 0) (\value -> eq-u64 value 0) (\value -> eq-u64 value 0) uint64-encode uint64-update
+
+  -- | Specialize a numeric error's declared label without discarding its value, path, offset or cause.
+  numeric-error-label :: String -> JsonError -> JsonError
+  numeric-error-label label error = case error of
+    JsonTypeError expected actual at path -> JsonTypeError label actual at path
+    JsonTypeCause expected actual at path cause -> JsonTypeCause label actual at path cause
+    JsonPathError path cause -> JsonPathError path (numeric-error-label label cause)
+    other -> error
+
+  -- | Preserve original spelling when a valid wide integer exceeds a narrower application's range.
+  narrow-range-error :: String -> JsonReadOptions -> JsonValue -> JsonError
+  narrow-range-error label options source = case numeric-source options source of
+    Err error -> numeric-error-label label error
+    Ok token -> case json-value-number token of
+      Some number -> JsonTypeError label (string-concat "number " (json-number-text number)) (json-value-end source) ""
+      None -> JsonTypeError label (source-description source) (source-error-offset source) ""
+
+  -- | Apply exact signed parsing before a supplied checked application-width conversion.
+  narrow-signed-update :: forall a. String -> (a -> I64) -> (I64 -> Option a) -> JsonReadOptions -> JsonValue -> a -> JsonDecoded a
+  narrow-signed-update label widen convert-width options source prior = case int64-update options source (widen prior) of
+    Decoded value error fatal -> case error of
+      Some cause -> Decoded prior (Some (numeric-error-label label cause)) fatal
+      None -> case convert-width value of Some converted -> json-decoded-ok converted; None -> json-decoded-with-error prior (narrow-range-error label options source)
+
+  -- | Compose a signed machine-width descriptor from exact widening and checked narrowing capabilities.
+  narrow-signed-type :: forall a. String -> a -> (a -> I64) -> (I64 -> Option a) -> JsonType a
+  narrow-signed-type label initial widen convert-width = Type label JsonNumberKind (\unit -> initial) (\value -> eq-i64 (widen value) 0) (\value -> eq-i64 (widen value) 0) (\options value -> int64-encode options (widen value)) (narrow-signed-update label widen convert-width)
+
+  -- | Apply unsigned SWAR parsing before a supplied checked application-width conversion.
+  narrow-unsigned-update :: forall a. String -> (a -> U64) -> (U64 -> Option a) -> JsonReadOptions -> JsonValue -> a -> JsonDecoded a
+  narrow-unsigned-update label widen convert-width options source prior = case uint64-update options source (widen prior) of
+    Decoded value error fatal -> case error of
+      Some cause -> Decoded prior (Some (numeric-error-label label cause)) fatal
+      None -> case convert-width value of Some converted -> json-decoded-ok converted; None -> json-decoded-with-error prior (narrow-range-error label options source)
+
+  -- | Compose an unsigned machine-width descriptor from exact widening and checked narrowing capabilities.
+  narrow-unsigned-type :: forall a. String -> a -> (a -> U64) -> (U64 -> Option a) -> JsonType a
+  narrow-unsigned-type label initial widen convert-width = Type label JsonNumberKind (\unit -> initial) (\value -> eq-u64 (widen value) 0) (\value -> eq-u64 (widen value) 0) (\options value -> uint64-encode options (widen value)) (narrow-unsigned-update label widen convert-width)
+
+  -- | Signed eight-bit integers with exact range refusal.
+  json-int8-type :: JsonType I8
+  json-int8-type = narrow-signed-type "I8" 0 wrapping-i8-to-i64 checked-i64-to-i8
+  -- | Signed sixteen-bit integers with exact range refusal.
+  json-int16-type :: JsonType I16
+  json-int16-type = narrow-signed-type "I16" 0 wrapping-i16-to-i64 checked-i64-to-i16
+  -- | Signed thirty-two-bit integers with exact range refusal.
+  json-int32-type :: JsonType I32
+  json-int32-type = narrow-signed-type "I32" 0 wrapping-i32-to-i64 checked-i64-to-i32
+  -- | Target-width signed integers with platform-specific checked bounds.
+  json-isize-type :: JsonType Isize
+  json-isize-type = narrow-signed-type "Isize" 0 wrapping-isize-to-i64 checked-i64-to-isize
+  -- | Unsigned eight-bit integers with exact range refusal.
+  json-uint8-type :: JsonType U8
+  json-uint8-type = narrow-unsigned-type "U8" 0 wrapping-u8-to-u64 checked-u64-to-u8
+  -- | Unsigned sixteen-bit integers with exact range refusal.
+  json-uint16-type :: JsonType U16
+  json-uint16-type = narrow-unsigned-type "U16" 0 wrapping-u16-to-u64 checked-u64-to-u16
+  -- | Unsigned thirty-two-bit integers with exact range refusal.
+  json-uint32-type :: JsonType U32
+  json-uint32-type = narrow-unsigned-type "U32" 0 wrapping-u32-to-u64 checked-u64-to-u32
+  -- | Target-width unsigned integers with platform-specific checked bounds.
+  json-usize-type :: JsonType Usize
+  json-usize-type = narrow-unsigned-type "Usize" 0 wrapping-usize-to-u64 checked-u64-to-usize
+
+  -- | Enumerate unsigned byte values with a tail traversal and no recursive constructor producer.
+  byte-list-from :: Bytes -> Nat -> List U8 -> List U8
+  byte-list-from input at reversed = if at < bytes-len input then byte-list-from input (at + 1) (Cons (wrapping-i64-to-u8 (nat-to-i64 (bytes-get input at))) reversed) else reverse reversed
+
+  -- | Read caller-owned bytes as independent immutable numeric elements.
+  byte-list :: Bytes -> List U8
+  byte-list input = byte-list-from input 0 Nil
+
+  -- | Count a byte sequence without growing the call stack.
+  byte-list-length :: List U8 -> Nat -> Nat
+  byte-list-length values count = case values of Nil -> count; Cons first rest -> byte-list-length rest (count + 1)
+
+  -- | Write numeric byte elements into one freshly allocated checked destination.
+  byte-list-write :: List U8 -> Bytes -> Nat -> Unit
+  byte-list-write values out at = case values of
+    Nil -> ()
+    Cons first rest -> if at < bytes-len out then let written = bytes-set out at (u8-to-nat first) in byte-list-write rest out (at + 1) else ()
+
+  -- | Allocate an owned byte buffer once for a completely converted numeric sequence.
+  byte-list-buffer :: List U8 -> Bytes
+  byte-list-buffer values = let out = bytes-new (byte-list-length values 0) in let written = byte-list-write values out 0 in out
+
+  -- | Whether every byte is zero, using complete word loads followed by a bounded fringe.
+  bytes-zero-from :: Bytes -> Nat -> Bool
+  bytes-zero-from input at =
+    if at + 8 <= bytes-len input then if eq-u64 (bytes-read-le64 input at) 0 then bytes-zero-from input (at + 8) else False
+    else if at < bytes-len input then if bytes-get input at == 0 then bytes-zero-from input (at + 1) else False
+    else True
+
+  -- | Compute the binary reservation from text length after removing only trailing padding bytes.
+  binary-unpadded-end :: Bytes -> Nat -> Nat
+  binary-unpadded-end input end = if end > 0 && end <= bytes-len input then if bytes-get input (end - 1) == 61 then binary-unpadded-end input (end - 1) else end else end
+
+  -- | Compute an exact upper allocation requirement without assuming hidden spare capacity.
+  binary-reservation :: Bytes -> Nat
+  binary-reservation input = let size = binary-unpadded-end input (bytes-len input) in nat-div size 4 * 3 + nat-div (nat-rem size 4 * 6) 8
+
+  -- | Return a fresh prefix-overlaid prior value only when the decode reservation fits its owned logical buffer.
+  -- Prior aliases are never mutated; no unobservable spare capacity is inferred.
+  binary-error-value :: Bytes -> Bytes -> Bytes -> Bytes
+  binary-error-value input prefix prior =
+    if bytes-len prefix > 0 && binary-reservation input <= bytes-len prior && bytes-len prefix <= bytes-len prior then
+      let output = bytes-new (bytes-len prior) in let copied = bytes-copy-range output prior 0 0 (bytes-len prior) in
+      let overlaid = bytes-copy-range output prefix 0 0 (bytes-len prefix) in output
+    else prior
+
+  -- | Detect CR or LF among eight byte lanes with parallel zero-byte predicates.
+  prim binary-linebreak-eight :: U64 -> U8 where
+    llvm {
+      %cr = xor i64 %0, 940422246894996749
+      %lf = xor i64 %0, 723401728380766730
+      %crminus = sub i64 %cr, 72340172838076673
+      %lfminus = sub i64 %lf, 72340172838076673
+      %crnot = xor i64 %cr, -1
+      %lfnot = xor i64 %lf, -1
+      %crzero = and i64 %crminus, %crnot
+      %lfzero = and i64 %lfminus, %lfnot
+      %either = or i64 %crzero, %lfzero
+      %masked = and i64 %either, 9259542123273814144
+      %any = icmp ne i64 %masked, 0
+      %out = zext i1 %any to i8
+      ret i8 %out
+    }
+
+  -- | Skip complete line-break-free words before inspecting the bounded scalar fringe.
+  binary-linebreak-at :: Bytes -> Nat -> Option Nat
+  binary-linebreak-at input at = if at + 8 <= bytes-len input && eq-u8 (binary-linebreak-eight (bytes-read-le64 input at)) 0 then binary-linebreak-at input (at + 8)
+    else if at < bytes-len input then if bytes-get input at == 13 || bytes-get input at == 10 then Some at else binary-linebreak-at input (at + 1) else None
+
+  -- | Encode binary bytes through the shared SIMD Base64 implementation and JSON string quoting.
+  binary-encode :: JsonWriteOptions -> Bytes -> Result JsonError Bytes
+  binary-encode options value = Ok (json-quote-bytes (base64-encode-bytes base64-standard-encoding value) (json-write-html options))
+
+  -- | Preserve the original binary-data cause beneath the source JSON token's structured type error.
+  binary-input-error :: String -> JsonValue -> Base64InputError -> JsonError
+  binary-input-error label source error = JsonTypeCause label "string" (json-value-end source) "" (JsonEncodingError (base64-input-error-offset error) (base64-input-error-message error))
+
+  -- | Preserve binary errors beside the owned advanced value, including completed prefix updates.
+  binary-text-update :: JsonReadOptions -> JsonValue -> Bytes -> JsonDecoded Bytes
+  binary-text-update options source prior = case json-value-string source of
+    None -> type-mismatch "Bytes" source prior
+    Some text -> let input = string-to-bytes text in
+      case base64-decode-prefix base64-standard-encoding input of
+        (output, error) -> case error of
+          Some cause -> json-decoded-with-error (binary-error-value input output prior) (binary-input-error "Bytes" source cause)
+          None -> if json-policy-enabled (json-read-policies options) JsonLooseBase64Padding then json-decoded-ok output
+            else case binary-linebreak-at input 0 of
+              None -> json-decoded-ok output
+              Some at -> json-decoded-with-error (binary-error-value input output prior) (JsonTypeCause "Bytes" "string" (json-value-end source) "" (JsonEncodingError at "binary text contains a forbidden line break"))
+
+  -- | Decode binary text or numeric arrays with explicit partial-update ownership semantics.
+  binary-update :: JsonReadOptions -> JsonValue -> Bytes -> JsonDecoded Bytes
+  binary-update options source prior = case json-value-kind source of
+    JsonNullKind -> json-decoded-ok (bytes-new 0)
+    JsonStringKind -> binary-text-update options source prior
+    JsonArrayKind -> case list-update json-uint8-type options source (byte-list prior) of
+      Decoded values error fatal -> Decoded (byte-list-buffer values) error fatal
+    other -> type-mismatch "Bytes" source prior
+
+  -- | Empty non-null byte buffers are both zero and empty application values.
+  bytes-empty :: Bytes -> Bool
+  bytes-empty value = bytes-len value == 0
+
+  -- | Non-null binary bytes; null clears to an empty buffer and marshaling always emits binary text.
+  json-bytes-type :: JsonType Bytes
+  json-bytes-type = Type "Bytes" JsonStringKind (\unit -> bytes-new 0) bytes-empty bytes-empty binary-encode binary-update
+
+  -- | Distinguish an absent byte slice from a present empty slice during marshaling.
+  byte-slice-encode :: JsonWriteOptions -> Option Bytes -> Result JsonError Bytes
+  byte-slice-encode options value = case value of None -> Ok (string-to-bytes "null"); Some present -> binary-encode options present
+
+  -- | Lift a text update without changing an absent slice into a present buffer on failure.
+  byte-slice-text-update :: JsonReadOptions -> JsonValue -> Option Bytes -> JsonDecoded (Option Bytes)
+  byte-slice-text-update options source prior = case binary-text-update options source (case prior of None -> bytes-new 0; Some value -> value) of
+    Decoded output error fatal -> case error of
+      None -> json-decoded-ok (Some output)
+      Some cause -> Decoded (case prior of None -> None; Some value -> Some output) error fatal
+
+  -- | Preserve absence and return explicit advanced owned bytes after binary or numeric-array failures.
+  byte-slice-update :: JsonReadOptions -> JsonValue -> Option Bytes -> JsonDecoded (Option Bytes)
+  byte-slice-update options source prior = case json-value-kind source of
+    JsonNullKind -> json-decoded-ok None
+    JsonStringKind -> byte-slice-text-update options source prior
+    JsonArrayKind -> case binary-update options source (case prior of None -> bytes-new 0; Some value -> value) of
+      Decoded values error fatal -> Decoded (Some values) error fatal
+    other -> type-mismatch "Bytes" source prior
+
+  -- | An absent byte slice is zero; any present buffer retains its non-null identity.
+  byte-slice-zero :: Option Bytes -> Bool
+  byte-slice-zero value = case value of None -> True; Some present -> False
+
+  -- | Both absent and present empty byte slices participate in empty-field omission.
+  byte-slice-empty :: Option Bytes -> Bool
+  byte-slice-empty value = case value of None -> True; Some present -> bytes-len present == 0
+
+  -- | Nullable binary byte slices preserve the null/empty distinction and numeric-array update behavior.
+  json-byte-slice-type :: JsonType (Option Bytes)
+  json-byte-slice-type = Type "Bytes" JsonStringKind (\unit -> None) byte-slice-zero byte-slice-empty byte-slice-encode byte-slice-update
+
+  -- | Encode a fixed byte array using explicit numeric-array or binary-text policy.
+  fixed-bytes-encode :: Nat -> JsonWriteOptions -> Bytes -> Result JsonError Bytes
+  fixed-bytes-encode size options value =
+    if bytes-len value /= size then Err (JsonValueError "FixedBytes" "application buffer length differs from the declared fixed byte length")
+    else if json-policy-enabled (json-write-policies options) JsonByteArrayNumbers then list-encode json-uint8-type options (byte-list value)
+    else binary-encode options value
+
+  -- | Copy decoded bytes into an exactly sized fresh buffer, truncating or zero-filling explicitly.
+  fixed-binary-buffer :: Nat -> Bytes -> Bytes
+  fixed-binary-buffer size input =
+    let output = bytes-new size in let count = if bytes-len input < size then bytes-len input else size in
+    if count <= bytes-len input && count <= bytes-len output then let copied = bytes-copy-range output input 0 0 count in output else output
+
+  -- | Preserve fixed-array progress and apply the configured decoded-length acceptance policy.
+  fixed-binary-update :: Nat -> JsonReadOptions -> JsonValue -> Bytes -> JsonDecoded Bytes
+  fixed-binary-update size options source prior = case json-value-kind source of
+    JsonNullKind -> null-scalar options prior (bytes-new size)
+    JsonStringKind -> case binary-text-update options source prior of
+      Decoded output error fatal -> case error of
+        Some cause -> Decoded output (Some (numeric-error-label "FixedBytes" cause)) fatal
+        None -> let value = fixed-binary-buffer size output in
+          if bytes-len output == size || json-policy-enabled (json-read-policies options) JsonAllowArrayLengthMismatch then json-decoded-ok value
+          else json-decoded-with-error value (JsonTypeError "FixedBytes" (string-concat "binary string of length " (nat-to-string (bytes-len output))) (json-value-end source) "")
+    other -> type-mismatch "FixedBytes" source prior
+
+  -- | Decode fixed byte arrays through checked elements or policy-controlled binary text.
+  fixed-bytes-update :: Nat -> JsonReadOptions -> JsonValue -> Bytes -> JsonDecoded Bytes
+  fixed-bytes-update size options source prior =
+    if json-policy-enabled (json-read-policies options) JsonByteArrayNumbers then
+      case fixed-array-update json-uint8-type size options source (array-from-list (byte-list prior)) of
+        Decoded values error fatal -> Decoded (byte-list-buffer (codec-array-list values)) error fatal
+    else fixed-binary-update size options source prior
+
+  -- | Fixed-size owned byte buffers, numeric by default, with explicit binary-string alternate policy.
+  json-fixed-bytes-type :: Nat -> JsonType Bytes
+  json-fixed-bytes-type size = Type (string-concat "FixedBytes " (nat-to-string size)) JsonArrayKind (\unit -> bytes-new size) (\value -> bytes-len value == size && bytes-zero-from value 0) bytes-empty (fixed-bytes-encode size) (fixed-bytes-update size)
