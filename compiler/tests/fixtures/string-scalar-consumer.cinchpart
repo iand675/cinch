@@ -1,0 +1,69 @@
+  -- | Project a nested immutable scalar observation independently from its width.
+  step-code :: Option (Char, Nat) -> Nat
+  step-code value = case value of
+    None -> 1114112
+    Some pair -> case pair of (c,w) -> char-code c
+  -- | Project the encoded width independently from the same nested observation.
+  step-width :: Option (Char, Nat) -> Nat
+  step-width value = case value of
+    None -> 0
+    Some pair -> case pair of (c,w) -> w
+  -- | Observe exact endpoint scalars, widths, byte length, count and complete independent digest.
+  scalar-observed :: String -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> String -> Bool
+  scalar-observed text size count first first-width last last-width digest =
+    let head = string-utf8-first text in let tail = string-utf8-last text in
+    string-byte-length text == size && string-length text == count
+      && step-code head == first && step-width head == first-width
+      && step-code tail == last && step-width tail == last-width
+      && same (sha256-bytes (string-to-bytes text)) (expected-bytes digest)
+  -- | Preserve complete-block and scalar-fringe input sizes in runtime execution.
+  scalar-case :: String -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> String -> Bool
+  scalar-case text count size scalars first first-width last last-width digest =
+    scalar-observed (string-repeat (runtime-count count) text) size scalars first first-width last last-width digest
+  -- | Flush one small ascending character chunk before returning the complete ascending text.
+  scalar-finish :: List Char -> List String -> String
+  scalar-finish chars chunks = case chars of
+    Nil -> string-concat-all chunks
+    Cons _ _ -> let piece = pack chars in string-concat-all (Cons piece chunks)
+  -- | Build scalar ranges in descending traversal so each chunk and the final list need no reversal.
+  -- Chunking bounds the character-list heap while preserving one exact final String allocation.
+  scalar-range-from :: Nat -> Nat -> Nat -> List Char -> List String -> String
+  scalar-range-from low pos taken chars chunks = if pos > low then
+    let code = pos - 1 in case char-from-code code of
+      None -> scalar-range-from low code taken chars chunks
+      Some c -> let values = Cons c chars in let count = taken + 1 in
+        if count == 64 then let piece = pack values in let pieces = Cons piece chunks in
+          scalar-range-from low code 0 Nil pieces
+        else scalar-range-from low code count values chunks
+    else scalar-finish chars chunks
+  -- | Compare independently generated complete scalar-range wire digests and endpoint metadata.
+  aggregate-case :: Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> String -> Bool
+  aggregate-case low high size scalars first first-width last last-width digest =
+    let text = scalar-range-from low (high + 1) 0 Nil Nil in
+    scalar-observed text size scalars first first-width last last-width digest
+  -- | Preserve raw byte-prefix stop-at-error semantics independently of the sealed String path.
+  raw-length-case :: String -> Nat -> Nat -> Nat -> Bool
+  raw-length-case hex start initial expected =
+    string-length-from (expected-bytes hex) start initial == expected
+  -- | Keep String validity independent from caller mutation and copied output mutation.
+  scalar-alias-case :: Unit -> Bool
+  scalar-alias-case unit =
+    let raw = expected-bytes "c3a900f09f9982" in case string-from-bytes raw of
+      None -> False
+      Some text ->
+        let first = string-utf8-first text in let last = string-utf8-last text in
+        let changed = if 0 < bytes-len raw then bytes-set raw 0 255 else () in
+        let copy = string-to-bytes text in
+        let changed-copy = if 0 < bytes-len copy then bytes-set copy 0 0 else () in
+        string-length text == 3 && step-code first == 233 && step-width first == 2
+          && step-code last == 128578 && step-width last == 4
+  -- | Retain temporary String backing while separately projecting nested endpoint observations.
+  scalar-owner-loop :: Nat -> Nat -> Bool
+  scalar-owner-loop left count = if left == 0 then True else
+    let text = string-repeat count "é界🙂" in
+    let first = string-utf8-first text in let last = string-utf8-last text in
+    let ok = string-length text == count * 3 && string-byte-length text == count * 9 && step-code first == 233 && step-width first == 2 && step-code last == 128578 && step-width last == 4 in
+    if ok then let remaining = left - 1 in scalar-owner-loop remaining count else False
+  -- | Exercise complete temporary-owner pipelines in independently bounded poison processes.
+  scalar-owners-case :: Unit -> Bool
+  scalar-owners-case unit = scalar-alias-case () && scalar-owner-loop (runtime-count 10) (runtime-count 4097)
