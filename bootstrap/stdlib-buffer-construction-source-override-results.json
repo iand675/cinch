@@ -1,0 +1,1045 @@
+{
+  "scope": "Import-free scalar packing and typed byte-list constructors; preserve signatures and owned String backing.",
+  "fresh_embedded_validation_claimed": false,
+  "fresh_native_base_validation_claimed": false,
+  "parent_integration_gates_pending": [
+    "fresh Rust embedded constructors",
+    "fresh Native base/provider source receipts",
+    "focused Rust target and shared bootstrap gates"
+  ],
+  "sources": {
+    "Data.String": {
+      "sha256": "5e6ef0dd848916ae2f39ecd504eaa4386231eb46dabae159ccafc39c8112572e",
+      "canonical_interface_source_hash": "9951338840550330590",
+      "snapshot": "build/buffer-construction-phase2/sources/Data.String.cinch"
+    },
+    "Data.Bytes": {
+      "sha256": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146",
+      "canonical_interface_source_hash": "12579928885703464370",
+      "snapshot": "build/buffer-construction-phase2/sources/Data.Bytes.cinch"
+    }
+  },
+  "sdk_crosscheck": {
+    "fixture": "compiler/tests/fixtures/buffer-construction-vectors.json",
+    "fixture_sha256": "74531d2d07f0182b645799e4d7f5779876d1863589039e9296f6ffe03f1a178b",
+    "sdk_output": "build/strings-next-sdk/buffer-construction.json",
+    "sdk_output_sha256": "fced0866a6b0003663b4a61bc9d3298f2a2f0de49f2c5965f324bca5687bd15d",
+    "counts": {
+      "packed": 184,
+      "buffers": 92
+    },
+    "decoded_observations_equal": true
+  },
+  "runs": {
+    "o0": {
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "epoch": "source-override",
+      "selected_sources": {
+        "Data.String": "5e6ef0dd848916ae2f39ecd504eaa4386231eb46dabae159ccafc39c8112572e",
+        "Data.Bytes": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146"
+      },
+      "fixture_sha256": "74531d2d07f0182b645799e4d7f5779876d1863589039e9296f6ffe03f1a178b",
+      "opt_level": 0,
+      "native_base_validation_claimed": false,
+      "results": [
+        {
+          "group": "packed",
+          "cases": 184,
+          "epoch_receipts": {
+            "Data.String": {
+              "interface_sha256": "2bdf5e04d130dcee2870ed16f4a567a86a5ab9fb14f3f1e2e672477dde193df4",
+              "source_hash": "2083030250119021178",
+              "module_source_sha256": "32f723e51f089488e47ac3a6f4ae108bbc31fba3577d86791ac53d6a912db1bd"
+            },
+            "Data.Bytes": {
+              "interface_sha256": "7ebb113f9d47a0eab2452b21e6e337f039bb04cd139e3427f348afbb8fd51801",
+              "source_hash": "13100623485784114574",
+              "module_source_sha256": "32aa65261832979fb6e7edda86a688effd7c121f4377ff8fe01c9195be15d48a"
+            }
+          },
+          "entry_sha256": "6a828a57d5dfa7bbf396d61654567d01b40359df4fdd5e3fc784db97222237f4",
+          "executable_sha256": "a7673bf6d2cf004924837cf87a6cd1ef28bb9f5828a2d4e65af4832ba92d9cc8",
+          "llvm_sha256": "b635c078140ab037b0a64c4f4487809fe6e3199595f90fc01470e481a0a7ebe7",
+          "ownership": [
+            {
+              "debug": false,
+              "batch": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 1,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 2,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 3,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 4,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 5,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 6,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 7,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 8,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 9,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 10,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 11,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 12,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 13,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 14,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 15,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 16,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 17,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 18,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 19,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 20,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 21,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 22,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 1,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 2,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 3,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 4,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 5,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 6,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 7,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 8,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 9,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 10,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 11,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 12,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 13,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 14,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 15,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 16,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 17,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 18,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 19,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 20,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 21,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 22,
+              "zero_leaks": true
+            }
+          ]
+        },
+        {
+          "group": "buffers",
+          "cases": 92,
+          "epoch_receipts": {
+            "Data.String": {
+              "interface_sha256": "2bdf5e04d130dcee2870ed16f4a567a86a5ab9fb14f3f1e2e672477dde193df4",
+              "source_hash": "2083030250119021178",
+              "module_source_sha256": "32f723e51f089488e47ac3a6f4ae108bbc31fba3577d86791ac53d6a912db1bd"
+            },
+            "Data.Bytes": {
+              "interface_sha256": "7ebb113f9d47a0eab2452b21e6e337f039bb04cd139e3427f348afbb8fd51801",
+              "source_hash": "13100623485784114574",
+              "module_source_sha256": "32aa65261832979fb6e7edda86a688effd7c121f4377ff8fe01c9195be15d48a"
+            }
+          },
+          "entry_sha256": "6a9259debc9064ad2bdb25abd06a5826cc16cfef58c3aedea1952a6f9abe649b",
+          "executable_sha256": "918ad78f4a40315535c3306378982ae15d6dc380b2911a23f241a6146f4ac6c6",
+          "llvm_sha256": "de518add16be7050b009cecfaaf318d19814724e5a02520dca4cbfed7414a1ad",
+          "ownership": [
+            {
+              "debug": false,
+              "batch": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 1,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 2,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 3,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 4,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 5,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 6,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 7,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 8,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 9,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 10,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 11,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 1,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 2,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 3,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 4,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 5,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 6,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 7,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 8,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 9,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 10,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 11,
+              "zero_leaks": true
+            }
+          ]
+        },
+        {
+          "group": "regression",
+          "cases": 2,
+          "epoch_receipts": {
+            "Data.String": {
+              "interface_sha256": "2bdf5e04d130dcee2870ed16f4a567a86a5ab9fb14f3f1e2e672477dde193df4",
+              "source_hash": "2083030250119021178",
+              "module_source_sha256": "32f723e51f089488e47ac3a6f4ae108bbc31fba3577d86791ac53d6a912db1bd"
+            },
+            "Data.Bytes": {
+              "interface_sha256": "7ebb113f9d47a0eab2452b21e6e337f039bb04cd139e3427f348afbb8fd51801",
+              "source_hash": "13100623485784114574",
+              "module_source_sha256": "32aa65261832979fb6e7edda86a688effd7c121f4377ff8fe01c9195be15d48a"
+            }
+          },
+          "entry_sha256": "6fad30068e9c5713a886e3678b85d9cc5de34fde0c586d0e99da326837824c3e",
+          "executable_sha256": "ac277f555c7b93c9622f3c02107f750a82fa9dce60ff3e17ce68611097e9807d",
+          "llvm_sha256": "f27ea996b0d6be4043667b0c8c311b6eaa4656b86894e6782d58c5e1faac8a40",
+          "ownership": [
+            {
+              "debug": false,
+              "batch": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "zero_leaks": true
+            }
+          ]
+        },
+        {
+          "group": "owners",
+          "cases": 1,
+          "epoch_receipts": {
+            "Data.String": {
+              "interface_sha256": "2bdf5e04d130dcee2870ed16f4a567a86a5ab9fb14f3f1e2e672477dde193df4",
+              "source_hash": "2083030250119021178",
+              "module_source_sha256": "32f723e51f089488e47ac3a6f4ae108bbc31fba3577d86791ac53d6a912db1bd"
+            },
+            "Data.Bytes": {
+              "interface_sha256": "7ebb113f9d47a0eab2452b21e6e337f039bb04cd139e3427f348afbb8fd51801",
+              "source_hash": "13100623485784114574",
+              "module_source_sha256": "32aa65261832979fb6e7edda86a688effd7c121f4377ff8fe01c9195be15d48a"
+            }
+          },
+          "entry_sha256": "b4e18763dfc9f820b53a62727b0c63d1fb0d4e48a1b93ce9460e5d4497cd0e0b",
+          "executable_sha256": "372def215e414b5ee59d87a9ceca3d5b29aa2772e172ab8a12a01bdc88d35512",
+          "llvm_sha256": "607c0f81ed42ad73fd9fbe5ea9a17f86e64f7d5e644259d90e11980a0f97d771",
+          "ownership": [
+            {
+              "debug": false,
+              "batch": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "zero_leaks": true
+            }
+          ]
+        }
+      ],
+      "compiler_process_settings": {
+        "shell_stack_soft_bytes": 67108864,
+        "RUST_MIN_STACK": "67108864",
+        "CARGO_BUILD_JOBS": "1",
+        "RUST_TEST_THREADS": "1",
+        "cpu": 0
+      },
+      "compiled_program_settings": {
+        "normal": {
+          "CINCH_HEAP_LIMIT": "32M",
+          "CINCH_STACK_SIZE": "8M",
+          "CINCH_RC_DEBUG": "0"
+        },
+        "poison": {
+          "CINCH_HEAP_LIMIT": "256M",
+          "CINCH_STACK_SIZE": "8M",
+          "CINCH_RC_DEBUG": "1"
+        },
+        "CINCH_LEAK_CHECK": "1",
+        "fixture_rows_per_process": 8
+      }
+    },
+    "o2": {
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "epoch": "source-override",
+      "selected_sources": {
+        "Data.String": "5e6ef0dd848916ae2f39ecd504eaa4386231eb46dabae159ccafc39c8112572e",
+        "Data.Bytes": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146"
+      },
+      "fixture_sha256": "74531d2d07f0182b645799e4d7f5779876d1863589039e9296f6ffe03f1a178b",
+      "opt_level": 2,
+      "native_base_validation_claimed": false,
+      "results": [
+        {
+          "group": "packed",
+          "cases": 184,
+          "epoch_receipts": {
+            "Data.String": {
+              "interface_sha256": "2bdf5e04d130dcee2870ed16f4a567a86a5ab9fb14f3f1e2e672477dde193df4",
+              "source_hash": "2083030250119021178",
+              "module_source_sha256": "32f723e51f089488e47ac3a6f4ae108bbc31fba3577d86791ac53d6a912db1bd"
+            },
+            "Data.Bytes": {
+              "interface_sha256": "7ebb113f9d47a0eab2452b21e6e337f039bb04cd139e3427f348afbb8fd51801",
+              "source_hash": "13100623485784114574",
+              "module_source_sha256": "32aa65261832979fb6e7edda86a688effd7c121f4377ff8fe01c9195be15d48a"
+            }
+          },
+          "entry_sha256": "6a828a57d5dfa7bbf396d61654567d01b40359df4fdd5e3fc784db97222237f4",
+          "executable_sha256": "0397b54d982db22b57ca54a95b3e1a7ca334a354daecd23b48593aa7f8a01b0a",
+          "llvm_sha256": "b635c078140ab037b0a64c4f4487809fe6e3199595f90fc01470e481a0a7ebe7",
+          "ownership": [
+            {
+              "debug": false,
+              "batch": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 1,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 2,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 3,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 4,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 5,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 6,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 7,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 8,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 9,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 10,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 11,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 12,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 13,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 14,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 15,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 16,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 17,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 18,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 19,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 20,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 21,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 22,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 1,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 2,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 3,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 4,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 5,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 6,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 7,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 8,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 9,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 10,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 11,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 12,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 13,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 14,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 15,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 16,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 17,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 18,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 19,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 20,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 21,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 22,
+              "zero_leaks": true
+            }
+          ]
+        },
+        {
+          "group": "buffers",
+          "cases": 92,
+          "epoch_receipts": {
+            "Data.String": {
+              "interface_sha256": "2bdf5e04d130dcee2870ed16f4a567a86a5ab9fb14f3f1e2e672477dde193df4",
+              "source_hash": "2083030250119021178",
+              "module_source_sha256": "32f723e51f089488e47ac3a6f4ae108bbc31fba3577d86791ac53d6a912db1bd"
+            },
+            "Data.Bytes": {
+              "interface_sha256": "7ebb113f9d47a0eab2452b21e6e337f039bb04cd139e3427f348afbb8fd51801",
+              "source_hash": "13100623485784114574",
+              "module_source_sha256": "32aa65261832979fb6e7edda86a688effd7c121f4377ff8fe01c9195be15d48a"
+            }
+          },
+          "entry_sha256": "6a9259debc9064ad2bdb25abd06a5826cc16cfef58c3aedea1952a6f9abe649b",
+          "executable_sha256": "2872a003fa682559db417fd30132f2cc07f0cce3c0f03f7af876d60801ceaa2b",
+          "llvm_sha256": "de518add16be7050b009cecfaaf318d19814724e5a02520dca4cbfed7414a1ad",
+          "ownership": [
+            {
+              "debug": false,
+              "batch": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 1,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 2,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 3,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 4,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 5,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 6,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 7,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 8,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 9,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 10,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 11,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 1,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 2,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 3,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 4,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 5,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 6,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 7,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 8,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 9,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 10,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 11,
+              "zero_leaks": true
+            }
+          ]
+        },
+        {
+          "group": "regression",
+          "cases": 2,
+          "epoch_receipts": {
+            "Data.String": {
+              "interface_sha256": "2bdf5e04d130dcee2870ed16f4a567a86a5ab9fb14f3f1e2e672477dde193df4",
+              "source_hash": "2083030250119021178",
+              "module_source_sha256": "32f723e51f089488e47ac3a6f4ae108bbc31fba3577d86791ac53d6a912db1bd"
+            },
+            "Data.Bytes": {
+              "interface_sha256": "7ebb113f9d47a0eab2452b21e6e337f039bb04cd139e3427f348afbb8fd51801",
+              "source_hash": "13100623485784114574",
+              "module_source_sha256": "32aa65261832979fb6e7edda86a688effd7c121f4377ff8fe01c9195be15d48a"
+            }
+          },
+          "entry_sha256": "6fad30068e9c5713a886e3678b85d9cc5de34fde0c586d0e99da326837824c3e",
+          "executable_sha256": "dc61f0c801f79a82b5eac04771694c5a82b610af4e2a5df83db3feedae1fbf01",
+          "llvm_sha256": "f27ea996b0d6be4043667b0c8c311b6eaa4656b86894e6782d58c5e1faac8a40",
+          "ownership": [
+            {
+              "debug": false,
+              "batch": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "zero_leaks": true
+            }
+          ]
+        },
+        {
+          "group": "owners",
+          "cases": 1,
+          "epoch_receipts": {
+            "Data.String": {
+              "interface_sha256": "2bdf5e04d130dcee2870ed16f4a567a86a5ab9fb14f3f1e2e672477dde193df4",
+              "source_hash": "2083030250119021178",
+              "module_source_sha256": "32f723e51f089488e47ac3a6f4ae108bbc31fba3577d86791ac53d6a912db1bd"
+            },
+            "Data.Bytes": {
+              "interface_sha256": "7ebb113f9d47a0eab2452b21e6e337f039bb04cd139e3427f348afbb8fd51801",
+              "source_hash": "13100623485784114574",
+              "module_source_sha256": "32aa65261832979fb6e7edda86a688effd7c121f4377ff8fe01c9195be15d48a"
+            }
+          },
+          "entry_sha256": "b4e18763dfc9f820b53a62727b0c63d1fb0d4e48a1b93ce9460e5d4497cd0e0b",
+          "executable_sha256": "ba529ab438b3f46aa8e39deb85b42b92f79d459cfa0ca471124d9472f13e08ec",
+          "llvm_sha256": "607c0f81ed42ad73fd9fbe5ea9a17f86e64f7d5e644259d90e11980a0f97d771",
+          "ownership": [
+            {
+              "debug": false,
+              "batch": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "zero_leaks": true
+            }
+          ]
+        }
+      ],
+      "compiler_process_settings": {
+        "shell_stack_soft_bytes": 67108864,
+        "RUST_MIN_STACK": "67108864",
+        "CARGO_BUILD_JOBS": "1",
+        "RUST_TEST_THREADS": "1",
+        "cpu": 0
+      },
+      "compiled_program_settings": {
+        "normal": {
+          "CINCH_HEAP_LIMIT": "32M",
+          "CINCH_STACK_SIZE": "8M",
+          "CINCH_RC_DEBUG": "0"
+        },
+        "poison": {
+          "CINCH_HEAP_LIMIT": "256M",
+          "CINCH_STACK_SIZE": "8M",
+          "CINCH_RC_DEBUG": "1"
+        },
+        "CINCH_LEAK_CHECK": "1",
+        "fixture_rows_per_process": 8
+      }
+    }
+  },
+  "o0_tail_loop_receipts": {
+    "Data.String.pack-size": {
+      "emitted_workers": 1,
+      "recursive_calls": [],
+      "backedge_to_entry": true
+    },
+    "Data.String.pack-copy": {
+      "emitted_workers": 1,
+      "recursive_calls": [],
+      "backedge_to_entry": true
+    },
+    "Data.Bytes.byte-list-size": {
+      "emitted_workers": 2,
+      "recursive_calls": [],
+      "backedge_to_entry": true
+    },
+    "Data.Bytes.bytes-fill-into": {
+      "emitted_workers": 1,
+      "recursive_calls": [],
+      "backedge_to_entry": true
+    },
+    "Data.Bytes.u8s-fill-into": {
+      "emitted_workers": 1,
+      "recursive_calls": [],
+      "backedge_to_entry": true
+    }
+  },
+  "fixture_harness_corrections": [
+    "Explicit refined-list annotation for the fixture accumulator preserves intended polymorphic element type.",
+    "Build repeated small scalar patterns directly into one list; avoid unrelated whole-input unpack/reverse retaining two590K-scalar lists under32MiB.",
+    "Each eight-row batch runs in its own normal and poison process; debug frees are intentionally retained by the runtime and the whole184-row group exceeded256MiB quarantine. Heap limits were unchanged."
+  ],
+  "rust_test_target": "lib_buffer_construction (four tests supplied; Cargo not run in lane)",
+  "new_or_touched_declaration_count": 8
+}
