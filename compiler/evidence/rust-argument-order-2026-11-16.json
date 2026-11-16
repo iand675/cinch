@@ -51,5 +51,133 @@
       "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
       "case": "dynamic-boundaries"
     }
-  ]
+  ],
+  "first_patch": {
+    "compiler": "/workspace/dasl-stdlib-io/build/rust-order-stage1-frozen/cinch",
+    "compiler_sha256": "f81761c729b69a0aca8aabaecd6d1f94fee66e46c71621c99f1c451b825809ba",
+    "rows": [
+      {
+        "fixture": "Run.ScopedArgumentOrder",
+        "source_sha256": "2edb5896cbbc0f1cc6c3da4cd93f570c349fdf58c0d7b4794f8f023400e1ba91",
+        "opt_level": "0",
+        "heap": "32M",
+        "stack": "8M",
+        "rc_debug": "0",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "fixture": "Run.ScopedArgumentOrder",
+        "source_sha256": "2edb5896cbbc0f1cc6c3da4cd93f570c349fdf58c0d7b4794f8f023400e1ba91",
+        "opt_level": "0",
+        "heap": "256M",
+        "stack": "8M",
+        "rc_debug": "1",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "fixture": "Run.ScopedArgumentOrder",
+        "source_sha256": "2edb5896cbbc0f1cc6c3da4cd93f570c349fdf58c0d7b4794f8f023400e1ba91",
+        "opt_level": "2",
+        "heap": "32M",
+        "stack": "8M",
+        "rc_debug": "0",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "fixture": "Run.ScopedArgumentOrder",
+        "source_sha256": "2edb5896cbbc0f1cc6c3da4cd93f570c349fdf58c0d7b4794f8f023400e1ba91",
+        "opt_level": "2",
+        "heap": "256M",
+        "stack": "8M",
+        "rc_debug": "1",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "fixture": "Run.ReturnedArgumentOrder",
+        "source_sha256": "48d04ebeac042c604ffe9017e07dfa03f024438ac33e8733097f12ce0b03a92e",
+        "opt_level": "0",
+        "heap": "32M",
+        "stack": "8M",
+        "rc_debug": "0",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "fixture": "Run.ReturnedArgumentOrder",
+        "source_sha256": "48d04ebeac042c604ffe9017e07dfa03f024438ac33e8733097f12ce0b03a92e",
+        "opt_level": "0",
+        "heap": "256M",
+        "stack": "8M",
+        "rc_debug": "1",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "fixture": "Run.ReturnedArgumentOrder",
+        "source_sha256": "48d04ebeac042c604ffe9017e07dfa03f024438ac33e8733097f12ce0b03a92e",
+        "opt_level": "2",
+        "heap": "32M",
+        "stack": "8M",
+        "rc_debug": "0",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "fixture": "Run.ReturnedArgumentOrder",
+        "source_sha256": "48d04ebeac042c604ffe9017e07dfa03f024438ac33e8733097f12ce0b03a92e",
+        "opt_level": "2",
+        "heap": "256M",
+        "stack": "8M",
+        "rc_debug": "1",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      }
+    ],
+    "compiler_provenance": {
+      "description": "First strict-application-boundary compiler snapshot; subsequent unit-fixture syntax repair is separate",
+      "commit": "7a98e284b27592a934958381121a37c7a98820d2",
+      "binary_sha256": "f81761c729b69a0aca8aabaecd6d1f94fee66e46c71621c99f1c451b825809ba",
+      "sources": {
+        "compiler/src/applications.rs": "11eb11f438c441f435e61381cdbdc30b096aaa796c2c46ebdd93b8f797e8de88",
+        "compiler/src/rc.rs": "07a47fd8e1a6a0966e18a848b967c8becd3ce899ff7732db148a76d473a36a53",
+        "compiler/src/codegen.rs": "db888f3a031577f720dd2ba23510bbbe2fa9ca693563a7d0ce18d318d9a4cb9b",
+        "compiler/src/lib.rs": "9bb86850b8b58005552e886ccfb0b15e313206f740b6b2a2aff9aee4407d25ca",
+        "bootstrap/programs/Run.ReturnedArgumentOrder.cinch": "48d04ebeac042c604ffe9017e07dfa03f024438ac33e8733097f12ce0b03a92e",
+        "bootstrap/programs/Run.ScopedArgumentOrder.cinch": "2edb5896cbbc0f1cc6c3da4cd93f570c349fdf58c0d7b4794f8f023400e1ba91"
+      },
+      "tail_calls": {
+        "passed": 10,
+        "seconds": 49.42
+      },
+      "applications_unit_tests": {
+        "passed": 4,
+        "failed": 1,
+        "cause": "test fixture data declaration syntax; production compiler builds and runtime regression target passes"
+      }
+    }
+  },
+  "native_control": {
+    "wrapper": "/workspace/dasl-stdlib-io/build/stdlib-qualified-tail-stage3-frozen/frontend.py",
+    "wrapper_sha256": "aebbaa1218b5e1d7fd05495da235843d046841bb6496aba6666573736e9126b2",
+    "rows": [
+      {
+        "heap": "32M",
+        "stack": "8M",
+        "rc_debug": "0",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "heap": "256M",
+        "stack": "8M",
+        "rc_debug": "1",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      }
+    ]
+  }
 }
