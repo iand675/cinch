@@ -308,7 +308,8 @@ fn cinch_array_runtime_matches_checked_kinds_bounds_formats_and_ownership() {
     ]);
     // Explicit Native fixture producer for the defining inductive contracts.
     // Every source program below is checked and lowered by the Cinch emitter.
-    array_test_interfaces(&dir, include_str!("../prelude/Data/Core.cinch"));
+    array_test_interfaces(&dir, include_str!("../prelude/Data/Core.cinch"))
+        .expect("produce genuine defining Core contracts");
     let compiler = common::build(&dir, "Main.cinch", "array-emitter").expect("build actual Cinch array emitter");
     let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/release/libcinchruntime.a");
     assert!(runtime.is_file(), "matching runtime archive must be built by the Native driver");
@@ -390,7 +391,9 @@ fn cinch_array_runtime_matches_checked_kinds_bounds_formats_and_ownership() {
         assert!(common::read_output(&dir, "output.ll").is_empty(), "{name}: refused source retained an old artifact");
     }
     // A valid nominal name alone cannot grant a physical runtime layout.
-    // Rebuild checked interfaces with changed constructors and never execute them.
+    // Rebuild checked interfaces with changed fields and never execute them.
+    // Reordered mandatory tags are rejected by the source producer itself;
+    // mutate an explicitly untrusted contract to exercise the Native boundary too.
     let original_core = include_str!("../prelude/Data/Core.cinch");
     for (name, core_source, body) in [
         ("changed-list-fields", original_core.replace("Cons :: a -> List a -> List a", "Cons :: List a -> a -> List a"),
@@ -401,7 +404,15 @@ fn cinch_array_runtime_matches_checked_kinds_bounds_formats_and_ownership() {
             "  main :: Int\n  main = case arrayget (arrayreplicate 1 (42 :: Int)) 0 of None -> 1; Some _ -> 42\n"),
     ] {
         assert_ne!(core_source, original_core, "{name}: mutation did not apply");
-        array_test_interfaces(&dir, &core_source);
+        let produced = array_test_interfaces(&dir, &core_source);
+        if name == "changed-option-tags" {
+            let error = produced.expect_err("source producer must reject reordered mandatory tags");
+            assert!(error.message.contains("constructor Data.Core.None at tag 0"), "{error}");
+            array_test_interfaces(&dir, original_core).expect("restore genuine Core contracts");
+            array_test_untrusted_option_tags(&dir);
+        } else {
+            produced.expect("produce checked field-layout counterexample");
+        }
         let abi_declarations = declarations.lines().filter(|line| line.starts_with("module ") || line.trim_start().starts_with("import ") || line.trim_start().starts_with("foreign import ")).collect::<Vec<_>>().join("\n");
         std::fs::write(dir.join("input.source"), format!("{abi_declarations}\n{body}")).unwrap();
         let output = std::process::Command::new(&compiler).current_dir(&dir).output().unwrap();
@@ -425,7 +436,8 @@ fn array_test_quote(value: &str) -> String {
     out.push('\"'); out
 }
 
-fn array_test_interfaces(dir: &std::path::Path, core_source: &str) {
+/// Produce actual checked contracts, preserving a source-level ABI refusal instead of forging evidence.
+fn array_test_interfaces(dir: &std::path::Path, core_source: &str) -> cinch::Result<()> {
     let fixities = Default::default();
     let tables = std::collections::HashMap::new();
     let prelude_source = "module Prelude where\n";
@@ -439,7 +451,7 @@ fn array_test_interfaces(dir: &std::path::Path, core_source: &str) {
     let (_, interfaces, _, _) = cinch::check::check_program_multi_full(
         &prelude.modules, &[core.modules, entry.modules].concat(), &hashes,
         &cinch::check::StagingCx::default(), &[], &cinch::core::TargetProfile::native(),
-    ).expect("produce genuine defining Core contracts");
+    )?;
     let mut rows = Vec::new();
     for interface in interfaces.into_iter().filter(|i| i.module != "Main") {
         let path = dir.join(format!("{}.cinchif", interface.module));
@@ -448,4 +460,76 @@ fn array_test_interfaces(dir: &std::path::Path, core_source: &str) {
     }
     rows.sort();
     std::fs::write(dir.join("interfaces.json"), format!("{{\"schema\":1,\"interfaces\":[{}]}}", rows.join(","))).unwrap();
+    Ok(())
+}
+
+/// Reorder constructor ABI metadata in an explicitly untrusted contract and restamp its identity.
+fn array_test_untrusted_option_tags(dir: &std::path::Path) {
+    let path = dir.join("Data.Core.cinchif");
+    let mut document: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    let option = document["exports"]["types"].as_array_mut().unwrap().iter_mut()
+        .find(|entry| entry["identity"] == "Data.Core.Option").unwrap();
+    for constructor in option["ctors"].as_array_mut().unwrap() {
+        let tag = constructor["tag"].as_u64().unwrap();
+        assert!(tag < 2, "the genuine Option starts with exactly two canonical tags");
+        constructor["tag"] = serde_json::json!(1 - tag);
+    }
+    option["ctors"].as_array_mut().unwrap()
+        .sort_by_key(|constructor| constructor["tag"].as_u64().unwrap());
+    array_test_reorder_option_nominals(&mut document);
+    let altered = serde_json::to_string(&document).unwrap();
+    let contract = cinch::interface::Iface::from_json(&altered).unwrap();
+    std::fs::write(&path, contract.to_json()).unwrap();
+    let manifest_path = dir.join("interfaces.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&manifest_path).unwrap()).unwrap();
+    let row = manifest["interfaces"].as_array_mut().unwrap().iter_mut()
+        .find(|row| row[0] == "Data.Core").unwrap();
+    row[1] = serde_json::json!(contract.iface_hash());
+    std::fs::write(manifest_path, serde_json::to_string(&manifest).unwrap()).unwrap();
+}
+
+/// Keep forged resolved nominal rows internally consistent so the runtime ABI guard is exercised.
+fn array_test_reorder_option_nominals(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::Object(fields) => {
+            if fields.get("identity").and_then(|value| value.as_str()) == Some("Data.Core.Option")
+                && fields.contains_key("constructors")
+            {
+                fields.insert("constructors".into(), serde_json::json!(["Data.Core.Some", "Data.Core.None"]));
+            }
+            for value in fields.values_mut() {
+                array_test_reorder_option_nominals(value);
+            }
+        }
+        serde_json::Value::Array(values) => {
+            for value in values {
+                array_test_reorder_option_nominals(value);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// A mandatory-tag counterexample remains refused before it can be called a checked source artifact.
+#[test]
+fn array_interface_producer_refuses_reordered_mandatory_option_tags() {
+    let directory = tempfile::tempdir().unwrap();
+    let source = include_str!("../prelude/Data/Core.cinch").replace(
+        "None :: Option a\n    Some :: a -> Option a",
+        "Some :: a -> Option a\n    None :: Option a",
+    );
+    let error = array_test_interfaces(directory.path(), &source).unwrap_err();
+    assert!(error.message.contains("constructor Data.Core.None at tag 0"), "{error}");
+    assert!(!directory.path().join("interfaces.json").exists());
+    array_test_interfaces(directory.path(), include_str!("../prelude/Data/Core.cinch")).unwrap();
+    array_test_untrusted_option_tags(directory.path());
+    let document: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(directory.path().join("Data.Core.cinchif")).unwrap(),
+    ).unwrap();
+    let option = document["exports"]["types"].as_array().unwrap().iter()
+        .find(|entry| entry["identity"] == "Data.Core.Option").unwrap();
+    assert_eq!(option["ctors"][0]["name"], "Some");
+    assert_eq!(option["ctors"][0]["tag"], 0);
 }

@@ -1,0 +1,12 @@
+{
+  "description": "Preserved actual Native array emitter rejects an explicitly untrusted reordered Option contract",
+  "emitter_sha256": "f43ed627eeafe3d8e237f45d3ddba25927ecdc9f7a9707b3e1e848b564c52b23",
+  "exit": 5,
+  "diagnostics": "bootstrap.runtime-ir:1:1: array result needs its checked Option declaration\n",
+  "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+  "output_bytes": 0,
+  "contract_manifest_sha256": "d8080514ed37fd43c17a2c4f22dbd530227139d7e2f814d5e793c1dcfe236cf9",
+  "starting_core_contract": "build/library-reference-checked/build/Data.Core.cinchif",
+  "mutation": "Add actual empty-Prelude context dependency, reverse Option tags/ordered constructor metadata including resolved nominal rows, recalculate manifest hash; no source/body authority claimed",
+  "separate_source_boundary": "Current Rust source producer rejects reordered mandatory Option tags before interface emission; maintained arrays target checks that first and then constructs its own explicit untrusted interface from genuinely checked source."
+}
