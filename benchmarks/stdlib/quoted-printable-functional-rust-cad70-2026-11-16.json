@@ -1,0 +1,1465 @@
+{
+  "format": 1,
+  "runner_sha256": "64c46a84b729dbd9e6f23246a8e86c9f1b0efb2b500b38ee6ebcc98de0cda323",
+  "vectors_sha256": "11b5622d6b743509304a19cde8e85118917ea7ed9c739ad549795d704967ebd2",
+  "compiler_host_stack_bytes": 67108864,
+  "counts": {
+    "values-0000": 64,
+    "values-0064": 64,
+    "values-0128": 64,
+    "values-0192": 64,
+    "values-0256": 64,
+    "values-0320": 64,
+    "values-0384": 64,
+    "values-0448": 64,
+    "values-0512": 64,
+    "values-0576": 64,
+    "values-0640": 64,
+    "values-0704": 64,
+    "values-0768": 64,
+    "values-0832": 64,
+    "values-0896": 64,
+    "values-0960": 64,
+    "values-1024": 64,
+    "values-1088": 64,
+    "values-1152": 64,
+    "values-1216": 64,
+    "values-1280": 64,
+    "values-1344": 24,
+    "readers-0000": 8,
+    "readers-0008": 8,
+    "readers-0016": 8,
+    "readers-0024": 8,
+    "readers-0032": 8,
+    "readers-0040": 1,
+    "writers-0000": 8,
+    "writers-0008": 8,
+    "writers-0016": 8,
+    "writers-0024": 8,
+    "writers-0032": 8,
+    "writers-0040": 8,
+    "writers-0048": 8,
+    "writers-0056": 4,
+    "ownership": 5
+  },
+  "consumer_sha256": {
+    "values-0000": "e40007d9d2d987fd763dc22c09917765a38d409253657c65d335b9730f20236b",
+    "values-0064": "91f550e785393b324f3b51ed469987d9c2aa3c526058d44bcdbece9e4ac60de3",
+    "values-0128": "0bd24298816b10fdbfc12434ec0c481fa7484365503cfc9f07e0a1729c365885",
+    "values-0192": "05fe15c156143ab51c26d12f752160e25f21fc9b93405c67d9bb5031b287eaca",
+    "values-0256": "9d4d8da2a5c31c557117732e320f991156d45d7ce1bb8bef9d6ffd25771b4b08",
+    "values-0320": "91636abdf838fa627f54723cd6b572cc408fcb3f7397f7fb776b17dcc2278c08",
+    "values-0384": "dbef461778af72af9cd924a3405c8e936f815d9c0f07eec1df237991fff9d095",
+    "values-0448": "80af3cc1fe6ffc123302c6671d19c13dc6bd30c59b9732dfb5a1baacb2d7c00e",
+    "values-0512": "34e655c7f1bc17a58b65f84e019891ea2a7a51e86cfb68a52cfab0733bb703de",
+    "values-0576": "1317c4f304e325d2c0508be6aae3b90d0269e3a21eff4ab7a8f36b3f096b5b83",
+    "values-0640": "38883d6f11227e79d904669c2c56f593f26814670458b7b70541aab9c803eaf1",
+    "values-0704": "4f4a6a2af85d07ac8c75a5d3832672cf61c05ccfcb9380da5e589fb1c83b6651",
+    "values-0768": "1dff55ccd1768e38ede1fc0aa1dd16993ca595aaa021c367a0fb1ef91a78648a",
+    "values-0832": "b21a655654f9df037db9f69495e19c52c5ea7ea052332091c0d150e74e9c807b",
+    "values-0896": "da2b08f1825464fb02957a52e6a1235961a7b663274c5ab26b3536bf3c037222",
+    "values-0960": "818d3f8ef3306f49893dc948217dc71081e1bfeea1f8b86322bf6bc3c9a30a85",
+    "values-1024": "b086bca3ad452f04af586e58570af6f576cf31e4ffae7b049ef0fa5a5830a048",
+    "values-1088": "e825440e687728ea07280dbd3b118815929fc00275fbec57291734a042c06d7b",
+    "values-1152": "f700f1b57e02b40cd7274f426105a74c7b77225299dff5bb23648cefc92b4eae",
+    "values-1216": "e7e80811b64175e5a947c8f9b84f487da3554b51ab41de5a1f16d26e63e2baa9",
+    "values-1280": "e695544cda4a57936b48f6e4800f35f77030c43cde7116572fa95d8875db30de",
+    "values-1344": "2c9aabfa2a29c4b9114590b5c461d4697491927ac1e5adf0a265d8d5844671a2",
+    "readers-0000": "84c59f88de40873e68ef58bf9f011f7bd02341c232a97fe83ff0a604712e9aa2",
+    "readers-0008": "f78692302e86f2dbe9dd015f1e9471a4a17c1e6e37bdfd337dd286c9eacba351",
+    "readers-0016": "b4901c4e4ad8eac43253afdacd40ec2aa8051e3b5155212e2cfcfb6b08914aea",
+    "readers-0024": "4d4552c78e7d18adfaa6092960b3769d23b9e305832e8e314544b45b39512fb6",
+    "readers-0032": "7dc5187acf93c10401b48510c7a38b7b76983878b8a120857a9079a803b4dd47",
+    "readers-0040": "3ce6997df6719088911d428d420c0c62fe422feaa2d757125b558babf5b4301c",
+    "writers-0000": "bbd0429f3a55626b7d934748202b3d8593d3d0c35a69e1dbf79706122050f934",
+    "writers-0008": "c4e388f9d2e95ba1b7f34dac7916194ee4cec6017dcf00957989a94b739834a7",
+    "writers-0016": "3a39ae0ccb8e11e930bf56b4e6e9f4f4e50208f6041ee431cf06d6ab729504d6",
+    "writers-0024": "d83820092b231fa44caf8e43b89f533afa7bc4905ba93e899ecd1beeecd2eba9",
+    "writers-0032": "d19d260ba04ea22d877d559b9ea307da164a00f961ac8ef5297808b1d3a48912",
+    "writers-0040": "836c498218b32259e142a08d78e55fa00d846b75b93a1356954e1d7b2e994115",
+    "writers-0048": "6ec57c6e15c885750a407b8de893233da4375174f929361b3b9bfbf96dce5d9a",
+    "writers-0056": "ea3344633aaa7464f0d495f315c592c49e466ccbf28e0b90ff9baad8bb1f0939",
+    "ownership": "5d58db20bfa29b1bf95ff990d570b83f9bd25ee51310cc9ebe9b0ba727fad3f0"
+  },
+  "reference_source_sha256": "08797950a03aadaf4c32820e581538534a99e76fb74761e6c076e3d66f04e41e",
+  "sources": {
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Text.QuotedPrintable": "2524239a809cc3ebf6fec35009d74a070530f5dc9b03f2322f40665f8c33d502",
+    "Effect.Stream": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33",
+    "Effect.QuotedPrintable": "de6cdba57ca46df9d38758d910ad8c7cfe0ae8c08c6085a15e6ad2ce8773f584"
+  },
+  "frontends": {
+    "rust": {
+      "compiler": "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+      "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+      "runtime": "/workspace/dasl-stdlib-io/compiler/runtime/target/release/libcinchruntime.a",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "compile_rc_debug": false
+    },
+    "native": {
+      "compiler": "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+      "compiler_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+      "runtime": "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/libcinchruntime.a",
+      "runtime_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+      "compile_rc_debug": true,
+      "objects.json": "4655257140bfd5ab73525f0fbef41dc41622a9f1225b034dbe1571dd2174c5e6",
+      "base-interfaces.json": "89189ebe8226d4f26defffdd6481f40351f4da80e035a6a2ee4b2fa19800893f",
+      "provider_sha256": "2b459a81ac51e8e7a4f5e1730b9dc9fd22bc5976096cd717accbc9a84b05875d"
+    }
+  },
+  "runs": [
+    {
+      "frontend": "rust",
+      "case": "ownership",
+      "count": 5,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-ownership.ll"
+      ],
+      "compile_seconds": 3.84729593899101,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "5d58db20bfa29b1bf95ff990d570b83f9bd25ee51310cc9ebe9b0ba727fad3f0",
+      "bundle_sha256": "98a6e1a96470c6c7a9dc7a078ed9905881a134692cb69fa080825077ec7ebee2",
+      "ir_sha256": "57ea7e30d52af5c1db654620dbf97a2b8cb6f863bfd1c0bd995a8c989a38de06",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "8636d11050a24ba97aae91114a6a523b3fc8fef740610b7565efe292c07d6b3e"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0000",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-values-0000.ll"
+      ],
+      "compile_seconds": 4.252310055991984,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "e40007d9d2d987fd763dc22c09917765a38d409253657c65d335b9730f20236b",
+      "bundle_sha256": "84cd9486898514f8f5072ffbdf7ecdfa5443adf5e984518f1176eb405654d77e",
+      "ir_sha256": "82f07f41ea3378b3cc87aa7a4011948b302331acf7d0c692b78cfc49663bd316",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "45f6aba2b147dfc32f8719dceeefa4da506d5c8e0d2ede8f1c11897024f65515"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0064",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-values-0064.ll"
+      ],
+      "compile_seconds": 4.409116915994673,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "91f550e785393b324f3b51ed469987d9c2aa3c526058d44bcdbece9e4ac60de3",
+      "bundle_sha256": "18c612cc2affb5aa11f644434d25596ff9db3265120fda2a344dbb60e4398c51",
+      "ir_sha256": "f277fd89ec3078291e710aba5c6d1abc4c566725d283d8100e8abe153afe9413",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "78f4efb8b331864bc08cbc17ab2706ddebea46a740e9c5159970c0303c2e9b0e"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0128",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-values-0128.ll"
+      ],
+      "compile_seconds": 4.721213473996613,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "0bd24298816b10fdbfc12434ec0c481fa7484365503cfc9f07e0a1729c365885",
+      "bundle_sha256": "9ba15016ff4df769d5ca0df753eda7ec642185fc02bc965a8246c8247ca9d809",
+      "ir_sha256": "39648e913d2f22020bd4e01fe03eb70d1662406a28113f3851e44ed0cfe9a1a4",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "ff8252802487292deffd4b191a58383b4ece0231cf503fd10af9a7685ca99a86"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0192",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-values-0192.ll"
+      ],
+      "compile_seconds": 4.112213599000825,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "05fe15c156143ab51c26d12f752160e25f21fc9b93405c67d9bb5031b287eaca",
+      "bundle_sha256": "e35a34e9f68ae625e49f094b40a9e525434aee1fec71526e72136108ac4b4646",
+      "ir_sha256": "5e0d552c75cef81bab3003d8b98ed85d12bcc9f02072fbd819bd80ff265a1cb1",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "7afd7e10278db15a9da677731c5e799211738e896c42a526d49aeaa2d91e2e9c"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0256",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-values-0256.ll"
+      ],
+      "compile_seconds": 7.108239997993223,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "9d4d8da2a5c31c557117732e320f991156d45d7ce1bb8bef9d6ffd25771b4b08",
+      "bundle_sha256": "b9d3e59992f8571a409ef29827bc2143806c86c99d4fedafec3fc6a92fc3362d",
+      "ir_sha256": "b68a4a220d9b5c662043b67c43231fd814751d3c2509d556764bc1be44a893ac",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "a125c08c211e1de87bf04beb0897abed2285a968ff62c1d5441f2fa313bfbdb5"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0320",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-values-0320.ll"
+      ],
+      "compile_seconds": 4.085712535001221,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "91636abdf838fa627f54723cd6b572cc408fcb3f7397f7fb776b17dcc2278c08",
+      "bundle_sha256": "4e147e976475fcfeaee1e3341313bf6371282425f4da9013bc990b6b62751a73",
+      "ir_sha256": "bfbfde2bda48781e0803dd88a01564b88aebe83e9c0cdb00bb0986cdb7d2ab07",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "bf2544f5ca73f7786a27d633f27082c20ad323124c71a96fbb672e9738b8defa"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0384",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-values-0384.ll"
+      ],
+      "compile_seconds": 4.60036845599825,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "dbef461778af72af9cd924a3405c8e936f815d9c0f07eec1df237991fff9d095",
+      "bundle_sha256": "5d1c321e2d2b6231ddddd2742c6428691296df14752eafd66bb0e8721c7b2ac8",
+      "ir_sha256": "4696853d249847ab51b949dda72ff7b6ac41f8a022d333e1a3994eaaf0ed969a",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "77f2e650ae5b06af8ad9d2cac0438674580c10b950627cc46c654c10b3b44569"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0448",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-values-0448.ll"
+      ],
+      "compile_seconds": 4.484947913006181,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "80af3cc1fe6ffc123302c6671d19c13dc6bd30c59b9732dfb5a1baacb2d7c00e",
+      "bundle_sha256": "d5dc7c8c741164d0ec5195c14909c0c1398dddf6bb82b6373bb3852a88590623",
+      "ir_sha256": "d7ba91f9aa25080c13904e7a3c673f6b3e05be2f1feb652ccd60cabce1cd6674",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "38fc3fbbb8c297af9184d7f6feb8bbbde09c6bc068670c433d8a7e1dcc61a392"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0512",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-values-0512.ll"
+      ],
+      "compile_seconds": 4.066860991006251,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "34e655c7f1bc17a58b65f84e019891ea2a7a51e86cfb68a52cfab0733bb703de",
+      "bundle_sha256": "259b8396a58ac4c52631fd61a4f5fea5ef9da30753a319e0f98684e249a56cef",
+      "ir_sha256": "363bf1cfb7f318b1e164dbf3187113e3f3fc0dfeff2463be80e9b88b9a35a48c",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "a04c8c3cd5d1b995379b948a8c5fe803662d9f43b343545df0cb8a1b460f1004"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0576",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-values-0576.ll"
+      ],
+      "compile_seconds": 3.909947462991113,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "1317c4f304e325d2c0508be6aae3b90d0269e3a21eff4ab7a8f36b3f096b5b83",
+      "bundle_sha256": "acc00cb4333a2c7f9ac1c7b85270199e32b854aa262c2170e2e045e795ee8f58",
+      "ir_sha256": "be6c66b3fa3255364c831a891b9821553ec4023724fa82be7f5e2a09cf06b4d0",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "30d72f5af8f55a9cf9635a547f99aaa0090e40abea777dcdb21e929d0d1e20ab"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0640",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-values-0640.ll"
+      ],
+      "compile_seconds": 4.113365924000391,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "38883d6f11227e79d904669c2c56f593f26814670458b7b70541aab9c803eaf1",
+      "bundle_sha256": "514b2ecfa4cf32cf42c2777685051fc8b0423bd01dcd31effbc94857ea998ade",
+      "ir_sha256": "79204f04e4ca71145c52d7d928d57749d1beef84b8dacbd9594b118c4fdb219d",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "f2213de74f3d58fb9da8dcab0f7f02527421e47a9c6fe8c1ccceadc7a274c7d7"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0704",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-values-0704.ll"
+      ],
+      "compile_seconds": 3.7358646339998813,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "4f4a6a2af85d07ac8c75a5d3832672cf61c05ccfcb9380da5e589fb1c83b6651",
+      "bundle_sha256": "84f1a79aae42ffb869f1a13de8986478851a55a75e1000f82f61461c5f969246",
+      "ir_sha256": "4b49ef026110cb63b9b0c6db4cb4e546a81ba40a27a8fbe5a2388216a0e8a80c",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "c764a4caa5634ee520a095d3d93ebfde484dcf516a84be4040612c2b09a47db6"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0768",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-values-0768.ll"
+      ],
+      "compile_seconds": 4.360530802994617,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "1dff55ccd1768e38ede1fc0aa1dd16993ca595aaa021c367a0fb1ef91a78648a",
+      "bundle_sha256": "7d2d1200b576b4eabc41f8ff8e3b39329f5a03747799f3e7a2c74459665f85f7",
+      "ir_sha256": "22d8653bed8acaec27d1ccd3737df5be14fd6da6b22cd62e2e9b7df8a3d75e34",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "c17d82973151c56560a216538e58ded2e35af33e76f90a3efa650df7b51bc340"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0832",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-values-0832.ll"
+      ],
+      "compile_seconds": 4.691281510007684,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "b21a655654f9df037db9f69495e19c52c5ea7ea052332091c0d150e74e9c807b",
+      "bundle_sha256": "822666e13a25669367abee653fe5f3b8e6b421cf2801d1bf4d20a033aa4f7c5a",
+      "ir_sha256": "b84c6fb908da9403f74d6fc4b99c2f5314e97dd493adaab72747d8470dc93310",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "6602df33ddd3c7564d1bca350d7fc4ed59d088ef42d1a005f38ef1c8c4af8836"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0896",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-values-0896.ll"
+      ],
+      "compile_seconds": 4.634744822003995,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "da2b08f1825464fb02957a52e6a1235961a7b663274c5ab26b3536bf3c037222",
+      "bundle_sha256": "b8913c916775278072a61de73a001489a57b8a648b4e980262320651129e92a7",
+      "ir_sha256": "37f3de3232dbec8d909954ac6b0d0769d351afe645de3d85760d0b48596a6e0a",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "481f30fdcf086dec3ba53c3a90d955e15bf966617cb9f56c5223b70cd1662af7"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0960",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-values-0960.ll"
+      ],
+      "compile_seconds": 4.713711143005639,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "818d3f8ef3306f49893dc948217dc71081e1bfeea1f8b86322bf6bc3c9a30a85",
+      "bundle_sha256": "6a5b1ccfdd76218d86efbba8090516193470ec257e9ad55b27db7a9dd3009c57",
+      "ir_sha256": "4a478c135023c67d8cf1bc7e9311550852b5f6a29a38ac912a446987049e117c",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "e0d7ec59e9cadf506505167d8d9ad36b3ed9a3eaed7166b7e43262884c327013"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-1024",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-values-1024.ll"
+      ],
+      "compile_seconds": 5.141332777988282,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "b086bca3ad452f04af586e58570af6f576cf31e4ffae7b049ef0fa5a5830a048",
+      "bundle_sha256": "2af0c972dd4a6bb7c5d1aa733c9d8bb8b8ea8a85db083ecc60e99d6043681c07",
+      "ir_sha256": "3a093058dde51f19021660563850e0e584ad3eb64e671a6106ed08d54757ce68",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "b952bbdbee4a9ca6b28326532124734c9e7d78d33abfa4a19784447afd1987e2"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-1088",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-values-1088.ll"
+      ],
+      "compile_seconds": 4.708333386006416,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "e825440e687728ea07280dbd3b118815929fc00275fbec57291734a042c06d7b",
+      "bundle_sha256": "8b662c563c06f6d478492a923640d654b64c9ab46ac96b9669102fd133cc30a3",
+      "ir_sha256": "e865b2cc663dba3703493d6bb5520693e6ceaa08895ea50276801573fa48f79d",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "4224faa3d055053498c311d36a145aa7d8bc4ab7de22a86bb6e8fd50e151a936"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-1152",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-values-1152.ll"
+      ],
+      "compile_seconds": 5.833685637000599,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "f700f1b57e02b40cd7274f426105a74c7b77225299dff5bb23648cefc92b4eae",
+      "bundle_sha256": "2d7555924a5c052b45665850f5dd72cec78d2df4e1c46a92355c346dd34b4220",
+      "ir_sha256": "84fc2424e4390129db3b2d5ea1c82f969a777c9c129a15f9fbd234eb639edc65",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "ef889a30def33cf0db2051fd5ddc1e7722a97b787a830af1763548244563b79f"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-1216",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-values-1216.ll"
+      ],
+      "compile_seconds": 5.28422252900782,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "e7e80811b64175e5a947c8f9b84f487da3554b51ab41de5a1f16d26e63e2baa9",
+      "bundle_sha256": "60e17f3e8096eef4d57935810a2851b32c204d8cceba25b7fecd6dd4f7e1a78c",
+      "ir_sha256": "05463bb647bf60d1539a65d63419ff3619cdbadf641a12b5b84377ebf8af49d8",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "995a23feb532f2b9cc2b572f71f2052651d70af41676cbc51ab202fa738f6f59"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-1280",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-values-1280.ll"
+      ],
+      "compile_seconds": 7.0957689530041534,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "e695544cda4a57936b48f6e4800f35f77030c43cde7116572fa95d8875db30de",
+      "bundle_sha256": "c5cdd4f0ae818437d43a794af239d4b76428c3e2aea1ecad0db10c6eb1f470b4",
+      "ir_sha256": "30e2623e03b10aea275b67a3c10930562c045a6ccf66771726894448ffe6c273",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "7c4dbce2cab82e14bb062d6c3e71d67c44f1ce0ae0bf827c2794399baaabbb51"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-1344",
+      "count": 24,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-values-1344.ll"
+      ],
+      "compile_seconds": 4.113461996006663,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "2c9aabfa2a29c4b9114590b5c461d4697491927ac1e5adf0a265d8d5844671a2",
+      "bundle_sha256": "f584917a89195248309ca05406a7f663aa878bcbae5a2a10efba38c4a90f8c93",
+      "ir_sha256": "0c3f499b9c35b40aa10b654be566ae82e519f2ae273a7f2fa3ccc994062b61ab",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "3117169d678f62b6a2584cdf4dc34d6479bbc20bd0c14aa96012e0af01e320c1"
+    },
+    {
+      "frontend": "rust",
+      "case": "readers-0000",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-readers-0000.ll"
+      ],
+      "compile_seconds": 3.7308279299904825,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "84c59f88de40873e68ef58bf9f011f7bd02341c232a97fe83ff0a604712e9aa2",
+      "bundle_sha256": "550a003deddabc21c9f4df11cfdb4f19b3aa6ffe432a723889f22ddcc0e63a70",
+      "ir_sha256": "f389c6f3b93c3abdf04dbf128622251ffb6028ed6575e591dd429d40068db642",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "155dab3987ac3737eabba48ff6377b2f57e92ae33c3232b32c3c5ddfc9c83224"
+    },
+    {
+      "frontend": "rust",
+      "case": "readers-0008",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-readers-0008.ll"
+      ],
+      "compile_seconds": 4.4409164110111305,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "f78692302e86f2dbe9dd015f1e9471a4a17c1e6e37bdfd337dd286c9eacba351",
+      "bundle_sha256": "d56c42a9f98b71bc36f641d084180daafe8b87565fe2a196026d8b2d0f9f580b",
+      "ir_sha256": "d2ea8e4d002dbd67c556064e540a3057419df49181549a725e190d698aa0acc4",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "e8733e538c5beeb603267d91ce4d7fd2ae17c68d67c006bbea17bbfab5877751"
+    },
+    {
+      "frontend": "rust",
+      "case": "readers-0016",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-readers-0016.ll"
+      ],
+      "compile_seconds": 4.297101931006182,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "b4901c4e4ad8eac43253afdacd40ec2aa8051e3b5155212e2cfcfb6b08914aea",
+      "bundle_sha256": "0871eaafc81fa13cc4b29f3c944e626189606ac0e9902d221a86b94ce421f65e",
+      "ir_sha256": "c371bc8aca5a5ef7e0fb060eafb63a7f5b55f325f22f2f603b65f8691f264bcc",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "87d435703fa8749d776ccaa0eed58f91bac4cf1a094d8803188b78580d64f756"
+    },
+    {
+      "frontend": "rust",
+      "case": "readers-0024",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-readers-0024.ll"
+      ],
+      "compile_seconds": 4.270830266003031,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "4d4552c78e7d18adfaa6092960b3769d23b9e305832e8e314544b45b39512fb6",
+      "bundle_sha256": "a3db511ceafa27e635e0151fc659f4527237ba8470493643acd5468c77d8512c",
+      "ir_sha256": "4fa0a844ae687bd32f1d1a54be2b375a30fb808b64f1a335575ea3b0d1cffc72",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "2104d5f0ea779319a781f9799bf942e074600d063a811bccb6ff8ea17c0ef32b"
+    },
+    {
+      "frontend": "rust",
+      "case": "readers-0032",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-readers-0032.ll"
+      ],
+      "compile_seconds": 4.046664410998346,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "7dc5187acf93c10401b48510c7a38b7b76983878b8a120857a9079a803b4dd47",
+      "bundle_sha256": "cc277b2b9c8d3925d8ec8db4881fc4d480526b9e9553c3a07f05db7467a5b308",
+      "ir_sha256": "76e099a3c3c1d1e5bb1932ce6fa07069a9a0e8cd188fdfa07fd75fa404029e4c",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "0f47dbfaf2738eb42005920d76bbe1e0fd57716ae2bf7cc1920d3620d554d8b1"
+    },
+    {
+      "frontend": "rust",
+      "case": "readers-0040",
+      "count": 1,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-readers-0040.ll"
+      ],
+      "compile_seconds": 4.073809533001622,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "3ce6997df6719088911d428d420c0c62fe422feaa2d757125b558babf5b4301c",
+      "bundle_sha256": "7160001ae7dc309dacc969e88f84ac7bb4f4d0cc09596aa42124c05643a39c12",
+      "ir_sha256": "3341e3932fbe3c53ca199b90be2b48c10e8faa73f50089216eaf0625fbffddbe",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "93520ff55519a373897ff4068b67e6a020949c950e9070e76e3df3b47a5698e2"
+    },
+    {
+      "frontend": "rust",
+      "case": "writers-0000",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-writers-0000.ll"
+      ],
+      "compile_seconds": 4.494302280989359,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "bbd0429f3a55626b7d934748202b3d8593d3d0c35a69e1dbf79706122050f934",
+      "bundle_sha256": "b92374eab84470d5d10e4f035c30ad850868963d3d518d5c0d1a278a44b6f342",
+      "ir_sha256": "89bc01d2533d0d2c8e1ab3a369d292a0642e44f490a50bfb224e5605e399b9ab",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "dec71f41e9373d5a7dd94722f155beb34f24e48b3a7739c7ecbf1e935b4fc337"
+    },
+    {
+      "frontend": "rust",
+      "case": "writers-0008",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-writers-0008.ll"
+      ],
+      "compile_seconds": 5.253811089991359,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "c4e388f9d2e95ba1b7f34dac7916194ee4cec6017dcf00957989a94b739834a7",
+      "bundle_sha256": "5ca4399a8489fea04c1b0027817c49e0923a773e3b85b8a4053ec62d2b7a7db3",
+      "ir_sha256": "ee005ca34eeaabdd12fe3777cc41c4574c2780fdab60a7ee471d11be1bbe81e5",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "5ce46cd45a1df96627d7be1e4c7bbbc628d665f00529c5402ae7be6fc4199acf"
+    },
+    {
+      "frontend": "rust",
+      "case": "writers-0016",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-writers-0016.ll"
+      ],
+      "compile_seconds": 4.4311980639904505,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "3a39ae0ccb8e11e930bf56b4e6e9f4f4e50208f6041ee431cf06d6ab729504d6",
+      "bundle_sha256": "31ce3a74ab25934dac5bf73f0f339251b287e9437f4ec3f558a14f5d57b43ca4",
+      "ir_sha256": "77a7df170c3fe2dee325b97bb33872582bf3badb71e28b605ac04676837db353",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "b09761c092177a1ee68e57cf3a9b64e10347b37d289d969cd1a56f70a1f70519"
+    },
+    {
+      "frontend": "rust",
+      "case": "writers-0024",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-writers-0024.ll"
+      ],
+      "compile_seconds": 4.4193499270040775,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "d83820092b231fa44caf8e43b89f533afa7bc4905ba93e899ecd1beeecd2eba9",
+      "bundle_sha256": "d5784a191820102981c1ca488fac013d523e715375b86fc0310c86f5babae9de",
+      "ir_sha256": "4b8162253f0e42f7f9888ddf121fed2159945e90e4b1123c65dd38d4ec23672b",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "4e805e9b23a21af64e9ee2fccbe8a4d8915529075ec6bc217c16ce8b0747899a"
+    },
+    {
+      "frontend": "rust",
+      "case": "writers-0032",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-writers-0032.ll"
+      ],
+      "compile_seconds": 4.653051127999788,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "d19d260ba04ea22d877d559b9ea307da164a00f961ac8ef5297808b1d3a48912",
+      "bundle_sha256": "e56e649e99ceade0c7e181cdde6a4035276d6e81ad8f5514658e3981e3e673e3",
+      "ir_sha256": "32031a9b6d541501e79175f67441e9256bf9c72c534a8fa8e5ff616b12e76d55",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "475fe416a198edfa5b1ae85fe235e8e525b9b97a33ddd36c5b3a467d1561eaae"
+    },
+    {
+      "frontend": "rust",
+      "case": "writers-0040",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-writers-0040.ll"
+      ],
+      "compile_seconds": 5.056285793994903,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "836c498218b32259e142a08d78e55fa00d846b75b93a1356954e1d7b2e994115",
+      "bundle_sha256": "9213a04152881187e3d7f4b28f3c3fe87cdea8febdc938e19b47bc493ee80c62",
+      "ir_sha256": "27b28fbc6af67a0196ea4bf0d680386192f86a3e7db734e3703c752bd53d5b11",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "b59ca3f49d987ad49e9a89730be43136c058b88d4a7e9fbb145d6d4e14529895"
+    },
+    {
+      "frontend": "rust",
+      "case": "writers-0048",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-writers-0048.ll"
+      ],
+      "compile_seconds": 5.59849693000433,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "6ec57c6e15c885750a407b8de893233da4375174f929361b3b9bfbf96dce5d9a",
+      "bundle_sha256": "c0ea446861e41c5f6bfa143710005683e07e3db811686ee90222d2a18f79a33e",
+      "ir_sha256": "a254b2e1121f5d69311ca1082683cea885bcfaa4b2081609f17cf2a2ff78ae0e",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "c4bd194cc27a9bd0fa21ce088ca50e581e1d8706f5a89cc39727a11ac5917084"
+    },
+    {
+      "frontend": "rust",
+      "case": "writers-0056",
+      "count": 4,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/rust-writers-0056.ll"
+      ],
+      "compile_seconds": 4.364287165997666,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "ea3344633aaa7464f0d495f315c592c49e466ccbf28e0b90ff9baad8bb1f0939",
+      "bundle_sha256": "eb8903507236fb4cfe0fe6051683acbb92e4dbe9de5aa5a47fb993b82c49cb93",
+      "ir_sha256": "89afc431262ec3bbfcf9effad8b7142d4f4ce0ab589b06f4942cdb6b21a88e13",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "0cd80ce6546c503c7c45d89ddcdcdb987ab833738fff2c418c8da7a197b318c8"
+    }
+  ],
+  "kernel_cases_per_invocation": 32768,
+  "kernel_ir_sha256": "e91e28e6840840eddd5c85b78479e3714c4feedb0afdc55d87b15442605b4108",
+  "kernel_object_sha256": "b66029cad2b8f9d50f9bca931d314d9da1d036589de0be08d32dd7d196a53ae3",
+  "fixture_source_sha256": "d44c8c69c48adfbd161d8a597625a68072992ff83820589367006e5b1b6f1059",
+  "fixture_object_sha256": "891da98d8477095017f590478c86d170471e053baacc7d80d365ee179c7025a1",
+  "failures": [
+    {
+      "command": [
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/base-interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/objects.json",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/bundle.source",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/native-ownership.ll"
+      ],
+      "diagnostic": "['/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch', '--emit-ir', '--rc-debug', '--interfaces', '/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/base-interfaces.json', '--objects', '/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/objects.json', '/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/bundle.source', '/workspace/dasl-stdlib-compare/build/quoted-printable/full-cad70-native9e/native-ownership.ll']: exit 4\n\n\nbootstrap.check:1514:48: type mismatch: expected Int, found refine (x :: Nat) with ((0 <= integer-index x) && (integer-index x <= 255))\nbootstrap.check:1517:47: type mismatch: expected Int, found refine (x :: Nat) with ((0 <= integer-index x) && (integer-index x <= 255))\nbootstrap.check:1522:6: non-exhaustive patterns: a scrutinee value is not covered by an unguarded row; add an unguarded final row\nbootstrap.check:1524:27: non-exhaustive patterns: a scrutinee value is not covered by an unguarded row; add an unguarded final row\nbootstrap.check:1527:95: type mismatch: expected Int, found refine (x :: Nat) with ((0 <= integer-index x) && (integer-index x <= 255))\n"
+    }
+  ]
+}

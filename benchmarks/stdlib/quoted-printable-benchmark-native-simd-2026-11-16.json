@@ -1,0 +1,334 @@
+{
+  "format": 1,
+  "scalar_snapshot": false,
+  "stream_adapters": false,
+  "compile_rc_debug": false,
+  "runner_sha256": "5c968eb4127f6a1edad9c0b38bbe42f9fc1cb8eaefa17b1bc01321e5400ca8fd",
+  "compiler": "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+  "compiler_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+  "runtime": "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/libcinchruntime.a",
+  "runtime_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+  "driver_sha256": "49172835103b8bbf258ede9b65640ea82b0f459cc7dd41060313cebe72380fc0",
+  "reference_source_sha256": "10ebf2f0f5d80065c859bef00901de6933ca49fd1819dedcc2d09530667b50e9",
+  "source_sha256": {
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Text.QuotedPrintable": "2524239a809cc3ebf6fec35009d74a070530f5dc9b03f2322f40665f8c33d502"
+  },
+  "compiler_host_stack_bytes": 67108864,
+  "profile": {
+    "heap": "32M",
+    "stack": "8M",
+    "poison": false,
+    "leak_check": true
+  },
+  "scope": "Build and measure full quoted-printable public pipelines against a pinned reference.\n\nAll samples, allocation-policy differences and regressions remain visible. The\nscope includes fresh output allocation and an observable scalar output checksum;\ninput generation and decode-fixture encoding occur before the measured interval.\n",
+  "results": [
+    {
+      "mode": "ascii-encode",
+      "input_bytes": 64,
+      "iterations": 50,
+      "output_and_retained_input_checksums": [
+        1093095926,
+        1043967392
+      ],
+      "raw_samples_ns": {
+        "cinch": [
+          2113504,
+          405482,
+          738265,
+          542169,
+          399654,
+          425203,
+          719277
+        ],
+        "reference": [
+          40010,
+          13500,
+          46370,
+          13610,
+          40742,
+          13520,
+          42714
+        ]
+      },
+      "median_ns_per_iteration": {
+        "cinch": 10843.38,
+        "reference": 800.2
+      },
+      "cinch_over_reference": 13.550837290677329
+    },
+    {
+      "mode": "ascii-encode",
+      "input_bytes": 4096,
+      "iterations": 50,
+      "output_and_retained_input_checksums": [
+        804191976,
+        567064280
+      ],
+      "raw_samples_ns": {
+        "cinch": [
+          26348690,
+          25703115,
+          25923278,
+          27233418,
+          27025432,
+          27823508,
+          23570793
+        ],
+        "reference": [
+          1584504,
+          1745026,
+          1364171,
+          1167704,
+          1582201,
+          1474308,
+          1179222
+        ]
+      },
+      "median_ns_per_iteration": {
+        "cinch": 526973.8,
+        "reference": 29486.16
+      },
+      "cinch_over_reference": 17.87190329293472
+    },
+    {
+      "mode": "binary-encode",
+      "input_bytes": 64,
+      "iterations": 50,
+      "output_and_retained_input_checksums": [
+        1637054528,
+        1801869088
+      ],
+      "raw_samples_ns": {
+        "cinch": [
+          1482239,
+          1544273,
+          1532505,
+          1715853,
+          1841403,
+          1459415,
+          1637184
+        ],
+        "reference": [
+          54232,
+          53531,
+          488949,
+          52219,
+          53571,
+          54082,
+          51128
+        ]
+      },
+      "median_ns_per_iteration": {
+        "cinch": 30885.46,
+        "reference": 1071.42
+      },
+      "cinch_over_reference": 28.826659946612903
+    },
+    {
+      "mode": "binary-encode",
+      "input_bytes": 4096,
+      "iterations": 50,
+      "output_and_retained_input_checksums": [
+        294005052,
+        1773590528
+      ],
+      "raw_samples_ns": {
+        "cinch": [
+          98542738,
+          103143690,
+          102108675,
+          105956008,
+          104184252,
+          98135733,
+          97707495
+        ],
+        "reference": [
+          13404046,
+          6058704,
+          2395619,
+          3564596,
+          3911420,
+          2699579,
+          2985841
+        ]
+      },
+      "median_ns_per_iteration": {
+        "cinch": 2042173.5,
+        "reference": 71291.92
+      },
+      "cinch_over_reference": 28.645230763878992
+    },
+    {
+      "mode": "ascii-decode",
+      "input_bytes": 64,
+      "iterations": 50,
+      "output_and_retained_input_checksums": [
+        127928640,
+        867875479
+      ],
+      "raw_samples_ns": {
+        "cinch": [
+          478573,
+          564503,
+          432163,
+          427536,
+          496370,
+          462909,
+          447567
+        ],
+        "reference": [
+          102084,
+          94683,
+          127833,
+          94613,
+          179922,
+          142255,
+          102635
+        ]
+      },
+      "median_ns_per_iteration": {
+        "cinch": 9258.18,
+        "reference": 2052.7
+      },
+      "cinch_over_reference": 4.510245043113948
+    },
+    {
+      "mode": "ascii-decode",
+      "input_bytes": 4096,
+      "iterations": 50,
+      "output_and_retained_input_checksums": [
+        1611249200,
+        1514247114
+      ],
+      "raw_samples_ns": {
+        "cinch": [
+          28134999,
+          29494935,
+          29861708,
+          27661383,
+          28524647,
+          31616790,
+          27424144
+        ],
+        "reference": [
+          1815212,
+          2110608,
+          1923637,
+          1589001,
+          2166313,
+          1843626,
+          2170129
+        ]
+      },
+      "median_ns_per_iteration": {
+        "cinch": 570492.94,
+        "reference": 38472.74
+      },
+      "cinch_over_reference": 14.828497788304134
+    },
+    {
+      "mode": "binary-decode",
+      "input_bytes": 64,
+      "iterations": 50,
+      "output_and_retained_input_checksums": [
+        29926464,
+        807050448
+      ],
+      "raw_samples_ns": {
+        "cinch": [
+          1220714,
+          1854222,
+          1479956,
+          1444883,
+          1309118,
+          1204670,
+          1365233
+        ],
+        "reference": [
+          178960,
+          221775,
+          125549,
+          150588,
+          145310,
+          131248,
+          214854
+        ]
+      },
+      "median_ns_per_iteration": {
+        "cinch": 27304.66,
+        "reference": 3011.76
+      },
+      "cinch_over_reference": 9.066014556272744
+    },
+    {
+      "mode": "binary-decode",
+      "input_bytes": 4096,
+      "iterations": 50,
+      "output_and_retained_input_checksums": [
+        867577856,
+        218265822
+      ],
+      "raw_samples_ns": {
+        "cinch": [
+          72649226,
+          77109304,
+          69900863,
+          69615182,
+          69737316,
+          72473230,
+          74361983
+        ],
+        "reference": [
+          2645727,
+          3055586,
+          2719489,
+          2618415,
+          2731267,
+          3515822,
+          2825369
+        ]
+      },
+      "median_ns_per_iteration": {
+        "cinch": 1449464.6,
+        "reference": 54625.34
+      },
+      "cinch_over_reference": 26.534655894132655
+    }
+  ],
+  "native": {
+    "base-interfaces.json": "89189ebe8226d4f26defffdd6481f40351f4da80e035a6a2ee4b2fa19800893f",
+    "objects.json": "4655257140bfd5ab73525f0fbef41dc41622a9f1225b034dbe1571dd2174c5e6",
+    "provider_sha256": "2b459a81ac51e8e7a4f5e1730b9dc9fd22bc5976096cd717accbc9a84b05875d"
+  },
+  "compile": {
+    "command": [
+      "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+      "--emit-ir",
+      "--interfaces",
+      "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/base-interfaces.json",
+      "--objects",
+      "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/objects.json",
+      "/workspace/dasl-stdlib-compare/build/quoted-printable/bench-native-simd/bundle.source",
+      "/workspace/dasl-stdlib-compare/build/quoted-printable/bench-native-simd/bench.ll"
+    ],
+    "stdout": "",
+    "stderr": ""
+  },
+  "executable_sha256": "a802965d5d7e32e31f8f863bb652b4d9e657a6af0d50ad0e09b21e8ba166780d",
+  "reference_executable_sha256": "6a2c2e173c5877284f6ad547216070cd0ea9e8fd07f09245460a2c90d4fd399b",
+  "llvm_sha256": "d9d8bff9a3813d891427ac906f2b7eba45022b783c4235a645c50c4f7548e00c",
+  "assembly_sha256": "6e1b15c12bcb4cbd1f809739182293348dae2fbf0f953c0c2278add3ac208af6",
+  "target_triple": "x86_64-unknown-linux-gnu",
+  "sdk": "go version go1.27.4 linux/amd64",
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "clang": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)",
+  "cpu_affinity": [
+    0
+  ],
+  "samples": 7,
+  "iterations": 50,
+  "timing_runner_sha256": "f34f0573b45d17753525110866e910971c037f81d4eadbd279562c551e526a7e",
+  "background_context": "Exclusive CPU0 parent-granted paired window; Strings explicitly released, QP CPU4 paused. Base/compiler chain on CPU1 and other functional/compiler work may share memory/cache; no machine-isolation or parity claim. See timing-background.json."
+}

@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "scalar_snapshot": false,
+  "stream_adapters": true,
+  "compile_rc_debug": false,
+  "runner_sha256": "a4b51c8dea972edfc4007c4eb9b9865e9fca4e6fd2f2505d5f89717d3fa3e1bf",
+  "compiler": "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+  "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+  "runtime": "/workspace/dasl-stdlib-io/compiler/runtime/target/release/libcinchruntime.a",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "driver_sha256": "2f07c35143a5f1721ab1dac7d0f4686678d51d1934713cb24527859be1004719",
+  "reference_source_sha256": "10ebf2f0f5d80065c859bef00901de6933ca49fd1819dedcc2d09530667b50e9",
+  "source_sha256": {
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Text.QuotedPrintable": "2524239a809cc3ebf6fec35009d74a070530f5dc9b03f2322f40665f8c33d502",
+    "Effect.Stream": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+    "Effect.QuotedPrintable": "de6cdba57ca46df9d38758d910ad8c7cfe0ae8c08c6085a15e6ad2ce8773f584"
+  },
+  "compiler_host_stack_bytes": 67108864,
+  "profile": {
+    "heap": "32M",
+    "stack": "8M",
+    "poison": false,
+    "leak_check": true
+  },
+  "scope": "Build and measure full quoted-printable public pipelines against a pinned reference.\n\nAll samples, allocation-policy differences and regressions remain visible. The\nscope includes fresh output allocation and an observable scalar output checksum;\ninput generation and decode-fixture encoding occur before the measured interval.\n",
+  "results": [],
+  "compile": {
+    "command": [
+      "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+      "emit-ir",
+      "/workspace/dasl-stdlib-compare/build/quoted-printable/bench-rust-stream-fixed/Main.cinch",
+      "-o",
+      "/workspace/dasl-stdlib-compare/build/quoted-printable/bench-rust-stream-fixed/bench.ll"
+    ],
+    "stdout": "",
+    "stderr": ""
+  },
+  "executable_sha256": "a23c3528c72ffef9bdb15c886159710bb91263ddbe6fc8d8ed0fa1ea5f44493b",
+  "reference_executable_sha256": "6a2c2e173c5877284f6ad547216070cd0ea9e8fd07f09245460a2c90d4fd399b",
+  "llvm_sha256": "8f42782d3ba4182e2233a9280c90e8030ad01d016580c1d682ae0d775c026bc0",
+  "assembly_sha256": "9a08fbd6b676ccea6cd335e5c219471f142af5ca2901602b21d5cc2d1e96521b",
+  "target_triple": "x86_64-unknown-linux-gnu",
+  "sdk": "go version go1.27.4 linux/amd64",
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "clang": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)"
+}
