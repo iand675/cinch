@@ -889,13 +889,20 @@ to refuse, and both front ends accept the word.
   inference only withdraws loans. Later visits therefore need no saved
   target set: one checked flag per unit caches that the rule ran, including
   when it found no targets. Flags belong to one inference pass and are
-  dropped before another compilation can redefine those units. The cache does not
-  scan units with no borrowing candidates. With `CINCH_BORROW_REPORT=1`, a
+  dropped before another compilation can redefine those units. The cache
+  does not scan units with no borrowing candidates. With `CINCH_BORROW_REPORT=1`, a
   separate `cinch-borrow-work` JSON line reports worklist visits, reuse scan
   requests, actual scans, nodes visited by the scrutinee and allocation
   searches, and cache occupancy. Cache slot bytes cover the checked flags;
   no target IDs or tree nodes are retained.
   The normal uninstrumented searches do not increment node counters.
+  The controlled A/B in
+  `experiments/borrow-inference/2026-11-16-reuse-cache.json` changes only this
+  cache: scans fall from 11,854 to 6,322 and combined search-node visits
+  from 3,063,686 to 1,089,399 (64.44% fewer) in the pass matching the owned
+  dump. The pass uses 7,227 bytes of flags. Its Core output is byte identical,
+  as are every pass's formal reports. These are analysis work counts, not
+  elapsed-time or scaling claims.
 - Next, split the 6,447 `owned-use` witnesses in the frozen census into
   returns, stores, captures and dynamic applications before relaxing a
   rule. Dynamic application currently consumes its closure through the
