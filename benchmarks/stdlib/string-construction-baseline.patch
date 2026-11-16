@@ -1,0 +1,96 @@
+--- a/compiler/prelude/Data/String.cinch
++++ b/compiler/prelude/Data/String.cinch
+@@ -248,3 +248,7 @@
+-  -- | Concatenate every string in list order into one fresh immutable backing.
+-  -- A tail-recursive size pass and a checked bulk-copy pass use bounded traversal
+-  -- stack, including lists of empty strings. Concatenation preserves valid UTF-8.
++  -- Every string in the list, in order, in one pass: the buffer is made
++  -- once, at the end of the list, sized to the pieces' total, and each
++  -- piece is copied once on the way back. A right fold of
++  -- `string-concat` would re-copy the whole built suffix at every step,
++  -- quadratic in the result's length. The concatenation of valid UTF-8
++  -- is valid UTF-8, so the buffer wraps without a decode. This is the
++  -- `Monoid String` instance's `mconcat`.
+@@ -252,10 +256,7 @@
+-  string-concat-all xs =
+-    let size = concat-size xs 0 in
+-    let out = bytes-new size in
+-    let copied = concat-copy out 0 xs in
+-    StrBuf out
+-
+-  -- | Count exact UTF-8 backing bytes without retaining recursive return frames.
+-  concat-size :: List String -> Nat -> Nat
+-  concat-size xs total = case xs of
+-    Nil -> total
++  string-concat-all xs = StrBuf (concat-from 0 xs)
++
++  -- The pieces of `xs` copied from offset `pos`: the result's refinement
++  -- (`pos <= bytes-len out`) is what each copy's range proves.
++  concat-from :: (pos :: Nat) -> List String -> refined (pos <= bytes-len out) Bytes
++  concat-from pos xs = case xs of
++    Nil -> bytes-new pos
+@@ -263,21 +264,8 @@
+-      let size = bytes-len (string-bytes-raw s) in
+-      let next = total + size in
+-      concat-size rest next
+-
+-  -- | Copy each immutable piece once into the pre-sized private result buffer.
+-  -- Every write stays inside an explicit complete-interval check; no backing escapes.
+-  concat-copy :: Bytes -> Nat -> List String -> Unit
+-  concat-copy out pos xs = case xs of
+-    Nil -> ()
+-    Cons s rest ->
+-      let source = string-bytes-raw s in
+-      let size = bytes-len source in
+-      if pos + size <= bytes-len out then
+-        let copied = copy-bytes-into out source pos 0 size in
+-        let next = pos + size in
+-        concat-copy out next rest
+-      else ()
+-
+-  -- | Repeat a string the requested natural count into one fresh immutable backing.
+-  -- A complete first copy seeds checked prefix doubling, giving logarithmically
+-  -- many bulk-copy steps and linear copied bytes. Empty results need no fill loop.
++      let b = string-bytes-raw s in
++      let out = concat-from (pos + bytes-len b) rest in
++      let u = copy-bytes-into out b pos 0 (bytes-len b) in
++      out
++
++  -- `s` repeated `n` times (the run-building helper the padding and
++  -- numeric-format sites spelled out as fixed byte runs): one buffer of
++  -- `n` copies, made once and filled in place.
+@@ -285,24 +273,10 @@
+-  string-repeat n s =
+-    let source = string-bytes-raw s in
+-    let size = bytes-len source in
+-    let out = bytes-new (n * size) in
+-    if size > 0 && size <= bytes-len out then
+-      let seeded = copy-bytes-into out source 0 0 size in
+-      let copied = repeat-double out size in
+-      StrBuf out
+-    else StrBuf out
+-
+-  -- | Double the initialized repetition prefix, copying only the final remaining fringe.
+-  -- The private result is both source and destination of the checked bulk copy;
+-  -- its initialized prefix remains immutable until each non-overlapping copy ends.
+-  repeat-double :: Bytes -> Nat -> Unit
+-  repeat-double out filled =
+-    if filled > 0 && filled < bytes-len out then
+-      let remaining = bytes-len out - filled in
+-      let count = if filled < remaining then filled else remaining in
+-      if filled + count <= bytes-len out && count <= bytes-len out then
+-        let copied = copy-bytes-into out out filled 0 count in
+-        let next = filled + count in
+-        repeat-double out next
+-      else ()
+-    else ()
++  string-repeat n s = StrBuf (repeat-from 0 n (string-bytes-raw s))
++
++  -- `n` copies of `b` from offset `pos`, in the shape of `concat-from`.
++  repeat-from :: (pos :: Nat) -> Nat -> (b :: Bytes) -> refined (pos <= bytes-len out) Bytes
++  repeat-from pos n b =
++    if n == 0 then bytes-new pos
++    else
++      let out = repeat-from (pos + bytes-len b) (n - 1) b in
++      let u = copy-bytes-into out b pos 0 (bytes-len b) in
++      out

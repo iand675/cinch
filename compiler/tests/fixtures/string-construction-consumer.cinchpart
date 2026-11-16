@@ -1,0 +1,81 @@
+-- | Exact immutable-string construction fixture consumers with runtime counts.
+module Main where
+  import Data.String
+  import Data.Bytes
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Text.Hex
+  import Algebra.Monoid
+
+  -- | Keep large construction out of compile-time constant evaluation.
+  prim runtime-word :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+  -- | Preserve each bounded fixture count as an opaque runtime value.
+  runtime-count :: Nat -> Nat
+  runtime-count count = if count <= 1048576 then
+    u32-to-nat (runtime-word (wrapping-i64-to-u32 (nat-to-i64 count))) else 0
+  -- | Conjoin all complete public observations.
+  all :: List Bool -> Bool
+  all values = case values of Nil -> True; Cons first rest -> first && all rest
+  -- | Decode exact independent expected bytes.
+  expected-bytes :: String -> Bytes
+  expected-bytes text = case hex-decode text of Ok bytes -> bytes; Err error -> bytes-new 0
+  -- | Compare complete buffers, including their exact lengths.
+  same :: Bytes -> Bytes -> Bool
+  same a b = eq-i64 (bytes-compare a b) 0
+  -- | Observe full bytes, scalar count, and independent full-output digest.
+  observed :: String -> Nat -> Nat -> String -> String -> Bool
+  observed text size scalars hex digest =
+    let raw = string-to-bytes text in
+    bytes-len raw == size && string-length text == scalars
+      && same (sha256-bytes raw) (expected-bytes digest)
+      && (if size <= 512 then same raw (expected-bytes hex) else True)
+  -- | Compare exact repeated output at doubling boundaries and UTF-8 fringes.
+  repeat-case :: String -> Nat -> Nat -> Nat -> String -> String -> Bool
+  repeat-case text count size scalars hex digest =
+    let n = runtime-count count in
+    observed (string-repeat n text) size scalars hex digest
+  -- | Materialize cyclic list pieces with a bounded-stack accumulator, avoiding replicate helpers.
+  make-pieces :: Nat -> List String -> List String -> List String -> List String
+  make-pieces cycles pattern pending reversed =
+    if cycles == 0 then reverse reversed
+    else case pending of
+      Nil -> let left = cycles - 1 in make-pieces left pattern pattern reversed
+      Cons first rest -> let values = Cons first reversed in make-pieces cycles pattern rest values
+  -- | Check deep ordered concatenation and its actual public monoid method.
+  concat-case :: List String -> Nat -> Nat -> Nat -> String -> String -> Bool
+  concat-case pattern cycles size scalars hex digest =
+    let n = runtime-count cycles in let pieces = make-pieces n pattern pattern Nil in
+    observed (string-concat-all pieces) size scalars hex digest
+      && observed (mconcat pieces) size scalars hex digest
+  -- | Snapshot conversion aliases without exposing or changing immutable backing.
+  alias-case :: Unit -> Bool
+  alias-case unit =
+    let original = expected-bytes "c3a90061" in
+    case string-from-bytes original of
+      None -> False
+      Some text ->
+        let input-change = if 0 < bytes-len original then bytes-set original 0 0 else () in
+        let repeated = string-repeat (runtime-count 9) text in
+        let concatenated = string-concat-all [text, "", repeated, text] in
+        let output = string-to-bytes concatenated in
+        let output-change = if 0 < bytes-len output then bytes-set output 0 255 else () in
+        same (string-to-bytes text) (expected-bytes "c3a90061")
+          && same (string-to-bytes concatenated) (string-to-bytes (string-repeat (runtime-count 11) text))
+  -- | Keep repeated temporary construction owners live through copies and release them between calls.
+  owner-loop :: Nat -> Nat -> Bool
+  owner-loop left count = if left == 0 then True else
+    let source = string-concat "é" "λ" in
+    let repeated = string-repeat count source in
+    let joined = string-concat-all ["", source, repeated, source, ""] in
+    let ok = string-byte-length joined == (count + 2) * 4 && string-length joined == (count + 2) * 2 in
+    if ok then let remaining = left - 1 in owner-loop remaining count else False
+  -- | Exercise temporary owners repeatedly under the ordinary bounded heap and stack.
+  owners-case :: Unit -> Bool
+  owners-case unit = alias-case () && owner-loop (runtime-count 100) (runtime-count 16385)
