@@ -178,6 +178,32 @@ fn mutual_recursion_propagates_owned_and_borrowed_modes_independently() {
 }
 
 #[test]
+fn reuse_facts_survive_revisits_but_do_not_escape_the_inference_pass() {
+    // Reusing the first parameter withdraws its loan and revisits the
+    // function with its second parameter still borrowed. Recompile the
+    // same unit names with different bodies to rule out cross-pass facts.
+    for reuses in [false, true, false] {
+        let mut ctor = unit("Main.Box", vec![Class::Raw], Core::Unit);
+        ctor.ctor = Some((0, 1));
+        ctor.repr.fields = vec![Class::Raw];
+        ctor.repr.data = Some("Main.Box".into());
+        let result = if reuses {
+            Core::App(Box::new(Core::Ctor(GlobalId("Main.Box".into()), vec![])), vec![var(2)])
+        } else { Core::Int(0) };
+        let body = Core::Case { scrut: Box::new(var(0)), alts: vec![CAlt {
+            pat: CPat::Con { tag: 0, fields: vec![LocalId(2)], classes: vec![Class::Raw] },
+            weight: None, body: Box::new(Core::Let(LocalId(3), Class::Raw,
+                Box::new(call("Main.read", var(1))), Box::new(result))),
+        }] };
+        let p = counted(vec![ctor, reader(), unit("Main.rebuild", vec![Class::Obj, Class::Obj], body)]);
+        assert_eq!(p.borrowed.get("Main.rebuild"), Some(&vec![!reuses, true]));
+        if reuses {
+            assert!(format!("{:?}", p.fns[2].body).contains("Reuse {"), "the owned scrutinee still reuses its cell");
+        }
+    }
+}
+
+#[test]
 fn returning_a_pattern_alias_keeps_its_parameter_owned() {
     let p = counted(vec![unit("Main.escape", vec![Class::Obj], alias_case(var(1)))]);
     assert!(!p.borrowed.contains_key("Main.escape"));

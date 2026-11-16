@@ -267,9 +267,34 @@ type Modes = HashMap<String, Vec<bool>>;
 #[derive(Default)]
 struct BorrowReport {
     reasons: Option<HashMap<(String, usize), &'static str>>,
+    work: BorrowWork,
+}
+
+/// Work counters are populated only with CINCH_BORROW_REPORT enabled.
+#[derive(Default, serde::Serialize)]
+struct BorrowWork {
+    unit_visits: usize,
+    reuse_requests: usize,
+    reuse_scans: usize,
+    reuse_nodes: usize,
+    allocation_nodes: usize,
+    cache_entries: usize,
+    cached_ids: usize,
+    cache_slot_bytes: usize,
 }
 
 impl BorrowReport {
+    fn reuse_scrutinees(&mut self, body: &Core, ctors: &Ctors) -> Set {
+        let mut out = Set::new();
+        if self.reasons.is_some() {
+            self.work.reuse_scans += 1;
+            reuse_scrutinees::<true>(body, ctors, &mut out, &mut self.work);
+        } else {
+            reuse_scrutinees::<false>(body, ctors, &mut out, &mut self.work);
+        }
+        out
+    }
+
     fn record(&mut self, unit: &str, param: usize, reason: &'static str) {
         if let Some(reasons) = &mut self.reasons {
             reasons.entry((unit.to_string(), param)).or_insert(reason);
@@ -304,6 +329,8 @@ impl BorrowReport {
             }
         }
         eprintln!("cinch-borrow: {{\"event\":\"end\"}}");
+        // Keep work counters outside the per-formal report stream.
+        eprintln!("cinch-borrow-work: {}", serde_json::to_string(&self.work).expect("work counters serialize"));
     }
 }
 
@@ -335,12 +362,13 @@ fn borrowed_params(modes: &Modes, f: &FnDef) -> Set {
 /// reaches the same rule from the other side (`OwnReason.isForced` for a
 /// reset target, `PropagateBorrow`), and without it the two passes cancel:
 /// a borrowed scrutinee never reaches the unique path a reuse needs.
-fn reuse_scrutinees(body: &Core, ctors: &Ctors, out: &mut Set) {
+fn reuse_scrutinees<const MEASURE: bool>(body: &Core, ctors: &Ctors, out: &mut Set, work: &mut BorrowWork) {
+    if MEASURE { work.reuse_nodes += 1; }
     if let Core::Case { scrut, alts } = body {
         if let Core::Var(p) = &**scrut {
             for a in alts {
                 if let CPat::Con { tag, fields, .. } = &a.pat {
-                    if reuse_allocation_anywhere(&a.body, fields.len(), *tag, ctors) {
+                    if reuse_allocation_anywhere::<MEASURE>(&a.body, fields.len(), *tag, ctors, work) {
                         out.insert(p.0);
                     }
                 }
@@ -348,13 +376,14 @@ fn reuse_scrutinees(body: &Core, ctors: &Ctors, out: &mut Set) {
         }
     }
     for k in crate::core::child_slots_imm(body) {
-        reuse_scrutinees(k, ctors, out);
+        reuse_scrutinees::<MEASURE>(k, ctors, out, work);
     }
 }
 
 fn borrow_modes(program: &Program, ctors: &Ctors, boundary: &Boundary<'_>) -> (Modes, std::collections::HashSet<String>) {
     let mut report = BorrowReport {
         reasons: std::env::var_os("CINCH_BORROW_REPORT").map(|_| HashMap::new()),
+        ..BorrowReport::default()
     };
     // Defined here: shipped, or a private copy (`Program::private_modules`).
     let defines = |unit: &str| boundary.ships(unit) || in_modules(&program.private_modules, unit);
@@ -442,6 +471,7 @@ fn borrow_modes(program: &Program, ctors: &Ctors, boundary: &Boundary<'_>) -> (M
     let mut queued = vec![true; units.len()];
     let mut killed: Vec<String> = Vec::new();
     while let Some(u) = queue.pop() {
+        if report.reasons.is_some() { report.work.unit_visits += 1; }
         queued[u] = false;
         let (f, cx) = &units[u];
         let mut mine = borrowed_params(&modes, f);
@@ -455,7 +485,8 @@ fn borrow_modes(program: &Program, ctors: &Ctors, boundary: &Boundary<'_>) -> (M
             }
             // A reuse target is owned by construction (Lean's forced
             // ownership rule for a reset target).
-            reuse_scrutinees(&f.body, ctors, &mut owned);
+            if report.reasons.is_some() { report.work.reuse_requests += 1; }
+            owned.extend(report.reuse_scrutinees(&f.body, ctors));
             for &p in &owned {
                 report.record(&f.id.0, p, "reuse");
             }
@@ -1131,7 +1162,8 @@ fn already_set(args: &[Core], fields: &[LocalId]) -> Vec<u32> {
 /// block of `words` payload words with tag `tag` (the borrow inference's
 /// ownership question, which ignores whether the spine makes the reuse
 /// legal).
-fn reuse_allocation_anywhere(e: &Core, words: usize, tag: usize, ctors: &Ctors) -> bool {
+fn reuse_allocation_anywhere<const MEASURE: bool>(e: &Core, words: usize, tag: usize, ctors: &Ctors, work: &mut BorrowWork) -> bool {
+    if MEASURE { work.allocation_nodes += 1; }
     // Both passes are asked, so the forced-ownership rule covers exactly
     // what either pass could reuse.
     if compatible_ctor(e, words, tag, false, ctors).is_some()
@@ -1141,7 +1173,7 @@ fn reuse_allocation_anywhere(e: &Core, words: usize, tag: usize, ctors: &Ctors) 
     }
     crate::core::child_slots_imm(e)
         .into_iter()
-        .any(|k| reuse_allocation_anywhere(k, words, tag, ctors))
+        .any(|k| reuse_allocation_anywhere::<MEASURE>(k, words, tag, ctors, work))
 }
 
 /// The constructor and fields of a saturated allocation whose cell is
