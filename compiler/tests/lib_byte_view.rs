@@ -48,6 +48,18 @@ fn expression(row: &Value) -> String {
 /// Dispatch bounded checked-RC process groups without accumulating unrelated quarantine.
 fn consumer(checks: &[String], width: usize) -> String {
     let mut source = HELPERS.to_owned();
+    if checks
+        .iter()
+        .any(|check| check.starts_with("endpoint-case "))
+    {
+        source = source.replace(
+            "  import Data.String\n",
+            "  import Data.String\n  import Text.Hex\n",
+        );
+        source.push_str(include_str!(
+            "fixtures/byte-view-endpoint-consumer.cinchpart"
+        ));
+    }
     let mut names = Vec::new();
     for (i, batch) in checks.chunks(width).enumerate() {
         source.push_str(&format!("\n  -- | Observe independent byte-view fixture group {i}.\n  checks{i} :: Unit -> Bool\n  checks{i} unit = all [\n{}\n    ]\n",
@@ -75,6 +87,7 @@ fn run(checks: Vec<String>, width: usize, opt_level: Option<u8>) {
             "Data.Bytes.Word",
             include_str!("../prelude/Data/Bytes/Word.cinch"),
         ),
+        ("Text.Hex", include_str!("../prelude/Text/Hex.cinch")),
     ] {
         std::fs::write(directory.path().join(format!("{name}.cinch")), text).unwrap();
     }
@@ -167,6 +180,33 @@ fn byte_view_queries_match_independent_adversarial_long_observations() {
             .iter()
             .filter(|r| r["size"].as_u64().unwrap() > 129)
             .map(expression)
+            .collect(),
+        1,
+        None,
+    );
+}
+
+/// Endpoint agreement followed by a late interior mismatch must preserve complete linear fallback behavior.
+#[test]
+fn byte_view_endpoint_candidates_preserve_late_mismatch_fallbacks() {
+    let fixture: Value =
+        serde_json::from_str(include_str!("fixtures/byte-view-endpoint-vectors.json")).unwrap();
+    run(
+        fixture["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| {
+                format!(
+                    "endpoint-case {} {} {} {} {} {}",
+                    r["size"],
+                    r["width"],
+                    r["start"],
+                    r["end"],
+                    r["raw_sha256"],
+                    r["needle_sha256"]
+                )
+            })
             .collect(),
         1,
         None,

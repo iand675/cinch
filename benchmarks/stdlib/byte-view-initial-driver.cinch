@@ -1,0 +1,132 @@
+-- | Independent raw-span, substring and ownership observations.
+module Main where
+  import Data.Bytes.View
+  import Data.Bytes
+  import Data.Bool
+  import Data.String
+  import Data.Char
+  import Effect.Clock
+  import Text.Hex
+  import Data.Result
+  import Effect.Process
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+
+  -- | Keep fixture initialization dependent on runtime values.
+  prim runtime-word :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+
+  -- | Recover one bounded fixture size after an opaque runtime identity.
+  runtime-size :: Nat -> Nat
+  runtime-size size = if size <= 1048576 then u32-to-nat (runtime-word (wrapping-i64-to-u32 (nat-to-i64 size))) else 0
+
+  -- | Conjoin bounded groups of complete observations.
+  all :: List Bool -> Bool
+  all values = case values of Nil -> True; Cons first rest -> first && all rest
+
+  -- | Initialize the independent input recipes, including malformed multibyte boundaries.
+  fixture-byte :: U8 -> Nat -> Nat -> InRange 0 255 Nat
+  fixture-byte mode size at = if eq-u8 mode 0 then 0 else if eq-u8 mode 1 then 255
+    else if eq-u8 mode 2 then nat-rem (at * 37 + 11) 256
+    else if eq-u8 mode 3 then nat-rem at 2
+    else if eq-u8 mode 4 then (if at + 1 == size then 98 else 97)
+    else if eq-u8 mode 5 then
+      let lane = nat-rem at 12 in
+      if lane == 0 then 240 else if lane == 1 then 159 else if lane == 2 then 152
+      else if lane == 3 || lane == 6 || lane == 9 then 128 else if lane == 4 then 237
+      else if lane == 5 then 160 else if lane == 7 then 194 else if lane == 8 then 169
+      else if lane == 10 then 0 else 255
+    else if eq-u8 mode 6 then
+      let lane = nat-rem at 8 in if lane == 1 || lane == 3 || lane == 6 then 98 else if lane == 4 then 99 else 97
+    else nat-rem at 251
+
+  -- | Write exact fixture bytes into checked fixed backing with tail traversal.
+  fill :: Bytes -> U8 -> Nat -> Unit
+  fill raw mode at = if at < bytes-len raw then
+    let byte = fixture-byte mode (bytes-len raw) at in let written = bytes-set raw at byte in
+    let next = at + 1 in fill raw mode next
+    else ()
+
+  -- | Build a fresh runtime fixture input without recursive list construction.
+  input :: U8 -> Nat -> Bytes
+  input mode size = let raw = bytes-new (runtime-size size) in let initialized = fill raw mode 0 in raw
+
+  -- | Snapshot a checked owner slice or create an independent needle recipe.
+  needle-input :: Bytes -> U8 -> Nat -> I64 -> Bytes
+  needle-input raw mode size source = if 0 <= source then
+    let start = nat-from-i64 source in
+    if start <= bytes-len raw && size <= bytes-len raw - start then
+      let out = bytes-new size in let copied = bytes-copy-range out raw 0 start size in out
+    else bytes-new 0
+    else input mode size
+
+
+  -- | Parse validated benchmark sizes before timing.
+  decimal :: String -> Nat
+  decimal text = decimal-from (unpack text) 0
+  -- | Traverse decimal digits without recursive return frames.
+  decimal-from :: List Char -> Nat -> Nat
+  decimal-from chars value = case chars of
+    Nil -> value
+    Cons first rest -> case digit-value first of
+      None -> 0
+      Some digit -> let next = value * 10 + digit in decimal-from rest next
+  -- | Select reproducible raw inputs outside the measured interval.
+  bench-input :: String -> Nat -> Bytes
+  bench-input name size = input (if name == "sparse" then 0 else if name == "dense" then 3 else if name == "prefix" then 4 else 6) size
+  -- | Construct one exact independent compiled needle before timing.
+  bench-needle :: String -> Bytes
+  bench-needle name = if name == "prefix" then input 4 257
+    else if name == "dense" then input 3 17 else if name == "periodic" then input 6 17
+    else let raw = bytes-new 17 in let written = if 0 < bytes-len raw then bytes-set raw 0 254 else () in raw
+  -- | Represent an absent match with an independent length-plus-one sentinel.
+  offset :: ByteView -> Option Nat -> Nat
+  offset view result = case result of None -> byte-view-length view + 1; Some at -> at
+  -- | Mutate one checked input byte before every public query so repeated work cannot be hoisted.
+  mutate :: String -> Bytes -> Nat -> Unit
+  mutate name raw i = let middle = nat-div (bytes-len raw) 2 in
+    if middle < bytes-len raw then
+      let odd = nat-rem i 2 == 1 in
+      let byte = ((if name == "sparse" then (if odd then 255 else 254)
+        else if name == "prefix" then (if odd then 97 else 98)
+        else if odd then 255 else fixture-byte (if name == "dense" then 3 else 6) (bytes-len raw) middle) :: InRange 0 255 Nat) in
+      bytes-set raw middle byte
+    else ()
+  -- | Observe complete first, overlapping-last, nonoverlapping-count and retained cut projections.
+  operation :: String -> ByteView -> BytePattern -> Nat
+  operation kind view pattern = if kind == "index" then offset view (byte-view-index-pattern view pattern)
+    else if kind == "last" then offset view (byte-view-last-index-pattern view pattern)
+    else if kind == "count" then byte-view-count-pattern view pattern
+    else let first = offset view (byte-view-index-pattern view pattern) in
+      let last = offset view (byte-view-last-index-pattern view pattern) in
+      let count = byte-view-count-pattern view pattern in
+      let cut = case byte-view-cut-last-pattern view pattern of None -> 0; Some (before, after) -> byte-view-length before * 17 + byte-view-length after * 31 in
+      first + last * 257 + count * 65537 + cut
+        + (if byte-view-has-prefix-pattern view pattern then 1048576 else 0)
+        + (if byte-view-has-suffix-pattern view pattern then 16777216 else 0)
+  -- | Sequence checked mutations and public observations in a tail loop with retained owners.
+  work :: String -> String -> Bytes -> ByteView -> BytePattern -> Nat -> Nat -> Nat -> Nat
+  work kind name raw view pattern left i total = if left == 0 then total else
+    let changed = mutate name raw i in let value = operation kind view pattern in
+    let accumulated = nat-rem (total + value) 1000000007 in
+    let remaining = left - 1 in let following = i + 1 in work kind name raw view pattern remaining following accumulated
+  -- | Measure only changed public queries; all input setup, digests and retained-owner teardown are outside timing.
+  measure :: forall r. using (io :: Io r) => String -> String -> Nat -> Nat ->{IO r} Int
+  measure kind name size iterations = let raw = bench-input name size in let view = bytes-view raw in
+    let needle = bench-needle name in let pattern = bytes-compile-pattern needle in
+    let original = hex-encode (sha256-bytes raw) in
+    let start = clock-monotonic-ns () in let checksum = work kind name raw view pattern iterations 0 0 in
+    let end = clock-monotonic-ns () in let retained = hex-encode (sha256-bytes raw) in
+    let stable = hex-encode (sha256-bytes (byte-pattern-bytes pattern)) in
+    let out = string-concat-all [nat-to-string (saturating-sub end start)," ",nat-to-string checksum," ",original," ",retained," ",stable,"\n"] in
+    let printed = ioWrite (string-to-bytes out) in 0
+  -- | Resolve runtime workload arguments before all clock readings.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Ok (Cons kind (Cons name (Cons size (Cons iterations Nil)))) -> measure kind name (decimal size) (decimal iterations)
+    other -> 2
