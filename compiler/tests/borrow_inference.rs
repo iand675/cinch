@@ -1,7 +1,7 @@
 //! Borrow inference must preserve aliases without creating an owned
 //! reference. An alias that escapes or is written through keeps its source
 //! parameter owned, including for the stack allocation pass.
-use cinch::core::{CAlt, CPat, Core, FnDef, FnHints, FnMeta, GlobalId, LocalId, Program, TargetProfile, UnitRepr};
+use cinch::core::{CAlt, CBranch, CPat, Core, FnDef, FnHints, FnMeta, GlobalId, LocalId, Program, TargetProfile, UnitRepr};
 use cinch::repr::Class;
 
 fn unit(name: &str, params: Vec<Class>, body: Core) -> FnDef {
@@ -50,6 +50,99 @@ fn operations(body: &Core) -> usize {
     ["Dup(", "Drop(", "Release {"].iter().map(|op| text.matches(op).count()).sum()
 }
 
+fn imported_reader_program(arg: Core, computed_head: bool) -> Program {
+    let mut inspect = unit("Dep.inspect", vec![Class::Obj],
+        Core::Global(GlobalId("Dep.function".into()), vec![]));
+    inspect.repr.result = Some(Class::Obj);
+    let read = call("Dep.inspect", arg);
+    let body = if computed_head { Core::App(Box::new(read), vec![Core::Unit]) } else { read };
+    let mut thunk = unit("Main.thunk", vec![], Core::ConstBytes(vec![4, 5, 6]));
+    thunk.repr.result = Some(Class::Obj);
+    program(vec![inspect, unit("Main.caller", vec![], body), thunk,
+        unit("Dep.function", vec![Class::Raw], Core::Unit)])
+}
+
+fn imported_reader(arg: Core, computed_head: bool) -> Program {
+    let p = imported_reader_program(arg, computed_head);
+    let imported = [("Dep.inspect".into(), (vec![true], 1))].into_iter().collect();
+    cinch::rc::insert_open(p, &TargetProfile::native(), &cinch::rc::Boundary {
+        modules: &["Main".into()], imported: &imported, closed: false,
+    }).expect("imported borrowing convention verifies")
+}
+
+#[test]
+fn an_imported_borrow_in_a_computed_call_head_releases_its_temporary() {
+    let p = imported_reader(Core::ConstBytes(vec![1, 2, 3]), true);
+    assert_eq!(operations(&p.fns[1].body), 1, "a borrowed buffer needs one caller drop: {:?}", p.fns[1].body);
+}
+
+#[test]
+fn an_imported_borrow_of_a_global_thunk_releases_its_result() {
+    let p = imported_reader(Core::Global(GlobalId("Main.thunk".into()), vec![]), false);
+    assert_eq!(operations(&p.fns[1].body), 1, "a thunk result is an owned temporary: {:?}", p.fns[1].body);
+}
+
+#[test]
+fn an_imported_borrow_of_a_static_function_needs_no_cleanup() {
+    let p = imported_reader(Core::Global(GlobalId("Dep.function".into()), vec![]), false);
+    assert_eq!(operations(&p.fns[1].body), 0, "a static closure owns no temporary reference");
+}
+
+#[test]
+fn imported_borrowed_temporaries_run_across_objects_without_leaks() {
+    use std::process::Command;
+    let dir = common::project("borrow_imported", &[]);
+    let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime");
+    let built = Command::new("cargo").args(["build", "--release", "--manifest-path"])
+        .arg(runtime.join("Cargo.toml")).arg("--target-dir").arg(runtime.join("target"))
+        .output().expect("build runtime");
+    assert!(built.status.success(), "{}", String::from_utf8_lossy(&built.stderr));
+    let profile = TargetProfile::native();
+    for (name, arg) in [("buffer", Core::ConstBytes(vec![1, 2, 3])),
+        ("thunk", Core::Global(GlobalId("Main.thunk".into()), vec![])),
+        ("closure", Core::Global(GlobalId("Dep.function".into()), vec![]))] {
+        let mut source = imported_reader_program(arg, true);
+        let provider = cinch::rc::insert_open(source.clone(), &profile, &cinch::rc::Boundary {
+            modules: &["Dep".into()], imported: &Default::default(), closed: false,
+        }).expect("count provider");
+        assert_eq!(provider.borrowed.get("Dep.inspect"), Some(&vec![true]));
+        source.main = Some(GlobalId("Main.caller".into()));
+        let imported = [("Dep.inspect".into(), (vec![true], 1))].into_iter().collect();
+        let consumer = cinch::rc::insert_open(source, &profile, &cinch::rc::Boundary {
+            modules: &["Main".into()], imported: &imported, closed: false,
+        }).expect("count consumer");
+        let mut objects = Vec::new();
+        for (module, p) in [("Dep", provider), ("Main", consumer)] {
+            let ll = dir.join(format!("{name}-{module}.ll"));
+            let object = ll.with_extension("o");
+            let ir = if module == "Dep" {
+                cinch::codegen::emit_object_for_modules(&profile, &p, &[module.into()])
+                    .expect("emit library object").ir
+            } else {
+                cinch::codegen::emit_for_modules(&profile, &p, &[module.into()])
+                    .expect("emit executable module")
+            };
+            std::fs::write(&ll, ir).expect("write IR");
+            let cc = Command::new(std::env::var_os("CINCH_CLANG").unwrap_or_else(|| "clang".into()))
+                .arg("-c").arg(&ll).arg("-o").arg(&object).output().expect("compile object");
+            assert!(cc.status.success(), "{}", String::from_utf8_lossy(&cc.stderr));
+            objects.push(object);
+        }
+        let exe = dir.join(name);
+        let mut linker = Command::new(std::env::var_os("CINCH_CLANG").unwrap_or_else(|| "clang".into()));
+        linker.args(&objects).arg(runtime.join("target/release/libcinchruntime.a")).arg("-o").arg(&exe);
+        if cfg!(target_os = "linux") { linker.args(["-ldl", "-lpthread", "-lm"]); }
+        let linked = linker.output().expect("link objects");
+        assert!(linked.status.success(), "{}", String::from_utf8_lossy(&linked.stderr));
+        let out = Command::new(exe).env("CINCH_LEAK_CHECK", "1").env("CINCH_RC_DEBUG", "1")
+            .output().expect("run imported borrow");
+        let err = String::from_utf8_lossy(&out.stderr);
+        assert_eq!(out.status.code(), Some(0), "{name}: {err}");
+        assert!(err.contains("cinch-leak: live=0 immortal=0 leaked=0"), "{name}: {err}");
+    }
+    common::cleanup(&dir);
+}
+
 #[test]
 fn a_variable_pattern_lends_its_borrowed_scrutinee_to_a_tail_call() {
     let p = counted(vec![reader(), unit("Main.relay", vec![Class::Obj], alias_case(call("Main.read", var(1))))]);
@@ -67,6 +160,21 @@ fn nested_variable_patterns_keep_a_recursive_borrow_in_tail_position() {
     let p = counted(vec![unit("Main.loop", vec![Class::Obj], alias_case(nested))]);
     assert_eq!(p.borrowed.get("Main.loop"), Some(&vec![true]));
     assert_eq!(operations(&p.fns[0].body), 0, "no cleanup may follow the recursive call");
+}
+
+#[test]
+fn mutual_recursion_propagates_owned_and_borrowed_modes_independently() {
+    let relay = |name: &str| Core::App(Box::new(Core::Global(GlobalId(name.into()), vec![])), vec![var(0), var(1)]);
+    let right = Core::If(Box::new(Core::Bool(true)),
+        CBranch { weight: None, body: Box::new(relay("Main.left")) },
+        CBranch { weight: None, body: Box::new(Core::Let(LocalId(2), Class::Raw,
+            Box::new(call("Main.read", var(0))), Box::new(var(1)))) });
+    let p = counted(vec![reader(), unit("Main.left", vec![Class::Obj, Class::Obj], relay("Main.right")),
+        unit("Main.right", vec![Class::Obj, Class::Obj], right)]);
+    for name in ["Main.left", "Main.right"] {
+        assert_eq!(p.borrowed.get(name), Some(&vec![true, false]));
+    }
+    assert_eq!(p.fns.iter().map(|f| operations(&f.body)).sum::<usize>(), 0);
 }
 
 #[test]

@@ -9765,6 +9765,14 @@ impl CoreEmitter<'_, '_> {
             return Ok(call_unit(self.b, self.reg, name, &[]));
         }
         let r = self.b.reg();
+        if !emitted_symbol(name, &self.reg.emit_modules)
+            && !self.reg.prims.iter().any(|op| op.symbol() == name)
+        {
+            // Another object's static closure storage is module-local.
+            // Its published accessor supplies the first-class value.
+            self.b.line(&format!("{r} = call i64 @{}()", quote(&format!("{name}.object-closure"))));
+            return Ok(r);
+        }
         self.b.line(&format!(
             "{r} = ptrtoint ptr {clo} to i64",
             clo = static_payload(&format!("{name}.clo"), self.reg.closure_desc(name))

@@ -9,5 +9,9 @@ unit Main.main :: Int
 end
 unit Main.main.exit :: -
   @stage(lowered)
-  body (app (prim cinch.runtime.intToI64) (global Main.main))
+  body (let t0 @class(obj)
+    (global Main.main)
+    (let t1 @class(uncounted)
+      (app (prim cinch.runtime.intToI64) (local t0))
+      (drop t0 @class(obj) (local t1))))
 end

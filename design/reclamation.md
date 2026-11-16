@@ -865,6 +865,35 @@ to refuse, and both front ends accept the word.
   census also stops counting tuple-type commas as parameter separators,
   counts wrapped nodes whose class mark precedes the operand, and ignores
   quoted text. The old operand-first regex missed 1,686 ownership sites.
+- Argument naming must traverse computed application heads explicitly:
+  `child_slots` excludes the head. A borrowed call inside that head still
+  needs a name and a caller drop for its counted temporary. A zero-arity
+  global also needs this treatment: it runs a thunk, rather than naming a
+  static closure. This is essential for imported borrowing conventions,
+  which inference cannot withdraw. Focused regressions and a separately
+  compiled provider/consumer test cover both cases, alongside static
+  closures and mutual recursion with mixed owned and borrowed parameters.
+  Taking an imported function as a value uses its published
+  `object-closure` accessor: its static closure storage is local to the
+  provider object and cannot be named directly by the consumer.
+  The binder ownership verifier alone did not catch the missing cleanup
+  of these anonymous computed values. A further verifier improvement is
+  to account for counted computed results passed to borrowed positions,
+  rather than certifying only the lifetime of named binders.
+  The combined-fix census in
+  `experiments/borrow-inference/2026-11-16-followup.json` records 5,537
+  borrowed entries and 170,124 ownership sites. The extra 166 sites include
+  required cleanup; this result is not a measured speedup.
+- Follow-up performance work should start with two measurable questions.
+  First, reuse eligibility depends only on a unit's immutable body and
+  constructor metadata, but inference currently rescans it on each worklist
+  revisit. A lazy per-unit cache can avoid those repeated scans; count body
+  visits and compare identical emitted Core before claiming a benefit.
+  Second, split the 6,447 `owned-use` witnesses in the frozen census into
+  returns, stores, captures and dynamic applications before relaxing a
+  rule. Dynamic application currently consumes its closure through the
+  apply ABI, so lending a function merely because it is called requires
+  more than changing inference. Neither follow-up has a measured speedup.
 - Drop specialisation is the `Core::Release { block, moved, rest }` node,
   placed where a `Case` alternative on an owned, dead `Obj` scrutinee uses
   at least one field. Codegen tests the block's thread-local count with

@@ -2242,8 +2242,8 @@ fn short(e: &Core) -> String {
 /// Evaluation order is kept: an argument is named only when every computed
 /// argument before it is named too, so the arguments still run left to
 /// right. An argument whose class is not known is left in place, and with
-/// it every argument after it. Values (locals, constants, top-level units)
-/// need no name.
+/// it every argument after it. Values (locals, immediate constants and
+/// static closures of positive-arity units) need no name.
 fn name_call_arguments(program: &mut Program) {
     let results: HashMap<String, Class> = program
         .fns
@@ -2281,12 +2281,13 @@ fn max_local_in(e: &Core) -> usize {
 }
 
 /// Whether an argument needs no name: evaluating it is free and repeatable.
-fn trivial_argument(e: &Core) -> bool {
+fn trivial_argument(e: &Core, cx: &Callees<'_>) -> bool {
     matches!(
         e,
         Core::Var(_) | Core::Int(_) | Core::Bool(_) | Core::Unit | Core::ConstSym(_)
-            | Core::Global(..) | Core::Prim(_) | Core::Ctor(..)
-    ) || small_literal(e)
+            | Core::Prim(_) | Core::Ctor(..)
+    ) || matches!(e, Core::Global(g, _) if cx.arity.get(&g.0).is_some_and(|n| *n > 0))
+        || small_literal(e)
 }
 
 /// A `Nat`/`Int` literal that is an immediate word on every target (code
@@ -2306,6 +2307,11 @@ fn argument_class(e: &Core, cx: &Callees<'_>, classes: &HashMap<usize, Class>) -
         std::cmp::Ordering::Greater => None,
     };
     match e {
+        // A positive-arity global is a static closure; a zero-arity
+        // global executes its thunk and owns the resulting value.
+        Core::Global(g, _) => cx.arity.get(&g.0).and_then(|a| {
+            if *a == 0 { cx.results.get(&g.0).copied() } else { Some(Class::Obj) }
+        }),
         Core::App(head, args) => match &**head {
             Core::Global(g, _) => cx.arity.get(&g.0).and_then(|a| applied(args.len(), *a, cx.results.get(&g.0).copied())),
             Core::Prim(op) => applied(args.len(), op.arity(), crate::codegen::prim_result_class(*op).filter(|c| !matches!(c, Class::Param(_)))),
@@ -2327,6 +2333,11 @@ fn name_args_in(e: &mut Core, cx: &Callees<'_>, classes: &mut HashMap<usize, Cla
     if let Core::Let(l, c, _, _) = e {
         classes.insert(l.0, *c);
     }
+    // child_slots deliberately excludes the application head. It can
+    // itself compute a borrowed call, whose temporaries need names too.
+    if let Core::App(head, _) = e {
+        name_args_in(head, cx, classes, next);
+    }
     for k in crate::core::child_slots(e) {
         name_args_in(k, cx, classes, next);
     }
@@ -2343,7 +2354,7 @@ fn name_args_in(e: &mut Core, cx: &Callees<'_>, classes: &mut HashMap<usize, Cla
     // argument has a known class: those are named; the rest stay.
     let mut plan: Vec<Option<Class>> = Vec::with_capacity(args.len());
     for (i, a) in args.iter().enumerate() {
-        if trivial_argument(a) {
+        if trivial_argument(a, cx) {
             plan.push(None);
             continue;
         }
