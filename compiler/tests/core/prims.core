@@ -9,7 +9,7 @@ unit Main.main :: Int
     (app (prim cinch.runtime.intFromI64) (app (global Main.peek-word) (int 0)))
     (let t1 @class(obj)
       (app (prim cinch.runtime.intFromI64) (app (global Main.peek-word) (int 0)))
-      (let t2 @class(uncounted)
+      (let t2 @class(obj)
         (app (prim cinch.runtime.intAdd) (local t0) (local t1))
         (drop t0 @class(obj) (drop t1 @class(obj) (local t2))))))
 end

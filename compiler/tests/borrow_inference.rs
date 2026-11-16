@@ -349,6 +349,7 @@ fn dumps_report_inference_separately_from_the_primitive_convention() {
     let text = cinch::coretext::print(&p, cinch::coretext::Stage::Owned, &TargetProfile::native(), "test");
     assert!(text.contains("@params p0 :: - @obj"), "{text}");
     assert!(text.contains("@borrow-modes(1)"), "{text}");
+    assert_eq!(text.matches("@borrow-modes(").count(), 1, "the printer must not repeat a mode annotation");
     assert!(!text.contains("@borrowed("), "{text}");
 }
 

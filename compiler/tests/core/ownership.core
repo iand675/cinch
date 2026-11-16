@@ -8,7 +8,7 @@ unit Main.main :: Int
   @stage(lowered)
   body (let t0 @class(obj)
     (app (prim cinch.runtime.intAdd) (int 2) (int 0))
-    (let t1 @class(uncounted)
+    (let t1 @class(obj)
       (app (prim cinch.runtime.intAdd) (int 1) (local t0))
       (drop t0 @class(obj) (local t1))))
 end

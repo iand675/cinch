@@ -574,13 +574,6 @@ impl<'a> Printer<'a> {
                 anns.push((rank("borrowed"), format!("@borrowed({})", borrowed.join(","))));
             }
         }
-        if let Some(modes) = self.program.borrowed.get(&f.id.0) {
-            let borrowed: Vec<String> = modes.iter().enumerate()
-                .filter(|(_, b)| **b).map(|(i, _)| (i + 1).to_string()).collect();
-            if !borrowed.is_empty() {
-                anns.push((rank("borrow-modes"), format!("@borrow-modes({})", borrowed.join(","))));
-            }
-        }
         if let Some(plan) = self.program.frame.get(&f.id.0).filter(|p| !p.is_empty()) {
             // Frame allocation (design/stack-allocation.md): the slots this
             // unit reserves and the bytes they add to its frame.

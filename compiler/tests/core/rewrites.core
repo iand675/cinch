@@ -19,7 +19,7 @@ unit Main.main :: Int
             (reuse t2
               Algebra.Monoid.Sum
               (args
-                (let t3 @class(uncounted)
+                (let t3 @class(obj)
                   (app (prim cinch.runtime.natAdd) (local t1) (nat "3"))
                   (drop t1 @class(obj) (local t3)))))))))
     (case (local t4)
