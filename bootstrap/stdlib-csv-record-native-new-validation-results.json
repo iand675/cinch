@@ -211,21 +211,21 @@
     },
     {
       "suite": "bounded",
-      "consumer_source_sha256": "773d5e62fb25214d1dc3ab47cd2fcc490905a55f7d2a4fc0c858a5c231857a5a",
-      "llvm_sha256": "987555f507fbb856fecb128b9878685f93c05b1af2abf6c41ab5e92c8b63d2b9",
+      "consumer_source_sha256": "ff924e4c6d858b929fca2b1810ea2fdd6b0137d3945e45c700326f301cb4cf92",
+      "llvm_sha256": "027dcc830d8f31059f694870c9d7b9ab01da2ce924210f2588c5f3a6762ee70a",
       "runs": [
         {
           "poisoned_free_validation": false,
           "heap_limit": "32M",
           "stdout": "0\n",
           "stats": {
-            "blocks": 5390771,
-            "bytes": 154022122,
-            "peak": 4851140,
-            "header-blocks": 5013891,
-            "header-bytes": 152710040,
+            "blocks": 5587389,
+            "bytes": 158052725,
+            "peak": 4851148,
+            "header-blocks": 5210505,
+            "header-bytes": 156642328,
             "immortal": 0,
-            "freed": 5013891,
+            "freed": 5210505,
             "live": 0
           },
           "leaked": 0
@@ -235,13 +235,13 @@
           "heap_limit": "256M",
           "stdout": "0\n",
           "stats": {
-            "blocks": 5390771,
-            "bytes": 154022122,
-            "peak": 152840500,
-            "header-blocks": 5013891,
-            "header-bytes": 152710040,
+            "blocks": 5587389,
+            "bytes": 158052725,
+            "peak": 156838309,
+            "header-blocks": 5210505,
+            "header-bytes": 156642328,
             "immortal": 0,
-            "freed": 5013891,
+            "freed": 5210505,
             "live": 0
           },
           "leaked": 0
@@ -250,5 +250,13 @@
     }
   ],
   "native_compiler_sha256": "4a14ad5dd79cff86a14deb513b1bb5f5e6e8e12a8866fd342b7d37d8915f526a",
-  "interfaces_sha256": "cbe51b568e67208210b8ba2fff70dda599cef0fc448dd8610f9e9c42bf34f8e8"
+  "interfaces_sha256": "cbe51b568e67208210b8ba2fff70dda599cef0fc448dd8610f9e9c42bf34f8e8",
+  "updated_suites": [
+    {
+      "suite": "bounded",
+      "runner_sha256": "45c8e19e6a67b5067298cfb085f58b4bf3a6c0a63b69a6c1ade2cae997622a60",
+      "opt_level": 2,
+      "reason": "Replace only the test expected-text producer with a checked bulk-copy tail loop after diagnosing its preexisting non-tail O0 stack usage."
+    }
+  ]
 }
