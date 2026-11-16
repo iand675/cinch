@@ -40,6 +40,7 @@ WORKLOADS = (
     "fnv-state32", "fnv-state32a", "fnv-state64", "fnv-state64a", "fnv-state128", "fnv-state128a",
     "fnv-roundtrip32", "fnv-roundtrip32a", "fnv-roundtrip64", "fnv-roundtrip64a", "fnv-roundtrip128", "fnv-roundtrip128a",
     "fnv-stream32", "fnv-stream32a", "fnv-stream64", "fnv-stream64a", "fnv-stream128", "fnv-stream128a",
+    "adler32-state", "adler32-roundtrip", "adler32-stream", "adler32-stream4096",
 )
 
 SOURCE = r'''-- | Executable workload driver; output is elapsed_ns and an observable checksum.
@@ -49,6 +50,8 @@ module Main where
   import Text.Base64
   import Text.Binary
   import Text.Checksum
+  import Text.Adler32 as Adler
+  import Effect.Adler32
   import Text.Fnv
   import Text.Fnv.State
   import Effect.Fnv
@@ -267,6 +270,17 @@ module Main where
           Ok loaded -> fingerprint saved + fingerprint (fnv-state-sum loaded)
       else case fnv-copy 64 (reader-from-bytes b) (fnv-writer initial) of
         (Ok count, (source, sink)) -> count + fingerprint (fnv-state-sum (fnv-writer-state sink))
+        other -> 1000000000
+    else if eq-u32 mode __CODE_adler32-state__ then fingerprint (Adler.adler32-state-sum (Adler.adler32-state-update Adler.adler32-state b))
+    else if eq-u32 mode __CODE_adler32-roundtrip__ then
+      let saved = Adler.adler32-state-save (Adler.adler32-state-update Adler.adler32-state b) in
+      case Adler.adler32-state-load saved of
+        Ok state -> fingerprint saved + fingerprint (Adler.adler32-state-sum state)
+        Err error -> 1000000000
+    else if eq-u32 mode __CODE_adler32-stream__ || eq-u32 mode __CODE_adler32-stream4096__ then
+      let chunk = if eq-u32 mode __CODE_adler32-stream4096__ then (4096 :: Nat) else 64 in
+      case adler32-copy chunk (reader-from-bytes b) Adler.adler32-state of
+        (Ok count, (source, state)) -> count + fingerprint (Adler.adler32-state-sum state)
         other -> 1000000000
     else 1000000000
 
@@ -518,7 +532,7 @@ def main() -> None:
             run([str(args.reference_go.resolve()), "build", "-o", str(reference), str(reference_source)], cwd=ROOT, env=reference_env)
             report["reference"] = {"sdk": run([str(args.reference_go.resolve()), "version"], env=reference_env).stdout.strip(),
                                    "source_sha256": digest(reference_source), "executable_sha256": digest(reference),
-                                   "GOMAXPROCS": "1", "workloads": [name for name in WORKLOADS if name.startswith(("hex-", "ascii85-", "utf16", "word-", "fnv128", "fnv-"))],
+                                   "GOMAXPROCS": "1", "workloads": [name for name in WORKLOADS if name.startswith(("hex-", "ascii85-", "utf16", "word-", "fnv128", "fnv-", "adler32"))],
                                    "scope": "Equivalent public API results and observable checksums; allocation and immutable string semantics differ"}
         if args.artifacts:
             artifacts = args.artifacts.resolve()
@@ -552,7 +566,7 @@ def main() -> None:
                         "checksum": checksums[0], "median_ns_per_operation": median / args.iterations,
                         "raw_mib_per_second": (size * args.iterations * 1e9 / median / 1048576) if median and size and workload not in ("binary", "varint") and not workload.startswith("word-") else None}
                 report["results"].append(item)
-                if reference and workload.startswith(("hex-", "ascii85-", "utf16", "word-", "fnv128", "fnv-")):
+                if reference and workload.startswith(("hex-", "ascii85-", "utf16", "word-", "fnv128", "fnv-", "adler32")):
                     reference_samples = []
                     for index in range(args.warmup + args.samples):
                         elapsed, checksum = map(int, run([str(reference), workload, str(size), str(args.iterations)], env=reference_env).stdout.split())

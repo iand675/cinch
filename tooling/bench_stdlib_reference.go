@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"hash"
+	"hash/adler32"
 	"hash/fnv"
 	"io"
 	"math/bits"
@@ -98,6 +99,46 @@ func fnvState(variant int) hash.Hash {
 
 // operation exercises a public buffer or stream pipeline and consumes its output.
 func operation(mode int, input []byte) uint64 {
+	if mode >= 68 && mode <= 71 {
+		h := adler32.New()
+		if mode == 68 {
+			h.Write(input)
+			return fingerprint(h.Sum(nil))
+		}
+		if mode == 69 {
+			h.Write(input)
+			saved, err := h.(encoding.BinaryMarshaler).MarshalBinary()
+			if err != nil {
+				return 1000000000
+			}
+			loaded := adler32.New()
+			if err := loaded.(encoding.BinaryUnmarshaler).UnmarshalBinary(saved); err != nil {
+				return 1000000000
+			}
+			return fingerprint(saved) + fingerprint(loaded.Sum(nil))
+		}
+		chunkSize := 64
+		if mode == 71 {
+			chunkSize = 4096
+		}
+		source := bytes.NewReader(bytes.Clone(input))
+		chunk := make([]byte, chunkSize)
+		var count uint64
+		for {
+			n, err := source.Read(chunk)
+			if n > 0 {
+				h.Write(chunk[:n])
+				count += uint64(n)
+			}
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return 1000000000
+			}
+		}
+		return count + fingerprint(h.Sum(nil))
+	}
 	if mode >= 50 && mode <= 67 {
 		h := fnvState((mode - 50) % 6)
 		if mode <= 55 {
@@ -135,6 +176,8 @@ func operation(mode int, input []byte) uint64 {
 		return count + fingerprint(h.Sum(nil))
 	}
 	switch mode {
+	case 6:
+		return uint64(adler32.Checksum(input))
 	case 0:
 		return fingerprint([]byte(hex.EncodeToString(input)))
 	case 1:
@@ -299,6 +342,16 @@ func operation(mode int, input []byte) uint64 {
 // workloadCode resolves command-line text outside the measured interval.
 func workloadCode(name string) int {
 	switch name {
+	case "adler32":
+		return 6
+	case "adler32-state":
+		return 68
+	case "adler32-roundtrip":
+		return 69
+	case "adler32-stream":
+		return 70
+	case "adler32-stream4096":
+		return 71
 	case "fnv-state32":
 		return 50
 	case "fnv-state32a":

@@ -579,6 +579,14 @@
       "public_methods": 0
     },
     {
+      "module": "Effect.Adler32",
+      "path": "compiler/prelude/Effect/Adler32.cinch",
+      "sha256": "561a9c98abc71e5022289621323d3003d9419d7ac5e811310389bebf1c1d3566",
+      "embedded": false,
+      "values": 3,
+      "public_methods": 0
+    },
+    {
       "module": "Effect.Ascii85",
       "path": "compiler/prelude/Effect/Ascii85.cinch",
       "sha256": "ce62b87682e7b8b63754a346c01a3db666e0a062693fa958251dac6c89febb27",
@@ -867,6 +875,14 @@
       "public_methods": 4
     },
     {
+      "module": "Text.Adler32",
+      "path": "compiler/prelude/Text/Adler32.cinch",
+      "sha256": "30204346a6b8a6d8b0ebe898740eeedcf97c6951ce74ef2b1a52a6bc36f4023c",
+      "embedded": false,
+      "values": 14,
+      "public_methods": 0
+    },
+    {
       "module": "Text.Args",
       "path": "compiler/prelude/Text/Args.cinch",
       "sha256": "d32463cc68034db08180c0417761348dd772852b1d99a3d24db7d6e3492a91ec",
@@ -917,7 +933,7 @@
     {
       "module": "Text.Checksum",
       "path": "compiler/prelude/Text/Checksum.cinch",
-      "sha256": "92aeb92792906cc05fde3a49ec2e71800d8fe7a2372926b4a4665e015fd02c29",
+      "sha256": "d8fa3abc1d3fed0eea57aeeffb623544bf0c6efb8ef8d5e7ccda15e2018e025e",
       "embedded": false,
       "values": 12,
       "public_methods": 0
