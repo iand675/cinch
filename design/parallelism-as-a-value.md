@@ -93,6 +93,27 @@ A container-generic surface sits above the primitive:
 > exited 0, so the acceptance path differs between the lane binary and the
 > provider-driven fixture the tests use. Until one of those programs passes,
 > `parTraverse` has nothing to stand on: it needs `both` to be callable.
+>
+> **What the missing piece is, exactly.** `parallelism-instance-name` is
+> defined and read by nothing; `MkCoreInstance` is constructed at exactly one
+> site (`Bootstrap.Infer.cinch:5844`, the ordinary source-instance path) and
+> never for this class. The instance has to be synthesised where
+> `parallelism-declarations` is admitted (`Bootstrap.Resolve.cinch`, the
+> `parallelism-used` branch of `materialize-externals`), because that is the
+> point where a program that references `b.workers` receives the class.
+>
+> Two bodies are possible and both are constrained by failures already
+> recorded above: source text in `parallelism-source` cannot forward to
+> `parBoth` (section 2.1's two errors), so the fields must be built as Core
+> terms whose bodies are the `CPrimitive` operations `par-lowering-name`
+> already names, one `MkCoreDictionaryField` per method slot. The acceptance
+> test is the pair of programs quoted above: `workers` must resolve an
+> instance and `both` must elaborate at the declared type rather than at
+> thunk shape.
+>
+> Write the test first. Both programs fail today, so a test added before the
+> synthesis is a red gate, and the gate is what stops this from being
+> described as landed again before it is.
 
 ```text
 parTraverse :: forall t a b e. using (trav :: Traversable t, par :: Parallelism)
