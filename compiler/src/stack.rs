@@ -55,8 +55,15 @@
 //! `crate::rc::insert` every owned binder is consumed exactly once on every
 //! path, so "every reference is a read or one of the transfers above" is
 //! also "the reference never leaves the activation" for direct references.
-//! The consuming-call transfer additionally needs a fact about the callee:
+//! The transfers additionally need facts beyond the ARC calling convention:
 //!
+//! - Borrowing permits a primitive to retain or return an alias. Private
+//!   frame-safe modes therefore mask typed retaining primitive operands,
+//!   reject opaque imported lending metadata, and propagate capture through
+//!   ordinary Core callers to a shrinking fixed point. Public ARC modes
+//!   remain unchanged. A proven read-only tail-forwarding helper may read
+//!   a caller's frame, while the allocating unit still cannot tail-transfer
+//!   a value from its own frame.
 //! - A pass to a callee's owned parameter is admissible only when the
 //!   callee consumes the parameter ([`Facts::consumed`]: every reference to
 //!   it there is a read or a death, and nothing stores it, returns it or
@@ -92,7 +99,7 @@
 //! the artifact manifest). `--dump-core` prints `@frame(slots, bytes)` on a
 //! unit and marks each frame allocation's node with `@frame(f<slot>)`.
 
-use crate::core::{Core, FnDef, GlobalId, LocalId, Program};
+use crate::core::{Core, FnDef, GlobalId, LocalId, PrimOp, Program};
 use crate::repr::Class;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -670,10 +677,10 @@ struct Facts {
     ctors: HashMap<String, (Vec<Class>, usize, bool)>,
     /// Each unit's runtime parameter classes (`UnitRepr::params`).
     params: HashMap<String, Vec<Class>>,
-    /// The borrow inference's modes (`Program::borrowed`): `true` where the
-    /// caller only lends the argument.
+    /// Private frame-safe parameter facts derived from ARC borrowing plus
+    /// actual noncapture evidence; never published as an ABI convention.
     borrowed: BTreeMap<String, Vec<bool>>,
-    /// The primitive units' borrowed parameters (`Program::lent`).
+    /// Private primitive frame-safe modes: ARC lending alone permits retain.
     lent: BTreeMap<String, Vec<bool>>,
     /// Per unit, which of its parameters it consumes: every reference to
     /// the parameter inside the unit is a read or a death, none is
@@ -714,10 +721,70 @@ impl Facts {
             // fixpoint over the call graph (module docs).
             consumed: HashMap::new(),
         }
+        .with_frame_safety(p, widen)
         .with_summaries(p, widen)
     }
 
-    /// [`Facts::of`]'s second step: fill [`Facts::consumed`] from every
+    /// Separate ARC lending from frame noncapture, then propagate capture
+    /// through ordinary forwarding functions without changing any public mode.
+    fn with_frame_safety(mut self, p: &Program, widen: Widen) -> Facts {
+        let mut primitives = BTreeMap::new();
+        for f in &p.fns {
+            if let Some(op) = f.prim {
+                primitives.insert(f.id.0.clone(), op);
+                primitives.insert(op.symbol(), op);
+            }
+            collect_frame_primitives(&f.body, &mut primitives);
+        }
+        let opaque: BTreeSet<&str> = p.foreigns.values().filter(|plan| !plan.export)
+            .map(|plan| plan.unit.as_str()).collect();
+        let analyzable = |f: &&FnDef| f.prim.is_none() && f.ctor.is_none() && !f.meta.prim_body
+            && !opaque.contains(f.id.0.as_str())
+            && !matches!(p.lent_entries.get(&f.id.0), Some(crate::core::LentEntry::Imported { .. }));
+        let units: Vec<&FnDef> = p.fns.iter().filter(analyzable).collect();
+        let index: HashMap<&str, usize> = units.iter().enumerate().map(|(i, f)| (f.id.0.as_str(), i)).collect();
+        self.borrowed.retain(|name, _| index.contains_key(name.as_str()) || primitives.contains_key(name));
+        self.lent.retain(|name, _| primitives.contains_key(name));
+        for (name, modes) in self.borrowed.iter_mut().chain(self.lent.iter_mut()) {
+            if let Some(op) = primitives.get(name) {
+                for (position, mode) in modes.iter_mut().enumerate() {
+                    *mode &= !primitive_retains_frame_argument(*op, position);
+                }
+            }
+        }
+        let mut callers: HashMap<String, Vec<usize>> = HashMap::new();
+        for (i, f) in units.iter().enumerate() {
+            let mut called = BTreeSet::new();
+            collect_frame_callees(&f.body, &mut called);
+            for callee in called { callers.entry(callee).or_default().push(i); }
+        }
+        let mut queue: Vec<usize> = (0..units.len()).rev().collect();
+        let mut queued = vec![true; units.len()];
+        while let Some(i) = queue.pop() {
+            queued[i] = false;
+            let f = units[i];
+            let Some(current) = self.borrowed.get(&f.id.0).filter(|modes| modes.iter().any(|mode| *mode)) else { continue };
+            let next = {
+                let mut scan = Scan::with_frames(&self, BTreeSet::new(), widen);
+                // These are a caller's objects, not allocations in this
+                // callee's own frame. Tail forwarding into an established
+                // noncapturing callee is therefore safe; returning the
+                // parameter itself still escapes through Role::Return.
+                scan.go(&f.body, Role::Return, None, false);
+                current.iter().enumerate().map(|(position, mode)| *mode
+                    && position < f.arity()
+                    && scan.uses.get(&position).is_none_or(|uses| uses.escapes() == 0)).collect::<Vec<_>>()
+            };
+            if &next == current { continue; }
+            self.borrowed.insert(f.id.0.clone(), next);
+            for &caller in callers.get(&f.id.0).into_iter().flatten() {
+                if !queued[caller] { queued[caller] = true; queue.push(caller); }
+            }
+        }
+        self
+    }
+
+    /// [`Facts::of`]'s consuming-parameter step: fill [`Facts::consumed`] from every
     /// unit's body.
     fn with_summaries(mut self, p: &Program, widen: Widen) -> Facts {
         let mut consumed = HashMap::with_capacity(p.fns.len());
@@ -746,6 +813,50 @@ impl Facts {
             })
             .collect()
     }
+}
+
+/// Whether a typed primitive may retain an argument, return its identity or
+/// expose its address beyond the call. ARC borrowing does not forbid these.
+fn primitive_retains_frame_argument(op: PrimOp, position: usize) -> bool {
+    use crate::arrays::ArrayOp;
+    match op {
+        PrimOp::Array { op, .. } => match op {
+            ArrayOp::Replicate => position == 1,
+            // The persistent element is retained; the optimizer's unique
+            // array update may also return its input array identity.
+            ArrayOp::Set => position == 0 || position == 2,
+            ArrayOp::TensorSet => position == 2,
+            ArrayOp::Reshape | ArrayOp::Zip => position < 2,
+            ArrayOp::Column => position == 0,
+            // These operations read/copy element owners or return child
+            // owners, but never retain the argument container itself.
+            ArrayOp::FromList | ArrayOp::Len | ArrayOp::Get | ArrayOp::Slice
+            | ArrayOp::Append | ArrayOp::Shape | ArrayOp::Data | ArrayOp::TensorGet
+            | ArrayOp::Rows | ArrayOp::Columns | ArrayOp::Row | ArrayOp::Left
+            | ArrayOp::Right | ArrayOp::Leaf => false,
+        },
+        PrimOp::Stm { op, .. } => matches!(op, crate::stm::StmOp::CellNew
+            | crate::stm::StmOp::CellCast | crate::stm::StmOp::CellAddr) && position == 0,
+        PrimOp::Slots { op: crate::slots::SlotOp::Write, .. } => position == 2,
+        PrimOp::Delay | PrimOp::Bytes(crate::core::BytesOp::Data) => position == 0,
+        PrimOp::Conc(crate::core::ConcOp::Spawn) => true,
+        _ => false,
+    }
+}
+
+/// Recover primitive authority from actual typed operations, not imported
+/// lending metadata or a function's spelling.
+fn collect_frame_primitives(body: &Core, out: &mut BTreeMap<String, PrimOp>) {
+    if let Core::Prim(op) = body { out.insert(op.symbol(), *op); }
+    for child in crate::core::child_slots_imm(body) { collect_frame_primitives(child, out); }
+}
+
+/// Build the dependency worklist for transitive ordinary-function capture.
+fn collect_frame_callees(body: &Core, out: &mut BTreeSet<String>) {
+    if let Core::App(head, _) = body {
+        if let Core::Global(unit, _) = &**head { out.insert(unit.0.clone()); }
+    }
+    for child in crate::core::child_slots_imm(body) { collect_frame_callees(child, out); }
 }
 
 /// Whether a word of class `c` is counted (the class pass's rule).
@@ -1579,8 +1690,8 @@ fn class_index(why: Refusal) -> usize {
     Refusal::ALL.iter().position(|r| *r == why).expect("every class is in ALL")
 }
 
-/// The parameter modes of a saturated call's head, when the program's
-/// borrow inference gave it any (`true` borrowed).
+/// The frame-safe modes of a saturated call's head, after typed primitive
+/// retain checks and transitive noncapture analysis (`true` safe to lend a frame).
 fn callee_modes<'f>(facts: &'f Facts, head: &Core) -> Option<&'f Vec<bool>> {
     match head {
         Core::Global(g, _) => facts.borrowed.get(&g.0),
@@ -1641,5 +1752,114 @@ fn verify(program: &Program, opts: &Options) {
                 "compiler bug: {unit}: frame binder {x} has no release"
             );
         }
+    }
+}
+
+/// Frame-safety regressions distinguish retained borrows from published ARC modes.
+#[cfg(test)]
+mod frame_capture_tests {
+    use super::*;
+    use crate::core::{FnHints, FnMeta, UnitRepr};
+
+    /// Construct an analyzed Core function with counted parameters.
+    fn unit(name: &str, parameters: Vec<Class>, body: Core) -> FnDef {
+        FnDef { id: GlobalId(name.into()), params: (0..parameters.len()).map(|i| format!("p{i}")).collect(),
+            body, prim: None, ctor: None, hints: FnHints::default(), meta: FnMeta::default(),
+            repr: UnitRepr { params: parameters, ..UnitRepr::default() } }
+    }
+
+    /// Keep every public mode table separate from the private facts under test.
+    fn program(fns: Vec<FnDef>) -> Program {
+        Program { total_bodies: crate::total::CheckedGraph::empty(), fns, instances: vec![], main: None,
+            rewrites: vec![], plans: Default::default(), foreigns: Default::default(), prims: vec![], laws: vec![],
+            lent: Default::default(), frame: Default::default(), stack: Default::default(), inline: Default::default(),
+            borrowed: Default::default(), lent_entries: Default::default(), private_modules: vec![] }
+    }
+
+    /// Call one ordinary function with the same borrowed parameter.
+    fn forward(name: &str) -> Core {
+        Core::App(Box::new(Core::Global(GlobalId(name.into()), vec![])), vec![Core::Var(LocalId(0))])
+    }
+
+    /// Query a missing or explicitly false frame mode uniformly.
+    fn frame_safe(facts: &Facts, name: &str, position: usize) -> bool {
+        facts.borrowed.get(name).and_then(|modes| modes.get(position)).copied().unwrap_or(false)
+    }
+
+    /// Audit retained whole-argument identities, values and raw addresses against typed primitive contracts.
+    #[test]
+    fn retaining_primitive_operands_are_not_frame_noncapture_evidence() {
+        use crate::arrays::ArrayOp;
+        let array = |op| PrimOp::Array { op, classes: [Class::Obj; 2], packed: None };
+        for (op, positions) in [(ArrayOp::Replicate, vec![1]), (ArrayOp::Set, vec![0, 2]),
+            (ArrayOp::TensorSet, vec![2]), (ArrayOp::Reshape, vec![0, 1]),
+            (ArrayOp::Column, vec![0]), (ArrayOp::Zip, vec![0, 1])] {
+            for position in positions { assert!(primitive_retains_frame_argument(array(op), position)); }
+        }
+        for op in [ArrayOp::FromList, ArrayOp::Get, ArrayOp::Len, ArrayOp::Append, ArrayOp::Slice] {
+            assert!(!primitive_retains_frame_argument(array(op), 0));
+        }
+        for op in [crate::stm::StmOp::CellNew, crate::stm::StmOp::CellCast, crate::stm::StmOp::CellAddr] {
+            assert!(primitive_retains_frame_argument(PrimOp::Stm { op, classes: [Class::Obj; 2] }, 0));
+        }
+        assert!(primitive_retains_frame_argument(PrimOp::Slots { op: crate::slots::SlotOp::Write, classes: [Class::Obj; 2] }, 2));
+        assert!(primitive_retains_frame_argument(PrimOp::Delay, 0));
+        assert!(primitive_retains_frame_argument(PrimOp::Bytes(crate::core::BytesOp::Data), 0));
+        assert!(!primitive_retains_frame_argument(PrimOp::Bytes(crate::core::BytesOp::Len), 0));
+    }
+
+    /// Capturing typed primitives taint direct callers and every ordinary forwarding layer.
+    #[test]
+    fn frame_capture_propagates_through_ordinary_helpers_without_changing_arc_abi() {
+        let op = PrimOp::Array { op: crate::arrays::ArrayOp::Replicate, classes: [Class::Obj; 2], packed: None };
+        let direct = unit("Direct", vec![Class::Obj], Core::App(Box::new(Core::Prim(op)),
+            vec![Core::ConstBig { nat: true, digits: "3".into() }, Core::Var(LocalId(0))]));
+        let mut p = program(vec![unit("Second", vec![Class::Obj], forward("First")),
+            unit("First", vec![Class::Obj], forward("Direct")), direct]);
+        for name in ["Direct", "First", "Second"] { p.borrowed.insert(name.into(), vec![true]); }
+        p.lent.insert(op.symbol(), vec![true, true]);
+        let original = p.borrowed.clone(); let original_lent = p.lent.clone();
+        let facts = Facts::of(&p, Widen::All);
+        for name in ["Direct", "First", "Second"] { assert!(!frame_safe(&facts, name, 0)); }
+        assert_eq!(facts.lent[&op.symbol()], vec![true, false]);
+        assert_eq!(p.borrowed, original); assert_eq!(p.lent, original_lent);
+    }
+
+    /// A Global primitive wrapper needs the same typed capture mask as a direct Core primitive.
+    #[test]
+    fn global_primitive_wrappers_cannot_hide_retained_arguments() {
+        let op = PrimOp::Array { op: crate::arrays::ArrayOp::Replicate, classes: [Class::Obj; 2], packed: None };
+        let mut wrapper = unit("Primitive.wrapper", vec![Class::TObj, Class::Obj], Core::Unit);
+        wrapper.prim = Some(op);
+        let caller = unit("Caller", vec![Class::Obj], Core::App(Box::new(Core::Global(wrapper.id.clone(), vec![])),
+            vec![Core::ConstBig { nat: true, digits: "3".into() }, Core::Var(LocalId(0))]));
+        let mut p = program(vec![caller, wrapper]);
+        p.borrowed.insert("Primitive.wrapper".into(), vec![true, true]);
+        p.borrowed.insert("Caller".into(), vec![true]);
+        let facts = Facts::of(&p, Widen::All);
+        assert!(!frame_safe(&facts, "Primitive.wrapper", 1));
+        assert!(!frame_safe(&facts, "Caller", 0));
+    }
+
+    /// Opaque imported ABI lending is not authority, while proven read-only tail forwarding remains safe.
+    #[test]
+    fn opaque_lent_metadata_is_refused_and_actual_readers_remain_frame_safe() {
+        let read = PrimOp::Bytes(crate::core::BytesOp::Len);
+        let reader = unit("Reader", vec![Class::Obj], Core::App(Box::new(Core::Prim(read)), vec![Core::Var(LocalId(0))]));
+        let mut opaque = unit("Opaque", vec![Class::Obj], Core::Unit); opaque.meta.prim_body = true;
+        let mut p = program(vec![unit("ReadForward", vec![Class::Obj], forward("Reader")), reader,
+            unit("ExternalForward", vec![Class::Obj], forward("External")),
+            unit("ImportedForward", vec![Class::Obj], forward("Imported")),
+            unit("Imported", vec![Class::Obj], Core::Unit),
+            unit("OpaqueForward", vec![Class::Obj], forward("Opaque")), opaque]);
+        p.lent_entries.insert("Imported".into(), crate::core::LentEntry::Imported { width: 1 });
+        for name in ["Reader", "ReadForward", "External", "ExternalForward", "Opaque", "OpaqueForward", "Imported", "ImportedForward"] {
+            p.borrowed.insert(name.into(), vec![true]);
+        }
+        p.lent.insert(read.symbol(), vec![true]);
+        let facts = Facts::of(&p, Widen::All);
+        for name in ["Reader", "ReadForward"] { assert!(frame_safe(&facts, name, 0)); }
+        for name in ["External", "ExternalForward", "Opaque", "OpaqueForward", "Imported", "ImportedForward"] { assert!(!frame_safe(&facts, name, 0)); }
+        assert!(p.borrowed["External"][0]);
     }
 }
