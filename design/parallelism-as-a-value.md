@@ -72,6 +72,27 @@ A container-generic surface sits above the primitive:
 > `b.HostParallelism`, the four-slot lowering table, and `par-workers`
 > wired end to end (`cinch_par_set_workers`). All four slots now reach a
 > runtime entry; none is a no-op.
+>
+> **But no ordinary program can use them yet.** Measured 2026-11-16 through
+> `common::drive` on the staged compiler, the first two user-level programs
+> ever written against this interface both fail to check:
+>
+> ```text
+> main = case workers 4 of _ -> 0
+>   dictionary instance resolution failed: no instance for b.Parallelism
+>
+> pair :: (Nat, Nat)
+> pair = both (\() -> 1) (\() -> 2)
+>   type mismatch: expected (Nat, Nat), found (Unit -> (?17, ?18))
+> ```
+>
+> The first says the implicit instance is not synthesised for a user unit at
+> all; the second says `both` elaborates to something of thunk shape rather
+> than the declared `(Unit ->{|e} a) -> (Unit ->{|e} b) ->{|e} (a, b)`. A
+> `--check` of the same `workers` program through a lane's staged binary
+> exited 0, so the acceptance path differs between the lane binary and the
+> provider-driven fixture the tests use. Until one of those programs passes,
+> `parTraverse` has nothing to stand on: it needs `both` to be callable.
 
 ```text
 parTraverse :: forall t a b e. using (trav :: Traversable t, par :: Parallelism)
