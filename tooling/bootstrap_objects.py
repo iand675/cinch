@@ -258,6 +258,21 @@ def artifact_provider(driver, receipt_path):
         roots_sha256 = driver.file_hash(driver.ROOT / "bootstrap/library-object-roots.json")
         if artifacts["roots.json"] != roots_sha256:
             refuse("requested object roots differ from this compiler")
+        roots = read_document(directory / "roots.json")
+        units = {row["symbol"] for row in metadata["units"]}
+        for root in roots.get("units", []):
+            variant = root["symbol"] + ("@" + root["classes"] if root["classes"] else "")
+            if variant not in units:
+                refuse("requested unit specialization is absent: " + variant)
+        for root in roots.get("dictionaries", []):
+            variant = root["symbol"] + ("@" + root["classes"] if root["classes"] else "")
+            if variant not in metadata.get("dictionaries", {}):
+                refuse("requested dictionary specialization is absent: " + variant)
+        methods = {(family["class"], slot["logical"], slot["own"])
+                   for family in metadata.get("method_families", []) for slot in family["slots"]}
+        for root in roots.get("methods", []):
+            if (root["class"], root["slot"], root["own"]) not in methods:
+                refuse("requested method specialization is absent: " + root["class"])
         identity = {"kind": receipt["kind"], "receipt_sha256": driver.file_hash(receipt_path),
                     "host": driver.HOST, "producer": producer, "runtime": runtime,
                     "sources": sources, "roots_sha256": roots_sha256, "artifacts": artifacts}

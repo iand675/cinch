@@ -11,13 +11,18 @@ contains no implementation override. The producer emits one complete base
 object and its actual checked interfaces, and retains every embedded module's
 bytes beside the object and runtime archive. Its receipt records compiler,
 source, runtime, object, LLVM, root-request and interface identities.
+The family is complete at the module level. Generic specialization coverage
+is the explicit concrete demand inventory, rather than every possible
+combination of runtime representations. An additional consumer demand must
+be emitted by the producer and validated in a new artifact epoch.
 
 `bootstrap --library-artifact RECEIPT` admits that selection without falling
 back to the pinned provider. Admission independently checks current module
 bytes and their interface source hashes, the interface dependency graph, object
 and LLVM content hashes, runtime identity, target, ABI, word size, byte order,
 reclamation and self-describing descriptors. The String constructor units must
-be present in the object. An altered receipt, missing payload or incompatible
+be present in the object, and every requested unit, dictionary and method
+specialization must occur in its actual ABI metadata. An altered receipt, missing payload or incompatible
 source family remains a named failure.
 
 The phase-1 String source is the repeat/concatenation implementation from
@@ -37,7 +42,9 @@ Fresh-base validation requires separate observations:
   and the base object's own recorded optimization are distinct settings.
 - Concrete and generic ABI probes include `Data.List.is-empty` over a list of
   strings. A missing concrete representation is reported explicitly; selecting
-  current module sources does not invent an unrequested generic variant.
+  current module sources does not invent an unrequested generic variant. The
+  observed `Data.List.is-empty[O]` demand is included in the concrete root
+  inventory, and its executable client must pass before the final gate passes.
 - The complete compiler fixed point uses `--library-artifact` for stage 2,
   stage 3 and the changed-source rebuild. Verified unchanged seed/stage-1
   artifacts may be reused with their original hashes. Their old embedded base
@@ -46,3 +53,34 @@ Fresh-base validation requires separate observations:
 This workflow does not expose private backing buffers, change the uniform-word
 ABI, merge duplicate definitions or disguise data as addresses. Validation
 receipts must state which source and library epoch each gate actually used.
+
+The [retained current-base validation receipt](stdlib-string-construction-current-base-results.json)
+records the completed phase-1 gate. The fresh embedded producer is `ae9c3f81`
+(compiler/base source tree `92f5cd23`), the emitted base object is `645a3d0e`,
+and its ABI-10 runtime is `80bd5b54`. The explicit provider receipt is
+`e70250a5`. All 64 retained base modules match their actual checked interfaces;
+the object contains the new constructor workers and no old recursive-return
+workers. Public String exports and ABI remain equal to the pinned family.
+
+The full self-built gate uses compiler-source epoch `0b11df4d`. Stages 2 and 3
+produce executable `35eb9980`, LLVM `d470b081`, and 51 equal canonical
+interfaces. All stage smokes, the source-absent compiler-entry consumer, and
+the changed-source diagnostic rebuild passed. The changed-source executable
+is separately identified as `5655bbaa`; it links the same fresh object and
+runtime. These are separate identities from the reused seed bridge.
+
+The fresh embedded compiler, the prior verified Native frontend, and the
+fresh Stage3 frontend each run all 398 independent fixture rows, deep
+regressions, and temporary-owner/alias stress at consumer O0 and O2. Each
+group has its own executable and runs with normal 32 MiB and poisoned-free
+256 MiB heaps on an 8 MiB stack, with zero leaks. The base object itself is
+produced at O2. The final generic ABI probe uses a heap-constructed UTF-8
+string list, retains its string alias across `is-empty[O]`, and passes both
+ownership modes. This does not claim the different, cumulative poisoned API
+test shape used by the integration test harness.
+
+The artifact admission and preserved bootstrap suites pass 15 and 38 tests
+respectively. Fresh documentation extraction reports canonical comments for
+all five changed construction declarations, with zero diagnostics or
+unattached comments. Earlier source-override/SDK/timing receipts remain
+separate and retain their original compiler and source identities.
