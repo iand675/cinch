@@ -15,23 +15,21 @@
 //! the count pass already treats as one owned reference. The allocation is
 //! frame-eligible when:
 //!
-//! 1. every reference to the binder is one of the four a frame block
-//!    admits: the scrutinee of a `case` (a borrowed read), a `Drop` or
+//! 1. every reference to the binder is a borrowed read, a `Drop` or
 //!    `Release` that ends it, a pass to a callee's owned parameter the
-//!    callee consumes, or a store into a field of a block that is itself
-//!    frame-bound. Anything else escapes the activation: a returned value,
+//!    callee consumes, or a field store classified by rule 2 below.
+//!    Anything else escapes the activation: a returned value,
 //!    a field of a heap block, a call argument whose callee may keep it, an
 //!    argument of a call in tail position, a `spawn` argument, a jump
 //!    argument, a projection's container, a closure environment slot, or a
 //!    `RefSet`/`BoxInit`/`LazyInit` store;
-//! 2. a block with counted payload is neither `Dup`ped nor stored inside
-//!    another frame block. A second reference would outlive the payload's
-//!    release, and a frame block has no count to make one reference's drop
-//!    a no-op. A nested owner's field can acquire that second reference
-//!    through a borrowed accessor even when this binder has no explicit
-//!    `Dup`. Until field-alias lifetimes are propagated across owners,
-//!    counted nested payloads stay on the heap. Blocks with no counted
-//!    payload still admit duplication and nested placement;
+//! 2. a block with counted payload is not `Dup`ped: a second reference
+//!    could outlive its payload's release. Nested blocks stay on the heap
+//!    regardless of payload class. A field accessor can produce an alias
+//!    that outlives either the parent or its allocating activation, even
+//!    when the child's binder has no explicit `Dup` or return. The scan
+//!    does not yet propagate these aliases across owners. Blocks with no
+//!    counted payload still admit direct duplication;
 //! 3. the constructor's layout is a regular one (a `repr(C)`,
 //!    `repr(packed)` or `repr(transparent)` block stores its fields at
 //!    recorded offsets, which this lowering does not reproduce);
@@ -56,9 +54,8 @@
 //! Rule 1 is what the ownership lattice gives us for free: after
 //! `crate::rc::insert` every owned binder is consumed exactly once on every
 //! path, so "every reference is a read or one of the transfers above" is
-//! also "the reference never leaves the activation". The two transfers that
-//! are not a read widen the rule to a callee's frame and to a nested frame
-//! block, and each needs one fact about a place the pass cannot see:
+//! also "the reference never leaves the activation" for direct references.
+//! The consuming-call transfer additionally needs a fact about the callee:
 //!
 //! - A pass to a callee's owned parameter is admissible only when the
 //!   callee consumes the parameter ([`Facts::consumed`]: every reference to
@@ -67,12 +64,11 @@
 //!   the same path its own drop takes. A parameter the callee forwards to
 //!   another unit is not consumed by this rule, so forwarding is refused
 //!   (one pass over the program, no fixpoint over summaries).
-//! - A store into a field of another frame-bound block is admissible only
-//!   when that block is itself frame-bound, which means the decision is a
-//!   fixpoint: each round's frame binders make the stores into them
-//!   admissible in the next. The result grows monotonically, so it
-//!   terminates, and the frame limit is applied as a final shrink so it
-//!   cannot oscillate ([`decide`]).
+//! The scan retains nested-store classification and the frame-set fixpoint
+//! for its census. Those stores currently fail rule 2: a parent being
+//! frame-bound does not prove that an indirectly projected child stays in
+//! the activation. The frame limit is applied as a final shrink of the
+//! decision so it cannot oscillate ([`decide`]).
 //!
 //! # What the lowering relies on
 //!
@@ -85,9 +81,9 @@
 //! `cinch_frame_release` walks the block's map when a drop arrives from a
 //! place the unit cannot see (a callee's owned parameter, or a parent
 //! frame block's release). Either way the header is marked released first,
-//! so a second path into the same block does nothing: that marker is what
-//! lets a frame block be a payload field of another frame block and what
-//! makes a callee's drop of a frame argument safe.
+//! so a second release path into the same block does nothing. That marker
+//! does not keep a separately projected child alive; the planner therefore
+//! refuses nested placements while retaining safe consuming-callee drops.
 //!
 //! # Inspectability
 //!
@@ -135,6 +131,8 @@ impl Default for Options {
 /// `consume` (a callee's consumed owned parameter), `store` (a store into
 /// a frame-bound block), `none` (neither, the rule before
 /// design/stack-allocation.md section 7.3).
+/// Store classification remains available for diagnostics; the independent
+/// field-alias lifetime guard currently refuses nested frame placement.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Widen {
     #[default]
@@ -161,7 +159,8 @@ impl Widen {
         matches!(self, Widen::All | Widen::Consume)
     }
 
-    /// Whether a store into a frame-bound block is admissible.
+    /// Whether to classify a store into a frame-bound block separately.
+    /// Eligibility still requires the independent field-alias lifetime rule.
     fn stores(self) -> bool {
         matches!(self, Widen::All | Widen::Store)
     }
@@ -255,10 +254,9 @@ pub enum Refusal {
     /// the collector left), so there is no `Drop` for the payload release
     /// to hang on.
     Uncounted,
-    /// The binder is `Dup`ped, or stored inside another frame block, and
-    /// its payload holds a counted word. Field extraction can create an
-    /// alias independently of the enclosing owner's release; a frame
-    /// child has no count to keep its payload alive for that alias.
+    /// The binder is `Dup`ped with counted payload, or stored inside
+    /// another frame block. A projected field can acquire an independent
+    /// lifetime, including one beyond the allocating activation.
     Duplicated,
     /// The payload is above the block limit and nothing else refuses it.
     Size,
@@ -877,12 +875,13 @@ fn unit(f: &FnDef, facts: &Facts, opts: &Options, report: &mut Report) -> (Plan,
 /// The rule's fixpoint for one unit: the binders that take a frame slot,
 /// with the scan they were decided under.
 ///
-/// A store into a block is admissible only when that block is itself
-/// frame-bound, so the store rule makes the decision a fixpoint: start with
+/// Nested-store classification depends on that block being itself
+/// frame-bound, so the scan retains a fixpoint: start with
 /// no frame binder and repeat, each round taking the candidates the last
 /// round's frame set makes eligible. Adding a frame binder can only turn a
-/// store from an escape into a consumption, so the set grows and the
-/// iteration terminates.
+/// store from a heap escape into a nested store. The independent alias rule
+/// currently refuses either placement, but retaining the classification
+/// keeps the census accurate. The set grows and the iteration terminates.
 ///
 /// The frame limit is *not* part of that iteration: it would make the
 /// decision non-monotone (an earlier slot can push a later one over the
@@ -975,14 +974,12 @@ fn eligible(x: usize, cand: &Cand, scan: &Scan<'_>) -> Result<(), Refusal> {
         return Err(Refusal::Size);
     }
     let u = scan.uses.get(&x).cloned().unwrap_or_default();
-    // A second reference is harmless only when the payload holds nothing
-    // to release: a frame block's dup writes no count. Storing the block
-    // in another frame also permits an implicit alias: a borrowed accessor
-    // can dup and return the field, after which releasing its parent must
-    // not destroy the returned child's payload. The scan does not track
-    // that field alias back to this binder, so keep counted nested children
-    // on the heap until such a lifetime proof is available.
-    if (u.duplicated > 0 || u.stored > 0) && !site.fields.is_empty() {
+    // Direct duplication needs no extra payload lifetime when there is
+    // nothing counted to release. A nested child needs a stronger proof:
+    // an accessor can return it beyond its parent's allocating activation,
+    // where even raw fields would refer to expired frame storage. The scan
+    // does not relate that returned field alias to this binder yet.
+    if u.stored > 0 || (u.duplicated > 0 && !site.fields.is_empty()) {
         return Err(Refusal::Duplicated);
     }
     if let Some(why) = u.first() {
@@ -1632,7 +1629,7 @@ fn verify(program: &Program, opts: &Options) {
             // no counted word to release twice (the rule `eligible` states),
             // and some path must release the payload.
             assert!(
-                ((u.duplicated == 0 && u.stored == 0) || site.fields.is_empty()) && u.escapes() == 0,
+                u.stored == 0 && (u.duplicated == 0 || site.fields.is_empty()) && u.escapes() == 0,
                 "compiler bug: {unit}: frame binder {x} escapes ({} dups, {} nested stores, {} escapes, {} counted fields)",
                 u.duplicated,
                 u.stored,
