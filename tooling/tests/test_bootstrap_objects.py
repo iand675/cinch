@@ -13,15 +13,14 @@ import bootstrap_objects
 
 class LibraryProviderContract(unittest.TestCase):
     def test_demands_are_actual_concrete_vectors_and_defining_identities(self):
-        encode = lambda symbol: "i." + "".join(str(ord(char)) + "_" for char in symbol)
-        function, factory, signature = map(encode, ["Data.List.reverse", "Data.List.FromList_List", "Library.Π"])
+        function, factory, signature = "i.Data$2eList$2ereverse", "i.Data$2eList$2eFromList_List", "i.Library$2e$ce$a0"
         lines = [f"bootstrap.runtime-ir:1:2: checked external variant is absent from the runtime object: {function} [T]",
                  f"bootstrap.runtime-ir:1:3: checked external variant is absent from the runtime object: {function} [R]",
                  f"bootstrap.runtime-ir:1:4: checked factory variant is absent from the runtime object: {factory} [O]",
                  f"bootstrap.runtime-ir:2:1: method representation has no planned declaring-class slot: {signature}:3 [RT]",
                  f"bootstrap.check:1:2: checked external variant is absent from the runtime object: {function} [T]",
                  f"bootstrap.runtime-ir:1:2: checked external variant is absent from the runtime object: {function} [P]",
-                 "bootstrap.runtime-ir:1:2: checked external variant is absent from the runtime object: i.55296_ [R]"]
+                "bootstrap.runtime-ir:1:2: checked external variant is absent from the runtime object: i.$ed$a0$80 [R]"]
         roots = bootstrap_objects.requested_roots("\n".join(lines + lines))
         self.assertEqual(roots, {"schema": 1,
                                 "units": [{"symbol": "Data.List.reverse", "classes": "R"}, {"symbol": "Data.List.reverse", "classes": "T"}],
@@ -31,9 +30,9 @@ class LibraryProviderContract(unittest.TestCase):
     def fixture(self, directory):
         root = directory / "checkout"
         (root / "bootstrap").mkdir(parents=True)
-        lock = {"schema": 1, "runtime_abi": 5, "revision": "a" * 40, "source_sha256": "b" * 64}
+        lock = {"schema": 1, "runtime_abi": 10, "revision": "a" * 40, "source_sha256": "b" * 64}
         bootstrap.write_json(root / "bootstrap/library-provider.lock.json", lock)
-        (root / "bootstrap/Bootstrap.RuntimeAbi.cinch").write_bytes(bootstrap.runtime_abi_source(5))
+        (root / "bootstrap/Bootstrap.RuntimeAbi.cinch").write_bytes(bootstrap.runtime_abi_source(10))
         bootstrap.write_json(root / "bootstrap/library-object-roots.json", {"schema": 1, "units": []})
         snapshot = directory / "pinned-source"
         (snapshot / "compiler/prelude").mkdir(parents=True)
@@ -71,8 +70,8 @@ class LibraryProviderContract(unittest.TestCase):
                         interface = Path(args[2]).parent / "build" / (name + ".cinchif")
                         bootstrap.write_json(interface, doc)
                         rows.append({"module": name, "iface_hash": name + "-hash", "interface": doc})
-                    metadata = {"schema": 1, "runtime_abi": 5, "word_size": 64, "endian": "little",
-                                "reclaim": True, "escaped_descriptors": False, "target": "test-host",
+                    metadata = {"schema": 1, "runtime_abi": 10, "word_size": 64, "endian": "little",
+                                "reclaim": True, "self_describing": True, "target": "test-host",
                                 "interfaces": rows, "units": [{"symbol": "CinchBaseObject.marker"}]}
                     bootstrap.write_json(output.with_suffix(".abi.json"), metadata)
                 return 0
@@ -101,7 +100,7 @@ class LibraryProviderContract(unittest.TestCase):
             root, _ = self.fixture(directory)
             lock_path = root / "bootstrap/library-provider.lock.json"
             lock = bootstrap.read_json(lock_path)
-            bootstrap.write_json(lock_path, {**lock, "runtime_abi": 8})
+            bootstrap.write_json(lock_path, {**lock, "runtime_abi": 99})
             with patch.object(bootstrap, "ROOT", root), \
                     patch.object(bootstrap, "run") as run:
                 with self.assertRaisesRegex(bootstrap.BootstrapError, "unsupported or missing library producer lock"):
