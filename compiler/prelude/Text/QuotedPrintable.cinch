@@ -3,6 +3,8 @@
 -- Encoded lines contain at most 76 symbols, including a soft-break marker.
 -- Continuations snapshot unfinished input. Returned byte buffers are fresh and
 -- may be mutated without changing a continuation or another returned buffer.
+-- Decoding accepts lowercase hex, raw high bytes and malformed non-newline
+-- escapes as literals; precise errors retain the successfully decoded prefix.
 module Text.QuotedPrintable where
 
   import Algebra.Semigroup
@@ -19,6 +21,7 @@ module Text.QuotedPrintable where
 
   export QuotedPrintableMode, QuotedPrintableText, QuotedPrintableBinary
   export QuotedPrintableEncoder, quoted-printable-encoder, quoted-printable-encoder-mode
+  export quoted-printable-encoder-policy
   export quoted-printable-encoder-feed, quoted-printable-encoder-finish
   export quoted-printable-encoder-events, quoted-printable-encoder-finish-events
   export quoted-printable-encode, quoted-printable-encode-bytes
@@ -58,6 +61,11 @@ module Text.QuotedPrintable where
   quoted-printable-encoder-mode :: QuotedPrintableMode -> QuotedPrintableEncoder -> QuotedPrintableEncoder
   quoted-printable-encoder-mode mode state = case state of
     EncodeState old line pos cr -> EncodeState mode line pos cr
+
+  -- | Observe the policy used for subsequent feeds without advancing or copying state.
+  quoted-printable-encoder-policy :: QuotedPrintableEncoder -> QuotedPrintableMode
+  quoted-printable-encoder-policy state = case state of
+    EncodeState mode line pos cr -> mode
 
   -- | Whether CR and LF must be encoded as bytes rather than normalized.
   binary-mode :: QuotedPrintableMode -> Bool
@@ -531,7 +539,8 @@ module Text.QuotedPrintable where
       (consumed, state) -> case quoted-printable-decoder-finish state of
         (tail, error) -> (events-output (Cons (0, out) (Cons (0, tail) Nil)), error)
 
-  -- | Decode completely, returning a named failure when any input is malformed.
+  -- | Return fresh decoded bytes or the first failure under the decoder
+  -- acceptance rules. Lowercase hex and malformed non-newline escapes are accepted.
   -- Use decode-prefix when the successfully decoded bytes before an error matter.
   quoted-printable-decode-bytes :: Bytes -> Result QuotedPrintableError Bytes
   quoted-printable-decode-bytes input = case quoted-printable-decode-prefix input of

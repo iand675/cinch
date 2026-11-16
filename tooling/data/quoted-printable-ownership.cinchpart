@@ -1,7 +1,12 @@
+  -- | Inspect a public policy without requiring a global enum equality instance.
+  policy-is-binary :: QuotedPrintableMode -> Bool
+  policy-is-binary policy = case policy of QuotedPrintableText -> False; QuotedPrintableBinary -> True
+
   -- | Input mutation and repeated feeds cannot change an encoder's retained prefix.
   encoder-ownership :: Unit -> Bool
   encoder-ownership unit =
     let input = string-to-bytes "abc" in
+    let encoded = quoted-printable-encode QuotedPrintableBinary input in
     case quoted-printable-encoder-feed (quoted-printable-encoder QuotedPrintableText) input of
       (empty, state) ->
         let changed = if bytes-len input > 0 then bytes-set input 0 88 else () in
@@ -9,7 +14,7 @@
           (first, final) ->
             let correct = same first (string-to-bytes "abcd\r\n") in
             let mutated = if bytes-len first > 0 then bytes-set first 0 89 else () in
-            bytes-len empty == 0 && correct && same (quoted-printable-encoder-finish state) (string-to-bytes "abc") &&
+            bytes-len empty == 0 && correct && encoded == "abc" && not (policy-is-binary (quoted-printable-encoder-policy state)) && policy-is-binary (quoted-printable-encoder-policy (quoted-printable-encoder-mode QuotedPrintableBinary state)) && same (quoted-printable-encoder-finish state) (string-to-bytes "abc") &&
               (case quoted-printable-encoder-feed state (string-to-bytes "e") of
                 (other, fork) -> same (quoted-printable-encoder-finish fork) (string-to-bytes "abce") && bytes-len (quoted-printable-encoder-finish final) == 0)
 
@@ -83,13 +88,16 @@
   writer-zero-failure unit =
     let reset = raw-reset 0 in
     case quoted-printable-write (quoted-printable-writer QuotedPrintableText fixture-sink) (string-to-bytes "a\n") of
-      (Err first, failed) -> case quoted-printable-write failed (bytes-new 0) of
-        (Ok count, afterZero) -> case quoted-printable-write afterZero (string-to-bytes "b") of
-          (Err repeated, final) -> case quoted-printable-finish final of
-            (Err error, sink) -> count == 0 && write-result-is (Err first) 0 "fixture sink failure" && write-result-is (Err repeated) 0 "fixture sink failure" && stream-message error == "fixture sink failure" && sink-is (bytes-new 0)
+      (Err first, failed) ->
+        let initial = not (policy-is-binary (quoted-printable-writer-policy failed)) in
+        let binary = quoted-printable-writer-mode QuotedPrintableBinary failed in
+        case quoted-printable-write binary (bytes-new 0) of
+          (Ok count, afterZero) -> case quoted-printable-write afterZero (string-to-bytes "b") of
+            (Err repeated, final) -> case quoted-printable-finish (quoted-printable-writer-mode QuotedPrintableText final) of
+              (Err error, sink) -> initial && count == 0 && policy-is-binary (quoted-printable-writer-policy afterZero) && policy-is-binary (quoted-printable-writer-policy final) && not (policy-is-binary (quoted-printable-writer-policy (quoted-printable-writer-mode QuotedPrintableText final))) && write-result-is (Err first) 0 "fixture sink failure" && write-result-is (Err repeated) 0 "fixture sink failure" && stream-message error == "fixture sink failure" && sink-is (bytes-new 0)
+              _ -> False
             _ -> False
           _ -> False
-        _ -> False
       _ -> False
 
   -- | Execute independent continuation, offset, partial-error and returned-buffer mutation controls.
