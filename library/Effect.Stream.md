@@ -72,6 +72,8 @@ Named stream failures. Short operations carry their actual progress.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">StreamEncodingError</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span>)))</code></pre>
 
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">StreamClosed</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span>)</code></pre>
+
 # Values
 
 <a id="value-7265616465722d636f6e636174"></a>
@@ -82,7 +84,7 @@ Named stream failures. Short operations carry their actual progress.
 
 Read sources in order, skipping exhausted sources. An empty list is EOF.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 165
+[Source](/reference-sources/Effect.Stream.cinch) · line 167
 
 <a id="value-7265616465722d66726f6d2d6279746573"></a>
 
@@ -92,7 +94,7 @@ Read sources in order, skipping exhausted sources. An empty list is EOF.
 
 Snapshot a byte buffer and start reading at its beginning.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 102
+[Source](/reference-sources/Effect.Stream.cinch) · line 104
 
 <a id="value-7265616465722d66726f6d2d6664"></a>
 
@@ -103,7 +105,7 @@ Snapshot a byte buffer and start reading at its beginning.
 Borrow a descriptor at its current position. Reads advance its OS cursor;
 duplicating this reader shares that cursor. This adapter never closes it.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 129
+[Source](/reference-sources/Effect.Stream.cinch) · line 131
 
 <a id="value-7265616465722d66726f6d2d737472696e67"></a>
 
@@ -113,7 +115,7 @@ duplicating this reader shares that cursor. This adapter never closes it.
 
 Read UTF-8 bytes of text, starting at its beginning.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 106
+[Source](/reference-sources/Effect.Stream.cinch) · line 108
 
 <a id="value-7265616465722d6c696d6974"></a>
 
@@ -123,7 +125,7 @@ Read UTF-8 bytes of text, starting at its beginning.
 
 Expose at most limit more bytes without reading beyond that limit.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 151
+[Source](/reference-sources/Effect.Stream.cinch) · line 153
 
 <a id="value-7265616465722d746565"></a>
 
@@ -134,7 +136,7 @@ Expose at most limit more bytes without reading beyond that limit.
 Mirror every returned chunk to a sink before delivering it to the reader.
 No buffering occurs; a sink failure is returned with both continuations advanced.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 371
+[Source](/reference-sources/Effect.Stream.cinch) · line 373
 
 <a id="value-7265616465722d7465652d777269746572"></a>
 
@@ -145,7 +147,7 @@ No buffering occurs; a sink failure is returned with both continuations advanced
 Inspect a tee reader's advanced mirror sink, including after read failures.
 This exposes persistent memory-sink results without implicit shared mutation.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 376
+[Source](/reference-sources/Effect.Stream.cinch) · line 378
 
 <a id="value-73747265616d2d636f7079"></a>
 
@@ -156,7 +158,7 @@ This exposes persistent memory-sink results without implicit shared mutation.
 Copy until EOF with a positive chunk size. Return bytes transferred and
 both advanced handles; failures preserve those handles as well.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 335
+[Source](/reference-sources/Effect.Stream.cinch) · line 337
 
 <a id="value-73747265616d2d636f70792d6e"></a>
 
@@ -167,7 +169,7 @@ both advanced handles; failures preserve those handles as well.
 Copy exactly count bytes without reading beyond that boundary. An early
 EOF is a named error. Both returned handles reflect completed operations.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 352
+[Source](/reference-sources/Effect.Stream.cinch) · line 354
 
 <a id="value-73747265616d2d72656164"></a>
 
@@ -178,7 +180,7 @@ EOF is a named error. Both returned handles reflect completed operations.
 Read at most n bytes and always return the advanced reader. An empty
 successful positive read means EOF. A zero request leaves the reader alone.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 83
+[Source](/reference-sources/Effect.Stream.cinch) · line 85
 
 <a id="value-73747265616d2d726561642d616c6c"></a>
 
@@ -189,7 +191,7 @@ successful positive read means EOF. A zero request leaves the reader alone.
 Read until EOF using positive-sized chunks. Every chunk is copied once
 into the final output; failures still return the advanced reader.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 320
+[Source](/reference-sources/Effect.Stream.cinch) · line 322
 
 <a id="value-73747265616d2d726561642d61742d6c65617374"></a>
 
@@ -200,7 +202,7 @@ into the final output; failures still return the advanced reader.
 Read a minimum into a maximum-sized result. A minimum greater than the
 maximum is rejected before invoking the reader.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 302
+[Source](/reference-sources/Effect.Stream.cinch) · line 304
 
 <a id="value-73747265616d2d726561642d6578616374"></a>
 
@@ -210,7 +212,7 @@ maximum is rejected before invoking the reader.
 
 Read exactly n bytes or report how many were obtained before EOF.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 297
+[Source](/reference-sources/Effect.Stream.cinch) · line 299
 
 <a id="value-73747265616d2d726561646572"></a>
 
@@ -220,7 +222,7 @@ Read exactly n bytes or report how many were obtained before EOF.
 
 Wrap a custom effectful reader. stream-read validates its result length.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 74
+[Source](/reference-sources/Effect.Stream.cinch) · line 76
 
 <a id="value-73747265616d2d7772697465"></a>
 
@@ -231,7 +233,7 @@ Wrap a custom effectful reader. stream-read validates its result length.
 Attempt one write and return the advanced sink. Empty input does not invoke
 callbacks. Counts larger than the input are rejected as protocol errors.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 206
+[Source](/reference-sources/Effect.Stream.cinch) · line 208
 
 <a id="value-73747265616d2d77726974652d616c6c"></a>
 
@@ -242,7 +244,7 @@ callbacks. Counts larger than the input are rejected as protocol errors.
 Write a full chunk despite short writes. Zero progress becomes a named
 short-write error instead of an infinite retry. The next sink is retained.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 244
+[Source](/reference-sources/Effect.Stream.cinch) · line 246
 
 <a id="value-73747265616d2d77726974652d737472696e67"></a>
 
@@ -252,7 +254,7 @@ short-write error instead of an infinite retry. The next sink is retained.
 
 Encode text as UTF-8 and completely write the resulting bytes.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 262
+[Source](/reference-sources/Effect.Stream.cinch) · line 264
 
 <a id="value-73747265616d2d777269746572"></a>
 
@@ -262,7 +264,7 @@ Encode text as UTF-8 and completely write the resulting bytes.
 
 Wrap a custom effectful writer. stream-write validates its accepted count.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 78
+[Source](/reference-sources/Effect.Stream.cinch) · line 80
 
 <a id="value-7772697465722d627566666572"></a>
 
@@ -272,7 +274,7 @@ Wrap a custom effectful writer. stream-write validates its accepted count.
 
 Create an empty persistent memory sink. Inspect its contents with writer-bytes.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 179
+[Source](/reference-sources/Effect.Stream.cinch) · line 181
 
 <a id="value-7772697465722d6279746573"></a>
 
@@ -282,7 +284,7 @@ Create an empty persistent memory sink. Inspect its contents with writer-bytes.
 
 Flatten copied memory chunks once into a fresh buffer. Other sinks return None.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 220
+[Source](/reference-sources/Effect.Stream.cinch) · line 222
 
 <a id="value-7772697465722d636f6d706f6e656e7473"></a>
 
@@ -292,7 +294,7 @@ Flatten copied memory chunks once into a fresh buffer. Other sinks return None.
 
 Inspect the advanced children of a broadcast sink. Other sink types return None.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 283
+[Source](/reference-sources/Effect.Stream.cinch) · line 285
 
 <a id="value-7772697465722d636f6e636174"></a>
 
@@ -303,7 +305,7 @@ Inspect the advanced children of a broadcast sink. Other sink types return None.
 Broadcast each chunk in list order. Empty lists accept and discard it.
 An error stops before subsequent sinks, retaining already advanced sinks.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 267
+[Source](/reference-sources/Effect.Stream.cinch) · line 269
 
 <a id="value-7772697465722d64697363617264"></a>
 
@@ -313,7 +315,7 @@ An error stops before subsequent sinks, retaining already advanced sinks.
 
 Create a sink that accepts all input without retaining it.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 183
+[Source](/reference-sources/Effect.Stream.cinch) · line 185
 
 <a id="value-7772697465722d66726f6d2d6664"></a>
 
@@ -323,8 +325,8 @@ Create a sink that accepts all input without retaining it.
 
 Borrow a descriptor for writing; the caller retains close responsibility.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 187
+[Source](/reference-sources/Effect.Stream.cinch) · line 189
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Stream.cinch`. Source SHA-256: `6079746ad326c94b72c6c3b41f3cb5d652d67a0f7ced213031747e6e342bd7c1`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Stream.cinch`. Source SHA-256: `00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -141,6 +141,133 @@ fn hexadecimal_all_byte_values_preserve_first_error_and_prefix() {
     run(vec![format!("all-positions {} 0", bytes(&digits))]);
 }
 
+/// Dump rows agree byte-for-byte with independent fixtures, including every byte and short rows.
+#[test]
+fn hexadecimal_dumps_match_reference_columns_and_offset_wrap() {
+    let fixture: Value =
+        serde_json::from_str(include_str!("fixtures/go-stdlib-vectors.json")).unwrap();
+    let mut checks = Vec::new();
+    for row in fixture["buffers"].as_array().unwrap() {
+        let dump = row["hex_dump"].as_str().unwrap();
+        let expected: String = dump
+            .as_bytes()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        let input = bytes(row["hex"].as_str().unwrap());
+        checks.push(format!(
+            "bytes-equal (hex-dump-bytes 0 {input}) {}",
+            bytes(&expected)
+        ));
+        checks.push(format!(
+            "hex-dump {input} == {}",
+            serde_json::to_string(dump).unwrap()
+        ));
+    }
+    let mut expected = String::new();
+    for offset in [u32::MAX - 15, 0] {
+        expected.push_str(&format!("{offset:08x}  "));
+        for i in 0..16 {
+            expected.push_str("00 ");
+            if i == 7 {
+                expected.push(' ');
+            }
+        }
+        expected.push_str(" |................|\n");
+    }
+    let expected: String = expected
+        .as_bytes()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    checks.push(format!(
+        "bytes-equal (hex-dump-bytes 4294967280 (bytes-new 32)) {}",
+        bytes(&expected)
+    ));
+    run(checks);
+}
+
+/// Error diagnostics preserve the original position and both capacity counts in library-owned terms.
+#[test]
+fn hexadecimal_errors_render_actionable_diagnostics() {
+    run(vec![
+        "hex-error-message OddHexLength == \"unpaired final hexadecimal digit\"".into(),
+        "hex-error-message (InvalidHexByte 17 255) == \"invalid hexadecimal byte 255 at byte 17\"".into(),
+        "hex-error-message (HexShortDestination 8 3) == \"hexadecimal output requires 8 bytes; available 3\"".into(),
+    ]);
+}
+
+/// Portable LLVM kernels compile for the supported 32-bit and ARM profiles and a big-endian target.
+#[test]
+fn hexadecimal_dump_kernels_compile_for_word_widths_and_byte_orders() {
+    for (triple, arch, endian) in [
+        ("wasm32-unknown-unknown", "wasm32", "little"),
+        ("aarch64-unknown-linux-gnu", "aarch64", "little"),
+        ("powerpc64-unknown-linux-gnu", "powerpc64", "big"),
+    ] {
+        let profile = cinch::driver::target_profile(&cinch::driver::DriverOptions {
+            target: Some(triple.into()),
+            ..Default::default()
+        })
+        .unwrap_or_else(|_| {
+            // PowerPC checks LLVM portability only; it is not a supported driver link target.
+            assert_eq!(arch, "powerpc64");
+            let mut p = cinch::core::TargetProfile::native();
+            p.name = "hex-powerpc64-kernel-check".into();
+            p.triple = triple.into();
+            p.arch = arch.into();
+            p.endian = endian.into();
+            p
+        });
+        // Isolate the actual kernels: the driver does not support PowerPC's runtime/tail-call ABI.
+        let library = include_str!("../prelude/Text/Hex.cinch");
+        let mut source = String::from("module Main where\n  import Data.Machine\n");
+        for name in [
+            "dump-ascii8",
+            "encode4",
+            "dump-swap32",
+            "dump-columns-low",
+            "dump-columns-high",
+        ] {
+            let start = library.find(&format!("  prim {name} ::")).unwrap();
+            let tail = &library[start..];
+            let end = tail.find("\n\n  -- |").unwrap_or(tail.len());
+            source.push_str(&tail[..end]);
+            source.push_str("\n\n");
+        }
+        source.push_str("  main :: Int\n  main = if eq-u64 (dump-ascii8 0x207f7e411f003031) 0x202e7e412e2e3031 && eq-u64 (encode4 0) 0x3030303030303030 && eq-u32 (dump-swap32 0x01020304) 0x04030201 && eq-u64 (dump-columns-low 0x3736353433323130) 0x3534203332203130 && eq-u32 (dump-columns-high 0x3736353433323130) 0x20373620 then 0 else 1\n");
+        let (profile, program) = std::thread::Builder::new()
+            .stack_size(64 * 1024 * 1024)
+            .spawn(move || {
+                cinch::driver::check_sources_profile(&source, "hex-target.cinch", &profile)
+                    .map(|p| (profile, p))
+            })
+            .unwrap()
+            .join()
+            .unwrap()
+            .unwrap();
+        let ir = cinch::codegen::emit_for(&profile, &program).unwrap();
+        assert!(ir.contains("select <8 x i1>"));
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("dump.ll");
+        std::fs::write(&path, ir).unwrap();
+        let result = std::process::Command::new(
+            std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()),
+        )
+        .args(["-target", triple, "-O2", "-c", "-x", "ir"])
+        .arg(&path)
+        .arg("-o")
+        .arg(path.with_extension("o"))
+        .output()
+        .unwrap();
+        assert!(
+            result.status.success(),
+            "{triple}: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+}
+
 /// Public operations, errors and private SIMD/buffer kernels have canonical library documentation.
 #[test]
 fn hexadecimal_declarations_have_canonical_documentation() {

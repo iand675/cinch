@@ -32,6 +32,9 @@ WORKLOADS = (
     "utf16le-encode", "utf16le-decode", "utf16be-encode", "utf16be-decode",
     "word-add64", "word-mul64", "word-div64", "word-bits64", "word-load", "word-div64-proven",
     "fnv128", "fnv128a",
+    "hex-append-encode", "hex-append-decode", "hex-into-encode", "hex-into-decode",
+    "hex-dump", "hex-stream-encode", "hex-stream-decode", "hex-stream-dump",
+    "hex-bytes-encode", "hex-prefix-decode",
 )
 
 SOURCE = r'''-- | Executable workload driver; output is elapsed_ns and an observable checksum.
@@ -44,6 +47,7 @@ module Main where
   import Text.Fnv
   import Text.Ascii85
   import Effect.Ascii85
+  import Effect.Hex
   import Text.Utf16
   import Data.Word
   import Data.Bytes.Word
@@ -75,6 +79,14 @@ module Main where
   -- | Consume length and boundary bytes so the encoded/decoded result stays observable.
   fingerprint :: Bytes -> Nat
   fingerprint b = if 0 < bytes-len b then bytes-len b + bytes-get b 0 + bytes-get b (bytes-len b - 1) else 0
+
+  -- | Observe a selected output byte only when the interval exists.
+  sample-byte :: Bytes -> Nat -> Nat
+  sample-byte b offset = if offset < bytes-len b then bytes-get b offset else 0
+
+  -- | Include encoded input after the fixed address and spacing of a formatted row.
+  dump-fingerprint :: Bytes -> Nat
+  dump-fingerprint b = fingerprint b + sample-byte b 10 + sample-byte b 11 + sample-byte b 61
 
   -- | Consume both halves of a word while keeping the checksum in the small-natural range.
   word-fingerprint :: U64 -> Nat
@@ -183,6 +195,41 @@ module Main where
         (quotient, remainder) -> word-fingerprint (bit-xor-u64 quotient remainder)
     else if eq-u32 mode __CODE_fnv128__ then wide-fingerprint (fnv128 b)
     else if eq-u32 mode __CODE_fnv128a__ then wide-fingerprint (fnv128a b)
+    else if eq-u32 mode __CODE_hex-append-encode__ then
+      let out = hex-encode-append (bytes-from-u8s [1,2,3,4]) b in fingerprint out + sample-byte out 4 + sample-byte out 5
+    else if eq-u32 mode __CODE_hex-append-decode__ then case hex-decode-append (bytes-from-u8s [1,2,3,4]) b of
+      (out, None) -> fingerprint out + sample-byte out 4 + sample-byte out 5
+      _ -> 1000000000
+    else if eq-u32 mode __CODE_hex-into-encode__ then
+      let out = bytes-new (hex-encoded-length (bytes-len b) + 2) in
+      case hex-encode-into out 1 b of
+        Ok count -> count + fingerprint out + sample-byte out 1 + sample-byte out 2
+        Err error -> 1000000000
+    else if eq-u32 mode __CODE_hex-into-decode__ then
+      let out = bytes-new (hex-decoded-length (bytes-len b) + 2) in
+      case hex-decode-into out 1 b of
+        (count, None) -> count + fingerprint out + sample-byte out 1 + sample-byte out 2
+        _ -> 1000000000
+    else if eq-u32 mode __CODE_hex-dump__ then dump-fingerprint (string-to-bytes (hex-dump b))
+    else if eq-u32 mode __CODE_hex-stream-encode__ then case hex-write (hex-writer writer-buffer) b of
+      (Err error, _) -> 1000000000
+      (Ok count, writer) -> case writer-bytes (hex-writer-sink writer) of
+        None -> 1000000000
+        Some out -> fingerprint out
+    else if eq-u32 mode __CODE_hex-stream-decode__ then case stream-read-all 4096 (hex-reader (reader-from-bytes b)) of
+      (Err error, _) -> 1000000000
+      (Ok out, _) -> fingerprint out
+    else if eq-u32 mode __CODE_hex-stream-dump__ then case hex-dump-write (hex-dumper writer-buffer) b of
+      (Err error, _) -> 1000000000
+      (Ok count, dumper) -> case hex-dump-finish dumper of
+        (Err error, _) -> 1000000000
+        (Ok unit, finished) -> case writer-bytes (hex-dumper-sink finished) of
+          None -> 1000000000
+          Some out -> dump-fingerprint out
+    else if eq-u32 mode __CODE_hex-bytes-encode__ then fingerprint (hex-encode-bytes b)
+    else if eq-u32 mode __CODE_hex-prefix-decode__ then case hex-decode-prefix b of
+      (out, None) -> fingerprint out
+      _ -> 1000000000
     else 1000000000
 
   -- | Fold every 32-bit lane of a wide hash into the bounded observable checksum.
@@ -199,11 +246,15 @@ module Main where
     let stored = bytes-set b i (nat-rem (bytes-get b i) 128) in ascii-input b (i + 1)
     else ()
 
+  -- | Select hexadecimal input preparation before the operation clock starts.
+  hex-decoding :: String -> Bool
+  hex-decoding mode = mode == "hex-decode" || mode == "hex-append-decode" || mode == "hex-into-decode" || mode == "hex-stream-decode" || mode == "hex-prefix-decode"
+
   -- | Prepare valid encoded inputs outside timing for decoding workloads.
   prepare :: String -> Bytes -> Bytes
   prepare mode b =
     let normalized = if utf16-mode mode then ascii-input b 0 else () in
-    if mode == "hex-decode" then string-to-bytes (hex-encode b)
+    if hex-decoding mode then string-to-bytes (hex-encode b)
     else if mode == "base32-decode" then string-to-bytes (base32-encode Base32Standard b)
     else if mode == "base64-decode" then string-to-bytes (base64-encode b)
     else if mode == "ascii85-decode" || mode == "ascii85-stream-decode" then string-to-bytes (ascii85-encode b)
@@ -214,7 +265,7 @@ module Main where
   -- | Change input each iteration to prevent invariant work from being hoisted.
   change-byte :: U32 -> Nat -> InRange 0 255 Nat
   change-byte mode iteration =
-    if eq-u32 mode __CODE_hex-decode__ then 48 + nat-rem iteration 10
+    if eq-u32 mode __CODE_hex-decode__ || eq-u32 mode __CODE_hex-append-decode__ || eq-u32 mode __CODE_hex-into-decode__ || eq-u32 mode __CODE_hex-stream-decode__ || eq-u32 mode __CODE_hex-prefix-decode__ then 48 + nat-rem iteration 10
     else if eq-u32 mode __CODE_base32-decode__ || eq-u32 mode __CODE_base64-decode__ then 65 + nat-rem iteration 26
     else if eq-u32 mode __CODE_ascii85-decode__ || eq-u32 mode __CODE_ascii85-stream-decode__ then 33 + nat-rem iteration 85
     else if (ge-u32 mode __CODE_utf16le-encode__ && le-u32 mode __CODE_utf16be-decode__) then nat-rem iteration 128
@@ -378,7 +429,7 @@ def main() -> None:
             run([str(args.reference_go.resolve()), "build", "-o", str(reference), str(reference_source)], cwd=ROOT, env=reference_env)
             report["reference"] = {"sdk": run([str(args.reference_go.resolve()), "version"], env=reference_env).stdout.strip(),
                                    "source_sha256": digest(reference_source), "executable_sha256": digest(reference),
-                                   "GOMAXPROCS": "1", "workloads": [name for name in WORKLOADS if name.startswith(("ascii85-", "utf16", "word-", "fnv128"))],
+                                   "GOMAXPROCS": "1", "workloads": [name for name in WORKLOADS if name.startswith(("hex-", "ascii85-", "utf16", "word-", "fnv128"))],
                                    "scope": "Equivalent public API results and observable checksums; allocation and immutable string semantics differ"}
         if args.artifacts:
             artifacts = args.artifacts.resolve()
@@ -412,7 +463,7 @@ def main() -> None:
                         "checksum": checksums[0], "median_ns_per_operation": median / args.iterations,
                         "raw_mib_per_second": (size * args.iterations * 1e9 / median / 1048576) if median and size and workload not in ("binary", "varint") and not workload.startswith("word-") else None}
                 report["results"].append(item)
-                if reference and workload.startswith(("ascii85-", "utf16", "word-", "fnv128")):
+                if reference and workload.startswith(("hex-", "ascii85-", "utf16", "word-", "fnv128")):
                     reference_samples = []
                     for index in range(args.warmup + args.samples):
                         elapsed, checksum = map(int, run([str(reference), workload, str(size), str(args.iterations)], env=reference_env).stdout.split())
