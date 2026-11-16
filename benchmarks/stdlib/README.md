@@ -292,3 +292,55 @@ largest size). The encoder control has a 16% slower 1 KiB median, while its
 32-byte and 16 KiB medians are within 4%. Its loop instruction sequence is
 identical after symbol/label normalization, whose hashes are recorded in the
 report. These pipeline measurements do not establish an encoder speedup.
+
+
+## Hexadecimal buffers, dumps and streams
+
+`hex-complete-O2-2026-11-16.json` measures twelve public pipelines at 32 bytes,
+1 KiB and 16 KiB, with seven samples after warmup. Independent SDK pipelines
+match each observable checksum. Append checksums observe bytes beyond the fixed
+prefix; destination checksums observe the written interval; dump checksums include
+input-dependent columns after the fixed address. Adapter construction, snapshot
+semantics, formatting and output materialization remain part of each pipeline.
+These are functional API comparisons, with different allocation strategies.
+
+`hex-complete-before-swar-scatter-O2-2026-11-16.json` retains the initial dump
+implementation. Four-pair SWAR masks now interleave already SIMD-encoded digits
+and spaces into eight-byte and four-byte stores. The ASCII column classifies
+eight lanes at once; exact short tails retain scalar behavior. No block overreads.
+`interleaved-hex-swar-scatter-O2-2026-11-16.json` alternates both retained
+executables, verifies compiler/driver/optimization/runtime source identities,
+and checks output equality. At 16 KiB its local medians improve about 1.56× for
+whole dumps and 1.50× for streaming dumps. The unchanged byte encoder control
+ranges from 6% slower to 3% faster across sizes. Unpaired sweep differences
+include larger control variation and must not be attributed to the scatter change.
+The reusable `tooling/bench_stdlib_compare.py` performs these matched checks.
+
+`qualified-calls-space-2026-11-16.json` records a separate self-built compiler
+probe: decode a buffer while requesting one output byte at a time. Saturated
+source calls with runtime evidence now pass their full checked argument prefix
+directly rather than allocating curried application chains. Source tail groups
+also include evidence prefixes in their shared worker prototypes, with new values
+retained before old roots are released. The 64 KiB probe completes with an 8 MiB
+stack, 328,149 peak live heap bytes, and zero leaks; both earlier compiler variants
+exhaust that stack. At 1 KiB cumulative allocations fall from 1,635,738 to 568,191
+bytes. Retained LLVM and compiler hashes identify each variant.
+
+These live-space measurements disable RC debug quarantine. Poisoning runs keep
+freed blocks deliberately and therefore report cumulative diagnostic storage in
+the heap peak. Functional adapter tests run separately with normal 32 MiB live
+heap/8 MiB stack bounds and a 256 MiB poisoned-block quarantine budget, checking
+zero leaks in both modes. The larger diagnostic budget does not establish a live
+memory bound. Owned-dictionary, partial/excess-application and mixed-arity mutual
+tail tests separately validate evidence ownership and calling conventions.
+
+
+The evidence-call regressions also check observable application-stage ordering.
+The Rust elaborator previously flattened an effectful function-returning call
+and its excess argument into one application frame, so an argument marker ran
+before the function's own marker (`12F` instead of `1F2`). It now retains a
+strict binding after an effectful arrow when further arguments remain. Pure
+arrows retain their flattened call path. A second regression checks multiple
+stages through a local alias; ordinary, partial and owned-dictionary calls keep
+their ownership checks. These are correctness checks, independent of the
+retained throughput reports' frozen compiler identities.

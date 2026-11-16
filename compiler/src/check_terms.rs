@@ -1299,6 +1299,22 @@ impl Checker {
                         core = app_spine(core, vec![c]);
                     }
                     ty = cod;
+                    // An effectful arrow completes before the next argument is evaluated.
+                    // Retain that application as a strict binding: flattening it into an
+                    // over-application would evaluate all excess arguments before this call.
+                    let effectful_stage = match self.uni.zonk(&prefix_ty) {
+                        Ty::Fun(_, _, eff, _) | Ty::Pi { eff, .. } => !self.uni.resolve_row(&eff).is_pure(),
+                        _ => false,
+                    };
+                    if effectful_stage && position + 1 < args.len() {
+                        if retained_method.is_none() {
+                            retained_method = callee_want(&core).map(|want|
+                                (want, head_method(&core).filter(|(w, _)| *w == want).map(|(_, i)| i)));
+                        }
+                        let function = self.fresh_local();
+                        self.note_local_ty(function, &ty);
+                        call_binds.push((function, std::mem::replace(&mut core, ECore::Var(function))));
+                    }
                 }
                 // A result refinement naming an argument states its fact
                 // over the argument's reading here, when that reading is

@@ -510,7 +510,7 @@ module Main where
   main :: Int
   main = 0
 "#,
-        &["preservation law `NonEmpty.preserve-mempty`"],
+        &["preservation law `Data.NonEmpty.NonEmpty.preserve-mempty`"],
     );
 }
 
@@ -556,7 +556,7 @@ module Main where
         Err(e) => {
             let msg = e.to_string();
             assert!(
-                msg.contains("preservation law `Sorted.preserve-<>`"),
+                msg.contains("preservation law `Data.Sorted.Sorted.preserve-<>`"),
                 "sorted-reverse: error {msg:?} does not name the preservation law"
             );
         }
@@ -596,7 +596,7 @@ module Main where
     // where a wrong identity is a counterexample).
     assert!(
         m.contains(
-            "{\"class\":\"Monoid\",\"instance\":\"Data.NonZero.Monoid_NonZero\",\"law\":\"left-unit\",\"status\":\"checked ("
+            "{\"class\":\"Algebra.Monoid.Monoid\",\"instance\":\"Data.NonZero.Monoid_NonZero\",\"law\":\"left-unit\",\"status\":\"checked ("
         ),
         "the unit law over `<>` resolves the instance's Semigroup sibling and is decided at samples: {m}"
     );
