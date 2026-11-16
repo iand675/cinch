@@ -1,0 +1,209 @@
+-- | Shared independent media, encoded-word, callback and registry fixture consumers.
+module Main where
+  import Text.Mime
+  import Effect.Mime
+  import Effect.Stream
+  import Data.Bool
+  import Data.Bytes
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String (String, string-to-bytes, string-from-bytes, empty-string)
+
+  -- | Compare byte contents without a global mutable-buffer equality instance.
+  same :: Bytes -> Bytes -> Bool
+  same first last = eq-i64 (bytes-compare first last) 0
+
+  -- | Compare sorted exact key/value observations.
+  same-pairs :: List (Bytes, Bytes) -> List (Bytes, Bytes) -> Bool
+  same-pairs actual expected = case actual of
+    Nil -> case expected of Nil -> True; _ -> False
+    Cons pair rest -> case expected of
+      Nil -> False
+      Cons other tail -> case pair of
+        (key, value) -> case other of
+          (expectedKey, expectedValue) -> same key expectedKey && same value expectedValue && same-pairs rest tail
+
+  -- | Validate normalized base, nil-map distinction, exact parameters and error text.
+  media-is :: Bytes -> Bytes -> Bool -> List (Bytes, Bytes) -> String -> Bool
+  media-is input base absent pairs message =
+    let result = mime-parse-media-type input in
+    same (string-to-bytes (mime-media-base result)) base &&
+      (case mime-media-error result of None -> message == ""; Some error -> mime-error-message error == message) &&
+      (case mime-media-parameters result of None -> absent; Some params -> not absent && same-pairs (mime-parameter-pairs params) pairs)
+
+  -- | Validate deterministic original-key ordering and exact parameter serialization.
+  format-is :: Bytes -> List (Bytes, Bytes) -> Bytes -> Bool
+  format-is base pairs expected = same (string-to-bytes (mime-format-media-type base (mime-parameters pairs))) expected
+
+  -- | Validate every raw selector and exact charset spelling through the public encoder.
+  encode-is :: U8 -> Bytes -> Bytes -> Bytes -> Bool
+  encode-is selector charset input expected = same (mime-word-encode-bytes (MimeWordEncoder selector) charset input) expected
+
+  -- | Arbitrary caller error values retain both a numeric identity and an immutable message.
+  data FixtureError where
+    -- | Distinguish callback creation from converted-reader failures without string-only narrowing.
+    FixtureError :: Nat -> String -> FixtureError
+
+  -- | Render only fixture errors while preserving and checking their identity fields.
+  fixture-error-message :: FixtureError -> String
+  fixture-error-message error = case error of
+    FixtureError identity message -> if (identity == 47 && message == "fixture charset callback failure") || (identity == 83 && message == "fixture converted-reader failure") then message else "unexpected fixture error identity"
+
+  -- | Preserve decode error categories rather than flattening callback values prematurely.
+  decode-message :: MimeDecodeFailure FixtureError -> String
+  decode-message error = case error of
+    MimeWordSyntaxFailure failure -> mime-error-message failure
+    MimeCharsetCallbackFailure failure -> fixture-error-message failure
+    MimeCharsetReadFailure failure -> fixture-error-message failure
+    MimeCharsetInvalidCount requested actual -> "invalid converted count"
+    MimeOutputWriteFailure failure -> case failure of StreamClosed text -> text; _ -> "unexpected output failure"
+
+  -- | Reset serialized trace/sink I/O state without retaining any language pointers.
+  foreign import ccall "mime_fixture_reset" raw-reset :: forall r. I64 ->{IO r} I64
+  -- | Record one callback label and its decoded input, assigning a stable ordinal.
+  foreign import ccall "mime_fixture_event" raw-event :: forall r. I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  -- | Record one pull-read request and simultaneous prefix/status.
+  foreign import ccall "mime_fixture_read" raw-read :: forall r. I64 -> I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  -- | Record an optional whole-copy operation and its exact result/error.
+  foreign import ccall "mime_fixture_copy" raw-copy :: forall r. I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  -- | Compare all callback observations against an independent trace digest.
+  foreign import ccall "mime_fixture_digest" raw-digest :: forall r. I64 ->{IO r} U64
+  -- | Write an exact prefix to an independently observable failing sink.
+  foreign import ccall "mime_fixture_write" raw-write :: forall r. I64 -> I64 ->{IO r} I64
+  -- | Observe all confirmed output bytes after success or failure.
+  foreign import ccall "mime_fixture_sink_size" raw-sink-size :: forall r. I64 ->{IO r} I64
+  -- | Observe one initialized external sink byte.
+  foreign import ccall "mime_fixture_sink_byte" raw-sink-byte :: forall r. I64 ->{IO r} U8
+  -- | Execute the independent scalar oracle against the actual vector-class and copy objects.
+  foreign import ccall "mime_fixture_kernel_check" raw-kernel-check :: forall r. I64 ->{IO r} I32
+
+  -- | Retain a borrowed byte owner until one external call completes.
+  hold :: forall a. Bytes -> a -> a
+  hold bytes result = case bytes-len bytes of _ -> result
+
+  -- | Copy a checked fixture interval into independent storage.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input at count = if at + count <= bytes-len input then
+    let out = bytes-new count in let copied = bytes-copy-range out input 0 at count in out
+    else bytes-new 0
+
+  -- | Record a result before its independent output buffer can be released.
+  trace-read :: forall r. using (io :: Io r) => I64 -> Nat -> Bytes -> I64 ->{IO r} Unit
+  trace-read identity request bytes status =
+    if request <= 9223372036854775807 then
+      let recorded = hold bytes (raw-read identity (nat-to-i64 request) (bytes-data bytes) (nat-to-i64 (bytes-len bytes)) status) in ()
+    else ()
+
+  -- | A pull reader with exact two-byte chunks and independently injected terminal behavior.
+  traced-reader :: forall r. using (io :: Io r) => Bytes -> Nat -> I64 -> String -> Bool -> MimeCharsetReader r FixtureError
+  traced-reader input at identity policy gap = mime-charset-reader (\request ->
+    if policy == "empty-more" && not gap then
+      let empty = bytes-new 0 in let recorded = trace-read identity request empty 0 in
+      ((empty, MimeCharsetMore), traced-reader input at identity policy True)
+    else if at < bytes-len input then
+      let remaining = bytes-len input - at in
+      let short = if request < 2 then request else 2 in
+      let count = if short < remaining then short else remaining in
+      let out = part input at count in
+      let failed = policy == "prefix-error" && at + count == bytes-len input in
+      let ended = policy == "prefix-eof" && at + count == bytes-len input in
+      let recorded = trace-read identity request out (if failed then 2 else if ended then 1 else 0) in
+      ((out, if failed then MimeCharsetFailure (FixtureError 83 "fixture converted-reader failure") else if ended then MimeCharsetEnd else MimeCharsetMore), traced-reader input (at + count) identity policy True)
+    else
+      let empty = bytes-new 0 in
+      let failed = policy == "read-error" in
+      let recorded = trace-read identity request empty (if failed then 2 else 1) in
+      ((empty, if failed then MimeCharsetFailure (FixtureError 83 "fixture converted-reader failure") else MimeCharsetEnd), traced-reader input at identity policy True))
+
+  -- | Optional whole-copy behavior is observed instead of invoking the pull fallback.
+  traced-copy :: forall r. using (io :: Io r) => Bytes -> I64 -> String -> Unit ->{IO r} Result FixtureError Bytes
+  traced-copy input identity policy unit =
+    let failed = policy == "copy-fast-error" in
+    let recorded = hold input (raw-copy identity (bytes-data input) (nat-to-i64 (bytes-len input)) (if failed then 2 else 0)) in
+    if failed then Err (FixtureError 83 "fixture converted-reader failure") else Ok input
+
+  -- | Callback reads its complete fresh input, records exact lowercase labels, and
+  -- exposes an ordinary or complete-copy converted-reader capability.
+  charset-callback :: forall r. using (io :: Io r) => String -> String -> ByteReader r ->{IO r} Result FixtureError (MimeCharsetReader r FixtureError)
+  charset-callback policy charset source = case stream-read-all 32768 source of
+    (Err error, next) -> Err (FixtureError 99 "unexpected callback input failure")
+    (Ok input, next) ->
+      let label = string-to-bytes charset in
+      let identity = hold label (hold input (raw-event (bytes-data label) (nat-to-i64 (bytes-len label)) (bytes-data input) (nat-to-i64 (bytes-len input)))) in
+      if policy == "error" || policy == "both-error" then Err (FixtureError 47 "fixture charset callback failure")
+      else
+        let bytes = if policy == "invalid-utf8" then bytes-from-list (Cons 255 (Cons 254 (Cons 0 Nil))) else input in
+        let reader = traced-reader bytes 0 identity policy False in
+        if policy == "copy-fast" || policy == "copy-fast-error" then Ok (mime-charset-reader-with-copy (traced-copy bytes identity policy) reader) else Ok reader
+
+  -- | Inspect and replace the callback field without invoking it or losing its caller error type.
+  decoder-for :: forall r. using (io :: Io r) => String -> MimeWordDecoder r FixtureError
+  decoder-for policy =
+    let initial = mime-word-decoder (if policy == "none" then None else Some (charset-callback policy)) in
+    mime-word-decoder-with-charset-reader (mime-word-decoder-charset-reader initial) (mime-word-decoder None)
+
+  -- | Validate complete returned bytes/error plus all callback/read/copy observations.
+  decode-is :: forall r. using (io :: Io r) => Bool -> Bytes -> String -> Bytes -> String -> U64 ->{IO r} Bool
+  decode-is header input policy expected message trace =
+    let reset = raw-reset (-1) in
+    let decoder = decoder-for policy in
+    let result = if header then mime-header-decode decoder input else mime-word-decode decoder input in
+    (case result of Ok out -> message == "" && same out expected; Err error -> bytes-len expected == 0 && decode-message error == message) && eq-u64 (raw-digest 0) trace
+
+  -- | Compare a fresh list of sorted extension buffers.
+  same-list :: List Bytes -> List Bytes -> Bool
+  same-list first last = case first of
+    Nil -> case last of Nil -> True; _ -> False
+    Cons a rest -> case last of Nil -> False; Cons b tail -> same a b && same-list rest tail
+
+  -- | A descriptor-like fixture sink with externally observable advanced progress.
+  fixture-sink :: forall r. using (io :: Io r) => ByteWriter r
+  fixture-sink = stream-writer (\input ->
+    let count = hold input (raw-write (bytes-data input) (nat-to-i64 (bytes-len input))) in
+    if count >= 0 then (Ok (nat-from-i64 count), fixture-sink)
+    else (Err (StreamClosed "fixture sink failure"), fixture-sink))
+
+  -- | Compare only initialized sink bytes after an exact length observation.
+  sink-bytes :: forall r. using (io :: Io r) => Bytes -> Nat ->{IO r} Bool
+  sink-bytes expected at = if at < bytes-len expected then
+    u8-to-nat (raw-sink-byte (nat-to-i64 at)) == bytes-get expected at && sink-bytes expected (at + 1)
+    else True
+
+  -- | Check complete confirmed output rather than treating failure as zero progress.
+  sink-is :: forall r. using (io :: Io r) => Bytes ->{IO r} Bool
+  sink-is expected = eq-i64 (raw-sink-size 0) (nat-to-i64 (bytes-len expected)) && sink-bytes expected 0
+
+  -- | Preserve the concrete sink failure vocabulary in short-write controls.
+  stream-message :: StreamError -> String
+  stream-message error = case error of StreamClosed text -> text; _ -> "unexpected stream failure"
+
+  -- | Check one complete encoded output against a compliant failing sink budget.
+  write-is :: forall r. using (io :: Io r) => U8 -> Bytes -> Bytes -> I64 -> Bytes -> String ->{IO r} Bool
+  write-is selector charset input budget expected message =
+    let reset = raw-reset budget in
+    case mime-word-write (MimeWordEncoder selector) charset input fixture-sink of
+      (Ok count, next) -> message == "" && count == bytes-len expected && sink-is expected
+      (Err error, next) -> stream-message error == message && sink-is expected
+
+  -- | Registration validates atomically and preserves the caller's original context.
+  registry-add-is :: Bytes -> Bytes -> String -> MimeRegistry -> (Bool, MimeRegistry)
+  registry-add-is extension media message registry = case mime-registry-add extension media registry of
+    Ok next -> (message == "", next)
+    Err error -> (mime-error-message error == message, registry)
+
+  -- | Extension queries retain all parse failures while omitting nonsemantic parameters.
+  registry-extensions-is :: Bytes -> List Bytes -> String -> MimeRegistry -> Bool
+  registry-extensions-is media expected message registry = case mime-registry-extensions media registry of
+    Ok values -> message == "" && same-list values expected
+    Err error -> mime-error-message error == message
+
+  -- | Decode before writing, preserving an untouched sink when charset conversion fails.
+  header-write-is :: forall r. using (io :: Io r) => Bytes -> I64 -> Bytes -> String ->{IO r} Bool
+  header-write-is input budget expected message =
+    let reset = raw-reset budget in
+    case mime-header-write (decoder-for "none") input fixture-sink of
+      (Ok count, next) -> message == "" && count == bytes-len expected && sink-is expected
+      (Err error, next) -> decode-message error == message && sink-is expected
