@@ -1,0 +1,1178 @@
+{
+  "format": 1,
+  "runner_sha256": "a55f56ae31c4c8ed48129ec65e570810b74f1ec0c21f03907aeac0c50d4688e2",
+  "cpu_affinity": [
+    0
+  ],
+  "iterations": 10,
+  "samples": 5,
+  "background_context": "Parent-granted exclusive CPU0 up to30seconds. No own CPU4 compiler. Root heavy/docs idle; Path CPU3 window held. Codegen CPU1 and JSON CPU2 may remain active. Four-CPU cgroup quota; raw before/after cpu.stat retained without correction.",
+  "build_reports": {
+    "simd": {
+      "path": "/workspace/dasl-stdlib-mime/build/mime/bench-b004-simd-retained/report.json",
+      "sha256": "a019e8040d124360ceb3a96e620e6e282a40c8b22b32034b01b7f593969e44f4"
+    },
+    "scalar": {
+      "path": "/workspace/dasl-stdlib-mime/build/mime/bench-b004-scalar-retained/report.json",
+      "sha256": "40fda033250cf4844471773dec40286d23c696a84915c2c897aa4a824039bdaa"
+    }
+  },
+  "programs": {
+    "simd": "b81f0aa6226f3475934a58a3d0fa72cb8564f5991c617a4926b349dac16d62cb",
+    "scalar": "06a3f8ba58d6791c3ba9bf8d51fe824ab501225bc3de2df56a25bce6bb17e4a4",
+    "reference": "20d20b8a5a8579e8d3d926054ba43b213d08b5d4d25199816bf9c21a9769b82b"
+  },
+  "scope": "Build and measure full MIME public pipelines against a pinned reference.\n\nAll samples, allocation-policy differences and regressions remain visible. The\nscope includes fresh output allocation and an observable scalar output checksum;\ninput generation and decode-fixture encoding occur before the measured interval.\n",
+  "allocation_policy": "Cinch returns fresh mutable byte outputs; the reference uses immutable strings and may reuse an unchanged input.",
+  "registry_context_scope": "Cinch owns one custom association in an explicit empty context; the public reference retains its ambient host registry plus the same custom association. Queries and returned bytes match, but total index populations differ.",
+  "results": [
+    {
+      "mode": "parse",
+      "input_bytes": 64,
+      "checksums": [
+        1668189924,
+        2008184349
+      ],
+      "warmups_ns_and_checksums": {
+        "simd": [
+          90482,
+          1668189924,
+          2008184349
+        ],
+        "scalar": [
+          172752,
+          1668189924,
+          2008184349
+        ],
+        "reference": [
+          99696,
+          1668189924,
+          2008184349
+        ]
+      },
+      "measurement_orders": [
+        [
+          "simd",
+          "scalar",
+          "reference"
+        ],
+        [
+          "simd",
+          "reference",
+          "scalar"
+        ],
+        [
+          "reference",
+          "simd",
+          "scalar"
+        ],
+        [
+          "reference",
+          "scalar",
+          "simd"
+        ],
+        [
+          "scalar",
+          "reference",
+          "simd"
+        ]
+      ],
+      "raw_samples_ns": {
+        "simd": [
+          121908,
+          76051,
+          79566,
+          75571,
+          87738
+        ],
+        "scalar": [
+          108929,
+          106917,
+          108939,
+          95069,
+          94889
+        ],
+        "reference": [
+          44946,
+          16775,
+          55050,
+          46187,
+          131362
+        ]
+      },
+      "median_ns_per_iteration": {
+        "simd": 7956.6,
+        "scalar": 10691.7,
+        "reference": 4618.7
+      },
+      "simd_over_scalar": 0.7441847414349448,
+      "simd_over_reference": 1.722692532530799
+    },
+    {
+      "mode": "parse",
+      "input_bytes": 4096,
+      "checksums": [
+        808414820,
+        770918045
+      ],
+      "warmups_ns_and_checksums": {
+        "simd": [
+          236656,
+          808414820,
+          770918045
+        ],
+        "scalar": [
+          2117059,
+          808414820,
+          770918045
+        ],
+        "reference": [
+          416219,
+          808414820,
+          770918045
+        ]
+      },
+      "measurement_orders": [
+        [
+          "simd",
+          "scalar",
+          "reference"
+        ],
+        [
+          "simd",
+          "reference",
+          "scalar"
+        ],
+        [
+          "reference",
+          "simd",
+          "scalar"
+        ],
+        [
+          "reference",
+          "scalar",
+          "simd"
+        ],
+        [
+          "scalar",
+          "reference",
+          "simd"
+        ]
+      ],
+      "raw_samples_ns": {
+        "simd": [
+          289695,
+          288482,
+          302203,
+          291917,
+          258389
+        ],
+        "scalar": [
+          2368818,
+          2297614,
+          2291344,
+          2259918,
+          2207642
+        ],
+        "reference": [
+          404603,
+          448026,
+          465281,
+          412864,
+          388198
+        ]
+      },
+      "median_ns_per_iteration": {
+        "simd": 28969.5,
+        "scalar": 229134.4,
+        "reference": 41286.4
+      },
+      "simd_over_scalar": 0.12643016500359613,
+      "simd_over_reference": 0.7016717369400093
+    },
+    {
+      "mode": "format",
+      "input_bytes": 64,
+      "checksums": [
+        1724916652,
+        2838080
+      ],
+      "warmups_ns_and_checksums": {
+        "simd": [
+          118464,
+          1724916652,
+          2838080
+        ],
+        "scalar": [
+          148587,
+          1724916652,
+          2838080
+        ],
+        "reference": [
+          14080,
+          1724916652,
+          2838080
+        ]
+      },
+      "measurement_orders": [
+        [
+          "simd",
+          "scalar",
+          "reference"
+        ],
+        [
+          "simd",
+          "reference",
+          "scalar"
+        ],
+        [
+          "reference",
+          "simd",
+          "scalar"
+        ],
+        [
+          "reference",
+          "scalar",
+          "simd"
+        ],
+        [
+          "scalar",
+          "reference",
+          "simd"
+        ]
+      ],
+      "raw_samples_ns": {
+        "simd": [
+          99346,
+          99506,
+          163419,
+          104734,
+          147796
+        ],
+        "scalar": [
+          102120,
+          103542,
+          108319,
+          132514,
+          101088
+        ],
+        "reference": [
+          13229,
+          12699,
+          13199,
+          41521,
+          14472
+        ]
+      },
+      "median_ns_per_iteration": {
+        "simd": 10473.4,
+        "scalar": 10354.2,
+        "reference": 1322.9
+      },
+      "simd_over_scalar": 1.0115122365803249,
+      "simd_over_reference": 7.917000529140524
+    },
+    {
+      "mode": "format",
+      "input_bytes": 4096,
+      "checksums": [
+        46183612,
+        1903013888
+      ],
+      "warmups_ns_and_checksums": {
+        "simd": [
+          3694768,
+          46183612,
+          1903013888
+        ],
+        "scalar": [
+          4370348,
+          46183612,
+          1903013888
+        ],
+        "reference": [
+          975698,
+          46183612,
+          1903013888
+        ]
+      },
+      "measurement_orders": [
+        [
+          "simd",
+          "scalar",
+          "reference"
+        ],
+        [
+          "simd",
+          "reference",
+          "scalar"
+        ],
+        [
+          "reference",
+          "simd",
+          "scalar"
+        ],
+        [
+          "reference",
+          "scalar",
+          "simd"
+        ],
+        [
+          "scalar",
+          "reference",
+          "simd"
+        ]
+      ],
+      "raw_samples_ns": {
+        "simd": [
+          4059012,
+          3842385,
+          4126040,
+          3528736,
+          3789027
+        ],
+        "scalar": [
+          4735131,
+          4322518,
+          4527508,
+          4067233,
+          4266255
+        ],
+        "reference": [
+          504738,
+          762767,
+          665734,
+          649691,
+          493442
+        ]
+      },
+      "median_ns_per_iteration": {
+        "simd": 384238.5,
+        "scalar": 432251.8,
+        "reference": 64969.1
+      },
+      "simd_over_scalar": 0.8889228454340734,
+      "simd_over_reference": 5.914173045340015
+    },
+    {
+      "mode": "b-encode",
+      "input_bytes": 64,
+      "checksums": [
+        78339912,
+        2838080
+      ],
+      "warmups_ns_and_checksums": {
+        "simd": [
+          127717,
+          78339912,
+          2838080
+        ],
+        "scalar": [
+          88239,
+          78339912,
+          2838080
+        ],
+        "reference": [
+          57223,
+          78339912,
+          2838080
+        ]
+      },
+      "measurement_orders": [
+        [
+          "simd",
+          "scalar",
+          "reference"
+        ],
+        [
+          "simd",
+          "reference",
+          "scalar"
+        ],
+        [
+          "reference",
+          "simd",
+          "scalar"
+        ],
+        [
+          "reference",
+          "scalar",
+          "simd"
+        ],
+        [
+          "scalar",
+          "reference",
+          "simd"
+        ]
+      ],
+      "raw_samples_ns": {
+        "simd": [
+          81489,
+          146374,
+          85255,
+          82621,
+          84083
+        ],
+        "scalar": [
+          82010,
+          85395,
+          102400,
+          78855,
+          138172
+        ],
+        "reference": [
+          15072,
+          15984,
+          14631,
+          16884,
+          16014
+        ]
+      },
+      "median_ns_per_iteration": {
+        "simd": 8408.3,
+        "scalar": 8539.5,
+        "reference": 1598.4
+      },
+      "simd_over_scalar": 0.9846361028163241,
+      "simd_over_reference": 5.260447947947947
+    },
+    {
+      "mode": "b-encode",
+      "input_bytes": 4096,
+      "checksums": [
+        1460274068,
+        1903013888
+      ],
+      "warmups_ns_and_checksums": {
+        "simd": [
+          3761116,
+          1460274068,
+          1903013888
+        ],
+        "scalar": [
+          4082686,
+          1460274068,
+          1903013888
+        ],
+        "reference": [
+          487113,
+          1460274068,
+          1903013888
+        ]
+      },
+      "measurement_orders": [
+        [
+          "simd",
+          "scalar",
+          "reference"
+        ],
+        [
+          "simd",
+          "reference",
+          "scalar"
+        ],
+        [
+          "reference",
+          "simd",
+          "scalar"
+        ],
+        [
+          "reference",
+          "scalar",
+          "simd"
+        ],
+        [
+          "scalar",
+          "reference",
+          "simd"
+        ]
+      ],
+      "raw_samples_ns": {
+        "simd": [
+          3455838,
+          3622302,
+          3653519,
+          7591373,
+          3750039
+        ],
+        "scalar": [
+          3472734,
+          4020004,
+          3752593,
+          3750209,
+          4508119
+        ],
+        "reference": [
+          467865,
+          511379,
+          479893,
+          495946,
+          490929
+        ]
+      },
+      "median_ns_per_iteration": {
+        "simd": 365351.9,
+        "scalar": 375259.3,
+        "reference": 49092.9
+      },
+      "simd_over_scalar": 0.9735985224083721,
+      "simd_over_reference": 7.442051701977272
+    },
+    {
+      "mode": "q-encode",
+      "input_bytes": 64,
+      "checksums": [
+        2115506714,
+        2838080
+      ],
+      "warmups_ns_and_checksums": {
+        "simd": [
+          164190,
+          2115506714,
+          2838080
+        ],
+        "scalar": [
+          136890,
+          2115506714,
+          2838080
+        ],
+        "reference": [
+          38286,
+          2115506714,
+          2838080
+        ]
+      },
+      "measurement_orders": [
+        [
+          "simd",
+          "scalar",
+          "reference"
+        ],
+        [
+          "simd",
+          "reference",
+          "scalar"
+        ],
+        [
+          "reference",
+          "simd",
+          "scalar"
+        ],
+        [
+          "reference",
+          "scalar",
+          "simd"
+        ],
+        [
+          "scalar",
+          "reference",
+          "simd"
+        ]
+      ],
+      "raw_samples_ns": {
+        "simd": [
+          154016,
+          137851,
+          140125,
+          142759,
+          195135
+        ],
+        "scalar": [
+          155778,
+          235886,
+          167385,
+          138983,
+          135108
+        ],
+        "reference": [
+          12598,
+          12879,
+          12969,
+          41451,
+          39218
+        ]
+      },
+      "median_ns_per_iteration": {
+        "simd": 14275.9,
+        "scalar": 15577.8,
+        "reference": 1296.9
+      },
+      "simd_over_scalar": 0.9164259394779751,
+      "simd_over_reference": 11.007710694733595
+    },
+    {
+      "mode": "q-encode",
+      "input_bytes": 4096,
+      "checksums": [
+        1198925824,
+        1903013888
+      ],
+      "warmups_ns_and_checksums": {
+        "simd": [
+          8585979,
+          1198925824,
+          1903013888
+        ],
+        "scalar": [
+          7557583,
+          1198925824,
+          1903013888
+        ],
+        "reference": [
+          883083,
+          1198925824,
+          1903013888
+        ]
+      },
+      "measurement_orders": [
+        [
+          "simd",
+          "scalar",
+          "reference"
+        ],
+        [
+          "simd",
+          "reference",
+          "scalar"
+        ],
+        [
+          "reference",
+          "simd",
+          "scalar"
+        ],
+        [
+          "reference",
+          "scalar",
+          "simd"
+        ],
+        [
+          "scalar",
+          "reference",
+          "simd"
+        ]
+      ],
+      "raw_samples_ns": {
+        "simd": [
+          6977775,
+          8089532,
+          8225360,
+          6952888,
+          7300868
+        ],
+        "scalar": [
+          7235091,
+          7499648,
+          10791978,
+          6759675,
+          7407483
+        ],
+        "reference": [
+          926326,
+          1171856,
+          938324,
+          1001846,
+          884124
+        ]
+      },
+      "median_ns_per_iteration": {
+        "simd": 730086.8,
+        "scalar": 740748.3,
+        "reference": 93832.4
+      },
+      "simd_over_scalar": 0.9856071218793212,
+      "simd_over_reference": 7.780753769486873
+    },
+    {
+      "mode": "header",
+      "input_bytes": 64,
+      "checksums": [
+        111249216,
+        221720778
+      ],
+      "warmups_ns_and_checksums": {
+        "simd": [
+          104373,
+          111249216,
+          221720778
+        ],
+        "scalar": [
+          103401,
+          111249216,
+          221720778
+        ],
+        "reference": [
+          5008,
+          111249216,
+          221720778
+        ]
+      },
+      "measurement_orders": [
+        [
+          "simd",
+          "scalar",
+          "reference"
+        ],
+        [
+          "simd",
+          "reference",
+          "scalar"
+        ],
+        [
+          "reference",
+          "simd",
+          "scalar"
+        ],
+        [
+          "reference",
+          "scalar",
+          "simd"
+        ],
+        [
+          "scalar",
+          "reference",
+          "simd"
+        ]
+      ],
+      "raw_samples_ns": {
+        "simd": [
+          124673,
+          100988,
+          98764,
+          139224,
+          95059
+        ],
+        "scalar": [
+          101759,
+          102991,
+          171861,
+          99195,
+          93888
+        ],
+        "reference": [
+          33359,
+          4326,
+          4266,
+          5047,
+          4948
+        ]
+      },
+      "median_ns_per_iteration": {
+        "simd": 10098.8,
+        "scalar": 10175.9,
+        "reference": 494.8
+      },
+      "simd_over_scalar": 0.9924232745997896,
+      "simd_over_reference": 20.409862570735648
+    },
+    {
+      "mode": "header",
+      "input_bytes": 4096,
+      "checksums": [
+        1730441216,
+        1195076263
+      ],
+      "warmups_ns_and_checksums": {
+        "simd": [
+          4535209,
+          1730441216,
+          1195076263
+        ],
+        "scalar": [
+          5042601,
+          1730441216,
+          1195076263
+        ],
+        "reference": [
+          293179,
+          1730441216,
+          1195076263
+        ]
+      },
+      "measurement_orders": [
+        [
+          "simd",
+          "scalar",
+          "reference"
+        ],
+        [
+          "simd",
+          "reference",
+          "scalar"
+        ],
+        [
+          "reference",
+          "simd",
+          "scalar"
+        ],
+        [
+          "reference",
+          "scalar",
+          "simd"
+        ],
+        [
+          "scalar",
+          "reference",
+          "simd"
+        ]
+      ],
+      "raw_samples_ns": {
+        "simd": [
+          5777557,
+          5519469,
+          4698628,
+          4938609,
+          4549490
+        ],
+        "scalar": [
+          5494593,
+          4420481,
+          4907304,
+          4680562,
+          4722112
+        ],
+        "reference": [
+          266650,
+          304525,
+          539630,
+          565177,
+          330033
+        ]
+      },
+      "median_ns_per_iteration": {
+        "simd": 493860.9,
+        "scalar": 472211.2,
+        "reference": 33003.3
+      },
+      "simd_over_scalar": 1.0458474936638522,
+      "simd_over_reference": 14.963985419639853
+    },
+    {
+      "mode": "header-q",
+      "input_bytes": 64,
+      "checksums": [
+        111249216,
+        99651301
+      ],
+      "warmups_ns_and_checksums": {
+        "simd": [
+          172623,
+          111249216,
+          99651301
+        ],
+        "scalar": [
+          181195,
+          111249216,
+          99651301
+        ],
+        "reference": [
+          8052,
+          111249216,
+          99651301
+        ]
+      },
+      "measurement_orders": [
+        [
+          "simd",
+          "scalar",
+          "reference"
+        ],
+        [
+          "simd",
+          "reference",
+          "scalar"
+        ],
+        [
+          "reference",
+          "simd",
+          "scalar"
+        ],
+        [
+          "reference",
+          "scalar",
+          "simd"
+        ],
+        [
+          "scalar",
+          "reference",
+          "simd"
+        ]
+      ],
+      "raw_samples_ns": {
+        "simd": [
+          168877,
+          173043,
+          172242,
+          172853,
+          175707
+        ],
+        "scalar": [
+          171371,
+          174175,
+          281983,
+          256686,
+          176468
+        ],
+        "reference": [
+          13139,
+          34490,
+          75150,
+          35332,
+          8442
+        ]
+      },
+      "median_ns_per_iteration": {
+        "simd": 17285.3,
+        "scalar": 17646.8,
+        "reference": 3449.0
+      },
+      "simd_over_scalar": 0.9795146995489267,
+      "simd_over_reference": 5.011684546245288
+    },
+    {
+      "mode": "header-q",
+      "input_bytes": 4096,
+      "checksums": [
+        1730441216,
+        824693248
+      ],
+      "warmups_ns_and_checksums": {
+        "simd": [
+          9893753,
+          1730441216,
+          824693248
+        ],
+        "scalar": [
+          10184869,
+          1730441216,
+          824693248
+        ],
+        "reference": [
+          527092,
+          1730441216,
+          824693248
+        ]
+      },
+      "measurement_orders": [
+        [
+          "simd",
+          "scalar",
+          "reference"
+        ],
+        [
+          "simd",
+          "reference",
+          "scalar"
+        ],
+        [
+          "reference",
+          "simd",
+          "scalar"
+        ],
+        [
+          "reference",
+          "scalar",
+          "simd"
+        ],
+        [
+          "scalar",
+          "reference",
+          "simd"
+        ]
+      ],
+      "raw_samples_ns": {
+        "simd": [
+          10989907,
+          16363328,
+          12760079,
+          10891123,
+          10756526
+        ],
+        "scalar": [
+          9951878,
+          14303217,
+          10644532,
+          10912574,
+          10591815
+        ],
+        "reference": [
+          680566,
+          737159,
+          565558,
+          496647,
+          683200
+        ]
+      },
+      "median_ns_per_iteration": {
+        "simd": 1098990.7,
+        "scalar": 1064453.2,
+        "reference": 68056.6
+      },
+      "simd_over_scalar": 1.0324462362459899,
+      "simd_over_reference": 16.14818695027374
+    },
+    {
+      "mode": "registry",
+      "input_bytes": 64,
+      "checksums": [
+        702628100,
+        1218938503
+      ],
+      "warmups_ns_and_checksums": {
+        "simd": [
+          12999,
+          702628100,
+          1218938503
+        ],
+        "scalar": [
+          21060,
+          702628100,
+          1218938503
+        ],
+        "reference": [
+          3115,
+          702628100,
+          1218938503
+        ]
+      },
+      "measurement_orders": [
+        [
+          "simd",
+          "scalar",
+          "reference"
+        ],
+        [
+          "simd",
+          "reference",
+          "scalar"
+        ],
+        [
+          "reference",
+          "simd",
+          "scalar"
+        ],
+        [
+          "reference",
+          "scalar",
+          "simd"
+        ],
+        [
+          "scalar",
+          "reference",
+          "simd"
+        ]
+      ],
+      "raw_samples_ns": {
+        "simd": [
+          12739,
+          13720,
+          14461,
+          13981,
+          12488
+        ],
+        "scalar": [
+          20189,
+          21151,
+          66237,
+          19439,
+          19779
+        ],
+        "reference": [
+          2724,
+          3045,
+          2824,
+          2915,
+          2744
+        ]
+      },
+      "median_ns_per_iteration": {
+        "simd": 1372.0,
+        "scalar": 2018.9,
+        "reference": 282.4
+      },
+      "simd_over_scalar": 0.6795779880132745,
+      "simd_over_reference": 4.858356940509916
+    },
+    {
+      "mode": "registry",
+      "input_bytes": 4096,
+      "checksums": [
+        702628100,
+        68028231
+      ],
+      "warmups_ns_and_checksums": {
+        "simd": [
+          326578,
+          702628100,
+          68028231
+        ],
+        "scalar": [
+          749046,
+          702628100,
+          68028231
+        ],
+        "reference": [
+          208395,
+          702628100,
+          68028231
+        ]
+      },
+      "measurement_orders": [
+        [
+          "simd",
+          "scalar",
+          "reference"
+        ],
+        [
+          "simd",
+          "reference",
+          "scalar"
+        ],
+        [
+          "reference",
+          "simd",
+          "scalar"
+        ],
+        [
+          "reference",
+          "scalar",
+          "simd"
+        ],
+        [
+          "scalar",
+          "reference",
+          "simd"
+        ]
+      ],
+      "raw_samples_ns": {
+        "simd": [
+          295483,
+          335671,
+          310584,
+          322883,
+          371043
+        ],
+        "scalar": [
+          752291,
+          747494,
+          790897,
+          767013,
+          764128
+        ],
+        "reference": [
+          188085,
+          138603,
+          214143,
+          170920,
+          184410
+        ]
+      },
+      "median_ns_per_iteration": {
+        "simd": 32288.3,
+        "scalar": 76412.8,
+        "reference": 18441.0
+      },
+      "simd_over_scalar": 0.42255093387495285,
+      "simd_over_reference": 1.7508974567539721
+    }
+  ]
+}

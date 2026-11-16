@@ -1,0 +1,21 @@
+{
+  "package": "mime",
+  "declarations": [
+    "const BEncoding = 98",
+    "const BEncoding WordEncoder",
+    "const QEncoding = 113",
+    "const QEncoding WordEncoder",
+    "func AddExtensionType(string, string) error",
+    "func ExtensionsByType(string) ([]string, error)",
+    "func FormatMediaType(string, map[string]string) string",
+    "func ParseMediaType(string) (string, map[string]string, error)",
+    "func TypeByExtension(string) string",
+    "method (*WordDecoder) Decode(string) (string, error)",
+    "method (*WordDecoder) DecodeHeader(string) (string, error)",
+    "method (WordEncoder) Encode(string, string) string",
+    "type WordDecoder struct",
+    "type WordDecoder struct, CharsetReader func(string, io.Reader) (io.Reader, error)",
+    "type WordEncoder uint8",
+    "var ErrInvalidMediaParameter error"
+  ]
+}

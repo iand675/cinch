@@ -1,0 +1,58 @@
+{
+  "format": 1,
+  "scalar_snapshot": true,
+  "compile_rc_debug": false,
+  "runner_sha256": "5a3a857e3531ffd8f1246207a7c6dd7e936cddfbc046603f3d340e0555923955",
+  "compiler": "/workspace/dasl-stdlib-io/build/array-frame-safe-frozen/cinch",
+  "compiler_sha256": "b004049baa8e2614dd35f5484811bbf2cd24b137923a8e3bc36bf08c9c53fc93",
+  "runtime": "/workspace/dasl-stdlib-io/build/array-frame-safe-frozen/libcinchruntime.a",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "driver_sha256": "ccc8e8e339b4e66b3043be7b25a32964a0f42b9ace52d192652ff4bb4c2186f3",
+  "reference_source_sha256": "799b1ab6acb4869128236a0ef415efb547976a5f5200588afab714bea4260011",
+  "source_sha256": {
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+    "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "Text.Mime": "bf513c772ec33915debbadac7db143a7ef11566e9166cec20325faccd0df459e",
+    "Effect.Stream": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+    "Effect.Mime": "1211c316b96474b7ed1d997092520055aca5cabba4b3c262d1a6f9d490fca215"
+  },
+  "compiler_host_stack_bytes": 67108864,
+  "compiler_environment": {
+    "RUST_MIN_STACK": "67108864",
+    "CINCH_STACK_SIZE": "64M"
+  },
+  "allocation_policy": "Cinch returns fresh mutable byte outputs; the reference uses immutable strings and may reuse an unchanged input.",
+  "registry_context_scope": "Cinch owns one custom association in an explicit empty context; the public reference retains its ambient host registry plus the same custom association. Queries and returned bytes match, but total index populations differ.",
+  "profile_scope": "Cinch executable only; the public reference retains its normal GC, heap and goroutine-stack policies.",
+  "profile": {
+    "heap": "32M",
+    "stack": "8M",
+    "poison": false,
+    "leak_check": true
+  },
+  "scope": "Build and measure full MIME public pipelines against a pinned reference.\n\nAll samples, allocation-policy differences and regressions remain visible. The\nscope includes fresh output allocation and an observable scalar output checksum;\ninput generation and decode-fixture encoding occur before the measured interval.\n",
+  "results": [],
+  "compile": {
+    "command": [
+      "/workspace/dasl-stdlib-io/build/array-frame-safe-frozen/cinch",
+      "emit-ir",
+      "/workspace/dasl-stdlib-mime/build/mime/bench-b004-scalar-retained/Main.cinch",
+      "-o",
+      "/workspace/dasl-stdlib-mime/build/mime/bench-b004-scalar-retained/bench.ll"
+    ],
+    "stdout": "",
+    "stderr": ""
+  },
+  "executable_sha256": "06a3f8ba58d6791c3ba9bf8d51fe824ab501225bc3de2df56a25bce6bb17e4a4",
+  "reference_executable_sha256": "20d20b8a5a8579e8d3d926054ba43b213d08b5d4d25199816bf9c21a9769b82b",
+  "llvm_sha256": "3f6557ad6c8d2c3cae28b2758e6328c47f552d7cd6e55b7e71cacaf53837f013",
+  "assembly_sha256": "379954d1001489542957fa1e70eb4140a38fe49a1ce471f906b9a78ffc436ee3",
+  "target_triple": "x86_64-unknown-linux-gnu",
+  "sdk": "go version go1.27.4 linux/amd64",
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "clang": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)"
+}
