@@ -1,7 +1,7 @@
 {
   "description": "Standalone slash-path lexical operations and reusable checked shell patterns. Full stdlib goal remains open.",
   "full_stdlib_goal_complete": false,
-  "status": "CLI validation passed; Rust test target awaits coordinated parent integration",
+  "status": "Frozen CLI corpus and parent Rust9/Native7selected harness validation passed",
   "source_sha256": {
     "compiler/prelude/Text/Path.cinch": "8a9f7c29198f038a541bd510a68aee1502f1d8c3d3693500406fe24aba86cbad",
     "compiler/tests/lib_path.rs": "3c440981c2646f4cf193d86342e8a6ca0036b522d2c90d753f8d9119a0a90451",
@@ -207,7 +207,10 @@
     "explicit_rust_only_cases": [
       "optimized borrowed-owner stress",
       "foreign object profiles including big-endian PowerPC"
-    ]
+    ],
+    "parent_rust_tests_passed": 9,
+    "parent_big_endian_ppc_object_compile_passed": true,
+    "parent_native_selected_tests_passed": 7
   },
   "foreign_objects": [
     {

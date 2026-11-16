@@ -1,0 +1,676 @@
+-- | Configurable Base64 byte encodings with SIMD quanta and persistent incremental state.
+-- Alphabets and padding preserve exact byte values, including non-UTF-8 values.
+-- Decoders ignore CR/LF, preserve completed output before failures, and count
+-- original input bytes in diagnostics. Strict mode rejects nonzero unused bits.
+-- All returned buffers are fresh; no caller-owned buffer aliases retained state.
+module Text.Base64.Encoding where
+
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  export Base64Encoding, base64-standard-encoding, base64-url-encoding, base64-raw-standard-encoding, base64-raw-url-encoding
+  export base64-encoding, base64-with-padding, base64-strict, base64-encoding-alphabet, base64-encoding-padding
+  export Base64ConfigError, Base64AlphabetLength, Base64AlphabetNewline, Base64AlphabetDuplicate, Base64PaddingValue, Base64PaddingCollision, base64-config-error-message
+  export Base64InputError, InvalidBase64Byte, TruncatedBase64Quantum, InvalidBase64TrailingBits, Base64ShortDestination, base64-input-error-offset, base64-input-error-message
+  export base64-encoded-length, base64-decoded-length, base64-encode-bytes, base64-encode-text, base64-encode-append, base64-encode-into
+  export base64-decode-prefix, base64-decode-bytes, base64-decode-text, base64-decode-append, base64-decode-into
+  export Base64Encoder, base64-encoder, base64-encoder-feed, base64-encoder-finish
+  export Base64Decoder, base64-decoder, base64-decoder-feed, base64-decoder-finish, base64-decoder-error
+
+  -- | Opaque immutable alphabet, optional padding and trailing-bit validation policy.
+  data Base64Encoding where
+    -- | Mode 0/1 uses fixed SIMD mapping; mode 2 owns copied 64/256-byte lookup tables.
+    Encoding :: U8 -> Bytes -> Bytes -> Option Nat -> Bool -> Base64Encoding
+
+  -- | Invalid alphabet or padding configuration, returned without mutating caller storage.
+  data Base64ConfigError where
+    -- | Actual alphabet length; exactly 64 bytes are required.
+    Base64AlphabetLength :: Nat -> Base64ConfigError
+    -- | Original alphabet offset of a forbidden CR or LF byte.
+    Base64AlphabetNewline :: Nat -> Base64ConfigError
+    -- | Original alphabet offset of a repeated byte.
+    Base64AlphabetDuplicate :: Nat -> Base64ConfigError
+    -- | Rejected padding value: CR, LF or a number above 255.
+    Base64PaddingValue :: Nat -> Base64ConfigError
+    -- | Rejected padding byte that is already an alphabet symbol.
+    Base64PaddingCollision :: Nat -> Base64ConfigError
+
+  -- | Describe the first invalid alphabet position or rejected padding value.
+  base64-config-error-message :: Base64ConfigError -> String
+  base64-config-error-message error = case error of
+    Base64AlphabetLength n -> string-concat "Base64 alphabet requires 64 bytes; received " (nat-to-string n)
+    Base64AlphabetNewline at -> string-concat "Base64 alphabet contains a newline at byte " (nat-to-string at)
+    Base64AlphabetDuplicate at -> string-concat "Base64 alphabet repeats a symbol at byte " (nat-to-string at)
+    Base64PaddingValue byte -> string-concat "invalid Base64 padding byte " (nat-to-string byte)
+    Base64PaddingCollision byte -> string-concat "Base64 padding is an alphabet symbol: " (nat-to-string byte)
+
+  -- | Standard alphabet with equals-sign padding and permissive unused trailing bits.
+  base64-standard-encoding :: Base64Encoding
+  base64-standard-encoding = Encoding 0 (bytes-new 0) (bytes-new 0) (Some 61) False
+
+  -- | URL alphabet with hyphen/underscore symbols and equals-sign padding.
+  base64-url-encoding :: Base64Encoding
+  base64-url-encoding = Encoding 1 (bytes-new 0) (bytes-new 0) (Some 61) False
+
+  -- | Standard alphabet without padding.
+  base64-raw-standard-encoding :: Base64Encoding
+  base64-raw-standard-encoding = Encoding 0 (bytes-new 0) (bytes-new 0) None False
+
+  -- | URL alphabet without padding.
+  base64-raw-url-encoding :: Base64Encoding
+  base64-raw-url-encoding = Encoding 1 (bytes-new 0) (bytes-new 0) None False
+
+  -- | Copy an exact checked interval into independent storage.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input at n = if at + n <= bytes-len input then
+    let out = bytes-new n in let copied = bytes-copy-range out input 0 at n in out
+    else bytes-new 0
+
+  -- | Concatenate independent byte intervals without retaining mutable aliases.
+  join :: Bytes -> Bytes -> Bytes
+  join first last = let n = bytes-len first in let out = bytes-new (n + bytes-len last) in
+    let a = bytes-copy-range out first 0 0 n in
+    let b = bytes-copy-range out last n 0 (bytes-len last) in out
+
+  -- | Set every private inverse entry to the invalid-symbol sentinel.
+  fill-inverse :: Bytes -> Nat -> Unit
+  fill-inverse table at = if at < bytes-len table then
+    let written = bytes-set table at 255 in fill-inverse table (at + 1)
+    else ()
+
+  -- | Construct an independent encoding from 64 distinct non-newline bytes.
+  -- The default pad is '='. If that byte is in the custom alphabet, change or
+  -- disable padding before relying on an invertible final short quantum.
+  base64-encoding :: Bytes -> Result Base64ConfigError Base64Encoding
+  base64-encoding alphabet = if bytes-len alphabet == 64 then
+    let inverse = bytes-new 256 in let filled = fill-inverse inverse 0 in
+    validate-alphabet alphabet inverse 0
+    else Err (Base64AlphabetLength (bytes-len alphabet))
+
+  -- | Populate inverse entries, reporting the first newline or duplicate in source order.
+  validate-alphabet :: Bytes -> Bytes -> Nat -> Result Base64ConfigError Base64Encoding
+  validate-alphabet alphabet inverse at =
+    if at < 64 && at < bytes-len alphabet then
+      let byte = bytes-get alphabet at in
+      if byte == 10 || byte == 13 then Err (Base64AlphabetNewline at)
+      else if byte < bytes-len inverse then
+        if bytes-get inverse byte /= 255 then Err (Base64AlphabetDuplicate at)
+        else let written = bytes-set inverse byte (u8-to-nat (wrapping-i64-to-u8 (nat-to-i64 at))) in
+          validate-alphabet alphabet inverse (at + 1)
+      else Err (Base64AlphabetLength (bytes-len alphabet))
+    else Ok (Encoding 2 (part alphabet 0 64) inverse (Some 61) False)
+
+  -- | Return an independent copy of the complete byte alphabet.
+  base64-encoding-alphabet :: Base64Encoding -> Bytes
+  base64-encoding-alphabet encoding = case encoding of
+    Encoding mode alphabet inverse padding strict ->
+      if eq-u8 mode 0 then string-to-bytes "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+      else if eq-u8 mode 1 then string-to-bytes "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+      else part alphabet 0 (bytes-len alphabet)
+
+  -- | Observe the optional one-byte padding policy.
+  base64-encoding-padding :: Base64Encoding -> Option Nat
+  base64-encoding-padding encoding = case encoding of Encoding mode alphabet inverse padding strict -> padding
+
+  -- | Look up one byte in a fixed or private custom alphabet.
+  value :: Base64Encoding -> Nat -> Option (InRange 0 63 Nat)
+  value encoding byte = case encoding of
+    Encoding mode alphabet inverse padding strict ->
+      if eq-u8 mode 2 then
+        if byte < bytes-len inverse then let v = bytes-get inverse byte in if v < 64 then Some v else None
+        else None
+      else if byte >= 65 && byte <= 90 then Some (byte - 65)
+      else if byte >= 97 && byte <= 122 then Some (byte - 71)
+      else if byte >= 48 && byte <= 57 then Some (byte + 4)
+      else if eq-u8 mode 0 && byte == 43 then Some 62
+      else if eq-u8 mode 0 && byte == 47 then Some 63
+      else if eq-u8 mode 1 && byte == 45 then Some 62
+      else if eq-u8 mode 1 && byte == 95 then Some 63
+      else None
+
+  -- | Preserve lookup tables and strictness while disabling padding.
+  raw :: Base64Encoding -> Base64Encoding
+  raw encoding = case encoding of Encoding mode alphabet inverse padding strict -> Encoding mode alphabet inverse None strict
+
+  -- | Select a validated padding byte, or None for unpadded output.
+  base64-with-padding :: Base64Encoding -> Option Nat -> Result Base64ConfigError Base64Encoding
+  base64-with-padding encoding selected = case selected of
+    None -> Ok (raw encoding)
+    Some byte -> if byte > 255 || byte == 10 || byte == 13 then Err (Base64PaddingValue byte)
+      else case value encoding byte of
+        Some v -> Err (Base64PaddingCollision byte)
+        None -> case encoding of Encoding mode alphabet inverse padding strict -> Ok (Encoding mode alphabet inverse selected strict)
+
+  -- | Copy the encoding with unused trailing-bit validation enabled; encoding output is unchanged.
+  base64-strict :: Base64Encoding -> Base64Encoding
+  base64-strict encoding = case encoding of Encoding mode alphabet inverse padding strict -> Encoding mode alphabet inverse padding True
+
+  -- | Exact output byte count, including any final padding.
+  base64-encoded-length :: Base64Encoding -> Nat -> Nat
+  base64-encoded-length encoding n = case base64-encoding-padding encoding of
+    None -> nat-div n 3 * 4 + nat-div (nat-rem n 3 * 8 + 5) 6
+    Some padding -> nat-div (n + 2) 3 * 4
+
+  -- | Maximum decoded byte count for an encoded byte count; this does not validate the bytes.
+  base64-decoded-length :: Base64Encoding -> Nat -> Nat
+  base64-decoded-length encoding n = case base64-encoding-padding encoding of
+    None -> nat-div n 4 * 3 + nat-div (nat-rem n 4 * 6) 8
+    Some padding -> nat-div n 4 * 3
+
+  -- | Retain an owner until exact private loads have completed.
+  hold :: forall a. Bytes -> a -> a
+  hold owner result = case bytes-len owner of _ -> result
+
+  -- | Map eight six-bit values to exact alphabet bytes with SIMD fixed mapping or custom table loads.
+  encode-word :: Base64Encoding -> U64 -> U64
+  encode-word encoding word = case encoding of
+    Encoding mode alphabet inverse padding strict ->
+      let values = encode-values word in
+      if eq-u8 mode 2 then hold alphabet (lookup-eight (bytes-data alphabet) values)
+      else map-fixed values mode
+
+  -- | Validate and decode eight encoded bytes, with invalid-lane flags in bits 56 through 63.
+  decode-word :: Base64Encoding -> U64 -> U64
+  decode-word encoding word = case encoding of
+    Encoding mode alphabet inverse padding strict ->
+      if eq-u8 mode 2 then decode-values (hold inverse (lookup-eight (bytes-data inverse) word))
+      else decode-values (classify-fixed word mode)
+
+  -- | Collect at most six caller-proved bytes without overreading a short fringe.
+  collect :: Bytes -> Nat -> Nat -> U64 -> Nat -> U64
+  collect input at n word shift = if n > 0 && at < bytes-len input && shift <= 56 then
+    let byte = wrapping-i64-to-u64 (nat-to-i64 (bytes-get input at)) in
+    collect input (at + 1) (n - 1) (bit-or-u64 word (wrapping-shl-u64 byte (wrapping-i64-to-u32 (nat-to-i64 shift)))) (shift + 8)
+    else word
+
+  -- | Store exactly the requested low bytes within the checked destination interval.
+  store :: Bytes -> Nat -> U64 -> Nat -> Unit
+  store out at word n = if n > 0 && at < bytes-len out then
+    let written = bytes-set out at (u8-to-nat (wrapping-u64-to-u8 word)) in
+    store out (at + 1) (wrapping-shr-u64 word 8) (n - 1)
+    else ()
+
+  -- | Fill a complete final padding interval with one exact byte value.
+  pad-output :: Bytes -> Nat -> Nat -> Nat -> Unit
+  pad-output out at end byte = if at < end && at < bytes-len out && byte <= 255 then
+    let written = bytes-set out at byte in pad-output out (at + 1) end byte
+    else ()
+
+  -- | Encode six-byte SIMD blocks and at most one partial six-byte fringe.
+  encode-buffer :: Base64Encoding -> Bytes -> Nat -> Bytes -> Nat -> Unit
+  encode-buffer encoding input at out oi =
+    if at + 6 <= bytes-len input && oi + 8 <= bytes-len out then
+      let low = u32-to-u64 (bytes-read-le32 input at) in
+      let high = wrapping-shr-u32 (bytes-read-le32 input (at + 2)) 16 in
+      let word = bit-or-u64 low (wrapping-shl-u64 (u32-to-u64 high) 32) in
+      let written = bytes-write-le64 out oi (encode-word encoding word) in
+      encode-buffer encoding input (at + 6) out (oi + 8)
+    else if at < bytes-len input then
+      let n = bytes-len input - at in
+      let symbols = nat-div (n * 8 + 5) 6 in
+      let word = encode-word encoding (collect input at n 0 0) in
+      let written = store out oi word symbols in
+      case base64-encoding-padding encoding of
+        None -> ()
+        Some byte -> pad-output out (oi + symbols) (oi + nat-div (n + 2) 3 * 4) byte
+    else ()
+
+  -- | Encode into fresh bytes, preserving custom bytes without a UTF-8 conversion.
+  base64-encode-bytes :: Base64Encoding -> Bytes -> Bytes
+  base64-encode-bytes encoding input =
+    let out = bytes-new (base64-encoded-length encoding (bytes-len input)) in
+    let written = encode-buffer encoding input 0 out 0 in out
+
+  -- | Return text only when the exact encoded byte sequence is valid UTF-8.
+  base64-encode-text :: Base64Encoding -> Bytes -> Option String
+  base64-encode-text encoding input = string-from-bytes (base64-encode-bytes encoding input)
+
+  -- | Append encoded bytes to a copied prefix without changing either input buffer.
+  base64-encode-append :: Base64Encoding -> Bytes -> Bytes -> Bytes
+  base64-encode-append encoding prefix input =
+    let start = bytes-len prefix in let out = bytes-new (start + base64-encoded-length encoding (bytes-len input)) in
+    if start <= bytes-len out then
+      let copied = bytes-copy-range out prefix 0 0 start in
+      let written = encode-buffer encoding input 0 out start in out
+    else bytes-new 0
+
+  -- | Precise original-byte failures and caller-buffer capacity failures.
+  data Base64InputError where
+    -- | Invalid original byte offset followed by its byte value.
+    InvalidBase64Byte :: Nat -> Nat -> Base64InputError
+    -- | Original offset of the first symbol in an unfinished final quantum.
+    TruncatedBase64Quantum :: Nat -> Base64InputError
+    -- | Original offset of the final alphabet symbol whose unused low bits are nonzero.
+    InvalidBase64TrailingBits :: Nat -> Base64InputError
+    -- | Required and available destination capacity, with no destination mutation.
+    Base64ShortDestination :: Nat -> Nat -> Base64InputError
+
+  -- | Original byte position for an input failure; capacity failures return zero.
+  base64-input-error-offset :: Base64InputError -> Nat
+  base64-input-error-offset error = case error of
+    InvalidBase64Byte at byte -> at
+    TruncatedBase64Quantum at -> at
+    InvalidBase64TrailingBits at -> at
+    Base64ShortDestination required available -> 0
+
+  -- | Render a diagnostic with an original byte position or complete destination capacity.
+  base64-input-error-message :: Base64InputError -> String
+  base64-input-error-message error = case error of
+    InvalidBase64Byte at byte -> string-concat "invalid Base64 byte " (string-concat (nat-to-string byte) (string-concat " at byte " (nat-to-string at)))
+    TruncatedBase64Quantum at -> string-concat "incomplete Base64 quantum at byte " (nat-to-string at)
+    InvalidBase64TrailingBits at -> string-concat "nonzero unused Base64 bits at byte " (nat-to-string at)
+    Base64ShortDestination required available -> string-concat "Base64 output requires " (string-concat (nat-to-string required) (string-concat " bytes; available " (nat-to-string available)))
+
+  -- | Encode into a complete destination range after checking capacity and snapshotting overlap.
+  base64-encode-into :: Base64Encoding -> Bytes -> Nat -> Bytes -> Result Base64InputError Nat
+  base64-encode-into encoding destination at input =
+    let n = base64-encoded-length encoding (bytes-len input) in
+    if at + n <= bytes-len destination then
+      let source = part input 0 (bytes-len input) in
+      let written = encode-buffer encoding source 0 destination at in Ok n
+    else Err (Base64ShortDestination n (saturating-sub (bytes-len destination) at))
+
+  -- | Immutable encoding continuation with at most two copied pending input bytes.
+  data Base64Encoder where
+    -- | Private encoding and partial three-byte quantum.
+    EncodeState :: Base64Encoding -> Bytes -> Base64Encoder
+
+  -- | Begin an encoding that emits full quanta until explicitly finished.
+  base64-encoder :: Base64Encoding -> Base64Encoder
+  base64-encoder encoding = EncodeState encoding (bytes-new 0)
+
+  -- | Emit complete three-byte quanta and copy only the remaining zero to two input bytes.
+  base64-encoder-feed :: Base64Encoder -> Bytes -> (Bytes, Base64Encoder)
+  base64-encoder-feed state input = case state of
+    EncodeState encoding pending ->
+      let combined = if bytes-len pending == 0 then input else join pending input in
+      let n = bytes-len combined in let tail = nat-rem n 3 in let complete = saturating-sub n tail in
+      (base64-encode-bytes (raw encoding) (part combined 0 complete), EncodeState encoding (part combined complete tail))
+
+  -- | Render the final short quantum with the selected padding, preserving the original continuation.
+  base64-encoder-finish :: Base64Encoder -> Bytes
+  base64-encoder-finish state = case state of EncodeState encoding pending -> base64-encode-bytes encoding pending
+
+  -- | Immutable decoder with a packed partial quantum, absolute offsets and sticky error.
+  data Base64Decoder where
+    -- | Private config, packed values, count, position, quantum start, last digit, padding and terminal flag.
+    DecodeState :: Base64Encoding -> U64 -> Nat -> Nat -> Nat -> Nat -> Nat -> Bool -> Option Base64InputError -> Base64Decoder
+
+  -- | Begin an independent decoder; CR/LF remain ignored even in strict mode.
+  base64-decoder :: Base64Encoding -> Base64Decoder
+  base64-decoder encoding = DecodeState encoding 0 0 0 0 0 0 False None
+
+  -- | Observe a sticky failure after retaining all output returned with its feed.
+  base64-decoder-error :: Base64Decoder -> Option Base64InputError
+  base64-decoder-error state = case state of DecodeState encoding word digits position start last pads ended error -> error
+
+  -- | Test the exact selected padding byte.
+  is-padding :: Base64Encoding -> Nat -> Bool
+  is-padding encoding byte = case base64-encoding-padding encoding of None -> False; Some padding -> padding == byte
+
+  -- | Check only the unused low bits of the last symbol in a short final quantum.
+  valid-bits :: Base64Encoding -> U64 -> Nat -> Bool
+  valid-bits encoding word digits = case encoding of
+    Encoding mode alphabet inverse padding strict ->
+      if not strict then True
+      else if digits == 2 then eq-u64 (bit-and-u64 (wrapping-shr-u64 word 8) 15) 0
+      else if digits == 3 then eq-u64 (bit-and-u64 (wrapping-shr-u64 word 16) 3) 0
+      else True
+
+  -- | Feed encoded bytes, preserving complete output before any malformed byte or strict-bit error.
+  base64-decoder-feed :: Base64Decoder -> Bytes -> (Bytes, Base64Decoder)
+  base64-decoder-feed state input = case state of
+    DecodeState encoding word digits position start last pads ended error ->
+      let out = bytes-new (nat-div (bytes-len input + digits) 4 * 3 + 3) in
+      case decode-buffer input 0 out 0 state of (n, next) -> (part out 0 n, next)
+
+  -- | Transfer the state fields once before processing a potentially large feed.
+  decode-buffer :: Bytes -> Nat -> Bytes -> Nat -> Base64Decoder -> (Nat, Base64Decoder)
+  decode-buffer input at out oi state = case state of
+    DecodeState encoding word digits position start last pads ended error ->
+      decode-fields encoding word digits position start last pads ended error input at out oi
+
+  -- | Carry scalar decoder fields through one direct tail loop, allocating state only at return.
+  -- Recursive arguments are sequenced before each call to preserve bounded lowering across frontends.
+  decode-fields :: Base64Encoding -> U64 -> Nat -> Nat -> Nat -> Nat -> Nat -> Bool -> Option Base64InputError -> Bytes -> Nat -> Bytes -> Nat -> (Nat, Base64Decoder)
+  decode-fields encoding word digits position start last pads ended error input at out oi = case error of
+    Some failure -> (oi, DecodeState encoding word digits position start last pads ended error)
+    None ->
+      if at >= bytes-len input then (oi, DecodeState encoding word digits position start last pads ended None)
+      else
+        let decoded = if digits == 0 && pads == 0 && not ended && at + 8 <= bytes-len input && oi + 6 <= bytes-len out then
+              let source = bytes-read-le64 input at in decode-word encoding source
+              else 18374686479671623680 in
+        if eq-u64 (wrapping-shr-u64 decoded 56) 0 && at + 8 <= bytes-len input && oi + 6 <= bytes-len out then
+          let first = bytes-write-le32 out oi (wrapping-u64-to-u32 decoded) in
+          let last-bytes = store out (oi + 4) (wrapping-shr-u64 decoded 32) 2 in
+          let next-at = at + 8 in let next-out = oi + 6 in
+          let next-position = position + 8 in let next-last = position + 7 in
+          decode-fields encoding 0 0 next-position next-position next-last 0 False None input next-at out next-out
+        else if digits < 4 then
+          let byte = bytes-get input at in
+          let next-at = at + 1 in let next-position = position + 1 in
+          if byte == 10 || byte == 13 then
+            decode-fields encoding word digits next-position start last pads ended None input next-at out oi
+          else if ended then (oi, DecodeState encoding word digits position start last pads ended (Some (InvalidBase64Byte position byte)))
+          else if pads > 0 then
+            if is-padding encoding byte then
+              if valid-bits encoding word digits then
+                let n = saturating-sub digits 1 in let written = store out oi (decode-values word) n in
+                let next-out = oi + n in
+                decode-fields encoding 0 0 next-position start last 0 True None input next-at out next-out
+              else (oi, DecodeState encoding word digits position start last pads ended (Some (InvalidBase64TrailingBits last)))
+            else (oi, DecodeState encoding word digits position start last pads ended (Some (InvalidBase64Byte position byte)))
+          else case value encoding byte of
+            Some v ->
+              let raw-value = wrapping-i64-to-u64 (nat-to-i64 v) in
+              let shift = wrapping-i64-to-u32 (nat-to-i64 (digits * 8)) in
+              let shifted = wrapping-shl-u64 raw-value shift in
+              let next = bit-or-u64 word shifted in
+              if digits == 3 then
+                let written = store out oi (decode-values next) 3 in
+                let next-out = oi + 3 in
+                decode-fields encoding 0 0 next-position next-position position 0 False None input next-at out next-out
+              else
+                let next-digits = digits + 1 in let next-start = if digits == 0 then position else start in
+                decode-fields encoding next next-digits next-position next-start position 0 False None input next-at out oi
+            None ->
+              if is-padding encoding byte && digits >= 2 then
+                if digits == 2 then decode-fields encoding word digits next-position start last 1 False None input next-at out oi
+                else if valid-bits encoding word digits then
+                  let written = store out oi (decode-values word) 2 in let next-out = oi + 2 in
+                  decode-fields encoding 0 0 next-position start last 0 True None input next-at out next-out
+                else (oi, DecodeState encoding word digits position start last pads ended (Some (InvalidBase64TrailingBits last)))
+              else (oi, DecodeState encoding word digits position start last pads ended (Some (InvalidBase64Byte position byte)))
+        else (oi, DecodeState encoding word digits position start last pads ended (Some (TruncatedBase64Quantum start)))
+
+  -- | Validate EOF and render an allowed unpadded tail, retaining strict trailing-bit failures.
+  base64-decoder-finish :: Base64Decoder -> (Bytes, Option Base64InputError)
+  base64-decoder-finish state = case state of
+    DecodeState encoding word digits position start last pads ended error -> case error of
+      Some failure -> (bytes-new 0, error)
+      None -> if digits == 0 && pads == 0 then (bytes-new 0, None)
+        else case base64-encoding-padding encoding of
+          Some padding -> (bytes-new 0, Some (TruncatedBase64Quantum start))
+          None -> if digits >= 2 && pads == 0 then
+            if valid-bits encoding word digits then
+              let n = digits - 1 in let out = bytes-new n in let written = store out 0 (decode-values word) n in (out, None)
+            else (bytes-new 0, Some (InvalidBase64TrailingBits last))
+            else (bytes-new 0, Some (TruncatedBase64Quantum start))
+
+  -- | Decode all bytes while preserving the completed prefix beside a later input error.
+  base64-decode-prefix :: Base64Encoding -> Bytes -> (Bytes, Option Base64InputError)
+  base64-decode-prefix encoding input = case base64-decoder-feed (base64-decoder encoding) input of
+    (out, next) -> case base64-decoder-finish next of (tail, error) -> (join out tail, error)
+
+  -- | Decode complete input atomically; use the prefix API when progress is needed on failure.
+  base64-decode-bytes :: Base64Encoding -> Bytes -> Result Base64InputError Bytes
+  base64-decode-bytes encoding input = case base64-decode-prefix encoding input of
+    (out, None) -> Ok out
+    (out, Some error) -> Err error
+
+  -- | Decode text with original UTF-8 byte offsets while preserving completed output on error.
+  base64-decode-text :: Base64Encoding -> String -> (Bytes, Option Base64InputError)
+  base64-decode-text encoding input = base64-decode-prefix encoding (string-to-bytes input)
+
+  -- | Append decoded bytes to a copied prefix, preserving any later input failure.
+  base64-decode-append :: Base64Encoding -> Bytes -> Bytes -> (Bytes, Option Base64InputError)
+  base64-decode-append encoding prefix input = case base64-decode-prefix encoding input of (out, error) -> (join prefix out, error)
+
+  -- | Decode into a checked capacity bound; complete decoding before copying makes overlap safe.
+  -- A short range fails before mutation, otherwise completed output is retained beside its input error.
+  base64-decode-into :: Base64Encoding -> Bytes -> Nat -> Bytes -> (Nat, Option Base64InputError)
+  base64-decode-into encoding destination at input =
+    let required = base64-decoded-length encoding (bytes-len input) in
+    if at + required <= bytes-len destination then case base64-decode-prefix encoding input of
+      (out, error) -> if at + bytes-len out <= bytes-len destination then
+        let copied = bytes-copy-range destination out at 0 (bytes-len out) in (bytes-len out, error)
+        else (0, Some (Base64ShortDestination (bytes-len out) (saturating-sub (bytes-len destination) at)))
+    else (0, Some (Base64ShortDestination required (saturating-sub (bytes-len destination) at)))
+
+  -- Generated pure Base64 SIMD kernels and private exact table gathers.
+  -- Regenerate with python3 tooling/generate_base64_kernels.py; do not edit this suffix.
+
+  -- | Extract eight six-bit lanes from six packed input bytes.
+  prim encode-values :: U64 -> U64 where
+    llvm {
+      %input = or i64 %0, 0
+      %v = bitcast i64 %input to <8 x i8>
+      %a = shufflevector <8 x i8> %v, <8 x i8> zeroinitializer, <8 x i32> <i32 0, i32 0, i32 1, i32 2, i32 3, i32 3, i32 4, i32 5>
+      %b = shufflevector <8 x i8> %v, <8 x i8> zeroinitializer, <8 x i32> <i32 8, i32 1, i32 2, i32 8, i32 8, i32 4, i32 5, i32 8>
+      %aw = zext <8 x i8> %a to <8 x i16>
+      %bw = zext <8 x i8> %b to <8 x i16>
+      %hi = shl <8 x i16> %aw, <i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8>
+      %pair = or <8 x i16> %hi, %bw
+      %shifted = lshr <8 x i16> %pair, <i16 10, i16 4, i16 6, i16 8, i16 10, i16 4, i16 6, i16 8>
+      %narrow = trunc <8 x i16> %shifted to <8 x i8>
+      %values = and <8 x i8> %narrow, <i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63>
+      %packed = bitcast <8 x i8> %values to i64
+      ret i64 %packed
+    } when endian little
+    llvm {
+      %input = call i64 @llvm.bswap.i64(i64 %0)
+      %v = bitcast i64 %input to <8 x i8>
+      %a = shufflevector <8 x i8> %v, <8 x i8> zeroinitializer, <8 x i32> <i32 0, i32 0, i32 1, i32 2, i32 3, i32 3, i32 4, i32 5>
+      %b = shufflevector <8 x i8> %v, <8 x i8> zeroinitializer, <8 x i32> <i32 8, i32 1, i32 2, i32 8, i32 8, i32 4, i32 5, i32 8>
+      %aw = zext <8 x i8> %a to <8 x i16>
+      %bw = zext <8 x i8> %b to <8 x i16>
+      %hi = shl <8 x i16> %aw, <i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8>
+      %pair = or <8 x i16> %hi, %bw
+      %shifted = lshr <8 x i16> %pair, <i16 10, i16 4, i16 6, i16 8, i16 10, i16 4, i16 6, i16 8>
+      %narrow = trunc <8 x i16> %shifted to <8 x i8>
+      %values = and <8 x i8> %narrow, <i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63>
+      %packed = bitcast <8 x i8> %values to i64
+      %result = call i64 @llvm.bswap.i64(i64 %packed)
+      ret i64 %result
+    } when endian big
+
+  -- | Map eight value lanes to the selected fixed byte alphabet.
+  prim map-fixed :: U64 -> U8 -> U64 where
+    llvm {
+      %input = or i64 %0, 0
+      %v = bitcast i64 %input to <8 x i8>
+      %url = icmp ne i8 %1, 0
+      %upper = icmp ult <8 x i8> %v, <i8 26, i8 26, i8 26, i8 26, i8 26, i8 26, i8 26, i8 26>
+      %lower = icmp ult <8 x i8> %v, <i8 52, i8 52, i8 52, i8 52, i8 52, i8 52, i8 52, i8 52>
+      %digit = icmp ult <8 x i8> %v, <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>
+      %special = icmp eq <8 x i8> %v, <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>
+      %last = select i1 %url, <8 x i8> <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>, <8 x i8> <i8 -16, i8 -16, i8 -16, i8 -16, i8 -16, i8 -16, i8 -16, i8 -16>
+      %next = select i1 %url, <8 x i8> <i8 -17, i8 -17, i8 -17, i8 -17, i8 -17, i8 -17, i8 -17, i8 -17>, <8 x i8> <i8 -19, i8 -19, i8 -19, i8 -19, i8 -19, i8 -19, i8 -19, i8 -19>
+      %specialbase = select <8 x i1> %special, <8 x i8> %next, <8 x i8> %last
+      %digitbase = select <8 x i1> %digit, <8 x i8> <i8 -4, i8 -4, i8 -4, i8 -4, i8 -4, i8 -4, i8 -4, i8 -4>, <8 x i8> %specialbase
+      %lowerbase = select <8 x i1> %lower, <8 x i8> <i8 71, i8 71, i8 71, i8 71, i8 71, i8 71, i8 71, i8 71>, <8 x i8> %digitbase
+      %base = select <8 x i1> %upper, <8 x i8> <i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65>, <8 x i8> %lowerbase
+      %mapped = add <8 x i8> %v, %base
+      %packed = bitcast <8 x i8> %mapped to i64
+      ret i64 %packed
+    } when endian little
+    llvm {
+      %input = call i64 @llvm.bswap.i64(i64 %0)
+      %v = bitcast i64 %input to <8 x i8>
+      %url = icmp ne i8 %1, 0
+      %upper = icmp ult <8 x i8> %v, <i8 26, i8 26, i8 26, i8 26, i8 26, i8 26, i8 26, i8 26>
+      %lower = icmp ult <8 x i8> %v, <i8 52, i8 52, i8 52, i8 52, i8 52, i8 52, i8 52, i8 52>
+      %digit = icmp ult <8 x i8> %v, <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>
+      %special = icmp eq <8 x i8> %v, <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>
+      %last = select i1 %url, <8 x i8> <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>, <8 x i8> <i8 -16, i8 -16, i8 -16, i8 -16, i8 -16, i8 -16, i8 -16, i8 -16>
+      %next = select i1 %url, <8 x i8> <i8 -17, i8 -17, i8 -17, i8 -17, i8 -17, i8 -17, i8 -17, i8 -17>, <8 x i8> <i8 -19, i8 -19, i8 -19, i8 -19, i8 -19, i8 -19, i8 -19, i8 -19>
+      %specialbase = select <8 x i1> %special, <8 x i8> %next, <8 x i8> %last
+      %digitbase = select <8 x i1> %digit, <8 x i8> <i8 -4, i8 -4, i8 -4, i8 -4, i8 -4, i8 -4, i8 -4, i8 -4>, <8 x i8> %specialbase
+      %lowerbase = select <8 x i1> %lower, <8 x i8> <i8 71, i8 71, i8 71, i8 71, i8 71, i8 71, i8 71, i8 71>, <8 x i8> %digitbase
+      %base = select <8 x i1> %upper, <8 x i8> <i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65>, <8 x i8> %lowerbase
+      %mapped = add <8 x i8> %v, %base
+      %packed = bitcast <8 x i8> %mapped to i64
+      %result = call i64 @llvm.bswap.i64(i64 %packed)
+      ret i64 %result
+    } when endian big
+
+  -- | Classify eight fixed-alphabet bytes, marking every invalid lane with 255.
+  prim classify-fixed :: U64 -> U8 -> U64 where
+    llvm {
+      %input = or i64 %0, 0
+      %v = bitcast i64 %input to <8 x i8>
+      %url = icmp ne i8 %1, 0
+      %upperlo = icmp uge <8 x i8> %v, <i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65>
+      %upperhi = icmp ule <8 x i8> %v, <i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90>
+      %upper = and <8 x i1> %upperlo, %upperhi
+      %lowerlo = icmp uge <8 x i8> %v, <i8 97, i8 97, i8 97, i8 97, i8 97, i8 97, i8 97, i8 97>
+      %lowerhi = icmp ule <8 x i8> %v, <i8 122, i8 122, i8 122, i8 122, i8 122, i8 122, i8 122, i8 122>
+      %lower = and <8 x i1> %lowerlo, %lowerhi
+      %digitlo = icmp uge <8 x i8> %v, <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>
+      %digithi = icmp ule <8 x i8> %v, <i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57>
+      %digit = and <8 x i1> %digitlo, %digithi
+      %char62 = select i1 %url, <8 x i8> <i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45>, <8 x i8> <i8 43, i8 43, i8 43, i8 43, i8 43, i8 43, i8 43, i8 43>
+      %char63 = select i1 %url, <8 x i8> <i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95>, <8 x i8> <i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47>
+      %is62 = icmp eq <8 x i8> %v, %char62
+      %is63 = icmp eq <8 x i8> %v, %char63
+      %a = select <8 x i1> %is63, <8 x i8> <i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63>, <8 x i8> <i8 255, i8 255, i8 255, i8 255, i8 255, i8 255, i8 255, i8 255>
+      %b = select <8 x i1> %is62, <8 x i8> <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>, <8 x i8> %a
+      %uv = sub <8 x i8> %v, <i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65>
+      %lv = sub <8 x i8> %v, <i8 71, i8 71, i8 71, i8 71, i8 71, i8 71, i8 71, i8 71>
+      %dv = add <8 x i8> %v, <i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4>
+      %c = select <8 x i1> %digit, <8 x i8> %dv, <8 x i8> %b
+      %d = select <8 x i1> %lower, <8 x i8> %lv, <8 x i8> %c
+      %values = select <8 x i1> %upper, <8 x i8> %uv, <8 x i8> %d
+      %packed = bitcast <8 x i8> %values to i64
+      ret i64 %packed
+    } when endian little
+    llvm {
+      %input = call i64 @llvm.bswap.i64(i64 %0)
+      %v = bitcast i64 %input to <8 x i8>
+      %url = icmp ne i8 %1, 0
+      %upperlo = icmp uge <8 x i8> %v, <i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65>
+      %upperhi = icmp ule <8 x i8> %v, <i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90>
+      %upper = and <8 x i1> %upperlo, %upperhi
+      %lowerlo = icmp uge <8 x i8> %v, <i8 97, i8 97, i8 97, i8 97, i8 97, i8 97, i8 97, i8 97>
+      %lowerhi = icmp ule <8 x i8> %v, <i8 122, i8 122, i8 122, i8 122, i8 122, i8 122, i8 122, i8 122>
+      %lower = and <8 x i1> %lowerlo, %lowerhi
+      %digitlo = icmp uge <8 x i8> %v, <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>
+      %digithi = icmp ule <8 x i8> %v, <i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57>
+      %digit = and <8 x i1> %digitlo, %digithi
+      %char62 = select i1 %url, <8 x i8> <i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45>, <8 x i8> <i8 43, i8 43, i8 43, i8 43, i8 43, i8 43, i8 43, i8 43>
+      %char63 = select i1 %url, <8 x i8> <i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95>, <8 x i8> <i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47>
+      %is62 = icmp eq <8 x i8> %v, %char62
+      %is63 = icmp eq <8 x i8> %v, %char63
+      %a = select <8 x i1> %is63, <8 x i8> <i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63>, <8 x i8> <i8 255, i8 255, i8 255, i8 255, i8 255, i8 255, i8 255, i8 255>
+      %b = select <8 x i1> %is62, <8 x i8> <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>, <8 x i8> %a
+      %uv = sub <8 x i8> %v, <i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65>
+      %lv = sub <8 x i8> %v, <i8 71, i8 71, i8 71, i8 71, i8 71, i8 71, i8 71, i8 71>
+      %dv = add <8 x i8> %v, <i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4>
+      %c = select <8 x i1> %digit, <8 x i8> %dv, <8 x i8> %b
+      %d = select <8 x i1> %lower, <8 x i8> %lv, <8 x i8> %c
+      %values = select <8 x i1> %upper, <8 x i8> %uv, <8 x i8> %d
+      %packed = bitcast <8 x i8> %values to i64
+      %result = call i64 @llvm.bswap.i64(i64 %packed)
+      ret i64 %result
+    } when endian big
+
+  -- | Compact eight six-bit lanes into six bytes and flag invalid lanes above the output.
+  prim decode-values :: U64 -> U64 where
+    llvm {
+      %input = or i64 %0, 0
+      %v = bitcast i64 %input to <8 x i8>
+      %bad = icmp ugt <8 x i8> %v, <i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63>
+      %mask = bitcast <8 x i1> %bad to i8
+      %a = shufflevector <8 x i8> %v, <8 x i8> zeroinitializer, <8 x i32> <i32 0, i32 1, i32 2, i32 4, i32 5, i32 6, i32 8, i32 8>
+      %b = shufflevector <8 x i8> %v, <8 x i8> zeroinitializer, <8 x i32> <i32 1, i32 2, i32 3, i32 5, i32 6, i32 7, i32 8, i32 8>
+      %aw = zext <8 x i8> %a to <8 x i16>
+      %bw = zext <8 x i8> %b to <8 x i16>
+      %hi = shl <8 x i16> %aw, <i16 2, i16 4, i16 6, i16 2, i16 4, i16 6, i16 0, i16 0>
+      %lo = lshr <8 x i16> %bw, <i16 4, i16 2, i16 0, i16 4, i16 2, i16 0, i16 0, i16 0>
+      %joined = or <8 x i16> %hi, %lo
+      %bytes = trunc <8 x i16> %joined to <8 x i8>
+      %packed = bitcast <8 x i8> %bytes to i64
+      %error = zext i8 %mask to i64
+      %flag = shl i64 %error, 56
+      %result = or i64 %packed, %flag
+      ret i64 %result
+    } when endian little
+    llvm {
+      %input = call i64 @llvm.bswap.i64(i64 %0)
+      %v = bitcast i64 %input to <8 x i8>
+      %bad = icmp ugt <8 x i8> %v, <i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63>
+      %mask = bitcast <8 x i1> %bad to i8
+      %a = shufflevector <8 x i8> %v, <8 x i8> zeroinitializer, <8 x i32> <i32 0, i32 1, i32 2, i32 4, i32 5, i32 6, i32 8, i32 8>
+      %b = shufflevector <8 x i8> %v, <8 x i8> zeroinitializer, <8 x i32> <i32 1, i32 2, i32 3, i32 5, i32 6, i32 7, i32 8, i32 8>
+      %aw = zext <8 x i8> %a to <8 x i16>
+      %bw = zext <8 x i8> %b to <8 x i16>
+      %hi = shl <8 x i16> %aw, <i16 2, i16 4, i16 6, i16 2, i16 4, i16 6, i16 0, i16 0>
+      %lo = lshr <8 x i16> %bw, <i16 4, i16 2, i16 0, i16 4, i16 2, i16 0, i16 0, i16 0>
+      %joined = or <8 x i16> %hi, %lo
+      %bytes = trunc <8 x i16> %joined to <8 x i8>
+      %packed = bitcast <8 x i8> %bytes to i64
+      %normalized = call i64 @llvm.bswap.i64(i64 %packed)
+      %error = zext i8 %mask to i64
+      %flag = shl i64 %error, 56
+      %result = or i64 %normalized, %flag
+      ret i64 %result
+    } when endian big
+
+  -- | Load eight caller-proved table indices exactly, retaining their owner at the checked call site.
+  prim lookup-eight :: I64 -> U64 -> U64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %s0 = lshr i64 %1, 0
+      %i0 = and i64 %s0, 255
+      %p0 = getelementptr i8, ptr %base, i64 %i0
+      %v0 = load i8, ptr %p0, align 1
+      %w0 = zext i8 %v0 to i64
+      %o0 = shl i64 %w0, 0
+      %r0 = or i64 0, %o0
+      %s1 = lshr i64 %1, 8
+      %i1 = and i64 %s1, 255
+      %p1 = getelementptr i8, ptr %base, i64 %i1
+      %v1 = load i8, ptr %p1, align 1
+      %w1 = zext i8 %v1 to i64
+      %o1 = shl i64 %w1, 8
+      %r1 = or i64 %r0, %o1
+      %s2 = lshr i64 %1, 16
+      %i2 = and i64 %s2, 255
+      %p2 = getelementptr i8, ptr %base, i64 %i2
+      %v2 = load i8, ptr %p2, align 1
+      %w2 = zext i8 %v2 to i64
+      %o2 = shl i64 %w2, 16
+      %r2 = or i64 %r1, %o2
+      %s3 = lshr i64 %1, 24
+      %i3 = and i64 %s3, 255
+      %p3 = getelementptr i8, ptr %base, i64 %i3
+      %v3 = load i8, ptr %p3, align 1
+      %w3 = zext i8 %v3 to i64
+      %o3 = shl i64 %w3, 24
+      %r3 = or i64 %r2, %o3
+      %s4 = lshr i64 %1, 32
+      %i4 = and i64 %s4, 255
+      %p4 = getelementptr i8, ptr %base, i64 %i4
+      %v4 = load i8, ptr %p4, align 1
+      %w4 = zext i8 %v4 to i64
+      %o4 = shl i64 %w4, 32
+      %r4 = or i64 %r3, %o4
+      %s5 = lshr i64 %1, 40
+      %i5 = and i64 %s5, 255
+      %p5 = getelementptr i8, ptr %base, i64 %i5
+      %v5 = load i8, ptr %p5, align 1
+      %w5 = zext i8 %v5 to i64
+      %o5 = shl i64 %w5, 40
+      %r5 = or i64 %r4, %o5
+      %s6 = lshr i64 %1, 48
+      %i6 = and i64 %s6, 255
+      %p6 = getelementptr i8, ptr %base, i64 %i6
+      %v6 = load i8, ptr %p6, align 1
+      %w6 = zext i8 %v6 to i64
+      %o6 = shl i64 %w6, 48
+      %r6 = or i64 %r5, %o6
+      %s7 = lshr i64 %1, 56
+      %i7 = and i64 %s7, 255
+      %p7 = getelementptr i8, ptr %base, i64 %i7
+      %v7 = load i8, ptr %p7, align 1
+      %w7 = zext i8 %v7 to i64
+      %o7 = shl i64 %w7, 56
+      %r7 = or i64 %r6, %o7
+      ret i64 %r7
+    }

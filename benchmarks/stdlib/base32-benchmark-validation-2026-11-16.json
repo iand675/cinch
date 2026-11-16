@@ -50,7 +50,16 @@
     "zero_leaks_all_cinch_probes": true,
     "parent_baseline_rust_target_cases_reported": 14,
     "parent_baseline_native_target_cases_reported": 12,
-    "candidate_parent_focused_golden_tests_required": true
+    "candidate_parent_focused_golden_tests_required": false,
+    "candidate_parent_focused_goldens": {
+      "cases": 100,
+      "frontends": [
+        "frozen Rust O0",
+        "frozen Native stage3"
+      ],
+      "normal_and_poisoned_free": true,
+      "zero_leaks": true
+    }
   },
   "benchmarks": {
     "baseline_timed_rows": 48,
@@ -121,8 +130,9 @@
         "peak": 275795
       }
     },
-    "parent_adoption_and_focused_padding_goldens_pending": true,
-    "candidate_not_substituted_into_baseline_reports": true
+    "parent_adoption_and_focused_padding_goldens_pending": false,
+    "candidate_not_substituted_into_baseline_reports": true,
+    "parent_adopted": true
   },
   "codegen_inspection": {
     "Text.Base32.encode-config-word": {
@@ -247,7 +257,7 @@
   "limitations": [
     "These reports describe public pipelines including immutable buffers and adapter allocation; they do not establish isolated kernel or allocation parity.",
     "Generated SIMD word helpers inline their packed operations, but surrounding loops still call checked byte/word stores, reference-count helpers and natural-number paths. Stores remain visible and no containment rule is bypassed.",
-    "The padding override is a separate proposed change, not a silently substituted source snapshot. Parent owns adoption and focused fixed-text/extended-hex golden tests.",
+    "The padding change is adopted after 100 focused goldens passed on both frontends. The full 48-row timed sweep remains the pre-padding snapshot; paired padding results and candidate preflights identify the adopted bytes separately.",
     "Frozen snapshots are retained in local build directories and identified by committed manifests; patches reconstruct experimental sources from the identified baseline.",
     "No Cargo build, full compiler suite or library implementation edit occurred in this lane."
   ]

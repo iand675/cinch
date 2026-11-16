@@ -1,0 +1,99 @@
+-- | Configurable Base32 encoding writers and strict decoding byte readers.
+-- Writers retain at most four input bytes until explicitly finished. Readers
+-- consume bounded chunks, preserve decoded output before a later error, and
+-- count malformed input in original bytes including CR/LF. Failures are sticky.
+-- Neither adapter closes or flushes a borrowed source or sink.
+module Effect.Base32 where
+
+  import Effect.Stream
+  import Text.Base32
+  import Data.Bytes
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+
+  export Base32Writer, base32-writer, base32-write, base32-finish, base32-writer-sink
+  export base32-reader
+
+  -- | An explicitly advanced encoding continuation with its owned tail and underlying sink.
+  data Base32Writer r where
+    -- | Private active configuration, unfinished quantum and advanced output handle.
+    EncodingWriter :: Base32Encoder -> ByteWriter r -> Base32Writer r
+    -- | Private terminal failure and the output handle after its last accepted prefix.
+    EncodingFailed :: StreamError -> ByteWriter r -> Base32Writer r
+
+  -- | Begin a configurable encoding. Finish explicitly before observing complete output.
+  base32-writer :: forall r. Base32Encoding -> ByteWriter r -> Base32Writer r
+  base32-writer encoding sink = EncodingWriter (base32-encoder encoding) sink
+
+  -- | Inspect the advanced output handle, including after an unsuccessful encoded write.
+  base32-writer-sink :: forall r. Base32Writer r -> ByteWriter r
+  base32-writer-sink writer = case writer of
+    EncodingWriter state sink -> sink
+    EncodingFailed error sink -> sink
+
+  -- | Accept a chunk, retrying short output writes and copying the unfinished input fringe.
+  -- Success reports the complete input byte count. Failure returns a sticky advanced handle.
+  base32-write :: forall r. using (io :: Io r) => Base32Writer r -> Bytes ->{IO r} (Result StreamError Nat, Base32Writer r)
+  base32-write writer input = case writer of
+    EncodingFailed error sink -> (Err error, writer)
+    EncodingWriter state sink -> case base32-encoder-feed state input of
+      (out, next) -> case stream-write-all sink out of
+        (Err error, advanced) -> (Err error, EncodingFailed error advanced)
+        (Ok count, advanced) -> (Ok (bytes-len input), EncodingWriter next advanced)
+
+  -- | Emit the final short quantum and configured padding, returning the advanced sink on either outcome.
+  -- This finalizes the adapter's encoding only; the borrowed sink is not closed or flushed.
+  base32-finish :: forall r. using (io :: Io r) => Base32Writer r ->{IO r} (Result StreamError Unit, ByteWriter r)
+  base32-finish writer = case writer of
+    EncodingFailed error sink -> (Err error, sink)
+    EncodingWriter state sink -> case stream-write-all sink (base32-encoder-finish state) of
+      (Err error, advanced) -> (Err error, advanced)
+      (Ok count, advanced) -> (Ok (), advanced)
+
+  -- | Snapshot a checked half-open output interval so a returned chunk cannot mutate retained surplus.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input start end = if start <= end && end <= bytes-len input then
+    let out = bytes-new (end - start) in let copied = bytes-copy-range out input 0 start (end - start) in out
+    else bytes-new 0
+
+  -- | Retain a terminal failure without rereading the underlying input.
+  failed-reader :: forall r. using (io :: Io r) => StreamError -> ByteReader r
+  failed-reader error = stream-reader (\n -> (Err error, failed-reader error))
+
+  -- | Translate truncated quanta to unexpected EOF and invalid bytes to positioned encoding errors.
+  stream-error :: Base32InputError -> StreamError
+  stream-error error = case error of
+    TruncatedBase32Quantum at count -> StreamUnexpectedEnd 8 count
+    other -> StreamEncodingError "base32" (base32-input-error-offset error) (base32-input-error-message error)
+
+  -- | Begin strict configurable decoding. Zero reads preserve both source and decoder state.
+  base32-reader :: forall r. using (io :: Io r) => Base32Encoding -> ByteReader r -> ByteReader r
+  base32-reader encoding source = decoding-reader source (base32-decoder encoding) (bytes-new 0) 0 None False
+
+  -- | Preserve the advanced source, unfinished quantum and private surplus buffer/cursor without recopying it.
+  decoding-reader :: forall r. using (io :: Io r) => ByteReader r -> Base32Decoder -> Bytes -> Nat -> Option StreamError -> Bool -> ByteReader r
+  decoding-reader source state pending cursor error ended = stream-reader (\n -> read-decoded source state pending cursor error ended n)
+
+  -- | Drain completed output before a sticky failure or EOF, fetching only bounded 4096-byte chunks.
+  read-decoded :: forall r. using (io :: Io r) => ByteReader r -> Base32Decoder -> Bytes -> Nat -> Option StreamError -> Bool -> Nat ->{IO r} (Result StreamError Bytes, ByteReader r)
+  read-decoded source state pending cursor error ended n =
+    if n == 0 then (Ok (bytes-new 0), decoding-reader source state pending cursor error ended)
+    else if cursor < bytes-len pending then
+      let available = bytes-len pending - cursor in
+      let take = if n < available then n else available in
+      let next = cursor + take in
+      (Ok (part pending cursor next), decoding-reader source state pending next error ended)
+    else case error of
+      Some failure -> (Err failure, failed-reader failure)
+      None -> if ended then (Ok (bytes-new 0), reader-from-bytes (bytes-new 0))
+        else case stream-read source 4096 of
+          (Err failure, advanced) -> (Err failure, failed-reader failure)
+          (Ok input, advanced) ->
+            if bytes-len input == 0 then case base32-decoder-finish state of
+              (tail, None) -> read-decoded advanced state tail 0 None True n
+              (tail, Some failure) -> read-decoded advanced state tail 0 (Some (stream-error failure)) True n
+            else case base32-decoder-feed state input of
+              (out, next) -> case base32-decoder-error next of
+                None -> read-decoded advanced next out 0 None False n
+                Some failure -> read-decoded advanced next out 0 (Some (stream-error failure)) False n

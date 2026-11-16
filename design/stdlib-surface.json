@@ -495,32 +495,79 @@
     },
     {
       "reference_package": "encoding/base32",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
+        "Effect.Base32",
         "Text.Base32"
       ],
-      "remaining": [
-        "custom alphabets and padding",
-        "reader/writer adapters"
-      ],
+      "remaining": [],
       "reference_declarations": 21,
       "tests": [
         "lib_go_stdlib::base32_matches_go_rfc4648_both_alphabets_and_raw_forms",
-        "lib_go_stdlib::base32_scalar_tails_follow_long_simd_prefixes"
+        "lib_go_stdlib::base32_scalar_tails_follow_long_simd_prefixes",
+        "lib_base32_encoding"
       ],
       "benchmarks": [
         "base32-encode",
-        "base32-decode"
-      ]
+        "base32-decode",
+        "encode-bytes",
+        "decode-bytes",
+        "custom-encode",
+        "custom-decode",
+        "stream-encode64",
+        "stream-decode64"
+      ],
+      "capability_mapping": {
+        "Encoding/NewEncoding": "Opaque Base32Encoding; checked32-byte copied alphabet and immutable inverse lookup, with Base32ConfigError",
+        "StdEncoding/HexEncoding": "base32-standard-encoding and base32-hex-encoding",
+        "StdPadding/NoPadding (typed and ideal constants)": "Some61 from the standard padding getter; None selects unpadded output",
+        "WithPadding": "base32-with-padding returns a checked persistent configuration",
+        "EncodedLen/DecodedLen": "base32-encoded-length and base32-decoded-length",
+        "Encode/EncodeToString/AppendEncode": "Fresh byte output, optional UTF-8 text, copied-prefix append and atomic checked destination writes",
+        "Decode/DecodeString/AppendDecode": "Atomic byte convenience plus text/prefix/append/destination operations retaining completed output and precise errors",
+        "CorruptInputError/Error": "Base32InputError, original-byte offset and module-owned diagnostic",
+        "NewEncoder/Write/Close": "Inspectable Base32Writer with accepted input counts, explicit finish and advanced sink on failures",
+        "NewDecoder/Read": "Bounded source reader with private surplus cursor, inert zero reads and delayed sticky failure"
+      },
+      "review": "All 21 recorded declarations have idiomatic mappings. Full target14 Rust/12 selected Native checks cover 450 valid, 216 malformed and 24 configuration vectors, all small chunk splits, caller-buffer aliasing, explicit writer finish/failure and bounded one-byte reads through 64 KiB. Both frozen frontends pass ordinary32MiB heap/8MiB stack and separate 256 MiB poisoned-free validation with zero leaks. The final padding-only optimization additionally passes100 standard/hex padded goldens on both frontends; all 48 candidate benchmark preflights match. Private custom gather kernels retain owners, use zero-coded inverse entries and packed SWAR validation. Actual kernels compile for WebAssembly, AArch64 and big-endian PowerPC without foreign execution. All 48 public benchmark rows match independent checksums; paired cursor/padding changes and ordinary allocation probes retain exact before/after identities. Binary alphabets use lossless byte APIs and optional UTF-8 conversion. Error offsets count original bytes; raw tails 1/3/6 and post-padding data are rejected. Functional completion does not assert throughput or allocation parity."
     },
     {
       "reference_package": "encoding/base64",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
-        "Text.Base64"
+        "Effect.Base64",
+        "Text.Base64",
+        "Text.Base64.Encoding"
       ],
       "remaining": [],
-      "reference_declarations": 24
+      "reference_declarations": 24,
+      "tests": [
+        "lib_base64",
+        "lib_base64_encoding"
+      ],
+      "benchmarks": [
+        "encode-bytes",
+        "decode-bytes",
+        "custom-encode",
+        "custom-decode",
+        "legacy-encode",
+        "legacy-decode",
+        "stream-encode64",
+        "stream-decode64"
+      ],
+      "capability_mapping": {
+        "Encoding/NewEncoding": "Opaque Base64Encoding; validated copied custom alphabets and inverse maps, returning Base64ConfigError",
+        "StdEncoding/URLEncoding/RawStdEncoding/RawURLEncoding": "Four immutable public configurations",
+        "StdPadding/NoPadding (value and ideal-integer records)": "Some 61 from the standard padding getter and None for no padding; raw public configurations provide common no-padding policies",
+        "WithPadding/Strict": "Checked persistent base64-with-padding and base64-strict sharing immutable private tables",
+        "EncodedLen/DecodedLen": "Exact encoded length and conservative decoded byte capacity bound",
+        "Encode/EncodeToString/AppendEncode": "Fresh exact bytes, optional UTF-8 text, copied-prefix append and checked offset destination writes",
+        "Decode/DecodeString/AppendDecode": "Whole-buffer atomic convenience plus progress-preserving byte/text, append and checked offset destination decoding",
+        "CorruptInputError/Error": "Named original-byte failures with message and offset accessors; precise module-owned offset policy",
+        "NewEncoder/Write/Close": "Inspectable Base64Writer, accepted-byte writes, explicit finish and advanced-sink retrieval on success/failure",
+        "NewDecoder/Read": "Bounded decoding reader, copied surplus, inert zero reads and sticky delayed failures"
+      },
+      "review": "All 24 recorded declarations have idiomatic mappings. Nine configurations, 333 valid, 1125 malformed, 32 strict and 6 constructor fixture rows run in 22 consumer groups on both frozen frontends with 32 MiB heap/8MiB stack and separate 256 MiB poisoned-free validation, all zero leaks. Parent Rust target passed 12 tests including foreign object compilation for WebAssembly, AArch64 and big-endian PowerPC; no foreign execution is claimed. All 32 public benchmark rows match independent checksums; paired scalar-field decoder traversal reduces state allocation with retained controls and ordinary space probes. Arbitrary byte alphabets use optional UTF-8 conversion. Original-byte error offsets, strict-bit policy, checked capacity bounds and immutable ownership are explicit. Functional completion does not assert throughput or allocation parity."
     },
     {
       "reference_package": "encoding/binary",
@@ -547,10 +594,23 @@
       "reference_package": "encoding/csv",
       "status": "partial",
       "cinch_modules": [
-        "Text.Csv"
+        "Effect.Csv",
+        "Text.Csv",
+        "Text.Csv.Record"
       ],
       "remaining": [],
-      "reference_declarations": 34
+      "reference_declarations": 34,
+      "tests": [
+        "lib_csv_record"
+      ],
+      "benchmarks": [
+        "read-text",
+        "read-bytes",
+        "write-text",
+        "write-bytes",
+        "stream-read",
+        "stream-write"
+      ]
     },
     {
       "reference_package": "encoding/gob",
@@ -939,10 +999,27 @@
     },
     {
       "reference_package": "html",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "complete",
+      "cinch_modules": [
+        "Text.Html"
+      ],
       "remaining": [],
-      "reference_declarations": 2
+      "reference_declarations": 2,
+      "tests": [
+        "lib_html"
+      ],
+      "benchmarks": [
+        "escape-bytes",
+        "unescape-bytes",
+        "escape-text",
+        "unescape-text",
+        "escape-length"
+      ],
+      "capability_mapping": {
+        "html.EscapeString": "Text.Html.html-escape; byte and exact-capacity APIs additionally preserve arbitrary bytes and avoid mandatory text conversion",
+        "html.UnescapeString": "Text.Html.html-unescape; full 2231-entry HTML5 table, numeric/legacy references, single-pass expansion and unchanged unknown text"
+      },
+      "review": "Both public declarations have complete text mappings, with additional lossless byte APIs and exact escaped sizing. All 2231 named HTML5 references, numeric replacement rules, malformed inputs and arbitrary byte values are covered by 3448 exact cases and 106 large pipelines. Both frozen frontends pass ordinary 32 MiB heap/8 MiB stack and separate 256 MiB poisoned-free validation with zero leaks. Parent Rust target: 7 passed; selected Native harness: 6 passed. Kernel objects compile for WebAssembly, AArch64 and big-endian PowerPC; no foreign execution is claimed. Three generator tests pass and source tables reproduce. Two expanding HTML5 names extend the pinned reference table. All 72 public benchmark rows match reference observables. Retained variants expose dense-input costs, small-input regressions and noisy controls. The final bound-argument production assembly matches the measured candidate. Functional completion does not assert throughput or allocation parity."
     },
     {
       "reference_package": "html/template",
@@ -1362,12 +1439,31 @@
     },
     {
       "reference_package": "path",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
-        "Data.Path"
+        "Data.Path",
+        "Text.Path"
       ],
       "remaining": [],
-      "reference_declarations": 9
+      "reference_declarations": 9,
+      "tests": [
+        "lib_path"
+      ],
+      "benchmarks": [
+        "clean-component",
+        "clean-segments",
+        "base",
+        "ext",
+        "compiled-match",
+        "match",
+        "join"
+      ],
+      "capability_mapping": {
+        "Base/Clean/Dir/Ext/IsAbs/Join/Split": "Text.Path.path-base/clean/dir/ext/is-absolute/join/split provide portable slash-separated lexical text operations; existing Data.Path behavior is preserved",
+        "Match": "path-match returns a checked result; path-pattern/path-pattern-match support reusable validated patterns",
+        "ErrBadPattern": "PathPatternError/InvalidPathPattern plus a stable module-owned diagnostic"
+      },
+      "review": "All nine declarations have idiomatic mappings. UTF-8 slash paths are lexical and do not touch disk; backslashes and drive letters are ordinary text. Patterns are fully validated before matching. Stars advance by byte; question marks and classes decode scalars, including replacement behavior after a skipped UTF-8 continuation byte. Both frozen frontends pass 364 lexical, 170 join and 2347 glob cases plus 100 iterations of 16385-byte owner/captured-pattern stress. Ordinary 32 MiB heap/8 MiB stack and separate 256 MiB poisoned validation have zero leaks. Parent Rust target: 9 passed; selected Native harness: 7 passed. Actual kernels compile for WebAssembly, AArch64 and big-endian PowerPC, without foreign execution. All 32 paired/reference benchmark rows match. Private complete-word workers remove natural-number and owner calls. Retained baseline patches and 32 ordinary allocation probes record local gains and control variation without parity claims."
     },
     {
       "reference_package": "path/filepath",

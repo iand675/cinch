@@ -655,3 +655,12 @@ Corresponding unpaired reports retain the
 Compiler, driver, optimization and runtime source identities match in every
 alternating comparison. [Validation evidence](../../bootstrap/stdlib-sha256-state-validation-results.json)
 records frontend, ownership, checkpoint and foreign-object checks.
+
+## Configurable codecs, HTML and portable paths
+
+The [Base32 report](base32-benchmark-report-2026-11-16.md) records48 reference
+pipelines, cursor-only comparisons, constant-time padding and ordinary allocation
+probes. Its full timing sweep predates the separately measured padding change.
+[Base64 notes](base64-encoding-notes.md), [HTML notes](html-NOTES.md) and
+[path notes](path-notes.md) retain each package’s exact compiler/source identities,
+public-pipeline checksums, paired comparisons and remaining codegen costs.

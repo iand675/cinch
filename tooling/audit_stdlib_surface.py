@@ -20,13 +20,14 @@ DEFAULT = ROOT / "design/stdlib-surface.json"
 
 HOMES = {
     "bufio": ["Effect.Stream"], "bytes": ["Data.Bytes", "Data.Bytes.Word", "Data.StringIo"],
+    "html": ["Text.Html"],
     "cmp": ["Relation.Ord"], "compress/flate": ["Text.Zlib"], "compress/zlib": ["Text.Zlib"],
     "container/heap": ["Data.Mutable.Heap"], "container/list": ["Data.List"], "container/ring": ["Data.Mutable.Deque"], "context": ["Effect.Concurrent", "Effect.Clock"],
     "crypto/hmac": ["Text.Digest"], "crypto/md5": ["Text.Digest"], "crypto/rand": ["Effect.Random"],
     "crypto/sha1": ["Text.Digest"], "crypto/sha256": ["Text.Digest", "Text.Sha256", "Effect.Sha256"], "crypto/sha512": ["Text.Digest"],
     "encoding/ascii85": ["Text.Ascii85", "Effect.Ascii85"],
-    "encoding/base32": ["Text.Base32"], "encoding/base64": ["Text.Base64"],
-    "encoding/binary": ["Text.Binary"], "encoding/csv": ["Text.Csv"], "encoding/hex": ["Text.Hex", "Effect.Hex"],
+    "encoding/base32": ["Text.Base32", "Effect.Base32"], "encoding/base64": ["Text.Base64", "Text.Base64.Encoding", "Effect.Base64"],
+    "encoding/binary": ["Text.Binary"], "encoding/csv": ["Text.Csv", "Text.Csv.Record", "Effect.Csv"], "encoding/hex": ["Text.Hex", "Effect.Hex"],
     "encoding/json": ["Text.Json", "Data.Json"], "errors": ["Data.Result"],
     "flag": ["Text.OptionParser"], "fmt": ["Text.Show", "Text.Scan"],
     "hash": ["Data.Hash"], "hash/adler32": ["Text.Checksum", "Text.Adler32", "Effect.Adler32"], "hash/crc32": ["Text.Checksum"],
@@ -40,7 +41,7 @@ HOMES = {
     "net": ["Effect.Net", "Effect.Resolv", "Data.IpAddr"], "net/http": ["Effect.Http"],
     "net/netip": ["Data.IpAddr"], "net/url": ["Text.Uri"],
     "os": ["Effect.Fs", "Effect.Process", "Effect.Stream"], "os/exec": ["Effect.Process"],
-    "os/signal": ["Effect.Signal"], "path": ["Data.Path"], "path/filepath": ["Data.Path", "Effect.Find"],
+    "os/signal": ["Effect.Signal"], "path": ["Data.Path", "Text.Path"], "path/filepath": ["Data.Path", "Effect.Find"],
     "regexp": ["Text.Regex"], "regexp/syntax": ["Text.Regex"],
     "slices": ["Data.List", "Data.Array", "Data.Mutable.Vec"], "sort": ["Data.List", "Data.Sorted", "Data.Mutable.Vec"],
     "strconv": ["Text.Show", "Text.Scan", "Data.Machine"], "strings": ["Data.String", "Text.Scan", "Text.Builder"],
@@ -51,11 +52,15 @@ HOMES = {
 }
 
 EVIDENCE = {
+    "encoding/base64": (["lib_base64", "lib_base64_encoding"], ["encode-bytes", "decode-bytes", "custom-encode", "custom-decode", "legacy-encode", "legacy-decode", "stream-encode64", "stream-decode64"]),
+    "html": (["lib_html"], ["escape-bytes", "unescape-bytes", "escape-text", "unescape-text", "escape-length"]),
+    "path": (["lib_path"], ["clean-component", "clean-segments", "base", "ext", "compiled-match", "match", "join"]),
     "crypto/sha256": (["lib_sha256"], ["sha256", "sha224", "sha256-state", "sha224-state", "sha256-roundtrip", "sha224-roundtrip", "sha256-stream", "sha224-stream", "sha256-stream4096", "sha224-stream4096", "sha256-runtime"]),
     "math/bits": (["lib_word_ops::word_bit_operations_match_reference_widths_and_rotations", "lib_word_ops::word_wide_arithmetic_matches_reference_carry_borrow_and_products", "lib_word_ops::word_division_matches_reference_and_names_invalid_inputs"], ["word-add64", "word-mul64", "word-div64", "word-bits64", "word-load"]),
     "unicode/utf16": (["lib_utf16::utf16_matches_scalar_and_surrogate_reference_vectors", "lib_utf16::utf16_byte_codecs_match_text_and_reject_odd_lengths"], ["utf16le-encode", "utf16le-decode", "utf16be-encode", "utf16be-decode"]),
     "encoding/ascii85": (["lib_ascii85", "lib_ascii85_buffers"], ["ascii85-encode", "ascii85-decode", "ascii85-stream-encode", "ascii85-stream-decode", "ascii85-bytes-encode", "ascii85-into-encode", "ascii85-into-decode", "ascii85-prefix-decode", "ascii85-controls-decode", "ascii85-controls-prefix-decode", "ascii85-offset-decode"]),
-    "encoding/base32": (["lib_go_stdlib::base32_matches_go_rfc4648_both_alphabets_and_raw_forms", "lib_go_stdlib::base32_scalar_tails_follow_long_simd_prefixes"], ["base32-encode", "base32-decode"]),
+    "encoding/base32": (["lib_go_stdlib::base32_matches_go_rfc4648_both_alphabets_and_raw_forms", "lib_go_stdlib::base32_scalar_tails_follow_long_simd_prefixes", "lib_base32_encoding"], ["base32-encode", "base32-decode", "encode-bytes", "decode-bytes", "custom-encode", "custom-decode", "stream-encode64", "stream-decode64"]),
+    "encoding/csv": (["lib_csv_record"], ["read-text", "read-bytes", "write-text", "write-bytes", "stream-read", "stream-write"]),
     "encoding/binary": (["lib_go_stdlib::fixed_width_binary_matches_go_and_validates_writes", "lib_go_stdlib::varints_match_go_including_signed_extrema_and_malformed_input"], ["binary", "varint"]),
     "encoding/hex": (["lib_hex", "lib_hex_stream"], ["hex-encode", "hex-decode", "hex-append-encode", "hex-append-decode", "hex-into-encode", "hex-into-decode", "hex-dump", "hex-stream-encode", "hex-stream-decode", "hex-stream-dump", "hex-bytes-encode", "hex-prefix-decode"]),
     "hash/adler32": (["lib_go_stdlib::checksums_match_go_and_update_over_every_split", "lib_adler32"], ["adler32", "adler32-state", "adler32-roundtrip", "adler32-stream", "adler32-stream4096"]),

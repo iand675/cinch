@@ -1,0 +1,94 @@
+-- | Incremental Base64 writers and decoding byte readers with explicit continuations.
+-- Writers retain at most two copied input bytes and finish explicitly. Readers
+-- delay failures until preceding complete output is drained. Zero reads do not
+-- advance either source; errors remain sticky. No adapter closes a borrowed sink.
+module Effect.Base64 where
+
+  import Effect.Stream
+  import Text.Base64.Encoding
+  import Data.Bytes
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+
+  export Base64Writer, base64-writer, base64-write, base64-finish, base64-writer-sink
+  export base64-reader
+
+  -- | Inspectable encoding continuation retaining the advanced underlying sink on failure.
+  data Base64Writer r where
+    -- | Private active encoder and sink; the encoder snapshots its short unfinished quantum.
+    ActiveWriter :: Base64Encoder -> ByteWriter r -> Base64Writer r
+    -- | Private sticky failure and sink after every accepted encoded output byte.
+    FailedWriter :: StreamError -> ByteWriter r -> Base64Writer r
+
+  -- | Begin encoding to a sink. Finish before observing the complete encoded output.
+  base64-writer :: forall r. Base64Encoding -> ByteWriter r -> Base64Writer r
+  base64-writer encoding sink = ActiveWriter (base64-encoder encoding) sink
+
+  -- | Observe the advanced sink, including after a failed write.
+  base64-writer-sink :: forall r. Base64Writer r -> ByteWriter r
+  base64-writer-sink writer = case writer of
+    ActiveWriter state sink -> sink
+    FailedWriter error sink -> sink
+
+  -- | Accept complete input, retrying short encoded writes and retaining at most two input bytes.
+  -- Failures preserve the advanced sink and never replay its accepted encoded prefix.
+  base64-write :: forall r. using (io :: Io r) => Base64Writer r -> Bytes ->{IO r} (Result StreamError Nat, Base64Writer r)
+  base64-write writer input = case writer of
+    FailedWriter error sink -> (Err error, writer)
+    ActiveWriter state sink -> case base64-encoder-feed state input of
+      (out, next) -> case stream-write-all sink out of
+        (Err error, advanced) -> (Err error, FailedWriter error advanced)
+        (Ok count, advanced) -> (Ok (bytes-len input), ActiveWriter next advanced)
+
+  -- | Emit the final short quantum and return the underlying sink on either outcome.
+  -- This does not flush or close the borrowed sink; later unencoded writes remain possible.
+  base64-finish :: forall r. using (io :: Io r) => Base64Writer r ->{IO r} (Result StreamError Unit, ByteWriter r)
+  base64-finish writer = case writer of
+    FailedWriter error sink -> (Err error, sink)
+    ActiveWriter state sink -> case stream-write-all sink (base64-encoder-finish state) of
+      (Err error, advanced) -> (Err error, advanced)
+      (Ok count, advanced) -> (Ok (), advanced)
+
+  -- | Copy a checked pending output interval so returned chunks cannot mutate retained surplus.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input at n = if at + n <= bytes-len input then
+    let out = bytes-new n in let copied = bytes-copy-range out input 0 at n in out
+    else bytes-new 0
+
+  -- | Preserve a terminal error without advancing the underlying source on subsequent positive reads.
+  failed-reader :: forall r. using (io :: Io r) => StreamError -> ByteReader r
+  failed-reader error = stream-reader (\n -> if n == 0 then (Ok (bytes-new 0), failed-reader error) else (Err error, failed-reader error))
+
+  -- | Convert a precise codec error into the stream protocol's encoding error vocabulary.
+  stream-error :: Base64InputError -> StreamError
+  stream-error error = StreamEncodingError "base64" (base64-input-error-offset error) (base64-input-error-message error)
+
+  -- | Decode bounded source chunks through EOF, preserving complete output before a later failure.
+  -- CR/LF are ignored, strictness follows the selected encoding, and zero reads are inert.
+  base64-reader :: forall r. using (io :: Io r) => Base64Encoding -> ByteReader r -> ByteReader r
+  base64-reader encoding source = decoding-reader source (base64-decoder encoding) (bytes-new 0) 0 None
+
+  -- | Carry the advanced source, partial quantum, decoded surplus and delayed failure in one handle.
+  decoding-reader :: forall r. using (io :: Io r) => ByteReader r -> Base64Decoder -> Bytes -> Nat -> Option StreamError -> ByteReader r
+  decoding-reader source state pending cursor failure = stream-reader (\n -> read-decoded source state pending cursor failure n)
+
+  -- | Drain only the requested prefix, then surface a delayed error or fetch another bounded chunk.
+  read-decoded :: forall r. using (io :: Io r) => ByteReader r -> Base64Decoder -> Bytes -> Nat -> Option StreamError -> Nat ->{IO r} (Result StreamError Bytes, ByteReader r)
+  read-decoded source state pending cursor failure n =
+    if n == 0 then (Ok (bytes-new 0), decoding-reader source state pending cursor failure)
+    else if cursor < bytes-len pending then
+      let remaining = bytes-len pending - cursor in let take = if n < remaining then n else remaining in
+      (Ok (part pending cursor take), decoding-reader source state pending (cursor + take) failure)
+    else case failure of
+      Some error -> (Err error, failed-reader error)
+      None -> case stream-read source 4096 of
+        (Err error, advanced) -> (Err error, failed-reader error)
+        (Ok input, advanced) ->
+          if bytes-len input == 0 then case base64-decoder-finish state of
+            (tail, None) -> stream-read (reader-from-bytes tail) n
+            (tail, Some error) -> read-decoded advanced state tail 0 (Some (stream-error error)) n
+          else case base64-decoder-feed state input of
+            (out, next) -> case base64-decoder-error next of
+              None -> read-decoded advanced next out 0 None n
+              Some error -> read-decoded advanced next out 0 (Some (stream-error error)) n
