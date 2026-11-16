@@ -1,0 +1,136 @@
+{
+  "status": "Exact binary32 increment; full 92-record JSON package remains partial",
+  "sources": {
+    "Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+    "Value": "57f516647f493fa1433c066649f00c406a8eb1040b9ed5c50f096086e2c40b54",
+    "Codec": "cd4a4f621e748b5d8bcf686062429919abbb2c4e9c98d2fa43c8af63fff5bc13"
+  },
+  "documentation": {
+    "Binary32": {
+      "canonical_declarations": 25,
+      "diagnostics": 0,
+      "orphans": 0,
+      "extract_sha256": "a29998d34885a6d28351a8b34822e047982a8b7b01d18fbf5dcab4deed08b28c"
+    },
+    "Value": {
+      "canonical_declarations": 266,
+      "diagnostics": 0,
+      "orphans": 0,
+      "extract_sha256": "a81eec4b491ca7c2fae8261a06e06355d05233333accf90c7207b9a945f6360d"
+    },
+    "Codec": {
+      "canonical_declarations": 311,
+      "diagnostics": 0,
+      "orphans": 0,
+      "extract_sha256": "fea74e1b607a738224138a238748f548979a4a30e8325a2790c021b6c95a4005"
+    }
+  },
+  "independent_observations_per_frontend": {
+    "float32_encoding": 425,
+    "float32_conversion": 85,
+    "typed": 90
+  },
+  "ownership_control_groups_per_frontend": 5,
+  "retained_pipeline_iterations_per_control_run": 512,
+  "same_selected_source_memory_processes": 12,
+  "matrices": [
+    {
+      "suite": "float32",
+      "frontend": "rust",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-binary32-rust-v4-results.json",
+      "receipt_sha256": "b4268b8fb497166663a1a05d3d99335bc0d83385f8dc02851bdf4c428cd14dfe",
+      "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+      "runtime_archive_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "consumer_sha256": "69dfadc0cbd04ecdf3be3c21ae17e213313262842ea05d36f32835e59f0355a3",
+      "llvm_sha256": "5cbb677fe640c09b8f59d948eb87f12ae895eabda843718482a8000d9c8af49b",
+      "normal_peak_bytes": 60115,
+      "poison_peak_bytes": 59378338
+    },
+    {
+      "suite": "float32",
+      "frontend": "native-raw",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-binary32-native-raw-v1-results.json",
+      "receipt_sha256": "4be0b6e7eb75c31cc604022305101632c3ae201c550a7b11e124435a2762ac0a",
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "runtime_archive_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "consumer_sha256": "69dfadc0cbd04ecdf3be3c21ae17e213313262842ea05d36f32835e59f0355a3",
+      "llvm_sha256": "86ecca5c757cfbaeb92592947358dcdfd8fa7f89dd81e4aaa50f929aafe9c9d4",
+      "normal_peak_bytes": 111473,
+      "poison_peak_bytes": 61537728
+    },
+    {
+      "suite": "float32-control",
+      "frontend": "rust",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-binary32-control-rust-v1-results.json",
+      "receipt_sha256": "a959669b6fa1e5d2ed1d3f2132ed6da004f2aa8d5ab3e2281dfd2b602ac88413",
+      "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+      "runtime_archive_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "consumer_sha256": "fe64374ffc6c62d892c8f780bd37bc117e3de28d115497297e82f807e12d2c7a",
+      "llvm_sha256": "bc5790bbad3d77d2f3ffbbe52684dc42b389bad36efe947958a3c8b6105a0d0e",
+      "normal_peak_bytes": 3191,
+      "poison_peak_bytes": 65900178
+    },
+    {
+      "suite": "float32-control",
+      "frontend": "native-raw",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-binary32-control-native-raw-v1-results.json",
+      "receipt_sha256": "08549c1f307b01ff6c73cb34c256af702e4a323ccb5bc87fd902c913c2373869",
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "runtime_archive_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "consumer_sha256": "fe64374ffc6c62d892c8f780bd37bc117e3de28d115497297e82f807e12d2c7a",
+      "llvm_sha256": "e380db0f3579cb75d14eb926eaf61c0ee38ea6e609424294ba3d73cc055799a2",
+      "normal_peak_bytes": 4681,
+      "poison_peak_bytes": 67959464
+    },
+    {
+      "suite": "float",
+      "frontend": "rust",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-binary32-affected-rust-v1-results.json",
+      "receipt_sha256": "7a5b887b8e8ebd2e675cb6fb9d79203f7f2d5a1c145e7207013ca3e9f13c1455",
+      "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+      "runtime_archive_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "consumer_sha256": "20a59759092c187ed78f6f878373fd5849804bf3874dc436116e8496bdb1a87f",
+      "llvm_sha256": "89c65141b946bbdfb839ee2fbc0f521fdc081a615b5bc16b63f2e942dcb396bc",
+      "normal_peak_bytes": 1281,
+      "poison_peak_bytes": 416721
+    },
+    {
+      "suite": "number",
+      "frontend": "rust",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-binary32-affected-rust-v1-results.json",
+      "receipt_sha256": "7a5b887b8e8ebd2e675cb6fb9d79203f7f2d5a1c145e7207013ca3e9f13c1455",
+      "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+      "runtime_archive_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "consumer_sha256": "08e88d1194da4f9bbe99ed330553b5675e8608ba60a9d0e0aac4421eee9e0eec",
+      "llvm_sha256": "ed38cd5bcd81f4c27f495b8015c33880488dc8438fd2179ebea78d26c92605d0",
+      "normal_peak_bytes": 1282,
+      "poison_peak_bytes": 8986
+    }
+  ],
+  "reference_fixture_sha256": "14ee65ceb84c15ee9601d4316a639f6e1f72d360690801f041830ee11e7ad45f",
+  "reference_generator_sha256": "5c4692033f3d2017b3ad4c1f8bf75fedf4a1f58169ab06737a585f01951466df",
+  "foreign_receipt": "bootstrap/stdlib-json-binary32-foreign-results.json",
+  "foreign_receipt_sha256": "ae6895fcd1acc5ba10d6d78d40eea1221079d37a69ff9ef177f1d6a26a16d253",
+  "rounding_review": "Compare exact normalized decimal coefficients against adjacent binary32 rational midpoints. Bound parsed exponent by input length plus 1000. Preserve all significant input digits and signed zero; refuse finite-range overflow through checked/typed APIs.",
+  "shortest_review": "Construct exact coefficient from significand times powers of 2 or 5. At each precision from 1 to 9, test the nearest ties-even coefficient then its neighbor; asymmetric power-of-two intervals require that second candidate. Choose the first exact parseback and apply JSON notation thresholds.",
+  "historical_failures": "Rust v1/v2 stopped at new case layouts and v3 at inferred conditional refinement before selected v4 passed. Their durable logs/artifacts are separate epochs; no failure is relabeled as a successful observation.",
+  "performance_status": "No JSON speedup claim; paired public pipeline benchmarks remain open.",
+  "parent_owned_checks_pending": [
+    "Expanded lib_json_codec/lib_json_value Cargo targets",
+    "Big-endian actual-bitcast foreign gate",
+    "Integration/provider/full-suite gates"
+  ],
+  "remaining_scope": [
+    "Raw Number string casts and numeric outcomes",
+    "Dynamic JsonAny and legacy bridges",
+    "Containing-record error metadata and independent capabilities",
+    "Bounded incremental Effect.Json reader/writer",
+    "Full 92-record review and paired public pipeline benchmarks"
+  ]
+}

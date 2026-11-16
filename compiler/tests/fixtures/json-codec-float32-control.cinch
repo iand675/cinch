@@ -1,0 +1,104 @@
+-- | Binary32 conversion ownership, retained snapshots and composed typed updates.
+module Main where
+  import Text.Json.Value
+  import Text.Json.Codec
+  import Data.Machine
+
+  -- | Reconstruct an exact runtime payload without decimal constant evaluation.
+  prim payload :: U32 -> F32 where
+    llvm {
+      %value = bitcast i32 %0 to float
+      ret float %value
+    }
+
+  -- | Observe all representation bits, including signed zero.
+  prim representation :: F32 -> U32 where
+    llvm {
+      %bits = bitcast float %0 to i32
+      ret i32 %bits
+    }
+
+  -- | Compare an explicitly present diagnostic field without requiring structural option equality.
+  optional-is :: Option String -> String -> Bool
+  optional-is actual expected = case actual of None -> False; Some text -> text == expected
+
+  -- | Check a typed numeric update by exact representation and absence of error.
+  decoded-bits :: JsonDecoded F32 -> U32 -> Bool
+  decoded-bits value bits = eq-u32 (representation (json-decoded-value value)) bits && (case json-decoded-error value of None -> True; Some error -> False)
+
+  -- | The number view keeps its own spelling after mutable input and exported source copies change.
+  retained-number :: Unit -> Bool
+  retained-number unit =
+    let input = string-to-bytes "1.0000000596046447753906250000000000000000000000001" in
+    case json-document input of
+      Err error -> False
+      Ok document ->
+        let source = json-document-value document in
+        let exported = json-value-source source in
+        let changed-input = if bytes-len input > 0 then bytes-set input 0 57 else () in
+        let changed-export = if bytes-len exported > 0 then bytes-set exported 0 56 else () in
+        case json-value-number source of
+          None -> False
+          Some number -> case json-number-float32 number of
+            Err error -> False
+            Ok value -> eq-u32 (representation value) 1065353217 && decoded-bits (json-update-value json-float32-type json-default-read-options source (i64-to-f32 7)) 1065353217
+
+  -- | Quoted fields retain exact binary32 rounding and explicit null policies through record composition.
+  quoted-record :: Unit -> Bool
+  quoted-record unit =
+    let descriptor = json-record-type "Rounded" (\unit -> i64-to-f32 0) (\value -> feq-f32 value (i64-to-f32 0)) [json-field-with "n" (json-field-options False False True 0 True JsonFieldDefaultMatch) json-float32-type (\value -> value) (\value prior -> value)] in
+    let converted = json-update descriptor (string-to-bytes "{\"n\":\"1.0000000596046447753906250000000000000000000000001\"}") (i64-to-f32 7) in
+    let keep = json-update descriptor (string-to-bytes "{\"n\":null}") (payload 2147483648) in
+    let options = json-read-options False False (json-policies [json-preserve-scalar-null False]) in
+    let clear = json-update-with descriptor options (string-to-bytes "{\"n\":null}") (i64-to-f32 7) in
+    decoded-bits converted 1065353217 && decoded-bits keep 2147483648 && decoded-bits clear 0
+
+  -- | Range failures keep exact prior bits and immutable source-derived diagnostic text.
+  retained-error :: Unit -> Bool
+  retained-error unit =
+    let input = string-to-bytes "3.4028235677973367e38" in
+    let prior = payload 2147483648 in
+    let decoded = json-update json-float32-type input prior in
+    let changed = if bytes-len input > 0 then bytes-set input 0 48 else () in
+    eq-u32 (representation (json-decoded-value decoded)) 2147483648 && (case json-decoded-error decoded of
+      None -> False
+      Some error -> json-error-offset error == 21 && optional-is (json-error-value error) "number 3.4028235677973367e38" && optional-is (json-error-type error) "F32")
+
+  -- | Exercise repeated independently allocated conversions while retaining an earlier mutable output.
+  repeated :: Nat -> U32 -> Bytes -> Bool
+  repeated remaining state retained = if remaining == 0 then eq-i64 (bytes-compare retained (string-to-bytes "1.2621775e-29")) 0 else
+    let a = bit-xor-u32 state (wrapping-shl-u32 state 13) in
+    let b = bit-xor-u32 a (wrapping-shr-u32 a 17) in
+    let next = bit-xor-u32 b (wrapping-shl-u32 b 5) in
+    let bits = bit-and-u32 next 4286578687 in
+    case json-marshal json-float32-type (payload bits) of
+      Err error -> False
+      Ok bytes ->
+        let decoded = json-update json-float32-type bytes (i64-to-f32 7) in
+        let changed = if bytes-len bytes > 0 then bytes-set bytes 0 48 else () in
+        decoded-bits decoded bits && repeated (remaining - 1) next retained
+
+  -- | Keep prior shortest outputs independent across hundreds of later encode/decode pipelines.
+  retained-output :: Unit -> Bool
+  retained-output unit = case json-marshal json-float32-type (payload 260046848) of
+    Err error -> False
+    Ok retained -> repeated 512 2174524983 retained
+
+  -- | Refuse the explicitly absent spelling and nonfinite values through public capabilities.
+  refused-values :: Unit -> Bool
+  refused-values unit = (case json-number-float32 json-empty-number of Err error -> True; Ok value -> False)
+    && (case json-marshal json-float32-type (payload 2139095040) of Err error -> optional-is (json-error-value error) "+Inf"; Ok bytes -> False)
+    && (case json-marshal json-float32-type (payload 4286578688) of Err error -> optional-is (json-error-value error) "-Inf"; Ok bytes -> False)
+    && (case json-marshal json-float32-type (payload 2143289344) of Err error -> optional-is (json-error-value error) "NaN"; Ok bytes -> False)
+
+  -- | Print the first ownership or composition failure without hiding its original test index.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let checks = [retained-number (), quoted-record (), retained-error (), retained-output (), refused-values ()] in
+    let failed = first-failure checks 1 in
+    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string failed) "\n")) in
+    if failed == 0 then 0 else 1
+
+  -- | Preserve the first independently meaningful control index.
+  first-failure :: List Bool -> Nat -> Nat
+  first-failure checks at = case checks of Nil -> 0; Cons first rest -> if first then first-failure rest (at + 1) else at
