@@ -1,11 +1,11 @@
 -- Checked schema 10 interface production. Every public spelling is matched
 -- against a retained checked binding or defining data declaration.
 module Bootstrap.Export where
-  import Bootstrap.Builtin (array-plan, total-primitive)
+  import Bootstrap.Builtin (array-plan, total-primitive, scalar-intrinsic)
   import Algebra.Semigroup
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
   import Bootstrap.Ast (Program, Module, Decl, TypeExpr, module-decls, program-modules, DClass, DInstance, DForeign, DExternal, DRefine, DRecord, DCodata, DEffect, DLaw, decls-of, source-clauses-document, source-law-document, portable-law-syntax, qualify-default-clauses)
-  import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, elaboration-rewrite-assumptions, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, checked-intrinsic-symbol, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
+  import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, elaboration-rewrite-assumptions, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, checked-intrinsic-symbol, scalar-intrinsic-scheme, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
   import Bootstrap.Core (CoreData, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme, core-name, core-scheme, core-method-total-function, core-definition-closed)
   import Bootstrap.Typing (task-source-forwarder, task-forwarder-type)
   import Bootstrap.Instance
@@ -802,8 +802,9 @@ module Bootstrap.Export where
   intrinsic-empty-result = JObj "type" (JStr "") (JObj "class" (JStr "unit") (JObj "role" (JStr "value")
     (JObj "allocator" (JStr "") (JObj "nullable" (JBool False) (JObj "width" (JNum 0)
       (JObj "align" (JNum 1) (JObj "signed" (JBool False) (JObj "offsets" JArrEnd JObjEnd))))))))
-  array-foreign-row :: String -> Json -> Json
-  array-foreign-row local row = JObj "symbol" (JStr local) (JObj "abi" (JStr "ccall") (JObj "external" (field "identity" row) (JObj "type" (field "scheme" row) (JObj "effects" (JStr "") (JObj "notes" (JStr "") (JObj "kind" (JStr "intrinsic") (JObj "params" (JArrEnd) (JObj "result" (intrinsic-empty-result) (JObj "deallocator" (JStr "") (JObjEnd))))))))))
+  -- | Serialize the existing pure intrinsic descriptor without accepting an executable body.
+  intrinsic-foreign-row :: String -> Json -> Json
+  intrinsic-foreign-row local row = JObj "symbol" (JStr local) (JObj "abi" (JStr "ccall") (JObj "external" (field "identity" row) (JObj "type" (field "scheme" row) (JObj "effects" (JStr "") (JObj "notes" (JStr "") (JObj "kind" (JStr "intrinsic") (JObj "params" (JArrEnd) (JObj "result" (intrinsic-empty-result) (JObj "deallocator" (JStr "") (JObjEnd))))))))))
   source-intrinsic-foreign :: Json -> List Json -> Json
   source-intrinsic-foreign context rows = case rows of
     Nil -> JArrEnd
@@ -812,14 +813,34 @@ module Bootstrap.Export where
         && (case array-plan (text (field "identity" row)) of Some plan -> True; None -> False)) then more else
       (case export-global (text (field "binding" row)) of
         Ok identity -> (case foreign-drop-prefix (unpack (string-concat (text (field "module" context)) ".")) (unpack identity) of
-          Some local -> insert-row "symbol" (array-foreign-row (pack local) row) more
+          Some local -> insert-row "symbol" (intrinsic-foreign-row (pack local) row) more
           None -> more)
         Err error -> more)
+  -- | Export a scalar declaration only from its exact checked scheme and canonical intrinsic binding.
+  source-scalar-foreign :: String -> CheckedBinding -> Result String (Option Json)
+  source-scalar-foreign owner binding = case checked-intrinsic-symbol binding of
+    None -> Ok None
+    Some symbol -> case scalar-intrinsic symbol of
+      None -> Ok None
+      Some operation -> case export-global (checked-name binding) of
+        Err error -> Err error
+        Ok identity -> case foreign-drop-prefix (unpack (string-concat owner ".")) (unpack identity) of
+          None -> Ok None
+          Some local -> if not (scheme-equivalent (checked-scheme binding) (scalar-intrinsic-scheme operation)) then
+            Err "scalar intrinsic export disagrees with its checked canonical nominal scheme"
+            else (case export-scheme (checked-scheme binding) of
+              Err error -> Err error
+              Ok scheme -> Ok (Some (intrinsic-foreign-row (pack local)
+                (JObj "identity" (JStr symbol) (JObj "scheme" (JStr scheme) JObjEnd)))))
+  -- | Retain checked C and scalar intrinsic descriptors under their actual defining module.
   source-foreign-rows :: String -> List CheckedBinding -> Json -> Result String Json
   source-foreign-rows owner bindings rows = case bindings of
     Nil -> Ok rows
     Cons binding rest -> case checked-foreign-plan binding of
-      None -> source-foreign-rows owner rest rows
+      None -> (case source-scalar-foreign owner binding of
+        Err error -> Err error
+        Ok None -> source-foreign-rows owner rest rows
+        Ok (Some row) -> source-foreign-rows owner rest (insert-row "symbol" row rows))
       Some plan | (case foreign-primitive-assumptions plan of Some checked -> True; None -> False) ->
         source-foreign-rows owner rest rows
       Some plan -> case export-global (checked-name binding) of
