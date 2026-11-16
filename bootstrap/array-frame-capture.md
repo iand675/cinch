@@ -15,7 +15,9 @@ primitive authority. Ordinary Core functions retain only modes whose parameter
 uses do not escape under those private facts. A shrinking worklist revisits
 callers whenever a callee loses a mode, including ordinary helper chains.
 Opaque imports, foreign imports, and bodies marked as primitive implementation
-stubs supply no noncapture proof from their legacy lending metadata.
+stubs supply no noncapture proof from their legacy lending metadata. They
+also supply no owned-consuming proof from a placeholder cleanup body; the
+same local-body authority rule guards both summaries.
 
 The inference scans parameter lifetimes relative to the caller's frame. A
 read-only helper may tail-forward a parameter borrowed from its own caller.

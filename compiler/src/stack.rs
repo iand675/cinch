@@ -739,10 +739,8 @@ impl Facts {
         }
         let opaque: BTreeSet<&str> = p.foreigns.values().filter(|plan| !plan.export)
             .map(|plan| plan.unit.as_str()).collect();
-        let analyzable = |f: &&FnDef| f.prim.is_none() && f.ctor.is_none() && !f.meta.prim_body
-            && !opaque.contains(f.id.0.as_str())
-            && !matches!(p.lent_entries.get(&f.id.0), Some(crate::core::LentEntry::Imported { .. }));
-        let units: Vec<&FnDef> = p.fns.iter().filter(analyzable).collect();
+        let units: Vec<&FnDef> = p.fns.iter()
+            .filter(|f| frame_body_available(f, &opaque, &p.lent_entries)).collect();
         let index: HashMap<&str, usize> = units.iter().enumerate().map(|(i, f)| (f.id.0.as_str(), i)).collect();
         // A Core::Prim symbol proves only that direct primitive's modes.
         // It cannot authenticate an opaque Global with the same spelling.
@@ -793,9 +791,11 @@ impl Facts {
     /// unit's body.
     fn with_summaries(mut self, p: &Program, widen: Widen) -> Facts {
         let mut consumed = HashMap::with_capacity(p.fns.len());
+        let opaque: BTreeSet<&str> = p.foreigns.values().filter(|plan| !plan.export)
+            .map(|plan| plan.unit.as_str()).collect();
         for f in &p.fns {
-            if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body {
-                // A unit whose body is not Core has no references to read.
+            if !frame_body_available(f, &opaque, &p.lent_entries) {
+                // An opaque implementation's cleanup stub is not its body.
                 continue;
             }
             consumed.insert(f.id.0.clone(), self.summary(f, widen));
@@ -818,6 +818,18 @@ impl Facts {
             })
             .collect()
     }
+}
+
+/// Whether a function has an actual local Core body that can prove either
+/// borrowed noncapture or owned consumption, rather than an imported cleanup stub.
+fn frame_body_available(
+    f: &FnDef,
+    foreign_imports: &BTreeSet<&str>,
+    lent_entries: &BTreeMap<String, crate::core::LentEntry>,
+) -> bool {
+    f.prim.is_none() && f.ctor.is_none() && !f.meta.prim_body
+        && !foreign_imports.contains(f.id.0.as_str())
+        && !matches!(lent_entries.get(&f.id.0), Some(crate::core::LentEntry::Imported { .. }))
 }
 
 /// Whether a typed primitive may retain an argument, return its identity or
@@ -1890,6 +1902,38 @@ mod frame_capture_tests {
             assert!(!frame_safe(&facts, "GlobalCaller", 0));
             assert!(p.borrowed[&name][0]);
         }
+    }
+
+    /// Imported cleanup stubs cannot re-admit a frame through owned-consuming summaries.
+    #[test]
+    fn opaque_cleanup_stubs_supply_neither_borrowed_nor_consumed_frame_authority() {
+        use crate::core::{AbiClass, AbiParam, ForeignPlan};
+        let cleanup = || Core::Drop(LocalId(0), Class::Obj, Box::new(Core::Unit));
+        let mut p = program(vec![unit("ImportedDestroy", vec![Class::Obj], cleanup()),
+            unit("ForeignDestroy", vec![Class::Obj], cleanup()),
+            unit("ActualDestructor", vec![Class::Obj], cleanup())]);
+        p.lent_entries.insert("ImportedDestroy".into(), crate::core::LentEntry::Imported { width: 1 });
+        let parameter = AbiParam { ty: "Bytes".into(), class: AbiClass::Ptr, role: "borrowed".into(),
+            allocator: String::new(), nullable: false, width: 8, align: 8, signed: false,
+            pointee_align: 0, by_value: false, tag: 0, fields: vec![], leaves: vec![] };
+        let result = AbiParam { ty: "Unit".into(), class: AbiClass::Unit, ..parameter.clone() };
+        p.foreigns.insert("foreign_destroy".into(), ForeignPlan {
+            symbol: "foreign_destroy".into(), export: false, unit: "ForeignDestroy".into(),
+            convention: "ccall".into(), params: vec![parameter], result, deallocator: String::new(),
+            canon: None, blocking: false });
+        for name in ["ImportedDestroy", "ForeignDestroy"] {
+            p.borrowed.insert(name.into(), vec![true]);
+        }
+        p.borrowed.insert("ActualDestructor".into(), vec![false]);
+        let facts = Facts::of(&p, Widen::All);
+        for name in ["ImportedDestroy", "ForeignDestroy"] {
+            let head = Core::Global(GlobalId(name.into()), vec![]);
+            assert!(!frame_safe(&facts, name, 0));
+            assert!(callee_consumes(&facts, &head).is_none());
+        }
+        assert_eq!(facts.consumed["ActualDestructor"], vec![true]);
+        assert!(p.borrowed["ImportedDestroy"][0]);
+        assert!(p.borrowed["ForeignDestroy"][0]);
     }
 
 }
