@@ -25,6 +25,26 @@ def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def toolchain_identity(build_root: Path, frontend: str, compiler: Path) -> dict:
+    """Record the immutable compiler snapshot, actual host archive and native provider inputs."""
+    result = {"compiler_path": str(compiler), "compiler_sha256": digest(compiler)}
+    snapshot = compiler.with_name("snapshot.json")
+    if snapshot.exists():
+        result["compiler_snapshot"] = json.loads(snapshot.read_text())
+    if frontend == "rust":
+        archive = build_root.parent / "compiler/runtime/target/release/libcinchruntime.a"
+    else:
+        frozen = build_root / "stdlib-qualified-tail-stage3-frozen"
+        objects = json.loads((frozen / "objects.json").read_text())
+        result["provider"] = objects
+        result["frontend_wrapper_sha256"] = digest(frozen / "frontend.py")
+        result["base_interfaces_sha256"] = digest(frozen / "base-interfaces.json")
+        archive = Path(objects["object"]).with_name("libcinchruntime.a")
+        assert digest(Path(objects["object"])) == objects["object_sha256"]
+    result["runtime_archive"] = {"path": str(archive), "sha256": digest(archive), "mtime_ns": archive.stat().st_mtime_ns}
+    return result
+
+
 def literal(text: str) -> str:
     """Encode an ASCII metadata stream using canonical embedded NUL escapes."""
     return json.dumps(text).replace("\\u0000", "\\u{0}")
@@ -33,6 +53,11 @@ def literal(text: str) -> str:
 def consumer(suite: str) -> str:
     """Render compact exact rows and shallow batches of large public-pipeline checks."""
     fixture = json.loads((ROOT / "compiler/tests/fixtures/url-vectors.json").read_text())
+    if suite == "pairs":
+        module = (ROOT / "compiler/prelude/Text/Url/Codec.cinch").read_text()
+        start = module.index("  prim hex-pair ::")
+        end = module.index("\n  -- |", start)
+        return (ROOT / "compiler/tests/fixtures/url-pair-kernel.cinch.in").read_text().replace("__KERNEL__", module[start:end]).replace("__HASH__", str(fixture["hex_pair_hash"]))
     if suite == "url":
         return url_consumer()
     if suite != "codec":
@@ -118,7 +143,7 @@ def source_closure(project: Path, main: Path) -> list[Path]:
 def main() -> None:
     """Build a selected suite once and preserve complete source/ownership evidence."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--suite", choices=["codec", "url"], required=True)
+    parser.add_argument("--suite", choices=["codec", "url", "pairs"], required=True)
     parser.add_argument("--frontend", choices=["rust", "native"], required=True)
     parser.add_argument("--cpu", type=int, default=2)
     parser.add_argument("--build-root", type=Path, default=BUILD_ROOT)
@@ -151,7 +176,7 @@ def main() -> None:
         raise RuntimeError(f"{args.frontend} compile failed:\n{detail[-8000:]}\n{built.stderr[-8000:]}")
     elapsed = time.monotonic() - started
     runs = []
-    groups = re.findall(r'else if name == "([a-z-]+)"', source.read_text())
+    groups = re.findall(r'else if name == "([a-z-]+)"', source.read_text()) or ["all"]
     for debug, group in [(False, "all")] + [(True, group) for group in groups]:
         environment = {**os.environ, "CINCH_RC_DEBUG": "1" if debug else "0", "CINCH_LEAK_CHECK": "1", "CINCH_HEAP_LIMIT": "256M" if debug else "32M", "CINCH_STACK_SIZE": "8M"}
         started = time.monotonic()
@@ -159,7 +184,7 @@ def main() -> None:
         if result.returncode != 0 or "leaked=0" not in result.stderr:
             raise RuntimeError(f"debug={debug}, exit={result.returncode}: {result.stdout}\n{result.stderr}")
         runs.append({"group": group, "debug_poisoning": debug, "heap_limit": environment["CINCH_HEAP_LIMIT"], "stack_limit": "8M", "elapsed_seconds": time.monotonic() - started, "stdout": result.stdout, "stderr": result.stderr})
-    report = {"suite": args.suite, "frontend": args.frontend, "compiler_sha256": digest(compiler), "compiler_command": command, "compile_seconds": elapsed, "cpu_affinity": [args.cpu], "sources": {path.name: digest(path) for path in inputs}, "fixture_sha256": digest(ROOT / "compiler/tests/fixtures/url-vectors.json"), "executable_sha256": digest(executable), "runs": runs, "all_passed": True}
+    report = {"toolchain": toolchain_identity(args.build_root, args.frontend, compiler), "suite": args.suite, "frontend": args.frontend, "compiler_sha256": digest(compiler), "compiler_command": command, "compile_seconds": elapsed, "cpu_affinity": [args.cpu], "sources": {path.name: digest(path) for path in inputs}, "fixture_sha256": digest(ROOT / "compiler/tests/fixtures/url-vectors.json"), "executable_sha256": digest(executable), "runs": runs, "all_passed": True}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + "\n")
     print(f"{args.frontend} {args.suite} URL suite passed both memory modes", flush=True)

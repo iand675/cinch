@@ -1,0 +1,25 @@
+-- | Every percent-digit pair agrees with an independent public-decoder digest.
+module Main where
+  import Data.Machine
+
+  -- | Actual retained library primitive, extracted without a second implementation.
+__KERNEL__
+
+  -- | Accumulate both little-endian bytes of one independently observed U16 result.
+  accumulate :: U16 -> U64 -> U64
+  accumulate value hash =
+    let low = u16-to-u64 (bit-and-u16 value 255) in
+    let high = u16-to-u64 (wrapping-shr-u16 value 8) in
+    let first = wrapping-mul-u64 (bit-xor-u64 hash low) 1099511628211 in
+    wrapping-mul-u64 (bit-xor-u64 first high) 1099511628211
+
+  -- | Visit all 65,536 byte pairs using exact unboxed machine counters.
+  pairs :: U32 -> U64 -> U64
+  pairs index hash = if lt-u32 index 65536 then
+    let first = wrapping-u32-to-u8 (wrapping-shr-u32 index 8) in
+    let last = wrapping-u32-to-u8 index in let value = hex-pair first last in
+    let next = accumulate value hash in pairs (wrapping-add-u32 index 1) next else hash
+
+  -- | Verify every valid and invalid byte pair against independent public decoding.
+  main :: Int
+  main = if eq-u64 (pairs 0 14695981039346656037) __HASH__ then 0 else 1

@@ -44,13 +44,15 @@ repeating the Cinch algorithms. Final fixtures contain:
   byte/text-policy and exhaustive interval/fringe scan checks.
 
 Both frozen frontends pass the complete component and public capability suites
-on the exact final sources. There are 298 zero-leak process runs: one complete
+on the exact final sources. There are 302 zero-leak process runs: one complete
 ordinary-memory run per suite/frontend at 32 MiB heap / 8 MiB stack, plus every
 bounded poisoned-free group at 256 MiB / 8 MiB. Bounded groups retain complete
 coverage while limiting quarantine. Exact compiler/source/executable/fixture
-hashes, commands and raw results are in `stdlib-url-validation.json`. All 257
+hashes, commands and raw results are in `stdlib-url-validation.json`. All 258
 library declarations have canonical documentation without source-language
 comparisons. Three kernel-generation tests and generated-suffix freshness pass.
+
+The additional pure two-lane hexadecimal kernel agrees with an independent public-decoder digest for all 65,536 digit pairs.
 
 Private inline LLVM uses SIMD byte grammars and SWAR population counts. Exact
 complete-block loads retain backing owners, with exact scalar fringes. Constant
@@ -71,17 +73,28 @@ explicit limit API disables it. Raw semicolons discard their setting and take
 error priority while valid settings survive. Serialization cannot fail after a
 URL value exists, so it has no impossible error result.
 
-`lib_url` provides shared-template Rust consumer, documentation and actual-kernel
-foreign-object gates for the parent's coordinated Cargo run. This lane has not
-launched Cargo. The standalone benchmark driver has passed all ten public
-pipelines, three sizes and three patterns against independent checksums, with
-zero leaks. Frozen generic/specialized/final executables, LLVM and assembly are
-retained for the coordinated CPU0 timing window. Timing conclusions and the
-parent-owned Rust target remain integration gates; this evidence does not claim
-that the full standard-library initiative is complete.
+`lib_url` provides shared-template Rust consumer, exhaustive pair-domain,
+documentation and actual-kernel foreign-object gates for the parent's coordinated
+Cargo run. This lane has not launched Cargo. Actual maintained kernels compile
+to WebAssembly and AArch64 objects; the Rust target supplies the big-endian gate.
+The unsupported big-endian CLI profile is not substituted with a host profile.
+
+Coordinated CPU0 measurements cover all ten public pipelines, three sizes and
+three patterns against independent checksums. Constant policy counting improved
+64 KiB counts 1.91–1.94×; the adopted two-lane pair decoder improved dense 64 KiB
+component decoding 1.82–2.01× in alternating retained-executable comparisons.
+Dense downstream pipelines improve too. Remaining dense output costs and an
+ordinary-path regression sample are retained and explained in
+`benchmarks/stdlib/url-notes.md`, alongside raw reports, identities and codegen
+inspection. No mutable inline-IR stores or ABI disguises were introduced. Final
+candidate module manifests differ only in the component codec, and all complete
+functional suites were rerun before publication.
+
+The parent-owned Rust target remains an integration gate; this evidence does not
+claim that the full standard-library initiative is complete.
 
 Reproduce the exact suites with `tooling/validate_url.py --suite codec` and
-`--suite url`, selecting `--frontend rust` or `--frontend native`, `--cpu 2`, and
+`--suite url` (and exhaustive `--suite pairs`), selecting `--frontend rust` or `--frontend native`, `--cpu 2`, and
 separate artifact/output paths. Regenerate fixtures with
 `/tmp/cinch-go-current/go/bin/go run tooling/go_url_vectors.go` under writable
 `GOCACHE` and disabled telemetry. `tooling/bench_url.py build` prepares artifacts;

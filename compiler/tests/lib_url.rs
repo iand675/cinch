@@ -332,6 +332,19 @@ fn url_full_public_capabilities_and_ownership_match_independent_results() {
     run(&source, &groups);
 }
 
+/// Every valid or malformed percent-digit pair matches an independent public-decoder digest.
+#[test]
+fn url_hex_pairs_match_complete_independent_domain_digest() {
+    let fixture: Value = serde_json::from_str(include_str!("fixtures/url-vectors.json")).unwrap();
+    let module = include_str!("../prelude/Text/Url/Codec.cinch");
+    let start = module.find("  prim hex-pair ::").unwrap();
+    let end = start + module[start..].find("\n  -- |").unwrap();
+    let source = include_str!("fixtures/url-pair-kernel.cinch.in")
+        .replace("__KERNEL__", &module[start..end])
+        .replace("__HASH__", &fixture["hex_pair_hash"].to_string());
+    run(&source, &["pairs".to_string()]);
+}
+
 /// Every module-owned declaration carries canonical documentation without borrowed language comparisons.
 #[test]
 fn url_declarations_have_canonical_documentation() {
@@ -405,6 +418,7 @@ fn url_kernels_compile_for_wasm_arm_and_big_endian_targets() {
                 "classify-one",
                 "classify-eight",
                 "decode-flags-eight",
+                "hex-pair",
             ],
         ),
         (scan, vec!["mask-eight", "population"]),
@@ -418,7 +432,7 @@ fn url_kernels_compile_for_wasm_arm_and_big_endian_targets() {
             kernels.push_str(&rest[..end]);
         }
     }
-    kernels.push_str("\n  -- | Hold backing storage across a private exact load.\n  keep :: forall a. Bytes -> a -> a\n  keep bytes value = case bytes-len bytes of _ -> value\n  -- | Keep every byte-policy kernel reachable without foreign execution.\n  main :: Int\n  main = let bytes = bytes-new 8 in let address = bytes-data bytes in let word = keep bytes (load-eight address) in let byte = keep bytes (load-one address) in let single = classify-one byte byte in let encoded = classify-eight word byte in let decoded = decode-flags-eight word byte in let mask = mask-eight word single decoded in let count = population mask in if eq-u64 count encoded then 0 else 1\n");
+    kernels.push_str("\n  -- | Hold backing storage across a private exact load.\n  keep :: forall a. Bytes -> a -> a\n  keep bytes value = case bytes-len bytes of _ -> value\n  -- | Keep every byte-policy kernel reachable without foreign execution.\n  main :: Int\n  main = let bytes = bytes-new 8 in let address = bytes-data bytes in let word = keep bytes (load-eight address) in let byte = keep bytes (load-one address) in let single = classify-one byte byte in let encoded = classify-eight word byte in let decoded = decode-flags-eight word byte in let mask = mask-eight word single decoded in let count = population mask in let pair = hex-pair byte single in let folded = bit-xor-u64 count (u16-to-u64 pair) in if eq-u64 folded encoded then 0 else 1\n");
     let directory = tempfile::tempdir().unwrap();
     for (triple, arch, endian) in [
         ("wasm32-unknown-unknown", "wasm32", "little"),

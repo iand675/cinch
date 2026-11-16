@@ -247,13 +247,39 @@ module Text.Url.Codec where
     else let table = if percent == 0 then (bytes-new 0 :: Bytes) else percent-triplets () in
       let written = encode-from input 0 out 0 mode table in out
 
-  -- | Decode a hexadecimal digit without accepting non-ASCII digits or unrelated letters.
-  hex-value :: Nat -> Option Nat
-  hex-value byte =
-    if byte >= 48 && byte <= 57 then Some (byte - 48)
-    else if byte >= 65 && byte <= 70 then Some (byte - 55)
-    else if byte >= 97 && byte <= 102 then Some (byte - 87)
-    else None
+  -- | Decode two hexadecimal lanes together, returning 256 for any malformed digit.
+  prim hex-pair :: U8 -> U8 -> U16 where
+    llvm {
+      %first = insertelement <2 x i8> poison, i8 %0, i32 0
+      %bytes = insertelement <2 x i8> %first, i8 %1, i32 1
+      %digit = sub <2 x i8> %bytes, <i8 48,i8 48>
+      %digit-valid = icmp ult <2 x i8> %digit, <i8 10,i8 10>
+      %lower = or <2 x i8> %bytes, <i8 32,i8 32>
+      %alpha = sub <2 x i8> %lower, <i8 97,i8 97>
+      %alpha-valid = icmp ult <2 x i8> %alpha, <i8 6,i8 6>
+      %valid = or <2 x i1> %digit-valid, %alpha-valid
+      %mask = bitcast <2 x i1> %valid to i2
+      %complete = icmp eq i2 %mask, 3
+      %letters = add <2 x i8> %alpha, <i8 10,i8 10>
+      %nibbles = select <2 x i1> %digit-valid, <2 x i8> %digit, <2 x i8> %letters
+      %high-byte = extractelement <2 x i8> %nibbles, i32 0
+      %low-byte = extractelement <2 x i8> %nibbles, i32 1
+      %high = zext i8 %high-byte to i16
+      %low = zext i8 %low-byte to i16
+      %shifted = shl i16 %high, 4
+      %decoded = or i16 %shifted, %low
+      %result = select i1 %complete, i16 %decoded, i16 256
+      ret i16 %result
+    }
+
+  -- | Read exactly the two digit bytes after a checked percent position, retaining their owner.
+  decoded-pair :: Bytes -> Nat -> U16
+  decoded-pair input at = if at + 3 <= bytes-len input then
+    let base = bytes-data input in let offset = nat-to-i64 at in let address = wrapping-add-i64 base offset in
+    let high-address = wrapping-add-i64 address 1 in let low-address = wrapping-add-i64 address 2 in
+    let high = hold-input input (load-one high-address) in let low = hold-input input (load-one low-address) in
+    hex-pair high low
+    else 256
 
   -- | Preserve at most three original bytes in a malformed-escape diagnostic.
   bad-escape :: Bytes -> Nat -> UrlFailure
@@ -264,21 +290,17 @@ module Text.Url.Codec where
 
   -- | Validate one percent triplet and host/zone restrictions before any output is allocated.
   validate-percent :: Bytes -> Nat -> U8 -> Result UrlFailure Nat
-  validate-percent input at mode = if at + 3 <= bytes-len input then
-    case hex-value (bytes-get input (at + 1)) of
-      None -> Err (bad-escape input at)
-      Some high -> case hex-value (bytes-get input (at + 2)) of
-        None -> Err (bad-escape input at)
-        Some low ->
-          let value = high * 16 + low in
-          if eq-u8 mode 3 && value < 128 && value /= 37 then Err (bad-escape input at)
-          else if eq-u8 mode 4 && value /= 37 && value /= 32 then
-            if value <= 255 then
-              let raw = wrapping-i64-to-u8 (nat-to-i64 value) in let action = classify-one raw 3 in
-              if ne-u8 action 0 then Err (bad-escape input at) else Ok value
-            else Err (bad-escape input at)
-          else Ok value
-    else Err (bad-escape input at)
+  validate-percent input at mode =
+    let decoded = decoded-pair input at in
+    if ge-u16 decoded 256 then Err (bad-escape input at)
+    else let value = u16-to-nat decoded in
+      if eq-u8 mode 3 && value < 128 && value /= 37 then Err (bad-escape input at)
+      else if eq-u8 mode 4 && value /= 37 && value /= 32 then
+        if value <= 255 then
+          let raw = wrapping-i64-to-u8 (nat-to-i64 value) in let action = classify-one raw 3 in
+          if ne-u8 action 0 then Err (bad-escape input at) else Ok value
+        else Err (bad-escape input at)
+      else Ok value
 
   -- | Recognize a validation boundary, including raw ASCII forbidden in host and zone components.
   validation-special :: U8 -> U8 -> Bool
@@ -342,9 +364,9 @@ module Text.Url.Codec where
       if stop < bytes-len input then
         if bytes-get input stop == 43 && eq-u8 mode 6 && next < bytes-len out then
           let written = bytes-set out next 32 in decode-from input (stop + 1) out (next + 1) mode
-        else case validate-percent input stop mode of
-          Err error -> ()
-          Ok value -> if value <= 255 && next < bytes-len out then
+        else let decoded = decoded-pair input stop in
+          let value = u16-to-nat decoded in
+          if value <= 255 && next < bytes-len out then
             let written = bytes-set out next value in decode-from input (stop + 3) out (next + 1) mode
             else ()
       else ()

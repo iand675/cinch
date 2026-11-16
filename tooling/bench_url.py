@@ -17,7 +17,7 @@ import shutil
 import statistics
 import subprocess
 
-from validate_url import ROOT, source_closure
+from validate_url import ROOT, BUILD_ROOT, source_closure, toolchain_identity
 
 MODES = ("query-escape", "path-escape", "query-unescape", "path-unescape", "query-values", "parse-render", "resolve", "join", "escape-length", "bytes-copy")
 
@@ -81,6 +81,8 @@ def main() -> None:
         run([str(args.go), "build", "-o", str(artifacts / "reference"), str(reference)], env=environment)
         run([os.environ.get("CINCH_CLANG", "clang"), "-O2", "-S", "-x", "ir", str(artifacts / "bench.ll"), "-o", str(artifacts / "bench.s")])
         report = {"compiler_sha256": digest(compiler), "executable_sha256": digest(artifacts / "bench"), "llvm_sha256": digest(artifacts / "bench.ll"), "assembly_sha256": digest(artifacts / "bench.s"), "sources": {path.name: digest(path) for path in inputs}, "reference_source_sha256": digest(reference), "reference_executable_sha256": digest(artifacts / "reference"), "reference_sdk": run([str(args.go), "version"], env=environment).stdout.strip(), "opt_level": 2, "artifacts": str(artifacts), "runner_sha256": digest(Path(__file__)), "driver_sha256": digest(driver), "compiler_source_sha256": source_digest(list((ROOT / "compiler/src").rglob("*.rs")) + [ROOT / "compiler/Cargo.toml", ROOT / "compiler/Cargo.lock", ROOT / "compiler/build.rs"]), "runtime_source_sha256": source_digest(list((ROOT / "compiler/runtime/src").rglob("*.rs")) + [ROOT / "compiler/runtime/Cargo.toml", ROOT / "compiler/runtime/Cargo.lock"]), "cpu": next(line.split(":", 1)[1].strip() for line in Path("/proc/cpuinfo").read_text().splitlines() if line.startswith("model name"))}
+        report["toolchain"] = toolchain_identity(BUILD_ROOT, "rust", args.compiler.resolve())
+        report["compiler_source_sha256_scope"] = "Worktree context; exact frozen compiler source snapshot is recorded in toolchain.compiler_snapshot"
         report["source_override"] = str(args.source_override.resolve()) if args.source_override else None
         identity.write_text(json.dumps(report, indent=2) + "\n")
         print("Built frozen URL benchmark artifacts", flush=True)
