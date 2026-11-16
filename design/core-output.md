@@ -117,6 +117,13 @@ Consequences worth knowing when reading a dump:
   source, dictionary bindings highlight their uses, and each unit shows
   its stage history (inlined into, specialised from).
 
+The checks above describe the intended full verifier. The current text
+reader checks structure, scopes, annotations and available declaration
+metadata. It does not reconstruct a typed `Program` or prove ownership
+balance. Whole-program ownership verification runs on the in-memory Core
+in the compiler pipeline. A successful `core verify` on a dump is
+structural coverage, not a replacement for that check or execution tests.
+
 ## 3. What is made explicit
 
 ### 3.1 Dictionaries and instances

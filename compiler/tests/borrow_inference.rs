@@ -245,6 +245,12 @@ fn computed_heads_record_writes_before_alias_elimination() {
 
 #[test]
 fn computed_heads_reuse_cells_inside_and_outside_the_match() {
+    use std::process::Command;
+    let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime");
+    let built = Command::new("cargo").args(["build", "--release", "--manifest-path"])
+        .arg(runtime.join("Cargo.toml")).arg("--target-dir").arg(runtime.join("target"))
+        .output().expect("build runtime");
+    assert!(built.status.success(), "{}", String::from_utf8_lossy(&built.stderr));
     for match_in_head in [false, true] {
         let mut ctor = unit("Main.Box", vec![Class::Raw], Core::Unit);
         ctor.ctor = Some((0, 1));
@@ -260,10 +266,28 @@ fn computed_heads_reuse_cells_inside_and_outside_the_match() {
             weight: None, body: Box::new(if match_in_head { head.clone() } else { apply(head.clone()) }),
         }] };
         let body = if match_in_head { apply(matched) } else { matched };
-        let p = counted(vec![ctor, reader(), unit("Main.worker", vec![Class::Raw], Core::Unit),
-            unit("Main.rebuild", vec![Class::Obj], body)]);
+        let entry = call("Main.rebuild", Core::App(
+            Box::new(Core::Ctor(GlobalId("Main.Box".into()), vec![])), vec![Core::Int(5)]));
+        let mut p = counted(vec![ctor, reader(), unit("Main.worker", vec![Class::Raw], Core::Unit),
+            unit("Main.rebuild", vec![Class::Obj], body), unit("Main.main", vec![], entry)]);
         assert!(!p.borrowed.contains_key("Main.rebuild"), "a reused parameter must be owned");
         assert!(format!("{:?}", p.fns[3].body).contains("Reuse {"), "{:?}", p.fns[3].body);
+        p.main = Some(GlobalId("Main.main".into()));
+        let dir = common::project("borrow_computed_head", &[]);
+        let ll = dir.join("program.ll");
+        let exe = dir.join("program");
+        std::fs::write(&ll, cinch::codegen::emit(&p).expect("emit the exact counted head shape")).expect("write IR");
+        let mut linker = Command::new(std::env::var_os("CINCH_CLANG").unwrap_or_else(|| "clang".into()));
+        linker.arg(&ll).arg(runtime.join("target/release/libcinchruntime.a")).arg("-o").arg(&exe);
+        if cfg!(target_os = "linux") { linker.args(["-ldl", "-lpthread", "-lm"]); }
+        let linked = linker.output().expect("link computed-head reuse");
+        assert!(linked.status.success(), "{}", String::from_utf8_lossy(&linked.stderr));
+        let out = Command::new(exe).env("CINCH_LEAK_CHECK", "1").env("CINCH_RC_DEBUG", "1")
+            .output().expect("run computed-head reuse");
+        let err = String::from_utf8_lossy(&out.stderr);
+        assert_eq!(out.status.code(), Some(0), "match_in_head={match_in_head}: {err}");
+        assert!(err.contains("cinch-leak: live=0 immortal=0 leaked=0"), "{err}");
+        common::cleanup(&dir);
     }
 }
 
