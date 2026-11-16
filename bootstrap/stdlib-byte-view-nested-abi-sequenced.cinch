@@ -1,0 +1,21 @@
+-- | Minimal nested imported scalar conversion contract reproduction.
+module Main where
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+  -- | Repeat a bounded byte without a foreign call.
+  prim repeated-byte :: U8 -> U64 where
+    llvm {
+      %byte = zext i8 %0 to i64
+      %value = mul i64 %byte, 72340172838076673
+      ret i64 %value
+    }
+  -- | Observe a nested checked byte load and machine conversions.
+  nested :: Bytes -> U64
+  nested needle = let size = bytes-len needle in
+    if size == 0 then 0 else
+      let first-byte = bytes-get needle 0 in let machine-byte = nat-to-i64 first-byte in
+      let byte = wrapping-i64-to-u8 machine-byte in let repeated = repeated-byte byte in repeated
+  -- | Keep the imported call reachable in a complete executable.
+  main :: Int
+  main = if eq-u64 (nested (bytes-from-u8s [1])) 72340172838076673 then 0 else 1
