@@ -1,0 +1,56 @@
+  -- | Keep a backing owner alive through each complete private counter traversal.
+  keep-owner :: forall a. Bytes -> a -> a
+  keep-owner owner value = case bytes-len owner of _ -> value
+  -- | Compare complete private counter results with independently supplied scalar counts.
+  kernel-count :: Bytes -> Nat -> Bool
+  kernel-count raw expected = if expected <= 9223372036854775807 then
+    let count = keep-owner raw (string-count-from (bytes-data raw) 0 (nat-to-i64 (bytes-len raw)) 0) in
+    eq-i64 count (nat-to-i64 expected)
+    else False
+  -- | Conjoin every complete kernel observation.
+  all :: List Bool -> Bool
+  all values = case values of Nil -> True; Cons first rest -> first && all rest
+  -- | Decode exact reference bytes independently of UTF-8 interpretation.
+  raw-input :: String -> Bytes
+  raw-input text = case hex-decode text of Ok raw -> raw; Err error -> bytes-new 0
+  -- | Repeat exact reference bytes through the already tested source-distributed bulk constructor.
+  kernel-case :: String -> Nat -> Nat -> Bool
+  kernel-case hex count expected = kernel-count (B.bytes-repeat count (raw-input hex)) expected
+  -- | Generate only the two byte classes needed to exhaust all sixteen-lane flag combinations.
+  mask-byte :: Nat -> InRange 0 255 Nat
+  mask-byte bits = if nat-rem bits 2 == 0 then 128 else 0
+  -- | Fill a private model buffer through ordinary checked byte stores.
+  fill-mask :: Bytes -> Nat -> Nat -> Unit
+  fill-mask raw bits at = if at < bytes-len raw then
+    let byte = mask-byte bits in let written = bytes-set raw at byte in
+    let next-bits = nat-div bits 2 in let next = at + 1 in fill-mask raw next-bits next
+    else ()
+  -- | Count independent input bits with scalar natural division and remainders.
+  model-bits :: Nat -> Nat -> Nat
+  model-bits bits total = if bits == 0 then total else
+    let next-total = total + nat-rem bits 2 in let next = nat-div bits 2 in model-bits next next-total
+  -- | Exhaust all sixteen-lane classifier masks, independently of valid-text policy.
+  mask-model-loop :: Nat -> Bool
+  mask-model-loop bits = if bits >= 65536 then True else
+    let raw = bytes-new 16 in let filled = fill-mask raw bits 0 in
+    let expected = model-bits bits 0 in
+    if kernel-count raw expected then let next = bits + 1 in mask-model-loop next else False
+  -- | Preserve every raw byte value as a range-checked model input.
+  model-byte :: Nat -> InRange 0 255 Nat
+  model-byte value = nat-rem value 256
+  -- | Fill exact byte values through checked stores at every scalar and packed fringe.
+  fill-one :: Bytes -> Nat -> Nat -> Unit
+  fill-one raw value at = if at < bytes-len raw then
+    let byte = model-byte value in let written = bytes-set raw at byte in
+    let next = at + 1 in fill-one raw value next
+    else ()
+  -- | Compare the private leading-byte classifier for every length through thirty-three bytes.
+  byte-width-loop :: Nat -> Nat -> Bool
+  byte-width-loop value size = if size > 33 then True else
+    let raw = bytes-new size in let filled = fill-one raw value 0 in
+    let expected = if value < 128 || value >= 192 then size else 0 in
+    if kernel-count raw expected then let next = size + 1 in byte-width-loop value next else False
+  -- | Exhaust all byte classes while keeping each model buffer owner through the scan.
+  byte-model-loop :: Nat -> Bool
+  byte-model-loop value = if value >= 256 then True else
+    if byte-width-loop value 0 then let next = value + 1 in byte-model-loop next else False
