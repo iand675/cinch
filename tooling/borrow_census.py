@@ -28,13 +28,13 @@ Measured 2026-11-16 on `main` = 63663f0f, no-PGO stage 3:
 A site is `(dup x`, `(drop x` or `(release x` whose operand is exactly one of
 the enclosing unit's `@params` names.
 
-Read `borrowed` carefully: the `owned` stage is `crate::rc::insert`, so this
-dump reflects the SEED's whole-program `borrow_modes`, not the self-hosted
-emitter. `coretext.rs` prints `@borrowed(a,b)` on a unit whenever a lend
-exists, and the count here is zero, which therefore says the seed's analysis
-lends no parameter in the compiler's own source. It does not say the
-mechanism is missing, and it is not evidence about what the per-unit emitter
-would do.
+Do not read `borrowed` as the borrow analysis's answer. `@borrowed` in the
+dump is printed from `Program::lent`, the lending convention a call site
+uses, while `rc::borrow_modes` records its decision in `Program::borrowed`,
+which the dump does not print at all (found 2026-11-16). So this count is
+zero on every corpus regardless of what the analysis decided, and the
+`borrowed` figure here is reported only to keep that mismatch visible. The
+`on_params` share is unaffected: it counts sites, not decisions.
 """
 
 import argparse
@@ -103,9 +103,9 @@ def main():
     print(f"ownership sites {result['sites']}, on parameters {result['on_params']} "
           f"({share:.1f}%)")
     if result["borrowed"] == 0:
-        print("no unit carries @borrowed: the seed's whole-program borrow_modes "
-              "lends no parameter here, so each parameter site is an offer to "
-              "check rather than a decision this dump already made")
+        print("no unit carries @borrowed: this dump prints Program::lent, not "
+              "Program::borrowed, so the count says nothing about borrow_modes; "
+              "the parameter share above is the part that is measured")
     if args.by_module:
         print()
         for module, count in result["by_module"].most_common(args.top):
