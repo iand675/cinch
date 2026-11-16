@@ -1,0 +1,19 @@
+{
+  "rust": {
+    "assembly_sha256": "751228f5d584815692b8f13f63abbf2f9aefa7ad0a7ec8049a2b0dd655bf088d",
+    "start_clock_line": 171733,
+    "timed_loop_line": 171840,
+    "end_clock_line": 171886,
+    "retained_input_checksum_line": 171900,
+    "retained_parameter_getter_line": 171906,
+    "retained_registry_getter_line": 172110
+  },
+  "native_2f077_v2": {
+    "assembly_sha256": "9c364e70c160378780f7bf64c04121a38a37875444ff59356b6fa1dfca26fe14",
+    "start_clock_line": 1726,
+    "timed_loop_line": 1842,
+    "end_clock_line": 1846,
+    "retained_input_checksum_line": 1870
+  },
+  "scope": "Actual optimized assembly inspected. End clock precedes retained input/context observations. Kernel host SIMD and portable objects independently retained. No newer frontend credited."
+}

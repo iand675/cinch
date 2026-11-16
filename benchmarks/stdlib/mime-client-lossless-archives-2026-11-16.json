@@ -1,0 +1,1378 @@
+{
+  "format": 1,
+  "cpu_affinity": [
+    0
+  ],
+  "scope": "only exact completed functional client ELF/LLVM artifacts; all source, benchmark, compiler, runtime and provider files excluded",
+  "artifacts": [
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0000.ll",
+      "original_sha256": "b666ed676ffb6aa33743d0fe94ff03f8bcbebbb4bced0b484464b0c0d102eecc",
+      "original_bytes": 5474883,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0000.ll.gz",
+      "archive_sha256": "b771b2e27ff70b48d9bb0f0b022530af3f2d0999039d6ff6482f7b05c6447099",
+      "archive_bytes": 619798,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0000.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0000",
+      "original_sha256": "beaa300687e072da0ecd048bfc73ac21d267ee3e651d6d0656baa2dd929a7f62",
+      "original_bytes": 6363008,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0000.gz",
+      "archive_sha256": "263b986fca030dee64b7186b3cdb0efcb1352c2a24b101d071b9b04824e71c98",
+      "archive_bytes": 2022108,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0000.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0128.ll",
+      "original_sha256": "f84e83096c713f5eb01493da8c1234e066eb1875028aa951a3b4f5f44dada468",
+      "original_bytes": 5540371,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0128.ll.gz",
+      "archive_sha256": "51ebc163eaec54aec5e7b7605d76f8eee96707940828b4157b33d9c673a87858",
+      "archive_bytes": 611692,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0128.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0128",
+      "original_sha256": "54d97989aae4f617102145ef54b1d991df432cf280f1ec3acd37cc49ec15ac4f",
+      "original_bytes": 6364016,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0128.gz",
+      "archive_sha256": "120a1b8fcb2b3677926434c350c5e755ca7fe4afd1c6046847a5aa53a195074a",
+      "archive_bytes": 2018661,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0128.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0256.ll",
+      "original_sha256": "cb42f4a16674f6b7872960e6173beb12efbcff247bc06269cec6b2600d6065b6",
+      "original_bytes": 6839712,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0256.ll.gz",
+      "archive_sha256": "669ef5cb885790d3261fb1f34cb7efdd955ab5dc31a82e947465cd88b15ae007",
+      "archive_bytes": 1037870,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0256.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0256",
+      "original_sha256": "99cb7fcfad684fdcbefc533eed7667dacaddd7dd08bd8daa45e9541d2a098d1e",
+      "original_bytes": 6704296,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0256.gz",
+      "archive_sha256": "73ced7279783819f919bfc03c4e3bd6a0526010da5be23d23b39695e1eada8e6",
+      "archive_bytes": 2089342,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0256.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0384.ll",
+      "original_sha256": "c33c020e601aef6cc176ccc96ab33d3fcdfc85455cf333040c677f7ed1ab8956",
+      "original_bytes": 7312404,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0384.ll.gz",
+      "archive_sha256": "3ef48aa9208ccebe802e5fd62fe24baee070e0070dd7bb10df320368ce054f9d",
+      "archive_bytes": 1195360,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0384.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0384",
+      "original_sha256": "64888db4a48eb7f8458808666e91f9ec6bcda3cbaa8df48329def32f5e5a619b",
+      "original_bytes": 6832200,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0384.gz",
+      "archive_sha256": "69e19bbd744ffce216c146836d5fbf9dc39cde762c4906a326b51f85530c179c",
+      "archive_bytes": 2113598,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0384.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0512.ll",
+      "original_sha256": "0b7966f321ddfe9dc57b353b873fd460d5856ffb2b2d108d2c0c7bc608c9eb98",
+      "original_bytes": 4931616,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0512.ll.gz",
+      "archive_sha256": "f531308c03e13d174c944f3a658dbe124f569c3b58c332805af7f6f011fc465d",
+      "archive_bytes": 710579,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0512.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0512",
+      "original_sha256": "972b861539c3ed81da9c2efea14eed785a5fd967f5780d4ed3cd1e4c58febc5c",
+      "original_bytes": 6386600,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0512.gz",
+      "archive_sha256": "6b7317b037f4e46ac9f9044d1bafecb6fa93349edad5714451085fed92538f47",
+      "archive_bytes": 2021317,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-media-0512.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-formats-0000.ll",
+      "original_sha256": "123be2781797a0753b02af512f676325117a554409ac333225ba68aa20460631",
+      "original_bytes": 1221521,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-formats-0000.ll.gz",
+      "archive_sha256": "5e623f7caf30707be9ccbfa4a0efce2365b5dac6eda378c6d47275280cadd49a",
+      "archive_bytes": 215572,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-formats-0000.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-formats-0000",
+      "original_sha256": "515043bdb4d5ed811921577bf346831b1baac8161686329cf64258e9a772b853",
+      "original_bytes": 6117648,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-formats-0000.gz",
+      "archive_sha256": "8d1acc3b9689aa77c0b79830aa52c9c475fd911493a5ada390a7dc51c4716fa8",
+      "archive_bytes": 1934140,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-formats-0000.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0000.ll",
+      "original_sha256": "6fc8b64506333e305371bdf5ec38d2d30760496652226c333f9a542acf4d31dd",
+      "original_bytes": 1250250,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0000.ll.gz",
+      "archive_sha256": "8dfe75b926ffd41a4872a71603cd65d871c33a2c5d76bf4814dcd4a1040ca0d2",
+      "archive_bytes": 177842,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0000.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0000",
+      "original_sha256": "f3fc12fcf5a168eac0aeb0c3a451a642bfae64e235645d9c57b48c1b7905b6f6",
+      "original_bytes": 6153136,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0000.gz",
+      "archive_sha256": "ed597268294c6f194c38ecbfcecd21f73795320e969b4db37f6cfe3ffc75bb42",
+      "archive_bytes": 1924891,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0000.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0128.ll",
+      "original_sha256": "caefb8d8b71391bcd19b434fc6b18dfbe56715533e344492498133e08acf5b46",
+      "original_bytes": 1254112,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0128.ll.gz",
+      "archive_sha256": "a92848e728f5d5c085841938a1c6c44fb6e026aa9d30c48c69cdd8f66644b4b7",
+      "archive_bytes": 177530,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0128.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0128",
+      "original_sha256": "9786db537982cedd33fd9762a4a257fcf9194b916ac577eaa2e1611c008c5420",
+      "original_bytes": 6153136,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0128.gz",
+      "archive_sha256": "e015e294c95a8cff90b06995935ce9e9f2078988436e65ba83c510157dc756ee",
+      "archive_bytes": 1924884,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0128.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0256.ll",
+      "original_sha256": "8ebc15d6153a8f7b1f7101a715fe41396c7cfb833e9e9119fa81115610f64c4d",
+      "original_bytes": 1253741,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0256.ll.gz",
+      "archive_sha256": "c7529b60ac25e9148bf7b866ef2aa1dc03a8bca0a1db4f503146a6b011921ebf",
+      "archive_bytes": 177371,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0256.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0256",
+      "original_sha256": "b610447bd20ca25d803dfa052f9d090eefe1b24848dc9865ccb487567a37f381",
+      "original_bytes": 6153136,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0256.gz",
+      "archive_sha256": "df9cd9a5ba47d89b08d183f6d3e634d2e9bf02a54c65e990e6c4e89f66f1da19",
+      "archive_bytes": 1924920,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0256.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0384.ll",
+      "original_sha256": "90fa83e47141e96210752be169ed4bf9123f5bcd2599581ab62c983982d40faf",
+      "original_bytes": 1469197,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0384.ll.gz",
+      "archive_sha256": "2e34990acaeb235ef8b778ca40cddc131b76d5a053b23ee582a68c001cdad3fa",
+      "archive_bytes": 212568,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0384.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0384",
+      "original_sha256": "2697ae5f072299257530ea720320f903209e75eea506211a1cad8afb28c19561",
+      "original_bytes": 6221688,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0384.gz",
+      "archive_sha256": "3df9ad92bb4194e3aa91e8c57182c510a8e35bd61845488761f3ca07b0423705",
+      "archive_bytes": 1939512,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0384.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-encoded-0384.ll",
+      "original_sha256": "d17d49f417e1001c4ba0d8e429e2a094b71705aaa8621e30cd3a925ea889c430",
+      "original_bytes": 1455056,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-encoded-0384.ll.gz",
+      "archive_sha256": "1304b0fc72b51597adbc3723db45ac3dba451f985644eca10ee66dc1d67ff745",
+      "archive_bytes": 213058,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-encoded-0384.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-encoded-0384",
+      "original_sha256": "e5fd755fc36b8745bb529bf7f133f917599c57398bb4b21926e4eb3939e4d5e8",
+      "original_bytes": 6201840,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-encoded-0384.gz",
+      "archive_sha256": "c4922965f0e5cbd9543e5d2dece409273bc4b51d7da6de766455ef1e319dd3b6",
+      "archive_bytes": 1936903,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-encoded-0384.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-encoded-0512.ll",
+      "original_sha256": "3ed77d1f6b9c02aef132f77f8e55d344beae3b6ceff2b0d79b9ea2f540bb83b1",
+      "original_bytes": 2005662,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-encoded-0512.ll.gz",
+      "archive_sha256": "6d65552e9f82adfd9017650ef4658787b718a17bc8320c0f7ecfa4f6fdd3034c",
+      "archive_bytes": 311331,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-encoded-0512.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-encoded-0512",
+      "original_sha256": "fd467699a5a13fbfc751af10720d7b27d0ceb73253467fc246f7fa86647c8720",
+      "original_bytes": 6296400,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-encoded-0512.gz",
+      "archive_sha256": "4db089ff87ee66111a3bf150bf056a717fb53e51c280e06a0b2098d8acaab4b9",
+      "archive_bytes": 1955021,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-encoded-0512.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-encoded-0640.ll",
+      "original_sha256": "5147eef8f646e2dc937345c2d83f8985c8fc5851e5053cd6d4758cff5d364dae",
+      "original_bytes": 2861270,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-encoded-0640.ll.gz",
+      "archive_sha256": "73a11fd51562fb9755ca38e093b592099c49fc56199c1698b25bdf673b546ab6",
+      "archive_bytes": 306117,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-encoded-0640.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-encoded-0640",
+      "original_sha256": "a16029e13f9f713ee180357c4b3f44fbcccf2438f0b89b10ae553b8aabce669d",
+      "original_bytes": 6333488,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-encoded-0640.gz",
+      "archive_sha256": "26812e3b8e5eb4ac2956df8a61c43f4034be8e3ad10016e65173c038b6e7525f",
+      "archive_bytes": 1955306,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-encoded-0640.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-encoded-0768.ll",
+      "original_sha256": "8a717d309f2297cff360f27794002b9be16841d0a3610b9a1093cabb63512e8e",
+      "original_bytes": 1855122,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-encoded-0768.ll.gz",
+      "archive_sha256": "4c9133396a0e65f9b11b42a17f0c08ba6ee87c40b828e05eb71950ab4666b2fa",
+      "archive_bytes": 218964,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-encoded-0768.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-encoded-0768",
+      "original_sha256": "6acbecb7d4e89d00ee0389e4f4031f96abcdd1ccd4b4c7da3e4c000323c34d3b",
+      "original_bytes": 6171904,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-encoded-0768.gz",
+      "archive_sha256": "aa99c05a48567b5e161e3ea5d613f035a0e47d5822f39a677dca1504cf4fc836",
+      "archive_bytes": 1924310,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-encoded-0768.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0000.ll",
+      "original_sha256": "9eada0174785940b3c088721b02790626347aad4221744b7f29076322a7c40b7",
+      "original_bytes": 5403446,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0000.ll.gz",
+      "archive_sha256": "6fbc04d57d8dab1de86efa9dc287d82a9f9cc65719ed7b65ceb1a67c053209f9",
+      "archive_bytes": 665054,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0000.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0000",
+      "original_sha256": "c21195d700263a60261a525a9385d6e3384d6dbbd22460fca7fa2e792197594e",
+      "original_bytes": 6423448,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0000.gz",
+      "archive_sha256": "93b2b73d938f72a20f14b33e475a2fb4aa290fa8d469721dd6ae9f54ee1e2311",
+      "archive_bytes": 2046927,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0000.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0128.ll",
+      "original_sha256": "aa1ae0f8d8a621d2db0fbadffeb7173eba6feb29f01b230845b7b1ef74e6ccf9",
+      "original_bytes": 5316136,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0128.ll.gz",
+      "archive_sha256": "5d0f4f66976736e59f61827c6dcb364595de6c470281db1daa134a26e6977eb0",
+      "archive_bytes": 631289,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0128.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0128",
+      "original_sha256": "aeb3efb42980083e596b9b238e3c5d1d5391a8c123f510de3254f9e50af5ec4e",
+      "original_bytes": 6405952,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0128.gz",
+      "archive_sha256": "05e7057676a8dadcc2fc987884c0b31d1e11716569833ea2216355480a3e59a4",
+      "archive_bytes": 2037269,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0128.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0256.ll",
+      "original_sha256": "b09644e894c0096c4798f8a95045e86014f8ecd1348af332939667df30752289",
+      "original_bytes": 5316002,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0256.ll.gz",
+      "archive_sha256": "fc74c768438235b2a7555f8dc6012a7a830dd4e701d919511249680992687d93",
+      "archive_bytes": 631257,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0256.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0256",
+      "original_sha256": "c96484ca1d5a5f4a699196fab779bc55c61bdd1c089a1f0789015c4f9fba67fd",
+      "original_bytes": 6405952,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0256.gz",
+      "archive_sha256": "5b5a538513ffb732bf606502ad0c1d442553d18b73f58bc4aca63acbcd459e57",
+      "archive_bytes": 2037260,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0256.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0384.ll",
+      "original_sha256": "89b0dc40d15d99fdcd1a9c3d804d672ad9ecee5dbd17721ec8ab5b7ba673c360",
+      "original_bytes": 5316010,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0384.ll.gz",
+      "archive_sha256": "82f39f4a315392e1ede71e89f87193fb93edd3a740a62e77ca2600ad82f3f499",
+      "archive_bytes": 631262,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0384.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0384",
+      "original_sha256": "8b568342a66e749bc00d3561b1daad777bd296b00c27f84dccab4b291049f7df",
+      "original_bytes": 6405952,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0384.gz",
+      "archive_sha256": "5591a1800d21b73f2b076e098475b3edd84067294c997836608d292d99b5e8d1",
+      "archive_bytes": 2037245,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0384.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0512.ll",
+      "original_sha256": "379605645cd90fa5a5f4450a0e662214d2e893c1630ad8654fc23a68409f9790",
+      "original_bytes": 5316426,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0512.ll.gz",
+      "archive_sha256": "407b516f0ffa03e2fe9b24811b7827287e95b6fa66888e03768126bbd0e16011",
+      "archive_bytes": 638057,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0512.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0512",
+      "original_sha256": "58a7802abdc36419b83b2496bf8a5f9f5604f1cb3eff4c722b6bb53f3a31feda",
+      "original_bytes": 6405952,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0512.gz",
+      "archive_sha256": "3186231ec2a0a375b393164ae17cb4763038a39eb432c919c1294a9d4e863367",
+      "archive_bytes": 2037426,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0512.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0640.ll",
+      "original_sha256": "026f75aaaa43d1c89918635da94e1f9f8fb9459eaffecbee21bcfb34c6470b1f",
+      "original_bytes": 5319961,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0640.ll.gz",
+      "archive_sha256": "0fdb20e392490b0d3b1b0092d48d6dbc6283749b64d71d1334d65f6528e219e5",
+      "archive_bytes": 643912,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0640.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0640",
+      "original_sha256": "939a5d932944d8ac448e0faf3440311e6f61023ffa50a756875419b760ae0ef5",
+      "original_bytes": 6405984,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0640.gz",
+      "archive_sha256": "ad6f92b8ad18ad0c9b4444b3340f8b9c89b3402500bf6ab4d0599501738d01c2",
+      "archive_bytes": 2037633,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0640.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0768.ll",
+      "original_sha256": "7adf7b4ed7483f7f7ed878cc0460a7a49a5baa54326c94fe9fac24f6d748a7ca",
+      "original_bytes": 5319961,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0768.ll.gz",
+      "archive_sha256": "86348c3caa87992beaec7bdd690c91dfa60da87e5afeb066eb4e002d69594b6b",
+      "archive_bytes": 643920,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0768.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0768",
+      "original_sha256": "86c21a03eca53cf6307dd5447581f67b2780228e1dcab7e8e00384d3cb2c20b0",
+      "original_bytes": 6405984,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0768.gz",
+      "archive_sha256": "f81dfe8f2951679cac5b340147b47f89a32b4dbd6b5b28862a78bde650a332e0",
+      "archive_bytes": 2037642,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0768.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0896.ll",
+      "original_sha256": "0e2edceb396240fae1fe135119c7cb3e7d9d9c1fd6067bf3c48523a2fcc6a612",
+      "original_bytes": 5319961,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0896.ll.gz",
+      "archive_sha256": "8e48c1176cc7b576b50831b13cea1086af6fcef7e5061f4b0b8e5b72e38704b2",
+      "archive_bytes": 643916,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0896.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0896",
+      "original_sha256": "e39255ba9d767f508f12efb35d1bebf439c71113319d8dc126adbe5779e3fa62",
+      "original_bytes": 6405984,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0896.gz",
+      "archive_sha256": "b3c8fd9a2715faf304a15aabc2619d9e858744c7034d0827a929fe63c4f283b4",
+      "archive_bytes": 2037638,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-0896.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1024.ll",
+      "original_sha256": "096bec49895ef3dbde8578e1927011b39803ed8790f4dd8379f07e9b454a78fa",
+      "original_bytes": 5430722,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1024.ll.gz",
+      "archive_sha256": "00010792de1750e5473883f39803f4014dd4a483d1dbbc61b9afb17119adf65e",
+      "archive_bytes": 672923,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1024.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1024",
+      "original_sha256": "1c161e8e993a3bc36d06d6708191706dddf3557fa3d5b66fd98cf5dfb08238b0",
+      "original_bytes": 6427528,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1024.gz",
+      "archive_sha256": "eac63fe57e5df493bef95f53740d5ed2e60441a94ca63adf28a400a9a6805ef7",
+      "archive_bytes": 2047578,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1024.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1152.ll",
+      "original_sha256": "fe2227853443d719a8938d863dea6a3ce8da43c84fbc656caad7bb32a6a5b960",
+      "original_bytes": 5279911,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1152.ll.gz",
+      "archive_sha256": "36e280cad5bce0e53883b456770ac0cb60fbce1591dde026fcaf61841faee3a1",
+      "archive_bytes": 644305,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1152.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1152",
+      "original_sha256": "8d49d1798100602c343b9204764014794150c64de4fa0428e40c482388a41d22",
+      "original_bytes": 6401080,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1152.gz",
+      "archive_sha256": "e3c044af33e4ad1b489899d4922847d4b6f3d62825d9b18df69828587acbc320",
+      "archive_bytes": 2040807,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1152.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1280.ll",
+      "original_sha256": "3c523d475e4cddeecc547d1e0998c5e0dd915617929b7a7398e18a886eccdb88",
+      "original_bytes": 5957040,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1280.ll.gz",
+      "archive_sha256": "0f7eaedff8af0d9ea2354be20768eeb6aca4e651e4dac3017cf0b73565e9e607",
+      "archive_bytes": 797756,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1280.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1280",
+      "original_sha256": "f235a63fc6bcdb3c3a4c9d9aa770e69a8dfbf0bd6a7a659f96cddb61d0ee4bd4",
+      "original_bytes": 6540024,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1280.gz",
+      "archive_sha256": "2ad226e9f2d4166b241e1d60cb1f8da33a0d5dacc23c024cf5a8b8c76313e7d2",
+      "archive_bytes": 2075938,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1280.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1408.ll",
+      "original_sha256": "dcd306e06144ec603696c415d4f2c872e11ccae4afea8cd95030c2013fe1d0cd",
+      "original_bytes": 6392407,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1408.ll.gz",
+      "archive_sha256": "790683c003a5a9cc4f708846f6acb9c02f3c3ce63e8f29c0d5ec4528bcd7eae4",
+      "archive_bytes": 888504,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1408.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1408",
+      "original_sha256": "6070db3d47aa81e2be8c3e1037adc13a8c728a18b9baf709e7567ce11333f65e",
+      "original_bytes": 6612592,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1408.gz",
+      "archive_sha256": "f2bc3ff2f3cd06d3c94eb96e034a3b95c1f154469b7f47bab6795867c0f97314",
+      "archive_bytes": 2088796,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1408.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1536.ll",
+      "original_sha256": "6ee9c8466919dd668af8b3a0d566b5cb8d5491a6b9fbe8041289ee581a125118",
+      "original_bytes": 4271158,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1536.ll.gz",
+      "archive_sha256": "86879ef6aaa071db44e91a5f29836181067d187991f2f7a7ed219beb6f636d16",
+      "archive_bytes": 570507,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1536.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1536",
+      "original_sha256": "e3a3fdb380f9737bff500edce721f1527d4562ff81747cc8c6d61a11a26436b7",
+      "original_bytes": 6269280,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1536.gz",
+      "archive_sha256": "ce0d7668b78465ef77e75e792d56c2e198e890963961baab619992e08ae12411",
+      "archive_bytes": 2007049,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-1536.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-writes-0000.ll",
+      "original_sha256": "a6c2af2fa975016d969d56583424b84c8e035404c833c6bd83511dac15762f7c",
+      "original_bytes": 6780659,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-writes-0000.ll.gz",
+      "archive_sha256": "d26d86c53c9fe9600a43fad2ae65af7894e23271f3046048c965835b0d8f9df9",
+      "archive_bytes": 915760,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-writes-0000.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-writes-0000",
+      "original_sha256": "5e3c6098bc0b6c97de135ff134d623928647001ec199d815542a3a469615efa1",
+      "original_bytes": 6788992,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-writes-0000.gz",
+      "archive_sha256": "914c22f0431d2426a04a8b5283701322c0858f83aab622d2b472a58d22bdc046",
+      "archive_bytes": 2126844,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-writes-0000.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-writes-0128.ll",
+      "original_sha256": "baeba0955cd23e94836fae77d81b5941715010e64569f07b26b1d56020735c45",
+      "original_bytes": 4284946,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-writes-0128.ll.gz",
+      "archive_sha256": "8b559514ce6842f1f62b5fbc0a9bb3f18e9e81630c7f2d49c7e1692175dbe92b",
+      "archive_bytes": 571228,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-writes-0128.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-writes-0128",
+      "original_sha256": "0ebfbc9f1e91f03b6e8f0d7646fc3d971a4fa84a3d2cc880d5a56d54eb414896",
+      "original_bytes": 6279384,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-writes-0128.gz",
+      "archive_sha256": "f83b64585f1a7bdb1696f93032aff7576eca7b3fae173e258c8d3c793c232b29",
+      "archive_bytes": 2010483,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-writes-0128.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-registry.ll",
+      "original_sha256": "9a1403f3365556b052b21d4c311863151325e6f289c7aec7345e4b5c75b20c39",
+      "original_bytes": 4439308,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-registry.ll.gz",
+      "archive_sha256": "174efdc53ecda5a49e90844569b9df241bf152ac318bbc233d9aa7a4aa3402cf",
+      "archive_bytes": 589216,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-registry.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-registry",
+      "original_sha256": "65b2b4aea6c9ed257f85a8cf57d5f4e4f9b4595d429fbd1307dc654b1f56fd60",
+      "original_bytes": 6320600,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-registry.gz",
+      "archive_sha256": "8d04869f8006b07aee156c945fc62f8d8c985166b74b578fa47da38524e8c555",
+      "archive_bytes": 2020523,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-registry.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-callbacks.ll",
+      "original_sha256": "96cd239373b5295782dc5b4c994c3acf52000286fb6bd1f0800637f97fa2275c",
+      "original_bytes": 4338425,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-callbacks.ll.gz",
+      "archive_sha256": "8c51b993fe65e53dc518d3bc8e7c472df34230836a5552890597f229756d2b5a",
+      "archive_bytes": 576461,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-callbacks.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-callbacks",
+      "original_sha256": "73d205f6f6d2f0d66954ffa19eaa75bc3b7d2e4acb72533fe2715b252a2ff386",
+      "original_bytes": 6283368,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-callbacks.gz",
+      "archive_sha256": "9ccd7a3174f554dbda000e98f5e2ec77e2bd4055f1778a611e4b1c5b42d11c64",
+      "archive_bytes": 2011330,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-decoded-callbacks.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-ownership.ll",
+      "original_sha256": "acf6b89157be1163e6d2d26f46859c471f4b31f00de933f309fd67cb1363377d",
+      "original_bytes": 5691550,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-ownership.ll.gz",
+      "archive_sha256": "fb1ee194332173760ce518ad8f5a061d6c3bb66ad48e49e10e867a467e204711",
+      "archive_bytes": 850220,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-ownership.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-ownership",
+      "original_sha256": "6c3581667df670906a0d82bb5db4d69cba51523673f0d05d774ebd05a14d78bf",
+      "original_bytes": 6602528,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-ownership.gz",
+      "archive_sha256": "40238635ec1240eecf7f66f2f5abb793a3f5cbb157a03e1ca16a3aab2e9dc190",
+      "archive_bytes": 2136078,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-chunked/rust-ownership.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-first/native-media-0000.ll",
+      "original_sha256": "527b676717123219a514b5bb7cdaac650f4009bd40b230738107691eec238636",
+      "original_bytes": 3774318,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-first/native-media-0000.ll.gz",
+      "archive_sha256": "ff75ba0be31da0d51d112af1224836fcca212ba3a61e93991d2562c12564ae3d",
+      "archive_bytes": 588372,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/2f077-v2-first/native-media-0000.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-first/native-media-0000",
+      "original_sha256": "c405e0ef6260548c99dc12e547aa5c001d04b730ab39ec33a1d86e8be03a5c3f",
+      "original_bytes": 11815808,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-first/native-media-0000.gz",
+      "archive_sha256": "3e1e5108b90ee26efc779466f456077f040695ea1a2726d881aa368b1d566f4d",
+      "archive_bytes": 3370666,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/2f077-v2-first/native-media-0000.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-media-0128.ll",
+      "original_sha256": "3afa710ac5e6046ad2c1f6f1dcfc5cb4c7d98d97e468aac1df9dd6a720e72a8c",
+      "original_bytes": 3800845,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-media-0128.ll.gz",
+      "archive_sha256": "e68a905cb2f3e13aa672ac7da0711c4aa50a2267148b485ab62e123987ce8c79",
+      "archive_bytes": 584735,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-media-0128.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-media-0128",
+      "original_sha256": "211e6f52e8d53e5181e062f030021442d39910febf833b356abf7ac391b60146",
+      "original_bytes": 11815808,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-media-0128.gz",
+      "archive_sha256": "0130142480c91c72e336491da35a9ec21fe1e0c619313855d82301cade772e6f",
+      "archive_bytes": 3371307,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-media-0128.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-media-0256.ll",
+      "original_sha256": "dc78c5fc7d4f3b078b58efaec2f64d8d5cda2c3aa6f612e7b61870054dbbe950",
+      "original_bytes": 3897576,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-media-0256.ll.gz",
+      "archive_sha256": "4093d7790404722fa9d54849d3760dde82fe03f20c1640598f48f4540fe825ca",
+      "archive_bytes": 611117,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-media-0256.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-media-0256",
+      "original_sha256": "647996247398503b77272953b050b27879e569e1a2a9d9d3604940ea2e1e1a8b",
+      "original_bytes": 11824000,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-media-0256.gz",
+      "archive_sha256": "7124dac1a83cd1d5f6949b41d66e3609e36cf00f72857596d70485d4869cca42",
+      "archive_bytes": 3373109,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-media-0256.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-media-0384.ll",
+      "original_sha256": "86f3aa38561c723291f949d7bc522716beb75807ece667da9241455280ebf639",
+      "original_bytes": 3937463,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-media-0384.ll.gz",
+      "archive_sha256": "61156533e90861783e32b2be55f5917caaf9efb53881a9f9f21e83429f37519e",
+      "archive_bytes": 622885,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-media-0384.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-media-0384",
+      "original_sha256": "4f407106166bf2554e749eed01ccd0830b87ffb0a6a80a1180d5953de33b8afc",
+      "original_bytes": 11824000,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-media-0384.gz",
+      "archive_sha256": "459693514be5a66cec0f57fcb1baae83cb82555e2928bff66150448a8df42391",
+      "archive_bytes": 3373341,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-media-0384.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-media-0512.ll",
+      "original_sha256": "10afe60484f759e526ddcb174c1eb5f1599c9f7dc5ab08ffb918a9217cfc3c3d",
+      "original_bytes": 3469853,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-media-0512.ll.gz",
+      "archive_sha256": "5fa378a8c1260d7e026042d7cd269bf0dedae57a21d0e7c6911e58102fe1378c",
+      "archive_bytes": 564002,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-media-0512.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-media-0512",
+      "original_sha256": "cca3be1cc3446b83aa03be487a4dd5ac71a536bc20a7e6a47508eb80f79bd495",
+      "original_bytes": 11749384,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-media-0512.gz",
+      "archive_sha256": "eb9fabec448baac8677563e98b45364169598a5e3dad3d0a689826c81829a85b",
+      "archive_bytes": 3357524,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-media-0512.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-formats-0000.ll",
+      "original_sha256": "849c396854161039ad3749a2732832319a77b03250a14f8dd8bec5c5d14f4575",
+      "original_bytes": 602915,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-formats-0000.ll.gz",
+      "archive_sha256": "94438a582df20ec3bebb2f044915d97c0b2aaddb820c0f84b0c032e06ede9407",
+      "archive_bytes": 103440,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-formats-0000.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-formats-0000",
+      "original_sha256": "1dd58ceed9f31391a947fd3666f0011180c75af34c4448faea830742b9a747f5",
+      "original_bytes": 11661552,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-formats-0000.gz",
+      "archive_sha256": "a7f894f988bd73e5ed76316cef69a72ddcc70bb414d0c1a40a28ce5eb7c3bd59",
+      "archive_bytes": 3328307,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-formats-0000.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0000.ll",
+      "original_sha256": "22983035d294d52c47c6b7ef32e6cf9b9cdc860c686fd6686313760de51e3fd3",
+      "original_bytes": 1127765,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0000.ll.gz",
+      "archive_sha256": "f11d2b9b8aa14472fef27ab3e0bb54864b60480d559966b99cc2342fc4747c35",
+      "archive_bytes": 159583,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0000.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0000",
+      "original_sha256": "08089d382ec896564b2faaa62a58f7361c914131031fe8ec8c3214e992e0e753",
+      "original_bytes": 11755888,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0000.gz",
+      "archive_sha256": "367754d3a2728af2c7c020aedf9d6eb2c64948ee7f2598d13effa89e4b36f578",
+      "archive_bytes": 3344649,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0000.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0128.ll",
+      "original_sha256": "33a3903f94c0954f3a5f234566be9e71b24fd9d3cfe7de321f74084b76615f93",
+      "original_bytes": 1132625,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0128.ll.gz",
+      "archive_sha256": "3f06ea205a3bb73e7ce0c92b9f44646a61ffd38eecc93f1e67bcadf3ac2f7ae5",
+      "archive_bytes": 159265,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0128.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0128",
+      "original_sha256": "4dff983a45c106e6687e0b674a91806d76eed1cc215bd50febda38b4876f7de8",
+      "original_bytes": 11755888,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0128.gz",
+      "archive_sha256": "c18efd382ad5e8388b31f79c5421ca543d5a4274a5fafd43fb745788ec0ab249",
+      "archive_bytes": 3344797,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0128.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0256.ll",
+      "original_sha256": "4465099c610b205d64ad8c9ca2c803724688d1848fafc45466079a596b5ba6d6",
+      "original_bytes": 1130025,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0256.ll.gz",
+      "archive_sha256": "3be9d1162cacff8f0f173804f0b4ace66d37d7dafee6df6d49da901b3735d73a",
+      "archive_bytes": 159275,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0256.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0256",
+      "original_sha256": "10498d6a709d5717dcbedd3b593343963b76a0b40815bb4f3fff9878eb322e11",
+      "original_bytes": 11755888,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0256.gz",
+      "archive_sha256": "6ed45c3f58af9d2c7c06bfbecde13875d961f00895b1229356bb776138a89034",
+      "archive_bytes": 3343041,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0256.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0384.ll",
+      "original_sha256": "9131a0ce01994d4c38cd6cd79a5df0aeca6aa362d1afbad083f873636c4ecdc5",
+      "original_bytes": 1365502,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0384.ll.gz",
+      "archive_sha256": "ceae3f8571469d18e1a2139540c042ea386d74c26f0ffeefb21f3f629fb83a6d",
+      "archive_bytes": 193805,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0384.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0384",
+      "original_sha256": "25cb120f713b8a001fb0f63a8ac0db5701aa935e2a55035678af1608f5570d83",
+      "original_bytes": 11780656,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0384.gz",
+      "archive_sha256": "f37f74c9438d88344fb13a30aa83762629137ebf1c879121e827b19fc7a6222e",
+      "archive_bytes": 3348812,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0384.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0512.ll",
+      "original_sha256": "f5b5668b9c77cea7a84f3729de0757013a82f642049988ff0f2a44a1bf180ccb",
+      "original_bytes": 2149749,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0512.ll.gz",
+      "archive_sha256": "d7e9ab334686ca14999b65b73725319b39271a44e461bfcb6d808ca5dc967967",
+      "archive_bytes": 298319,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0512.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0512",
+      "original_sha256": "d5180732c78bfd189cb1a777628097f355853f8ddac06c720ebacf992c977815",
+      "original_bytes": 11850288,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0512.gz",
+      "archive_sha256": "bf8f1226935907db99c1c562298229ed98d9d34a3ddd5faad4d23115243f8984",
+      "archive_bytes": 3361477,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0512.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0640.ll",
+      "original_sha256": "cf7fffbc5a3ae30a204dd41a101e665f86626f89650bab7f6a9472ef2849dad8",
+      "original_bytes": 1355943,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0640.ll.gz",
+      "archive_sha256": "e04438a749d79c808060c0060961adadb1f534baa2c803c3d0e7368357f41c33",
+      "archive_bytes": 202536,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0640.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0640",
+      "original_sha256": "d0534eb463daa1c014bd3a13169911a616f1915b99c1b61efa0d44368546c7e6",
+      "original_bytes": 11751792,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0640.gz",
+      "archive_sha256": "0806198d0f177086cb22b8b8f09744c7edc55c80d5d343e9c9a4120b4416c66b",
+      "archive_bytes": 3346349,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0640.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0768.ll",
+      "original_sha256": "8d0012ce7089be1f4c466d653f39402742e8035ae925759ccbc1a30b599d9dfa",
+      "original_bytes": 907503,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0768.ll.gz",
+      "archive_sha256": "34c16410f6cd26db724465c48086f4afd836093efc41d03a688f5b76e2b67c2e",
+      "archive_bytes": 148531,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0768.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0768",
+      "original_sha256": "f8c351d9a56b27a3dc39235d7d7e4a46c630d891a1101797aa218900480e72e1",
+      "original_bytes": 11685872,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0768.gz",
+      "archive_sha256": "5633d3855533a7991f4037a341eb9856e68f5b0f0914de4c312dcb80078b5e22",
+      "archive_bytes": 3332798,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-encoded-0768.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0000.ll",
+      "original_sha256": "f5514a56c2c457189a073c9b76b52b6b4f0eacbfd798ff564a9f0da3fbff2705",
+      "original_bytes": 4036911,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0000.ll.gz",
+      "archive_sha256": "fa1f25b1ff3a151f4b2e9971957364f66d5395da672037d4f19a59ceb0f8eb18",
+      "archive_bytes": 649183,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0000.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0000",
+      "original_sha256": "7ec9dc6cfa637411e4802b27d10a38ac7811e1546a1e9c9c2b700425178305f5",
+      "original_bytes": 11850704,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0000.gz",
+      "archive_sha256": "538d74056272a44f13fc0598a6e36be6e233ede3e78852b7f1a5d900cb94525e",
+      "archive_bytes": 3390879,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0000.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0128.ll",
+      "original_sha256": "2d00e5e127b84a36b20cbd1189f4ba098677aafb5bbfa0ecbdaaf639d654d57b",
+      "original_bytes": 4017042,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0128.ll.gz",
+      "archive_sha256": "e02fef468f3ccc74f77f13b2b31f56a53021f2f82aef2788c1054cd32eab58f3",
+      "archive_bytes": 643111,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0128.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0128",
+      "original_sha256": "2ba9bcd4c8b04eb4531976b17679d9f2f2483ca40fdcffe0d864a602be2b7323",
+      "original_bytes": 11850704,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0128.gz",
+      "archive_sha256": "31ac898521b5c1cac33efe6335b74ecf00065f899d3dfa88d0cac428642ef9ca",
+      "archive_bytes": 3389509,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0128.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0256.ll",
+      "original_sha256": "0098ac753f77c04050629491d4b0f3d9b52f29182cacf3ec8058c54358bf6080",
+      "original_bytes": 4017042,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0256.ll.gz",
+      "archive_sha256": "46cfc08b08bc09bf4f694b8f14c9bb474ddaf41f9e7f74544235421c85014ecf",
+      "archive_bytes": 643112,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0256.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0256",
+      "original_sha256": "599589bf1d0602e4a69462666c8eadfd4a8e7739c25ba20e0d5d3636a6c6e921",
+      "original_bytes": 11850704,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0256.gz",
+      "archive_sha256": "d661f3d98f47ad7a0fe327a4fdf151b5c3d9e6cb7d5c27f3814c3b1186e145c0",
+      "archive_bytes": 3389521,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0256.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0384.ll",
+      "original_sha256": "f094b84a80bf3a967cf7ac27097535c2fe89cacb372bf89cf1f12cb54c525ec1",
+      "original_bytes": 4017042,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0384.ll.gz",
+      "archive_sha256": "5a396511ed7158591b0e4305b63a2b6a3940754fda68027e2d9467f77a005fca",
+      "archive_bytes": 643112,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0384.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0384",
+      "original_sha256": "d0594e8b0cfbc866ed698bed4fec4b259cfac3da69b21bbe6ce71ef3de7e812f",
+      "original_bytes": 11850704,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0384.gz",
+      "archive_sha256": "7b7c5f625c72303d3401697c7b8d5d05abedf515a06a1f15c09a975c54606826",
+      "archive_bytes": 3389525,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0384.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0512.ll",
+      "original_sha256": "515c50df0c5c65666f922f679c069ba926efa80a1d65ede8607531d5fba36b61",
+      "original_bytes": 4017330,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0512.ll.gz",
+      "archive_sha256": "567ac602b29139b5502a088fd9b709151ac68d92221329a7c1bce1277eeab924",
+      "archive_bytes": 644150,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0512.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0512",
+      "original_sha256": "dfa1255df26b5ece8da67af5ee3ed2f66007c21d8cc3d3bce8e8cb179eaf394a",
+      "original_bytes": 11850704,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0512.gz",
+      "archive_sha256": "55c744f5aef059e7ba32d18917c1893fa67b8418505063c8ce247bea0b904fd4",
+      "archive_bytes": 3389543,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0512.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0640.ll",
+      "original_sha256": "9d6cc43b9670ea0fe321d55d4534e71ae7de726673d0d479b4b408eeb8909fbc",
+      "original_bytes": 4017618,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0640.ll.gz",
+      "archive_sha256": "1dc05831216a489cfb4372ba98a380e0d58300c6c6e1521b9c1d3bff18333d15",
+      "archive_bytes": 645149,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0640.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0640",
+      "original_sha256": "d5ded613dba811b8c6ae4adc3eadd69e7e23aa4616f4000f0b26b825c953a37a",
+      "original_bytes": 11850704,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0640.gz",
+      "archive_sha256": "fb5ca63778822b291bd02e48a7fad0b8f2139a2bc785c66ff6e6f2caabb4b55a",
+      "archive_bytes": 3389543,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0640.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0768.ll",
+      "original_sha256": "0a6dfcc2c6e95ccb3cebdfcd5f289eff571e2f07776a7b74a58095cc130b3051",
+      "original_bytes": 4017618,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0768.ll.gz",
+      "archive_sha256": "397c44d7de0793f99c61cb657dc983e72ca78121e1169a7cd6541e8be1d9b409",
+      "archive_bytes": 645158,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0768.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0768",
+      "original_sha256": "f8fc0b49514e8ac0cdd1d15d5310f27f17174891e5265ef3df8202d1abe8288d",
+      "original_bytes": 11850704,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0768.gz",
+      "archive_sha256": "ada62c8b9bd4d097a27a62a20876c0064fd5b22a11ac5646a3349cb236a3ab90",
+      "archive_bytes": 3389542,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0768.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0896.ll",
+      "original_sha256": "fc8c663fffc0405c2af5ec4982f44c59dfb6ff963904a16cbdb721dfb13001e8",
+      "original_bytes": 4017618,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0896.ll.gz",
+      "archive_sha256": "59cddc4b17de32a54de52009f672d008aca181ecac417d1809550e039cbf3ec9",
+      "archive_bytes": 645162,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0896.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0896",
+      "original_sha256": "7998493ea0ef6156d7ce7f50d16fc03d4d219cf2e431d5294fef63026ff309aa",
+      "original_bytes": 11850704,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0896.gz",
+      "archive_sha256": "1611a93ee104c24cd0d6e60f131d8197bfe0a7da774ab9e7210871771d30081e",
+      "archive_bytes": 3389543,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-0896.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1024.ll",
+      "original_sha256": "c8935be0e3a81964c0541feb5f39249ae8a561a5fa5651a61917b324c6b580d9",
+      "original_bytes": 4049778,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1024.ll.gz",
+      "archive_sha256": "703d2248cfd882d294e574dd6875beeb2605e62cf2fc099ccf2f0eb9400ed68a",
+      "archive_bytes": 652249,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1024.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1024",
+      "original_sha256": "d63f4e5009afd25a5a695d443be765aab9c60ab5981b549265259c1f5d32b9ec",
+      "original_bytes": 11854800,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1024.gz",
+      "archive_sha256": "4f1dcb4675ab4099d3fb3628b06291f60601fa5f5b42c6d3dde83a665e86da59",
+      "archive_bytes": 3390544,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1024.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1152.ll",
+      "original_sha256": "f6e8a640e1f5d762b7b514faf91be5426776aa2c31d1f11000f38db0015a3c26",
+      "original_bytes": 4023990,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1152.ll.gz",
+      "archive_sha256": "ae7839041521062a7178ee3b7e0efd287429bd6e2c857e1bc5f5fb033d8ff020",
+      "archive_bytes": 644991,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1152.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1152",
+      "original_sha256": "f4b82815c7ee2bcb417c7d6aa0981fb54bc2c2b2fb19657dc0f6cc99381c851d",
+      "original_bytes": 11850704,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1152.gz",
+      "archive_sha256": "4d9e3dc2aedec22093e68cbbc31a1060b396649f9389917724d206fc639e9a4e",
+      "archive_bytes": 3389730,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1152.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1280.ll",
+      "original_sha256": "5f0c592bc3e779ea7a077b62c5c630a335f23bf874efc4cf0bdbe8366e258101",
+      "original_bytes": 4121455,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1280.ll.gz",
+      "archive_sha256": "d345d9ae6f876ef4399b448cc316c599ee9f5ee59e0b178008aeea3a47a448af",
+      "archive_bytes": 663639,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1280.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1280",
+      "original_sha256": "a16a49d858c34c4075a2ba3e979f9a30f3e916f65a6cdc7f33b76d103d9dfd62",
+      "original_bytes": 11858896,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1280.gz",
+      "archive_sha256": "fcb2fd8d83e98561aeb45c64dfd682fa221ff4cc189561e9460a00889eafc1f1",
+      "archive_bytes": 3391626,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1280.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1408.ll",
+      "original_sha256": "f15f651f2a9f4e8660a424b7ee42e3d34989dba4cb497b265fc0588b4b64daf2",
+      "original_bytes": 4246188,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1408.ll.gz",
+      "archive_sha256": "1592e7a3b790479bc283fcbf9c50a17f3ea1dbf6e3d8801027901a8142cb740c",
+      "archive_bytes": 681146,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1408.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1408",
+      "original_sha256": "3eceda40aebe1ff972dc76a5e70aa9a45d4750b6e5920f362f1917508574c64d",
+      "original_bytes": 11875280,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1408.gz",
+      "archive_sha256": "a525888a478b0837ae391fbc78117fafaa084fa6b1a8ae53bc86295995ff6229",
+      "archive_bytes": 3393162,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1408.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1536.ll",
+      "original_sha256": "b65928675d1b99c2f98afe6cabfa4014e53d113860cbff4c572b760bcaf6c09f",
+      "original_bytes": 3655065,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1536.ll.gz",
+      "archive_sha256": "00cffcc62aec42c26c11c4142c803ed79066c5e5996fb7179ade7c073c699262",
+      "archive_bytes": 610755,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1536.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1536",
+      "original_sha256": "f0c22ebbcb7313ca72255bbd2e5c7322fddebfaf7d9f2a31d67eeddda0600ce8",
+      "original_bytes": 11769912,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1536.gz",
+      "archive_sha256": "2855105e2e5864cf4e05c218a8b8a41a93ad7a0287db72f6300bc2e41c261b6e",
+      "archive_bytes": 3372191,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-1536.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-writes-0000.ll",
+      "original_sha256": "4a4656d299005bf6a8331906fc6a20271da6d802897135cfc39806b498794a9a",
+      "original_bytes": 5807720,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-writes-0000.ll.gz",
+      "archive_sha256": "f269a048e09d8abb89c1a69aca8bf13b2c469b9b9bb45ff7f9522b0af5934121",
+      "archive_bytes": 882406,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-writes-0000.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-writes-0000",
+      "original_sha256": "d71f85ef9e37bdcba93603bc2654cda93c7ea6c666df799a438939bc96584000",
+      "original_bytes": 12049088,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-writes-0000.gz",
+      "archive_sha256": "9a360ad3d3c0e8d44e846db55b90b78d8476697ca4358e81f9ad7fac0a29779b",
+      "archive_bytes": 3430595,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-writes-0000.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-writes-0128.ll",
+      "original_sha256": "64b6c8d93d63582547382ef7e6b0658c5daf654f680ff79ce05a4043751823b1",
+      "original_bytes": 3671490,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-writes-0128.ll.gz",
+      "archive_sha256": "7c9ceb6d32788ea07c59df0bc386faa6099d313665fd735117e2e9414f695ba3",
+      "archive_bytes": 613128,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-writes-0128.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-writes-0128",
+      "original_sha256": "210ce0cebff29f692f63cefb5d139b75ee307fa4a4be7981c797adecaffafe81",
+      "original_bytes": 11770416,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-writes-0128.gz",
+      "archive_sha256": "c4f8ff1bf20649c546237ce7accbeb40c47311e3b357836fa42600907bf31cee",
+      "archive_bytes": 3373722,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-writes-0128.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-registry.ll",
+      "original_sha256": "53bcd44e77b76633425ecdc8b2375f90479a79974ce4834f3ed93b2c0d2c747f",
+      "original_bytes": 3445949,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-registry.ll.gz",
+      "archive_sha256": "23073576f718dff9f4da198392d5103c8cdedd835819b7e512f47d07dfce23bd",
+      "archive_bytes": 569775,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-registry.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-registry",
+      "original_sha256": "0127a6f305418ce6ec25f9c79dc4415660e641d0d86cbd90df2da9c4c93d2303",
+      "original_bytes": 11742128,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-registry.gz",
+      "archive_sha256": "875bb9cb066989e51dba99568aa6588bbb3cdf64be59a2e862a9826c7fa98a6e",
+      "archive_bytes": 3360587,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-registry.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-callbacks.ll",
+      "original_sha256": "6879043f4823357adceff0d55dffeb5ef4b44ee2324b82f565596ad2d0636516",
+      "original_bytes": 3680821,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-callbacks.ll.gz",
+      "archive_sha256": "765f5509a05082fb794a8dd833f5bdcfb369ea15bf9db653d8e753b2e12a0132",
+      "archive_bytes": 613805,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-callbacks.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-callbacks",
+      "original_sha256": "2da4904fca30cd4c8e13dcbfa66bd623daa1ae3bfc57bb2cec4f150b28a862ad",
+      "original_bytes": 11778560,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-callbacks.gz",
+      "archive_sha256": "39862d4aed95382646b2821a8ba86fc7dded8987921ae343160d739311de79b9",
+      "archive_bytes": 3375526,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-decoded-callbacks.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-ownership.ll",
+      "original_sha256": "a19736ddabf544331e468499f25a8e6616e5b59e7ccedf03cb2bfc6fdf6f2a86",
+      "original_bytes": 4167597,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-ownership.ll.gz",
+      "archive_sha256": "b9825b1dffbd24b83dd62ec7b09f7197d2bfe9374b875251612d1eaff892d208",
+      "archive_bytes": 701967,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-ownership.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-ownership",
+      "original_sha256": "7deddf51dafe6b775e168626ee00d292a5a43ce055db188a3b8af0e9c4cc53af",
+      "original_bytes": 11850784,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-ownership.gz",
+      "archive_sha256": "2a192e5bdcf0aad854ac18520e6114ac0d1af75580da5e44c386ef88924e7eab",
+      "archive_bytes": 3403971,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/native-cpu0/native-ownership.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/rust-ownership.ll",
+      "original_sha256": "6ce15b6b0d7ccee6c3c116955bbd01ffee95f1d8f24eb537a4a20962e1b7f2c5",
+      "original_bytes": 5922255,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/rust-ownership.ll.gz",
+      "archive_sha256": "9a73424799e4099faf8000c0d7a3c4970757082cb7695f0b117df88002c4989f",
+      "archive_bytes": 896223,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/rust-ownership.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/rust-ownership",
+      "original_sha256": "b9b1d68e6884b46eb251cace29e87a7893f53650b1561ee016ada4e021ae5860",
+      "original_bytes": 6654200,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/rust-ownership.gz",
+      "archive_sha256": "a38ee14ea757a241089f79eb341e1e2faca676ae5d4db8451bca5686cfce40b5",
+      "archive_bytes": 2153728,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/rust-ownership.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/rust-media-0000.ll",
+      "original_sha256": "6f85f95088654b2a24cdf6747d0b06f4836d45ea211bb18d2483e3e965752866",
+      "original_bytes": 4322056,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/rust-media-0000.ll.gz",
+      "archive_sha256": "6a588c5820ec1b3fd9e428ac0d428ddda674f8769f6a42432a934f10a1bd696e",
+      "archive_bytes": 552271,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/rust-media-0000.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/rust-media-0000",
+      "original_sha256": "5ddb25599a020a247c0f3e6c2745ce2d2e24d68823d79a2aae5127127f342986",
+      "original_bytes": 6252000,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/rust-media-0000.gz",
+      "archive_sha256": "74b014d958efd963650745378fd08b4d52128f111f9bbdf17d0aff14c1ecc448",
+      "archive_bytes": 1996800,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/rust-media-0000.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/rust-encoded-0000.ll",
+      "original_sha256": "cd3577209b1f8a1eb5ff86234c22b8af673cedb2cea5807debea2254b2902eed",
+      "original_bytes": 820774,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/rust-encoded-0000.ll.gz",
+      "archive_sha256": "2e7d9fd7271282655e441d62a1ab9c8bbe81cd003dddf99e75198298aa52f97c",
+      "archive_bytes": 139016,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/rust-encoded-0000.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/rust-encoded-0000",
+      "original_sha256": "3595198d6bd0cbb3fc30575dc7c897ab7e95050220365dd6b03a82cd77221ced",
+      "original_bytes": 6034024,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/rust-encoded-0000.gz",
+      "archive_sha256": "2b9b1a7cec7426faeb362d46d45703465070f509dadedcb7f9609a6f28917e6a",
+      "archive_bytes": 1904335,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/rust-encoded-0000.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/rust-decoded-callbacks.ll",
+      "original_sha256": "96cd239373b5295782dc5b4c994c3acf52000286fb6bd1f0800637f97fa2275c",
+      "original_bytes": 4338425,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/rust-decoded-callbacks.ll.gz",
+      "archive_sha256": "8c51b993fe65e53dc518d3bc8e7c472df34230836a5552890597f229756d2b5a",
+      "archive_bytes": 576461,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/rust-decoded-callbacks.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/rust-decoded-callbacks",
+      "original_sha256": "73d205f6f6d2f0d66954ffa19eaa75bc3b7d2e4acb72533fe2715b252a2ff386",
+      "original_bytes": 6283368,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/rust-decoded-callbacks.gz",
+      "archive_sha256": "9ccd7a3174f554dbda000e98f5e2ec77e2bd4055f1778a611e4b1c5b42d11c64",
+      "archive_bytes": 2011330,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/rust-decoded-callbacks.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/native-ownership.ll",
+      "original_sha256": "7640d689aee7ae23c8c0467ac800eccf204b687743baf39ce34fd80aa47871e8",
+      "original_bytes": 4248529,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/native-ownership.ll.gz",
+      "archive_sha256": "0684a494216bba144b9accd902ad6b7a2803607a706184f0aef231a604f19a50",
+      "archive_bytes": 719484,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/native-ownership.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/native-ownership",
+      "original_sha256": "9789593afe9311449879cf7111a0c328ca958371c1e6e82c793af2856e3716ad",
+      "original_bytes": 11860416,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/native-ownership.gz",
+      "archive_sha256": "8dbd28135966893f37a475febded2a8d359263c98a87acb1597bd3894e73e0cf",
+      "archive_bytes": 3408250,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/native-ownership.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/native-media-0000.ll",
+      "original_sha256": "627d21d4a3f0b4781eda9e183b8a0c6c42b84ed7c8dc266ae345b80f7b0919b1",
+      "original_bytes": 3380157,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/native-media-0000.ll.gz",
+      "archive_sha256": "2df8b8f9fcebab603965ac9287474d663f7410fd964e436410b6d1348e20c889",
+      "archive_bytes": 551008,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/native-media-0000.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/native-media-0000",
+      "original_sha256": "b1d2d584ee713f75a4f5a901058af235c2dbb61f32ebc386cf8ced91a57c3186",
+      "original_bytes": 11740800,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/native-media-0000.gz",
+      "archive_sha256": "45177d3a5326fd7918fbb02c038bf817536421248dad1a1c041cc5b92bcf2c81",
+      "archive_bytes": 3355289,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/native-media-0000.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/native-encoded-0000.ll",
+      "original_sha256": "3d93fdace8f87d5faca801227e1b4b53247a7f469c41273a2aa08ee2edbeb05a",
+      "original_bytes": 646908,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/native-encoded-0000.ll.gz",
+      "archive_sha256": "6f945d1088a6ee8e85891d39a583fbcfcda8582e463d1b7be2fda11dae73979a",
+      "archive_bytes": 111569,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/native-encoded-0000.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/native-encoded-0000",
+      "original_sha256": "3ff52b8a487925f60c0ce08e0bcfd73e1d4f12b8c03831c6924bfee2eaf2b3d8",
+      "original_bytes": 11660400,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/native-encoded-0000.gz",
+      "archive_sha256": "beb193f2fbad7eef476ff3fdb1c495675f014848911810b34dc4c2c2f0074a66",
+      "archive_bytes": 3328426,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/native-encoded-0000.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/native-decoded-callbacks.ll",
+      "original_sha256": "6879043f4823357adceff0d55dffeb5ef4b44ee2324b82f565596ad2d0636516",
+      "original_bytes": 3680821,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/native-decoded-callbacks.ll.gz",
+      "archive_sha256": "765f5509a05082fb794a8dd833f5bdcfb369ea15bf9db653d8e753b2e12a0132",
+      "archive_bytes": 613805,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/native-decoded-callbacks.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/native-decoded-callbacks",
+      "original_sha256": "2da4904fca30cd4c8e13dcbfa66bd623daa1ae3bfc57bb2cec4f150b28a862ad",
+      "original_bytes": 11778560,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/native-decoded-callbacks.gz",
+      "archive_sha256": "39862d4aed95382646b2821a8ba86fc7dded8987921ae343160d739311de79b9",
+      "archive_bytes": 3375526,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/native-decoded-callbacks.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/first-runtime-bound/rust-media-0000.ll",
+      "original_sha256": "6f85f95088654b2a24cdf6747d0b06f4836d45ea211bb18d2483e3e965752866",
+      "original_bytes": 4322056,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/first-runtime-bound/rust-media-0000.ll.gz",
+      "archive_sha256": "6a588c5820ec1b3fd9e428ac0d428ddda674f8769f6a42432a934f10a1bd696e",
+      "archive_bytes": 552271,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/first-runtime-bound/rust-media-0000.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/first-runtime-bound/rust-media-0000",
+      "original_sha256": "5ddb25599a020a247c0f3e6c2745ce2d2e24d68823d79a2aae5127127f342986",
+      "original_bytes": 6252000,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/first-runtime-bound/rust-media-0000.gz",
+      "archive_sha256": "74b014d958efd963650745378fd08b4d52128f111f9bbdf17d0aff14c1ecc448",
+      "archive_bytes": 1996800,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/first-runtime-bound/rust-media-0000.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/first-runtime-bound/rust-formats-0000.ll",
+      "original_sha256": "7c3008983fade9350400cc700623693fe2b4c31ace2f961f419afdcfd4f83902",
+      "original_bytes": 1052575,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/first-runtime-bound/rust-formats-0000.ll.gz",
+      "archive_sha256": "b778230fbaed5057932e83ed938accd691963108deac53671e5c16bc8849d11a",
+      "archive_bytes": 191486,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/first-runtime-bound/rust-formats-0000.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/first-runtime-bound/rust-formats-0000",
+      "original_sha256": "4a4180c2df0f8f8f43f42d61540aa1c847aba6767a8ab4732bc30af9a8e07777",
+      "original_bytes": 6087064,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/first-runtime-bound/rust-formats-0000.gz",
+      "archive_sha256": "0dfc7f4cfceb8a0b61e799fe849c07eb9c222fff0d28e2f055e4da6cf26a7ec8",
+      "archive_bytes": 1926079,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/first-runtime-bound/rust-formats-0000.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/first-runtime-bound/rust-encoded-0000.ll",
+      "original_sha256": "cd3577209b1f8a1eb5ff86234c22b8af673cedb2cea5807debea2254b2902eed",
+      "original_bytes": 820774,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/first-runtime-bound/rust-encoded-0000.ll.gz",
+      "archive_sha256": "2e7d9fd7271282655e441d62a1ab9c8bbe81cd003dddf99e75198298aa52f97c",
+      "archive_bytes": 139016,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/first-runtime-bound/rust-encoded-0000.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/first-runtime-bound/rust-encoded-0000",
+      "original_sha256": "3595198d6bd0cbb3fc30575dc7c897ab7e95050220365dd6b03a82cd77221ced",
+      "original_bytes": 6034024,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/first-runtime-bound/rust-encoded-0000.gz",
+      "archive_sha256": "2b9b1a7cec7426faeb362d46d45703465070f509dadedcb7f9609a6f28917e6a",
+      "archive_bytes": 1904335,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/first-runtime-bound/rust-encoded-0000.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-representative/rust-decoded-callbacks.ll",
+      "original_sha256": "96cd239373b5295782dc5b4c994c3acf52000286fb6bd1f0800637f97fa2275c",
+      "original_bytes": 4338425,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-representative/rust-decoded-callbacks.ll.gz",
+      "archive_sha256": "8c51b993fe65e53dc518d3bc8e7c472df34230836a5552890597f229756d2b5a",
+      "archive_bytes": 576461,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-representative/rust-decoded-callbacks.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-representative/rust-decoded-callbacks",
+      "original_sha256": "73d205f6f6d2f0d66954ffa19eaa75bc3b7d2e4acb72533fe2715b252a2ff386",
+      "original_bytes": 6283368,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-representative/rust-decoded-callbacks.gz",
+      "archive_sha256": "9ccd7a3174f554dbda000e98f5e2ec77e2bd4055f1778a611e4b1c5b42d11c64",
+      "archive_bytes": 2011330,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-representative/rust-decoded-callbacks.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-owner/rust-ownership.ll",
+      "original_sha256": "acf6b89157be1163e6d2d26f46859c471f4b31f00de933f309fd67cb1363377d",
+      "original_bytes": 5691550,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-owner/rust-ownership.ll.gz",
+      "archive_sha256": "fb1ee194332173760ce518ad8f5a061d6c3bb66ad48e49e10e867a467e204711",
+      "archive_bytes": 850220,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-owner/rust-ownership.ll.gz"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-mime/build/mime/b004-owner/rust-ownership",
+      "original_sha256": "6c3581667df670906a0d82bb5db4d69cba51523673f0d05d774ebd05a14d78bf",
+      "original_bytes": 6602528,
+      "archive": "/workspace/dasl-stdlib-mime/build/mime/b004-owner/rust-ownership.gz",
+      "archive_sha256": "40238635ec1240eecf7f66f2f5abb793a3f5cbb157a03e1ca16a3aab2e9dc190",
+      "archive_bytes": 2136078,
+      "restore": "gzip -dk /workspace/dasl-stdlib-mime/build/mime/b004-owner/rust-ownership.gz"
+    }
+  ],
+  "bytes_freed": 717771989
+}
