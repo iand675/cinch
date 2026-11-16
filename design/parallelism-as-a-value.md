@@ -581,3 +581,30 @@ Until that lands, the parallel safety rules stay attached to the
 `parBoth`/`parTabulate`/`parMap` builtin path, which is the status quo and
 not a weakening of anything that works today. Nothing in this port
 loosens a rule.
+
+## 11 Outcome (2026-11-16)
+
+What shipped is the operations, not a class:
+
+- `parBoth`, `parTabulate`, `parMap`, `parWorkers` are the surface. Each is
+  kernel syntax elaborated at its call site, so the caller's element classes
+  reach `PrimOp::Par`; `parWorkers` is new and lowers through `par-workers`
+  to `cinch_par_set_workers`.
+- `parWorkers 4` and `parBoth (\() -> 1) (\() -> 2)` are checked, built and
+  run by tests, which is the first executable evidence the surface works.
+- The class, its parsed signature, the method-slot table, the instance name
+  and the class admission are deleted. Two measured reasons: a dictionary
+  field body exists once, so it records the method's own type parameters
+  instead of the caller's element classes, and a method spelled `both` is
+  unreachable anyway because `Function.Combinators` already defines
+  `both :: (a -> b) -> (a -> c) -> a -> (b, c)` and the prelude wins a bare
+  call.
+- A parallel fold over a container needs no further primitive:
+  `sumTree` splits a list across `parBoth` at each step with lambda-literal
+  callbacks, and a test runs it.
+
+What remains open is only the generic form. `parTraverse` over any
+`Traversable` needs effects carried through a dictionary, which is the one
+thing the class vector forbids, and a `Parallel e a` wrapper needs a row
+parameter no data type can declare. Both are recorded above; neither is
+attempted.
