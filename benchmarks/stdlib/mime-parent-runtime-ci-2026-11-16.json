@@ -1,0 +1,15 @@
+{
+  "authority": "parent integration lane /root; no Cargo executed in MIME lane",
+  "target": "lib_mime",
+  "tests": 2,
+  "passed": 2,
+  "seconds": 90.53,
+  "coverage": [
+    "canonical documentation",
+    "current Rust CLI with exact normally initialized host runtime",
+    "representative committed media/format/encoder/callback/writer/registry/ownership groups",
+    "normal32M heap and poisoned-free256M heap,8M consumer stack,64M compiler host role",
+    "zero-leak checks"
+  ],
+  "newer_native_scope": "dependent on separate admission repair; not credited with complete corpus"
+}
