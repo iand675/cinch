@@ -1,0 +1,56 @@
+[
+  {
+    "compiler": "frozen16",
+    "compiler_sha256": "16f2f4bf883d2e5358c3d09b2e97d0d3c43f2c6c1996da296eef922c9395d98f",
+    "source": "module Main where\n  import Data.Core\n  signature Zero a where\n    zero :: a\n  implicit instance Zero_Option a :: Zero (Option a) where\n    zero = None\n  main :: Int\n  main = 0\n",
+    "name": "none-only.cinch",
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "cinch: the prelude type Data.Core.Option has payload words [0] per constructor; code generation builds it as [0, 1]\n"
+  },
+  {
+    "compiler": "frozen16",
+    "compiler_sha256": "16f2f4bf883d2e5358c3d09b2e97d0d3c43f2c6c1996da296eef922c9395d98f",
+    "source": "module Main where\n  import Data.Core\n  signature Zero a where\n    zero :: a\n    is-zero :: a -> Bool\n  implicit instance Zero_Option a :: Zero (Option a) where\n    zero = None\n    is-zero x = case x of None -> True; Some value -> False\n  main :: Int\n  main = 0\n",
+    "name": "some-named.cinch",
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "cinch: the prelude type Data.Core.Option has payload words [0] per constructor; code generation builds it as [0, 1]\n"
+  },
+  {
+    "compiler": "frozen16",
+    "compiler_sha256": "16f2f4bf883d2e5358c3d09b2e97d0d3c43f2c6c1996da296eef922c9395d98f",
+    "source": "module Main where\n  import Data.Core\n  signature Zero a where\n    zero :: a\n    is-zero :: a -> Bool\n  implicit instance Zero_Option a :: Zero (Option a) where\n    zero = None\n    is-zero x = case x of None -> True; Some _ -> False\n  main :: Int\n  main = 0\n",
+    "name": "some-wildcard.cinch",
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "cinch: the prelude type Data.Core.Option has payload words [0] per constructor; code generation builds it as [0, 1]\n"
+  },
+  {
+    "compiler": "cad70",
+    "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+    "source": "module Main where\n  import Data.Core\n  signature Zero a where\n    zero :: a\n  implicit instance Zero_Option a :: Zero (Option a) where\n    zero = None\n  main :: Int\n  main = 0\n",
+    "name": "none-only.cinch",
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "cinch: the prelude type Data.Core.Option has payload words [0] per constructor; code generation builds it as [0, 1]\n"
+  },
+  {
+    "compiler": "cad70",
+    "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+    "source": "module Main where\n  import Data.Core\n  signature Zero a where\n    zero :: a\n    is-zero :: a -> Bool\n  implicit instance Zero_Option a :: Zero (Option a) where\n    zero = None\n    is-zero x = case x of None -> True; Some value -> False\n  main :: Int\n  main = 0\n",
+    "name": "some-named.cinch",
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "cinch: the prelude type Data.Core.Option has payload words [0] per constructor; code generation builds it as [0, 1]\n"
+  },
+  {
+    "compiler": "cad70",
+    "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+    "source": "module Main where\n  import Data.Core\n  signature Zero a where\n    zero :: a\n    is-zero :: a -> Bool\n  implicit instance Zero_Option a :: Zero (Option a) where\n    zero = None\n    is-zero x = case x of None -> True; Some _ -> False\n  main :: Int\n  main = 0\n",
+    "name": "some-wildcard.cinch",
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "cinch: the prelude type Data.Core.Option has payload words [0] per constructor; code generation builds it as [0, 1]\n"
+  }
+]

@@ -1,0 +1,237 @@
+-- | Three-way comparison and first non-default selection with explicit policies.
+-- Compare supplies an order without implying Relation.Eq or Relation.Ord.
+-- Floating orders place every NaN before every number, identify all NaNs,
+-- and identify negative and positive zero. Default supplies the distinguished
+-- value and its equality test; custom types choose these explicitly.
+module Data.Compare where
+
+  import Data.Core
+  import Data.Ordering
+  import Data.Machine
+  import Data.Int
+  import Data.Nat
+  import Data.String
+  import Data.Char
+
+  export Compare, compare, less
+  export Default, default-value, is-default, first-non-default, first-non-default-by
+  export compare-f32, compare-f64, less-f32, less-f64
+
+  -- | A three-way order. Instances must be reflexive, antisymmetric and transitive.
+  -- Equivalent values need not have identical representations or an Eq instance.
+  signature Compare a where
+    -- | Return LT, EQ or GT according to this capability's explicit value order.
+    compare :: a -> a -> Ordering
+
+  -- | Test strict precedence in the supplied order. Equivalent values return False.
+  less :: forall a. using (ordered :: Compare a) => a -> a -> Bool
+  less x y = case compare x y of
+    LT -> True
+    EQ -> False
+    GT -> False
+
+  -- | A distinguished default value and the predicate recognizing its equivalents.
+  -- The predicate must recognize default-value. Floating zeros are equivalent;
+  -- NaNs are non-default. Instances do not imply global equality or ordering.
+  signature Default a where
+    -- | The result when every candidate is default or the candidate list is empty.
+    default-value :: a
+    -- | Whether a candidate equals this capability's distinguished default.
+    is-default :: a -> Bool
+
+  -- | Return the first non-default candidate unchanged, or default-value.
+  -- The walk stops at that candidate. An all-default list returns the canonical
+  -- default, so a list containing only floating negative zeros returns positive zero.
+  first-non-default :: forall a. using (defaults :: Default a) => List a -> a
+  first-non-default xs = first-non-default-by default-value is-default xs
+
+  -- | Select with an explicit fallback and default predicate, without typeclass
+  -- constraints. The predicate runs left to right until the first False result.
+  first-non-default-by :: forall a. a -> (a -> Bool) -> List a -> a
+  first-non-default-by fallback isDefault xs = case xs of
+    Nil -> fallback
+    Cons x rest -> if isDefault x then first-non-default-by fallback isDefault rest else x
+
+  -- | Compare F32 values with NaNs first, all NaNs equivalent, and signed zeros equivalent.
+  compare-f32 :: F32 -> F32 -> Ordering
+  compare-f32 x y =
+    if is-na-nf32 x then if is-na-nf32 y then EQ else LT
+    else if is-na-nf32 y then GT
+    else if flt-f32 x y then LT
+    else if fgt-f32 x y then GT
+    else EQ
+
+  -- | Strict F32 precedence with NaNs first and signed zeros equivalent.
+  less-f32 :: F32 -> F32 -> Bool
+  less-f32 x y =
+    if is-na-nf32 x then if is-na-nf32 y then False else True
+    else flt-f32 x y
+
+  -- | Compare F64 values with NaNs first, all NaNs equivalent, and signed zeros equivalent.
+  compare-f64 :: F64 -> F64 -> Ordering
+  compare-f64 x y =
+    if is-na-nf64 x then if is-na-nf64 y then EQ else LT
+    else if is-na-nf64 y then GT
+    else if flt-f64 x y then LT
+    else if fgt-f64 x y then GT
+    else EQ
+
+  -- | Strict F64 precedence with NaNs first and signed zeros equivalent.
+  less-f64 :: F64 -> F64 -> Bool
+  less-f64 x y =
+    if is-na-nf64 x then if is-na-nf64 y then False else True
+    else flt-f64 x y
+
+  -- | The explicit value order for I8.
+  implicit instance Compare_I8 :: Compare I8 where
+    compare x y = if lt-i8 x y then LT else if gt-i8 x y then GT else EQ
+
+  -- | The explicit value order for I16.
+  implicit instance Compare_I16 :: Compare I16 where
+    compare x y = if lt-i16 x y then LT else if gt-i16 x y then GT else EQ
+
+  -- | The explicit value order for I32.
+  implicit instance Compare_I32 :: Compare I32 where
+    compare x y = if lt-i32 x y then LT else if gt-i32 x y then GT else EQ
+
+  -- | The explicit value order for I64.
+  implicit instance Compare_I64 :: Compare I64 where
+    compare x y = if lt-i64 x y then LT else if gt-i64 x y then GT else EQ
+
+  -- | The explicit value order for Isize.
+  implicit instance Compare_Isize :: Compare Isize where
+    compare x y = if lt-isize x y then LT else if gt-isize x y then GT else EQ
+
+  -- | The explicit value order for U8.
+  implicit instance Compare_U8 :: Compare U8 where
+    compare x y = if lt-u8 x y then LT else if gt-u8 x y then GT else EQ
+
+  -- | The explicit value order for U16.
+  implicit instance Compare_U16 :: Compare U16 where
+    compare x y = if lt-u16 x y then LT else if gt-u16 x y then GT else EQ
+
+  -- | The explicit value order for U32.
+  implicit instance Compare_U32 :: Compare U32 where
+    compare x y = if lt-u32 x y then LT else if gt-u32 x y then GT else EQ
+
+  -- | The explicit value order for U64.
+  implicit instance Compare_U64 :: Compare U64 where
+    compare x y = if lt-u64 x y then LT else if gt-u64 x y then GT else EQ
+
+  -- | The explicit value order for Usize.
+  implicit instance Compare_Usize :: Compare Usize where
+    compare x y = if lt-usize x y then LT else if gt-usize x y then GT else EQ
+
+  -- | The explicit value order for Int.
+  implicit instance Compare_Int :: Compare Int where
+    compare x y = if x < y then LT else if x > y then GT else EQ
+
+  -- | The explicit value order for Nat.
+  implicit instance Compare_Nat :: Compare Nat where
+    compare x y = if x < y then LT else if x > y then GT else EQ
+
+  -- | The explicit value order for String.
+  implicit instance Compare_String :: Compare String where
+    compare x y = let result = string-compare x y in if lt-i64 result 0 then LT else if gt-i64 result 0 then GT else EQ
+
+  -- | The explicit value order for Char.
+  implicit instance Compare_Char :: Compare Char where
+    compare x y = if x < y then LT else if x > y then GT else EQ
+
+  -- | The explicit NaN-first order for F32.
+  implicit instance Compare_F32 :: Compare F32 where
+    compare x y = compare-f32 x y
+
+  -- | The explicit NaN-first order for F64.
+  implicit instance Compare_F64 :: Compare F64 where
+    compare x y = compare-f64 x y
+
+  -- | The canonical zero default for I8.
+  implicit instance Default_I8 :: Default I8 where
+    default-value = 0
+    is-default x = eq-i8 x 0
+
+  -- | The canonical zero default for I16.
+  implicit instance Default_I16 :: Default I16 where
+    default-value = 0
+    is-default x = eq-i16 x 0
+
+  -- | The canonical zero default for I32.
+  implicit instance Default_I32 :: Default I32 where
+    default-value = 0
+    is-default x = eq-i32 x 0
+
+  -- | The canonical zero default for I64.
+  implicit instance Default_I64 :: Default I64 where
+    default-value = 0
+    is-default x = eq-i64 x 0
+
+  -- | The canonical zero default for Isize.
+  implicit instance Default_Isize :: Default Isize where
+    default-value = 0
+    is-default x = eq-isize x 0
+
+  -- | The canonical zero default for U8.
+  implicit instance Default_U8 :: Default U8 where
+    default-value = 0
+    is-default x = eq-u8 x 0
+
+  -- | The canonical zero default for U16.
+  implicit instance Default_U16 :: Default U16 where
+    default-value = 0
+    is-default x = eq-u16 x 0
+
+  -- | The canonical zero default for U32.
+  implicit instance Default_U32 :: Default U32 where
+    default-value = 0
+    is-default x = eq-u32 x 0
+
+  -- | The canonical zero default for U64.
+  implicit instance Default_U64 :: Default U64 where
+    default-value = 0
+    is-default x = eq-u64 x 0
+
+  -- | The canonical zero default for Usize.
+  implicit instance Default_Usize :: Default Usize where
+    default-value = 0
+    is-default x = eq-usize x 0
+
+  -- | The canonical zero default for Int.
+  implicit instance Default_Int :: Default Int where
+    default-value = 0
+    is-default x = x == 0
+
+  -- | The canonical zero default for Nat.
+  implicit instance Default_Nat :: Default Nat where
+    default-value = 0
+    is-default x = x == 0
+
+  -- | The empty string default for String.
+  implicit instance Default_String :: Default String where
+    default-value = empty-string
+    is-default x = eq-i64 (string-compare x empty-string) 0
+
+  -- | The canonical zero default for Char.
+  implicit instance Default_Char :: Default Char where
+    default-value = '\u{0}'
+    is-default x = x == '\u{0}'
+
+  -- | The canonical zero default for F32.
+  implicit instance Default_F32 :: Default F32 where
+    default-value = i32-to-f32 0
+    is-default x = feq-f32 x (i32-to-f32 0)
+
+  -- | The canonical zero default for F64.
+  implicit instance Default_F64 :: Default F64 where
+    default-value = i32-to-f64 0
+    is-default x = feq-f64 x (i32-to-f64 0)
+
+  -- | The distinguished value default for Bool.
+  implicit instance Default_Bool :: Default Bool where
+    default-value = False
+    is-default x = if x then False else True
+
+  -- | The distinguished value default for Unit.
+  implicit instance Default_Unit :: Default Unit where
+    default-value = ()
+    is-default x = True
