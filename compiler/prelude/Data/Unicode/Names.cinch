@@ -3502,7 +3502,7 @@ module Data.Unicode.Names where
     else if index == 41 then Some ("punct", "P")
     else None
 
-  -- | Observe the primary category of any numeric Unicode code point; invalid or unassigned scripts return None.
+  -- | Observe the primary category, including Cs and Cn; values outside the Unicode code-point domain return None.
   unicode-category-of-code :: I32 -> Option String
   unicode-category-of-code cp = if ge-i32 cp 0 && le-i32 cp 1114111 then
     let raw = wrapping-i32-to-u32 cp in let word = unicode-data-class raw in
@@ -3551,7 +3551,7 @@ module Data.Unicode.Names where
     29 -> "Zs"
     other -> ""
 
-  -- | Observe the primary script of any numeric Unicode code point; invalid or unassigned scripts return None.
+  -- | Observe the primary script; values outside the code-point domain or without a named script return None.
   unicode-script-of-code :: I32 -> Option String
   unicode-script-of-code cp = if ge-i32 cp 0 && le-i32 cp 1114111 then
     let raw = wrapping-i32-to-u32 cp in let word = unicode-data-class raw in

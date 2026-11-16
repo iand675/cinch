@@ -20,6 +20,7 @@ def main() -> None:
     parser.add_argument('--frontend',choices=['rust','native'],required=True)
     parser.add_argument('--native-snapshot',type=Path,default=NATIVE)
     parser.add_argument('--cpu',type=int,default=2)
+    parser.add_argument('--utf8-source-override',type=Path,help='Retain an isolated byte-layer candidate in the UTF8 ownership probe')
     parser.add_argument('--artifacts',type=Path,required=True)
     parser.add_argument('--output',type=Path,required=True)
     args=parser.parse_args();os.sched_setaffinity(0,{args.cpu})
@@ -27,6 +28,9 @@ def main() -> None:
     text=edges() if args.kind=='edges' else catalog() if args.kind=='catalog' else (ROOT/'compiler/tests/fixtures/utf8-ownership-consumer.cinch').read_text()
     source=project/'Main.cinch';source.write_text(text)
     paths=source_closure(project,source)+[source];exe=artifacts/'consumer'
+    if args.utf8_source_override:
+        if args.kind!='utf8-ownership':raise ValueError('UTF8 override only applies to its ownership probe')
+        (project/'Data.Bytes.Utf8.cinch').write_bytes(args.utf8_source_override.read_bytes())
     compiler=RUST if args.frontend=='rust' else args.native_snapshot/'cinch'
     runtime=Path('/workspace/dasl-stdlib-io/compiler/runtime/target/release/libcinchruntime.a') if args.frontend=='rust' else args.native_snapshot/'libcinchruntime.a'
     provider={} if args.frontend=='rust' else {name:digest(args.native_snapshot/name) for name in ['frontend.py','base-interfaces.json','objects.json','library.o','library.abi.json','provenance.json']}

@@ -1,0 +1,680 @@
+{
+  "compiler_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+  "executable_sha256": "78b84a9248efa61ec39e5dac87eaa783b86291657be464bdb2cc731ed67bcdaa",
+  "llvm_sha256": "b41ae5fae4353f6dcee8638386362dc44c1ec45ce985e824bf553a5d27ae49db",
+  "assembly_sha256": "a792932e8a1495848475e9be0bebeae8fe7256e8f9ee40250641ed63d7d2ce51",
+  "sources": {
+    "Data.Bytes.Utf8.cinch": "a5f6a39e59b512862fe88e984a8fb5bef0cc6fc47516f59cc488d4493a523b9a",
+    "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Main.cinch": "901b125603a8165e33409685f1e3a0a4874b0f3c8bb884b7509499d7ed6b1bd7"
+  },
+  "reference_source_sha256": "010c9b2594a77e5c7386759eced693d217125a8a1f3f3ba9f379624058214191",
+  "reference_executable_sha256": "1634fe3db688a7a63dc1f18e72cb071837ee4c81acabc7553bcacd78130d6afb",
+  "reference_sdk": "go version go1.27.4 linux/amd64",
+  "opt_level": 2,
+  "artifacts": "/workspace/dasl-stdlib-unicode/build/utf8-bench-swar-native",
+  "runner_sha256": "eda06ead99dc0f3f94d6b5a1b79c9ab3b7a3b05d3bf1dbc2d9cb33b07ee60a4a",
+  "driver_sha256": "901b125603a8165e33409685f1e3a0a4874b0f3c8bb884b7509499d7ed6b1bd7",
+  "lane_source_tree_sha256": "b4caf6a9baa0c454e8d3cf2101d0cc50ae0f12e6f0eca0bbcef5d3c55d6de2d8",
+  "lane_runtime_source_tree_sha256": "ea8bbc995f110fd750a0ae42d4949c62fbce7e26c9f3456c9f00d77637cfaa1c",
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "frontend": "native",
+  "compile_command": [
+    "python3",
+    "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/frontend.py",
+    "--compile-only",
+    "--interfaces",
+    "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/base-interfaces.json",
+    "/workspace/dasl-stdlib-unicode/build/utf8-bench-swar-native/bundle.cinch",
+    "/workspace/dasl-stdlib-unicode/build/utf8-bench-swar-native/bench.ll",
+    "/workspace/dasl-stdlib-unicode/build/utf8-bench-swar-native/bench-o0",
+    "/workspace/dasl-stdlib-unicode/build/utf8-bench-swar-native/link-report.txt"
+  ],
+  "provider_sha256": {
+    "frontend.py": "98535f99062bb90d8109f879dd22f412f65a0365b036e6d2bba95f1e1c5fbcac",
+    "base-interfaces.json": "89189ebe8226d4f26defffdd6481f40351f4da80e035a6a2ee4b2fa19800893f",
+    "objects.json": "4655257140bfd5ab73525f0fbef41dc41622a9f1225b034dbe1571dd2174c5e6",
+    "library.o": "2b459a81ac51e8e7a4f5e1730b9dc9fd22bc5976096cd717accbc9a84b05875d",
+    "library.abi.json": "5158fc3f8c659647334b110772d3ed03d0b6c29be6024989abf16e9ea33bc755",
+    "libcinchruntime.a": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+    "provenance.json": "bf09e1ffb70c224055df04b279f64259227e44d93f0ebd31ea4bcc926c3c68b7"
+  },
+  "runtime_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+  "optimized_link_command": [
+    "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+    "-O2",
+    "/workspace/dasl-stdlib-unicode/build/utf8-bench-swar-native/bench.ll",
+    "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/library.o",
+    "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/libcinchruntime.a",
+    "-ldl",
+    "-lpthread",
+    "-lm",
+    "-o",
+    "/workspace/dasl-stdlib-unicode/build/utf8-bench-swar-native/bench"
+  ],
+  "frozen_compiler_provenance": {
+    "status": "verified Char-contract source epoch; subsequent parent compiler changes excluded",
+    "compiler_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+    "compiler_source_sha256": "0b11df4d99214db032d633e91d084af0afb52117ba9cffa5ebc8b4669695d579",
+    "full_gate_receipt_sha256": "a6c7478e28eb0d0fc594c7fb9c8fd9939403686ff1255c5150abcf0aac98d95c",
+    "runtime_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+    "artifacts": {
+      "library.abi.json": "5158fc3f8c659647334b110772d3ed03d0b6c29be6024989abf16e9ea33bc755",
+      "libcinchruntime.a": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+      "objects.json": "4655257140bfd5ab73525f0fbef41dc41622a9f1225b034dbe1571dd2174c5e6",
+      "base-interfaces.json": "89189ebe8226d4f26defffdd6481f40351f4da80e035a6a2ee4b2fa19800893f",
+      "frontend.py": "98535f99062bb90d8109f879dd22f412f65a0365b036e6d2bba95f1e1c5fbcac",
+      "library.o": "2b459a81ac51e8e7a4f5e1730b9dc9fd22bc5976096cd717accbc9a84b05875d",
+      "cinch": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+      "interfaces/Prim.Sys.Linux.cinchif": "486831d7cfb5d0ea9f06fb0ee9b3480d502c47c642e28579e2b09da40b080f86",
+      "interfaces/Prim.Sys.Portable.cinchif": "0a4e005096ad11576b5c46d342f45c78c5e2f8ec0cc6fe8f4f5e39e725c3bc2e",
+      "interfaces/Category.Foldable.cinchif": "7b0fd49b345d174903c9ff575a7f5d67926f480d7cad8a2c9f085859504de636",
+      "interfaces/Algebra.Arithmetic.cinchif": "8db0930f4b8993f5a2771256800c8a80cd64a11530f78c075982a49da968abb8",
+      "interfaces/Algebra.Semigroup.cinchif": "0da744b823cf79afeae75cf1851ea904a2b3b8aa349e8bdc2874cf62df8bae70",
+      "interfaces/Effect.Concurrent.cinchif": "4ff99543a28e5e2dcafe2b7532045bd734cdbbd1346e500f7dc99e1174c273ff",
+      "interfaces/Data.Machine.cinchif": "b9dadea37e6207ab0a2ad0a4ebb9cdfb5877dab65a8d0ac8af9320b05478828b",
+      "interfaces/Algebra.Bits.cinchif": "97a4db808b49abb55c7d3c04301ec0e0c7cbc339a878f8f820e72f7bd183bbc8",
+      "interfaces/Prim.Sys.cinchif": "ab5811fa0347a63466781cacbda5ec8cc9444fb570f882232fa8adb7d1c2b302",
+      "interfaces/Data.Compose.cinchif": "c155057a0cce7d19744da7e51d6fb03c698cb60f86d897a43aeed7bcbc5e80c8",
+      "interfaces/Effect.Stm.TQueue.cinchif": "b493c485c74e14523faca2271ec26a4401bb4c3d31847974a936c0d7af83dd0c",
+      "interfaces/Effect.Clock.cinchif": "70e942fa5c8d1daa966397310d83b3b677b614eda11b036db885adbd993ffa14",
+      "interfaces/Algebra.Monoid.cinchif": "fc640fe8a77d4dae6da1c885b613d1c43a713ff05436e838882050f5d352e44d",
+      "interfaces/Data.NonZero.cinchif": "a8fe518b9ed900d2c5caa00819609c9cdcc9b935fdea03c9358d18b076c14548",
+      "interfaces/Data.Sym.cinchif": "cb5507980b33bad4d25f767504212855ce743407a1ed68db3240c73211e256d4",
+      "interfaces/Category.Alternative.cinchif": "4ba4dfbf23ee4532064e35b89f4e17794511060cda1341c01de4d7660e40b8d8",
+      "interfaces/Effect.Sequencing.cinchif": "791e97238b6b01c2eea29805ddd338babdf667a2297f1338d29ff58e7704d101",
+      "interfaces/Data.Enum.cinchif": "e28680622c71161ef644e3bc700cef295f25a4c8d0b27ef931390ee68a9a8a31",
+      "interfaces/Text.Show.cinchif": "68341ebc3d06ab31fc8ff36d697c76eb97e70c388157168e44f15790efdcf9fc",
+      "interfaces/Data.Ascii.cinchif": "c16240fedb50e130df08b311950c77843e7087abb5be9ca97e05c7e0873d2caa",
+      "interfaces/Category.Traversable.cinchif": "109fd9b83ea0f64259584e31cbb35c2ec8c07ce03bd66f85c5a28693c51ff4d3",
+      "interfaces/Data.FromList.cinchif": "162859ce280c3cbc080f85ff1d70a54b04d45bd017478e3057f5f3bd75768b18",
+      "interfaces/Effect.Stm.cinchif": "d6bb601ebb7ec02edd6e038e83983819c0a1d4c1011545d848662cf6f588abdd",
+      "interfaces/Data.Hash.cinchif": "5aef919a9a359a04ccc766bbcee64ca6d46c332dfd161cf16062ddd75301668e",
+      "interfaces/Category.Applicative.cinchif": "d93f3e4eb11ac06eb26a8ff43bd914ef114552f9a2b99c1ede313af21d45797d",
+      "interfaces/Data.Nat.cinchif": "d514729bcd61571a633a1999095b131ae8c84bf99639fb8a3439607d5c8f9f41",
+      "interfaces/Data.Json.cinchif": "af3d5a9d7d943c8e5a2db329414dad1737aecc6065d70e1d0d0cde2d34638725",
+      "interfaces/Data.NonEmpty.cinchif": "ff9a444b657133dd0313253fbe2fb9abf87bc4482934736311e0ff6e2e51be54",
+      "interfaces/Data.Ordering.cinchif": "ede196e344cc2cb82e4837edbb335f12bd50df18adba1562340919e71b85d4cb",
+      "interfaces/Data.Bytes.cinchif": "03e2a4c644321b59056e35d4263762bef28d8fde5af6985d1eb2139df8afd7d7",
+      "interfaces/Data.Path.cinchif": "75b7d71ab921d5498c08ee30cf0bdbdda46ca9b3c3a30012a8171a10856a26b7",
+      "interfaces/Effect.Process.cinchif": "ecd524c46dd351163c7e035bf79c335c5f0a205930e572239875c9e50f8af6e9",
+      "interfaces/Data.String.cinchif": "1ee8df6d67072d2999df93a9c0c5319c3f1fbe728c9d95abcf91f3d00ae37bb0",
+      "interfaces/Data.Bool.cinchif": "44e35bbcfeb8245d3e7f7c14a33c7be651169d4b7d82e92f812061bc6c138932",
+      "interfaces/Function.Combinators.cinchif": "63c4e009fd85dc33fec94744e5d21c027ba10a01f9563a2e5ca6c69a664ccd03",
+      "interfaces/Effect.Stm.TMVar.cinchif": "d3827756796400c2fca9e4806438be2888a61bdfdfa55e66ef24960ebea5df9c",
+      "interfaces/Data.List.cinchif": "c02bb24481ba4ef0d22dfe5f75aa37b4521c91d831e981773dfac38e7d8e57ab",
+      "interfaces/Category.Functor.cinchif": "13882b79bb1bc298c93d8d0f349f7067e1a614cccd9d4a12b799ec1ef3b1fbd0",
+      "interfaces/Data.Producer.cinchif": "7ced6bf238eb0c4a38fcd296d6a43394ba73c49b4369da996ad32029c40c39fd",
+      "interfaces/Data.Result.cinchif": "7680ea9a3adbb9714f2e8dd4bd493dc1cc22cc62832cdf7c58f899e21bc107da",
+      "interfaces/Algebra.Group.cinchif": "02f53e2e973a81151051f65c4a1d8daae5c25e4b8a85b9d8169e6607688d1274",
+      "interfaces/Data.Sorted.cinchif": "fd04cdf87c10fd27df1c3ce29fcd5d1e4fe8bf8cec5b42bf1d9721e34391250e",
+      "interfaces/Data.Const.cinchif": "b4255ae4ab701ebf5ccd130717d1c45afe64eddf3b0b24fdc88ddf068ff9c247",
+      "interfaces/Text.Codec.cinchif": "f1ed7a70a36a5d178cc8bb7a07892a4a0a09c0450cfecb78678fe6018afecce8",
+      "interfaces/Data.HashMap.cinchif": "887d970426b404fc452340de2b03571f110884d7e7364aca72fbe2b2b88a16e5",
+      "interfaces/Data.Int.cinchif": "ac4c408be004e4d985667d9012c1280e43e1aedfd8d89c910d6023249cf343a6",
+      "interfaces/Effect.Io.cinchif": "774150181b971a4b37acc3cab7cf719ab57056c88ba14202ec582cfeb75780ed",
+      "interfaces/Data.Map.cinchif": "bc220d9c3d8c2260b189986c354ff3131f6236801af85c7367ae05334613ce4e",
+      "interfaces/Effect.Stm.TSem.cinchif": "a26d65cc5802338d66a319b3933c4cb16f628cb8f8805aa6642eccfd69ff6fca",
+      "interfaces/Prelude.cinchif": "cdb84c32cce15c38504acb7a780e256d170740b0629be64196aa717b12c74379",
+      "interfaces/Relation.Ord.cinchif": "aee2cd2aae5bce0fd8f16f38579902a7688dda333947c3ca524df61d42a32d42",
+      "interfaces/Data.Set.cinchif": "c75a9da40db6b2a825e0fd32b54a42fe43631f05cdabd7184560db68549b9b44",
+      "interfaces/Category.Monad.cinchif": "5faf4e1bc0fd4a0a048ad8a4f444a241fe8791fd382943a793e9cb45d1fd46fa",
+      "interfaces/Data.Target.cinchif": "46b263ce059925f5f5997b2380173eb4ba7d9036d0370fe946db89e9a3492efe",
+      "interfaces/Data.Char.cinchif": "ff7dc16627388c16c6911a685620a0c81db01aeb357aca42a590f015d1f45fa9",
+      "interfaces/Effect.Stm.TBQueue.cinchif": "84e7b35e5aad455f6bd3dd15d2239eaa9fe93248aa6829e47f65347be2ac258b",
+      "interfaces/Data.FromMap.cinchif": "95e853123999f6561fcdf42d0b57f92eb85e53bc76696a83c88f2af89a67ea60",
+      "interfaces/Relation.Eq.cinchif": "64c6aee15c7970e310efab5144b293b59317de24f2cb3bac7f939ee22ca40d58",
+      "interfaces/Data.Identity.cinchif": "1fdd0d3f37de39736e970d7dc8c6f87024a4a9278bdb32fc6ad631ee2e3979bb",
+      "interfaces/Prim.Sys.Darwin.cinchif": "2866bb46e2dfa69c8be1c69a202986a2925ef1c46314120ff760e61521fe001f",
+      "interfaces/Algebra.Semiring.cinchif": "c8ecd4a5cd9522ee1671194f6b96d29d7c5ed6ea4f92be22028210441ae83d3e",
+      "interfaces/Data.Core.cinchif": "db57c4784d326da9796619aca7a97d69a7017c92e2a084ee15c947b1f79356d7",
+      "interfaces/Effect.Fs.cinchif": "496ff9880659680461b55753994a554f87f836483394d0d1c0dff2b4b182ed2e",
+      "interfaces/Data.Option.cinchif": "bd7efbf19998baef3d311bd43397dec969488e8d217a436b3d7f9ffec1d48a13",
+      "tooling/bootstrap_checklist.py": "5336a05b255662696fbb07ea0ba03b347ae90b8c6bbd3fa2b9dad744eb93d76d",
+      "tooling/pgo.py": "d8bbde7cac49b0b9029ef3e45baf59d0f245cb365e3d71f38774e5d338f8e8f3",
+      "tooling/verify_stage3.py": "df6b9dca7de413c1e2c4e49376df4a8bea8937f8cf0784c1f9f8a254ef696f67",
+      "tooling/bootstrap.py": "edfd3add22d83718addaf420a510b02810d10f98e3feb5ef0107be1dfe2b24b2"
+    }
+  },
+  "source_override": null,
+  "measurement_runner_sha256": "a8b65d9cd3cbd2f06557bf8ac70c0f8fde85e55113d0896722f2a0a7a6979c4b",
+  "cpu_affinity": [
+    0
+  ],
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "iterations": 32,
+  "samples": 3,
+  "warmup_processes": 1,
+  "timing": "Monotonic clock around public operation loop; startup/input preparation excluded; first-byte input mutation and observable result included",
+  "pipeline": "Raw count/valid use standard UTF8 methods. Grouped repair uses the standard text repair plus explicit byte conversions; every reference output escapes to retain fresh allocation costs. Per-byte repair composes standard decoding and append, because the standard grouped repair has different semantics. Copy is an unrelated allocation control.",
+  "results": [
+    {
+      "workload": "count",
+      "raw_input_bytes": 32,
+      "pattern": 0,
+      "samples_ns": {
+        "cinch": [
+          8073,
+          8143,
+          8843
+        ],
+        "reference": [
+          571,
+          601,
+          581
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 254.46875,
+        "reference": 18.15625
+      },
+      "checksum": 1024
+    },
+    {
+      "workload": "count",
+      "raw_input_bytes": 65536,
+      "pattern": 0,
+      "samples_ns": {
+        "cinch": [
+          2372496,
+          2253527,
+          2703134
+        ],
+        "reference": [
+          750311,
+          753045,
+          833136
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 74140.5,
+        "reference": 23532.65625
+      },
+      "checksum": 2097152
+    },
+    {
+      "workload": "count",
+      "raw_input_bytes": 32,
+      "pattern": 1,
+      "samples_ns": {
+        "cinch": [
+          21613,
+          20762,
+          21542
+        ],
+        "reference": [
+          1552,
+          2033,
+          1572
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 673.1875,
+        "reference": 49.125
+      },
+      "checksum": 512
+    },
+    {
+      "workload": "count",
+      "raw_input_bytes": 65536,
+      "pattern": 1,
+      "samples_ns": {
+        "cinch": [
+          27724206,
+          27712799,
+          27689403
+        ],
+        "reference": [
+          3399705,
+          3708260,
+          3855631
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 866024.96875,
+        "reference": 115883.125
+      },
+      "checksum": 1048576
+    },
+    {
+      "workload": "count",
+      "raw_input_bytes": 32,
+      "pattern": 2,
+      "samples_ns": {
+        "cinch": [
+          34502,
+          33961,
+          34552
+        ],
+        "reference": [
+          2664,
+          3135,
+          2594
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 1078.1875,
+        "reference": 83.25
+      },
+      "checksum": 1024
+    },
+    {
+      "workload": "count",
+      "raw_input_bytes": 65536,
+      "pattern": 2,
+      "samples_ns": {
+        "cinch": [
+          56736053,
+          62370555,
+          81796148
+        ],
+        "reference": [
+          5838901,
+          9495362,
+          9237554
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 1949079.84375,
+        "reference": 288673.5625
+      },
+      "checksum": 2097152
+    },
+    {
+      "workload": "valid",
+      "raw_input_bytes": 32,
+      "pattern": 0,
+      "samples_ns": {
+        "cinch": [
+          12279,
+          10906,
+          10887
+        ],
+        "reference": [
+          1082,
+          1212,
+          971
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 340.8125,
+        "reference": 33.8125
+      },
+      "checksum": 32
+    },
+    {
+      "workload": "valid",
+      "raw_input_bytes": 65536,
+      "pattern": 0,
+      "samples_ns": {
+        "cinch": [
+          1813904,
+          2056289,
+          2095358
+        ],
+        "reference": [
+          93390,
+          41383,
+          41122
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 64259.03125,
+        "reference": 1293.21875
+      },
+      "checksum": 32
+    },
+    {
+      "workload": "valid",
+      "raw_input_bytes": 32,
+      "pattern": 1,
+      "samples_ns": {
+        "cinch": [
+          21121,
+          21843,
+          21082
+        ],
+        "reference": [
+          1192,
+          1191,
+          1111
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 660.03125,
+        "reference": 37.21875
+      },
+      "checksum": 32
+    },
+    {
+      "workload": "valid",
+      "raw_input_bytes": 65536,
+      "pattern": 1,
+      "samples_ns": {
+        "cinch": [
+          34502111,
+          34162950,
+          33879283
+        ],
+        "reference": [
+          2104462,
+          2057351,
+          2634490
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 1067592.1875,
+        "reference": 65764.4375
+      },
+      "checksum": 32
+    },
+    {
+      "workload": "valid",
+      "raw_input_bytes": 32,
+      "pattern": 2,
+      "samples_ns": {
+        "cinch": [
+          12659,
+          9845,
+          9845
+        ],
+        "reference": [
+          420,
+          741,
+          430
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 307.65625,
+        "reference": 13.4375
+      },
+      "checksum": 0
+    },
+    {
+      "workload": "valid",
+      "raw_input_bytes": 65536,
+      "pattern": 2,
+      "samples_ns": {
+        "cinch": [
+          14702,
+          14101,
+          14151
+        ],
+        "reference": [
+          471,
+          1092,
+          460
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 442.21875,
+        "reference": 14.71875
+      },
+      "checksum": 0
+    },
+    {
+      "workload": "repair",
+      "raw_input_bytes": 32,
+      "pattern": 0,
+      "samples_ns": {
+        "cinch": [
+          18378,
+          17666,
+          18027
+        ],
+        "reference": [
+          1873,
+          2233,
+          1893
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 563.34375,
+        "reference": 59.15625
+      },
+      "checksum": 10576
+    },
+    {
+      "workload": "repair",
+      "raw_input_bytes": 65536,
+      "pattern": 0,
+      "samples_ns": {
+        "cinch": [
+          4268534,
+          4287132,
+          4188763
+        ],
+        "reference": [
+          4146389,
+          4128802,
+          4187040
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 133391.6875,
+        "reference": 129574.65625
+      },
+      "checksum": 2106704
+    },
+    {
+      "workload": "repair",
+      "raw_input_bytes": 32,
+      "pattern": 1,
+      "samples_ns": {
+        "cinch": [
+          74142,
+          75694,
+          76555
+        ],
+        "reference": [
+          4086,
+          4907,
+          3996
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 2365.4375,
+        "reference": 127.6875
+      },
+      "checksum": 12752
+    },
+    {
+      "workload": "repair",
+      "raw_input_bytes": 65536,
+      "pattern": 1,
+      "samples_ns": {
+        "cinch": [
+          64384911,
+          62775697,
+          78512024
+        ],
+        "reference": [
+          4250246,
+          4631410,
+          4452862
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 2012028.46875,
+        "reference": 139151.9375
+      },
+      "checksum": 2108880
+    },
+    {
+      "workload": "repair",
+      "raw_input_bytes": 32,
+      "pattern": 2,
+      "samples_ns": {
+        "cinch": [
+          99830,
+          107472,
+          194173
+        ],
+        "reference": [
+          5438,
+          6740,
+          5689
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 3358.5,
+        "reference": 177.78125
+      },
+      "checksum": 13296
+    },
+    {
+      "workload": "repair",
+      "raw_input_bytes": 65536,
+      "pattern": 2,
+      "samples_ns": {
+        "cinch": [
+          264125456,
+          259140630,
+          179955444
+        ],
+        "reference": [
+          12057342,
+          10751974,
+          10414185
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 8098144.6875,
+        "reference": 335999.1875
+      },
+      "checksum": 2109424
+    },
+    {
+      "workload": "bytes-copy",
+      "raw_input_bytes": 32,
+      "pattern": 0,
+      "samples_ns": {
+        "cinch": [
+          10957,
+          10025,
+          9895
+        ],
+        "reference": [
+          941,
+          1111,
+          1502
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 313.28125,
+        "reference": 34.71875
+      },
+      "checksum": 10576
+    },
+    {
+      "workload": "bytes-copy",
+      "raw_input_bytes": 65536,
+      "pattern": 0,
+      "samples_ns": {
+        "cinch": [
+          142465,
+          87241,
+          82164
+        ],
+        "reference": [
+          563589,
+          766707,
+          723611
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 2726.28125,
+        "reference": 22612.84375
+      },
+      "checksum": 2106704
+    },
+    {
+      "workload": "bytes-copy",
+      "raw_input_bytes": 32,
+      "pattern": 1,
+      "samples_ns": {
+        "cinch": [
+          9865,
+          10576,
+          10515
+        ],
+        "reference": [
+          871,
+          981,
+          911
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 328.59375,
+        "reference": 28.46875
+      },
+      "checksum": 12752
+    },
+    {
+      "workload": "bytes-copy",
+      "raw_input_bytes": 65536,
+      "pattern": 1,
+      "samples_ns": {
+        "cinch": [
+          82615,
+          85449,
+          93641
+        ],
+        "reference": [
+          646785,
+          607506,
+          520415
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 2670.28125,
+        "reference": 18984.5625
+      },
+      "checksum": 2108880
+    },
+    {
+      "workload": "bytes-copy",
+      "raw_input_bytes": 32,
+      "pattern": 2,
+      "samples_ns": {
+        "cinch": [
+          10446,
+          10146,
+          10246
+        ],
+        "reference": [
+          982,
+          1112,
+          941
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 320.1875,
+        "reference": 30.6875
+      },
+      "checksum": 13360
+    },
+    {
+      "workload": "bytes-copy",
+      "raw_input_bytes": 65536,
+      "pattern": 2,
+      "samples_ns": {
+        "cinch": [
+          98408,
+          108183,
+          143306
+        ],
+        "reference": [
+          533534,
+          662118,
+          559304
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 3380.71875,
+        "reference": 17478.25
+      },
+      "checksum": 2109488
+    }
+  ]
+}

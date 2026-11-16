@@ -4,7 +4,7 @@
 -- rune operations accept scalar values only; encoding invalid values emits U+FFFD.
 -- Repair groups consecutive malformed bytes by default; repair-each replaces each
 -- malformed byte. Replacements are arbitrary bytes and every returned buffer is
--- fresh, including empty or already valid input. Complete ASCII blocks use SWAR;
+-- fresh, including empty or already valid input. Complete ASCII blocks use SIMD and SWAR;
 -- non-ASCII fringes enforce shortest encoding, scalar bounds and exact input loads.
 module Data.Bytes.Utf8 where
   import Data.Bool
@@ -73,6 +73,59 @@ module Data.Bytes.Utf8 where
   hold-source :: forall a. Bytes -> a -> a
   hold-source source value = case bytes-len source of _ -> value
 
+  -- | Compare private machine scan counters directly without an imported provider call.
+  prim scan-lt :: U64 -> U64 -> Bool where
+    llvm {
+      %yes = icmp ult i64 %0, %1
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Compare private machine scan counters directly without an imported provider call.
+  prim scan-ge :: U64 -> U64 -> Bool where
+    llvm {
+      %yes = icmp uge i64 %0, %1
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Compare private machine scan counters directly without an imported provider call.
+  prim scan-gt :: U64 -> U64 -> Bool where
+    llvm {
+      %yes = icmp ugt i64 %0, %1
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Compare private machine scan counters directly without an imported provider call.
+  prim scan-eq :: U64 -> U64 -> Bool where
+    llvm {
+      %yes = icmp eq i64 %0, %1
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Advance or measure proved private machine scan positions with wrapping word arithmetic.
+  prim scan-add :: U64 -> U64 -> U64 where
+    llvm {
+      %result = add i64 %0, %1
+      ret i64 %result
+    }
+
+  -- | Advance or measure proved private machine scan positions with wrapping word arithmetic.
+  prim scan-sub :: U64 -> U64 -> U64 where
+    llvm {
+      %result = sub i64 %0, %1
+      ret i64 %result
+    }
+
+  -- | Form one private pointer from its retained source base and proved bounded byte offset.
+  prim scan-address :: I64 -> U64 -> I64 where
+    llvm {
+      %result = add i64 %0, %1
+      ret i64 %result
+    }
+
   -- | Read one proved source byte without reading its neighbors.
   prim load-one :: I64 -> U8 where
     unsafe llvm {
@@ -108,6 +161,18 @@ module Data.Bytes.Utf8 where
     llvm {
       %bits = and i64 %0, 9259542123273814144
       %yes = icmp eq i64 %bits, 0
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Recognize sixteen proved source bytes with an order-independent SIMD sign-bit mask.
+  prim ascii-sixteen :: I64 -> Bool where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %bytes = load <16 x i8>, ptr %p, align 1
+      %high = icmp slt <16 x i8> %bytes, zeroinitializer
+      %mask = bitcast <16 x i1> %high to i16
+      %yes = icmp eq i16 %mask, 0
       %result = zext i1 %yes to i8
       ret i8 %result
     }
@@ -218,27 +283,141 @@ module Data.Bytes.Utf8 where
   -- | Assemble only the available one-to-three tail bytes in low-byte-first order.
   tail-word :: I64 -> U64 -> U32
   tail-word address count = let first = load-one address in
-    if gt-u64 count 1 then let second-address = wrapping-add-i64 address 1 in let second = load-one second-address in
+    if scan-gt count 1 then let second-address = wrapping-add-i64 address 1 in let second = load-one second-address in
       let pair = bit-or-u32 (u8-to-u32 first) (wrapping-shl-u32 (u8-to-u32 second) 8) in
-      if gt-u64 count 2 then let third-address = wrapping-add-i64 address 2 in let third = load-one third-address in
+      if scan-gt count 2 then let third-address = wrapping-add-i64 address 2 in let third = load-one third-address in
         bit-or-u32 pair (wrapping-shl-u32 (u8-to-u32 third) 16)
       else pair
     else u8-to-u32 first
 
   -- | Decode one proved nonempty suffix using exact full-word or byte-tail loads.
   decode-raw :: I64 -> U64 -> U64 -> U32
-  decode-raw base size at = let address = wrapping-add-i64 base (wrapping-u64-to-i64 at) in
-    let remaining = wrapping-sub-u64 size at in
-    if ge-u64 remaining 4 then let word = load-four address in decode-word word 4
+  decode-raw base size at = let address = scan-address base at in
+    let remaining = scan-sub size at in
+    if scan-ge remaining 4 then let word = load-four address in decode-word word 4
     else let word = tail-word address remaining in let available = wrapping-u64-to-u8 remaining in decode-word word available
 
-  -- | Observe a packed consumed width as a machine counter.
-  packed-width :: U32 -> U64
-  packed-width packed = u32-to-u64 (bit-and-u32 (wrapping-shr-u32 packed 21) 7)
+  -- | Classify one leading byte without inspecting unrelated bytes; zero requests multibyte validation.
+  prim scan-simple :: U8 -> U8 where
+    llvm {
+      %ascii = icmp ult i8 %0, 128
+      %lower = icmp uge i8 %0, 194
+      %upper = icmp ule i8 %0, 244
+      %multi = and i1 %lower, %upper
+      %nonascii = select i1 %multi, i8 0, i8 1
+      %result = select i1 %ascii, i8 9, i8 %nonascii
+      ret i8 %result
+    }
 
-  -- | Recognize the packed valid status without constructing a decoding object.
-  packed-valid :: U32 -> Bool
-  packed-valid packed = eq-u32 (bit-and-u32 (wrapping-shr-u32 packed 24) 3) 1
+  -- | Recognize the complete one-byte result from a simple lead classification.
+  prim scan-ready :: U8 -> Bool where
+    llvm {
+      %yes = icmp ne i8 %0, 0
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Validate a plausible multibyte lead with complete four-byte lookahead, returning only width and validity.
+  -- SWAR continuation masks avoid computing code points or incomplete-prefix metadata during bulk scans.
+  prim scan-four :: U32 -> U8 where
+    llvm {
+      %first = and i32 %0, 255
+      %second-shift = lshr i32 %0, 8
+      %second = and i32 %second-shift, 255
+      %lead-low = icmp uge i32 %first, 194
+      %lead-high = icmp ule i32 %first, 244
+      %lead = and i1 %lead-low, %lead-high
+      %two = icmp ult i32 %first, 224
+      %three = icmp ult i32 %first, 240
+      %mask2 = and i32 %0, 49152
+      %mask3 = and i32 %0, 12632064
+      %mask4 = and i32 %0, 3233857536
+      %cont2 = icmp eq i32 %mask2, 32768
+      %cont3 = icmp eq i32 %mask3, 8421376
+      %cont4 = icmp eq i32 %mask4, 2155905024
+      %e0 = icmp eq i32 %first, 224
+      %ed = icmp eq i32 %first, 237
+      %f0 = icmp eq i32 %first, 240
+      %f4 = icmp eq i32 %first, 244
+      %atleast-a0 = icmp uge i32 %second, 160
+      %below-a0 = icmp ult i32 %second, 160
+      %atleast-90 = icmp uge i32 %second, 144
+      %below-90 = icmp ult i32 %second, 144
+      %e0valid = select i1 %e0, i1 %atleast-a0, i1 true
+      %edvalid = select i1 %ed, i1 %below-a0, i1 true
+      %f0valid = select i1 %f0, i1 %atleast-90, i1 true
+      %f4valid = select i1 %f4, i1 %below-90, i1 true
+      %special3 = and i1 %e0valid, %edvalid
+      %special4 = and i1 %f0valid, %f4valid
+      %valid3 = and i1 %cont3, %special3
+      %valid4 = and i1 %cont4, %special4
+      %wide-valid = select i1 %three, i1 %valid3, i1 %valid4
+      %tail-valid = select i1 %two, i1 %cont2, i1 %wide-valid
+      %valid = and i1 %lead, %tail-valid
+      %wide-width = select i1 %three, i8 3, i8 4
+      %width = select i1 %two, i8 2, i8 %wide-width
+      %consumed = select i1 %valid, i8 %width, i8 1
+      %flag = select i1 %valid, i8 8, i8 0
+      %result = or i8 %consumed, %flag
+      ret i8 %result
+    }
+
+  -- | Convert an exact tail decoder result to the same minimal scan representation.
+  prim scan-from-packed :: U32 -> U8 where
+    llvm {
+      %shifted = lshr i32 %0, 21
+      %width = and i32 %shifted, 7
+      %status = and i32 %0, 50331648
+      %valid = icmp eq i32 %status, 16777216
+      %flag = select i1 %valid, i32 8, i32 0
+      %combined = or i32 %width, %flag
+      %result = trunc i32 %combined to i8
+      ret i8 %result
+    }
+
+  -- | Observe the consumed scan width without imported arithmetic or conversion calls.
+  prim scan-width :: U8 -> U64 where
+    llvm {
+      %width = and i8 %0, 7
+      %result = zext i8 %width to i64
+      ret i64 %result
+    }
+
+  -- | Recognize one valid scan result without constructing a decoded scalar.
+  prim scan-valid :: U8 -> Bool where
+    llvm {
+      %flag = and i8 %0, 8
+      %valid = icmp ne i8 %flag, 0
+      %result = zext i1 %valid to i8
+      ret i8 %result
+    }
+
+  -- | Scan one proved nonempty suffix with early ASCII/invalid-lead classification and exact lookahead.
+  scan-raw :: I64 -> U64 -> U64 -> U8
+  scan-raw base size at = let address = scan-address base at in let first = load-one address in
+    let simple = scan-simple first in if scan-ready simple then simple else
+      let remaining = scan-sub size at in
+      if scan-ge remaining 4 then let word = load-four address in scan-four word
+      else let word = tail-word address remaining in let available = wrapping-u64-to-u8 remaining in
+        let packed = decode-word word available in scan-from-packed packed
+
+  -- | Observe a packed consumed width without intermediate provider shifts or conversions.
+  prim packed-width :: U32 -> U64 where
+    llvm {
+      %shifted = lshr i32 %0, 21
+      %width = and i32 %shifted, 7
+      %result = zext i32 %width to i64
+      ret i64 %result
+    }
+
+  -- | Recognize a packed valid status directly, excluding the independent incomplete-prefix flag.
+  prim packed-valid :: U32 -> Bool where
+    llvm {
+      %status = and i32 %0, 50331648
+      %valid = icmp eq i32 %status, 16777216
+      %result = zext i1 %valid to i8
+      ret i8 %result
+    }
 
   -- | Convert one verified packed result into safe scalar-facing observations.
   packed-step :: U32 -> Utf8Step
@@ -265,9 +444,9 @@ module Data.Bytes.Utf8 where
 
   -- | Search at most three preceding continuation bytes while retaining the exact prefix bound.
   last-start :: I64 -> U64 -> U64 -> U64
-  last-start base at remaining = if gt-u64 at 0 && gt-u64 remaining 0 then
-    let address = wrapping-add-i64 base (wrapping-u64-to-i64 at) in let byte = load-one address in
-    if utf8-rune-start byte then at else last-start base (wrapping-sub-u64 at 1) (wrapping-sub-u64 remaining 1)
+  last-start base at remaining = if scan-gt at 0 && scan-gt remaining 0 then
+    let address = scan-address base at in let byte = load-one address in
+    if utf8-rune-start byte then at else last-start base (scan-sub at 1) (scan-sub remaining 1)
     else at
 
   -- | Decode immediately before a byte offset; malformed endings consume exactly the final byte.
@@ -275,9 +454,9 @@ module Data.Bytes.Utf8 where
   utf8-last-before source end = if end > bytes-len source then DecodedStep utf8-rune-error 0 Utf8OutOfBounds
     else if end == 0 then DecodedStep utf8-rune-error 0 Utf8End
     else let size = wrapping-i64-to-u64 (nat-to-i64 end) in let base = bytes-data source in
-      let start = last-start base (wrapping-sub-u64 size 1) 3 in
+      let start = last-start base (scan-sub size 1) 3 in
       let packed = decode-raw base size start in let width = packed-width packed in
-      hold-source source (if packed-valid packed && eq-u64 (wrapping-add-u64 start width) size then packed-step packed else DecodedStep utf8-rune-error 1 Utf8Invalid)
+      hold-source source (if packed-valid packed && scan-eq (scan-add start width) size then packed-step packed else DecodedStep utf8-rune-error 1 Utf8Invalid)
 
   -- | Decode the final scalar or one final malformed byte; empty input has Utf8End status.
   utf8-last :: Bytes -> Utf8Step
@@ -285,23 +464,25 @@ module Data.Bytes.Utf8 where
 
   -- | Skip complete ASCII blocks and valid non-ASCII scalars until the first malformed byte or end.
   invalid-from :: I64 -> U64 -> U64 -> U64
-  invalid-from base size at = if lt-u64 at size then
-    let remaining = wrapping-sub-u64 size at in
-    if ge-u64 remaining 8 then let address = wrapping-add-i64 base (wrapping-u64-to-i64 at) in let block = load-eight address in
-      if ascii-eight block then invalid-from base size (wrapping-add-u64 at 8) else invalid-scalar base size at
+  invalid-from base size at = if scan-lt at size then
+    let remaining = scan-sub size at in
+    if scan-ge remaining 16 then let address = scan-address base at in
+      if ascii-sixteen address then invalid-from base size (scan-add at 16) else invalid-scalar base size at
+    else if scan-ge remaining 8 then let address = scan-address base at in let block = load-eight address in
+      if ascii-eight block then invalid-from base size (scan-add at 8) else invalid-scalar base size at
     else invalid-scalar base size at
     else at
 
   -- | Advance one valid scalar or stop exactly at the malformed byte.
   invalid-scalar :: I64 -> U64 -> U64 -> U64
-  invalid-scalar base size at = let packed = decode-raw base size at in
-    if packed-valid packed then invalid-from base size (wrapping-add-u64 at (packed-width packed)) else at
+  invalid-scalar base size at = let packed = scan-raw base size at in
+    if scan-valid packed then invalid-from base size (scan-add at (scan-width packed)) else at
 
   -- | Locate the first malformed byte, preserving end as None and never copying input.
   utf8-first-invalid :: Bytes -> Option Nat
   utf8-first-invalid source = let size = wrapping-i64-to-u64 (nat-to-i64 (bytes-len source)) in
     let at = hold-source source (invalid-from (bytes-data source) size 0) in
-    if lt-u64 at size then Some (word-natural at) else None
+    if scan-lt at size then Some (word-natural at) else None
 
   -- | Whether every byte participates in a shortest-form scalar encoding; empty input is valid.
   utf8-valid :: Bytes -> Bool
@@ -309,17 +490,19 @@ module Data.Bytes.Utf8 where
 
   -- | Count decoded scalars, treating each malformed or truncated byte as one replacement scalar.
   count-from :: I64 -> U64 -> U64 -> U64 -> U64
-  count-from base size at count = if lt-u64 at size then
-    let remaining = wrapping-sub-u64 size at in
-    if ge-u64 remaining 8 then let address = wrapping-add-i64 base (wrapping-u64-to-i64 at) in let block = load-eight address in
-      if ascii-eight block then count-from base size (wrapping-add-u64 at 8) (wrapping-add-u64 count 8) else count-scalar base size at count
+  count-from base size at count = if scan-lt at size then
+    let remaining = scan-sub size at in
+    if scan-ge remaining 16 then let address = scan-address base at in
+      if ascii-sixteen address then count-from base size (scan-add at 16) (scan-add count 16) else count-scalar base size at count
+    else if scan-ge remaining 8 then let address = scan-address base at in let block = load-eight address in
+      if ascii-eight block then count-from base size (scan-add at 8) (scan-add count 8) else count-scalar base size at count
     else count-scalar base size at count
     else count
 
   -- | Count one exact decoding step without allocating a Char or step object.
   count-scalar :: I64 -> U64 -> U64 -> U64 -> U64
-  count-scalar base size at count = let packed = decode-raw base size at in
-    count-from base size (wrapping-add-u64 at (packed-width packed)) (wrapping-add-u64 count 1)
+  count-scalar base size at count = let packed = scan-raw base size at in
+    count-from base size (scan-add at (scan-width packed)) (scan-add count 1)
 
   -- | Count scalars with exact one-byte progress on all malformed input and SWAR ASCII blocks.
   utf8-count :: Bytes -> Nat
@@ -426,29 +609,29 @@ module Data.Bytes.Utf8 where
 
   -- | Advance across consecutive malformed decoding positions, each consuming one byte.
   invalid-end :: I64 -> U64 -> U64 -> U64
-  invalid-end base size at = if lt-u64 at size then
-    let packed = decode-raw base size at in
-    if packed-valid packed then at else invalid-end base size (wrapping-add-u64 at 1)
+  invalid-end base size at = if scan-lt at size then
+    let packed = scan-raw base size at in
+    if scan-valid packed then at else invalid-end base size (scan-add at 1)
     else at
 
   -- | Calculate exact fresh repair size from valid spans and grouped or individual malformed bytes.
   repair-size :: I64 -> U64 -> U64 -> Nat -> Nat -> Bool -> Nat
   repair-size base size at total replacement each = let bad = invalid-from base size at in
-    let span = word-natural (wrapping-sub-u64 bad at) in
-    if lt-u64 bad size then
-      let end = if each then wrapping-add-u64 bad 1 else invalid-end base size (wrapping-add-u64 bad 1) in
+    let span = word-natural (scan-sub bad at) in
+    if scan-lt bad size then
+      let end = if each then scan-add bad 1 else invalid-end base size (scan-add bad 1) in
       repair-size base size end (total + span + replacement) replacement each
     else total + span
 
   -- | Copy exact valid spans and arbitrary replacement bytes through checked bulk mutations.
   repair-copy :: Bytes -> Bytes -> Bytes -> I64 -> U64 -> U64 -> Nat -> Bool -> Unit
   repair-copy source replacement out base size at cursor each = let bad = invalid-from base size at in
-    let begin = word-natural at in let span = word-natural (wrapping-sub-u64 bad at) in
+    let begin = word-natural at in let span = word-natural (scan-sub bad at) in
     if begin + span <= bytes-len source && cursor + span <= bytes-len out then
       let copied = bytes-copy-range out source cursor begin span in
-      if lt-u64 bad size then let next = cursor + span in let count = bytes-len replacement in
+      if scan-lt bad size then let next = cursor + span in let count = bytes-len replacement in
         if next + count <= bytes-len out then let replaced = bytes-copy-range out replacement next 0 count in
-          let end = if each then wrapping-add-u64 bad 1 else invalid-end base size (wrapping-add-u64 bad 1) in
+          let end = if each then scan-add bad 1 else invalid-end base size (scan-add bad 1) in
           repair-copy source replacement out base size end (next + count) each
         else ()
       else ()
