@@ -1,0 +1,53 @@
+{
+  "description": "Parent typed JSON codecs and bounded UTF8 span integration",
+  "source_commits": [
+    "46d7cb22",
+    "f48d5f3f"
+  ],
+  "targets": {
+    "lib_json_codec": {
+      "passed": 9,
+      "seconds": 76.58,
+      "test_binary_sha256": "cfcbc0b255d6a2f125dec0eaf47b1ebe67037b1497be8c1c62c8fcdc96f2cea5"
+    },
+    "lib_utf8": {
+      "passed": 7,
+      "seconds": 20.62,
+      "test_binary_sha256": "f4c582e68ef5a2e60c3b608ce3440260084f4b9cc38f53c97845f0e25a6709a0"
+    }
+  },
+  "total_focused_passed": 16,
+  "focused_log_sha256": "a88e95889992749266a8a446e30b71113805ad37b4c07e79d1fa4fe678fb6ad5",
+  "library_tests": {
+    "passed": 310,
+    "seconds": 271.75,
+    "log_sha256": "391f070e5c6c24a34c4b837db9bc72c6a507ff19e99ceda8d56094d2a240681a",
+    "scope": "Includes four sealed-array Rust certificate tests before the additional source-absent contract test; the Native checker and its later revocation fix are separate gates."
+  },
+  "compiler_sha256": "a2b8e132711372b5e12bb300e0f9a08e9c237039ee3c7513cf8ad962b6d3e2dd",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "selected_source_sha256": {
+    "Text.Json.Codec": "ae4470f5497bb4558ed11df1bb534d7777b041e02ab0898015172971813eb138",
+    "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187"
+  },
+  "command": "cargo test --lib; cargo test --test lib_utf8 --test lib_json_codec",
+  "limits": {
+    "CARGO_BUILD_JOBS": 1,
+    "CARGO_INCREMENTAL": 0,
+    "RUST_TEST_THREADS": 1,
+    "RUST_MIN_STACK": 67108864,
+    "compiler_main_stack_bytes": 67108864
+  },
+  "documentation": {
+    "modules": 173,
+    "diagnostics": 0,
+    "orphans": 0,
+    "drift_check": "passed",
+    "source_snapshot": "b88a07f4"
+  },
+  "limitations": [
+    "Typed JSON is a documented capability checkpoint; the full JSON operation mapping remains incomplete.",
+    "These Cargo gates use the Rust frontend. Independently identified Native evidence remains in each source checkpoint.",
+    "The later quoted-printable additions, Text.Utf8 combined-provider facade and full Native compiler fixed point are separate gates."
+  ]
+}
