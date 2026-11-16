@@ -1,0 +1,196 @@
+-- | Byte-preserving URL failures and typed contextual errors.
+-- URL failures own their diagnostic byte detail and expose copied buffers.
+-- Contextual errors retain a typed cause, an operation and a copied original
+-- input. Temporary and timeout classification is explicit for custom causes;
+-- pure parsing and escaping failures use false for both classifications.
+module Text.Url.Error where
+
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.String
+
+  export UrlFailureKind, UrlInvalidEscape, UrlInvalidHost, UrlControlByte, UrlMissingScheme
+  export UrlInvalidRequest, UrlEmptyRequest, UrlPathColon, UrlInvalidPort, UrlMissingBracket
+  export UrlInvalidIpLiteral, UrlInvalidUserinfo, UrlQuerySemicolon, UrlTooManyParameters
+  export UrlFailure, url-failure, url-failure-kind, url-failure-offset, url-failure-detail
+  export url-failure-shift, url-failure-message, url-quote-bytes
+  export UrlError, url-error, url-error-operation, url-error-input, url-error-cause
+  export url-error-temporary, url-error-timeout, url-error-render, url-error-message
+
+  -- | A precise class of malformed URL, percent escape or query input.
+  data UrlFailureKind where
+    -- | A percent sign is not followed by two allowed hexadecimal digits.
+    UrlInvalidEscape :: UrlFailureKind
+    -- | An unescaped ASCII byte is not permitted in a host or zone.
+    UrlInvalidHost :: UrlFailureKind
+    -- | The URL contains an ASCII control byte or DEL.
+    UrlControlByte :: UrlFailureKind
+    -- | A colon appears without a nonempty valid scheme prefix.
+    UrlMissingScheme :: UrlFailureKind
+    -- | A request target is neither an absolute URL nor an absolute path.
+    UrlInvalidRequest :: UrlFailureKind
+    -- | A request target is empty.
+    UrlEmptyRequest :: UrlFailureKind
+    -- | A relative URL's first path segment contains a colon.
+    UrlPathColon :: UrlFailureKind
+    -- | A host suffix after a colon is not an optional decimal port.
+    UrlInvalidPort :: UrlFailureKind
+    -- | A bracketed IP literal has no closing bracket.
+    UrlMissingBracket :: UrlFailureKind
+    -- | A bracketed address is not a valid IPv6 literal with an optional nonempty zone.
+    UrlInvalidIpLiteral :: UrlFailureKind
+    -- | An authority contains unsupported unescaped user-information bytes.
+    UrlInvalidUserinfo :: UrlFailureKind
+    -- | A query setting contains an unescaped semicolon.
+    UrlQuerySemicolon :: UrlFailureKind
+    -- | The raw query contains more fields than its configured limit.
+    UrlTooManyParameters :: UrlFailureKind
+
+  -- | An immutable failure class, component-relative byte offset and exact copied byte detail.
+  data UrlFailure where
+    -- | Private owned diagnostic payload; getters never expose its mutable storage.
+    Failure :: UrlFailureKind -> Nat -> Bytes -> UrlFailure
+
+  -- | Copy a complete byte buffer without retaining a mutable caller alias.
+  copy :: Bytes -> Bytes
+  copy bytes = let out = bytes-new (bytes-len bytes) in
+    let copied = bytes-copy-range out bytes 0 0 (bytes-len bytes) in out
+
+  -- | Construct a byte-precise failure without losing non-UTF-8 detail.
+  url-failure :: UrlFailureKind -> Nat -> Bytes -> UrlFailure
+  url-failure kind offset detail = Failure kind offset (copy detail)
+
+  -- | Observe the named failure class.
+  url-failure-kind :: UrlFailure -> UrlFailureKind
+  url-failure-kind failure = case failure of Failure kind offset detail -> kind
+
+  -- | Observe the zero-based byte position within the component being processed.
+  url-failure-offset :: UrlFailure -> Nat
+  url-failure-offset failure = case failure of Failure kind offset detail -> offset
+
+  -- | Return a fresh copy of the exact offending bytes, including non-UTF-8 bytes.
+  url-failure-detail :: UrlFailure -> Bytes
+  url-failure-detail failure = case failure of Failure kind offset detail -> copy detail
+
+  -- | Rebase a component-relative failure into a larger original byte interval.
+  url-failure-shift :: Nat -> UrlFailure -> UrlFailure
+  url-failure-shift base failure = case failure of Failure kind offset detail -> Failure kind (base + offset) detail
+
+  -- | Determine the ASCII diagnostic width of one byte.
+  quote-width :: Nat -> Nat
+  quote-width byte =
+    if byte >= 32 && byte <= 126 && byte /= 34 && byte /= 92 then 1
+    else if byte == 34 || byte == 92 || byte == 8 || byte == 9 || byte == 10 || byte == 12 || byte == 13 then 2
+    else 4
+
+  -- | Count exact diagnostic capacity, including both enclosing quotation marks.
+  quote-size :: Bytes -> Nat -> Nat -> Nat
+  quote-size input i count = if i < bytes-len input then
+    quote-size input (i + 1) (count + quote-width (bytes-get input i))
+    else count
+
+  -- | Render the low nibble as an uppercase ASCII hexadecimal byte.
+  hex-byte :: U8 -> U8
+  hex-byte value = if le-u8 value 9 then wrapping-add-u8 value 48 else wrapping-add-u8 value 55
+
+  -- | Select the conventional printable letter for an escaped ASCII control byte.
+  control-letter :: Nat -> U8
+  control-letter byte =
+    if byte == 8 then 98 else if byte == 9 then 116 else if byte == 10 then 110
+    else if byte == 12 then 102 else if byte == 13 then 114
+    else if byte <= 255 then wrapping-i64-to-u8 (nat-to-i64 byte) else 63
+
+  -- | Write one diagnostic byte spelling after checking its complete output interval.
+  quote-one :: Bytes -> Nat -> Nat -> Nat
+  quote-one out at byte =
+    let width = quote-width byte in
+    if byte <= 255 && at + width <= bytes-len out then
+      if width == 1 && byte <= 255 && at < bytes-len out then
+        let written = bytes-set out at byte in at + 1
+      else if width == 2 && at + 2 <= bytes-len out then
+        let a = bytes-set out at 92 in let b = bytes-set out (at + 1) (u8-to-nat (control-letter byte)) in at + 2
+      else if at + 4 <= bytes-len out then
+        let value = wrapping-i64-to-u8 (nat-to-i64 byte) in
+        let high = hex-byte (wrapping-shr-u8 value 4) in let low = hex-byte (bit-and-u8 value 15) in
+        let a = bytes-set out at 92 in let b = bytes-set out (at + 1) 120 in
+        let c = bytes-set out (at + 2) (u8-to-nat high) in let d = bytes-set out (at + 3) (u8-to-nat low) in at + 4
+      else at
+    else at
+
+  -- | Fill the diagnostic interior without altering the original byte buffer.
+  quote-from :: Bytes -> Nat -> Bytes -> Nat -> Nat
+  quote-from input i out oi = if i < bytes-len input then
+    quote-from input (i + 1) out (quote-one out oi (bytes-get input i))
+    else oi
+
+  -- | Produce an ASCII byte-exact quoted diagnostic; non-ASCII bytes use hexadecimal escapes.
+  url-quote-bytes :: Bytes -> String
+  url-quote-bytes input =
+    let out = bytes-new (quote-size input 0 2) in
+    if 2 <= bytes-len out then
+      let first = bytes-set out 0 34 in let end = quote-from input 0 out 1 in
+      if end < bytes-len out then
+        let last = bytes-set out end 34 in case string-from-bytes out of Some text -> text; None -> empty-string
+      else empty-string
+    else empty-string
+
+  -- | Render a named failure while retaining its raw detail separately for programmatic handling.
+  url-failure-message :: UrlFailure -> String
+  url-failure-message failure = case failure of
+    Failure kind offset detail -> case kind of
+      UrlInvalidEscape -> string-concat "invalid URL escape " (url-quote-bytes detail)
+      UrlInvalidHost -> string-concat "invalid host byte " (url-quote-bytes detail)
+      UrlControlByte -> string-concat "control byte in URL at byte " (nat-to-string offset)
+      UrlMissingScheme -> "missing URL scheme"
+      UrlInvalidRequest -> "invalid request target"
+      UrlEmptyRequest -> "empty request target"
+      UrlPathColon -> "first relative path segment contains a colon"
+      UrlInvalidPort -> string-concat "invalid port after host: " (url-quote-bytes detail)
+      UrlMissingBracket -> "missing closing bracket in URL host"
+      UrlInvalidIpLiteral -> string-concat "invalid IPv6 URL host " (url-quote-bytes detail)
+      UrlInvalidUserinfo -> "invalid URL user information"
+      UrlQuerySemicolon -> "unescaped semicolon in URL query"
+      UrlTooManyParameters -> "URL query parameter limit exceeded"
+
+  -- | A typed cause and the original input for one named URL operation.
+  data UrlError cause where
+    -- | Private original input snapshot and explicit temporary/timeout classification.
+    Context :: String -> Bytes -> cause -> Bool -> Bool -> UrlError cause
+
+  -- | Wrap any typed cause with copied input and caller-supplied temporary/timeout flags.
+  url-error :: forall cause. String -> Bytes -> cause -> Bool -> Bool -> UrlError cause
+  url-error operation input cause temporary timeout = Context operation (copy input) cause temporary timeout
+
+  -- | Observe the operation name associated with the failure.
+  url-error-operation :: forall cause. UrlError cause -> String
+  url-error-operation error = case error of Context operation input cause temporary timeout -> operation
+
+  -- | Return a fresh copy of the original operation input, without requiring valid UTF-8.
+  url-error-input :: forall cause. UrlError cause -> Bytes
+  url-error-input error = case error of Context operation input cause temporary timeout -> copy input
+
+  -- | Unwrap the original typed cause without erasing its type or information.
+  url-error-cause :: forall cause. UrlError cause -> cause
+  url-error-cause error = case error of Context operation input cause temporary timeout -> cause
+
+  -- | Observe explicit temporary classification; pure parsing failures are not temporary.
+  url-error-temporary :: forall cause. UrlError cause -> Bool
+  url-error-temporary error = case error of Context operation input cause temporary timeout -> temporary
+
+  -- | Observe explicit timeout classification; pure parsing failures do not time out.
+  url-error-timeout :: forall cause. UrlError cause -> Bool
+  url-error-timeout error = case error of Context operation input cause temporary timeout -> timeout
+
+  -- | Render any typed contextual error using its supplied cause formatter.
+  url-error-render :: forall cause. (cause -> String) -> UrlError cause -> String
+  url-error-render render error = case error of
+    Context operation input cause temporary timeout ->
+      let message = render cause in string-concat operation (string-concat " " (string-concat (url-quote-bytes input) (string-concat ": " message)))
+
+  -- | Render a URL parsing or escaping context with its structured built-in failure.
+  url-error-message :: UrlError UrlFailure -> String
+  url-error-message error = case error of
+    Context operation input cause temporary timeout ->
+      string-concat operation (string-concat " " (string-concat (url-quote-bytes input) (string-concat ": " (url-failure-message cause))))

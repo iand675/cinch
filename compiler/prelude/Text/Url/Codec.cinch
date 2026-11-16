@@ -1,0 +1,872 @@
+-- | Byte-preserving percent escaping for URL components.
+-- Query components map spaces to plus and decode plus as space. Other contexts
+-- preserve plus. Percent decoding validates the complete input before returning
+-- fresh bytes; arbitrary decoded bytes never pass through a text conversion.
+-- Host and zone policies enforce their additional escape restrictions. SIMD
+-- classifiers skip complete ordinary spans; private exact-load loops retain
+-- backing owners. Checked bulk copies write percent triplets and ordinary runs.
+module Text.Url.Codec where
+
+  import Text.Url.Error
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  export UrlEncoding, UrlPath, UrlPathSegment, UrlHost, UrlZone, UrlUserPassword, UrlQueryComponent, UrlFragment
+  export url-escape, url-unescape, url-escaped-length, url-unescape-path-hint, url-unescape-fragment-hint
+  export url-path-escape, url-path-unescape, url-query-escape, url-query-unescape
+  export url-path-escape-text, url-query-escape-text
+
+  -- | The independent byte grammar of one URL component.
+  data UrlEncoding where
+    -- | A complete path, preserving path separators and path punctuation.
+    UrlPath :: UrlEncoding
+    -- | One path segment, escaping slashes, semicolons, commas and question marks.
+    UrlPathSegment :: UrlEncoding
+    -- | A complete host and optional port, preserving accepted host punctuation.
+    UrlHost :: UrlEncoding
+    -- | An IPv6 zone identifier, with restricted percent-decoded bytes.
+    UrlZone :: UrlEncoding
+    -- | One username or password, escaping structural authority delimiters.
+    UrlUserPassword :: UrlEncoding
+    -- | One query key or value, using plus for spaces and escaping reserved bytes.
+    UrlQueryComponent :: UrlEncoding
+    -- | A fragment, preserving its allowed reserved punctuation.
+    UrlFragment :: UrlEncoding
+
+  -- | Select the private machine policy identifier once at the public boundary.
+  encoding-mode :: UrlEncoding -> U8
+  encoding-mode encoding = case encoding of
+    UrlPath -> 1
+    UrlPathSegment -> 2
+    UrlHost -> 3
+    UrlZone -> 4
+    UrlUserPassword -> 5
+    UrlQueryComponent -> 6
+    UrlFragment -> 7
+
+  -- | Preserve valid pchar spellings in explicit raw path/fragment hints.
+  hint-mode :: UrlEncoding -> U8
+  hint-mode encoding = case encoding of UrlFragment -> 9; other -> 8
+
+  -- | Copy one checked source interval without retaining a mutable caller alias.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input start n = if start + n <= bytes-len input then
+    let out = bytes-new n in let copied = bytes-copy-range out input 0 start n in out
+    else bytes-new 0
+
+  -- | Convert a complete unsigned machine word to an exact natural number.
+  word-natural :: U64 -> Nat
+  word-natural word = u32-to-nat (wrapping-u64-to-u32 word) + u32-to-nat (wrapping-u64-to-u32 (wrapping-shr-u64 word 32)) * 4294967296
+
+  -- | Keep a backing buffer alive until a strict private traversal returns.
+  hold-input :: forall a. Bytes -> a -> a
+  hold-input input value = case bytes-len input of _ -> value
+
+  -- | Load exactly eight complete bytes for order-independent classification.
+  prim load-eight :: I64 -> U64 where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %value = load i64, ptr %p, align 1
+      ret i64 %value
+    }
+
+  -- | Load one exact scalar fringe byte after the caller proves remaining length.
+  prim load-one :: I64 -> U8 where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %value = load i8, ptr %p, align 1
+      ret i8 %value
+    }
+
+  -- | Accumulate percent counts below bit 63 and query-space presence in bit 63.
+  merge-counts :: U64 -> U64 -> U64
+  merge-counts total chunk =
+    let count = wrapping-add-u64 (bit-and-u64 total 9223372036854775807) (bit-and-u64 chunk 9223372036854775807) in
+    bit-or-u64 count (bit-and-u64 (bit-or-u64 total chunk) 9223372036854775808)
+
+  -- | Count complete SIMD blocks and exact tails with machine counters and no owner work inside the loop.
+  count-from :: I64 -> U64 -> U8 -> U64 -> U64
+  count-from address remaining mode total =
+    if ge-u64 remaining 8 then
+      let word = load-eight address in let chunk = classify-eight word mode in
+      count-from (wrapping-add-i64 address 8) (wrapping-sub-u64 remaining 8) mode (merge-counts total chunk)
+    else if ne-u64 remaining 0 then
+      let byte = load-one address in let action = classify-one byte mode in
+      let chunk = if eq-u8 action 2 then (1 :: U64) else if eq-u8 action 1 then 9223372036854775808 else 0 in
+      count-from (wrapping-add-i64 address 1) (wrapping-sub-u64 remaining 1) mode (merge-counts total chunk)
+    else total
+
+  -- | Count one complete buffer while retaining its source throughout private exact loads.
+  count-input :: Bytes -> U8 -> U64
+  count-input input mode = hold-input input (count-from (bytes-data input) (wrapping-i64-to-u64 (nat-to-i64 (bytes-len input))) mode 0)
+
+  -- | Exact percent-encoded byte count; query-space substitution does not change length.
+  url-escaped-length :: UrlEncoding -> Bytes -> Nat
+  url-escaped-length encoding input =
+    let mode = encoding-mode encoding in let counts = count-input input mode in
+    bytes-len input + 2 * word-natural (bit-and-u64 counts 9223372036854775807)
+
+  -- | Recognize a single byte requiring encoder interpretation or percent/plus decoding.
+  special-one :: U8 -> U8 -> Bool -> Bool
+  special-one byte mode decoding =
+    if decoding then eq-u8 byte 37 || (eq-u8 mode 6 && eq-u8 byte 43)
+    else let action = classify-one byte mode in ne-u8 action 0
+
+  -- | Find a special byte in an exact fringe of at most eight remaining bytes.
+  find-fringe :: I64 -> U64 -> U8 -> Bool -> U64 -> U64
+  find-fringe address remaining mode decoding count =
+    if eq-u64 remaining 0 then count
+    else let byte = load-one address in
+      if special-one byte mode decoding then count
+      else find-fringe (wrapping-add-i64 address 1) (wrapping-sub-u64 remaining 1) mode decoding (wrapping-add-u64 count 1)
+
+  -- | Skip ordinary complete blocks with SIMD, retaining only machine address/count state.
+  find-from :: I64 -> U64 -> U8 -> Bool -> U64 -> U64
+  find-from address remaining mode decoding count =
+    if ge-u64 remaining 8 then
+      let word = load-eight address in
+      let ordinary = if decoding then let flags = decode-flags-eight word mode in eq-u8 flags 0 else let flags = classify-eight word mode in eq-u64 flags 0 in
+      if ordinary then find-from (wrapping-add-i64 address 8) (wrapping-sub-u64 remaining 8) mode decoding (wrapping-add-u64 count 8)
+      else find-fringe address 8 mode decoding count
+    else find-fringe address remaining mode decoding count
+
+  -- | Avoid classifying a following block when the current byte already requires interpretation.
+  find-entry :: I64 -> U64 -> U8 -> Bool -> U64
+  find-entry address remaining mode decoding =
+    if eq-u64 remaining 0 then 0
+    else let byte = load-one address in
+      if special-one byte mode decoding then 0 else find-from address remaining mode decoding 0
+
+  -- | Locate the next interpreted byte under one source-owner hold.
+  next-special :: Bytes -> Nat -> U8 -> Bool -> Nat
+  next-special input start mode decoding = if start <= bytes-len input then
+    let address = wrapping-add-i64 (bytes-data input) (nat-to-i64 start) in
+    start + word-natural (hold-input input (find-entry address (wrapping-i64-to-u64 (nat-to-i64 (bytes-len input - start))) mode decoding))
+    else bytes-len input
+
+  -- | Copy ordinary spans and write plus substitutions or one checked percent-triplet copy.
+  encode-from :: Bytes -> Nat -> Bytes -> Nat -> U8 -> Bytes -> Unit
+  encode-from input start out oi mode table =
+    let stop = next-special input start mode False in
+    if start <= stop && stop <= bytes-len input && oi + stop - start <= bytes-len out then
+      let copied = if start < stop then bytes-copy-range out input oi start (stop - start) else () in
+      let next = oi + stop - start in
+      if stop < bytes-len input then
+        let byte = bytes-get input stop in let raw = wrapping-i64-to-u8 (nat-to-i64 byte) in
+        let action = classify-one raw mode in
+        if eq-u8 action 1 && next < bytes-len out then
+          let written = bytes-set out next 43 in encode-from input (stop + 1) out (next + 1) mode table
+        else let offset = byte * 3 in
+          if offset + 3 <= bytes-len table && next + 3 <= bytes-len out then
+            let written = bytes-copy-range out table next offset 3 in encode-from input (stop + 1) out (next + 3) mode table
+          else ()
+      else ()
+    else ()
+
+  -- | Encode one complete component into fresh bytes, preserving no caller aliases.
+  url-escape :: UrlEncoding -> Bytes -> Bytes
+  url-escape encoding input =
+    let mode = encoding-mode encoding in let counts = count-input input mode in
+    let percent = word-natural (bit-and-u64 counts 9223372036854775807) in
+    let out = bytes-new (bytes-len input + percent * 2) in
+    if eq-u64 counts 0 then let copied = bytes-copy-range out input 0 0 (bytes-len input) in out
+    else let table = if percent == 0 then (bytes-new 0 :: Bytes) else percent-triplets () in
+      let written = encode-from input 0 out 0 mode table in out
+
+  -- | Decode a hexadecimal digit without accepting non-ASCII digits or unrelated letters.
+  hex-value :: Nat -> Option Nat
+  hex-value byte =
+    if byte >= 48 && byte <= 57 then Some (byte - 48)
+    else if byte >= 65 && byte <= 70 then Some (byte - 55)
+    else if byte >= 97 && byte <= 102 then Some (byte - 87)
+    else None
+
+  -- | Preserve at most three original bytes in a malformed-escape diagnostic.
+  bad-escape :: Bytes -> Nat -> UrlFailure
+  bad-escape input at =
+    let remaining = saturating-sub (bytes-len input) at in
+    let n = if remaining < 3 then remaining else (3 :: Nat) in
+    url-failure UrlInvalidEscape at (part input at n)
+
+  -- | Validate one percent triplet and host/zone restrictions before any output is allocated.
+  validate-percent :: Bytes -> Nat -> U8 -> Result UrlFailure Nat
+  validate-percent input at mode = if at + 3 <= bytes-len input then
+    case hex-value (bytes-get input (at + 1)) of
+      None -> Err (bad-escape input at)
+      Some high -> case hex-value (bytes-get input (at + 2)) of
+        None -> Err (bad-escape input at)
+        Some low ->
+          let value = high * 16 + low in
+          if eq-u8 mode 3 && value < 128 && value /= 37 then Err (bad-escape input at)
+          else if eq-u8 mode 4 && value /= 37 && value /= 32 then
+            if value <= 255 then
+              let raw = wrapping-i64-to-u8 (nat-to-i64 value) in let action = classify-one raw 3 in
+              if ne-u8 action 0 then Err (bad-escape input at) else Ok value
+            else Err (bad-escape input at)
+          else Ok value
+    else Err (bad-escape input at)
+
+  -- | Validate all escapes, count percent triplets and remember whether query plus needs substitution.
+  validate-from :: Bytes -> Nat -> U8 -> U64 -> Result UrlFailure U64
+  validate-from input i mode counts =
+    if i >= bytes-len input then Ok counts
+    else if i + 8 <= bytes-len input then
+      let address = wrapping-add-i64 (bytes-data input) (nat-to-i64 i) in
+      let word = hold-input input (load-eight address) in let flags = decode-flags-eight word mode in
+      if eq-u8 flags 0 then validate-from input (i + 8) mode counts else validate-one input i mode counts
+    else validate-one input i mode counts
+
+  -- | Check one scalar percent, plus or host byte with precise original component offsets.
+  validate-one :: Bytes -> Nat -> U8 -> U64 -> Result UrlFailure U64
+  validate-one input i mode counts = if i < bytes-len input then
+    let byte = bytes-get input i in
+    if byte == 37 then case validate-percent input i mode of
+      Err error -> Err error
+      Ok value -> validate-from input (i + 3) mode (merge-counts counts 1)
+    else if eq-u8 mode 6 && byte == 43 then validate-from input (i + 1) mode (bit-or-u64 counts 9223372036854775808)
+    else if (eq-u8 mode 3 || eq-u8 mode 4) && byte < 128 then
+      let raw = wrapping-i64-to-u8 (nat-to-i64 byte) in let action = classify-one raw mode in
+      if ne-u8 action 0 then Err (url-failure UrlInvalidHost i (part input i 1))
+      else validate-from input (i + 1) mode counts
+    else validate-from input (i + 1) mode counts
+    else Ok counts
+
+  -- | Decode already validated input, copying complete ordinary spans exactly once.
+  decode-from :: Bytes -> Nat -> Bytes -> Nat -> U8 -> Unit
+  decode-from input start out oi mode =
+    let stop = next-special input start mode True in
+    if start <= stop && stop <= bytes-len input && oi + stop - start <= bytes-len out then
+      let copied = if start < stop then bytes-copy-range out input oi start (stop - start) else () in
+      let next = oi + stop - start in
+      if stop < bytes-len input then
+        if bytes-get input stop == 43 && eq-u8 mode 6 && next < bytes-len out then
+          let written = bytes-set out next 32 in decode-from input (stop + 1) out (next + 1) mode
+        else case validate-percent input stop mode of
+          Err error -> ()
+          Ok value -> if value <= 255 && next < bytes-len out then
+            let written = bytes-set out next value in decode-from input (stop + 3) out (next + 1) mode
+            else ()
+      else ()
+    else ()
+
+  -- | Decode a complete component to fresh arbitrary bytes, or return a precise failure without partial output.
+  url-unescape :: UrlEncoding -> Bytes -> Result UrlFailure Bytes
+  url-unescape encoding input =
+    let mode = encoding-mode encoding in case validate-from input 0 mode 0 of
+      Err error -> Err error
+      Ok counts ->
+        let percent = word-natural (bit-and-u64 counts 9223372036854775807) in
+        if percent * 2 <= bytes-len input then
+          let out = bytes-new (bytes-len input - percent * 2) in
+          if eq-u64 counts 0 && bytes-len input <= bytes-len out then let copied = bytes-copy-range out input 0 0 (bytes-len input) in Ok out
+          else let written = decode-from input 0 out 0 mode in Ok out
+        else Err (bad-escape input 0)
+
+  -- | Verify the additional character policy of a raw path/fragment hint before percent decoding.
+  hint-valid-from :: Bytes -> Nat -> U8 -> Option UrlFailure
+  hint-valid-from input i mode =
+    if i >= bytes-len input then None
+    else if i + 8 <= bytes-len input then
+      let address = wrapping-add-i64 (bytes-data input) (nat-to-i64 i) in
+      let word = hold-input input (load-eight address) in let flags = classify-eight word mode in
+      if eq-u64 flags 0 then hint-valid-from input (i + 8) mode else hint-valid-one input i mode
+    else hint-valid-one input i mode
+
+  -- | Identify the first raw hint byte that is neither pchar punctuation nor an allowed path/fragment byte.
+  hint-valid-one :: Bytes -> Nat -> U8 -> Option UrlFailure
+  hint-valid-one input i mode = if i < bytes-len input then
+    let byte = bytes-get input i in let raw = wrapping-i64-to-u8 (nat-to-i64 byte) in
+    let action = classify-one raw mode in
+    if eq-u8 action 0 then hint-valid-from input (i + 1) mode
+    else Some (url-failure UrlInvalidEscape i (part input i 1))
+    else None
+
+  -- | Decode a raw path/fragment hint only when all original characters and percent triplets are valid.
+  unescape-hint :: UrlEncoding -> Bytes -> Result UrlFailure Bytes
+  unescape-hint encoding input =
+    let mode = hint-mode encoding in case hint-valid-from input 0 mode of
+      Some error -> Err error
+      None -> url-unescape encoding input
+
+  -- | Decode a raw path hint only when its pchar spellings and percent triplets are valid.
+  url-unescape-path-hint :: Bytes -> Result UrlFailure Bytes
+  url-unescape-path-hint input = unescape-hint UrlPath input
+
+  -- | Decode a raw fragment hint only when its pchar spellings and percent triplets are valid.
+  url-unescape-fragment-hint :: Bytes -> Result UrlFailure Bytes
+  url-unescape-fragment-hint input = unescape-hint UrlFragment input
+
+  -- | Escape one arbitrary-byte path segment, including every slash inside the segment.
+  url-path-escape :: Bytes -> Bytes
+  url-path-escape input = url-escape UrlPathSegment input
+
+  -- | Percent-decode a path component without treating plus as a space.
+  url-path-unescape :: Bytes -> Result UrlFailure Bytes
+  url-path-unescape input = url-unescape UrlPathSegment input
+
+  -- | Escape one arbitrary-byte query key or value, using plus for space.
+  url-query-escape :: Bytes -> Bytes
+  url-query-escape input = url-escape UrlQueryComponent input
+
+  -- | Decode a query key or value, mapping plus to space and retaining arbitrary decoded bytes.
+  url-query-unescape :: Bytes -> Result UrlFailure Bytes
+  url-query-unescape input = url-unescape UrlQueryComponent input
+
+  -- | Escape UTF-8 text as an ASCII path segment; decoding remains byte based.
+  url-path-escape-text :: String -> String
+  url-path-escape-text text = case string-from-bytes (url-path-escape (string-to-bytes text)) of Some out -> out; None -> empty-string
+
+  -- | Escape UTF-8 text as an ASCII query component; decoding remains byte based.
+  url-query-escape-text :: String -> String
+  url-query-escape-text text = case string-from-bytes (url-query-escape (string-to-bytes text)) of Some out -> out; None -> empty-string
+
+  -- | Generated URL byte-policy kernels; regenerate with tooling/generate_url_kernels.py.
+  -- Scalar actions are 0 for ordinary bytes, 1 for query spaces and 2 for percent escaping.
+  prim classify-one :: U8 -> U8 -> U8 where
+    llvm {
+      %v0 = or i8 %0, 32
+      %v1 = icmp uge i8 %v0, 97
+      %v2 = icmp ule i8 %v0, 122
+      %v3 = and i1 %v1, %v2
+      %v4 = icmp uge i8 %0, 48
+      %v5 = icmp ule i8 %0, 57
+      %v6 = and i1 %v4, %v5
+      %v7 = icmp eq i8 %0, 32
+      %v8 = icmp eq i8 %0, 33
+      %v9 = icmp eq i8 %0, 34
+      %v10 = icmp eq i8 %0, 36
+      %v11 = icmp eq i8 %0, 37
+      %v12 = icmp eq i8 %0, 38
+      %v13 = icmp eq i8 %0, 39
+      %v14 = icmp eq i8 %0, 40
+      %v15 = icmp eq i8 %0, 41
+      %v16 = icmp eq i8 %0, 42
+      %v17 = icmp eq i8 %0, 43
+      %v18 = icmp eq i8 %0, 44
+      %v19 = icmp eq i8 %0, 45
+      %v20 = icmp eq i8 %0, 46
+      %v21 = icmp eq i8 %0, 47
+      %v22 = icmp eq i8 %0, 58
+      %v23 = icmp eq i8 %0, 59
+      %v24 = icmp eq i8 %0, 60
+      %v25 = icmp eq i8 %0, 61
+      %v26 = icmp eq i8 %0, 62
+      %v27 = icmp eq i8 %0, 63
+      %v28 = icmp eq i8 %0, 64
+      %v29 = icmp eq i8 %0, 91
+      %v30 = icmp eq i8 %0, 93
+      %v31 = icmp eq i8 %0, 95
+      %v32 = icmp eq i8 %0, 126
+      %v33 = or i1 %v3, %v6
+      %v34 = or i1 %v33, %v19
+      %v35 = or i1 %v34, %v31
+      %v36 = or i1 %v35, %v20
+      %v37 = or i1 %v36, %v32
+      %v38 = or i1 %v37, %v10
+      %v39 = or i1 %v38, %v12
+      %v40 = or i1 %v39, %v17
+      %v41 = or i1 %v40, %v18
+      %v42 = or i1 %v41, %v21
+      %v43 = or i1 %v42, %v22
+      %v44 = or i1 %v43, %v23
+      %v45 = or i1 %v44, %v25
+      %v46 = or i1 %v45, %v28
+      %v47 = icmp eq i8 %1, 1
+      %v48 = select i1 %v47, i1 %v46, i1 %v37
+      %v49 = or i1 %v37, %v10
+      %v50 = or i1 %v49, %v12
+      %v51 = or i1 %v50, %v17
+      %v52 = or i1 %v51, %v22
+      %v53 = or i1 %v52, %v25
+      %v54 = or i1 %v53, %v28
+      %v55 = icmp eq i8 %1, 2
+      %v56 = select i1 %v55, i1 %v54, i1 %v48
+      %v57 = or i1 %v37, %v8
+      %v58 = or i1 %v57, %v9
+      %v59 = or i1 %v58, %v10
+      %v60 = or i1 %v59, %v12
+      %v61 = or i1 %v60, %v13
+      %v62 = or i1 %v61, %v14
+      %v63 = or i1 %v62, %v15
+      %v64 = or i1 %v63, %v16
+      %v65 = or i1 %v64, %v17
+      %v66 = or i1 %v65, %v18
+      %v67 = or i1 %v66, %v22
+      %v68 = or i1 %v67, %v23
+      %v69 = or i1 %v68, %v25
+      %v70 = or i1 %v69, %v29
+      %v71 = or i1 %v70, %v30
+      %v72 = or i1 %v71, %v24
+      %v73 = or i1 %v72, %v26
+      %v74 = icmp eq i8 %1, 3
+      %v75 = select i1 %v74, i1 %v73, i1 %v56
+      %v76 = or i1 %v37, %v8
+      %v77 = or i1 %v76, %v9
+      %v78 = or i1 %v77, %v10
+      %v79 = or i1 %v78, %v12
+      %v80 = or i1 %v79, %v13
+      %v81 = or i1 %v80, %v14
+      %v82 = or i1 %v81, %v15
+      %v83 = or i1 %v82, %v16
+      %v84 = or i1 %v83, %v17
+      %v85 = or i1 %v84, %v18
+      %v86 = or i1 %v85, %v22
+      %v87 = or i1 %v86, %v23
+      %v88 = or i1 %v87, %v25
+      %v89 = or i1 %v88, %v29
+      %v90 = or i1 %v89, %v30
+      %v91 = or i1 %v90, %v24
+      %v92 = or i1 %v91, %v26
+      %v93 = icmp eq i8 %1, 4
+      %v94 = select i1 %v93, i1 %v92, i1 %v75
+      %v95 = or i1 %v37, %v10
+      %v96 = or i1 %v95, %v12
+      %v97 = or i1 %v96, %v17
+      %v98 = or i1 %v97, %v18
+      %v99 = or i1 %v98, %v23
+      %v100 = or i1 %v99, %v25
+      %v101 = icmp eq i8 %1, 5
+      %v102 = select i1 %v101, i1 %v100, i1 %v94
+      %v103 = icmp eq i8 %1, 6
+      %v104 = select i1 %v103, i1 %v37, i1 %v102
+      %v105 = or i1 %v37, %v10
+      %v106 = or i1 %v105, %v12
+      %v107 = or i1 %v106, %v17
+      %v108 = or i1 %v107, %v18
+      %v109 = or i1 %v108, %v21
+      %v110 = or i1 %v109, %v22
+      %v111 = or i1 %v110, %v23
+      %v112 = or i1 %v111, %v25
+      %v113 = or i1 %v112, %v27
+      %v114 = or i1 %v113, %v28
+      %v115 = or i1 %v114, %v8
+      %v116 = or i1 %v115, %v14
+      %v117 = or i1 %v116, %v15
+      %v118 = or i1 %v117, %v16
+      %v119 = icmp eq i8 %1, 7
+      %v120 = select i1 %v119, i1 %v118, i1 %v104
+      %v121 = or i1 %v37, %v10
+      %v122 = or i1 %v121, %v12
+      %v123 = or i1 %v122, %v17
+      %v124 = or i1 %v123, %v18
+      %v125 = or i1 %v124, %v21
+      %v126 = or i1 %v125, %v22
+      %v127 = or i1 %v126, %v23
+      %v128 = or i1 %v127, %v25
+      %v129 = or i1 %v128, %v28
+      %v130 = or i1 %v129, %v8
+      %v131 = or i1 %v130, %v13
+      %v132 = or i1 %v131, %v14
+      %v133 = or i1 %v132, %v15
+      %v134 = or i1 %v133, %v16
+      %v135 = or i1 %v134, %v29
+      %v136 = or i1 %v135, %v30
+      %v137 = or i1 %v136, %v11
+      %v138 = icmp eq i8 %1, 8
+      %v139 = select i1 %v138, i1 %v137, i1 %v120
+      %v140 = or i1 %v37, %v10
+      %v141 = or i1 %v140, %v12
+      %v142 = or i1 %v141, %v17
+      %v143 = or i1 %v142, %v18
+      %v144 = or i1 %v143, %v21
+      %v145 = or i1 %v144, %v22
+      %v146 = or i1 %v145, %v23
+      %v147 = or i1 %v146, %v25
+      %v148 = or i1 %v147, %v27
+      %v149 = or i1 %v148, %v28
+      %v150 = or i1 %v149, %v8
+      %v151 = or i1 %v150, %v13
+      %v152 = or i1 %v151, %v14
+      %v153 = or i1 %v152, %v15
+      %v154 = or i1 %v153, %v16
+      %v155 = or i1 %v154, %v29
+      %v156 = or i1 %v155, %v30
+      %v157 = or i1 %v156, %v11
+      %v158 = icmp eq i8 %1, 9
+      %v159 = select i1 %v158, i1 %v157, i1 %v139
+      %v160 = icmp eq i8 %1, 6
+      %v161 = select i1 %v160, i1 %v7, i1 false
+      %v162 = select i1 %v160, i1 %v17, i1 false
+      %v163 = xor i1 %v159, true
+      %v164 = select i1 %v163, i8 2, i8 0
+      %v165 = select i1 %v161, i8 1, i8 %v164
+      ret i8 %v165
+    }
+
+  -- | Count percent expansions in eight independent SIMD lanes and flag query spaces in bit 63.
+  prim classify-eight :: U64 -> U8 -> U64 where
+    llvm {
+      %v0 = bitcast i64 %0 to <8 x i8>
+      %v1 = or <8 x i8> %v0, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %v2 = icmp uge <8 x i8> %v1, <i8 97, i8 97, i8 97, i8 97, i8 97, i8 97, i8 97, i8 97>
+      %v3 = icmp ule <8 x i8> %v1, <i8 122, i8 122, i8 122, i8 122, i8 122, i8 122, i8 122, i8 122>
+      %v4 = and <8 x i1> %v2, %v3
+      %v5 = icmp uge <8 x i8> %v0, <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>
+      %v6 = icmp ule <8 x i8> %v0, <i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57>
+      %v7 = and <8 x i1> %v5, %v6
+      %v8 = icmp eq <8 x i8> %v0, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %v9 = icmp eq <8 x i8> %v0, <i8 33, i8 33, i8 33, i8 33, i8 33, i8 33, i8 33, i8 33>
+      %v10 = icmp eq <8 x i8> %v0, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
+      %v11 = icmp eq <8 x i8> %v0, <i8 36, i8 36, i8 36, i8 36, i8 36, i8 36, i8 36, i8 36>
+      %v12 = icmp eq <8 x i8> %v0, <i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37>
+      %v13 = icmp eq <8 x i8> %v0, <i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38>
+      %v14 = icmp eq <8 x i8> %v0, <i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39>
+      %v15 = icmp eq <8 x i8> %v0, <i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40>
+      %v16 = icmp eq <8 x i8> %v0, <i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41>
+      %v17 = icmp eq <8 x i8> %v0, <i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42>
+      %v18 = icmp eq <8 x i8> %v0, <i8 43, i8 43, i8 43, i8 43, i8 43, i8 43, i8 43, i8 43>
+      %v19 = icmp eq <8 x i8> %v0, <i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44>
+      %v20 = icmp eq <8 x i8> %v0, <i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45>
+      %v21 = icmp eq <8 x i8> %v0, <i8 46, i8 46, i8 46, i8 46, i8 46, i8 46, i8 46, i8 46>
+      %v22 = icmp eq <8 x i8> %v0, <i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47>
+      %v23 = icmp eq <8 x i8> %v0, <i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58>
+      %v24 = icmp eq <8 x i8> %v0, <i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59>
+      %v25 = icmp eq <8 x i8> %v0, <i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60>
+      %v26 = icmp eq <8 x i8> %v0, <i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61>
+      %v27 = icmp eq <8 x i8> %v0, <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>
+      %v28 = icmp eq <8 x i8> %v0, <i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63>
+      %v29 = icmp eq <8 x i8> %v0, <i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64>
+      %v30 = icmp eq <8 x i8> %v0, <i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91>
+      %v31 = icmp eq <8 x i8> %v0, <i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93>
+      %v32 = icmp eq <8 x i8> %v0, <i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95>
+      %v33 = icmp eq <8 x i8> %v0, <i8 126, i8 126, i8 126, i8 126, i8 126, i8 126, i8 126, i8 126>
+      %v34 = or <8 x i1> %v4, %v7
+      %v35 = or <8 x i1> %v34, %v20
+      %v36 = or <8 x i1> %v35, %v32
+      %v37 = or <8 x i1> %v36, %v21
+      %v38 = or <8 x i1> %v37, %v33
+      %v39 = or <8 x i1> %v38, %v11
+      %v40 = or <8 x i1> %v39, %v13
+      %v41 = or <8 x i1> %v40, %v18
+      %v42 = or <8 x i1> %v41, %v19
+      %v43 = or <8 x i1> %v42, %v22
+      %v44 = or <8 x i1> %v43, %v23
+      %v45 = or <8 x i1> %v44, %v24
+      %v46 = or <8 x i1> %v45, %v26
+      %v47 = or <8 x i1> %v46, %v29
+      %v48 = icmp eq i8 %1, 1
+      %v49 = select i1 %v48, <8 x i1> %v47, <8 x i1> %v38
+      %v50 = or <8 x i1> %v38, %v11
+      %v51 = or <8 x i1> %v50, %v13
+      %v52 = or <8 x i1> %v51, %v18
+      %v53 = or <8 x i1> %v52, %v23
+      %v54 = or <8 x i1> %v53, %v26
+      %v55 = or <8 x i1> %v54, %v29
+      %v56 = icmp eq i8 %1, 2
+      %v57 = select i1 %v56, <8 x i1> %v55, <8 x i1> %v49
+      %v58 = or <8 x i1> %v38, %v9
+      %v59 = or <8 x i1> %v58, %v10
+      %v60 = or <8 x i1> %v59, %v11
+      %v61 = or <8 x i1> %v60, %v13
+      %v62 = or <8 x i1> %v61, %v14
+      %v63 = or <8 x i1> %v62, %v15
+      %v64 = or <8 x i1> %v63, %v16
+      %v65 = or <8 x i1> %v64, %v17
+      %v66 = or <8 x i1> %v65, %v18
+      %v67 = or <8 x i1> %v66, %v19
+      %v68 = or <8 x i1> %v67, %v23
+      %v69 = or <8 x i1> %v68, %v24
+      %v70 = or <8 x i1> %v69, %v26
+      %v71 = or <8 x i1> %v70, %v30
+      %v72 = or <8 x i1> %v71, %v31
+      %v73 = or <8 x i1> %v72, %v25
+      %v74 = or <8 x i1> %v73, %v27
+      %v75 = icmp eq i8 %1, 3
+      %v76 = select i1 %v75, <8 x i1> %v74, <8 x i1> %v57
+      %v77 = or <8 x i1> %v38, %v9
+      %v78 = or <8 x i1> %v77, %v10
+      %v79 = or <8 x i1> %v78, %v11
+      %v80 = or <8 x i1> %v79, %v13
+      %v81 = or <8 x i1> %v80, %v14
+      %v82 = or <8 x i1> %v81, %v15
+      %v83 = or <8 x i1> %v82, %v16
+      %v84 = or <8 x i1> %v83, %v17
+      %v85 = or <8 x i1> %v84, %v18
+      %v86 = or <8 x i1> %v85, %v19
+      %v87 = or <8 x i1> %v86, %v23
+      %v88 = or <8 x i1> %v87, %v24
+      %v89 = or <8 x i1> %v88, %v26
+      %v90 = or <8 x i1> %v89, %v30
+      %v91 = or <8 x i1> %v90, %v31
+      %v92 = or <8 x i1> %v91, %v25
+      %v93 = or <8 x i1> %v92, %v27
+      %v94 = icmp eq i8 %1, 4
+      %v95 = select i1 %v94, <8 x i1> %v93, <8 x i1> %v76
+      %v96 = or <8 x i1> %v38, %v11
+      %v97 = or <8 x i1> %v96, %v13
+      %v98 = or <8 x i1> %v97, %v18
+      %v99 = or <8 x i1> %v98, %v19
+      %v100 = or <8 x i1> %v99, %v24
+      %v101 = or <8 x i1> %v100, %v26
+      %v102 = icmp eq i8 %1, 5
+      %v103 = select i1 %v102, <8 x i1> %v101, <8 x i1> %v95
+      %v104 = icmp eq i8 %1, 6
+      %v105 = select i1 %v104, <8 x i1> %v38, <8 x i1> %v103
+      %v106 = or <8 x i1> %v38, %v11
+      %v107 = or <8 x i1> %v106, %v13
+      %v108 = or <8 x i1> %v107, %v18
+      %v109 = or <8 x i1> %v108, %v19
+      %v110 = or <8 x i1> %v109, %v22
+      %v111 = or <8 x i1> %v110, %v23
+      %v112 = or <8 x i1> %v111, %v24
+      %v113 = or <8 x i1> %v112, %v26
+      %v114 = or <8 x i1> %v113, %v28
+      %v115 = or <8 x i1> %v114, %v29
+      %v116 = or <8 x i1> %v115, %v9
+      %v117 = or <8 x i1> %v116, %v15
+      %v118 = or <8 x i1> %v117, %v16
+      %v119 = or <8 x i1> %v118, %v17
+      %v120 = icmp eq i8 %1, 7
+      %v121 = select i1 %v120, <8 x i1> %v119, <8 x i1> %v105
+      %v122 = or <8 x i1> %v38, %v11
+      %v123 = or <8 x i1> %v122, %v13
+      %v124 = or <8 x i1> %v123, %v18
+      %v125 = or <8 x i1> %v124, %v19
+      %v126 = or <8 x i1> %v125, %v22
+      %v127 = or <8 x i1> %v126, %v23
+      %v128 = or <8 x i1> %v127, %v24
+      %v129 = or <8 x i1> %v128, %v26
+      %v130 = or <8 x i1> %v129, %v29
+      %v131 = or <8 x i1> %v130, %v9
+      %v132 = or <8 x i1> %v131, %v14
+      %v133 = or <8 x i1> %v132, %v15
+      %v134 = or <8 x i1> %v133, %v16
+      %v135 = or <8 x i1> %v134, %v17
+      %v136 = or <8 x i1> %v135, %v30
+      %v137 = or <8 x i1> %v136, %v31
+      %v138 = or <8 x i1> %v137, %v12
+      %v139 = icmp eq i8 %1, 8
+      %v140 = select i1 %v139, <8 x i1> %v138, <8 x i1> %v121
+      %v141 = or <8 x i1> %v38, %v11
+      %v142 = or <8 x i1> %v141, %v13
+      %v143 = or <8 x i1> %v142, %v18
+      %v144 = or <8 x i1> %v143, %v19
+      %v145 = or <8 x i1> %v144, %v22
+      %v146 = or <8 x i1> %v145, %v23
+      %v147 = or <8 x i1> %v146, %v24
+      %v148 = or <8 x i1> %v147, %v26
+      %v149 = or <8 x i1> %v148, %v28
+      %v150 = or <8 x i1> %v149, %v29
+      %v151 = or <8 x i1> %v150, %v9
+      %v152 = or <8 x i1> %v151, %v14
+      %v153 = or <8 x i1> %v152, %v15
+      %v154 = or <8 x i1> %v153, %v16
+      %v155 = or <8 x i1> %v154, %v17
+      %v156 = or <8 x i1> %v155, %v30
+      %v157 = or <8 x i1> %v156, %v31
+      %v158 = or <8 x i1> %v157, %v12
+      %v159 = icmp eq i8 %1, 9
+      %v160 = select i1 %v159, <8 x i1> %v158, <8 x i1> %v140
+      %v161 = icmp eq i8 %1, 6
+      %v162 = select i1 %v161, <8 x i1> %v8, <8 x i1> zeroinitializer
+      %v163 = select i1 %v161, <8 x i1> %v18, <8 x i1> zeroinitializer
+      %v164 = xor <8 x i1> %v160, <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>
+      %v165 = xor <8 x i1> %v162, <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>
+      %v166 = and <8 x i1> %v164, %v165
+      %v167 = bitcast <8 x i1> %v166 to i8
+      %v168 = zext i8 %v167 to i64
+      %v169 = lshr i64 %v168, 1
+      %v170 = and i64 %v169, 85
+      %v171 = sub i64 %v168, %v170
+      %v172 = and i64 %v171, 51
+      %v173 = lshr i64 %v171, 2
+      %v174 = and i64 %v173, 51
+      %v175 = add i64 %v172, %v174
+      %v176 = lshr i64 %v175, 4
+      %v177 = add i64 %v175, %v176
+      %v178 = and i64 %v177, 15
+      %v179 = bitcast <8 x i1> %v162 to i8
+      %v180 = icmp ne i8 %v179, 0
+      %v181 = select i1 %v180, i64 9223372036854775808, i64 0
+      %v182 = or i64 %v178, %v181
+      ret i64 %v182
+    }
+
+  -- | Locate percent signs, query plus signs and invalid raw ASCII host bytes in eight SIMD lanes.
+  prim decode-flags-eight :: U64 -> U8 -> U8 where
+    llvm {
+      %v0 = bitcast i64 %0 to <8 x i8>
+      %v1 = or <8 x i8> %v0, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %v2 = icmp uge <8 x i8> %v1, <i8 97, i8 97, i8 97, i8 97, i8 97, i8 97, i8 97, i8 97>
+      %v3 = icmp ule <8 x i8> %v1, <i8 122, i8 122, i8 122, i8 122, i8 122, i8 122, i8 122, i8 122>
+      %v4 = and <8 x i1> %v2, %v3
+      %v5 = icmp uge <8 x i8> %v0, <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>
+      %v6 = icmp ule <8 x i8> %v0, <i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57>
+      %v7 = and <8 x i1> %v5, %v6
+      %v8 = icmp eq <8 x i8> %v0, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %v9 = icmp eq <8 x i8> %v0, <i8 33, i8 33, i8 33, i8 33, i8 33, i8 33, i8 33, i8 33>
+      %v10 = icmp eq <8 x i8> %v0, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
+      %v11 = icmp eq <8 x i8> %v0, <i8 36, i8 36, i8 36, i8 36, i8 36, i8 36, i8 36, i8 36>
+      %v12 = icmp eq <8 x i8> %v0, <i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37>
+      %v13 = icmp eq <8 x i8> %v0, <i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38>
+      %v14 = icmp eq <8 x i8> %v0, <i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39>
+      %v15 = icmp eq <8 x i8> %v0, <i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40>
+      %v16 = icmp eq <8 x i8> %v0, <i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41>
+      %v17 = icmp eq <8 x i8> %v0, <i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42>
+      %v18 = icmp eq <8 x i8> %v0, <i8 43, i8 43, i8 43, i8 43, i8 43, i8 43, i8 43, i8 43>
+      %v19 = icmp eq <8 x i8> %v0, <i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44>
+      %v20 = icmp eq <8 x i8> %v0, <i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45>
+      %v21 = icmp eq <8 x i8> %v0, <i8 46, i8 46, i8 46, i8 46, i8 46, i8 46, i8 46, i8 46>
+      %v22 = icmp eq <8 x i8> %v0, <i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47>
+      %v23 = icmp eq <8 x i8> %v0, <i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58>
+      %v24 = icmp eq <8 x i8> %v0, <i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59>
+      %v25 = icmp eq <8 x i8> %v0, <i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60>
+      %v26 = icmp eq <8 x i8> %v0, <i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61>
+      %v27 = icmp eq <8 x i8> %v0, <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>
+      %v28 = icmp eq <8 x i8> %v0, <i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63>
+      %v29 = icmp eq <8 x i8> %v0, <i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64>
+      %v30 = icmp eq <8 x i8> %v0, <i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91>
+      %v31 = icmp eq <8 x i8> %v0, <i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93>
+      %v32 = icmp eq <8 x i8> %v0, <i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95>
+      %v33 = icmp eq <8 x i8> %v0, <i8 126, i8 126, i8 126, i8 126, i8 126, i8 126, i8 126, i8 126>
+      %v34 = or <8 x i1> %v4, %v7
+      %v35 = or <8 x i1> %v34, %v20
+      %v36 = or <8 x i1> %v35, %v32
+      %v37 = or <8 x i1> %v36, %v21
+      %v38 = or <8 x i1> %v37, %v33
+      %v39 = or <8 x i1> %v38, %v11
+      %v40 = or <8 x i1> %v39, %v13
+      %v41 = or <8 x i1> %v40, %v18
+      %v42 = or <8 x i1> %v41, %v19
+      %v43 = or <8 x i1> %v42, %v22
+      %v44 = or <8 x i1> %v43, %v23
+      %v45 = or <8 x i1> %v44, %v24
+      %v46 = or <8 x i1> %v45, %v26
+      %v47 = or <8 x i1> %v46, %v29
+      %v48 = icmp eq i8 %1, 1
+      %v49 = select i1 %v48, <8 x i1> %v47, <8 x i1> %v38
+      %v50 = or <8 x i1> %v38, %v11
+      %v51 = or <8 x i1> %v50, %v13
+      %v52 = or <8 x i1> %v51, %v18
+      %v53 = or <8 x i1> %v52, %v23
+      %v54 = or <8 x i1> %v53, %v26
+      %v55 = or <8 x i1> %v54, %v29
+      %v56 = icmp eq i8 %1, 2
+      %v57 = select i1 %v56, <8 x i1> %v55, <8 x i1> %v49
+      %v58 = or <8 x i1> %v38, %v9
+      %v59 = or <8 x i1> %v58, %v10
+      %v60 = or <8 x i1> %v59, %v11
+      %v61 = or <8 x i1> %v60, %v13
+      %v62 = or <8 x i1> %v61, %v14
+      %v63 = or <8 x i1> %v62, %v15
+      %v64 = or <8 x i1> %v63, %v16
+      %v65 = or <8 x i1> %v64, %v17
+      %v66 = or <8 x i1> %v65, %v18
+      %v67 = or <8 x i1> %v66, %v19
+      %v68 = or <8 x i1> %v67, %v23
+      %v69 = or <8 x i1> %v68, %v24
+      %v70 = or <8 x i1> %v69, %v26
+      %v71 = or <8 x i1> %v70, %v30
+      %v72 = or <8 x i1> %v71, %v31
+      %v73 = or <8 x i1> %v72, %v25
+      %v74 = or <8 x i1> %v73, %v27
+      %v75 = icmp eq i8 %1, 3
+      %v76 = select i1 %v75, <8 x i1> %v74, <8 x i1> %v57
+      %v77 = or <8 x i1> %v38, %v9
+      %v78 = or <8 x i1> %v77, %v10
+      %v79 = or <8 x i1> %v78, %v11
+      %v80 = or <8 x i1> %v79, %v13
+      %v81 = or <8 x i1> %v80, %v14
+      %v82 = or <8 x i1> %v81, %v15
+      %v83 = or <8 x i1> %v82, %v16
+      %v84 = or <8 x i1> %v83, %v17
+      %v85 = or <8 x i1> %v84, %v18
+      %v86 = or <8 x i1> %v85, %v19
+      %v87 = or <8 x i1> %v86, %v23
+      %v88 = or <8 x i1> %v87, %v24
+      %v89 = or <8 x i1> %v88, %v26
+      %v90 = or <8 x i1> %v89, %v30
+      %v91 = or <8 x i1> %v90, %v31
+      %v92 = or <8 x i1> %v91, %v25
+      %v93 = or <8 x i1> %v92, %v27
+      %v94 = icmp eq i8 %1, 4
+      %v95 = select i1 %v94, <8 x i1> %v93, <8 x i1> %v76
+      %v96 = or <8 x i1> %v38, %v11
+      %v97 = or <8 x i1> %v96, %v13
+      %v98 = or <8 x i1> %v97, %v18
+      %v99 = or <8 x i1> %v98, %v19
+      %v100 = or <8 x i1> %v99, %v24
+      %v101 = or <8 x i1> %v100, %v26
+      %v102 = icmp eq i8 %1, 5
+      %v103 = select i1 %v102, <8 x i1> %v101, <8 x i1> %v95
+      %v104 = icmp eq i8 %1, 6
+      %v105 = select i1 %v104, <8 x i1> %v38, <8 x i1> %v103
+      %v106 = or <8 x i1> %v38, %v11
+      %v107 = or <8 x i1> %v106, %v13
+      %v108 = or <8 x i1> %v107, %v18
+      %v109 = or <8 x i1> %v108, %v19
+      %v110 = or <8 x i1> %v109, %v22
+      %v111 = or <8 x i1> %v110, %v23
+      %v112 = or <8 x i1> %v111, %v24
+      %v113 = or <8 x i1> %v112, %v26
+      %v114 = or <8 x i1> %v113, %v28
+      %v115 = or <8 x i1> %v114, %v29
+      %v116 = or <8 x i1> %v115, %v9
+      %v117 = or <8 x i1> %v116, %v15
+      %v118 = or <8 x i1> %v117, %v16
+      %v119 = or <8 x i1> %v118, %v17
+      %v120 = icmp eq i8 %1, 7
+      %v121 = select i1 %v120, <8 x i1> %v119, <8 x i1> %v105
+      %v122 = or <8 x i1> %v38, %v11
+      %v123 = or <8 x i1> %v122, %v13
+      %v124 = or <8 x i1> %v123, %v18
+      %v125 = or <8 x i1> %v124, %v19
+      %v126 = or <8 x i1> %v125, %v22
+      %v127 = or <8 x i1> %v126, %v23
+      %v128 = or <8 x i1> %v127, %v24
+      %v129 = or <8 x i1> %v128, %v26
+      %v130 = or <8 x i1> %v129, %v29
+      %v131 = or <8 x i1> %v130, %v9
+      %v132 = or <8 x i1> %v131, %v14
+      %v133 = or <8 x i1> %v132, %v15
+      %v134 = or <8 x i1> %v133, %v16
+      %v135 = or <8 x i1> %v134, %v17
+      %v136 = or <8 x i1> %v135, %v30
+      %v137 = or <8 x i1> %v136, %v31
+      %v138 = or <8 x i1> %v137, %v12
+      %v139 = icmp eq i8 %1, 8
+      %v140 = select i1 %v139, <8 x i1> %v138, <8 x i1> %v121
+      %v141 = or <8 x i1> %v38, %v11
+      %v142 = or <8 x i1> %v141, %v13
+      %v143 = or <8 x i1> %v142, %v18
+      %v144 = or <8 x i1> %v143, %v19
+      %v145 = or <8 x i1> %v144, %v22
+      %v146 = or <8 x i1> %v145, %v23
+      %v147 = or <8 x i1> %v146, %v24
+      %v148 = or <8 x i1> %v147, %v26
+      %v149 = or <8 x i1> %v148, %v28
+      %v150 = or <8 x i1> %v149, %v29
+      %v151 = or <8 x i1> %v150, %v9
+      %v152 = or <8 x i1> %v151, %v14
+      %v153 = or <8 x i1> %v152, %v15
+      %v154 = or <8 x i1> %v153, %v16
+      %v155 = or <8 x i1> %v154, %v17
+      %v156 = or <8 x i1> %v155, %v30
+      %v157 = or <8 x i1> %v156, %v31
+      %v158 = or <8 x i1> %v157, %v12
+      %v159 = icmp eq i8 %1, 9
+      %v160 = select i1 %v159, <8 x i1> %v158, <8 x i1> %v140
+      %v161 = icmp eq i8 %1, 6
+      %v162 = select i1 %v161, <8 x i1> %v8, <8 x i1> zeroinitializer
+      %v163 = select i1 %v161, <8 x i1> %v18, <8 x i1> zeroinitializer
+      %v164 = xor <8 x i1> %v160, <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>
+      %v165 = icmp eq <8 x i8> %v0, <i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37>
+      %v166 = icmp ult <8 x i8> %v0, <i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128>
+      %v167 = and <8 x i1> %v166, %v164
+      %v168 = icmp eq i8 %1, 3
+      %v169 = icmp eq i8 %1, 4
+      %v170 = or i1 %v168, %v169
+      %v171 = select i1 %v170, <8 x i1> %v167, <8 x i1> zeroinitializer
+      %v172 = or <8 x i1> %v165, %v163
+      %v173 = or <8 x i1> %v172, %v171
+      %v174 = bitcast <8 x i1> %v173 to i8
+      ret i8 %v174
+    }
+
+  -- | Prepare all uppercase percent triplets once for an operation that requires escaping.
+  percent-triplets :: Unit -> Bytes
+  percent-triplets unit = string-to-bytes "%00%01%02%03%04%05%06%07%08%09%0A%0B%0C%0D%0E%0F%10%11%12%13%14%15%16%17%18%19%1A%1B%1C%1D%1E%1F%20%21%22%23%24%25%26%27%28%29%2A%2B%2C%2D%2E%2F%30%31%32%33%34%35%36%37%38%39%3A%3B%3C%3D%3E%3F%40%41%42%43%44%45%46%47%48%49%4A%4B%4C%4D%4E%4F%50%51%52%53%54%55%56%57%58%59%5A%5B%5C%5D%5E%5F%60%61%62%63%64%65%66%67%68%69%6A%6B%6C%6D%6E%6F%70%71%72%73%74%75%76%77%78%79%7A%7B%7C%7D%7E%7F%80%81%82%83%84%85%86%87%88%89%8A%8B%8C%8D%8E%8F%90%91%92%93%94%95%96%97%98%99%9A%9B%9C%9D%9E%9F%A0%A1%A2%A3%A4%A5%A6%A7%A8%A9%AA%AB%AC%AD%AE%AF%B0%B1%B2%B3%B4%B5%B6%B7%B8%B9%BA%BB%BC%BD%BE%BF%C0%C1%C2%C3%C4%C5%C6%C7%C8%C9%CA%CB%CC%CD%CE%CF%D0%D1%D2%D3%D4%D5%D6%D7%D8%D9%DA%DB%DC%DD%DE%DF%E0%E1%E2%E3%E4%E5%E6%E7%E8%E9%EA%EB%EC%ED%EE%EF%F0%F1%F2%F3%F4%F5%F6%F7%F8%F9%FA%FB%FC%FD%FE%FF"
