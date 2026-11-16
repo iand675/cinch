@@ -1,0 +1,340 @@
+{
+  "scope": "Complete Unicode named range-table and raw-byte UTF8 checkpoint; valid-String facade/provider adapters and pipeline performance review continue",
+  "reports": [
+    {
+      "frontend": "rust",
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "sources": {
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Bytes.Utf8.cinch": "a5f6a39e59b512862fe88e984a8fb5bef0cc6fc47516f59cc488d4493a523b9a",
+        "Main.cinch": "c5460d7cd1ee3f9189d98ec9ecfd5077005d52df5a3b2ca59040813052f0d232"
+      },
+      "executable_sha256": "091d1d2266a1c083bf75a696c489828b6da49b96bdb77d28294ba592679e8b38",
+      "compile_command": [
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "build",
+        "/workspace/dasl-stdlib-unicode/build/utf8-complete-rust/project/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-unicode/build/utf8-complete-rust/consumer",
+        "--opt-level",
+        "2",
+        "--rc-debug"
+      ],
+      "compile_seconds": 5.46629917100654,
+      "cpu": 2,
+      "all_passed": true,
+      "kind": "utf8-complete",
+      "provider_sha256": {},
+      "report_sha256": "b082cef0985018dacfc9626549882c1129bf6b2c33f047041c28f1e135bca685",
+      "memory_processes": 1001,
+      "normal_processes": 1,
+      "poisoned_processes": 1000,
+      "normal_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "all_zero_leaks": true
+    },
+    {
+      "frontend": "native",
+      "compiler_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+      "runtime_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+      "sources": {
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Bytes.Utf8.cinch": "a5f6a39e59b512862fe88e984a8fb5bef0cc6fc47516f59cc488d4493a523b9a",
+        "Main.cinch": "c5460d7cd1ee3f9189d98ec9ecfd5077005d52df5a3b2ca59040813052f0d232"
+      },
+      "executable_sha256": "a3e2d031dac615a20865ce172023d53541a94b04b9adcdef9356b1eee96d2bcf",
+      "compile_command": [
+        "python3",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/frontend.py",
+        "--compile-only",
+        "--interfaces",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/base-interfaces.json",
+        "--rc-debug",
+        "/workspace/dasl-stdlib-unicode/build/utf8-complete-native/bundle.cinch",
+        "/workspace/dasl-stdlib-unicode/build/utf8-complete-native/consumer.ll",
+        "/workspace/dasl-stdlib-unicode/build/utf8-complete-native/consumer",
+        "/workspace/dasl-stdlib-unicode/build/utf8-complete-native/link-report.txt"
+      ],
+      "compile_seconds": 143.34239600198634,
+      "cpu": 2,
+      "all_passed": true,
+      "kind": "utf8-complete",
+      "provider_sha256": {
+        "frontend.py": "98535f99062bb90d8109f879dd22f412f65a0365b036e6d2bba95f1e1c5fbcac",
+        "base-interfaces.json": "89189ebe8226d4f26defffdd6481f40351f4da80e035a6a2ee4b2fa19800893f",
+        "objects.json": "4655257140bfd5ab73525f0fbef41dc41622a9f1225b034dbe1571dd2174c5e6",
+        "library.o": "2b459a81ac51e8e7a4f5e1730b9dc9fd22bc5976096cd717accbc9a84b05875d",
+        "library.abi.json": "5158fc3f8c659647334b110772d3ed03d0b6c29be6024989abf16e9ea33bc755",
+        "provenance.json": "bf09e1ffb70c224055df04b279f64259227e44d93f0ebd31ea4bcc926c3c68b7"
+      },
+      "report_sha256": "6b3b16f2ba203578341feb595f4255c252332c11cdedf9992e49214bb73f41b5",
+      "memory_processes": 1001,
+      "normal_processes": 1,
+      "poisoned_processes": 1000,
+      "normal_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "all_zero_leaks": true
+    },
+    {
+      "frontend": "rust",
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "sources": {
+        "Data.Bytes.Utf8.cinch": "a5f6a39e59b512862fe88e984a8fb5bef0cc6fc47516f59cc488d4493a523b9a",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Main.cinch": "d2f4c0ba458c56d0992814665a88d58bc2b926c0e27756081d6904ff1c321471"
+      },
+      "executable_sha256": "fbb706e1033d0b42435056bd14e00f81a05a3a288c2d995679acd321f51c67f4",
+      "compile_command": [
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "build",
+        "/workspace/dasl-stdlib-unicode/build/utf8-ownership-rust/project/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-unicode/build/utf8-ownership-rust/consumer",
+        "--opt-level",
+        "2",
+        "--rc-debug"
+      ],
+      "compile_seconds": 5.330767252991791,
+      "cpu": 2,
+      "all_passed": true,
+      "kind": "utf8-ownership",
+      "provider_sha256": {},
+      "report_sha256": "fe64f159151ed6e74076f98c57faf4ff892c8b0006d32a945c0b3c3f56be58fa",
+      "memory_processes": 2,
+      "normal_processes": 1,
+      "poisoned_processes": 1,
+      "normal_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "all_zero_leaks": true
+    },
+    {
+      "frontend": "native",
+      "compiler_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+      "runtime_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+      "sources": {
+        "Data.Bytes.Utf8.cinch": "a5f6a39e59b512862fe88e984a8fb5bef0cc6fc47516f59cc488d4493a523b9a",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Main.cinch": "d2f4c0ba458c56d0992814665a88d58bc2b926c0e27756081d6904ff1c321471"
+      },
+      "executable_sha256": "5b0377b78d2a2bbb8f56067370c652e314f84dc1e1fa40be836ec5f259959ce5",
+      "compile_command": [
+        "python3",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/frontend.py",
+        "--compile-only",
+        "--interfaces",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/base-interfaces.json",
+        "--rc-debug",
+        "/workspace/dasl-stdlib-unicode/build/utf8-ownership-native/bundle.cinch",
+        "/workspace/dasl-stdlib-unicode/build/utf8-ownership-native/consumer.ll",
+        "/workspace/dasl-stdlib-unicode/build/utf8-ownership-native/consumer",
+        "/workspace/dasl-stdlib-unicode/build/utf8-ownership-native/link-report.txt"
+      ],
+      "compile_seconds": 6.697913668991532,
+      "cpu": 2,
+      "all_passed": true,
+      "kind": "utf8-ownership",
+      "provider_sha256": {
+        "frontend.py": "98535f99062bb90d8109f879dd22f412f65a0365b036e6d2bba95f1e1c5fbcac",
+        "base-interfaces.json": "89189ebe8226d4f26defffdd6481f40351f4da80e035a6a2ee4b2fa19800893f",
+        "objects.json": "4655257140bfd5ab73525f0fbef41dc41622a9f1225b034dbe1571dd2174c5e6",
+        "library.o": "2b459a81ac51e8e7a4f5e1730b9dc9fd22bc5976096cd717accbc9a84b05875d",
+        "library.abi.json": "5158fc3f8c659647334b110772d3ed03d0b6c29be6024989abf16e9ea33bc755",
+        "provenance.json": "bf09e1ffb70c224055df04b279f64259227e44d93f0ebd31ea4bcc926c3c68b7"
+      },
+      "report_sha256": "45de77f7dda56376f9e8d66cf9a9bd1774ca5b2300029140d3165aaa5d34097f",
+      "memory_processes": 2,
+      "normal_processes": 1,
+      "poisoned_processes": 1,
+      "normal_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "all_zero_leaks": true
+    },
+    {
+      "frontend": "rust",
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "sources": {
+        "Data.Unicode.cinch": "fba58333635e0995c1ae77eb1947275c7198a557147a95333f8ef52d981da2c0",
+        "Data.Unicode.Names.cinch": "2b950ee2a81d1f13aa59b64f0cb7f2ae7ddab7fb4c67a71e7631321dbe250bdc",
+        "Data.Unicode.Tables.cinch": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+        "Data.Unicode.Range.cinch": "36f645bc334d75474d5dd70f1aa680d330a97476a89a41ee872d880620c036c8",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Unicode.Kernel.cinch": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+        "Main.cinch": "b926ddeaff81ba1495204d52bd62e712c6645b0168e16c134a814d0b1f350988"
+      },
+      "executable_sha256": "0607bd74ca0003b8283639f2ad2d5ac26438f2f387b961aabd477a6f34a0dfc6",
+      "compile_command": [
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "build",
+        "/workspace/dasl-stdlib-unicode/build/unicode-catalog-final-rust/project/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-unicode/build/unicode-catalog-final-rust/consumer",
+        "--opt-level",
+        "2",
+        "--rc-debug"
+      ],
+      "compile_seconds": 17.129623665998224,
+      "cpu": 2,
+      "all_passed": true,
+      "kind": "unicode-catalog-final",
+      "provider_sha256": {},
+      "report_sha256": "348fd9f73b85f6fc509f226a095e519fec91ebea9a3a54d730b019f970d13c57",
+      "memory_processes": 2,
+      "normal_processes": 1,
+      "poisoned_processes": 1,
+      "normal_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "all_zero_leaks": true
+    },
+    {
+      "frontend": "native",
+      "compiler_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+      "runtime_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+      "sources": {
+        "Data.Unicode.cinch": "fba58333635e0995c1ae77eb1947275c7198a557147a95333f8ef52d981da2c0",
+        "Data.Unicode.Names.cinch": "2b950ee2a81d1f13aa59b64f0cb7f2ae7ddab7fb4c67a71e7631321dbe250bdc",
+        "Data.Unicode.Tables.cinch": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+        "Data.Unicode.Range.cinch": "36f645bc334d75474d5dd70f1aa680d330a97476a89a41ee872d880620c036c8",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Unicode.Kernel.cinch": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+        "Main.cinch": "b926ddeaff81ba1495204d52bd62e712c6645b0168e16c134a814d0b1f350988"
+      },
+      "executable_sha256": "f529ad6d7350f46bdbee45fb7c27a43dbb448222ce86c8b4db2cd0aa890f7061",
+      "compile_command": [
+        "python3",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/frontend.py",
+        "--compile-only",
+        "--interfaces",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/base-interfaces.json",
+        "--rc-debug",
+        "/workspace/dasl-stdlib-unicode/build/unicode-catalog-final-native/bundle.cinch",
+        "/workspace/dasl-stdlib-unicode/build/unicode-catalog-final-native/consumer.ll",
+        "/workspace/dasl-stdlib-unicode/build/unicode-catalog-final-native/consumer",
+        "/workspace/dasl-stdlib-unicode/build/unicode-catalog-final-native/link-report.txt"
+      ],
+      "compile_seconds": 16.050006367993774,
+      "cpu": 2,
+      "all_passed": true,
+      "kind": "unicode-catalog-final",
+      "provider_sha256": {
+        "frontend.py": "98535f99062bb90d8109f879dd22f412f65a0365b036e6d2bba95f1e1c5fbcac",
+        "base-interfaces.json": "89189ebe8226d4f26defffdd6481f40351f4da80e035a6a2ee4b2fa19800893f",
+        "objects.json": "4655257140bfd5ab73525f0fbef41dc41622a9f1225b034dbe1571dd2174c5e6",
+        "library.o": "2b459a81ac51e8e7a4f5e1730b9dc9fd22bc5976096cd717accbc9a84b05875d",
+        "library.abi.json": "5158fc3f8c659647334b110772d3ed03d0b6c29be6024989abf16e9ea33bc755",
+        "provenance.json": "bf09e1ffb70c224055df04b279f64259227e44d93f0ebd31ea4bcc926c3c68b7"
+      },
+      "report_sha256": "7b4fa4cddc127f06878b3b87abc1d1ef4414ff3c78c4c54867ecd71fdebabcb1",
+      "memory_processes": 2,
+      "normal_processes": 1,
+      "poisoned_processes": 1,
+      "normal_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "all_zero_leaks": true
+    }
+  ],
+  "fixtures": {
+    "compiler/tests/fixtures/utf8-vectors.json": "6cf43258323c8e04d790e3494e558d18aaba7e0c603ccd42f7e5b52857e29614",
+    "compiler/tests/fixtures/unicode-catalog-vectors.json": "fc0a64ac9d7ca61280db766ac11a41a422b0d527aff4d92c09969876c6774f27"
+  },
+  "foreign_objects": {
+    "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+    "kernel_source_sha256": "bf36b8b6812f93ca4443a06636d1943c8c177f893fa9dbf2d94a633b23393151",
+    "cpu": 2,
+    "results": [
+      {
+        "target": "wasm32-unknown-unknown",
+        "commands": [
+          [
+            "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+            "emit-ir",
+            "/workspace/dasl-stdlib-unicode/build/utf8-objects/Main.cinch",
+            "--target",
+            "wasm32-unknown-unknown",
+            "-o",
+            "/workspace/dasl-stdlib-unicode/build/utf8-objects/wasm32-unknown-unknown.ll"
+          ],
+          [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "-target",
+            "wasm32-unknown-unknown",
+            "-O2",
+            "-c",
+            "-x",
+            "ir",
+            "/workspace/dasl-stdlib-unicode/build/utf8-objects/wasm32-unknown-unknown.ll",
+            "-o",
+            "/workspace/dasl-stdlib-unicode/build/utf8-objects/wasm32-unknown-unknown.o"
+          ]
+        ],
+        "llvm_sha256": "54ba66a2efe98c5b8130bb25435897c0f0db48ee5bf833ab4a74466945728043",
+        "object_sha256": "396e9ebf98cf1bf56f1f4301b65cc42aa86894f7ab7b6a9ce5da5b7c58cf47bb",
+        "object_bytes": 3460
+      },
+      {
+        "target": "aarch64-unknown-linux-gnu",
+        "commands": [
+          [
+            "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+            "emit-ir",
+            "/workspace/dasl-stdlib-unicode/build/utf8-objects/Main.cinch",
+            "--target",
+            "aarch64-unknown-linux-gnu",
+            "-o",
+            "/workspace/dasl-stdlib-unicode/build/utf8-objects/aarch64-unknown-linux-gnu.ll"
+          ],
+          [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "-target",
+            "aarch64-unknown-linux-gnu",
+            "-O2",
+            "-c",
+            "-x",
+            "ir",
+            "/workspace/dasl-stdlib-unicode/build/utf8-objects/aarch64-unknown-linux-gnu.ll",
+            "-o",
+            "/workspace/dasl-stdlib-unicode/build/utf8-objects/aarch64-unknown-linux-gnu.o"
+          ]
+        ],
+        "llvm_sha256": "bbb2fdedbd25efed7f8604665720c887492dde8baa24318f45ed956a87747c3f",
+        "object_sha256": "e69d588732a9a8f2d31632f0a565f945322a51c6b3cba0e8e888514bfc2ae48d",
+        "object_bytes": 5288
+      }
+    ],
+    "all_passed": true,
+    "big_endian_gate": "Provided in lib_utf8 Rust target; standalone CLI rejects the unsupported powerpc64 profile, so no fallback target is substituted."
+  },
+  "canonical_documentation_declarations": {
+    "Data.Bytes.Utf8": 55,
+    "Data.Unicode": 18,
+    "Data.Unicode.Range": 50,
+    "Data.Unicode.Names": 59
+  },
+  "generator_and_corpus_unit_tests": 10,
+  "numeric_code_points": 1114112,
+  "all_byte_pairs": 65536,
+  "utf8_malformed_unicode_alignment_rows": 12773,
+  "public_catalog_entries": 260,
+  "exported_range_table_aliases": 262,
+  "sdk_declarations_mapped": {
+    "unicode": 344,
+    "unicode/utf8": 23
+  },
+  "pending_reference_declarations": [
+    "DecodeRuneInString",
+    "DecodeLastRuneInString",
+    "FullRuneInString",
+    "RuneCountInString",
+    "ValidString"
+  ],
+  "cargo_status": "Rust integration targets added; exact sources checked/run through frozen CLI; parent integration owns Cargo and big-endian target gate",
+  "performance_status": "No timing claim at checkpoint; eight-byte SWAR scans and exact non-ASCII fringes pass both compiler corpora. Public pipeline benchmarks/codegen inspection continue."
+}

@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import subprocess
 import time
+import tempfile
 from generate_unicode_tables import render_words
 from validate_url import source_closure
 
@@ -44,7 +45,9 @@ def main() -> None:
     args = parser.parse_args()
     os.sched_setaffinity(0, {args.cpu})
     artifacts = args.artifacts.resolve()
-    project = artifacts / 'project'
+    artifacts.mkdir(parents=True, exist_ok=True)
+    temporary = tempfile.TemporaryDirectory(prefix='reuse-source-check-', dir=artifacts) if args.reuse else None
+    project = Path(temporary.name) if temporary is not None else artifacts / 'project'
     project.mkdir(parents=True, exist_ok=True)
     source = project / 'Main.cinch'
     source.write_text(consumer())
@@ -55,7 +58,8 @@ def main() -> None:
         command = [str(compiler), 'build', str(source), '-o', str(exe), '--opt-level', '2', '--rc-debug']
     else:
         bundle = artifacts / 'bundle.cinch'
-        bundle.write_text('\n\n'.join(path.read_text() for path in sorted(inputs)))
+        if not args.reuse:
+            bundle.write_text('\n\n'.join(path.read_text() for path in sorted(inputs)))
         command = ['python3', str(args.native_snapshot / 'frontend.py'), '--compile-only', '--interfaces', str(args.native_snapshot / 'base-interfaces.json'), '--rc-debug', str(bundle), str(artifacts / 'consumer.ll'), str(exe), str(artifacts / 'link-report.txt')]
     runtime = (Path('/workspace/dasl-stdlib-io/compiler/runtime/target/release/libcinchruntime.a')
                if args.frontend == 'rust' else args.native_snapshot / 'libcinchruntime.a')
@@ -68,8 +72,9 @@ def main() -> None:
     started = time.monotonic()
     if args.reuse:
         prior = json.loads(identity_path.read_text()) if identity_path.exists() else json.loads(args.output.read_text())
-        if prior['sources'] != current_sources or prior['compiler_sha256'] != digest(compiler) or prior['fixture_sha256'] != digest(ROOT / 'compiler/tests/fixtures/unicode-vectors.json') or prior['executable_sha256'] != digest(exe):
-            raise ValueError('Refusing executable reuse after compiler, fixture, source or executable identity changed')
+        if prior['sources'] != current_sources or prior['compiler_sha256'] != digest(compiler) or prior['fixture_sha256'] != digest(ROOT / 'compiler/tests/fixtures/unicode-vectors.json') or prior['executable_sha256'] != digest(exe) or prior.get('runtime_sha256') != digest(runtime) or prior.get('provider_sha256') != provider:
+            raise ValueError('Refusing executable reuse after compiler, provider, runtime, fixture, source or executable identity changed')
+        command = prior.get('compile_command')
     if not args.reuse:
         result = subprocess.run(command, capture_output=True, text=True, cwd=project)
         (artifacts / 'compile.stdout').write_text(result.stdout)
@@ -78,7 +83,7 @@ def main() -> None:
             diagnostics = artifacts / 'consumer.ll.diagnostics'
             raise RuntimeError((diagnostics.read_text() if diagnostics.exists() else result.stdout) + '\n' + result.stderr)
     compile_seconds = time.monotonic() - started
-    identity = {'sources': current_sources, 'compiler_sha256': digest(compiler), 'fixture_sha256': digest(ROOT / 'compiler/tests/fixtures/unicode-vectors.json'), 'executable_sha256': digest(exe), 'runtime_sha256': digest(runtime), 'provider_sha256': provider}
+    identity = {'sources': current_sources, 'compiler_sha256': digest(compiler), 'fixture_sha256': digest(ROOT / 'compiler/tests/fixtures/unicode-vectors.json'), 'executable_sha256': digest(exe), 'runtime_sha256': digest(runtime), 'provider_sha256': provider, 'compile_command': command}
     identity_path.write_text(json.dumps(identity, indent=2) + '\n')
     if args.compile_only:
         print(f'{args.frontend} Unicode corpus compiled', flush=True)
@@ -95,7 +100,7 @@ def main() -> None:
         if result.returncode or 'leaked=0' not in result.stderr:
             raise RuntimeError(f'{group}, poisoned={debug}, exit={result.returncode}: {result.stdout}\n{result.stderr}')
         runs.append({'group': group, 'poisoned': debug, 'heap': env['CINCH_HEAP_LIMIT'], 'stack': '8M', 'seconds': time.monotonic() - started, 'stderr': result.stderr})
-    report = {'frontend': args.frontend, 'compiler': str(compiler), 'compiler_sha256': digest(compiler), 'native_snapshot': str(args.native_snapshot) if args.frontend == 'native' else None, 'sources': {path.name: digest(path) for path in inputs}, 'fixture_sha256': digest(ROOT / 'compiler/tests/fixtures/unicode-vectors.json'), 'executable_sha256': digest(exe), 'runtime': str(runtime), 'runtime_sha256': digest(runtime), 'provider_sha256': provider, 'compile_command': command, 'compile_seconds': compile_seconds, 'cpu': args.cpu, 'complete_domain': args.chunk is None, 'runs': runs, 'all_passed': True}
+    report = {'frontend': args.frontend, 'compiler': str(compiler), 'compiler_sha256': digest(compiler), 'native_snapshot': str(args.native_snapshot) if args.frontend == 'native' else None, 'sources': {path.name: digest(path) for path in inputs}, 'fixture_sha256': digest(ROOT / 'compiler/tests/fixtures/unicode-vectors.json'), 'executable_sha256': digest(exe), 'runtime': str(runtime), 'runtime_sha256': digest(runtime), 'provider_sha256': provider, 'compile_command': command, 'reused_existing_executable': args.reuse, 'compile_seconds': compile_seconds, 'cpu': args.cpu, 'complete_domain': args.chunk is None, 'runs': runs, 'all_passed': True}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + '\n')
     print(f'{args.frontend} Unicode corpus passed {len(runs)} memory runs', flush=True)
