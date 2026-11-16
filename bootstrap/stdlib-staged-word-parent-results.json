@@ -1,0 +1,68 @@
+{
+  "description": "Confirmed staged machine scalar semantic repairs with preserved original public compiler failures",
+  "source_checkpoint": "b03018f7",
+  "original_failures": "bootstrap/repros/staged-word-boundaries/baseline.json",
+  "original_wrong_result_ir": "bootstrap/repros/staged-word-boundaries/wrong-result-artifacts.json",
+  "independent_interpreter_observations": 763,
+  "public_staged_boundary_assertions": 16,
+  "gates": {
+    "full_library": {
+      "passed": 331,
+      "seconds": 183.9
+    },
+    "staged_code_expectations": {
+      "passed": 14,
+      "seconds": 51.53
+    },
+    "staging": {
+      "passed": 29,
+      "seconds": 95.3
+    },
+    "public_word_constants": {
+      "passed": 6,
+      "seconds": 11.64
+    }
+  },
+  "passed_tests": 380,
+  "log_sha256": "693230139f9a03c4d63e5ceb8fbd2c2d13a45a77a489ad6c711793c109b0dc22",
+  "consumer_profiles": {
+    "optimization_levels": [
+      0,
+      2
+    ],
+    "normal_heap": "32M",
+    "poisoned_free_heap": "256M",
+    "consumer_stack": "8M",
+    "compiler_host_stack": "64M",
+    "word_consumer_processes": 10,
+    "zero_leaks": true
+  },
+  "frozen_rust": {
+    "source_checkpoint": "b03018f7",
+    "compiler_sha256": "37dc1ed7f5d6571fc65275802025a7be92b904b6455300c87856e4dbec1de4da",
+    "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "scope": "Rust frontend after staged scalar repair; no Native-family adoption",
+    "rust_profile": {
+      "debug_assertions": true,
+      "debug_symbols": false,
+      "codegen_units": 1
+    },
+    "source_sha256": {
+      "compiler/src/core.rs": "f88db704c8632df0d1a557dd625de399c3465663d4e52dad93b0ce90352a1f1c",
+      "compiler/src/codegen.rs": "f6e2ac953b95c0a898d9b30da30fda1d02d124a075a9a91e5781a436247fa38f",
+      "compiler/src/check_decls.rs": "d27d3ba9fd17b8f2183fbb3c9508625a12f45b1c2af42cb51dc90d0876b316a4"
+    },
+    "gates": "bootstrap/stdlib-staged-word-parent-results.json"
+  },
+  "scope": [
+    "Exact target-width resolution for pointer-sized staging primitives.",
+    "Correct signed bounds and signed/unsigned saturation without host arithmetic overflow.",
+    "Logical unsigned right shift, identity zero/full-width rotations and full Unicode scalar comparisons."
+  ],
+  "limitations": [
+    "This checkpoint repairs compile-time semantics; it makes no runtime throughput claim.",
+    "Checked machine arithmetic and wide128 operations explicitly unsupported by the staging evaluator remain unsupported.",
+    "Native compiler-family admission and performance qualification remain separate ongoing work.",
+    "The full180-package standard library initiative remains active."
+  ]
+}
