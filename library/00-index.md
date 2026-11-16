@@ -82,7 +82,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.Bytes.Build](Data.Bytes.Build.md) | Ship source | Fresh byte cloning, doubling repetition, concatenation and separator-aware joining. |
 | [Data.Bytes.Search](Data.Bytes.Search.md) | Ship source | Exact first, last, containment and count queries over raw bytes with bounded SWAR traversals. |
 | [Data.Bytes.Utf8](Data.Bytes.Utf8.md) | Ship source | Raw UTF-8 validation, forward and reverse decoding, scalar counting, fresh repair and atomic encoding. |
-| [Data.Bytes.View](Data.Bytes.View.md) | Ship source | Owner-retaining checked byte views, stable compiled substring patterns and bounded search, cut and comparison operations. |
+| [Data.Bytes.View](Data.Bytes.View.md) | Ship source | Owner-retaining checked byte views, relative UTF-8 observations, stable compiled substring patterns and bounded search, cut and comparison operations. |
 | [Data.Bytes.Word](Data.Bytes.Word.md) | Ship source | Bounds-proved unaligned little-endian machine-word reads and writes for SIMD and SWAR processing. |
 | [Data.Bytes](Data.Bytes.md) | Embedded | Mutable byte buffers with length, construction, copy, and bounds/range-aware access operations. |
 | [Data.Char](Data.Char.md) | Embedded | Unicode scalar values and checked character/code conversions, with range information for safe use. |
@@ -118,6 +118,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.Mutable.IndexMap](Data.Mutable.IndexMap.md) | Ship source | An insertion-ordered hash map: dense entries with a tagged chunk index over them, positional access, O(1) swap-remove and order-keeping shift-remove. |
 | [Data.Mutable.LinkedList](Data.Mutable.LinkedList.md) | Ship source | Stable typed list elements, checked membership and movement, detached value access and bounded self-copy. |
 | [Data.Mutable.LruCache](Data.Mutable.LruCache.md) | Ship source | A bounded least-recently-used cache: a hash table to nodes threaded on a recency list, with O(1) get, put and eviction. |
+| [Data.Mutable.Ring](Data.Mutable.Ring.md) | Ship source | Mutable circular sequences with stable cursors, alias-preserving joins and splits, explicit value ownership and bounded arena growth. |
 | [Data.Mutable.UnionFind](Data.Mutable.UnionFind.md) | Ship source | Disjoint sets with union by size and path halving: near-constant find, union and same-set queries, and appendable elements. |
 | [Data.Mutable.Var](Data.Mutable.Var.md) | Ship source | A single mutable cell, written in place; not synchronized (TVar is the shared cell). |
 | [Data.Mutable.Vec](Data.Mutable.Vec.md) | Ship source | A growable vector: amortised O(1) push and pop, O(1) indexing, middle insertion and removal, in-place introsort, and copying freeze/thaw against Array. |
@@ -170,7 +171,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Fnv](Text.Fnv.md) | Ship source | Incremental 32-, 64- and 128-bit FNV-1 and FNV-1a hashing with explicit wrapping arithmetic. |
 | [Text.Hex](Text.Hex.md) | Ship source | SIMD hexadecimal text/byte codecs, prefix-preserving decoding, append and destination operations, and formatted byte dumps. |
 | [Text.Html](Text.Html.md) | Ship source | HTML text/byte escaping, complete HTML5 character references, exact escaped sizing and SIMD/SWAR scanning. |
-| [Text.Json.Codec](Text.Json.Codec.md) | Ship source | Typed JSON codecs for records, machine integers, binary buffers and exact binary64 values, with explicit policies and custom callbacks. |
+| [Text.Json.Codec](Text.Json.Codec.md) | Ship source | Typed JSON codecs for records, persistent maps, explicit key capabilities, machine integers, binary buffers and exact binary64 values. |
 | [Text.Json.Value](Text.Json.Value.md) | Ship source | Owned JSON documents and navigation tapes, exact source spans and numbers, resumable lexical state, and byte-preserving formatting. |
 | [Text.Json](Text.Json.md) | Ship source | JSON parsing and rendering over Data.Json, with explicit errors and builder-based output. |
 | [Text.Lex](Text.Lex.md) | Ship source | A source-distributed lexer toolkit: tokens, spans, and lexical errors for compiler/parser clients. |
@@ -243,7 +244,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **176 source modules**: **65 embedded** and **111 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **177 source modules**: **65 embedded** and **112 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

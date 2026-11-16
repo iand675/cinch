@@ -1,6 +1,6 @@
 # Data.Bytes.View
 
-Owner-retaining checked byte views, stable compiled substring patterns and bounded search, cut and comparison operations.
+Owner-retaining checked byte views, relative UTF-8 observations, stable compiled substring patterns and bounded search, cut and comparison operations.
 
 <span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
 
@@ -34,7 +34,7 @@ are never exposed; all reads, writes and range copies carry checked bounds.
 
 A stable private needle snapshot and its complete proper-prefix failure table.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 121
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 131
 
 <a id="type-4279746556696577"></a>
 
@@ -44,7 +44,7 @@ A stable private needle snapshot and its complete proper-prefix failure table.
 
 An opaque fixed range whose endpoint refinements preserve the owner's bounds.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 31
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 32
 
 <a id="type-42797465566965774572726f72"></a>
 
@@ -54,7 +54,7 @@ An opaque fixed range whose endpoint refinements preserve the owner's bounds.
 
 A refused view range or complete-copy destination; refusals never mutate storage.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 36
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 37
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ByteViewReversedRange</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteViewError</span>))</code></pre>
 
@@ -72,7 +72,7 @@ A refused view range or complete-copy destination; refusals never mutate storage
 
 Copy the compiled needle into fresh caller-owned storage.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 173
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 183
 
 <a id="value-627974652d7061747465726e2d6c656e677468"></a>
 
@@ -82,7 +82,7 @@ Copy the compiled needle into fresh caller-owned storage.
 
 Count exact needle bytes without exposing private snapshot storage.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 169
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 179
 
 <a id="value-627974652d766965772d636c6f6e65"></a>
 
@@ -92,7 +92,7 @@ Count exact needle bytes without exposing private snapshot storage.
 
 Clone a view into a new independent whole-buffer view, including empty ranges.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 92
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 93
 
 <a id="value-627974652d766965772d636f6d70617265"></a>
 
@@ -102,7 +102,7 @@ Clone a view into a new independent whole-buffer view, including empty ranges.
 
 Compare raw view bytes lexicographically, returning exactly negative one, zero or one.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 719
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 729
 
 <a id="value-627974652d766965772d636f6e7461696e73"></a>
 
@@ -112,7 +112,7 @@ Compare raw view bytes lexicographically, returning exactly negative one, zero o
 
 Test exact raw needle containment without copying the view.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 741
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 751
 
 <a id="value-627974652d766965772d636f6e7461696e732d7061747465726e"></a>
 
@@ -122,7 +122,7 @@ Test exact raw needle containment without copying the view.
 
 Test whether a compiled needle occurs, including the empty needle in an empty view.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 598
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 608
 
 <a id="value-627974652d766965772d636f70792d696e746f"></a>
 
@@ -133,7 +133,7 @@ Test whether a compiled needle occurs, including the empty needle in an empty vi
 Copy a complete view into a checked destination interval with overlap-safe range copying.
 Destination refusal is atomic; the required and available sizes are preserved in the error.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 97
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 98
 
 <a id="value-627974652d766965772d636f756e74"></a>
 
@@ -143,7 +143,7 @@ Destination refusal is atomic; the required and available sizes are preserved in
 
 Count a raw needle with bounded malformed-byte counting for empty patterns.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 745
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 755
 
 <a id="value-627974652d766965772d636f756e742d7061747465726e"></a>
 
@@ -154,7 +154,7 @@ Count a raw needle with bounded malformed-byte counting for empty patterns.
 Count nonoverlapping compiled matches; an empty pattern counts bounded decoded scalars plus one.
 Malformed or view-truncated bytes each make one replacement-scalar step without copying the view.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 672
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 682
 
 <a id="value-627974652d766965772d637574"></a>
 
@@ -164,7 +164,7 @@ Malformed or view-truncated bytes each make one replacement-scalar step without 
 
 Cut at the first raw match into aliases that retain the complete original owner.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 764
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 774
 
 <a id="value-627974652d766965772d6375742d6c617374"></a>
 
@@ -174,7 +174,7 @@ Cut at the first raw match into aliases that retain the complete original owner.
 
 Cut at the final raw match, including overlapping candidates.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 768
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 778
 
 <a id="value-627974652d766965772d6375742d6c6173742d7061747465726e"></a>
 
@@ -184,7 +184,7 @@ Cut at the final raw match, including overlapping candidates.
 
 Cut around the final compiled match, preserving overlapping last-match semantics.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 633
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 643
 
 <a id="value-627974652d766965772d6375742d7061747465726e"></a>
 
@@ -194,7 +194,7 @@ Cut around the final compiled match, preserving overlapping last-match semantics
 
 Cut around the first compiled match; empty needles produce empty-before and the complete view.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 627
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 637
 
 <a id="value-627974652d766965772d6375742d707265666978"></a>
 
@@ -204,7 +204,7 @@ Cut around the first compiled match; empty needles produce empty-before and the 
 
 Remove a raw prefix as an owner-retaining alias, including an unchanged empty prefix.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 772
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 782
 
 <a id="value-627974652d766965772d6375742d7072656669782d7061747465726e"></a>
 
@@ -214,7 +214,7 @@ Remove a raw prefix as an owner-retaining alias, including an unchanged empty pr
 
 Remove an exact compiled prefix as an owner-retaining alias, or report no match.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 639
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 649
 
 <a id="value-627974652d766965772d6375742d737566666978"></a>
 
@@ -224,7 +224,7 @@ Remove an exact compiled prefix as an owner-retaining alias, or report no match.
 
 Remove a raw suffix as an owner-retaining alias, including an unchanged empty suffix.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 777
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 787
 
 <a id="value-627974652d766965772d6375742d7375666669782d7061747465726e"></a>
 
@@ -234,7 +234,7 @@ Remove a raw suffix as an owner-retaining alias, including an unchanged empty su
 
 Remove an exact compiled suffix as an owner-retaining alias, or report no match.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 644
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 654
 
 <a id="value-627974652d766965772d64726f70"></a>
 
@@ -244,7 +244,7 @@ Remove an exact compiled suffix as an owner-retaining alias, or report no match.
 
 Drop up to the requested leading bytes, clamping at an empty view of the original end.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 112
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 113
 
 <a id="value-627974652d766965772d657175616c"></a>
 
@@ -254,7 +254,7 @@ Drop up to the requested leading bytes, clamping at an empty view of the origina
 
 Compare two exact view ranges using complete words and scalar fringes, preserving shared mutations.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 685
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 695
 
 <a id="value-627974652d766965772d676574"></a>
 
@@ -264,7 +264,7 @@ Compare two exact view ranges using complete words and scalar fringes, preservin
 
 Read an exact relative byte, or no value when the coordinate is outside the view.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 72
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 73
 
 <a id="value-627974652d766965772d6861732d707265666978"></a>
 
@@ -274,7 +274,7 @@ Read an exact relative byte, or no value when the coordinate is outside the view
 
 Test an exact raw prefix with complete-word comparisons and no snapshots or pattern allocation.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 749
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 759
 
 <a id="value-627974652d766965772d6861732d7072656669782d7061747465726e"></a>
 
@@ -284,7 +284,7 @@ Test an exact raw prefix with complete-word comparisons and no snapshots or patt
 
 Test an exact compiled prefix using complete-word comparisons and checked view lengths.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 602
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 612
 
 <a id="value-627974652d766965772d6861732d737566666978"></a>
 
@@ -294,7 +294,7 @@ Test an exact compiled prefix using complete-word comparisons and checked view l
 
 Test an exact raw suffix with no snapshots, pattern allocation or unrelated prefix scan.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 756
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 766
 
 <a id="value-627974652d766965772d6861732d7375666669782d7061747465726e"></a>
 
@@ -304,7 +304,7 @@ Test an exact raw suffix with no snapshots, pattern allocation or unrelated pref
 
 Test an exact compiled suffix without copying or scanning the unrelated prefix.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 610
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 620
 
 <a id="value-627974652d766965772d696e646578"></a>
 
@@ -314,7 +314,7 @@ Test an exact compiled suffix without copying or scanning the unrelated prefix.
 
 Find a raw needle relative to a retained view, compiling one stable snapshot for this query.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 733
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 743
 
 <a id="value-627974652d766965772d696e6465782d7061747465726e"></a>
 
@@ -324,7 +324,7 @@ Find a raw needle relative to a retained view, compiling one stable snapshot for
 
 Find the first compiled needle match relative to the view; an empty needle matches zero.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 573
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 583
 
 <a id="value-627974652d766965772d69732d656d707479"></a>
 
@@ -334,7 +334,7 @@ Find the first compiled needle match relative to the view; an empty needle match
 
 Test whether a retained range has no logical bytes.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 59
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 60
 
 <a id="value-627974652d766965772d6c6173742d696e646578"></a>
 
@@ -344,7 +344,7 @@ Test whether a retained range has no logical bytes.
 
 Find the last raw needle, including overlapping matches and the empty end position.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 737
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 747
 
 <a id="value-627974652d766965772d6c6173742d696e6465782d7061747465726e"></a>
 
@@ -354,7 +354,7 @@ Find the last raw needle, including overlapping matches and the empty end positi
 
 Find the final compiled match, including overlaps; an empty needle matches the view end.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 585
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 595
 
 <a id="value-627974652d766965772d6c656e677468"></a>
 
@@ -364,7 +364,7 @@ Find the final compiled match, including overlaps; an empty needle matches the v
 
 Count logical bytes in a view without copying or releasing its retained owner.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 55
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 56
 
 <a id="value-627974652d766965772d736574"></a>
 
@@ -374,7 +374,7 @@ Count logical bytes in a view without copying or releasing its retained owner.
 
 Write one exact relative byte and report whether it fit; refusal leaves all aliases unchanged.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 79
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 80
 
 <a id="value-627974652d766965772d736c696365"></a>
 
@@ -384,7 +384,7 @@ Write one exact relative byte and report whether it fit; refusal leaves all alia
 
 Retain a checked half-open subrange relative to this view, preserving shared mutations.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 63
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 64
 
 <a id="value-627974652d766965772d736e617073686f74"></a>
 
@@ -394,7 +394,7 @@ Retain a checked half-open subrange relative to this view, preserving shared mut
 
 Copy exactly the logical range into fresh mutable storage without retaining the source owner.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 86
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 87
 
 <a id="value-627974652d766965772d74616b65"></a>
 
@@ -404,7 +404,19 @@ Copy exactly the logical range into fresh mutable storage without retaining the 
 
 Retain up to the requested leading bytes, clamping the count to this view's length.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 105
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 106
+
+<a id="value-627974652d766965772d757466382d6174"></a>
+
+## `byte-view-utf8-at`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-utf8-at</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Utf8</span>.<span class="tok-constructor">Utf8Step</span>))</code></pre>
+
+Observe one bounded scalar at a relative byte position without copying or exposing backing storage.
+The logical end returns Utf8End; positions past it return Utf8OutOfBounds.
+Each malformed or view-truncated byte returns U+FFFD with width one and Utf8Invalid.
+
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 124
 
 <a id="value-62797465732d636f6d70696c652d7061747465726e"></a>
 
@@ -415,7 +427,7 @@ Retain up to the requested leading bytes, clamping the count to this view's leng
 Compile an independent needle snapshot and a reusable linear-search failure table.
 Caller mutation after compilation never changes this pattern or its later search results.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 162
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 172
 
 <a id="value-62797465732d636f6e7461696e73"></a>
 
@@ -425,7 +437,7 @@ Caller mutation after compilation never changes this pattern or its later search
 
 Test raw needle containment in a complete fixed buffer.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 792
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 802
 
 <a id="value-62797465732d636f756e74"></a>
 
@@ -435,7 +447,7 @@ Test raw needle containment in a complete fixed buffer.
 
 Count nonoverlapping raw matches, or decoded scalars plus one for an empty needle.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 796
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 806
 
 <a id="value-62797465732d637574"></a>
 
@@ -445,7 +457,7 @@ Count nonoverlapping raw matches, or decoded scalars plus one for an empty needl
 
 Cut a complete fixed buffer at its first raw match into retained mutable aliases.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 808
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 818
 
 <a id="value-62797465732d6375742d6c617374"></a>
 
@@ -455,7 +467,7 @@ Cut a complete fixed buffer at its first raw match into retained mutable aliases
 
 Cut a complete fixed buffer at its final raw match into retained mutable aliases.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 812
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 822
 
 <a id="value-62797465732d6375742d707265666978"></a>
 
@@ -465,7 +477,7 @@ Cut a complete fixed buffer at its final raw match into retained mutable aliases
 
 Remove an exact prefix from a complete buffer while retaining its whole owner.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 816
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 826
 
 <a id="value-62797465732d6375742d737566666978"></a>
 
@@ -475,7 +487,7 @@ Remove an exact prefix from a complete buffer while retaining its whole owner.
 
 Remove an exact suffix from a complete buffer while retaining its whole owner.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 820
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 830
 
 <a id="value-62797465732d6861732d707265666978"></a>
 
@@ -485,7 +497,7 @@ Remove an exact suffix from a complete buffer while retaining its whole owner.
 
 Test whether a complete fixed buffer starts with exact raw bytes.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 800
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 810
 
 <a id="value-62797465732d6861732d737566666978"></a>
 
@@ -495,7 +507,7 @@ Test whether a complete fixed buffer starts with exact raw bytes.
 
 Test whether a complete fixed buffer ends with exact raw bytes.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 804
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 814
 
 <a id="value-62797465732d696e646578"></a>
 
@@ -505,7 +517,7 @@ Test whether a complete fixed buffer ends with exact raw bytes.
 
 Find the first raw needle in a complete fixed buffer as an optional byte offset.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 784
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 794
 
 <a id="value-62797465732d6c6173742d696e646578"></a>
 
@@ -515,7 +527,7 @@ Find the first raw needle in a complete fixed buffer as an optional byte offset.
 
 Find the last raw needle in a complete fixed buffer, including overlaps.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 788
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 798
 
 <a id="value-62797465732d76696577"></a>
 
@@ -525,7 +537,7 @@ Find the last raw needle in a complete fixed buffer, including overlaps.
 
 Retain the whole fixed mutable buffer without copying its contents.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 45
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 46
 
 <a id="value-62797465732d766965772d72616e6765"></a>
 
@@ -535,8 +547,8 @@ Retain the whole fixed mutable buffer without copying its contents.
 
 Retain an explicitly checked half-open owner range, including empty ranges at the end.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 49
+[Source](/reference-sources/Data.Bytes.View.cinch) · line 50
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Bytes/View.cinch`. Source SHA-256: `c55e57028c56d673d75c29ba91936ee614c3631addda328abe75c12a1bbf3e7e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Bytes/View.cinch`. Source SHA-256: `2b7bfa4193a68d4b80b2cd4f42c4333b25e5592d9da8ccb76cf0e6a3549c3a14`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
