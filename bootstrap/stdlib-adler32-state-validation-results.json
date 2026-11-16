@@ -1,0 +1,85 @@
+{
+  "description": "Standalone Adler-32, bounded SIMD/machine-word accumulation, persistent hash/checkpoint state and inspectable stream APIs. Full standard-library goal remains open.",
+  "full_stdlib_goal_complete": false,
+  "source_sha256": {
+    "compiler/prelude/Text/Adler32.cinch": "30204346a6b8a6d8b0ebe898740eeedcf97c6951ce74ef2b1a52a6bc36f4023c",
+    "compiler/prelude/Effect/Adler32.cinch": "561a9c98abc71e5022289621323d3003d9419d7ac5e811310389bebf1c1d3566",
+    "compiler/prelude/Text/Checksum.cinch": "d8fa3abc1d3fed0eea57aeeffb623544bf0c6efb8ef8d5e7ccda15e2018e025e",
+    "compiler/tests/lib_adler32.rs": "75724af5b08a9a0bed4413ac355810ad582313e3078ce410f3715140837ba755",
+    "compiler/tests/lib_go_stdlib.rs": "6ec485d8ceb5d4cbe16b7541d07b39760052730ba03751cb5717acf8a1ecfea0",
+    "tooling/go_adler32_state_vectors.go": "dec114ce4b4c384e9ebcabdbe65031a2f2d3a91a77f515b7fd2e5735a2f9539a"
+  },
+  "compilers": {
+    "rust_sha256": "2953cb0246737ee110c139fbff4a8968c2da7de271da4b55aff7d94f63c94e84",
+    "native_stage3_sha256": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f",
+    "existing_compiler_gate_evidence": "stdlib-qualified-calls-validation-results.json",
+    "compiler_implementation_unchanged": true
+  },
+  "tests": {
+    "rust_adler32": 10,
+    "native_stage3_adler32": 10,
+    "shared_profile_tests_per_target": 3,
+    "rust_existing_stdlib_regressions": 12,
+    "independent_fixture_rows": {
+      "valid": 46,
+      "arbitrary_restored": 414,
+      "malformed_identifier_or_size": 60
+    },
+    "fixture_sha256": "fc426c98ac56a0fc3b8d90b2f1ef1b3675413a6ceaba566d7539b22679b8bb7a",
+    "fixture_reproduces_byte_for_byte": true,
+    "all_two_chunk_splits_through_bytes": 257,
+    "long_input_boundaries": [
+      5551,
+      5552,
+      5553,
+      11103,
+      11104,
+      11105,
+      65536
+    ],
+    "one_byte_read_input_bytes": 65536,
+    "ordinary_heap_limit": "32M",
+    "stack_limit": "8M",
+    "separate_poisoned_free_quarantine_budget": "256M",
+    "zero_leaks_both_modes": true,
+    "foreign_kernel_checks": "Rust AArch64 with/without CRC and big-endian PowerPC compilation; no foreign execution claim"
+  },
+  "documentation": {
+    "modules": 137,
+    "value_exports": 3657,
+    "methods": 112,
+    "diagnostics": 0,
+    "orphans": 0,
+    "source_drift": false
+  },
+  "benchmarks": {
+    "rows": 24,
+    "opt_level": 2,
+    "all_reference_checksums_match": true,
+    "report": "../benchmarks/stdlib/adler32-state-O2-2026-11-16.json",
+    "before_report": "../benchmarks/stdlib/adler32-before-segments-O2-2026-11-16.json",
+    "paired_report": "../benchmarks/stdlib/interleaved-adler32-segments-O2-2026-11-16.json",
+    "before_checksum_source_sha256": "92aeb92792906cc05fde3a49ec2e71800d8fe7a2372926b4a4665e015fd02c29",
+    "before_is_committed_source_at": "2512b3c543e3949869d3030d2415352f593218f1"
+  },
+  "codegen_inspection": {
+    "assembly_sha256": "578dd37d12c44bad540d06f1c4be07ee117aeef723d966813c9e9f50a8478a6e",
+    "adler16_assembly_sha256": "db993f4a88328a2b758be7f12cb964e89c36cd2878e9fd87851d4c9bcc2098f0",
+    "observed_instructions": [
+      "pmaddwd",
+      "psadbw"
+    ],
+    "change": "U32 accumulators and constant positive unsigned remainders after segments of at most 5552 bytes; original SIMD lane kernel unchanged"
+  },
+  "remaining_limits": [
+    "The Text.Checksum compatibility facade still includes embedded CRC assembly unsupported by the native frontend; standalone Text.Adler32 is validated independently.",
+    "The Rust compiler overflowed its stack on large fully constant corpus setup. Runtime fixture initialization through an LLVM identity avoids pre-evaluation; this compiler issue is not repaired.",
+    "Owned stream chunks, reference counting and fresh digest/checkpoint allocations remain; no allocation or throughput parity claim."
+  ],
+  "coverage": {
+    "reference_packages": 180,
+    "complete": 6,
+    "partial": 62,
+    "unreviewed": 112
+  }
+}
