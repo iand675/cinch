@@ -1,0 +1,204 @@
+-- | Independent raw-span, substring and ownership observations.
+module Main where
+  import Data.Bytes.View
+  import Data.Bytes
+  import Data.Bool
+  import Data.String
+  import Data.Result
+  import Effect.Process
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+
+  -- | Keep fixture initialization dependent on runtime values.
+  prim runtime-word :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+
+  -- | Recover one bounded fixture size after an opaque runtime identity.
+  runtime-size :: Nat -> Nat
+  runtime-size size = if size <= 1048576 then u32-to-nat (runtime-word (wrapping-i64-to-u32 (nat-to-i64 size))) else 0
+
+  -- | Conjoin bounded groups of complete observations.
+  all :: List Bool -> Bool
+  all values = case values of Nil -> True; Cons first rest -> first && all rest
+
+  -- | Initialize the independent input recipes, including malformed multibyte boundaries.
+  fixture-byte :: U8 -> Nat -> Nat -> InRange 0 255 Nat
+  fixture-byte mode size at = if eq-u8 mode 0 then 0 else if eq-u8 mode 1 then 255
+    else if eq-u8 mode 2 then nat-rem (at * 37 + 11) 256
+    else if eq-u8 mode 3 then nat-rem at 2
+    else if eq-u8 mode 4 then (if at + 1 == size then 98 else 97)
+    else if eq-u8 mode 5 then
+      let lane = nat-rem at 12 in
+      if lane == 0 then 240 else if lane == 1 then 159 else if lane == 2 then 152
+      else if lane == 3 || lane == 6 || lane == 9 then 128 else if lane == 4 then 237
+      else if lane == 5 then 160 else if lane == 7 then 194 else if lane == 8 then 169
+      else if lane == 10 then 0 else 255
+    else if eq-u8 mode 6 then
+      let lane = nat-rem at 8 in if lane == 1 || lane == 3 || lane == 6 then 98 else if lane == 4 then 99 else 97
+    else nat-rem at 251
+
+  -- | Write exact fixture bytes into checked fixed backing with tail traversal.
+  fill :: Bytes -> U8 -> Nat -> Unit
+  fill raw mode at = if at < bytes-len raw then
+    let byte = fixture-byte mode (bytes-len raw) at in let written = bytes-set raw at byte in
+    let next = at + 1 in fill raw mode next
+    else ()
+
+  -- | Build a fresh runtime fixture input without recursive list construction.
+  input :: U8 -> Nat -> Bytes
+  input mode size = let raw = bytes-new (runtime-size size) in let initialized = fill raw mode 0 in raw
+
+  -- | Snapshot a checked owner slice or create an independent needle recipe.
+  needle-input :: Bytes -> U8 -> Nat -> I64 -> Bytes
+  needle-input raw mode size source = if 0 <= source then
+    let start = nat-from-i64 source in
+    if start <= bytes-len raw && size <= bytes-len raw - start then
+      let out = bytes-new size in let copied = bytes-copy-range out raw 0 start size in out
+    else bytes-new 0
+    else input mode size
+
+  -- | Compare an optional relative byte offset against an independent signed sentinel.
+  offset-is :: Option Nat -> I64 -> Bool
+  offset-is value expected = case value of
+    None -> eq-i64 expected (-1)
+    Some actual -> if 0 <= expected then actual == nat-from-i64 expected else False
+
+  -- | Compare both retained cut projections with the independently located match.
+  cut-is :: ByteView -> Option (ByteView, ByteView) -> I64 -> Nat -> Bool
+  cut-is view result expected width = if 0 <= expected then
+    let at = nat-from-i64 expected in case result of
+      None -> False
+      Some (before, after) -> let size = byte-view-length view in
+        if at <= size then let remaining = size - at in
+          if width <= remaining then let rest = remaining - width in
+            byte-view-length before == at && byte-view-length after == rest
+              && byte-view-equal before (byte-view-take at view)
+              && byte-view-equal after (byte-view-drop (at + width) view)
+          else False
+        else False
+    else case result of None -> True; Some pair -> False
+
+  -- | Compare an optional trimmed alias with the exact expected range and refusal status.
+  trim-is :: Option ByteView -> ByteView -> Bool -> Bool
+  trim-is result expected present = case result of
+    None -> not present
+    Some actual -> present && byte-view-equal actual expected
+
+  -- | Observe all compiled queries, raw wrappers, cuts and normalized comparison for one independent row.
+  view-case :: U8 -> Nat -> Nat -> Nat -> U8 -> Nat -> I64 -> I64 -> I64 -> Nat -> Bool -> Bool -> I64 -> Bool -> Bool
+  view-case mode size start end nm ns source first last count prefix suffix order equal =
+    let raw = input mode size in let needle = needle-input raw nm ns source in
+    case bytes-view-range raw start end of
+      Err error -> False
+      Ok view -> let pattern = bytes-compile-pattern needle in let width = bytes-len needle in
+        let size = byte-view-length view in let kept = ((if width <= size then size - width else 0) :: Nat) in
+        offset-is (byte-view-index-pattern view pattern) first
+        && offset-is (byte-view-last-index-pattern view pattern) last
+        && byte-view-count-pattern view pattern == count
+        && byte-view-contains-pattern view pattern == (first >= 0)
+        && byte-view-has-prefix-pattern view pattern == prefix
+        && byte-view-has-suffix-pattern view pattern == suffix
+        && byte-view-equal view (bytes-view needle) == equal
+        && eq-i64 (byte-view-compare view (bytes-view needle)) order
+        && cut-is view (byte-view-cut-pattern view pattern) first width
+        && cut-is view (byte-view-cut-last-pattern view pattern) last width
+        && trim-is (byte-view-cut-prefix-pattern view pattern) (byte-view-drop width view) prefix
+        && trim-is (byte-view-cut-suffix-pattern view pattern) (byte-view-take kept view) suffix
+        && offset-is (byte-view-index view needle) first
+        && offset-is (byte-view-last-index view needle) last
+        && byte-view-count view needle == count
+        && byte-view-contains view needle == (first >= 0)
+        && byte-view-has-prefix view needle == prefix && byte-view-has-suffix view needle == suffix
+        && cut-is view (byte-view-cut view needle) first width
+        && cut-is view (byte-view-cut-last view needle) last width
+        && trim-is (byte-view-cut-prefix view needle) (byte-view-drop width view) prefix
+        && trim-is (byte-view-cut-suffix view needle) (byte-view-take kept view) suffix
+
+  -- | Read one retained alias byte without exposing its backing owner.
+  byte-is :: ByteView -> Nat -> U8 -> Bool
+  byte-is view at expected = case byte-view-get view at of None -> False; Some actual -> eq-u8 actual expected
+
+  -- | Retain independently projected nested cut children after the original source handle is released.
+  temporary-cut :: Unit -> Option (ByteView, ByteView)
+  temporary-cut unit = bytes-cut (bytes-from-u8s [10,11,12,13,14]) (bytes-from-u8s [12])
+
+  -- | Observe cut pair children through independently projected aliases and mutation.
+  nested-case :: Unit -> Bool
+  nested-case unit = let cut = temporary-cut () in
+    let before = case cut of None -> bytes-view (bytes-new 0); Some (left, right) -> left in
+    let after = case cut of None -> bytes-view (bytes-new 0); Some (left, right) -> right in
+    let written = byte-view-set before 1 77 in
+    written && byte-is before 0 10 && byte-is before 1 77 && byte-is after 0 13 && byte-is after 1 14
+
+  -- | Preserve exact error payloads and atomic refusal for reversed, excessive and short-copy bounds.
+  bounds-case :: Unit -> Bool
+  bounds-case unit = let raw = bytes-from-u8s [1,2,3,4] in let view = bytes-view raw in
+    let reversed = case bytes-view-range raw 3 2 of Err (ByteViewReversedRange a b) -> a == 3 && b == 2; other -> False in
+    let past = case byte-view-slice view 0 5 of Err (ByteViewPastEnd requested available) -> requested == 5 && available == 4; other -> False in
+    let huge = case byte-view-slice view 0 9223372036854775807 of Err (ByteViewPastEnd requested available) -> requested == 9223372036854775807 && available == 4; other -> False in
+    let refused = not (byte-view-set view 4 99) in
+    let copy = case byte-view-copy-into raw 1 view of Err (ByteViewShortDestination at need capacity) -> at == 1 && need == 4 && capacity == 4; other -> False in
+    reversed && past && huge && refused && copy && byte-is view 0 1 && byte-is view 3 4
+      && byte-view-length (byte-view-drop 9223372036854775807 view) == 0
+      && byte-view-length (byte-view-take 9223372036854775807 view) == 4
+
+  -- | Verify shared mutations, overlap-safe copying, fresh snapshots and stable compiled needle ownership.
+  aliases-case :: Unit -> Bool
+  aliases-case unit = let raw = bytes-from-u8s [1,2,3,4,5,6] in
+    case bytes-view-range raw 0 4 of
+      Err error -> False
+      Ok view -> let snapshot = byte-view-snapshot view in let clone = byte-view-clone view in
+        let copied = case byte-view-copy-into raw 2 view of Ok count -> count == 4; Err error -> False in
+        let changed = byte-view-set view 0 99 in
+        let source = bytes-from-u8s [1,2] in let pattern = bytes-compile-pattern source in
+        let source-write = if 0 < bytes-len source then bytes-set source 0 255 else () in
+        let returned = byte-pattern-bytes pattern in let returned-write = if 0 < bytes-len returned then bytes-set returned 0 255 else () in
+        copied && changed && byte-is (bytes-view raw) 0 99 && byte-is (bytes-view raw) 2 1 && byte-is (bytes-view raw) 5 4
+          && byte-is (bytes-view snapshot) 0 1 && byte-is clone 0 1
+          && offset-is (byte-view-index-pattern (bytes-view raw) pattern) 2
+          && byte-is (bytes-view (byte-pattern-bytes pattern)) 0 1
+
+  -- | Stress separate view and compiled-pattern lifetimes without accumulating quarantine across batches.
+  owners-loop :: Nat -> Bool
+  owners-loop left = if left == 0 then True else
+    if nested-case () && bounds-case () && aliases-case () && wrappers-case () && subranges-case () then
+      let remaining = left - 1 in owners-loop remaining
+    else False
+
+  -- | Run ten complete alias/refusal/owner cycles in one bounded process.
+  owners-case :: Unit -> Bool
+  owners-case unit = owners-loop (runtime-size 10)
+
+  -- | Observe whole-buffer convenience functions, including both empty-pattern cuts.
+  wrappers-case :: Unit -> Bool
+  wrappers-case unit = let raw = bytes-from-u8s [97,98,97,98,97] in
+    let needle = bytes-from-u8s [97,98,97] in let empty = bytes-new 0 in let view = bytes-view raw in
+    offset-is (bytes-index raw needle) 0 && offset-is (bytes-last-index raw needle) 2
+      && bytes-count raw needle == 1 && bytes-count raw empty == 6 && bytes-contains raw needle
+      && bytes-has-prefix raw needle && bytes-has-suffix raw needle
+      && cut-is view (bytes-cut raw needle) 0 3 && cut-is view (bytes-cut-last raw needle) 2 3
+      && cut-is view (bytes-cut raw empty) 0 0 && cut-is view (bytes-cut-last raw empty) 5 0
+      && trim-is (bytes-cut-prefix raw needle) (byte-view-drop 3 view) True
+      && trim-is (bytes-cut-suffix raw needle) (byte-view-take 2 view) True
+
+  -- | Compose relative slices, observe overlapping aliases and preserve fresh snapshots at exact empty bounds.
+  subranges-case :: Unit -> Bool
+  subranges-case unit = let raw = input 7 129 in case bytes-view-range raw 10 100 of
+    Err error -> False
+    Ok outer -> case byte-view-slice outer 2 20 of
+      Err error -> False
+      Ok view -> let snapshot = byte-view-snapshot view in let clone = byte-view-clone view in
+        let leading = byte-view-take 5 view in let trailing = byte-view-drop 5 view in
+        let changed = byte-view-set leading 4 222 in
+        let huge-read = case byte-view-get view 9223372036854775807 of None -> True; Some byte -> False in
+        let huge-write = not (byte-view-set view 9223372036854775807 255) in
+        let empty = case byte-view-slice view 18 18 of Err error -> False; Ok none -> byte-view-is-empty none && (case byte-view-copy-into raw (bytes-len raw) none of Ok n -> n == 0; Err error -> False) in
+        changed && huge-read && huge-write && empty && byte-view-length view == 18
+          && byte-is view 0 12 && byte-is view 17 29 && byte-is outer 6 222
+          && byte-is leading 4 222 && byte-is trailing 0 17
+          && byte-is (bytes-view snapshot) 4 16 && byte-is clone 4 16

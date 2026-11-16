@@ -1,0 +1,12 @@
+  -- | Root actual substring, failure-link, comparison and bounded suffix kernels in portable object code.
+  main :: Int
+  main = let raw = bytes-from-u8s [0,1,0,1,128,255,0,1,0] in
+    let needle = bytes-from-u8s [0,1] in let table = bytes-new 16 in
+    let key = repeated-byte 0 in let end = nat-to-i64 (bytes-len raw) in
+    let first = hold-input raw (hold-input needle (hold-input table (search-first (bytes-data raw) 0 end (bytes-data needle) 2 (bytes-data table) key 0))) in
+    let last = hold-input raw (hold-input needle (hold-input table (search-last (bytes-data raw) 0 end (bytes-data needle) 2 (bytes-data table) key 0 (-1)))) in
+    let count = hold-input raw (hold-input needle (hold-input table (search-count (bytes-data raw) 0 end (bytes-data needle) 2 (bytes-data table) key 0 0))) in
+    let equal = hold-input raw (hold-input needle (search-equal (bytes-data raw) 0 (bytes-data needle) 0 2)) in
+    let common = hold-input raw (hold-input needle (compare-prefix (bytes-data raw) 0 (bytes-data needle) 0 0 2)) in
+    let suffix = hold-input raw (last-byte-range (bytes-data raw) 1 end key) in
+    if eq-i64 first 0 && eq-i64 last 6 && eq-i64 count 3 && equal && eq-i64 common 2 && eq-i64 suffix 8 then 0 else 1
