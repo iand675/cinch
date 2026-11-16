@@ -1,0 +1,371 @@
+{
+  "selected_source_sha256": "59ab5f5cecd21e4802b0850447e03d1390073887d598dbef22680da39cf00d71",
+  "baseline_commit": "be3fbdaf338bfeba507676d228931a0477702a9b",
+  "baseline_source_sha256": "a5f6a39e59b512862fe88e984a8fb5bef0cc6fc47516f59cc488d4493a523b9a",
+  "candidate_generator_sha256": "548966665ba932cdf9bfbe71a3a38f11396379aad1df92b6c64944a2d95b4630",
+  "candidate_manifest": {
+    "baseline_commit": "be3fbdaf338bfeba507676d228931a0477702a9b",
+    "sources": {
+      "swar": "a5f6a39e59b512862fe88e984a8fb5bef0cc6fc47516f59cc488d4493a523b9a",
+      "scalar": "edd4e9415eaaa946d1a808231bdef970c2c251617227c1afdb890e37c88af509",
+      "simd16": "09007bdab63303afe9d14f15d44d567242f8826136ac08f3f23589dd93e78474",
+      "simd16-fused": "130cce5a8aa5197d8563aba2955e19c1530a263f55512356ddf20ce4ec503f02",
+      "simd16-minimal": "8abadc90c6e95de90716f0173e237bdcb38a67395399891f1384ea3800d7e3c0",
+      "simd16-selected": "59ab5f5cecd21e4802b0850447e03d1390073887d598dbef22680da39cf00d71"
+    }
+  },
+  "measurements": [
+    {
+      "file": "benchmarks/stdlib/utf8-scans/utf8-bench-scalar-native-timings.json",
+      "sha256": "f9a1217ebffc75355e59179ff506608c91abf6cfabdc98ee652631e9960acb9a",
+      "rows": 24
+    },
+    {
+      "file": "benchmarks/stdlib/utf8-scans/utf8-bench-scalar-rust-timings.json",
+      "sha256": "0f5e1770b57c974aef064a1cd10aa7d0db8ef297889b7de5962266b8dad46c78",
+      "rows": 24
+    },
+    {
+      "file": "benchmarks/stdlib/utf8-scans/utf8-bench-simd16-fused-native-timings.json",
+      "sha256": "3027a6b4e62ae9f6aac76b75a4146d472f95d5643d349afb70c0623301fd3de7",
+      "rows": 24
+    },
+    {
+      "file": "benchmarks/stdlib/utf8-scans/utf8-bench-simd16-fused-rust-timings.json",
+      "sha256": "14143d8ffa925fe40de9faeab4a9cf44bcb47b11b8d719ca724481710505b7ba",
+      "rows": 24
+    },
+    {
+      "file": "benchmarks/stdlib/utf8-scans/utf8-bench-simd16-native-timings.json",
+      "sha256": "15a64c2a90ffcbc2ec7fe458159eb4fc9e4afced8fed60247ddcc2d46e4ac6e1",
+      "rows": 24
+    },
+    {
+      "file": "benchmarks/stdlib/utf8-scans/utf8-bench-simd16-rust-timings.json",
+      "sha256": "7674dcda8946fd9d438e411bbfd16f0b6a21c6cbf19567cfdf3a6f4a6b3c1f6f",
+      "rows": 24
+    },
+    {
+      "file": "benchmarks/stdlib/utf8-scans/utf8-bench-swar-native-timings.json",
+      "sha256": "a9d3ecc3e30ddb854420374decec35e5f23d98b6fbdb0bc7b04fc28fa0468a42",
+      "rows": 24
+    },
+    {
+      "file": "benchmarks/stdlib/utf8-scans/utf8-bench-swar-rust-timings.json",
+      "sha256": "2c094a0caefd9b1bede1ff1178b6ff20a077fc5bd61a0b2d5c84d94a91daf03f",
+      "rows": 24
+    },
+    {
+      "file": "benchmarks/stdlib/utf8-scans/utf8-bench-simd16-fused-native-comparison2.json",
+      "sha256": "09ebc7a044ebdb8b95bf45b4e8ac874edd80829409019c79384203d80a5c4518",
+      "rows": 24
+    },
+    {
+      "file": "benchmarks/stdlib/utf8-scans/utf8-bench-simd16-fused-rust-comparison2.json",
+      "sha256": "0a2a243cae49b15b5bd20810d15752effe942df0a6c1bf3ba9b1b72ee42433ce",
+      "rows": 24
+    },
+    {
+      "file": "benchmarks/stdlib/utf8-scans/utf8-bench-simd16-minimal-native-comparison2.json",
+      "sha256": "18bd899ade3b35f384424b2939b09c0d781b17d6c1f9eee691f78b45153cc057",
+      "rows": 24
+    },
+    {
+      "file": "benchmarks/stdlib/utf8-scans/utf8-bench-simd16-minimal-rust-comparison2.json",
+      "sha256": "1c8fe144ab1cd92eb45eb73743122b199ca2aae4b8c7279b37716def56b7e494",
+      "rows": 24
+    },
+    {
+      "file": "benchmarks/stdlib/utf8-scans/utf8-bench-swar-native-comparison2.json",
+      "sha256": "f9662bbbc7e04acdce47e4f420f12a3fa2b1a32fb037f2cd7d6531e9a80569d2",
+      "rows": 24
+    },
+    {
+      "file": "benchmarks/stdlib/utf8-scans/utf8-bench-swar-rust-comparison2.json",
+      "sha256": "7ba296dd0c5998011bfee0d5fd632e03c98faae472c60dce300ec762b52c52f6",
+      "rows": 24
+    }
+  ],
+  "measurements_rows": 336,
+  "three_samples_plus_warmup_per_row": true,
+  "cpu": 0,
+  "first_window_seconds": 16.826,
+  "second_window_seconds": 9.518,
+  "background_load": [
+    "first window: parentCPU3 Cargo; JSON briefCPU2 functional declarations/Native probe; Strings held compilers",
+    "second window: parentCPU3 bootstrap_infer; BaseCPU1 Native398; JSON briefCPU2 controls; Strings held compilers"
+  ],
+  "preflight": [
+    {
+      "report_sha256": "f42b92cf7f108883631b9c2a046772143ec1f82a287a0629f389ad047ab06852",
+      "cases": 1920,
+      "all_passed": true
+    },
+    {
+      "report_sha256": "65e5918e8501db4bfafa7b045cccf6a4a6e2e56fef10ae459ecd7b083b4e7de3",
+      "cases": 480,
+      "all_passed": true
+    }
+  ],
+  "all_measured_checksums_match_reference": true,
+  "final_source_codegen_identical_to_measured": [
+    {
+      "frontend": "rust",
+      "measured_source_sha256": "8abadc90c6e95de90716f0173e237bdcb38a67395399891f1384ea3800d7e3c0",
+      "selected_source_sha256": "59ab5f5cecd21e4802b0850447e03d1390073887d598dbef22680da39cf00d71",
+      "measured_driver_sha256": "901b125603a8165e33409685f1e3a0a4874b0f3c8bb884b7509499d7ed6b1bd7",
+      "selected_driver_sha256": "5678fa1e40e3353ea6ccb7451b60373f49e169baa8698946bee9aa8465e33fa9",
+      "bench.ll_sha256": "e7d23418f71dba8a4ba43103281f06b60b659533afb87a376d132ac315732822",
+      "bench.s_sha256": "caf79349ade99eec576f712eff6189024ed2add6c713f8f131a9b3a9e6688acf"
+    },
+    {
+      "frontend": "native",
+      "measured_source_sha256": "8abadc90c6e95de90716f0173e237bdcb38a67395399891f1384ea3800d7e3c0",
+      "selected_source_sha256": "59ab5f5cecd21e4802b0850447e03d1390073887d598dbef22680da39cf00d71",
+      "measured_driver_sha256": "901b125603a8165e33409685f1e3a0a4874b0f3c8bb884b7509499d7ed6b1bd7",
+      "selected_driver_sha256": "5678fa1e40e3353ea6ccb7451b60373f49e169baa8698946bee9aa8465e33fa9",
+      "bench.ll_sha256": "8f7cf4dbb064647d8f25ace49e808e59d8bfd3fef5e78db368746534dc05ce9a",
+      "bench.s_sha256": "89c04f53ad789a0bac3cac6e9de1062a60bb522b6be9b6510dd70509cfe428b2"
+    }
+  ],
+  "full_validation": [
+    {
+      "frontend": "rust",
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "sources": {
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Bytes.Utf8.cinch": "59ab5f5cecd21e4802b0850447e03d1390073887d598dbef22680da39cf00d71",
+        "Main.cinch": "c5460d7cd1ee3f9189d98ec9ecfd5077005d52df5a3b2ca59040813052f0d232"
+      },
+      "executable_sha256": "8a3dd8e3576fd6a4e9d19e02cde58a93cc252168149a40cf4f7a4b0df55df474",
+      "compile_command": [
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "build",
+        "/workspace/dasl-stdlib-unicode/build/utf8-selected-doc-rust/project/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-unicode/build/utf8-selected-doc-rust/consumer",
+        "--opt-level",
+        "2",
+        "--rc-debug"
+      ],
+      "compile_seconds": 4.731679104996147,
+      "cpu": 2,
+      "all_passed": true,
+      "kind": "utf8-selected-doc",
+      "report_sha256": "0dcc2457e89176b438a48135af1b006085be24c727b030b2d58591f5931968b1",
+      "provider_sha256": {},
+      "memory_processes": 1001,
+      "normal_processes": 1,
+      "poisoned_processes": 1000,
+      "all_zero_leaks": true
+    },
+    {
+      "frontend": "native",
+      "compiler_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+      "runtime_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+      "sources": {
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Bytes.Utf8.cinch": "59ab5f5cecd21e4802b0850447e03d1390073887d598dbef22680da39cf00d71",
+        "Main.cinch": "c5460d7cd1ee3f9189d98ec9ecfd5077005d52df5a3b2ca59040813052f0d232"
+      },
+      "executable_sha256": "ad239e734eda8da05b8c4f91858cc2a4c97afa0e75e8af6ad59816efdcdfc88f",
+      "compile_command": [
+        "python3",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/frontend.py",
+        "--compile-only",
+        "--interfaces",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/base-interfaces.json",
+        "--rc-debug",
+        "/workspace/dasl-stdlib-unicode/build/utf8-selected-doc-native/bundle.cinch",
+        "/workspace/dasl-stdlib-unicode/build/utf8-selected-doc-native/consumer.ll",
+        "/workspace/dasl-stdlib-unicode/build/utf8-selected-doc-native/consumer",
+        "/workspace/dasl-stdlib-unicode/build/utf8-selected-doc-native/link-report.txt"
+      ],
+      "compile_seconds": 143.5431261860067,
+      "cpu": 2,
+      "all_passed": true,
+      "kind": "utf8-selected-doc",
+      "report_sha256": "4392627ec9dc31343bdc749eed0babf45bbf171f0e2e9a0fceaaabaec57e1de6",
+      "provider_sha256": {
+        "frontend.py": "98535f99062bb90d8109f879dd22f412f65a0365b036e6d2bba95f1e1c5fbcac",
+        "base-interfaces.json": "89189ebe8226d4f26defffdd6481f40351f4da80e035a6a2ee4b2fa19800893f",
+        "objects.json": "4655257140bfd5ab73525f0fbef41dc41622a9f1225b034dbe1571dd2174c5e6",
+        "library.o": "2b459a81ac51e8e7a4f5e1730b9dc9fd22bc5976096cd717accbc9a84b05875d",
+        "library.abi.json": "5158fc3f8c659647334b110772d3ed03d0b6c29be6024989abf16e9ea33bc755",
+        "provenance.json": "bf09e1ffb70c224055df04b279f64259227e44d93f0ebd31ea4bcc926c3c68b7"
+      },
+      "memory_processes": 1001,
+      "normal_processes": 1,
+      "poisoned_processes": 1000,
+      "all_zero_leaks": true
+    },
+    {
+      "frontend": "rust",
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "sources": {
+        "Data.Bytes.Utf8.cinch": "59ab5f5cecd21e4802b0850447e03d1390073887d598dbef22680da39cf00d71",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Main.cinch": "d2f4c0ba458c56d0992814665a88d58bc2b926c0e27756081d6904ff1c321471"
+      },
+      "executable_sha256": "a5152005040064ac8475b306f23dc72dd8d32839e90b591c30230f725b96f7ab",
+      "compile_command": [
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "build",
+        "/workspace/dasl-stdlib-unicode/build/utf8-selected-ownership-rust/project/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-unicode/build/utf8-selected-ownership-rust/consumer",
+        "--opt-level",
+        "2",
+        "--rc-debug"
+      ],
+      "compile_seconds": 4.196107497991761,
+      "cpu": 2,
+      "all_passed": true,
+      "kind": "utf8-selected-ownership",
+      "report_sha256": "fca2c9733e9917a8390830bb9fbc524e69367e7a388a52fe53ddac0f0f2f652a",
+      "provider_sha256": {},
+      "memory_processes": 2,
+      "normal_processes": 1,
+      "poisoned_processes": 1,
+      "all_zero_leaks": true
+    },
+    {
+      "frontend": "native",
+      "compiler_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+      "runtime_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+      "sources": {
+        "Data.Bytes.Utf8.cinch": "59ab5f5cecd21e4802b0850447e03d1390073887d598dbef22680da39cf00d71",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Main.cinch": "d2f4c0ba458c56d0992814665a88d58bc2b926c0e27756081d6904ff1c321471"
+      },
+      "executable_sha256": "0a22f14e054b49e376743b2f89c1be0e4c628b3e148492c0120a04c62ff1fc08",
+      "compile_command": [
+        "python3",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/frontend.py",
+        "--compile-only",
+        "--interfaces",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/base-interfaces.json",
+        "--rc-debug",
+        "/workspace/dasl-stdlib-unicode/build/utf8-selected-ownership-native/bundle.cinch",
+        "/workspace/dasl-stdlib-unicode/build/utf8-selected-ownership-native/consumer.ll",
+        "/workspace/dasl-stdlib-unicode/build/utf8-selected-ownership-native/consumer",
+        "/workspace/dasl-stdlib-unicode/build/utf8-selected-ownership-native/link-report.txt"
+      ],
+      "compile_seconds": 7.10305614900426,
+      "cpu": 2,
+      "all_passed": true,
+      "kind": "utf8-selected-ownership",
+      "report_sha256": "d031da87a86012e3a55b2f482a8c97810eeaa67930bcbb108baf9e93d1204434",
+      "provider_sha256": {
+        "frontend.py": "98535f99062bb90d8109f879dd22f412f65a0365b036e6d2bba95f1e1c5fbcac",
+        "base-interfaces.json": "89189ebe8226d4f26defffdd6481f40351f4da80e035a6a2ee4b2fa19800893f",
+        "objects.json": "4655257140bfd5ab73525f0fbef41dc41622a9f1225b034dbe1571dd2174c5e6",
+        "library.o": "2b459a81ac51e8e7a4f5e1730b9dc9fd22bc5976096cd717accbc9a84b05875d",
+        "library.abi.json": "5158fc3f8c659647334b110772d3ed03d0b6c29be6024989abf16e9ea33bc755",
+        "provenance.json": "bf09e1ffb70c224055df04b279f64259227e44d93f0ebd31ea4bcc926c3c68b7"
+      },
+      "memory_processes": 2,
+      "normal_processes": 1,
+      "poisoned_processes": 1,
+      "all_zero_leaks": true
+    }
+  ],
+  "foreign_objects": {
+    "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+    "kernel_source_sha256": "bcdd829da1f284eed0b3dd50ffe0fd3eeb96c1c27d0e49e7dea957c3dca32036",
+    "cpu": 2,
+    "results": [
+      {
+        "target": "wasm32-unknown-unknown",
+        "commands": [
+          [
+            "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+            "emit-ir",
+            "/workspace/dasl-stdlib-unicode/build/utf8-selected-objects/Main.cinch",
+            "--target",
+            "wasm32-unknown-unknown",
+            "-o",
+            "/workspace/dasl-stdlib-unicode/build/utf8-selected-objects/wasm32-unknown-unknown.ll"
+          ],
+          [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "-target",
+            "wasm32-unknown-unknown",
+            "-O2",
+            "-c",
+            "-x",
+            "ir",
+            "/workspace/dasl-stdlib-unicode/build/utf8-selected-objects/wasm32-unknown-unknown.ll",
+            "-o",
+            "/workspace/dasl-stdlib-unicode/build/utf8-selected-objects/wasm32-unknown-unknown.o"
+          ]
+        ],
+        "llvm_sha256": "597c93065dbb47eb87b992dec9e543a3de06e145d2472745d1ea1cf86ccd1061",
+        "object_sha256": "5e7e7cb8d6fad9f2c3458ae8858a3f871f4728cae41c1740c4b8280f77f43c95",
+        "object_bytes": 6167
+      },
+      {
+        "target": "aarch64-unknown-linux-gnu",
+        "commands": [
+          [
+            "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+            "emit-ir",
+            "/workspace/dasl-stdlib-unicode/build/utf8-selected-objects/Main.cinch",
+            "--target",
+            "aarch64-unknown-linux-gnu",
+            "-o",
+            "/workspace/dasl-stdlib-unicode/build/utf8-selected-objects/aarch64-unknown-linux-gnu.ll"
+          ],
+          [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "-target",
+            "aarch64-unknown-linux-gnu",
+            "-O2",
+            "-c",
+            "-x",
+            "ir",
+            "/workspace/dasl-stdlib-unicode/build/utf8-selected-objects/aarch64-unknown-linux-gnu.ll",
+            "-o",
+            "/workspace/dasl-stdlib-unicode/build/utf8-selected-objects/aarch64-unknown-linux-gnu.o"
+          ]
+        ],
+        "llvm_sha256": "a7218cea47db8d757bafbfc6d3e59af41d7ca1ad837c9b117a8cd23fb269cf1d",
+        "object_sha256": "b897b30602b9fb07f55f26d12d1328c271c19d8796d6b44a19721b5ae9e8bf31",
+        "object_bytes": 8616
+      }
+    ],
+    "all_passed": true,
+    "big_endian_gate": "Provided in lib_utf8 Rust target; standalone CLI rejects the unsupported powerpc64 profile, so no fallback target is substituted."
+  },
+  "canonical_docs": {
+    "Data.Bytes.Utf8": 70,
+    "Data.Unicode.Names": 59,
+    "diagnostics": 0,
+    "orphans": 0
+  },
+  "generator_unit_tests": 10,
+  "normal_heap": "32M",
+  "poisoned_heap": "256M",
+  "stack": "8M",
+  "pending": "Parent Rust Cargo/big-endian gate and five valid-String adapters under a fresh provider epoch",
+  "patterns": [
+    {
+      "index": 0,
+      "bytes_hex": "6162636465666768",
+      "description": "ASCII abcdefgh"
+    },
+    {
+      "index": 1,
+      "bytes_hex": "61c3a9cea3e282ac",
+      "description": "valid a/Latin small e acute/Greek sigma/euro, eight bytes"
+    },
+    {
+      "index": 2,
+      "bytes_hex": "61ff8000c0f080bf",
+      "description": "ASCII, isolated invalid bytes, zero, overlong/incomplete candidates"
+    }
+  ],
+  "timing_memory": "runtime defaults; memory-limited normal/poison qualification is recorded in the separate full corpora"
+}
