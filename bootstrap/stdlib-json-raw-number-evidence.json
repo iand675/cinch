@@ -1,0 +1,251 @@
+{
+  "status": "Raw numeric string casts/outcomes increment; full 92-record JSON package remains partial",
+  "sources": {
+    "Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+    "Value": "5b44b8760e6733e9f30f08082649a85faaf74d6f39e10741c10b3842a6cc86f7",
+    "Codec": "a82979e9c5b8039b3438411419242ba5623dc1b81bbd23744d5c85241a6d0603"
+  },
+  "documentation": {
+    "Binary32": {
+      "canonical_declarations": 25,
+      "extract_sha256": "a29998d34885a6d28351a8b34822e047982a8b7b01d18fbf5dcab4deed08b28c",
+      "diagnostics": 0,
+      "orphans": 0
+    },
+    "Value": {
+      "canonical_declarations": 316,
+      "extract_sha256": "c48ecdec165013abd799748eb971a9ee5c621f92d07c4bc5eecd09539e1044db",
+      "diagnostics": 0,
+      "orphans": 0
+    },
+    "Codec": {
+      "canonical_declarations": 311,
+      "extract_sha256": "778adbf7ef50a31bc7ad138b73e7e1a47838a97b25dc4c9a1babb71ed6542f9f",
+      "diagnostics": 0,
+      "orphans": 0
+    }
+  },
+  "same_selected_source_memory_processes": 28,
+  "matrices": [
+    {
+      "suite": "raw-number",
+      "frontend": "rust",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-raw-number-rust-v3-results.json",
+      "receipt_sha256": "a5cce45b81e9c011da167c024facd50bde9791f8a2a29fa98ba0399344f39f2f",
+      "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+      "runtime_archive_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "consumer_sha256": "aeca92fa47a3c31ceab89c0d5fa2b44b49d9eaea8d503342e625c77f8e07f134",
+      "llvm_sha256": "2047e6aaab3033ee2377443f5d7256cc9a3121fcd2090c89087801592df761e4",
+      "normal_peak_bytes": 66341,
+      "poison_peak_bytes": 831303
+    },
+    {
+      "suite": "raw-number",
+      "frontend": "native-raw",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-raw-number-native-raw-v1-results.json",
+      "receipt_sha256": "8e908b3f7028985ba9cc55116bca2aacf7829f6020df669bb06038f5b9f9e902",
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "runtime_archive_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "consumer_sha256": "aeca92fa47a3c31ceab89c0d5fa2b44b49d9eaea8d503342e625c77f8e07f134",
+      "llvm_sha256": "3835fb5a362969e4260c9116c2bb14cadf0e830512b51888333faee6557631e4",
+      "normal_peak_bytes": 115691,
+      "poison_peak_bytes": 966133
+    },
+    {
+      "suite": "raw-number-edge",
+      "frontend": "rust",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-raw-number-edge-kernel-rust-v1-results.json",
+      "receipt_sha256": "a96412276631cd54a50b07cce4eab6bd170d08dc2743bebf34dd70f76ba9738d",
+      "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+      "runtime_archive_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "consumer_sha256": "1a675e1d57e49a309dd41790a1537ce288c3991923bba2cd81df1945904a9d6c",
+      "llvm_sha256": "b70bd625040caa89d17ada71d7c567085e28a125f3de3f6d97167d784050b604",
+      "normal_peak_bytes": 16726,
+      "poison_peak_bytes": 217166
+    },
+    {
+      "suite": "raw-number-kernel",
+      "frontend": "rust",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-raw-number-edge-kernel-rust-v1-results.json",
+      "receipt_sha256": "a96412276631cd54a50b07cce4eab6bd170d08dc2743bebf34dd70f76ba9738d",
+      "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+      "runtime_archive_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "consumer_sha256": "4f43fb0b31fc640b3a989d0a65ea467d507d2af5f9bd5c17c78d6975932a8380",
+      "llvm_sha256": "d849829d42a96e9e5bf89ece81101e4aa97c3d95495d7f7ea56fab79d0ff8103",
+      "normal_peak_bytes": 3440,
+      "poison_peak_bytes": 42762
+    },
+    {
+      "suite": "raw-number-edge",
+      "frontend": "native-raw",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-raw-number-edge-native-raw-v1-results.json",
+      "receipt_sha256": "2f1f69e5a4524bd49753621fca98c4b3e6086790c8f57f81bf9e397ca9a0ba85",
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "runtime_archive_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "consumer_sha256": "1a675e1d57e49a309dd41790a1537ce288c3991923bba2cd81df1945904a9d6c",
+      "llvm_sha256": "06e617aefdb7d175ea67e779f59b0591d31c592af3328a1f93b653ae2d8cb141",
+      "normal_peak_bytes": 19024,
+      "poison_peak_bytes": 217783
+    },
+    {
+      "suite": "raw-number-kernel",
+      "frontend": "native-raw",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-raw-number-kernel-native-raw-v1-results.json",
+      "receipt_sha256": "ab8355b18e8233c3e4d1399d1e87a5390664cfba507647157b6d58f02801e16e",
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "runtime_archive_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "consumer_sha256": "4f43fb0b31fc640b3a989d0a65ea467d507d2af5f9bd5c17c78d6975932a8380",
+      "llvm_sha256": "9b82b5b3c725276f2934dfc28fef1fff3ef870ddceacb0c53932761158d22a9a",
+      "normal_peak_bytes": 3441,
+      "poison_peak_bytes": 42763
+    },
+    {
+      "suite": "raw-number-control",
+      "frontend": "rust",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-raw-number-control-rust-v1-results.json",
+      "receipt_sha256": "82a147587b9baebddaa2ae3e93425697cd30448bea212770e77781d353642d54",
+      "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+      "runtime_archive_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "consumer_sha256": "3afa6f1f4001b1328e47e895e621aab05a3b64723e2856b1a41fd65b11ccaa71",
+      "llvm_sha256": "f6ecd8b12ceec9e20da54f381ad3695b8984fc1d3f21b9889b4a6145e7a9e987",
+      "normal_peak_bytes": 1587,
+      "poison_peak_bytes": 720623
+    },
+    {
+      "suite": "raw-number-control",
+      "frontend": "native-raw",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-raw-number-control-native-raw-v1-results.json",
+      "receipt_sha256": "ebd5d9d9582e83b1c9f9a83bfcadb9a5de047cdb969ba1fc5c6fca87e85635aa",
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "runtime_archive_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "consumer_sha256": "3afa6f1f4001b1328e47e895e621aab05a3b64723e2856b1a41fd65b11ccaa71",
+      "llvm_sha256": "9d3c7543fc00112efacb3c761d35b9ce3101207b82d9c9ae0e75b1bfd8779447",
+      "normal_peak_bytes": 1481,
+      "poison_peak_bytes": 639349
+    },
+    {
+      "suite": "number",
+      "frontend": "rust",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-raw-number-affected-rust-v1-results.json",
+      "receipt_sha256": "f823cbed256fc0bef35fa95a6ec3a04e7be43728bf158ddbcffb2027abea65fe",
+      "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+      "runtime_archive_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "consumer_sha256": "08e88d1194da4f9bbe99ed330553b5675e8608ba60a9d0e0aac4421eee9e0eec",
+      "llvm_sha256": "5d556472c16e5edd3cb81bf811d2d8c82dc6e4cebde94e2491ec4532f4a45264",
+      "normal_peak_bytes": 1284,
+      "poison_peak_bytes": 9628
+    },
+    {
+      "suite": "float",
+      "frontend": "rust",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-raw-number-affected-rust-v1-results.json",
+      "receipt_sha256": "f823cbed256fc0bef35fa95a6ec3a04e7be43728bf158ddbcffb2027abea65fe",
+      "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+      "runtime_archive_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "consumer_sha256": "20a59759092c187ed78f6f878373fd5849804bf3874dc436116e8496bdb1a87f",
+      "llvm_sha256": "e7addbdfde925df62f6009b95e5dddc9623aba78101c0451197565e73b48e222",
+      "normal_peak_bytes": 1283,
+      "poison_peak_bytes": 416963
+    },
+    {
+      "suite": "float32",
+      "frontend": "rust",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-raw-number-affected-rust-v1-results.json",
+      "receipt_sha256": "f823cbed256fc0bef35fa95a6ec3a04e7be43728bf158ddbcffb2027abea65fe",
+      "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+      "runtime_archive_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "consumer_sha256": "69dfadc0cbd04ecdf3be3c21ae17e213313262842ea05d36f32835e59f0355a3",
+      "llvm_sha256": "404668907f572df6f75f83b3ebd5d115893e1c698fd1b263f2db5ac9f3073b6a",
+      "normal_peak_bytes": 60142,
+      "poison_peak_bytes": 59381069
+    },
+    {
+      "suite": "number",
+      "frontend": "native-raw",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-raw-number-affected-number-native-raw-v1-results.json",
+      "receipt_sha256": "4fd53b510d80a2408ba38ba17958c265ad7f231d58b619527b837a319b0cbcad",
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "runtime_archive_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "consumer_sha256": "08e88d1194da4f9bbe99ed330553b5675e8608ba60a9d0e0aac4421eee9e0eec",
+      "llvm_sha256": "307fedf1139210d80e0d51fa035d33a83e79420861f4fc28f9fe43fa04effdd3",
+      "normal_peak_bytes": 1297,
+      "poison_peak_bytes": 9185
+    },
+    {
+      "suite": "float",
+      "frontend": "native-raw",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-raw-number-affected-float-native-raw-v1-results.json",
+      "receipt_sha256": "9d96f1e90c4ce6ad47dc3ee0ead3c598b1d54fd30428b4ac4a5372261f95f471",
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "runtime_archive_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "consumer_sha256": "20a59759092c187ed78f6f878373fd5849804bf3874dc436116e8496bdb1a87f",
+      "llvm_sha256": "13aea2e9f4bd83738e79d912bdb3d49d6ec520b75a1e8b186d84a5b92fb24809",
+      "normal_peak_bytes": 1409,
+      "poison_peak_bytes": 254535
+    },
+    {
+      "suite": "float32",
+      "frontend": "native-raw",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-raw-number-affected-float32-native-raw-v1-results.json",
+      "receipt_sha256": "b6f70f5dcdf3045cb01bd3108a650cde58e8b2b01ac8acf5ecad3ec80350076d",
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "runtime_archive_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "consumer_sha256": "69dfadc0cbd04ecdf3be3c21ae17e213313262842ea05d36f32835e59f0355a3",
+      "llvm_sha256": "5e63234339617cf4d9a675cb44ee48c5c47c0bc6cf86503e3172d4001dd42341",
+      "normal_peak_bytes": 111508,
+      "poison_peak_bytes": 61540467
+    }
+  ],
+  "independent_observations_per_frontend": {
+    "raw_number": 285,
+    "quoted_number_updates": 13,
+    "long_significand_cancellation": 6,
+    "production_rounding_integer_models": 794
+  },
+  "owner_api_control_groups_per_frontend": 6,
+  "retained_midpoint_pipelines_per_owner_run": 512,
+  "affected_existing_observations_per_frontend": {
+    "checked_number": 25,
+    "binary64": 163,
+    "binary32": 600
+  },
+  "reference_generator_sha256": "3a78c5c18ed3b989a41040413bbd3d72dacd322c5c298e4c07f490d5e85f04de",
+  "reference_fixtures": {
+    "raw-number": "afd196502ebe8c2316619414524ea5069345e31fea25bf7e3bd2a7f7e3df1310",
+    "raw-number-edge": "64d4b062fc6ab12512736f83c557bfb93e059185fd4402d7bf61c8ea5b60b708",
+    "raw-number-kernel": "b924f3be150011201a30978a5345ecdbdb42c45f226f402bb85394f3be7909d8"
+  },
+  "portable_receipt": "bootstrap/stdlib-json-raw-number-foreign-results.json",
+  "portable_receipt_sha256": "0895d19297d4ffd89df94fcff81d807239e00f0a9daa9f82df4921d46bcee383",
+  "raw_byte_adaptation": "Scalar and byte factories are explicit. Exact number/error byte views preserve original invalid UTF-8; scalar String views replace each malformed byte. Numeric errors carry function, original input and syntax/range enum, without claiming arbitrary runtime-error identity.",
+  "integer_review": "Parse signed decimal through a bounded unsigned64 prefix first. Syntax returns zero; overflow returns the signed endpoint. Prefix unsigned overflow may precede a later invalid character, while signed range is checked after complete unsigned parsing.",
+  "float_review": "Validate decimal separators or hexadecimal grammar completely before conversion. Retain sixteen significant hex nibbles plus sticky omitted bits, exact digit/fraction counts and exponent bounded by four times input length plus 2048. Round directly to IEEE64 normals/subnormals, preserving signed zero and overflow infinity. One-block LLVM clamps every evaluated shift and selects defined zero/64/wide outputs.",
+  "nan_scope": "IEEE NaN classification is asserted; unspecified NaN payload identity is not claimed.",
+  "historical_attempts": "Rust v1 stopped at an explicit nonnegative-distance obligation; v2 stopped at prohibited br/jump containment in the initial helper. Guard and branchless-select source corrections precede the selected successful v3. No checker, runtime or compiler mode was changed.",
+  "parent_owned_checks_pending": [
+    "Expanded Cargo lib_json_codec/lib_json_value targets",
+    "Actual new primitives on PPC big-endian",
+    "Integration/provider/full-suite gates"
+  ],
+  "performance_status": "No JSON speedup claimed; paired public pipelines and lowering review remain open.",
+  "full_scope_remaining": [
+    "Dynamic JsonAny and legacy bridges",
+    "Complete containing-record/error metadata and independent method capabilities",
+    "Real bounded incremental Effect.Json Decoder/Encoder",
+    "Paired public pipeline benchmarks and precise all-92-record final review"
+  ]
+}

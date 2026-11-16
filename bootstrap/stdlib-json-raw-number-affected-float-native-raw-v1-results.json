@@ -1,0 +1,97 @@
+{
+  "description": "Independent configurable JSON consumers; normal reclamation and separate poisoned-free validation",
+  "frontend": "native-raw",
+  "opt_level": 2,
+  "native_link_policy": "explicit raw CLI plus clang optimization",
+  "runner_sha256": "92958860e663fbf6b9adb62b244ec1ce65592be0b88f01e736a13b51d032d2ed",
+  "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+  "sources": {
+    "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+    "Text.Json.Value": "5b44b8760e6733e9f30f08082649a85faaf74d6f39e10741c10b3842a6cc86f7",
+    "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "Text.Json.Codec": "a82979e9c5b8039b3438411419242ba5623dc1b81bbd23744d5c85241a6d0603"
+  },
+  "fixture_sha256": "0e1cf2647c83c0f9602e5430ed18025a7f1536ff2c2adaf9139363b0533de6b8",
+  "reference_fixtures": {
+    "float": "f777aa5736fb9ad332d2928b6d0c3ff707a5075f2ffb523689502a30dc1d9b21"
+  },
+  "cpu_affinity": [
+    2
+  ],
+  "compiler_host_stack_kib": 65536,
+  "consumer_stack_limit": "8M",
+  "suites": [
+    {
+      "suite": "float",
+      "consumer_source_sha256": "20a59759092c187ed78f6f878373fd5849804bf3874dc436116e8496bdb1a87f",
+      "llvm_sha256": "13aea2e9f4bd83738e79d912bdb3d49d6ec520b75a1e8b186d84a5b92fb24809",
+      "build_seconds": 38.08912265500112,
+      "runs": [
+        {
+          "poisoned_free_validation": false,
+          "heap_limit": "32M",
+          "stdout": "0\n",
+          "stats": {
+            "blocks": 12607,
+            "bytes": 284049,
+            "peak": 1409,
+            "header-blocks": 10658,
+            "header-bytes": 253264,
+            "immortal": 0,
+            "freed": 10658,
+            "live": 0
+          },
+          "leaked": 0
+        },
+        {
+          "poisoned_free_validation": true,
+          "heap_limit": "256M",
+          "stdout": "0\n",
+          "stats": {
+            "blocks": 12607,
+            "bytes": 284049,
+            "peak": 254535,
+            "header-blocks": 10658,
+            "header-bytes": 253264,
+            "immortal": 0,
+            "freed": 10658,
+            "live": 0
+          },
+          "leaked": 0
+        }
+      ]
+    }
+  ],
+  "observed_runtime_archive_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "native_compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+  "interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+  "objects_manifest_sha256": "22ab850df180636adac27eafb7a789dfd89009000c572b194c05d0a192bc5624",
+  "provider_object_sha256": "46a7e57f467dd36135238903910feee82998526cbb3edaa94580a2a40ba47e64",
+  "raw_compile_command": [
+    "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+    "--emit-ir",
+    "--rc-debug",
+    "--interfaces",
+    "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+    "--objects",
+    "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/objects.json",
+    "/workspace/dasl-stdlib-json/build/json-raw-number-affected-float-native-raw-v1/float/Bundle.cinch",
+    "/workspace/dasl-stdlib-json/build/json-raw-number-affected-float-native-raw-v1/float/consumer.ll"
+  ],
+  "raw_link_command": [
+    "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+    "-O2",
+    "/workspace/dasl-stdlib-json/build/json-raw-number-affected-float-native-raw-v1/float/consumer.ll",
+    "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/provider/library.o",
+    "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/libcinchruntime.a",
+    "-ldl",
+    "-lpthread",
+    "-lm",
+    "-o",
+    "/workspace/dasl-stdlib-json/build/json-raw-number-affected-float-native-raw-v1/float/consumer"
+  ]
+}

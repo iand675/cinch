@@ -71,12 +71,12 @@ def main() -> None:
         parser.error("raw Native linking requires its exact --runtime-receipt archive")
     compiler = args.compiler.resolve()
     modules = dict(MODULES)
-    if any(suite in {"typed", "codec-control", "float", "float32", "float32-control", "field", "integer", "binary", "binary-control", "map", "map-encode", "map-control", "dynamic"} for suite in args.suites):
+    if any(suite in {"typed", "codec-control", "float", "float32", "float32-control", "raw-number", "raw-number-edge", "raw-number-control", "field", "integer", "binary", "binary-control", "map", "map-encode", "map-control", "dynamic"} for suite in args.suites):
         modules["Text.Base64.Encoding"] = ROOT / "compiler/prelude/Text/Base64/Encoding.cinch"
         modules["Text.Json.Codec"] = ROOT / "compiler/prelude/Text/Json/Codec.cinch"
     frozen_modules = {name: path.read_bytes() for name, path in modules.items()}
     frozen_consumers = {suite: (ROOT / f"compiler/tests/fixtures/json-codec-{suite}.cinch").read_bytes() for suite in args.suites}
-    reference_paths = {suite: ROOT / (f"compiler/tests/fixtures/json-codec-{suite}-vectors.json" if suite in {"float", "float32", "field", "integer", "binary", "map", "map-encode"} else "compiler/tests/fixtures/json-codec-vectors.json") for suite in args.suites}
+    reference_paths = {suite: ROOT / (f"compiler/tests/fixtures/json-codec-{suite}-vectors.json" if suite in {"float", "float32", "raw-number", "raw-number-edge", "raw-number-kernel", "field", "integer", "binary", "map", "map-encode"} else "compiler/tests/fixtures/json-codec-vectors.json") for suite in args.suites}
     report = {
         "description": "Independent configurable JSON consumers; normal reclamation and separate poisoned-free validation",
         "frontend": args.frontend, "opt_level": args.opt_level if args.frontend in {"rust", "native-raw"} else 0,
