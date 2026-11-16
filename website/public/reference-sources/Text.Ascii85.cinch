@@ -20,6 +20,8 @@ module Text.Ascii85 where
   export ascii85-error-offset, ascii85-error-message
   export Ascii85Encoder, Ascii85Decoder
   export ascii85-max-encoded-length, ascii85-encode, ascii85-decode, ascii85-decode-bytes
+  export Ascii85BufferError, Ascii85ShortDestination, Ascii85InvalidSourceOffset, Ascii85InvalidDestinationOffset, ascii85-buffer-error-message
+  export ascii85-encode-bytes, ascii85-encode-into, ascii85-decode-prefix, ascii85-decode-into, ascii85-decode-at
   export ascii85-encoder, ascii85-encoder-feed, ascii85-encoder-finish
   export ascii85-decoder, ascii85-decoder-feed, ascii85-decoder-finish
 
@@ -71,14 +73,6 @@ module Text.Ascii85 where
       let out = bytes-new n in
       let copied = bytes-copy-range out b 0 0 n in out
     else bytes-new 0
-
-  -- | Join independently owned output chunks without retaining mutable aliases.
-  join :: Bytes -> Bytes -> Bytes
-  join first last =
-    let n = bytes-len first in
-    let out = bytes-new (n + bytes-len last) in
-    let a = bytes-copy-range out first 0 0 n in
-    let b = bytes-copy-range out last n 0 (bytes-len last) in out
 
   -- | Normalize a little-endian input word to the encoding's big-endian order.
   prim reverse-word :: U32 -> U32 where
@@ -141,10 +135,9 @@ module Text.Ascii85 where
 
   -- | Encode a complete buffer without document delimiters or inserted whitespace.
   ascii85-encode :: Bytes -> String
-  ascii85-encode b = case ascii85-encoder-feed ascii85-encoder b of
-    (out, state) -> case string-from-bytes (join out (ascii85-encoder-finish state)) of
-      Some text -> text
-      None -> empty-string
+  ascii85-encode b = case string-from-bytes (ascii85-encode-bytes b) of
+    Some text -> text
+    None -> empty-string
 
   -- | Load five ASCII bytes without reading beyond the proved input range.
   read-five :: using (i + 5 <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> U64
@@ -168,7 +161,9 @@ module Text.Ascii85 where
   decode-byte b i out oi acc count offset =
     if i < bytes-len b then
       let byte = bytes-get b i in
-      if byte <= 32 then decode-from b (i + 1) out oi acc count offset
+      if byte <= 32 then
+        if i + 8 <= bytes-len b && control-word (bytes-read-le64 b i) then decode-from b (i + 8) out oi acc count offset
+        else decode-from b (i + 1) out oi acc count offset
       else if byte == 122 && count == 0 && oi + 4 <= bytes-len out then
         let written = bytes-write-le32 out oi 0 in
         decode-from b (i + 1) out (oi + 4) 0 0 offset
@@ -209,16 +204,164 @@ module Text.Ascii85 where
 
   -- | Decode a complete byte buffer. Control bytes through space are ignored; framing is invalid.
   ascii85-decode-bytes :: Bytes -> Result Ascii85Error Bytes
-  ascii85-decode-bytes b = case ascii85-decoder-feed ascii85-decoder b of
-    Err error -> Err error
-    Ok pair -> case pair of
-      (out, state) -> case ascii85-decoder-finish state of
-        Err error -> Err error
-        Ok tail -> Ok (join out tail)
+  ascii85-decode-bytes b = case ascii85-decode-prefix b True of
+    (out, consumed, None) -> Ok out
+    (out, consumed, Some error) -> Err error
 
   -- | Decode complete text with error positions measured in UTF-8 input bytes.
   ascii85-decode :: String -> Result Ascii85Error Bytes
   ascii85-decode text = ascii85-decode-bytes (string-to-bytes text)
+
+  -- | Copy source bytes only when their address interval overlaps the destination.
+  -- Both owners remain live in the caller; pointer values never escape this comparison.
+  -- Distinct destinations avoid copying an unconsumed source suffix on each small decoding call.
+  source-for-write :: Bytes -> Bytes -> Bytes
+  source-for-write destination input =
+    if address-overlap (bytes-data destination) (nat-to-i64 (bytes-len destination)) (bytes-data input) (nat-to-i64 (bytes-len input)) then prefix input (bytes-len input)
+    else input
+
+  -- | A source offset or destination interval is outside its accessible buffer.
+  data Ascii85BufferError where
+    -- | Required bytes and available bytes; the destination has not been changed.
+    Ascii85ShortDestination :: Nat -> Nat -> Ascii85BufferError
+    -- | Requested source offset and source length; no destination bytes were changed.
+    Ascii85InvalidSourceOffset :: Nat -> Nat -> Ascii85BufferError
+    -- | Requested destination offset and destination length; no bytes were changed.
+    Ascii85InvalidDestinationOffset :: Nat -> Nat -> Ascii85BufferError
+
+  -- | Render an interval diagnostic with the requested size or offset and its available bound.
+  ascii85-buffer-error-message :: Ascii85BufferError -> String
+  ascii85-buffer-error-message error = case error of
+    Ascii85ShortDestination required available -> string-concat "ASCII85 output requires " (string-concat (nat-to-string required) (string-concat " bytes; available " (nat-to-string available)))
+    Ascii85InvalidSourceOffset requested available -> string-concat "ASCII85 source offset " (string-concat (nat-to-string requested) (string-concat " exceeds byte length " (nat-to-string available)))
+    Ascii85InvalidDestinationOffset requested available -> string-concat "ASCII85 destination offset " (string-concat (nat-to-string requested) (string-concat " exceeds byte length " (nat-to-string available)))
+
+  -- | Encode a complete buffer to fresh ASCII bytes, including an exact short final word.
+  ascii85-encode-bytes :: Bytes -> Bytes
+  ascii85-encode-bytes input =
+    let out = bytes-new (ascii85-max-encoded-length (bytes-len input)) in
+    let end = encode-to input 0 out 0 in prefix out end
+
+  -- | Encode at a destination offset and return the actual byte count, including zero-word shorthand.
+  -- Capacity must hold ascii85-max-encoded-length; rejection precedes all writes.
+  -- Source and destination may overlap: overlapping input is snapshotted before mutation.
+  ascii85-encode-into :: Bytes -> Nat -> Bytes -> Result Ascii85BufferError Nat
+  ascii85-encode-into destination start input =
+    let required = ascii85-max-encoded-length (bytes-len input) in
+    if start <= bytes-len destination then
+      if required <= bytes-len destination - start then
+        let source = source-for-write destination input in
+        let end = encode-to source 0 destination start in Ok (saturating-sub end start)
+      else Err (Ascii85ShortDestination required (bytes-len destination - start))
+    else Err (Ascii85InvalidDestinationOffset start (bytes-len destination))
+
+  -- | Encode complete words directly into the checked output interval using SIMD digit arithmetic.
+  encode-to :: Bytes -> Nat -> Bytes -> Nat -> Nat
+  encode-to input i out oi =
+    if i + 4 <= bytes-len input && oi + 5 <= bytes-len out then
+      let next = emit out oi (reverse-word (bytes-read-le32 input i)) in
+      encode-to input (i + 4) out next
+    else if i < bytes-len input && oi + 5 <= bytes-len out then
+      case encode-tail-word input i 0 0 of
+        (acc, count) -> if count > 0 && count < 4 then
+          let shift = wrapping-i64-to-u32 (nat-to-i64 ((4 - count) * 8)) in
+          let word = encode-word (wrapping-shl-u32 acc shift) in
+          let copied = put-packed-prefix out oi word (count + 1) 0 in oi + count + 1
+          else oi
+    else oi
+
+  -- | Assemble at most three final bytes in input order without extending the caller's interval.
+  encode-tail-word :: Bytes -> Nat -> U32 -> Nat -> (U32, Nat)
+  encode-tail-word input i acc count =
+    if i < bytes-len input && count < 3 then
+      let byte = wrapping-i64-to-u32 (nat-to-i64 (bytes-get input i)) in
+      encode-tail-word input (i + 1) (bit-or-u32 (wrapping-shl-u32 acc 8) byte) (count + 1)
+    else (acc, count)
+
+  -- | Store an exact short prefix of a little-endian packed word; no padding bytes are exposed.
+  put-packed-prefix :: Bytes -> Nat -> U64 -> Nat -> Nat -> Unit
+  put-packed-prefix out start word count i =
+    if i < count && i < 5 && start + i < bytes-len out then
+      let shift = wrapping-i64-to-u32 (nat-to-i64 (i * 8)) in
+      let byte = u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 word shift)) in
+      let stored = bytes-set out (start + i) byte in
+      put-packed-prefix out start word count (i + 1)
+    else ()
+
+  -- | Decode into an existing interval and return written bytes, consumed input and an optional error.
+  -- A full quantum requires four available bytes; insufficient space returns completed progress.
+  -- With finish False, consumed input ends at the last full group so its unfinished suffix can be retried.
+  -- With finish True, valid short tails are emitted and all input is consumed. On malformed input,
+  -- completed output and its consumed boundary remain available alongside the absolute byte error.
+  -- An offset beyond the destination is rejected before mutation; overlapping input is snapshotted.
+  ascii85-decode-into :: Bytes -> Nat -> Bytes -> Bool -> Result Ascii85BufferError (Nat, Nat, Option Ascii85Error)
+  ascii85-decode-into destination start input finish = ascii85-decode-at destination start input 0 finish
+
+  -- | Decode from a checked source offset without copying an unconsumed suffix into a new input buffer.
+  -- Return written bytes and the number consumed from that offset. Errors retain their absolute
+  -- original-buffer positions. A caller can add the consumed count to its next source offset.
+  -- Four available destination bytes permit progress; final short output occupies only its actual bytes.
+  -- Overlapping intervals snapshot the source before writing; disjoint buffers keep their original owners.
+  ascii85-decode-at :: Bytes -> Nat -> Bytes -> Nat -> Bool -> Result Ascii85BufferError (Nat, Nat, Option Ascii85Error)
+  ascii85-decode-at destination start input source-start finish =
+    if start <= bytes-len destination then
+      if source-start <= bytes-len input then
+        let source = source-for-write destination input in
+        case decode-to source source-start destination start source-start 0 0 finish of
+          (end, consumed, error) -> Ok (saturating-sub end start, saturating-sub consumed source-start, error)
+      else Err (Ascii85InvalidSourceOffset source-start (bytes-len input))
+    else Err (Ascii85InvalidDestinationOffset start (bytes-len destination))
+
+  -- | Decode to fresh bytes while exposing completed output, consumed input and any malformed suffix.
+  -- A non-final call leaves an unfinished quantum in the input suffix rather than hidden state.
+  ascii85-decode-prefix :: Bytes -> Bool -> (Bytes, Nat, Option Ascii85Error)
+  ascii85-decode-prefix input finish =
+    let out = bytes-new (bytes-len input * 4) in
+    case decode-to input 0 out 0 0 0 0 finish of
+      (end, consumed, error) -> (prefix out end, consumed, error)
+
+  -- | Decode complete five-symbol groups in SIMD lanes before exact control, shorthand and error handling.
+  decode-to :: Bytes -> Nat -> Bytes -> Nat -> Nat -> U32 -> Nat -> Bool -> (Nat, Nat, Option Ascii85Error)
+  decode-to input i out oi boundary acc count finish =
+    if i < bytes-len input then
+      if oi + 4 <= bytes-len out then
+        if count == 0 && i + 5 <= bytes-len input then
+          let decoded = decode-word (read-five input i) in
+          if eq-u64 (wrapping-shr-u64 decoded 32) 0 then
+            let written = bytes-write-le32 out oi (reverse-word (wrapping-u64-to-u32 decoded)) in
+            decode-to input (i + 5) out (oi + 4) (i + 5) 0 0 finish
+          else decode-to-byte input i out oi boundary acc count finish
+        else decode-to-byte input i out oi boundary acc count finish
+      else (oi, boundary, None)
+    else if finish then
+      if count == 1 then (oi, boundary, Some (TruncatedAscii85Quantum (bytes-len input)))
+      else if count > 1 && count < 5 && oi + 4 <= bytes-len out then
+        let word = u32-to-u64 (reverse-word (pad-word acc count)) in
+        let written = put-packed-prefix out oi word (count - 1) 0 in
+        (oi + count - 1, bytes-len input, None)
+      else (oi, bytes-len input, None)
+    else (oi, boundary, None)
+
+  -- | Consume one original byte while retaining the last completed source/output boundary on failure.
+  decode-to-byte :: Bytes -> Nat -> Bytes -> Nat -> Nat -> U32 -> Nat -> Bool -> (Nat, Nat, Option Ascii85Error)
+  decode-to-byte input i out oi boundary acc count finish =
+    if i < bytes-len input && oi + 4 <= bytes-len out then
+      let byte = bytes-get input i in
+      if byte <= 32 then
+        if i + 8 <= bytes-len input && control-word (bytes-read-le64 input i) then decode-to input (i + 8) out oi boundary acc count finish
+        else decode-to input (i + 1) out oi boundary acc count finish
+      else if byte == 122 && count == 0 then
+        let written = bytes-write-le32 out oi 0 in
+        decode-to input (i + 1) out (oi + 4) (i + 1) 0 0 finish
+      else if byte >= 33 && byte <= 117 then
+        let digit = wrapping-i64-to-u32 (nat-to-i64 (byte - 33)) in
+        let word = wrapping-add-u32 (wrapping-mul-u32 acc 85) digit in
+        if count == 4 then
+          let written = bytes-write-le32 out oi (reverse-word word) in
+          decode-to input (i + 1) out (oi + 4) (i + 1) 0 0 finish
+        else decode-to input (i + 1) out oi boundary word (count + 1) finish
+      else (oi, boundary, Some (InvalidAscii85Byte i byte))
+    else (oi, boundary, None)
 
   -- | Compute four base-85 digits in SIMD lanes and pack all five ASCII bytes
   -- in a target-independent little-endian machine word.
@@ -297,4 +440,36 @@ module Text.Ascii85 where
       %lower = zext i32 %value to i64
       %result = or i64 %upper, %lower
       ret i64 %result
+    }
+
+
+  -- | Recognize eight ignored control bytes in parallel without changing their original source count.
+  -- The all-lanes predicate is independent of byte order; short or mixed runs retain scalar handling.
+  prim control-word :: U64 -> Bool where
+    llvm {
+      %word = or i64 %0, 0
+      %bytes = bitcast i64 %word to <8 x i8>
+      %control = icmp ule <8 x i8> %bytes, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %mask = bitcast <8 x i1> %control to i8
+      %all = icmp eq i8 %mask, -1
+      %result = zext i1 %all to i8
+      ret i8 %result
+    }
+
+
+  -- | Compare two live buffer intervals by unsigned distances, avoiding end-address overflow.
+  -- Lengths come from bounded buffer lengths; empty intervals never overlap.
+  prim address-overlap :: I64 -> I64 -> I64 -> I64 -> Bool where
+    llvm {
+      %ab = sub i64 %0, %2
+      %a-in-b = icmp ult i64 %ab, %3
+      %ba = sub i64 %2, %0
+      %b-in-a = icmp ult i64 %ba, %1
+      %touch = or i1 %a-in-b, %b-in-a
+      %a-present = icmp ne i64 %1, 0
+      %b-present = icmp ne i64 %3, 0
+      %present = and i1 %a-present, %b-present
+      %overlap = and i1 %touch, %present
+      %result = zext i1 %overlap to i8
+      ret i8 %result
     }

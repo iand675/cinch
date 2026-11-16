@@ -421,36 +421,40 @@
     },
     {
       "reference_package": "encoding/ascii85",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
         "Effect.Ascii85",
         "Text.Ascii85"
       ],
-      "remaining": [
-        "caller-supplied destination buffers with consumed/written counts",
-        "return decoded prefix and input progress alongside a malformed-input error",
-        "reduce remaining allocation and ownership overhead identified by independent public API benchmarks"
-      ],
+      "remaining": [],
       "reference_declarations": 7,
       "tests": [
-        "lib_ascii85::ascii85_matches_independent_vectors_and_all_chunk_splits",
-        "lib_ascii85::ascii85_stream_adapters_preserve_chunk_and_failure_contracts"
+        "lib_ascii85",
+        "lib_ascii85_buffers"
       ],
       "benchmarks": [
         "ascii85-encode",
         "ascii85-decode",
         "ascii85-stream-encode",
-        "ascii85-stream-decode"
+        "ascii85-stream-decode",
+        "ascii85-bytes-encode",
+        "ascii85-into-encode",
+        "ascii85-into-decode",
+        "ascii85-prefix-decode",
+        "ascii85-controls-decode",
+        "ascii85-controls-prefix-decode",
+        "ascii85-offset-decode"
       ],
       "capability_mapping": {
-        "Encode": "ascii85-encode and ascii85-encoder-feed produce complete or incremental owned output",
-        "Decode": "ascii85-decode[-bytes], ascii85-decoder-feed and ascii85-decoder-finish handle buffers, nonfinal input and EOF",
-        "MaxEncodedLen": "ascii85-max-encoded-length",
-        "NewDecoder": "ascii85-reader composes with ByteReader and retains incomplete input and decoded surplus",
-        "NewEncoder": "ascii85-writer, ascii85-write and ascii85-finish compose with ByteWriter; finish flushes without closing a borrowed descriptor",
-        "CorruptInputError and Error": "Ascii85Error, ascii85-error-offset and ascii85-error-message; stream errors retain format, absolute input offset and diagnostic"
+        "Encode": "ascii85-encode-into writes a checked caller interval and returns its actual count; ascii85-encode-bytes and ascii85-encode provide fresh buffer and text conveniences",
+        "Decode": "ascii85-decode-into exposes completed output, consumed input and an optional codec error with a finish flag; ascii85-decode-at adds checked source offsets for repeated small destinations without copying unread suffixes; ascii85-decode-prefix allocates fresh output",
+        "MaxEncodedLen": "ascii85-max-encoded-length gives the complete safe output bound, including a full final allocation",
+        "NewEncoder": "Effect.Ascii85.ascii85-writer, ascii85-write and ascii85-finish use explicit advanced continuations and flush the final quantum without closing the underlying sink",
+        "NewDecoder": "Effect.Ascii85.ascii85-reader implements bounded input fetches, incremental pending symbols and sticky stream failures",
+        "CorruptInputError": "InvalidAscii85Byte and TruncatedAscii85Quantum preserve original byte positions; ascii85-error-offset projects the position",
+        "CorruptInputError.Error": "ascii85-error-message renders codec diagnostics; separate Ascii85BufferError cases and ascii85-buffer-error-message describe source/destination offset and capacity failures"
       },
-      "review": "All seven reference declarations mapped to implemented capabilities. Partial status retains the output/progress API differences and measured performance work explicitly."
+      "review": "All seven reference declarations have functional mappings. Independent wire fixtures, 924 finite-capacity/finalization cases, every byte in each digit position after a valid group, all two-chunk splits, expanding overlapping shorthand, preserved invalid-byte snapshots and checked offsets pass with both compilers. On malformed input the reference implementation resets reported counts after writing complete groups; independent successful non-final decoding of its valid prefix recovers those boundaries for the stronger prefix-preserving Cinch API. SIMD handles complete groups and eight control bytes; unsigned inline LLVM interval checks avoid snapshots for disjoint buffers. ARM64 and big-endian PowerPC compile the kernels without claiming execution there. Independent public pipeline checksums and retained timing/allocation ablations are reviewed; complete means functional coverage, not equal object mutation, allocation complexity or throughput. Existing stream adapters can still copy buffered output on small reads."
     },
     {
       "reference_package": "encoding/asn1",

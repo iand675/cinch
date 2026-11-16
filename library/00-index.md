@@ -140,7 +140,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | Module | Distribution | Purpose |
 | --- | --- | --- |
 | [Text.Args](Text.Args.md) | Ship source | Command-line argument processing and its named value/error vocabulary. |
-| [Text.Ascii85](Text.Ascii85.md) | Ship source | ASCII85 buffer and incremental codecs with SIMD word quanta, zero-word compression, byte-offset errors and explicit finalization. |
+| [Text.Ascii85](Text.Ascii85.md) | Ship source | ASCII85 text, caller-buffer and incremental codecs with consumed-input progress, checked source offsets, SIMD groups and control-run scanning. |
 | [Text.Base32](Text.Base32.md) | Ship source | RFC 4648 standard and extended-hex Base32, with padded and raw forms and named decoding errors. |
 | [Text.Base64](Text.Base64.md) | Ship source | Base64 encoding/decoding over bytes with explicit invalid-input results. |
 | [Text.Binary](Text.Binary.md) | Ship source | Little- and big-endian integer encoding, checked buffer access, and signed/unsigned varints. |

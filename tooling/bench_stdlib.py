@@ -35,6 +35,8 @@ WORKLOADS = (
     "hex-append-encode", "hex-append-decode", "hex-into-encode", "hex-into-decode",
     "hex-dump", "hex-stream-encode", "hex-stream-decode", "hex-stream-dump",
     "hex-bytes-encode", "hex-prefix-decode",
+    "ascii85-bytes-encode", "ascii85-into-encode", "ascii85-into-decode", "ascii85-prefix-decode",
+    "ascii85-controls-decode", "ascii85-controls-prefix-decode", "ascii85-offset-decode",
 )
 
 SOURCE = r'''-- | Executable workload driver; output is elapsed_ns and an observable checksum.
@@ -230,7 +232,38 @@ module Main where
     else if eq-u32 mode __CODE_hex-prefix-decode__ then case hex-decode-prefix b of
       (out, None) -> fingerprint out
       _ -> 1000000000
+    else if eq-u32 mode __CODE_ascii85-bytes-encode__ then fingerprint (ascii85-encode-bytes b)
+    else if eq-u32 mode __CODE_ascii85-into-encode__ then
+      let out = bytes-new (ascii85-max-encoded-length (bytes-len b) + 2) in
+      case ascii85-encode-into out 1 b of
+        Err error -> 1000000000
+        Ok count -> count + fingerprint out + sample-byte out 1 + sample-byte out 2
+    else if eq-u32 mode __CODE_ascii85-into-decode__ then
+      let out = bytes-new (bytes-len b * 4 + 2) in
+      case ascii85-decode-into out 1 b True of
+        Err error -> 1000000000
+        Ok (count, used, None) -> count + used + fingerprint out + sample-byte out 1 + sample-byte out 2
+        _ -> 1000000000
+    else if eq-u32 mode __CODE_ascii85-prefix-decode__ || eq-u32 mode __CODE_ascii85-controls-prefix-decode__ then
+      case ascii85-decode-prefix b True of
+        (out, used, None) -> fingerprint out + used
+        _ -> 1000000000
+    else if eq-u32 mode __CODE_ascii85-controls-decode__ then case ascii85-decode (text b) of
+      Err error -> 1000000000
+      Ok out -> fingerprint out
+    else if eq-u32 mode __CODE_ascii85-offset-decode__ then ascii85-offset-fingerprint b (bytes-new 4) 0 0
     else 1000000000
+
+  -- | Observe each small returned interval and advance through the same source owner by offset.
+  ascii85-offset-fingerprint :: Bytes -> Bytes -> Nat -> Nat -> Nat
+  ascii85-offset-fingerprint input out at total = case ascii85-decode-at out 0 input at True of
+    Err error -> 1000000000
+    Ok (n, used, None) ->
+      let chunk = if n > 0 && n <= bytes-len out then n + sample-byte out 0 + sample-byte out (n - 1) else 0 in
+      if at + used == bytes-len input then total + chunk + at + used
+      else if used > 0 then ascii85-offset-fingerprint input out (at + used) (total + chunk)
+      else 1000000000
+    _ -> 1000000000
 
   -- | Fold every 32-bit lane of a wide hash into the bounded observable checksum.
   wide-fingerprint :: (U64, U64) -> Nat
@@ -250,6 +283,19 @@ module Main where
   hex-decoding :: String -> Bool
   hex-decoding mode = mode == "hex-decode" || mode == "hex-append-decode" || mode == "hex-into-decode" || mode == "hex-stream-decode" || mode == "hex-prefix-decode"
 
+  -- | Select complete and finite-destination ASCII85 decoding input before timing.
+  ascii85-decoding :: String -> Bool
+  ascii85-decoding mode = mode == "ascii85-decode" || mode == "ascii85-stream-decode" || mode == "ascii85-into-decode" || mode == "ascii85-prefix-decode" || mode == "ascii85-controls-decode" || mode == "ascii85-controls-prefix-decode" || mode == "ascii85-offset-decode"
+
+  -- | Prefix 4096 ignored control bytes to measure control-run scanning separately from ordinary groups.
+  ascii85-input :: String -> Bytes -> Bytes
+  ascii85-input mode input =
+    let encoded = ascii85-encode-bytes input in
+    if mode == "ascii85-controls-decode" || mode == "ascii85-controls-prefix-decode" then
+      let out = bytes-new (4096 + bytes-len encoded) in
+      let copied = bytes-copy-range out encoded 4096 0 (bytes-len encoded) in out
+    else encoded
+
   -- | Prepare valid encoded inputs outside timing for decoding workloads.
   prepare :: String -> Bytes -> Bytes
   prepare mode b =
@@ -257,7 +303,7 @@ module Main where
     if hex-decoding mode then string-to-bytes (hex-encode b)
     else if mode == "base32-decode" then string-to-bytes (base32-encode Base32Standard b)
     else if mode == "base64-decode" then string-to-bytes (base64-encode b)
-    else if mode == "ascii85-decode" || mode == "ascii85-stream-decode" then string-to-bytes (ascii85-encode b)
+    else if ascii85-decoding mode then ascii85-input mode b
     else if mode == "utf16le-decode" then utf16-encode-bytes LittleEndian (text b)
     else if mode == "utf16be-decode" then utf16-encode-bytes BigEndian (text b)
     else b
@@ -267,14 +313,16 @@ module Main where
   change-byte mode iteration =
     if eq-u32 mode __CODE_hex-decode__ || eq-u32 mode __CODE_hex-append-decode__ || eq-u32 mode __CODE_hex-into-decode__ || eq-u32 mode __CODE_hex-stream-decode__ || eq-u32 mode __CODE_hex-prefix-decode__ then 48 + nat-rem iteration 10
     else if eq-u32 mode __CODE_base32-decode__ || eq-u32 mode __CODE_base64-decode__ then 65 + nat-rem iteration 26
-    else if eq-u32 mode __CODE_ascii85-decode__ || eq-u32 mode __CODE_ascii85-stream-decode__ then 33 + nat-rem iteration 85
+    else if eq-u32 mode __CODE_ascii85-decode__ || eq-u32 mode __CODE_ascii85-stream-decode__ || (ge-u32 mode __CODE_ascii85-into-decode__ && le-u32 mode __CODE_ascii85-offset-decode__) then 33 + nat-rem iteration 85
     else if (ge-u32 mode __CODE_utf16le-encode__ && le-u32 mode __CODE_utf16be-decode__) then nat-rem iteration 128
     else nat-rem iteration 256
 
   -- | Mutate a proved byte position before each operation, including decoders.
   change :: U32 -> Bytes -> Nat -> Unit
   change mode b iteration =
-    if eq-u32 mode __CODE_utf16be-decode__ && 1 < bytes-len b then bytes-set b 1 (change-byte mode iteration)
+    if eq-u32 mode __CODE_ascii85-controls-decode__ || eq-u32 mode __CODE_ascii85-controls-prefix-decode__ then
+      (if 4096 < bytes-len b then bytes-set b 4096 (change-byte mode iteration) else ())
+    else if eq-u32 mode __CODE_utf16be-decode__ && 1 < bytes-len b then bytes-set b 1 (change-byte mode iteration)
     else if 0 < bytes-len b then
       bytes-set b 0 (change-byte mode iteration)
     else ()
@@ -322,8 +370,9 @@ resolver.append("    else 4294967295")
 SOURCE = SOURCE.replace("  -- | Time only the repeated workload", "\n".join(resolver) + "\n\n  -- | Time only the repeated workload")
 
 
-def source_closure(entry: str) -> dict[str, Path]:
+def source_closure(entry: str, overrides: dict[str, Path] | None = None) -> dict[str, Path]:
     """Resolve source-distributed imports without duplicating embedded modules."""
+    overrides = overrides or {}
     embedded = {m["name"] for m in json.loads((PRELUDE / "cinch-base.cinchpkg").read_text())["modules"]}
     found: dict[str, Path] = {}
 
@@ -331,13 +380,16 @@ def source_closure(entry: str) -> dict[str, Path]:
         for name in re.findall(r"^\s*import\s+([A-Z][\w.]*)", text, re.M):
             if name in embedded or name in found:
                 continue
-            path = PRELUDE / (name.replace(".", "/") + ".cinch")
+            path = overrides.get(name, PRELUDE / (name.replace(".", "/") + ".cinch"))
             if not path.exists():
                 raise ValueError(f"missing source dependency {name}")
             found[name] = path
             visit(path.read_text())
 
     visit(entry)
+    unused = set(overrides) - set(found)
+    if unused:
+        raise ValueError(f"source overrides must name reachable source-distributed modules: {sorted(unused)}")
     return found
 
 
@@ -368,6 +420,7 @@ def main() -> None:
     """Build once, warm up independently, and retain every measured sample."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--compiler", type=Path, default=ROOT / "compiler/target/debug/cinch")
+    parser.add_argument("--source-override", action="append", default=[], metavar="MODULE=PATH", help="Use a retained source-distributed module for a matched baseline; record its path and bytes")
     parser.add_argument("--opt-level", type=int, choices=range(4), default=2, help="Use this Clang level for both the executable and retained assembly")
     parser.add_argument("--sizes", nargs="+", type=int, default=[32, 1024, 16384])
     parser.add_argument("--iterations", type=int, default=32)
@@ -387,7 +440,16 @@ def main() -> None:
             parser.error("--cpu must name an allowed CPU on a host with affinity support")
         os.sched_setaffinity(0, {args.cpu})
     compiler = args.compiler.resolve()
-    closure = source_closure(SOURCE)
+    overrides = {}
+    for item in args.source_override:
+        name, separator, filename = item.partition("=")
+        if not separator or not re.fullmatch(r"[A-Z][\w.]*", name) or name in overrides:
+            parser.error("each source override must uniquely name MODULE=PATH")
+        path = Path(filename).resolve()
+        if not path.is_file() or not re.search(r"^\s*module\s+" + re.escape(name) + r"\s+where", path.read_text(), re.M):
+            parser.error(f"source override must declare module {name}: {path}")
+        overrides[name] = path
+    closure = source_closure(SOURCE, overrides)
     report = {
         "format": 1, "opt_level": args.opt_level, "label": args.label, "commit": run(["git", "rev-parse", "HEAD"], cwd=ROOT).stdout.strip(),
         "compiler_sha256": digest(compiler),
@@ -397,6 +459,7 @@ def main() -> None:
         "working_tree_dirty": bool(run(["git", "status", "--porcelain"], cwd=ROOT).stdout.strip()),
         "driver_sha256": hashlib.sha256(SOURCE.encode()).hexdigest(),
         "sources": {name: digest(path) for name, path in sorted(closure.items())},
+        "source_overrides": {name: {"path": str(path), "sha256": digest(path)} for name, path in sorted(overrides.items())},
         "platform": platform.platform(), "machine": platform.machine(),
         "cpu_affinity": sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None,
         "cpu": next((line.split(":", 1)[1].strip() for line in Path("/proc/cpuinfo").read_text().splitlines() if line.startswith("model name")), platform.processor()) if Path("/proc/cpuinfo").exists() else platform.processor(),

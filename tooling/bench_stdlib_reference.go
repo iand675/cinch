@@ -143,9 +143,42 @@ func operation(mode int, input []byte) uint64 {
 			return 1000000000
 		}
 		return fingerprint(out[:n])
+	case 43:
+		return fingerprint(encoded(input))
+	case 44:
+		out := make([]byte, ascii85.MaxEncodedLen(len(input))+2)
+		n := ascii85.Encode(out[1:], input)
+		return uint64(n) + fingerprint(out) + sampleByte(out, 1) + sampleByte(out, 2)
+	case 45:
+		out := make([]byte, len(input)*4+2)
+		n, used, err := ascii85.Decode(out[1:], input, true)
+		if err != nil {
+			return 1000000000
+		}
+		return uint64(n+used) + fingerprint(out) + sampleByte(out, 1) + sampleByte(out, 2)
+	case 46, 48:
+		out := make([]byte, len(input)*4)
+		n, used, err := ascii85.Decode(out, input, true)
+		if err != nil {
+			return 1000000000
+		}
+		return fingerprint(out[:n]) + uint64(used)
+	case 49:
+		out := make([]byte, 4)
+		at := 0
+		var sum uint64
+		for at < len(input) {
+			n, used, err := ascii85.Decode(out, input[at:], true)
+			if err != nil || used == 0 {
+				return 1000000000
+			}
+			sum += fingerprint(out[:n])
+			at += used
+		}
+		return sum + uint64(at)
 	case 17:
 		return fingerprint([]byte(string(encoded(input))))
-	case 18:
+	case 18, 47:
 		out := make([]byte, len(input)*4+4)
 		n, _, err := ascii85.Decode(out, []byte(string(input)), true)
 		if err != nil {
@@ -234,6 +267,20 @@ func workloadCode(name string) int {
 		return 41
 	case "hex-prefix-decode":
 		return 42
+	case "ascii85-bytes-encode":
+		return 43
+	case "ascii85-into-encode":
+		return 44
+	case "ascii85-into-decode":
+		return 45
+	case "ascii85-prefix-decode":
+		return 46
+	case "ascii85-controls-decode":
+		return 47
+	case "ascii85-controls-prefix-decode":
+		return 48
+	case "ascii85-offset-decode":
+		return 49
 	case "ascii85-encode":
 		return 17
 	case "ascii85-decode":
@@ -301,10 +348,17 @@ func main() {
 			input = encoded(input)
 		}
 	}
+	if mode == 47 || mode == 48 {
+		input = append(make([]byte, 4096), input...)
+	}
 	var checksum uint64
 	start := time.Now()
 	for i := 0; i < iterations; i++ {
-		if len(input) > 0 {
+		if mode == 47 || mode == 48 {
+			if len(input) > 4096 {
+				input[4096] = byte(33 + i%85)
+			}
+		} else if len(input) > 0 {
 			if isUTF16 {
 				index := 0
 				if mode == 24 {

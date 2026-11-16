@@ -1,0 +1,49 @@
+{
+  "description": "Native 64 KiB zero input drained through one reusable four-byte destination using source offsets; a reconstructed forced-snapshot ablation differs only in source-for-write. Normal reclamation measures actual live heap; RC debug quarantine is disabled.",
+  "compiler_sha256": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f",
+  "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "raw_input_bytes": 65536,
+  "encoded_input_bytes": 16384,
+  "destination_bytes": 4,
+  "stack_limit": "8M",
+  "heap_limit": "32M",
+  "rc_debug": false,
+  "variants": [
+    {
+      "name": "forced-snapshot",
+      "source_sha256": "9500e9ce2540340ed17ea4ee07805d73264ee7ac229812b7946db4110fe26711",
+      "module_sha256": "dece1c718f2d510f7eca6c90d0e0148dead60be427f3bbdf351bb6ec20fe6a8a",
+      "executable_sha256": "6450368a6e9184112a01567fc17a9487695ea022476cebb90d83d6f94c9cb5d4",
+      "llvm_sha256": "cc78f80c470859940b44802c7f223278771cb234bfcba5041458fcd797cc80cf",
+      "allocation_stats": {
+        "blocks": 114694,
+        "bytes": 271613980,
+        "peak": 164136,
+        "header-blocks": 98300,
+        "header-bytes": 3014432,
+        "immortal": 0,
+        "freed": 98300,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=114694 bytes=271613980 peak=164136 header-blocks=98300 header-bytes=3014432 immortal=0 freed=98300 live=0\n"
+    },
+    {
+      "name": "disjoint-no-copy",
+      "source_sha256": "8ba13615e28e11bb6235f844ff04ae067b809ff0d75e7d6f9ee732e92c428695",
+      "module_sha256": "6550cb8d1b45de4b2d0ca392ad31b6cae716213b003f1789ae7d0281948d222b",
+      "executable_sha256": "779de3dbb265cbd75ee94aba292180ae3314053dbc481b62f4b52bfb4df4254c",
+      "llvm_sha256": "94df5cf1cb7ccd801ce27886c41b9a6fa8ccc6529e6e626c51da140a7cf52dd6",
+      "allocation_stats": {
+        "blocks": 81926,
+        "bytes": 2785309,
+        "peak": 164137,
+        "header-blocks": 81916,
+        "header-bytes": 2621216,
+        "immortal": 0,
+        "freed": 81916,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=81926 bytes=2785309 peak=164137 header-blocks=81916 header-bytes=2621216 immortal=0 freed=81916 live=0\n"
+    }
+  ]
+}

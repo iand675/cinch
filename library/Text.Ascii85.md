@@ -1,6 +1,6 @@
 # Text.Ascii85
 
-ASCII85 buffer and incremental codecs with SIMD word quanta, zero-word compression, byte-offset errors and explicit finalization.
+ASCII85 text, caller-buffer and incremental codecs with consumed-input progress, checked source offsets, SIMD groups and control-run scanning.
 
 <span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
 
@@ -28,6 +28,22 @@ retain only an unfinished word; finishing emits the final short quantum.
 
 # Types and constructors
 
+<a id="type-417363696938354275666665724572726f72"></a>
+
+## `Ascii85BufferError`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Ascii85BufferError</span></code></pre>
+
+A source offset or destination interval is outside its accessible buffer.
+
+[Source](/reference-sources/Text.Ascii85.cinch) · line 224
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Ascii85ShortDestination</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Ascii85</span>.<span class="tok-constructor">Ascii85BufferError</span>))</code></pre>
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Ascii85InvalidSourceOffset</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Ascii85</span>.<span class="tok-constructor">Ascii85BufferError</span>))</code></pre>
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Ascii85InvalidDestinationOffset</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Ascii85</span>.<span class="tok-constructor">Ascii85BufferError</span>))</code></pre>
+
 <a id="type-417363696938354465636f646572"></a>
 
 ## `Ascii85Decoder`
@@ -36,7 +52,7 @@ retain only an unfinished word; finishing emits the final short quantum.
 
 An immutable decoding continuation holding at most four pending symbols.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 51
+[Source](/reference-sources/Text.Ascii85.cinch) · line 53
 
 <a id="type-41736369693835456e636f646572"></a>
 
@@ -46,7 +62,7 @@ An immutable decoding continuation holding at most four pending symbols.
 
 An immutable encoding continuation holding at most three pending bytes.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 46
+[Source](/reference-sources/Text.Ascii85.cinch) · line 48
 
 <a id="type-417363696938354572726f72"></a>
 
@@ -56,13 +72,23 @@ An immutable encoding continuation holding at most three pending bytes.
 
 Malformed encoded input. An unsuccessful feed returns no partial output.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 27
+[Source](/reference-sources/Text.Ascii85.cinch) · line 29
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidAscii85Byte</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Ascii85</span>.<span class="tok-constructor">Ascii85Error</span>))</code></pre>
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TruncatedAscii85Quantum</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Ascii85</span>.<span class="tok-constructor">Ascii85Error</span>)</code></pre>
 
 # Values
+
+<a id="value-617363696938352d6275666665722d6572726f722d6d657373616765"></a>
+
+## `ascii85-buffer-error-message`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ascii85-buffer-error-message</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Ascii85</span>.<span class="tok-constructor">Ascii85BufferError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+
+Render an interval diagnostic with the requested size or offset and its available bound.
+
+[Source](/reference-sources/Text.Ascii85.cinch) · line 233
 
 <a id="value-617363696938352d6465636f6465"></a>
 
@@ -72,7 +98,21 @@ Malformed encoded input. An unsuccessful feed returns no partial output.
 
 Decode complete text with error positions measured in UTF-8 input bytes.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 220
+[Source](/reference-sources/Text.Ascii85.cinch) · line 212
+
+<a id="value-617363696938352d6465636f64652d6174"></a>
+
+## `ascii85-decode-at`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ascii85-decode-at</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Ascii85</span>.<span class="tok-constructor">Ascii85BufferError</span> (<span class="tok-constructor">Nat</span>, <span class="tok-constructor">Nat</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Ascii85</span>.<span class="tok-constructor">Ascii85Error</span>))))))))</code></pre>
+
+Decode from a checked source offset without copying an unconsumed suffix into a new input buffer.
+Return written bytes and the number consumed from that offset. Errors retain their absolute
+original-buffer positions. A caller can add the consumed count to its next source offset.
+Four available destination bytes permit progress; final short output occupies only its actual bytes.
+Overlapping intervals snapshot the source before writing; disjoint buffers keep their original owners.
+
+[Source](/reference-sources/Text.Ascii85.cinch) · line 305
 
 <a id="value-617363696938352d6465636f64652d6279746573"></a>
 
@@ -82,7 +122,33 @@ Decode complete text with error positions measured in UTF-8 input bytes.
 
 Decode a complete byte buffer. Control bytes through space are ignored; framing is invalid.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 211
+[Source](/reference-sources/Text.Ascii85.cinch) · line 206
+
+<a id="value-617363696938352d6465636f64652d696e746f"></a>
+
+## `ascii85-decode-into`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ascii85-decode-into</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Ascii85</span>.<span class="tok-constructor">Ascii85BufferError</span> (<span class="tok-constructor">Nat</span>, <span class="tok-constructor">Nat</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Ascii85</span>.<span class="tok-constructor">Ascii85Error</span>)))))))</code></pre>
+
+Decode into an existing interval and return written bytes, consumed input and an optional error.
+A full quantum requires four available bytes; insufficient space returns completed progress.
+With finish False, consumed input ends at the last full group so its unfinished suffix can be retried.
+With finish True, valid short tails are emitted and all input is consumed. On malformed input,
+completed output and its consumed boundary remain available alongside the absolute byte error.
+An offset beyond the destination is rejected before mutation; overlapping input is snapshotted.
+
+[Source](/reference-sources/Text.Ascii85.cinch) · line 297
+
+<a id="value-617363696938352d6465636f64652d707265666978"></a>
+
+## `ascii85-decode-prefix`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ascii85-decode-prefix</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">Nat</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Ascii85</span>.<span class="tok-constructor">Ascii85Error</span>))))</code></pre>
+
+Decode to fresh bytes while exposing completed output, consumed input and any malformed suffix.
+A non-final call leaves an unfinished quantum in the input suffix rather than hidden state.
+
+[Source](/reference-sources/Text.Ascii85.cinch) · line 317
 
 <a id="value-617363696938352d6465636f646572"></a>
 
@@ -92,7 +158,7 @@ Decode a complete byte buffer. Control bytes through space are ignored; framing 
 
 Begin an independent decoding with absolute error offsets starting at zero.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 64
+[Source](/reference-sources/Text.Ascii85.cinch) · line 66
 
 <a id="value-617363696938352d6465636f6465722d66656564"></a>
 
@@ -103,7 +169,7 @@ Begin an independent decoding with absolute error offsets starting at zero.
 Decode complete groups in arbitrary byte chunks, retaining unfinished symbols.
 Invalid bytes return an absolute byte offset and no output for this feed.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 187
+[Source](/reference-sources/Text.Ascii85.cinch) · line 182
 
 <a id="value-617363696938352d6465636f6465722d66696e697368"></a>
 
@@ -113,7 +179,7 @@ Invalid bytes return an absolute byte offset and no output for this feed.
 
 Finish decoding: a single remaining symbol is invalid; two through four emit a byte tail.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 200
+[Source](/reference-sources/Text.Ascii85.cinch) · line 195
 
 <a id="value-617363696938352d656e636f6465"></a>
 
@@ -123,7 +189,29 @@ Finish decoding: a single remaining symbol is invalid; two through four emit a b
 
 Encode a complete buffer without document delimiters or inserted whitespace.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 143
+[Source](/reference-sources/Text.Ascii85.cinch) · line 137
+
+<a id="value-617363696938352d656e636f64652d6279746573"></a>
+
+## `ascii85-encode-bytes`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ascii85-encode-bytes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+
+Encode a complete buffer to fresh ASCII bytes, including an exact short final word.
+
+[Source](/reference-sources/Text.Ascii85.cinch) · line 240
+
+<a id="value-617363696938352d656e636f64652d696e746f"></a>
+
+## `ascii85-encode-into`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ascii85-encode-into</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Ascii85</span>.<span class="tok-constructor">Ascii85BufferError</span> <span class="tok-constructor">Nat</span>))))</code></pre>
+
+Encode at a destination offset and return the actual byte count, including zero-word shorthand.
+Capacity must hold ascii85-max-encoded-length; rejection precedes all writes.
+Source and destination may overlap: overlapping input is snapshotted before mutation.
+
+[Source](/reference-sources/Text.Ascii85.cinch) · line 248
 
 <a id="value-617363696938352d656e636f646572"></a>
 
@@ -133,7 +221,7 @@ Encode a complete buffer without document delimiters or inserted whitespace.
 
 Begin an independent encoding. Empty feeds preserve the continuation.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 60
+[Source](/reference-sources/Text.Ascii85.cinch) · line 62
 
 <a id="value-617363696938352d656e636f6465722d66656564"></a>
 
@@ -144,7 +232,7 @@ Begin an independent encoding. Empty feeds preserve the continuation.
 Encode all complete words in a chunk and return their bytes plus the advanced state.
 The returned output is independent of subsequent mutation of the input.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 124
+[Source](/reference-sources/Text.Ascii85.cinch) · line 118
 
 <a id="value-617363696938352d656e636f6465722d66696e697368"></a>
 
@@ -155,7 +243,7 @@ The returned output is independent of subsequent mutation of the input.
 Finish an encoding, emitting two through four symbols for any pending bytes.
 A partial zero word is never shortened to z. Finishing an empty state is empty.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 132
+[Source](/reference-sources/Text.Ascii85.cinch) · line 126
 
 <a id="value-617363696938352d6572726f722d6d657373616765"></a>
 
@@ -165,7 +253,7 @@ A partial zero word is never shortened to z. Finishing an empty state is empty.
 
 Render a decoding diagnostic, including the offending byte or incomplete tail position.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 40
+[Source](/reference-sources/Text.Ascii85.cinch) · line 42
 
 <a id="value-617363696938352d6572726f722d6f6666736574"></a>
 
@@ -175,7 +263,7 @@ Render a decoding diagnostic, including the offending byte or incomplete tail po
 
 The absolute original input byte offset associated with a decoding failure.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 34
+[Source](/reference-sources/Text.Ascii85.cinch) · line 36
 
 <a id="value-617363696938352d6d61782d656e636f6465642d6c656e677468"></a>
 
@@ -185,8 +273,8 @@ The absolute original input byte offset associated with a decoding failure.
 
 A safe encoded byte bound, including a full five-symbol final allocation.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 56
+[Source](/reference-sources/Text.Ascii85.cinch) · line 58
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Ascii85.cinch`. Source SHA-256: `3247c75afe5b1c77bbc62ddcf5340cdc063df2ed6af5d724489a84b45a7ef0d4`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Ascii85.cinch`. Source SHA-256: `6550cb8d1b45de4b2d0ca392ad31b6cae716213b003f1789ae7d0281948d222b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
