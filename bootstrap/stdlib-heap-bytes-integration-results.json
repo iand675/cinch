@@ -1,0 +1,85 @@
+{
+  "description": "Parent integration of indexed heaps, exact byte search/build, contextual mutation kinds and source-owned phantom regions",
+  "full_stdlib_goal_complete": false,
+  "source_revision": "f05b756adc47609ae74f04a1347bd8bfa6918fa6",
+  "compiler_sha256": "0bd0bf62907186e14b1c4d0bb1f1fe0333dcd45bfda61dc776e48d22ffe66dee",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "source_sha256": {
+    "bootstrap/Bootstrap.Kinds.cinch": "4774925d2d3ce8d7cd266bb6297169f60d3f7ac2c6a866d74e947c886bfc8a9e",
+    "bootstrap/Bootstrap.Infer.cinch": "d60366201f583174ead54a69061500055d88059a9207645755632a621f2ac0ea",
+    "compiler/prelude/Data/Mutable/Heap.cinch": "3346efd37186c29673917fc2285adebe1cf3494584a4b06faa2c885cd61b27c3",
+    "compiler/prelude/Data/Mutable/HeapView.cinch": "89e735c9db876832b79fc1a321be54d13661ecdfb4a662be6653780afd9e4a8c",
+    "compiler/prelude/Data/Bytes/Search.cinch": "a6ad4980d15823c38b17cc94913689ddba0fe412ba32c42bd75b2e1ced5a8ce0",
+    "compiler/prelude/Data/Bytes/Build.cinch": "6c71c2b3807a54c6f168ea5acf4aa1f2486801501487f9494e6e18a8d9449de9",
+    "compiler/tests/lib_byte_build.rs": "5c756174b3f12604716e9de21bae34041688ce6ef5207222f202bcf68d790408"
+  },
+  "command": "taskset -c 3 cargo test --test lib_heap_view --test lib_byte_search --test lib_byte_build --test bootstrap_mutation_kinds --test bootstrap_mutable_inference --test bootstrap_infer --test letrec --test stage_code_expectations --test syntax_quoted_macro_scope",
+  "environment": {
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "RUST_TEST_THREADS": "1",
+    "RUST_MIN_STACK": "67108864",
+    "compiler_main_stack_bytes": 67108864
+  },
+  "targets": {
+    "bootstrap_infer": {
+      "passed": 4,
+      "seconds": 416.59,
+      "test_binary_sha256": "4a0f9e762812e1ff6e13e97bbf5d913bfae482067e52f65aebd4f9655e373cd8"
+    },
+    "bootstrap_mutable_inference": {
+      "passed": 4,
+      "seconds": 382.1,
+      "test_binary_sha256": "6040e62df38c5df16dbd730a4ecda8285daf13ba46aed2d00e720c2f3bfb9df2"
+    },
+    "bootstrap_mutation_kinds": {
+      "passed": 5,
+      "seconds": 31.72,
+      "test_binary_sha256": "3ebc7a0f0bca373decbd76b07504c92b9b385dea08bbda0b35f4c57f63835df1"
+    },
+    "letrec": {
+      "passed": 21,
+      "seconds": 94.72,
+      "test_binary_sha256": "9b0803f43eb0361fd1f25007ad561460548d1206c3aa80d6289f966ae380bfdd"
+    },
+    "lib_byte_build": {
+      "passed": 7,
+      "seconds": 14.91,
+      "test_binary_sha256": "f0a6dab9284f1aea03308dad8e3cbc7798017da0fe35dc8b0843a43d4d88f48b"
+    },
+    "lib_byte_search": {
+      "passed": 8,
+      "seconds": 31.32,
+      "test_binary_sha256": "fcb7a11eb0abb0463c28e6e63102482fc4424a46730085567f6358932480cc02"
+    },
+    "lib_heap_view": {
+      "passed": 7,
+      "seconds": 131.21,
+      "test_binary_sha256": "344220400a9e5d72c4124196b42e9edc5f731dd5f53b0ed83de4386bf2a6126f"
+    },
+    "stage_code_expectations": {
+      "passed": 14,
+      "seconds": 63.89,
+      "test_binary_sha256": "74265006469e92c5dba27c617a4c34067b593c7f4f3732243f6aa78bf4823d06"
+    },
+    "syntax_quoted_macro_scope": {
+      "passed": 5,
+      "seconds": 13.66,
+      "test_binary_sha256": "045f625e502baf90bed2b626fa3b88ab7d57cb0666abc3ec439a6f51be2b4652"
+    }
+  },
+  "total_passed": 75,
+  "log_sha256": "8681c808e4e8d502b11ccbb7eed6a366b76281290cd54dc151d9dc7ce5b63967",
+  "source_closure_correction": "Isolated ByteBuild tests explicitly ship Text.Hex and Data.Bytes.Word alongside Main; source-distributed dependencies cannot resolve through the repository from a tempdir",
+  "ownership_profiles": "New heap/byte and mutation authority consumers use ordinary32M/8M and separate poisoned256M/8M; preserved existing tests retain their own harness profiles",
+  "documentation": {
+    "modules": 170,
+    "diagnostics": 0,
+    "orphans": 0,
+    "source_drift_check": "passed"
+  },
+  "remaining": [
+    "Full self-built Native fixed point for the mutation inference prerequisites, queued after the separate fresh-base chain",
+    "Byte Search/Build public benchmark optimization review remains separate"
+  ]
+}

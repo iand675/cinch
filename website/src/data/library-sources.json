@@ -139,6 +139,22 @@
       "public_methods": 0
     },
     {
+      "module": "Data.Bytes.Build",
+      "path": "compiler/prelude/Data/Bytes/Build.cinch",
+      "sha256": "6c71c2b3807a54c6f168ea5acf4aa1f2486801501487f9494e6e18a8d9449de9",
+      "embedded": false,
+      "values": 4,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Bytes.Search",
+      "path": "compiler/prelude/Data/Bytes/Search.cinch",
+      "sha256": "a6ad4980d15823c38b17cc94913689ddba0fe412ba32c42bd75b2e1ced5a8ce0",
+      "embedded": false,
+      "values": 4,
+      "public_methods": 0
+    },
+    {
       "module": "Data.Bytes.Utf8",
       "path": "compiler/prelude/Data/Bytes/Utf8.cinch",
       "sha256": "a5f6a39e59b512862fe88e984a8fb5bef0cc6fc47516f59cc488d4493a523b9a",
@@ -389,9 +405,17 @@
     {
       "module": "Data.Mutable.Heap",
       "path": "compiler/prelude/Data/Mutable/Heap.cinch",
-      "sha256": "0ff42c7b1f7a9ab5fedb7858d77b9687be658a1e928333a3a07144d24aeebd0a",
+      "sha256": "3346efd37186c29673917fc2285adebe1cf3494584a4b06faa2c885cd61b27c3",
       "embedded": false,
       "values": 15,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Mutable.HeapView",
+      "path": "compiler/prelude/Data/Mutable/HeapView.cinch",
+      "sha256": "89e735c9db876832b79fc1a321be54d13661ecdfb4a662be6653780afd9e4a8c",
+      "embedded": false,
+      "values": 7,
       "public_methods": 0
     },
     {

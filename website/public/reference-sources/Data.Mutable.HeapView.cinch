@@ -1,0 +1,127 @@
+-- | Binary heap algorithms over caller-owned mutable indexed storage.
+-- The callbacks preserve application-specific element identities and index
+-- bookkeeping. They must describe one coherent sequence: comparison and swap
+-- keep its length unchanged, append adds exactly one element, and remove-last
+-- removes exactly its last element. Comparisons form a strict weak ordering.
+-- Comparisons and swaps are sequenced; arbitrary callbacks cannot be reordered
+-- or evaluated in SIMD lanes. Use Data.Mutable.Heap for dense owned storage.
+module Data.Mutable.HeapView where
+
+  import Data.Bool
+  import Data.Nat
+  import Data.Option
+
+  export HeapView, heap-view, heap-view-length
+  export heap-view-init, heap-view-push, heap-view-pop, heap-view-remove, heap-view-fix
+
+  -- | An opaque set of mutable length, comparison, swap, append and remove-last callbacks.
+  data HeapView r a where
+    -- | Private callbacks over the same application-owned sequence and mutation region.
+    View :: (Unit ->{Mut r} Nat) -> (Nat -> Nat ->{Mut r} Bool) -> (Nat -> Nat ->{Mut r} Unit) -> (a ->{Mut r} Unit) -> (Unit ->{Mut r} Option a) -> HeapView r a
+
+  -- | Bind coherent indexed-storage callbacks without allocating or changing their sequence.
+  -- The last callback returns None only for an empty sequence. Callback contract
+  -- violations are application errors; this module never accesses raw storage.
+  heap-view :: forall r a. (Unit ->{Mut r} Nat) -> (Nat -> Nat ->{Mut r} Bool) -> (Nat -> Nat ->{Mut r} Unit) -> (a ->{Mut r} Unit) -> (Unit ->{Mut r} Option a) -> HeapView r a
+  heap-view size less swap append remove-last = View size less swap append remove-last
+
+  -- | Observe the current sequence length through its callback.
+  heap-view-length :: forall r a. HeapView r a ->{Mut r} Nat
+  heap-view-length view = case view of View size less swap append remove-last -> size ()
+
+  -- | Compare two existing positions, preserving the callback's visible sequencing.
+  before :: forall r a. HeapView r a -> Nat -> Nat ->{Mut r} Bool
+  before view first second = case view of View size less swap append remove-last -> less first second
+
+  -- | Swap two existing positions and any application-maintained position metadata.
+  exchange :: forall r a. HeapView r a -> Nat -> Nat ->{Mut r} Unit
+  exchange view first second = case view of View size less swap append remove-last -> swap first second
+
+  -- | Append one element without applying a heap repair.
+  append-slot :: forall r a. HeapView r a -> a ->{Mut r} Unit
+  append-slot view value = case view of View size less swap append remove-last -> append value
+
+  -- | Remove the last existing position without applying a heap repair.
+  remove-slot :: forall r a. HeapView r a ->{Mut r} Option a
+  remove-slot view = case view of View size less swap append remove-last -> remove-last ()
+
+  -- | Restore every subtree bottom-up in linear comparison work.
+  heap-view-init :: forall r a. HeapView r a ->{Mut r} Unit
+  heap-view-init view = let count = heap-view-length view in build view count (nat-div count 2)
+
+  -- | Repair the subtree roots below a descending exclusive position.
+  build :: forall r a. HeapView r a -> Nat -> Nat ->{Mut r} Unit
+  build view count remaining = if remaining == 0 then () else
+    let index = remaining - 1 in
+    let repaired = down view index count False in
+    build view count index
+
+  -- | Append an element and repair its path toward the root in logarithmic work.
+  heap-view-push :: forall r a. HeapView r a -> a ->{Mut r} Unit
+  heap-view-push view value =
+    let index = heap-view-length view in
+    let appended = append-slot view value in
+    up view index
+
+  -- | Remove the first element, or return None without invoking swap/remove callbacks when empty.
+  heap-view-pop :: forall r a. HeapView r a ->{Mut r} Option a
+  heap-view-pop view =
+    let count = heap-view-length view in
+    if count == 0 then None else
+      let last = count - 1 in
+      let swapped = exchange view 0 last in
+      let repaired = down view 0 last False in
+      remove-slot view
+
+  -- | Remove any existing position and repair the one displaced element.
+  -- An out-of-range position returns None and invokes no mutation callback.
+  heap-view-remove :: forall r a. HeapView r a -> Nat ->{Mut r} Option a
+  heap-view-remove view index =
+    let count = heap-view-length view in
+    if index >= count then None else
+      let last = count - 1 in
+      if index == last then remove-slot view else
+        let swapped = exchange view index last in
+        let descended = down view index last False in
+        let repaired = if descended then () else up view index in
+        remove-slot view
+
+  -- | Repair a changed element in logarithmic work without removing or reappending it.
+  -- False means the index was absent; no comparison or swap occurs in that case.
+  heap-view-fix :: forall r a. HeapView r a -> Nat ->{Mut r} Bool
+  heap-view-fix view index =
+    let count = heap-view-length view in
+    if index >= count then False else
+      let descended = down view index count False in
+      let repaired = if descended then () else up view index in
+      True
+
+  -- | Exchange an element with its parent until it satisfies the rootward heap relation.
+  up :: forall r a. HeapView r a -> Nat ->{Mut r} Unit
+  up view index = if index == 0 then () else
+    let parent = nat-div (index - 1) 2 in
+    let rises = before view index parent in
+    if rises then
+      let swapped = exchange view parent index in
+      up view parent
+    else ()
+
+  -- | Descend through the smaller child, returning whether at least one exchange occurred.
+  down :: forall r a. HeapView r a -> Nat -> Nat -> Bool ->{Mut r} Bool
+  down view index count changed =
+    let left = index * 2 + 1 in
+    if left >= count then changed else
+      let right = left + 1 in
+      let child = first-child view left right count in
+      let falls = before view child index in
+      if falls then
+        let swapped = exchange view index child in
+        down view child count True
+      else changed
+
+  -- | Select the smaller existing child while comparing left and right only when both exist.
+  first-child :: forall r a. HeapView r a -> Nat -> Nat -> Nat ->{Mut r} Nat
+  first-child view left right count = if right < count then
+    let right-first = before view right left in
+    if right-first then right else left
+    else left

@@ -1,5 +1,4 @@
--- Data.Mutable.Heap: the priority queue (C++ `std::priority_queue`, as a
--- 4-ary heap like Boost's `d_ary_heap`).
+-- | A mutable priority queue using a dense four-way heap and checked indexed repairs.
 --
 -- A `Heap r a` keeps its elements in one dense slot array arranged as a
 -- 4-ary heap under an ordering fixed when it is made: the least element
@@ -46,42 +45,61 @@ module Data.Mutable.Heap where
   export Heap, heap-new, heap-with-capacity, heap-length, heap-is-empty
   export heap-push, heap-push-by, heap-pop, heap-pop-by, heap-peek, heap-clear
   export heap-from-list, heap-from-list-by, heap-to-list, heap-drain, heap-drain-by
+  export heap-get, heap-replace, heap-replace-by, heap-remove, heap-remove-by
+  export heap-fix, heap-fix-by, heap-init, heap-init-by
 
+  -- | Allocate private hole-filled storage; callers initialize every slot before reading it.
   foreign import ccall "cinch.runtime.slotsNew" slots-new :: forall a. U64 -> Array a
+  -- | Observe the capacity of private slot storage.
   foreign import ccall "cinch.runtime.slotsLen" slots-len :: forall a. Array a -> U64
+  -- | Read a private position proved initialized by the heap invariant.
   foreign import ccall "cinch.runtime.slotsRead" slots-read :: forall a. Array a -> U64 -> a
+  -- | Replace one private initialized position or fill a tracked hole.
   foreign import ccall "cinch.runtime.slotsWrite" slots-write :: forall a. Array a -> U64 -> a -> Unit
+  -- | Move a private initialized element out, leaving a tracked hole.
   foreign import ccall "cinch.runtime.slotsTake" slots-take :: forall a. Array a -> U64 -> a
+  -- | Transfer private slot ownership during storage growth, without duplicating elements.
   foreign import ccall "cinch.runtime.slotsMove" slots-move :: forall a. Array a -> U64 -> Array a -> U64 -> U64 -> Unit
+  -- | Release an initialized private range and leave holes behind.
   foreign import ccall "cinch.runtime.slotsClear" slots-clear :: forall a. Array a -> U64 -> U64 -> Unit
+  -- | Convert a nonnegative allocation or checked index to the runtime slot-address word.
   foreign import ccall "cinch.runtime.slotsFoldNat" fold-nat :: Nat -> U64
 
   -- The length word and the cell holding the storage.
+  -- | An opaque mutable heap tied to its mutation region.
   data Heap r a where
+    -- | Private length metadata and a replaceable dense-storage cell.
     MkHeap :: Array U64 -> Array (Array a) -> Heap r a
 
+  -- | Increment a private slot count within the allocation invariant.
   inc :: U64 -> U64
   inc w = wrapping-add-u64 w 1
 
+  -- | Decrement a private count known to be positive.
   dec :: U64 -> U64
   dec w = wrapping-sub-u64 w 1
 
+  -- | Expose an allocated slot count as a nonnegative mathematical index.
   to-nat :: U64 -> Nat
   to-nat w = nat-from-i64 (mask-i64 (wrapping-u64-to-i64 w) 9223372036854775807)
 
+  -- | Read the private initialized length word.
   len-of :: forall r a. Heap r a -> U64
   len-of hp = case hp of
     MkHeap m c -> slots-read m 0
 
+  -- | Update the private length after initializing or removing the corresponding slots.
   set-len :: forall r a. Heap r a -> U64 -> Unit
   set-len hp n = case hp of
     MkHeap m c -> slots-write m 0 n
 
+  -- | Read the current private backing storage.
   store-of :: forall r a. Heap r a -> Array a
   store-of hp = case hp of
     MkHeap m c -> slots-read c 0
 
   -- Storage with room for `need` elements: doubling, floor 4.
+  -- | Grow capacity geometrically and move every initialized element into the replacement storage.
   room-for :: forall r a. Heap r a -> U64 -> Array a
   room-for hp need =
     let s = store-of hp in
@@ -94,6 +112,7 @@ module Data.Mutable.Heap where
       fresh
     else s
 
+  -- | Replace the private backing-storage cell after transferring all elements.
   install :: forall r a. Heap r a -> Array a -> Unit
   install hp fresh = case hp of
     MkHeap m c -> slots-write c 0 fresh
@@ -102,10 +121,12 @@ module Data.Mutable.Heap where
   -- Construction
   -- ------------------------------------------------------------------
 
+  -- | Allocate an empty heap in the current mutation region.
   heap-new :: forall r a. Unit ->{Mut r} Heap r a
   heap-new u = heap-with-capacity 0
 
   -- An empty heap with room for `n` elements before its first growth.
+  -- | Allocate an empty heap with room for the requested number of elements.
   heap-with-capacity :: forall r a. Nat ->{Mut r} Heap r a
   heap-with-capacity n =
     let m = (slots-new 1 :: Array U64) in
@@ -115,9 +136,11 @@ module Data.Mutable.Heap where
     let installed = slots-write c 0 fresh in
     MkHeap m c
 
+  -- | Observe the number of initialized heap elements in constant time.
   heap-length :: forall r a. Heap r a ->{Mut r} Nat
   heap-length hp = to-nat (len-of hp)
 
+  -- | Test whether the heap contains no elements.
   heap-is-empty :: forall r a. Heap r a ->{Mut r} Bool
   heap-is-empty hp = eq-u64 (len-of hp) 0
 
@@ -126,11 +149,13 @@ module Data.Mutable.Heap where
   -- ------------------------------------------------------------------
 
   -- Push under the `Ord` instance (a min-heap).
+  -- | Insert under the natural ordering, preserving the min-heap invariant.
   heap-push :: forall r a. using (o :: Ord a) => Heap r a -> a ->{Mut r} Unit
   heap-push hp x = heap-push-by (\p q -> p < q) hp x
 
   -- Push under `first`: `first x y` holds when x must come out before y
   -- (a strict order).
+  -- | Insert under a strict ordering consistent with the heap's other operations.
   heap-push-by :: forall r a. (a -> a -> Bool) -> Heap r a -> a ->{Mut r} Unit
   heap-push-by less hp x =
     let n = len-of hp in
@@ -141,6 +166,7 @@ module Data.Mutable.Heap where
   -- The hole is at i; move parents down until x fits, then fill it. The
   -- climb stops at `top`, the root of the subtree being repaired (0 for a
   -- push).
+  -- | Fill a tracked hole by moving parents down until the new element fits.
   sift-up :: forall a. (a -> a -> Bool) -> Array a -> U64 -> U64 -> a -> Unit
   sift-up less s top i x =
     if eq-u64 i top then slots-write s i x
@@ -153,6 +179,7 @@ module Data.Mutable.Heap where
       else slots-write s i x
 
   -- The least element.
+  -- | Observe the first element without removal, or None when empty.
   heap-peek :: forall r a. Heap r a ->{Mut r} Option a
   heap-peek hp =
     if eq-u64 (len-of hp) 0 then None
@@ -161,10 +188,12 @@ module Data.Mutable.Heap where
       Some (slots-read s 0)
 
   -- Remove and return the least element under the `Ord` instance.
+  -- | Remove the naturally least element, or None when empty.
   heap-pop :: forall r a. using (o :: Ord a) => Heap r a ->{Mut r} Option a
   heap-pop hp = heap-pop-by (\p q -> p < q) hp
 
   -- Remove and return the element `first` puts first.
+  -- | Remove the first element under the supplied consistent strict ordering.
   heap-pop-by :: forall r a. (a -> a -> Bool) -> Heap r a ->{Mut r} Option a
   heap-pop-by less hp =
     let n = len-of hp in
@@ -187,11 +216,13 @@ module Data.Mutable.Heap where
   -- old last one, which nearly always belongs near the bottom, so the climb
   -- is a step or two and every level of the descent saves the comparison
   -- (and the read) a top-down sift spends on x.
+  -- | Move a hole down to a leaf, then place the displaced value along that subtree's rootward path.
   sift-down :: forall a. (a -> a -> Bool) -> Array a -> U64 -> U64 -> a -> Unit
   sift-down less s i n x = sift-up less s i (hole-down less s i n) x
 
   -- Move the hole at i down to a leaf, promoting the least child at each
   -- level; the leaf's index.
+  -- | Promote the least child repeatedly, returning the final tracked hole position.
   hole-down :: forall a. (a -> a -> Bool) -> Array a -> U64 -> U64 -> U64
   hole-down less s i n =
     let first = inc (wrapping-shl-u64 i 2) in
@@ -202,6 +233,7 @@ module Data.Mutable.Heap where
     else i
 
   -- The index of the least of s[best], s[j .. end).
+  -- | Find the first least child among the initialized positions in one four-way child range.
   least-child :: forall a. (a -> a -> Bool) -> Array a -> U64 -> U64 -> U64 -> U64
   least-child less s best j end =
     if lt-u64 j end then
@@ -210,6 +242,7 @@ module Data.Mutable.Heap where
     else best
 
   -- Drop every element; the capacity stays.
+  -- | Release every element while retaining reusable storage capacity.
   heap-clear :: forall r a. Heap r a ->{Mut r} Unit
   heap-clear hp =
     let s = store-of hp in
@@ -220,11 +253,13 @@ module Data.Mutable.Heap where
   -- Lists
   -- ------------------------------------------------------------------
 
+  -- | Build a min-heap from a list in linear work.
   heap-from-list :: forall r a. using (o :: Ord a) => List a ->{Mut r} Heap r a
   heap-from-list xs = heap-from-list-by (\x y -> x < y) xs
 
   -- Floyd's build: write the list in, then sift every internal node
   -- down from the last one, O(n) in all.
+  -- | Build a heap bottom-up under a consistent strict ordering in linear work.
   heap-from-list-by :: forall r a. (a -> a -> Bool) -> List a ->{Mut r} Heap r a
   heap-from-list-by first xs =
     let hp = heap-with-capacity 0 in
@@ -235,6 +270,7 @@ module Data.Mutable.Heap where
 
   -- Append the list in order, keeping the length current so a growth
   -- moves every element already written.
+  -- | Append initialized list elements while keeping growth metadata current.
   write-all :: forall r a. Heap r a -> List a -> U64 -> U64
   write-all hp xs i = case xs of
     Nil -> i
@@ -245,6 +281,7 @@ module Data.Mutable.Heap where
       write-all hp rest (inc i)
 
   -- Sift down every node below `i`, from i - 1 to 0.
+  -- | Repair internal subtrees in descending root order.
   heapify :: forall a. (a -> a -> Bool) -> Array a -> U64 -> U64 -> Unit
   heapify less s n i =
     if eq-u64 i 0 then ()
@@ -255,11 +292,13 @@ module Data.Mutable.Heap where
       heapify less s n k
 
   -- The elements in storage order (a heap order, not a sorted one).
+  -- | Copy the current storage order, which is a heap order rather than a sorted sequence.
   heap-to-list :: forall r a. Heap r a ->{Mut r} List a
   heap-to-list hp =
     let s = store-of hp in
     list-down s (len-of hp) Nil
 
+  -- | Copy initialized positions into a list in storage order without growing the call stack.
   list-down :: forall a. Array a -> U64 -> List a -> List a
   list-down s i acc =
     if eq-u64 i 0 then acc
@@ -268,19 +307,105 @@ module Data.Mutable.Heap where
       list-down s j (Cons (slots-read s j) acc)
 
   -- Pop everything in `Ord` order, leaving the heap empty.
+  -- | Remove all elements in natural order, leaving an empty heap.
   heap-drain :: forall r a. using (o :: Ord a) => Heap r a ->{Mut r} List a
   heap-drain hp = heap-drain-by (\p q -> p < q) hp
 
   -- Pop everything in `first`'s order, leaving the heap empty.
+  -- | Remove all elements under the supplied consistent ordering, leaving an empty heap.
   heap-drain-by :: forall r a. (a -> a -> Bool) -> Heap r a ->{Mut r} List a
   heap-drain-by less hp = drain-into less hp Nil
 
+  -- | Collect popped elements in reverse order before one final reversal.
   drain-into :: forall r a. (a -> a -> Bool) -> Heap r a -> List a ->{Mut r} List a
   drain-into less hp acc = case heap-pop-by less hp of
     None -> reverse-onto acc Nil
     Some x -> drain-into less hp (Cons x acc)
 
+  -- | Reverse a private list onto its final suffix with constant call-stack space.
   reverse-onto :: forall a. List a -> List a -> List a
   reverse-onto xs acc = case xs of
     Nil -> acc
     Cons x rest -> reverse-onto rest (Cons x acc)
+
+  -- | Observe a checked position in the heap's current storage order.
+  -- Indices change during repairs; applications needing stable identities can
+  -- keep them in element values or use Data.Mutable.HeapView callbacks.
+  heap-get :: forall r a. Heap r a -> Nat ->{Mut r} Option a
+  heap-get hp index = if index < to-nat (len-of hp) then
+    Some (slots-read (store-of hp) (fold-nat index))
+    else None
+
+  -- | Replace one existing position and repair heap order under the natural ordering.
+  heap-replace :: forall r a. using (o :: Ord a) => Heap r a -> Nat -> a ->{Mut r} Option a
+  heap-replace hp index value = heap-replace-by (\first second -> first < second) hp index value
+
+  -- | Replace a checked position and return its old value, repairing in logarithmic work.
+  -- An absent index returns None without changing the heap.
+  heap-replace-by :: forall r a. (a -> a -> Bool) -> Heap r a -> Nat -> a ->{Mut r} Option a
+  heap-replace-by less hp index value =
+    let count = len-of hp in
+    if index < to-nat count then
+      let store = store-of hp in
+      let at = fold-nat index in
+      let previous = slots-take store at in
+      let repaired = repair-hole less store at count value in
+      Some previous
+    else None
+
+  -- | Remove any checked position under the natural ordering.
+  heap-remove :: forall r a. using (o :: Ord a) => Heap r a -> Nat ->{Mut r} Option a
+  heap-remove hp index = heap-remove-by (\first second -> first < second) hp index
+
+  -- | Remove a checked position and repair the displaced last element in logarithmic work.
+  -- The returned value is exactly the element previously at that position.
+  heap-remove-by :: forall r a. (a -> a -> Bool) -> Heap r a -> Nat ->{Mut r} Option a
+  heap-remove-by less hp index =
+    let count = len-of hp in
+    if index < to-nat count then
+      let store = store-of hp in
+      let at = fold-nat index in
+      let previous = slots-take store at in
+      let last = dec count in
+      let shrunk = set-len hp last in
+      if eq-u64 at last then Some previous else
+        let displaced = slots-take store last in
+        let repaired = repair-hole less store at last displaced in
+        Some previous
+    else None
+
+  -- | Repair an existing element after its externally mutable priority changes.
+  heap-fix :: forall r a. using (o :: Ord a) => Heap r a -> Nat ->{Mut r} Bool
+  heap-fix hp index = heap-fix-by (\first second -> first < second) hp index
+
+  -- | Restore one changed position, returning False without mutation for an absent index.
+  -- The comparator and all other priorities must remain stable during repair.
+  heap-fix-by :: forall r a. (a -> a -> Bool) -> Heap r a -> Nat ->{Mut r} Bool
+  heap-fix-by less hp index =
+    let count = len-of hp in
+    if index < to-nat count then
+      let store = store-of hp in
+      let at = fold-nat index in
+      let value = slots-take store at in
+      let repaired = repair-hole less store at count value in
+      True
+    else False
+
+  -- | Rebuild all subtrees under the natural ordering in linear work.
+  heap-init :: forall r a. using (o :: Ord a) => Heap r a ->{Mut r} Unit
+  heap-init hp = heap-init-by (\first second -> first < second) hp
+
+  -- | Reestablish every subtree after changing the ordering or multiple mutable priorities.
+  heap-init-by :: forall r a. (a -> a -> Bool) -> Heap r a ->{Mut r} Unit
+  heap-init-by less hp =
+    let count = len-of hp in
+    let internal = if lt-u64 count 2 then (0 :: U64) else inc (wrapping-shr-u64 (wrapping-sub-u64 count 2) 2) in
+    heapify less (store-of hp) count internal
+
+  -- | Fill a private hole, choosing a rootward or leafward repair from its parent relation.
+  repair-hole :: forall a. (a -> a -> Bool) -> Array a -> U64 -> U64 -> a -> Unit
+  repair-hole less store index count value =
+    if eq-u64 index 0 then sift-down less store index count value else
+      let parent = wrapping-shr-u64 (dec index) 2 in
+      if less value (slots-read store parent) then sift-up less store 0 index value
+      else sift-down less store index count value
