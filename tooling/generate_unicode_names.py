@@ -80,7 +80,7 @@ def generated() -> str:
         lines.append('    ' + ('if' if index == 0 else 'else if') + f' index == {index} then Some ({json.dumps(key)}, {json.dumps(value)})')
     lines.append('    else None')
     for name, values, expression in [('category', layout['categories'], 'wrapping-u64-to-u32 (bit-and-u64 word 31)'), ('script', layout['scripts'], 'wrapping-u64-to-u32 (bit-and-u64 (wrapping-shr-u64 word 5) 255)')]:
-        lines += ['', f'  -- | Observe the primary {name} of any numeric Unicode code point; invalid or unassigned scripts return None.', f'  unicode-{name}-of-code :: I32 -> Option String', f'  unicode-{name}-of-code cp = if ge-i32 cp 0 && le-i32 cp 1114111 then', '    let raw = wrapping-i32-to-u32 cp in let word = unicode-data-class raw in', f'    let index = {expression} in', f'    if lt-u32 index {len(values)} then Some (primary-{name}-key index) else None', '    else None']
+        lines += ['', ('  -- | Observe the primary category, including Cs and Cn; values outside the Unicode code-point domain return None.' if name == 'category' else '  -- | Observe the primary script; values outside the code-point domain or without a named script return None.'), f'  unicode-{name}-of-code :: I32 -> Option String', f'  unicode-{name}-of-code cp = if ge-i32 cp 0 && le-i32 cp 1114111 then', '    let raw = wrapping-i32-to-u32 cp in let word = unicode-data-class raw in', f'    let index = {expression} in', f'    if lt-u32 index {len(values)} then Some (primary-{name}-key index) else None', '    else None']
         lines.extend(literal_keys('primary-' + name, values))
     return '\n'.join(lines) + '\n'
 
