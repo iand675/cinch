@@ -20,6 +20,7 @@ def main() -> None:
     parser.add_argument('--frontend',choices=['rust','native'],required=True)
     parser.add_argument('--native-snapshot',type=Path,default=NATIVE)
     parser.add_argument('--cpu',type=int,default=2)
+    parser.add_argument('--tables-override',type=Path,help='Use an isolated immutable table-routing candidate')
     parser.add_argument('--utf8-source-override',type=Path,help='Retain an isolated byte-layer candidate in the UTF8 ownership probe')
     parser.add_argument('--artifacts',type=Path,required=True)
     parser.add_argument('--output',type=Path,required=True)
@@ -28,6 +29,9 @@ def main() -> None:
     text=edges() if args.kind=='edges' else catalog() if args.kind=='catalog' else (ROOT/'compiler/tests/fixtures/utf8-ownership-consumer.cinch').read_text()
     source=project/'Main.cinch';source.write_text(text)
     paths=source_closure(project,source)+[source];exe=artifacts/'consumer'
+    if args.tables_override:
+        if args.kind=='utf8-ownership':raise ValueError('table override requires a Unicode probe')
+        (project/'Data.Unicode.Tables.cinch').write_bytes(args.tables_override.read_bytes())
     if args.utf8_source_override:
         if args.kind!='utf8-ownership':raise ValueError('UTF8 override only applies to its ownership probe')
         (project/'Data.Bytes.Utf8.cinch').write_bytes(args.utf8_source_override.read_bytes())

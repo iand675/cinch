@@ -42,6 +42,7 @@ def main() -> None:
     parser.add_argument('--chunk', type=int, help='Run one diagnostic chunk instead of complete coverage')
     parser.add_argument('--compile-only', action='store_true')
     parser.add_argument('--reuse', action='store_true')
+    parser.add_argument('--tables-override', type=Path, help='Use an isolated read-only table candidate without editing maintained source')
     args = parser.parse_args()
     os.sched_setaffinity(0, {args.cpu})
     artifacts = args.artifacts.resolve()
@@ -52,6 +53,8 @@ def main() -> None:
     source = project / 'Main.cinch'
     source.write_text(consumer())
     inputs = source_closure(project, source) + [source]
+    if args.tables_override:
+        (project / 'Data.Unicode.Tables.cinch').write_bytes(args.tables_override.read_bytes())
     exe = artifacts / 'consumer'
     compiler = RUST if args.frontend == 'rust' else args.native_snapshot / 'cinch'
     if args.frontend == 'rust':
@@ -100,7 +103,7 @@ def main() -> None:
         if result.returncode or 'leaked=0' not in result.stderr:
             raise RuntimeError(f'{group}, poisoned={debug}, exit={result.returncode}: {result.stdout}\n{result.stderr}')
         runs.append({'group': group, 'poisoned': debug, 'heap': env['CINCH_HEAP_LIMIT'], 'stack': '8M', 'seconds': time.monotonic() - started, 'stderr': result.stderr})
-    report = {'frontend': args.frontend, 'compiler': str(compiler), 'compiler_sha256': digest(compiler), 'native_snapshot': str(args.native_snapshot) if args.frontend == 'native' else None, 'sources': {path.name: digest(path) for path in inputs}, 'fixture_sha256': digest(ROOT / 'compiler/tests/fixtures/unicode-vectors.json'), 'executable_sha256': digest(exe), 'runtime': str(runtime), 'runtime_sha256': digest(runtime), 'provider_sha256': provider, 'compile_command': command, 'reused_existing_executable': args.reuse, 'compile_seconds': compile_seconds, 'cpu': args.cpu, 'complete_domain': args.chunk is None, 'runs': runs, 'all_passed': True}
+    report = {'frontend': args.frontend, 'compiler': str(compiler), 'compiler_sha256': digest(compiler), 'native_snapshot': str(args.native_snapshot) if args.frontend == 'native' else None, 'sources': {path.name: digest(path) for path in inputs}, 'fixture_sha256': digest(ROOT / 'compiler/tests/fixtures/unicode-vectors.json'), 'executable_sha256': digest(exe), 'runtime': str(runtime), 'runtime_sha256': digest(runtime), 'provider_sha256': provider, 'compile_command': command, 'reused_existing_executable': args.reuse, 'tables_override': str(args.tables_override.resolve()) if args.tables_override else None, 'compile_seconds': compile_seconds, 'cpu': args.cpu, 'complete_domain': args.chunk is None, 'runs': runs, 'all_passed': True}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + '\n')
     print(f'{args.frontend} Unicode corpus passed {len(runs)} memory runs', flush=True)
