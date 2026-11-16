@@ -38,7 +38,7 @@ module Data.String where
   import Algebra.Semigroup
   import Algebra.Monoid
 
-  export String, compare-bytes-from, copy-bytes-into, empty-string, pack, string-byte-index-from, string-byte-length, string-char-at, string-char-at-from, string-compare, string-concat, string-concat-all, string-from-bytes, string-length, string-length-from, string-repeat, string-slice, string-to-bytes, unpack, utf8-at, utf8-char, utf8-cont, utf8-encode-into, utf8-encode-width, utf8-lead-payload, utf8-min, utf8-valid-from, utf8-width
+  export String, compare-bytes-from, copy-bytes-into, empty-string, pack, string-byte-index-from, string-byte-length, string-char-at, string-char-at-from, string-clone, string-compare, string-concat, string-concat-all, string-from-bytes, string-join, string-length, string-length-from, string-repeat, string-slice, string-to-bytes, unpack, utf8-at, utf8-char, utf8-cont, utf8-encode-into, utf8-encode-width, utf8-lead-payload, utf8-min, utf8-valid-from, utf8-width
 
 
   -- ---------------------------------------------------------------------------
@@ -83,6 +83,11 @@ module Data.String where
     let out = bytes-new (bytes-len b) in
     let u = copy-bytes-into out b 0 0 (bytes-len b) in
     out
+
+  -- | Copy a string into independent immutable UTF-8 storage, including empty input.
+  -- The mutable backing remains private and cannot alias any caller-owned byte buffer.
+  string-clone :: String -> String
+  string-clone text = StrBuf (bytes-copy (string-bytes-raw text))
 
   -- A copy of the backing (the conversion out copies: the caller may
   -- mutate its copy freely and the `String` never changes).
@@ -277,6 +282,41 @@ module Data.String where
         let next = pos + size in
         concat-copy out next rest
       else ()
+
+  -- | Count exact UTF-8 bytes and separators before allocating a joined result.
+  join-size :: List String -> Nat -> Nat -> Bool -> Nat
+  join-size pieces gap total first = case pieces of
+    Nil -> total
+    Cons text rest ->
+      let width = bytes-len (string-bytes-raw text) in
+      let next = total + width + (if first then 0 else gap) in
+      join-size rest gap next False
+
+  -- | Copy each immutable piece and its adjacent separator into checked output intervals.
+  join-copy :: Bytes -> Bytes -> Nat -> List String -> Unit
+  join-copy out separator pos pieces = case pieces of
+    Nil -> ()
+    Cons text rest ->
+      let source = string-bytes-raw text in let width = bytes-len source in
+      if pos + width <= bytes-len out then
+        let copied = copy-bytes-into out source pos 0 width in let following = pos + width in
+        case rest of
+          Nil -> ()
+          Cons _ _ -> let gap = bytes-len separator in
+            if following + gap <= bytes-len out then
+              let separated = copy-bytes-into out separator following 0 gap in
+              let next = following + gap in join-copy out separator next rest
+            else ()
+      else ()
+
+  -- | Join valid UTF-8 pieces with separators into one fresh immutable backing.
+  -- Empty pieces contribute adjacent separators; an empty list produces empty text.
+  string-join :: List String -> String -> String
+  string-join pieces separator =
+    let gap = string-bytes-raw separator in
+    if bytes-len gap == 0 then string-concat-all pieces else
+      let size = join-size pieces (bytes-len gap) 0 True in let out = bytes-new size in
+      let copied = join-copy out gap 0 pieces in StrBuf out
 
   -- | Repeat a string the requested natural count into one fresh immutable backing.
   -- A complete first copy seeds checked prefix doubling, giving logarithmically
