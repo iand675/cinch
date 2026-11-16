@@ -1,6 +1,6 @@
 {
   "description": "Owned four-way indexed heap repairs and a callback-backed binary heap interface.",
-  "status": "Frozen Rust and corrected Cinch frontend each pass all 33 runtime consumers; full self-built Native fixed point and parent Cargo gates remain pending.",
+  "status": "Frozen Rust and corrected Cinch frontend pass all33 consumers; parent75 targeted/preserved checks pass. Full self-built Native fixed point remains pending.",
   "reference_package": "container/heap",
   "reference_declarations": 11,
   "full_stdlib_goal_complete": false,
@@ -65,7 +65,8 @@
     "note": "The separate Rust control check type-checks every helper. The Native corpus uses a corrected Cinch compiler compiled by frozen Rust; the source fixture now observes local list emptiness directly to avoid a missing generic O variant in the older provider. Library bytes match all receipts.",
     "reference_fixture_reproduces_exactly": true,
     "native_projected_consumers": 33,
-    "native_report": "stdlib-heap-native-validation-results.json"
+    "native_report": "stdlib-heap-native-validation-results.json",
+    "parent_integration": "stdlib-heap-bytes-integration-results.json"
   },
   "documentation": {
     "Data.Mutable.Heap": {

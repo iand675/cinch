@@ -36,11 +36,29 @@
       "status": "partial",
       "cinch_modules": [
         "Data.Bytes",
+        "Data.Bytes.Build",
+        "Data.Bytes.Search",
         "Data.Bytes.Word",
         "Data.StringIo"
       ],
-      "remaining": [],
-      "reference_declarations": 102
+      "remaining": [
+        "Full operation-level review of the 102 reference declarations, including general substring search, splitting, replacement, Unicode text operations and buffer APIs",
+        "Public Search/Build benchmark review remains in progress"
+      ],
+      "reference_declarations": 102,
+      "tests": [
+        "lib_byte_search",
+        "lib_byte_build"
+      ],
+      "benchmarks": [],
+      "capabilities": {
+        "IndexByte": "Data.Bytes.Search.bytes-index-byte -> Option Nat",
+        "LastIndexByte": "Data.Bytes.Search.bytes-last-index-byte -> Option Nat",
+        "Clone": "Data.Bytes.Build.bytes-clone; always fresh mutable output",
+        "Repeat": "Data.Bytes.Build.bytes-repeat; count-first checked natural input",
+        "Join": "Data.Bytes.Build.bytes-join; separator-aware fresh output",
+        "specialized-foundations": "bytes-contains-byte, bytes-count-byte, bytes-concat; these do not claim general substring Contains/Count coverage"
+      }
     },
     {
       "reference_package": "cmp",
@@ -111,10 +129,24 @@
       "reference_package": "container/heap",
       "status": "partial",
       "cinch_modules": [
-        "Data.Mutable.Heap"
+        "Data.Mutable.Heap",
+        "Data.Mutable.HeapView"
       ],
-      "remaining": [],
-      "reference_declarations": 11
+      "remaining": [
+        "Full self-built Native fixed point for mutation kind/inference prerequisites, queued after the fresh-base chain"
+      ],
+      "reference_declarations": 11,
+      "tests": [
+        "lib_heap_view"
+      ],
+      "benchmarks": [
+        "owned-build-drain",
+        "view-build-drain",
+        "owned-root-repair",
+        "view-root-repair"
+      ],
+      "capability_mapping": "bootstrap/stdlib-heap-validation-results.json",
+      "review": "All 11 reference records have owned or callback-backed mappings. Both frozen frontends pass 33 consumers with 1040 exact callback/storage/identity steps, ordinary and poisoned ownership profiles. Public benchmarks and remaining overhead are retained. Parent integration of the source inference prerequisites is in progress; completion promotion remains pending. Parent integration now passes75 focused/preserved checks, including all7 heap tests and source kinds/inference/staging regressions; full Native family fixed point is still pending."
     },
     {
       "reference_package": "container/list",

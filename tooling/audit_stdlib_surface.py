@@ -19,10 +19,10 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT = ROOT / "design/stdlib-surface.json"
 
 HOMES = {
-    "bufio": ["Effect.Stream"], "bytes": ["Data.Bytes", "Data.Bytes.Word", "Data.StringIo"],
+    "bufio": ["Effect.Stream"], "bytes": ["Data.Bytes", "Data.Bytes.Word", "Data.Bytes.Search", "Data.Bytes.Build", "Data.StringIo"],
     "html": ["Text.Html"],
     "cmp": ["Data.Compare", "Relation.Ord"], "compress/flate": ["Text.Zlib"], "compress/zlib": ["Text.Zlib"],
-    "container/heap": ["Data.Mutable.Heap"], "container/list": ["Data.List"], "container/ring": ["Data.Mutable.Deque"], "context": ["Effect.Concurrent", "Effect.Clock"],
+    "container/heap": ["Data.Mutable.Heap", "Data.Mutable.HeapView"], "container/list": ["Data.List"], "container/ring": ["Data.Mutable.Deque"], "context": ["Effect.Concurrent", "Effect.Clock"],
     "crypto/hmac": ["Text.Digest"], "crypto/md5": ["Text.Digest"], "crypto/rand": ["Effect.Random"],
     "crypto/sha1": ["Text.Digest"], "crypto/sha256": ["Text.Digest", "Text.Sha256", "Effect.Sha256"], "crypto/sha512": ["Text.Digest"],
     "encoding/ascii85": ["Text.Ascii85", "Effect.Ascii85"],
@@ -52,6 +52,8 @@ HOMES = {
 }
 
 EVIDENCE = {
+    "bytes": (["lib_byte_search", "lib_byte_build"], []),
+    "container/heap": (["lib_heap_view"], ["owned-build-drain", "view-build-drain", "owned-root-repair", "view-root-repair"]),
     "cmp": (["lib_compare"], ["integer", "float", "choice", "string"]),
     "unicode": (["lib_unicode_kernel", "lib_unicode_catalog"], []),
     "encoding/base64": (["lib_base64", "lib_base64_encoding"], ["encode-bytes", "decode-bytes", "custom-encode", "custom-decode", "legacy-encode", "legacy-decode", "stream-encode64", "stream-decode64"]),

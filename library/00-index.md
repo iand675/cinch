@@ -79,6 +79,8 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.Ascii](Data.Ascii.md) | Embedded | ASCII-refined values and checked construction at text boundaries. |
 | [Data.BigDecimal](Data.BigDecimal.md) | Ship source | Decimal arithmetic with explicit precision/scale and rounding/error behaviour in the exported API. |
 | [Data.Bool](Data.Bool.md) | Embedded | Boolean operations and their comparison instances. |
+| [Data.Bytes.Build](Data.Bytes.Build.md) | Ship source | Fresh byte cloning, doubling repetition, concatenation and separator-aware joining. |
+| [Data.Bytes.Search](Data.Bytes.Search.md) | Ship source | Exact first, last, containment and count queries over raw bytes with bounded SWAR traversals. |
 | [Data.Bytes.Utf8](Data.Bytes.Utf8.md) | Ship source | Raw UTF-8 validation, forward and reverse decoding, scalar counting, fresh repair and atomic encoding. |
 | [Data.Bytes.Word](Data.Bytes.Word.md) | Ship source | Bounds-proved unaligned little-endian machine-word reads and writes for SIMD and SWAR processing. |
 | [Data.Bytes](Data.Bytes.md) | Embedded | Mutable byte buffers with length, construction, copy, and bounds/range-aware access operations. |
@@ -111,6 +113,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.Mutable.HashSet](Data.Mutable.HashSet.md) | Ship source | A mutable hash set: the HashTable with a Unit value per member. |
 | [Data.Mutable.HashTable](Data.Mutable.HashTable.md) | Ship source | A mutable hash table after SwissTable and F14: 8-slot chunks with 7-bit tags matched eight at a time, a 64-bit finalizer over the Hash digest, and overflow counts that make deletion tombstone-free. |
 | [Data.Mutable.Heap](Data.Mutable.Heap.md) | Ship source | A 4-ary priority queue with its ordering fixed at construction: O(log n) push and pop, O(1) peek, and an O(n) Floyd build from a list. |
+| [Data.Mutable.HeapView](Data.Mutable.HeapView.md) | Ship source | In-place heap ordering and indexed repairs through explicit borrowed storage callbacks. |
 | [Data.Mutable.IndexMap](Data.Mutable.IndexMap.md) | Ship source | An insertion-ordered hash map: dense entries with a tagged chunk index over them, positional access, O(1) swap-remove and order-keeping shift-remove. |
 | [Data.Mutable.LruCache](Data.Mutable.LruCache.md) | Ship source | A bounded least-recently-used cache: a hash table to nodes threaded on a recency list, with O(1) get, put and eviction. |
 | [Data.Mutable.UnionFind](Data.Mutable.UnionFind.md) | Ship source | Disjoint sets with union by size and path halving: near-constant find, union and same-set queries, and appendable elements. |
@@ -234,7 +237,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **167 source modules**: **65 embedded** and **102 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **170 source modules**: **65 embedded** and **105 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

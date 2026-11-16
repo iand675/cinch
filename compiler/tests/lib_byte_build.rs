@@ -36,6 +36,12 @@ fn checks(group: &str, rows: &[Value]) -> Vec<String> {
 fn run(checks: &[String], opt_level: Option<u8>) {
     let directory = tempfile::tempdir().unwrap();
     std::fs::write(directory.path().join("Data.Bytes.Build.cinch"), BUILD).unwrap();
+    for (name, contents) in [
+        ("Text.Hex", include_str!("../prelude/Text/Hex.cinch")),
+        ("Data.Bytes.Word", include_str!("../prelude/Data/Bytes/Word.cinch")),
+    ] {
+        std::fs::write(directory.path().join(format!("{name}.cinch")), contents).unwrap();
+    }
     let mut source = HELPERS.to_owned();
     let mut batches = Vec::new();
     for (i, batch) in checks.chunks(8).enumerate() {
