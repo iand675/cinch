@@ -5,10 +5,20 @@
 /// declarations of `cinch.prim.*` and `cinch.runtime.*` intrinsics.
 fn prim_scheme(op: PrimOp) -> Scheme {
     let (args, res) = op.sig();
-    let mut scheme = Scheme::mono(Ty::funs(&args, res));
+    let ty = if let PrimOp::MVar { op, .. } = op {
+        let mut args = args;
+        let last = args.pop().expect("MVar intrinsic argument");
+        let mut labels = vec![EffLabel::plain("MVar")];
+        if op.blocking() { labels.push(EffLabel::plain("Diverge")); }
+        Ty::funs(&args, Ty::fun_eff(last, EffRow::closed(labels), res))
+    } else {
+        Ty::funs(&args, res)
+    };
+    let mut scheme = Scheme::mono(ty);
     match op {
         PrimOp::Array { op, packed, .. } => scheme.params = op.params(packed),
         PrimOp::Stm { op, .. } => scheme.params = op.params(),
+        PrimOp::MVar { op, .. } => scheme.params = op.params(),
         PrimOp::Slots { op, .. } => scheme.params = op.params(),
         _ => {}
     }
@@ -345,7 +355,7 @@ fn builtin_type_name(name: &str) -> bool {
     }
     matches!(
         name,
-        "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "Tensor" | "Columnar" | "TVar" | "Type" | "Prop" | "True" | "False"
+        "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "Type" | "Prop" | "True" | "False"
             | "Code" | "Syntax" | "SyntaxBinding" | "TypeSyntax" | "PackedCode" | "Declarations" | "Name" | "Secret"
             | "IoCap" | "FileReadCap" | "FileWriteCap" | "ProcCap"
             | "Scope" | "Task"
@@ -725,7 +735,7 @@ impl Checker {
         }
         // Opaque runtime type constructors: no source constructor can forge
         // a shape, a column layout or a transactional variable's cell.
-        for name in ["Array", "Tensor", "Columnar", "TVar"] {
+        for name in ["Array", "Tensor", "Columnar", "TVar", "MVarCell"] {
             self.types.entry(name.into()).or_default().push(TypeKind {
                 data_family: false,
                 module: "<builtin>".into(), name: name.into(), identity: name.into(), arity: 1,
@@ -3608,13 +3618,13 @@ impl Checker {
                                 .map_err(|m| Error::at(f.span, crate::diagnostic!("intrinsic {} is declared {}, but {}", f.symbol, s.ty, m)))?;
                         }
                         let rendered = render_scheme(&s);
-                        let kind = if matches!(op, PrimOp::Array { .. } | PrimOp::Stm { .. } | PrimOp::Slots { .. }) {
+                        let kind = if matches!(op, PrimOp::Array { .. } | PrimOp::Stm { .. } | PrimOp::MVar { .. } | PrimOp::Slots { .. }) {
                             let (args, result) = op.sig();
                             let repr_params = args.iter().map(|t| crate::repr::repr_of(t, &expected.params, self, &mut |_| {})).collect();
                             // A cell read answers the value's own class,
                             // which the unit's copies resolve per vector;
                             // every array operation answers a block.
-                            let repr_result = matches!(op, PrimOp::Stm { .. } | PrimOp::Slots { .. })
+                            let repr_result = matches!(op, PrimOp::Stm { .. } | PrimOp::MVar { .. } | PrimOp::Slots { .. })
                                 .then(|| crate::repr::repr_of(&result, &expected.params, self, &mut |_| {}));
                             self.fns.push(FnDef {
                                 id: fn_id(&module, &f.name.text),
@@ -3877,7 +3887,7 @@ impl Checker {
                                 | "Unit"
                                 | "Bytes"
                                 | "Sym"
-                                | "Array" | "Tensor" | "Columnar" | "TVar"
+                                | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell"
                                 | "Code"
                                 | "Syntax"
                                 | "TypeSyntax" | "PackedCode"
@@ -4194,7 +4204,7 @@ impl Checker {
                                 | "Unit"
                                 | "Bytes"
                                 | "Sym"
-                                | "Array" | "Tensor" | "Columnar" | "TVar"
+                                | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell"
                                 | "Code"
                                 | "Syntax"
                                 | "TypeSyntax" | "PackedCode"
@@ -4422,7 +4432,7 @@ impl Checker {
                 }
                 ast::Decl::Record(rec) => {
                     let set = self.validate_attr_site(decl_attrs, AttrSite::TypeDecl)?;
-                    if matches!(rec.name.text.as_str(), "Array" | "Tensor" | "Columnar" | "TVar") {
+                    if matches!(rec.name.text.as_str(), "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell") {
                         return Err(Error::at(rec.name.span, format!("{} is a builtin primitive type and cannot be redefined", rec.name.text)));
                     }
                     // The head is already registered, with its parameter
@@ -4650,7 +4660,7 @@ impl Checker {
                         || matches!(
                             rec.name.text.as_str(),
                             "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym"
-                                | "Array" | "Tensor" | "Columnar" | "TVar"
+                                | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell"
                                 | "Thunk" | "Lazy" | "Later" | "Ref" | "Mut" | "Io"
                                 | "Type" | "Prop"
                         )

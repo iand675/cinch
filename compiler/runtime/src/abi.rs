@@ -158,6 +158,7 @@ pub(crate) unsafe fn drop_box_payload(p: *mut u8, header_kind: u8) {
         N => unsafe { std::ptr::drop_in_place(p.cast::<Nat>()) },
         I => unsafe { std::ptr::drop_in_place(p.cast::<Int>()) },
         B => unsafe { (*p.cast::<crate::bytes::Bytes>()).release() },
+        crate::block::KIND_MVAR => unsafe { std::ptr::drop_in_place(p.cast::<crate::mvar::MVar>()) },
         _ => {}
     }
 }
