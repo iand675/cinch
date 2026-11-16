@@ -627,6 +627,14 @@
       "public_methods": 0
     },
     {
+      "module": "Effect.Crc64",
+      "path": "compiler/prelude/Effect/Crc64.cinch",
+      "sha256": "d9692eee84798f6237c7ae8a23ed91e66906cff5f137a800acc413e8b5ddcabc",
+      "embedded": false,
+      "values": 3,
+      "public_methods": 0
+    },
+    {
       "module": "Effect.FileUtils",
       "path": "compiler/prelude/Effect/FileUtils.cinch",
       "sha256": "17e8649cadb5ba3ee76cccdc2f18b9306f7749857f55addaa9f517ffc4e71777",
@@ -933,7 +941,7 @@
     {
       "module": "Text.Checksum",
       "path": "compiler/prelude/Text/Checksum.cinch",
-      "sha256": "d8fa3abc1d3fed0eea57aeeffb623544bf0c6efb8ef8d5e7ccda15e2018e025e",
+      "sha256": "6f645a7b6fd84e7edbd8b66d0ec3bf721621deb409d3f89affddac9df7f4f684",
       "embedded": false,
       "values": 12,
       "public_methods": 0
@@ -945,6 +953,14 @@
       "embedded": true,
       "values": 1,
       "public_methods": 4
+    },
+    {
+      "module": "Text.Crc64",
+      "path": "compiler/prelude/Text/Crc64.cinch",
+      "sha256": "a16838b8ee60a69ce5c9dd5cbae6862262184690ba8fdec3868a016631093aa2",
+      "embedded": false,
+      "values": 22,
+      "public_methods": 0
     },
     {
       "module": "Text.Csv",

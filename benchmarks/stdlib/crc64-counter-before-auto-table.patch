@@ -1,0 +1,18 @@
+--- a/compiler/prelude/Text/Crc64.cinch
++++ b/compiler/prelude/Text/Crc64.cinch
+@@ -253,13 +253,9 @@
+   crc64-sum :: U64 -> Bytes -> U64
+   crc64-sum poly b = crc64-update poly 0 b
+ 
+-  -- | Continue a finished CRC-64 with a reflected polynomial, preserving empty updates.
+-  -- Chunks of at least 16384 bytes prepare a slicing table; shorter chunks use
+-  -- the direct shift register. Reuse crc64-table-update to amortize table setup.
++  -- | Continue a finished CRC-64. Arguments are reflected polynomial, previous checksum, and bytes; an empty update preserves the checksum.
+   crc64-update :: U64 -> U64 -> Bytes -> U64
+-  crc64-update poly previous b =
+-    if 16384 <= bytes-len b then crc64-table-update (crc64-table poly) previous b
+-    else bit-not-u64 (crc64-from poly b 0 (bit-not-u64 previous))
++  crc64-update poly previous b = bit-not-u64 (crc64-from poly b 0 (bit-not-u64 previous))
+ 
+   -- | Consume complete eight-byte native shift-register blocks before handling the exact scalar tail.
+   crc64-from :: U64 -> Bytes -> Nat -> U64 -> U64

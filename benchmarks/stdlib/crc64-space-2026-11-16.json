@@ -1,0 +1,111 @@
+{
+  "description": "Ordinary reclamation counts for one complete public CRC-64 pipeline; process startup, identical input setup and prepared-table construction included. Debug quarantine is excluded.",
+  "executable_sha256": "2449a049bc190475b8d04e37735163c76492997323781262bbbab796c4b152b6",
+  "heap_limit": "32M",
+  "stack_limit": "8M",
+  "rc_debug": false,
+  "rows": [
+    {
+      "workload": "crc64-table",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "stats": {
+        "blocks": 114,
+        "bytes": 85163,
+        "peak": 82288,
+        "header-blocks": 88,
+        "header-bytes": 1784,
+        "immortal": 0,
+        "freed": 88,
+        "live": 0
+      },
+      "stdout": "60331 249883971",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=114 bytes=85163 peak=82288 header-blocks=88 header-bytes=1784 immortal=0 freed=88 live=0"
+    },
+    {
+      "workload": "crc64-state",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "stats": {
+        "blocks": 122,
+        "bytes": 85319,
+        "peak": 82360,
+        "header-blocks": 95,
+        "header-bytes": 1968,
+        "immortal": 0,
+        "freed": 95,
+        "live": 0
+      },
+      "stdout": "36255 268",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=122 bytes=85319 peak=82360 header-blocks=95 header-bytes=1968 immortal=0 freed=95 live=0"
+    },
+    {
+      "workload": "crc64-roundtrip",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "stats": {
+        "blocks": 145,
+        "bytes": 85803,
+        "peak": 82424,
+        "header-blocks": 113,
+        "header-bytes": 2384,
+        "immortal": 0,
+        "freed": 113,
+        "live": 0
+      },
+      "stdout": "50466 641",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=145 bytes=85803 peak=82424 header-blocks=113 header-bytes=2384 immortal=0 freed=113 live=0"
+    },
+    {
+      "workload": "crc64-stream",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "stats": {
+        "blocks": 6798,
+        "bytes": 368418,
+        "peak": 148073,
+        "header-blocks": 5746,
+        "header-bytes": 153976,
+        "immortal": 0,
+        "freed": 5746,
+        "live": 0
+      },
+      "stdout": "232871 65804",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=6798 bytes=368418 peak=148073 header-blocks=5746 header-bytes=153976 immortal=0 freed=5746 live=0"
+    },
+    {
+      "workload": "crc64-stream4096",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "stats": {
+        "blocks": 236,
+        "bytes": 219042,
+        "peak": 152109,
+        "header-blocks": 192,
+        "header-bytes": 4592,
+        "immortal": 0,
+        "freed": 192,
+        "live": 0
+      },
+      "stdout": "85369 65804",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=236 bytes=219042 peak=152109 header-blocks=192 header-bytes=4592 immortal=0 freed=192 live=0"
+    },
+    {
+      "workload": "crc64-table-build",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "stats": {
+        "blocks": 122,
+        "bytes": 101697,
+        "peak": 98742,
+        "header-blocks": 90,
+        "header-bytes": 1864,
+        "immortal": 0,
+        "freed": 90,
+        "live": 0
+      },
+      "stdout": "74192 116184680",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=122 bytes=101697 peak=98742 header-blocks=90 header-bytes=1864 immortal=0 freed=90 live=0"
+    }
+  ]
+}

@@ -1,0 +1,137 @@
+{
+  "description": "Standalone CRC-64 immutable SIMD-built slicing tables, persistent hash/checkpoint states, exact machine-counter traversal and inspectable stream APIs. Full stdlib goal remains open.",
+  "full_stdlib_goal_complete": false,
+  "source_sha256": {
+    "compiler/prelude/Text/Crc64.cinch": "a16838b8ee60a69ce5c9dd5cbae6862262184690ba8fdec3868a016631093aa2",
+    "compiler/prelude/Effect/Crc64.cinch": "d9692eee84798f6237c7ae8a23ed91e66906cff5f137a800acc413e8b5ddcabc",
+    "compiler/prelude/Text/Checksum.cinch": "6f645a7b6fd84e7edbd8b66d0ec3bf721621deb409d3f89affddac9df7f4f684",
+    "compiler/tests/lib_crc64.rs": "13954c0e9ac3bdf6e13f6cf76a0b3b5a3312b2ce162281b1568e2fa9aa409bdc",
+    "compiler/tests/lib_go_stdlib.rs": "a85e553c7305fe262c87f08a6bc09e26dfd0bb084ded16987fb9b8a4f86e76a3",
+    "tooling/go_crc64_state_vectors.go": "7032cfeb900afb7b7a56ce492be7475fbcf70a165bae259ebd7b58d4e8c66861",
+    "tooling/bench_stdlib.py": "09d282e24dff4e0d55821a4cec0b4a1bad3d44dc0dffa9c8e075b3201919c3a2",
+    "tooling/bench_stdlib_reference.go": "8b17c6aedea73c81cc07acc15a2c2a2c849bab8e951a93cd3a428048b69a62e2"
+  },
+  "compilers": {
+    "rust_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+    "native_stage3_sha256": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f",
+    "compiler_prerequisite_commit": "df1f3a18",
+    "existing_compiler_gate_evidence": "stdlib-prim-wide-validation-results.json",
+    "compiler_implementation_unchanged_after_prerequisite": true
+  },
+  "tests": {
+    "rust_crc64": 12,
+    "native_stage3_crc64": 11,
+    "shared_profile_tests_per_target": 3,
+    "rust_only_optimized_owner_case": 1,
+    "native_target_excludes_explicit_rust_optimized_case": true,
+    "strengthened_nonzero_branch_case_rerun_both_frontends": true,
+    "rust_existing_stdlib_regressions": 12,
+    "foreign_kernel_object_targets": [
+      "wasm32-unknown-unknown",
+      "aarch64-unknown-linux-gnu",
+      "aarch64-unknown-linux-gnu + ArmCrc32",
+      "powerpc64-unknown-linux-gnu big endian"
+    ],
+    "foreign_execution": false,
+    "fixture_rows": {
+      "arbitrary": 525,
+      "loads": 791,
+      "tables": 7,
+      "valid": 350
+    },
+    "fixture_sha256": "baf5a4dbc39670d8b97ff04c276df75864ee95e2308412f91582157702949899",
+    "all_two_chunk_splits_through_bytes": 65,
+    "selected_long_boundaries": [
+      255,
+      256,
+      257,
+      2047,
+      2048,
+      2049,
+      16383,
+      16384,
+      16385,
+      65536
+    ],
+    "ordinary_heap_limit": "32M",
+    "stack_limit": "8M",
+    "separate_poisoned_free_quarantine_budget": "256M",
+    "one_byte_stream_bytes": 65536,
+    "optimized_ephemeral_owner_iterations": 100,
+    "optimized_ephemeral_input_bytes": 65536,
+    "zero_leaks_both_modes": true,
+    "fixture_reproduces_byte_for_byte": true
+  },
+  "documentation": {
+    "modules": 139,
+    "value_exports": 3682,
+    "methods": 112,
+    "diagnostics": 0,
+    "orphans": 0,
+    "source_drift": false,
+    "canonical_comments_in_both_new_modules": true
+  },
+  "benchmarks": {
+    "rows": 32,
+    "opt_level": 2,
+    "all_reference_checksums_match": true,
+    "report": "../benchmarks/stdlib/crc64-state-O2-2026-11-16.json",
+    "counter_only_paired": "../benchmarks/stdlib/interleaved-crc64-word-counter-O2-2026-11-16.json",
+    "auto_table_paired": "../benchmarks/stdlib/interleaved-crc64-auto-table-O2-2026-11-16.json",
+    "space_probes": "../benchmarks/stdlib/crc64-space-2026-11-16.json",
+    "retained_baseline_patches": [
+      "../benchmarks/stdlib/crc64-natural-counter-baseline.patch",
+      "../benchmarks/stdlib/crc64-counter-before-auto-table.patch"
+    ],
+    "baseline_patch_reconstruction_byte_identical": true,
+    "counter_only_prepared_64k_before_over_after": 1.56,
+    "counter_only_64k_adler_control_before_over_after": 1.078,
+    "polynomial_16k_before_over_after": 1.851,
+    "polynomial_64k_before_over_after": 5.563,
+    "auto_table_control_max_difference_percent": 5.7,
+    "polynomial_table_selection_minimum_bytes": 16384,
+    "shared_prepared_table_initialized_before_timing": true,
+    "table_construction_included_in_build_and_large_polynomial_convenience": true
+  },
+  "codegen_inspection": {
+    "loops": {
+      "before": {
+        "assembly_sha256": "9f853b94831fe5149022dea495984d97f8dcf531b9b4e2ea20bb4b6c0b126c35",
+        "loop_variants": 4,
+        "loop_sha256": "ad6fef44802c139dd456c05f274515f5d37647b79b828b871009a3fbf033ae74",
+        "static_runtime_call_sites": 74,
+        "contains_natural_add_slow_path": true
+      },
+      "after": {
+        "assembly_sha256": "ea960cceb1e6d18cfc79a69859b6a9fe6a4412754b9903515eeb4c3f04c0bcd4",
+        "loop_variants": 6,
+        "loop_sha256": "dc945dec068b740e75998bcada2418ede037d61a0929e7173b75b90f82cd8851",
+        "static_runtime_call_sites": 0,
+        "contains_natural_add_slow_path": false
+      }
+    },
+    "simd_table_pair_instructions": [
+      "punpcklqdq",
+      "psrlq",
+      "pslld",
+      "psrad",
+      "pand",
+      "pxor"
+    ],
+    "change": "Use exact remaining-length U64 counters and private raw input/table reads, retaining both backing owners around the complete traversal. The polynomial convenience prepares a table only for inputs >= 16384 bytes.",
+    "static_counts_are_not_dynamic_allocation_or_call_counts": true
+  },
+  "remaining_limits": [
+    "The Text.Checksum compatibility facade still includes CRC-32 embedded assembly unsupported by the native frontend; standalone Text.Crc64 is independently validated.",
+    "The self-built backend retains documented public wide-primitive object, wide closure and wide tail-group restrictions. CRC-64 uses private wide SIMD pair helpers and word-sized loop boundaries.",
+    "Prepared-table construction computes eight slices and caches its fingerprint, unlike the reference public custom-table constructor. Serialization buffers and owned stream chunks retain different allocation costs.",
+    "Large constant test corpus setup uses an LLVM identity to avoid the existing Rust compiler pre-evaluation stack overflow; that compiler limitation is not repaired."
+  ],
+  "coverage": {
+    "reference_packages": 180,
+    "complete": 7,
+    "partial": 61,
+    "unreviewed": 112
+  },
+  "rebased_origin_main": "aea37603811b486188a47778df47bdf64b1b502f"
+}

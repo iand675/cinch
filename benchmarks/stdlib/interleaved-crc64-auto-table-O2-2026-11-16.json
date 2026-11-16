@@ -1,0 +1,413 @@
+{
+  "format": 1,
+  "description": "Alternating retained executables with matched compiler, driver, optimization and runtime sources",
+  "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+  "compiler_source_sha256": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+  "runtime_source_sha256": "cc65783bd854ae6b6e820a5adb18e5f59f5aed5ec6a40e52b912fc283c12ca31",
+  "driver_sha256": "b3006ea401843e2bcbef9f66c7687e2a7f6465ef8d4edea189a6a3a8219f7c95",
+  "opt_level": 2,
+  "iterations": 128,
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "cpu_affinity": [
+    0
+  ],
+  "warmup_processes_per_case": 1,
+  "inputs": {
+    "before": {
+      "report": "/workspace/dasl-stdlib-io/build/crc64-bench-first.json",
+      "sources": {
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Word": "1a563597517531debe37f7ab19616255dbc845d62ffed182abcdc5da9afe27ad",
+        "Effect.Adler32": "561a9c98abc71e5022289621323d3003d9419d7ac5e811310389bebf1c1d3566",
+        "Effect.Ascii85": "ce62b87682e7b8b63754a346c01a3db666e0a062693fa958251dac6c89febb27",
+        "Effect.Crc64": "d9692eee84798f6237c7ae8a23ed91e66906cff5f137a800acc413e8b5ddcabc",
+        "Effect.Fnv": "7253c58aac971fe5a2879b5cfda24593dbc52cd69bdbaff1d7ddfdf1c9db5464",
+        "Effect.Hex": "e53cb32a3da3f471f746fe04bcd8ef54d4fc774608d236b60da57a9af60c550b",
+        "Effect.Stream": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33",
+        "Text.Adler32": "30204346a6b8a6d8b0ebe898740eeedcf97c6951ce74ef2b1a52a6bc36f4023c",
+        "Text.Ascii85": "6550cb8d1b45de4b2d0ca392ad31b6cae716213b003f1789ae7d0281948d222b",
+        "Text.Base32": "ae82b9c24657458ca5d6b0f33ee80b8ba8239cef592e793a926270cb45e308bd",
+        "Text.Base64": "54948138dd53d893cb82067bdaba883faa404e81e0013dd750c75f723c0b409d",
+        "Text.Binary": "9e8420191ef2f63969bdd1fa54f69724c835a6ada8041b548ee3de8154e71e4d",
+        "Text.Checksum": "6f645a7b6fd84e7edbd8b66d0ec3bf721621deb409d3f89affddac9df7f4f684",
+        "Text.Crc64": "8e773579ab875190ddd101fa0c15cc31b5d4cc802edfdc3ed5ce4dd2fbda04aa",
+        "Text.Fnv": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+        "Text.Fnv.State": "32143ed6a2a86719094a7ff3dffcd7811a51d0b7c8aae7630fe1fe0487ecd673",
+        "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+        "Text.Utf16": "fb5bfa4782fa832245102d8fc57818a374c4176c6a7c608f21a669030f54e8b8"
+      },
+      "executable_sha256": "11c253e42fac781ff9f31ad1cad0044f1b507b082fa11dd25883694d355b649d",
+      "llvm_sha256": "4f1a8701cb41e1b77dcce18c21a716c01743d26a5b7f7edb2c7541853e32b438"
+    },
+    "after": {
+      "report": "/workspace/dasl-stdlib-io/build/crc64-bench-final.json",
+      "sources": {
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Word": "1a563597517531debe37f7ab19616255dbc845d62ffed182abcdc5da9afe27ad",
+        "Effect.Adler32": "561a9c98abc71e5022289621323d3003d9419d7ac5e811310389bebf1c1d3566",
+        "Effect.Ascii85": "ce62b87682e7b8b63754a346c01a3db666e0a062693fa958251dac6c89febb27",
+        "Effect.Crc64": "d9692eee84798f6237c7ae8a23ed91e66906cff5f137a800acc413e8b5ddcabc",
+        "Effect.Fnv": "7253c58aac971fe5a2879b5cfda24593dbc52cd69bdbaff1d7ddfdf1c9db5464",
+        "Effect.Hex": "e53cb32a3da3f471f746fe04bcd8ef54d4fc774608d236b60da57a9af60c550b",
+        "Effect.Stream": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33",
+        "Text.Adler32": "30204346a6b8a6d8b0ebe898740eeedcf97c6951ce74ef2b1a52a6bc36f4023c",
+        "Text.Ascii85": "6550cb8d1b45de4b2d0ca392ad31b6cae716213b003f1789ae7d0281948d222b",
+        "Text.Base32": "ae82b9c24657458ca5d6b0f33ee80b8ba8239cef592e793a926270cb45e308bd",
+        "Text.Base64": "54948138dd53d893cb82067bdaba883faa404e81e0013dd750c75f723c0b409d",
+        "Text.Binary": "9e8420191ef2f63969bdd1fa54f69724c835a6ada8041b548ee3de8154e71e4d",
+        "Text.Checksum": "6f645a7b6fd84e7edbd8b66d0ec3bf721621deb409d3f89affddac9df7f4f684",
+        "Text.Crc64": "a16838b8ee60a69ce5c9dd5cbae6862262184690ba8fdec3868a016631093aa2",
+        "Text.Fnv": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+        "Text.Fnv.State": "32143ed6a2a86719094a7ff3dffcd7811a51d0b7c8aae7630fe1fe0487ecd673",
+        "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+        "Text.Utf16": "fb5bfa4782fa832245102d8fc57818a374c4176c6a7c608f21a669030f54e8b8"
+      },
+      "executable_sha256": "2449a049bc190475b8d04e37735163c76492997323781262bbbab796c4b152b6",
+      "llvm_sha256": "4a00219add18f1ca9ecdbae0339e66f16f6658788a437a799de635e5cc611db1"
+    }
+  },
+  "results": [
+    {
+      "workload": "crc64",
+      "raw_input_bytes": 32,
+      "checksum": 270016189,
+      "samples_ns": {
+        "before": [
+          48183,
+          47191,
+          46721,
+          47281,
+          46671,
+          46960,
+          52890,
+          47101,
+          47101,
+          47261,
+          65058
+        ],
+        "after": [
+          47452,
+          47641,
+          48112,
+          47672,
+          48603,
+          48282,
+          49955,
+          47211,
+          78469,
+          47191,
+          48964
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 368.6796875,
+        "after": 375.875
+      },
+      "before_over_after": 0.9808571666112404
+    },
+    {
+      "workload": "crc64",
+      "raw_input_bytes": 16384,
+      "checksum": 270016189,
+      "samples_ns": {
+        "before": [
+          18813745,
+          22921728,
+          19161969,
+          19167559,
+          19623486,
+          19129982,
+          18946776,
+          19543575,
+          19244795,
+          19935336,
+          19540280
+        ],
+        "after": [
+          10304085,
+          10371467,
+          10357455,
+          10158425,
+          10354111,
+          10473620,
+          10397206,
+          10916238,
+          11389040,
+          11885229,
+          16971658
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 150349.9609375,
+        "after": 81228.171875
+      },
+      "before_over_after": 1.8509583247653263
+    },
+    {
+      "workload": "crc64",
+      "raw_input_bytes": 65536,
+      "checksum": 270016189,
+      "samples_ns": {
+        "before": [
+          77749600,
+          77252956,
+          78261465,
+          79055726,
+          78262556,
+          77806704,
+          77398208,
+          77025811,
+          77939769,
+          78158412,
+          77135223
+        ],
+        "after": [
+          14806154,
+          13834071,
+          14468221,
+          13837366,
+          13986273,
+          13632973,
+          14388280,
+          13467303,
+          14882595,
+          13578528,
+          17971890
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 607864.875,
+        "after": 109267.7578125
+      },
+      "before_over_after": 5.563076310608266
+    },
+    {
+      "workload": "crc64-table",
+      "raw_input_bytes": 32,
+      "checksum": 270016189,
+      "samples_ns": {
+        "before": [
+          15962,
+          45543,
+          14821,
+          15031,
+          15011,
+          15541,
+          14780,
+          14811,
+          15311,
+          15321,
+          14720
+        ],
+        "after": [
+          14219,
+          13649,
+          13559,
+          13729,
+          13919,
+          14020,
+          14089,
+          13589,
+          13789,
+          13679,
+          13819
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 117.4296875,
+        "after": 107.7265625
+      },
+      "before_over_after": 1.0900717963594169
+    },
+    {
+      "workload": "crc64-table",
+      "raw_input_bytes": 16384,
+      "checksum": 270016189,
+      "samples_ns": {
+        "before": [
+          2084290,
+          3049689,
+          3105136,
+          1658119,
+          1627637,
+          1746512,
+          2017998,
+          1718883,
+          1644941,
+          3124458,
+          3057079
+        ],
+        "after": [
+          1167849,
+          1323785,
+          1327400,
+          1320872,
+          1089561,
+          1221053,
+          1098803,
+          1086306,
+          1259567,
+          1117479,
+          1316805
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 15765.609375,
+        "after": 9539.4765625
+      },
+      "before_over_after": 1.6526702772115542
+    },
+    {
+      "workload": "crc64-table",
+      "raw_input_bytes": 65536,
+      "checksum": 270016189,
+      "samples_ns": {
+        "before": [
+          11255186,
+          11700383,
+          12205533,
+          11786883,
+          11913429,
+          11395250,
+          11890357,
+          11857341,
+          11776128,
+          12201779,
+          11980822
+        ],
+        "after": [
+          5509539,
+          5105799,
+          5132456,
+          5403662,
+          5081926,
+          5246434,
+          5298276,
+          5158352,
+          5316502,
+          5275285,
+          4420619
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 92635.4765625,
+        "after": 40987.765625
+      },
+      "before_over_after": 2.260076272759745
+    },
+    {
+      "workload": "adler32",
+      "raw_input_bytes": 32,
+      "checksum": 147256400,
+      "samples_ns": {
+        "before": [
+          7761,
+          8121,
+          7140,
+          7661,
+          7441,
+          7701,
+          7310,
+          8702,
+          7981,
+          8492,
+          7771
+        ],
+        "after": [
+          7581,
+          6829,
+          8161,
+          7190,
+          7841,
+          6889,
+          7130,
+          6939,
+          7881,
+          7500,
+          7350
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 60.6328125,
+        "after": 57.421875
+      },
+      "before_over_after": 1.0559183673469388
+    },
+    {
+      "workload": "adler32",
+      "raw_input_bytes": 16384,
+      "checksum": 714461486,
+      "samples_ns": {
+        "before": [
+          1105503,
+          2236071,
+          2130414,
+          1981377,
+          2157401,
+          1117049,
+          1170082,
+          1991101,
+          1987556,
+          1704314,
+          1670306
+        ],
+        "after": [
+          1965416,
+          1875040,
+          2083219,
+          1906613,
+          2001705,
+          1066279,
+          1061622,
+          2164507,
+          1170252,
+          1185043,
+          1093866
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 15479.5078125,
+        "after": 14648.75
+      },
+      "before_over_after": 1.0567118568137213
+    },
+    {
+      "workload": "adler32",
+      "raw_input_bytes": 65536,
+      "checksum": 686386731,
+      "samples_ns": {
+        "before": [
+          4486731,
+          6905294,
+          4403916,
+          4549098,
+          4380223,
+          6075494,
+          5498745,
+          4933671,
+          5089967,
+          4831680,
+          5038216
+        ],
+        "after": [
+          8163299,
+          8548453,
+          4245747,
+          4383318,
+          4646132,
+          5209764,
+          5013531,
+          5063040,
+          5103726,
+          4794608,
+          5130934
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 38544.3046875,
+        "after": 39555.0
+      },
+      "before_over_after": 0.9744483551384149
+    }
+  ]
+}
