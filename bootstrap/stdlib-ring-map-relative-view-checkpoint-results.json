@@ -1,0 +1,81 @@
+{
+  "description": "Integrated circular cursors, relative byte-view scalar observations and explicit JSON maps with preserved compiler/ownership gates",
+  "source_checkpoint": "a1ca6fa4",
+  "integrated_commits": {
+    "ring": "e9e4e3d0",
+    "relative_scalar_view": "309fa6e9",
+    "json_maps": "a1ca6fa4",
+    "powerpc_portability": "3e1d4192"
+  },
+  "gates": {
+    "full_library": {
+      "passed": 317,
+      "seconds": 289.06,
+      "log_sha256": "bc5492ea46a2737743b6ebf56ce7be7ef60600fbfed5858ad0f9b9ce992c3868"
+    },
+    "byte_views": {
+      "passed": 10,
+      "seconds": 71.64,
+      "log_sha256": "bc5492ea46a2737743b6ebf56ce7be7ef60600fbfed5858ad0f9b9ce992c3868"
+    },
+    "relative_byte_view_scalars": {
+      "passed": 7,
+      "seconds": 21.51,
+      "log_sha256": "bc5492ea46a2737743b6ebf56ce7be7ef60600fbfed5858ad0f9b9ce992c3868"
+    },
+    "json_codecs_including_maps": {
+      "passed": 16,
+      "seconds": 171.62,
+      "log_sha256": "bc5492ea46a2737743b6ebf56ce7be7ef60600fbfed5858ad0f9b9ce992c3868"
+    },
+    "quoted_printable": {
+      "passed": 2,
+      "seconds": 40.61,
+      "log_sha256": "bc5492ea46a2737743b6ebf56ce7be7ef60600fbfed5858ad0f9b9ce992c3868"
+    },
+    "rings": {
+      "passed": 9,
+      "seconds": 61.16,
+      "log_sha256": "bc5492ea46a2737743b6ebf56ce7be7ef60600fbfed5858ad0f9b9ce992c3868"
+    },
+    "preserved_arrays_codata_dependent": {
+      "targets": {
+        "arrays": 19,
+        "codata": 13,
+        "dependent": 22
+      },
+      "passed": 54,
+      "seconds": 839.35,
+      "log_sha256": "5db4c5c91db67cbddfa2a5e60042c0c822af79f777778e4892c6166e39fbb56a",
+      "epoch": "4e0b38c0/44d6cf9f before target-only portability repair; host production lowering is unchanged"
+    }
+  },
+  "documentation": {
+    "modules": 177,
+    "value_exports": 4680,
+    "public_methods": 115,
+    "diagnostics": 0,
+    "orphans": 0,
+    "drift_check": "passed",
+    "validation_log_sha256": "5899de9e417738d610e31e8216ed1d7e35098b1e729456927340753db5afd6de"
+  },
+  "sources": {
+    "Data.Mutable.Ring": "9c2860648b94c3c1a3182ed33c152609d8a19a323535d57296eeaafa341d8e25",
+    "Data.Bytes.View": "2b7bfa4193a68d4b80b2cd4f42c4333b25e5592d9da8ccb76cf0e6a3549c3a14",
+    "Text.Json.Value": "d83477dbc24e16529d98e0d4d5be896dec8669a8bbad965dc5a4dbaedb3a4de1",
+    "Text.Json.Codec": "30214dd49a094d6576996ba416a67137072f49b42b778a059b1e3f5d5e587b2a"
+  },
+  "inventory": {
+    "complete": 20,
+    "partial": 50,
+    "unreviewed": 110
+  },
+  "limitations": [
+    "Full standard-library initiative remains active; package status is operation-level, not module-count completion.",
+    "Ring remains partial pending qualification on the merged self-built Native family; reviewed allocation and ownership overhead remains material.",
+    "JSON remains partial; binary32, dynamic/raw-number behavior, effectful incremental streams and full pipeline review remain open.",
+    "Relative scalar observations do not complete byte splitting, iteration, replacement or Unicode byte transformations.",
+    "All frozen compiler/runtime/source epochs and rejected performance candidates remain separately identified in their original evidence.",
+    "The compiler word-folding repair under development is separate and absent from this checkpoint."
+  ]
+}

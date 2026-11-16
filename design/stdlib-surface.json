@@ -188,10 +188,25 @@
       "reference_package": "container/ring",
       "status": "partial",
       "cinch_modules": [
-        "Data.Mutable.Deque"
+        "Data.Mutable.Ring"
       ],
-      "remaining": [],
-      "reference_declarations": 10
+      "remaining": [
+        "Parent maintained target and full merged self-built Native qualification",
+        "Matched newer scalar-lowering performance follow-up; retained arena/owner overhead remains material"
+      ],
+      "reference_declarations": 10,
+      "tests": [
+        "lib_ring"
+      ],
+      "benchmarks": [
+        "construct-traverse",
+        "growing-joins",
+        "balanced-joins-aliases",
+        "split-rejoin",
+        "detached-copy"
+      ],
+      "capability_mapping": "bootstrap/stdlib-ring.md",
+      "review": "All10 records have explicit typed circular-cursor mappings. The full768-action independent trace corpus and managed-owner controls pass repaired Rust and an experimental Native Array emitter in normal and poisoned profiles. Reviewed public benchmarks retain the SIMD offset kernel and a rejected extraction candidate; the package remains partial pending parent and self-built family gates."
     },
     {
       "reference_package": "context",
@@ -790,20 +805,22 @@
       "cinch_modules": [
         "Data.Json",
         "Text.Json",
+        "Text.Json.Codec",
         "Text.Json.Value"
       ],
       "remaining": [
-        "Typed scalar, sequence, array, record and balanced-map codecs with custom callback and field policies",
-        "Arbitrary raw Number text conversion semantics, encoding policy scope and complete error mapping",
-        "Effectful streaming encoder/decoder adapters and full public-pipeline benchmarks"
+        "Exact binary32, dynamic values, raw Number conversion outcomes and complete error/capability mapping",
+        "Effectful incremental encoder/decoder adapters and complete streaming contracts",
+        "Full public-pipeline benchmarks and final92-record review"
       ],
       "reference_declarations": 92,
       "tests": [
-        "lib_json_value"
+        "lib_json_value",
+        "lib_json_codec"
       ],
       "benchmarks": [],
       "capability_mapping": "bootstrap/stdlib-json-capability-plan.json (all92 records remain in scope)",
-      "review": "Text.Json.Value supplies the reviewed owned source/tape syntax and formatting core, immutable navigation, exact numeric spellings, quote/HTML escaping and resumable lexical state. Both frozen frontends pass732 independent observations plus64KiB/depth/alias/all-width controls; parent lib_json_value passes all10 tests, including actual WebAssembly, AArch64 and big-endian PowerPC kernel objects. All260 core declarations have canonical docs. This core checkpoint does not complete the92-record package; typed codecs, policies and stream adapters remain open. Legacy modules are preserved."
+      "review": "The owned source/tape core, machine integer and binary codecs, binary64/record policies and persistent balanced maps with explicit key capabilities are implemented. Map names are snapshotted, repaired before byte-order sorting, and preserve original source-backed key views for decode callbacks. Frozen Rust and the matched self-built Native family pass map/raw-name/owner observations with zero leaks; expanded parent integration gates remain pending. Codec308 and Value265 declarations have canonical docs. Binary32, dynamic/raw-number behavior, incremental effectful streams and final92-record/benchmark review remain open."
     },
     {
       "reference_package": "encoding/json/jsontext",
