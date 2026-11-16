@@ -11,6 +11,51 @@ module Data.Unicode.Tables where
   export unicode-data-fold-orbit, unicode-data-ascii-fold, unicode-data-turkic-bounds, unicode-data-turkic-deltas
   export unicode-data-class, unicode-data-case-count, unicode-data-fold-count, unicode-data-table-count
 
+  -- | Apply exact private 32-bit add semantics without an imported provider call.
+  prim table-add :: U32 -> U32 -> U32 where
+    llvm {
+      %result = add i32 %0, %1
+      ret i32 %result
+    }
+
+  -- | Apply exact private 32-bit sub semantics without an imported provider call.
+  prim table-sub :: U32 -> U32 -> U32 where
+    llvm {
+      %result = sub i32 %0, %1
+      ret i32 %result
+    }
+
+  -- | Apply exact private 32-bit and semantics without an imported provider call.
+  prim table-and :: U32 -> U32 -> U32 where
+    llvm {
+      %result = and i32 %0, %1
+      ret i32 %result
+    }
+
+  -- | Shift a private 32-bit table word with the same masked count as wrapping machine shifts.
+  prim table-shr :: U32 -> U32 -> U32 where
+    llvm {
+      %count = and i32 %1, 31
+      %result = lshr i32 %0, %count
+      ret i32 %result
+    }
+
+  -- | Compare private unsigned table positions without allocating or crossing the provider ABI.
+  prim table-lt :: U32 -> U32 -> Bool where
+    llvm {
+      %yes = icmp ult i32 %0, %1
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Compare private unsigned table positions without allocating or crossing the provider ABI.
+  prim table-le :: U32 -> U32 -> Bool where
+    llvm {
+      %yes = icmp ule i32 %0, %1
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
   -- | Number of complete preserved simple-case range records.
   unicode-data-case-count :: U32
   unicode-data-case-count = 336
@@ -25,304 +70,304 @@ module Data.Unicode.Tables where
 
   -- | Find the first complete class run covering a low-byte code-point position.
   class-search :: U32 -> U32 -> U32 -> U32
-  class-search low high byte = if lt-u32 low high then
-    let middle = wrapping-shr-u32 (wrapping-add-u32 low high) 1 in
+  class-search low high byte = if table-lt low high then
+    let total = table-add low high in let middle = table-shr total 1 in
     let word = unicode-data-class-runs middle in
-    let end = bit-and-u32 word 255 in
-    if le-u32 byte end then class-search low middle byte
-    else class-search (wrapping-add-u32 middle 1) high byte
+    let end = table-and word 255 in
+    if table-le byte end then class-search low middle byte
+    else let next = table-add middle 1 in class-search next high byte
     else low
 
   -- | Read one complete code-point class word without allocation; values beyond U+10FFFF return zero.
   unicode-data-class :: U32 -> U64
-  unicode-data-class cp = if le-u32 cp 1114111 then
-    let page = wrapping-shr-u32 cp 8 in let low = bit-and-u32 cp 255 in
+  unicode-data-class cp = if table-le cp 1114111 then
+    let page = table-shr cp 8 in let low = table-and cp 255 in
     let info = unicode-data-class-directory page in
-    let start = wrapping-shr-u32 info 9 in let count = bit-and-u32 info 511 in
-    let index = class-search start (wrapping-add-u32 start count) low in
-    let run = unicode-data-class-runs index in let metadata = wrapping-shr-u32 run 8 in
+    let start = table-shr info 9 in let count = table-and info 511 in
+    let limit = table-add start count in let index = class-search start limit low in
+    let run = unicode-data-class-runs index in let metadata = table-shr run 8 in
     unicode-data-class-metadata metadata
     else 0
 
   -- | Read one immutable class-directory entry; an out-of-range index returns zero.
   unicode-data-class-directory :: U32 -> U32
-  unicode-data-class-directory index = if lt-u32 index 4352 then
-    let page = wrapping-shr-u32 index 6 in
+  unicode-data-class-directory index = if table-lt index 4352 then
+    let page = table-shr index 6 in
     unicode-data-class-directory-route page index
     else 0
 
   -- | Route a bounded class-directory index without constructing a runtime table.
   unicode-data-class-directory-route :: U32 -> U32 -> U32
   unicode-data-class-directory-route page index =
-    if lt-u32 page 34 then
-      if lt-u32 page 17 then
-        if lt-u32 page 8 then
-          if lt-u32 page 4 then
-            if lt-u32 page 2 then
-              if lt-u32 page 1 then
-                let local = wrapping-sub-u32 index 0 in
+    if table-lt page 34 then
+      if table-lt page 17 then
+        if table-lt page 8 then
+          if table-lt page 4 then
+            if table-lt page 2 then
+              if table-lt page 1 then
+                let local = table-sub index 0 in
                 unicode-data-class-directory-page-a local
               else
-                let local = wrapping-sub-u32 index 64 in
+                let local = table-sub index 64 in
                 unicode-data-class-directory-page-b local
             else
-              if lt-u32 page 3 then
-                let local = wrapping-sub-u32 index 128 in
+              if table-lt page 3 then
+                let local = table-sub index 128 in
                 unicode-data-class-directory-page-c local
               else
-                let local = wrapping-sub-u32 index 192 in
+                let local = table-sub index 192 in
                 unicode-data-class-directory-page-d local
           else
-            if lt-u32 page 6 then
-              if lt-u32 page 5 then
-                let local = wrapping-sub-u32 index 256 in
+            if table-lt page 6 then
+              if table-lt page 5 then
+                let local = table-sub index 256 in
                 unicode-data-class-directory-page-e local
               else
-                let local = wrapping-sub-u32 index 320 in
+                let local = table-sub index 320 in
                 unicode-data-class-directory-page-f local
             else
-              if lt-u32 page 7 then
-                let local = wrapping-sub-u32 index 384 in
+              if table-lt page 7 then
+                let local = table-sub index 384 in
                 unicode-data-class-directory-page-g local
               else
-                let local = wrapping-sub-u32 index 448 in
+                let local = table-sub index 448 in
                 unicode-data-class-directory-page-h local
         else
-          if lt-u32 page 12 then
-            if lt-u32 page 10 then
-              if lt-u32 page 9 then
-                let local = wrapping-sub-u32 index 512 in
+          if table-lt page 12 then
+            if table-lt page 10 then
+              if table-lt page 9 then
+                let local = table-sub index 512 in
                 unicode-data-class-directory-page-i local
               else
-                let local = wrapping-sub-u32 index 576 in
+                let local = table-sub index 576 in
                 unicode-data-class-directory-page-j local
             else
-              if lt-u32 page 11 then
-                let local = wrapping-sub-u32 index 640 in
+              if table-lt page 11 then
+                let local = table-sub index 640 in
                 unicode-data-class-directory-page-k local
               else
-                let local = wrapping-sub-u32 index 704 in
+                let local = table-sub index 704 in
                 unicode-data-class-directory-page-l local
           else
-            if lt-u32 page 14 then
-              if lt-u32 page 13 then
-                let local = wrapping-sub-u32 index 768 in
+            if table-lt page 14 then
+              if table-lt page 13 then
+                let local = table-sub index 768 in
                 unicode-data-class-directory-page-m local
               else
-                let local = wrapping-sub-u32 index 832 in
+                let local = table-sub index 832 in
                 unicode-data-class-directory-page-n local
             else
-              if lt-u32 page 15 then
-                let local = wrapping-sub-u32 index 896 in
+              if table-lt page 15 then
+                let local = table-sub index 896 in
                 unicode-data-class-directory-page-o local
               else
-                if lt-u32 page 16 then
-                  let local = wrapping-sub-u32 index 960 in
+                if table-lt page 16 then
+                  let local = table-sub index 960 in
                   unicode-data-class-directory-page-p local
                 else
-                  let local = wrapping-sub-u32 index 1024 in
+                  let local = table-sub index 1024 in
                   unicode-data-class-directory-page-q local
       else
-        if lt-u32 page 25 then
-          if lt-u32 page 21 then
-            if lt-u32 page 19 then
-              if lt-u32 page 18 then
-                let local = wrapping-sub-u32 index 1088 in
+        if table-lt page 25 then
+          if table-lt page 21 then
+            if table-lt page 19 then
+              if table-lt page 18 then
+                let local = table-sub index 1088 in
                 unicode-data-class-directory-page-r local
               else
-                let local = wrapping-sub-u32 index 1152 in
+                let local = table-sub index 1152 in
                 unicode-data-class-directory-page-s local
             else
-              if lt-u32 page 20 then
-                let local = wrapping-sub-u32 index 1216 in
+              if table-lt page 20 then
+                let local = table-sub index 1216 in
                 unicode-data-class-directory-page-t local
               else
-                let local = wrapping-sub-u32 index 1280 in
+                let local = table-sub index 1280 in
                 unicode-data-class-directory-page-u local
           else
-            if lt-u32 page 23 then
-              if lt-u32 page 22 then
-                let local = wrapping-sub-u32 index 1344 in
+            if table-lt page 23 then
+              if table-lt page 22 then
+                let local = table-sub index 1344 in
                 unicode-data-class-directory-page-v local
               else
-                let local = wrapping-sub-u32 index 1408 in
+                let local = table-sub index 1408 in
                 unicode-data-class-directory-page-w local
             else
-              if lt-u32 page 24 then
-                let local = wrapping-sub-u32 index 1472 in
+              if table-lt page 24 then
+                let local = table-sub index 1472 in
                 unicode-data-class-directory-page-x local
               else
-                let local = wrapping-sub-u32 index 1536 in
+                let local = table-sub index 1536 in
                 unicode-data-class-directory-page-y local
         else
-          if lt-u32 page 29 then
-            if lt-u32 page 27 then
-              if lt-u32 page 26 then
-                let local = wrapping-sub-u32 index 1600 in
+          if table-lt page 29 then
+            if table-lt page 27 then
+              if table-lt page 26 then
+                let local = table-sub index 1600 in
                 unicode-data-class-directory-page-z local
               else
-                let local = wrapping-sub-u32 index 1664 in
+                let local = table-sub index 1664 in
                 unicode-data-class-directory-page-aa local
             else
-              if lt-u32 page 28 then
-                let local = wrapping-sub-u32 index 1728 in
+              if table-lt page 28 then
+                let local = table-sub index 1728 in
                 unicode-data-class-directory-page-ab local
               else
-                let local = wrapping-sub-u32 index 1792 in
+                let local = table-sub index 1792 in
                 unicode-data-class-directory-page-ac local
           else
-            if lt-u32 page 31 then
-              if lt-u32 page 30 then
-                let local = wrapping-sub-u32 index 1856 in
+            if table-lt page 31 then
+              if table-lt page 30 then
+                let local = table-sub index 1856 in
                 unicode-data-class-directory-page-ad local
               else
-                let local = wrapping-sub-u32 index 1920 in
+                let local = table-sub index 1920 in
                 unicode-data-class-directory-page-ae local
             else
-              if lt-u32 page 32 then
-                let local = wrapping-sub-u32 index 1984 in
+              if table-lt page 32 then
+                let local = table-sub index 1984 in
                 unicode-data-class-directory-page-af local
               else
-                if lt-u32 page 33 then
-                  let local = wrapping-sub-u32 index 2048 in
+                if table-lt page 33 then
+                  let local = table-sub index 2048 in
                   unicode-data-class-directory-page-ag local
                 else
-                  let local = wrapping-sub-u32 index 2112 in
+                  let local = table-sub index 2112 in
                   unicode-data-class-directory-page-ah local
     else
-      if lt-u32 page 51 then
-        if lt-u32 page 42 then
-          if lt-u32 page 38 then
-            if lt-u32 page 36 then
-              if lt-u32 page 35 then
-                let local = wrapping-sub-u32 index 2176 in
+      if table-lt page 51 then
+        if table-lt page 42 then
+          if table-lt page 38 then
+            if table-lt page 36 then
+              if table-lt page 35 then
+                let local = table-sub index 2176 in
                 unicode-data-class-directory-page-ai local
               else
-                let local = wrapping-sub-u32 index 2240 in
+                let local = table-sub index 2240 in
                 unicode-data-class-directory-page-aj local
             else
-              if lt-u32 page 37 then
-                let local = wrapping-sub-u32 index 2304 in
+              if table-lt page 37 then
+                let local = table-sub index 2304 in
                 unicode-data-class-directory-page-ak local
               else
-                let local = wrapping-sub-u32 index 2368 in
+                let local = table-sub index 2368 in
                 unicode-data-class-directory-page-al local
           else
-            if lt-u32 page 40 then
-              if lt-u32 page 39 then
-                let local = wrapping-sub-u32 index 2432 in
+            if table-lt page 40 then
+              if table-lt page 39 then
+                let local = table-sub index 2432 in
                 unicode-data-class-directory-page-am local
               else
-                let local = wrapping-sub-u32 index 2496 in
+                let local = table-sub index 2496 in
                 unicode-data-class-directory-page-an local
             else
-              if lt-u32 page 41 then
-                let local = wrapping-sub-u32 index 2560 in
+              if table-lt page 41 then
+                let local = table-sub index 2560 in
                 unicode-data-class-directory-page-ao local
               else
-                let local = wrapping-sub-u32 index 2624 in
+                let local = table-sub index 2624 in
                 unicode-data-class-directory-page-ap local
         else
-          if lt-u32 page 46 then
-            if lt-u32 page 44 then
-              if lt-u32 page 43 then
-                let local = wrapping-sub-u32 index 2688 in
+          if table-lt page 46 then
+            if table-lt page 44 then
+              if table-lt page 43 then
+                let local = table-sub index 2688 in
                 unicode-data-class-directory-page-aq local
               else
-                let local = wrapping-sub-u32 index 2752 in
+                let local = table-sub index 2752 in
                 unicode-data-class-directory-page-ar local
             else
-              if lt-u32 page 45 then
-                let local = wrapping-sub-u32 index 2816 in
+              if table-lt page 45 then
+                let local = table-sub index 2816 in
                 unicode-data-class-directory-page-as local
               else
-                let local = wrapping-sub-u32 index 2880 in
+                let local = table-sub index 2880 in
                 unicode-data-class-directory-page-at local
           else
-            if lt-u32 page 48 then
-              if lt-u32 page 47 then
-                let local = wrapping-sub-u32 index 2944 in
+            if table-lt page 48 then
+              if table-lt page 47 then
+                let local = table-sub index 2944 in
                 unicode-data-class-directory-page-au local
               else
-                let local = wrapping-sub-u32 index 3008 in
+                let local = table-sub index 3008 in
                 unicode-data-class-directory-page-av local
             else
-              if lt-u32 page 49 then
-                let local = wrapping-sub-u32 index 3072 in
+              if table-lt page 49 then
+                let local = table-sub index 3072 in
                 unicode-data-class-directory-page-aw local
               else
-                if lt-u32 page 50 then
-                  let local = wrapping-sub-u32 index 3136 in
+                if table-lt page 50 then
+                  let local = table-sub index 3136 in
                   unicode-data-class-directory-page-ax local
                 else
-                  let local = wrapping-sub-u32 index 3200 in
+                  let local = table-sub index 3200 in
                   unicode-data-class-directory-page-ay local
       else
-        if lt-u32 page 59 then
-          if lt-u32 page 55 then
-            if lt-u32 page 53 then
-              if lt-u32 page 52 then
-                let local = wrapping-sub-u32 index 3264 in
+        if table-lt page 59 then
+          if table-lt page 55 then
+            if table-lt page 53 then
+              if table-lt page 52 then
+                let local = table-sub index 3264 in
                 unicode-data-class-directory-page-az local
               else
-                let local = wrapping-sub-u32 index 3328 in
+                let local = table-sub index 3328 in
                 unicode-data-class-directory-page-ba local
             else
-              if lt-u32 page 54 then
-                let local = wrapping-sub-u32 index 3392 in
+              if table-lt page 54 then
+                let local = table-sub index 3392 in
                 unicode-data-class-directory-page-bb local
               else
-                let local = wrapping-sub-u32 index 3456 in
+                let local = table-sub index 3456 in
                 unicode-data-class-directory-page-bc local
           else
-            if lt-u32 page 57 then
-              if lt-u32 page 56 then
-                let local = wrapping-sub-u32 index 3520 in
+            if table-lt page 57 then
+              if table-lt page 56 then
+                let local = table-sub index 3520 in
                 unicode-data-class-directory-page-bd local
               else
-                let local = wrapping-sub-u32 index 3584 in
+                let local = table-sub index 3584 in
                 unicode-data-class-directory-page-be local
             else
-              if lt-u32 page 58 then
-                let local = wrapping-sub-u32 index 3648 in
+              if table-lt page 58 then
+                let local = table-sub index 3648 in
                 unicode-data-class-directory-page-bf local
               else
-                let local = wrapping-sub-u32 index 3712 in
+                let local = table-sub index 3712 in
                 unicode-data-class-directory-page-bg local
         else
-          if lt-u32 page 63 then
-            if lt-u32 page 61 then
-              if lt-u32 page 60 then
-                let local = wrapping-sub-u32 index 3776 in
+          if table-lt page 63 then
+            if table-lt page 61 then
+              if table-lt page 60 then
+                let local = table-sub index 3776 in
                 unicode-data-class-directory-page-bh local
               else
-                let local = wrapping-sub-u32 index 3840 in
+                let local = table-sub index 3840 in
                 unicode-data-class-directory-page-bi local
             else
-              if lt-u32 page 62 then
-                let local = wrapping-sub-u32 index 3904 in
+              if table-lt page 62 then
+                let local = table-sub index 3904 in
                 unicode-data-class-directory-page-bj local
               else
-                let local = wrapping-sub-u32 index 3968 in
+                let local = table-sub index 3968 in
                 unicode-data-class-directory-page-bk local
           else
-            if lt-u32 page 65 then
-              if lt-u32 page 64 then
-                let local = wrapping-sub-u32 index 4032 in
+            if table-lt page 65 then
+              if table-lt page 64 then
+                let local = table-sub index 4032 in
                 unicode-data-class-directory-page-bl local
               else
-                let local = wrapping-sub-u32 index 4096 in
+                let local = table-sub index 4096 in
                 unicode-data-class-directory-page-bm local
             else
-              if lt-u32 page 66 then
-                let local = wrapping-sub-u32 index 4160 in
+              if table-lt page 66 then
+                let local = table-sub index 4160 in
                 unicode-data-class-directory-page-bn local
               else
-                if lt-u32 page 67 then
-                  let local = wrapping-sub-u32 index 4224 in
+                if table-lt page 67 then
+                  let local = table-sub index 4224 in
                   unicode-data-class-directory-page-bo local
                 else
-                  let local = wrapping-sub-u32 index 4288 in
+                  let local = table-sub index 4288 in
                   unicode-data-class-directory-page-bp local
 
   -- | Immutable class-directory page 0; scalar cases permit constant-data lowering without vector spills.
@@ -5019,311 +5064,311 @@ module Data.Unicode.Tables where
 
   -- | Read one immutable class-runs entry; an out-of-range index returns zero.
   unicode-data-class-runs :: U32 -> U32
-  unicode-data-class-runs index = if lt-u32 index 4758 then
-    let page = wrapping-shr-u32 index 6 in
+  unicode-data-class-runs index = if table-lt index 4758 then
+    let page = table-shr index 6 in
     unicode-data-class-runs-route page index
     else 0
 
   -- | Route a bounded class-runs index without constructing a runtime table.
   unicode-data-class-runs-route :: U32 -> U32 -> U32
   unicode-data-class-runs-route page index =
-    if lt-u32 page 37 then
-      if lt-u32 page 18 then
-        if lt-u32 page 9 then
-          if lt-u32 page 4 then
-            if lt-u32 page 2 then
-              if lt-u32 page 1 then
-                let local = wrapping-sub-u32 index 0 in
+    if table-lt page 37 then
+      if table-lt page 18 then
+        if table-lt page 9 then
+          if table-lt page 4 then
+            if table-lt page 2 then
+              if table-lt page 1 then
+                let local = table-sub index 0 in
                 unicode-data-class-runs-page-a local
               else
-                let local = wrapping-sub-u32 index 64 in
+                let local = table-sub index 64 in
                 unicode-data-class-runs-page-b local
             else
-              if lt-u32 page 3 then
-                let local = wrapping-sub-u32 index 128 in
+              if table-lt page 3 then
+                let local = table-sub index 128 in
                 unicode-data-class-runs-page-c local
               else
-                let local = wrapping-sub-u32 index 192 in
+                let local = table-sub index 192 in
                 unicode-data-class-runs-page-d local
           else
-            if lt-u32 page 6 then
-              if lt-u32 page 5 then
-                let local = wrapping-sub-u32 index 256 in
+            if table-lt page 6 then
+              if table-lt page 5 then
+                let local = table-sub index 256 in
                 unicode-data-class-runs-page-e local
               else
-                let local = wrapping-sub-u32 index 320 in
+                let local = table-sub index 320 in
                 unicode-data-class-runs-page-f local
             else
-              if lt-u32 page 7 then
-                let local = wrapping-sub-u32 index 384 in
+              if table-lt page 7 then
+                let local = table-sub index 384 in
                 unicode-data-class-runs-page-g local
               else
-                if lt-u32 page 8 then
-                  let local = wrapping-sub-u32 index 448 in
+                if table-lt page 8 then
+                  let local = table-sub index 448 in
                   unicode-data-class-runs-page-h local
                 else
-                  let local = wrapping-sub-u32 index 512 in
+                  let local = table-sub index 512 in
                   unicode-data-class-runs-page-i local
         else
-          if lt-u32 page 13 then
-            if lt-u32 page 11 then
-              if lt-u32 page 10 then
-                let local = wrapping-sub-u32 index 576 in
+          if table-lt page 13 then
+            if table-lt page 11 then
+              if table-lt page 10 then
+                let local = table-sub index 576 in
                 unicode-data-class-runs-page-j local
               else
-                let local = wrapping-sub-u32 index 640 in
+                let local = table-sub index 640 in
                 unicode-data-class-runs-page-k local
             else
-              if lt-u32 page 12 then
-                let local = wrapping-sub-u32 index 704 in
+              if table-lt page 12 then
+                let local = table-sub index 704 in
                 unicode-data-class-runs-page-l local
               else
-                let local = wrapping-sub-u32 index 768 in
+                let local = table-sub index 768 in
                 unicode-data-class-runs-page-m local
           else
-            if lt-u32 page 15 then
-              if lt-u32 page 14 then
-                let local = wrapping-sub-u32 index 832 in
+            if table-lt page 15 then
+              if table-lt page 14 then
+                let local = table-sub index 832 in
                 unicode-data-class-runs-page-n local
               else
-                let local = wrapping-sub-u32 index 896 in
+                let local = table-sub index 896 in
                 unicode-data-class-runs-page-o local
             else
-              if lt-u32 page 16 then
-                let local = wrapping-sub-u32 index 960 in
+              if table-lt page 16 then
+                let local = table-sub index 960 in
                 unicode-data-class-runs-page-p local
               else
-                if lt-u32 page 17 then
-                  let local = wrapping-sub-u32 index 1024 in
+                if table-lt page 17 then
+                  let local = table-sub index 1024 in
                   unicode-data-class-runs-page-q local
                 else
-                  let local = wrapping-sub-u32 index 1088 in
+                  let local = table-sub index 1088 in
                   unicode-data-class-runs-page-r local
       else
-        if lt-u32 page 27 then
-          if lt-u32 page 22 then
-            if lt-u32 page 20 then
-              if lt-u32 page 19 then
-                let local = wrapping-sub-u32 index 1152 in
+        if table-lt page 27 then
+          if table-lt page 22 then
+            if table-lt page 20 then
+              if table-lt page 19 then
+                let local = table-sub index 1152 in
                 unicode-data-class-runs-page-s local
               else
-                let local = wrapping-sub-u32 index 1216 in
+                let local = table-sub index 1216 in
                 unicode-data-class-runs-page-t local
             else
-              if lt-u32 page 21 then
-                let local = wrapping-sub-u32 index 1280 in
+              if table-lt page 21 then
+                let local = table-sub index 1280 in
                 unicode-data-class-runs-page-u local
               else
-                let local = wrapping-sub-u32 index 1344 in
+                let local = table-sub index 1344 in
                 unicode-data-class-runs-page-v local
           else
-            if lt-u32 page 24 then
-              if lt-u32 page 23 then
-                let local = wrapping-sub-u32 index 1408 in
+            if table-lt page 24 then
+              if table-lt page 23 then
+                let local = table-sub index 1408 in
                 unicode-data-class-runs-page-w local
               else
-                let local = wrapping-sub-u32 index 1472 in
+                let local = table-sub index 1472 in
                 unicode-data-class-runs-page-x local
             else
-              if lt-u32 page 25 then
-                let local = wrapping-sub-u32 index 1536 in
+              if table-lt page 25 then
+                let local = table-sub index 1536 in
                 unicode-data-class-runs-page-y local
               else
-                if lt-u32 page 26 then
-                  let local = wrapping-sub-u32 index 1600 in
+                if table-lt page 26 then
+                  let local = table-sub index 1600 in
                   unicode-data-class-runs-page-z local
                 else
-                  let local = wrapping-sub-u32 index 1664 in
+                  let local = table-sub index 1664 in
                   unicode-data-class-runs-page-aa local
         else
-          if lt-u32 page 32 then
-            if lt-u32 page 29 then
-              if lt-u32 page 28 then
-                let local = wrapping-sub-u32 index 1728 in
+          if table-lt page 32 then
+            if table-lt page 29 then
+              if table-lt page 28 then
+                let local = table-sub index 1728 in
                 unicode-data-class-runs-page-ab local
               else
-                let local = wrapping-sub-u32 index 1792 in
+                let local = table-sub index 1792 in
                 unicode-data-class-runs-page-ac local
             else
-              if lt-u32 page 30 then
-                let local = wrapping-sub-u32 index 1856 in
+              if table-lt page 30 then
+                let local = table-sub index 1856 in
                 unicode-data-class-runs-page-ad local
               else
-                if lt-u32 page 31 then
-                  let local = wrapping-sub-u32 index 1920 in
+                if table-lt page 31 then
+                  let local = table-sub index 1920 in
                   unicode-data-class-runs-page-ae local
                 else
-                  let local = wrapping-sub-u32 index 1984 in
+                  let local = table-sub index 1984 in
                   unicode-data-class-runs-page-af local
           else
-            if lt-u32 page 34 then
-              if lt-u32 page 33 then
-                let local = wrapping-sub-u32 index 2048 in
+            if table-lt page 34 then
+              if table-lt page 33 then
+                let local = table-sub index 2048 in
                 unicode-data-class-runs-page-ag local
               else
-                let local = wrapping-sub-u32 index 2112 in
+                let local = table-sub index 2112 in
                 unicode-data-class-runs-page-ah local
             else
-              if lt-u32 page 35 then
-                let local = wrapping-sub-u32 index 2176 in
+              if table-lt page 35 then
+                let local = table-sub index 2176 in
                 unicode-data-class-runs-page-ai local
               else
-                if lt-u32 page 36 then
-                  let local = wrapping-sub-u32 index 2240 in
+                if table-lt page 36 then
+                  let local = table-sub index 2240 in
                   unicode-data-class-runs-page-aj local
                 else
-                  let local = wrapping-sub-u32 index 2304 in
+                  let local = table-sub index 2304 in
                   unicode-data-class-runs-page-ak local
     else
-      if lt-u32 page 56 then
-        if lt-u32 page 46 then
-          if lt-u32 page 41 then
-            if lt-u32 page 39 then
-              if lt-u32 page 38 then
-                let local = wrapping-sub-u32 index 2368 in
+      if table-lt page 56 then
+        if table-lt page 46 then
+          if table-lt page 41 then
+            if table-lt page 39 then
+              if table-lt page 38 then
+                let local = table-sub index 2368 in
                 unicode-data-class-runs-page-al local
               else
-                let local = wrapping-sub-u32 index 2432 in
+                let local = table-sub index 2432 in
                 unicode-data-class-runs-page-am local
             else
-              if lt-u32 page 40 then
-                let local = wrapping-sub-u32 index 2496 in
+              if table-lt page 40 then
+                let local = table-sub index 2496 in
                 unicode-data-class-runs-page-an local
               else
-                let local = wrapping-sub-u32 index 2560 in
+                let local = table-sub index 2560 in
                 unicode-data-class-runs-page-ao local
           else
-            if lt-u32 page 43 then
-              if lt-u32 page 42 then
-                let local = wrapping-sub-u32 index 2624 in
+            if table-lt page 43 then
+              if table-lt page 42 then
+                let local = table-sub index 2624 in
                 unicode-data-class-runs-page-ap local
               else
-                let local = wrapping-sub-u32 index 2688 in
+                let local = table-sub index 2688 in
                 unicode-data-class-runs-page-aq local
             else
-              if lt-u32 page 44 then
-                let local = wrapping-sub-u32 index 2752 in
+              if table-lt page 44 then
+                let local = table-sub index 2752 in
                 unicode-data-class-runs-page-ar local
               else
-                if lt-u32 page 45 then
-                  let local = wrapping-sub-u32 index 2816 in
+                if table-lt page 45 then
+                  let local = table-sub index 2816 in
                   unicode-data-class-runs-page-as local
                 else
-                  let local = wrapping-sub-u32 index 2880 in
+                  let local = table-sub index 2880 in
                   unicode-data-class-runs-page-at local
         else
-          if lt-u32 page 51 then
-            if lt-u32 page 48 then
-              if lt-u32 page 47 then
-                let local = wrapping-sub-u32 index 2944 in
+          if table-lt page 51 then
+            if table-lt page 48 then
+              if table-lt page 47 then
+                let local = table-sub index 2944 in
                 unicode-data-class-runs-page-au local
               else
-                let local = wrapping-sub-u32 index 3008 in
+                let local = table-sub index 3008 in
                 unicode-data-class-runs-page-av local
             else
-              if lt-u32 page 49 then
-                let local = wrapping-sub-u32 index 3072 in
+              if table-lt page 49 then
+                let local = table-sub index 3072 in
                 unicode-data-class-runs-page-aw local
               else
-                if lt-u32 page 50 then
-                  let local = wrapping-sub-u32 index 3136 in
+                if table-lt page 50 then
+                  let local = table-sub index 3136 in
                   unicode-data-class-runs-page-ax local
                 else
-                  let local = wrapping-sub-u32 index 3200 in
+                  let local = table-sub index 3200 in
                   unicode-data-class-runs-page-ay local
           else
-            if lt-u32 page 53 then
-              if lt-u32 page 52 then
-                let local = wrapping-sub-u32 index 3264 in
+            if table-lt page 53 then
+              if table-lt page 52 then
+                let local = table-sub index 3264 in
                 unicode-data-class-runs-page-az local
               else
-                let local = wrapping-sub-u32 index 3328 in
+                let local = table-sub index 3328 in
                 unicode-data-class-runs-page-ba local
             else
-              if lt-u32 page 54 then
-                let local = wrapping-sub-u32 index 3392 in
+              if table-lt page 54 then
+                let local = table-sub index 3392 in
                 unicode-data-class-runs-page-bb local
               else
-                if lt-u32 page 55 then
-                  let local = wrapping-sub-u32 index 3456 in
+                if table-lt page 55 then
+                  let local = table-sub index 3456 in
                   unicode-data-class-runs-page-bc local
                 else
-                  let local = wrapping-sub-u32 index 3520 in
+                  let local = table-sub index 3520 in
                   unicode-data-class-runs-page-bd local
       else
-        if lt-u32 page 65 then
-          if lt-u32 page 60 then
-            if lt-u32 page 58 then
-              if lt-u32 page 57 then
-                let local = wrapping-sub-u32 index 3584 in
+        if table-lt page 65 then
+          if table-lt page 60 then
+            if table-lt page 58 then
+              if table-lt page 57 then
+                let local = table-sub index 3584 in
                 unicode-data-class-runs-page-be local
               else
-                let local = wrapping-sub-u32 index 3648 in
+                let local = table-sub index 3648 in
                 unicode-data-class-runs-page-bf local
             else
-              if lt-u32 page 59 then
-                let local = wrapping-sub-u32 index 3712 in
+              if table-lt page 59 then
+                let local = table-sub index 3712 in
                 unicode-data-class-runs-page-bg local
               else
-                let local = wrapping-sub-u32 index 3776 in
+                let local = table-sub index 3776 in
                 unicode-data-class-runs-page-bh local
           else
-            if lt-u32 page 62 then
-              if lt-u32 page 61 then
-                let local = wrapping-sub-u32 index 3840 in
+            if table-lt page 62 then
+              if table-lt page 61 then
+                let local = table-sub index 3840 in
                 unicode-data-class-runs-page-bi local
               else
-                let local = wrapping-sub-u32 index 3904 in
+                let local = table-sub index 3904 in
                 unicode-data-class-runs-page-bj local
             else
-              if lt-u32 page 63 then
-                let local = wrapping-sub-u32 index 3968 in
+              if table-lt page 63 then
+                let local = table-sub index 3968 in
                 unicode-data-class-runs-page-bk local
               else
-                if lt-u32 page 64 then
-                  let local = wrapping-sub-u32 index 4032 in
+                if table-lt page 64 then
+                  let local = table-sub index 4032 in
                   unicode-data-class-runs-page-bl local
                 else
-                  let local = wrapping-sub-u32 index 4096 in
+                  let local = table-sub index 4096 in
                   unicode-data-class-runs-page-bm local
         else
-          if lt-u32 page 70 then
-            if lt-u32 page 67 then
-              if lt-u32 page 66 then
-                let local = wrapping-sub-u32 index 4160 in
+          if table-lt page 70 then
+            if table-lt page 67 then
+              if table-lt page 66 then
+                let local = table-sub index 4160 in
                 unicode-data-class-runs-page-bn local
               else
-                let local = wrapping-sub-u32 index 4224 in
+                let local = table-sub index 4224 in
                 unicode-data-class-runs-page-bo local
             else
-              if lt-u32 page 68 then
-                let local = wrapping-sub-u32 index 4288 in
+              if table-lt page 68 then
+                let local = table-sub index 4288 in
                 unicode-data-class-runs-page-bp local
               else
-                if lt-u32 page 69 then
-                  let local = wrapping-sub-u32 index 4352 in
+                if table-lt page 69 then
+                  let local = table-sub index 4352 in
                   unicode-data-class-runs-page-bq local
                 else
-                  let local = wrapping-sub-u32 index 4416 in
+                  let local = table-sub index 4416 in
                   unicode-data-class-runs-page-br local
           else
-            if lt-u32 page 72 then
-              if lt-u32 page 71 then
-                let local = wrapping-sub-u32 index 4480 in
+            if table-lt page 72 then
+              if table-lt page 71 then
+                let local = table-sub index 4480 in
                 unicode-data-class-runs-page-bs local
               else
-                let local = wrapping-sub-u32 index 4544 in
+                let local = table-sub index 4544 in
                 unicode-data-class-runs-page-bt local
             else
-              if lt-u32 page 73 then
-                let local = wrapping-sub-u32 index 4608 in
+              if table-lt page 73 then
+                let local = table-sub index 4608 in
                 unicode-data-class-runs-page-bu local
               else
-                if lt-u32 page 74 then
-                  let local = wrapping-sub-u32 index 4672 in
+                if table-lt page 74 then
+                  let local = table-sub index 4672 in
                   unicode-data-class-runs-page-bv local
                 else
-                  let local = wrapping-sub-u32 index 4736 in
+                  let local = table-sub index 4736 in
                   unicode-data-class-runs-page-bw local
 
   -- | Immutable class-runs page 0; scalar cases permit constant-data lowering without vector spills.
@@ -10461,75 +10506,75 @@ module Data.Unicode.Tables where
 
   -- | Read one immutable class-metadata entry; an out-of-range index returns zero.
   unicode-data-class-metadata :: U32 -> U64
-  unicode-data-class-metadata index = if lt-u32 index 1021 then
-    let page = wrapping-shr-u32 index 6 in
+  unicode-data-class-metadata index = if table-lt index 1021 then
+    let page = table-shr index 6 in
     unicode-data-class-metadata-route page index
     else 0
 
   -- | Route a bounded class-metadata index without constructing a runtime table.
   unicode-data-class-metadata-route :: U32 -> U32 -> U64
   unicode-data-class-metadata-route page index =
-    if lt-u32 page 8 then
-      if lt-u32 page 4 then
-        if lt-u32 page 2 then
-          if lt-u32 page 1 then
-            let local = wrapping-sub-u32 index 0 in
+    if table-lt page 8 then
+      if table-lt page 4 then
+        if table-lt page 2 then
+          if table-lt page 1 then
+            let local = table-sub index 0 in
             unicode-data-class-metadata-page-a local
           else
-            let local = wrapping-sub-u32 index 64 in
+            let local = table-sub index 64 in
             unicode-data-class-metadata-page-b local
         else
-          if lt-u32 page 3 then
-            let local = wrapping-sub-u32 index 128 in
+          if table-lt page 3 then
+            let local = table-sub index 128 in
             unicode-data-class-metadata-page-c local
           else
-            let local = wrapping-sub-u32 index 192 in
+            let local = table-sub index 192 in
             unicode-data-class-metadata-page-d local
       else
-        if lt-u32 page 6 then
-          if lt-u32 page 5 then
-            let local = wrapping-sub-u32 index 256 in
+        if table-lt page 6 then
+          if table-lt page 5 then
+            let local = table-sub index 256 in
             unicode-data-class-metadata-page-e local
           else
-            let local = wrapping-sub-u32 index 320 in
+            let local = table-sub index 320 in
             unicode-data-class-metadata-page-f local
         else
-          if lt-u32 page 7 then
-            let local = wrapping-sub-u32 index 384 in
+          if table-lt page 7 then
+            let local = table-sub index 384 in
             unicode-data-class-metadata-page-g local
           else
-            let local = wrapping-sub-u32 index 448 in
+            let local = table-sub index 448 in
             unicode-data-class-metadata-page-h local
     else
-      if lt-u32 page 12 then
-        if lt-u32 page 10 then
-          if lt-u32 page 9 then
-            let local = wrapping-sub-u32 index 512 in
+      if table-lt page 12 then
+        if table-lt page 10 then
+          if table-lt page 9 then
+            let local = table-sub index 512 in
             unicode-data-class-metadata-page-i local
           else
-            let local = wrapping-sub-u32 index 576 in
+            let local = table-sub index 576 in
             unicode-data-class-metadata-page-j local
         else
-          if lt-u32 page 11 then
-            let local = wrapping-sub-u32 index 640 in
+          if table-lt page 11 then
+            let local = table-sub index 640 in
             unicode-data-class-metadata-page-k local
           else
-            let local = wrapping-sub-u32 index 704 in
+            let local = table-sub index 704 in
             unicode-data-class-metadata-page-l local
       else
-        if lt-u32 page 14 then
-          if lt-u32 page 13 then
-            let local = wrapping-sub-u32 index 768 in
+        if table-lt page 14 then
+          if table-lt page 13 then
+            let local = table-sub index 768 in
             unicode-data-class-metadata-page-m local
           else
-            let local = wrapping-sub-u32 index 832 in
+            let local = table-sub index 832 in
             unicode-data-class-metadata-page-n local
         else
-          if lt-u32 page 15 then
-            let local = wrapping-sub-u32 index 896 in
+          if table-lt page 15 then
+            let local = table-sub index 896 in
             unicode-data-class-metadata-page-o local
           else
-            let local = wrapping-sub-u32 index 960 in
+            let local = table-sub index 960 in
             unicode-data-class-metadata-page-p local
 
   -- | Immutable class-metadata page 0; scalar cases permit constant-data lowering without vector spills.

@@ -1,0 +1,21 @@
+
+  -- | Read exactly one caller-proved source word for an unknown live kernel input.
+  prim load-probe :: I64 -> U32 where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %word = load i32, ptr %p, align 1
+      ret i32 %word
+    }
+  -- | Keep the source owner live across its exact private input load.
+  keep :: forall a. Bytes -> a -> a
+  keep bytes value = case bytes-len bytes of _ -> value
+  -- | Make every predicate result independently observable.
+  flag :: Bool -> U32 -> U32
+  flag value mask = if value then mask else 0
+  -- | Retain the actual scalar kernels on an unknown input, without foreign execution.
+  main :: Int
+  main = let bytes = bytes-new 4 in let base = bytes-data bytes in let value = keep bytes (load-probe base) in
+    let a = table-add value 7 in let b = table-sub a 19 in let c = table-shr b value in
+    let d = table-and c value in let less = table-lt d a in let equal = table-le a b in
+    let x = flag less 1 in let y = flag equal 2 in let bits = table-add x y in
+    let score = table-add d bits in if eq-u32 score value then 0 else 1

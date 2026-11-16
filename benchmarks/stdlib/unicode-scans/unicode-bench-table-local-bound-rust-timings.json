@@ -1,0 +1,1460 @@
+{
+  "frontend": "rust",
+  "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "provider_sha256": {},
+  "compiler_provenance": {
+    "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+    "compiler_source_sha256": "b0588051ca4355ce54dd9dadfe9514fd1e292afdba8ed8b4a1cad1d7d24ad1f5",
+    "base_commit": "d44916e596beb3f42935b1c85e6c6fa96ca26cea",
+    "source_sha256": {
+      "compiler/src/check_decls.rs": "40e9e18436bc8445f3f73c57f2d00e2e9043c39f45a8dc9bb996684ca8da4af2",
+      "compiler/src/codegen.rs": "7f1bb4d677f67e5a036ac6f0fc248e4b6aaaddd079f7ce5c016cbd1cc463b7d4",
+      "compiler/tests/prim_wide.rs": "f4225b6804fffd40fdbc5abb89d2af91f8520599926c7b5df18990e988fcda31",
+      "design/inline-target-ir.md": "055295ca0eafd634f8621914c65e360fc7eff64e2b139f0d1ef0a783ae235375"
+    }
+  },
+  "sources": {
+    "Data.Unicode.cinch": "fba58333635e0995c1ae77eb1947275c7198a557147a95333f8ef52d981da2c0",
+    "Data.Unicode.Names.cinch": "443c125bc39c88c95a71b8d63b99fc470062d4c0a49d3aa9160bbce171b5fe50",
+    "Data.Unicode.Tables.cinch": "69fe499a9e5c4522ee7da346f0cb299e3747576b0df9fb593484991e3c106141",
+    "Data.Unicode.Range.cinch": "36f645bc334d75474d5dd70f1aa680d330a97476a89a41ee872d880620c036c8",
+    "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Unicode.Kernel.cinch": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Main.cinch": "80001a1e2949558ba4dd15f23dc20477bf2540ead9b038dd2ad1c86eb23d1296"
+  },
+  "executable_sha256": "bfcc877caf4c6b0242e6f11ce4deb43482a020d43dd04099e7c2cab49842b8ef",
+  "llvm_sha256": "1fffb2b3fa3281705728d10e8d00f47ddd695618281ecb57fefab6f2536347fd",
+  "assembly_sha256": "679e94d1ff6d4ab2004f41586f330b5f009d91481dd5f5fe630ef9a4ada342a6",
+  "reference_executable_sha256": "e85aa4fb8d8a9196756954bf37d1eae0398d27daa6ba03f9eb2573fa6ec18bc6",
+  "reference_source_sha256": "27fcf51079c0d491daa031c36804a3a5974e492decd7922573fec1e9d9cd07ff",
+  "input_sha256": "87ec76a49fb7856de78185ef94e5621c66f45a96e6178619a23cc6695864519d",
+  "reference_sdk": "go version go1.27.4 linux/amd64",
+  "compile_command": [
+    "/workspace/dasl-stdlib-unicode/build/unicode-bench-table-local-bound-rust/compiler",
+    "build",
+    "/workspace/dasl-stdlib-unicode/build/unicode-bench-table-local-bound-rust/project/Main.cinch",
+    "-o",
+    "/workspace/dasl-stdlib-unicode/build/unicode-bench-table-local-bound-rust/bench",
+    "--opt-level",
+    "2"
+  ],
+  "optimized_link_command": null,
+  "opt_level": 2,
+  "module_overrides": "build/unicode-table-local-bound-candidate",
+  "cpu": 0,
+  "runner_sha256": "43ba681411abb754645df8163c6b4761e25c6b17a10f2b1850ad84a5a2c41a9f",
+  "iterations": 8192,
+  "samples": 3,
+  "results": [
+    {
+      "workload": "letter",
+      "pattern": 0,
+      "iterations": 8192,
+      "checksum": 18059634064937628453,
+      "samples_ns": {
+        "cinch": [
+          36766,
+          36736,
+          36855
+        ],
+        "reference": [
+          86130,
+          59300,
+          36825
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 4.488037109375,
+        "reference": 7.23876953125
+      }
+    },
+    {
+      "workload": "letter",
+      "pattern": 1,
+      "iterations": 8192,
+      "checksum": 7810336320031754021,
+      "samples_ns": {
+        "cinch": [
+          275214,
+          274604,
+          445371
+        ],
+        "reference": [
+          110297,
+          91427,
+          111007
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 33.595458984375,
+        "reference": 13.4639892578125
+      }
+    },
+    {
+      "workload": "letter",
+      "pattern": 2,
+      "iterations": 8192,
+      "checksum": 14325012858572202789,
+      "samples_ns": {
+        "cinch": [
+          185650,
+          183957,
+          184728
+        ],
+        "reference": [
+          121363,
+          122034,
+          121213
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 22.5498046875,
+        "reference": 14.8148193359375
+      }
+    },
+    {
+      "workload": "letter",
+      "pattern": 3,
+      "iterations": 8192,
+      "checksum": 13389487554061181733,
+      "samples_ns": {
+        "cinch": [
+          134613,
+          109715,
+          200192
+        ],
+        "reference": [
+          106781,
+          106260,
+          125490
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 16.4322509765625,
+        "reference": 13.0347900390625
+      }
+    },
+    {
+      "workload": "space",
+      "pattern": 0,
+      "iterations": 8192,
+      "checksum": 391290133847170853,
+      "samples_ns": {
+        "cinch": [
+          40851,
+          40701,
+          40701
+        ],
+        "reference": [
+          65228,
+          42494,
+          63636
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 4.9683837890625,
+        "reference": 7.76806640625
+      }
+    },
+    {
+      "workload": "space",
+      "pattern": 1,
+      "iterations": 8192,
+      "checksum": 10239798826498122533,
+      "samples_ns": {
+        "cinch": [
+          237418,
+          252621,
+          236106
+        ],
+        "reference": [
+          125709,
+          66621,
+          107582
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 28.981689453125,
+        "reference": 13.132568359375
+      }
+    },
+    {
+      "workload": "space",
+      "pattern": 2,
+      "iterations": 8192,
+      "checksum": 13389487554061181733,
+      "samples_ns": {
+        "cinch": [
+          193571,
+          182666,
+          209956
+        ],
+        "reference": [
+          79820,
+          51417,
+          74642
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 23.6292724609375,
+        "reference": 9.111572265625
+      }
+    },
+    {
+      "workload": "space",
+      "pattern": 3,
+      "iterations": 8192,
+      "checksum": 13389487554061181733,
+      "samples_ns": {
+        "cinch": [
+          110656,
+          91338,
+          157898
+        ],
+        "reference": [
+          76505,
+          52359,
+          74342
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 13.5078125,
+        "reference": 9.074951171875
+      }
+    },
+    {
+      "workload": "classify",
+      "pattern": 0,
+      "iterations": 8192,
+      "checksum": 16336383504291390245,
+      "samples_ns": {
+        "cinch": [
+          71949,
+          71878,
+          81643
+        ],
+        "reference": [
+          257348,
+          281575,
+          223707
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 8.7828369140625,
+        "reference": 31.41455078125
+      }
+    },
+    {
+      "workload": "classify",
+      "pattern": 1,
+      "iterations": 8192,
+      "checksum": 4832643211655832357,
+      "samples_ns": {
+        "cinch": [
+          2873860,
+          2815803,
+          2941332
+        ],
+        "reference": [
+          1186768,
+          1154349,
+          1155121
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 350.81298828125,
+        "reference": 141.0059814453125
+      }
+    },
+    {
+      "workload": "classify",
+      "pattern": 2,
+      "iterations": 8192,
+      "checksum": 1048215912680399653,
+      "samples_ns": {
+        "cinch": [
+          2836875,
+          2827811,
+          2874141
+        ],
+        "reference": [
+          4446280,
+          2583473,
+          2350753
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 346.2982177734375,
+        "reference": 315.3653564453125
+      }
+    },
+    {
+      "workload": "classify",
+      "pattern": 3,
+      "iterations": 8192,
+      "checksum": 3975334879481306917,
+      "samples_ns": {
+        "cinch": [
+          1422364,
+          1373480,
+          1379067
+        ],
+        "reference": [
+          2339295,
+          2302139,
+          2371213
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 168.3431396484375,
+        "reference": 285.5584716796875
+      }
+    },
+    {
+      "workload": "case",
+      "pattern": 0,
+      "iterations": 8192,
+      "checksum": 10835130522001330981,
+      "samples_ns": {
+        "cinch": [
+          148935,
+          149205,
+          149545
+        ],
+        "reference": [
+          253002,
+          247393,
+          250638
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 18.2135009765625,
+        "reference": 30.595458984375
+      }
+    },
+    {
+      "workload": "case",
+      "pattern": 1,
+      "iterations": 8192,
+      "checksum": 8156455539414771493,
+      "samples_ns": {
+        "cinch": [
+          1397646,
+          1450916,
+          1236162
+        ],
+        "reference": [
+          537710,
+          661507,
+          550039
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 170.611083984375,
+        "reference": 67.1434326171875
+      }
+    },
+    {
+      "workload": "case",
+      "pattern": 2,
+      "iterations": 8192,
+      "checksum": 13774236005597692709,
+      "samples_ns": {
+        "cinch": [
+          1321411,
+          1332969,
+          1366249
+        ],
+        "reference": [
+          582948,
+          645332,
+          648117
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 162.7159423828125,
+        "reference": 78.77587890625
+      }
+    },
+    {
+      "workload": "case",
+      "pattern": 3,
+      "iterations": 8192,
+      "checksum": 11658930177450343205,
+      "samples_ns": {
+        "cinch": [
+          844592,
+          805474,
+          788078
+        ],
+        "reference": [
+          569338,
+          607976,
+          546113
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 98.324462890625,
+        "reference": 69.499267578125
+      }
+    },
+    {
+      "workload": "fold",
+      "pattern": 0,
+      "iterations": 8192,
+      "checksum": 15937657593552994085,
+      "samples_ns": {
+        "cinch": [
+          109675,
+          118619,
+          118158
+        ],
+        "reference": [
+          155764,
+          166701,
+          150767
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 14.423583984375,
+        "reference": 19.01416015625
+      }
+    },
+    {
+      "workload": "fold",
+      "pattern": 1,
+      "iterations": 8192,
+      "checksum": 8367933864942603045,
+      "samples_ns": {
+        "cinch": [
+          749419,
+          658132,
+          763611
+        ],
+        "reference": [
+          506223,
+          502727,
+          494335
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 91.4818115234375,
+        "reference": 61.3680419921875
+      }
+    },
+    {
+      "workload": "fold",
+      "pattern": 2,
+      "iterations": 8192,
+      "checksum": 2463974022330777381,
+      "samples_ns": {
+        "cinch": [
+          624151,
+          601256,
+          619554
+        ],
+        "reference": [
+          229425,
+          253502,
+          212511
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 75.629150390625,
+        "reference": 28.0059814453125
+      }
+    },
+    {
+      "workload": "fold",
+      "pattern": 3,
+      "iterations": 8192,
+      "checksum": 10510651664498247461,
+      "samples_ns": {
+        "cinch": [
+          319922,
+          332251,
+          316648
+        ],
+        "reference": [
+          118769,
+          115203,
+          143035
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 39.052978515625,
+        "reference": 14.4981689453125
+      }
+    },
+    {
+      "workload": "table-letter",
+      "pattern": 0,
+      "iterations": 8192,
+      "checksum": 18059634064937628453,
+      "samples_ns": {
+        "cinch": [
+          306581,
+          327494,
+          306472
+        ],
+        "reference": [
+          79339,
+          56896,
+          78989
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 37.4244384765625,
+        "reference": 9.6422119140625
+      }
+    },
+    {
+      "workload": "table-letter",
+      "pattern": 1,
+      "iterations": 8192,
+      "checksum": 7810336320031754021,
+      "samples_ns": {
+        "cinch": [
+          307494,
+          317989,
+          298910
+        ],
+        "reference": [
+          133241,
+          133621,
+          138058
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 37.535888671875,
+        "reference": 16.3111572265625
+      }
+    },
+    {
+      "workload": "table-letter",
+      "pattern": 2,
+      "iterations": 8192,
+      "checksum": 14325012858572202789,
+      "samples_ns": {
+        "cinch": [
+          220392,
+          205469,
+          205199
+        ],
+        "reference": [
+          170057,
+          122104,
+          158639
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 25.0816650390625,
+        "reference": 19.3651123046875
+      }
+    },
+    {
+      "workload": "table-letter",
+      "pattern": 3,
+      "iterations": 8192,
+      "checksum": 13389487554061181733,
+      "samples_ns": {
+        "cinch": [
+          141534,
+          143667,
+          141022
+        ],
+        "reference": [
+          123436,
+          155003,
+          127923
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 17.277099609375,
+        "reference": 15.6156005859375
+      }
+    },
+    {
+      "workload": "table-surrogates",
+      "pattern": 0,
+      "iterations": 8192,
+      "checksum": 13389487554061181733,
+      "samples_ns": {
+        "cinch": [
+          329477,
+          311990,
+          328765
+        ],
+        "reference": [
+          77988,
+          74402,
+          71297
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 40.1324462890625,
+        "reference": 9.082275390625
+      }
+    },
+    {
+      "workload": "table-surrogates",
+      "pattern": 1,
+      "iterations": 8192,
+      "checksum": 13389487554061181733,
+      "samples_ns": {
+        "cinch": [
+          341495,
+          300303,
+          302486
+        ],
+        "reference": [
+          73892,
+          71417,
+          80281
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 36.924560546875,
+        "reference": 9.02001953125
+      }
+    },
+    {
+      "workload": "table-surrogates",
+      "pattern": 2,
+      "iterations": 8192,
+      "checksum": 13389487554061181733,
+      "samples_ns": {
+        "cinch": [
+          205851,
+          210037,
+          396217
+        ],
+        "reference": [
+          46910,
+          65038,
+          67492
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 25.6392822265625,
+        "reference": 7.939208984375
+      }
+    },
+    {
+      "workload": "table-surrogates",
+      "pattern": 3,
+      "iterations": 8192,
+      "checksum": 5935797954700179237,
+      "samples_ns": {
+        "cinch": [
+          143266,
+          143526,
+          164367
+        ],
+        "reference": [
+          69956,
+          78349,
+          74762
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 17.520263671875,
+        "reference": 9.126220703125
+      }
+    },
+    {
+      "workload": "table-greek",
+      "pattern": 0,
+      "iterations": 8192,
+      "checksum": 13389487554061181733,
+      "samples_ns": {
+        "cinch": [
+          309166,
+          308605,
+          310027
+        ],
+        "reference": [
+          51428,
+          51448,
+          75304
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 37.739990234375,
+        "reference": 6.2802734375
+      }
+    },
+    {
+      "workload": "table-greek",
+      "pattern": 1,
+      "iterations": 8192,
+      "checksum": 12251184389286224677,
+      "samples_ns": {
+        "cinch": [
+          297278,
+          341986,
+          297428
+        ],
+        "reference": [
+          115003,
+          95454,
+          91808
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 36.30712890625,
+        "reference": 11.652099609375
+      }
+    },
+    {
+      "workload": "table-greek",
+      "pattern": 2,
+      "iterations": 8192,
+      "checksum": 13389487554061181733,
+      "samples_ns": {
+        "cinch": [
+          208063,
+          225930,
+          204298
+        ],
+        "reference": [
+          84958,
+          87873,
+          84958
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 25.3983154296875,
+        "reference": 10.370849609375
+      }
+    },
+    {
+      "workload": "table-greek",
+      "pattern": 3,
+      "iterations": 8192,
+      "checksum": 13389487554061181733,
+      "samples_ns": {
+        "cinch": [
+          143676,
+          142404,
+          142565
+        ],
+        "reference": [
+          75083,
+          53751,
+          75734
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 17.4029541015625,
+        "reference": 9.1654052734375
+      }
+    },
+    {
+      "workload": "table-space",
+      "pattern": 0,
+      "iterations": 8192,
+      "checksum": 391290133847170853,
+      "samples_ns": {
+        "cinch": [
+          309196,
+          333062,
+          329556
+        ],
+        "reference": [
+          79751,
+          76926,
+          80752
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 40.22900390625,
+        "reference": 9.7352294921875
+      }
+    },
+    {
+      "workload": "table-space",
+      "pattern": 1,
+      "iterations": 8192,
+      "checksum": 10239798826498122533,
+      "samples_ns": {
+        "cinch": [
+          347524,
+          301915,
+          352331
+        ],
+        "reference": [
+          85319,
+          85309,
+          106440
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 42.42236328125,
+        "reference": 10.4149169921875
+      }
+    },
+    {
+      "workload": "table-space",
+      "pattern": 2,
+      "iterations": 8192,
+      "checksum": 13389487554061181733,
+      "samples_ns": {
+        "cinch": [
+          209005,
+          208995,
+          207472
+        ],
+        "reference": [
+          46891,
+          47171,
+          46881
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 25.5120849609375,
+        "reference": 5.7239990234375
+      }
+    },
+    {
+      "workload": "table-space",
+      "pattern": 3,
+      "iterations": 8192,
+      "checksum": 13389487554061181733,
+      "samples_ns": {
+        "cinch": [
+          143356,
+          145239,
+          163146
+        ],
+        "reference": [
+          48603,
+          69806,
+          71368
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 17.7293701171875,
+        "reference": 8.521240234375
+      }
+    },
+    {
+      "workload": "table-custom",
+      "pattern": 0,
+      "iterations": 8192,
+      "checksum": 14182016241503363877,
+      "samples_ns": {
+        "cinch": [
+          115244,
+          114903,
+          115003
+        ],
+        "reference": [
+          78678,
+          58127,
+          81502
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 14.0384521484375,
+        "reference": 9.604248046875
+      }
+    },
+    {
+      "workload": "table-custom",
+      "pattern": 1,
+      "iterations": 8192,
+      "checksum": 4202462365322228517,
+      "samples_ns": {
+        "cinch": [
+          133801,
+          114032,
+          113972
+        ],
+        "reference": [
+          83125,
+          81192,
+          80421
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 13.919921875,
+        "reference": 9.9111328125
+      }
+    },
+    {
+      "workload": "table-custom",
+      "pattern": 2,
+      "iterations": 8192,
+      "checksum": 4606634923513562917,
+      "samples_ns": {
+        "cinch": [
+          140452,
+          140482,
+          141833
+        ],
+        "reference": [
+          60170,
+          82084,
+          130256
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 17.148681640625,
+        "reference": 10.02001953125
+      }
+    },
+    {
+      "workload": "table-custom",
+      "pattern": 3,
+      "iterations": 8192,
+      "checksum": 14475303295976366885,
+      "samples_ns": {
+        "cinch": [
+          83836,
+          83776,
+          83776
+        ],
+        "reference": [
+          76355,
+          56456,
+          282286
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 10.2265625,
+        "reference": 9.3206787109375
+      }
+    },
+    {
+      "workload": "table-union",
+      "pattern": 0,
+      "iterations": 8192,
+      "checksum": 5683687763680194341,
+      "samples_ns": {
+        "cinch": [
+          968779,
+          1224365,
+          1090203
+        ],
+        "reference": [
+          216346,
+          176245,
+          171379
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 133.0814208984375,
+        "reference": 21.5142822265625
+      }
+    },
+    {
+      "workload": "table-union",
+      "pattern": 1,
+      "iterations": 8192,
+      "checksum": 5620869574451872549,
+      "samples_ns": {
+        "cinch": [
+          828599,
+          810341,
+          819345
+        ],
+        "reference": [
+          270057,
+          180962,
+          248745
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 100.0177001953125,
+        "reference": 30.3643798828125
+      }
+    },
+    {
+      "workload": "table-union",
+      "pattern": 2,
+      "iterations": 8192,
+      "checksum": 12849310714483139365,
+      "samples_ns": {
+        "cinch": [
+          503649,
+          498091,
+          497039
+        ],
+        "reference": [
+          230537,
+          196236,
+          287333
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 60.8021240234375,
+        "reference": 28.1417236328125
+      }
+    },
+    {
+      "workload": "table-union",
+      "pattern": 3,
+      "iterations": 8192,
+      "checksum": 13389487554061181733,
+      "samples_ns": {
+        "cinch": [
+          581907,
+          515096,
+          606113
+        ],
+        "reference": [
+          250468,
+          247102,
+          245180
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 71.0335693359375,
+        "reference": 30.163818359375
+      }
+    },
+    {
+      "workload": "catalog",
+      "pattern": 0,
+      "iterations": 8192,
+      "checksum": 3051296993818831653,
+      "samples_ns": {
+        "cinch": [
+          801327,
+          910391,
+          976591
+        ],
+        "reference": [
+          182305,
+          164508,
+          167903
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 111.1317138671875,
+        "reference": 20.4959716796875
+      }
+    },
+    {
+      "workload": "catalog",
+      "pattern": 1,
+      "iterations": 8192,
+      "checksum": 5154961944818484005,
+      "samples_ns": {
+        "cinch": [
+          853356,
+          818944,
+          836821
+        ],
+        "reference": [
+          185038,
+          192089,
+          189266
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 102.1510009765625,
+        "reference": 23.103759765625
+      }
+    },
+    {
+      "workload": "catalog",
+      "pattern": 2,
+      "iterations": 8192,
+      "checksum": 8500408897619401509,
+      "samples_ns": {
+        "cinch": [
+          816430,
+          922440,
+          777291
+        ],
+        "reference": [
+          346382,
+          198219,
+          195125
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 99.661865234375,
+        "reference": 24.1966552734375
+      }
+    },
+    {
+      "workload": "catalog",
+      "pattern": 3,
+      "iterations": 8192,
+      "checksum": 2806583816683842341,
+      "samples_ns": {
+        "cinch": [
+          733425,
+          722709,
+          681637
+        ],
+        "reference": [
+          205980,
+          188854,
+          378019
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 88.2213134765625,
+        "reference": 25.14404296875
+      }
+    },
+    {
+      "workload": "special-turkish",
+      "pattern": 0,
+      "iterations": 8192,
+      "checksum": 15680028814044773157,
+      "samples_ns": {
+        "cinch": [
+          130487,
+          150647,
+          130527
+        ],
+        "reference": [
+          242675,
+          218890,
+          235846
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 15.9334716796875,
+        "reference": 28.789794921875
+      }
+    },
+    {
+      "workload": "special-turkish",
+      "pattern": 1,
+      "iterations": 8192,
+      "checksum": 6460089467368956709,
+      "samples_ns": {
+        "cinch": [
+          648798,
+          626584,
+          745233
+        ],
+        "reference": [
+          465491,
+          404279,
+          455136
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 79.198974609375,
+        "reference": 55.55859375
+      }
+    },
+    {
+      "workload": "special-turkish",
+      "pattern": 2,
+      "iterations": 8192,
+      "checksum": 4091760264664188709,
+      "samples_ns": {
+        "cinch": [
+          808749,
+          711061,
+          648147
+        ],
+        "reference": [
+          683830,
+          411901,
+          533233
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 86.7994384765625,
+        "reference": 65.0919189453125
+      }
+    },
+    {
+      "workload": "special-turkish",
+      "pattern": 3,
+      "iterations": 8192,
+      "checksum": 17854220132761092901,
+      "samples_ns": {
+        "cinch": [
+          395015,
+          374935,
+          474135
+        ],
+        "reference": [
+          389476,
+          374003,
+          390117
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 48.2196044921875,
+        "reference": 47.54345703125
+      }
+    },
+    {
+      "workload": "special-custom",
+      "pattern": 0,
+      "iterations": 8192,
+      "checksum": 2986271007762195237,
+      "samples_ns": {
+        "cinch": [
+          342746,
+          392601,
+          321515
+        ],
+        "reference": [
+          293452,
+          215245,
+          233371
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 41.839111328125,
+        "reference": 28.4876708984375
+      }
+    },
+    {
+      "workload": "special-custom",
+      "pattern": 1,
+      "iterations": 8192,
+      "checksum": 10321327164984345381,
+      "samples_ns": {
+        "cinch": [
+          824323,
+          803671,
+          957623
+        ],
+        "reference": [
+          501235,
+          445912,
+          377679
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 100.6253662109375,
+        "reference": 54.4326171875
+      }
+    },
+    {
+      "workload": "special-custom",
+      "pattern": 2,
+      "iterations": 8192,
+      "checksum": 4091760264664188709,
+      "samples_ns": {
+        "cinch": [
+          787347,
+          748217,
+          773515
+        ],
+        "reference": [
+          421215,
+          414294,
+          425812
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 94.4232177734375,
+        "reference": 51.4178466796875
+      }
+    },
+    {
+      "workload": "special-custom",
+      "pattern": 3,
+      "iterations": 8192,
+      "checksum": 17854220132761092901,
+      "samples_ns": {
+        "cinch": [
+          490679,
+          459653,
+          645643
+        ],
+        "reference": [
+          366833,
+          386072,
+          363758
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 59.8973388671875,
+        "reference": 44.7794189453125
+      }
+    },
+    {
+      "workload": "case-observe",
+      "pattern": 0,
+      "iterations": 8192,
+      "checksum": 14980631929309142821,
+      "samples_ns": {
+        "cinch": [
+          418791,
+          377218,
+          402707
+        ],
+        "reference": [
+          83696,
+          79841,
+          84407
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 49.1585693359375,
+        "reference": 10.216796875
+      }
+    },
+    {
+      "workload": "case-observe",
+      "pattern": 1,
+      "iterations": 8192,
+      "checksum": 14980631929309142821,
+      "samples_ns": {
+        "cinch": [
+          420193,
+          541827,
+          843451
+        ],
+        "reference": [
+          82193,
+          61243,
+          83706
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 66.1409912109375,
+        "reference": 10.0333251953125
+      }
+    },
+    {
+      "workload": "case-observe",
+      "pattern": 2,
+      "iterations": 8192,
+      "checksum": 14980631929309142821,
+      "samples_ns": {
+        "cinch": [
+          1449134,
+          549898,
+          1031324
+        ],
+        "reference": [
+          84848,
+          133170,
+          151708
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 125.89404296875,
+        "reference": 16.256103515625
+      }
+    },
+    {
+      "workload": "case-observe",
+      "pattern": 3,
+      "iterations": 8192,
+      "checksum": 14980631929309142821,
+      "samples_ns": {
+        "cinch": [
+          821408,
+          795339,
+          773506
+        ],
+        "reference": [
+          144829,
+          115253,
+          116285
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 97.0872802734375,
+        "reference": 14.1949462890625
+      }
+    },
+    {
+      "workload": "harness",
+      "pattern": 0,
+      "iterations": 8192,
+      "checksum": 4207079905399022373,
+      "samples_ns": {
+        "cinch": [
+          49484,
+          49285,
+          54021
+        ],
+        "reference": [
+          91487,
+          79079,
+          84797
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 6.04052734375,
+        "reference": 10.3511962890625
+      }
+    },
+    {
+      "workload": "harness",
+      "pattern": 1,
+      "iterations": 8192,
+      "checksum": 11260302020542800677,
+      "samples_ns": {
+        "cinch": [
+          60021,
+          59510,
+          60271
+        ],
+        "reference": [
+          106681,
+          85048,
+          80751
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 7.3267822265625,
+        "reference": 10.3818359375
+      }
+    },
+    {
+      "workload": "harness",
+      "pattern": 2,
+      "iterations": 8192,
+      "checksum": 2395536233582502693,
+      "samples_ns": {
+        "cinch": [
+          58689,
+          58008,
+          58278
+        ],
+        "reference": [
+          86010,
+          56025,
+          83035
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 7.114013671875,
+        "reference": 10.1361083984375
+      }
+    },
+    {
+      "workload": "harness",
+      "pattern": 3,
+      "iterations": 8192,
+      "checksum": 9794284689287947045,
+      "samples_ns": {
+        "cinch": [
+          67242,
+          67021,
+          67071
+        ],
+        "reference": [
+          98669,
+          83486,
+          82104
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 8.1873779296875,
+        "reference": 10.191162109375
+      }
+    }
+  ],
+  "harness": "Bounded U32 counter/phase, direct scalar case dispatch and U64 wraparound checksum; no per-iteration natural counter/remainder/Option allocation. Setup, table validation, name resolution for membership contexts and input JSON parsing are outside the timer. Catalog lookups and returned case observations deliberately occur inside it."
+}
