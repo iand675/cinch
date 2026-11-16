@@ -67,6 +67,15 @@ fn checks(group: &str, rows: &[Value]) -> Vec<String> {
 /// Compile a selected source epoch with a real CLI-style project, then check both ownership modes.
 fn run(checks: &[String], opt_level: u8, override_source: bool) {
     let directory = tempfile::tempdir().unwrap();
+    for (name, module) in [
+        ("Text.Hex", include_str!("../prelude/Text/Hex.cinch")),
+        (
+            "Data.Bytes.Word",
+            include_str!("../prelude/Data/Bytes/Word.cinch"),
+        ),
+    ] {
+        std::fs::write(directory.path().join(format!("{name}.cinch")), module).unwrap();
+    }
     let mut source = HELPERS.to_owned();
     let mut names = Vec::new();
     for (index, batch) in checks.chunks(64).enumerate() {
