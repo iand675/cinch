@@ -2153,7 +2153,7 @@ fn rank(name: &str) -> u8 {
 
 /// The `@` marks a node may carry: its ownership class, its instantiation
 /// vector, and an alternative's weight.
-const NODE_MARKS: &[&str] = &["class", "classes", "weight", "frame", "token"];
+const NODE_MARKS: &[&str] = &["class", "classes", "weight", "frame", "token", "kept"];
 
 // -------------------------------------------------------------- verification
 
@@ -2336,7 +2336,7 @@ fn check_file(file: &Parsed, errors: &mut Vec<Error>) -> Report {
     }
     let modules_owned: BTreeSet<String> = file.modules.iter().cloned().collect();
     for unit in &file.units {
-        let module = module_of(&unit.name, &modules_owned);
+        let module = module_of(&unquote(&unit.name), &modules_owned);
         if !module.is_empty() && !modules_owned.contains(&module) {
             errors.push(Error::new(&unit.name, "record", format!("module `{module}` is not declared in the header")));
         }
@@ -2579,6 +2579,20 @@ impl<'a> Checker<'a> {
             let name = mark_name(mark);
             if !NODE_MARKS.contains(&name.as_str()) {
                 errors.push(Error::new(unit, path, format!("unknown mark `{mark}`")));
+            }
+            if name == "kept" {
+                let args = tail.get(2).and_then(|node| match node {
+                    Node::List { head, tail, .. } if head == "args" => Some(tail.len()),
+                    _ => None,
+                });
+                let indices = mark.strip_prefix("@kept(").and_then(|s| s.strip_suffix(')'));
+                let mut seen = BTreeSet::new();
+                let valid = head == "reuse" && indices.is_some_and(|s| !s.is_empty() && s.split(',').all(|i| {
+                    i.trim().parse::<usize>().ok().is_some_and(|i| args.is_some_and(|n| i < n) && seen.insert(i))
+                }));
+                if !valid {
+                    errors.push(Error::new(unit, path, "@kept must name distinct in-range argument slots of a reuse"));
+                }
             }
         }
         match head.as_str() {

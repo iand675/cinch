@@ -1,4 +1,4 @@
-//! Run the ordinary Core CLI with process-wide Rust allocation counters.
+//! Run ordinary IR emission or the Core CLI with Rust allocation counters.
 //! Counters include startup and the whole compiler call, then stop before
 //! printing. Requested bytes are allocation traffic, not live heap size.
 //! Foreign C allocations and child processes are outside these counters.
@@ -53,7 +53,18 @@ static ALLOCATOR: CountedSystem = CountedSystem;
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let code = cinch::driver::core_cli(&args);
+    let code = if args.first().map(String::as_str) == Some("emit-ir") {
+        match args.as_slice() {
+            [_, source, flag, output] if flag == "-o" => cinch::driver::driver(
+                cinch::driver::Mode::EmitIr, std::path::Path::new(source),
+                Some(std::path::Path::new(output))).unwrap_or_else(|error| {
+                    eprintln!("{error}"); 1
+                }),
+            _ => { eprintln!("usage: compiler_allocations emit-ir SOURCE -o OUTPUT"); 2 }
+        }
+    } else {
+        cinch::driver::core_cli(&args)
+    };
     ACTIVE.store(false, Relaxed);
     eprintln!("cinch-rust-alloc: {}", serde_json::json!({
         "allocations": ALLOCS.load(Relaxed), "allocated_bytes": ALLOC_BYTES.load(Relaxed),

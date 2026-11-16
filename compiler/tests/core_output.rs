@@ -352,6 +352,28 @@ fn verify_accepts_the_hand_written_file() {
 }
 
 #[test]
+fn quoted_unit_names_resolve_their_declared_module() {
+    let valid = BASE.replace("unit Main.small", "unit 'Main.small?'");
+    coretext::verify(&valid).expect("a quoted unit still belongs to Main");
+    let invalid = valid.replace("unit 'Main.small?'", "unit 'Other.small?'");
+    let errors = coretext::verify(&invalid).expect_err("a quoted name cannot hide an undeclared module");
+    assert!(errors.iter().any(|e| e.message.contains("not declared")), "{errors:?}");
+}
+
+#[test]
+fn reuse_kept_marks_accept_only_distinct_existing_slots() {
+    let text = BASE.replace("unit Main.small", "global Main.Box\nunit Main.small")
+        .replace("body (local t0)",
+            "body (release t0 @token(t1) (moved) (rest) (reuse t1 @kept(0) Main.Box (args (int 1))))");
+    coretext::verify(&text).expect("a preserved reuse field is a supported printer mark");
+    for mark in ["@kept(1)", "@kept(0,0)", "@kept(x)", "@kept()"] {
+        let bad = text.replace("@kept(0)", mark);
+        let errors = coretext::verify(&bad).expect_err("invalid kept slots must be rejected");
+        assert!(errors.iter().any(|e| e.message.contains("@kept")), "{errors:?}");
+    }
+}
+
+#[test]
 fn verify_rejects_an_out_of_scope_local() {
     let text = BASE.replace("body (local t0)", "body (local t7)");
     let errors = coretext::verify(&text).expect_err("an unbound local is refused");
