@@ -1,0 +1,34 @@
+-- | Keep a nested owner's byte payload alive when a field is extracted by another activation.
+module Main where
+  import Data.Bytes
+  import Data.Nat
+
+  -- | Own a heap byte buffer.
+  data Inner where
+    -- | Wrap the buffer.
+    Inner :: Bytes -> Inner
+
+  -- | Own the nested constructor.
+  data Outer where
+    -- | Wrap the inner owner.
+    Outer :: Inner -> Outer
+
+  -- | Read the buffer through a borrowed owner without reducing its caller's constructor.
+  #[inline(never)]
+  length-inner :: Inner -> Nat
+  length-inner inner = case inner of Inner bytes -> bytes-len bytes
+
+  -- | Extract an owned child that must survive the enclosing owner's release.
+  #[inline(never)]
+  take-inner :: Outer -> Inner
+  take-inner outer = case outer of Outer inner -> inner
+
+  -- | Observe the inner owner both before storing it and after extracting it.
+  main :: Int
+  main =
+    let inner = Inner (bytes-new 1) in
+    let before = length-inner inner in
+    let outer = Outer inner in
+    let detached = take-inner outer in
+    let after = length-inner detached in
+    if before == 1 && after == 1 then 0 else 1
