@@ -1,0 +1,701 @@
+{
+  "compiler_sha256": "7a3ddfd004ac6fb4f87a41ec4f9987a8db0aca86ac7a05fddae03a1612484d4d",
+  "object_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b",
+  "opt_level": 2,
+  "producer_source_removed_before_consumer": true,
+  "provider_receipt_sha256": "86ed12cbac0dab4c66fb12e86d16cf6e4e630da12c9d4355247b61b1d0c4c6b6",
+  "reexport_source_sha256": "14b54ab401502a89c13bc883c074775e289bdc474b1c392aa5cf991045bfd30d",
+  "results": [
+    {
+      "accepted": true,
+      "checked_rc_compilation": true,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/objects.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/same-display-name/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/same-display-name/consumer.ll"
+      ],
+      "diagnostic": "",
+      "executable_sha256": "a1bf93740b44fab97613ab220feb16edb08c663e4f29b6b96148949c7a59db1d",
+      "exit": 0,
+      "link_command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/same-display-name/consumer.ll",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/library.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/same-display-name/consumer",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "llvm_sha256": "40a117fa384cde8b8cd233c58d3bca733836cdf7a63a3968b9315f1cac0d6438",
+      "name": "same-display-name",
+      "runs": [
+        {
+          "debug": false,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "debug": true,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "source_sha256": "ce4c58f34e8ab79bc708755e205013cfa05b4bf29e071d703783260d319ff106",
+      "uses_library_object": true
+    },
+    {
+      "accepted": true,
+      "checked_rc_compilation": true,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/objects.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/same-defining-module-override/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/same-defining-module-override/consumer.ll"
+      ],
+      "diagnostic": "",
+      "executable_sha256": "0d9b7d685b539e6d9b8190069686a0d88ad430c95f2d84594ff345a0e9aff93d",
+      "exit": 0,
+      "link_command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/same-defining-module-override/consumer.ll",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/library.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/same-defining-module-override/consumer",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "llvm_sha256": "0b156fad7b41a071e24519963f59f176c8779ca566c4cdd14db2abfce57632fe",
+      "name": "same-defining-module-override",
+      "runs": [
+        {
+          "debug": false,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "debug": true,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "source_sha256": "ab2254f5dc298d43f2dfe0c5b132798e93b56d231f34bbe48b7319715d7b1e37",
+      "uses_library_object": true
+    },
+    {
+      "accepted": true,
+      "checked_rc_compilation": true,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/objects.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/unsupported-operation/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/unsupported-operation/consumer.ll"
+      ],
+      "diagnostic": "",
+      "executable_sha256": "5c871356c40d9801f039296211f5e607e1f1651b3ff0698183918e75892854c6",
+      "exit": 0,
+      "link_command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/unsupported-operation/consumer.ll",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/library.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/unsupported-operation/consumer",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "llvm_sha256": "eccd0197ea3a4ed7709026e4e8b30c0260668757714d4e2eb434b670a775757c",
+      "name": "unsupported-operation",
+      "runs": [
+        {
+          "debug": false,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "debug": true,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "source_sha256": "65251d14de7fab96690c6295f385b56d9150ead010fad265f7d96c524aa02210",
+      "uses_library_object": true
+    },
+    {
+      "accepted": false,
+      "checked_rc_compilation": false,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--check",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/interfaces.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/wrong-carrier/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/wrong-carrier/consumer.ll"
+      ],
+      "diagnostic": "bootstrap.check:5:3: type mismatch: scalar intrinsic requires its exact canonical nominal scheme\n",
+      "exit": 4,
+      "name": "wrong-carrier",
+      "source_sha256": "43016c947d862b07b7c1f273fa832c280944c6e89bba04bded765aa68b52a6c1",
+      "uses_library_object": false
+    },
+    {
+      "accepted": false,
+      "checked_rc_compilation": false,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--check",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/interfaces.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/wrong-result/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/wrong-result/consumer.ll"
+      ],
+      "diagnostic": "bootstrap.check:5:3: type mismatch: scalar intrinsic requires its exact canonical nominal scheme\n",
+      "exit": 4,
+      "name": "wrong-result",
+      "source_sha256": "94a67a37d5aeb8ba97657348314406d5510ca5d75387f9d79d6c701cf1f06c32",
+      "uses_library_object": false
+    },
+    {
+      "accepted": false,
+      "checked_rc_compilation": false,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--check",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/interfaces.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/polymorphic/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/polymorphic/consumer.ll"
+      ],
+      "diagnostic": "bootstrap.check:5:3: runtime intrinsic cannot be polymorphic or constrained\n",
+      "exit": 4,
+      "name": "polymorphic",
+      "source_sha256": "73ef77dfc70152183b626db9deea2b929601d4b79a6cea12c852978abb1da1ae",
+      "uses_library_object": false
+    },
+    {
+      "accepted": false,
+      "checked_rc_compilation": false,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--check",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/interfaces.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/preserved-carrier/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/preserved-carrier/consumer.ll"
+      ],
+      "diagnostic": "bootstrap.check:5:3: type mismatch: scalar intrinsic requires its exact canonical nominal scheme\n",
+      "exit": 4,
+      "name": "preserved-carrier",
+      "source_sha256": "0fa8ee81ddb03e9baef68c31d8f75de80f79899d450e923e2617ea298f816b18",
+      "uses_library_object": false
+    },
+    {
+      "accepted": false,
+      "checked_rc_compilation": false,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--check",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/interfaces.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/preserved-polymorphic/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/preserved-polymorphic/consumer.ll"
+      ],
+      "diagnostic": "bootstrap.check:5:3: runtime intrinsic cannot be polymorphic or constrained\n",
+      "exit": 4,
+      "name": "preserved-polymorphic",
+      "source_sha256": "7e32f79b38f99cb2194151b915b86d3156a33003655cf1ddb15c867d50b33ffd",
+      "uses_library_object": false
+    },
+    {
+      "accepted": false,
+      "checked_rc_compilation": false,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--check",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/interfaces.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/wrong-effects/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/wrong-effects/consumer.ll"
+      ],
+      "diagnostic": "bootstrap.check:5:3: type mismatch: scalar intrinsic requires its exact canonical nominal scheme\n",
+      "exit": 4,
+      "name": "wrong-effects",
+      "source_sha256": "9481d05f80104ca9f702abbbfb45182c7ba7e106748f956a481826895234012e",
+      "uses_library_object": false
+    },
+    {
+      "accepted": false,
+      "checked_rc_compilation": false,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--check",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/interfaces.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/effect-region-parameter/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/effect-region-parameter/consumer.ll"
+      ],
+      "diagnostic": "bootstrap.check:5:3: runtime intrinsic cannot be polymorphic or constrained\n",
+      "exit": 4,
+      "name": "effect-region-parameter",
+      "source_sha256": "48928ec5bbb78953aca01d763356df4cb2e89e2de86e335ceb63fad738c24fec",
+      "uses_library_object": false
+    },
+    {
+      "accepted": false,
+      "checked_rc_compilation": false,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--check",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/interfaces.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/wrong-abi/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/wrong-abi/consumer.ll"
+      ],
+      "diagnostic": "bootstrap.check:5:3: runtime intrinsic requires foreign import ccall\n",
+      "exit": 4,
+      "name": "wrong-abi",
+      "source_sha256": "23327ae95698a7768a8b1db303de4e17673afeab32eca581f715bc8a12f4fea2",
+      "uses_library_object": false
+    },
+    {
+      "accepted": false,
+      "checked_rc_compilation": false,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--check",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/interfaces.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/unknown-opcode/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/unknown-opcode/consumer.ll"
+      ],
+      "diagnostic": "bootstrap.check:5:3: foreign symbol cinch.prim.wrappingImaginaryU64 is not a cinch intrinsic; only cinch.prim.* and cinch.runtime.* intrinsics are supported in the bootstrap slice\n",
+      "exit": 4,
+      "name": "unknown-opcode",
+      "source_sha256": "71ea857c20a0a90ba232a42f76a15a86896abf75efc2c93992799fec2a508850",
+      "uses_library_object": false
+    },
+    {
+      "accepted": true,
+      "checked_rc_compilation": true,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/objects.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/effect-order/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/effect-order/consumer.ll"
+      ],
+      "diagnostic": "",
+      "executable_sha256": "2b1bf7b930e498f498d49429e6911cf64181ea891dce1db21d1f3bf44e2790b8",
+      "exit": 0,
+      "link_command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/effect-order/consumer.ll",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/foreign-fixture/fixture.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/library.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/effect-order/consumer",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "llvm_sha256": "d0aa77ee0b31d000bd12d570916a4accc190ee2ef6bb7b4ca514a010f787f49e",
+      "name": "effect-order",
+      "runs": [
+        {
+          "debug": false,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "debug": true,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "source_sha256": "198d973b9b4b54a7b0ae07b1c5e604acfc272bc5f45395ef96bfa127ecd66f00",
+      "uses_library_object": true
+    },
+    {
+      "accepted": true,
+      "checked_rc_compilation": true,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/objects.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/same-display-foreign/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/same-display-foreign/consumer.ll"
+      ],
+      "diagnostic": "",
+      "executable_sha256": "bbdf6ecd5d9ef794919128cd999bc306cd21662c056dbace213c7516ff6072f7",
+      "exit": 0,
+      "link_command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/same-display-foreign/consumer.ll",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/foreign-fixture/fixture.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/library.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/same-display-foreign/consumer",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "llvm_sha256": "9e9e3df6da1971979a2494912c29178d60eec3f4ac55b5e51f55ab77399a2946",
+      "name": "same-display-foreign",
+      "runs": [
+        {
+          "debug": false,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "debug": true,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "source_sha256": "7307186a410831100c00ab2555e6e0f3b76ebda4a3822931884328c2b74b81bf",
+      "uses_library_object": true
+    },
+    {
+      "accepted": true,
+      "checked_rc_compilation": false,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--emit-interfaces",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/interfaces.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/reexport-producer/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/reexport-producer/consumer.ll"
+      ],
+      "diagnostic": "",
+      "exit": 0,
+      "name": "reexport-producer",
+      "source_sha256": "14b54ab401502a89c13bc883c074775e289bdc474b1c392aa5cf991045bfd30d",
+      "uses_library_object": false
+    },
+    {
+      "accepted": true,
+      "checked_rc_compilation": true,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/reexport-interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/objects.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/source-absent-reexport/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/source-absent-reexport/consumer.ll"
+      ],
+      "diagnostic": "",
+      "executable_sha256": "18e0c50373a6d981e5c7fef63e0cc996dd46c954887758edab44754fec4a4eff",
+      "exit": 0,
+      "link_command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/source-absent-reexport/consumer.ll",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/library.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/source-absent-reexport/consumer",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "llvm_sha256": "bfc71bc16f73fbd855450fdda367c9c62fa90362bf8edb5874178ad8e3a0d0a0",
+      "name": "source-absent-reexport",
+      "runs": [
+        {
+          "debug": false,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "debug": true,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "source_sha256": "1c77630b93ad5ac129a1ebbf6529013f29578c35e783c0392507848266dcb558",
+      "uses_library_object": true
+    },
+    {
+      "accepted": true,
+      "checked_rc_compilation": false,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--emit-ir",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/defining-intrinsic-interfaces.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/source-absent-defining-intrinsic/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/source-absent-defining-intrinsic/consumer.ll"
+      ],
+      "diagnostic": "",
+      "executable_sha256": "7933acb5f4cd2e8735c82f843c293db9dcc1779a54c9b6e1f76703e7625cce59",
+      "exit": 0,
+      "link_command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/source-absent-defining-intrinsic/consumer.ll",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/source-absent-defining-intrinsic/consumer",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "llvm_sha256": "333bee10423491ba1538a1d43021655d3a7cd74a437575fc86028dcbef20ee7a",
+      "name": "source-absent-defining-intrinsic",
+      "runs": [
+        {
+          "debug": false,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "debug": true,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "source_sha256": "87727a34b247913856555d1cd252d7e99ed229ad196371696be5fd865692a702",
+      "uses_library_object": false
+    },
+    {
+      "accepted": true,
+      "checked_rc_compilation": false,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--check",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/legacy-display-only-interfaces.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/legacy-display-check/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/legacy-display-check/consumer.ll"
+      ],
+      "diagnostic": "",
+      "exit": 0,
+      "name": "legacy-display-check",
+      "source_sha256": "fa70bf2f87762a3d21f4273d2cc6002ffa742566f7c086c50408a76c302ce367",
+      "uses_library_object": false
+    },
+    {
+      "accepted": false,
+      "checked_rc_compilation": false,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--emit-ir",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/legacy-display-only-interfaces.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/legacy-display-no-intrinsic-authority/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/legacy-display-no-intrinsic-authority/consumer.ll"
+      ],
+      "diagnostic": "bootstrap.runtime-ir:7:15: external runtime implementation is unavailable: i.ScalarDeclaration$2enative\n",
+      "exit": 5,
+      "name": "legacy-display-no-intrinsic-authority",
+      "source_sha256": "fa70bf2f87762a3d21f4273d2cc6002ffa742566f7c086c50408a76c302ce367",
+      "uses_library_object": false
+    },
+    {
+      "accepted": false,
+      "checked_rc_compilation": true,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/facade-scheme-interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/objects.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/facade-scheme/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/facade-scheme/consumer.ll"
+      ],
+      "diagnostic": "bootstrap.object: runtime object checked interface identity mismatch",
+      "exit": 7,
+      "name": "facade-scheme",
+      "source_sha256": "b8e689f5825f5d818b4b7e4b9bd2e1174e4e4786108a94daf46e3353123ee20d",
+      "uses_library_object": true
+    },
+    {
+      "accepted": false,
+      "checked_rc_compilation": true,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/facade-arity-interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/objects.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/facade-arity/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/facade-arity/consumer.ll"
+      ],
+      "diagnostic": "bootstrap.object: runtime object checked interface identity mismatch",
+      "exit": 7,
+      "name": "facade-arity",
+      "source_sha256": "b8e689f5825f5d818b4b7e4b9bd2e1174e4e4786108a94daf46e3353123ee20d",
+      "uses_library_object": true
+    },
+    {
+      "accepted": false,
+      "checked_rc_compilation": true,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/facade-serialized-unit-interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/objects.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/facade-serialized-unit/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/facade-serialized-unit/consumer.ll"
+      ],
+      "diagnostic": "bootstrap.object: runtime object checked interface identity mismatch",
+      "exit": 7,
+      "name": "facade-serialized-unit",
+      "source_sha256": "b8e689f5825f5d818b4b7e4b9bd2e1174e4e4786108a94daf46e3353123ee20d",
+      "uses_library_object": true
+    },
+    {
+      "accepted": false,
+      "checked_rc_compilation": true,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/facade-new-foreign-interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/objects.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/facade-new-foreign/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/facade-new-foreign/consumer.ll"
+      ],
+      "diagnostic": "bootstrap.object: runtime object checked interface identity mismatch",
+      "exit": 7,
+      "name": "facade-new-foreign",
+      "source_sha256": "b8e689f5825f5d818b4b7e4b9bd2e1174e4e4786108a94daf46e3353123ee20d",
+      "uses_library_object": true
+    },
+    {
+      "accepted": false,
+      "checked_rc_compilation": true,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/ordinary-interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/objects.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/unrepresented-ordinary/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/unrepresented-ordinary/consumer.ll"
+      ],
+      "diagnostic": "bootstrap.object: runtime object checked interface identity mismatch",
+      "exit": 7,
+      "name": "unrepresented-ordinary",
+      "source_sha256": "16fba16641964722db93d5756149292e8f68437639a2282bebee4ccba86a3d8a",
+      "uses_library_object": true
+    },
+    {
+      "accepted": false,
+      "checked_rc_compilation": false,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--check",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/metadata-effects-interfaces.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/metadata-effects/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/metadata-effects/consumer.ll"
+      ],
+      "diagnostic": "bootstrap.check:1:1: imported scalar intrinsic disagrees with its defining ABI\n",
+      "exit": 4,
+      "name": "metadata-effects",
+      "source_sha256": "62ed7a6c4ac1fe9246bc75e7f55e558376d67abaf735e4d9d3ec635fb318dc8c",
+      "uses_library_object": false
+    },
+    {
+      "accepted": false,
+      "checked_rc_compilation": false,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--check",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/metadata-abi-interfaces.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/metadata-abi/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/metadata-abi/consumer.ll"
+      ],
+      "diagnostic": "bootstrap.check:1:1: imported scalar intrinsic disagrees with its defining ABI\n",
+      "exit": 4,
+      "name": "metadata-abi",
+      "source_sha256": "62ed7a6c4ac1fe9246bc75e7f55e558376d67abaf735e4d9d3ec635fb318dc8c",
+      "uses_library_object": false
+    },
+    {
+      "accepted": false,
+      "checked_rc_compilation": false,
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--check",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/metadata-type-interfaces.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/metadata-type/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-authority-o2/metadata-type/consumer.ll"
+      ],
+      "diagnostic": "bootstrap.check:1:1: imported scalar intrinsic disagrees with its defining ABI\n",
+      "exit": 4,
+      "name": "metadata-type",
+      "source_sha256": "62ed7a6c4ac1fe9246bc75e7f55e558376d67abaf735e4d9d3ec635fb318dc8c",
+      "uses_library_object": false
+    }
+  ],
+  "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "status": "passed"
+}

@@ -1,0 +1,56 @@
+{
+  "admission_blockers": [
+    {
+      "binding": "Data.Machine.mask-i64",
+      "description": "The genuine dependent/refined bitAndI64 view has alpha/normalization differences between defining ABI text and resolved scheme. The new importer rejects it before emission. Ring/Vec compatibility is blocked; a structured full-contract comparison and ordinary provider fallback require a separate compiler epoch.",
+      "kind": "compiler-import-compatibility",
+      "ring_bundle_sha256": "c71d4f7c6d1cc71841de15c324d82a772da6c81b30b278458d4af883984df3de"
+    },
+    {
+      "description": "The original Rust producer predates unsigned checked/saturating negation and cross-signed checked/saturating conversion repairs. The 667-case suite covers only the closed wrapping/bit/compare/masked-shift/wrapping-cast subset. A repaired-producer provider epoch is required for the newly reported public APIs.",
+      "future_repair_commits": [
+        "f5306852",
+        "292340ab"
+      ],
+      "kind": "known-provider-public-scalar-semantics"
+    }
+  ],
+  "adoption_approved": false,
+  "base_interfaces_sha256": "0af743ecf75bec6f7e3c4e130ca3430872abf19a58b2c32671c7af06e0233d74",
+  "base_source_modules": 65,
+  "bootstrap_gate_passed": true,
+  "builder_script_sha256": "1ba69a04a9b0f4b657cf136039b29dc8dd5011fb3aa6289b55a25fc441dde82f",
+  "bytes_sha256": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146",
+  "changed_source_proof": {
+    "compiler_sha256": "78a9b1413618742ecfaa2e20f2a3b829e034ce22b2c4bebcb3af7375451c6e0d",
+    "diagnostics_sha256": "f141beff8826d369b35167f6648aef03679bed8e6ff326446a1c8950fdb04b48",
+    "source_sha256": "aad8e06d45070eb36015794fffb76d17dd20b0d4996c043fb30239e43c89fb37"
+  },
+  "changed_source_proof_sha256": "f6b88f4aaf2f929ac7f26f0c3029b9876015b76e23ae432753984b711beb3b89",
+  "compiler_llvm_sha256": "b78ca6faefe22145742a43f4bc58ea4758261668b5ad81ee213177e78ed7561a",
+  "compiler_sha256": "7a3ddfd004ac6fb4f87a41ec4f9987a8db0aca86ac7a05fddae03a1612484d4d",
+  "compiler_source_sha256": "f8118e4c2a673ff8945dd42a01b0bfe6569e16ced5959c1cc409d5dae84847ec",
+  "declared_client_groups": 31,
+  "declared_client_matrix_passed": true,
+  "description": "Self-contained merged Native snapshot with full fixed-point, source-absent entry and changed-source bootstrap gate passed; final semantic/API client scope remains pending",
+  "fresh_embedded_api_tests_passed": 19,
+  "full_chain_log_sha256": "43bfb13e305a2e8cb4f31c9047c7be8cabf070193e101a75b3edb99365c4d906",
+  "full_chain_run_sha256": "3f2d562eb7cbb37e8e2ef4029e5a2fd34e716034164bfdb5986edd272ac7c386",
+  "full_gate_pending": true,
+  "metadata_sha256": "107b207a85770ec20b819a2af968d9ecf5e29dc29de9993c789bf3e2cdbb7a5a",
+  "object_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b",
+  "objects_sha256": "cc9903dcc4e6dd62ab85a2a109e58521dc0dcc7b2e1956fc101bc9292571acf2",
+  "original_provider_sha256": "a6df3c8aab20edfd7e9eef2136a95ea6834b08ae1ef0efaa70e46697121ed01e",
+  "publication_approved": false,
+  "relocated_provider_sha256": "86ed12cbac0dab4c66fb12e86d16cf6e4e630da12c9d4355247b61b1d0c4c6b6",
+  "requested_oo_root_present": true,
+  "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "string_sha256": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+  "tooling": {
+    "bootstrap.py": "57e6616ad246a28a2d5f0cd75d4abf1c49ebf18390902508a0edddb9c81e4424",
+    "bootstrap_checklist.py": "5336a05b255662696fbb07ea0ba03b347ae90b8c6bbd3fa2b9dad744eb93d76d",
+    "pgo.py": "d8bbde7cac49b0b9029ef3e45baf59d0f245cb365e3d71f38774e5d338f8e8f3",
+    "verify_stage3.py": "f3dbd28bfb8635128c8c40588e16bfc5aa19cf5883c2a24dd3a0cbb0d7108b05"
+  },
+  "wrapper_sha256": "35cd7e180ddc225fa7aa94df584c8c998642a385fbb62e84818b7b2c5c1861e0"
+}

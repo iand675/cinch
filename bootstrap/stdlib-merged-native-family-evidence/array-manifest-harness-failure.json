@@ -1,0 +1,11 @@
+{
+  "kind": "harness-protocol-error",
+  "original_manifest": "build/merged-array-empty-interfaces.json",
+  "original_log": "build/merged-final-array-source.log",
+  "original_runner_exit": 1,
+  "compiler_exit": 7,
+  "exact_diagnostic": "bootstrap.interfaces: missing interface manifest schema",
+  "source_semantics_exercised": false,
+  "correction": "new schema1 document with empty interfaces, preserving source cases and compiler",
+  "new_manifest": "/workspace/dasl-stdlib-merged-family/build/merged-array-empty-interfaces-v1.json"
+}

@@ -1,0 +1,23 @@
+{
+  "status": "passed",
+  "command": [
+    "taskset",
+    "-c",
+    "1",
+    "python3",
+    "tooling/bootstrap.py",
+    "check",
+    "--no-pgo",
+    "-j1",
+    "--library-artifact",
+    "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/provider.json"
+  ],
+  "cwd": "/workspace/dasl-stdlib-merged-family",
+  "compiler_source_sha256": "f8118e4c2a673ff8945dd42a01b0bfe6569e16ced5959c1cc409d5dae84847ec",
+  "provider_sha256": "a6df3c8aab20edfd7e9eef2136a95ea6834b08ae1ef0efaa70e46697121ed01e",
+  "start_unix": 1794859393.821248,
+  "fresh_stage1_required": true,
+  "seed_reuse_receipt": "build/merged-seed-reuse.json",
+  "exit": 0,
+  "end_unix": 1794862619.2194667
+}

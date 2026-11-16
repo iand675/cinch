@@ -1,0 +1,89 @@
+{
+  "description": "Check sealed-array authority using genuine source-absent interfaces and forged payload claims.",
+  "compiler_sha256": "7a3ddfd004ac6fb4f87a41ec4f9987a8db0aca86ac7a05fddae03a1612484d4d",
+  "base_manifest_sha256": "0af743ecf75bec6f7e3c4e130ca3430872abf19a58b2c32671c7af06e0233d74",
+  "cpu_affinity": [
+    1
+  ],
+  "clients": [
+    {
+      "name": "actual-real-builtin-array",
+      "source_sha256": "7f6f7985bfa1d893a1dc660190283c5e467474fb8263eddd01ce04fa5688e8af",
+      "contract_sha256": "1a1825178b7f73cfc7d29e8461b4fa0895895ad2eb591f8ff9857d7ed5c610d9",
+      "accepted": true,
+      "exit": 0,
+      "diagnostics": "",
+      "leaked": 0
+    },
+    {
+      "name": "actual-ordinary-import",
+      "source_sha256": "0a7238939e0cd809d8d780bcfed17ce3190cec574b407e152a94bdacdc0edcd2",
+      "contract_sha256": "1a1825178b7f73cfc7d29e8461b4fa0895895ad2eb591f8ff9857d7ed5c610d9",
+      "accepted": false,
+      "exit": 4,
+      "diagnostics": "bootstrap.check:7:13: recursive field is negative or needs nested positivity evidence\n",
+      "leaked": 0
+    },
+    {
+      "name": "actual-qualified-import",
+      "source_sha256": "39382dc9895f22a9bb3e943429f480d296f28903d95f12668b4d0e42ab08af2d",
+      "contract_sha256": "1a1825178b7f73cfc7d29e8461b4fa0895895ad2eb591f8ff9857d7ed5c610d9",
+      "accepted": false,
+      "exit": 4,
+      "diagnostics": "bootstrap.check:7:13: recursive field is negative or needs nested positivity evidence\n",
+      "leaked": 0
+    },
+    {
+      "name": "actual-shadowed-spelling",
+      "source_sha256": "f96a2740db751a9b1de97a6ed40d191ccf2abec739849bbec882d2b60f1ff592",
+      "contract_sha256": "1a1825178b7f73cfc7d29e8461b4fa0895895ad2eb591f8ff9857d7ed5c610d9",
+      "accepted": false,
+      "exit": 4,
+      "diagnostics": "bootstrap.check:7:13: recursive field is negative or needs nested positivity evidence\n",
+      "leaked": 0
+    },
+    {
+      "name": "forged-payload-flag-real-builtin-array",
+      "source_sha256": "7f6f7985bfa1d893a1dc660190283c5e467474fb8263eddd01ce04fa5688e8af",
+      "contract_sha256": "aa053da65c4daf01857f74750368353dc47e147ea646f2addee6b39a3856ff85",
+      "accepted": true,
+      "exit": 0,
+      "diagnostics": "",
+      "leaked": 0
+    },
+    {
+      "name": "forged-payload-flag-ordinary-import",
+      "source_sha256": "0a7238939e0cd809d8d780bcfed17ce3190cec574b407e152a94bdacdc0edcd2",
+      "contract_sha256": "aa053da65c4daf01857f74750368353dc47e147ea646f2addee6b39a3856ff85",
+      "accepted": false,
+      "exit": 4,
+      "diagnostics": "bootstrap.check:7:13: recursive field is negative or needs nested positivity evidence\n",
+      "leaked": 0
+    },
+    {
+      "name": "forged-payload-flag-qualified-import",
+      "source_sha256": "39382dc9895f22a9bb3e943429f480d296f28903d95f12668b4d0e42ab08af2d",
+      "contract_sha256": "aa053da65c4daf01857f74750368353dc47e147ea646f2addee6b39a3856ff85",
+      "accepted": false,
+      "exit": 4,
+      "diagnostics": "bootstrap.check:7:13: recursive field is negative or needs nested positivity evidence\n",
+      "leaked": 0
+    },
+    {
+      "name": "forged-payload-flag-shadowed-spelling",
+      "source_sha256": "f96a2740db751a9b1de97a6ed40d191ccf2abec739849bbec882d2b60f1ff592",
+      "contract_sha256": "aa053da65c4daf01857f74750368353dc47e147ea646f2addee6b39a3856ff85",
+      "accepted": false,
+      "exit": 4,
+      "diagnostics": "bootstrap.check:7:13: recursive field is negative or needs nested positivity evidence\n",
+      "leaked": 0
+    }
+  ],
+  "producer": {
+    "source_sha256": "bc5b29f6db18f2f4604d47553935e54ba4e178b0dcfc0fe329fb426c8d360bc7",
+    "contract_sha256": "1a1825178b7f73cfc7d29e8461b4fa0895895ad2eb591f8ff9857d7ed5c610d9",
+    "interface_hash": "8161338247847436392"
+  },
+  "producer_source_removed_before_clients": true,
+  "runner_sha256": "231d2b58bd0eb977679f5c4a38762236eefe7a2d35be2ed16695adf5df2021f3"
+}

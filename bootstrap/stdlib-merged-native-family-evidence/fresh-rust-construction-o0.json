@@ -1,0 +1,166 @@
+{
+  "compiler_sha256": "fa97942e3f9da884ab9badd1b0463ae28fb3dacd6f3af71cbe9444e1c14e5c5d",
+  "epoch": "fresh-embedded",
+  "string_source_sha256": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+  "fixture_sha256": "3b4656c91ea15b8ddc5403240c5fc82e277c2a42332a974b16e626dc558b7504",
+  "opt_level": 0,
+  "native_base_validation_claimed": false,
+  "results": [
+    {
+      "group": "repeats",
+      "cases": 297,
+      "epoch_receipt": {
+        "interface_sha256": "3a4e8106f50cb9b7d0db1ed34dae23a16d11cdd30254eb2ea17dac68ad506712",
+        "source_hash": "416560347689830784",
+        "module_source_sha256": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6"
+      },
+      "entry_sha256": "316353e6dbcb2ec20e1837306b2adb4a71a1846402dad233e365d707a80cb3f4",
+      "executable_sha256": "c8a04e2e6b35d9c03114fe01d7fb9c556e62e71dd13aff5b4f670e78ea77899b",
+      "llvm_sha256": "6894cfc8780ef6b4d10463b5fa84cf1a2669513522ca9f6387fdc1ce603f9e20",
+      "tail_receipt": {
+        "concat-size": {
+          "emitted_workers": 0,
+          "recursive_calls": [],
+          "all_observed_recursive_calls_tail": true
+        },
+        "concat-copy": {
+          "emitted_workers": 0,
+          "recursive_calls": [],
+          "all_observed_recursive_calls_tail": true
+        },
+        "repeat-double": {
+          "emitted_workers": 1,
+          "recursive_calls": [],
+          "all_observed_recursive_calls_tail": true
+        }
+      },
+      "ownership": [
+        {
+          "debug": false,
+          "zero_leaks": true
+        },
+        {
+          "debug": true,
+          "zero_leaks": true
+        }
+      ]
+    },
+    {
+      "group": "concats",
+      "cases": 101,
+      "epoch_receipt": {
+        "interface_sha256": "3a4e8106f50cb9b7d0db1ed34dae23a16d11cdd30254eb2ea17dac68ad506712",
+        "source_hash": "416560347689830784",
+        "module_source_sha256": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6"
+      },
+      "entry_sha256": "0f25a4e7513d534340f3eb65b0894f04b741ae62ef2d2e006a74922c4f023914",
+      "executable_sha256": "4f6237222decfbef9fbfb3098fe4527f7ec8f71bc0ca8390901a2b25c3e4fe6f",
+      "llvm_sha256": "93d08468a43a8f38529f49053e36ae909f43f88e45fe98213aa6c8a4687daac6",
+      "tail_receipt": {
+        "concat-size": {
+          "emitted_workers": 1,
+          "recursive_calls": [],
+          "all_observed_recursive_calls_tail": true
+        },
+        "concat-copy": {
+          "emitted_workers": 1,
+          "recursive_calls": [],
+          "all_observed_recursive_calls_tail": true
+        },
+        "repeat-double": {
+          "emitted_workers": 0,
+          "recursive_calls": [],
+          "all_observed_recursive_calls_tail": true
+        }
+      },
+      "ownership": [
+        {
+          "debug": false,
+          "zero_leaks": true
+        },
+        {
+          "debug": true,
+          "zero_leaks": true
+        }
+      ]
+    },
+    {
+      "group": "regression",
+      "cases": 2,
+      "epoch_receipt": {
+        "interface_sha256": "3a4e8106f50cb9b7d0db1ed34dae23a16d11cdd30254eb2ea17dac68ad506712",
+        "source_hash": "416560347689830784",
+        "module_source_sha256": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6"
+      },
+      "entry_sha256": "b304eddc152a2fd2bf6947f96abef63f31af6405c849cd1a5ed0e9d08bf75fc6",
+      "executable_sha256": "c61280358d8e8f7abf26928f7b0541e01584e136d59feba6b57fba7d30d4e4a6",
+      "llvm_sha256": "79a8d53983792ffe4ec27b5c5461109566ccfad13be6f964e8f25b8699e82392",
+      "tail_receipt": {
+        "concat-size": {
+          "emitted_workers": 1,
+          "recursive_calls": [],
+          "all_observed_recursive_calls_tail": true
+        },
+        "concat-copy": {
+          "emitted_workers": 1,
+          "recursive_calls": [],
+          "all_observed_recursive_calls_tail": true
+        },
+        "repeat-double": {
+          "emitted_workers": 1,
+          "recursive_calls": [],
+          "all_observed_recursive_calls_tail": true
+        }
+      },
+      "ownership": [
+        {
+          "debug": false,
+          "zero_leaks": true
+        },
+        {
+          "debug": true,
+          "zero_leaks": true
+        }
+      ]
+    },
+    {
+      "group": "owners",
+      "cases": 1,
+      "epoch_receipt": {
+        "interface_sha256": "3a4e8106f50cb9b7d0db1ed34dae23a16d11cdd30254eb2ea17dac68ad506712",
+        "source_hash": "416560347689830784",
+        "module_source_sha256": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6"
+      },
+      "entry_sha256": "878b444853ce85ca6bf177316ed0579e0ec107ba50b82bfc0bbf0aa758c0dda6",
+      "executable_sha256": "9894b876912b0f67a3a92b0d820fca3db53c0d72edeabca1e0129b1ef7c178d1",
+      "llvm_sha256": "c2ed332bf37b8913209f9b280e81d082fc4d15374ce280dfd07055bc1319b06e",
+      "tail_receipt": {
+        "concat-size": {
+          "emitted_workers": 1,
+          "recursive_calls": [],
+          "all_observed_recursive_calls_tail": true
+        },
+        "concat-copy": {
+          "emitted_workers": 1,
+          "recursive_calls": [],
+          "all_observed_recursive_calls_tail": true
+        },
+        "repeat-double": {
+          "emitted_workers": 1,
+          "recursive_calls": [],
+          "all_observed_recursive_calls_tail": true
+        }
+      },
+      "ownership": [
+        {
+          "debug": false,
+          "zero_leaks": true
+        },
+        {
+          "debug": true,
+          "zero_leaks": true
+        }
+      ]
+    }
+  ]
+}

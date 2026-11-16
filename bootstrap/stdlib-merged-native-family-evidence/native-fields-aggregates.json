@@ -1,0 +1,264 @@
+{
+  "epoch": "fresh-imported-provider",
+  "source_shadows_used": false,
+  "native_compiler_sha256": "7a3ddfd004ac6fb4f87a41ec4f9987a8db0aca86ac7a05fddae03a1612484d4d",
+  "provider_producer_sha256": "fa97942e3f9da884ab9badd1b0463ae28fb3dacd6f3af71cbe9444e1c14e5c5d",
+  "provider_receipt_sha256": "86ed12cbac0dab4c66fb12e86d16cf6e4e630da12c9d4355247b61b1d0c4c6b6",
+  "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "library_object_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b",
+  "interfaces_sha256": "0af743ecf75bec6f7e3c4e130ca3430872abf19a58b2c32671c7af06e0233d74",
+  "objects_sha256": "cc9903dcc4e6dd62ab85a2a109e58521dc0dcc7b2e1956fc101bc9292571acf2",
+  "epoch_receipts": {
+    "Data.Bytes": {
+      "source_hash": "12579928885703464370",
+      "source_sha256": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146",
+      "admitted_interface_hash": "2439294224589322922",
+      "interface_path": "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/library/build/Data.Bytes.cinchif",
+      "interface_sha256": "f8f8f958bf90840c33d92bfab588f52930632eb3e466f7e54798767caa7d14f6"
+    },
+    "Data.String": {
+      "source_hash": "416560347689830784",
+      "source_sha256": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+      "admitted_interface_hash": "14621555996612796731",
+      "interface_path": "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/library/build/Data.String.cinchif",
+      "interface_sha256": "3a4e8106f50cb9b7d0db1ed34dae23a16d11cdd30254eb2ea17dac68ad506712"
+    }
+  },
+  "constructor_fixture_sha256": "74531d2d07f0182b645799e4d7f5779876d1863589039e9296f6ffe03f1a178b",
+  "join_fixture_sha256": "db801bd8d1ff54a058524cb16864778f8bca53eae4eac9f4105e94c69fa53691",
+  "compiler_main_thread_stack_bytes": 67108864,
+  "compiler_runtime_stack_bytes": 1073741824,
+  "program_stack_bytes": 8388608,
+  "results": [
+    {
+      "group": "aggregates",
+      "cases": 7,
+      "entry_sha256": "4235f5ba2726b121c44f094a542c46ea20f8597c38ada1447881db519ccf259f",
+      "bundle_sha256": "86497a4edc6aac2bfca2c53e4d945557e20b045b36b05e6f7ff0421022bd045c",
+      "llvm_sha256": "5ec846b7377dd796156966fd7a15b7211ebf29d3507068073ac112b3f100873d",
+      "compile_command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/base-interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/objects.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-fields-aggregates/aggregates/Bundle.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-fields-aggregates/aggregates/consumer.ll"
+      ],
+      "source_dependencies": {
+        "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+      },
+      "links": [
+        {
+          "optimization": 0,
+          "command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-merged-family/build/merged-final-fields-aggregates/aggregates/consumer.ll",
+            "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/library.o",
+            "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/libcinchruntime.a",
+            "-O0",
+            "-o",
+            "/workspace/dasl-stdlib-merged-family/build/merged-final-fields-aggregates/aggregates/consumer-o0",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "executable_sha256": "9a72d81d26ac2aed8e1ab3b2b01cd51cb60d64f54fd6fdd3ede45aed09e1b90b",
+          "ownership": [
+            {
+              "debug": false,
+              "assertion": 0,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "assertion": 1,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "assertion": 2,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "assertion": 3,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "assertion": 4,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "assertion": 5,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "assertion": 6,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "assertion": 0,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "assertion": 1,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "assertion": 2,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "assertion": 3,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "assertion": 4,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "assertion": 5,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "assertion": 6,
+              "repetition": 0,
+              "zero_leaks": true
+            }
+          ]
+        },
+        {
+          "optimization": 2,
+          "command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-merged-family/build/merged-final-fields-aggregates/aggregates/consumer.ll",
+            "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/library.o",
+            "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/libcinchruntime.a",
+            "-O2",
+            "-o",
+            "/workspace/dasl-stdlib-merged-family/build/merged-final-fields-aggregates/aggregates/consumer-o2",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "executable_sha256": "6eaad9e2b3e4152ddc5f6e7c8168069fca7daab48bad63ad8167e34c991f9fad",
+          "ownership": [
+            {
+              "debug": false,
+              "assertion": 0,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "assertion": 1,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "assertion": 2,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "assertion": 3,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "assertion": 4,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "assertion": 5,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "assertion": 6,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "assertion": 0,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "assertion": 1,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "assertion": 2,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "assertion": 3,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "assertion": 4,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "assertion": 5,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "assertion": 6,
+              "repetition": 0,
+              "zero_leaks": true
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "scalar_fixture_sha256": "efc5a21fab6665835a45fd6d87a34686351ac10c093afcbc5e3762d467a8a99f",
+  "status": "passed"
+}

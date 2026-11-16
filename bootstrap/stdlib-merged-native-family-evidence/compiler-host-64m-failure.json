@@ -1,0 +1,13 @@
+{
+  "compiler_main_thread_stack": "64M",
+  "compiler_runtime_stack": "64M",
+  "compiler_sha256": "7a3ddfd004ac6fb4f87a41ec4f9987a8db0aca86ac7a05fddae03a1612484d4d",
+  "consumer_executed": false,
+  "consumer_limits_changed": false,
+  "diagnostic": "cinch: exhausted: stack",
+  "kind": "compiler-host-resource-limit",
+  "log": "build/merged-final-fields-texts.log",
+  "original_tool_sha256": "4a4bb9450e9e3eaa5f18eef60c86988a590c3fb38b9b1656daa933b85bb9a4d6",
+  "retry": "same source under explicit normal Native compiler runtime stack1G, new artifacts",
+  "source_sha256": "5a7669905c0df2b2cf23f90fe0f4c56cbe83152a6b7742ede46d6d992be127ec"
+}

@@ -1,0 +1,98 @@
+{
+  "schema": 1,
+  "purpose": "Cold r1\u2013r4 experimental host LLVM only; source, ELFs, client IR/ASM, r5, alias and frozen epochs retained",
+  "created_unix": 1794863017.790609,
+  "files": [
+    {
+      "label": "r1",
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter/compiler.ll",
+      "original_bytes": 240310752,
+      "uncompressed_sha256": "c1454805978a136c5983fa80e2e1be680492df79d277f641e570ca499cb0364d",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/cold-host-llvm-r1-r4-v1/r1-compiler.ll.v1.zst",
+      "archive_bytes": 29359004,
+      "compressed_sha256": "3dfdc7666527cf3422c7af4455f663dd634c6ee93ece6424af47d9c5652184eb",
+      "decompressed_bytes": 240310752,
+      "decompressed_sha256": "c1454805978a136c5983fa80e2e1be680492df79d277f641e570ca499cb0364d",
+      "compression_command": [
+        "zstd",
+        "-T1",
+        "-3",
+        "--no-progress",
+        "-q",
+        "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter/compiler.ll",
+        "-o",
+        "/workspace/dasl-stdlib-scalar-imports/build/cold-host-llvm-r1-r4-v1/r1-compiler.ll.v1.zst"
+      ],
+      "verified_before_unlink": true
+    },
+    {
+      "label": "r2",
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter-r2/compiler.ll",
+      "original_bytes": 240391042,
+      "uncompressed_sha256": "9d40941ffcc4f708463462e32b4547831b14c5daa5020659caae99cc6547a6bc",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/cold-host-llvm-r1-r4-v1/r2-compiler.ll.v1.zst",
+      "archive_bytes": 29376192,
+      "compressed_sha256": "bb9ad95a87ef030d552482c497691f607f9ff4dcec65d444c2f989502e217817",
+      "decompressed_bytes": 240391042,
+      "decompressed_sha256": "9d40941ffcc4f708463462e32b4547831b14c5daa5020659caae99cc6547a6bc",
+      "compression_command": [
+        "zstd",
+        "-T1",
+        "-3",
+        "--no-progress",
+        "-q",
+        "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter-r2/compiler.ll",
+        "-o",
+        "/workspace/dasl-stdlib-scalar-imports/build/cold-host-llvm-r1-r4-v1/r2-compiler.ll.v1.zst"
+      ],
+      "verified_before_unlink": true
+    },
+    {
+      "label": "r3",
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter-r3/compiler.ll",
+      "original_bytes": 240856343,
+      "uncompressed_sha256": "a80144c37a103790ad21de504e10d305497129b0b17d4ab58bd540c9459ff1f5",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/cold-host-llvm-r1-r4-v1/r3-compiler.ll.v1.zst",
+      "archive_bytes": 29424246,
+      "compressed_sha256": "0f93fddcf9459c37ca3dca67db2bcd4686e5bb9cf799da0a5a44165bd4abf358",
+      "decompressed_bytes": 240856343,
+      "decompressed_sha256": "a80144c37a103790ad21de504e10d305497129b0b17d4ab58bd540c9459ff1f5",
+      "compression_command": [
+        "zstd",
+        "-T1",
+        "-3",
+        "--no-progress",
+        "-q",
+        "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter-r3/compiler.ll",
+        "-o",
+        "/workspace/dasl-stdlib-scalar-imports/build/cold-host-llvm-r1-r4-v1/r3-compiler.ll.v1.zst"
+      ],
+      "verified_before_unlink": true
+    },
+    {
+      "label": "r4",
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter-r4/compiler.ll",
+      "original_bytes": 241024912,
+      "uncompressed_sha256": "1ee310310ffa148392e40419906060112c582f6bb42932f9e5c13b86a3ce3e78",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/cold-host-llvm-r1-r4-v1/r4-compiler.ll.v1.zst",
+      "archive_bytes": 29437469,
+      "compressed_sha256": "c212649fa872e5da36d1894282163384df0922cf9b671d56f8e0c25823aab58d",
+      "decompressed_bytes": 241024912,
+      "decompressed_sha256": "1ee310310ffa148392e40419906060112c582f6bb42932f9e5c13b86a3ce3e78",
+      "compression_command": [
+        "zstd",
+        "-T1",
+        "-3",
+        "--no-progress",
+        "-q",
+        "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter-r4/compiler.ll",
+        "-o",
+        "/workspace/dasl-stdlib-scalar-imports/build/cold-host-llvm-r1-r4-v1/r4-compiler.ll.v1.zst"
+      ],
+      "verified_before_unlink": true
+    }
+  ],
+  "all_verified_before_unlink": true,
+  "raw_unlinked": true,
+  "freed_net_bytes": 844986138
+}

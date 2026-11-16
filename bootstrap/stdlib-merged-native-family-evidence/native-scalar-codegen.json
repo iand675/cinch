@@ -1,0 +1,146 @@
+{
+  "expected_checksum": 14924685925813514887,
+  "foreign_fixture_sha256": "56d9d4d1be93a1e78b72d63f4bde0593f6664a9451e1d6958debd572a87bd217",
+  "object_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b",
+  "provider_receipt_sha256": "86ed12cbac0dab4c66fb12e86d16cf6e4e630da12c9d4355247b61b1d0c4c6b6",
+  "results": [
+    {
+      "assembly_sha256": "1acea8ca5fc7d588bda7f83488074b18505c3276f0ddac923c8c516cdeb7c4de",
+      "clock_boundary_proof": {
+        "entry_assembly_sha256": "3af6119d0f705694fcc62254182cb999213e73c53a10fe8cff179ff37127979e",
+        "llvm_start_before_recurrence_before_end_before_observation": true,
+        "machine_recurrence_inside_clock_calls": true
+      },
+      "compile_command": [
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-codegen/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-codegen/objects.json",
+        "/workspace/dasl-stdlib-merged-family/bootstrap/programs/Run.ScalarIntrinsicLoop.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-codegen/baseline/consumer.ll"
+      ],
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "executable": "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-codegen/baseline/consumer",
+      "executable_sha256": "863a1795bf3b24bbd6bca3e7d17a412910165c4fa1801a249062f25016df2a29",
+      "link_command": [
+        "clang",
+        "-O2",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-codegen/baseline/consumer.ll",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-codegen/fixture.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/library.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-codegen/baseline/consumer",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "llvm_sha256": "ea0c3152b033bf31dffdb9dbbb173b77d3de9e9a2afd0b4383bd6bd1efc94327",
+      "loop_object_calls": [
+        "Data.Machine.eq-u64",
+        "Data.Machine.wrapping-sub-u64",
+        "Data.Machine.wrapping-mul-u64",
+        "Data.Machine.wrapping-add-u64",
+        "Data.Machine.wrapping-shr-u64",
+        "Data.Machine.bit-xor-u64"
+      ],
+      "machine_call_instructions": [
+        "   3d800:\te8 3b be 04 00       \tcall   89640 <Data.Machine.eq-u64>",
+        "   3d828:\te8 c3 6a 04 00       \tcall   842f0 <Data.Machine.wrapping-sub-u64>",
+        "   3d836:\te8 e5 6d 04 00       \tcall   84620 <Data.Machine.wrapping-mul-u64>",
+        "   3d841:\te8 7a 67 04 00       \tcall   83fc0 <Data.Machine.wrapping-add-u64>",
+        "   3d851:\te8 2a 97 04 00       \tcall   86f80 <Data.Machine.wrapping-shr-u64>",
+        "   3d85c:\te8 0f a7 04 00       \tcall   87f70 <Data.Machine.bit-xor-u64>",
+        "   3d869:\te8 d2 bd 04 00       \tcall   89640 <Data.Machine.eq-u64>"
+      ],
+      "name": "baseline",
+      "runs": [
+        {
+          "debug": false,
+          "exit": 0,
+          "observation": {
+            "checksum": 14924685925813514887,
+            "elapsed_ns": 401
+          },
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "debug": true,
+          "exit": 0,
+          "observation": {
+            "checksum": 14924685925813514887,
+            "elapsed_ns": 451
+          },
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ]
+    },
+    {
+      "assembly_sha256": "e868b33d83b4f16df1ba4e24c5b65a536be70769ee81268b7aad211935244bff",
+      "clock_boundary_proof": {
+        "entry_assembly_sha256": "b2ab31e3a42924d4f3c72ee6a4453654c97fe7faca086f1829e1670cce2d2a5d",
+        "llvm_start_before_recurrence_before_end_before_observation": true,
+        "machine_recurrence_inside_clock_calls": true
+      },
+      "compile_command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-codegen/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-codegen/objects.json",
+        "/workspace/dasl-stdlib-merged-family/bootstrap/programs/Run.ScalarIntrinsicLoop.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-codegen/experimental/consumer.ll"
+      ],
+      "compiler_sha256": "7a3ddfd004ac6fb4f87a41ec4f9987a8db0aca86ac7a05fddae03a1612484d4d",
+      "executable": "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-codegen/experimental/consumer",
+      "executable_sha256": "a6321dc87b0bed4868115ad18c3b0dedc5eae7f271c1558b9c90af59e11f2e3b",
+      "link_command": [
+        "clang",
+        "-O2",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-codegen/experimental/consumer.ll",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-codegen/fixture.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/library.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-codegen/experimental/consumer",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "llvm_sha256": "92c8b162a989e305212c76cf21b3423b418496df1293bb4ebb52c6619883f99c",
+      "loop_object_calls": [],
+      "machine_call_instructions": [],
+      "name": "experimental",
+      "runs": [
+        {
+          "debug": false,
+          "exit": 0,
+          "observation": {
+            "checksum": 14924685925813514887,
+            "elapsed_ns": 90
+          },
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "debug": true,
+          "exit": 0,
+          "observation": {
+            "checksum": 14924685925813514887,
+            "elapsed_ns": 80
+          },
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ]
+    }
+  ],
+  "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "smoke_iterations": 32,
+  "source_sha256": "9fd7754fd297514e1a2716207f41adf3382fde260096aa9a74bb39c20fbca0f9",
+  "status": "passed",
+  "timing_claim": false
+}

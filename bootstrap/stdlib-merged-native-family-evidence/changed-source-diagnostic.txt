@@ -1,0 +1,1 @@
+bootstrap.check.changed-source:3:10: type mismatch: expected Int, found Bool
