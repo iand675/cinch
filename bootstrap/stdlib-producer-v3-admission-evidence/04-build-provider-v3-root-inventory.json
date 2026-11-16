@@ -1,0 +1,30 @@
+{
+  "status": "actual-typed-demands-observed-object-not-built",
+  "prior_roots_sha256": "022d612a452e8f18985a1932197b8eaef051be852546ea0ff36f82d4c796d162",
+  "expanded_roots_sha256": "e568c90d5c5be199536b808a1952bc3ef5848b2f3cda8a33ee10883ccd19b069",
+  "added_units": [
+    {
+      "symbol": "Data.Producer.prod-fold",
+      "classes": "OOO"
+    },
+    {
+      "symbol": "Data.Producer.prod-fold",
+      "classes": "OOR"
+    }
+  ],
+  "sources_unchanged": true,
+  "source_Producer_override": false,
+  "compiler_pair": "unchanged admitted old2f077 plus admitted V2 object4d1e/runtime80bd",
+  "inventory": [
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/provider-v3-actual-demands/report.json",
+      "sha256": "b64649fa420dea4164d44edad9ebdf3dc6425df95c1f3a7bc7889e939a05760c"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/provider-v3-compat-driver-demand/report.json",
+      "sha256": "4f27f5a4ca78fa4ea9d1994bfd2c42c617c12462e2147992b8fb5bf95226165a"
+    }
+  ],
+  "driver_scope": "Separate3c00 compatible driver; originalc511 checker refusal retained, Rust semantic preflight pending.",
+  "admission_requirement": "Actual object units and full source/interface closure must validate through unchanged strict artifact_provider; no variant metadata may be invented."
+}

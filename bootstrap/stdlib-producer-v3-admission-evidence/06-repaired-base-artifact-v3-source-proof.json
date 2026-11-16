@@ -1,0 +1,10 @@
+{
+  "native_family_admission": false,
+  "producer_snapshot_reused": true,
+  "provider_receipt_sha256": "1b0e7780e0b1b5dc3e3884aab7e2fb59ee149895745fe6be89e5d746c41e419e",
+  "source_checkpoint": "b03018f7f210a38a0b99fa07b7cb773ae417455f",
+  "source_sha256": "2b2a62e5c8a49ad81b236352dde82e1fdf601d29b3f8df423fd44eb0d4181ac7",
+  "source_shadow_used": false,
+  "string_sha256": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+  "string_source_hash": "416560347689830784"
+}

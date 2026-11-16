@@ -1286,6 +1286,14 @@
     {
       "classes": "OO",
       "symbol": "Data.HashMap.hash-map-to-list"
+    },
+    {
+      "classes": "OOO",
+      "symbol": "Data.Producer.prod-fold"
+    },
+    {
+      "classes": "OOR",
+      "symbol": "Data.Producer.prod-fold"
     }
   ]
 }
