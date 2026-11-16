@@ -837,6 +837,123 @@ module Bootstrap.RuntimeIr where
   erased-region-arguments arguments = case arguments of
     Nil -> True
     Cons argument rest -> kind-equal (type-kind argument) KRegion && erased-region-arguments rest
+
+  -- | Recognize only the strict function aliases introduced while opening argument witness lets.
+  -- Ordinary source aliases, evidence applications and dependent function types keep their existing lowering.
+  scoped-partial-name :: CoreTerm -> Option String
+  scoped-partial-name term = case term of
+    CLet sp ty id name sc rhs body -> if same name "#argument-function" && list-length (scheme-params sc) == 0 then
+      (case head rhs of
+        CUse at function symbol role Nil -> if same role "constructor" || not (ordinary-call-type function) || list-length (arguments rhs Nil) == 0 then None else Some symbol
+        other -> None)
+      else None
+    other -> None
+
+  -- | Exclude dependent and erased arrows from the strict partial-call fusion.
+  ordinary-call-type :: UType -> Bool
+  ordinary-call-type ty = case base ty of
+    UFun domain result -> ordinary-call-type result
+    UFunEff domain row result -> ordinary-call-type result
+    UPi id name domain row result -> False
+    UProofFun predicate row result -> False
+    UUsageArrow usage arrow -> False
+    other -> True
+
+  -- | Require one saturated use after argument lets, with no escaped or repeated function value.
+  scoped-call-saturated :: Nat -> Nat -> CoreTerm -> Bool
+  scoped-call-saturated id remaining term = case term of
+    CLet sp ty key name sc rhs body -> not (term-uses id rhs) && key /= id && scoped-call-saturated id remaining body
+    CRequire sp ty body -> scoped-call-saturated id remaining body
+    CProved sp ty evidence body -> scoped-call-saturated id remaining body
+    CRefine sp ty evidence body -> scoped-call-saturated id remaining body
+    CRefineProof sp ty witness body -> not (term-uses id witness) && scoped-call-saturated id remaining body
+    CDischarge sp ty evidence body -> scoped-call-saturated id remaining body
+    CForget sp ty body -> scoped-call-saturated id remaining body
+    other -> case head term of
+      CLocal sp ty key name Nil -> key == id && list-length (arguments term Nil) == remaining && not (scoped-argument-uses id (arguments term Nil))
+      other -> False
+
+  -- | Reject a function alias that is also passed as one of its own positional arguments.
+  scoped-argument-uses :: Nat -> List CoreTerm -> Bool
+  scoped-argument-uses id args = case args of Nil -> False; Cons first rest -> term-uses id first || scoped-argument-uses id rest
+
+  -- | Choose fresh runtime-local keys above every occurrence and binder in the rewritten subtree.
+  scoped-next-local :: CoreTerm -> Nat
+  scoped-next-local term =
+    let here = case term of
+          CLocal sp ty id name actuals -> id + 1
+          CProofRef sp ty id name -> id + 1
+          CLet sp ty id name sc rhs body -> id + 1
+          CLambda sp ty pattern body -> scoped-pattern-next pattern
+          CAlternative sp pattern body rest -> scoped-pattern-next pattern
+          CRecursiveFunctions sp ty members body -> scoped-ids-next (recursive-function-ids members)
+          CRecursiveValues sp ty region members body -> scoped-ids-next (recursive-function-ids members)
+          other -> 0 in
+    scoped-children-next (term-children term) here
+
+  -- | Include unused lexical binders when reserving capture-safe local keys.
+  scoped-pattern-next :: CorePattern -> Nat
+  scoped-pattern-next pattern = case pattern of
+    CPVar sp ty id name -> id + 1
+    CPProof sp ty id name -> id + 1
+    CPErasedValue sp ty id name -> id + 1
+    CPAs sp ty id name inner -> let more = scoped-pattern-next inner in if id + 1 > more then id + 1 else more
+    CPConstructor sp ty name actuals sc fields -> scoped-pattern-next fields
+    CPTuple sp ty fields -> scoped-pattern-next fields
+    CPField sp first rest -> let a = scoped-pattern-next first in let b = scoped-pattern-next rest in if a > b then a else b
+    other -> 0
+
+  -- | Include recursive-group identities even when their functions have no local occurrences.
+  scoped-ids-next :: List Nat -> Nat
+  scoped-ids-next ids = case ids of Nil -> 0; Cons id rest -> let more = scoped-ids-next rest in if id + 1 > more then id + 1 else more
+
+  -- | Fold child local-key bounds without confusing runtime keys with LLVM temporary numbering.
+  scoped-children-next :: List CoreTerm -> Nat -> Nat
+  scoped-children-next terms next = case terms of
+    Nil -> next
+    Cons first rest -> let after = scoped-next-local first in scoped-children-next rest (if after > next then after else next)
+
+  -- | Capture the proper partial call's positional computations strictly, once, in source order.
+  -- The known unit is still unsaturated here, so delaying its closure allocation cannot run its body.
+  scoped-prefix-values :: CoreTerm -> Nat -> (CoreTerm, List (Nat, CoreTerm), Nat)
+  scoped-prefix-values term next = case term of
+    CApply sp ty f x -> case scoped-prefix-values f next of
+      (callee, saved, fresh) -> (CApply sp ty callee (CLocal sp (core-type x) fresh "#argument-prefix" Nil), saved <> [(fresh, x)], fresh + 1)
+    CApplyEff sp ty row f x -> case scoped-prefix-values f next of
+      (callee, saved, fresh) -> (CApplyEff sp ty row callee (CLocal sp (core-type x) fresh "#argument-prefix" Nil), saved <> [(fresh, x)], fresh + 1)
+    other -> (term, Nil, next)
+
+  -- | Retain strict captured computations before entering any of the final argument's witness scopes.
+  scoped-prefix-lets :: Span -> List (Nat, CoreTerm) -> CoreTerm -> CoreTerm
+  scoped-prefix-lets sp saved body = case saved of
+    Nil -> body
+    Cons (id, value) rest -> CLet sp (core-type body) id "#argument-prefix" (mono (core-type value)) value (scoped-prefix-lets sp rest body)
+
+  -- | Fuse one compiler-generated, single-use proper partial call while preserving evaluation order.
+  -- Returned functions and overapplications are excluded by the checked source arity.
+  fuse-scoped-arity :: Nat -> CoreTerm -> Option CoreTerm
+  fuse-scoped-arity arity term = case term of
+    CLet sp ty id name sc rhs body ->
+      let supplied = list-length (arguments rhs Nil) in
+      if supplied < arity && scoped-call-saturated id (arity - supplied) body then
+        (case scoped-prefix-values rhs (scoped-next-local term) of
+          (callee, saved, fresh) -> Some (scoped-prefix-lets sp saved (specialize-local id sc callee body)))
+      else None
+    other -> None
+
+  -- | Consult actual source parameter counts and reject hidden dictionary captures before eliding a closure.
+  fuse-scoped-call :: List CoreDefinition -> Writer -> CoreTerm -> Option CoreTerm
+  fuse-scoped-call definitions w term = case scoped-partial-name term of
+    Some name -> case definition name definitions of
+      Some d -> case field-owner name (program-instances (writer-program w)) of
+        Some owner -> None
+        None -> if list-length (core-givens d) == 0 && list-length (core-openings d) == 0 && not (wide-definition d)
+          && list-length (definition-parameters d) == list-length (definition-all-parameters d) then
+          fuse-scoped-arity (list-length (definition-parameters d)) term
+          else None
+      None -> None
+    None -> None
+
   specialize-local :: Nat -> Scheme -> CoreTerm -> CoreTerm -> CoreTerm
   specialize-local id scheme value term = case term of
     CLocal sp ty key name actuals -> if id == key then map-term-types (substitute-bound (actual-pairs (scheme-params scheme) actuals)) value else term
@@ -1088,16 +1205,18 @@ module Bootstrap.RuntimeIr where
     CLambda sp ty pattern body -> lambda definitions locals w sp pattern body
     CRecursiveFunctions sp ty members body -> recursive-expression definitions locals w sp members body
     CRecursiveValues sp ty region members body -> knot-expression definitions locals w sp region members body
-    CLet sp ty id name sc rhs body -> if (case scheme-params sc of Nil -> False; other -> True) && local-function-value rhs && (case scheme-requirements sc of Nil -> True; other -> False) then
-      expression definitions locals w (specialize-local id sc rhs body)
-      else if deferred-let w id sc rhs body then (case deferred-value (writer-data w) rhs of
-        Some (ctor, actuals, args) -> expression definitions (Cons (DeferredConstructor id (scheme-body sc) ctor actuals args) locals) w body
-        None -> unsupported w sp "deferred constructor let failed its checked representation")
-      else if erased-region-parameters (scheme-params sc) && scheme-supported (writer-context w) sc && word-type (writer-context w) (scheme-body sc) then
-      (case expression definitions locals w rhs of
-        (bound, value) -> case expression definitions (Cons (Local id (scheme-body sc) value) locals) bound body of
-          (done, result) -> (count-op False (scheme-body sc) value done, result))
-      else unsupported w sp "polymorphic or aggregate let needs runtime lowering"
+    CLet sp ty id name sc rhs body -> case fuse-scoped-call definitions w term of
+      Some fused -> expression definitions locals w fused
+      None -> if (case scheme-params sc of Nil -> False; other -> True) && local-function-value rhs && (case scheme-requirements sc of Nil -> True; other -> False) then
+        expression definitions locals w (specialize-local id sc rhs body)
+        else if deferred-let w id sc rhs body then (case deferred-value (writer-data w) rhs of
+          Some (ctor, actuals, args) -> expression definitions (Cons (DeferredConstructor id (scheme-body sc) ctor actuals args) locals) w body
+          None -> unsupported w sp "deferred constructor let failed its checked representation")
+        else if erased-region-parameters (scheme-params sc) && scheme-supported (writer-context w) sc && word-type (writer-context w) (scheme-body sc) then
+        (case expression definitions locals w rhs of
+          (bound, value) -> case expression definitions (Cons (Local id (scheme-body sc) value) locals) bound body of
+            (done, result) -> (count-op False (scheme-body sc) value done, result))
+        else unsupported w sp "polymorphic or aggregate let needs runtime lowering"
     CIf sp ty test yes no -> branch definitions locals w sp test yes no
     CTuple sp ty fields -> tuple definitions locals w sp fields
     CPolyIntro sp ty ids body -> poly-bundle definitions locals w sp ty ids body
@@ -4329,16 +4448,18 @@ module Bootstrap.RuntimeIr where
       tail-result definitions locals roots context w failed body
       else (case expression definitions locals w condition of
         (ready, value) -> tail-result definitions locals roots context (continue-if ready value failed) failed body)
-    CLet sp ty id name sc rhs body -> case scheme-params sc of
-      Nil -> if scheme-supported (writer-context w) sc && word-type (writer-context w) (scheme-body sc) then
-        (case expression definitions locals w rhs of
-          (ready, value) ->
-            let bound = Local id (scheme-body sc) value in
-            tail-binding definitions locals roots context ready failed bound (scheme-body sc) value body)
-        else tail-return definitions locals roots w failed term
-      other -> if local-function-value rhs && (case scheme-requirements sc of Nil -> True; other -> False) then
-        tail-result definitions locals roots context w failed (specialize-local id sc rhs body)
-        else tail-return definitions locals roots w failed term
+    CLet sp ty id name sc rhs body -> case fuse-scoped-call definitions w term of
+      Some fused -> tail-result definitions locals roots context w failed fused
+      None -> case scheme-params sc of
+        Nil -> if scheme-supported (writer-context w) sc && word-type (writer-context w) (scheme-body sc) then
+          (case expression definitions locals w rhs of
+            (ready, value) ->
+              let bound = Local id (scheme-body sc) value in
+              tail-binding definitions locals roots context ready failed bound (scheme-body sc) value body)
+          else tail-return definitions locals roots w failed term
+        other -> if local-function-value rhs && (case scheme-requirements sc of Nil -> True; other -> False) then
+          tail-result definitions locals roots context w failed (specialize-local id sc rhs body)
+          else tail-return definitions locals roots w failed term
     CWith sp ty given value body -> case expression definitions locals w value of
       (ready, word) ->
         let bound = GivenLocal (given-symbol given) (given-type given) word in
@@ -4683,7 +4804,13 @@ module Bootstrap.RuntimeIr where
     CIf sp ty test yes no -> source-tail-edges arities yes (source-tail-edges arities no next)
     CCase sp ty input alternatives -> source-tail-alternatives arities alternatives next
     CGuard sp ty test body -> source-tail-edges arities body next
-    CLet sp ty id name sc value body -> source-tail-edges arities body next
+    CLet sp ty id name sc value body -> case scoped-partial-name term of
+      Some callee -> (case hash-map-lookup callee arities of
+        Some arity -> (case fuse-scoped-arity arity term of
+          Some fused -> source-tail-edges arities fused next
+          None -> source-tail-edges arities body next)
+        None -> source-tail-edges arities body next)
+      None -> source-tail-edges arities body next
     CWith sp ty given value body -> source-tail-edges arities body next
     CRequire sp ty body -> source-tail-edges arities body next
     CProved sp ty evidence body -> source-tail-edges arities body next

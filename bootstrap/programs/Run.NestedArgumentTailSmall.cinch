@@ -1,0 +1,31 @@
+-- | Observe complete-process allocation costs for the same nested-argument recurrence at a short safe depth.
+module Main where
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+
+  -- | Keep corpus construction in the executable instead of the compile-time evaluator.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %size = or i32 %0, 0
+      ret i32 %size
+    }
+
+  -- | Initialize a deterministic full-byte permutation through a bounded direct tail loop.
+  fill :: Bytes -> Nat -> Unit
+  fill out i = if i < bytes-len out then
+    let stored = bytes-set out i (nat-rem (i * 37 + 11) 256) in fill out (i + 1)
+    else ()
+
+  -- | Fold every byte with exact unsigned arithmetic while keeping the nested argument expression intact.
+  fingerprint :: Bytes -> Nat -> U64 -> U64
+  fingerprint bytes at value = if at < bytes-len bytes then
+    fingerprint bytes (at + 1) (wrapping-mul-u64 (bit-xor-u64 value (wrapping-i64-to-u64 (nat-to-i64 (bytes-get bytes at)))) 1099511628211)
+    else value
+
+  -- | Require the complete independent modular recurrence, not merely a successful process exit.
+  main :: Int
+  main =
+    let input = bytes-new (u32-to-nat (runtime-size 32)) in
+    let initialized = fill input 0 in
+    if eq-u64 (fingerprint input 0 14695981039346656037) 10952857708260800965 then 0 else 1
