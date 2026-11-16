@@ -1,0 +1,102 @@
+{
+  "description": "Owned four-way indexed heap repairs and a callback-backed binary heap interface.",
+  "status": "Full Rust CLI corpus and benchmark evidence passed; Native functional gate blocked by existing mutation/phantom-region typing gaps. Package remains partial pending compiler repair.",
+  "reference_package": "container/heap",
+  "reference_declarations": 11,
+  "full_stdlib_goal_complete": false,
+  "source_sha256": {
+    "compiler/prelude/Data/Mutable/Heap.cinch": "3346efd37186c29673917fc2285adebe1cf3494584a4b06faa2c885cd61b27c3",
+    "compiler/prelude/Data/Mutable/HeapView.cinch": "89e735c9db876832b79fc1a321be54d13661ecdfb4a662be6653780afd9e4a8c",
+    "compiler/tests/lib_heap_view.rs": "db3681c965d7da8087d30cc3ca484b90319968634bed4849e91d69ebd1626eed",
+    "compiler/tests/fixtures/heap-view-vectors.json": "1b72723c603b3cc23bc806093fdbd03c65d142b347cc277bf79504700da4d54f",
+    "compiler/tests/fixtures/heap-view-consumer.cinch": "ee861159b2bb5a9a6d0505c6ffbc4c08c5d87b07a7edb8ca1786e18ce28ce10c",
+    "tooling/go_heap_view_vectors.go": "69d983ebe47b1dcfea0107f8a7f28c9740985a3ae70429dd9a94f4f75fbab73c",
+    "tooling/generate_heap_view_cases.py": "4127901e75dc68d0b40b07a96ee1b2b1cbf297a405e696bef85190a4f3392bd9",
+    "tooling/validate_heap_views.py": "fe839ef4dc12d8177c1b9a9384a31032573fed1105c6c2f1cb9aa1db9d15fd52"
+  },
+  "capability_mapping": {
+    "Interface/Len/Less/Swap/Push/Pop": "Opaque HeapView carries coherent caller-owned length/comparison/swap/append/remove-last callbacks, including mutable index bookkeeping. Callback contracts and consistent strict ordering are documented.",
+    "Init": "heap-view-init over caller-owned data; heap-init/heap-init-by and existing Floyd list construction over dense owned storage.",
+    "Push/Pop": "heap-view-push/pop plus existing heap-push/pop and custom-order variants; empty removals return None.",
+    "Remove": "heap-view-remove with checked index; heap-remove/heap-remove-by provide four-way owned repairs.",
+    "Fix": "heap-view-fix after caller mutation; heap-fix/heap-fix-by after externally changed priorities, plus atomic checked heap-replace variants."
+  },
+  "tests": {
+    "independent_initial_cases": 16,
+    "initial_sizes": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      7,
+      8,
+      15,
+      16,
+      31,
+      32,
+      63,
+      64,
+      127,
+      257
+    ],
+    "independent_trace_steps": 1040,
+    "rust_projected_consumers": 32,
+    "additional_control_consumers": 1,
+    "observations": [
+      "comparison/swap/append/pop callback hash",
+      "complete indexed storage order",
+      "every stable identity position",
+      "exact removal result",
+      "repeated priority/order changes",
+      "owned indexed replace/remove and mutable priority fix",
+      "empty aliases and128-bit absent indices"
+    ],
+    "ordinary_heap": "32M",
+    "stack": "8M",
+    "separate_poisoned_heap": "256M",
+    "all_zero_leaks_and_live": true,
+    "cargo_target": "lib_heap_view",
+    "cargo_tests_expected": 7,
+    "cargo_run_in_lane": false,
+    "full_trace_report": "stdlib-heap-rust-validation-results.json",
+    "control_report": "stdlib-heap-control-validation-results.json",
+    "note": "The new control helper was appended after the32-case run; the final separate control build type-checks every helper and executes the additional policy cases. Library bytes match both receipts.",
+    "reference_fixture_reproduces_exactly": true
+  },
+  "documentation": {
+    "Data.Mutable.Heap": {
+      "declarations": 51,
+      "diagnostics": 0,
+      "orphans": 0
+    },
+    "Data.Mutable.HeapView": {
+      "declarations": 16,
+      "diagnostics": 0,
+      "orphans": 0
+    }
+  },
+  "benchmark": {
+    "reference_rows": 18,
+    "all_observables_match": true,
+    "ordinary_space_rows": 18,
+    "timing_report": "../benchmarks/stdlib/heaps-O2-2026-11-16.json",
+    "initial_teardown_inclusive_report": "../benchmarks/stdlib/heaps-with-prepared-teardown-O2-2026-11-16.json",
+    "space_report": "../benchmarks/stdlib/heaps-space-2026-11-16.json",
+    "codegen_report": "../benchmarks/stdlib/heaps-codegen-2026-11-16.json",
+    "prepared_owner_lifetimes_end_after_clock": true,
+    "native_simd_claimed": false
+  },
+  "implementation_notes": [
+    "Owned heap index arithmetic and sift paths retain private U64 slot workers and bulk ownership-moving growth.",
+    "Arbitrary comparison/swap callbacks have visible ordering and cannot be reassociated or SIMD-batched. Pointer-dependent sift traversal is serial.",
+    "HeapView currently incurs indirect callback, checked vector, ownership and Nat arithmetic paths; no throughput or allocation parity is claimed.",
+    "Full constructor-tree fixture initialization overflowed the frozen Rust compiler stack at257items; independently packed input now materializes as runtime records. No library algorithm was weakened."
+  ],
+  "native_blockers": [
+    "Existing phantom region parameters in Vec/Var/Heap default to Type when Native only examines constructor fields. Source Region annotations are not supported by the frozen Rust nominal-kind converter.",
+    "Native currently generalizes effectful strict bindings, separating a newly allocated container's region from its performed Mut row.",
+    "The Core kind table admits Mut as ownership Region->Type->Type but ordinary name lookup rejects Mut effect labels Region->Effect; focused contextual repair8aff20d0 is held until mutable value restriction is corrected."
+  ]
+}

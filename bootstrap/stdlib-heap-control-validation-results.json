@@ -1,0 +1,59 @@
+{
+  "description": "Independent generic and owned heap consumers; normal reclamation and separate poisoned-free validation",
+  "frontend": "rust",
+  "runner_sha256": "fe839ef4dc12d8177c1b9a9384a31032573fed1105c6c2f1cb9aa1db9d15fd52",
+  "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+  "sources": {
+    "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Mutable.Vec": "61fff082140825bba9490ae212de6dcfec740a684d0cc336adc6058c9b89dde7",
+    "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+    "Data.Mutable.Heap": "3346efd37186c29673917fc2285adebe1cf3494584a4b06faa2c885cd61b27c3",
+    "Data.Mutable.HeapView": "89e735c9db876832b79fc1a321be54d13661ecdfb4a662be6653780afd9e4a8c"
+  },
+  "fixture_sha256": "1b72723c603b3cc23bc806093fdbd03c65d142b347cc277bf79504700da4d54f",
+  "cpu_affinity": [
+    4
+  ],
+  "suites": [
+    {
+      "suite": "control-0",
+      "consumer_source_sha256": "2ae77ddb9ff0c0ed9c36085fa0539b3fb932c6462e34496ac139e67ca9a6c54a",
+      "llvm_sha256": "0d7a2ddffcf74b22fc2851cfc0049eb66a9a8d523eba3a56972c27deca0f1ee0",
+      "runs": [
+        {
+          "poisoned_free_validation": false,
+          "heap_limit": "32M",
+          "stdout": "",
+          "stats": {
+            "blocks": 67,
+            "bytes": 2189,
+            "peak": 917,
+            "header-blocks": 55,
+            "header-bytes": 1832,
+            "immortal": 0,
+            "freed": 55,
+            "live": 0
+          },
+          "leaked": 0
+        },
+        {
+          "poisoned_free_validation": true,
+          "heap_limit": "256M",
+          "stdout": "",
+          "stats": {
+            "blocks": 67,
+            "bytes": 2189,
+            "peak": 2069,
+            "header-blocks": 55,
+            "header-bytes": 1832,
+            "immortal": 0,
+            "freed": 55,
+            "live": 0
+          },
+          "leaked": 0
+        }
+      ]
+    }
+  ]
+}
