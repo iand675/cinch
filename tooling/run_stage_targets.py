@@ -53,9 +53,16 @@ def run_in_slot(target, env, out, cargo_target):
     with log.open('wb') as f:
         code = subprocess.run(cmd, cwd=TREE / 'compiler', env=e, stdout=f, stderr=subprocess.STDOUT).returncode
     text = log.read_text(errors='replace')
-    passed = re.findall(r'^test (\S+) \.\.\. ok$', text, re.M)
+    # Child output can split a test's status line. Cargo's final libtest
+    # summary still counts that test, so prefer it over per-test lines.
+    summaries = re.findall(r'^test result: (?:ok|FAILED)\. (\d+) passed; (\d+) failed;', text, re.M)
     failed = re.findall(r'^test (\S+) \.\.\. FAILED$', text, re.M)
-    return dict(target=target, exit=code, passed=len(passed), failed=failed)
+    if summaries:
+        passed, failed_count = map(int, summaries[-1])
+    else:
+        passed = len(re.findall(r'^test (\S+) \.\.\. ok$', text, re.M))
+        failed_count = len(failed)
+    return dict(target=target, exit=code, passed=passed, failed=failed, failed_count=failed_count)
 
 
 TOOLING_TARGETS = {'lsp', 'jit', 'repl', 'package_store', 'package_manifest', 'package_link', 'incremental'}
@@ -120,7 +127,7 @@ def main():
     with cf.ThreadPoolExecutor(a.jobs) as pool:
         for row in pool.map(lambda t: run(t, env, a.out.resolve(), a.cargo_target), a.targets):
             rows.append(row)
-            print(f"{row['target']}: exit={row['exit']} passed={row['passed']} failed={len(row['failed'])}", flush=True)
+            print(f"{row['target']}: exit={row['exit']} passed={row['passed']} failed={row['failed_count']}", flush=True)
     (a.out / 'summary.json').write_text(json.dumps(rows, indent=1))
     print('targets passing:', sum(r['exit'] == 0 for r in rows), '/', len(rows))
 
