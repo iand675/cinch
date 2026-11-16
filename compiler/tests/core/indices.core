@@ -19,30 +19,36 @@ unit Main.main.exit :: -
   body (app (prim cinch.runtime.intToI64) (global Main.main))
 end
 unit Main.sum1 :: Vec 1 Int -> Int
-  @params t0 :: Vec 1 Int @owned
+  @params t0 :: Vec 1 Int @obj
+  @uses(t0=1)
+  @borrow-candidates(t0)
   @stage(checked)
-  body (let t1 @class(owned)
+  body (let t1 @class(obj)
     (local t0)
-    (case (local t1) ((con 1 (t2 @class(owned)) (t3 @class(owned))) (local t2))))
+    (case (local t1) ((con 1 (t2 @class(obj)) (t3 @class(obj))) (local t2))))
 end
 unit Main.sum2 :: Vec 2 Int -> Int
-  @params t0 :: Vec 2 Int @owned
+  @params t0 :: Vec 2 Int @obj
+  @uses(t0=1)
+  @borrow-candidates(t0)
   @stage(checked)
-  body (let t1 @class(owned)
+  body (let t1 @class(obj)
     (local t0)
     (case (local t1)
-      ((con 1 (t2 @class(owned)) (t3 @class(owned)))
+      ((con 1 (t2 @class(obj)) (t3 @class(obj)))
         (app (dictproj (instdict Data.Int.Add_Int) 0 Algebra.Arithmetic.Add)
           (local t2)
           (app (global Main.sum1) (local t3))))))
 end
 unit Main.sum3 :: Vec 3 Int -> Int
-  @params t0 :: Vec 3 Int @owned
+  @params t0 :: Vec 3 Int @obj
+  @uses(t0=1)
+  @borrow-candidates(t0)
   @stage(checked)
-  body (let t1 @class(owned)
+  body (let t1 @class(obj)
     (local t0)
     (case (local t1)
-      ((con 1 (t2 @class(owned)) (t3 @class(owned)))
+      ((con 1 (t2 @class(obj)) (t3 @class(obj)))
         (app (dictproj (instdict Data.Int.Add_Int) 0 Algebra.Arithmetic.Add)
           (local t2)
           (app (global Main.sum2) (local t3))))))

@@ -5282,6 +5282,26 @@ pub(crate) fn package_execution_path(object: &Path) -> PathBuf {
     object.with_file_name("build").join("package.cinchif")
 }
 
+/// Apply the same ownership boundary to dumps and code generation.
+fn count_program(
+    program: crate::core::Program,
+    profile: &crate::core::TargetProfile,
+    opts: &DriverOptions,
+    mode: Mode,
+    modules: &[String],
+) -> Result<crate::core::Program> {
+    let closed = !opts.shared && mode != Mode::EmitObject && modules.is_empty() && opts.package_objects.is_empty();
+    if closed {
+        crate::rc::insert_closed(program, profile)
+    } else {
+        let sources: Vec<PathBuf> = opts.package_objects.iter().chain(&opts.lent_objects).cloned().collect();
+        let imported = package_lent_modes(&sources)?;
+        check_lent_imports(&opts.package_objects, &imported)?;
+        let boundary = crate::rc::Boundary { modules, imported: &imported, closed: false };
+        crate::rc::insert_open(program, profile, &boundary)
+    }
+}
+
 /// The lent conventions the package objects publish: each unit row with a
 /// `lent` vector (its worker only borrows those parameters) and the width
 /// of the worker that takes them (`lent_width`). A row without them is a
@@ -5764,7 +5784,7 @@ pub fn driver_with_profile_opts(
         dump.write(&program, crate::coretext::Stage::Checked, &ifaces, &mut core_rows)?;
     }
     let owned_program = if dump.wants(crate::coretext::Stage::Owned) && mode != Mode::Check {
-        Some(crate::rc::insert(program.clone(), profile)?)
+        Some(count_program(program.clone(), profile, opts, mode, &emit_modules)?)
     } else {
         None
     };
@@ -5972,16 +5992,7 @@ pub fn driver_with_profile_opts(
     // a link against package objects keeps every parameter owned.
     // Open objects and libraries infer modes too, keeping an owned public
     // symbol over each lent worker (`insert_open`, `package_lent_modes`).
-    let closed = !opts.shared && mode != Mode::EmitObject && emit_modules.is_empty() && opts.package_objects.is_empty();
-    let program = if closed {
-        crate::rc::insert_closed(program, profile)?
-    } else {
-        let sources: Vec<PathBuf> = opts.package_objects.iter().chain(&opts.lent_objects).cloned().collect();
-        let imported = package_lent_modes(&sources)?;
-        check_lent_imports(&opts.package_objects, &imported)?;
-        let boundary = crate::rc::Boundary { modules: &emit_modules, imported: &imported, closed: false };
-        crate::rc::insert_open(program, profile, &boundary)?
-    };
+    let program = count_program(program, profile, opts, mode, &emit_modules)?;
     // Coalescing comes after counting and after the reuse insertion inside
     // it, which reads the dups where counting put them (Lean's order:
     // `expandResetReuse` then `coalesceRC`, `CoalesceRC.lean`). It moves

@@ -2,14 +2,16 @@ core 1
 module Main
 target aarch64-apple-darwin opt-level 0
 source sha256:70fe8f7127382b8daccf825dc0a6e0dd0219a33632ff47f28e050dd42ac005f0
-@ticks 1115
+@ticks 0
 unit Main.main :: Int
   @stage(lowered)
-  body (let t0 @class(owned)
+  body (let t0 @class(obj)
     (app (prim cinch.runtime.intFromI64) (app (global Main.peek-word) (int 0)))
-    (let t1 @class(owned)
+    (let t1 @class(obj)
       (app (prim cinch.runtime.intFromI64) (app (global Main.peek-word) (int 0)))
-      (app (prim cinch.runtime.intAdd) (local t0) (local t1))))
+      (let t2 @class(uncounted)
+        (app (prim cinch.runtime.intAdd) (local t0) (local t1))
+        (drop t0 @class(obj) (drop t1 @class(obj) (local t2))))))
 end
 unit Main.main.exit :: -
   @stage(lowered)
@@ -18,6 +20,7 @@ end
 unit Main.peek-word :: I64 -> I64
   @params p0 :: I64 @uncounted
   @tier(assumed)
+  @uses(p0=0)
   @prim(peek-word for the baseline `llvm` body (the fallback when no `when` condition matches))
   @stage(lowered)
   body (prim-body llvm

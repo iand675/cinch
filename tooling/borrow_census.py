@@ -1,44 +1,28 @@
 #!/usr/bin/env python3
-"""Census which ownership sites sit on function parameters.
+"""Measure inferred borrowing and ownership sites in an owned Core dump.
 
-Borrowing is the difference between a parameter the callee may keep and one
-it only reads. The seed decides that whole-program (`borrow_modes` in
-`compiler/src/`); the self-hosted emitter decides per unit and this census
-measures what it actually emits, so the size of the gap is a number rather
-than an impression.
+    CINCH_BORROW_REPORT=1 compiler/target/release/cinch core emit \\
+        build/bootstrap/stage1/compiler.cinch --stage=owned \\
+        -o /tmp/compiler.owned.core 2>/tmp/compiler.borrow.log
+    python3 tooling/borrow_census.py /tmp/compiler.owned.core \\
+        --report /tmp/compiler.borrow.log --by-module
 
-Produce the input with the seed compiler, from the repository root:
-
-    cinch core emit build/bootstrap/stage1/compiler.cinch --stage=owned \\
-        -o /tmp/compiler.owned.core
-
-`build/bootstrap/stage1/compiler.cinch` is the bundle of every bootstrap
-module, so one dump covers the whole compiler. A single module cannot be
-dumped on its own: the seed refuses with `module Text.Json is imported, but
-bootstrap/Text.Json.cinch does not exist`, because the prelude modules are
-not beside the entry file.
-
-    python3 tooling/borrow_census.py /tmp/compiler.owned.core
-
-Measured 2026-11-16 on `main` = 63663f0f, no-PGO stage 3:
-
-    units 6652, parameter declarations 16964 (owned 16394, borrowed 0)
-    ownership sites 237825, on parameters 111273 (46.8%)
-
-A site is `(dup x`, `(drop x` or `(release x` whose operand is exactly one of
-the enclosing unit's `@params` names.
-
-Do not read `borrowed` as the borrow analysis's answer. `@borrowed` in the
-dump is printed from `Program::lent`, the lending convention a call site
-uses, while `rc::borrow_modes` records its decision in `Program::borrowed`,
-which the dump does not print at all (found 2026-11-16). So this count is
-zero on every corpus regardless of what the analysis decided, and the
-`borrowed` figure here is reported only to keep that mismatch visible. The
-`on_params` share is unaffected: it counts sites, not decisions.
+Use the whole bootstrap bundle: individual bootstrap modules lack their
+prelude imports. @borrow-modes is the inference's answer; @borrowed is the
+primitive calling convention, and @obj is only a representation class.
+An ownership site is a dup, drop or release, counted once in the Core text.
+The report contains one witness per counted parameter. Select the complete
+pass with the most matching dumped formals, preferring the first on ties:
+dependency builds can precede the dump, and later passes see optimized code.
+Reports cover counted formals of ordinary Core functions, excluding
+primitive bodies. Only units present in the dump enter the breakdown.
+Counts describe this dump, not dynamic operation counts or scaling.
 """
 
 import argparse
 import collections
+import json
+from pathlib import Path
 import re
 
 
@@ -46,66 +30,96 @@ def units(text):
     return re.split(r"(?m)^unit ", text)[1:]
 
 
+def unit_name(unit):
+    name = unit.split(" ::")[0].strip()
+    return name[1:-1].replace("''", "'") if name.startswith("'") and name.endswith("'") else name
+
+
 def census(text):
-    total = on_params = 0
-    params = owned = borrowed = 0
+    total = on_params = params = counted = borrowed = 0
     by_module = collections.Counter()
     borrowed_units = []
     for unit in units(text):
-        name = unit.split(" ::")[0].strip()
+        name = unit_name(unit)
         declared = set()
         header = re.search(r"@params (.*)", unit)
         if header:
-            for part in header.group(1).split(","):
+            for part in re.split(r",\s*(?=[A-Za-z0-9_]+\s+::)", header.group(1)):
                 entry = part.strip()
-                parameter = entry.split(" ")[0]
-                if not parameter:
+                if not entry:
                     continue
-                declared.add(parameter)
+                declared.add(entry.split()[0])
                 params += 1
-                if "@owned" in entry:
-                    owned += 1
-                if "@borrowed" in entry:
-                    borrowed += 1
-                    borrowed_units.append(name)
+                counted += bool(re.search(r"@(?:obj|owned)\b", entry))
+        inferred = re.search(r"@borrow-modes\(([^)]*)\)", unit)
+        if inferred:
+            borrowed += len([p for p in inferred.group(1).split(",") if p.strip()])
+            borrowed_units.append(name)
         sites = re.findall(r"\((?:dup|drop|release)\s+([A-Za-z0-9_]+)", unit)
-        # `dup`, `drop` and `release` all name their operand first, so the
-        # operand is what the site is about; a site on a parameter is one a
-        # borrow-mode pass could have deleted.
-        hit = [site for site in sites if site in declared]
+        hit = sum(site in declared for site in sites)
         total += len(sites)
-        on_params += len(hit)
-        by_module[".".join(name.split(".")[:2])] += len(hit)
+        on_params += hit
+        by_module[".".join(name.split(".")[:2])] += hit
     return {
-        "units": len(units(text)),
-        "params": params,
-        "owned": owned,
-        "borrowed": borrowed,
-        "borrowed_units": borrowed_units,
-        "sites": total,
-        "on_params": on_params,
-        "by_module": by_module,
+        "units": len(units(text)), "params": params, "counted": counted,
+        "borrowed": borrowed, "borrowed_units": borrowed_units,
+        "sites": total, "on_params": on_params, "by_module": by_module,
     }
+
+
+def refusal_report(text, names=None):
+    """Select one complete pass, without combining inference passes."""
+    rows = None
+    passes = []
+    for line in text.splitlines():
+        if not line.startswith("cinch-borrow: "):
+            continue
+        row = json.loads(line.removeprefix("cinch-borrow: "))
+        if row.get("event") == "begin":
+            rows = []
+        elif row.get("event") == "end":
+            if rows is not None:
+                passes.append(rows)
+                rows = None
+        elif rows is not None:
+            rows.append(row)
+    if not passes:
+        raise ValueError("no complete CINCH_BORROW_REPORT pass found")
+    if names is None:
+        return passes[0]
+    matching = [[row for row in rows if row["unit"] in names] for rows in passes]
+    selected = max(matching, key=lambda rows: len({(row["unit"], row["param"]) for row in rows}))
+    if not selected:
+        raise ValueError("no inference pass matches this Core dump")
+    return selected
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("core", help="a *.owned.core dump")
+    parser.add_argument("--report", help="stderr from CINCH_BORROW_REPORT=1")
     parser.add_argument("--by-module", action="store_true", help="per-module breakdown")
     parser.add_argument("--top", type=int, default=10, help="modules to show")
+    parser.add_argument("--json", action="store_true", help="machine-readable census")
     args = parser.parse_args()
-
-    result = census(open(args.core).read())
+    core = Path(args.core).read_text()
+    result = census(core)
+    if args.report:
+        names = {unit_name(unit) for unit in units(core)}
+        rows = refusal_report(Path(args.report).read_text(), names)
+        result["reasons"] = collections.Counter(row["reason"] for row in rows)
+    if args.json:
+        print(json.dumps(result, sort_keys=True))
+        return 0
     share = 100 * result["on_params"] / result["sites"] if result["sites"] else 0.0
-    print(f"units {result['units']}, parameter declarations {result['params']} "
-          f"(owned {result['owned']}, borrowed {result['borrowed']})")
-    print(f"ownership sites {result['sites']}, on parameters {result['on_params']} "
-          f"({share:.1f}%)")
-    if result["borrowed"] == 0:
-        print("no unit carries @borrowed: this dump prints Program::lent, not "
-              "Program::borrowed, so the count says nothing about borrow_modes; "
-              "the parameter share above is the part that is measured")
+    print(f"units {result['units']}, parameters {result['params']} "
+          f"(counted {result['counted']}, inferred borrowed {result['borrowed']}, "
+          f"units lending {len(result['borrowed_units'])})")
+    print(f"ownership sites {result['sites']}, on parameters {result['on_params']} ({share:.1f}%)")
+    if "reasons" in result:
+        for reason, count in result["reasons"].most_common():
+            print(f"  {reason:28} {count}")
     if args.by_module:
         print()
         for module, count in result["by_module"].most_common(args.top):

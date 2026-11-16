@@ -551,7 +551,8 @@ the same forms to stay byte-identical.
 9. Record annotations the seed's stages carry, in this order:
    `@span`, `@params`, `@class`, `@captures`, `@ctor(<tag>, <arity>,
    <data>)`, `@tier(justified|assumed)`, `@ffi("<symbol>")`,
-   `@borrowed(<i>,...)`, `@specialised(<letters>) from <unit>`,
+   `@borrowed(<i>,...)`, `@borrow-modes(<i>,...)`, `@uses(...)`,
+   `@borrow-candidates(...)`, `@frame(...)`, `@specialised(<letters>) from <unit>`,
    `@rewrite(<rule>)`, `@prim(<Name> for <why>)`, `@resolved(...)`,
    `@tailrec`, `@join(<id>)`, `@instance(tparams <n>, subdicts <n>)`,
    `@stage(<name>)`. `@stage` prints on every record: it is the pipeline
@@ -569,7 +570,14 @@ the same forms to stay byte-identical.
     `(<form> <sha256-hex> <len>)`: the digest identifies it and the length
     makes the shape readable, which is the trade section 4 already asked for.
 
-Classes print `owned`, `borrowed`, `lent`, `uncounted`, `immortal`.
+Representation classes print `obj` for counted `Obj` or `TObj` words,
+`uncounted` for raw words, `uncounted wide` for wide scalars, and
+`param(<i>)` for an open representation parameter. Representation does
+not assert ownership. `@borrow-modes` lists the one-based parameter
+positions inferred borrowed in `Program::borrowed`; `@borrowed` is the
+primitive convention stored in `Program::lent`. The body-use census in
+`@uses` and `@borrow-candidates` describes the rendered body and is not
+the inference's decision.
 
 Sorting: modules by name, units by canonical name, dictionary bindings by
 name, alternatives by tag then text, annotations in the order above.

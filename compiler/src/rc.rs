@@ -262,16 +262,59 @@ pub fn verify_program(program: &Program) -> crate::Result<()> {
 /// that have at least one borrowed parameter.
 type Modes = HashMap<String, Vec<bool>>;
 
+/// Optional refusal witnesses. Recording is off in ordinary builds; when
+/// requested, each counted formal has one stable reason or a lent decision.
+#[derive(Default)]
+struct BorrowReport {
+    reasons: Option<HashMap<(String, usize), &'static str>>,
+}
+
+impl BorrowReport {
+    fn record(&mut self, unit: &str, param: usize, reason: &'static str) {
+        if let Some(reasons) = &mut self.reasons {
+            reasons.entry((unit.to_string(), param)).or_insert(reason);
+        }
+    }
+
+    fn emit(&self, program: &Program, modes: &Modes, excluded: &std::collections::HashSet<String>, boundary: &Boundary<'_>) {
+        let Some(reasons) = &self.reasons else { return };
+        eprintln!("cinch-borrow: {{\"event\":\"begin\"}}");
+        for f in &program.fns {
+            if f.ctor.is_some() || f.meta.prim_body || f.prim.is_some() {
+                continue;
+            }
+            for (i, class) in param_classes(f).into_iter().enumerate().filter(|(_, c)| counted(*c)) {
+                let lent = modes.get(&f.id.0).is_some_and(|m| m[i]);
+                let reason = if !boundary.closed && (f.repr.result == Some(Class::Wide) || f.repr.params.contains(&Class::Wide)) {
+                    "wide-boundary"
+                } else if lent {
+                    "lent"
+                } else if program.main.as_ref() == Some(&f.id) {
+                    "entry"
+                } else if excluded.contains(&f.id.0) {
+                    "owned-boundary"
+                } else if !boundary.ships(&f.id.0) && !in_modules(&program.private_modules, &f.id.0) {
+                    "imported-owned"
+                } else {
+                    reasons.get(&(f.id.0.clone(), i)).copied().unwrap_or("owned")
+                };
+                eprintln!("cinch-borrow: {}", serde_json::json!({
+                    "unit": f.id.0, "param": i + 1, "class": format!("{class:?}"), "reason": reason
+                }));
+            }
+        }
+        eprintln!("cinch-borrow: {{\"event\":\"end\"}}");
+    }
+}
+
 fn borrowed_params(modes: &Modes, f: &FnDef) -> Set {
     modes.get(&f.id.0).map_or_else(Set::new, |m| (0..m.len()).filter(|i| m[*i]).collect())
 }
 
 /// Borrowed parameter inference (design/reclamation.md section 4, Lean 4
-/// and Perceus). Only a unit every one of whose callers is a saturated
-/// direct call in this program takes part: not the entry, not a `foreign
-/// export` target, not an instance method, and not a unit used as a value
-/// (a closure, a hoisted lambda, a quotation's reference), because those
-/// callers pass owned arguments. Every counted parameter of such a unit
+/// and Perceus). The entry, `foreign export` targets and quotation targets
+/// keep the owned convention. Units used as values can participate because
+/// their apply stubs release the arguments the body lends. Every counted parameter
 /// starts borrowed, and becomes owned until a fixed point when:
 ///
 /// - the unit uses it anywhere but a borrowed position: a `case`
@@ -310,6 +353,9 @@ fn reuse_scrutinees(body: &Core, ctors: &Ctors, out: &mut Set) {
 }
 
 fn borrow_modes(program: &Program, ctors: &Ctors, boundary: &Boundary<'_>) -> (Modes, std::collections::HashSet<String>) {
+    let mut report = BorrowReport {
+        reasons: std::env::var_os("CINCH_BORROW_REPORT").map(|_| HashMap::new()),
+    };
     // Defined here: shipped, or a private copy (`Program::private_modules`).
     let defines = |unit: &str| boundary.ships(unit) || in_modules(&program.private_modules, unit);
     let mut excluded: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -404,9 +450,15 @@ fn borrow_modes(program: &Program, ctors: &Ctors, boundary: &Boundary<'_>) -> (M
             let names: HashMap<usize, usize> = mine.iter().map(|p| (*p, *p)).collect();
             let mut owned = Set::new();
             owned_uses(&f.body, &names, &modes, cx, &mut owned);
+            for &p in &owned {
+                report.record(&f.id.0, p, "owned-use");
+            }
             // A reuse target is owned by construction (Lean's forced
             // ownership rule for a reset target).
             reuse_scrutinees(&f.body, ctors, &mut owned);
+            for &p in &owned {
+                report.record(&f.id.0, p, "reuse");
+            }
             owned.retain(|p| mine.contains(p));
             if !owned.is_empty() {
                 let m = modes.get_mut(&f.id.0).expect("a unit with borrowed parameters");
@@ -418,7 +470,7 @@ fn borrow_modes(program: &Program, ctors: &Ctors, boundary: &Boundary<'_>) -> (M
             }
         }
         // What its calls pass to borrowed parameters.
-        call_sites(&f.body, true, &mut mine, cx, &mut modes, &prims, &fixed, &mut killed);
+        call_sites(&f.body, true, &mut mine, cx, &mut modes, &prims, &fixed, &mut killed, &mut report);
         for k in killed.drain(..) {
             for &c in callers.get(&k).into_iter().flatten().chain(index.get(k.as_str())) {
                 if !queued[c] {
@@ -430,6 +482,7 @@ fn borrow_modes(program: &Program, ctors: &Ctors, boundary: &Boundary<'_>) -> (M
     }
     modes.retain(|_, m| m.iter().any(|b| *b));
     prims.retain(|p| modes.contains_key(p));
+    report.emit(program, &modes, &excluded, boundary);
     (modes, prims)
 }
 
@@ -577,6 +630,7 @@ fn call_sites(
     prims: &std::collections::HashSet<String>,
     fixed: &std::collections::HashSet<String>,
     killed: &mut Vec<String>,
+    report: &mut BorrowReport,
 ) {
     match e {
         Core::App(h, args) => {
@@ -584,23 +638,19 @@ fn call_sites(
                 Core::Global(g, _) => Some(g.0.as_str().into()),
                 Core::Prim(op) => Some(std::borrow::Cow::Owned(op.symbol())),
                 other => {
-                    call_sites(other, false, mine, cx, modes, prims, fixed, killed);
+                    call_sites(other, false, mine, cx, modes, prims, fixed, killed, report);
                     None
                 }
             };
             if let Some(k) = key {
-                // A primitive is a leaf: a call to one in tail position gains
-                // nothing from staying a tail call, so an owned local it is
-                // lent is simply released after it returns, and the lent mode
-                // stays (a primitive that owned its arguments paid a dup in
-                // every caller and a drop in its own body, which also made a
-                // `natCmp` too large for clang to inline).
+                // A primitive is a leaf: an owned local it is lent is
+                // released after it returns, keeping its lent convention.
                 let leaf = prims.contains(k.as_ref());
                 // Another object's published modes are fixed: the call keeps
                 // what it lends and releases it after, tail position or not.
                 if fixed.contains(k.as_ref()) {
                     for a in args {
-                        call_sites(a, false, mine, cx, modes, prims, fixed, killed);
+                        call_sites(a, false, mine, cx, modes, prims, fixed, killed, report);
                     }
                     return;
                 }
@@ -621,6 +671,7 @@ fn call_sites(
                                 other => expr_class_in(other, &cx.classes).is_some_and(|c| !counted(c)),
                             };
                         if !fine {
+                            report.record(k.as_ref(), i, if matches!(a, Core::Var(_)) { "tail-owned-argument" } else { "computed-argument" });
                             m[i] = false;
                             changed = true;
                         }
@@ -631,26 +682,26 @@ fn call_sites(
                 }
             }
             for a in args {
-                call_sites(a, false, mine, cx, modes, prims, fixed, killed);
+                call_sites(a, false, mine, cx, modes, prims, fixed, killed, report);
             }
         }
         Core::Let(x, c, v, b) => {
             if let_alias(*x, *c, v, &cx.classes, &cx.written).is_some_and(|y| mine.contains(&y)) {
                 mine.insert(x.0);
-                call_sites(b, tail, mine, cx, modes, prims, fixed, killed);
+                call_sites(b, tail, mine, cx, modes, prims, fixed, killed, report);
                 mine.remove(&x.0);
                 return;
             }
-            call_sites(v, false, mine, cx, modes, prims, fixed, killed);
-            call_sites(b, tail, mine, cx, modes, prims, fixed, killed);
+            call_sites(v, false, mine, cx, modes, prims, fixed, killed, report);
+            call_sites(b, tail, mine, cx, modes, prims, fixed, killed, report);
         }
         Core::If(c, t, f) => {
-            call_sites(c, false, mine, cx, modes, prims, fixed, killed);
-            call_sites(&t.body, tail, mine, cx, modes, prims, fixed, killed);
-            call_sites(&f.body, tail, mine, cx, modes, prims, fixed, killed);
+            call_sites(c, false, mine, cx, modes, prims, fixed, killed, report);
+            call_sites(&t.body, tail, mine, cx, modes, prims, fixed, killed, report);
+            call_sites(&f.body, tail, mine, cx, modes, prims, fixed, killed, report);
         }
         Core::Case { scrut, alts } => {
-            call_sites(scrut, false, mine, cx, modes, prims, fixed, killed);
+            call_sites(scrut, false, mine, cx, modes, prims, fixed, killed, report);
             let lent = matches!(&**scrut, Core::Var(s) if mine.contains(&s.0));
             for a in alts {
                 match &a.pat {
@@ -661,12 +712,19 @@ fn call_sites(
                             .map(|x| x.0)
                             .filter(|x| cx.classes.get(x).copied().is_some_and(counted) && mine.insert(*x))
                             .collect();
-                        call_sites(&a.body, tail, mine, cx, modes, prims, fixed, killed);
+                        call_sites(&a.body, tail, mine, cx, modes, prims, fixed, killed, report);
                         for x in added {
                             mine.remove(&x);
                         }
                     }
-                    _ => call_sites(&a.body, tail, mine, cx, modes, prims, fixed, killed),
+                    CPat::Var(x, c) if lent && let_alias(*x, *c, scrut, &cx.classes, &cx.written).is_some() => {
+                        let added = mine.insert(x.0);
+                        call_sites(&a.body, tail, mine, cx, modes, prims, fixed, killed, report);
+                        if added {
+                            mine.remove(&x.0);
+                        }
+                    }
+                    _ => call_sites(&a.body, tail, mine, cx, modes, prims, fixed, killed, report),
                 }
             }
         }
@@ -674,7 +732,7 @@ fn call_sites(
         // a candidate, see `value_uses`).
         other => {
             for k in crate::core::child_slots_imm(other) {
-                call_sites(k, false, mine, cx, modes, prims, fixed, killed);
+                call_sites(k, false, mine, cx, modes, prims, fixed, killed, report);
             }
         }
     }
@@ -1718,6 +1776,18 @@ impl Pass<'_> {
                     let nb = self.need(&a.body);
                     if !self.counted(x) || !nb.contains(&x) {
                         self.go(&a.body, owned, live)
+                    } else if self.counted(s)
+                        && self.class_of(s) == self.class_of(x)
+                        && !owned.contains(&s)
+                        && !self.written.contains(&x)
+                    {
+                        // A variable pattern is the scrutinee itself. Keep
+                        // the borrowed name, as for a let alias, and acquire
+                        // a reference only at an owned use in the body.
+                        self.alias.insert(x, s);
+                        let body = self.go(&a.body, owned, live);
+                        self.alias.remove(&x);
+                        body
                     } else if self.counted(s)
                         && self.class_of(s) == self.class_of(x)
                         && owned.contains(&s)

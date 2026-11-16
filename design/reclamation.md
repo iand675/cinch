@@ -819,6 +819,24 @@ to refuse, and both front ends accept the word.
 - A `let x = y` of a counted, never written-through binder of `y`'s
   class is a renaming: the pass binds no reference for `x` and counts
   `y` wherever `x` is used, so it does not turn a borrowed `y` owned.
+  A variable alternative `case y of x -> body` follows the same rule
+  when `y` is borrowed and `x` has the same class and is never written
+  through. Both inference and counting preserve the alias: a tail call
+  may lend `x` without a later drop, and an escaping use acquires its
+  reference where it occurs. Nested variable alternatives preserve that
+  rule. An overwritten binder still gets its own reference, and a binder
+  taking over an owned scrutinee still transfers the original reference.
+- `CINCH_BORROW_REPORT=1` prints one JSON witness per counted formal of
+  ordinary Core functions for each inference pass. The reason is the
+  first rule that withdrew borrowing, or `lent` when it survived. Run
+  `tooling/borrow_census.py dump.owned.core --report compiler.stderr`
+  to select a complete pass matching the dump's formals. It separates
+  owned body uses, reuse targets, computed arguments, tail calls with
+  owned arguments, and owned boundary conventions. Primitive bodies are
+  outside this refusal breakdown. The dump records the actual inferred
+  modes in `@borrow-modes`; `@borrowed` records primitive conventions and
+  `@obj` records representation. The owned dump uses the same open or
+  closed boundary as the compilation pipeline.
 - Primitive units take part, in a closed program only, with the
   parameters their runtime operation only reads (all but
   `prim_consumes`). An open program keeps them owned: a primitive's
@@ -832,6 +850,16 @@ to refuse, and both front ends accept the word.
   parameters 2,672 end borrowed. Most of the rest are stored in a
   constructor or are passed on in tail position by a caller that owns
   the argument, which the tail-call rule forbids.
+- A newer controlled census on 2026-11-16, based on `0bd9ae93`, is in
+  `experiments/borrow-inference/2026-11-16.json`. The compiler bundle has
+  168,272 ownership sites and 5,398 inferred borrowed entries. Preserving
+  variable-pattern aliases fixes the focused recursive examples but
+  leaves this bundle byte identical. An experimental relaxation for
+  callees that cannot call user code inferred 77 more borrowed entries
+  but increased ownership sites by 1,658, to 169,930, so it was rejected.
+  More borrowed entries alone are not a performance improvement. These
+  are static Core counts, with no dynamic-count or scaling claim. The
+  census also stops counting tuple-type commas as parameter separators.
 - Drop specialisation is the `Core::Release { block, moved, rest }` node,
   placed where a `Case` alternative on an owned, dead `Obj` scrutinee uses
   at least one field. Codegen tests the block's thread-local count with

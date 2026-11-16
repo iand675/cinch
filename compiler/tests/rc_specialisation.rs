@@ -424,32 +424,26 @@ fn build_and_run(dir: &Path, name: &str, debug: bool) -> (Option<i32>, String) {
     (out.status.code(), String::from_utf8_lossy(&out.stderr).into_owned())
 }
 
-/// The `Owned` Core of the project in `dir`: the reference-count pass's
-/// own output, before specialization lowers it.
-///
-/// This is the only dump that states the reset/reuse decision directly, as
-/// `release`/`reuse` nodes with their tokens. The emitted IR is not usable
-/// for it: a callee inlined into the unit brings its own releases and
-/// uniqueness tests, and no IR shape names which release is the branch's.
+/// The count pass's all-owned convention, which isolates reset/reuse from
+/// borrow inference. A driver's owned dump now uses its actual boundary;
+/// it may lend this fixture's input instead, so it cannot pin the owned
+/// release/reuse regression. Keep the complete checked constructor set for
+/// the layout proof. The runtime assertions still build the real pipeline.
 fn owned_core(dir: &Path) -> String {
-    let core = dir.join("prog.owned.core");
-    let profile = TargetProfile { reclaim: true, rc_debug: false, ..TargetProfile::native() };
-    let opts = DriverOptions {
-        dump_core: Some(cinch::coretext::Stage::Owned),
-        core_out: Some(core.clone()),
-        ..DriverOptions::default()
-    };
-    let (src, dir_ir) = (dir.join("Main.cinch"), dir.join("prog.ll"));
+    let source = std::fs::read_to_string(dir.join("Main.cinch")).expect("read source");
     std::thread::Builder::new()
         .stack_size(64 * 1024 * 1024)
         .spawn(move || {
-            driver_with_profile_opts(Mode::EmitIr, StageMode::Refresh, &src, Some(&dir_ir), &profile, &opts)
+            let profile = TargetProfile { reclaim: true, rc_debug: false, ..TargetProfile::native() };
+            let (program, ifaces) = cinch::driver::check_sources_profile_ifaces(&source, "Main.cinch", &profile)
+                .expect("check reuse fixture");
+            let owned = cinch::rc::insert(program, &profile).expect("count all-owned fixture");
+            let modules = ["Main".to_string()].into_iter().collect();
+            cinch::coretext::dump(&owned, cinch::coretext::Stage::Owned, &profile, &ifaces, &modules, &Default::default(), 0)
         })
         .expect("driver thread")
         .join()
         .expect("driver thread panicked")
-        .unwrap_or_else(|e| panic!("core dump failed: {e}"));
-    std::fs::read_to_string(&core).expect("read core")
 }
 
 /// The body of the unit `name` in a Core dump.

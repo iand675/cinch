@@ -8,7 +8,9 @@ unit Main.EchoInt :: Main.Echo
   static {0 = Main.EchoInt.echo}
 end
 unit Main.EchoInt.echo :: -
-  @params t0 :: - @owned
+  @params t0 :: - @obj
+  @uses(t0=1)
+  @borrow-candidates(t0)
   @stage(checked)
   body (app (dictproj (instdict Data.Int.Add_Int) 0 Algebra.Arithmetic.Add) (local t0) (int 1))
 end
@@ -21,7 +23,9 @@ unit Main.main.exit :: -
   body (app (prim cinch.runtime.intToI64) (global Main.main))
 end
 unit Main.viaDict :: using (e :: Main.Echo) => (Int -> Int)
-  @params t0 :: Main.Echo @owned, t1 :: Int @owned
+  @params t0 :: Main.Echo @obj, t1 :: Int @obj
+  @uses(t0=1, t1=1)
+  @borrow-candidates(t0,t1)
   @stage(checked)
   body (app (dictproj (local t0) 0 Main.Echo) (local t1))
 end

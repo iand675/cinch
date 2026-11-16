@@ -108,7 +108,8 @@ fn dump_via_command(scratch: &Path, name: &str, src: &Path, stage: Stage) -> Str
     std::fs::copy(src, &entry).expect("copy corpus source");
     let out = work.join(format!("{name}.core"));
     let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_cinch"));
-    command.arg("core").arg("emit").arg(&entry).arg("-o").arg(&out);
+    command.arg("core").arg("emit").arg(&entry).arg("-o").arg(&out)
+        .args(["--target", "aarch64-apple-darwin"]);
     match stage {
         Stage::Checked => {
             command.arg("--stage=checked");
@@ -678,6 +679,7 @@ fn core_emit_writes_the_golden_file() {
         .arg("core")
         .arg("emit")
         .arg(&src)
+        .args(["--target", "aarch64-apple-darwin"])
         .arg("-o")
         .arg(&out)
         .output()

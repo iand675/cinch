@@ -559,6 +559,13 @@ impl<'a> Printer<'a> {
                 anns.push((rank("borrowed"), format!("@borrowed({})", borrowed.join(","))));
             }
         }
+        if let Some(modes) = self.program.borrowed.get(&f.id.0) {
+            let borrowed: Vec<String> = modes.iter().enumerate()
+                .filter(|(_, b)| **b).map(|(i, _)| (i + 1).to_string()).collect();
+            if !borrowed.is_empty() {
+                anns.push((rank("borrow-modes"), format!("@borrow-modes({})", borrowed.join(","))));
+            }
+        }
         if let Some(plan) = self.program.frame.get(&f.id.0).filter(|p| !p.is_empty()) {
             // Frame allocation (design/stack-allocation.md): the slots this
             // unit reserves and the bytes they add to its frame.
@@ -1048,14 +1055,13 @@ fn class_letter(class: Class) -> char {
     }
 }
 
-/// The ownership class a representation class prints (design note section
-/// 3.4): `Raw` words are never counted, counted pointers are owned by their
-/// binder, and an open type parameter keeps its vector position.
+/// The representation class a binder prints. Counted pointers print `obj`;
+/// ownership is a separate decision, recorded by `@borrow-modes`.
 fn class_text(class: Class) -> String {
     match class {
         Class::Raw => "uncounted".to_string(),
         Class::Wide => "uncounted wide".to_string(),
-        Class::Obj | Class::TObj => "owned".to_string(),
+        Class::Obj | Class::TObj => "obj".to_string(),
         Class::Param(index) => format!("param({index})"),
     }
 }
@@ -2036,6 +2042,7 @@ const ANNOTATION_ORDER: &[&str] = &[
     "tier",
     "ffi",
     "borrowed",
+    "borrow-modes",
     "uses",
     "borrow-candidates",
     "frame",
@@ -2062,9 +2069,7 @@ fn annotation_rank(name: &str) -> Option<usize> {
 /// This is a description of the emitted text, not a new analysis: the counts
 /// are what a reader would get by grepping, printed where the reader is. The
 /// borrow set it derives is a set of *candidates* - formals the body only
-/// reads - and it is deliberately not called a decision, because the
-/// compiler makes none here (every formal of every unit in this tree prints
-/// `@owned`, and the seed's whole-program `borrow_modes` lends none of them).
+/// reads. The inference's decision is recorded separately in `@borrow-modes`.
 struct FormalUses {
     entries: Vec<(String, usize, usize)>,
 }
@@ -4739,8 +4744,8 @@ mod tests {
     #[test]
     fn ownership_classes_print_their_reclaim_kind() {
         assert_eq!(class_text(Class::Raw), "uncounted");
-        assert_eq!(class_text(Class::Obj), "owned");
-        assert_eq!(class_text(Class::TObj), "owned");
+        assert_eq!(class_text(Class::Obj), "obj");
+        assert_eq!(class_text(Class::TObj), "obj");
         assert_eq!(class_text(Class::Param(3)), "param(3)");
     }
 
@@ -4837,9 +4842,9 @@ mod tests {
         );
         // The parameter is `t0`, and the two shadowing binders are `t1` and
         // `t2`: one name per binder, numbered by first appearance.
-        assert!(text.contains("@params t0 :: Int @owned"), "{text}");
-        assert!(text.contains("(let t1 @class(owned)"), "{text}");
-        assert!(text.contains("(let t2 @class(owned)"), "{text}");
+        assert!(text.contains("@params t0 :: Int @obj"), "{text}");
+        assert!(text.contains("(let t1 @class(obj)"), "{text}");
+        assert!(text.contains("(let t2 @class(obj)"), "{text}");
         // No placeholder or `LocalId` reaches the text.
         assert!(!text.contains("$v"), "{text}");
         let placeholder = text
