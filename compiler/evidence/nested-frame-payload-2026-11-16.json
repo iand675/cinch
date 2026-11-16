@@ -101,5 +101,55 @@
     "finding": "Main.produce returns a child pointer derived from its own alloca. A zero exit under unchanged stack contents does not prove that returned storage survives the activation."
   },
   "current_guard": "All nested children remain on the heap until cross-owner field aliases are tracked; standalone raw duplication and safe consuming-callee placements remain eligible.",
-  "current_guard_validation": "pending focused and preserved parent tests"
+  "current_guard_validation": {
+    "status": "passed",
+    "tests": {
+      "lib": {
+        "passed": 302,
+        "seconds": 207.58
+      },
+      "lib_csv_record": {
+        "passed": 11,
+        "seconds": 55.71
+      },
+      "tail_calls": {
+        "passed": 11,
+        "seconds": 31.18
+      },
+      "wide": {
+        "passed": 18,
+        "seconds": 75.98
+      },
+      "stack_allocation": {
+        "passed": 22,
+        "seconds": 98.19
+      }
+    },
+    "total": 364,
+    "rust_incremental_cache_enabled_for_preserved_gate": false,
+    "focused_log_sha256": "e2349a9b3e5e4fd8b8a42ae993580ddf5a3090040d4b316867b8169b268ab3a7",
+    "preserved_log_sha256": "76c22d63ccc00251dd153085daa21b13329e5ee87bf0b7a1a1676578202998e1",
+    "compiler_snapshot": {
+      "description": "All nested child frame placements refused until projected aliases are tracked; standalone raw duplication and safe owned-callee placements retained",
+      "revision": "269153a77f22d8fd106aedacc4829d68150775c9",
+      "binary_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+      "stack_source_sha256": "2bfdf8369e5019657b5c7e08110caaf4e1359244673f8f8fc108b666a20274dd",
+      "runtime_archive": "/workspace/dasl-stdlib-io/compiler/runtime/target/release/libcinchruntime.a",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "final_focused_gate": {
+        "target": "stack_allocation",
+        "passed": 22,
+        "seconds": 98.19
+      },
+      "broader_counted_guard_gate": {
+        "lib": 302,
+        "lib_csv_record": 11,
+        "stack_allocation": 21,
+        "tail_calls": 11,
+        "wide": 18
+      },
+      "broader_final_guard_gate": "passed"
+    },
+    "current_stack_source_sha256": "2bfdf8369e5019657b5c7e08110caaf4e1359244673f8f8fc108b666a20274dd"
+  }
 }
