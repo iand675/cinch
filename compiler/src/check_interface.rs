@@ -38,8 +38,10 @@ impl Checker {
         use InterfaceIndexSort::*;
         let direct = match ty {
             Ty::Nat | Ty::Int => Some(Mathematical),
+            // Character scalar readings share machine values' opaque arithmetic;
+            // retaining the binder's Char type prevents runtime numeric coercions.
             Ty::Prim(Scalar::I8 | Scalar::I16 | Scalar::I32 | Scalar::I64
-                | Scalar::U8 | Scalar::U16 | Scalar::U32 | Scalar::U64) => Some(Machine),
+                | Scalar::U8 | Scalar::U16 | Scalar::U32 | Scalar::U64 | Scalar::Char) => Some(Machine),
             Ty::Bytes => Some(Bytes),
             _ => None,
         };
