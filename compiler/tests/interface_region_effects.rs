@@ -65,6 +65,13 @@ module Shadow where
     ScopeValue :: Scope
   identity :: Shadow.Scope -> Shadow.Scope
   identity value = value
+  -- | A source-owned task is distinct from the kernel task carrier.
+  data Task where
+    -- | A normal source constructor cannot mint a kernel task.
+    TaskValue :: Task
+  -- | Preserve the qualified source task identity.
+  task-identity :: Shadow.Task -> Shadow.Task
+  task-identity value = value
 module Main where
   import Scoped as Scopes
   import Shadow as Local
@@ -87,6 +94,9 @@ module Main where
     let identity = shadow.exports.values.iter().find(|v| v.name == "identity").unwrap().resolved.as_ref().unwrap();
     assert!(identity.scheme.contains("Shadow.Scope"));
     assert!(identity.nominals.iter().any(|n| n.identity == "Shadow.Scope"));
+    let task = shadow.exports.values.iter().find(|v| v.name == "task-identity").unwrap().resolved.as_ref().unwrap();
+    assert!(task.scheme.contains("Shadow.Task"));
+    assert!(task.nominals.iter().any(|n| n.identity == "Shadow.Task"));
     cinch::interface::verify_chain(&interfaces).expect("actual source owners and dependencies");
     common::cleanup(&dir);
 }
