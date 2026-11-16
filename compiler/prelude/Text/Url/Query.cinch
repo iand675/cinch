@@ -1,0 +1,256 @@
+-- | Persistent, byte-preserving URL query multimaps and bounded form decoding.
+-- Keys are ordered lexicographically by raw bytes; values preserve insertion
+-- order. Parsing retains valid pairs after malformed fields and reports one
+-- precise failure. Raw semicolons reject their field and take diagnostic
+-- precedence. The default limit counts raw ampersand-separated fields, including
+-- empty fields; a zero explicit limit disables it. All external byte buffers are
+-- copied. A balanced tree bounds lookup and updates even for sorted input.
+module Text.Url.Query where
+  import Text.Url.Codec
+  import Text.Url.Error
+  import Text.Url.Scan
+  import Data.Bool
+  import Data.Bytes
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  export UrlValues, url-values-empty, url-values-size, url-values-clone
+  export url-values-add, url-values-set, url-values-set-all, url-values-delete
+  export url-values-has, url-values-get, url-values-get-all, url-values-pairs, url-values-from-pairs
+  export url-values-encode, url-parse-query, url-parse-query-limit
+
+  -- | An owned key, cached first value and reverse insertion-order values.
+  data Entry where
+    -- | Private immutable byte payload; exported observations always copy.
+    Entry :: Bytes -> Option Bytes -> List Bytes -> Entry
+
+  -- | An AVL node with cached height and distinct-key count.
+  data Tree where
+    -- | An empty search subtree.
+    Empty :: Tree
+    -- | Cached measures and an ordered owned payload with two balanced children.
+    Node :: Nat -> Nat -> Entry -> Tree -> Tree -> Tree
+
+  -- | An immutable query multimap with present-but-empty lists represented explicitly.
+  data UrlValues where
+    -- | Private root; sharing it is safe because no external mutable alias escapes.
+    Values :: Tree -> UrlValues
+
+  -- | Read one cached subtree height.
+  height :: Tree -> Nat
+  height tree = case tree of Empty -> 0; Node h n entry left right -> h
+
+  -- | Read one cached distinct-key count.
+  size :: Tree -> Nat
+  size tree = case tree of Empty -> 0; Node h n entry left right -> n
+
+  -- | Recompute both cached measures for a structurally assembled node.
+  node :: Entry -> Tree -> Tree -> Tree
+  node entry left right = let a = height left in let b = height right in
+    Node (1 + (if a > b then a else b)) (1 + size left + size right) entry left right
+
+  -- | Restore AVL balance after a single child update using at most two rotations.
+  balance :: Entry -> Tree -> Tree -> Tree
+  balance entry left right =
+    if height left > height right + 1 then case left of
+      Empty -> node entry left right
+      Node h n pivot ll lr -> if height ll >= height lr then node pivot ll (node entry lr right)
+        else case lr of Empty -> node entry left right; Node x y middle a b -> node middle (node pivot ll a) (node entry b right)
+    else if height right > height left + 1 then case right of
+      Empty -> node entry left right
+      Node h n pivot rl rr -> if height rr >= height rl then node pivot (node entry left rl) rr
+        else case rl of Empty -> node entry left right; Node x y middle a b -> node middle (node entry left a) (node pivot b rr)
+    else node entry left right
+
+  -- | Read an entry's privately owned search key.
+  key :: Entry -> Bytes
+  key entry = case entry of Entry bytes first values -> bytes
+
+  -- | Add one already-owned incoming value without copying existing immutable buffers.
+  append-entry :: Entry -> Entry -> Entry
+  append-entry incoming old = case incoming of
+    Entry ignored first values -> case first of
+      None -> old
+      Some value -> case old of
+        Entry bytes previous reversed ->
+          Entry bytes (case previous of None -> Some value; Some present -> Some present) (Cons value reversed)
+
+  -- | Insert, replace or append an owned entry along one logarithmic search path.
+  put :: Entry -> Bool -> Tree -> Tree
+  put entry adding tree = case tree of
+    Empty -> node entry Empty Empty
+    Node h n old left right -> let order = bytes-compare (key entry) (key old) in
+      if lt-i64 order 0 then balance old (put entry adding left) right
+      else if gt-i64 order 0 then balance old left (put entry adding right)
+      else node (if adding then append-entry entry old else entry) left right
+
+  -- | Find an entry without exposing its private byte payload.
+  find :: Bytes -> Tree -> Option Entry
+  find bytes tree = case tree of
+    Empty -> None
+    Node h n entry left right -> let order = bytes-compare bytes (key entry) in
+      if lt-i64 order 0 then find bytes left else if gt-i64 order 0 then find bytes right else Some entry
+
+  -- | Remove the smallest entry while restoring cached heights and balance.
+  remove-first :: Entry -> Tree -> (Entry, Tree)
+  remove-first fallback tree = case tree of
+    Empty -> (fallback, Empty)
+    Node h n entry left right -> case left of
+      Empty -> (entry, right)
+      Node a b c d e -> case remove-first entry left of (smallest, rest) -> (smallest, balance entry rest right)
+
+  -- | Delete a key along one logarithmic search path without mutating retained versions.
+  remove :: Bytes -> Tree -> Tree
+  remove bytes tree = case tree of
+    Empty -> Empty
+    Node h n entry left right -> let order = bytes-compare bytes (key entry) in
+      if lt-i64 order 0 then balance entry (remove bytes left) right
+      else if gt-i64 order 0 then balance entry left (remove bytes right)
+      else case right of Empty -> left; Node a b c d e -> case remove-first entry right of (next, rest) -> balance next left rest
+
+  -- | Copy a list of values while reversing it with constant traversal stack.
+  copy-reverse :: List Bytes -> List Bytes -> List Bytes
+  copy-reverse values out = case values of Nil -> out; Cons value rest -> copy-reverse rest (Cons (url-copy value) out)
+
+  -- | Snapshot a forward value list, preserving explicit empty-list presence.
+  own-entry :: Bytes -> List Bytes -> Entry
+  own-entry bytes values = let owned = copy-reverse values Nil in
+    Entry (url-copy bytes) (case values of Nil -> None; Cons value rest -> Some (url-copy value)) owned
+
+  -- | Construct an empty immutable query multimap.
+  url-values-empty :: UrlValues
+  url-values-empty = Values Empty
+
+  -- | Count distinct keys, including keys with an empty value list.
+  url-values-size :: UrlValues -> Nat
+  url-values-size values = case values of Values tree -> size tree
+
+  -- | Retain an independent immutable version with no externally mutable aliases.
+  url-values-clone :: UrlValues -> UrlValues
+  url-values-clone values = values
+
+  -- | Append a copied value to a key and return a new multimap version.
+  url-values-add :: Bytes -> Bytes -> UrlValues -> UrlValues
+  url-values-add bytes value values = case values of
+    Values tree ->
+      let owned = url-copy value in Values (put (Entry (url-copy bytes) (Some owned) (Cons owned Nil)) True tree)
+
+  -- | Replace a key's values with one copied value.
+  url-values-set :: Bytes -> Bytes -> UrlValues -> UrlValues
+  url-values-set bytes value values = case values of
+    Values tree ->
+      let owned = url-copy value in Values (put (Entry (url-copy bytes) (Some owned) (Cons owned Nil)) False tree)
+
+  -- | Replace a key with a copied list; an empty list keeps the key present but emits no encoded pair.
+  url-values-set-all :: Bytes -> List Bytes -> UrlValues -> UrlValues
+  url-values-set-all bytes entries values = case values of Values tree -> Values (put (own-entry bytes entries) False tree)
+
+  -- | Remove a key and all its values while retaining earlier versions unchanged.
+  url-values-delete :: Bytes -> UrlValues -> UrlValues
+  url-values-delete bytes values = case values of Values tree -> Values (remove bytes tree)
+
+  -- | Test key presence independently of whether its value list is empty.
+  url-values-has :: Bytes -> UrlValues -> Bool
+  url-values-has bytes values = case values of Values tree -> case find bytes tree of None -> False; Some entry -> True
+
+  -- | Return a fresh first value, or fresh empty bytes for absent or empty-list keys.
+  url-values-get :: Bytes -> UrlValues -> Bytes
+  url-values-get bytes values = case values of
+    Values tree -> case find bytes tree of
+      None -> bytes-new 0
+      Some entry -> case entry of Entry k first reversed -> case first of None -> bytes-new 0; Some value -> url-copy value
+
+  -- | Return fresh value buffers in insertion order; absent and empty-list keys return an empty list.
+  url-values-get-all :: Bytes -> UrlValues -> List Bytes
+  url-values-get-all bytes values = case values of
+    Values tree -> case find bytes tree of
+      None -> Nil
+      Some entry -> case entry of Entry k first reversed -> copy-reverse reversed Nil
+
+  -- | Collect ordered entries with logarithmic tree recursion and fresh external buffers.
+  pairs :: Tree -> List (Bytes, List Bytes) -> List (Bytes, List Bytes)
+  pairs tree out = case tree of
+    Empty -> out
+    Node h n entry left right -> case entry of
+      Entry bytes first reversed ->
+        pairs left (Cons (url-copy bytes, copy-reverse reversed Nil) (pairs right out))
+
+  -- | Return keys in raw-byte order and copied value lists in insertion order.
+  url-values-pairs :: UrlValues -> List (Bytes, List Bytes)
+  url-values-pairs values = case values of Values tree -> pairs tree Nil
+
+  -- | Snapshot pairs in order, replacing earlier lists when a key is repeated.
+  url-values-from-pairs :: List (Bytes, List Bytes) -> UrlValues
+  url-values-from-pairs entries = from-pairs entries url-values-empty
+
+  -- | Tail-recursively apply copied pair snapshots.
+  from-pairs :: List (Bytes, List Bytes) -> UrlValues -> UrlValues
+  from-pairs entries values = case entries of
+    Nil -> values
+    Cons pair rest -> case pair of (bytes, items) -> from-pairs rest (url-values-set-all bytes items values)
+
+  -- | Prepend one key's escaped pairs to a reverse chunk list, preserving value order.
+  encode-values :: Bytes -> List Bytes -> List Bytes -> Bool -> (List Bytes, Bool)
+  encode-values escaped values chunks started = case values of
+    Nil -> (chunks, started)
+    Cons value rest -> let prefix = if started then Cons (string-to-bytes "&") chunks else chunks in
+      let next = Cons (url-query-escape value) (Cons (string-to-bytes "=") (Cons escaped prefix)) in
+      encode-values escaped rest next True
+
+  -- | Traverse sorted keys and accumulate encoded chunks without quadratic concatenation.
+  encode-pairs :: List (Bytes, List Bytes) -> List Bytes -> Bool -> List Bytes
+  encode-pairs entries chunks started = case entries of
+    Nil -> reverse chunks
+    Cons pair rest -> case pair of
+      (bytes, values) ->
+        case encode-values (url-query-escape bytes) values chunks started of (next, present) -> encode-pairs rest next present
+
+  -- | Render sorted keys and insertion-ordered values as ASCII query bytes, omitting empty lists.
+  url-values-encode :: UrlValues -> Bytes
+  url-values-encode values = url-concat (encode-pairs (url-values-pairs values) Nil False)
+
+  -- | Retain the first escape error unless a raw-semicolon failure takes priority.
+  choose-error :: Option UrlFailure -> UrlFailure -> Option UrlFailure
+  choose-error previous next = case previous of
+    None -> Some next
+    Some old -> case url-failure-kind next of
+      UrlQuerySemicolon -> case url-failure-kind old of UrlQuerySemicolon -> previous; other -> Some next
+      other -> previous
+
+  -- | Decode one raw setting and transfer fresh decoded buffers into the immutable tree.
+  parse-field :: Bytes -> Nat -> Nat -> Tree -> Option UrlFailure -> (Tree, Option UrlFailure)
+  parse-field input start end tree error =
+    let semicolon = url-find-byte input start end 59 in
+    if semicolon < end then (tree, choose-error error (url-failure UrlQuerySemicolon semicolon (url-slice input semicolon (semicolon + 1))))
+    else let equal = url-find-byte input start end 61 in
+      let value-start = if equal < end then equal + 1 else end in
+      case url-query-unescape (url-slice input start equal) of
+        Err failure -> (tree, choose-error error (url-failure-shift start failure))
+        Ok bytes -> case url-query-unescape (url-slice input value-start end) of
+          Err failure -> (tree, choose-error error (url-failure-shift value-start failure))
+          Ok value -> (put (Entry bytes (Some value) (Cons value Nil)) True tree, error)
+
+  -- | Walk bounded fields while preserving all independently valid settings.
+  parse-fields :: Bytes -> Nat -> Tree -> Option UrlFailure -> (UrlValues, Option UrlFailure)
+  parse-fields input start tree error = if start < bytes-len input then
+    let end = url-find-byte input start (bytes-len input) 38 in
+    let parsed = if start == end then (tree, error) else parse-field input start end tree error in
+    case parsed of (next, failure) -> if end < bytes-len input then parse-fields input (end + 1) next failure else (Values next, failure)
+    else (Values tree, error)
+
+  -- | Parse query bytes with an inclusive field limit; zero disables the bound.
+  -- Valid fields survive malformed escapes and raw-semicolon fields. Excess raw
+  -- fields reject the complete query before decoding; offsets address original bytes.
+  url-parse-query-limit :: Nat -> Bytes -> (UrlValues, Option UrlFailure)
+  url-parse-query-limit limit input =
+    let fields = 1 + url-count-byte input 0 (bytes-len input) 38 in
+    if limit > 0 && fields > limit then (url-values-empty, Some (url-failure UrlTooManyParameters 0 input))
+    else parse-fields input 0 Empty None
+
+  -- | Parse a query with a maximum of ten thousand raw ampersand-separated fields.
+  url-parse-query :: Bytes -> (UrlValues, Option UrlFailure)
+  url-parse-query input = url-parse-query-limit 10000 input

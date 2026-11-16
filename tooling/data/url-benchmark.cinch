@@ -1,0 +1,100 @@
+-- | Public URL pipelines with runtime inputs, observable results and monotonic timing.
+module Main where
+  import Text.Url
+  import Data.Bytes
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Effect.Clock
+  import Effect.Process
+
+  -- | Parse nonnegative decimal arguments supplied by the validated host harness.
+  decimal :: String -> Nat
+  decimal text = decimal-from (unpack text) 0
+
+  -- | Fold decimal digits, mapping malformed harness arguments to zero.
+  decimal-from :: List Char -> Nat -> Nat
+  decimal-from chars value = case chars of
+    Nil -> value
+    Cons char rest -> case digit-value char of
+      None -> 0
+      Some digit -> decimal-from rest (value * 10 + digit)
+
+  -- | Fill runtime input using known positive pattern lengths, outside the timer.
+  fill :: Bytes -> Nat -> Nat -> Bytes -> Unit
+  fill out i pattern alphabet = if i < bytes-len out then
+    let at = if pattern == 0 then (0 :: Nat) else if pattern == 1 then nat-rem i 12 else nat-rem i 12 in
+    if at < bytes-len alphabet then
+      let byte = bytes-get alphabet at in let written = bytes-set out i byte in fill out (i + 1) pattern alphabet
+    else ()
+    else ()
+
+  -- | Sample only existing bytes so the output length and several positions stay observable.
+  sample :: Bytes -> Nat -> Nat
+  sample bytes i = if i < bytes-len bytes then bytes-get bytes i else 0
+
+  -- | Observe an API's complete output allocation without another full traversal.
+  fingerprint :: Bytes -> Nat
+  fingerprint bytes = bytes-len bytes + sample bytes 0 + sample bytes (nat-div (bytes-len bytes) 2) + sample bytes (saturating-sub (bytes-len bytes) 1)
+
+  -- | Copy a complete buffer for an unrelated allocation/copy control.
+  copy-buffer :: Bytes -> Bytes
+  copy-buffer input = let out = bytes-new (bytes-len input) in
+    let copied = bytes-copy-range out input 0 0 (bytes-len input) in out
+
+  -- | Measure complete public URL pipelines, preserving byte results and parse failures.
+  operation :: U32 -> Bytes -> Url -> Nat
+  operation mode input base =
+    if eq-u32 mode 0 then fingerprint (url-query-escape input)
+    else if eq-u32 mode 1 then fingerprint (url-path-escape input)
+    else if eq-u32 mode 2 then (case url-query-unescape input of Err error -> 0; Ok output -> fingerprint output)
+    else if eq-u32 mode 3 then (case url-path-unescape input of Err error -> 0; Ok output -> fingerprint output)
+    else if eq-u32 mode 4 then (case url-parse-query input of (values, error) -> fingerprint (url-values-encode values))
+    else if eq-u32 mode 5 then (case url-parse input of Err error -> 0; Ok value -> fingerprint (url-to-bytes value))
+    else if eq-u32 mode 6 then (case url-parse-reference base input of Err error -> 0; Ok value -> fingerprint (url-to-bytes value))
+    else if eq-u32 mode 7 then fingerprint (url-to-bytes (url-join-path base [input]))
+    else if eq-u32 mode 8 then url-escaped-length UrlQueryComponent input
+    else fingerprint (copy-buffer input)
+
+  -- | Mutate one ASCII byte between iterations so every public conversion consumes live input.
+  change :: Bytes -> Nat -> Unit
+  change input i = if bytes-len input > 0 then bytes-set input 0 (if nat-rem i 2 == 0 then 97 else 98) else ()
+
+  -- | Accumulate bounded observable results through the timed loop.
+  repeat :: U32 -> Bytes -> Url -> Nat -> Nat -> Nat -> Nat
+  repeat mode input base iterations i checksum = if i < iterations then
+    let changed = change input i in repeat mode input base iterations (i + 1) (nat-rem (checksum + operation mode input base) 1000000007)
+    else checksum
+
+  -- | Resolve validated names once before entering the operation loop.
+  mode-code :: String -> U32
+  mode-code mode =
+    if mode == "query-escape" then 0 else if mode == "path-escape" then 1
+    else if mode == "query-unescape" then 2 else if mode == "path-unescape" then 3
+    else if mode == "query-values" then 4 else if mode == "parse-render" then 5
+    else if mode == "resolve" then 6 else if mode == "join" then 7
+    else if mode == "escape-length" then 8 else 9
+
+  -- | Prepare input outside the timer, then print elapsed nanoseconds and its checksum.
+  measure :: forall r. using (io :: Io r) => String -> Nat -> Nat -> Nat ->{IO r} Int
+  measure mode size iterations pattern =
+    let input = bytes-new size in
+    let alphabet = string-to-bytes (if pattern == 0 then "a" else if pattern == 1 then "a/b?c&d=e+ f" else "a%20b%2Fc%FF") in
+    let filled = fill input 0 pattern alphabet in let code = mode-code mode in
+    let base = case url-parse-text "https://example.test/a/b?old#f" of Err error -> url-empty; Ok value -> value in
+    let start = clock-monotonic-ns () in let checksum = repeat code input base iterations 0 0 in let end = clock-monotonic-ns () in
+    let elapsed = saturating-sub end start in
+    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string elapsed) (string-concat " " (string-concat (nat-to-string checksum) "\n")))) in 0
+
+  -- | Read one validated mode, size, iteration count and corpus pattern from the host harness.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Err error -> 2
+    Ok args -> case args of
+      Cons mode (Cons size (Cons iterations (Cons pattern Nil))) -> measure mode (decimal size) (decimal iterations) (decimal pattern)
+      Cons mode (Cons size (Cons iterations Nil)) -> measure mode (decimal size) (decimal iterations) 0
+      other -> 2
