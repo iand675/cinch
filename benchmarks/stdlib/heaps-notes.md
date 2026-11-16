@@ -42,10 +42,15 @@ heap and 8 MiB stack with quarantine disabled; poisoned-free validation is a
 separate correctness check. The reference scalar representation and allocations
 differ, so these results do not establish allocation or throughput parity.
 
-Library validation currently passes the complete Rust CLI corpus: sixteen
+Library validation passes the complete frozen Rust CLI corpus: sixteen
 initial sequences, 1040 exact stateful callback observations, sixteen owned
 repair scenarios, and an additional empty/alias/unbounded-index control. Ordinary
-32 MiB and separate 256 MiB poisoned-free runs have zero leaks. The Native gate
-remains blocked by existing phantom-region kind inference, effectful local
-generalization and mutation-row kind closure. The package remains partial until
-those compiler repairs and the rebuilt Native checks pass.
+32 MiB and separate 256 MiB poisoned-free runs have zero leaks. The corrected Cinch frontend also passes all 33 consumers with the same limits
+and zero leaks. That frontend was compiled by the frozen Rust compiler; its
+full self-built fixed point and the parent Cargo typing gates remain pending.
+The package remains partial until those compiler repair gates pass.
+
+The [retained boundary patch](heaps-before-owner-retention.patch) reverses only
+the post-clock owner observations in both drivers. Applying it to temporary
+copies with `git apply --unidiff-zero` reconstructs both recorded initial source
+hashes exactly.
