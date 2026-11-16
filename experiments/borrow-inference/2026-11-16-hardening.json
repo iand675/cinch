@@ -1,0 +1,591 @@
+{
+  "census": {
+    "borrowed": 5535,
+    "counted": 16470,
+    "on_params": 69605,
+    "owned_uses": {
+      "binding": 13,
+      "capture": 78,
+      "constructor-field": 1696,
+      "dynamic-argument": 418,
+      "dynamic-callee": 50,
+      "owned-argument": 3757,
+      "return": 309
+    },
+    "params": 16907,
+    "reasons": {
+      "computed-argument": 5,
+      "lent": 5521,
+      "owned-use": 6321,
+      "reuse": 3,
+      "tail-owned-argument": 3157
+    },
+    "sites": 170119,
+    "units": 6677,
+    "units_lending": 4100
+  },
+  "changes": {
+    "anonymous_borrow_arguments": "Whole-program ownership verification uses global arities and representation metadata; reject unbound owned computed arguments, including nested heads and quotation bodies.",
+    "computed_heads": "Written facts, reuse eligibility, allocation search and reuse insertion traverse non-leaf application heads. Runtime cases cover matches inside heads and allocations inside heads of outer matches.",
+    "core_reader": "Whole-corpus verification exposed unsupported @kept marks and quoted unit names; fixed validation and module membership. Removed duplicate @borrow-modes printing from merge.",
+    "delivery": "Whole-process Rust allocation traffic measured in ordinary IR emission, seed and library provider pins refreshed together, full ladder and required gates run.",
+    "refusals": "One first owned-use syntax-context witness per formal, allocated only when reporting is requested.",
+    "skip_first_scan": "If owned-use already forces all candidates owned, monotone inference cannot restore a loan; skip the first reuse scan too."
+  },
+  "controls": {
+    "build": "From compiler: source /workspace/.tools/cinch-env.sh; CARGO_BUILD_JOBS=1 cargo build --example compiler_allocations",
+    "clang": "20.1.8",
+    "comparison": "Adjacent modes differ in exactly one optimization. The optimized repeat uses the same binary, argv, cold project directory and environment as skip_owned.",
+    "corpus": "build/bootstrap/stage1/compiler.cinch, frozen after integrating origin/main 0d5e4b1a",
+    "corpus_bytes": 3113724,
+    "corpus_sha256": "56af04f6ccd30924d20e783a49571f57b2cf322a0af0a8a79356011578c78e1f",
+    "diagnostic_argv": [
+      "/tmp/cinch-hardening-alloc-profiler",
+      "emit",
+      "/tmp/cinch-hardening-corpus/compiler.cinch",
+      "--stage=owned",
+      "-o",
+      "/tmp/cinch-hardening-profile/output.core"
+    ],
+    "diagnostic_binary_sha256": "8c891004c19bfd5042848961af62c00df32a8a5c58a08139f4e94351a872f8fc",
+    "diagnostic_wrapper_revision": "a0857f23",
+    "environment_common": {
+      "CINCH_BORROW_REPORT": "unset",
+      "CINCH_BORROW_WORK": "1"
+    },
+    "generation_revision": "3768281841e029cde89156e8d925a0652619e4c3",
+    "modes": [
+      {
+        "CINCH_BORROW_REUSE_CACHE": "0",
+        "CINCH_BORROW_SKIP_OWNED": "0",
+        "name": "uncached"
+      },
+      {
+        "CINCH_BORROW_REUSE_CACHE": "1",
+        "CINCH_BORROW_SKIP_OWNED": "0",
+        "name": "cached"
+      },
+      {
+        "CINCH_BORROW_REUSE_CACHE": "1",
+        "CINCH_BORROW_SKIP_OWNED": "1",
+        "name": "skip_owned"
+      }
+    ],
+    "production_argv": [
+      "/tmp/cinch-hardening-production-profiler",
+      "emit-ir",
+      "/tmp/cinch-hardening-production-corpus/compiler.cinch",
+      "-o",
+      "/tmp/cinch-hardening-production/output.ll"
+    ],
+    "production_binary_sha256": "5b5555e20554083fe4c466289177f686931687573fb3609d738adb094667c3de",
+    "profiler_source_sha256": "2864942a9a493953b3c1fe357d426007f60719bbce7bb6d8fa6d420ae7379922",
+    "profiler_wrapper_revision": "b61e7c6f",
+    "rc_sha256": "e68f6b9f131be2f1cce7010a36e405ff8fe23492f9abf52e5da639e2bc41490e",
+    "reader_only_changes": "The b61e7c6f Core reader changes do not run during IR generation and are outside the immutable seed snapshot. All ownership/codegen changes are in the seed.",
+    "reset_before_each": "Delete only the frozen corpus project build/ directory and prior output. The compiler binary and all argv bytes are identical across each matrix.",
+    "rustc": "1.100.0 (0ef1bc386 2026-11-09)"
+  },
+  "date": "2026-11-16",
+  "diagnostic_core": [
+    {
+      "allocations": [
+        {
+          "allocated_bytes": 26721431736,
+          "allocations": 259968030,
+          "deallocated_bytes": 32412978577,
+          "deallocations": 259921059,
+          "exit": 0,
+          "reallocated_bytes": 9935344791,
+          "reallocations": 49328115
+        }
+      ],
+      "cache": "0",
+      "core_bytes": 37592251,
+      "core_sha256": "2411f9d761f71a5c18b0cb7938e85512abc33b2d632954affdd5044314d41850",
+      "exit": 0,
+      "mode": "uncached",
+      "rust_allocation_requests": 309296145,
+      "rust_requested_bytes": 36656776527,
+      "skip_owned": "0",
+      "work": [
+        {
+          "allocation_nodes": 2057314,
+          "cache_entries": 0,
+          "cache_slot_bytes": 0,
+          "cached_ids": 0,
+          "reuse_nodes": 1073288,
+          "reuse_requests": 11866,
+          "reuse_scans": 11866,
+          "reuse_skipped_owned": 0,
+          "search_nodes": 3130602,
+          "unit_visits": 15326
+        },
+        {
+          "allocation_nodes": 4996976,
+          "cache_entries": 0,
+          "cache_slot_bytes": 0,
+          "cached_ids": 0,
+          "reuse_nodes": 2012026,
+          "reuse_requests": 9949,
+          "reuse_scans": 9949,
+          "reuse_skipped_owned": 0,
+          "search_nodes": 7009002,
+          "unit_visits": 15242
+        }
+      ]
+    },
+    {
+      "allocations": [
+        {
+          "allocated_bytes": 26649080328,
+          "allocations": 257736276,
+          "deallocated_bytes": 32329864995,
+          "deallocations": 257689305,
+          "exit": 0,
+          "reallocated_bytes": 9913819293,
+          "reallocations": 49130811
+        }
+      ],
+      "cache": "1",
+      "core_bytes": 37592251,
+      "core_sha256": "2411f9d761f71a5c18b0cb7938e85512abc33b2d632954affdd5044314d41850",
+      "exit": 0,
+      "mode": "cached",
+      "rust_allocation_requests": 306867087,
+      "rust_requested_bytes": 36562899621,
+      "skip_owned": "0",
+      "work": [
+        {
+          "allocation_nodes": 710808,
+          "cache_entries": 6332,
+          "cache_slot_bytes": 7235,
+          "cached_ids": 0,
+          "reuse_nodes": 406744,
+          "reuse_requests": 11866,
+          "reuse_scans": 6332,
+          "reuse_skipped_owned": 0,
+          "search_nodes": 1117552,
+          "unit_visits": 15326
+        },
+        {
+          "allocation_nodes": 2087894,
+          "cache_entries": 5432,
+          "cache_slot_bytes": 6163,
+          "cached_ids": 0,
+          "reuse_nodes": 834309,
+          "reuse_requests": 9949,
+          "reuse_scans": 5432,
+          "reuse_skipped_owned": 0,
+          "search_nodes": 2922203,
+          "unit_visits": 15242
+        }
+      ]
+    },
+    {
+      "allocations": [
+        {
+          "allocated_bytes": 26641541614,
+          "allocations": 257515045,
+          "deallocated_bytes": 32321704137,
+          "deallocations": 257468074,
+          "exit": 0,
+          "reallocated_bytes": 9912573851,
+          "reallocations": 49141475
+        }
+      ],
+      "cache": "1",
+      "core_bytes": 37592251,
+      "core_sha256": "2411f9d761f71a5c18b0cb7938e85512abc33b2d632954affdd5044314d41850",
+      "exit": 0,
+      "mode": "skip_owned",
+      "rust_allocation_requests": 306656520,
+      "rust_requested_bytes": 36554115465,
+      "skip_owned": "1",
+      "work": [
+        {
+          "allocation_nodes": 585325,
+          "cache_entries": 6332,
+          "cache_slot_bytes": 7235,
+          "cached_ids": 0,
+          "reuse_nodes": 333731,
+          "reuse_requests": 11866,
+          "reuse_scans": 5222,
+          "reuse_skipped_owned": 1110,
+          "search_nodes": 919056,
+          "unit_visits": 15326
+        },
+        {
+          "allocation_nodes": 1789807,
+          "cache_entries": 5432,
+          "cache_slot_bytes": 6163,
+          "cached_ids": 0,
+          "reuse_nodes": 677448,
+          "reuse_requests": 9949,
+          "reuse_scans": 4539,
+          "reuse_skipped_owned": 893,
+          "search_nodes": 2467255,
+          "unit_visits": 15242
+        }
+      ]
+    }
+  ],
+  "measurement_limits": [
+    "Allocation traffic is successful Rust allocation and reallocation requests, not actual malloc blocks, live heap, or peak heap. Reallocation may be in place.",
+    "Foreign C allocations and child processes are excluded; counters stop before formatting their own report.",
+    "Allocation counts vary between equivalent runs. Two optimized samples are an observed range, not statistical significance.",
+    "Ordinary IR emission has one ownership pass; diagnostic owned Core emission has an additional pass. Do not substitute diagnostic totals for production totals.",
+    "No elapsed-time speedup or asymptotic scaling claim; no exponent sweep was run for this cache optimization."
+  ],
+  "optimized_repeat": {
+    "allocations": [
+      {
+        "allocated_bytes": 26422750105,
+        "allocations": 247715061,
+        "deallocated_bytes": 29820197712,
+        "deallocations": 247668091,
+        "exit": 0,
+        "reallocated_bytes": 6211878697,
+        "reallocations": 16934017
+      }
+    ],
+    "exit": 0,
+    "ir_bytes": 237894632,
+    "ir_sha256": "538357e80ae9dfc5dc341b66a01854e69071b92050ed31c7cadc784bdf653de1",
+    "rust_allocation_requests": 264649078,
+    "rust_requested_bytes": 32634628802,
+    "work": [
+      {
+        "allocation_nodes": 1789807,
+        "cache_entries": 5432,
+        "cache_slot_bytes": 6163,
+        "cached_ids": 0,
+        "reuse_nodes": 677448,
+        "reuse_requests": 9949,
+        "reuse_scans": 4539,
+        "reuse_skipped_owned": 893,
+        "search_nodes": 2467255,
+        "unit_visits": 15242
+      }
+    ]
+  },
+  "production": [
+    {
+      "allocations": [
+        {
+          "allocated_bytes": 26476325325,
+          "allocations": 249357563,
+          "deallocated_bytes": 29881154129,
+          "deallocations": 249310593,
+          "exit": 0,
+          "reallocated_bytes": 6226641565,
+          "reallocations": 17042098
+        }
+      ],
+      "cache": "0",
+      "exit": 0,
+      "ir_bytes": 237894632,
+      "ir_sha256": "538357e80ae9dfc5dc341b66a01854e69071b92050ed31c7cadc784bdf653de1",
+      "mode": "uncached",
+      "rust_allocation_requests": 266399661,
+      "rust_requested_bytes": 32702966890,
+      "skip_owned": "0",
+      "work": [
+        {
+          "allocation_nodes": 4996976,
+          "cache_entries": 0,
+          "cache_slot_bytes": 0,
+          "cached_ids": 0,
+          "reuse_nodes": 2012026,
+          "reuse_requests": 9949,
+          "reuse_scans": 9949,
+          "reuse_skipped_owned": 0,
+          "search_nodes": 7009002,
+          "unit_visits": 15242
+        }
+      ]
+    },
+    {
+      "allocations": [
+        {
+          "allocated_bytes": 26427981617,
+          "allocations": 247872733,
+          "deallocated_bytes": 29826150738,
+          "deallocations": 247825763,
+          "exit": 0,
+          "reallocated_bytes": 6213326229,
+          "reallocations": 16939993
+        }
+      ],
+      "cache": "1",
+      "exit": 0,
+      "ir_bytes": 237894632,
+      "ir_sha256": "538357e80ae9dfc5dc341b66a01854e69071b92050ed31c7cadc784bdf653de1",
+      "mode": "cached",
+      "rust_allocation_requests": 264812726,
+      "rust_requested_bytes": 32641307846,
+      "skip_owned": "0",
+      "work": [
+        {
+          "allocation_nodes": 2087894,
+          "cache_entries": 5432,
+          "cache_slot_bytes": 6163,
+          "cached_ids": 0,
+          "reuse_nodes": 834309,
+          "reuse_requests": 9949,
+          "reuse_scans": 5432,
+          "reuse_skipped_owned": 0,
+          "search_nodes": 2922203,
+          "unit_visits": 15242
+        }
+      ]
+    },
+    {
+      "allocations": [
+        {
+          "allocated_bytes": 26422361351,
+          "allocations": 247688469,
+          "deallocated_bytes": 29819063264,
+          "deallocations": 247641499,
+          "exit": 0,
+          "reallocated_bytes": 6210394539,
+          "reallocations": 16894703
+        }
+      ],
+      "cache": "1",
+      "exit": 0,
+      "ir_bytes": 237894632,
+      "ir_sha256": "538357e80ae9dfc5dc341b66a01854e69071b92050ed31c7cadc784bdf653de1",
+      "mode": "skip_owned",
+      "rust_allocation_requests": 264583172,
+      "rust_requested_bytes": 32632755890,
+      "skip_owned": "1",
+      "work": [
+        {
+          "allocation_nodes": 1789807,
+          "cache_entries": 5432,
+          "cache_slot_bytes": 6163,
+          "cached_ids": 0,
+          "reuse_nodes": 677448,
+          "reuse_requests": 9949,
+          "reuse_scans": 4539,
+          "reuse_skipped_owned": 893,
+          "search_nodes": 2467255,
+          "unit_visits": 15242
+        }
+      ]
+    }
+  ],
+  "production_reduction_percent_observations": {
+    "rust_allocation_requests": [
+      0.681866107930218,
+      0.6571265869591336
+    ],
+    "rust_requested_bytes": [
+      0.21469305900031488,
+      0.20896601898495737
+    ]
+  },
+  "refusal_limits": "Selected matching ordinary-Core pass only. First syntax-context witness, not every use or transitive root-cause attribution. owned-argument includes partial known application captures; capture means an explicit Lam environment.",
+  "remaining_investigations": [
+    "Trace owned-argument witnesses through callee parameters to distinguish real retention from conservative propagation.",
+    "Dynamic-call borrowing needs an apply ABI ownership convention; relaxing inference alone is unsound.",
+    "Ownership verification is not a full nonescape verifier for every possible forged Core tree.",
+    "The three staged baseline failures remain outside this borrow/cache change.",
+    "Profile the rest of the compiler before further cache work: search-node savings are much larger than whole-process allocation savings."
+  ],
+  "scope": "Native borrow hardening, computed-head coverage, owned-use diagnosis, reuse cache and first-scan shortcut, and coherent bootstrap delivery.",
+  "search_node_reduction_percent": 64.79876878334461,
+  "supersedes_for_current_corpus": [
+    "2026-11-16.json",
+    "2026-11-16-followup.json",
+    "2026-11-16-reuse-cache.json"
+  ],
+  "verification": {
+    "bootstrap_modules_checked": 51,
+    "borrow_census": {
+      "failed": 0,
+      "passed": 8
+    },
+    "commands": [
+      "From compiler: CARGO_BUILD_JOBS=1 cargo test --lib --test borrow_inference",
+      "From compiler: CARGO_BUILD_JOBS=1 cargo test --test core_output",
+      "From compiler: CARGO_BUILD_JOBS=1 cargo test --test stack_allocation --test tail_calls",
+      "From compiler: CARGO_BUILD_JOBS=1 cargo test --test mvar",
+      "python3 tooling/test_borrow_census.py",
+      "python3 tooling/bootstrap.py smoke --stage 3 --no-pgo",
+      "python3 tooling/check-bootstrap-sources.py",
+      "python3 tooling/run_stage_targets.py --stage 3 --out /tmp/cinch-hardening-gates/targets --jobs 1 parallel reclamation reclamation_tasks bootstrap_pipeline bootstrap_runtime_emit tail_calls"
+    ],
+    "computed_head_execution": "Both exact counted-Core reuse shapes link and run with CINCH_RC_DEBUG=1 and CINCH_LEAK_CHECK=1, exit 0 and live=0 immortal=0 leaked=0.",
+    "gates": [
+      {
+        "name": "ir-fixed-point",
+        "passed": true,
+        "sha256": [
+          "940a57b164a8a7966676f2fb68d122191769e75d6f204ddeb9f801378b11a378",
+          "940a57b164a8a7966676f2fb68d122191769e75d6f204ddeb9f801378b11a378"
+        ]
+      },
+      {
+        "name": "interface-fixed-point",
+        "passed": true,
+        "stages": [
+          {
+            "count": 168,
+            "sha256": "cfd38c1a34bbabfe7bb536d12509f0ec570529df52497ef46b3778e3c966dd25"
+          },
+          {
+            "count": 168,
+            "sha256": "cfd38c1a34bbabfe7bb536d12509f0ec570529df52497ef46b3778e3c966dd25"
+          }
+        ]
+      },
+      {
+        "exit": 0,
+        "log": "/tmp/cinch-hardening-gates/smoke.log",
+        "name": "smoke"
+      },
+      {
+        "exit": 0,
+        "log": "/tmp/cinch-hardening-gates/bootstrap-sources.log",
+        "name": "bootstrap-sources"
+      },
+      {
+        "exit": 0,
+        "log": "/tmp/cinch-hardening-gates/staged-check-leaks.log",
+        "name": "staged-check-leaks",
+        "zero_leaks": true
+      },
+      {
+        "exit": 0,
+        "ir_bytes": 6454,
+        "limitation": "Leak probe only. Plain staged emit-ir output is not compiler correctness evidence.",
+        "log": "/tmp/cinch-hardening-gates/staged-emit-leaks.log",
+        "name": "staged-emit-leaks",
+        "zero_leaks": true
+      }
+    ],
+    "ladder": {
+      "command": "CINCH_HEAP_LIMIT=2G nice python3 tooling/bootstrap.py build --stage 3 --no-pgo",
+      "exit": 0,
+      "stages": [
+        "stage0: verified cached seed",
+        "stage1: built /workspace/cinch/build/bootstrap/stage1/cinch",
+        "stage2: built /workspace/cinch/build/bootstrap/stage2/cinch",
+        "stage3: built /workspace/cinch/build/bootstrap/stage3/cinch"
+      ]
+    },
+    "native": {
+      "borrow_inference": {
+        "failed": 0,
+        "passed": 22
+      },
+      "core_output": {
+        "failed": 0,
+        "passed": 26
+      },
+      "lib": {
+        "failed": 0,
+        "passed": 290
+      },
+      "mvar": {
+        "failed": 0,
+        "passed": 12
+      },
+      "stack_allocation": {
+        "failed": 0,
+        "passed": 19
+      },
+      "tail_calls": {
+        "failed": 0,
+        "passed": 7
+      }
+    },
+    "native_total_passed": 376,
+    "paired_pins": {
+      "library-provider.lock.json": {
+        "description": "ABI 10 coherent native borrow hardening and reuse optimization snapshot, including current main MVar runtime and library sources.",
+        "revision": "3768281841e029cde89156e8d925a0652619e4c3",
+        "runtime_abi": 10,
+        "schema": 1,
+        "source_sha256": "03826793907e4fe766af4deeff4c0cce9552fa3321af3d7bc886b50e85c743d3"
+      },
+      "stage0.lock.json": {
+        "description": "ABI 10 coherent native borrow hardening and reuse optimization snapshot, including current main MVar runtime and library sources.",
+        "patch": "bootstrap/seed/stage0.patch",
+        "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "revision": "3768281841e029cde89156e8d925a0652619e4c3",
+        "runtime_abi": 10,
+        "schema": 1,
+        "source_sha256": "03826793907e4fe766af4deeff4c0cce9552fa3321af3d7bc886b50e85c743d3"
+      }
+    },
+    "smokes_passed": 3,
+    "staged_baseline_failure_causes": {
+      "evaluated_quotations_with_heap_holes_are_freed": "Bootstrap quotation/splice/eval refusal before code generation.",
+      "let_generalized_locals_at_raw_and_counted_types_are_freed": "Bootstrap infinite-type refusal before code generation.",
+      "the_cooperative_profile_selects_the_sequential_entries": "External wasm target profile name mismatch."
+    },
+    "staged_targets": [
+      {
+        "baseline_failures_only": true,
+        "exit": 101,
+        "failed": [
+          "the_cooperative_profile_selects_the_sequential_entries"
+        ],
+        "failed_count": 1,
+        "passed": 30,
+        "target": "parallel"
+      },
+      {
+        "baseline_failures_only": true,
+        "exit": 101,
+        "failed": [
+          "evaluated_quotations_with_heap_holes_are_freed",
+          "let_generalized_locals_at_raw_and_counted_types_are_freed"
+        ],
+        "failed_count": 2,
+        "passed": 22,
+        "target": "reclamation"
+      },
+      {
+        "baseline_failures_only": true,
+        "exit": 0,
+        "failed": [],
+        "failed_count": 0,
+        "passed": 6,
+        "target": "reclamation_tasks"
+      },
+      {
+        "baseline_failures_only": true,
+        "exit": 0,
+        "failed": [],
+        "failed_count": 0,
+        "passed": 5,
+        "target": "bootstrap_pipeline"
+      },
+      {
+        "baseline_failures_only": true,
+        "exit": 0,
+        "failed": [],
+        "failed_count": 0,
+        "passed": 4,
+        "target": "bootstrap_runtime_emit"
+      },
+      {
+        "baseline_failures_only": true,
+        "exit": 0,
+        "failed": [],
+        "failed_count": 0,
+        "passed": 7,
+        "target": "tail_calls"
+      }
+    ],
+    "whole_core_text": {
+      "exit": 0,
+      "limit": "Structural text verification, not a typed Program or ownership-balance proof.",
+      "report": "core owned: 51 modules, 6677 units, 491432 expressions, 4891 dictionaries, 4799 projections, 3 dictionary bindings; annotations: @borrow-candidates 5125, @borrow-modes 4100, @borrowed 9, @ctor 621, @instance 2, @params 6456, @stage 6677, @uses 6456"
+    }
+  }
+}

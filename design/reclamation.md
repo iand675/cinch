@@ -950,7 +950,10 @@ to refuse, and both front ends accept the word.
   allocation requests by 0.66-0.68% and requested bytes by about 0.21%
   against the uncached baseline. This is a smaller whole-compiler effect
   than the 64.80% reuse-search work reduction. No elapsed-time or scaling
-  improvement is claimed.
+  improvement is claimed. The controlled three-way results, optimized
+  repeat, current refusal breakdown and refreshed bootstrap validation
+  are recorded in
+  `experiments/borrow-inference/2026-11-16-hardening.json`.
 - Drop specialisation is the `Core::Release { block, moved, rest }` node,
   placed where a `Case` alternative on an owned, dead `Obj` scrutinee uses
   at least one field. Codegen tests the block's thread-local count with
