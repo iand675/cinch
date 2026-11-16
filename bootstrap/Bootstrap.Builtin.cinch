@@ -11,7 +11,7 @@ module Bootstrap.Builtin where
   import Text.Parse (ParseOutcome, Parsed, Failed)
 
   export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, intrinsic-contract, array-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation, wide-intrinsic, platform-intrinsic, total-primitive
-  export parallelism-declarations, parallelism-name, parallelism-method-slot, par-lowering-name
+  export par-lowering-name
 
   nat-arithmetic-extern :: String -> Option String
   nat-arithmetic-extern symbol =
@@ -214,7 +214,9 @@ module Bootstrap.Builtin where
   -- `design/parallelism-as-a-value.md`: these three are no longer a
   -- surface. They are the *lowering* of the host `Parallelism` instance's
   -- methods, and the only declarations that name a `cinch_par_*` entry.
-  -- The interface a program calls is `parallelism-declarations` below.
+  -- The interface a program calls is the four operations themselves
+  -- (`parBoth`, `parTabulate`, `parMap`, `parWorkers`): each is call-site
+  -- elaborated, so the caller's element classes reach the lowering.
   par-rule :: String -> String -> String -> Decl
   par-rule name operation scheme = par-rule-arity name operation 2 scheme
   par-rule-arity :: String -> String -> Int -> String -> Decl
@@ -266,88 +268,18 @@ module Bootstrap.Builtin where
   -- instance cannot forge this pair, because an instance's target names a
   -- checked signature and the slots are numbered from that signature's own
   -- member list (`design/parallelism-as-a-value.md` section 3).
-  parallelism-method-slot :: String -> Option Nat
-  parallelism-method-slot name =
-    if string-compare name "both" == 0 then Some 0
-    else if string-compare name "tabulate" == 0 then Some 1
-    else if string-compare name "mapArray" == 0 then Some 2
-    else if string-compare name "workers" == 0 then Some 3
-    else None
-
-  -- The host instance's lowering, by method slot: which primitive operation
-  -- the instance's method body performs. This is the whole of the
-  -- runtime-ABI coupling now (`design/parallelism-as-a-value.md` sections 1
-  -- and 9): the surface names a method, and only this table names a
-  -- `cinch_par_*` entry. Every slot has one: `workers` selects the
-  -- participant budget, so its method performs the runtime's
-  -- `cinch_par_set_workers` through the `par-workers` operation rather than
-  -- answering `Unit` for free, which would make the one method that decides
-  -- *who* runs the branches a no-op.
+  -- The operations, by method slot: which primitive a method performs. This
+  -- is the whole of the runtime-ABI coupling (`design/parallelism-as-a-value.md`
+  -- sections 1 and 9). `workers` selects the participant budget, so it
+  -- performs the runtime's `cinch_par_set_workers` through `par-workers`
+  -- rather than answering `Unit` for free, which would make the one method
+  -- that decides who runs the branches a no-op.
   par-lowering-name :: Nat -> String
   par-lowering-name slot = if slot == 0 then "par-both"
     else if slot == 1 then "par-tabulate"
     else if slot == 2 then "par-map"
     else "par-workers"
 
-  -- The host instance's identity. It is a kernel name for the same reason
-  -- the class is: the checker synthesizes the constructor and its four
-  -- method definitions, so no source spelling may claim it.
-  parallelism-instance-name :: String
-  parallelism-instance-name = "b.HostParallelism"
-
-  -- The signature and its methods, parsed from source text by the same
-  -- reader a user's module uses. This is deliberate: a class member's
-  -- contract must be the AST the class path expects (`DSig` with the
-  -- parser's own `TForall`/`TQuantifier` shape), and building that AST by
-  -- hand from `parse-scheme` output produced a contract whose leading
-  -- arrows were lost at registration. Parsing a whole `signature` block
-  -- keeps the two paths identical by construction.
-  parallelism-declarations :: List Decl
-  parallelism-declarations = case parse-program "parallelism" parallelism-source of
-    Parsed (MkProgram sp modules) Nil -> case modules of
-      Cons (MkModule ms name decls) Nil -> resolved-class (decls-of decls)
-      other -> Nil
-    other -> Nil
-
-  -- The checker's class path accepts only resolved members
-  -- (`source signature member needs checked method elaboration` otherwise),
-  -- and a source module gets them from `rename-class-members` in the
-  -- resolver. The kernel class is not in a source module, so the same
-  -- conversion happens here: each parsed `DSig` becomes a `DMethod` carrying
-  -- the kernel's own symbol and the parser's own contract, verbatim.
-  resolved-class :: List Decl -> List Decl
-  resolved-class ds = case ds of
-    Nil -> Nil
-    Cons (DClass sp name ps members) rest ->
-      Cons (DClass sp parallelism-name ps (decl-spine sp (resolved-members (decls-of members)))) (resolved-class rest)
-    Cons other rest -> Cons other (resolved-class rest)
-  -- A method's symbol is the operation that lowers it, the same table
-  -- `par-lowering-name` orders by slot. The methods are call-site
-  -- elaborated values, exactly as `parBoth` was before the class existed: a
-  -- dictionary field body would exist once and record the classes of the
-  -- method's own type parameters, while `PrimOp::Par` needs the caller's
-  -- (design/parallelism-as-a-value.md).
-  parallelism-method-symbol :: String -> String
-  parallelism-method-symbol name =
-    if string-compare name "both" == 0 then "b.parBoth"
-    else if string-compare name "tabulate" == 0 then "b.parTabulate"
-    else if string-compare name "mapArray" == 0 then "b.parMap"
-    else "b.parWorkers"
-
-  resolved-members :: List Decl -> List Decl
-  resolved-members ds = case ds of
-    Nil -> Nil
-    Cons (DSig sp name ty) rest -> Cons (DMethod sp name (parallelism-method-symbol name) ty) (resolved-members rest)
-    Cons other rest -> Cons other (resolved-members rest)
-
-  parallelism-source :: Bytes
-  parallelism-source = string-to-bytes (string-concat-all [
-    "module Parallelism where\n",
-    "  signature Parallelism where\n",
-    "    both :: forall (a :: Type) (b :: Type) (e :: Row). (Unit ->{|e} a) -> (Unit ->{|e} b) ->{|e} (a, b)\n",
-    "    tabulate :: forall (a :: Type) (e :: Row). Nat -> (Nat ->{|e} a) ->{|e} Array a\n",
-    "    mapArray :: forall (a :: Type) (b :: Type) (e :: Row). (a ->{|e} b) -> Array a ->{|e} Array b\n",
-    "    workers :: Nat -> Unit\n"])
 
   -- The checked data path retains the index and erases the bound field.
   finite-index-declaration :: Decl
