@@ -1,0 +1,58 @@
+-- | Exercise finite recursive array payloads with persistent aliases and heap-owned leaf values.
+module Main where
+  import Data.Array
+  import Data.Bytes
+  import Data.Nat
+  import Data.Option
+
+  -- | A finite nested tree whose arrays own child values without parent references.
+  data Tree where
+    -- | Retain an ordinary heap-owned byte buffer at a leaf.
+    Leaf :: Bytes -> Tree
+    -- | Retain a finite immutable array of independently owned child references.
+    Branch :: Array Tree -> Tree
+
+  -- | Observe a leaf after temporary constructor owners have been released.
+  leaf-weight :: Bytes -> Nat
+  leaf-weight bytes = let size = bytes-len bytes in if bytes-len bytes > 0 then size + bytes-get bytes 0 else size
+
+  -- | Observe every child through the actual generic array getter.
+  children-weight :: Array Tree -> Nat -> Nat
+  children-weight children index = case array-get children index of
+    None -> 0
+    Some child -> tree-weight child + children-weight children (index + 1)
+
+  -- | Traverse finite nested constructor payloads while preserving their leaf owners.
+  tree-weight :: Tree -> Nat
+  tree-weight tree = case tree of Leaf bytes -> leaf-weight bytes; Branch children -> children-weight children 0
+
+  -- | Construct shared leaves and a persistent replacement without retaining local buffers separately.
+  make-owners :: Unit -> (Tree, Array Tree, Tree)
+  make-owners unit =
+    let shared = bytes-new 96 in
+    let first = bytes-set shared 0 17 in
+    let other = bytes-new 257 in
+    let second = bytes-set other 0 31 in
+    let replacement = bytes-new 65 in
+    let third = bytes-set replacement 0 47 in
+    let children = array-from-list [Leaf shared, Branch (array-from-list [Leaf shared, Leaf other])] in
+    let original = Branch children in
+    case array-set children 1 (Leaf replacement) of
+      None -> (original, children, original)
+      Some changed -> (original, children, Branch changed)
+
+  -- | Mutate the ordinary shared leaf value while leaving persistent array structure unchanged.
+  change-shared :: Array Tree -> Bool
+  change-shared children = case array-get children 0 of
+    Some (Leaf bytes) -> if bytes-len bytes > 0 then let changed = bytes-set bytes 0 23 in True else False
+    other -> False
+
+  -- | Require original, alias and persistent replacement observations after temporary owners disappear.
+  main :: Int
+  main = case make-owners () of
+    (original, children, changed) ->
+      let alias = original in
+      let before = tree-weight original == 514 && tree-weight changed == 225 && children-weight children 0 == 514 in
+      let shared = change-shared children in
+      if before && shared && tree-weight original == 526 && tree-weight alias == 526 && tree-weight changed == 231
+        && children-weight children 0 == 526 then 0 else 1
