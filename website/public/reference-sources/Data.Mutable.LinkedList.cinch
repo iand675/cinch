@@ -1,0 +1,450 @@
+-- | A mutable doubly linked sequence with stable, independently retained element handles.
+-- Elements retain their values after removal or clearing. Navigation and structural
+-- changes take the owning list explicitly and reject foreign or stale handles.
+-- Links are machine-word arena indices, so the structure creates no ownership
+-- cycles and an element handle never retains the list or its other elements.
+module Data.Mutable.LinkedList where
+  import Data.Bytes (bytes-new, bytes-len, bytes-data)
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+
+  export LinkedList, ListElement, LinkedListError
+  export ForeignListElement, RemovedListElement, ListCapacityExceeded
+  export list-new, list-with-capacity, list-length, list-capacity, list-is-empty, list-reserve, list-clear
+  export list-front, list-back, list-next, list-prev, list-is-member, list-same-element
+  export list-element-value, list-element-set, list-remove
+  export list-push-front, list-push-back, list-insert-before, list-insert-after
+  export list-move-front, list-move-back, list-move-before, list-move-after
+  export list-append-list, list-prepend-list, list-from-list, list-to-list
+
+  -- | Allocate private zeroed ownership slots; only initialized positions are read.
+  foreign import ccall "cinch.runtime.slotsNew" slots-new :: forall a. U64 -> Array a
+  -- | Observe the fixed allocation's machine-word slot count.
+  foreign import ccall "cinch.runtime.slotsLen" slots-len :: forall a. Array a -> U64
+  -- | Retain one initialized private slot.
+  foreign import ccall "cinch.runtime.slotsRead" slots-read :: forall a. Array a -> U64 -> a
+  -- | Replace one private slot while releasing its previous owner.
+  foreign import ccall "cinch.runtime.slotsWrite" slots-write :: forall a. Array a -> U64 -> a -> Unit
+  -- | Move one initialized slot into the caller and leave its arena position empty.
+  foreign import ccall "cinch.runtime.slotsTake" slots-take :: forall a. Array a -> U64 -> a
+  -- | Move an arena prefix, including empty holes, without per-element reference-count changes.
+  foreign import ccall "cinch.runtime.slotsMove" slots-move :: forall a. Array a -> U64 -> Array a -> U64 -> U64 -> Unit
+  -- | Convert a natural only after a public bound has proved it fits a slot count.
+  foreign import ccall "cinch.runtime.slotsFoldNat" fold-nat :: Nat -> U64
+
+  -- | A checked structural refusal; failed handle checks leave both lists unchanged.
+  data LinkedListError where
+    -- | The handle was created by another list.
+    ForeignListElement :: LinkedListError
+    -- | The element was removed or belongs to a cleared membership generation.
+    RemovedListElement :: LinkedListError
+    -- | The requested capacity exceeds the addressable slot count.
+    ListCapacityExceeded :: LinkedListError
+
+  -- | A private stable identity, one value cell and previous/next/active metadata.
+  data ListNode a where
+    -- | The immutable serial never repeats within its owning list, including after a clear.
+    Node :: Nat -> Array a -> Array U64 -> ListNode a
+
+  -- | An opaque root owning live nodes, reusable holes and independent identity counters.
+  data LinkedList r a where
+    -- | Count/head/tail/used words, owner/generation tokens, storage, free indices and next serial.
+    ListState :: Array U64 -> Array Bytes -> Array (Array (ListNode a)) -> Array (List U64) -> Array Nat -> LinkedList r a
+
+  -- | A stable element identity with independently mutable value storage.
+  data ListElement r a where
+    -- | Retain only its owner tokens, node and slot, never the list root.
+    Member :: Bytes -> Bytes -> ListNode a -> U64 -> ListElement r a
+
+  -- | Reserve the all-ones word for the absent previous/next position.
+  no-slot :: U64
+  no-slot = 18446744073709551615
+
+  -- | Slot allocations fit the nonnegative machine address range.
+  maximum-slots :: U64
+  maximum-slots = 9223372036854775807
+
+  -- | Convert a bounded nonnegative slot count to its public natural representation.
+  natural :: U64 -> Nat
+  natural value = nat-from-i64 (mask-i64 (wrapping-u64-to-i64 value) 9223372036854775807)
+
+  -- | Advance an already bounded slot or count by one.
+  successor :: U64 -> U64
+  successor value = wrapping-add-u64 value 1
+
+  -- | Retreat a known positive count by one.
+  predecessor :: U64 -> U64
+  predecessor value = wrapping-sub-u64 value 1
+
+  -- | Compare private nonempty identity tokens while observing both owners through the comparison.
+  same-token :: Bytes -> Bytes -> Bool
+  same-token first second =
+    let equal = eq-i64 (bytes-data first) (bytes-data second) in
+    let first-length = bytes-len first in
+    let second-length = bytes-len second in
+    first-length == 1 && second-length == 1 && equal
+
+  -- | Read one root header field from its initialized metadata array.
+  header :: forall r a. LinkedList r a -> U64 -> U64
+  header list field = case list of ListState metadata tokens storage free serial -> slots-read metadata field
+
+  -- | Replace one root header field without touching another list.
+  set-header :: forall r a. LinkedList r a -> U64 -> U64 -> Unit
+  set-header list field value = case list of ListState metadata tokens storage free serial -> slots-write metadata field value
+
+  -- | Observe the root's current arena, including reusable empty positions.
+  arena :: forall r a. LinkedList r a -> Array (ListNode a)
+  arena list = case list of ListState metadata tokens storage free serial -> slots-read storage 0
+
+  -- | Retain a node known to occupy a live arena position.
+  node-at :: forall r a. LinkedList r a -> U64 -> ListNode a
+  node-at list index = slots-read (arena list) index
+
+  -- | Read one node link or active flag.
+  node-word :: forall a. ListNode a -> U64 -> U64
+  node-word node field = case node of Node serial value metadata -> slots-read metadata field
+
+  -- | Replace one node link or active flag.
+  set-node-word :: forall a. ListNode a -> U64 -> U64 -> Unit
+  set-node-word node field word = case node of Node serial value metadata -> slots-write metadata field word
+
+  -- | Read the immutable, unbounded insertion serial of a node.
+  node-serial :: forall a. ListNode a -> Nat
+  node-serial node = case node of Node serial value metadata -> serial
+
+  -- | Retain the node's current value, including after its membership ends.
+  node-value :: forall a. ListNode a -> a
+  node-value node = case node of Node serial value metadata -> slots-read value 0
+
+  -- | Replace a retained node value independently of its former neighbors.
+  set-node-value :: forall a. ListNode a -> a -> Unit
+  set-node-value node replacement = case node of Node serial value metadata -> slots-write value 0 replacement
+
+  -- | Capture current owner and membership tokens for a known live node.
+  element-at :: forall r a. LinkedList r a -> U64 -> ListElement r a
+  element-at list index = case list of
+    ListState metadata tokens storage free serial ->
+      Member (slots-read tokens 0) (slots-read tokens 1) (node-at list index) index
+
+  -- | Check owner identity before generation and activity, without dereferencing an obsolete arena slot.
+  membership-error :: forall r a. LinkedList r a -> ListElement r a -> Option LinkedListError
+  membership-error list element = case (list, element) of
+    (ListState metadata tokens storage free serial, Member owner generation node index) ->
+      if not (same-token (slots-read tokens 0) owner) then Some ForeignListElement
+      else if not (same-token (slots-read tokens 1) generation) then Some RemovedListElement
+      else if eq-u64 (node-word node 2) 0 then Some RemovedListElement else None
+
+  -- | Build an empty root with a validated physical capacity and fresh identity tokens.
+  fresh-list :: forall r a. U64 -> LinkedList r a
+  fresh-list capacity =
+    let metadata = (slots-new 4 :: Array U64) in
+    let count = slots-write metadata 0 (0 :: U64) in
+    let first = slots-write metadata 1 no-slot in
+    let last = slots-write metadata 2 no-slot in
+    let used = slots-write metadata 3 (0 :: U64) in
+    let tokens = (slots-new 2 :: Array Bytes) in
+    let owner = slots-write tokens 0 (bytes-new 1) in
+    let generation = slots-write tokens 1 (bytes-new 1) in
+    let storage = slots-new 1 in
+    let installed = slots-write storage 0 (slots-new capacity) in
+    let free = (slots-new 1 :: Array (List U64)) in
+    let empty = slots-write free 0 Nil in
+    let serial = (slots-new 1 :: Array Nat) in
+    let initial = slots-write serial 0 0 in
+    ListState metadata tokens storage free serial
+
+  -- | Create an empty list whose first insertion allocates its arena.
+  list-new :: forall r a. Unit ->{Mut r} LinkedList r a
+  list-new unit = fresh-list 0
+
+  -- | Create an empty list with a bounded minimum arena capacity.
+  list-with-capacity :: forall r a. Nat ->{Mut r} Result LinkedListError (LinkedList r a)
+  list-with-capacity capacity = if capacity > natural maximum-slots then Err ListCapacityExceeded
+    else Ok (fresh-list (fold-nat capacity))
+
+  -- | Observe the number of live elements in constant time.
+  list-length :: forall r a. LinkedList r a ->{Mut r} Nat
+  list-length list = natural (header list 0)
+
+  -- | Observe the arena allocation's current slot capacity, including reusable holes.
+  list-capacity :: forall r a. LinkedList r a ->{Mut r} Nat
+  list-capacity list = natural (slots-len (arena list))
+
+  -- | Test whether the list has no live elements.
+  list-is-empty :: forall r a. LinkedList r a ->{Mut r} Bool
+  list-is-empty list = eq-u64 (header list 0) 0
+
+  -- | Grow geometrically without overflowing the bounded slot count.
+  grown-capacity :: U64 -> U64 -> U64
+  grown-capacity capacity needed =
+    let doubled = if lt-u64 capacity 4 then (4 :: U64) else if gt-u64 capacity 4611686018427387903 then maximum-slots else wrapping-add-u64 capacity capacity in
+    if lt-u64 doubled needed then needed else doubled
+
+  -- | Install enough arena space using one bulk ownership-moving operation.
+  -- The runtime transfer handles whole slots and holes together; dependent link
+  -- traversal remains scalar because later positions depend on earlier reads.
+  reserve-words :: forall r a. LinkedList r a -> U64 -> Unit
+  reserve-words list needed = case list of
+    ListState metadata tokens storage free serial ->
+      let old = slots-read storage 0 in
+      let capacity = slots-len old in
+      if lt-u64 capacity needed then
+        let replacement = slots-new (grown-capacity capacity needed) in
+        let moved = slots-move replacement 0 old 0 (slots-read metadata 3) in
+        slots-write storage 0 replacement
+      else ()
+
+  -- | Reserve room for additional live elements, returning a capacity refusal before mutation.
+  list-reserve :: forall r a. LinkedList r a -> Nat ->{Mut r} Result LinkedListError Unit
+  list-reserve list additional =
+    let count = header list 0 in
+    if additional > natural (wrapping-sub-u64 maximum-slots count) then Err ListCapacityExceeded else
+      let needed = wrapping-add-u64 count (fold-nat additional) in
+      let reserved = reserve-words list needed in Ok ()
+
+  -- | Remove every membership while detached handles keep their own values.
+  -- The root drops its node owners and replaces the generation token. Releasing
+  -- unretained nodes costs linear work; no handle retains the cleared root.
+  list-clear :: forall r a. LinkedList r a ->{Mut r} Unit
+  list-clear list = case list of
+    ListState metadata tokens storage free serial ->
+      let generation = slots-write tokens 1 (bytes-new 1) in
+      let emptied = slots-write storage 0 (slots-new 0) in
+      let forgotten = slots-write free 0 Nil in
+      let count = slots-write metadata 0 (0 :: U64) in
+      let first = slots-write metadata 1 no-slot in
+      let last = slots-write metadata 2 no-slot in
+      slots-write metadata 3 (0 :: U64)
+
+  -- | Retain the first live element, or None for an empty list.
+  list-front :: forall r a. LinkedList r a ->{Mut r} Option (ListElement r a)
+  list-front list = let index = header list 1 in
+    if eq-u64 index no-slot then None else Some (element-at list index)
+
+  -- | Retain the last live element, or None for an empty list.
+  list-back :: forall r a. LinkedList r a ->{Mut r} Option (ListElement r a)
+  list-back list = let index = header list 2 in
+    if eq-u64 index no-slot then None else Some (element-at list index)
+
+  -- | Distinguish current membership from foreign, removed and cleared handles.
+  list-is-member :: forall r a. LinkedList r a -> ListElement r a ->{Mut r} Bool
+  list-is-member list element = case membership-error list element of None -> True; Some error -> False
+
+  -- | Compare stable node identity even after removal, clearing or reuse of its old slot.
+  list-same-element :: forall r s a. ListElement r a -> ListElement s a -> Bool
+  list-same-element first second = case (first, second) of
+    (Member owner generation node index, Member other other-generation other-node other-index) ->
+      same-token owner other && node-serial node == node-serial other-node
+
+  -- | Read an element's current value independently of list membership.
+  list-element-value :: forall r a. ListElement r a ->{Mut r} a
+  list-element-value element = case element of Member owner generation node index -> node-value node
+
+  -- | Change an element's retained value, including after removal or clearing.
+  list-element-set :: forall r a. ListElement r a -> a ->{Mut r} Unit
+  list-element-set element replacement = case element of Member owner generation node index -> set-node-value node replacement
+
+  -- | Navigate one checked direction without reading an obsolete or empty arena slot.
+  neighbor :: forall r a. LinkedList r a -> ListElement r a -> U64 -> Result LinkedListError (Option (ListElement r a))
+  neighbor list element direction = case membership-error list element of
+    Some error -> Err error
+    None -> case element of
+      Member owner generation node index -> let adjacent = node-word node direction in
+        if eq-u64 adjacent no-slot then Ok None else Ok (Some (element-at list adjacent))
+
+  -- | Read the following element, with None at the back and a named error for an invalid handle.
+  list-next :: forall r a. LinkedList r a -> ListElement r a ->{Mut r} Result LinkedListError (Option (ListElement r a))
+  list-next list element = neighbor list element 1
+
+  -- | Read the preceding element, with None at the front and a named error for an invalid handle.
+  list-prev :: forall r a. LinkedList r a -> ListElement r a ->{Mut r} Result LinkedListError (Option (ListElement r a))
+  list-prev list element = neighbor list element 0
+
+  -- | Make a fresh node at an already reserved position, never reusing its immutable serial.
+  allocate-at :: forall r a. LinkedList r a -> U64 -> a -> ListNode a
+  allocate-at list index value = case list of
+    ListState metadata tokens storage free serial ->
+      let identity = slots-read serial 0 in
+      let advanced = slots-write serial 0 (identity + 1) in
+      let cell = slots-new 1 in
+      let installed = slots-write cell 0 value in
+      let links = (slots-new 3 :: Array U64) in
+      let first = slots-write links 0 no-slot in
+      let last = slots-write links 1 no-slot in
+      let active = slots-write links 2 (1 :: U64) in
+      let node = Node identity cell links in
+      let stored = slots-write (slots-read storage 0) index node in node
+
+  -- | Reuse a vacant slot before extending the used prefix, refusing overflow before mutation.
+  allocate-node :: forall r a. LinkedList r a -> a -> Result LinkedListError (U64, ListNode a)
+  allocate-node list value = case list of
+    ListState metadata tokens storage free serial ->
+      case slots-read free 0 of
+        Cons index rest -> let popped = slots-write free 0 rest in Ok (index, allocate-at list index value)
+        Nil -> let used = slots-read metadata 3 in
+          if eq-u64 used maximum-slots then Err ListCapacityExceeded else
+            let reserved = reserve-words list (successor used) in
+            let node = allocate-at list used value in
+            let extended = slots-write metadata 3 (successor used) in Ok (used, node)
+
+  -- | Connect an existing active node between two neighboring positions.
+  attach :: forall r a. LinkedList r a -> U64 -> ListNode a -> U64 -> U64 -> Unit
+  attach list index node previous following =
+    let prev = set-node-word node 0 previous in
+    let next = set-node-word node 1 following in
+    let left = if eq-u64 previous no-slot then set-header list 1 index else set-node-word (node-at list previous) 1 index in
+    if eq-u64 following no-slot then set-header list 2 index else set-node-word (node-at list following) 0 index
+
+  -- | Bypass one active node without changing its ownership, activity or the live count.
+  detach :: forall r a. LinkedList r a -> ListNode a -> Unit
+  detach list node =
+    let previous = node-word node 0 in
+    let following = node-word node 1 in
+    let left = if eq-u64 previous no-slot then set-header list 1 following else set-node-word (node-at list previous) 1 following in
+    if eq-u64 following no-slot then set-header list 2 previous else set-node-word (node-at list following) 0 previous
+
+  -- | Allocate and link one element, preserving the root on a capacity refusal.
+  insert-between :: forall r a. LinkedList r a -> a -> U64 -> U64 -> Result LinkedListError (ListElement r a)
+  insert-between list value previous following = case allocate-node list value of
+    Err error -> Err error
+    Ok (index, node) -> let linked = attach list index node previous following in
+      let counted = set-header list 0 (successor (header list 0)) in Ok (element-at list index)
+
+  -- | Insert a value before the current first element in amortized constant time.
+  list-push-front :: forall r a. LinkedList r a -> a ->{Mut r} Result LinkedListError (ListElement r a)
+  list-push-front list value = insert-between list value no-slot (header list 1)
+
+  -- | Insert a value after the current last element in amortized constant time.
+  list-push-back :: forall r a. LinkedList r a -> a ->{Mut r} Result LinkedListError (ListElement r a)
+  list-push-back list value = insert-between list value (header list 2) no-slot
+
+  -- | Insert immediately before a checked marker, rejecting stale or foreign markers before mutation.
+  list-insert-before :: forall r a. LinkedList r a -> a -> ListElement r a ->{Mut r} Result LinkedListError (ListElement r a)
+  list-insert-before list value marker = case membership-error list marker of
+    Some error -> Err error
+    None -> case marker of Member owner generation node index -> insert-between list value (node-word node 0) index
+
+  -- | Insert immediately after a checked marker, rejecting stale or foreign markers before mutation.
+  list-insert-after :: forall r a. LinkedList r a -> a -> ListElement r a ->{Mut r} Result LinkedListError (ListElement r a)
+  list-insert-after list value marker = case membership-error list marker of
+    Some error -> Err error
+    None -> case marker of Member owner generation node index -> insert-between list value index (node-word node 1)
+
+  -- | Remove one checked membership in constant time and return its retained value.
+  -- The old handle stays readable and writable; its slot may be reused by a
+  -- different node with a different serial, while every old membership stays stale.
+  list-remove :: forall r a. LinkedList r a -> ListElement r a ->{Mut r} Result LinkedListError a
+  list-remove list element = case membership-error list element of
+    Some error -> Err error
+    None -> case (list, element) of
+      (ListState metadata tokens storage free serial, Member owner generation node index) ->
+        let bypassed = detach list node in
+        let inactive = set-node-word node 2 (0 :: U64) in
+        let prev = set-node-word node 0 no-slot in
+        let next = set-node-word node 1 no-slot in
+        let removed = slots-take (slots-read storage 0) index in
+        let recycled = slots-write free 0 (Cons index (slots-read free 0)) in
+        let counted = slots-write metadata 0 (predecessor (slots-read metadata 0)) in Ok (node-value node)
+
+  -- | Move a checked member to the front without changing its identity or value.
+  list-move-front :: forall r a. LinkedList r a -> ListElement r a ->{Mut r} Result LinkedListError Unit
+  list-move-front list element = case membership-error list element of
+    Some error -> Err error
+    None -> case element of
+      Member owner generation node index ->
+        if eq-u64 index (header list 1) then Ok () else
+          let bypassed = detach list node in
+          let linked = attach list index node no-slot (header list 1) in Ok ()
+
+  -- | Move a checked member to the back without changing its identity or value.
+  list-move-back :: forall r a. LinkedList r a -> ListElement r a ->{Mut r} Result LinkedListError Unit
+  list-move-back list element = case membership-error list element of
+    Some error -> Err error
+    None -> case element of
+      Member owner generation node index ->
+        if eq-u64 index (header list 2) then Ok () else
+          let bypassed = detach list node in
+          let linked = attach list index node (header list 2) no-slot in Ok ()
+
+  -- | Validate both members before moving one immediately before the other; moving to itself succeeds unchanged.
+  list-move-before :: forall r a. LinkedList r a -> ListElement r a -> ListElement r a ->{Mut r} Result LinkedListError Unit
+  list-move-before list element marker = case membership-error list element of
+    Some error -> Err error
+    None -> case membership-error list marker of
+      Some error -> Err error
+      None -> case (element, marker) of
+        (Member owner generation node index, Member other other-generation other-node other-index) ->
+          if eq-u64 index other-index then Ok () else
+            let bypassed = detach list node in
+            let linked = attach list index node (node-word other-node 0) other-index in Ok ()
+
+  -- | Validate both members before moving one immediately after the other; moving to itself succeeds unchanged.
+  list-move-after :: forall r a. LinkedList r a -> ListElement r a -> ListElement r a ->{Mut r} Result LinkedListError Unit
+  list-move-after list element marker = case membership-error list element of
+    Some error -> Err error
+    None -> case membership-error list marker of
+      Some error -> Err error
+      None -> case (element, marker) of
+        (Member owner generation node index, Member other other-generation other-node other-index) ->
+          if eq-u64 index other-index then Ok () else
+            let bypassed = detach list node in
+            let linked = attach list index node other-index (node-word other-node 1) in Ok ()
+
+  -- | Copy a bounded original sequence directly into owned nodes without constructing unused element handles.
+  -- Read the next original link before insertion can change it, including when
+  -- both roots alias and the copied endpoint gains a new neighbor.
+  copy-members :: forall r s a. LinkedList r a -> LinkedList s a -> Bool -> U64 -> U64 ->{Mut r, Mut s} Result LinkedListError Unit
+  copy-members destination source front index remaining = if eq-u64 remaining 0 then Ok () else
+    let node = node-at source index in
+    let following = node-word node (if front then (0 :: U64) else (1 :: U64)) in
+    case allocate-node destination (node-value node) of
+      Err error -> Err error
+      Ok (destination-index, fresh-node) ->
+        let previous = if front then no-slot else header destination 2 in
+        let next = if front then header destination 1 else no-slot in
+        let linked = attach destination destination-index fresh-node previous next in
+        let counted = set-header destination 0 (successor (header destination 0)) in
+        copy-members destination source front following (predecessor remaining)
+
+  -- | Preflight the complete copy's capacity before changing either sequence; self-copy uses the original count.
+  copy-list :: forall r s a. LinkedList r a -> LinkedList s a -> Bool ->{Mut r, Mut s} Result LinkedListError Unit
+  copy-list destination source front =
+    let count = header source 0 in
+    let reserved = list-reserve destination (natural count) in
+    case reserved of
+      Err error -> Err error
+      Ok unit -> copy-members destination source front (header source (if front then (2 :: U64) else (1 :: U64))) count
+
+  -- | Append the source values in order, including a bounded copy when both arguments alias the same list.
+  list-append-list :: forall r s a. LinkedList r a -> LinkedList s a ->{Mut r, Mut s} Result LinkedListError Unit
+  list-append-list destination source = copy-list destination source False
+
+  -- | Prepend the source values in order, including a bounded copy when both arguments alias the same list.
+  list-prepend-list :: forall r s a. LinkedList r a -> LinkedList s a ->{Mut r, Mut s} Result LinkedListError Unit
+  list-prepend-list destination source = copy-list destination source True
+
+  -- | Insert an immutable source sequence from left to right without reversing its order.
+  fill-list :: forall r a. LinkedList r a -> List a ->{Mut r} Result LinkedListError (LinkedList r a)
+  fill-list list values = case values of
+    Nil -> Ok list
+    Cons first rest -> case list-push-back list first of Err error -> Err error; Ok element -> fill-list list rest
+
+  -- | Build a list from immutable values, sharing their ordinary value owners.
+  list-from-list :: forall r a. List a ->{Mut r} Result LinkedListError (LinkedList r a)
+  list-from-list values = fill-list (fresh-list 0) values
+
+  -- | Reverse private accumulated values without depending on a precompiled element-representation variant.
+  reverse-values :: forall a. List a -> List a -> List a
+  reverse-values values reversed = case values of Nil -> reversed; Cons first rest -> reverse-values rest (Cons first reversed)
+
+  -- | Traverse the current links without callbacks or ownership of any exposed element handle.
+  collect-values :: forall r a. LinkedList r a -> U64 -> List a -> List a
+  collect-values list index reversed = if eq-u64 index no-slot then reverse-values reversed Nil else
+    let node = node-at list index in
+    collect-values list (node-word node 1) (Cons (node-value node) reversed)
+
+  -- | Copy the current value sequence into an immutable list.
+  list-to-list :: forall r a. LinkedList r a ->{Mut r} List a
+  list-to-list list = collect-values list (header list 1) Nil

@@ -1,6 +1,6 @@
 # Data.Mutable
 
-One import for the mutable containers. Every container is indexed by a region r and every operation carries the Mut r label, a capability like IO r, so purity stays a checked property.
+A curated mutable-container facade. Region-indexed operations carry Mut r; callback-backed heaps and stable linked-list elements have their own module imports.
 
 <span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
 
@@ -16,7 +16,9 @@ Non-embedded source closure: [Data.Mutable](Data.Mutable.md), [Data.Mutable.Arra
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
-Data.Mutable: the mutable containers, behind one import.
+A curated mutable-container facade with region-indexed operations.
+Import Data.Mutable.HeapView for callback-backed heaps and
+Data.Mutable.LinkedList for stable, independently retained list elements.
 
 Every container is indexed by a region `r`, and every operation on it
 carries the `Mut r` label in its row:
@@ -2135,4 +2137,4 @@ reallocation.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Mutable.cinch`. Source SHA-256: `41f43a5edd93e517e7aa298c9ae7b3af24b56313cc49dd20dfaccd380713aeaa`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Mutable.cinch`. Source SHA-256: `6e6c039972d5efd23e30bdf1ca35c5bdf9967065ed8765a0384ec688f0c09206`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
