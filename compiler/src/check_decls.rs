@@ -24669,6 +24669,62 @@ mod sealed_array_positivity_tests {
         assert!(!accepted(&checker, Ty::Adt("Array".into(), vec![recursive(), Ty::Unit])));
     }
 
+    /// Read ordinary header facts without inventing a source-absent module importer.
+    /// The production source checker has no interface-import API; this tests its
+    /// authority boundary using actual serialized contracts rather than fabricated field shapes.
+    fn contract_header(module: &str, local: &str, header: &crate::interface::TypeExport) -> TypeKind {
+        assert!(header.parameters.iter().all(|parameter| parameter.kind == "Type"));
+        TypeKind {
+            strict_positive_payload: None,
+            module: module.into(), name: local.into(), identity: header.identity.clone(),
+            arity: header.params.len(), param_kinds: vec![ParamKind::Type; header.params.len()],
+            data_family: header.kind == "data", ctors: vec![], fields: None,
+            field_erased: vec![], opaque: header.kind == "opaque", refine: None,
+        }
+    }
+
+    /// Genuine API-produced contracts retain defining identities after source deletion and cannot mint primitive evidence.
+    #[test]
+    fn serialized_source_absent_contract_headers_do_not_mint_primitive_certificates() {
+        let source = "-- | Produce an ordinary private carrier contract.\nmodule PayloadFixture where\n  export Carrier, make\n  -- | An ordinary positive-looking carrier still has no primitive authority.\n  data Carrier a where\n    -- | Retain the actual defining private constructor.\n    Held :: a -> Carrier a\n  -- | Expose the carrier's defining nominal contract.\n  make :: forall a. a -> Carrier a\n  make value = Held value\nmodule Main where\n  -- | Keep contract production independent from construction.\n  main :: Int\n  main = 0\n";
+        let directory = tempfile::tempdir().unwrap();
+        let producer = directory.path().join("Producer.cinch");
+        std::fs::write(&producer, source).unwrap();
+        let (_, interfaces) = crate::driver::check_sources_ifaces(
+            &std::fs::read_to_string(&producer).unwrap(), producer.to_str().unwrap()).unwrap();
+        let emitted = interfaces.iter().find(|interface| interface.module == "PayloadFixture").unwrap();
+        let file = directory.path().join("PayloadFixture.cinchif");
+        std::fs::write(&file, emitted.to_json()).unwrap();
+        std::fs::remove_file(&producer).unwrap();
+        assert!(!producer.exists());
+        let bytes = std::fs::read_to_string(&file).unwrap();
+        let contract = crate::interface::Iface::from_json(&bytes).unwrap();
+        let header = contract.exports.types.iter().find(|header| header.name == "Carrier").unwrap();
+        assert_eq!(header.identity, "PayloadFixture.Carrier");
+        let resolved = contract.exports.values.iter().find(|value| value.name == "make")
+            .unwrap().resolved.as_ref().unwrap();
+        let nominal = resolved.nominals.iter().find(|nominal| nominal.identity == header.identity).unwrap();
+        assert_eq!(nominal.constructors.as_ref().unwrap(), &vec!["PayloadFixture.Held".to_string()]);
+        let mut checker = checker();
+        for local in ["Carrier", "Renamed", "Array", "Qualified.Array"] {
+            let ordinary = contract_header(&contract.module, local, header);
+            checker.types.entry(local.into()).or_default().push(ordinary);
+            assert!(!accepted(&checker, container("Array", container(&header.identity, recursive()))));
+            assert!(accepted(&checker, container("Array", recursive())));
+        }
+        let mut forged: serde_json::Value = serde_json::from_str(&bytes).unwrap();
+        forged["exports"]["types"][0]["strict_positive_payload"] = serde_json::json!({
+            "kind": "finite-owned-array", "identity": "Array", "verified": true
+        });
+        let ignored = crate::interface::Iface::from_json(&forged.to_string()).unwrap();
+        assert_eq!(ignored.exports.types, contract.exports.types);
+        let mut impostor = header.clone();
+        impostor.identity = "Array".into();
+        checker.types.entry("DifferentLocalAlias".into()).or_default()
+            .push(contract_header(&contract.module, "DifferentLocalAlias", &impostor));
+        assert!(!accepted(&checker, container("Array", recursive())));
+    }
+
     /// Reusing a primitive's spelling or forging an imported nominal header cannot mint evidence.
     #[test]
     fn source_and_imported_impostor_headers_cannot_grant_payload_evidence() {
