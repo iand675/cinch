@@ -1,0 +1,69 @@
+-- | Independent owned-byte construction consumers with runtime counts and alias checks.
+module Main where
+  import Data.Bytes.Build as B
+  import Data.Bytes
+  import Data.Bool
+  import Data.String
+  import Effect.Process
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Text.Hex
+  -- | Keep deep list and large buffer construction in runtime execution.
+  prim runtime-word :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+  -- | Preserve each bounded fixture count as an opaque runtime natural.
+  runtime-count :: Nat -> Nat
+  runtime-count n = if n <= 1048576 then u32-to-nat (runtime-word (wrapping-i64-to-u32 (nat-to-i64 n))) else 0
+  -- | Conjoin every independent observation.
+  all :: List Bool -> Bool
+  all values = case values of Nil -> True; Cons first rest -> first && all rest
+  -- | Decode exact independent raw bytes without a UTF-8 interpretation.
+  input :: String -> Bytes
+  input text = case hex-decode text of Ok raw -> raw; Err error -> bytes-new 0
+  -- | Compare all bytes and their exact lengths.
+  same :: Bytes -> Bytes -> Bool
+  same a b = eq-i64 (bytes-compare a b) 0
+  -- | Observe full output identity and every exact short byte sequence.
+  observed :: Bytes -> Nat -> String -> String -> Bool
+  observed raw size hex digest = bytes-len raw == size && same (sha256-bytes raw) (input digest)
+    && (if size <= 512 then same raw (input hex) else True)
+  -- | Compare arbitrary-byte repetitions at every complete-prefix and final-fringe boundary.
+  repeat-case :: String -> Nat -> Nat -> String -> String -> Bool
+  repeat-case unit count size hex digest = observed (B.bytes-repeat (runtime-count count) (input unit)) size hex digest
+  -- | Build repeated piece patterns with a tail accumulator rather than another list constructor.
+  make-pieces :: Nat -> List Bytes -> List Bytes -> List Bytes -> List Bytes
+  make-pieces cycles pattern pending reversed = if cycles == 0 then reverse reversed else
+    case pending of
+      Nil -> let left = cycles - 1 in make-pieces left pattern pattern reversed
+      Cons first rest -> let values = Cons first reversed in make-pieces cycles pattern rest values
+  -- | Compare deep joins with independent full digests and exact separator placement.
+  join-case :: List String -> Nat -> String -> Nat -> String -> String -> Bool
+  join-case hex-pieces cycles separator size hex digest =
+    let pattern = map input hex-pieces in let pieces = make-pieces (runtime-count cycles) pattern pattern Nil in
+    let gap = input separator in
+    observed (B.bytes-join pieces gap) size hex digest
+      && (if bytes-len gap == 0 then observed (B.bytes-concat pieces) size hex digest else True)
+  -- | Check that clone, repeat and join preserve independent caller buffers after later mutations.
+  alias-case :: Unit -> Bool
+  alias-case unit =
+    let source = input "00ff80" in let copy = B.bytes-clone source in
+    let repeated = B.bytes-repeat (runtime-count 3) source in let joined = B.bytes-join [source,source] (input "aabb") in
+    let changed = if 0 < bytes-len source then bytes-set source 0 1 else () in
+    same copy (input "00ff80") && same repeated (input "00ff8000ff8000ff80") && same joined (input "00ff80aabb00ff80")
+      && (let output-change = if 1 < bytes-len copy then bytes-set copy 1 0 else () in same source (input "01ff80") && same repeated (input "00ff8000ff8000ff80"))
+  -- | Repeatedly release temporary source owners around complete construction pipelines.
+  owners-loop :: Nat -> Nat -> Bool
+  owners-loop left count = if left == 0 then True else
+    let raw = B.bytes-repeat count (input "ff80") in
+    let joined = B.bytes-concat [input "00",raw,input "ff"] in let copy = B.bytes-clone joined in
+    let ok = bytes-len copy == count * 2 + 2 && same copy joined in
+    if ok then let remaining = left - 1 in owners-loop remaining count else False
+  -- | Exercise backing ownership with repeated sixteen-kibibyte-plus-one inputs.
+  owners-case :: Unit -> Bool
+  owners-case unit = alias-case () && owners-loop (runtime-count 100) (runtime-count 16385)
