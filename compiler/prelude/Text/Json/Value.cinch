@@ -20,6 +20,7 @@ module Text.Json.Value where
   import Data.Unicode.Kernel
 
   export JsonError, JsonSyntaxError, JsonTypeError, JsonValueError, JsonTargetError
+  export JsonInvalidValueError, json-error-invalid-value
   export JsonUnknownField, JsonCustomError, JsonPathError, JsonEncodingError, JsonTypeCause, JsonUnsupportedType
   export json-error-message, json-error-offset, json-error-path, json-error-type, json-error-value, json-error-cause
   export JsonNumber, json-zero-number, json-empty-number, json-number, json-number-text, json-number-int64, json-number-float64
@@ -29,7 +30,7 @@ module Text.Json.Value where
   export json-value-kind, json-value-start, json-value-end, json-value-source
   export json-value-bool, json-value-number, json-value-string
   export json-array-length, json-array-get, json-array-values
-  export JsonMember, json-member-name, json-member-value, json-object-members, json-object-lookup
+  export JsonMember, json-member-name, json-member-value, json-member-key, json-object-members, json-object-lookup
   export json-indent-bytes, json-append-indent-bytes
   export json-valid, json-compact, json-append-compact, json-indent, json-append-indent, json-html-escape, json-append-html-escape
   export json-quote, json-quote-bytes
@@ -61,6 +62,8 @@ module Text.Json.Value where
     JsonPathError :: String -> JsonError -> JsonError
     -- | Explicit strict text conversion failure with its original byte offset.
     JsonEncodingError :: Nat -> String -> JsonError
+    -- | An unrepresentable encoding state without a valid application value or type label.
+    JsonInvalidValueError :: String -> JsonError
 
   -- | Render a diagnostic using JSON and application type names.
   json-error-message :: JsonError -> String
@@ -75,6 +78,7 @@ module Text.Json.Value where
     JsonCustomError label cause -> string-concat-all ["JSON conversion for ", label, ": ", json-error-message cause]
     JsonPathError path cause -> string-concat-all [json-error-message cause, " at ", path]
     JsonEncodingError offset message -> message
+    JsonInvalidValueError message -> string-concat "unsupported JSON value: " message
 
   -- | Original byte offset when one exists, otherwise zero.
   json-error-offset :: JsonError -> Nat
@@ -89,6 +93,7 @@ module Text.Json.Value where
     JsonCustomError label cause -> json-error-offset cause
     JsonPathError path cause -> json-error-offset cause
     JsonEncodingError offset message -> offset
+    JsonInvalidValueError message -> 0
 
   -- | Application member/index path carried by a diagnostic.
   json-error-path :: JsonError -> String
@@ -117,6 +122,7 @@ module Text.Json.Value where
     JsonTypeError expected actual offset path -> Some actual
     JsonTypeCause expected actual offset path cause -> Some actual
     JsonValueError label message -> Some message
+    JsonInvalidValueError message -> Some message
     JsonCustomError label cause -> json-error-value cause
     JsonPathError path cause -> json-error-value cause
     other -> None
@@ -128,6 +134,14 @@ module Text.Json.Value where
     JsonCustomError label cause -> Some cause
     JsonPathError path cause -> Some cause
     other -> None
+
+  -- | Whether a value failure lacks a valid application value, after custom/path context is removed.
+  json-error-invalid-value :: JsonError -> Bool
+  json-error-invalid-value error = case error of
+    JsonInvalidValueError message -> True
+    JsonPathError path cause -> json-error-invalid-value cause
+    JsonCustomError label cause -> json-error-invalid-value cause
+    other -> False
 
   -- | An exact grammar-validated JSON number spelling, or an explicit absent-spelling default.
   data JsonNumber where
@@ -270,6 +284,7 @@ module Text.Json.Value where
         NFalse -> JsonBooleanKind
         NNumber -> JsonNumberKind
         NString -> JsonStringKind
+        NKey -> JsonStringKind
         NArray -> JsonArrayKind
         NObject -> JsonObjectKind
         other -> JsonInvalidKind
@@ -1136,6 +1151,7 @@ module Text.Json.Value where
     Value document node -> case node of
       Node kind index start end next children -> case kind of
         NString -> case document of Document input tape root -> case decode-node-string input node of Ok text -> Some text; Err error -> None
+        NKey -> case document of Document input tape root -> case decode-node-string input node of Ok text -> Some text; Err error -> None
         other -> None
 
   -- | Decode a checked hexadecimal byte to its numeric nibble.
@@ -1500,3 +1516,21 @@ module Text.Json.Value where
   -- | Indent one complete value with byte-exact line-prefix and indentation fragments.
   json-indent-bytes :: Bytes -> Bytes -> Bytes -> Result JsonError Bytes
   json-indent-bytes input prefix step = json-append-indent-bytes (bytes-new 0) input prefix step
+
+  -- | Select a private member-name tape node while retaining its original source owner.
+  member-key-at :: JsonDocument -> Nat -> Option JsonValue
+  member-key-at document at = case document of
+    Document input tape root -> case array-get tape at of
+      None -> None
+      Some node -> case node of
+        Node kind index start end next children -> case kind of NKey -> Some (Value document node); other -> None
+
+  -- | Find the immediately preceding validated key node without copying the complete input document.
+  member-key-before :: JsonValue -> Option JsonValue
+  member-key-before value = case value of
+    Value document node -> case node of
+      Node kind index start end next children -> if index > 0 then member-key-at document (index - 1) else None
+
+  -- | Retain the exact original quoted member-name token as an immutable source-backed string view.
+  json-member-key :: JsonMember -> Option JsonValue
+  json-member-key member = case member of Member name value -> member-key-before value

@@ -45,9 +45,10 @@ def execute(command: list[str], cwd: Path, env: dict[str, str] | None = None, ho
 def main() -> None:
     """Validate selected independent consumers without rebuilding or sharing a mutable compiler."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--frontend", choices=["rust", "native"], required=True)
+    parser.add_argument("--frontend", choices=["rust", "native", "native-raw"], required=True)
     parser.add_argument("--compiler", type=Path, required=True)
     parser.add_argument("--interfaces", type=Path)
+    parser.add_argument("--objects", type=Path)
     parser.add_argument("--runtime-receipt", type=Path)
     parser.add_argument("--artifacts", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
@@ -59,24 +60,26 @@ def main() -> None:
     if args.cpu not in os.sched_getaffinity(0):
         parser.error("--cpu must be allowed by the current execution environment")
     os.sched_setaffinity(0, {args.cpu})
-    if args.frontend == "native" and not args.interfaces:
+    if args.frontend in {"native", "native-raw"} and not args.interfaces:
         parser.error("the native wrapper requires its frozen --interfaces manifest")
     if args.frontend == "native" and args.opt_level is not None:
-        parser.error("--opt-level configures Rust only; the frozen Native functional wrapper links without an optimization flag")
-    if args.frontend == "rust" and args.opt_level is None:
+        parser.error("--opt-level configures Rust/raw Native only; the frozen Native functional wrapper links without an optimization flag")
+    if args.frontend in {"rust", "native-raw"} and args.opt_level is None:
         args.opt_level = 2
+    if args.frontend == "native-raw" and not args.runtime_receipt:
+        parser.error("raw Native linking requires its exact --runtime-receipt archive")
     compiler = args.compiler.resolve()
     modules = dict(MODULES)
-    if any(suite in {"typed", "codec-control", "float", "field", "integer", "binary", "binary-control", "map", "dynamic"} for suite in args.suites):
+    if any(suite in {"typed", "codec-control", "float", "field", "integer", "binary", "binary-control", "map", "map-encode", "map-control", "dynamic"} for suite in args.suites):
         modules["Text.Base64.Encoding"] = ROOT / "compiler/prelude/Text/Base64/Encoding.cinch"
         modules["Text.Json.Codec"] = ROOT / "compiler/prelude/Text/Json/Codec.cinch"
     frozen_modules = {name: path.read_bytes() for name, path in modules.items()}
     frozen_consumers = {suite: (ROOT / f"compiler/tests/fixtures/json-codec-{suite}.cinch").read_bytes() for suite in args.suites}
-    reference_paths = {suite: ROOT / (f"compiler/tests/fixtures/json-codec-{suite}-vectors.json" if suite in {"float", "field", "integer", "binary"} else "compiler/tests/fixtures/json-codec-vectors.json") for suite in args.suites}
+    reference_paths = {suite: ROOT / (f"compiler/tests/fixtures/json-codec-{suite}-vectors.json" if suite in {"float", "field", "integer", "binary", "map", "map-encode"} else "compiler/tests/fixtures/json-codec-vectors.json") for suite in args.suites}
     report = {
         "description": "Independent configurable JSON consumers; normal reclamation and separate poisoned-free validation",
-        "frontend": args.frontend, "opt_level": args.opt_level if args.frontend == "rust" else 0,
-        "native_link_policy": None if args.frontend == "rust" else "frozen-wrapper clang default; no -O flag", "runner_sha256": digest(Path(__file__)),
+        "frontend": args.frontend, "opt_level": args.opt_level if args.frontend in {"rust", "native-raw"} else 0,
+        "native_link_policy": None if args.frontend == "rust" else "explicit raw CLI plus clang optimization" if args.frontend == "native-raw" else "frozen-wrapper clang default; no -O flag", "runner_sha256": digest(Path(__file__)),
         "compiler_sha256": digest(compiler),
         "sources": {name: hashlib.sha256(contents).hexdigest() for name, contents in frozen_modules.items()},
         "fixture_sha256": digest(ROOT / "compiler/tests/fixtures/json-codec-vectors.json"),
@@ -85,8 +88,8 @@ def main() -> None:
     }
     if args.runtime_receipt:
         report["observed_runtime_archive_sha256"] = digest(args.runtime_receipt.resolve())
-    if args.frontend == "native":
-        report["native_compiler_sha256"] = digest(compiler.parent / "cinch")
+    if args.frontend in {"native", "native-raw"}:
+        report["native_compiler_sha256"] = digest(compiler if args.frontend == "native-raw" else compiler.parent / "cinch")
         report["interfaces_sha256"] = digest(args.interfaces.resolve())
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.artifacts.mkdir(parents=True, exist_ok=True)
@@ -105,16 +108,30 @@ def main() -> None:
         else:
             bundle = directory / "Bundle.cinch"
             bundle.write_text("\n\n".join(contents.decode() for contents in frozen_modules.values()) + "\n\n" + frozen_consumers[suite].decode())
-            command = ["python3", str(compiler), "--rc-debug", "--compile-only", "--interfaces", str(args.interfaces.resolve()), str(bundle), str(output.with_suffix(".ll")), str(output), str(directory / "link-report.txt")]
+            if args.frontend == "native":
+                command = ["python3", str(compiler), "--rc-debug", "--compile-only", "--interfaces", str(args.interfaces.resolve()), str(bundle), str(output.with_suffix(".ll")), str(output), str(directory / "link-report.txt")]
+            else:
+                objects_path = args.objects.resolve() if args.objects else compiler.parent / "objects.json"
+                objects = json.loads(objects_path.read_text())
+                report["objects_manifest_sha256"] = digest(objects_path)
+                report["provider_object_sha256"] = digest(Path(objects["object"]))
+                command = [str(compiler), "--emit-ir", "--rc-debug", "--interfaces", str(args.interfaces.resolve()), "--objects", str(objects_path), str(bundle), str(output.with_suffix(".ll"))]
         started = time.monotonic()
         try:
-            built = execute(command, directory, host_stack_bytes=args.compiler_host_stack_kib * 1024)
+            compiler_environment = {**os.environ, "CINCH_HEAP_LIMIT":"2G", "CINCH_RC_DEBUG":"0", "CINCH_LEAK_CHECK":"1"} if args.frontend == "native-raw" else None
+            built = execute(command, directory, compiler_environment, host_stack_bytes=args.compiler_host_stack_kib * 1024)
         except RuntimeError as error:
             diagnostics = output.with_suffix(".ll.diagnostics")
             if diagnostics.exists():
                 raise RuntimeError(f"{error}\ncompiler diagnostics:\n{diagnostics.read_text()}") from error
             raise
         (directory / "build.log").write_text(built.stdout + built.stderr)
+        if args.frontend == "native-raw":
+            link = [os.environ.get("CINCH_CLANG", "clang"), f"-O{args.opt_level}", str(output.with_suffix(".ll")), objects["object"], str(args.runtime_receipt.resolve()), "-ldl", "-lpthread", "-lm", "-o", str(output)]
+            linked = execute(link, directory)
+            (directory / "link-report.txt").write_text(linked.stdout + linked.stderr)
+            report["raw_compile_command"] = command
+            report["raw_link_command"] = link
         item = {"suite": suite, "consumer_source_sha256": hashlib.sha256(frozen_consumers[suite]).hexdigest(), "llvm_sha256": digest(output.with_suffix(".ll")), "build_seconds": time.monotonic() - started, "runs": []}
         for debug in [False, True]:
             environment = {**os.environ, "CINCH_HEAP_LIMIT": "256M" if debug else "32M", "CINCH_STACK_SIZE": "8M", "CINCH_LEAK_CHECK": "1", "CINCH_RC_DEBUG": "1" if debug else "0", "CINCH_ALLOC_STATS": "1"}

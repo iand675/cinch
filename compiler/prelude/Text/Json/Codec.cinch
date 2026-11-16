@@ -20,6 +20,8 @@ module Text.Json.Codec where
 
   export json-bytes-type, json-byte-slice-type, json-fixed-bytes-type
   export json-uint64-type, json-int8-type, json-int16-type, json-int32-type, json-isize-type, json-uint8-type, json-uint16-type, json-uint32-type, json-usize-type
+  export JsonKey, json-json-key, json-key, json-byte-key, json-unsupported-key, json-key-label, json-string-key, json-int64-key, json-uint64-key
+  export JsonMap, json-map-null, json-map-empty, json-map-is-null, json-map-size, json-map-lookup, json-map-set, json-map-entries, json-map-from-list, json-map-type
   export JsonPolicy, JsonPolicies, JsonPolicyOption, json-default-policies, json-empty-policies, json-policies, json-policy-enabled, json-configure-policies
   export JsonAddressableMethodsOnly, JsonByteArrayNumbers, JsonNamedBytesAsBinary, JsonDurationNanoseconds, JsonPreserveNameDelimiters, JsonPreserveScalarNull, JsonOmitEmptyApplicationValues, JsonLooseBase64Padding, JsonLooseTimestamps, JsonContinueAfterTypeErrors, JsonQuoteScalarFields, JsonAllowArrayLengthMismatch
   export json-addressable-methods-only, json-byte-array-numbers, json-named-bytes-as-binary, json-duration-nanoseconds, json-preserve-name-delimiters, json-preserve-scalar-null, json-omit-empty-application-values, json-loose-base64-padding, json-loose-timestamps, json-continue-after-type-errors, json-quote-scalar-fields, json-allow-array-length-mismatch
@@ -1438,3 +1440,311 @@ module Text.Json.Codec where
   -- | Fixed-size owned byte buffers, numeric by default, with explicit binary-string alternate policy.
   json-fixed-bytes-type :: Nat -> JsonType Bytes
   json-fixed-bytes-type size = Type (string-concat "FixedBytes " (nat-to-string size)) JsonArrayKind (\unit -> bytes-new size) (\value -> bytes-len value == size && bytes-zero-from value 0) bytes-empty (fixed-bytes-encode size) (fixed-bytes-update size)
+
+  -- | Private key results distinguish scalar text from caller-owned arbitrary encoded bytes.
+  data JsonKeyName where
+    -- | Scalar text can be copied once into its final private UTF-8 sorting buffer.
+    TextKeyName :: String -> JsonKeyName
+    -- | Raw bytes are snapshotted before any later key/value callback can mutate them.
+    ByteKeyName :: Bytes -> JsonKeyName
+    -- | A value encoder produced a token that cannot represent an object member name.
+    InvalidKeyName :: JsonError -> JsonKeyName
+
+  -- | Typed object-key capabilities make ordering and custom text/token methods explicit.
+  data JsonKey k where
+    -- | Application label/comparator, encoded name callback and original member-token decoder.
+    KeySpec :: String -> (k -> k -> I64) -> (JsonWriteOptions -> k -> Result JsonError JsonKeyName) -> (JsonReadOptions -> JsonMember -> Result JsonError k) -> JsonKey k
+    -- | Explicitly unsupported key families refuse conversion even for an empty map.
+    UnsupportedKey :: String -> (k -> k -> I64) -> JsonKey k
+
+  -- | Construct an object-key descriptor with explicit comparator and conversion capabilities.
+  json-key :: forall k. String -> (k -> k -> I64) -> (JsonWriteOptions -> k -> Result JsonError String) -> (JsonReadOptions -> JsonMember -> Result JsonError k) -> JsonKey k
+  json-key label compare encode decode = KeySpec label compare (key-encode-text encode) decode
+
+  -- | Lift a scalar-name conversion without exposing the private sorting-buffer representation.
+  key-encode-text :: forall k. (JsonWriteOptions -> k -> Result JsonError String) -> JsonWriteOptions -> k -> Result JsonError JsonKeyName
+  key-encode-text encode options key = case encode options key of Err error -> Err error; Ok text -> Ok (TextKeyName text)
+
+  -- | Lift an arbitrary byte-name conversion; its result is copied before later callbacks.
+  key-encode-bytes :: forall k. (JsonWriteOptions -> k -> Result JsonError Bytes) -> JsonWriteOptions -> k -> Result JsonError JsonKeyName
+  key-encode-bytes encode options key = case encode options key of Err error -> Err error; Ok bytes -> Ok (ByteKeyName bytes)
+
+  -- | Convert raw member-name bytes, normalizing malformed UTF-8 before sorting and JSON quoting.
+  json-byte-key :: forall k. String -> (k -> k -> I64) -> (JsonWriteOptions -> k -> Result JsonError Bytes) -> (JsonReadOptions -> JsonMember -> Result JsonError k) -> JsonKey k
+  json-byte-key label compare encode decode = KeySpec label compare (key-encode-bytes encode) decode
+
+  -- | Classify a complete sixteen-byte ASCII interval without reading any fringe bytes.
+  prim key-ascii16 :: I64 -> U8 where
+    unsafe llvm {
+      %address = inttoptr i64 %0 to ptr
+      %word = load <16 x i8>, ptr %address, align 1
+      %high = icmp uge <16 x i8> %word, <i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128>
+      %bits = bitcast <16 x i1> %high to i16
+      %ascii = icmp eq i16 %bits, 0
+      %out = zext i1 %ascii to i8
+      ret i8 %out
+    }
+
+  -- | Classify one proved remaining ASCII byte after a vector mismatch or at the final fringe.
+  prim key-ascii-byte :: I64 -> U8 where
+    unsafe llvm {
+      %address = inttoptr i64 %0 to ptr
+      %byte = load i8, ptr %address, align 1
+      %ascii = icmp ult i8 %byte, -128
+      %out = zext i1 %ascii to i8
+      ret i8 %out
+    }
+
+  -- | Finish one bounded scalar ASCII fringe using machine counters only.
+  key-ascii-fringe :: I64 -> U64 -> U64 -> U64
+  key-ascii-fringe address remaining skipped = if gt-u64 remaining 0 && eq-u8 (key-ascii-byte address) 1 then key-ascii-fringe (wrapping-add-i64 address 1) (wrapping-sub-u64 remaining 1) (wrapping-add-u64 skipped 1) else skipped
+
+  -- | Traverse complete ASCII blocks and a final fringe without natural arithmetic or per-byte ownership work.
+  key-ascii-distance :: I64 -> U64 -> U64 -> U64
+  key-ascii-distance address remaining skipped = if ge-u64 remaining 16 && eq-u8 (key-ascii16 address) 1 then key-ascii-distance (wrapping-add-i64 address 16) (wrapping-sub-u64 remaining 16) (wrapping-add-u64 skipped 16) else key-ascii-fringe address remaining skipped
+
+  -- | Retain the exact backing owner through a complete private raw-pointer traversal.
+  hold-key-scan :: Bytes -> U64 -> U64
+  hold-key-scan input result = case bytes-len input of _ -> result
+
+  -- | Validate scalar UTF-8 after bulk ASCII intervals without allocating a temporary string.
+  key-valid-utf8-from :: Bytes -> Nat -> Bool
+  key-valid-utf8-from input at = if at <= bytes-len input then
+    let remaining = bytes-len input - at in
+    let address = wrapping-add-i64 (bytes-data input) (nat-to-i64 at) in
+    let skipped = unsigned-natural (hold-key-scan input (key-ascii-distance address (wrapping-i64-to-u64 (nat-to-i64 remaining)) 0)) in
+    if skipped <= remaining then
+      let next = at + skipped in
+      if next < bytes-len input then case utf8-at input next of
+        None -> False
+        Some scalar -> case scalar of (character, width) -> if width > 0 then key-valid-utf8-from input (next + width) else False
+      else True
+    else False
+    else False
+
+  -- | Normalize malformed name bytes once before caching their UTF-8 sorting and quoting representation.
+  key-normalized-bytes :: Bytes -> Result JsonError Bytes
+  key-normalized-bytes input = if key-valid-utf8-from input 0 then Ok (codec-part input 0 (bytes-len input))
+    else case json-document (json-quote-bytes input False) of
+      Err error -> Err error
+      Ok document -> case json-value-string (json-document-value document) of
+        None -> Err (JsonInvalidValueError "an object member name could not be normalized")
+        Some text -> Ok (string-to-bytes text)
+
+  -- | Retain a normalized private UTF-8 name before invoking later callbacks.
+  key-name-bytes :: JsonKeyName -> Result JsonError Bytes
+  key-name-bytes name = case name of
+    TextKeyName text -> Ok (string-to-bytes text)
+    ByteKeyName bytes -> key-normalized-bytes bytes
+    InvalidKeyName error -> Err error
+
+  -- | Encode a typed key as JSON, requiring the resulting token to be a member-name string.
+  key-encode-json :: forall k. JsonType k -> JsonWriteOptions -> k -> Result JsonError JsonKeyName
+  key-encode-json descriptor options key = case json-marshal-value descriptor (json-write-with-stringify-numbers options True) key of
+    Err error -> Ok (InvalidKeyName error)
+    Ok output -> case json-document output of
+      Err error -> Ok (InvalidKeyName error)
+      Ok document -> case json-value-string (json-document-value document) of
+        None -> Ok (InvalidKeyName (JsonInvalidValueError "an object member name requires a JSON string"))
+        Some name -> Ok (TextKeyName name)
+
+  -- | Decode an original quoted key token through a supplied typed JSON capability.
+  key-decode-json :: forall k. JsonType k -> JsonReadOptions -> JsonMember -> Result JsonError k
+  key-decode-json descriptor options member = case json-member-key member of
+    None -> Err (JsonValueError (json-type-label descriptor) "missing original object-key token")
+    Some source -> json-decoded-result (json-update-value descriptor (json-read-with-stringify-numbers options True) source (json-type-default descriptor))
+
+  -- | Use typed JSON key capabilities with numeric stringification and explicit invalid-member-name errors.
+  -- Dedicated string/integer key descriptors provide their ordinary primitive text rules.
+  json-json-key :: forall k. JsonType k -> (k -> k -> I64) -> JsonKey k
+  json-json-key descriptor compare = KeySpec (json-type-label descriptor) compare (key-encode-json descriptor) (key-decode-json descriptor)
+
+  -- | Declare an application key family that has no JSON conversion capability.
+  json-unsupported-key :: forall k. String -> (k -> k -> I64) -> JsonKey k
+  json-unsupported-key label compare = UnsupportedKey label compare
+
+  -- | Observe the declared application key family.
+  json-key-label :: forall k. JsonKey k -> String
+  json-key-label descriptor = case descriptor of KeySpec label compare encode decode -> label; UnsupportedKey label compare -> label
+
+  -- | Retrieve the explicit application ordering capability.
+  key-compare :: forall k. JsonKey k -> k -> k -> I64
+  key-compare descriptor = case descriptor of KeySpec label compare encode decode -> compare; UnsupportedKey label compare -> compare
+
+  -- | Native immutable maps distinguish a null map from an allocated empty map.
+  -- Application keys must retain a stable total ordering while stored in a map.
+  data JsonMap k v where
+    -- | Private application comparator, null marker and persistent balanced keyed storage.
+    ObjectMap :: (k -> k -> I64) -> Bool -> JsonTree k v -> JsonMap k v
+
+  -- | Construct a null map retaining the supplied key family's ordering capability.
+  json-map-null :: forall k v. JsonKey k -> JsonMap k v
+  json-map-null key = ObjectMap (key-compare key) True TreeEmpty
+
+  -- | Construct an allocated empty map, which marshals as an empty object.
+  json-map-empty :: forall k v. JsonKey k -> JsonMap k v
+  json-map-empty key = ObjectMap (key-compare key) False TreeEmpty
+
+  -- | Observe nullness independently of the number of stored members.
+  json-map-is-null :: forall k v. JsonMap k v -> Bool
+  json-map-is-null value = case value of ObjectMap compare absent tree -> absent
+
+  -- | Read the cached map size in constant time.
+  json-map-size :: forall k v. JsonMap k v -> Nat
+  json-map-size value = case value of ObjectMap compare absent tree -> tree-count tree
+
+  -- | Look up one application key along a logarithmically bounded tail traversal.
+  json-map-lookup :: forall k v. k -> JsonMap k v -> Option v
+  json-map-lookup key value = case value of ObjectMap compare absent tree -> tree-get compare key tree
+
+  -- | Persistently insert or replace an application key, allocating a null map on its first insertion.
+  json-map-set :: forall k v. k -> v -> JsonMap k v -> JsonMap k v
+  json-map-set key value map-value = case map-value of ObjectMap compare absent tree -> ObjectMap compare False (tree-put compare key value tree)
+
+  -- | Enumerate application keys in their comparator's order, independently of encoded JSON name sorting.
+  json-map-entries :: forall k v. JsonMap k v -> List (k, v)
+  json-map-entries value = case value of ObjectMap compare absent tree -> tree-entries tree
+
+  -- | Insert ordered input entries without recursively retaining an activation per member.
+  map-entries-insert :: forall k v. List (k, v) -> JsonMap k v -> JsonMap k v
+  map-entries-insert entries value = case entries of Nil -> value; Cons first rest -> case first of (key, element) -> map-entries-insert rest (json-map-set key element value)
+
+  -- | Construct an allocated map from ordered entries; later comparator-equal keys replace earlier ones.
+  json-map-from-list :: forall k v. JsonKey k -> List (k, v) -> JsonMap k v
+  json-map-from-list key entries = map-entries-insert entries (json-map-empty key)
+
+  -- | String keys preserve exact decoded spelling and sort by their encoded UTF-8 bytes.
+  json-string-key :: JsonKey String
+  json-string-key = json-key "String" string-compare (\options value -> Ok value) (\options member -> Ok (json-member-name member))
+
+  -- | Locate an original quoted object-key token's end without copying the complete input document.
+  member-key-end :: JsonMember -> Nat
+  member-key-end member = case json-member-key member of Some source -> json-value-end source; None -> json-value-start (json-member-value member)
+
+  -- | Preserve an integer-key spelling and source position on type or range refusal.
+  integer-key-error :: String -> JsonMember -> JsonError
+  integer-key-error label member = JsonTypeError label (string-concat "number " (json-member-name member)) (member-key-end member) ""
+
+  -- | Parse signed decimal key text, allowing a leading sign and leading zeros with checked signed bounds.
+  signed-key-text :: String -> Option I64
+  signed-key-text text =
+    let input = string-to-bytes text in
+    let negative = bytes-len input > 0 && bytes-get input 0 == 45 in
+    let signed = bytes-len input > 0 && (negative || bytes-get input 0 == 43) in
+    let begin = if signed then (1 :: Nat) else 0 in
+    if begin < bytes-len input then case unsigned-digits input begin 0 of
+      None -> None
+      Some magnitude -> if negative then if le-u64 magnitude 9223372036854775808 then Some (wrapping-sub-i64 0 (wrapping-u64-to-i64 magnitude)) else None
+        else if le-u64 magnitude 9223372036854775807 then Some (wrapping-u64-to-i64 magnitude) else None
+    else None
+
+  -- | Parse unsigned decimal key text without a sign or inferred radix.
+  unsigned-key-text :: String -> Option U64
+  unsigned-key-text text = unsigned-text text
+
+  -- | Signed64 keys use exact decimal text and original member-name range diagnostics.
+  json-int64-key :: JsonKey I64
+  json-int64-key = json-key "I64" (\left right -> if lt-i64 left right then -1 else if gt-i64 left right then 1 else 0)
+    (\options value -> Ok (int-to-string (int-from-i64 value)))
+    (\options member -> case signed-key-text (json-member-name member) of Some value -> Ok value; None -> Err (integer-key-error "I64" member))
+
+  -- | Unsigned64 keys use full-range decimal text and eight-digit SWAR conversion blocks.
+  json-uint64-key :: JsonKey U64
+  json-uint64-key = json-key "U64" (\left right -> if lt-u64 left right then -1 else if gt-u64 left right then 1 else 0)
+    (\options value -> Ok (nat-to-string (unsigned-natural value)))
+    (\options member -> case unsigned-key-text (json-member-name member) of Some value -> Ok value; None -> Err (integer-key-error "U64" member))
+
+  -- | Private UTF-8 sorting keys retain stable order for distinct application keys with the same encoded name.
+  data MapNameKey where
+    -- | Independent encoded name bytes and deterministic application-order ordinal.
+    NameKey :: Bytes -> Nat -> MapNameKey
+
+  -- | Compare immutable encoded member names before their stable collision ordinal.
+  map-name-compare :: MapNameKey -> MapNameKey -> I64
+  map-name-compare left right = case left of
+    NameKey left-bytes left-at -> case right of
+      NameKey right-bytes right-at -> let order = bytes-compare left-bytes right-bytes in if eq-i64 order 0 then nat-cmp left-at right-at else order
+
+  -- | Snapshot every converted name and sort it before invoking any value-encoding callback.
+  map-name-index :: forall k v. JsonKey k -> JsonWriteOptions -> List (k, v) -> Nat -> JsonTree MapNameKey v -> Result JsonError (JsonTree MapNameKey v)
+  map-name-index descriptor options entries at tree = case entries of
+    Nil -> Ok tree
+    Cons first rest -> case first of
+      (key, value) -> case descriptor of
+        UnsupportedKey label compare -> Err (JsonUnsupportedType (string-concat "object key " label))
+        KeySpec label compare encode decode -> case encode options key of
+          Err error -> Err (JsonCustomError label error)
+          Ok name -> case key-name-bytes name of
+            Err error -> Err error
+            Ok bytes -> map-name-index descriptor options rest (at + 1) (tree-put map-name-compare (NameKey bytes at) value tree)
+
+  -- | Encode sorted map members without copying the growing object prefix.
+  map-encode-entries :: forall v. JsonType v -> JsonWriteOptions -> List (MapNameKey, v) -> Nat -> List Bytes -> Result JsonError Bytes
+  map-encode-entries descriptor options entries count pieces = case entries of
+    Nil -> Ok (join-fragments (reverse (Cons (string-to-bytes "}") pieces)))
+    Cons first rest -> case first of
+      (key, value) -> case key of
+        NameKey name ordinal -> case json-marshal-value descriptor options value of
+          Err error -> Err error
+          Ok output -> let before = if count == 0 then pieces else Cons (string-to-bytes ",") pieces in
+            map-encode-entries descriptor options rest (count + 1) (Cons output (Cons (string-to-bytes ":") (Cons (json-quote-bytes name (json-write-html options)) before)))
+
+  -- | Render null or UTF-8-name-sorted objects through explicit key and value descriptors.
+  map-encode :: forall k v. JsonKey k -> JsonType v -> JsonWriteOptions -> JsonMap k v -> Result JsonError Bytes
+  map-encode key descriptor options value = case key of
+    UnsupportedKey label compare -> Err (JsonUnsupportedType (map-type-label key descriptor))
+    KeySpec label compare encode decode -> if json-map-is-null value then Ok (string-to-bytes "null")
+      else case map-name-index key options (json-map-entries value) 0 TreeEmpty of
+        Err error -> Err error
+        Ok names -> map-encode-entries descriptor options (tree-entries names) 0 (Cons (string-to-bytes "{") Nil)
+
+  -- | Select fresh map-element defaults or explicit object-merging behavior without aliasing application state.
+  map-element-initial :: forall k v. JsonType v -> JsonReadOptions -> k -> JsonMap k v -> v
+  map-element-initial descriptor options key value =
+    if json-policy-enabled (json-read-policies options) JsonPreserveScalarNull then json-type-default descriptor
+    else case json-map-lookup key value of None -> json-type-default descriptor; Some prior -> prior
+
+  -- | Add an original member path to key type errors while preserving application callback errors unchanged.
+  key-member-error :: JsonMember -> JsonError -> JsonError
+  key-member-error member error = case error of
+    JsonTypeError expected actual at path -> record-member-path (json-member-name member) error
+    JsonTypeCause expected actual at path cause -> record-member-path (json-member-name member) error
+    other -> error
+
+  -- | Decode source members in order, retaining existing unrelated keys and the first conversion refusal.
+  map-update-members :: forall k v. JsonKey k -> JsonType v -> JsonReadOptions -> List JsonMember -> JsonMap k v -> Option JsonError -> JsonDecoded (JsonMap k v)
+  map-update-members key descriptor options members prior error = case members of
+    Nil -> Decoded prior error False
+    Cons first rest -> case key of
+      UnsupportedKey label compare -> Decoded prior (first-error error (Some (JsonUnsupportedType (string-concat "object key " label)))) True
+      KeySpec label compare encode decode -> case decode options first of
+        Err cause -> let saved = first-error error (Some (key-member-error first cause)) in
+          if json-policy-enabled (json-read-policies options) JsonContinueAfterTypeErrors then map-update-members key descriptor options rest prior saved else Decoded prior saved False
+        Ok name -> case json-update-value descriptor options (json-member-value first) (map-element-initial descriptor options name prior) of
+          Decoded value next-error fatal -> let advanced = json-map-set name value prior in let saved = first-error error (case next-error of None -> None; Some cause -> Some (record-member-path (json-member-name first) cause)) in
+            if stop-decoding options (Decoded value next-error fatal) then Decoded advanced saved fatal else map-update-members key descriptor options rest advanced saved
+
+  -- | Decode null or object values into a persistent typed map with explicit partial-update results.
+  map-update :: forall k v. JsonKey k -> JsonType v -> String -> JsonReadOptions -> JsonValue -> JsonMap k v -> JsonDecoded (JsonMap k v)
+  map-update key descriptor label options source prior = case json-value-kind source of
+    JsonNullKind -> json-decoded-ok (json-map-null key)
+    other -> case json-object-members source of
+      None -> type-mismatch label source prior
+      Some members -> case key of
+        UnsupportedKey key-label compare -> type-mismatch label source prior
+        KeySpec key-label compare encode decode -> map-update-members key descriptor options members (case prior of ObjectMap cmp absent tree -> ObjectMap cmp False tree) None
+
+  -- | Empty maps participate in empty-field omission independently of nullness.
+  map-empty :: forall k v. JsonMap k v -> Bool
+  map-empty value = json-map-size value == 0
+
+  -- | Construct a precise native map type label from its explicit key/value capabilities.
+  map-type-label :: forall k v. JsonKey k -> JsonType v -> String
+  map-type-label key descriptor = string-concat-all ["JsonMap ",json-key-label key," ",json-type-label descriptor]
+
+  -- | Compose a map descriptor with explicit key capabilities, sorted encoding and logarithmic updates.
+  -- The same application ordering must be used to construct prior map values.
+  json-map-type :: forall k v. JsonKey k -> JsonType v -> JsonType (JsonMap k v)
+  json-map-type key descriptor =
+    let label = map-type-label key descriptor in
+    Type label JsonObjectKind (\unit -> json-map-null key) json-map-is-null map-empty (map-encode key descriptor) (map-update key descriptor label)

@@ -189,6 +189,63 @@ FIELD_HELPERS = r'''
 '''
 
 
+MAP_HELPERS = r'''
+  -- | Inspect new map encoding failures while retaining ordinary typed error classifications.
+  map-error-family :: JsonError -> String
+  map-error-family error = case error of
+    JsonInvalidValueError text -> "value"
+    JsonUnsupportedType label -> "unsupported-type"
+    JsonPathError path cause -> map-error-family cause
+    other -> error-family error
+  -- | Match complete output bytes or the original structured encoding refusal.
+  map-output-ok :: forall a. JsonType a -> a -> Bytes -> String -> String -> Bool -> Bool
+  map-output-ok descriptor value expected family label invalid = case json-marshal descriptor value of
+    Ok output -> family == "" && same-bytes output expected
+    Err error -> map-error-family error == family && optional-text (json-error-type error) == label && json-error-invalid-value error == invalid && (if invalid then (case json-error-type error of None -> True; Some label -> False) else True)
+  -- | Compare independently observed map partial values, key errors and encoding outcomes.
+  map-case :: forall a. JsonType a -> Bytes -> a -> Bytes -> String -> Nat -> String -> String -> String -> String -> String -> Bool -> Bool
+  map-case descriptor input prior expected family offset actual label path encode-family encode-label invalid =
+    let decoded = json-update descriptor (runtime-bytes input) prior in
+    typed-error-ok (json-decoded-error decoded) family offset actual label path && map-output-ok descriptor (json-decoded-value decoded) expected encode-family encode-label invalid
+  -- | Exercise a non-string JSON-valued key family without runtime reflection.
+  bool-key :: JsonKey Bool
+  bool-key = json-json-key json-bool-type (\left right -> if left == right then 0 else if left then 1 else -1)
+  -- | Format one custom application's key using checked full-domain simple uppercase mappings.
+  text-key-encode :: JsonWriteOptions -> String -> Result JsonError String
+  text-key-encode options value = if value == "reject" then Err (JsonValueError "TextKey" "key rejected") else Ok (pack (map unicode-to-upper (unpack value)))
+  -- | Decode custom text from the exact source-backed quoted key token.
+  text-key-decode :: JsonReadOptions -> JsonMember -> Result JsonError String
+  text-key-decode options member = case json-member-key member of
+    None -> Err (JsonValueError "TextKey" "missing key token")
+    Some source -> case json-value-string source of
+      None -> Err (JsonValueError "TextKey" "key token is not a string")
+      Some value -> let key = pack (map unicode-to-lower (unpack value)) in if key == "reject" then Err (JsonValueError "TextKey" "key rejected") else Ok key
+  -- | Pair custom key conversion capabilities with exact application ordering.
+  text-key :: JsonKey String
+  text-key = json-key "TextKey" string-compare text-key-encode text-key-decode
+'''
+
+
+MAP_ENCODE_HELPERS = r'''
+  -- | Preserve raw application key bytes and the deliberate custom conversion refusal.
+  raw-key-encode :: JsonWriteOptions -> Bytes -> Result JsonError Bytes
+  raw-key-encode options key = if same-bytes key (string-to-bytes "reject") then Err (JsonEncodingError 0 "key rejected") else Ok key
+  -- | Decode scalar member text into an owned key buffer for this byte-key application capability.
+  raw-key-decode :: JsonReadOptions -> JsonMember -> Result JsonError Bytes
+  raw-key-decode options member = Ok (string-to-bytes (json-member-name member))
+  -- | Keep exact unsigned-byte application ordering and independent raw-name conversion capabilities.
+  raw-key :: JsonKey Bytes
+  raw-key = json-byte-key "RawKey" bytes-compare raw-key-encode raw-key-decode
+  -- | Compare independent raw-name sorting, replacement quoting and original custom-error causes.
+  raw-map-case :: Bool -> List (Bytes, I64) -> Bytes -> String -> String -> String -> Bool
+  raw-map-case absent entries expected family label cause =
+    let value = if absent then json-map-null raw-key else json-map-from-list raw-key entries in
+    case json-marshal (json-map-type raw-key json-int64-type) value of
+      Ok output -> family == "" && same-bytes output expected
+      Err error -> map-error-family error == family && optional-text (json-error-type error) == label && (case json-error-cause error of None -> cause == ""; Some original -> json-error-message original == cause)
+'''
+
+
 def text(value: str) -> str:
     """Encode scalar fixture text using supported string escapes rather than JSON-only Unicode syntax."""
     out = '"'
@@ -234,13 +291,26 @@ def program(suite: str, fixture: dict) -> str:
         for row in fixture["indent_bytes"]:
             err = row["error"]
             checks.append(f"indent-byte-case (runtime-bytes {wire(row['input_hex'])}) {wire(row['prefix_hex'])} {wire(row['step_hex'])} {wire(row['output_hex'])} {boolean(not err['kind'])} {err['offset']} {text(err.get('text', ''))}")
+    elif suite == "map-encode":
+        for row in fixture["map_encoding"]:
+            entries = "[" + ",".join(f"({wire(item['key_hex'])},({item['value']} :: I64))" for item in row["entries"]) + "]"
+            error = row["error"]
+            label = "RawKey" if error.get("type", "").lstrip("*") == "main.rawMapKey" else error.get("type", "")
+            checks.append(f"raw-map-case {boolean(row['null'])} {entries} {wire(row['output_hex'])} {text(error['kind'])} {text(label)} {text(error.get('cause',''))}")
     elif suite == "field":
         for row in fixture["field_matching"]:
             assert not row["error"]["kind"] and not row["output_error"]["kind"]
             checks.append(f"field-case {text(row['name'])} {wire(row['input_hex'])} ({row['value']} :: I64) {wire(row['output_hex'])}")
-    elif suite in {"typed", "float", "integer", "binary"}:
+    elif suite in {"typed", "float", "integer", "binary", "map"}:
         descriptors = {
             "F64": ("json-float64-type", "(i64-to-f64 7)"),
+            **({
+                "Map String I64": ("(json-map-type json-string-key json-int64-type)", '(json-map-from-list json-string-key [("a",7),("old",8)])'),
+                "Map I64 String": ("(json-map-type json-int64-key json-string-type)", '(json-map-from-list json-int64-key [(1,"before"),(7,"old")])'),
+                "Map U64 String": ("(json-map-type json-uint64-key json-string-type)", '(json-map-from-list json-uint64-key [(1,"before"),(7,"old")])'),
+                "Map Bool I64": ("(json-map-type bool-key json-int64-type)", '(json-map-from-list bool-key [(True,7)])'),
+                "Map TextKey I64": ("(json-map-type text-key json-int64-type)", '(json-map-from-list text-key [("before",7),("old",8)])'),
+            } if suite == "map" else {}),
             **({"Bytes":("json-byte-slice-type","(Some (bytes-from-list [7,8]))"), "ByteArray3":("(json-fixed-bytes-type 3)","(bytes-from-list [7,8,9])")} if suite == "binary" else {}),
             **({label: (descriptor, f"(7 :: {label})") for label, descriptor in [("I8", "json-int8-type"),("I16","json-int16-type"),("I32","json-int32-type"),("Isize","json-isize-type"),("U8","json-uint8-type"),("U16","json-uint16-type"),("U32","json-uint32-type"),("U64","json-uint64-type"),("Usize","json-usize-type")]} if suite == "integer" else {}),
             "Bool": ("json-bool-type", "True"),
@@ -252,7 +322,7 @@ def program(suite: str, fixture: dict) -> str:
             "JsonRawMessage": ("json-raw-type", '(json-raw-from-bytes (string-to-bytes "{\\\"before\\\":true}"))'),
             "ApplicationRecord": ("(app-type ())", '(App 7 "before" False 9 0)'),
         }
-        labels = {"int8":"I8","int16":"I16","int32":"I32","int":"Isize","uint8":"U8","uint16":"U16","uint32":"U32","uint64":"U64","uint":"Usize","float64":"F64", "bool":"Bool", "string":"String", "int64":"I64", "json.Number":"JsonNumber", "[]uint8":"Bytes","[3]uint8":"Array","[]int64":"List I64", "[3]int64":"Array", "main.applicationRecord":"ApplicationRecord"}
+        labels = {"map[string]int64":"JsonMap String I64","map[int64]string":"JsonMap I64 String","map[uint64]string":"JsonMap U64 String","map[bool]int64":"JsonMap Bool I64","map[main.foldKey]int64":"JsonMap TextKey I64","main.foldKey":"TextKey","int8":"I8","int16":"I16","int32":"I32","int":"Isize","uint8":"U8","uint16":"U16","uint32":"U32","uint64":"U64","uint":"Usize","float64":"F64", "bool":"Bool", "string":"String", "int64":"I64", "json.Number":"JsonNumber", "[]uint8":"Bytes","[3]uint8":"Array","[]int64":"List I64", "[3]int64":"Array", "main.applicationRecord":"ApplicationRecord"}
         for row in fixture["typed"]:
             if row["type"] not in descriptors:
                 continue
@@ -264,7 +334,15 @@ def program(suite: str, fixture: dict) -> str:
             field = err.get("field", "")
             if row["type"] in ["List I64", "Array3 I64", "Bytes", "ByteArray3"] and field.isdigit():
                 field = "[" + field + "]"
-            checks.append(f"typed-case {descriptor} {wire(row['input_hex'])} {initial} {wire(row['output_hex'])} {text(err['kind'])} {err['offset']} {text(actual)} {text(labels.get(err.get('type',''),err.get('type','')))} {text(field)}")
+            if suite == "map":
+                family = err["kind"]
+                label = labels.get(err.get("type", ""),err.get("type", ""))
+                if row["type"] == "Map TextKey I64" and family == "other":
+                    family, label, actual = "value", "TextKey", "key rejected"
+                encoded = row["output_error"]
+                checks.append(f"map-case {descriptor} {wire(row['input_hex'])} {initial} {wire(row['output_hex'])} {text(family)} {err['offset']} {text(actual)} {text(label)} {text(field)} {text(encoded['kind'])} {text(labels.get(encoded.get('type',''),encoded.get('type','')))} {boolean(encoded.get('invalid_value',False))}")
+            else:
+                checks.append(f"typed-case {descriptor} {wire(row['input_hex'])} {initial} {wire(row['output_hex'])} {text(err['kind'])} {err['offset']} {text(actual)} {text(labels.get(err.get('type',''),err.get('type','')))} {text(field)}")
         if suite == "float":
             for row in fixture["float_encoding"]:
                 err = row["error"]
@@ -293,8 +371,8 @@ def program(suite: str, fixture: dict) -> str:
         body = ",\n      ".join("(" + check + ")" for check in checks[start:start + 6])
         batches.append(f"\n  -- | Evaluate bounded independent {suite} checks with global failure indexes.\n  {name} :: Unit -> Nat\n  {name} unit = first-failure [\n      {body}] {start + 1}\n")
     helpers = HELPERS
-    if suite in {"typed", "float", "field", "integer", "binary"}:
-        helpers = helpers.replace("  import Text.Json.Value\n", "  import Text.Json.Value\n  import Text.Json.Codec\n  import Data.Array\n") + TYPED_HELPERS + (FLOAT_HELPERS if suite == "float" else FIELD_HELPERS if suite == "field" else "")
+    if suite in {"typed", "float", "field", "integer", "binary", "map", "map-encode"}:
+        helpers = helpers.replace("  import Text.Json.Value\n", "  import Text.Json.Value\n  import Text.Json.Codec\n  import Data.Array\n" + ("  import Data.Unicode.Kernel\n" if suite in {"map", "map-encode"} else "")) + TYPED_HELPERS + (FLOAT_HELPERS if suite == "float" else FIELD_HELPERS if suite == "field" else MAP_HELPERS if suite == "map" else MAP_HELPERS + MAP_ENCODE_HELPERS if suite == "map-encode" else "")
     return helpers + "".join(batches) + f'''
   -- | Print the original failing observation and return a nonzero status on failure.
   main :: Unit ->{{IO r}} Int
@@ -313,7 +391,7 @@ def main() -> None:
     args = parser.parse_args()
     fixture = json.loads((FIXTURES / "json-codec-vectors.json").read_text())
     for suite in args.suites:
-        selected = json.loads((FIXTURES / f"json-codec-{suite}-vectors.json").read_text()) if suite in {"float", "field", "integer", "binary"} else fixture
+        selected = json.loads((FIXTURES / f"json-codec-{suite}-vectors.json").read_text()) if suite in {"float", "field", "integer", "binary", "map", "map-encode"} else fixture
         path = FIXTURES / f"json-codec-{suite}.cinch"
         contents = program(suite, selected)
         if args.check:
