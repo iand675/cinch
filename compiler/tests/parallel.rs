@@ -913,3 +913,40 @@ module Main where
     );
     common::cleanup(&dir);
 }
+
+// The host instance's methods are the operations that lower them, resolved at
+// the call site: a dictionary field body exists once and would record the
+// classes of the method's own type parameters, while `PrimOp::Par` needs the
+// caller's (design/parallelism-as-a-value.md). These two programs are the
+// first user-level callers of the interface.
+#[test]
+fn the_host_instance_sets_the_participant_budget() {
+    expect_ok(
+        "parallel_workers",
+        r#"
+module Main where
+  main :: Int
+  main = case workers 4 of _ -> 0
+"#,
+        0,
+    );
+}
+
+#[test]
+fn the_host_instance_runs_both_branches() {
+    expect_ok(
+        "parallel_host_both",
+        r#"
+module Main where
+  import Data.Nat
+
+  pair :: (Nat, Nat)
+  pair = both (\() -> 1) (\() -> 2)
+
+  main :: Int
+  main = case pair of
+    (a, b) -> if nat-to-int (a + b) == 3 then 0 else 1
+"#,
+        0,
+    );
+}
