@@ -271,3 +271,59 @@ fn stream_documentation_is_complete_and_well_formed() {
         );
     }
 }
+
+/// Large one-byte/variable writes stay linear, preserve retained offers and return advanced failure sinks.
+#[test]
+fn write_all_uses_linear_fresh_windows_with_bounded_memory() {
+    let directory = tempfile::tempdir().unwrap();
+    for (name, source) in [
+        (
+            "Effect.Stream",
+            include_str!("../prelude/Effect/Stream.cinch"),
+        ),
+        (
+            "Data.Bytes.Word",
+            include_str!("../prelude/Data/Bytes/Word.cinch"),
+        ),
+    ] {
+        std::fs::write(directory.path().join(format!("{name}.cinch")), source).unwrap();
+    }
+    std::fs::write(
+        directory.path().join("Main.cinch"),
+        include_str!("fixtures/stream-write-all-controls.cinch"),
+    )
+    .unwrap();
+    let executable = directory.path().join("consumer");
+    let profile = cinch::core::TargetProfile {
+        reclaim: true,
+        rc_debug: true,
+        ..cinch::core::TargetProfile::native()
+    };
+    common::drive_with_profile(
+        Mode::Build,
+        cinch::check::StageMode::Refresh,
+        directory.path(),
+        "Main.cinch",
+        Some(executable.clone()),
+        &profile,
+    )
+    .unwrap();
+    for poison in [false, true] {
+        let result = std::process::Command::new(&executable)
+            .env("CINCH_RC_DEBUG", if poison { "1" } else { "0" })
+            .env("CINCH_LEAK_CHECK", "1")
+            .env("CINCH_HEAP_LIMIT", if poison { "256M" } else { "32M" })
+            .env("CINCH_STACK_SIZE", "8M")
+            .output()
+            .unwrap();
+        assert_eq!(
+            result.status.code(),
+            Some(0),
+            "poison={poison}: stdout={} stderr={}",
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let diagnostic = String::from_utf8_lossy(&result.stderr);
+        assert!(diagnostic.contains("live=0") && diagnostic.contains("leaked=0"));
+    }
+}

@@ -242,22 +242,59 @@ module Effect.Stream where
       else ()
 
   -- | Write a full chunk despite short writes. Zero progress becomes a named
-  -- short-write error instead of an infinite retry. The next sink is retained.
+  -- short-write error. The first offer borrows the original input; after a
+  -- short write, private backing and fresh adaptive windows keep copying linear.
   stream-write-all :: forall r. using (io :: Io r) => ByteWriter r -> Bytes ->{IO r} (Result StreamError Nat, ByteWriter r)
   stream-write-all sink b = write-rest sink b 0
 
-  -- | Write the remaining suffix and accumulate the accepted prefix length.
+  -- | Copy one checked interval into storage that has never been offered to a sink.
+  write-window-copy :: Bytes -> Nat -> Nat -> Bytes
+  write-window-copy input at size = if at + size <= bytes-len input then
+    let out = bytes-new size in let copied = bytes-copy-range out input 0 at size in out
+    else bytes-new 0
+
+  -- | Bound a positive write window without changing the number acknowledged by its sink.
+  write-window-limit :: Nat -> Nat
+  write-window-limit size = if size < 4096 then size else 4096
+
+  -- | Double a fully accepted window while keeping all later offers bounded.
+  write-window-grow :: Nat -> Nat
+  write-window-grow size = if size < 2048 then size * 2 else 4096
+
+  -- | Offer the original input once, then snapshot its unwritten suffix before another callback.
+  -- Error handles remain advanced; zero progress reports the original total and confirmed prefix.
   write-rest :: forall r. using (io :: Io r) => ByteWriter r -> Bytes -> Nat ->{IO r} (Result StreamError Nat, ByteWriter r)
-  write-rest sink b sent =
-    if sent < bytes-len b then
-      let remaining = bytes-len b - sent in
-      let tail = bytes-new remaining in
-      let copied = bytes-copy-range tail b 0 sent remaining in
-      case stream-write sink tail of
-        (Err e, next) -> (Err e, next)
-        (Ok n, next) ->
-          if n == 0 then (Err (StreamShortWrite (bytes-len b) sent), next)
-          else write-rest next b (sent + n)
+  write-rest sink input sent =
+    let total = bytes-len input in
+    if sent < total then
+      let remaining = total - sent in
+      let offer = if sent == 0 then input else write-window-copy input sent remaining in
+      case stream-write sink offer of
+        (Err error, next) -> (Err error, next)
+        (Ok count, next) ->
+          if count > remaining then (Err (StreamInvalidCount remaining count), next)
+          else if count == 0 then (Err (StreamShortWrite total sent), next)
+          else if count < remaining then
+            let position = sent + count in
+            let backing = write-window-copy input position (total - position) in
+            write-windows next backing total position 0 (write-window-limit count)
+          else (Ok (sent + count), next)
+    else (Ok sent, sink)
+
+  -- | Drain fresh windows from private backing; earlier offers are never mutated or offered again.
+  -- Each window is at most twice the preceding accepted count, bounding aggregate copies by input size.
+  write-windows :: forall r. using (io :: Io r) => ByteWriter r -> Bytes -> Nat -> Nat -> Nat -> Nat ->{IO r} (Result StreamError Nat, ByteWriter r)
+  write-windows sink backing total sent at window =
+    if at < bytes-len backing then
+      let remaining = bytes-len backing - at in
+      let size = if window < remaining then window else remaining in
+      let offer = write-window-copy backing at size in
+      case stream-write sink offer of
+        (Err error, next) -> (Err error, next)
+        (Ok count, next) ->
+          if count > size then (Err (StreamInvalidCount size count), next)
+          else if count == 0 then (Err (StreamShortWrite total sent), next)
+          else write-windows next backing total (sent + count) (at + count) (if count < size then count else write-window-grow window)
     else (Ok sent, sink)
 
   -- | Encode text as UTF-8 and completely write the resulting bytes.
