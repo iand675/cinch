@@ -15,38 +15,38 @@
       "sources": {
         "Data.Bytes.Utf8.cinch": "6c73d599aef05a9854c78a02b6dcd26e6f40dda24ac95dba6dc07d13d7c1cdb6",
         "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
-        "Main.cinch": "8c7c80673dd375acf2ef300b3ab1018e00b7ee77f77e71329f923d9ee6d093d1"
+        "Main.cinch": "741d9fb971588872128b1bee73116417b341527cb65057f2f803c46ad6bf654d"
       },
       "executable_sha256": "03f36c6f9468051b5090b1ebb46d645666834109735f7e47447f6b4dcff5446b",
       "compile_command": [
         "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
         "build",
-        "/workspace/dasl-stdlib-unicode/build/utf8-factories-rust/project/Main.cinch",
+        "/workspace/dasl-stdlib-unicode/build/utf8-factories-final-rust/project/Main.cinch",
         "-o",
-        "/workspace/dasl-stdlib-unicode/build/utf8-factories-rust/consumer",
+        "/workspace/dasl-stdlib-unicode/build/utf8-factories-final-rust/consumer",
         "--opt-level",
         "2",
         "--rc-debug"
       ],
-      "compile_seconds": 5.024077574998955,
+      "compile_seconds": 4.826897974999156,
       "runs": [
         {
           "poisoned": false,
           "heap": "32M",
           "stack": "8M",
-          "seconds": 0.001996389008127153,
+          "seconds": 0.0017791310092434287,
           "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
         },
         {
           "poisoned": true,
           "heap": "256M",
           "stack": "8M",
-          "seconds": 0.001246409010491334,
+          "seconds": 0.0012903549941256642,
           "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
         }
       ],
       "all_passed": true,
-      "full_report_sha256": "ecacc563be47c58e9088dbda1256b13c435fc27b005027572728373ace19585d"
+      "full_report_sha256": "162c79e94735fd36bd7f104d698056ba4db61e20e90c9b70b807b252fc5fddd9"
     },
     {
       "frontend": "native",
@@ -55,7 +55,7 @@
       "sources": {
         "Data.Bytes.Utf8.cinch": "6c73d599aef05a9854c78a02b6dcd26e6f40dda24ac95dba6dc07d13d7c1cdb6",
         "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
-        "Main.cinch": "8c7c80673dd375acf2ef300b3ab1018e00b7ee77f77e71329f923d9ee6d093d1"
+        "Main.cinch": "741d9fb971588872128b1bee73116417b341527cb65057f2f803c46ad6bf654d"
       },
       "executable_sha256": "5f45696503a9b9e5cbdae314c43c32f523ee02f6302b02a6e801be063c2a7fd0",
       "compile_command": [
@@ -65,30 +65,30 @@
         "--interfaces",
         "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/base-interfaces.json",
         "--rc-debug",
-        "/workspace/dasl-stdlib-unicode/build/utf8-factories-native/bundle.cinch",
-        "/workspace/dasl-stdlib-unicode/build/utf8-factories-native/consumer.ll",
-        "/workspace/dasl-stdlib-unicode/build/utf8-factories-native/consumer",
-        "/workspace/dasl-stdlib-unicode/build/utf8-factories-native/link-report.txt"
+        "/workspace/dasl-stdlib-unicode/build/utf8-factories-final-native/bundle.cinch",
+        "/workspace/dasl-stdlib-unicode/build/utf8-factories-final-native/consumer.ll",
+        "/workspace/dasl-stdlib-unicode/build/utf8-factories-final-native/consumer",
+        "/workspace/dasl-stdlib-unicode/build/utf8-factories-final-native/link-report.txt"
       ],
-      "compile_seconds": 7.04738579900004,
+      "compile_seconds": 10.222091439005453,
       "runs": [
         {
           "poisoned": false,
           "heap": "32M",
           "stack": "8M",
-          "seconds": 0.002939411991974339,
+          "seconds": 0.0032434989989269525,
           "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
         },
         {
           "poisoned": true,
           "heap": "256M",
           "stack": "8M",
-          "seconds": 0.0020258739968994632,
+          "seconds": 0.0021573709964286536,
           "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
         }
       ],
       "all_passed": true,
-      "full_report_sha256": "ca3549e35315cad438fc52d6628a79905ca6123ebe9fa50d9f277cf6359a43ec"
+      "full_report_sha256": "80c2781631fe5762ce22848e2cff368285777157498218ade37726da88652b8e"
     }
   ],
   "normal_heap": "32M",
