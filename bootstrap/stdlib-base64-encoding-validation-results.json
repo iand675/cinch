@@ -1,7 +1,7 @@
 {
   "description": "Configurable Base64 byte encodings, persistent continuations and explicit stream adapters, with SIMD quanta and scalar decoder-field traversal.",
   "full_stdlib_goal_complete": false,
-  "package_review_status": "ready_for_parent_integration",
+  "package_review_status": "complete",
   "reference_package": "encoding/base64",
   "reference_declarations": 24,
   "source_sha256": {
@@ -109,7 +109,14 @@
       "aarch64-unknown-linux-gnu"
     ],
     "big_endian_object_case_provided_in_rust_target": true,
-    "foreign_execution": false
+    "foreign_execution": false,
+    "integration_rust_target_parent_passed": 12,
+    "integration_rust_target_parent_seconds": 94.8,
+    "foreign_object_targets_compiled_in_parent_target": [
+      "wasm32-unknown-unknown",
+      "aarch64-unknown-linux-gnu",
+      "powerpc64-unknown-linux-gnu big endian"
+    ]
   },
   "documentation": [
     {
@@ -248,7 +255,6 @@
     "Caller-buffer decoding checks its full maximum capacity bound before mutation even when padding/newlines would make the actual decoded result shorter."
   ],
   "limitations": [
-    "The integration Rust target is supplied for parent execution, including its additional PowerPC big-endian object check.",
     "Foreign kernel object compilation does not establish foreign runtime execution.",
     "Output still uses checked word/byte helpers; generated encode/decode SIMD math is inlined, but public loops remain slower than the independent reference pipelines.",
     "Immutable chunk, append and result ownership differs from mutable reference buffers.",

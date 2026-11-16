@@ -1,0 +1,100 @@
+{
+  "description": "Configurable Base32 SIMD/SWAR byte codecs, strict original-byte errors, immutable incremental states, checked caller buffers and explicit stream continuations. Full stdlib goal remains open.",
+  "full_stdlib_goal_complete": false,
+  "status": "Integrated:14 Rust and 12 selected Native checks passed on pre-padding snapshot; adopted padding-only optimization passed 100 focused standard/hex padded goldens on both frozen frontends",
+  "source_sha256": {
+    "compiler/prelude/Text/Base32.cinch": "e901c7d08842d6580c765eefac5ad5d7ab48078c6fc46dbb963e3abafd55acbd",
+    "compiler/prelude/Effect/Base32.cinch": "38f8d4b0a0ac51fed5ed5251d0b16093e8983986ea36330edede81bb69705b90",
+    "compiler/tests/lib_base32_encoding.rs": "3c83046b05ed9ecd48c71ef2793cb986e653d0dd8abea888fb260f80fbc7bd62",
+    "compiler/tests/fixtures/base32-encoding-vectors.json": "18065e858487de2e13bdf9b8e88b32b668603a7ccaf58da7e6bb3701ac6ef57c",
+    "tooling/go_base32_encoding_vectors.go": "d1c606b2694a087e85b26d63b8406baf2c6b2ae141888f2be4e92534ac870c54"
+  },
+  "tests": {
+    "rust_target": 14,
+    "shared_profiles": 3,
+    "explicit_rust_only_optimized_owner_case": true,
+    "explicit_rust_only_foreign_object_case": true,
+    "native_selected_expected": 12,
+    "native_selected_passed": 12,
+    "fixture_rows": {
+      "config": 24,
+      "invalid": 216,
+      "valid": 450
+    },
+    "ordinary_heap": "32M",
+    "stack": "8M",
+    "separate_poisoned_free_quarantine_heap": "256M",
+    "foreign_objects": [
+      "wasm32-unknown-unknown",
+      "aarch64-unknown-linux-gnu",
+      "powerpc64-unknown-linux-gnu big endian"
+    ],
+    "foreign_execution": false,
+    "early_crlf_fixed_text_bytes": 65536,
+    "large_fixed_text_smoke_both_frontends": true,
+    "one_byte_stream_bytes": 65536,
+    "full_harness_text_source_sha256": "c6ba4bb8bd5d91163f6d9b984af35fe40a22d618bc6f4c2bd31be5cf825027a4",
+    "padding_only_followup": {
+      "cases": 100,
+      "frontends": [
+        "frozen Rust O0",
+        "frozen Native stage3"
+      ],
+      "ordinary_heap": "32M",
+      "stack": "8M",
+      "separate_poisoned_free_quarantine_heap": "256M",
+      "zero_leaks": true,
+      "scope": "standard/hex padded encode/decode; only input-remainder padding calculation changed after full harness"
+    }
+  },
+  "compilers": {
+    "rust_frozen_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+    "native_frozen_stage3_sha256": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f",
+    "targeted_native_runtime_provider": "4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea",
+    "latest_main_ancestor": "c12ed8685b54a23ccf62437d6d0527735bc1abff",
+    "compiler_fix_and_restored_pin_bootstrap_gate_separate": true
+  },
+  "implementation_notes": [
+    "Fixed standard/hex quanta retain original LLVM SIMD kernels; custom lookup uses exact private byte gathers with packed SWAR validation/compaction.",
+    "Custom inverse tables use zero as missing and index+1 as present, eliminating per-entry sentinel initialization. Subtracting packed ones produces an invalid lane at the first missing value; valid lanes cannot borrow.",
+    "A direct private scalar-field loop constructs persistent decoder state only when returning, avoiding a state allocation per full quantum.",
+    "Stream surplus retains one private buffer and a cursor, copying only returned output slices.",
+    "Legacy fixed-text scalar fringes use bounded U64 bit arithmetic instead of dynamic Nat powers/division; scalar collection and final byte materialization use bounded-stack loops.",
+    "Legacy exact padding checks inspect only the bounded required suffix rather than taking an unbounded list length.",
+    "Fixed-text encoding derives padding in constant time from input length modulo5 instead of scanning ASCII output as Unicode."
+  ],
+  "deliberate_semantic_policies": [
+    "Cinch String conversion is optional for arbitrary binary alphabets; byte APIs preserve all data.",
+    "Byte decoder offsets count original bytes including CR/LF, rather than positions after stripping newlines.",
+    "Raw final lengths1/3/6 are rejected and data after a padded final quantum is rejected, even where the pinned reference accepts an odd tail or ignores a suffix.",
+    "Decoder prefix/append operations preserve completed quanta and errors; atomic convenience returns only an error.",
+    "Finite destination decoding checks the actual completed output before mutation, allowing exact padded-result capacity and safe aliasing."
+  ],
+  "benchmarks": {
+    "reference_rows": 48,
+    "reference_checksums_all_match": true,
+    "full_timing_snapshot_text_source_sha256": "c6ba4bb8bd5d91163f6d9b984af35fe40a22d618bc6f4c2bd31be5cf825027a4",
+    "padding_only_candidate_all_48_preflight_checksums_match": true,
+    "report": "../benchmarks/stdlib/base32-benchmark-report-2026-11-16.md",
+    "snapshot_manifest": "../benchmarks/stdlib/base32-source-snapshots-2026-11-16.json",
+    "cursor_paired_report": "../benchmarks/stdlib/interleaved-base32-cursor-O2-2026-11-16.json",
+    "padding_paired_report": "../benchmarks/stdlib/interleaved-base32-padding-O2-2026-11-16.json",
+    "ordinary_allocation_report": "../benchmarks/stdlib/base32-encoding-space-2026-11-16.json",
+    "padding_64k_before_over_after": 12.967,
+    "cursor_64k_before_over_after": 1.165,
+    "hardware_or_allocation_parity_claimed": false
+  },
+  "package_review_status": "complete",
+  "capability_mapping": {
+    "Encoding/NewEncoding": "Opaque Base32Encoding; checked32-byte copied alphabet and immutable inverse lookup, with Base32ConfigError",
+    "StdEncoding/HexEncoding": "base32-standard-encoding and base32-hex-encoding",
+    "StdPadding/NoPadding (typed and ideal constants)": "Some61 from the standard padding getter; None selects unpadded output",
+    "WithPadding": "base32-with-padding returns a checked persistent configuration",
+    "EncodedLen/DecodedLen": "base32-encoded-length and base32-decoded-length",
+    "Encode/EncodeToString/AppendEncode": "Fresh byte output, optional UTF-8 text, copied-prefix append and atomic checked destination writes",
+    "Decode/DecodeString/AppendDecode": "Atomic byte convenience plus text/prefix/append/destination operations retaining completed output and precise errors",
+    "CorruptInputError/Error": "Base32InputError, original-byte offset and module-owned diagnostic",
+    "NewEncoder/Write/Close": "Inspectable Base32Writer with accepted input counts, explicit finish and advanced sink on failures",
+    "NewDecoder/Read": "Bounded source reader with private surplus cursor, inert zero reads and delayed sticky failure"
+  }
+}

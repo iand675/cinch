@@ -173,7 +173,10 @@
     "explicit_foreign_case_additionally_covers_big_endian_powerpc": true,
     "own_cases": 4,
     "shared_profile_cases": 3,
-    "expected_total_cases": 7
+    "expected_total_cases": 7,
+    "parent_rust_tests_passed": 7,
+    "parent_big_endian_ppc_object_compile_passed": true,
+    "parent_native_selected_tests_passed": 6
   },
   "benchmarks": {
     "final_measured_candidate": "../benchmarks/stdlib/html-bulk-copy-O2-2026-11-16.json",

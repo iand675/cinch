@@ -142,23 +142,27 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Adler32](Text.Adler32.md) | Ship source | Portable SIMD Adler-32 with bounded machine-word segments, persistent states, network-order digests and checked versioned checkpoints. |
 | [Text.Args](Text.Args.md) | Ship source | Command-line argument processing and its named value/error vocabulary. |
 | [Text.Ascii85](Text.Ascii85.md) | Ship source | ASCII85 text, caller-buffer and incremental codecs with consumed-input progress, checked source offsets, SIMD groups and control-run scanning. |
-| [Text.Base32](Text.Base32.md) | Ship source | RFC 4648 standard and extended-hex Base32, with padded and raw forms and named decoding errors. |
+| [Text.Base32](Text.Base32.md) | Ship source | Configurable Base32 byte alphabets and padding, SIMD codecs, prefix/caller-buffer operations and persistent incremental states. |
+| [Text.Base64.Encoding](Text.Base64.Encoding.md) | Ship source | Configurable Base64 byte alphabets, padding and strict trailing bits, SIMD codecs, persistent states and checked caller buffers. |
 | [Text.Base64](Text.Base64.md) | Ship source | Base64 encoding/decoding over bytes with explicit invalid-input results. |
 | [Text.Binary](Text.Binary.md) | Ship source | Little- and big-endian integer encoding, checked buffer access, and signed/unsigned varints. |
 | [Text.Builder](Text.Builder.md) | Ship source | An efficient text-construction vocabulary for assembling many fragments before rendering. |
 | [Text.Checksum](Text.Checksum.md) | Ship source | Incremental Adler-32, CRC-32 and CRC-64 checksums with explicit reflected polynomials. |
 | [Text.Codec](Text.Codec.md) | Embedded | Encoding/decoding signatures and codec helpers with explicit failure results. |
 | [Text.Crc64](Text.Crc64.md) | Ship source | Immutable SIMD-built polynomial tables, slicing-by-eight CRC-64, persistent states, network-order digests and table-checked checkpoints. |
+| [Text.Csv.Record](Text.Csv.Record.md) | Ship source | Configurable Unicode-delimited and lossless byte CSV records, checked partial results, positions and incremental parser state. |
 | [Text.Csv](Text.Csv.md) | Ship source | CSV parsing/rendering with explicit field, record, and malformed-input handling. |
 | [Text.Digest](Text.Digest.md) | Ship source | Digest and HMAC operations over bytes. Availability of a legacy digest is not a recommendation for a security protocol. |
 | [Text.Fnv.State](Text.Fnv.State.md) | Ship source | Persistent FNV states with reset, network-order digests, numeric observations and checked versioned binary checkpoints. |
 | [Text.Fnv](Text.Fnv.md) | Ship source | Incremental 32-, 64- and 128-bit FNV-1 and FNV-1a hashing with explicit wrapping arithmetic. |
 | [Text.Hex](Text.Hex.md) | Ship source | SIMD hexadecimal text/byte codecs, prefix-preserving decoding, append and destination operations, and formatted byte dumps. |
+| [Text.Html](Text.Html.md) | Ship source | HTML text/byte escaping, complete HTML5 character references, exact escaped sizing and SIMD/SWAR scanning. |
 | [Text.Json](Text.Json.md) | Ship source | JSON parsing and rendering over Data.Json, with explicit errors and builder-based output. |
 | [Text.Lex](Text.Lex.md) | Ship source | A source-distributed lexer toolkit: tokens, spans, and lexical errors for compiler/parser clients. |
 | [Text.OptionParser](Text.OptionParser.md) | Ship source | Declarative option specifications, short/long forms, conversion, positionals, usage, and named parse errors. |
 | [Text.Otlp](Text.Otlp.md) | Ship source | OTLP/JSON record construction/rendering for structured log/trace data and trace-context helpers. |
 | [Text.Parse](Text.Parse.md) | Ship source | A source-distributed parser toolkit over the lexer/scanner vocabulary. |
+| [Text.Path](Text.Path.md) | Ship source | Portable slash-path lexical operations and checked shell patterns with reusable compiled matchers and exact SIMD scans. |
 | [Text.Regex](Text.Regex.md) | Ship source | Regular-expression parsing/matching and replacement under the module's admitted regex language. |
 | [Text.Scan](Text.Scan.md) | Ship source | Scanning primitives over input text and the shared position/error vocabulary. |
 | [Text.Sha256](Text.Sha256.md) | Ship source | Portable SHA-224/SHA-256 with generated SIMD schedules, persistent states, network-order digests and checked binary checkpoints. |
@@ -176,11 +180,14 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | --- | --- | --- |
 | [Effect.Adler32](Effect.Adler32.md) | Ship source | Inspectable scalar checksum sinks, generic byte writers and bounded reader-to-Adler-32 copying with advanced source continuations. |
 | [Effect.Ascii85](Effect.Ascii85.md) | Ship source | ASCII85 encoding writers and decoding byte readers with explicit finalization, bounded read-ahead and sticky stream errors. |
+| [Effect.Base32](Effect.Base32.md) | Ship source | Explicitly finalized Base32 encoding writers and bounded decoding readers with precise errors, retained cursors and sticky failures. |
+| [Effect.Base64](Effect.Base64.md) | Ship source | Explicitly finalized Base64 writers and bounded decoding readers with sticky errors and isolated output chunks. |
 | [Effect.Benchmark](Effect.Benchmark.md) | Ship source | Benchmark case execution and timing/reporting helpers over runtime clocks. |
 | [Effect.Clock](Effect.Clock.md) | Embedded | Runtime monotonic and wall-clock readings under an I/O capability. Clocks are not ambient compile-time inputs. |
 | [Effect.Concurrent](Effect.Concurrent.md) | Embedded | Shipped task/worker vocabulary supplementing the compiler-installed structured scope and join operations. |
 | [Effect.Coverage](Effect.Coverage.md) | Ship source | Coverage collection/reporting utilities with explicit runtime and source metadata. |
 | [Effect.Crc64](Effect.Crc64.md) | Ship source | Inspectable CRC-64 states, generic byte writers and bounded reader-to-checksum copying with advanced source continuations. |
+| [Effect.Csv](Effect.Csv.md) | Ship source | Bounded CSV readers and writers with explicit continuation, record counts, position tracking and advanced handles after failures. |
 | [Effect.FileUtils](Effect.FileUtils.md) | Ship source | Convenience filesystem operations built on the lower-level filesystem API. |
 | [Effect.Find](Effect.Find.md) | Ship source | Filesystem walking/search utilities with the module's traversal and error policy. |
 | [Effect.Fnv](Effect.Fnv.md) | Ship source | Inspectable FNV hashing sinks, generic byte-writer composition and bounded reader-to-hash copying with advanced continuations. |
@@ -208,7 +215,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **141 source modules**: **65 embedded** and **76 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **148 source modules**: **65 embedded** and **83 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

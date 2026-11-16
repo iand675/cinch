@@ -19,9 +19,13 @@ is not an available API.
 | `math/bits` | [Data.Word](../library/Data.Word.md), `Data.Machine`, `Algebra.Bits` | All fixed/native-width count and reversal families, significant length, signed rotations, carry/borrow, exact wide multiply, checked and proof-bearing division/remainder | All 52 reference declarations mapped; portable 128-bit division helpers and checked-result allocations remain performance costs |
 | `unicode/utf16` | [Text.Utf16](../library/Text.Utf16.md) | Scalar length, surrogate classification/pairs, sequence encode/decode, append, explicit-order byte codecs, replacement policy | All seven reference capabilities mapped and tested; byte-codec throughput and immutable-list append costs are documented |
 | `encoding/binary` | [Text.Binary](../library/Text.Binary.md) | U16/U32/U64, both byte orders, offset reads, checked writes, unsigned and zigzag I64 varints, consumed byte count | Float/aggregate codecs, stream and append operations |
+| `encoding/csv` | [Text.Csv.Record](../library/Text.Csv.Record.md), [Effect.Csv](../library/Effect.Csv.md), [Text.Csv](../library/Text.Csv.md) | Configurable text/lossless-byte records, source positions, partial errors, reconfiguration and bounded stream adapters | Final unoptimized stack regression and benchmark review remain open; functional fixture gates pass on both frozen frontends |
 | `encoding/hex` | [Text.Hex](../library/Text.Hex.md), [Effect.Hex](../library/Effect.Hex.md) | Text/byte codecs, prefix and append APIs, checked caller buffers, formatted dumps, encoding writers, decoding readers and explicitly finished dump sinks | All 15 declarations mapped; immutable continuation, partial-row latency and allocation differences are documented |
 | `encoding/ascii85` | [Text.Ascii85](../library/Text.Ascii85.md), [Effect.Ascii85](../library/Effect.Ascii85.md) | Text/byte codecs, checked caller buffers and source offsets, retained prefix/progress, incremental states, stream adapters, shorthand, control runs and wrapped arithmetic | All seven declarations mapped; immutable continuation, buffered-read copying and allocation costs are documented |
-| `encoding/base32` | [Text.Base32](../library/Text.Base32.md) | RFC 4648 standard and extended-hex alphabets, padded and raw forms, CR/LF tolerance, final-quantum validation | Custom alphabets/padding, stream adapters |
+| `encoding/base32` | [Text.Base32](../library/Text.Base32.md), [Effect.Base32](../library/Effect.Base32.md) | Fixed/custom byte alphabets, optional byte padding, exact lengths, prefix/append/caller-buffer operations, persistent states and finished writers/bounded readers | All 21 recorded declarations mapped; strict malformed-input, original-byte error and optional UTF-8 text policies are explicit |
+| `encoding/base64` | [Text.Base64.Encoding](../library/Text.Base64.Encoding.md), [Effect.Base64](../library/Effect.Base64.md), [Text.Base64](../library/Text.Base64.md) | Fixed/custom byte alphabets, raw/padded and strict trailing-bit modes, exact lengths, prefix/append/caller-buffer operations, persistent states and finished writers/bounded readers | All 24 recorded declarations have idiomatic mappings; arbitrary-byte text conversion, error offsets and copied-buffer costs are explicit |
+| `html` | [Text.Html](../library/Text.Html.md) | Text/byte escaping, exact escaped sizing, complete named/numeric HTML5 character references and malformed-reference handling | Both recorded declarations mapped; two expanding HTML5 names intentionally extend the reference table |
+| `path` | [Text.Path](../library/Text.Path.md), [Data.Path](../library/Data.Path.md) | Portable slash-path lexical operations, complete checked shell patterns, reusable pattern values and precise pattern errors | All nine recorded declarations mapped; UTF-8 text carrier and bytewise star/Unicode-class behavior are explicit |
 | `crypto/sha256` | [Text.Sha256](../library/Text.Sha256.md), [Effect.Sha256](../library/Effect.Sha256.md) | SHA-224/SHA-256 whole-buffer digests, persistent states, reset, prefix-preserving append, checked binary checkpoints and stream sinks/copies | All ten recorded declarations and returned hash/clone/state capabilities mapped; portable SIMD schedule, copied buffers and hardware-acceleration limits are documented |
 | `hash/adler32` | [Text.Adler32](../library/Text.Adler32.md), [Effect.Adler32](../library/Effect.Adler32.md), [Text.Checksum](../library/Text.Checksum.md) | SIMD bounded-segment checksums, persistent states, numeric/byte digests, reset, copied-prefix append, checked checkpoints and stream sinks/copies | All four recorded declarations and returned hash/clone/state capabilities mapped; ownership and streaming costs are documented |
 | `hash/crc32` | [Text.Checksum](../library/Text.Checksum.md) | IEEE, Castagnoli, Koopman and custom reflected polynomials, incremental update | Table acceleration, stream adapters, serialized state |
@@ -61,8 +65,8 @@ retain the callback's actual effect-region identity; cross-runtime handles are
 rejected by negative tests.
 
 The machine-readable [surface inventory](stdlib-surface.json) covers all 180
-public packages in the pinned reference SDK. It currently records eight functionally complete, 60 partial
-and 112 unreviewed packages. ASCII85, hexadecimal, UTF-16, FNV, Adler-32, CRC-64, SHA-224/SHA-256 and word bit/arithmetic utilities have
+public packages in the pinned reference SDK. It currently records 12 functionally complete, 57 partial
+and 111 unreviewed packages. ASCII85, Base32, Base64, hexadecimal, HTML, paths, UTF-16, FNV, Adler-32, CRC-64, SHA-224/SHA-256 and word bit/arithmetic utilities have
 reviewed capability mappings, independent runtime fixtures and self-built
 compiler checks; completion does not assert matching allocation complexity or speed. Upstream mutable
 containers are included as implementation homes, not assumed full coverage.
@@ -288,3 +292,27 @@ private generated suffix has a reproducibility check. See the benchmark notes
 for measured small-input allocation/rendering improvements and the remaining
 gap against hardware SHA instructions; functional completion does not assert
 hardware throughput parity.
+
+Configurable Base32/Base64 APIs preserve arbitrary alphabet and padding bytes,
+including non-UTF-8 encoded output. Text conversion therefore returns an option;
+byte APIs retain all data. New prefix APIs return complete decoded output with a
+later error, and finite destinations check capacity before mutation. Immutable
+lookup tables and pending state never alias caller-owned buffers. Stream writers
+finish their final quantum explicitly and return the advanced sink; readers use
+bounded source chunks, private surplus cursors and sticky delayed errors. Original
+byte offsets include ignored CR/LF. Base32 rejects impossible raw tail lengths
+and data following padding even when a reference implementation accepts them.
+The legacy fixed-text Base32 path now collects and materializes scalar output
+with bounded stack usage; a large early-newline regression exercises that path.
+
+`Text.Path` provides slash semantics independent of disk access and preserves
+existing `Data.Path` behavior. Patterns are fully checked before matching;
+classes and question marks use Unicode scalars while stars advance by byte,
+including replacement-scalar matching after a skipped UTF-8 continuation byte.
+Private SIMD scans use machine counters and retain owners around complete exact
+traversals. `Text.Html` uses a reproducibly generated complete HTML5 entity table,
+packed-name routing with full-key verification, and numeric replacement rules.
+The two names whose replacements expand the input are supported explicitly.
+Its byte APIs preserve non-UTF-8 data outside converted references. Matched
+benchmarks retain unsuccessful intermediates and controls; dense conversion and
+checked output-store costs remain throughput limitations.

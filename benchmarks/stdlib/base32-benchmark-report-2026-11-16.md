@@ -30,7 +30,7 @@ allocation falling from 9659 to 7637 blocks and from 2140836 to 850596 cumulativ
 bytes. Peak live memory remains 328036 bytes. Probes use ordinary reclamation,
 include startup/preparation, and finish with zero live allocations.
 
-## Isolated padding proposal
+## Adopted constant-time padding
 
 The legacy padded text convenience scans `string-length raw` only to determine
 padding, although both fixed alphabets guarantee ASCII output. The
@@ -38,14 +38,18 @@ padding, although both fixed alphabets guarantee ASCII output. The
 scan with the input-length remainder map 0→0, 1→6, 2→4, 3→3, 4→1. The first
 zero is explicitly typed `Nat` to avoid local numeric defaulting.
 
-The [paired proposal](interleaved-base32-padding-O2-2026-11-16.json) improves
+The [paired comparison](interleaved-base32-padding-O2-2026-11-16.json) improves
 legacy encoding about 1.86x at 32 bytes, 12.47x at 16 KiB and 12.97x at 64 KiB;
 byte controls vary by at most 3.13%. Equal-path 64 KiB allocation falls from
 209984 to 265 blocks and from 4685542 to 491162 cumulative bytes, with the same
 275795-byte peak. All five remainders and empty input match baseline/reference
-checksums at sizes 0–14. This is a separate candidate; the fully measured
+checksums at sizes 0–14. The padding-only change is adopted after100 focused standard/hex padded
+goldens passed on both frozen frontends under ordinary and poisoned-free
+validation with zero leaks. The full48-row timing sweep remains the pre-padding
+snapshot; the fully measured
 [before-padding report](base32-before-padding-O2-2026-11-16.json) is preserved.
-Parent adoption and focused fixed-text/extended-hex goldens are separate gates.
+The full baseline harness passed14 Rust and12 selected Native tests before this
+three-line change.
 
 ## Generated code and reproduction
 
@@ -58,12 +62,15 @@ These public-pipeline results do not claim isolated kernel or allocation parity.
 The [validation record](base32-benchmark-validation-2026-11-16.json) and
 [snapshot manifest](base32-source-snapshots-2026-11-16.json) identify each source
 role. Source snapshots and executable/LLVM/assembly artifacts remain at the
-recorded local paths. Apply either patch to a temporary copy of the identified
-baseline module, verify its hash, and pass it via `--source-override` when
-building. Pass all other frozen modules as overrides to keep the comparison
+recorded local paths. The committed text module has adopted the padding patch: reverse
+`base32-o1-padding-candidate.patch` to reconstruct its pre-padding baseline,
+then verify the recorded hash. Apply the cursor-copy patch independently to
+the unchanged Effect module. Pass the reconstructed sources via
+`--source-override` when building. Pass all other frozen modules as overrides to keep the comparison
 independent of later parent edits. `compare_base32_encoding.py` rejects
 unexpected compiler, driver, runtime or source changes and retains every
 measured sample; each case has one excluded warmup process.
 
-No library source, shared inventory, generated documentation or shared runner
-was edited by this lane. The full standard-library goal remains open.
+The benchmark lane prepared isolated snapshots; parent integration adopted the
+padding change and retained the full source identities. The full standard-library
+goal remains open.

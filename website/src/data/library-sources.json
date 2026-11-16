@@ -595,6 +595,22 @@
       "public_methods": 0
     },
     {
+      "module": "Effect.Base32",
+      "path": "compiler/prelude/Effect/Base32.cinch",
+      "sha256": "38f8d4b0a0ac51fed5ed5251d0b16093e8983986ea36330edede81bb69705b90",
+      "embedded": false,
+      "values": 5,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Base64",
+      "path": "compiler/prelude/Effect/Base64.cinch",
+      "sha256": "4cb4efcac5c5f5cc20a4db01503a21baf397adb8a0c1104a2ee19a0ebf773231",
+      "embedded": false,
+      "values": 5,
+      "public_methods": 0
+    },
+    {
       "module": "Effect.Benchmark",
       "path": "compiler/prelude/Effect/Benchmark.cinch",
       "sha256": "59fcce379631b8530523a7370db82c170c0e5d6e0a7b5961e80fd270883e8ba3",
@@ -632,6 +648,14 @@
       "sha256": "d9692eee84798f6237c7ae8a23ed91e66906cff5f137a800acc413e8b5ddcabc",
       "embedded": false,
       "values": 3,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Csv",
+      "path": "compiler/prelude/Effect/Csv.cinch",
+      "sha256": "115546a78f2887a0c90afee36770a12bb8df504ef53c76af994a5453a26a2605",
+      "embedded": false,
+      "values": 23,
       "public_methods": 0
     },
     {
@@ -917,9 +941,17 @@
     {
       "module": "Text.Base32",
       "path": "compiler/prelude/Text/Base32.cinch",
-      "sha256": "ae82b9c24657458ca5d6b0f33ee80b8ba8239cef592e793a926270cb45e308bd",
+      "sha256": "e901c7d08842d6580c765eefac5ad5d7ab48078c6fc46dbb963e3abafd55acbd",
       "embedded": false,
-      "values": 4,
+      "values": 31,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Base64.Encoding",
+      "path": "compiler/prelude/Text/Base64/Encoding.cinch",
+      "sha256": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+      "embedded": false,
+      "values": 30,
       "public_methods": 0
     },
     {
@@ -971,6 +1003,14 @@
       "public_methods": 0
     },
     {
+      "module": "Text.Csv.Record",
+      "path": "compiler/prelude/Text/Csv/Record.cinch",
+      "sha256": "a9f4220c17a27ef09808c2835109cf7b5e9e83fddae72d23bc649e0923c11806",
+      "embedded": false,
+      "values": 39,
+      "public_methods": 0
+    },
+    {
       "module": "Text.Csv",
       "path": "compiler/prelude/Text/Csv.cinch",
       "sha256": "d21273e9e6f5a4ff4f641e9766e2567e232cd80b36eeaec4626a50914c2f4455",
@@ -1011,6 +1051,14 @@
       "public_methods": 0
     },
     {
+      "module": "Text.Html",
+      "path": "compiler/prelude/Text/Html.cinch",
+      "sha256": "a22d0acc3c1f391ed0207a94984a8b6c93036239ac88f449f84324dd7ee8d478",
+      "embedded": false,
+      "values": 5,
+      "public_methods": 0
+    },
+    {
       "module": "Text.Json",
       "path": "compiler/prelude/Text/Json.cinch",
       "sha256": "646cb9dacbfe1f64f18870031ca3fd708bb0b71021dff562f3661954f3e80f6c",
@@ -1048,6 +1096,14 @@
       "sha256": "4b6d00ab84e6969cf6fe8a21f29a255a9871c048b6df4baab006734efd7fabed",
       "embedded": false,
       "values": 45,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Path",
+      "path": "compiler/prelude/Text/Path.cinch",
+      "sha256": "8a9f7c29198f038a541bd510a68aee1502f1d8c3d3693500406fe24aba86cbad",
+      "embedded": false,
+      "values": 11,
       "public_methods": 0
     },
     {
