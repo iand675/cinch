@@ -1,0 +1,42 @@
+{
+  "label": "combined-fresh",
+  "compiler_sha256": "96c4f542c5f9925b5a6fab25c1e0c2d38eba40987fc1eed268fac51230cc2d2a",
+  "fixture_sha256": "fc3e57b0eb90ae57ef637c813cad2c1fd9cb29cc37dd703be47aee475f4a3da7",
+  "command": [
+    "/workspace/dasl-stdlib-string-combined/build/combined-base-artifact-v1/cinch",
+    "build",
+    "/workspace/dasl-stdlib-string-combined/build/join-namespace-combined/Main.cinch",
+    "-o",
+    "/workspace/dasl-stdlib-string-combined/build/join-namespace-combined/consumer",
+    "--opt-level",
+    "2"
+  ],
+  "source_sha256": {
+    "Text.Scan": "bc12b7a6cb5fe9a9b448047f9aeeb0fc3eac1e29927e2270e7be760014a93208",
+    "Text.Parse": "4fe975aa19fd3e43909a368f57dd13e11e86a5ab90192834a9591e27e448da6b",
+    "Text.Lex": "bce5acadcde6ac5967b29c6eed2933e31df83451561d3ee9165e5d3beb2a2032",
+    "Text.Shellwords": "a37ca53b9d6ab728f032df39413d1584cbcbdeea29fd40103c0219cc99e643c9",
+    "Text.Toml": "a5cd93530d3844f3c904ae55cb8b59a8c4611ba114d319daa937eabad137f7ce",
+    "Text.OptionParser": "a98ed14dc7c9027ecc53724e553eaf38be5066a392559916d31036bf5f557eee",
+    "Effect.Resolv": "65ca0fab55b2fa3af62a70907a148bc365d53b0282538b8ecb3719310a08d1cf",
+    "Data.IpAddr": "1315365aa804385982fcb718a6772635be4b70cec5b62aeb30e3478ffa8b39ae",
+    "Effect.Net": "a2cb8234289a30c321ff66c01032badecda44207e910c715466821db78321a46"
+  },
+  "executable_sha256": "69afe9e8c5fa394cfb2d8eb0229f438f5cb34dde29bf6432809f4654406c2218",
+  "llvm_sha256": "d609c4ea55678abdda2720a76c32d4fac0e886d904f77fb4e9db6cf8722b4514",
+  "profiles": [
+    {
+      "poisoned": false,
+      "zero_leaks": true,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "poisoned": true,
+      "zero_leaks": true,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    }
+  ],
+  "source_shadow_used": false,
+  "string_interface_sha256": "3a4e8106f50cb9b7d0db1ed34dae23a16d11cdd30254eb2ea17dac68ad506712",
+  "string_source_hash": "416560347689830784"
+}
