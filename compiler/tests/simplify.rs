@@ -674,6 +674,93 @@ fn saturate_partial_merges_a_one_shot_partial_application() {
     assert_eq!(args.len(), 3, "the call is saturated");
 }
 
+/// Saved computations of different classes remain bound, left to right,
+/// before an intervening call; the eventual application is still direct.
+#[test]
+fn saturate_partial_retains_computed_prefixes_in_original_order() {
+    let computed = |name: &str| Core::App(Box::new(Core::Global(gid(name), vec![])), vec![Core::Var(LocalId(0))]);
+    let body = Core::Let(LocalId(3), Class::Obj,
+        Box::new(Core::App(Box::new(Core::Global(gid("Main.g"), vec![])),
+            vec![computed("Main.readNat"), computed("Main.readWord")])),
+        Box::new(Core::Let(LocalId(4), Class::Raw, Box::new(computed("Main.write")),
+            Box::new(Core::App(Box::new(Core::Var(LocalId(3))), vec![Core::Var(LocalId(2))])))));
+    let mut p = program(vec![
+        unit("Main.g", vec![Class::TObj, Class::Raw, Class::Obj], Core::Var(LocalId(2))),
+        unit("Main.f", vec![Class::Obj, Class::Obj, Class::Obj], body),
+    ]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &options(), &mut report);
+    assert_eq!(report.saturate, 1, "fusion must still eliminate the partial closure");
+    let Core::Let(first, Class::TObj, read_nat, rest) = &p.fns[1].body else { panic!("{:?}", p.fns[1].body) };
+    assert!(matches!(&**read_nat, Core::App(head, _) if matches!(&**head, Core::Global(id, _) if id.0 == "Main.readNat")));
+    let Core::Let(second, Class::Raw, read_word, rest) = &**rest else { panic!("{rest:?}") };
+    assert!(matches!(&**read_word, Core::App(head, _) if matches!(&**head, Core::Global(id, _) if id.0 == "Main.readWord")));
+    let Core::Let(_, _, write, call) = &**rest else { panic!("{rest:?}") };
+    assert!(matches!(&**write, Core::App(head, _) if matches!(&**head, Core::Global(id, _) if id.0 == "Main.write")));
+    let Core::App(head, args) = &**call else { panic!("{call:?}") };
+    assert!(matches!(&**head, Core::Global(id, _) if id.0 == "Main.g"));
+    assert!(matches!(args.as_slice(), [Core::Var(a), Core::Var(b), Core::Var(LocalId(2))] if a == first && b == second));
+}
+
+/// Primitive heads retain their identity while computed saved arguments
+/// use the primitive signature's parameter class.
+#[test]
+fn saturate_partial_preserves_primitive_head_and_saved_class() {
+    let body = Core::Let(LocalId(1), Class::Obj,
+        Box::new(Core::App(Box::new(Core::Prim(cinch::core::PrimOp::EqBool)),
+            vec![Core::App(Box::new(Core::Global(gid("Main.read"), vec![])), vec![Core::Var(LocalId(0))])])),
+        Box::new(Core::App(Box::new(Core::Var(LocalId(1))), vec![Core::Bool(true)])));
+    let mut p = program(vec![unit("Main.f", vec![Class::Obj], body)]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &options(), &mut report);
+    assert_eq!(report.saturate, 1);
+    let Core::Let(saved, Class::Raw, _, call) = &p.fns[0].body else { panic!("{:?}", p.fns[0].body) };
+    let Core::App(head, args) = &**call else { panic!("{call:?}") };
+    assert!(matches!(&**head, Core::Prim(cinch::core::PrimOp::EqBool)));
+    assert!(matches!(args.as_slice(), [Core::Var(value), Core::Bool(true)] if value == saved));
+}
+
+/// A polymorphic callee's class vector types saved temporaries and remains
+/// attached to the fused direct call.
+#[test]
+fn saturate_partial_retains_instantiation_and_substitutes_saved_class() {
+    let mut callee = unit("Main.g", vec![Class::Param(0), Class::Obj], Core::Var(LocalId(0)));
+    callee.repr.tparams = 1;
+    let body = Core::Let(LocalId(1), Class::Obj,
+        Box::new(Core::App(Box::new(Core::Global(gid("Main.g"), vec![Class::Raw])),
+            vec![Core::App(Box::new(Core::Global(gid("Main.read"), vec![])), vec![Core::Var(LocalId(0))])])),
+        Box::new(Core::App(Box::new(Core::Var(LocalId(1))), vec![Core::Var(LocalId(0))])));
+    let mut p = program(vec![callee, unit("Main.f", vec![Class::Obj], body)]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &options(), &mut report);
+    assert_eq!(report.saturate, 1);
+    let Core::Let(_, Class::Raw, _, call) = &p.fns[1].body else { panic!("{:?}", p.fns[1].body) };
+    let Core::App(head, _) = &**call else { panic!("{call:?}") };
+    assert!(matches!(&**head, Core::Global(id, classes) if id.0 == "Main.g" && classes == &[Class::Raw]));
+}
+
+/// A nullary unit reference executes work; it cannot move into a later
+/// application merely because its Core form is a global reference.
+#[test]
+fn saturate_partial_keeps_nullary_saved_argument_before_intervening_call() {
+    let body = Core::Let(LocalId(1), Class::Obj,
+        Box::new(Core::App(Box::new(Core::Global(gid("Main.g"), vec![])), vec![Core::Global(gid("Main.read"), vec![])])),
+        Box::new(Core::Let(LocalId(2), Class::Raw,
+            Box::new(Core::App(Box::new(Core::Global(gid("Main.write"), vec![])), vec![Core::Unit])),
+            Box::new(Core::App(Box::new(Core::Var(LocalId(1))), vec![Core::Var(LocalId(0))])))));
+    let mut p = program(vec![
+        unit("Main.g", vec![Class::TObj, Class::Obj], Core::Var(LocalId(1))),
+        unit("Main.read", vec![], Core::Unit),
+        unit("Main.f", vec![Class::Obj], body),
+    ]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &options(), &mut report);
+    assert_eq!(report.saturate, 1);
+    let Core::Let(_, Class::TObj, value, rest) = &p.fns[2].body else { panic!("{:?}", p.fns[2].body) };
+    assert!(matches!(&**value, Core::Global(id, _) if id.0 == "Main.read"));
+    assert!(matches!(&**rest, Core::Let(_, _, _, _)));
+}
+
 /// A binder read twice keeps its binding: two applications of one closure
 /// are two applications, and merging them would duplicate the value.
 #[test]

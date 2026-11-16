@@ -179,5 +179,34 @@
         "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
       }
     ]
+  },
+  "saved_prefix_baseline": [
+    {
+      "case": "saved-prefix-O2",
+      "exit": 1,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "source_sha256": "77ff9ddf674495717fc0ea04c71ae2ad9a1d5804350290c210d32790c68d8b3e",
+      "opt_level": "2",
+      "flags": []
+    },
+    {
+      "case": "saved-prefix-no-saturate-O2",
+      "exit": 0,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "source_sha256": "77ff9ddf674495717fc0ea04c71ae2ad9a1d5804350290c210d32790c68d8b3e",
+      "opt_level": "2",
+      "flags": [
+        "--no-saturate-partial"
+      ]
+    }
+  ],
+  "saved_prefix_final_fixture_baseline": {
+    "case": "saved-final-O2",
+    "source_sha256": "6c70847240c8a56a619b264c875bc4c8b16708ed9e58cb4a600ad50bb2198b38",
+    "exit": 3,
+    "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+    "heap": "32M",
+    "stack": "8M",
+    "opt_level": "2"
   }
 }
