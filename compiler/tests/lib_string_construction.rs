@@ -67,9 +67,26 @@ fn checks(group: &str, rows: &[Value]) -> Vec<String> {
 /// Compile a selected source epoch with a real CLI-style project, then check both ownership modes.
 fn run(checks: &[String], opt_level: u8, override_source: bool) {
     let directory = tempfile::tempdir().unwrap();
-    let mut source = HELPERS.to_owned();
+    for (name, module) in [
+        ("Text.Hex", include_str!("../prelude/Text/Hex.cinch")),
+        (
+            "Data.Bytes.Word",
+            include_str!("../prelude/Data/Bytes/Word.cinch"),
+        ),
+    ] {
+        std::fs::write(directory.path().join(format!("{name}.cinch")), module).unwrap();
+    }
+    let mut source = HELPERS.replace(
+        "module Main where",
+        "module Main where\n  import Effect.Process",
+    );
     let mut names = Vec::new();
-    for (index, batch) in checks.chunks(64).enumerate() {
+    // Poison quarantine retains freed allocations until process exit. Keep
+    // each independent poisoned observation in its own process, including the
+    // 100-iteration owner control. Ordinary mode still runs the entire corpus
+    // together under the smaller live-heap limit.
+    let batch_width = 1;
+    for (index, batch) in checks.chunks(batch_width).enumerate() {
         source.push_str(&format!("\n  -- | Observe independent construction fixture batch {index}.\n  checks{index} :: Unit -> Bool\n  checks{index} unit = all [\n"));
         source.push_str(
             &batch
@@ -81,7 +98,11 @@ fn run(checks: &[String], opt_level: u8, override_source: bool) {
         source.push_str("\n    ]\n");
         names.push(format!("checks{index} ()"));
     }
-    source.push_str(&format!("\n  -- | Observe every public construction result.\n  main :: Unit ->{{IO r}} Int\n  main unit = with (io = newIO ()) in if {} then 0 else 1\n",names.join(" && ")));
+    let mut dispatch = "False".to_owned();
+    for (index, name) in names.iter().enumerate().rev() {
+        dispatch = format!("if batch == \"{index}\" then {name} else {dispatch}");
+    }
+    source.push_str(&format!("\n  -- | Select all ordinary observations or one bounded poisoned batch.\n  selected :: String -> Bool\n  selected batch = if batch == \"all\" then {} else {dispatch}\n  -- | Observe every construction with separate live-space and quarantine bounds.\n  main :: Unit ->{{IO r}} Int\n  main unit = with (io = newIO ()) in case process-args () of\n    Ok (Cons batch Nil) -> if selected batch then 0 else 1\n    other -> 2\n",names.join(" && ")));
     let selected_source = if override_source {
         // A comment discriminator prevents an identical fresh embedded copy from satisfying the override receipt accidentally.
         let selected = format!("-- Explicit constructor source-override receipt v1.\n{STRING}");
@@ -134,20 +155,28 @@ fn run(checks: &[String], opt_level: u8, override_source: bool) {
         );
     }
     for debug in [false, true] {
-        let output = std::process::Command::new(&exe)
-            .env("CINCH_RC_DEBUG", if debug { "1" } else { "0" })
-            .env("CINCH_LEAK_CHECK", "1")
-            .env("CINCH_HEAP_LIMIT", if debug { "256M" } else { "32M" })
-            .env("CINCH_STACK_SIZE", "8M")
-            .output()
-            .unwrap();
-        assert_eq!(
-            output.status.code(),
-            Some(0),
-            "debug={debug}, opt={opt_level}: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        assert!(String::from_utf8_lossy(&output.stderr).contains("leaked=0"));
+        let batches = if debug {
+            (0..names.len()).map(|index| index.to_string()).collect()
+        } else {
+            vec!["all".to_owned()]
+        };
+        for batch in batches {
+            let output = std::process::Command::new(&exe)
+                .arg(&batch)
+                .env("CINCH_RC_DEBUG", if debug { "1" } else { "0" })
+                .env("CINCH_LEAK_CHECK", "1")
+                .env("CINCH_HEAP_LIMIT", if debug { "256M" } else { "32M" })
+                .env("CINCH_STACK_SIZE", "8M")
+                .output()
+                .unwrap();
+            assert_eq!(
+                output.status.code(),
+                Some(0),
+                "batch={batch}, debug={debug}, opt={opt_level}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(String::from_utf8_lossy(&output.stderr).contains("leaked=0"));
+        }
     }
 }
 
