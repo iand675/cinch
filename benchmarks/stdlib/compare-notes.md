@@ -144,3 +144,33 @@ python3 tooling/bench_compare.py --work build/compare/bench \
   --compiler /absolute/frozen/cinch --runtime /absolute/libcinchruntime.a \
   --go /absolute/pinned/go --cpu 0 --progression
 ```
+
+## Runtime CI regression follow-up
+
+`lib_compare` now includes an explicitly Rust-only runtime test using the current
+`CARGO_BIN_EXE_cinch`, the committed JSON fixture corpus, and the actual C
+bit-pattern object. It refuses external frontend selector variables rather
+than silently substituting Rust for selected Native coverage. No SDK executable
+is needed. Before fixture emission, the runner requests an ordinary tiny
+compiler `build`, which initializes or refreshes the compiler's exact
+`runtime/target/release/libcinchruntime.a`. It captures that archive while
+holding the runtime's shared lock, then records its identity and uses the
+captured bytes for every fixture link. The initializer is also executed with
+zero-leak checking. Parent Cargo integration executes this initialization path;
+no Cargo invocation ran in the comparison lane.
+
+The runtime test runs I8, the complete F32 NaN/zero/payload group, all default
+policies and UTF-8 strings, with separate 32 MiB normal and 256 MiB poisoned heap
+profiles, both using 8 MiB consumer stacks. Compiler subprocesses have a separate
+64 MiB host stack limit. The test checks the exact captured archive identity,
+the four executed groups, both profiles and zero-leak diagnostics.
+
+The new optional `--native-rc-debug` flag emits Native fixture count operations
+through checked runtime calls. Rust's current CLI exposes no equivalent
+`--rc-debug` option, so reports explicitly record Rust compilation with
+`compile_rc_debug=false`; runtime poisoning is still exercised separately.
+`compare-runtime-regression-2026-11-16.json` retains focused new cad70 Rust and
+Native instrumented I8/F32/default/string results: eight consumers, sixteen
+ordinary/poison executions, all zero-leak. Inspection of the new Native LLVM
+confirms its checked count wrappers call `cinch_dup` and `cinch_drop`. Earlier
+frozen reports were left unchanged, and no library declaration changed.
