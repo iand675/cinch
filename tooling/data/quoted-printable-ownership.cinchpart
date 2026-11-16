@@ -1,0 +1,98 @@
+  -- | Input mutation and repeated feeds cannot change an encoder's retained prefix.
+  encoder-ownership :: Unit -> Bool
+  encoder-ownership unit =
+    let input = string-to-bytes "abc" in
+    case quoted-printable-encoder-feed (quoted-printable-encoder QuotedPrintableText) input of
+      (empty, state) ->
+        let changed = if bytes-len input > 0 then bytes-set input 0 88 else () in
+        case quoted-printable-encoder-feed state (string-to-bytes "d\n") of
+          (first, final) ->
+            let correct = same first (string-to-bytes "abcd\r\n") in
+            let mutated = if bytes-len first > 0 then bytes-set first 0 89 else () in
+            bytes-len empty == 0 && correct && same (quoted-printable-encoder-finish state) (string-to-bytes "abc") &&
+              (case quoted-printable-encoder-feed state (string-to-bytes "e") of
+                (other, fork) -> same (quoted-printable-encoder-finish fork) (string-to-bytes "abce") && bytes-len (quoted-printable-encoder-finish final) == 0)
+
+  -- | Decoder inputs, emitted chunks and forked continuations have independent storage.
+  decoder-ownership :: Unit -> Bool
+  decoder-ownership unit =
+    let input = string-to-bytes "ab=3" in
+    case quoted-printable-decoder-feed quoted-printable-decoder input of
+      (empty, pair) -> case pair of
+        (count, state) ->
+          let changed = if bytes-len input > 0 then bytes-set input 0 88 else () in
+          case quoted-printable-decoder-feed state (string-to-bytes "Dcd\n") of
+            (first, nextPair) ->
+              let correct = same first (string-to-bytes "ab=cd\n") in
+              let mutated = if bytes-len first > 0 then bytes-set first 0 89 else () in
+              count == 4 && bytes-len empty == 0 && correct &&
+                (case quoted-printable-decoder-feed state (string-to-bytes "0ef\n") of
+                  (fork, finalPair) -> same fork (string-to-bytes "ab0ef\n")) &&
+                (case quoted-printable-decoder-finish state of
+                  (tail, error) -> same tail (string-to-bytes "ab=3") && codec-message error == "")
+
+  -- | Mutating returned read prefixes cannot affect privately retained decoded surplus.
+  reader-ownership :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  reader-ownership unit =
+    let input = string-to-bytes "abcdef\n" in
+    case quoted-printable-read (quoted-printable-reader (reader-from-bytes input)) 2 of
+      (pair, next) -> case pair of
+        (out, status) ->
+          let correct = same out (string-to-bytes "ab") && status-message status == "" in
+          let changed-input = if bytes-len input > 0 then bytes-set input 0 88 else () in
+          let changed-output = if bytes-len out > 0 then bytes-set out 0 89 else () in
+          case quoted-printable-read next 100 of
+            (tailPair, final) -> case tailPair of
+              (tail, terminal) -> correct && same tail (string-to-bytes "cdef\n") && status-message terminal == "EOF"
+
+  -- | Additional public offsets refer to original physical input, including prior soft breaks.
+  precise-errors :: Unit -> Bool
+  precise-errors unit =
+    (case quoted-printable-decode-prefix (string-to-bytes "ab\u{0}tail") of
+      (out, Some (QuotedPrintableInvalidByte offset byte)) -> offset == 2 && byte == 0 && same out (string-to-bytes "ab")
+      _ -> False) &&
+    (case quoted-printable-decode-prefix (string-to-bytes "ab=\rX\n") of
+      (out, Some (QuotedPrintableInvalidHex offset byte)) -> offset == 3 && byte == 13 && same out (string-to-bytes "ab")
+      _ -> False) &&
+    (case quoted-printable-decode-prefix (string-to-bytes "ab==\n") of
+      (out, Some (QuotedPrintableIncompleteEscape offset)) -> offset == 2 && same out (string-to-bytes "ab")
+      _ -> False) &&
+    (case quoted-printable-decoder-feed quoted-printable-decoder (string-to-bytes "a=\n") of
+      (first, pair) -> case pair of
+        (count, state) -> case quoted-printable-decoder-feed state (string-to-bytes "b\u{0}\nlater") of
+          (out, nextPair) -> case nextPair of
+            (consumed, next) -> count == 3 && same first (string-to-bytes "a") && consumed == 3 && same out (string-to-bytes "b") &&
+              (case quoted-printable-decoder-error next of Some (QuotedPrintableInvalidByte offset byte) -> offset == 4 && byte == 0; _ -> False))
+
+  -- | The generic bridge drains a partial prefix once, then preserves its sticky failure across zero reads.
+  bridge-progress :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  bridge-progress unit =
+    let reader = quoted-printable-reader-as-stream (quoted-printable-reader (reader-from-string "ab\u{0}\n")) in
+    case stream-read reader 7 of
+      (Ok prefix, next) -> case stream-read next 7 of
+        (Err error, failed) -> case stream-read failed 0 of
+          (Ok empty, afterZero) -> case stream-read afterZero 7 of
+            (Err repeated, final) -> same prefix (string-to-bytes "ab") && bytes-len empty == 0 && stream-message error == "quotedprintable: invalid unescaped byte 0x00 in body" && stream-message repeated == stream-message error
+            _ -> False
+          _ -> False
+        _ -> False
+      _ -> False
+
+  -- | Empty writes stay inert after failure while later nonempty writes and finish retain that failure.
+  writer-zero-failure :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  writer-zero-failure unit =
+    let reset = raw-reset 0 in
+    case quoted-printable-write (quoted-printable-writer QuotedPrintableText fixture-sink) (string-to-bytes "a\n") of
+      (Err first, failed) -> case quoted-printable-write failed (bytes-new 0) of
+        (Ok count, afterZero) -> case quoted-printable-write afterZero (string-to-bytes "b") of
+          (Err repeated, final) -> case quoted-printable-finish final of
+            (Err error, sink) -> count == 0 && write-result-is (Err first) 0 "fixture sink failure" && write-result-is (Err repeated) 0 "fixture sink failure" && stream-message error == "fixture sink failure" && sink-is (bytes-new 0)
+            _ -> False
+          _ -> False
+        _ -> False
+      _ -> False
+
+  -- | Execute independent continuation, offset, partial-error and returned-buffer mutation controls.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    if encoder-ownership () then if decoder-ownership () then if reader-ownership () then if precise-errors () then if bridge-progress () then if writer-zero-failure () then 0 else 6 else 5 else 4 else 3 else 2 else 1

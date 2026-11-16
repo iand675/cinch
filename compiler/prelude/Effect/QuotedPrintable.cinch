@@ -1,0 +1,202 @@
+-- | Quoted-printable stream continuations with explicit input and error progress.
+-- Writers retain an immutable partial line and return the advanced borrowed sink.
+-- Readers preserve decoded bytes returned alongside a terminal status. The generic
+-- ByteReader bridge drains those bytes before reporting the error. Zero reads and
+-- empty byte writes follow Effect.Stream's inert-operation contract.
+module Effect.QuotedPrintable where
+
+  import Effect.Stream
+  import Text.QuotedPrintable
+  import Data.Bytes
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+
+  export QuotedPrintableWriter, quoted-printable-writer, quoted-printable-writer-mode
+  export quoted-printable-writer-sink, quoted-printable-write, quoted-printable-finish
+  export QuotedPrintableReader, quoted-printable-reader, quoted-printable-read
+  export quoted-printable-reader-source, quoted-printable-reader-as-stream
+  export QuotedPrintableReadStatus, QuotedPrintableReady, QuotedPrintableEof, QuotedPrintableReadFailure
+
+  -- | An explicitly advanced encoder and its borrowed output sink.
+  data QuotedPrintableWriter r where
+    -- | Private active continuation. Pending input never aliases caller buffers.
+    ActiveWriter :: QuotedPrintableEncoder -> ByteWriter r -> QuotedPrintableWriter r
+    -- | Private sticky failure retaining the sink after all accepted output bytes.
+    FailedWriter :: StreamError -> ByteWriter r -> QuotedPrintableWriter r
+
+  -- | Begin writing with an explicit text or binary newline policy.
+  quoted-printable-writer :: forall r. QuotedPrintableMode -> ByteWriter r -> QuotedPrintableWriter r
+  quoted-printable-writer mode sink = ActiveWriter (quoted-printable-encoder mode) sink
+
+  -- | Change the mode for subsequent input without flushing the retained line.
+  quoted-printable-writer-mode :: forall r. QuotedPrintableMode -> QuotedPrintableWriter r -> QuotedPrintableWriter r
+  quoted-printable-writer-mode mode writer = case writer of
+    ActiveWriter state sink -> ActiveWriter (quoted-printable-encoder-mode mode state) sink
+    FailedWriter error sink -> writer
+
+  -- | Observe the advanced borrowed sink, including after a failed write.
+  quoted-printable-writer-sink :: forall r. QuotedPrintableWriter r -> ByteWriter r
+  quoted-printable-writer-sink writer = case writer of
+    ActiveWriter state sink -> sink
+    FailedWriter error sink -> sink
+
+  -- | Write complete line events in order. A failure retains the input checkpoint
+  -- associated with that flush, separately from the sink's accepted output prefix.
+  write-events :: forall r. using (io :: Io r) => List (Nat, Bytes) -> ByteWriter r ->{IO r} (Result (Nat, StreamError) Unit, ByteWriter r)
+  write-events events sink = case events of
+    Nil -> (Ok (), sink)
+    Cons event rest -> case event of
+      (checkpoint, out) -> case stream-write-all sink out of
+        (Err error, advanced) -> (Err (checkpoint, error), advanced)
+        (Ok count, advanced) -> write-events rest advanced
+
+  -- | Accept one input buffer and return its reportable input count. On failure
+  -- the error carries that count and the advanced handle retains the exact sink
+  -- prefix. Printable batches count only after their entire batch succeeds.
+  -- Short underlying writes are retried; failures are sticky and never replayed.
+  -- An empty input succeeds with zero and leaves even a failed handle untouched.
+  quoted-printable-write :: forall r. using (io :: Io r) => QuotedPrintableWriter r -> Bytes ->{IO r} (Result (Nat, StreamError) Nat, QuotedPrintableWriter r)
+  quoted-printable-write writer input =
+    if bytes-len input == 0 then (Ok 0, writer)
+    else case writer of
+      FailedWriter error sink -> (Err (0, error), writer)
+      ActiveWriter state sink -> case quoted-printable-encoder-events state input of
+        (events, next) -> case write-events events sink of
+          (Err pair, advanced) -> case pair of
+            (checkpoint, error) -> (Err pair, FailedWriter error advanced)
+          (Ok unit, advanced) -> (Ok (bytes-len input), ActiveWriter next advanced)
+
+  -- | Quote the final trailing whitespace, flush retained bytes and return the
+  -- advanced sink on either outcome. The borrowed sink is never closed. Use the
+  -- returned sink for later unencoded data; the encoder handle is now complete.
+  quoted-printable-finish :: forall r. using (io :: Io r) => QuotedPrintableWriter r ->{IO r} (Result StreamError Unit, ByteWriter r)
+  quoted-printable-finish writer = case writer of
+    FailedWriter error sink -> (Err error, sink)
+    ActiveWriter state sink -> case write-events (quoted-printable-encoder-finish-events state) sink of
+      (Err pair, advanced) -> case pair of
+        (checkpoint, error) -> (Err error, advanced)
+      (Ok unit, advanced) -> (Ok (), advanced)
+
+  -- | Status returned alongside decoded bytes, so a partial read never loses its prefix.
+  data QuotedPrintableReadStatus where
+    -- | The requested count was satisfied; a zero request is also ready and inert.
+    QuotedPrintableReady :: QuotedPrintableReadStatus
+    -- | Genuine EOF was reached before the requested count was filled.
+    QuotedPrintableEof :: QuotedPrintableReadStatus
+    -- | A codec or source failure follows the bytes returned in this same read.
+    QuotedPrintableReadFailure :: StreamError -> QuotedPrintableReadStatus
+
+  -- | Explicit decoder continuation owning its line state and decoded surplus.
+  -- Always continue with the returned handle; descriptor sources share their OS cursor.
+  data QuotedPrintableReader r where
+    -- | Private advanced source, codec, fresh surplus, cursor and delayed terminal status.
+    ReaderState :: ByteReader r -> QuotedPrintableDecoder -> Bytes -> Nat -> QuotedPrintableReadStatus -> QuotedPrintableReader r
+
+  -- | Begin decoding an independently owned continuation over a borrowed source.
+  quoted-printable-reader :: forall r. ByteReader r -> QuotedPrintableReader r
+  quoted-printable-reader source = ReaderState source quoted-printable-decoder (bytes-new 0) 0 QuotedPrintableReady
+
+  -- | Observe the source after its exact buffered read-ahead, even after failure.
+  quoted-printable-reader-source :: forall r. QuotedPrintableReader r -> ByteReader r
+  quoted-printable-reader-source reader = case reader of
+    ReaderState source codec pending cursor terminal -> source
+
+  -- | Translate a precise codec diagnostic without discarding its original byte offset.
+  codec-error :: QuotedPrintableError -> StreamError
+  codec-error error = StreamEncodingError "quotedprintable" (quoted-printable-error-offset error) (quoted-printable-error-message error)
+
+  -- | Copy one checked interval so returned bytes cannot mutate retained surplus.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input at count = if at + count <= bytes-len input then
+    let out = bytes-new count in let copied = bytes-copy-range out input 0 at count in out
+    else bytes-new 0
+
+  -- | Total the exact lengths of a reversed list of completed output pieces.
+  pieces-length :: List Bytes -> Nat -> Nat
+  pieces-length pieces count = case pieces of
+    Nil -> count
+    Cons bytes rest -> pieces-length rest (count + bytes-len bytes)
+
+  -- | Copy aggregate pieces into an exact allocation, using only proved byte ranges.
+  copy-pieces :: Bytes -> Nat -> List Bytes -> Unit
+  copy-pieces out at pieces = case pieces of
+    Nil -> ()
+    Cons bytes rest -> if at + bytes-len bytes <= bytes-len out then
+      let copied = bytes-copy-range out bytes at 0 (bytes-len bytes) in
+      copy-pieces out (at + bytes-len bytes) rest
+      else ()
+
+  -- | Return one fresh aggregate without exposing any buffer retained by the reader.
+  output-pieces :: List Bytes -> Bytes
+  output-pieces reversed =
+    let pieces = reverse reversed in
+    let out = bytes-new (pieces-length pieces 0) in
+    let copied = copy-pieces out 0 pieces in out
+
+  -- | Read up to the request while preserving a simultaneous partial prefix and
+  -- terminal status. EOF and failures remain sticky; zero reads are always inert.
+  quoted-printable-read :: forall r. using (io :: Io r) => QuotedPrintableReader r -> Nat ->{IO r} ((Bytes, QuotedPrintableReadStatus), QuotedPrintableReader r)
+  quoted-printable-read reader count =
+    if count == 0 then ((bytes-new 0, QuotedPrintableReady), reader)
+    else read-more reader count Nil
+
+  -- | Choose a span bounded by both the remaining request and available surplus.
+  take-count :: (remaining :: Nat) -> (available :: Nat) -> refined (r <= remaining && r <= available) Nat
+  take-count remaining available = if remaining < available then remaining else available
+
+  -- | Drain surplus, then fetch at most the physical-line capacity. Exact fills
+  -- return Ready; a delayed EOF/error is surfaced only when more bytes are requested.
+  read-more :: forall r. using (io :: Io r) => QuotedPrintableReader r -> Nat -> List Bytes ->{IO r} ((Bytes, QuotedPrintableReadStatus), QuotedPrintableReader r)
+  read-more reader remaining pieces =
+    if remaining == 0 then ((output-pieces pieces, QuotedPrintableReady), reader)
+    else case reader of
+      ReaderState source codec pending cursor terminal ->
+        if cursor < bytes-len pending then
+          let available = bytes-len pending - cursor in
+          let count = take-count remaining available in
+          let out = part pending cursor count in
+          read-more (ReaderState source codec pending (cursor + count) terminal) (remaining - count) (Cons out pieces)
+        else case terminal of
+          QuotedPrintableEof -> ((output-pieces pieces, terminal), reader)
+          QuotedPrintableReadFailure error -> ((output-pieces pieces, terminal), reader)
+          QuotedPrintableReady -> fetch-more source codec remaining pieces
+
+  -- | Fetch only unused decoder capacity, preserving source read-ahead boundaries.
+  -- On source failure, finalize the partial physical line as interrupted rather than EOF.
+  fetch-more :: forall r. using (io :: Io r) => ByteReader r -> QuotedPrintableDecoder -> Nat -> List Bytes ->{IO r} ((Bytes, QuotedPrintableReadStatus), QuotedPrintableReader r)
+  fetch-more source codec remaining pieces =
+    let capacity = quoted-printable-decoder-capacity codec in
+    if capacity == 0 then
+      let error = StreamEncodingError "quotedprintable" (quoted-printable-decoder-position codec) "quoted-printable decoder has no remaining physical-line capacity" in
+      let next = ReaderState source codec (bytes-new 0) 0 (QuotedPrintableReadFailure error) in
+      ((output-pieces pieces, QuotedPrintableReadFailure error), next)
+    else case stream-read source capacity of
+      (Err sourceError, advanced) -> case quoted-printable-decoder-end False codec of
+        (out, error) ->
+          let terminal = case error of None -> QuotedPrintableReadFailure sourceError; Some failure -> QuotedPrintableReadFailure (codec-error failure) in
+          read-more (ReaderState advanced codec out 0 terminal) remaining pieces
+      (Ok input, advanced) ->
+        if bytes-len input == 0 then case quoted-printable-decoder-finish codec of
+          (out, error) ->
+            let terminal = case error of None -> QuotedPrintableEof; Some failure -> QuotedPrintableReadFailure (codec-error failure) in
+            read-more (ReaderState advanced codec out 0 terminal) remaining pieces
+        else case quoted-printable-decoder-feed codec input of
+          (out, pair) -> case pair of
+            (consumed, nextCodec) ->
+              let terminal = case quoted-printable-decoder-error nextCodec of Some failure -> QuotedPrintableReadFailure (codec-error failure); None -> if consumed == bytes-len input then QuotedPrintableReady else QuotedPrintableReadFailure (StreamInvalidCount (bytes-len input) consumed) in
+              read-more (ReaderState advanced nextCodec out 0 terminal) remaining pieces
+
+  -- | Adapt explicit read statuses to the generic byte-reader protocol. A
+  -- partial prefix is returned first; its error is retained for the next read.
+  -- Neither returned chunks nor later calls can mutate codec continuation state.
+  quoted-printable-reader-as-stream :: forall r. using (io :: Io r) => QuotedPrintableReader r -> ByteReader r
+  quoted-printable-reader-as-stream reader = stream-reader (\count -> case quoted-printable-read reader count of
+    (pair, next) -> case pair of
+      (out, status) -> case status of
+        QuotedPrintableReadFailure error ->
+          if bytes-len out == 0 then (Err error, quoted-printable-reader-as-stream next)
+          else (Ok out, quoted-printable-reader-as-stream next)
+        QuotedPrintableReady -> (Ok out, quoted-printable-reader-as-stream next)
+        QuotedPrintableEof -> (Ok out, quoted-printable-reader-as-stream next))
