@@ -1,0 +1,797 @@
+{
+  "format": 1,
+  "runner_sha256": "64c46a84b729dbd9e6f23246a8e86c9f1b0efb2b500b38ee6ebcc98de0cda323",
+  "vectors_sha256": "11b5622d6b743509304a19cde8e85118917ea7ed9c739ad549795d704967ebd2",
+  "compiler_host_stack_bytes": 67108864,
+  "counts": {
+    "values-0000": 64,
+    "values-0064": 64,
+    "values-0128": 64,
+    "values-0192": 64,
+    "values-0256": 64,
+    "values-0320": 64,
+    "values-0384": 64,
+    "values-0448": 64,
+    "values-0512": 64,
+    "values-0576": 64,
+    "values-0640": 64,
+    "values-0704": 64,
+    "values-0768": 64,
+    "values-0832": 64,
+    "values-0896": 64,
+    "values-0960": 64,
+    "values-1024": 64,
+    "values-1088": 64,
+    "values-1152": 64,
+    "values-1216": 64,
+    "values-1280": 64,
+    "values-1344": 24,
+    "readers-0000": 8,
+    "readers-0008": 8,
+    "readers-0016": 8,
+    "readers-0024": 8,
+    "readers-0032": 8,
+    "readers-0040": 1,
+    "writers-0000": 8,
+    "writers-0008": 8,
+    "writers-0016": 8,
+    "writers-0024": 8,
+    "writers-0032": 8,
+    "writers-0040": 8,
+    "writers-0048": 8,
+    "writers-0056": 4,
+    "ownership": 5
+  },
+  "consumer_sha256": {
+    "values-0000": "e40007d9d2d987fd763dc22c09917765a38d409253657c65d335b9730f20236b",
+    "values-0064": "91f550e785393b324f3b51ed469987d9c2aa3c526058d44bcdbece9e4ac60de3",
+    "values-0128": "0bd24298816b10fdbfc12434ec0c481fa7484365503cfc9f07e0a1729c365885",
+    "values-0192": "05fe15c156143ab51c26d12f752160e25f21fc9b93405c67d9bb5031b287eaca",
+    "values-0256": "9d4d8da2a5c31c557117732e320f991156d45d7ce1bb8bef9d6ffd25771b4b08",
+    "values-0320": "91636abdf838fa627f54723cd6b572cc408fcb3f7397f7fb776b17dcc2278c08",
+    "values-0384": "dbef461778af72af9cd924a3405c8e936f815d9c0f07eec1df237991fff9d095",
+    "values-0448": "80af3cc1fe6ffc123302c6671d19c13dc6bd30c59b9732dfb5a1baacb2d7c00e",
+    "values-0512": "34e655c7f1bc17a58b65f84e019891ea2a7a51e86cfb68a52cfab0733bb703de",
+    "values-0576": "1317c4f304e325d2c0508be6aae3b90d0269e3a21eff4ab7a8f36b3f096b5b83",
+    "values-0640": "38883d6f11227e79d904669c2c56f593f26814670458b7b70541aab9c803eaf1",
+    "values-0704": "4f4a6a2af85d07ac8c75a5d3832672cf61c05ccfcb9380da5e589fb1c83b6651",
+    "values-0768": "1dff55ccd1768e38ede1fc0aa1dd16993ca595aaa021c367a0fb1ef91a78648a",
+    "values-0832": "b21a655654f9df037db9f69495e19c52c5ea7ea052332091c0d150e74e9c807b",
+    "values-0896": "da2b08f1825464fb02957a52e6a1235961a7b663274c5ab26b3536bf3c037222",
+    "values-0960": "818d3f8ef3306f49893dc948217dc71081e1bfeea1f8b86322bf6bc3c9a30a85",
+    "values-1024": "b086bca3ad452f04af586e58570af6f576cf31e4ffae7b049ef0fa5a5830a048",
+    "values-1088": "e825440e687728ea07280dbd3b118815929fc00275fbec57291734a042c06d7b",
+    "values-1152": "f700f1b57e02b40cd7274f426105a74c7b77225299dff5bb23648cefc92b4eae",
+    "values-1216": "e7e80811b64175e5a947c8f9b84f487da3554b51ab41de5a1f16d26e63e2baa9",
+    "values-1280": "e695544cda4a57936b48f6e4800f35f77030c43cde7116572fa95d8875db30de",
+    "values-1344": "2c9aabfa2a29c4b9114590b5c461d4697491927ac1e5adf0a265d8d5844671a2",
+    "readers-0000": "84c59f88de40873e68ef58bf9f011f7bd02341c232a97fe83ff0a604712e9aa2",
+    "readers-0008": "f78692302e86f2dbe9dd015f1e9471a4a17c1e6e37bdfd337dd286c9eacba351",
+    "readers-0016": "b4901c4e4ad8eac43253afdacd40ec2aa8051e3b5155212e2cfcfb6b08914aea",
+    "readers-0024": "4d4552c78e7d18adfaa6092960b3769d23b9e305832e8e314544b45b39512fb6",
+    "readers-0032": "7dc5187acf93c10401b48510c7a38b7b76983878b8a120857a9079a803b4dd47",
+    "readers-0040": "3ce6997df6719088911d428d420c0c62fe422feaa2d757125b558babf5b4301c",
+    "writers-0000": "bbd0429f3a55626b7d934748202b3d8593d3d0c35a69e1dbf79706122050f934",
+    "writers-0008": "c4e388f9d2e95ba1b7f34dac7916194ee4cec6017dcf00957989a94b739834a7",
+    "writers-0016": "3a39ae0ccb8e11e930bf56b4e6e9f4f4e50208f6041ee431cf06d6ab729504d6",
+    "writers-0024": "d83820092b231fa44caf8e43b89f533afa7bc4905ba93e899ecd1beeecd2eba9",
+    "writers-0032": "d19d260ba04ea22d877d559b9ea307da164a00f961ac8ef5297808b1d3a48912",
+    "writers-0040": "836c498218b32259e142a08d78e55fa00d846b75b93a1356954e1d7b2e994115",
+    "writers-0048": "6ec57c6e15c885750a407b8de893233da4375174f929361b3b9bfbf96dce5d9a",
+    "writers-0056": "ea3344633aaa7464f0d495f315c592c49e466ccbf28e0b90ff9baad8bb1f0939",
+    "ownership": "2a03d4b6a5e6c5b7b94144b544724fc80090e4930eac091f6a116a4392f0ea34"
+  },
+  "reference_source_sha256": "10ebf2f0f5d80065c859bef00901de6933ca49fd1819dedcc2d09530667b50e9",
+  "sources": {
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Text.QuotedPrintable": "2524239a809cc3ebf6fec35009d74a070530f5dc9b03f2322f40665f8c33d502",
+    "Effect.Stream": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+    "Effect.QuotedPrintable": "de6cdba57ca46df9d38758d910ad8c7cfe0ae8c08c6085a15e6ad2ce8773f584"
+  },
+  "frontends": {
+    "rust": {
+      "compiler": "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+      "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+      "runtime": "/workspace/dasl-stdlib-io/compiler/runtime/target/release/libcinchruntime.a",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "compile_rc_debug": false
+    },
+    "native": {
+      "compiler": "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+      "compiler_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+      "runtime": "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/libcinchruntime.a",
+      "runtime_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+      "compile_rc_debug": true,
+      "objects.json": "4655257140bfd5ab73525f0fbef41dc41622a9f1225b034dbe1571dd2174c5e6",
+      "base-interfaces.json": "89189ebe8226d4f26defffdd6481f40351f4da80e035a6a2ee4b2fa19800893f",
+      "provider_sha256": "2b459a81ac51e8e7a4f5e1730b9dc9fd22bc5976096cd717accbc9a84b05875d"
+    }
+  },
+  "runs": [
+    {
+      "frontend": "rust",
+      "case": "writers-0000",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/rust-writers-0000.ll"
+      ],
+      "compile_seconds": 3.766002151009161,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "bbd0429f3a55626b7d934748202b3d8593d3d0c35a69e1dbf79706122050f934",
+      "bundle_sha256": "fad77390623466c3b9e104ac3eca77a037f91ccca8c6397cfb8d6e39a89d3aea",
+      "ir_sha256": "e5ef4d37f44606954e65a293f66bafe307f056863d5a6fa2e26b22be65cf93a4",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "fdf4d275f9354a60b45efbcb8a361e11f2780ab526a48c0eafae2e57b439b271"
+    },
+    {
+      "frontend": "rust",
+      "case": "writers-0008",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/rust-writers-0008.ll"
+      ],
+      "compile_seconds": 4.306712391000474,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "c4e388f9d2e95ba1b7f34dac7916194ee4cec6017dcf00957989a94b739834a7",
+      "bundle_sha256": "3a6f80816c1840b616feef8f5b2cde29b99d303b897ba9275aa60eaa71b99831",
+      "ir_sha256": "5107580dab6a94b75af4a7e451ff3353912a82da5237ece90980f5689e0bef6d",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "7ec3c6f8b5b7d896d377f4484ff5318635c45fecf8893a72539b304921db7ce6"
+    },
+    {
+      "frontend": "rust",
+      "case": "writers-0016",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/rust-writers-0016.ll"
+      ],
+      "compile_seconds": 4.735224413991091,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "3a39ae0ccb8e11e930bf56b4e6e9f4f4e50208f6041ee431cf06d6ab729504d6",
+      "bundle_sha256": "df9f34b9c81d94bc5823521b8ddf87d26ccb0b5279f237f04d1967120166895f",
+      "ir_sha256": "e7581ab2724a0eeed628a3db92b78d8e647f0e2754fd7a9118b1a1463b78a70e",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "01cd9ab4d045950b95fc486cb726c00f48de0accbbe9789fd215446a1d8c3dd4"
+    },
+    {
+      "frontend": "rust",
+      "case": "writers-0024",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/rust-writers-0024.ll"
+      ],
+      "compile_seconds": 5.541113768005744,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "d83820092b231fa44caf8e43b89f533afa7bc4905ba93e899ecd1beeecd2eba9",
+      "bundle_sha256": "0a29b06e348856f5166e8fef7d5e69c29def922efd95b2e325fcfb2952dac949",
+      "ir_sha256": "7159b7c2d09e46e97f30b0ad5cb2712b20f9aee64f36a35a74bce039600731a8",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "1fa7a394e36923b6d0e08ccc8baddf56c9c854288b4cee31a2904a6affbb6f07"
+    },
+    {
+      "frontend": "rust",
+      "case": "writers-0032",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/rust-writers-0032.ll"
+      ],
+      "compile_seconds": 4.551432954001939,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "d19d260ba04ea22d877d559b9ea307da164a00f961ac8ef5297808b1d3a48912",
+      "bundle_sha256": "dad450bfba3ad906afee7a75b7a9ff52f8ec636494e384d30c9294b87a2f2a43",
+      "ir_sha256": "357883991533f8748bc0c0c5e96cccc7339c4638a9a2db020db8a31bdafe3c46",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "b505d92f20053e85630820dc44a4a1dda1067108d4db6d9055e4bcd111623e12"
+    },
+    {
+      "frontend": "rust",
+      "case": "writers-0040",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/rust-writers-0040.ll"
+      ],
+      "compile_seconds": 5.387755546005792,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "836c498218b32259e142a08d78e55fa00d846b75b93a1356954e1d7b2e994115",
+      "bundle_sha256": "199d61aa6419373823b0a743aa079bd11500dc0ef680faaa537afee25dab7556",
+      "ir_sha256": "a3a8fda72a8cd887cbb5162d30c17f0925dce7290161ac503695512af57a1496",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "ae97b3997a8ea665b215a7c5b31541d99e1a7255e74ebf0be31e8f260255820a"
+    },
+    {
+      "frontend": "rust",
+      "case": "writers-0048",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/rust-writers-0048.ll"
+      ],
+      "compile_seconds": 5.144495932996506,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "6ec57c6e15c885750a407b8de893233da4375174f929361b3b9bfbf96dce5d9a",
+      "bundle_sha256": "1cebdcc22489fb1e6e9cff750df0f0f1bec7850c599d09eca79c16d65c4888b0",
+      "ir_sha256": "ee8b6a4a596b6962a5851f7eac0d5e2a2d2ae198d92c4eef05b48da64cd234d3",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "55a743b075ec2c19ffae191c7e25fe198fc4379f73092081f12a5c28d857a0d9"
+    },
+    {
+      "frontend": "rust",
+      "case": "writers-0056",
+      "count": 4,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/rust-writers-0056.ll"
+      ],
+      "compile_seconds": 4.006983607003349,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "ea3344633aaa7464f0d495f315c592c49e466ccbf28e0b90ff9baad8bb1f0939",
+      "bundle_sha256": "1648ecb9723401ebd50e3329194df168137ffdc96cbb77ca607681cbaf6e722c",
+      "ir_sha256": "d5cfcb7451560d4ebcfa8ec145d1434c1ea4904aba3a506765477d9b7b192d16",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "183a3a7fb9cacf774dd784d1aaf2c5e37342859ae462ccea21497f5bfed670a3"
+    },
+    {
+      "frontend": "rust",
+      "case": "ownership",
+      "count": 5,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/rust-ownership.ll"
+      ],
+      "compile_seconds": 3.878392279992113,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "2a03d4b6a5e6c5b7b94144b544724fc80090e4930eac091f6a116a4392f0ea34",
+      "bundle_sha256": "590729aa53b19b4e0ec0d8f0c63f530b6f38482ccdfe1a2aff3f19a096224ac2",
+      "ir_sha256": "3628911119517afa4d919d3ec074071ad225377b14e272bf94935216a31d80e6",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "3c1cbe4734c50ef4d523b8930a70c32719cba2680d8573fdf790e44624846b63"
+    },
+    {
+      "frontend": "rust",
+      "case": "readers-0000",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/rust-readers-0000.ll"
+      ],
+      "compile_seconds": 3.9688707139866892,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "84c59f88de40873e68ef58bf9f011f7bd02341c232a97fe83ff0a604712e9aa2",
+      "bundle_sha256": "266a876ec995495a5552fc2ab31650fe0065d87e91a3119f2282c601322fe71f",
+      "ir_sha256": "319a672c386e825f03b11aba4d77a9c09cd156f9a41153b13885a10320a4da79",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "cee2463c27fe9e2e35532586d18bed08af5c9942f353cf8beccb93c6bea09d79"
+    },
+    {
+      "frontend": "native",
+      "case": "writers-0000",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/base-interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/objects.json",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/bundle.source",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/native-writers-0000.ll"
+      ],
+      "compile_seconds": 14.095149751010467,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "bbd0429f3a55626b7d934748202b3d8593d3d0c35a69e1dbf79706122050f934",
+      "bundle_sha256": "fad77390623466c3b9e104ac3eca77a037f91ccca8c6397cfb8d6e39a89d3aea",
+      "ir_sha256": "d9b2e7ac8d5e67ab0a5506739aef62a76c617a8adb52f56f2de8fed01773c56d",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "f29c9fda28ad62fe521eb1252f3d4a8fcb25387634e482533deca37bcba88d12"
+    },
+    {
+      "frontend": "native",
+      "case": "writers-0008",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/base-interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/objects.json",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/bundle.source",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/native-writers-0008.ll"
+      ],
+      "compile_seconds": 13.148091549999663,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "c4e388f9d2e95ba1b7f34dac7916194ee4cec6017dcf00957989a94b739834a7",
+      "bundle_sha256": "3a6f80816c1840b616feef8f5b2cde29b99d303b897ba9275aa60eaa71b99831",
+      "ir_sha256": "eccb671ddad2245b13003310a81196d66db00b9af6fb5262f1ae1a41c58eb009",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "c48f54e8d0a8ee8a9bbe2e9097b64f53172855d2220430a2ee394e94ed26a94a"
+    },
+    {
+      "frontend": "native",
+      "case": "writers-0016",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/base-interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/objects.json",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/bundle.source",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/native-writers-0016.ll"
+      ],
+      "compile_seconds": 13.712965864004218,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "3a39ae0ccb8e11e930bf56b4e6e9f4f4e50208f6041ee431cf06d6ab729504d6",
+      "bundle_sha256": "df9f34b9c81d94bc5823521b8ddf87d26ccb0b5279f237f04d1967120166895f",
+      "ir_sha256": "fbd5478f4c07d1d4ee21ee9a4ee611c0094385c44602798cd37cf066b26891e8",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "720fd0e360e13ad81ca3dc72771d38534dbd4b168d4a853c3220471550196e51"
+    },
+    {
+      "frontend": "native",
+      "case": "writers-0024",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/base-interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/objects.json",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/bundle.source",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/native-writers-0024.ll"
+      ],
+      "compile_seconds": 13.844147605996113,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "d83820092b231fa44caf8e43b89f533afa7bc4905ba93e899ecd1beeecd2eba9",
+      "bundle_sha256": "0a29b06e348856f5166e8fef7d5e69c29def922efd95b2e325fcfb2952dac949",
+      "ir_sha256": "91bd4dad74bae0ae006af902a8dc4eca32b42c6f6ba2475c09135f98ea9b35fb",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "d0d01b7c61a56c9475b65fbb377fbd690ffce4e7963c4ed9bf9a76ff9b942152"
+    },
+    {
+      "frontend": "native",
+      "case": "writers-0032",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/base-interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/objects.json",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/bundle.source",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/native-writers-0032.ll"
+      ],
+      "compile_seconds": 13.76049845200032,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "d19d260ba04ea22d877d559b9ea307da164a00f961ac8ef5297808b1d3a48912",
+      "bundle_sha256": "dad450bfba3ad906afee7a75b7a9ff52f8ec636494e384d30c9294b87a2f2a43",
+      "ir_sha256": "fc0a9516bfa922cac273ec99234086ee8ed7587c6260d64a0f730353664e80df",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "f7a7b0feec23c19c563707d1b935b3597a1c1e3a6f9b92b103340167e19bed76"
+    },
+    {
+      "frontend": "native",
+      "case": "writers-0040",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/base-interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/objects.json",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/bundle.source",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/native-writers-0040.ll"
+      ],
+      "compile_seconds": 17.241530345010688,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "836c498218b32259e142a08d78e55fa00d846b75b93a1356954e1d7b2e994115",
+      "bundle_sha256": "199d61aa6419373823b0a743aa079bd11500dc0ef680faaa537afee25dab7556",
+      "ir_sha256": "67738a02464c327cec946709349ebb75f49911356d9cd2c0d7f9efc226096375",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "bdf6f2fba2393c1c778637f19bb957601a4cfddf8c279140cc43c1f925a22376"
+    },
+    {
+      "frontend": "native",
+      "case": "writers-0048",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/base-interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/objects.json",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/bundle.source",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/native-writers-0048.ll"
+      ],
+      "compile_seconds": 18.177296093999757,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "6ec57c6e15c885750a407b8de893233da4375174f929361b3b9bfbf96dce5d9a",
+      "bundle_sha256": "1cebdcc22489fb1e6e9cff750df0f0f1bec7850c599d09eca79c16d65c4888b0",
+      "ir_sha256": "b1357de5c34c3cb17b81d91cf0a2beec83ac353c4ed502725d7991ccffcfb3b9",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "1472e400070de549d28aa6c57aa1a98ed9bc1db95b2a048dc4e85065b549193c"
+    },
+    {
+      "frontend": "native",
+      "case": "writers-0056",
+      "count": 4,
+      "command": [
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/base-interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/objects.json",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/bundle.source",
+        "/workspace/dasl-stdlib-compare/build/quoted-printable/final-stream-helper/native-writers-0056.ll"
+      ],
+      "compile_seconds": 13.193328709006892,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "ea3344633aaa7464f0d495f315c592c49e466ccbf28e0b90ff9baad8bb1f0939",
+      "bundle_sha256": "1648ecb9723401ebd50e3329194df168137ffdc96cbb77ca607681cbaf6e722c",
+      "ir_sha256": "8715a79b3ebf3962f306699fcf815b741e129fd93ea39ca5e15983902247da67",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "b9da6f12a5f9f09a807bb3637820ffc0dca3caf0ca8930c14ee7da5c0fac6610"
+    }
+  ],
+  "kernel_cases_per_invocation": 32768,
+  "kernel_ir_sha256": "e91e28e6840840eddd5c85b78479e3714c4feedb0afdc55d87b15442605b4108",
+  "kernel_object_sha256": "b66029cad2b8f9d50f9bca931d314d9da1d036589de0be08d32dd7d196a53ae3",
+  "fixture_source_sha256": "d44c8c69c48adfbd161d8a597625a68072992ff83820589367006e5b1b6f1059",
+  "fixture_object_sha256": "891da98d8477095017f590478c86d170471e053baacc7d80d365ee179c7025a1"
+}

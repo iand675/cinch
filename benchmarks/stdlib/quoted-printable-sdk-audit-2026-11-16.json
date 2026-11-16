@@ -1,0 +1,13 @@
+{
+  "package": "mime/quotedprintable",
+  "declarations": [
+    "func NewReader(io.Reader) *Reader",
+    "func NewWriter(io.Writer) *Writer",
+    "method (*Reader) Read([]uint8) (int, error)",
+    "method (*Writer) Close() error",
+    "method (*Writer) Write([]uint8) (int, error)",
+    "type Reader struct",
+    "type Writer struct",
+    "type Writer struct, Binary bool"
+  ]
+}
