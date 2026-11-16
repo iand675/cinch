@@ -1,0 +1,40 @@
+[
+  {
+    "original_path": "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-experimental-emitter/compiler.ll",
+    "original_bytes": 241209594,
+    "uncompressed_sha256": "c2882e662799246f1353cf8f320a37f323839419fd114fe04fe9a4e179f457ae",
+    "archive_path": "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-experimental-emitter/compiler.ll.cold-host-v1.zst",
+    "archive_bytes": 29456368,
+    "compressed_sha256": "9f1988516f37858785af094d5a9b47887022a441f2258fafc43a1fdf2fc176e6",
+    "verified_decompressed_bytes": 241209594,
+    "verified_decompressed_sha256": "c2882e662799246f1353cf8f320a37f323839419fd114fe04fe9a4e179f457ae",
+    "raw_unlinked": true,
+    "source_elf_runtime_provider_receipts_unchanged": true,
+    "recovery_command": [
+      "zstd",
+      "-d",
+      "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-experimental-emitter/compiler.ll.cold-host-v1.zst",
+      "-o",
+      "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-experimental-emitter/compiler.ll"
+    ]
+  },
+  {
+    "original_path": "/workspace/dasl-stdlib-char-contract/build/character-contract-emitter/cinch.ll",
+    "original_bytes": 238459953,
+    "uncompressed_sha256": "ea316fbf8855032a907a8c42be94534f08e9a9804dbdf46d49e2414638179155",
+    "archive_path": "/workspace/dasl-stdlib-char-contract/build/character-contract-emitter/cinch.ll.cold-host-v1.zst",
+    "archive_bytes": 29153514,
+    "compressed_sha256": "380abee5c4d3360b83dd44945a18e84e8e18b6f0a68ef39e20af1fb10368042f",
+    "verified_decompressed_bytes": 238459953,
+    "verified_decompressed_sha256": "ea316fbf8855032a907a8c42be94534f08e9a9804dbdf46d49e2414638179155",
+    "raw_unlinked": true,
+    "source_elf_runtime_provider_receipts_unchanged": true,
+    "recovery_command": [
+      "zstd",
+      "-d",
+      "/workspace/dasl-stdlib-char-contract/build/character-contract-emitter/cinch.ll.cold-host-v1.zst",
+      "-o",
+      "/workspace/dasl-stdlib-char-contract/build/character-contract-emitter/cinch.ll"
+    ]
+  }
+]
