@@ -1,0 +1,260 @@
+-- | Configurable CSV boundary, persistence, failure and ownership checks.
+module Main where
+  import Text.Csv.Record
+  import Effect.Csv
+  import Effect.Stream
+  import Data.Char
+  import Data.Machine
+
+  -- | Compare immutable field lists without assuming a list equality instance.
+  same :: List String -> List String -> Bool
+  same left right = case left of
+    Nil -> case right of Nil -> True; Cons first rest -> False
+    Cons first rest -> case right of Nil -> False; Cons actual more -> first == actual && same rest more
+
+  -- | Compare complete byte intervals independently of CSV text conversion.
+  same-bytes :: Bytes -> Bytes -> Bool
+  same-bytes left right = eq-i64 (bytes-compare left right) 0
+
+  -- | Select a valid arbitrary-field-count dialect for isolated syntax and stream checks.
+  options :: Char -> Option Char -> Bool -> Bool -> CsvOptions
+  options delimiter comment lazy trim = case csv-options delimiter comment CsvAnyFields lazy trim of
+    Ok selected -> selected
+    Err error -> csv-default-options
+
+  -- | Validate all forbidden marker classes and delimiter/comment collision precedence.
+  configurations :: Bool
+  configurations =
+    (case csv-options '\u{0}' None CsvAnyFields False False of Err CsvInvalidDelimiter -> True; other -> False)
+      && (case csv-options '"' None CsvAnyFields False False of Err CsvInvalidDelimiter -> True; other -> False)
+      && (case csv-options '\r' None CsvAnyFields False False of Err CsvInvalidDelimiter -> True; other -> False)
+      && (case csv-options '\n' None CsvAnyFields False False of Err CsvInvalidDelimiter -> True; other -> False)
+      && (case csv-options '\u{fffd}' None CsvAnyFields False False of Err CsvInvalidDelimiter -> True; other -> False)
+      && (case csv-options ',' (Some '\n') CsvAnyFields False False of Err CsvInvalidComment -> True; other -> False)
+      && (case csv-options ',' (Some ',') CsvAnyFields False False of Err CsvDelimiterCommentCollision -> True; other -> False)
+      && (case csv-options 'λ' (Some '※') (CsvExactFields 3) True True of
+        Ok selected -> char-code (csv-options-delimiter selected) == 955 && csv-options-lazy-quotes selected && csv-options-trim-leading-space selected
+        other -> False)
+
+  -- | An open prefix must not finalize a physical tail or a quoted continuation before genuine EOF.
+  prefixes :: Bool
+  prefixes =
+    (case csv-reader-read (csv-record-reader-at csv-default-options "a,b" 0 1 False) of (CsvNeedInput, next) -> csv-reader-input-offset next == 0; other -> False)
+      && (case csv-reader-read (csv-record-reader-at csv-default-options "\"a\nb\"" 0 1 False) of (CsvNeedInput, next) -> csv-reader-input-offset next == 0; other -> False)
+      && (case csv-reader-read (csv-record-reader-at csv-default-options "\"a\nb\"\n" 100 20 False) of
+        (CsvReadRecord row None, next) -> same (csv-record-fields row) ["a\nb"] && csv-record-start-line row == 20 && csv-reader-input-offset next == 106
+          && (case csv-record-field-position row 0 of
+            None -> False
+            Some pair -> case pair of (line, column) -> line == 20 && column == 1)
+        other -> False)
+
+  -- | Retaining either reader continuation preserves independent later reads and exact origin offsets.
+  persistence :: Bool
+  persistence =
+    let initial = csv-record-reader (options ',' None False False) "a,b\nx,y\n" in
+    case csv-reader-read initial of
+      (CsvReadRecord first None, next) -> case csv-reader-read initial of
+        (CsvReadRecord retained None, repeated) -> same (csv-record-fields first) (csv-record-fields retained)
+          && csv-reader-input-offset next == csv-reader-input-offset repeated
+          && (case csv-reader-read next of (CsvReadRecord last None, end) -> same (csv-record-fields last) ["x", "y"]; other -> False)
+          && (case csv-reader-read repeated of (CsvReadRecord last None, end) -> same (csv-record-fields last) ["x", "y"]; other -> False)
+        other -> False
+      other -> False
+
+  -- | A reused mutable one-byte source buffer stresses retained-fragment snapshots at every read.
+  reused-source :: forall r. using (io :: Io r) => Bytes -> Nat -> Bytes -> ByteReader r
+  reused-source input at scratch = stream-reader (\requested ->
+    if at < bytes-len input && bytes-len scratch == 1 then
+      let written = bytes-set scratch 0 (bytes-get input at) in
+      (Ok scratch, reused-source input (at + 1) scratch)
+    else (Ok (bytes-new 0), reader-from-string ""))
+
+  -- | Stream framing survives UTF-8 splits, escaped quotes, CRLF and multiline content.
+  split-input :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  split-input unit =
+    let raw = string-to-bytes "\"😀😀😀\r\n😀😀\",x\r\na,b\n" in
+    let source = reused-source raw 0 (bytes-new 1) in
+    case csv-stream-read (csv-stream-reader (options ',' None False False) source) of
+      (Ok (CsvReadRecord first None), next) -> same (csv-record-fields first) ["😀😀😀\n😀😀", "x"]
+        && (case csv-stream-read next of
+          (Ok (CsvReadRecord last None), end) -> same (csv-record-fields last) ["a", "b"]
+            && (case csv-stream-read end of (Ok CsvEnd, final) -> csv-stream-input-offset final == bytes-len raw; other -> False)
+          other -> False)
+      other -> False
+
+  -- | Parse errors retain completed fields and allow the next physical record to be read.
+  parse-progress :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  parse-progress unit = case csv-stream-read (csv-stream-reader (options ',' None False False) (reader-from-string "a,\"b\"tail\nnext,row\n")) of
+    (Ok (CsvReadRecord row (Some (CsvQuote start line column))), next) -> same (csv-record-fields row) ["a"] && start == 1 && line == 1 && column == 5
+      && (case csv-stream-read next of (Ok (CsvReadRecord row None), end) -> same (csv-record-fields row) ["next", "row"]; other -> False)
+    other -> False
+
+  -- | A deliberate underlying read error carries an independently readable advanced source.
+  failing-source :: forall r. using (io :: Io r) => ByteReader r
+  failing-source = stream-reader (\requested -> (Err (StreamShortWrite 7 3), reader-from-string "z"))
+
+  -- | Underlying failures are sticky while the advanced source remains inspectable.
+  source-failure :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  source-failure unit = case csv-stream-read (csv-stream-reader csv-default-options (reader-concat [reader-from-string "a,b\nc", failing-source])) of
+    (Ok (CsvReadRecord row None), next) -> case csv-stream-read next of
+      (Err (StreamShortWrite required received), failed) -> required == 7 && received == 3
+        && (case csv-stream-reader-error failed of Some (StreamShortWrite a b) -> a == 7 && b == 3; other -> False)
+        && (case csv-stream-read failed of (Err (StreamShortWrite a b), repeated) -> a == 7 && b == 3; other -> False)
+        && (case stream-read (csv-stream-reader-source failed) 1 of (Ok bytes, advanced) -> same-bytes bytes (string-to-bytes "z"); other -> False)
+      other -> False
+    other -> False
+
+  -- | A callback reporting more than requested must fail before any CSV state is produced.
+  oversized-source :: forall r. using (io :: Io r) => ByteReader r
+  oversized-source = stream-reader (\requested -> (Ok (bytes-new (requested + 1)), reader-from-string "z"))
+
+  -- | Invalid source counts and malformed UTF-8 become sticky named source failures.
+  invalid-sources :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  invalid-sources unit =
+    (case csv-stream-read (csv-stream-reader csv-default-options oversized-source) of
+      (Err (StreamInvalidCount requested actual), next) -> requested == 4096 && actual == 4097
+      other -> False)
+      && (case csv-stream-read (csv-stream-reader csv-default-options (reader-from-bytes (bytes-from-list [97,44,255,10]))) of
+        (Err (StreamEncodingError format offset message), next) -> format == "csv" && offset == 2
+          && (case csv-stream-read next of (Err (StreamEncodingError format again message), repeated) -> again == 2; other -> False)
+        other -> False)
+
+  -- | A one-byte accepting sink retries output while retaining its copied prefix in caller-owned storage.
+  short-sink :: forall r. using (io :: Io r) => Bytes -> Nat -> ByteWriter r
+  short-sink out at = stream-writer (\input ->
+    if bytes-len input > 0 && at < bytes-len out then
+      let written = bytes-set out at (bytes-get input 0) in (Ok 1, short-sink out (at + 1))
+    else (Ok 0, short-sink out at))
+
+  -- | Synchronous writing retries short accepts, retains immutable input and exposes completion.
+  short-writes :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  short-writes unit =
+    let expected = string-to-bytes "\"a,b\",\" x\"\r\n" in let out = bytes-new (bytes-len expected) in
+    case csv-stream-write (csv-stream-writer csv-default-options True (short-sink out 0)) ["a,b", " x"] of
+      (Ok unit, next) -> same-bytes out expected
+        && (case csv-stream-flush next of
+          (Ok unit, final) -> case csv-stream-writer-error final of None -> True; Some error -> False
+          other -> False)
+      other -> False
+
+  -- | A zero-progress sink returns its advanced handle without accepting any bytes.
+  zero-sink :: forall r. using (io :: Io r) => ByteWriter r
+  zero-sink = stream-writer (\input -> (Ok 0, writer-buffer))
+
+  -- | Writer failures are sticky across write, write-all and completion observations.
+  writer-failure :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  writer-failure unit = case csv-stream-write (csv-stream-writer csv-default-options False zero-sink) ["a"] of
+    (Err (StreamShortWrite required received), failed) -> required == 2 && received == 0
+      && (case csv-stream-writer-error failed of Some (StreamShortWrite a b) -> a == 2 && b == 0; other -> False)
+      && (case csv-stream-write failed ["later"] of (Err (StreamShortWrite a b), next) -> a == 2 && b == 0; other -> False)
+      && (case csv-stream-write-all failed Nil of (Err (StreamShortWrite a b), next) -> a == 2 && b == 0; other -> False)
+      && (case writer-bytes (csv-stream-writer-sink failed) of Some bytes -> bytes-len bytes == 0; None -> False)
+    other -> False
+
+  -- | Atomic read-all distinguishes parse failures while preserving the reader for a later record.
+  all-failures :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  all-failures unit = case csv-stream-read-all (csv-stream-reader csv-default-options (reader-from-string "a,b\nx\nlast,row\n")) of
+    (Err (CsvParseFailure (CsvFieldCount start line column expected actual)), next) -> start == 2 && line == 2 && column == 1 && expected == 2 && actual == 1
+      && (case csv-stream-read next of (Ok (CsvReadRecord row None), final) -> same (csv-record-fields row) ["last", "row"]; other -> False)
+    other -> False
+
+  -- | Compare raw field snapshots without interpreting invalid UTF-8.
+  same-raw :: List Bytes -> List Bytes -> Bool
+  same-raw left right = case left of
+    Nil -> case right of Nil -> True; Cons first rest -> False
+    Cons first rest -> case right of Nil -> False; Cons actual more -> same-bytes first actual && same-raw rest more
+
+  -- | Keep threshold-boundary input sizes in the executable rather than constant evaluation.
+  prim runtime-length :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+
+  -- | Fill independent hostile byte data without using the CSV writer to generate expectations.
+  fill-invalid :: Bytes -> Nat -> Unit
+  fill-invalid out at = if at < bytes-len out then let written = bytes-set out at 255 in fill-invalid out (at + 1) else ()
+
+  -- | Exercise scalar tails, sixteen-byte boundaries and both sides of the short-buffer dispatcher.
+  boundary-cases :: List Nat -> Bool
+  boundary-cases sizes = case sizes of
+    Nil -> True
+    Cons n rest -> if n <= 1024 then
+      let count = u32-to-nat (runtime-length (wrapping-i64-to-u32 (nat-to-i64 n))) in
+      let field = string-repeat count "x" in let selected = options ',' None False False in
+      let plain = csv-render-record selected False [field, "tail"] in
+      let quoted-field = string-concat " " field in
+      let quoted = csv-render-record selected False [quoted-field, "tail"] in
+      let raw = bytes-new count in let filled = fill-invalid raw 0 in
+      let tail = string-to-bytes "tail" in let encoded = csv-render-byte-record selected False [raw, tail] in
+      (case csv-reader-read (csv-record-reader selected plain) of (CsvReadRecord row None, next) -> same (csv-record-fields row) [field, "tail"]; other -> False)
+        && (case csv-reader-read (csv-record-reader selected quoted) of (CsvReadRecord row None, next) -> same (csv-record-fields row) [quoted-field, "tail"]; other -> False)
+        && (case csv-byte-reader-read (csv-byte-reader selected encoded) of (CsvReadByteRecord row None, next) -> same-raw (csv-byte-record-fields row) [raw, tail]; other -> False)
+        && boundary-cases rest
+      else False
+
+  -- | Byte readers snapshot source and returned fields while text conversion reports its valid prefix.
+  byte-persistence :: Bool
+  byte-persistence =
+    let input = bytes-from-list [97,44,255,44,98,10] in
+    let initial = csv-byte-reader-at csv-default-options input 100 20 True in
+    let changed = if 2 < bytes-len input then bytes-set input 2 113 else () in
+    case csv-byte-reader-read initial of
+      (CsvReadByteRecord row None, next) ->
+        let observed = csv-byte-record-fields row in
+        let altered = case observed of Nil -> (); Cons first rest -> if bytes-len first > 0 then bytes-set first 0 120 else () in
+        same-raw (csv-byte-record-fields row) [bytes-from-list [97], bytes-from-list [255], bytes-from-list [98]]
+          && csv-byte-record-start-line row == 20 && csv-byte-reader-input-offset next == 106 && csv-byte-reader-next-line next == 21
+          && (case csv-byte-record-field-position row 2 of None -> False; Some pair -> case pair of (line, column) -> line == 20 && column == 5)
+          && (case csv-byte-record-text row of
+            (text, Some (CsvFieldEncoding start line column index)) -> same (csv-record-fields text) ["a"] && start == 20 && line == 20 && column == 3 && index == 1
+              && (case csv-record-field-position text 1 of None -> True; Some value -> False)
+            other -> False)
+          && (case csv-byte-reader-read initial of (CsvReadByteRecord retained None, repeated) -> same-raw (csv-byte-record-fields retained) (csv-byte-record-fields row); other -> False)
+      other -> False
+
+  -- | Lossless one-byte streams preserve malformed UTF-8 and share exact raw whole-document rendering.
+  byte-streams :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  byte-streams unit =
+    let input = bytes-from-list [97,44,255,44,98,10] in
+    case csv-byte-stream-read (csv-byte-stream-reader csv-default-options (reused-source input 0 (bytes-new 1))) of
+      (Ok (CsvReadByteRecord row None), next) -> same-raw (csv-byte-record-fields row) [bytes-from-list [97], bytes-from-list [255], bytes-from-list [98]]
+        && csv-byte-stream-input-offset next == 6
+        && (case csv-byte-stream-read next of (Ok CsvByteEnd, final) -> True; other -> False)
+        && same-bytes (csv-render-byte-records csv-default-options False [[bytes-from-list [97], bytes-from-list [98]], [bytes-from-list [255]]]) (bytes-from-list [97,44,98,10,255,10])
+      other -> False
+
+  -- | Reader and writer policies can change between records without discarding lookahead or prior values.
+  reconfiguration :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  reconfiguration unit =
+    let selected = options ';' None False False in
+    (case csv-reader-read (csv-record-reader csv-default-options "a,b\nx;y\n") of
+      (CsvReadRecord first None, next) ->
+        (case csv-reader-read (csv-reader-configure next selected) of (CsvReadRecord row None, final) -> same (csv-record-fields row) ["x", "y"] && csv-reader-input-offset final == 8; other -> False)
+          && (case csv-reader-read next of (CsvReadRecord row (Some (CsvFieldCount a b c expected actual)), final) -> same (csv-record-fields row) ["x;y"] && expected == 2 && actual == 1; other -> False)
+      other -> False)
+      && (case csv-stream-read (csv-stream-reader csv-default-options (reader-from-string "a,b\nx;y\n")) of
+        (Ok (CsvReadRecord first None), next) -> case csv-stream-read (csv-stream-reader-configure next selected) of
+          (Ok (CsvReadRecord row None), final) -> same (csv-record-fields row) ["x", "y"] && csv-stream-input-offset final == 8
+          other -> False
+        other -> False)
+      && (case csv-byte-stream-read (csv-byte-stream-reader csv-default-options (reader-from-bytes (bytes-from-list [97,44,98,10,120,59,255,10]))) of
+        (Ok (CsvReadByteRecord first None), next) -> case csv-byte-stream-read (csv-byte-stream-reader-configure next selected) of
+          (Ok (CsvReadByteRecord row None), final) -> same-raw (csv-byte-record-fields row) [bytes-from-list [120], bytes-from-list [255]] && csv-byte-stream-input-offset final == 8
+          other -> False
+        other -> False)
+      && (case csv-stream-write (csv-stream-writer csv-default-options False writer-buffer) ["a", "b"] of
+        (Ok unit, next) -> case csv-stream-write (csv-stream-writer-configure next selected True) ["x", "y"] of
+          (Ok unit, final) -> case writer-bytes (csv-stream-writer-sink final) of None -> False; Some bytes -> same-bytes bytes (string-to-bytes "a,b\nx;y\r\n")
+          other -> False
+        other -> False)
+
+  -- | Identify a failed independent control without erasing the preceding observations.
+  first-failure :: List Bool -> Nat -> Nat
+  first-failure checks index = case checks of Nil -> 0; Cons first rest -> if first then first-failure rest (index + 1) else index
+
+  -- | Observe every control under one explicit runtime capability and print a precise failing index.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let failed = first-failure [configurations, prefixes, persistence, split-input (), parse-progress (), source-failure (), invalid-sources (), short-writes (), writer-failure (), all-failures (), byte-persistence, byte-streams (), boundary-cases [0,1,7,8,15,16,17,31,32,33,63,64,65,119,120,121,127,128,129,255,256,257], reconfiguration ()] 1 in
+    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string failed) "\n")) in if failed == 0 then 0 else 1

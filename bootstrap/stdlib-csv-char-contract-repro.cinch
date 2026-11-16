@@ -1,0 +1,7 @@
+-- | Preserve a direct imported character conversion contract reproduction.
+module Main where
+  import Data.Char
+  import Data.Machine
+  -- | Numeric comparison with a character in the imported conversion contract is rejected by Native.
+  main :: Int
+  main = if eq-u32 (char-to-u32 'λ') 955 then 0 else 1
