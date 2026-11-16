@@ -3,8 +3,8 @@
 Source checkpoint `cbff6190` implements all 16 pinned declaration records.
 Both admitted frozen frontend/provider pairs pass the full 3,119-row corpus,
 ten callback policies and nine ownership/continuation controls under normal and
-poisoned-free profiles with zero leaks. The current Rust Cargo regression is
-awaiting parent integration; the newer Native family remains a separate
+poisoned-free profiles with zero leaks. Parent integration passed the current Rust Cargo regression: both tests
+(2/2) passed in 90.53 seconds. The newer Native family remains a separate
 admission-dependent representative/benchmark scope.
 
 The pinned `mime` audit contains 16 declaration records. The repeated literal and
@@ -152,7 +152,7 @@ The SDK-free Rust-only `lib_mime` target parses canonical docs and executes seve
 representative committed groups through the current `CARGO_BIN_EXE_cinch`, an
 ordinary compiler runtime-initialization build, the captured exact host archive,
 and actual selected kernel/scalar C objects. It refuses external Native
-selectors rather than silently falling back. Parent owns Cargo execution.
+selectors rather than silently falling back. Parent owns Cargo execution and reports both tests green (2/2, 90.53 seconds).
 
 
 A separate old Native 2f077/V2/80bd baseline also passed both 168-run SIMD and
