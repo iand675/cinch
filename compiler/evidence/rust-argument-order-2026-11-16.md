@@ -64,3 +64,24 @@ frozen Native frontend. The parent's coordinated Rust `tail_calls` target
 passes all ten cases, including the preserved deep constant-stack controls.
 Compilation of a short CSV overlay overlapped the first fixture compilation
 on CPU3; these checks make no timing or performance claims.
+
+A second isolated O2 probe exposes an earlier simplifier error:
+`let partial = combine (advance cell) in let changed = advance cell in
+partial (read-word cell)`. The original compiler fails the expected result;
+turning off `saturate-partial` makes the identical source pass. Both runs use
+the original frozen CLI and the normal 32 MiB heap / 8 MiB stack with RC
+poisoning and zero leaks. The final two-case `Run.SavedPartialOrder.cinch`
+fixture, SHA-256
+`6c70847240c8a56a619b264c875bc4c8b16708ed9e58cb4a600ad50bb2198b38`,
+exits 3 with that original O2 compiler: both the single saved computation
+and mixed-representation saved pair run after the intervening write.
+
+The second correction keeps fusion but binds saved computations in their
+original position and order, using the callee's instantiated parameter
+classes. The saturated call receives those local values, so it still
+qualifies for direct constant-stack tail lowering. Primitive heads and
+polymorphic class vectors survive the merge. A nullary global reference is
+a computation rather than an inert function value; the value classifier
+must preserve its new binding too, or the next pre-inline pass would move
+it again. Structural tests cover these ownership and instantiation facts
+alongside the executable byte-alias regression.

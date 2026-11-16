@@ -192,3 +192,14 @@ fn returned_functions_preserve_dynamic_arity_and_each_strict_boundary() {
         0,
     );
 }
+
+/// Fusing a one-shot partial application keeps its saved computations
+/// before intervening writes and still permits constant-stack direct calls.
+#[test]
+fn saved_partial_arguments_keep_their_original_strict_position() {
+    expect_ok(
+        "saved-partial-order",
+        include_str!("../../bootstrap/programs/Run.SavedPartialOrder.cinch"),
+        0,
+    );
+}
