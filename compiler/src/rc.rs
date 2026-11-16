@@ -469,6 +469,12 @@ fn borrow_modes(program: &Program, ctors: &Ctors, boundary: &Boundary<'_>) -> (M
     }
     let mut queue: Vec<usize> = (0..units.len()).rev().collect();
     let mut queued = vec![true; units.len()];
+    // Reuse eligibility reads only the immutable body and constructor
+    // metadata. After its first application, every reuse target is owned.
+    // Modes only lose loans, so later visits cannot need those facts again:
+    // cache just that the rule ran, even when its answer was empty. Flags
+    // belong to this pass; a later compilation may redefine the same names.
+    let mut reuse_checked = vec![false; units.len()];
     let mut killed: Vec<String> = Vec::new();
     while let Some(u) = queue.pop() {
         if report.reasons.is_some() { report.work.unit_visits += 1; }
@@ -486,7 +492,10 @@ fn borrow_modes(program: &Program, ctors: &Ctors, boundary: &Boundary<'_>) -> (M
             // A reuse target is owned by construction (Lean's forced
             // ownership rule for a reset target).
             if report.reasons.is_some() { report.work.reuse_requests += 1; }
-            owned.extend(report.reuse_scrutinees(&f.body, ctors));
+            if !reuse_checked[u] {
+                owned.extend(report.reuse_scrutinees(&f.body, ctors));
+                reuse_checked[u] = true;
+            }
             for &p in &owned {
                 report.record(&f.id.0, p, "reuse");
             }
@@ -510,6 +519,10 @@ fn borrow_modes(program: &Program, ctors: &Ctors, boundary: &Boundary<'_>) -> (M
                 }
             }
         }
+    }
+    if report.reasons.is_some() {
+        report.work.cache_entries = reuse_checked.iter().filter(|checked| **checked).count();
+        report.work.cache_slot_bytes = reuse_checked.capacity() * std::mem::size_of::<bool>();
     }
     modes.retain(|_, m| m.iter().any(|b| *b));
     prims.retain(|p| modes.contains_key(p));

@@ -884,16 +884,23 @@ to refuse, and both front ends accept the word.
   `experiments/borrow-inference/2026-11-16-followup.json` records 5,537
   borrowed entries and 170,124 ownership sites. The extra 166 sites include
   required cleanup; this result is not a measured speedup.
-- Follow-up performance work should start with two measurable questions.
-  First, reuse eligibility depends only on a unit's immutable body and
-  constructor metadata, but inference currently rescans it on each worklist
-  revisit. A lazy per-unit cache can avoid those repeated scans; count body
-  visits and compare identical emitted Core before claiming a benefit.
-  Second, split the 6,447 `owned-use` witnesses in the frozen census into
+- Reuse eligibility depends only on a unit's immutable body and constructor
+  metadata. Its first application forces every reuse target owned, and
+  inference only withdraws loans. Later visits therefore need no saved
+  target set: one checked flag per unit caches that the rule ran, including
+  when it found no targets. Flags belong to one inference pass and are
+  dropped before another compilation can redefine those units. The cache does not
+  scan units with no borrowing candidates. With `CINCH_BORROW_REPORT=1`, a
+  separate `cinch-borrow-work` JSON line reports worklist visits, reuse scan
+  requests, actual scans, nodes visited by the scrutinee and allocation
+  searches, and cache occupancy. Cache slot bytes cover the checked flags;
+  no target IDs or tree nodes are retained.
+  The normal uninstrumented searches do not increment node counters.
+- Next, split the 6,447 `owned-use` witnesses in the frozen census into
   returns, stores, captures and dynamic applications before relaxing a
   rule. Dynamic application currently consumes its closure through the
   apply ABI, so lending a function merely because it is called requires
-  more than changing inference. Neither follow-up has a measured speedup.
+  more than changing inference.
 - Drop specialisation is the `Core::Release { block, moved, rest }` node,
   placed where a `Case` alternative on an owned, dead `Obj` scrutinee uses
   at least one field. Codegen tests the block's thread-local count with
