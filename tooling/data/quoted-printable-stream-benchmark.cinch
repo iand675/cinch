@@ -1,0 +1,88 @@
+-- | Time complete public stream adapters, fresh outputs and observable checksums.
+module Main where
+  import Text.QuotedPrintable
+  import Effect.QuotedPrintable
+  import Effect.Stream
+  import Effect.Clock
+  import Effect.Process
+  import Effect.Io
+  import Data.Bytes
+  import Data.Char
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Show
+
+  -- | Parse nonnegative harness inputs before entering the timed interval.
+  decimal :: String -> Nat
+  decimal value = digits (unpack value) 0
+  -- | Accumulate validated decimal digits, returning zero for malformed input.
+  digits :: List Char -> Nat -> Nat
+  digits chars value = case chars of
+    Nil -> value
+    Cons char rest -> case digit-value char of
+      None -> 0
+      Some digit -> digits rest (value * 10 + digit)
+
+  -- | Fill a deterministic runtime-sized byte pattern outside the measurement.
+  fill :: Bytes -> Bool -> Nat -> Unit
+  fill input ascii at = if at < bytes-len input then
+    let value = if ascii then 33 + nat-rem at 90 else nat-rem (at * 37 + 11) 256 in
+    let stored = if value <= 255 then bytes-set input at value else () in
+    fill input ascii (at + 1)
+    else ()
+
+  -- | Observe every output byte with bounded scalar machine arithmetic.
+  checksum :: Bytes -> Nat -> I64 -> I64
+  checksum input at value = if at < bytes-len input then
+    checksum input (at + 1) (bit-and-i64 (wrapping-add-i64 (wrapping-mul-i64 value 131) (nat-to-i64 (bytes-get input at))) 2147483647)
+    else value
+
+  -- | Execute a complete public stream operation and retain its fresh aggregate output.
+  operation :: forall r. using (io :: Io r) => Bytes -> Bool -> QuotedPrintableMode ->{IO r} Bytes
+  operation input decode mode =
+    if decode then
+      case stream-read-all 4096 (quoted-printable-reader-as-stream (quoted-printable-reader (reader-from-bytes input))) of
+        (Ok output, source) -> output
+        (Err error, source) -> bytes-new 0
+    else
+      case quoted-printable-write (quoted-printable-writer mode writer-buffer) input of
+        (Ok count, next) -> case quoted-printable-finish next of
+          (Ok unit, sink) -> case writer-bytes sink of Some output -> output; None -> bytes-new 0
+          (Err error, sink) -> bytes-new 0
+        (Err error, next) -> bytes-new 0
+
+  -- | Repeat complete allocations and traverse each result before the next iteration.
+  repeat :: forall r. using (io :: Io r) => Bytes -> Bool -> QuotedPrintableMode -> I64 -> I64 ->{IO r} I64
+  repeat input decode mode remaining value = if gt-i64 remaining 0 then
+    repeat input decode mode (wrapping-sub-i64 remaining 1) (checksum (operation input decode mode) 0 value)
+    else value
+
+  -- | Prepare data, then time exactly the complete codec/checksum loop.
+  measure :: forall r. using (io :: Io r) => String -> Nat -> Nat ->{IO r} Int
+  measure name size count =
+    if count <= 9223372036854775807 then
+      let ascii = name == "ascii-encode" || name == "ascii-decode" in
+      let decode = name == "ascii-decode" || name == "binary-decode" in
+      let mode = if ascii then QuotedPrintableText else QuotedPrintableBinary in
+      let raw = bytes-new size in
+      let initialized = fill raw ascii 0 in
+      let input = if decode then quoted-printable-encode-bytes QuotedPrintableBinary raw else raw in
+      let n = nat-to-i64 count in
+      let start = clock-monotonic-ns () in
+      let result = repeat input decode mode n 0 in
+      let end = clock-monotonic-ns () in
+      let retained = checksum input 0 0 in
+      let printed = ioWrite (string-to-bytes (string-concat (nat-to-string (saturating-sub end start)) (string-concat " " (string-concat (int-to-string (int-from-i64 result)) (string-concat " " (string-concat (int-to-string (int-from-i64 retained)) "\n")))))) in 0
+    else 2
+
+  -- | Read the workload, input size and iteration count through the public process API.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    case process-args () of
+      Ok (Cons mode (Cons size (Cons count Nil))) -> measure mode (decimal size) (decimal count)
+      _ -> 2
