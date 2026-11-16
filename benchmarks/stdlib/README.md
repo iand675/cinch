@@ -500,3 +500,22 @@ an initial test run. A pure LLVM identity keeps fixture setup at runtime, so the
 tests execute the generated buffer code; that compiler issue remains open.
 Remaining runtime costs include checked buffer access, natural index bookkeeping,
 reference counting, owned stream chunks and fresh state/checkpoint buffers.
+
+## Wide inline LLVM primitive ABI support
+
+The Rust checker and wrapper emitter now preserve `I128`/`U128` parameters and
+results, including mixed narrow and floating operands. This permits private SIMD
+kernels to return two complete machine words without an intermediate allocation.
+Direct calls, escaping partial applications, shared closure captures, object ABI
+metadata and a 200000-step wide tail loop are covered by the new Rust regression
+target. The self-built compiler independently passes the direct, mixed-operand
+and memory-containment cases; its existing wide closure, tail-group and public
+primitive object restrictions remain as described in `design/wide-scalars.md`.
+
+[Control samples](prim-wide-controls-O2-2026-11-16.json) cover four existing
+workloads at two sizes with independent checksums. More decisively, the complete
+retained stdlib driver's LLVM and O2 assembly are byte-identical before and after
+the compiler change. No throughput improvement for existing word-only operations
+is claimed. [Validation evidence](../../bootstrap/stdlib-prim-wide-validation-results.json)
+records the exact compiler/source identities, 297 unit tests, existing primitive
+and wide regressions, foreign object compilation and the pinned bootstrap gate.

@@ -8555,13 +8555,25 @@ impl Checker {
                 meta,
                 // An inline target fragment receives its arguments as
                 // machine scalars (`validate_prim_body` refuses anything
-                // else), so every parameter is a raw word. The classes
+                // else). Wide scalars retain their two-word representation;
+                // the remaining parameters use a raw canonical word. The classes
                 // still have to be stated: a separately compiled consumer
                 // reads them out of the object's ABI (`object_abi`), and a
                 // default representation leaves that map empty.
                 repr: crate::core::UnitRepr {
                     tparams: 0,
-                    params: vec![crate::core::Class::Raw; arity],
+                    params: arg_tys.iter().map(|ty| {
+                        if matches!(ty, Ty::Prim(s) if s.is_wide()) {
+                            crate::core::Class::Wide
+                        } else {
+                            crate::core::Class::Raw
+                        }
+                    }).collect(),
+                    result: if matches!(&res_ty, Ty::Prim(s) if s.is_wide()) {
+                        Some(crate::core::Class::Wide)
+                    } else {
+                        None
+                    },
                     fields: Vec::new(),
                     ..Default::default()
                 },
@@ -11006,6 +11018,7 @@ impl Checker {
             Ty::Prim(Scalar::I16) | Ty::Prim(Scalar::U16) => "i16".into(),
             Ty::Prim(Scalar::I32) | Ty::Prim(Scalar::U32) | Ty::Prim(Scalar::Char) => "i32".into(),
             Ty::Prim(Scalar::I64) | Ty::Prim(Scalar::U64) => "i64".into(),
+            Ty::Prim(Scalar::I128) | Ty::Prim(Scalar::U128) => "i128".into(),
             Ty::Prim(Scalar::F32) => "float".into(),
             Ty::Prim(Scalar::F64) => "double".into(),
             Ty::Prim(Scalar::Usize) | Ty::Prim(Scalar::Isize) => format!("i{}", self.usize_bits),
