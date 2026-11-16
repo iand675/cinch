@@ -1,0 +1,21 @@
+  -- | Return a caller-retained buffer before a later read actively mutates that same buffer.
+  reuse-first :: forall r. using (io :: Io r) => Bytes -> MimeCharsetReader r FixtureError
+  reuse-first output = mime-charset-reader (\request ->
+    if bytes-len output <= request then ((output, MimeCharsetMore), reuse-last output)
+    else ((part output 0 request, MimeCharsetMore), mime-charset-reader-from-bytes (part output request (bytes-len output - request))))
+
+  -- | Reuse an earlier result buffer before reporting genuine EOF in the next continuation.
+  reuse-last :: forall r. using (io :: Io r) => Bytes -> MimeCharsetReader r FixtureError
+  reuse-last output = mime-charset-reader (\request ->
+    let changed = if bytes-len output > 0 then bytes-set output 0 88 else () in
+    ((bytes-new 0, MimeCharsetEnd), mime-charset-reader-from-bytes (bytes-new 0)))
+
+  -- | Expose legal reader buffer reuse independently of the complete-copy capability.
+  reuse-callback :: forall r. using (io :: Io r) => String -> ByteReader r ->{IO r} Result FixtureError (MimeCharsetReader r FixtureError)
+  reuse-callback charset source = Ok (reuse-first (string-to-bytes "ab"))
+
+  -- | Converted prefixes are snapshotted before advancing the reader can reuse its storage.
+  converted-reader-reuse :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  converted-reader-reuse unit = case mime-word-decode (mime-word-decoder (Some reuse-callback)) (string-to-bytes "=?X-CUSTOM?q?a?=") of
+    Ok output -> same output (string-to-bytes "ab")
+    Err error -> False

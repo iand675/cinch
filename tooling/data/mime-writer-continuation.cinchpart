@@ -1,0 +1,45 @@
+  -- | Every writer callback consumes one independent external epoch and returns
+  -- the exact next handle, including a handle following failure.
+  epoch-writer :: forall r. using (io :: Io r) => I64 -> I64 -> ByteWriter r
+  epoch-writer expected failAt = stream-writer (\input ->
+    let actual = raw-event 0 0 0 0 in
+    let next = epoch-writer (wrapping-add-i64 expected 1) failAt in
+    if not (eq-i64 actual expected) then (Err (StreamClosed "stale MIME writer continuation"), next)
+    else if eq-i64 actual failAt then (Err (StreamClosed "fixture writer epoch failure"), next)
+    else (Ok (if bytes-len input < 2 then bytes-len input else 2), next))
+
+  -- | Force one positive operation on a returned continuation, exposing a stale handle.
+  next-writer-ready :: forall r. using (io :: Io r) => ByteWriter r ->{IO r} Bool
+  next-writer-ready writer = case stream-write writer (string-to-bytes "x") of
+    (Ok count, next) -> count == 1
+    (Err error, next) -> False
+
+  -- | Word writing must return its advanced sink after either short-write success or failure.
+  word-continuation :: forall r. using (io :: Io r) => Bool ->{IO r} Bool
+  word-continuation fails =
+    let reset = raw-reset (-1) in
+    case mime-word-write mime-q-encoding (string-to-bytes "UTF-8") (string-to-bytes "é") (epoch-writer 0 (if fails then 3 else -1)) of
+      (Ok count, next) -> not fails && count > 0 && next-writer-ready next
+      (Err (StreamClosed message), next) -> fails && message == "fixture writer epoch failure" && next-writer-ready next
+      _ -> False
+
+  -- | Header writing preserves the advanced sink across confirmed prefixes and output failure.
+  header-continuation :: forall r. using (io :: Io r) => Bool ->{IO r} Bool
+  header-continuation fails =
+    let reset = raw-reset (-1) in
+    case mime-header-write (mime-default-word-decoder ()) (string-to-bytes "=?UTF-8?q?abcdefgh?=") (epoch-writer 0 (if fails then 3 else -1)) of
+      (Ok count, next) -> not fails && count == 8 && next-writer-ready next
+      (Err (MimeOutputWriteFailure (StreamClosed message)), next) -> fails && message == "fixture writer epoch failure" && next-writer-ready next
+      _ -> False
+
+  -- | Failed conversion must preserve the untouched original sink rather than advance it.
+  untouched-header-writer :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  untouched-header-writer unit =
+    let reset = raw-reset (-1) in
+    case mime-header-write (mime-default-word-decoder ()) (string-to-bytes "=?X-CUSTOM?q?a?=") (epoch-writer 0 (-1)) of
+      (Err (MimeWordSyntaxFailure (MimeUnhandledCharset quoted)), next) -> next-writer-ready next
+      _ -> False
+
+  -- | Check exact continuation ownership independently of the accepted-byte sink corpus.
+  writer-continuations :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  writer-continuations unit = word-continuation False && word-continuation True && header-continuation False && header-continuation True && untouched-header-writer ()
