@@ -865,6 +865,8 @@ fn primitive_retains_frame_argument(op: PrimOp, position: usize) -> bool {
 /// lending metadata or a function's spelling.
 fn collect_frame_primitives(body: &Core, out: &mut BTreeMap<String, PrimOp>) {
     if let Core::Prim(op) = body { out.insert(op.symbol(), *op); }
+    // The generic child iterator deliberately excludes application heads.
+    if let Core::App(head, _) = body { collect_frame_primitives(head, out); }
     for child in crate::core::child_slots_imm(body) { collect_frame_primitives(child, out); }
 }
 
@@ -872,6 +874,7 @@ fn collect_frame_primitives(body: &Core, out: &mut BTreeMap<String, PrimOp>) {
 fn collect_frame_callees(body: &Core, out: &mut BTreeSet<String>) {
     if let Core::App(head, _) = body {
         if let Core::Global(unit, _) = &**head { out.insert(unit.0.clone()); }
+        collect_frame_callees(head, out);
     }
     for child in crate::core::child_slots_imm(body) { collect_frame_callees(child, out); }
 }
