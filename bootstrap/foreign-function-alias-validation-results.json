@@ -1,0 +1,130 @@
+{
+  "base_revision": "e9da8ced",
+  "baseline": {
+    "checkpoint": "e9da8ced",
+    "compiler_sha256": "167a24969606655e3450cd28470a01da67f9138ac6175e89892002a9e02d47cb",
+    "full_family_claim": false,
+    "host_opt_level": 0,
+    "source_sha256": "937efd9faa46c5015ebbe564db80880fda4cdea0995360e73759f3eeed06355e"
+  },
+  "candidate": {
+    "bundle_sha256": "ef967ba32adec6f9ca15d08c48961fbf866d103fff6e5bdcd93ee40e116cb0df",
+    "compiler_host_opt_level": 0,
+    "compiler_sha256": "f23a11d506ff2ab9466413e6961a1b7d7218673be60d3828c624c374ab72b52c",
+    "llvm_sha256": "c2882e662799246f1353cf8f320a37f323839419fd114fe04fe9a4e179f457ae",
+    "producer_sha256": "ae9c3f812404bd43020346ee4b7464ebf906fe4263932d011d99b8fd9301334a",
+    "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+    "source_sha256": "6d2da12db65897a671b421b3c0eebe58c9e69d3e99fde9a6ed4fe78e8e410ba4",
+    "status": "built",
+    "steps": [
+      {
+        "command": [
+          "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/cinch",
+          "emit-ir",
+          "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-source-check/Bundle.cinch",
+          "-o",
+          "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-experimental-emitter/compiler.ll"
+        ],
+        "exit": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "emit"
+      },
+      {
+        "command": [
+          "clang",
+          "-O0",
+          "-Wno-override-module",
+          "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-experimental-emitter/compiler.ll",
+          "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+          "-o",
+          "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-experimental-emitter/cinch",
+          "-ldl",
+          "-lpthread",
+          "-lm"
+        ],
+        "exit": 0,
+        "log_sha256": "0f96b2029da566c5681464e9c654d83bee01ba65b47d8f7cae4a97062393cb38",
+        "name": "link"
+      }
+    ]
+  },
+  "evidence": {
+    "documentation.json": {
+      "path": "bootstrap/foreign-function-alias-evidence/documentation.json",
+      "sha256": "dc4f5e1e001f4521cedd8ac25e9537e338438d9ba21f44cce96bb0e98f294a15"
+    },
+    "host-build.json": {
+      "path": "bootstrap/foreign-function-alias-evidence/host-build.json",
+      "sha256": "2fb9b0442ed717763e57ad3b8ef7886ddcc29af58764e4427d4e849f63e5c949"
+    },
+    "private-guards.json": {
+      "path": "bootstrap/foreign-function-alias-evidence/private-guards.json",
+      "sha256": "b31d86d35c9c70589225aebefdebe9324a62a714bb73feb4893df44e11d24c84"
+    },
+    "scalar-compat-o0.json": {
+      "path": "bootstrap/foreign-function-alias-evidence/scalar-compat-o0.json",
+      "sha256": "b59d5541d9456477a04141e2527e7a60fb73fcc4809e92d709ef9de6f5d959fd"
+    },
+    "scalar-compat-o2.json": {
+      "path": "bootstrap/foreign-function-alias-evidence/scalar-compat-o2.json",
+      "sha256": "1704fff489cb2cff778ec2c2bc06d66cc5ec0f3760255aa7b63f7e174f408619"
+    },
+    "source-o0.json": {
+      "path": "bootstrap/foreign-function-alias-evidence/source-o0.json",
+      "sha256": "d35d298a6bc8953c0d723e13dcda15fa092a87e49ea9383689cafa0d8e481dac"
+    },
+    "source-o2.json": {
+      "path": "bootstrap/foreign-function-alias-evidence/source-o2.json",
+      "sha256": "e6188d714fa092547c0bad05edbd237d115ec49ff5848edd53f1d95e785c8ae8"
+    }
+  },
+  "fixtures": {
+    "original_source_sha256": "17ce627a299b6a986187133d5264f8f0670c4446bd15432579b27e4bfea7ca6e",
+    "sequenced_source_sha256": "2267b7d4574fd096f5c633ab7cd1976ef44226251f8a8aa51a4bbf50c68daf42"
+  },
+  "full_native_family_fixed_point_checked": false,
+  "private_harness_note": "The first harness build failed because equal-type was not imported in the private snippet. The test-only suffix was corrected to existing scheme-equivalent and same-shape invariants; production source was unchanged.",
+  "production_runtime_ir_sha256": "1216eeab47d627bb295c85a6a3d9ada47d858c1c4b103bd3ecf33a813c1a0100",
+  "production_source_file_count": 51,
+  "production_source_sha256": "6d2da12db65897a671b421b3c0eebe58c9e69d3e99fde9a6ed4fe78e8e410ba4",
+  "publication_authorized": false,
+  "remaining_gates": [
+    "merged current-source full Native family fixed point, changed-source and source-absent compiler-entry gates",
+    "parent preserved compiler tests before integration or publication"
+  ],
+  "results": {
+    "baseline_controls_per_level": 7,
+    "baseline_nested_compile_exit": 5,
+    "baseline_sequenced_compile_and_runtime_exit": 0,
+    "candidate_source_cases_per_level": 12,
+    "canonical_documentation_artifacts": 2,
+    "consumer_opt_levels": [
+      0,
+      2
+    ],
+    "original_nested_compile_and_runtime_exit": 0,
+    "original_sequenced_compile_and_runtime_exit": 0,
+    "private_core_observations": 20,
+    "private_core_runtime_profiles": [
+      "normal32M/8M",
+      "poison256M/8M"
+    ],
+    "scalar_compatibility_observations_per_level": 27,
+    "source_case_checked_rc_compilation": true,
+    "source_case_runtime_profiles": [
+      "normal32M/8M",
+      "poison256M/8M"
+    ]
+  },
+  "schema": 1,
+  "scope": {
+    "adds_general_foreign_function_value_bridge": false,
+    "changes_existing_source_partial_fusion": false,
+    "changes_foreign_arity_or_marshaling": false,
+    "gate": "pure bare CUse, foreign role, actual checked binding plan, matching closed monomorphic scheme, ordinary arrows, compiler argument-function marker, once-used fully saturated body",
+    "keeps_argument_lets_in_place": true,
+    "production_file": "bootstrap/Bootstrap.RuntimeIr.cinch"
+  },
+  "source_check_note": "The standalone check PTY result was lost; empty diagnostics alone are not counted as a verified exit. The exact immutable51-file bundle subsequently passed the durable Rust emit-IR step, which includes source checking.",
+  "status": "focused_experimental_gates_passed"
+}

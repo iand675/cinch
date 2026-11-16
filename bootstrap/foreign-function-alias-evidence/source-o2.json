@@ -1,0 +1,617 @@
+{
+  "consumer_opt_level": 2,
+  "foreign_fixture_sha256": "910c0b61e717677703de2144465bfadae3ba2415c95988dcb035d326ec9e9316",
+  "object_sha256": "645a3d0e2feae9b4b92ecc98117f31abcb53be0bb25ae6bce06d165938f1178d",
+  "provider_receipt_sha256": "e70250a59eb9c37a0cc2d87d5b55b0cd5d60d7ab3aaac3f64cdfb9fce0e52ab9",
+  "results": [
+    {
+      "command": [
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-experimental-emitter/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/objects.json",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-original-nested/Main.cinch",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-original-nested/consumer.ll"
+      ],
+      "compiler_sha256": "f23a11d506ff2ab9466413e6961a1b7d7218673be60d3828c624c374ab72b52c",
+      "diagnostic": "",
+      "executable_sha256": "e5cc92fa1411f4368f6fb0f2c3b60b6709862b9267902f039474c4c9a5bd32b0",
+      "exit": 0,
+      "expected_accepted": true,
+      "frontend": "candidate",
+      "link_command": [
+        "clang",
+        "-O2",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-original-nested/consumer.ll",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/trace.o",
+        "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+        "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-original-nested/consumer",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "llvm_sha256": "20e05a104e0729e0be8a635547debd66cf4a38cbc242bbb62fe42028445b767c",
+      "name": "original-nested",
+      "runs": [
+        {
+          "debug": false,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "debug": true,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "source_sha256": "17ce627a299b6a986187133d5264f8f0670c4446bd15432579b27e4bfea7ca6e"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-experimental-emitter/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/objects.json",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-original-sequenced/Main.cinch",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-original-sequenced/consumer.ll"
+      ],
+      "compiler_sha256": "f23a11d506ff2ab9466413e6961a1b7d7218673be60d3828c624c374ab72b52c",
+      "diagnostic": "",
+      "executable_sha256": "e3644c8f99959ee1527f18ef74abb3c6f73c35a3a9da322c66c1986967a07557",
+      "exit": 0,
+      "expected_accepted": true,
+      "frontend": "candidate",
+      "link_command": [
+        "clang",
+        "-O2",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-original-sequenced/consumer.ll",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/trace.o",
+        "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+        "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-original-sequenced/consumer",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "llvm_sha256": "b5f91ec9b952ecc807cee2021d52ca16f6836b110119722a3ad7ccd8a8e2ffd8",
+      "name": "original-sequenced",
+      "runs": [
+        {
+          "debug": false,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "debug": true,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "source_sha256": "2267b7d4574fd096f5c633ab7cd1976ef44226251f8a8aa51a4bbf50c68daf42"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-experimental-emitter/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/objects.json",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-trace-True-1-False/Main.cinch",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-trace-True-1-False/consumer.ll"
+      ],
+      "compiler_sha256": "f23a11d506ff2ab9466413e6961a1b7d7218673be60d3828c624c374ab72b52c",
+      "diagnostic": "",
+      "executable_sha256": "f6ed6e093ebd27762e40b16ad1451509f515c3a268a734bff083629d0bdabe61",
+      "exit": 0,
+      "expected_accepted": true,
+      "frontend": "candidate",
+      "link_command": [
+        "clang",
+        "-O2",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-trace-True-1-False/consumer.ll",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/trace.o",
+        "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+        "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-trace-True-1-False/consumer",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "llvm_sha256": "1b62691f2980a068f6348e6891ea11590c55c3dd71a759a488106083c66fdaa3",
+      "name": "trace-True-1-False",
+      "runs": [
+        {
+          "debug": false,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "debug": true,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "source_sha256": "e0f365988c104aee2fab543df305cf0563f41099add8530a80bc787eb585a940"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-experimental-emitter/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/objects.json",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-trace-False-128-False/Main.cinch",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-trace-False-128-False/consumer.ll"
+      ],
+      "compiler_sha256": "f23a11d506ff2ab9466413e6961a1b7d7218673be60d3828c624c374ab72b52c",
+      "diagnostic": "",
+      "executable_sha256": "8b142bd3c43b0075281172cbeece3df062c4c3a9f781eb88ce833d54ba731df8",
+      "exit": 0,
+      "expected_accepted": true,
+      "frontend": "candidate",
+      "link_command": [
+        "clang",
+        "-O2",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-trace-False-128-False/consumer.ll",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/trace.o",
+        "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+        "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-trace-False-128-False/consumer",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "llvm_sha256": "c54fe0d7f1518883160a9bbb85e2f3234c9d7e0344e1b60d37644c5cbb8350e7",
+      "name": "trace-False-128-False",
+      "runs": [
+        {
+          "debug": false,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "debug": true,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "source_sha256": "76c0718cde88843a574b2aed28e9fcf76a3a85c970c72e5d13644ed38e9ce9ac"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-experimental-emitter/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/objects.json",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-trace-True-255-False/Main.cinch",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-trace-True-255-False/consumer.ll"
+      ],
+      "compiler_sha256": "f23a11d506ff2ab9466413e6961a1b7d7218673be60d3828c624c374ab72b52c",
+      "diagnostic": "",
+      "executable_sha256": "1507237c9d81c166f94782f44e2025fbbcc5c286dac74a41ff92b5bff7a619b5",
+      "exit": 0,
+      "expected_accepted": true,
+      "frontend": "candidate",
+      "link_command": [
+        "clang",
+        "-O2",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-trace-True-255-False/consumer.ll",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/trace.o",
+        "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+        "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-trace-True-255-False/consumer",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "llvm_sha256": "60a7942aa9425e4d659eff21f4a2b693beaa1d81cbbc4d0cb1868854143efe5a",
+      "name": "trace-True-255-False",
+      "runs": [
+        {
+          "debug": false,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "debug": true,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "source_sha256": "87d7ebaac445c6e26807224dd68a2d2babcd2d5de61a6c2080dd3e329992e608"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-experimental-emitter/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/objects.json",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-trace-False-1-True/Main.cinch",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-trace-False-1-True/consumer.ll"
+      ],
+      "compiler_sha256": "f23a11d506ff2ab9466413e6961a1b7d7218673be60d3828c624c374ab72b52c",
+      "diagnostic": "",
+      "executable_sha256": "f42d707db3df9f881630d6eab7d68828eeb27b230c00312731267bd1c38b00ac",
+      "exit": 0,
+      "expected_accepted": true,
+      "frontend": "candidate",
+      "link_command": [
+        "clang",
+        "-O2",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-trace-False-1-True/consumer.ll",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/trace.o",
+        "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+        "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-trace-False-1-True/consumer",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "llvm_sha256": "92ba097d7cb27bd3ceec93979a41e60d78cd7a9737649f2ce87c408a9b0328ba",
+      "name": "trace-False-1-True",
+      "runs": [
+        {
+          "debug": false,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "debug": true,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "source_sha256": "46b751f8e8486858b5f0b937f185f74b3e4c0f19d207937a08e480567660638a"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-experimental-emitter/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/objects.json",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-lexical-function-shadow/Main.cinch",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-lexical-function-shadow/consumer.ll"
+      ],
+      "compiler_sha256": "f23a11d506ff2ab9466413e6961a1b7d7218673be60d3828c624c374ab72b52c",
+      "diagnostic": "",
+      "executable_sha256": "ea8655d321d8bf59b5f1e79b0fbf0abb5249384ef770700a894054c84f41efee",
+      "exit": 0,
+      "expected_accepted": true,
+      "frontend": "candidate",
+      "link_command": [
+        "clang",
+        "-O2",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-lexical-function-shadow/consumer.ll",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/trace.o",
+        "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+        "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-lexical-function-shadow/consumer",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "llvm_sha256": "71873a5727764145e22bb6ad18cf9f7f4617d4ee8a7e4fdf3b77cf6a98aca803",
+      "name": "lexical-function-shadow",
+      "runs": [
+        {
+          "debug": false,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "debug": true,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "source_sha256": "1d34e5d7e4e95f93528368e816768d22eebf253a13afbfee83372f3801604eb1"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-experimental-emitter/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/objects.json",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-ordinary-function-alias/Main.cinch",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-ordinary-function-alias/consumer.ll"
+      ],
+      "compiler_sha256": "f23a11d506ff2ab9466413e6961a1b7d7218673be60d3828c624c374ab72b52c",
+      "diagnostic": "bootstrap.runtime-ir:23:25: foreign call must supply every checked ABI argument\n",
+      "exit": 5,
+      "expected_accepted": false,
+      "frontend": "candidate",
+      "name": "ordinary-function-alias",
+      "runs": [],
+      "source_sha256": "f22782c05e7f0df2d7bbffc22e97a1df16443622ded1aac9c2c7b558233680f4"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-experimental-emitter/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/objects.json",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-repeated-function-alias/Main.cinch",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-repeated-function-alias/consumer.ll"
+      ],
+      "compiler_sha256": "f23a11d506ff2ab9466413e6961a1b7d7218673be60d3828c624c374ab72b52c",
+      "diagnostic": "bootstrap.runtime-ir:23:25: foreign call must supply every checked ABI argument\n",
+      "exit": 5,
+      "expected_accepted": false,
+      "frontend": "candidate",
+      "name": "repeated-function-alias",
+      "runs": [],
+      "source_sha256": "2e3b21b7ba67dea773ababb54fa41ab2b60a7fe24a94cefef33a96f4f2efac50"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-experimental-emitter/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/objects.json",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-branching-function-alias/Main.cinch",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-branching-function-alias/consumer.ll"
+      ],
+      "compiler_sha256": "f23a11d506ff2ab9466413e6961a1b7d7218673be60d3828c624c374ab72b52c",
+      "diagnostic": "bootstrap.runtime-ir:23:25: foreign call must supply every checked ABI argument\n",
+      "exit": 5,
+      "expected_accepted": false,
+      "frontend": "candidate",
+      "name": "branching-function-alias",
+      "runs": [],
+      "source_sha256": "ae9b20c857dc94f269eda2fd8dac6f0e1f7aa7f7296d7804c6c1aef0b8b89e3f"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-experimental-emitter/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/objects.json",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-higher-order-function-value/Main.cinch",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-higher-order-function-value/consumer.ll"
+      ],
+      "compiler_sha256": "f23a11d506ff2ab9466413e6961a1b7d7218673be60d3828c624c374ab72b52c",
+      "diagnostic": "bootstrap.runtime-ir:23:21: foreign call must supply every checked ABI argument\n",
+      "exit": 5,
+      "expected_accepted": false,
+      "frontend": "candidate",
+      "name": "higher-order-function-value",
+      "runs": [],
+      "source_sha256": "ebadb470db6472a6d074f94b154691ee82b94e24bcf3dac158826af15f589c38"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-experimental-emitter/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/objects.json",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-proper-foreign-partial-prefix/Main.cinch",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/candidate-proper-foreign-partial-prefix/consumer.ll"
+      ],
+      "compiler_sha256": "f23a11d506ff2ab9466413e6961a1b7d7218673be60d3828c624c374ab72b52c",
+      "diagnostic": "bootstrap.runtime-ir:17:70: foreign call must supply every checked ABI argument\n",
+      "exit": 5,
+      "expected_accepted": false,
+      "frontend": "candidate",
+      "name": "proper-foreign-partial-prefix",
+      "runs": [],
+      "source_sha256": "1fedf51091465669d69076f66abd50a2bb65b7842a4216dd0463b3538b5ea969"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter-r5/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/objects.json",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/baseline-original-nested/Main.cinch",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/baseline-original-nested/consumer.ll"
+      ],
+      "compiler_sha256": "167a24969606655e3450cd28470a01da67f9138ac6175e89892002a9e02d47cb",
+      "diagnostic": "bootstrap.runtime-ir:17:22: foreign call must supply every checked ABI argument\n",
+      "exit": 5,
+      "expected_accepted": false,
+      "frontend": "baseline",
+      "name": "original-nested",
+      "runs": [],
+      "source_sha256": "17ce627a299b6a986187133d5264f8f0670c4446bd15432579b27e4bfea7ca6e"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter-r5/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/objects.json",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/baseline-original-sequenced/Main.cinch",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/baseline-original-sequenced/consumer.ll"
+      ],
+      "compiler_sha256": "167a24969606655e3450cd28470a01da67f9138ac6175e89892002a9e02d47cb",
+      "diagnostic": "",
+      "executable_sha256": "e3644c8f99959ee1527f18ef74abb3c6f73c35a3a9da322c66c1986967a07557",
+      "exit": 0,
+      "expected_accepted": true,
+      "frontend": "baseline",
+      "link_command": [
+        "clang",
+        "-O2",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/baseline-original-sequenced/consumer.ll",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/trace.o",
+        "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+        "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/baseline-original-sequenced/consumer",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "llvm_sha256": "b5f91ec9b952ecc807cee2021d52ca16f6836b110119722a3ad7ccd8a8e2ffd8",
+      "name": "original-sequenced",
+      "runs": [
+        {
+          "debug": false,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "debug": true,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "source_sha256": "2267b7d4574fd096f5c633ab7cd1976ef44226251f8a8aa51a4bbf50c68daf42"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter-r5/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/objects.json",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/baseline-ordinary-function-alias/Main.cinch",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/baseline-ordinary-function-alias/consumer.ll"
+      ],
+      "compiler_sha256": "167a24969606655e3450cd28470a01da67f9138ac6175e89892002a9e02d47cb",
+      "diagnostic": "bootstrap.runtime-ir:23:25: foreign call must supply every checked ABI argument\n",
+      "exit": 5,
+      "expected_accepted": false,
+      "frontend": "baseline",
+      "name": "ordinary-function-alias",
+      "runs": [],
+      "source_sha256": "f22782c05e7f0df2d7bbffc22e97a1df16443622ded1aac9c2c7b558233680f4"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter-r5/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/objects.json",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/baseline-repeated-function-alias/Main.cinch",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/baseline-repeated-function-alias/consumer.ll"
+      ],
+      "compiler_sha256": "167a24969606655e3450cd28470a01da67f9138ac6175e89892002a9e02d47cb",
+      "diagnostic": "bootstrap.runtime-ir:23:25: foreign call must supply every checked ABI argument\n",
+      "exit": 5,
+      "expected_accepted": false,
+      "frontend": "baseline",
+      "name": "repeated-function-alias",
+      "runs": [],
+      "source_sha256": "2e3b21b7ba67dea773ababb54fa41ab2b60a7fe24a94cefef33a96f4f2efac50"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter-r5/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/objects.json",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/baseline-branching-function-alias/Main.cinch",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/baseline-branching-function-alias/consumer.ll"
+      ],
+      "compiler_sha256": "167a24969606655e3450cd28470a01da67f9138ac6175e89892002a9e02d47cb",
+      "diagnostic": "bootstrap.runtime-ir:23:25: foreign call must supply every checked ABI argument\n",
+      "exit": 5,
+      "expected_accepted": false,
+      "frontend": "baseline",
+      "name": "branching-function-alias",
+      "runs": [],
+      "source_sha256": "ae9b20c857dc94f269eda2fd8dac6f0e1f7aa7f7296d7804c6c1aef0b8b89e3f"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter-r5/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/objects.json",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/baseline-higher-order-function-value/Main.cinch",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/baseline-higher-order-function-value/consumer.ll"
+      ],
+      "compiler_sha256": "167a24969606655e3450cd28470a01da67f9138ac6175e89892002a9e02d47cb",
+      "diagnostic": "bootstrap.runtime-ir:23:21: foreign call must supply every checked ABI argument\n",
+      "exit": 5,
+      "expected_accepted": false,
+      "frontend": "baseline",
+      "name": "higher-order-function-value",
+      "runs": [],
+      "source_sha256": "ebadb470db6472a6d074f94b154691ee82b94e24bcf3dac158826af15f589c38"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter-r5/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/objects.json",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/baseline-proper-foreign-partial-prefix/Main.cinch",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-o2/baseline-proper-foreign-partial-prefix/consumer.ll"
+      ],
+      "compiler_sha256": "167a24969606655e3450cd28470a01da67f9138ac6175e89892002a9e02d47cb",
+      "diagnostic": "bootstrap.runtime-ir:17:70: foreign call must supply every checked ABI argument\n",
+      "exit": 5,
+      "expected_accepted": false,
+      "frontend": "baseline",
+      "name": "proper-foreign-partial-prefix",
+      "runs": [],
+      "source_sha256": "1fedf51091465669d69076f66abd50a2bb65b7842a4216dd0463b3538b5ea969"
+    }
+  ],
+  "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "status": "passed"
+}

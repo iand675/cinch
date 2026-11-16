@@ -1,0 +1,22 @@
+{
+  "compiler_sha256": "ae9c3f812404bd43020346ee4b7464ebf906fe4263932d011d99b8fd9301334a",
+  "results": [
+    {
+      "artifact_sha256": "e4e2f268016e1ab15c30bef561a5bb9361870452f95639ada0f276743350f79c",
+      "declarations": 722,
+      "diagnostics": 0,
+      "orphans": 0,
+      "source": "bootstrap/Bootstrap.RuntimeIr.cinch",
+      "source_sha256": "1216eeab47d627bb295c85a6a3d9ada47d858c1c4b103bd3ecf33a813c1a0100"
+    },
+    {
+      "artifact_sha256": "56ebedce3adeb40db3a02cf1c1beebcd2cfba025a80d4fd38213f1b8595dbfa4",
+      "declarations": 4,
+      "diagnostics": 0,
+      "orphans": 0,
+      "source": "compiler/tests/fixtures/foreign-alias-guard-probes.cinch.inc",
+      "source_sha256": "9a6f5e3fe7b2861bceec568aeb633d68aa45fad1d81e88f1b88004a038d37ff8"
+    }
+  ],
+  "status": "passed"
+}

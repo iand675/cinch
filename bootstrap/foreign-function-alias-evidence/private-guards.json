@@ -1,0 +1,55 @@
+{
+  "bundle_sha256": "7fae70bee477e624e3c13cd8a71ba20b628fc26ff905e1725a5fc06bcea0ed36",
+  "compiler_host_opt_level": 0,
+  "executable_sha256": "48beb98f7cc364db29fb5fb96064d69091b3a52300f536e58f3022c6c9c9d3ef",
+  "llvm_sha256": "20159ce18c57f5b3b34b60a9ae418b52f3fb9d10b5b7fb3735e2b928f285c1ea",
+  "observations": 20,
+  "producer_sha256": "ae9c3f812404bd43020346ee4b7464ebf906fe4263932d011d99b8fd9301334a",
+  "production_runtime_ir_sha256": "1216eeab47d627bb295c85a6a3d9ada47d858c1c4b103bd3ecf33a813c1a0100",
+  "production_source_sha256": "6d2da12db65897a671b421b3c0eebe58c9e69d3e99fde9a6ed4fe78e8e410ba4",
+  "runs": [
+    {
+      "debug": false,
+      "exit": 0,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "debug": true,
+      "exit": 0,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    }
+  ],
+  "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "status": "passed",
+  "steps": [
+    {
+      "command": [
+        "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-private-guards-r2/Bundle.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-private-guards-r2/probe.ll"
+      ],
+      "exit": 0,
+      "name": "emit"
+    },
+    {
+      "command": [
+        "clang",
+        "-O0",
+        "-Wno-override-module",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-private-guards-r2/probe.ll",
+        "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-private-guards-r2/probe",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "exit": 0,
+      "name": "link"
+    }
+  ],
+  "test_only_suffix_sha256": "9a6f5e3fe7b2861bceec568aeb633d68aa45fad1d81e88f1b88004a038d37ff8",
+  "test_source_sha256": "584d71fb90ce822603b0ccd2ba942d9ca73a49722013fde81de48ed2980af0de"
+}

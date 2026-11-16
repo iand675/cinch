@@ -1,0 +1,41 @@
+{
+  "bundle_sha256": "ef967ba32adec6f9ca15d08c48961fbf866d103fff6e5bdcd93ee40e116cb0df",
+  "compiler_host_opt_level": 0,
+  "compiler_sha256": "f23a11d506ff2ab9466413e6961a1b7d7218673be60d3828c624c374ab72b52c",
+  "llvm_sha256": "c2882e662799246f1353cf8f320a37f323839419fd114fe04fe9a4e179f457ae",
+  "producer_sha256": "ae9c3f812404bd43020346ee4b7464ebf906fe4263932d011d99b8fd9301334a",
+  "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "source_sha256": "6d2da12db65897a671b421b3c0eebe58c9e69d3e99fde9a6ed4fe78e8e410ba4",
+  "status": "built",
+  "steps": [
+    {
+      "command": [
+        "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-source-check/Bundle.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-experimental-emitter/compiler.ll"
+      ],
+      "exit": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "emit"
+    },
+    {
+      "command": [
+        "clang",
+        "-O0",
+        "-Wno-override-module",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-experimental-emitter/compiler.ll",
+        "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-foreign-alias/build/foreign-alias-experimental-emitter/cinch",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "exit": 0,
+      "log_sha256": "0f96b2029da566c5681464e9c654d83bee01ba65b47d8f7cae4a97062393cb38",
+      "name": "link"
+    }
+  ]
+}
