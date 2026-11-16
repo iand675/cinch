@@ -1,0 +1,84 @@
+{
+  "description": "Exact binary32 JSON conversion, owned PEM envelopes, allocation-bounded list capacities and scalar evaluation repairs",
+  "source_checkpoint": "35c44328",
+  "integrated_commits": {
+    "word_folding": "de213ad7",
+    "runtime_scalar_boundaries": "77264afb",
+    "binary32_json": "87a617da",
+    "pem_functional": "eb8a8225",
+    "pem_selected_optimization": "0fbf19a2",
+    "linked_list_capacity": "35c44328"
+  },
+  "gates": {
+    "full_library": {
+      "passed": 326,
+      "seconds": 209.15,
+      "log_sha256": "6a80be7bd694fc3bab2f0953feb5eec594f8947c19e41cfd83db6211eaefe753"
+    },
+    "folded_owner_regressions": {
+      "passed": 5,
+      "seconds": 5.65,
+      "log_sha256": "6a80be7bd694fc3bab2f0953feb5eec594f8947c19e41cfd83db6211eaefe753"
+    },
+    "json_codecs": {
+      "passed": 18,
+      "seconds": 164.88,
+      "log_sha256": "6a80be7bd694fc3bab2f0953feb5eec594f8947c19e41cfd83db6211eaefe753"
+    },
+    "json_value": {
+      "passed": 10,
+      "seconds": 62.3,
+      "log_sha256": "6a80be7bd694fc3bab2f0953feb5eec594f8947c19e41cfd83db6211eaefe753"
+    },
+    "linked_lists": {
+      "passed": 9,
+      "seconds": 41.61,
+      "log_sha256": "6a80be7bd694fc3bab2f0953feb5eec594f8947c19e41cfd83db6211eaefe753"
+    },
+    "pem": {
+      "passed": 8,
+      "seconds": 33.34,
+      "log_sha256": "6a80be7bd694fc3bab2f0953feb5eec594f8947c19e41cfd83db6211eaefe753"
+    },
+    "word_operations": {
+      "passed": 10,
+      "seconds": 43.21,
+      "log_sha256": "6a80be7bd694fc3bab2f0953feb5eec594f8947c19e41cfd83db6211eaefe753"
+    },
+    "word_constant_runtime_and_staging": {
+      "passed": 5,
+      "seconds": 8.85,
+      "log_sha256": "6a80be7bd694fc3bab2f0953feb5eec594f8947c19e41cfd83db6211eaefe753"
+    }
+  },
+  "passed_checks": 391,
+  "documentation": {
+    "modules": 180,
+    "value_exports": 4703,
+    "public_methods": 115,
+    "diagnostics": 0,
+    "orphans": 0,
+    "drift_check": "passed",
+    "validation_log_sha256": "649281f5f478f4312eb1f64bc05cf4989faebfe6941cd62b1dbfc39ca6a94f50"
+  },
+  "sources": {
+    "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+    "Text.Json.Value": "57f516647f493fa1433c066649f00c406a8eb1040b9ed5c50f096086e2c40b54",
+    "Text.Json.Codec": "cd4a4f621e748b5d8bcf686062429919abbb2c4e9c98d2fa43c8af63fff5bc13",
+    "Text.Pem": "9478c3c41a71436180df02c7ac175c309f790f39d131440895f0a81c7f733efd",
+    "Effect.Pem": "47dfe3101d486d89c2b6e2b78700b36c4c4c3ed80cf467de347ef7ba6ffc2bb4",
+    "Data.Mutable.LinkedList": "6eaff419c6892fb56f491baf0f49375366ea79e4cfaa37e3c6e05d0c19eb5d1d"
+  },
+  "inventory": {
+    "complete": 21,
+    "partial": 50,
+    "unreviewed": 109
+  },
+  "limitations": [
+    "The full180-package standard-library objective remains active.",
+    "JSON remains partial: dynamic/raw-number behavior, incremental effectful streams and final92-record/pipeline review remain open.",
+    "The f811/V2 Native family is separately qualified; these Rust scalar-negation/conversion repairs are not claimed in its existing provider.",
+    "PEM performance regressions and copy-control variation remain in the reviewed timing receipt; no universal speedup or speed-parity claim.",
+    "Cross-target kernel checks compile actual objects; foreign-target runtime execution is not claimed."
+  ]
+}

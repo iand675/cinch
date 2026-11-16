@@ -805,11 +805,12 @@
       "cinch_modules": [
         "Data.Json",
         "Text.Json",
+        "Text.Json.Binary32",
         "Text.Json.Codec",
         "Text.Json.Value"
       ],
       "remaining": [
-        "Exact binary32, dynamic values, raw Number conversion outcomes and complete error/capability mapping",
+        "Dynamic values, raw Number conversion outcomes and complete error/capability mapping",
         "Effectful incremental encoder/decoder adapters and complete streaming contracts",
         "Full public-pipeline benchmarks and final92-record review"
       ],
@@ -820,7 +821,7 @@
       ],
       "benchmarks": [],
       "capability_mapping": "bootstrap/stdlib-json-capability-plan.json (all92 records remain in scope)",
-      "review": "The owned source/tape core, machine integer and binary codecs, binary64/record policies and persistent balanced maps with explicit key capabilities are implemented. Map names are snapshotted, repaired before byte-order sorting, and preserve original source-backed key views for decode callbacks. Frozen Rust and the matched self-built Native family pass map/raw-name/owner observations with zero leaks; expanded parent integration gates remain pending. Codec308 and Value265 declarations have canonical docs. Binary32, dynamic/raw-number behavior, incremental effectful streams and final92-record/benchmark review remain open."
+      "review": "The owned source/tape core, machine integer and binary codecs, exact binary32/binary64 conversion, record policies and persistent maps with explicit key capabilities are implemented. Binary32 uses exact midpoint comparisons and shortest-roundtrip coefficients;600 independent cases and retained-output controls pass both frozen frontends. Map names are snapshotted and repaired before byte-order sorting, with original key views retained for callbacks. Expanded parent integration gates remain pending. Dynamic/raw-number behavior, incremental effectful streams and final92-record/benchmark review remain open."
     },
     {
       "reference_package": "encoding/json/jsontext",
@@ -838,10 +839,27 @@
     },
     {
       "reference_package": "encoding/pem",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "complete",
+      "cinch_modules": [
+        "Text.Pem",
+        "Effect.Pem"
+      ],
       "remaining": [],
-      "reference_declarations": 7
+      "reference_declarations": 7,
+      "tests": [
+        "lib_pem"
+      ],
+      "benchmarks": [
+        "encode",
+        "decode",
+        "recovery",
+        "writer",
+        "copy-control"
+      ],
+      "capability_mapping": "tooling/data/pem-capabilities.json",
+      "review": "All7 records have explicit byte-preserving block, persistent-header, decode/remainder, encode and advanced-writer mappings. Selected source9478 passes1120 standalone O0/O2 normal/poison processes across both frozen frontends. Parent lib_pem passes8 tests including actual WebAssembly/AArch64/big-endian PowerPC kernel objects; all101 declarations have canonical docs. Paired public benchmark/codegen review retains ordinary decode and selected small/wide regressions and copy-control variation. The newer scalar-lowering compiler performance comparison remains a separate follow-up; no speed parity or cross-target runtime execution is inferred.",
+      "performance_evidence": "tooling/data/pem-public-benchmarks.json",
+      "runtime_evidence": "tooling/data/pem-selected-evidence.json"
     },
     {
       "reference_package": "encoding/xml",
