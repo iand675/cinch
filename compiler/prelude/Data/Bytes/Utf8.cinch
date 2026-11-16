@@ -16,6 +16,7 @@ module Data.Bytes.Utf8 where
   import Data.Option
 
   export Utf8Status, Utf8End, Utf8Valid, Utf8Invalid, Utf8OutOfBounds, Utf8Step
+  export utf8-scalar-step, utf8-end-step
   export utf8-step-char, utf8-step-width, utf8-step-status, utf8-decode-at, utf8-first, utf8-last-before, utf8-last
   export utf8-rune-error, utf8-rune-self, utf8-max-rune, utf8-max-width, utf8-rune-start, utf8-valid-rune, utf8-rune-length
   export utf8-count, utf8-valid, utf8-first-invalid, utf8-full-rune, utf8-encode-rune, utf8-encode-into, utf8-append-rune
@@ -654,3 +655,14 @@ module Data.Bytes.Utf8 where
   -- | Repair every malformed byte as U+FFFD, producing fresh valid UTF-8 bytes.
   utf8-replace-invalid :: Bytes -> Bytes
   utf8-replace-invalid source = let replacement = utf8-encode-rune 65533 in utf8-repair-each source replacement
+
+  -- | Construct a valid decoding observation for one scalar, deriving its unique encoded width.
+  -- Callers cannot provide inconsistent status or width metadata.
+  utf8-scalar-step :: Char -> Utf8Step
+  utf8-scalar-step scalar = let code = char-to-u32 scalar in
+    let width = if lt-u32 code 128 then (1 :: Nat) else if lt-u32 code 2048 then 2 else if lt-u32 code 65536 then 3 else 4 in
+    DecodedStep scalar width Utf8Valid
+
+  -- | Construct the empty-suffix observation without allocating or exposing a byte buffer.
+  utf8-end-step :: Unit -> Utf8Step
+  utf8-end-step unit = DecodedStep utf8-rune-error 0 Utf8End
