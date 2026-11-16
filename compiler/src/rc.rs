@@ -587,7 +587,17 @@ fn owned_uses(e: &Core, names: &HashMap<usize, usize>, modes: &Modes, cx: &UnitF
         }
         Core::Case { scrut, alts } if named(scrut).is_some() => {
             for a in alts {
-                owned_uses(&a.body, names, modes, cx, out);
+                if let CPat::Var(x, _) = &a.pat {
+                    // Unlike a constructor field, a variable alternative
+                    // is the original word. Returning, storing or capturing
+                    // it retains the parameter itself, which must stay owned
+                    // (stack allocation trusts a loan not to escape).
+                    let mut aliases = names.clone();
+                    aliases.insert(x.0, named(scrut).expect("a tracked scrutinee"));
+                    owned_uses(&a.body, &aliases, modes, cx, out);
+                } else {
+                    owned_uses(&a.body, names, modes, cx, out);
+                }
             }
         }
         Core::Proj(d, _) | Core::DictProj(d, ..) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _)

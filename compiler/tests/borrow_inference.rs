@@ -1,5 +1,6 @@
 //! Borrow inference must preserve aliases without creating an owned
-//! reference, and still duplicate values that escape or are overwritten.
+//! reference. An alias that escapes or is written through keeps its source
+//! parameter owned, including for the stack allocation pass.
 use cinch::core::{CAlt, CPat, Core, FnDef, FnHints, FnMeta, GlobalId, LocalId, Program, TargetProfile, UnitRepr};
 use cinch::repr::Class;
 
@@ -69,22 +70,21 @@ fn nested_variable_patterns_keep_a_recursive_borrow_in_tail_position() {
 }
 
 #[test]
-fn returning_a_pattern_alias_acquires_a_reference() {
+fn returning_a_pattern_alias_keeps_its_parameter_owned() {
     let p = counted(vec![unit("Main.escape", vec![Class::Obj], alias_case(var(1)))]);
-    assert_eq!(p.borrowed.get("Main.escape"), Some(&vec![true]));
-    assert!(matches!(p.fns[0].body, Core::Case { ref alts, .. }
-        if matches!(*alts[0].body, Core::Dup(_, Class::Obj, _))));
-    assert_eq!(operations(&p.fns[0].body), 1);
+    assert!(!p.borrowed.contains_key("Main.escape"));
+    assert_eq!(operations(&p.fns[0].body), 0, "the owned reference transfers to the result");
 }
 
 #[test]
-fn overwriting_a_pattern_binder_keeps_it_separate_from_the_scrutinee() {
+fn writes_through_a_pattern_alias_keep_its_parameter_owned() {
     let body = Core::Let(LocalId(2), Class::Raw,
         Box::new(Core::RefSet(LocalId(1), Box::new(Core::BoxAlloc), Class::Obj)),
         Box::new(call("Main.read", var(1))));
     let p = counted(vec![unit("Main.read", vec![Class::Obj], call("Main.read", var(0))), unit("Main.write", vec![Class::Obj], alias_case(body))]);
     assert!(!p.borrowed.contains_key("Main.read"), "the overwritten owned binder must be consumed on the tail edge");
-    assert!(operations(&p.fns[1].body) > 0);
+    assert!(!p.borrowed.contains_key("Main.write"));
+    assert_eq!(operations(&p.fns[1].body), 0, "the owned reference transfers through the alias");
 }
 
 mod common;
@@ -152,4 +152,32 @@ fn dumps_report_inference_separately_from_the_primitive_convention() {
     assert!(text.contains("@params p0 :: - @obj"), "{text}");
     assert!(text.contains("@borrow-modes(1)"), "{text}");
     assert!(!text.contains("@borrowed("), "{text}");
+}
+
+#[test]
+fn returning_an_alias_does_not_let_the_caller_return_a_dead_frame_block() {
+    let mut ctor = unit("Main.Box", vec![Class::Raw], Core::Unit);
+    ctor.ctor = Some((0, 1));
+    ctor.repr.fields = vec![Class::Raw];
+    ctor.repr.data = Some("Main.Box".into());
+    let make = unit("Main.make", vec![], Core::Let(LocalId(0), Class::Obj,
+        Box::new(Core::App(Box::new(Core::Ctor(GlobalId("Main.Box".into()), vec![])), vec![Core::Int(1)])),
+        Box::new(Core::Let(LocalId(1), Class::Obj,
+            Box::new(call("Main.escape", var(0))), Box::new(var(1))))));
+    let mut p = counted(vec![ctor, unit("Main.escape", vec![Class::Obj], alias_case(var(1))), make]);
+    cinch::stack::allocate(&mut p, &TargetProfile::native(), &cinch::stack::Options::default());
+    assert!(p.frame.get("Main.make").is_none_or(|plan| plan.is_empty()),
+        "the returned block must outlive Main.make's frame: {:?}", p.frame);
+}
+
+#[test]
+fn nested_aliases_that_are_stored_or_captured_keep_the_parameter_owned() {
+    let store = Core::App(Box::new(Core::Ctor(GlobalId("Main.Hold".into()), vec![])), vec![var(2)]);
+    let capture = Core::Lam { fn_id: GlobalId("Main.worker".into()), env: vec![var(2)], classes: vec![] };
+    for body in [store, capture] {
+        let body = alias_case(Core::Let(LocalId(2), Class::Obj, Box::new(var(1)), Box::new(body)));
+        let p = counted(vec![unit("Main.retain", vec![Class::Obj], body)]);
+        assert!(!p.borrowed.contains_key("Main.retain"), "an owned use of a nested alias retains the parameter");
+        assert_eq!(operations(&p.fns[0].body), 0);
+    }
 }

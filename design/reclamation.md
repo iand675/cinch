@@ -822,10 +822,13 @@ to refuse, and both front ends accept the word.
   A variable alternative `case y of x -> body` follows the same rule
   when `y` is borrowed and `x` has the same class and is never written
   through. Both inference and counting preserve the alias: a tail call
-  may lend `x` without a later drop, and an escaping use acquires its
-  reference where it occurs. Nested variable alternatives preserve that
-  rule. An overwritten binder still gets its own reference, and a binder
-  taking over an owned scrutinee still transfers the original reference.
+  may lend `x` without a later drop. Returns, stores, captures and writes
+  through the alias are traced back to the original parameter and keep
+  it owned. This matters beyond counting: stack allocation treats a loan
+  as non-escaping, so an alias returned by the callee must not let its
+  caller put that object in a frame. Nested alternatives and let aliases
+  preserve the same rule. An owned scrutinee transfers its reference to
+  the variable binder without an extra dup/drop pair.
 - `CINCH_BORROW_REPORT=1` prints one JSON witness per counted formal of
   ordinary Core functions for each inference pass. The reason is the
   first rule that withdrew borrowing, or `lent` when it survived. Run
