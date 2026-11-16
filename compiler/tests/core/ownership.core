@@ -2,12 +2,15 @@ core 1
 module Main
 target aarch64-apple-darwin opt-level 0
 source sha256:b4080beddeb96cb83c3329d9f6e86f1e3aad24efec37abede9415b336753824c
-@ticks 1130
+@ticks 19
 unit Main.main :: Int
+  @inline(2 sites, 8 nodes: Data.Int.Add_Int.+)
   @stage(lowered)
   body (let t0 @class(owned)
     (app (prim cinch.runtime.intAdd) (int 2) (int 0))
-    (app (prim cinch.runtime.intAdd) (int 1) (local t0)))
+    (let t1 @class(uncounted)
+      (app (prim cinch.runtime.intAdd) (int 1) (local t0))
+      (drop t0 @class(owned) (local t1))))
 end
 unit Main.main.exit :: -
   @stage(lowered)

@@ -762,10 +762,21 @@
       "status": "partial",
       "cinch_modules": [
         "Data.Json",
-        "Text.Json"
+        "Text.Json",
+        "Text.Json.Value"
       ],
-      "remaining": [],
-      "reference_declarations": 92
+      "remaining": [
+        "Typed scalar, sequence, array, record and balanced-map codecs with custom callback and field policies",
+        "Arbitrary raw Number text conversion semantics, encoding policy scope and complete error mapping",
+        "Effectful streaming encoder/decoder adapters and full public-pipeline benchmarks"
+      ],
+      "reference_declarations": 92,
+      "tests": [
+        "lib_json_value"
+      ],
+      "benchmarks": [],
+      "capability_mapping": "bootstrap/stdlib-json-capability-plan.json (all92 records remain in scope)",
+      "review": "Text.Json.Value supplies the reviewed owned source/tape syntax and formatting core, immutable navigation, exact numeric spellings, quote/HTML escaping and resumable lexical state. Both frozen frontends pass732 independent observations plus64KiB/depth/alias/all-width controls; parent lib_json_value passes all10 tests, including actual WebAssembly, AArch64 and big-endian PowerPC kernel objects. All260 core declarations have canonical docs. This core checkpoint does not complete the92-record package; typed codecs, policies and stream adapters remain open. Legacy modules are preserved."
     },
     {
       "reference_package": "encoding/json/jsontext",
@@ -2003,7 +2014,7 @@
       ],
       "benchmarks": [],
       "capability_mapping": "tooling/data/unicode-capabilities.json: implemented raw byte operations and five explicitly pending String adapters",
-      "review": "Raw byte decoding, reverse decoding, counting, validation, repair and encoding cover all numeric code points, byte pairs and malformed/aligned inputs on both frozen frontends. Parent lib_utf8 passes six checks, including actual WebAssembly, AArch64 and big-endian PowerPC kernel objects. Foreign execution is not claimed. Five String adapters and final benchmark review remain open."
+      "review": "Raw byte decoding, reverse decoding, counting, validation, repair and encoding cover all numeric code points, byte pairs and malformed/aligned inputs on both frozen frontends. Parent lib_utf8 passes six checks, including actual WebAssembly, AArch64 and big-endian PowerPC kernel objects. Foreign execution is not claimed. Five String adapters and final benchmark review remain open. Selected SIMD16/fused width-validity loops pass both1001-process corpora and parent6-test expanded22-kernel/factory gate. Independent public timings and remaining small-input regression are retained in stdlib-utf8-optimization-evidence.md; text facade adapters remain pending."
     },
     {
       "reference_package": "unique",

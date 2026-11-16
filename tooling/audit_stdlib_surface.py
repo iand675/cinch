@@ -28,7 +28,7 @@ HOMES = {
     "encoding/ascii85": ["Text.Ascii85", "Effect.Ascii85"],
     "encoding/base32": ["Text.Base32", "Effect.Base32"], "encoding/base64": ["Text.Base64", "Text.Base64.Encoding", "Effect.Base64"],
     "encoding/binary": ["Text.Binary", "Text.Binary.Layout", "Effect.Binary"], "encoding/csv": ["Text.Csv", "Text.Csv.Record", "Effect.Csv"], "encoding/hex": ["Text.Hex", "Effect.Hex"],
-    "encoding/json": ["Text.Json", "Data.Json"], "errors": ["Data.Result"],
+    "encoding/json": ["Text.Json", "Text.Json.Value", "Data.Json"], "errors": ["Data.Result"],
     "flag": ["Text.OptionParser"], "fmt": ["Text.Show", "Text.Scan"],
     "hash": ["Data.Hash"], "hash/adler32": ["Text.Checksum", "Text.Adler32", "Effect.Adler32"], "hash/crc32": ["Text.Checksum"],
     "hash/crc64": ["Text.Checksum", "Text.Crc64", "Effect.Crc64"], "hash/fnv": ["Text.Fnv", "Text.Fnv.State", "Effect.Fnv"], "hash/maphash": ["Data.HashMap"],
@@ -52,6 +52,7 @@ HOMES = {
 }
 
 EVIDENCE = {
+    "encoding/json": (["lib_json_value"], []),
     "bytes": (["lib_byte_search", "lib_byte_build"], []),
     "container/heap": (["lib_heap_view"], ["owned-build-drain", "view-build-drain", "owned-root-repair", "view-root-repair"]),
     "cmp": (["lib_compare"], ["integer", "float", "choice", "string"]),
