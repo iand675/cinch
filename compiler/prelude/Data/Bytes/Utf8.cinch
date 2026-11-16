@@ -19,6 +19,7 @@ module Data.Bytes.Utf8 where
   export utf8-scalar-step, utf8-end-step
   export utf8-step-char, utf8-step-width, utf8-step-status, utf8-decode-at, utf8-first, utf8-last-before, utf8-last
   export utf8-rune-error, utf8-rune-self, utf8-max-rune, utf8-max-width, utf8-rune-start, utf8-valid-rune, utf8-rune-length
+  export utf8-count-between, utf8-decode-between
   export utf8-count, utf8-valid, utf8-first-invalid, utf8-full-rune, utf8-encode-rune, utf8-encode-into, utf8-append-rune
   export utf8-repair, utf8-repair-each, utf8-replace-invalid
 
@@ -435,6 +436,22 @@ module Data.Bytes.Utf8 where
     hold-source source (packed-step (decode-raw (bytes-data source) size offset))
     else DecodedStep utf8-rune-error 0 (if at == bytes-len source then Utf8End else Utf8OutOfBounds)
 
+  -- | Decode at an absolute owner offset within the half-open byte span [start,end).
+  -- Invalid bounds (start > end or end > buffer length), positions before start,
+  -- and positions beyond end return Utf8OutOfBounds with zero width and U+FFFD.
+  -- A valid at == end returns Utf8End, including an empty span. The span is decoded
+  -- independently: a leading continuation or encoding truncated by end consumes
+  -- exactly one byte as Utf8Invalid. No byte outside the span is read or copied.
+  utf8-decode-between :: Bytes -> Nat -> Nat -> Nat -> Utf8Step
+  utf8-decode-between source start end at =
+    if start <= end && end <= bytes-len source && start <= at && at <= end then
+      if at == end then utf8-end-step ()
+      else let size = wrapping-i64-to-u64 (nat-to-i64 end) in
+        let offset = wrapping-i64-to-u64 (nat-to-i64 at) in
+        let base = bytes-data source in
+        hold-source source (packed-step (decode-raw base size offset))
+    else DecodedStep utf8-rune-error 0 Utf8OutOfBounds
+
   -- | Decode the first scalar or one malformed byte; an empty buffer has Utf8End status.
   utf8-first :: Bytes -> Utf8Step
   utf8-first source = utf8-decode-at source 0
@@ -509,6 +526,20 @@ module Data.Bytes.Utf8 where
   utf8-count :: Bytes -> Nat
   utf8-count source = let size = wrapping-i64-to-u64 (nat-to-i64 (bytes-len source)) in
     hold-source source (word-natural (count-from (bytes-data source) size 0 0))
+
+  -- | Count decoded scalars in the half-open byte span [start,end), without copying.
+  -- Bounds are absolute owner offsets. Return None if start > end or end exceeds
+  -- buffer length; valid empty spans return Some 0. Each malformed or truncated
+  -- byte counts as one replacement scalar, including a continuation at start.
+  -- SIMD/SWAR ASCII blocks and exact scalar fringes never read outside the span.
+  utf8-count-between :: Bytes -> Nat -> Nat -> Option Nat
+  utf8-count-between source start end =
+    if start <= end && end <= bytes-len source then
+      let size = wrapping-i64-to-u64 (nat-to-i64 end) in
+      let offset = wrapping-i64-to-u64 (nat-to-i64 start) in
+      let base = bytes-data source in
+      Some (hold-source source (word-natural (count-from base size offset 0)))
+    else None
 
   -- | Whether a nonempty prefix already determines a decoding step, valid or malformed.
   -- A potentially valid but incomplete sequence is false; an already invalid prefix is true.
