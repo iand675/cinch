@@ -38,7 +38,7 @@ module Data.String where
   import Algebra.Semigroup
   import Algebra.Monoid
 
-  export String, compare-bytes-from, copy-bytes-into, empty-string, pack, string-byte-index-from, string-byte-length, string-char-at, string-char-at-from, string-clone, string-compare, string-concat, string-concat-all, string-from-bytes, string-join, string-length, string-length-from, string-repeat, string-slice, string-to-bytes, unpack, utf8-at, utf8-char, utf8-cont, utf8-encode-into, utf8-encode-width, utf8-lead-payload, utf8-min, utf8-valid-from, utf8-width
+  export String, compare-bytes-from, copy-bytes-into, empty-string, pack, string-byte-index-from, string-byte-length, string-char-at, string-char-at-from, string-clone, string-compare, string-concat, string-concat-all, string-from-bytes, string-join, string-length, string-length-from, string-repeat, string-slice, string-to-bytes, string-utf8-first, string-utf8-last, unpack, utf8-at, utf8-char, utf8-cont, utf8-encode-into, utf8-encode-width, utf8-lead-payload, utf8-min, utf8-valid-from, utf8-width
 
 
   -- ---------------------------------------------------------------------------
@@ -177,6 +177,28 @@ module Data.String where
   string-byte-length :: String -> Nat
   string-byte-length s = bytes-len (string-bytes-raw s)
 
+  -- | Observe the first scalar and its encoded byte width without copying private backing.
+  -- Empty text has no scalar; every present width is between one and four bytes.
+  string-utf8-first :: String -> Option (Char, Nat)
+  string-utf8-first text = utf8-at (string-bytes-raw text) 0
+
+  -- | Find the final scalar by checking at most four preceding bytes of valid UTF-8.
+  string-last-scalar-from :: Bytes -> Nat -> Nat -> Option (Char, Nat)
+  string-last-scalar-from raw pos left = if pos > 0 && left > 0 then
+    let previous = pos - 1 in
+    if previous < bytes-len raw then
+      let byte = bytes-get raw previous in
+      if byte < 128 || byte >= 192 then utf8-at raw previous else
+        let remaining = left - 1 in string-last-scalar-from raw previous remaining
+    else None
+    else None
+
+  -- | Observe the final scalar and its encoded byte width without scanning or copying the prefix.
+  -- Empty text has no scalar; reverse lookup reads at most four bytes before decoding it.
+  string-utf8-last :: String -> Option (Char, Nat)
+  string-utf8-last text = let raw = string-bytes-raw text in
+    string-last-scalar-from raw (bytes-len raw) 4
+
   -- Length in Unicode scalar values (O(n) scan).
   string-length-from :: Bytes -> Nat -> Nat -> Nat
   string-length-from b i n =
@@ -186,8 +208,13 @@ module Data.String where
       Some p -> case p of
         (c, w) -> string-length-from b (i + w) (n + 1)
 
+  -- | Count Unicode scalars in sealed-valid UTF-8 using packed leading-byte classification.
+  -- Private SIMD/SWAR blocks count non-continuation bytes; exact scalar fringes never overread.
   string-length :: String -> Nat
-  string-length s = string-length-from (string-bytes-raw s) 0 0
+  string-length text =
+    let raw = string-bytes-raw text in let end = nat-to-i64 (bytes-len raw) in
+    let count = string-held raw (string-count-from (bytes-data raw) 0 end 0) in
+    if 0 <= count then nat-from-i64 count else 0
 
   -- The scalar value at code point index `n`, by scan (O(n)).
   string-char-at-from :: Bytes -> Nat -> Nat -> Option Char
@@ -486,3 +513,93 @@ module Data.String where
       %mask = and i64 %word, 9259542123273814144
       ret i64 %mask
     }
+
+  -- | Add bounded private machine counters without imported object calls inside scans.
+  prim string-count-add :: I64 -> I64 -> I64 where
+    llvm {
+      %value = add i64 %0, %1
+      ret i64 %value
+    }
+
+  -- | Check a remaining complete-block width using private signed machine offsets.
+  prim string-count-wide :: I64 -> I64 -> I64 -> Bool where
+    llvm {
+      %remaining = sub i64 %1, %0
+      %enough = icmp sge i64 %remaining, %2
+      %value = zext i1 %enough to i8
+      ret i8 %value
+    }
+
+  -- | Check whether an exact scalar fringe still has an available byte.
+  prim string-count-more :: I64 -> I64 -> Bool where
+    llvm {
+      %more = icmp slt i64 %0, %1
+      %value = zext i1 %more to i8
+      ret i8 %value
+    }
+
+  -- | Count exact leading bytes in sixteen proved available sealed-valid UTF-8 bytes.
+  -- Byte flags are zero or one; paired lane sums stay below three and the total below seventeen.
+  -- The reduction counts bytes in either host order and never returns a backing address.
+  prim string-count-sixteen :: I64 -> I64 -> I64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %bytes = load <16 x i8>, ptr %at, align 1
+      %top = and <16 x i8> %bytes, <i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64>
+      %heads = icmp ne <16 x i8> %top, <i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128>
+      %flags = zext <16 x i1> %heads to <16 x i8>
+      %words = bitcast <16 x i8> %flags to <2 x i64>
+      %low = extractelement <2 x i64> %words, i32 0
+      %high = extractelement <2 x i64> %words, i32 1
+      %paired = add i64 %low, %high
+      %sums = mul i64 %paired, 72340172838076673
+      %value = lshr i64 %sums, 56
+      ret i64 %value
+    }
+
+  -- | Count exact leading bytes in eight proved available bytes with order-independent SWAR.
+  prim string-count-eight :: I64 -> I64 -> I64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %word = load i64, ptr %at, align 1
+      %shifted = shl i64 %word, 1
+      %inverse = xor i64 %word, -1
+      %noncontinuation = or i64 %inverse, %shifted
+      %heads = and i64 %noncontinuation, 9259542123273814144
+      %flags = lshr i64 %heads, 7
+      %sums = mul i64 %flags, 72340172838076673
+      %value = lshr i64 %sums, 56
+      ret i64 %value
+    }
+
+  -- | Classify exactly one proved available fringe byte without a wide speculative load.
+  prim string-count-one :: I64 -> I64 -> I64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %byte = load i8, ptr %at, align 1
+      %top = and i8 %byte, -64
+      %head = icmp ne i8 %top, -128
+      %value = zext i1 %head to i64
+      ret i64 %value
+    }
+
+  -- | Traverse complete SIMD/SWAR blocks with unboxed counters and one outer owner hold.
+  string-count-from :: I64 -> I64 -> I64 -> I64 -> I64
+  string-count-from base at end total =
+    if string-count-wide at end 16 then
+      let count = string-count-sixteen base at in let next-total = string-count-add total count in
+      let next = string-count-add at 16 in string-count-from base next end next-total
+    else if string-count-wide at end 8 then
+      let count = string-count-eight base at in let next-total = string-count-add total count in
+      let next = string-count-add at 8 in string-count-tail base next end next-total
+    else string-count-tail base at end total
+
+  -- | Count only the final available bytes after all complete packed blocks.
+  string-count-tail :: I64 -> I64 -> I64 -> I64 -> I64
+  string-count-tail base at end total = if string-count-more at end then
+    let count = string-count-one base at in let next-total = string-count-add total count in
+    let next = string-count-add at 1 in string-count-tail base next end next-total
+    else total
