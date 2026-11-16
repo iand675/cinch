@@ -5,10 +5,12 @@ package main
 
 import (
 	"bytes"
+	"encoding"
 	"encoding/ascii85"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"hash"
 	"hash/fnv"
 	"io"
 	"math/bits"
@@ -76,8 +78,62 @@ func inputWord(input []byte) uint64 {
 	return binary.LittleEndian.Uint64(input)
 }
 
+// fnvState selects a fixed variant for the state, checkpoint and stream pipelines.
+func fnvState(variant int) hash.Hash {
+	switch variant {
+	case 0:
+		return fnv.New32()
+	case 1:
+		return fnv.New32a()
+	case 2:
+		return fnv.New64()
+	case 3:
+		return fnv.New64a()
+	case 4:
+		return fnv.New128()
+	default:
+		return fnv.New128a()
+	}
+}
+
 // operation exercises a public buffer or stream pipeline and consumes its output.
 func operation(mode int, input []byte) uint64 {
+	if mode >= 50 && mode <= 67 {
+		h := fnvState((mode - 50) % 6)
+		if mode <= 55 {
+			h.Write(input)
+			return fingerprint(h.Sum(nil))
+		}
+		if mode <= 61 {
+			h.Write(input)
+			saved, err := h.(encoding.BinaryMarshaler).MarshalBinary()
+			if err != nil {
+				return 1000000000
+			}
+			loaded := fnvState((mode - 50) % 6)
+			if err := loaded.(encoding.BinaryUnmarshaler).UnmarshalBinary(saved); err != nil {
+				return 1000000000
+			}
+			return fingerprint(saved) + fingerprint(loaded.Sum(nil))
+		}
+		source := bytes.NewReader(bytes.Clone(input))
+		chunk := make([]byte, 64)
+		var count uint64
+		for {
+			n, err := source.Read(chunk)
+			if n > 0 {
+				h.Write(chunk[:n])
+				count += uint64(n)
+			}
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return 1000000000
+			}
+		}
+		return count + fingerprint(h.Sum(nil))
+	}
 	switch mode {
 	case 0:
 		return fingerprint([]byte(hex.EncodeToString(input)))
@@ -243,6 +299,42 @@ func operation(mode int, input []byte) uint64 {
 // workloadCode resolves command-line text outside the measured interval.
 func workloadCode(name string) int {
 	switch name {
+	case "fnv-state32":
+		return 50
+	case "fnv-state32a":
+		return 51
+	case "fnv-state64":
+		return 52
+	case "fnv-state64a":
+		return 53
+	case "fnv-state128":
+		return 54
+	case "fnv-state128a":
+		return 55
+	case "fnv-roundtrip32":
+		return 56
+	case "fnv-roundtrip32a":
+		return 57
+	case "fnv-roundtrip64":
+		return 58
+	case "fnv-roundtrip64a":
+		return 59
+	case "fnv-roundtrip128":
+		return 60
+	case "fnv-roundtrip128a":
+		return 61
+	case "fnv-stream32":
+		return 62
+	case "fnv-stream32a":
+		return 63
+	case "fnv-stream64":
+		return 64
+	case "fnv-stream64a":
+		return 65
+	case "fnv-stream128":
+		return 66
+	case "fnv-stream128a":
+		return 67
 	case "hex-encode":
 		return 0
 	case "hex-decode":
