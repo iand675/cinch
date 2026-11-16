@@ -23,7 +23,6 @@ fn run(directory: &Path, no_stack: bool) {
             "Main.cinch",
             "--opt-level",
             "2",
-            "--rc-debug",
             "--no-inline",
             "--max-simplifier-iterations",
             "0",

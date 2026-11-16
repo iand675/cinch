@@ -1775,10 +1775,7 @@ mod frame_capture_tests {
 
     /// Keep every public mode table separate from the private facts under test.
     fn program(fns: Vec<FnDef>) -> Program {
-        Program { total_bodies: crate::total::CheckedGraph::empty(), fns, instances: vec![], main: None,
-            rewrites: vec![], plans: Default::default(), foreigns: Default::default(), prims: vec![], laws: vec![],
-            lent: Default::default(), frame: Default::default(), stack: Default::default(), inline: Default::default(),
-            borrowed: Default::default(), lent_entries: Default::default(), private_modules: vec![] }
+        Program::from_functions(fns)
     }
 
     /// Call one ordinary function with the same borrowed parameter.
