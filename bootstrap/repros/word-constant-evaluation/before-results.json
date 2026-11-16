@@ -1,0 +1,78 @@
+{
+  "description": "Exact failed scalar evaluation consumers before the separate folding, unsigned-negation and cross-signed conversion repairs",
+  "epochs": [
+    {
+      "epoch": "frozen-original",
+      "description": "Frozen b004/c4 before Core repair; original21-check aggregate",
+      "exit": 1,
+      "files": [
+        {
+          "file": "frozen-original-Main.cinch.gz",
+          "uncompressed_sha256": "431824717dc8269a2eacc2df4896af92e1a06cab9df5ff254f5a6a85cc17c8cd",
+          "uncompressed_bytes": 2774,
+          "compressed_sha256": "96c1745bc73d440c4656a9f43517ec444fea966f8b21d554cd9252a5cd37c0d9"
+        },
+        {
+          "file": "frozen-original-consumer.ll.gz",
+          "uncompressed_sha256": "8ec29ea41e317dc6e5ee57bcf9b2c75575f4cfa5765207a129cb0389dbdce060",
+          "uncompressed_bytes": 42211,
+          "compressed_sha256": "eec884a64ead7f6e870c3605951fb82e80adf7d76ea050845d703435836cc533"
+        }
+      ]
+    },
+    {
+      "epoch": "core-repaired-unsigned-negation",
+      "description": "Core repair; retained21-check source pinpoints emitted saturatingNegU64 failure at8",
+      "exit": 8,
+      "files": [
+        {
+          "file": "core-repaired-unsigned-negation-Main.cinch.gz",
+          "uncompressed_sha256": "3c1544420239ba3846c5f057a80fdf587d75432e89c53093a199a02686e236bf",
+          "uncompressed_bytes": 2838,
+          "compressed_sha256": "4a88285eb95c649817b47d4eb4c16aaf98a9ac7a1d8f5be8739e14dc1ff92afc"
+        },
+        {
+          "file": "core-repaired-unsigned-negation-consumer.ll.gz",
+          "uncompressed_sha256": "bcff57f65cc790e459f96e31fb529518e72c83d8ad2b5fa7c0bc5022fb2b566e",
+          "uncompressed_bytes": 32934,
+          "compressed_sha256": "d918676b011b11f0b899e81b4302c5d91606e88480681b35a64d6d04e1a72fb0"
+        }
+      ]
+    },
+    {
+      "epoch": "negation-repaired-conversion",
+      "description": "Negation repair; retained33-check source pinpoints checkedU64ToI64 failure at24",
+      "exit": 24,
+      "files": [
+        {
+          "file": "negation-repaired-conversion-Main.cinch.gz",
+          "uncompressed_sha256": "bff96c7ce95be3bd23032fe28ddc604f8d49e81aca1ad988003b211e69c1ca31",
+          "uncompressed_bytes": 3333,
+          "compressed_sha256": "8556de5eb56ffb21cd0db3a6e52a9ecb065d8152707a7a253a10bf5d940e8920"
+        },
+        {
+          "file": "negation-repaired-conversion-consumer.ll.gz",
+          "uncompressed_sha256": "8d1f7f0ece2b90128735810c70cecfc3a8242e9bfd5bd8510a0bc6192e09b5b5",
+          "uncompressed_bytes": 40751,
+          "compressed_sha256": "8d8fe51eb6bd9c184c8090dfd8c356f7c66eb6ccc66b4cf86b9c44417471a2df"
+        }
+      ]
+    }
+  ],
+  "frozen_original": {
+    "compiler_sha256": "b004049baa8e2614dd35f5484811bbf2cd24b137923a8e3bc36bf08c9c53fc93",
+    "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "source_sha256": "431824717dc8269a2eacc2df4896af92e1a06cab9df5ff254f5a6a85cc17c8cd",
+    "executable_sha256": "6462f5f234faec174fe3c57cbc133c60d1e03b0c6d897c61cfc89e5a2beb10ae",
+    "exit": 1,
+    "heap": "32M",
+    "stack": "8M",
+    "opt_level": 0
+  },
+  "memory_profile": "normal32M heap/8M stack, zero-live/zero-leak runtime diagnostics",
+  "diagnostics": {
+    "unsigned_negation": "/tmp/cinch-word-folding-retained-public-repro.log",
+    "conversion": "/tmp/cinch-word-folding-runtime-staging-parent-gate.log"
+  },
+  "after_validation": "Recorded separately only after repaired compiler gates pass."
+}
