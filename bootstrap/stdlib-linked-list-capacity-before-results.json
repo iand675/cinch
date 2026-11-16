@@ -1,0 +1,67 @@
+{
+  "description": "Preserve bounded pre-repair constructor behavior without requesting backing memory.",
+  "source_revision": "4e0b38c0",
+  "cpu_affinity": [
+    4
+  ],
+  "old_module_sha256": "7251889893471322b75e5c8d7006ec87402c929db744b97cd3cdd7c90af38301",
+  "consumer_sha256": "4611d4138720961f18a934232e9e5c24ba544d77719bce5b812575fcc8523d4b",
+  "first_illegal_slots_64": 1152921504606846972,
+  "frontends": {
+    "rust": {
+      "command": [
+        "/workspace/dasl-stdlib-io/build/array-frame-safe-frozen/cinch",
+        "build",
+        "/workspace/dasl-stdlib-list-capacity/build/list-capacity-before/Main.cinch",
+        "--runtime-archive",
+        "/workspace/dasl-stdlib-io/build/array-frame-safe-frozen/libcinchruntime.a",
+        "--opt-level",
+        "2",
+        "-o",
+        "/workspace/dasl-stdlib-list-capacity/build/list-capacity-before/rust"
+      ],
+      "executable_sha256": "21f8e402c3b88ff9f888669db96b5386cee3edbb99dbdedbf0c1716cf5b6ec51",
+      "llvm_sha256": "17d17e0e54cc991a352cd13f3b3b821fb739699be7d6daf0789ba4adcaec947e",
+      "runs": [
+        {
+          "poisoned_free": false,
+          "exit": 73,
+          "diagnostics": "cinch: exhausted: heap (9223372036854776190 bytes)\n"
+        },
+        {
+          "poisoned_free": true,
+          "exit": 73,
+          "diagnostics": "cinch: exhausted: heap (9223372036854776190 bytes)\n"
+        }
+      ]
+    },
+    "native": {
+      "command": [
+        "python3",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/frontend.py",
+        "--rc-debug",
+        "--compile-only",
+        "--interfaces",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+        "/workspace/dasl-stdlib-list-capacity/build/list-capacity-before/Bundle.cinch",
+        "/workspace/dasl-stdlib-list-capacity/build/list-capacity-before/native.ll",
+        "/workspace/dasl-stdlib-list-capacity/build/list-capacity-before/native",
+        "/workspace/dasl-stdlib-list-capacity/build/list-capacity-before/link.txt"
+      ],
+      "executable_sha256": "b6ae0302df32da230e6783d94284357d7231e264b8fed618a3e09ca087aa1d32",
+      "llvm_sha256": "ea2924b95f38f15acaf2041e432690669b22e8d8f9d09603b87143a99a0b00fc",
+      "runs": [
+        {
+          "poisoned_free": false,
+          "exit": 73,
+          "diagnostics": "cinch: exhausted: heap (9223372036854776192 bytes)\n"
+        },
+        {
+          "poisoned_free": true,
+          "exit": 73,
+          "diagnostics": "cinch: exhausted: heap (9223372036854776232 bytes)\n"
+        }
+      ]
+    }
+  }
+}
