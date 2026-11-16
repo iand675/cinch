@@ -33,19 +33,24 @@ there is no count to keep that payload alive after the enclosing owner's
 release. This is a planning error in the nested-store widening, and does
 not require changing the generic `Release` emission protocol.
 
-The focused correction keeps a counted-payload child on the heap whenever
-it is stored inside another frame block. Its heap count then protects the
-independent field reference. Direct placements in borrowed or consuming
-callees retain their existing rules; nested children without counted
-payload still retain their frame optimization. The existing counted nested
-store control now expects the holder's frame slot and a heap child, while
-retaining its runtime and leak checks. A separate raw-word nested control
-pins the two-slot optimization, and the reduced executable regression
-compares normal placement with disabled stack allocation in both modes.
+Review added `Run.ReturnedFrameProjection.cinch`: a getter can also return a
+raw-payload child beyond the producer's activation. The original producer's
+LLVM returns a pointer into its own `alloca`, even when a run happens to see
+the previous stack bytes unchanged. Absence of counted payload protects
+neither the frame address nor its contents after the activation ends.
 
-This is deliberately conservative: a counted nested child stays on the
-heap even when a particular local accessor could transfer it safely.
+The correction therefore keeps every nested child on the heap, giving a
+projected result an independent lifetime. The parent can still take a frame
+slot. Direct duplication of a standalone block without counted payload and
+safe consuming-callee placements retain their existing rules. Counted and
+raw nested controls expect one parent slot; the returned-child control also
+checks that the producer's child allocation does not use frame storage.
+Runtime regressions compare normal placement with disabled stack allocation.
+
+This is deliberately conservative: a nested child stays on the heap even
+when a particular local accessor could transfer it safely.
 Recovering those placements requires tracking field aliases and their
 independent lifetimes across enclosing owners and callees. The guard uses
-the existing `Duplicated` refusal class because the hidden alias has the
-same payload ownership requirement as an explicit duplication.
+the existing `Duplicated` refusal class for these independently aliased
+values. The initial counted-only proposal and its successful local tests
+remain historical evidence, rather than proof for an escaping raw result.

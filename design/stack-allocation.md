@@ -267,6 +267,17 @@ widening can be measured against the other; `CINCH_STACK_TRACE` now prints,
 on an accepted candidate, how many consumptions it had and how many were
 static deaths, stores in a frame block, or passes to a consuming callee.
 
+The current planner conservatively refuses nested child placement, including
+raw-payload children. A field getter can produce an independent alias after
+the parent's release, or return the child beyond the allocating activation.
+The scan does not yet relate those aliases to the original child binder.
+The nested-store classification and measurement switch remain for the census,
+but the parent's frame placement alone is insufficient lifetime evidence.
+Standalone blocks without counted payload still allow duplication, and safe
+consuming-callee transfers retain their existing rules. The reduced regressions
+and exact compiler epochs are recorded in
+[`nested-frame-payload-2026-11-16.md`](../compiler/evidence/nested-frame-payload-2026-11-16.md).
+
 ### 7.4 Dead-unit elimination (item 2)
 
 Inlining moves an allocation into its caller's activation, which is what the
