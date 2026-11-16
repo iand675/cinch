@@ -3404,8 +3404,9 @@ pub struct Program {
     /// (`crate::rc::borrow_modes`), `true` where the caller only lends the
     /// argument. Empty for an open program, whose units other artifacts
     /// call and which therefore keeps every parameter owned. `crate::stack`
-    /// reads it: a lent reference is one the callee never stores or
-    /// returns, so it cannot outlive the caller's activation.
+    /// derives separate frame-noncapture facts from it: an ARC-borrowed
+    /// primitive may retain or return an alias, so this convention alone
+    /// never proves that a caller's frame allocation is safe.
     pub borrowed: std::collections::BTreeMap<String, Vec<bool>>,
     /// The units of an open program whose lent convention lives in a
     /// worker rather than at their own symbol (`crate::rc::insert_open`):
