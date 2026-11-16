@@ -1,0 +1,418 @@
+{
+  "description": "Closed RawNumber and published numeric/binary functional client executables/LLVM only; all source/reference/log/docs/compiler/provider/runtime/benchmark inputs retained in place",
+  "checkpoint_commits": [
+    "b17de763",
+    "145376f1750e094ed01571d63e2b2575672d278c"
+  ],
+  "archive": "/workspace/dasl-stdlib-json/build/json-cold-rawb17de763-numeric14537-20261116.tar.gz",
+  "entries": [
+    {
+      "path": "build/json-codec-numeric-binary-final-control-native/codec-control/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-numeric-binary-final-control-native/codec-control/consumer",
+      "kind": "file",
+      "size": 11507016,
+      "mode": 448,
+      "sha256": "19e25acee00fc4d7d595f328c68ff5dea9ae4f1799c0700323b5035f050d58c9"
+    },
+    {
+      "path": "build/json-codec-numeric-binary-final-control-native/codec-control/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-numeric-binary-final-control-native/codec-control/consumer.ll",
+      "kind": "file",
+      "size": 4681666,
+      "mode": 384,
+      "sha256": "d5cb2b55dc5c50e799016eeac239841158a4d4be3646e3411ee55c2ce3d8008f"
+    },
+    {
+      "path": "build/json-codec-numeric-binary-final-control-rust-o0/codec-control/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-numeric-binary-final-control-rust-o0/codec-control/consumer",
+      "kind": "file",
+      "size": 7275816,
+      "mode": 448,
+      "sha256": "9d13b2ad96fc999e12ab87b8160f7eb44030ebc737b9ccc7308a56bf9347b3ce"
+    },
+    {
+      "path": "build/json-codec-numeric-binary-final-control-rust-o0/codec-control/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-numeric-binary-final-control-rust-o0/codec-control/consumer.ll",
+      "kind": "file",
+      "size": 7084590,
+      "mode": 384,
+      "sha256": "e518bc0f7e300349a9218d5f783f02f45ef51a2d82add592ffe7de6ee7c80847"
+    },
+    {
+      "path": "build/json-codec-numeric-binary-final-control-rust-o2/codec-control/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-numeric-binary-final-control-rust-o2/codec-control/consumer",
+      "kind": "file",
+      "size": 6925936,
+      "mode": 448,
+      "sha256": "08e8b6b071f821c70663ec61cd5d06a133f170d0aeb39171eeb2bdd482bda4b4"
+    },
+    {
+      "path": "build/json-codec-numeric-binary-final-control-rust-o2/codec-control/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-numeric-binary-final-control-rust-o2/codec-control/consumer.ll",
+      "kind": "file",
+      "size": 7084590,
+      "mode": 384,
+      "sha256": "e518bc0f7e300349a9218d5f783f02f45ef51a2d82add592ffe7de6ee7c80847"
+    },
+    {
+      "path": "build/json-codec-numeric-binary-final-native/integer/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-numeric-binary-final-native/integer/consumer",
+      "kind": "file",
+      "size": 11627928,
+      "mode": 448,
+      "sha256": "1e3ce90a56f2f600b746459a2435b48518b187023aa8d352b60ad59a5b5d3810"
+    },
+    {
+      "path": "build/json-codec-numeric-binary-final-native/integer/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-numeric-binary-final-native/integer/consumer.ll",
+      "kind": "file",
+      "size": 5154844,
+      "mode": 384,
+      "sha256": "98b1f7c2a49570e6315dc79f8400e389f024aa0b143b4bd4c1485db42d1a780a"
+    },
+    {
+      "path": "build/json-codec-numeric-binary-final-native/typed/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-numeric-binary-final-native/typed/consumer",
+      "kind": "file",
+      "size": 11542728,
+      "mode": 448,
+      "sha256": "01e7a99cbd98fbcf57c61793fa1408bb7a890a3f7a6f3aec44dae9f595b3c144"
+    },
+    {
+      "path": "build/json-codec-numeric-binary-final-native/typed/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-numeric-binary-final-native/typed/consumer.ll",
+      "kind": "file",
+      "size": 4842574,
+      "mode": 384,
+      "sha256": "2b9ed46447bab29df161f5dfaebd8d2f6e7500df7fd262e38a9158c1f8cc18fe"
+    },
+    {
+      "path": "build/json-codec-numeric-binary-final-native-tail/field/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-numeric-binary-final-native-tail/field/consumer",
+      "kind": "file",
+      "size": 11445984,
+      "mode": 448,
+      "sha256": "c0cb5b008149bdbf7f8da323928e9d5daf01fe0c49586400cfa0c9c99737c9d4"
+    },
+    {
+      "path": "build/json-codec-numeric-binary-final-native-tail/field/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-numeric-binary-final-native-tail/field/consumer.ll",
+      "kind": "file",
+      "size": 4308284,
+      "mode": 384,
+      "sha256": "be8246f203e66a5005e050371a29105b77afedc80efc073b1482fb6a097a3e0a"
+    },
+    {
+      "path": "build/json-codec-numeric-binary-final-native-tail/float/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-numeric-binary-final-native-tail/float/consumer",
+      "kind": "file",
+      "size": 11373160,
+      "mode": 448,
+      "sha256": "73c642ac95feaff3e92ef3c3ef972d5609c77a96225b323f67d11648e94ff228"
+    },
+    {
+      "path": "build/json-codec-numeric-binary-final-native-tail/float/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-numeric-binary-final-native-tail/float/consumer.ll",
+      "kind": "file",
+      "size": 3929715,
+      "mode": 384,
+      "sha256": "eefecc8f65f174199c8a47ec226c23217d1d211c8582ad519729bf960b2c7338"
+    },
+    {
+      "path": "build/json-codec-numeric-binary-final-rust/integer/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-numeric-binary-final-rust/integer/consumer",
+      "kind": "file",
+      "size": 7320096,
+      "mode": 448,
+      "sha256": "a8c897c0872ccb56216b8cab021d8cca88ab7245ac658a2ae0361b25093ebba1"
+    },
+    {
+      "path": "build/json-codec-numeric-binary-final-rust/integer/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-numeric-binary-final-rust/integer/consumer.ll",
+      "kind": "file",
+      "size": 9545957,
+      "mode": 384,
+      "sha256": "f51a6c610db9da7b42459a585fbf59be2eefb924a3376d284d82a09cb6aea5e3"
+    },
+    {
+      "path": "build/json-codec-numeric-binary-final-rust/typed/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-numeric-binary-final-rust/typed/consumer",
+      "kind": "file",
+      "size": 7009536,
+      "mode": 448,
+      "sha256": "4812b9d582c1acaa786854f1e38df0d883015082500a9db241108e2f018d3728"
+    },
+    {
+      "path": "build/json-codec-numeric-binary-final-rust/typed/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-numeric-binary-final-rust/typed/consumer.ll",
+      "kind": "file",
+      "size": 7749727,
+      "mode": 384,
+      "sha256": "480b7c9a4095ae771f153d48dfafe5b6906f2116d250c5dc95b29e01423cf0f7"
+    },
+    {
+      "path": "build/json-codec-numeric-binary-final-rust-tail/field/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-numeric-binary-final-rust-tail/field/consumer",
+      "kind": "file",
+      "size": 6644000,
+      "mode": 448,
+      "sha256": "e8ee097592259964e779759d0b4ad405abaf5c8dcf11b40a36abbab39ce1da5e"
+    },
+    {
+      "path": "build/json-codec-numeric-binary-final-rust-tail/field/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-numeric-binary-final-rust-tail/field/consumer.ll",
+      "kind": "file",
+      "size": 5817048,
+      "mode": 384,
+      "sha256": "d52d6983c3ca2b17154e63e9951ef196f278c80a44e03f274532052261f1c001"
+    },
+    {
+      "path": "build/json-codec-numeric-binary-final-rust-tail/float/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-numeric-binary-final-rust-tail/float/consumer",
+      "kind": "file",
+      "size": 6740992,
+      "mode": 448,
+      "sha256": "ddf77687603c5751e6a1764b2711bc48c5902e21bd4b6ad21d906584b4d29494"
+    },
+    {
+      "path": "build/json-codec-numeric-binary-final-rust-tail/float/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-numeric-binary-final-rust-tail/float/consumer.ll",
+      "kind": "file",
+      "size": 5895546,
+      "mode": 384,
+      "sha256": "1f7391a5e6a62d3435132fec3c0ce33feccf6c658532b23695fefcf4406324aa"
+    },
+    {
+      "path": "build/json-raw-number-affected-float-native-raw-v1/float/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-affected-float-native-raw-v1/float/consumer",
+      "kind": "file",
+      "size": 11855080,
+      "mode": 448,
+      "sha256": "75210347bca6010e461d8ce84d6a36aa896e0082dcf699364ef728af4b5d17a2"
+    },
+    {
+      "path": "build/json-raw-number-affected-float-native-raw-v1/float/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-affected-float-native-raw-v1/float/consumer.ll",
+      "kind": "file",
+      "size": 3962679,
+      "mode": 384,
+      "sha256": "13aea2e9f4bd83738e79d912bdb3d49d6ec520b75a1e8b186d84a5b92fb24809"
+    },
+    {
+      "path": "build/json-raw-number-affected-float32-native-raw-v1/float32/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-affected-float32-native-raw-v1/float32/consumer",
+      "kind": "file",
+      "size": 12093992,
+      "mode": 448,
+      "sha256": "a8d7f3c4ef87442e0faf4d98e8b97d2fb366546108a98aff52b602dc1b1a3722"
+    },
+    {
+      "path": "build/json-raw-number-affected-float32-native-raw-v1/float32/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-affected-float32-native-raw-v1/float32/consumer.ll",
+      "kind": "file",
+      "size": 5143984,
+      "mode": 384,
+      "sha256": "5e63234339617cf4d9a675cb44ee48c5c47c0bc6cf86503e3172d4001dd42341"
+    },
+    {
+      "path": "build/json-raw-number-affected-number-native-raw-v1/number/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-affected-number-native-raw-v1/number/consumer",
+      "kind": "file",
+      "size": 11709528,
+      "mode": 448,
+      "sha256": "e53b6da1f85f5e03107b72f7c3cb0d7030c0b11c92988734af4e5bc8cd701e52"
+    },
+    {
+      "path": "build/json-raw-number-affected-number-native-raw-v1/number/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-affected-number-native-raw-v1/number/consumer.ll",
+      "kind": "file",
+      "size": 3067910,
+      "mode": 384,
+      "sha256": "307fedf1139210d80e0d51fa035d33a83e79420861f4fc28f9fe43fa04effdd3"
+    },
+    {
+      "path": "build/json-raw-number-affected-rust-v1/float/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-affected-rust-v1/float/consumer",
+      "kind": "file",
+      "size": 6762992,
+      "mode": 448,
+      "sha256": "adc616c0789abdc2ead6396ca50b3d4402ed3eb1fc5c7e0cdab7255e63fbeb89"
+    },
+    {
+      "path": "build/json-raw-number-affected-rust-v1/float/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-affected-rust-v1/float/consumer.ll",
+      "kind": "file",
+      "size": 5963233,
+      "mode": 384,
+      "sha256": "e7addbdfde925df62f6009b95e5dddc9623aba78101c0451197565e73b48e222"
+    },
+    {
+      "path": "build/json-raw-number-affected-rust-v1/float32/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-affected-rust-v1/float32/consumer",
+      "kind": "file",
+      "size": 7592736,
+      "mode": 448,
+      "sha256": "688ab106cd40ad8474b102113c4a4ce61d140428e6f20b1cc2410051ba758f62"
+    },
+    {
+      "path": "build/json-raw-number-affected-rust-v1/float32/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-affected-rust-v1/float32/consumer.ll",
+      "kind": "file",
+      "size": 8950205,
+      "mode": 384,
+      "sha256": "404668907f572df6f75f83b3ebd5d115893e1c698fd1b263f2db5ac9f3073b6a"
+    },
+    {
+      "path": "build/json-raw-number-affected-rust-v1/number/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-affected-rust-v1/number/consumer",
+      "kind": "file",
+      "size": 6186104,
+      "mode": 448,
+      "sha256": "674780699f8334bf9c3c3f41e2f669dfcc0186b62d6bcca988870ccabdb3ecc3"
+    },
+    {
+      "path": "build/json-raw-number-affected-rust-v1/number/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-affected-rust-v1/number/consumer.ll",
+      "kind": "file",
+      "size": 3791082,
+      "mode": 384,
+      "sha256": "5d556472c16e5edd3cb81bf811d2d8c82dc6e4cebde94e2491ec4532f4a45264"
+    },
+    {
+      "path": "build/json-raw-number-control-native-raw-v1/raw-number-control/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-control-native-raw-v1/raw-number-control/consumer",
+      "kind": "file",
+      "size": 11892288,
+      "mode": 448,
+      "sha256": "466ff3d8a65c17e7c065fd83654701755b5ada55db77b12f3777714a3253da07"
+    },
+    {
+      "path": "build/json-raw-number-control-native-raw-v1/raw-number-control/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-control-native-raw-v1/raw-number-control/consumer.ll",
+      "kind": "file",
+      "size": 4521701,
+      "mode": 384,
+      "sha256": "9d3c7543fc00112efacb3c761d35b9ce3101207b82d9c9ae0e75b1bfd8779447"
+    },
+    {
+      "path": "build/json-raw-number-control-rust-v1/raw-number-control/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-control-rust-v1/raw-number-control/consumer",
+      "kind": "file",
+      "size": 6817720,
+      "mode": 448,
+      "sha256": "f2f40e10eb001a26026415ddeaa604e85904b21fb4d13030a45ad895b5587da9"
+    },
+    {
+      "path": "build/json-raw-number-control-rust-v1/raw-number-control/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-control-rust-v1/raw-number-control/consumer.ll",
+      "kind": "file",
+      "size": 6746926,
+      "mode": 384,
+      "sha256": "f6ecd8b12ceec9e20da54f381ad3695b8984fc1d3f21b9889b4a6145e7a9e987"
+    },
+    {
+      "path": "build/json-raw-number-edge-kernel-rust-v1/raw-number-edge/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-edge-kernel-rust-v1/raw-number-edge/consumer",
+      "kind": "file",
+      "size": 6523600,
+      "mode": 448,
+      "sha256": "ec7732ce33199734a4e9b15d795980b3cb9cdb30e8fd8e32c8664ae998edd8ba"
+    },
+    {
+      "path": "build/json-raw-number-edge-kernel-rust-v1/raw-number-edge/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-edge-kernel-rust-v1/raw-number-edge/consumer.ll",
+      "kind": "file",
+      "size": 5068733,
+      "mode": 384,
+      "sha256": "b70bd625040caa89d17ada71d7c567085e28a125f3de3f6d97167d784050b604"
+    },
+    {
+      "path": "build/json-raw-number-edge-kernel-rust-v1/raw-number-kernel/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-edge-kernel-rust-v1/raw-number-kernel/consumer",
+      "kind": "file",
+      "size": 5972544,
+      "mode": 448,
+      "sha256": "b7c403e4ed151259a7cefdb9d1deb6b9fd406ef415e641587d363c8e518ba131"
+    },
+    {
+      "path": "build/json-raw-number-edge-kernel-rust-v1/raw-number-kernel/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-edge-kernel-rust-v1/raw-number-kernel/consumer.ll",
+      "kind": "file",
+      "size": 396873,
+      "mode": 384,
+      "sha256": "d849829d42a96e9e5bf89ece81101e4aa97c3d95495d7f7ea56fab79d0ff8103"
+    },
+    {
+      "path": "build/json-raw-number-edge-native-raw-v1/raw-number-edge/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-edge-native-raw-v1/raw-number-edge/consumer",
+      "kind": "file",
+      "size": 11834056,
+      "mode": 448,
+      "sha256": "2036860f7c45c547701540db1666c04c1f70a78b4c6873b9d22b4bc98e1131c5"
+    },
+    {
+      "path": "build/json-raw-number-edge-native-raw-v1/raw-number-edge/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-edge-native-raw-v1/raw-number-edge/consumer.ll",
+      "kind": "file",
+      "size": 3793199,
+      "mode": 384,
+      "sha256": "06e617aefdb7d175ea67e779f59b0591d31c592af3328a1f93b653ae2d8cb141"
+    },
+    {
+      "path": "build/json-raw-number-kernel-native-raw-v1/raw-number-kernel/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-kernel-native-raw-v1/raw-number-kernel/consumer",
+      "kind": "file",
+      "size": 11715048,
+      "mode": 448,
+      "sha256": "e3ce5898b66911b55cd9ab0d47e0b87d77f3903da8af1f16ca214b7686eef321"
+    },
+    {
+      "path": "build/json-raw-number-kernel-native-raw-v1/raw-number-kernel/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-kernel-native-raw-v1/raw-number-kernel/consumer.ll",
+      "kind": "file",
+      "size": 455037,
+      "mode": 384,
+      "sha256": "9b82b5b3c725276f2934dfc28fef1fff3ef870ddceacb0c53932761158d22a9a"
+    },
+    {
+      "path": "build/json-raw-number-native-raw-v1/raw-number/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-native-raw-v1/raw-number/consumer",
+      "kind": "file",
+      "size": 12247680,
+      "mode": 448,
+      "sha256": "a483ee235853ee2700bb29cc28bd3849f6e575202c059ddaa174295ee0b731b1"
+    },
+    {
+      "path": "build/json-raw-number-native-raw-v1/raw-number/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-native-raw-v1/raw-number/consumer.ll",
+      "kind": "file",
+      "size": 5869234,
+      "mode": 384,
+      "sha256": "3835fb5a362969e4260c9116c2bb14cadf0e830512b51888333faee6557631e4"
+    },
+    {
+      "path": "build/json-raw-number-rust-v3/raw-number/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-rust-v3/raw-number/consumer",
+      "kind": "file",
+      "size": 7401816,
+      "mode": 448,
+      "sha256": "e5eed47360136ab11730e52fd77eea7fce3836bae4fe34f5f877a9885b486ae6"
+    },
+    {
+      "path": "build/json-raw-number-rust-v3/raw-number/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-raw-number-rust-v3/raw-number/consumer.ll",
+      "kind": "file",
+      "size": 8770329,
+      "mode": 384,
+      "sha256": "2047e6aaab3033ee2377443f5d7256cc9a3121fcd2090c89087801592df761e4"
+    }
+  ],
+  "original_file_bytes": 362614042,
+  "verified": true,
+  "originals_removed": true,
+  "archive_sha256": "c76cd828920b53394620250a75dc341fd6623f4c4d31a33fbb8cbfa1572a4cb3",
+  "archive_bytes": 88270799,
+  "decompressed_tar_sha256": "10ad786b1f4ea5c750493741af4bbc3036c5a008fe863bc8e27d9f47cf15b84f",
+  "decompressed_tar_bytes": 362711040,
+  "restore_command": "tar -xzf /workspace/dasl-stdlib-json/build/json-cold-rawb17de763-numeric14537-20261116.tar.gz -C /workspace/dasl-stdlib-json"
+}
