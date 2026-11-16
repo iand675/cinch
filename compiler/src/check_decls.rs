@@ -22336,9 +22336,11 @@ impl Checker {
                 Ok(Value::Word(match mode {
                     ArithMode::Wrapping => mask_to(bits, signed, a.wrapping_neg()),
                     ArithMode::Saturating => {
-                        let lo = -(1i64 << (bits - 1));
-                        if signed && a == lo {
-                            (1i64 << (bits - 1)) - 1
+                        let lo = (-(1i128 << (bits - 1))) as i64;
+                        if !signed {
+                            0
+                        } else if a == lo {
+                            ((1i128 << (bits - 1)) - 1) as i64
                         } else {
                             mask_to(bits, signed, a.wrapping_neg())
                         }
