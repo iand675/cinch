@@ -1,0 +1,62 @@
+-- | Exact immutable-text scalar boundaries, alias isolation and runtime-sized count observations.
+module Main where
+  import Text.Utf8
+  import Data.Bytes
+  import Data.Bool
+  import Data.Char
+  import Data.Nat
+  import Data.Option
+  import Data.String hiding (utf8-encode-into)
+
+  -- | Require a valid scalar step with its exact independent encoded width.
+  scalar :: Utf8Step -> Char -> Nat -> Bool
+  scalar step expected width = utf8-step-char step == expected
+    && utf8-step-width step == width
+    && (case utf8-step-status step of Utf8Valid -> True; other -> False)
+
+  -- | Empty text has a distinct zero-width observation while retaining sealed validity.
+  empty :: Unit -> Bool
+  empty unit = let first = utf8-first-text "" in let last = utf8-last-text "" in
+    utf8-count-text "" == 0 && utf8-valid-text "" && not (utf8-full-rune-text "")
+      && utf8-step-char first == utf8-rune-error && utf8-step-char last == utf8-rune-error
+      && utf8-step-width first == 0 && utf8-step-width last == 0
+      && (case utf8-step-status first of Utf8End -> True; other -> False)
+      && (case utf8-step-status last of Utf8End -> True; other -> False)
+
+  -- | Both ends of a packed single-scalar string observe the same complete encoding.
+  single :: Char -> Nat -> Bool
+  single value width = let text = pack [value] in scalar (utf8-first-text text) value width
+    && scalar (utf8-last-text text) value width && utf8-count-text text == 1
+    && utf8-valid-text text && utf8-full-rune-text text
+
+  -- | Snapshots remain immutable after both conversion directions expose independently mutable copies.
+  aliases :: Unit -> Bool
+  aliases unit = let owner = utf8-encode-rune 128512 in case string-from-bytes owner of
+    None -> False
+    Some text ->
+      let copy = string-to-bytes text in
+      let first = if bytes-len owner > 0 then bytes-set owner 0 255 else () in
+      let last = if bytes-len copy > 3 then bytes-set copy 3 255 else () in
+      scalar (utf8-first-text text) '\u{1F600}' 4 && scalar (utf8-last-text text) '\u{1F600}' 4
+        && utf8-count-text text == 1 && utf8-valid-text text
+
+  -- | A large runtime-built mixed-width string is counted without materializing a byte snapshot.
+  long :: Unit -> Bool
+  long unit = let text = string-repeat 32768 "a\u{E9}\u{20AC}\u{1F600}" in
+    utf8-count-text text == 131072 && scalar (utf8-first-text text) 'a' 1
+      && scalar (utf8-last-text text) '\u{1F600}' 4 && utf8-valid-text text && utf8-full-rune-text text
+
+  -- | An invalid numeric rune becomes a valid replacement scalar before the text facade observes it.
+  replacement :: Unit -> Bool
+  replacement unit = case string-from-bytes (utf8-encode-rune (-1)) of
+    None -> False
+    Some text -> scalar (utf8-first-text text) utf8-rune-error 3
+      && scalar (utf8-last-text text) utf8-rune-error 3 && utf8-count-text text == 1
+
+  -- | Cover every UTF-8 width boundary, noncharacters, embedded NUL and empty input.
+  main :: Int
+  main = if empty () && single '\u{0}' 1 && single '\u{7F}' 1
+    && single '\u{80}' 2 && single '\u{7FF}' 2 && single '\u{800}' 3
+    && single '\u{D7FF}' 3 && single '\u{E000}' 3 && single '\u{FFFD}' 3
+    && single '\u{FFFF}' 3 && single '\u{10000}' 4 && single '\u{10FFFF}' 4
+    && aliases () && long () && replacement () then 0 else 1

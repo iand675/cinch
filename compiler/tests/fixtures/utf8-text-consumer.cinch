@@ -1,0 +1,617 @@
+-- | Independent immutable-text scalar observations, sealed validity and copy isolation.
+module Main where
+  import Text.Utf8
+  import Data.Bytes
+  import Data.Bool
+  import Data.Char
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String hiding (utf8-encode-into)
+  import Effect.Process
+
+  -- | Check one exact scalar, consumed width and empty-versus-valid status independently.
+  step :: Utf8Step -> Nat -> Nat -> Bool
+  step value scalar width = char-code (utf8-step-char value) == scalar
+    && utf8-step-width value == width
+    && (if width == 0 then (case utf8-step-status value of Utf8End -> True; other -> False)
+        else (case utf8-step-status value of Utf8Valid -> True; other -> False))
+
+  -- | Check the String helper's own tuple metadata independently of the safe step factory.
+  helper-step :: Option (Char, Nat) -> Nat -> Nat -> Bool
+  helper-step observed scalar width = case observed of
+    None -> scalar == 65533 && width == 0
+    Some pair -> case pair of (cp, actual) -> char-code cp == scalar && actual == width
+
+  -- | Observe all five public text operations without converting the immutable backing to Bytes.
+  observe :: String -> Nat -> Nat -> Nat -> Nat -> Nat -> Bool -> Bool -> Bool
+  observe text first first-width last last-width count full valid =
+    helper-step (string-utf8-first text) first first-width
+      && helper-step (string-utf8-last text) last last-width
+      && step (utf8-first-text text) first first-width
+      && step (utf8-last-text text) last last-width
+      && utf8-count-text text == count
+      && (if full then utf8-full-rune-text text else not (utf8-full-rune-text text))
+      && (if valid then utf8-valid-text text else not (utf8-valid-text text))
+
+  -- | Mutate a caller-owned buffer, leaving empty buffers unchanged.
+  change :: Bytes -> Unit
+  change bytes = if bytes-len bytes > 0 then bytes-set bytes 0 255 else ()
+
+  -- | Mutating both conversion copies preserves the sealed snapshot and every scalar observation.
+  check :: String -> Nat -> Nat -> Nat -> Nat -> Nat -> Bool -> Bool -> Bool
+  check input first first-width last last-width count full valid =
+    let bytes = string-to-bytes input in case string-from-bytes bytes of
+      None -> False
+      Some text ->
+        let initial = observe text first first-width last last-width count full valid in
+        let copy = string-to-bytes text in let a = change bytes in let b = change copy in
+        initial && observe text first first-width last last-width count full valid
+          && string-compare input text == 0
+
+  -- | Fold only shallow fixture batches, keeping the compiler host stack bounded.
+  all-checks :: List Bool -> Bool
+  all-checks values = case values of Nil -> True; Cons value rest -> value && all-checks rest
+
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-a :: Unit -> Bool
+  rows-a unit = all-checks [check "" 65533 0 65533 0 0 False True, check "\u{0}" 0 1 0 1 1 True True, check "\u{0}\u{74}\u{61}\u{69}\u{6C}" 0 1 108 1 5 True True, check "\u{1}" 1 1 1 1 1 True True, check "\u{1}\u{74}\u{61}\u{69}\u{6C}" 1 1 108 1 5 True True, check "\u{61}\u{0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 6 True True, check "\u{61}\u{1}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 6 True True, check "\u{61}\u{61}\u{0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 7 True True, check "\u{61}\u{61}\u{1}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 7 True True, check "\u{61}\u{61}\u{61}\u{0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 8 True True, check "\u{61}\u{61}\u{61}\u{1}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 8 True True, check "\u{61}\u{61}\u{61}\u{61}\u{0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 9 True True, check "\u{61}\u{61}\u{61}\u{61}\u{1}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 9 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 10 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{1}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 10 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 11 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-b :: Unit -> Bool
+  rows-b unit = all-checks [check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{1}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 11 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 12 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{1}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 12 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 13 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{1}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 13 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 14 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{1}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 14 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 15 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{1}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 15 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 16 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{1}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 16 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 17 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{1}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 17 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 18 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{1}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 18 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 19 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-c :: Unit -> Bool
+  rows-c unit = all-checks [check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{1}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 19 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 20 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{1}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 20 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 21 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{1}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 21 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{7F}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 21 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{80}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 21 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 21 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{800}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 21 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{D7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 21 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{E000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 21 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{FFFD}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 21 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 21 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{10000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 21 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{16EA0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 21 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{1F600}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 21 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-d :: Unit -> Bool
+  rows-d unit = all-checks [check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{10FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 21 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{7F}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 20 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{80}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 20 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 20 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{800}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 20 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{D7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 20 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{E000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 20 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{FFFD}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 20 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 20 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{10000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 20 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{16EA0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 20 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{1F600}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 20 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{10FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 20 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{7F}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 19 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{80}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 19 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 19 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-e :: Unit -> Bool
+  rows-e unit = all-checks [check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{800}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 19 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{D7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 19 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{E000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 19 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{FFFD}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 19 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 19 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{10000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 19 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{16EA0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 19 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{1F600}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 19 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{10FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 19 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{7F}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 18 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{80}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 18 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 18 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{800}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 18 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{D7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 18 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{E000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 18 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{FFFD}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 18 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-f :: Unit -> Bool
+  rows-f unit = all-checks [check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 18 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{10000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 18 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{16EA0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 18 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{1F600}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 18 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{10FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 18 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{7F}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 17 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{80}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 17 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 17 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{800}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 17 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{D7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 17 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{E000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 17 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{FFFD}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 17 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 17 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{10000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 17 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{16EA0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 17 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{1F600}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 17 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-g :: Unit -> Bool
+  rows-g unit = all-checks [check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{10FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 17 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{7F}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 16 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{80}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 16 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 16 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{800}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 16 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{D7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 16 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{E000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 16 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{FFFD}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 16 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 16 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{10000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 16 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{16EA0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 16 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{1F600}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 16 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{10FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 16 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{7F}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 15 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{80}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 15 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 15 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-h :: Unit -> Bool
+  rows-h unit = all-checks [check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{800}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 15 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{D7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 15 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{E000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 15 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{FFFD}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 15 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 15 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{10000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 15 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{16EA0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 15 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{1F600}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 15 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{10FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 15 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{7F}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 14 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{80}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 14 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 14 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{800}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 14 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{D7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 14 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{E000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 14 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{FFFD}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 14 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-i :: Unit -> Bool
+  rows-i unit = all-checks [check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 14 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{10000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 14 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{16EA0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 14 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{1F600}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 14 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{10FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 14 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{7F}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 13 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{80}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 13 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 13 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{800}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 13 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{D7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 13 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{E000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 13 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{FFFD}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 13 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 13 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{10000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 13 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{16EA0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 13 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{1F600}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 13 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-j :: Unit -> Bool
+  rows-j unit = all-checks [check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{10FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 13 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{7F}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 12 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{80}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 12 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 12 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{800}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 12 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{D7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 12 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{E000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 12 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{FFFD}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 12 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 12 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{10000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 12 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{16EA0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 12 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{1F600}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 12 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{10FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 12 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{7F}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 11 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{80}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 11 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 11 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-k :: Unit -> Bool
+  rows-k unit = all-checks [check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{800}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 11 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{D7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 11 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{E000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 11 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{FFFD}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 11 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 11 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{10000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 11 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{16EA0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 11 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{1F600}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 11 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{61}\u{10FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 11 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{7F}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 10 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{80}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 10 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 10 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{800}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 10 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{D7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 10 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{E000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 10 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{FFFD}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 10 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-l :: Unit -> Bool
+  rows-l unit = all-checks [check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 10 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{10000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 10 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{16EA0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 10 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{1F600}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 10 True True, check "\u{61}\u{61}\u{61}\u{61}\u{61}\u{10FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 10 True True, check "\u{61}\u{61}\u{61}\u{61}\u{7F}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 9 True True, check "\u{61}\u{61}\u{61}\u{61}\u{80}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 9 True True, check "\u{61}\u{61}\u{61}\u{61}\u{7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 9 True True, check "\u{61}\u{61}\u{61}\u{61}\u{800}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 9 True True, check "\u{61}\u{61}\u{61}\u{61}\u{D7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 9 True True, check "\u{61}\u{61}\u{61}\u{61}\u{E000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 9 True True, check "\u{61}\u{61}\u{61}\u{61}\u{FFFD}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 9 True True, check "\u{61}\u{61}\u{61}\u{61}\u{FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 9 True True, check "\u{61}\u{61}\u{61}\u{61}\u{10000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 9 True True, check "\u{61}\u{61}\u{61}\u{61}\u{16EA0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 9 True True, check "\u{61}\u{61}\u{61}\u{61}\u{1F600}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 9 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-m :: Unit -> Bool
+  rows-m unit = all-checks [check "\u{61}\u{61}\u{61}\u{61}\u{10FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 9 True True, check "\u{61}\u{61}\u{61}\u{7F}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 8 True True, check "\u{61}\u{61}\u{61}\u{80}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 8 True True, check "\u{61}\u{61}\u{61}\u{7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 8 True True, check "\u{61}\u{61}\u{61}\u{800}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 8 True True, check "\u{61}\u{61}\u{61}\u{D7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 8 True True, check "\u{61}\u{61}\u{61}\u{E000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 8 True True, check "\u{61}\u{61}\u{61}\u{FFFD}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 8 True True, check "\u{61}\u{61}\u{61}\u{FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 8 True True, check "\u{61}\u{61}\u{61}\u{10000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 8 True True, check "\u{61}\u{61}\u{61}\u{16EA0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 8 True True, check "\u{61}\u{61}\u{61}\u{1F600}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 8 True True, check "\u{61}\u{61}\u{61}\u{10FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 8 True True, check "\u{61}\u{61}\u{7F}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 7 True True, check "\u{61}\u{61}\u{80}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 7 True True, check "\u{61}\u{61}\u{7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 7 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-n :: Unit -> Bool
+  rows-n unit = all-checks [check "\u{61}\u{61}\u{800}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 7 True True, check "\u{61}\u{61}\u{D7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 7 True True, check "\u{61}\u{61}\u{E000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 7 True True, check "\u{61}\u{61}\u{FFFD}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 7 True True, check "\u{61}\u{61}\u{FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 7 True True, check "\u{61}\u{61}\u{10000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 7 True True, check "\u{61}\u{61}\u{16EA0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 7 True True, check "\u{61}\u{61}\u{1F600}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 7 True True, check "\u{61}\u{61}\u{10FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 7 True True, check "\u{61}\u{7F}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 6 True True, check "\u{61}\u{80}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 6 True True, check "\u{61}\u{7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 6 True True, check "\u{61}\u{800}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 6 True True, check "\u{61}\u{D7FF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 6 True True, check "\u{61}\u{E000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 6 True True, check "\u{61}\u{FFFD}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 6 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-o :: Unit -> Bool
+  rows-o unit = all-checks [check "\u{61}\u{FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 6 True True, check "\u{61}\u{10000}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 6 True True, check "\u{61}\u{16EA0}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 6 True True, check "\u{61}\u{1F600}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 6 True True, check "\u{61}\u{10FFFF}\u{74}\u{61}\u{69}\u{6C}" 97 1 108 1 6 True True, check "\u{7F}" 127 1 127 1 1 True True, check "\u{7F}\u{74}\u{61}\u{69}\u{6C}" 127 1 108 1 5 True True, check "\u{80}" 128 2 128 2 1 True True, check "\u{80}\u{0}" 128 2 0 1 2 True True, check "\u{80}\u{0}\u{0}" 128 2 0 1 3 True True, check "\u{80}\u{0}\u{7F}" 128 2 127 1 3 True True, check "\u{80}\u{74}\u{61}\u{69}\u{6C}" 128 2 108 1 5 True True, check "\u{80}\u{7F}" 128 2 127 1 2 True True, check "\u{80}\u{7F}\u{0}" 128 2 0 1 3 True True, check "\u{80}\u{7F}\u{7F}" 128 2 127 1 3 True True, check "\u{8F}\u{0}" 143 2 0 1 2 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-p :: Unit -> Bool
+  rows-p unit = all-checks [check "\u{8F}\u{0}\u{0}" 143 2 0 1 3 True True, check "\u{8F}\u{0}\u{7F}" 143 2 127 1 3 True True, check "\u{8F}\u{7F}" 143 2 127 1 2 True True, check "\u{8F}\u{7F}\u{0}" 143 2 0 1 3 True True, check "\u{8F}\u{7F}\u{7F}" 143 2 127 1 3 True True, check "\u{90}\u{0}" 144 2 0 1 2 True True, check "\u{90}\u{0}\u{0}" 144 2 0 1 3 True True, check "\u{90}\u{0}\u{7F}" 144 2 127 1 3 True True, check "\u{90}\u{7F}" 144 2 127 1 2 True True, check "\u{90}\u{7F}\u{0}" 144 2 0 1 3 True True, check "\u{90}\u{7F}\u{7F}" 144 2 127 1 3 True True, check "\u{9F}\u{0}" 159 2 0 1 2 True True, check "\u{9F}\u{0}\u{0}" 159 2 0 1 3 True True, check "\u{9F}\u{0}\u{7F}" 159 2 127 1 3 True True, check "\u{9F}\u{7F}" 159 2 127 1 2 True True, check "\u{9F}\u{7F}\u{0}" 159 2 0 1 3 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-q :: Unit -> Bool
+  rows-q unit = all-checks [check "\u{9F}\u{7F}\u{7F}" 159 2 127 1 3 True True, check "\u{A0}\u{0}" 160 2 0 1 2 True True, check "\u{A0}\u{0}\u{0}" 160 2 0 1 3 True True, check "\u{A0}\u{0}\u{7F}" 160 2 127 1 3 True True, check "\u{A0}\u{7F}" 160 2 127 1 2 True True, check "\u{A0}\u{7F}\u{0}" 160 2 0 1 3 True True, check "\u{A0}\u{7F}\u{7F}" 160 2 127 1 3 True True, check "\u{BF}\u{0}" 191 2 0 1 2 True True, check "\u{BF}\u{0}\u{0}" 191 2 0 1 3 True True, check "\u{BF}\u{0}\u{7F}" 191 2 127 1 3 True True, check "\u{BF}\u{7F}" 191 2 127 1 2 True True, check "\u{BF}\u{7F}\u{0}" 191 2 0 1 3 True True, check "\u{BF}\u{7F}\u{7F}" 191 2 127 1 3 True True, check "\u{7C0}\u{0}" 1984 2 0 1 2 True True, check "\u{7C0}\u{0}\u{0}" 1984 2 0 1 3 True True, check "\u{7C0}\u{0}\u{7F}" 1984 2 127 1 3 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-r :: Unit -> Bool
+  rows-r unit = all-checks [check "\u{7C0}\u{7F}" 1984 2 127 1 2 True True, check "\u{7C0}\u{7F}\u{0}" 1984 2 0 1 3 True True, check "\u{7C0}\u{7F}\u{7F}" 1984 2 127 1 3 True True, check "\u{7CF}\u{0}" 1999 2 0 1 2 True True, check "\u{7CF}\u{0}\u{0}" 1999 2 0 1 3 True True, check "\u{7CF}\u{0}\u{7F}" 1999 2 127 1 3 True True, check "\u{7CF}\u{7F}" 1999 2 127 1 2 True True, check "\u{7CF}\u{7F}\u{0}" 1999 2 0 1 3 True True, check "\u{7CF}\u{7F}\u{7F}" 1999 2 127 1 3 True True, check "\u{7D0}\u{0}" 2000 2 0 1 2 True True, check "\u{7D0}\u{0}\u{0}" 2000 2 0 1 3 True True, check "\u{7D0}\u{0}\u{7F}" 2000 2 127 1 3 True True, check "\u{7D0}\u{7F}" 2000 2 127 1 2 True True, check "\u{7D0}\u{7F}\u{0}" 2000 2 0 1 3 True True, check "\u{7D0}\u{7F}\u{7F}" 2000 2 127 1 3 True True, check "\u{7DF}\u{0}" 2015 2 0 1 2 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-s :: Unit -> Bool
+  rows-s unit = all-checks [check "\u{7DF}\u{0}\u{0}" 2015 2 0 1 3 True True, check "\u{7DF}\u{0}\u{7F}" 2015 2 127 1 3 True True, check "\u{7DF}\u{7F}" 2015 2 127 1 2 True True, check "\u{7DF}\u{7F}\u{0}" 2015 2 0 1 3 True True, check "\u{7DF}\u{7F}\u{7F}" 2015 2 127 1 3 True True, check "\u{7E0}\u{0}" 2016 2 0 1 2 True True, check "\u{7E0}\u{0}\u{0}" 2016 2 0 1 3 True True, check "\u{7E0}\u{0}\u{7F}" 2016 2 127 1 3 True True, check "\u{7E0}\u{7F}" 2016 2 127 1 2 True True, check "\u{7E0}\u{7F}\u{0}" 2016 2 0 1 3 True True, check "\u{7E0}\u{7F}\u{7F}" 2016 2 127 1 3 True True, check "\u{7FF}" 2047 2 2047 2 1 True True, check "\u{7FF}\u{0}" 2047 2 0 1 2 True True, check "\u{7FF}\u{0}\u{0}" 2047 2 0 1 3 True True, check "\u{7FF}\u{0}\u{7F}" 2047 2 127 1 3 True True, check "\u{7FF}\u{74}\u{61}\u{69}\u{6C}" 2047 2 108 1 5 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-t :: Unit -> Bool
+  rows-t unit = all-checks [check "\u{7FF}\u{7F}" 2047 2 127 1 2 True True, check "\u{7FF}\u{7F}\u{0}" 2047 2 0 1 3 True True, check "\u{7FF}\u{7F}\u{7F}" 2047 2 127 1 3 True True, check "\u{800}" 2048 3 2048 3 1 True True, check "\u{800}\u{0}" 2048 3 0 1 2 True True, check "\u{800}\u{74}\u{61}\u{69}\u{6C}" 2048 3 108 1 5 True True, check "\u{800}\u{7F}" 2048 3 127 1 2 True True, check "\u{80F}" 2063 3 2063 3 1 True True, check "\u{80F}\u{0}" 2063 3 0 1 2 True True, check "\u{80F}\u{7F}" 2063 3 127 1 2 True True, check "\u{810}" 2064 3 2064 3 1 True True, check "\u{810}\u{0}" 2064 3 0 1 2 True True, check "\u{810}\u{7F}" 2064 3 127 1 2 True True, check "\u{81F}" 2079 3 2079 3 1 True True, check "\u{81F}\u{0}" 2079 3 0 1 2 True True, check "\u{81F}\u{7F}" 2079 3 127 1 2 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-u :: Unit -> Bool
+  rows-u unit = all-checks [check "\u{820}" 2080 3 2080 3 1 True True, check "\u{820}\u{0}" 2080 3 0 1 2 True True, check "\u{820}\u{7F}" 2080 3 127 1 2 True True, check "\u{83F}" 2111 3 2111 3 1 True True, check "\u{83F}\u{0}" 2111 3 0 1 2 True True, check "\u{83F}\u{7F}" 2111 3 127 1 2 True True, check "\u{FC0}" 4032 3 4032 3 1 True True, check "\u{FC0}\u{0}" 4032 3 0 1 2 True True, check "\u{FC0}\u{7F}" 4032 3 127 1 2 True True, check "\u{FCF}" 4047 3 4047 3 1 True True, check "\u{FCF}\u{0}" 4047 3 0 1 2 True True, check "\u{FCF}\u{7F}" 4047 3 127 1 2 True True, check "\u{FD0}" 4048 3 4048 3 1 True True, check "\u{FD0}\u{0}" 4048 3 0 1 2 True True, check "\u{FD0}\u{7F}" 4048 3 127 1 2 True True, check "\u{FDF}" 4063 3 4063 3 1 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-v :: Unit -> Bool
+  rows-v unit = all-checks [check "\u{FDF}\u{0}" 4063 3 0 1 2 True True, check "\u{FDF}\u{7F}" 4063 3 127 1 2 True True, check "\u{FE0}" 4064 3 4064 3 1 True True, check "\u{FE0}\u{0}" 4064 3 0 1 2 True True, check "\u{FE0}\u{7F}" 4064 3 127 1 2 True True, check "\u{FFF}" 4095 3 4095 3 1 True True, check "\u{FFF}\u{0}" 4095 3 0 1 2 True True, check "\u{FFF}\u{7F}" 4095 3 127 1 2 True True, check "\u{D000}" 53248 3 53248 3 1 True True, check "\u{D000}\u{0}" 53248 3 0 1 2 True True, check "\u{D000}\u{7F}" 53248 3 127 1 2 True True, check "\u{D00F}" 53263 3 53263 3 1 True True, check "\u{D00F}\u{0}" 53263 3 0 1 2 True True, check "\u{D00F}\u{7F}" 53263 3 127 1 2 True True, check "\u{D010}" 53264 3 53264 3 1 True True, check "\u{D010}\u{0}" 53264 3 0 1 2 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-w :: Unit -> Bool
+  rows-w unit = all-checks [check "\u{D010}\u{7F}" 53264 3 127 1 2 True True, check "\u{D01F}" 53279 3 53279 3 1 True True, check "\u{D01F}\u{0}" 53279 3 0 1 2 True True, check "\u{D01F}\u{7F}" 53279 3 127 1 2 True True, check "\u{D020}" 53280 3 53280 3 1 True True, check "\u{D020}\u{0}" 53280 3 0 1 2 True True, check "\u{D020}\u{7F}" 53280 3 127 1 2 True True, check "\u{D03F}" 53311 3 53311 3 1 True True, check "\u{D03F}\u{0}" 53311 3 0 1 2 True True, check "\u{D03F}\u{7F}" 53311 3 127 1 2 True True, check "\u{D3C0}" 54208 3 54208 3 1 True True, check "\u{D3C0}\u{0}" 54208 3 0 1 2 True True, check "\u{D3C0}\u{7F}" 54208 3 127 1 2 True True, check "\u{D3CF}" 54223 3 54223 3 1 True True, check "\u{D3CF}\u{0}" 54223 3 0 1 2 True True, check "\u{D3CF}\u{7F}" 54223 3 127 1 2 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-x :: Unit -> Bool
+  rows-x unit = all-checks [check "\u{D3D0}" 54224 3 54224 3 1 True True, check "\u{D3D0}\u{0}" 54224 3 0 1 2 True True, check "\u{D3D0}\u{7F}" 54224 3 127 1 2 True True, check "\u{D3DF}" 54239 3 54239 3 1 True True, check "\u{D3DF}\u{0}" 54239 3 0 1 2 True True, check "\u{D3DF}\u{7F}" 54239 3 127 1 2 True True, check "\u{D3E0}" 54240 3 54240 3 1 True True, check "\u{D3E0}\u{0}" 54240 3 0 1 2 True True, check "\u{D3E0}\u{7F}" 54240 3 127 1 2 True True, check "\u{D3FF}" 54271 3 54271 3 1 True True, check "\u{D3FF}\u{0}" 54271 3 0 1 2 True True, check "\u{D3FF}\u{7F}" 54271 3 127 1 2 True True, check "\u{D400}" 54272 3 54272 3 1 True True, check "\u{D400}\u{0}" 54272 3 0 1 2 True True, check "\u{D400}\u{7F}" 54272 3 127 1 2 True True, check "\u{D40F}" 54287 3 54287 3 1 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-y :: Unit -> Bool
+  rows-y unit = all-checks [check "\u{D40F}\u{0}" 54287 3 0 1 2 True True, check "\u{D40F}\u{7F}" 54287 3 127 1 2 True True, check "\u{D410}" 54288 3 54288 3 1 True True, check "\u{D410}\u{0}" 54288 3 0 1 2 True True, check "\u{D410}\u{7F}" 54288 3 127 1 2 True True, check "\u{D41F}" 54303 3 54303 3 1 True True, check "\u{D41F}\u{0}" 54303 3 0 1 2 True True, check "\u{D41F}\u{7F}" 54303 3 127 1 2 True True, check "\u{D420}" 54304 3 54304 3 1 True True, check "\u{D420}\u{0}" 54304 3 0 1 2 True True, check "\u{D420}\u{7F}" 54304 3 127 1 2 True True, check "\u{D43F}" 54335 3 54335 3 1 True True, check "\u{D43F}\u{0}" 54335 3 0 1 2 True True, check "\u{D43F}\u{7F}" 54335 3 127 1 2 True True, check "\u{D7C0}" 55232 3 55232 3 1 True True, check "\u{D7C0}\u{0}" 55232 3 0 1 2 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-z :: Unit -> Bool
+  rows-z unit = all-checks [check "\u{D7C0}\u{7F}" 55232 3 127 1 2 True True, check "\u{D7CF}" 55247 3 55247 3 1 True True, check "\u{D7CF}\u{0}" 55247 3 0 1 2 True True, check "\u{D7CF}\u{7F}" 55247 3 127 1 2 True True, check "\u{D7D0}" 55248 3 55248 3 1 True True, check "\u{D7D0}\u{0}" 55248 3 0 1 2 True True, check "\u{D7D0}\u{7F}" 55248 3 127 1 2 True True, check "\u{D7DF}" 55263 3 55263 3 1 True True, check "\u{D7DF}\u{0}" 55263 3 0 1 2 True True, check "\u{D7DF}\u{7F}" 55263 3 127 1 2 True True, check "\u{D7E0}" 55264 3 55264 3 1 True True, check "\u{D7E0}\u{0}" 55264 3 0 1 2 True True, check "\u{D7E0}\u{7F}" 55264 3 127 1 2 True True, check "\u{D7FF}" 55295 3 55295 3 1 True True, check "\u{D7FF}\u{0}" 55295 3 0 1 2 True True, check "\u{D7FF}\u{74}\u{61}\u{69}\u{6C}" 55295 3 108 1 5 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-aa :: Unit -> Bool
+  rows-aa unit = all-checks [check "\u{D7FF}\u{7F}" 55295 3 127 1 2 True True, check "\u{E000}" 57344 3 57344 3 1 True True, check "\u{E000}\u{74}\u{61}\u{69}\u{6C}" 57344 3 108 1 5 True True, check "\u{F000}" 61440 3 61440 3 1 True True, check "\u{F000}\u{0}" 61440 3 0 1 2 True True, check "\u{F000}\u{7F}" 61440 3 127 1 2 True True, check "\u{F00F}" 61455 3 61455 3 1 True True, check "\u{F00F}\u{0}" 61455 3 0 1 2 True True, check "\u{F00F}\u{7F}" 61455 3 127 1 2 True True, check "\u{F010}" 61456 3 61456 3 1 True True, check "\u{F010}\u{0}" 61456 3 0 1 2 True True, check "\u{F010}\u{7F}" 61456 3 127 1 2 True True, check "\u{F01F}" 61471 3 61471 3 1 True True, check "\u{F01F}\u{0}" 61471 3 0 1 2 True True, check "\u{F01F}\u{7F}" 61471 3 127 1 2 True True, check "\u{F020}" 61472 3 61472 3 1 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-ab :: Unit -> Bool
+  rows-ab unit = all-checks [check "\u{F020}\u{0}" 61472 3 0 1 2 True True, check "\u{F020}\u{7F}" 61472 3 127 1 2 True True, check "\u{F03F}" 61503 3 61503 3 1 True True, check "\u{F03F}\u{0}" 61503 3 0 1 2 True True, check "\u{F03F}\u{7F}" 61503 3 127 1 2 True True, check "\u{F3C0}" 62400 3 62400 3 1 True True, check "\u{F3C0}\u{0}" 62400 3 0 1 2 True True, check "\u{F3C0}\u{7F}" 62400 3 127 1 2 True True, check "\u{F3CF}" 62415 3 62415 3 1 True True, check "\u{F3CF}\u{0}" 62415 3 0 1 2 True True, check "\u{F3CF}\u{7F}" 62415 3 127 1 2 True True, check "\u{F3D0}" 62416 3 62416 3 1 True True, check "\u{F3D0}\u{0}" 62416 3 0 1 2 True True, check "\u{F3D0}\u{7F}" 62416 3 127 1 2 True True, check "\u{F3DF}" 62431 3 62431 3 1 True True, check "\u{F3DF}\u{0}" 62431 3 0 1 2 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-ac :: Unit -> Bool
+  rows-ac unit = all-checks [check "\u{F3DF}\u{7F}" 62431 3 127 1 2 True True, check "\u{F3E0}" 62432 3 62432 3 1 True True, check "\u{F3E0}\u{0}" 62432 3 0 1 2 True True, check "\u{F3E0}\u{7F}" 62432 3 127 1 2 True True, check "\u{F3FF}" 62463 3 62463 3 1 True True, check "\u{F3FF}\u{0}" 62463 3 0 1 2 True True, check "\u{F3FF}\u{7F}" 62463 3 127 1 2 True True, check "\u{F400}" 62464 3 62464 3 1 True True, check "\u{F400}\u{0}" 62464 3 0 1 2 True True, check "\u{F400}\u{7F}" 62464 3 127 1 2 True True, check "\u{F40F}" 62479 3 62479 3 1 True True, check "\u{F40F}\u{0}" 62479 3 0 1 2 True True, check "\u{F40F}\u{7F}" 62479 3 127 1 2 True True, check "\u{F410}" 62480 3 62480 3 1 True True, check "\u{F410}\u{0}" 62480 3 0 1 2 True True, check "\u{F410}\u{7F}" 62480 3 127 1 2 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-ad :: Unit -> Bool
+  rows-ad unit = all-checks [check "\u{F41F}" 62495 3 62495 3 1 True True, check "\u{F41F}\u{0}" 62495 3 0 1 2 True True, check "\u{F41F}\u{7F}" 62495 3 127 1 2 True True, check "\u{F420}" 62496 3 62496 3 1 True True, check "\u{F420}\u{0}" 62496 3 0 1 2 True True, check "\u{F420}\u{7F}" 62496 3 127 1 2 True True, check "\u{F43F}" 62527 3 62527 3 1 True True, check "\u{F43F}\u{0}" 62527 3 0 1 2 True True, check "\u{F43F}\u{7F}" 62527 3 127 1 2 True True, check "\u{F7C0}" 63424 3 63424 3 1 True True, check "\u{F7C0}\u{0}" 63424 3 0 1 2 True True, check "\u{F7C0}\u{7F}" 63424 3 127 1 2 True True, check "\u{F7CF}" 63439 3 63439 3 1 True True, check "\u{F7CF}\u{0}" 63439 3 0 1 2 True True, check "\u{F7CF}\u{7F}" 63439 3 127 1 2 True True, check "\u{F7D0}" 63440 3 63440 3 1 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-ae :: Unit -> Bool
+  rows-ae unit = all-checks [check "\u{F7D0}\u{0}" 63440 3 0 1 2 True True, check "\u{F7D0}\u{7F}" 63440 3 127 1 2 True True, check "\u{F7DF}" 63455 3 63455 3 1 True True, check "\u{F7DF}\u{0}" 63455 3 0 1 2 True True, check "\u{F7DF}\u{7F}" 63455 3 127 1 2 True True, check "\u{F7E0}" 63456 3 63456 3 1 True True, check "\u{F7E0}\u{0}" 63456 3 0 1 2 True True, check "\u{F7E0}\u{7F}" 63456 3 127 1 2 True True, check "\u{F7FF}" 63487 3 63487 3 1 True True, check "\u{F7FF}\u{0}" 63487 3 0 1 2 True True, check "\u{F7FF}\u{7F}" 63487 3 127 1 2 True True, check "\u{F800}" 63488 3 63488 3 1 True True, check "\u{F800}\u{0}" 63488 3 0 1 2 True True, check "\u{F800}\u{7F}" 63488 3 127 1 2 True True, check "\u{F80F}" 63503 3 63503 3 1 True True, check "\u{F80F}\u{0}" 63503 3 0 1 2 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-af :: Unit -> Bool
+  rows-af unit = all-checks [check "\u{F80F}\u{7F}" 63503 3 127 1 2 True True, check "\u{F810}" 63504 3 63504 3 1 True True, check "\u{F810}\u{0}" 63504 3 0 1 2 True True, check "\u{F810}\u{7F}" 63504 3 127 1 2 True True, check "\u{F81F}" 63519 3 63519 3 1 True True, check "\u{F81F}\u{0}" 63519 3 0 1 2 True True, check "\u{F81F}\u{7F}" 63519 3 127 1 2 True True, check "\u{F820}" 63520 3 63520 3 1 True True, check "\u{F820}\u{0}" 63520 3 0 1 2 True True, check "\u{F820}\u{7F}" 63520 3 127 1 2 True True, check "\u{F83F}" 63551 3 63551 3 1 True True, check "\u{F83F}\u{0}" 63551 3 0 1 2 True True, check "\u{F83F}\u{7F}" 63551 3 127 1 2 True True, check "\u{FFC0}" 65472 3 65472 3 1 True True, check "\u{FFC0}\u{0}" 65472 3 0 1 2 True True, check "\u{FFC0}\u{7F}" 65472 3 127 1 2 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-ag :: Unit -> Bool
+  rows-ag unit = all-checks [check "\u{FFCF}" 65487 3 65487 3 1 True True, check "\u{FFCF}\u{0}" 65487 3 0 1 2 True True, check "\u{FFCF}\u{7F}" 65487 3 127 1 2 True True, check "\u{FFD0}" 65488 3 65488 3 1 True True, check "\u{FFD0}\u{0}" 65488 3 0 1 2 True True, check "\u{FFD0}\u{7F}" 65488 3 127 1 2 True True, check "\u{FFDF}" 65503 3 65503 3 1 True True, check "\u{FFDF}\u{0}" 65503 3 0 1 2 True True, check "\u{FFDF}\u{7F}" 65503 3 127 1 2 True True, check "\u{FFE0}" 65504 3 65504 3 1 True True, check "\u{FFE0}\u{0}" 65504 3 0 1 2 True True, check "\u{FFE0}\u{7F}" 65504 3 127 1 2 True True, check "\u{FFFD}" 65533 3 65533 3 1 True True, check "\u{FFFD}\u{74}\u{61}\u{69}\u{6C}" 65533 3 108 1 5 True True, check "\u{FFFF}" 65535 3 65535 3 1 True True, check "\u{FFFF}\u{0}" 65535 3 0 1 2 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-ah :: Unit -> Bool
+  rows-ah unit = all-checks [check "\u{FFFF}\u{74}\u{61}\u{69}\u{6C}" 65535 3 108 1 5 True True, check "\u{FFFF}\u{7F}" 65535 3 127 1 2 True True, check "\u{10000}" 65536 4 65536 4 1 True True, check "\u{10000}\u{74}\u{61}\u{69}\u{6C}" 65536 4 108 1 5 True True, check "\u{1000F}" 65551 4 65551 4 1 True True, check "\u{10010}" 65552 4 65552 4 1 True True, check "\u{1001F}" 65567 4 65567 4 1 True True, check "\u{10020}" 65568 4 65568 4 1 True True, check "\u{1003F}" 65599 4 65599 4 1 True True, check "\u{103C0}" 66496 4 66496 4 1 True True, check "\u{103CF}" 66511 4 66511 4 1 True True, check "\u{103D0}" 66512 4 66512 4 1 True True, check "\u{103DF}" 66527 4 66527 4 1 True True, check "\u{103E0}" 66528 4 66528 4 1 True True, check "\u{103FF}" 66559 4 66559 4 1 True True, check "\u{10400}" 66560 4 66560 4 1 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-ai :: Unit -> Bool
+  rows-ai unit = all-checks [check "\u{1040F}" 66575 4 66575 4 1 True True, check "\u{10410}" 66576 4 66576 4 1 True True, check "\u{1041F}" 66591 4 66591 4 1 True True, check "\u{10420}" 66592 4 66592 4 1 True True, check "\u{1043F}" 66623 4 66623 4 1 True True, check "\u{107C0}" 67520 4 67520 4 1 True True, check "\u{107CF}" 67535 4 67535 4 1 True True, check "\u{107D0}" 67536 4 67536 4 1 True True, check "\u{107DF}" 67551 4 67551 4 1 True True, check "\u{107E0}" 67552 4 67552 4 1 True True, check "\u{107FF}" 67583 4 67583 4 1 True True, check "\u{10800}" 67584 4 67584 4 1 True True, check "\u{1080F}" 67599 4 67599 4 1 True True, check "\u{10810}" 67600 4 67600 4 1 True True, check "\u{1081F}" 67615 4 67615 4 1 True True, check "\u{10820}" 67616 4 67616 4 1 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-aj :: Unit -> Bool
+  rows-aj unit = all-checks [check "\u{1083F}" 67647 4 67647 4 1 True True, check "\u{10FC0}" 69568 4 69568 4 1 True True, check "\u{10FCF}" 69583 4 69583 4 1 True True, check "\u{10FD0}" 69584 4 69584 4 1 True True, check "\u{10FDF}" 69599 4 69599 4 1 True True, check "\u{10FE0}" 69600 4 69600 4 1 True True, check "\u{10FFF}" 69631 4 69631 4 1 True True, check "\u{16EA0}" 93856 4 93856 4 1 True True, check "\u{16EA0}\u{74}\u{61}\u{69}\u{6C}" 93856 4 108 1 5 True True, check "\u{1F000}" 126976 4 126976 4 1 True True, check "\u{1F00F}" 126991 4 126991 4 1 True True, check "\u{1F010}" 126992 4 126992 4 1 True True, check "\u{1F01F}" 127007 4 127007 4 1 True True, check "\u{1F020}" 127008 4 127008 4 1 True True, check "\u{1F03F}" 127039 4 127039 4 1 True True, check "\u{1F3C0}" 127936 4 127936 4 1 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-ak :: Unit -> Bool
+  rows-ak unit = all-checks [check "\u{1F3CF}" 127951 4 127951 4 1 True True, check "\u{1F3D0}" 127952 4 127952 4 1 True True, check "\u{1F3DF}" 127967 4 127967 4 1 True True, check "\u{1F3E0}" 127968 4 127968 4 1 True True, check "\u{1F3FF}" 127999 4 127999 4 1 True True, check "\u{1F400}" 128000 4 128000 4 1 True True, check "\u{1F40F}" 128015 4 128015 4 1 True True, check "\u{1F410}" 128016 4 128016 4 1 True True, check "\u{1F41F}" 128031 4 128031 4 1 True True, check "\u{1F420}" 128032 4 128032 4 1 True True, check "\u{1F43F}" 128063 4 128063 4 1 True True, check "\u{1F600}" 128512 4 128512 4 1 True True, check "\u{1F600}\u{74}\u{61}\u{69}\u{6C}" 128512 4 108 1 5 True True, check "\u{1F7C0}" 128960 4 128960 4 1 True True, check "\u{1F7CF}" 128975 4 128975 4 1 True True, check "\u{1F7D0}" 128976 4 128976 4 1 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-al :: Unit -> Bool
+  rows-al unit = all-checks [check "\u{1F7DF}" 128991 4 128991 4 1 True True, check "\u{1F7E0}" 128992 4 128992 4 1 True True, check "\u{1F7FF}" 129023 4 129023 4 1 True True, check "\u{1F800}" 129024 4 129024 4 1 True True, check "\u{1F80F}" 129039 4 129039 4 1 True True, check "\u{1F810}" 129040 4 129040 4 1 True True, check "\u{1F81F}" 129055 4 129055 4 1 True True, check "\u{1F820}" 129056 4 129056 4 1 True True, check "\u{1F83F}" 129087 4 129087 4 1 True True, check "\u{1FFC0}" 131008 4 131008 4 1 True True, check "\u{1FFCF}" 131023 4 131023 4 1 True True, check "\u{1FFD0}" 131024 4 131024 4 1 True True, check "\u{1FFDF}" 131039 4 131039 4 1 True True, check "\u{1FFE0}" 131040 4 131040 4 1 True True, check "\u{1FFFF}" 131071 4 131071 4 1 True True, check "\u{20000}" 131072 4 131072 4 1 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-am :: Unit -> Bool
+  rows-am unit = all-checks [check "\u{2000F}" 131087 4 131087 4 1 True True, check "\u{20010}" 131088 4 131088 4 1 True True, check "\u{2001F}" 131103 4 131103 4 1 True True, check "\u{20020}" 131104 4 131104 4 1 True True, check "\u{2003F}" 131135 4 131135 4 1 True True, check "\u{203C0}" 132032 4 132032 4 1 True True, check "\u{203CF}" 132047 4 132047 4 1 True True, check "\u{203D0}" 132048 4 132048 4 1 True True, check "\u{203DF}" 132063 4 132063 4 1 True True, check "\u{203E0}" 132064 4 132064 4 1 True True, check "\u{203FF}" 132095 4 132095 4 1 True True, check "\u{20400}" 132096 4 132096 4 1 True True, check "\u{2040F}" 132111 4 132111 4 1 True True, check "\u{20410}" 132112 4 132112 4 1 True True, check "\u{2041F}" 132127 4 132127 4 1 True True, check "\u{20420}" 132128 4 132128 4 1 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-an :: Unit -> Bool
+  rows-an unit = all-checks [check "\u{2043F}" 132159 4 132159 4 1 True True, check "\u{207C0}" 133056 4 133056 4 1 True True, check "\u{207CF}" 133071 4 133071 4 1 True True, check "\u{207D0}" 133072 4 133072 4 1 True True, check "\u{207DF}" 133087 4 133087 4 1 True True, check "\u{207E0}" 133088 4 133088 4 1 True True, check "\u{207FF}" 133119 4 133119 4 1 True True, check "\u{20800}" 133120 4 133120 4 1 True True, check "\u{2080F}" 133135 4 133135 4 1 True True, check "\u{20810}" 133136 4 133136 4 1 True True, check "\u{2081F}" 133151 4 133151 4 1 True True, check "\u{20820}" 133152 4 133152 4 1 True True, check "\u{2083F}" 133183 4 133183 4 1 True True, check "\u{20FC0}" 135104 4 135104 4 1 True True, check "\u{20FCF}" 135119 4 135119 4 1 True True, check "\u{20FD0}" 135120 4 135120 4 1 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-ao :: Unit -> Bool
+  rows-ao unit = all-checks [check "\u{20FDF}" 135135 4 135135 4 1 True True, check "\u{20FE0}" 135136 4 135136 4 1 True True, check "\u{20FFF}" 135167 4 135167 4 1 True True, check "\u{3F000}" 258048 4 258048 4 1 True True, check "\u{3F00F}" 258063 4 258063 4 1 True True, check "\u{3F010}" 258064 4 258064 4 1 True True, check "\u{3F01F}" 258079 4 258079 4 1 True True, check "\u{3F020}" 258080 4 258080 4 1 True True, check "\u{3F03F}" 258111 4 258111 4 1 True True, check "\u{3F3C0}" 259008 4 259008 4 1 True True, check "\u{3F3CF}" 259023 4 259023 4 1 True True, check "\u{3F3D0}" 259024 4 259024 4 1 True True, check "\u{3F3DF}" 259039 4 259039 4 1 True True, check "\u{3F3E0}" 259040 4 259040 4 1 True True, check "\u{3F3FF}" 259071 4 259071 4 1 True True, check "\u{3F400}" 259072 4 259072 4 1 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-ap :: Unit -> Bool
+  rows-ap unit = all-checks [check "\u{3F40F}" 259087 4 259087 4 1 True True, check "\u{3F410}" 259088 4 259088 4 1 True True, check "\u{3F41F}" 259103 4 259103 4 1 True True, check "\u{3F420}" 259104 4 259104 4 1 True True, check "\u{3F43F}" 259135 4 259135 4 1 True True, check "\u{3F7C0}" 260032 4 260032 4 1 True True, check "\u{3F7CF}" 260047 4 260047 4 1 True True, check "\u{3F7D0}" 260048 4 260048 4 1 True True, check "\u{3F7DF}" 260063 4 260063 4 1 True True, check "\u{3F7E0}" 260064 4 260064 4 1 True True, check "\u{3F7FF}" 260095 4 260095 4 1 True True, check "\u{3F800}" 260096 4 260096 4 1 True True, check "\u{3F80F}" 260111 4 260111 4 1 True True, check "\u{3F810}" 260112 4 260112 4 1 True True, check "\u{3F81F}" 260127 4 260127 4 1 True True, check "\u{3F820}" 260128 4 260128 4 1 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-aq :: Unit -> Bool
+  rows-aq unit = all-checks [check "\u{3F83F}" 260159 4 260159 4 1 True True, check "\u{3FFC0}" 262080 4 262080 4 1 True True, check "\u{3FFCF}" 262095 4 262095 4 1 True True, check "\u{3FFD0}" 262096 4 262096 4 1 True True, check "\u{3FFDF}" 262111 4 262111 4 1 True True, check "\u{3FFE0}" 262112 4 262112 4 1 True True, check "\u{3FFFF}" 262143 4 262143 4 1 True True, check "\u{100000}" 1048576 4 1048576 4 1 True True, check "\u{10000F}" 1048591 4 1048591 4 1 True True, check "\u{100010}" 1048592 4 1048592 4 1 True True, check "\u{10001F}" 1048607 4 1048607 4 1 True True, check "\u{100020}" 1048608 4 1048608 4 1 True True, check "\u{10003F}" 1048639 4 1048639 4 1 True True, check "\u{1003C0}" 1049536 4 1049536 4 1 True True, check "\u{1003CF}" 1049551 4 1049551 4 1 True True, check "\u{1003D0}" 1049552 4 1049552 4 1 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-ar :: Unit -> Bool
+  rows-ar unit = all-checks [check "\u{1003DF}" 1049567 4 1049567 4 1 True True, check "\u{1003E0}" 1049568 4 1049568 4 1 True True, check "\u{1003FF}" 1049599 4 1049599 4 1 True True, check "\u{100400}" 1049600 4 1049600 4 1 True True, check "\u{10040F}" 1049615 4 1049615 4 1 True True, check "\u{100410}" 1049616 4 1049616 4 1 True True, check "\u{10041F}" 1049631 4 1049631 4 1 True True, check "\u{100420}" 1049632 4 1049632 4 1 True True, check "\u{10043F}" 1049663 4 1049663 4 1 True True, check "\u{1007C0}" 1050560 4 1050560 4 1 True True, check "\u{1007CF}" 1050575 4 1050575 4 1 True True, check "\u{1007D0}" 1050576 4 1050576 4 1 True True, check "\u{1007DF}" 1050591 4 1050591 4 1 True True, check "\u{1007E0}" 1050592 4 1050592 4 1 True True, check "\u{1007FF}" 1050623 4 1050623 4 1 True True, check "\u{100800}" 1050624 4 1050624 4 1 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-as :: Unit -> Bool
+  rows-as unit = all-checks [check "\u{10080F}" 1050639 4 1050639 4 1 True True, check "\u{100810}" 1050640 4 1050640 4 1 True True, check "\u{10081F}" 1050655 4 1050655 4 1 True True, check "\u{100820}" 1050656 4 1050656 4 1 True True, check "\u{10083F}" 1050687 4 1050687 4 1 True True, check "\u{100FC0}" 1052608 4 1052608 4 1 True True, check "\u{100FCF}" 1052623 4 1052623 4 1 True True, check "\u{100FD0}" 1052624 4 1052624 4 1 True True, check "\u{100FDF}" 1052639 4 1052639 4 1 True True, check "\u{100FE0}" 1052640 4 1052640 4 1 True True, check "\u{100FFF}" 1052671 4 1052671 4 1 True True, check "\u{10F000}" 1110016 4 1110016 4 1 True True, check "\u{10F00F}" 1110031 4 1110031 4 1 True True, check "\u{10F010}" 1110032 4 1110032 4 1 True True, check "\u{10F01F}" 1110047 4 1110047 4 1 True True, check "\u{10F020}" 1110048 4 1110048 4 1 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-at :: Unit -> Bool
+  rows-at unit = all-checks [check "\u{10F03F}" 1110079 4 1110079 4 1 True True, check "\u{10F3C0}" 1110976 4 1110976 4 1 True True, check "\u{10F3CF}" 1110991 4 1110991 4 1 True True, check "\u{10F3D0}" 1110992 4 1110992 4 1 True True, check "\u{10F3DF}" 1111007 4 1111007 4 1 True True, check "\u{10F3E0}" 1111008 4 1111008 4 1 True True, check "\u{10F3FF}" 1111039 4 1111039 4 1 True True, check "\u{10F400}" 1111040 4 1111040 4 1 True True, check "\u{10F40F}" 1111055 4 1111055 4 1 True True, check "\u{10F410}" 1111056 4 1111056 4 1 True True, check "\u{10F41F}" 1111071 4 1111071 4 1 True True, check "\u{10F420}" 1111072 4 1111072 4 1 True True, check "\u{10F43F}" 1111103 4 1111103 4 1 True True, check "\u{10F7C0}" 1112000 4 1112000 4 1 True True, check "\u{10F7CF}" 1112015 4 1112015 4 1 True True, check "\u{10F7D0}" 1112016 4 1112016 4 1 True True]
+
+  -- | Check independent short-text rows and both conversion aliases.
+  rows-au :: Unit -> Bool
+  rows-au unit = all-checks [check "\u{10F7DF}" 1112031 4 1112031 4 1 True True, check "\u{10F7E0}" 1112032 4 1112032 4 1 True True, check "\u{10F7FF}" 1112063 4 1112063 4 1 True True, check "\u{10F800}" 1112064 4 1112064 4 1 True True, check "\u{10F80F}" 1112079 4 1112079 4 1 True True, check "\u{10F810}" 1112080 4 1112080 4 1 True True, check "\u{10F81F}" 1112095 4 1112095 4 1 True True, check "\u{10F820}" 1112096 4 1112096 4 1 True True, check "\u{10F83F}" 1112127 4 1112127 4 1 True True, check "\u{10FFC0}" 1114048 4 1114048 4 1 True True, check "\u{10FFCF}" 1114063 4 1114063 4 1 True True, check "\u{10FFD0}" 1114064 4 1114064 4 1 True True, check "\u{10FFDF}" 1114079 4 1114079 4 1 True True, check "\u{10FFE0}" 1114080 4 1114080 4 1 True True, check "\u{10FFFF}" 1114111 4 1114111 4 1 True True, check "\u{10FFFF}\u{74}\u{61}\u{69}\u{6C}" 1114111 4 108 1 5 True True]
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-a :: Unit -> Bool
+  long-a unit = let text = string-repeat 0 "\u{61}\u{62}\u{63}\u{64}\u{65}\u{66}\u{67}\u{68}" in check text 65533 0 65533 0 0 False True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-b :: Unit -> Bool
+  long-b unit = let text = string-repeat 1 "\u{61}\u{62}\u{63}\u{64}\u{65}\u{66}\u{67}\u{68}" in check text 97 1 104 1 8 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-c :: Unit -> Bool
+  long-c unit = let text = string-repeat 7 "\u{61}\u{62}\u{63}\u{64}\u{65}\u{66}\u{67}\u{68}" in check text 97 1 104 1 56 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-d :: Unit -> Bool
+  long-d unit = let text = string-repeat 8 "\u{61}\u{62}\u{63}\u{64}\u{65}\u{66}\u{67}\u{68}" in check text 97 1 104 1 64 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-e :: Unit -> Bool
+  long-e unit = let text = string-repeat 15 "\u{61}\u{62}\u{63}\u{64}\u{65}\u{66}\u{67}\u{68}" in check text 97 1 104 1 120 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-f :: Unit -> Bool
+  long-f unit = let text = string-repeat 16 "\u{61}\u{62}\u{63}\u{64}\u{65}\u{66}\u{67}\u{68}" in check text 97 1 104 1 128 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-g :: Unit -> Bool
+  long-g unit = let text = string-repeat 17 "\u{61}\u{62}\u{63}\u{64}\u{65}\u{66}\u{67}\u{68}" in check text 97 1 104 1 136 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-h :: Unit -> Bool
+  long-h unit = let text = string-repeat 32 "\u{61}\u{62}\u{63}\u{64}\u{65}\u{66}\u{67}\u{68}" in check text 97 1 104 1 256 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-i :: Unit -> Bool
+  long-i unit = let text = string-repeat 63 "\u{61}\u{62}\u{63}\u{64}\u{65}\u{66}\u{67}\u{68}" in check text 97 1 104 1 504 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-j :: Unit -> Bool
+  long-j unit = let text = string-repeat 64 "\u{61}\u{62}\u{63}\u{64}\u{65}\u{66}\u{67}\u{68}" in check text 97 1 104 1 512 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-k :: Unit -> Bool
+  long-k unit = let text = string-repeat 65 "\u{61}\u{62}\u{63}\u{64}\u{65}\u{66}\u{67}\u{68}" in check text 97 1 104 1 520 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-l :: Unit -> Bool
+  long-l unit = let text = string-repeat 4096 "\u{61}\u{62}\u{63}\u{64}\u{65}\u{66}\u{67}\u{68}" in check text 97 1 104 1 32768 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-m :: Unit -> Bool
+  long-m unit = let text = string-repeat 65536 "\u{61}\u{62}\u{63}\u{64}\u{65}\u{66}\u{67}\u{68}" in check text 97 1 104 1 524288 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-n :: Unit -> Bool
+  long-n unit = let text = string-repeat 0 "\u{61}\u{E9}\u{3A3}\u{20AC}" in check text 65533 0 65533 0 0 False True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-o :: Unit -> Bool
+  long-o unit = let text = string-repeat 1 "\u{61}\u{E9}\u{3A3}\u{20AC}" in check text 97 1 8364 3 4 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-p :: Unit -> Bool
+  long-p unit = let text = string-repeat 7 "\u{61}\u{E9}\u{3A3}\u{20AC}" in check text 97 1 8364 3 28 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-q :: Unit -> Bool
+  long-q unit = let text = string-repeat 8 "\u{61}\u{E9}\u{3A3}\u{20AC}" in check text 97 1 8364 3 32 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-r :: Unit -> Bool
+  long-r unit = let text = string-repeat 15 "\u{61}\u{E9}\u{3A3}\u{20AC}" in check text 97 1 8364 3 60 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-s :: Unit -> Bool
+  long-s unit = let text = string-repeat 16 "\u{61}\u{E9}\u{3A3}\u{20AC}" in check text 97 1 8364 3 64 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-t :: Unit -> Bool
+  long-t unit = let text = string-repeat 17 "\u{61}\u{E9}\u{3A3}\u{20AC}" in check text 97 1 8364 3 68 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-u :: Unit -> Bool
+  long-u unit = let text = string-repeat 32 "\u{61}\u{E9}\u{3A3}\u{20AC}" in check text 97 1 8364 3 128 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-v :: Unit -> Bool
+  long-v unit = let text = string-repeat 63 "\u{61}\u{E9}\u{3A3}\u{20AC}" in check text 97 1 8364 3 252 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-w :: Unit -> Bool
+  long-w unit = let text = string-repeat 64 "\u{61}\u{E9}\u{3A3}\u{20AC}" in check text 97 1 8364 3 256 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-x :: Unit -> Bool
+  long-x unit = let text = string-repeat 65 "\u{61}\u{E9}\u{3A3}\u{20AC}" in check text 97 1 8364 3 260 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-y :: Unit -> Bool
+  long-y unit = let text = string-repeat 4096 "\u{61}\u{E9}\u{3A3}\u{20AC}" in check text 97 1 8364 3 16384 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-z :: Unit -> Bool
+  long-z unit = let text = string-repeat 65536 "\u{61}\u{E9}\u{3A3}\u{20AC}" in check text 97 1 8364 3 262144 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-aa :: Unit -> Bool
+  long-aa unit = let text = string-repeat 0 "\u{0}\u{E9}\u{20AC}\u{1F600}" in check text 65533 0 65533 0 0 False True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-ab :: Unit -> Bool
+  long-ab unit = let text = string-repeat 1 "\u{0}\u{E9}\u{20AC}\u{1F600}" in check text 0 1 128512 4 4 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-ac :: Unit -> Bool
+  long-ac unit = let text = string-repeat 7 "\u{0}\u{E9}\u{20AC}\u{1F600}" in check text 0 1 128512 4 28 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-ad :: Unit -> Bool
+  long-ad unit = let text = string-repeat 8 "\u{0}\u{E9}\u{20AC}\u{1F600}" in check text 0 1 128512 4 32 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-ae :: Unit -> Bool
+  long-ae unit = let text = string-repeat 15 "\u{0}\u{E9}\u{20AC}\u{1F600}" in check text 0 1 128512 4 60 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-af :: Unit -> Bool
+  long-af unit = let text = string-repeat 16 "\u{0}\u{E9}\u{20AC}\u{1F600}" in check text 0 1 128512 4 64 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-ag :: Unit -> Bool
+  long-ag unit = let text = string-repeat 17 "\u{0}\u{E9}\u{20AC}\u{1F600}" in check text 0 1 128512 4 68 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-ah :: Unit -> Bool
+  long-ah unit = let text = string-repeat 32 "\u{0}\u{E9}\u{20AC}\u{1F600}" in check text 0 1 128512 4 128 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-ai :: Unit -> Bool
+  long-ai unit = let text = string-repeat 63 "\u{0}\u{E9}\u{20AC}\u{1F600}" in check text 0 1 128512 4 252 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-aj :: Unit -> Bool
+  long-aj unit = let text = string-repeat 64 "\u{0}\u{E9}\u{20AC}\u{1F600}" in check text 0 1 128512 4 256 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-ak :: Unit -> Bool
+  long-ak unit = let text = string-repeat 65 "\u{0}\u{E9}\u{20AC}\u{1F600}" in check text 0 1 128512 4 260 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-al :: Unit -> Bool
+  long-al unit = let text = string-repeat 4096 "\u{0}\u{E9}\u{20AC}\u{1F600}" in check text 0 1 128512 4 16384 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-am :: Unit -> Bool
+  long-am unit = let text = string-repeat 65536 "\u{0}\u{E9}\u{20AC}\u{1F600}" in check text 0 1 128512 4 262144 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-an :: Unit -> Bool
+  long-an unit = let text = string-repeat 0 "\u{10FFFF}\u{FFFF}\u{800}\u{80}" in check text 65533 0 65533 0 0 False True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-ao :: Unit -> Bool
+  long-ao unit = let text = string-repeat 1 "\u{10FFFF}\u{FFFF}\u{800}\u{80}" in check text 1114111 4 128 2 4 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-ap :: Unit -> Bool
+  long-ap unit = let text = string-repeat 7 "\u{10FFFF}\u{FFFF}\u{800}\u{80}" in check text 1114111 4 128 2 28 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-aq :: Unit -> Bool
+  long-aq unit = let text = string-repeat 8 "\u{10FFFF}\u{FFFF}\u{800}\u{80}" in check text 1114111 4 128 2 32 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-ar :: Unit -> Bool
+  long-ar unit = let text = string-repeat 15 "\u{10FFFF}\u{FFFF}\u{800}\u{80}" in check text 1114111 4 128 2 60 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-as :: Unit -> Bool
+  long-as unit = let text = string-repeat 16 "\u{10FFFF}\u{FFFF}\u{800}\u{80}" in check text 1114111 4 128 2 64 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-at :: Unit -> Bool
+  long-at unit = let text = string-repeat 17 "\u{10FFFF}\u{FFFF}\u{800}\u{80}" in check text 1114111 4 128 2 68 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-au :: Unit -> Bool
+  long-au unit = let text = string-repeat 32 "\u{10FFFF}\u{FFFF}\u{800}\u{80}" in check text 1114111 4 128 2 128 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-av :: Unit -> Bool
+  long-av unit = let text = string-repeat 63 "\u{10FFFF}\u{FFFF}\u{800}\u{80}" in check text 1114111 4 128 2 252 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-aw :: Unit -> Bool
+  long-aw unit = let text = string-repeat 64 "\u{10FFFF}\u{FFFF}\u{800}\u{80}" in check text 1114111 4 128 2 256 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-ax :: Unit -> Bool
+  long-ax unit = let text = string-repeat 65 "\u{10FFFF}\u{FFFF}\u{800}\u{80}" in check text 1114111 4 128 2 260 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-ay :: Unit -> Bool
+  long-ay unit = let text = string-repeat 4096 "\u{10FFFF}\u{FFFF}\u{800}\u{80}" in check text 1114111 4 128 2 16384 True True
+
+  -- | Build large valid text at runtime and check its exact independent observations.
+  long-az :: Unit -> Bool
+  long-az unit = let text = string-repeat 65536 "\u{10FFFF}\u{FFFF}\u{800}\u{80}" in check text 1114111 4 128 2 262144 True True
+
+  -- | Select one poisoned-memory fixture group, preserving the same public pipeline.
+  selected :: String -> Bool
+  selected name =
+    if name == "rows-a" then rows-a ()
+    else if name == "rows-b" then rows-b ()
+    else if name == "rows-c" then rows-c ()
+    else if name == "rows-d" then rows-d ()
+    else if name == "rows-e" then rows-e ()
+    else if name == "rows-f" then rows-f ()
+    else if name == "rows-g" then rows-g ()
+    else if name == "rows-h" then rows-h ()
+    else if name == "rows-i" then rows-i ()
+    else if name == "rows-j" then rows-j ()
+    else if name == "rows-k" then rows-k ()
+    else if name == "rows-l" then rows-l ()
+    else if name == "rows-m" then rows-m ()
+    else if name == "rows-n" then rows-n ()
+    else if name == "rows-o" then rows-o ()
+    else if name == "rows-p" then rows-p ()
+    else if name == "rows-q" then rows-q ()
+    else if name == "rows-r" then rows-r ()
+    else if name == "rows-s" then rows-s ()
+    else if name == "rows-t" then rows-t ()
+    else if name == "rows-u" then rows-u ()
+    else if name == "rows-v" then rows-v ()
+    else if name == "rows-w" then rows-w ()
+    else if name == "rows-x" then rows-x ()
+    else if name == "rows-y" then rows-y ()
+    else if name == "rows-z" then rows-z ()
+    else if name == "rows-aa" then rows-aa ()
+    else if name == "rows-ab" then rows-ab ()
+    else if name == "rows-ac" then rows-ac ()
+    else if name == "rows-ad" then rows-ad ()
+    else if name == "rows-ae" then rows-ae ()
+    else if name == "rows-af" then rows-af ()
+    else if name == "rows-ag" then rows-ag ()
+    else if name == "rows-ah" then rows-ah ()
+    else if name == "rows-ai" then rows-ai ()
+    else if name == "rows-aj" then rows-aj ()
+    else if name == "rows-ak" then rows-ak ()
+    else if name == "rows-al" then rows-al ()
+    else if name == "rows-am" then rows-am ()
+    else if name == "rows-an" then rows-an ()
+    else if name == "rows-ao" then rows-ao ()
+    else if name == "rows-ap" then rows-ap ()
+    else if name == "rows-aq" then rows-aq ()
+    else if name == "rows-ar" then rows-ar ()
+    else if name == "rows-as" then rows-as ()
+    else if name == "rows-at" then rows-at ()
+    else if name == "rows-au" then rows-au ()
+    else if name == "long-a" then long-a ()
+    else if name == "long-b" then long-b ()
+    else if name == "long-c" then long-c ()
+    else if name == "long-d" then long-d ()
+    else if name == "long-e" then long-e ()
+    else if name == "long-f" then long-f ()
+    else if name == "long-g" then long-g ()
+    else if name == "long-h" then long-h ()
+    else if name == "long-i" then long-i ()
+    else if name == "long-j" then long-j ()
+    else if name == "long-k" then long-k ()
+    else if name == "long-l" then long-l ()
+    else if name == "long-m" then long-m ()
+    else if name == "long-n" then long-n ()
+    else if name == "long-o" then long-o ()
+    else if name == "long-p" then long-p ()
+    else if name == "long-q" then long-q ()
+    else if name == "long-r" then long-r ()
+    else if name == "long-s" then long-s ()
+    else if name == "long-t" then long-t ()
+    else if name == "long-u" then long-u ()
+    else if name == "long-v" then long-v ()
+    else if name == "long-w" then long-w ()
+    else if name == "long-x" then long-x ()
+    else if name == "long-y" then long-y ()
+    else if name == "long-z" then long-z ()
+    else if name == "long-aa" then long-aa ()
+    else if name == "long-ab" then long-ab ()
+    else if name == "long-ac" then long-ac ()
+    else if name == "long-ad" then long-ad ()
+    else if name == "long-ae" then long-ae ()
+    else if name == "long-af" then long-af ()
+    else if name == "long-ag" then long-ag ()
+    else if name == "long-ah" then long-ah ()
+    else if name == "long-ai" then long-ai ()
+    else if name == "long-aj" then long-aj ()
+    else if name == "long-ak" then long-ak ()
+    else if name == "long-al" then long-al ()
+    else if name == "long-am" then long-am ()
+    else if name == "long-an" then long-an ()
+    else if name == "long-ao" then long-ao ()
+    else if name == "long-ap" then long-ap ()
+    else if name == "long-aq" then long-aq ()
+    else if name == "long-ar" then long-ar ()
+    else if name == "long-as" then long-as ()
+    else if name == "long-at" then long-at ()
+    else if name == "long-au" then long-au ()
+    else if name == "long-av" then long-av ()
+    else if name == "long-aw" then long-aw ()
+    else if name == "long-ax" then long-ax ()
+    else if name == "long-ay" then long-ay ()
+    else if name == "long-az" then long-az ()
+    else False
+
+  -- | Check a shallow bounded batch of independent fixture groups.
+  block-a :: Unit -> Bool
+  block-a unit = all-checks [rows-a (), rows-b (), rows-c (), rows-d (), rows-e (), rows-f (), rows-g (), rows-h ()]
+
+  -- | Check a shallow bounded batch of independent fixture groups.
+  block-b :: Unit -> Bool
+  block-b unit = all-checks [rows-i (), rows-j (), rows-k (), rows-l (), rows-m (), rows-n (), rows-o (), rows-p ()]
+
+  -- | Check a shallow bounded batch of independent fixture groups.
+  block-c :: Unit -> Bool
+  block-c unit = all-checks [rows-q (), rows-r (), rows-s (), rows-t (), rows-u (), rows-v (), rows-w (), rows-x ()]
+
+  -- | Check a shallow bounded batch of independent fixture groups.
+  block-d :: Unit -> Bool
+  block-d unit = all-checks [rows-y (), rows-z (), rows-aa (), rows-ab (), rows-ac (), rows-ad (), rows-ae (), rows-af ()]
+
+  -- | Check a shallow bounded batch of independent fixture groups.
+  block-e :: Unit -> Bool
+  block-e unit = all-checks [rows-ag (), rows-ah (), rows-ai (), rows-aj (), rows-ak (), rows-al (), rows-am (), rows-an ()]
+
+  -- | Check a shallow bounded batch of independent fixture groups.
+  block-f :: Unit -> Bool
+  block-f unit = all-checks [rows-ao (), rows-ap (), rows-aq (), rows-ar (), rows-as (), rows-at (), rows-au (), long-a ()]
+
+  -- | Check a shallow bounded batch of independent fixture groups.
+  block-g :: Unit -> Bool
+  block-g unit = all-checks [long-b (), long-c (), long-d (), long-e (), long-f (), long-g (), long-h (), long-i ()]
+
+  -- | Check a shallow bounded batch of independent fixture groups.
+  block-h :: Unit -> Bool
+  block-h unit = all-checks [long-j (), long-k (), long-l (), long-m (), long-n (), long-o (), long-p (), long-q ()]
+
+  -- | Check a shallow bounded batch of independent fixture groups.
+  block-i :: Unit -> Bool
+  block-i unit = all-checks [long-r (), long-s (), long-t (), long-u (), long-v (), long-w (), long-x (), long-y ()]
+
+  -- | Check a shallow bounded batch of independent fixture groups.
+  block-j :: Unit -> Bool
+  block-j unit = all-checks [long-z (), long-aa (), long-ab (), long-ac (), long-ad (), long-ae (), long-af (), long-ag ()]
+
+  -- | Check a shallow bounded batch of independent fixture groups.
+  block-k :: Unit -> Bool
+  block-k unit = all-checks [long-ah (), long-ai (), long-aj (), long-ak (), long-al (), long-am (), long-an (), long-ao ()]
+
+  -- | Check a shallow bounded batch of independent fixture groups.
+  block-l :: Unit -> Bool
+  block-l unit = all-checks [long-ap (), long-aq (), long-ar (), long-as (), long-at (), long-au (), long-av (), long-aw ()]
+
+  -- | Check a shallow bounded batch of independent fixture groups.
+  block-m :: Unit -> Bool
+  block-m unit = all-checks [long-ax (), long-ay (), long-az ()]
+
+  -- | Check all rows normally or one exact group with poisoned frees.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Err error -> 2
+    Ok args -> case args of
+      Nil -> if all-checks [block-a (), block-b (), block-c (), block-d (), block-e (), block-f (), block-g (), block-h (), block-i (), block-j (), block-k (), block-l (), block-m ()] then 0 else 1
+      Cons name Nil -> if selected name then 0 else 1
+      other -> 2
