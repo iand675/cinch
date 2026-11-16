@@ -339,5 +339,6 @@
   "status": "baseline-observed",
   "checkpoint_role": "Pre-extension observation only; this older frontend does not admit the new sealed-array recursive shape.",
   "fixture_selection": "The first18 source vectors, before the two preserved nested-value-binder cases were appended.",
-  "compiler_provenance": "Older frozen f2d5 Rust executable; no Array-payload extension and known distinct positivity holes."
+  "compiler_provenance": "Older frozen f2d5 Rust executable; no Array-payload extension and known distinct positivity holes.",
+  "fixture_revision": "de2424ed:compiler/tests/fixtures/nested-array-positivity-vectors.json"
 }
