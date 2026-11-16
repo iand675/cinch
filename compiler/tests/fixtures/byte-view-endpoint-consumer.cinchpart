@@ -1,0 +1,22 @@
+  -- | Construct a repeated-prefix needle whose final endpoints agree but whose penultimate byte differs.
+  endpoint-needle :: Nat -> Bytes
+  endpoint-needle width = let needle = input 4 width in
+    if 2 <= width then
+      let previous = width - 2 in let last = width - 1 in
+      if previous < bytes-len needle && last < bytes-len needle then
+        let changed = bytes-set needle previous 98 in let final = bytes-set needle last 97 in needle
+      else needle
+    else needle
+
+  -- | Observe long endpoint agreements with a late interior mismatch using independent complete input digests.
+  endpoint-case :: Nat -> Nat -> Nat -> Nat -> String -> String -> Bool
+  endpoint-case size width start end raw-digest needle-digest =
+    let raw = input 4 size in let needle = endpoint-needle width in
+    let exact = hex-encode (sha256-bytes raw) == raw-digest && hex-encode (sha256-bytes needle) == needle-digest in
+    case bytes-view-range raw start end of
+      Err error -> False
+      Ok view -> let pattern = bytes-compile-pattern needle in
+        exact && offset-is (byte-view-index-pattern view pattern) (-1)
+          && offset-is (byte-view-last-index-pattern view pattern) (-1)
+          && byte-view-count-pattern view pattern == 0
+          && not (byte-view-has-prefix-pattern view pattern) && not (byte-view-has-suffix-pattern view pattern)

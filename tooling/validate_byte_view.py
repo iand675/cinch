@@ -75,6 +75,9 @@ def expression(row: dict) -> str:
 def consumer(expressions: list[str], width: int) -> str:
     """Dispatch bounded process groups so checked-RC quarantine is never a cumulative test artifact."""
     source = (ROOT / 'compiler/tests/fixtures/byte-view-consumer.cinchpart').read_text()
+    if any(value.startswith('endpoint-case ') for value in expressions):
+        source = source.replace('  import Data.String\n', '  import Data.String\n  import Text.Hex\n')
+        source += '\n' + (ROOT / 'compiler/tests/fixtures/byte-view-endpoint-consumer.cinchpart').read_text()
     dispatch = 'False'
     for first in reversed(range(0, len(expressions), width)):
         number = first // width
@@ -98,11 +101,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--crosscheck-only', action='store_true')
     parser.add_argument('--compiler', type=Path)
+    parser.add_argument('--module-source', type=Path, default=ROOT / 'compiler/prelude/Data/Bytes/View.cinch')
     parser.add_argument('--native-interfaces', type=Path)
     parser.add_argument('--artifacts', type=Path)
     parser.add_argument('--output', type=Path)
     parser.add_argument('--opt-level', default='2', choices=['0', '2'])
-    parser.add_argument('--groups', nargs='+', default=['rows', 'long', 'owners'], choices=['rows', 'long', 'owners'])
+    parser.add_argument('--groups', nargs='+', default=['rows', 'long', 'owners'], choices=['rows', 'long', 'owners', 'endpoints'])
     parser.add_argument('--first', type=int, default=0)
     parser.add_argument('--limit', type=int)
     parser.add_argument('--batch-size', type=int, default=32)
@@ -123,10 +127,24 @@ def main() -> None:
         report['native_interfaces_sha256'] = digest(args.native_interfaces)
         report['native_compiler_sha256'] = digest(args.compiler.parent / 'cinch')
     for group in args.groups:
-        selected = [row for row in rows if (row['size'] > 129) == (group == 'long')][args.first:]
+        if group == 'endpoints':
+            selected = json.loads((ROOT / 'compiler/tests/fixtures/byte-view-endpoint-vectors.json').read_text())['rows']
+            for row in selected:
+                raw = b'a' * (row['size'] - 1) + b'b'
+                needle = b'a' * (row['width'] - 2) + b'ba'
+                view = raw[row['start']:row['end']]
+                assert hashlib.sha256(raw).hexdigest() == row['raw_sha256']
+                assert hashlib.sha256(needle).hexdigest() == row['needle_sha256']
+                assert view.find(needle) == row['first'] == -1 and view.rfind(needle) == row['last'] == -1
+                assert view.count(needle) == row['count'] == 0 and not row['prefix'] and not row['suffix']
+            report['endpoint_fixture_sha256'] = digest(ROOT / 'compiler/tests/fixtures/byte-view-endpoint-vectors.json')
+        else:
+            selected = [row for row in rows if (row['size'] > 129) == (group == 'long')]
+        selected = selected[args.first:]
         if args.limit is not None:
             selected = selected[:args.limit]
-        expressions = [expression(row) for row in selected] if group != 'owners' else ['owners-case ()'] * 10
+        expressions = ([f'endpoint-case {r["size"]} {r["width"]} {r["start"]} {r["end"]} "{r["raw_sha256"]}" "{r["needle_sha256"]}"' for r in selected]
+                       if group == 'endpoints' else [expression(row) for row in selected] if group != 'owners' else ['owners-case ()'] * 10)
         width = args.batch_size if group == 'rows' else 1
         work = args.artifacts / group
         work.mkdir(parents=True, exist_ok=True)
@@ -134,6 +152,7 @@ def main() -> None:
         text = consumer(expressions, width)
         entry.write_text(text)
         deps = source_closure(text)
+        deps['Data.Bytes.View'] = args.module_source
         for name, path in deps.items():
             shutil.copyfile(path, work / (name + '.cinch'))
         exe = (work / 'consumer').resolve()

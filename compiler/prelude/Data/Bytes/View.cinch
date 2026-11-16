@@ -194,6 +194,16 @@ module Data.Bytes.View where
       ret i64 %value
     }
 
+  -- | Test a complete eight-byte interval using a loop-invariant ending limit.
+  -- Private callers supply nonnegative bounded offsets, so subtracting eight cannot overflow.
+  prim block-before :: I64 -> I64 -> Bool where
+    llvm {
+      %limit = sub i64 %1, 8
+      %yes = icmp sle i64 %0, %limit
+      %value = zext i1 %yes to i8
+      ret i8 %value
+    }
+
   -- | Subtract private bounded machine offsets without an imported runtime call.
   prim offset-sub :: I64 -> I64 -> I64 where
     llvm {
@@ -428,6 +438,65 @@ module Data.Bytes.View where
       ret i8 %value
     }
 
+  -- | Broadcast the low byte of a private zero-extended scalar without imported conversions.
+  prim repeat-low-byte :: U64 -> U64 where
+    llvm {
+      %byte = and i64 %0, 255
+      %value = mul i64 %byte, 72340172838076673
+      ret i64 %value
+    }
+
+  -- | Intersect exact endpoint lane markers without cross-byte carries.
+  prim intersect-lanes :: U64 -> U64 -> U64 where
+    llvm {
+      %value = and i64 %0, %1
+      ret i64 %value
+    }
+
+  -- | Find a first-byte candidate through the fast scanner before preparing displaced endpoint blocks.
+  endpoint-first :: I64 -> I64 -> I64 -> I64 -> U64 -> U64 -> I64
+  endpoint-first base at limit delta first last =
+    let found = index-forward base at limit first in
+    if offset-before found 0 then -1 else
+      let final = offset-add found delta in let byte = load-byte base final in
+      let terminal = word-byte last in
+      if word-equal byte terminal then found else
+        let next = offset-add found 1 in endpoint-blocks base next limit delta first last
+
+  -- | Skip eight possible starts using exact first/final-byte lane intersections.
+  -- The exclusive start limit includes the final-byte displacement, bounding both complete loads.
+  endpoint-blocks :: I64 -> I64 -> I64 -> I64 -> U64 -> U64 -> I64
+  endpoint-blocks base at limit delta first last = let left = offset-sub limit at in
+    if offset-at-least left 8 then
+      let a = load-word base at in let starts = matching-lanes a first in
+      if word-nonzero starts then
+        let final = offset-add at delta in let b = load-word base final in
+        let ends = matching-lanes b last in let matches = intersect-lanes starts ends in
+        if word-nonzero matches then let lane = first-lane matches in offset-add at lane else
+          let next = offset-add at 8 in endpoint-blocks base next limit delta first last
+      else let next = offset-add at 8 in endpoint-first base next limit delta first last
+    else let initial = word-byte first in let terminal = word-byte last in
+      endpoint-tail base at limit delta initial terminal
+
+  -- | Read only exact remaining candidate endpoints after complete packed blocks.
+  endpoint-tail :: I64 -> I64 -> I64 -> I64 -> U64 -> U64 -> I64
+  endpoint-tail base at limit delta first last = if offset-before at limit then
+    let a = load-byte base at in let final = offset-add at delta in let b = load-byte base final in
+    if word-equal a first && word-equal b last then at else
+      let next = offset-add at 1 in endpoint-tail base next limit delta first last
+    else -1
+
+  -- | Filter only the initial start region, then retain the complete linear failure traversal.
+  -- Endpoint misses cannot begin a full match; fallback never restarts verification at every candidate.
+  search-first-candidates :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> U64 -> I64
+  search-first-candidates base begin end needle size table repeated =
+    if offset-at-least 1 size then index-forward base begin end repeated else
+      let delta = offset-sub size 1 in let terminal = load-byte needle delta in
+      let final = repeat-low-byte terminal in let limit = offset-sub end delta in
+      let candidate = endpoint-first base begin limit delta repeated final in
+      if offset-before candidate 0 then -1 else
+        let next = offset-add candidate 1 in search-first base next end needle size table repeated 1
+
   -- | Extend a matched prefix or follow strictly smaller failure links for one current byte.
   search-step :: I64 -> I64 -> I64 -> U64 -> I64
   search-step needle table matched byte =
@@ -446,8 +515,7 @@ module Data.Bytes.View where
       if offset-before found 0 then -1 else if offset-at-least 1 size then found else
         let next = offset-add found 1 in search-first base next end needle size table repeated 1
     else if offset-before at end then
-      let left = offset-sub end at in let needed = offset-sub size matched in
-      if offset-at-least left 8 && offset-at-least needed 8 && same-eight base at needle matched then
+      if block-before matched size && (let left = offset-sub end at in offset-at-least left 8) && same-eight base at needle matched then
         let next = offset-add at 8 in let advanced = offset-add matched 8 in
         if offset-at-least advanced size then offset-sub next size
         else search-first base next end needle size table repeated advanced
@@ -465,8 +533,7 @@ module Data.Bytes.View where
       if offset-before found 0 then best else
         let next = offset-add found 1 in search-last base next end needle size table repeated 1 best
     else if offset-before at end then
-      let left = offset-sub end at in let needed = offset-sub size matched in
-      if offset-at-least left 8 && offset-at-least needed 8 && same-eight base at needle matched then
+      if block-before matched size && (let left = offset-sub end at in offset-at-least left 8) && same-eight base at needle matched then
         let next = offset-add at 8 in let advanced = offset-add matched 8 in
         if offset-at-least advanced size then
           let found = offset-sub next size in let previous = offset-sub size 1 in
@@ -511,7 +578,7 @@ module Data.Bytes.View where
           let begin = nat-to-i64 start in let finish = nat-to-i64 end in
           let first-byte = bytes-get needle 0 in let machine-byte = nat-to-i64 first-byte in
           let byte = wrapping-i64-to-u8 machine-byte in let repeated = repeated-byte byte in
-          let found = hold-input raw (hold-input needle (hold-input table (search-first (bytes-data raw) begin finish (bytes-data needle) (nat-to-i64 size) (bytes-data table) repeated 0))) in
+          let found = hold-input raw (hold-input needle (hold-input table (search-first-candidates (bytes-data raw) begin finish (bytes-data needle) (nat-to-i64 size) (bytes-data table) repeated))) in
           relative-match found begin
 
   -- | Find the final compiled match, including overlaps; an empty needle matches the view end.
@@ -519,8 +586,9 @@ module Data.Bytes.View where
   byte-view-last-index-pattern view pattern = case view of
     View raw start end -> case pattern of
       Pattern needle table -> let size = bytes-len needle in
-        if size == 0 then Some (end - start) else if size > end - start then None else
-          let begin = nat-to-i64 start in let finish = nat-to-i64 end in
+        if size == 0 then Some (end - start) else if size > end - start then None
+        else if byte-view-has-suffix-pattern view pattern then let at = end - start - size in Some at
+        else let begin = nat-to-i64 start in let finish = nat-to-i64 end in
           let first-byte = bytes-get needle 0 in let machine-byte = nat-to-i64 first-byte in
           let byte = wrapping-i64-to-u8 machine-byte in let repeated = repeated-byte byte in
           let found = hold-input raw (hold-input needle (hold-input table (if size == 1 then last-byte-range (bytes-data raw) begin finish repeated else search-last (bytes-data raw) begin finish (bytes-data needle) (nat-to-i64 size) (bytes-data table) repeated 0 (-1)))) in
@@ -587,8 +655,7 @@ module Data.Bytes.View where
       if offset-before found 0 then count else
         let next = offset-add found 1 in search-count base next end needle size table repeated 1 count
     else if offset-before at end then
-      let left = offset-sub end at in let needed = offset-sub size matched in
-      if offset-at-least left 8 && offset-at-least needed 8 && same-eight base at needle matched then
+      if block-before matched size && (let left = offset-sub end at in offset-at-least left 8) && same-eight base at needle matched then
         let next = offset-add at 8 in let advanced = offset-add matched 8 in
         if offset-at-least advanced size then
           let total = offset-add count 1 in search-count base next end needle size table repeated 0 total

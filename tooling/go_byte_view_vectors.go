@@ -50,9 +50,42 @@ func row(mode, size, start, end, nm, ns, source int) map[string]any {
 	return map[string]any{"mode": mode, "size": size, "start": start, "end": end, "needle_mode": nm, "needle_size": ns, "needle_source": source, "raw_sha256": hex.EncodeToString(hash[:]), "needle_hex": hex.EncodeToString(needle), "first": bytes.Index(view, needle), "last": bytes.LastIndex(view, needle), "count": bytes.Count(view, needle), "prefix": bytes.HasPrefix(view, needle), "suffix": bytes.HasSuffix(view, needle), "compare": bytes.Compare(view, needle), "equal": bytes.Equal(view, needle)}
 }
 
+// endpointRows separates endpoint agreement from a late interior mismatch in long repeated prefixes.
+func endpointRows() []map[string]any {
+	rows := []map[string]any{}
+	for _, size := range []int{33, 129, 1025, 4097, 65537, 131073} {
+		for _, width := range []int{3, 8, 9, 17, 257, 4097} {
+			if width > size {
+				continue
+			}
+			raw := bytes.Repeat([]byte{'a'}, size)
+			raw[size-1] = 'b'
+			needle := bytes.Repeat([]byte{'a'}, width)
+			needle[width-2] = 'b'
+			rawHash, needleHash := sha256.Sum256(raw), sha256.Sum256(needle)
+			for _, span := range [][2]int{{0, size}, {1, size - 1}} {
+				view := raw[span[0]:span[1]]
+				rows = append(rows, map[string]any{"size": size, "width": width, "start": span[0], "end": span[1],
+					"raw_sha256": hex.EncodeToString(rawHash[:]), "needle_sha256": hex.EncodeToString(needleHash[:]),
+					"first": bytes.Index(view, needle), "last": bytes.LastIndex(view, needle), "count": bytes.Count(view, needle),
+					"prefix": bytes.HasPrefix(view, needle), "suffix": bytes.HasSuffix(view, needle)})
+			}
+		}
+	}
+	return rows
+}
+
 // main covers block fringes, both cut directions, overlaps and truncated raw scalars.
 func main() {
 	rows := []map[string]any{}
+	if len(os.Args) > 1 && os.Args[1] == "--endpoints" {
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(map[string]any{"rows": endpointRows()}); err != nil {
+			panic(err)
+		}
+		return
+	}
 	for mode := 0; mode < 8; mode++ {
 		for _, size := range []int{0, 1, 2, 3, 7, 8, 9, 15, 16, 17, 31, 32, 33, 65, 129} {
 			spans := [][2]int{{0, size}, {size, size}}
