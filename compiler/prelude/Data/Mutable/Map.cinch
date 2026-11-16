@@ -24,7 +24,8 @@ module Data.Mutable.Map where
 
   -- | Pure key hashing and comparison captured together for the map's lifetime.
   -- Equal keys must have equal hashes, and both functions must remain stable
-  -- while a key is stored. Comparison may be non-reflexive.
+  -- while a key is stored. Comparison must be symmetric and transitive where
+  -- it holds; non-reflexive keys are permitted.
   data MapKeyPolicy k where
     -- | Retain the selected hash and key comparison without global instances.
     KeyPolicy :: (k -> Nat) -> (k -> k -> Bool) -> MapKeyPolicy k
