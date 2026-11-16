@@ -1,0 +1,171 @@
+-- | Exhaustive independent numeric, scalar and complete Unicode metadata observations.
+module Main where
+  import Data.Unicode.Kernel
+  import Data.Unicode.Tables
+  import Effect.Process
+  import Data.Bool
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  -- | Parse decimal harness arguments without depending on Unicode numeric classification.
+  decimal :: String -> Nat
+  decimal text = decimal-from (unpack text) 0
+
+  -- | Accumulate only the ASCII argument digits of the validated host harness.
+  decimal-from :: List Char -> Nat -> Nat
+  decimal-from chars value = case chars of Nil -> value; Cons cp rest -> case digit-value cp of None -> 0; Some n -> decimal-from rest (value * 10 + n)
+
+  -- | Turn one public predicate into its independently specified observation bit.
+  flag :: Bool -> U32 -> U32
+  flag value mask = if value then mask else 0
+
+  -- | Observe every public code classification predicate, including scalar validity.
+  flags-code :: I32 -> U32
+  flags-code cp =
+    let value-a = bit-or-u32 0 (flag (unicode-is-control-code cp) 1) in
+    let value-b = bit-or-u32 value-a (flag (unicode-is-digit-code cp) 2) in
+    let value-c = bit-or-u32 value-b (flag (unicode-is-letter-code cp) 4) in
+    let value-d = bit-or-u32 value-c (flag (unicode-is-lower-code cp) 8) in
+    let value-e = bit-or-u32 value-d (flag (unicode-is-upper-code cp) 16) in
+    let value-f = bit-or-u32 value-e (flag (unicode-is-title-code cp) 32) in
+    let value-g = bit-or-u32 value-f (flag (unicode-is-mark-code cp) 64) in
+    let value-h = bit-or-u32 value-g (flag (unicode-is-number-code cp) 128) in
+    let value-i = bit-or-u32 value-h (flag (unicode-is-punct-code cp) 256) in
+    let value-j = bit-or-u32 value-i (flag (unicode-is-symbol-code cp) 512) in
+    let value-k = bit-or-u32 value-j (flag (unicode-is-graphic-code cp) 1024) in
+    let value-l = bit-or-u32 value-k (flag (unicode-is-print-code cp) 2048) in
+    let value-m = bit-or-u32 value-l (flag (unicode-is-space-code cp) 4096) in
+    bit-or-u32 value-m (flag (unicode-is-scalar-code cp) 8192)
+
+  -- | Observe every public char classification predicate, including scalar validity.
+  flags-char :: Char -> U32
+  flags-char cp =
+    let value-a = bit-or-u32 0 (flag (unicode-is-control cp) 1) in
+    let value-b = bit-or-u32 value-a (flag (unicode-is-digit cp) 2) in
+    let value-c = bit-or-u32 value-b (flag (unicode-is-letter cp) 4) in
+    let value-d = bit-or-u32 value-c (flag (unicode-is-lower cp) 8) in
+    let value-e = bit-or-u32 value-d (flag (unicode-is-upper cp) 16) in
+    let value-f = bit-or-u32 value-e (flag (unicode-is-title cp) 32) in
+    let value-g = bit-or-u32 value-f (flag (unicode-is-mark cp) 64) in
+    let value-h = bit-or-u32 value-g (flag (unicode-is-number cp) 128) in
+    let value-i = bit-or-u32 value-h (flag (unicode-is-punct cp) 256) in
+    let value-j = bit-or-u32 value-i (flag (unicode-is-symbol cp) 512) in
+    let value-k = bit-or-u32 value-j (flag (unicode-is-graphic cp) 1024) in
+    let value-l = bit-or-u32 value-k (flag (unicode-is-print cp) 2048) in
+    let value-m = bit-or-u32 value-l (flag (unicode-is-space cp) 4096) in
+    bit-or-u32 value-m 8192
+
+  -- | Observe every byte of a U32 result in explicit little-endian order.
+  hash-word :: U32 -> U32 -> U64 -> U64
+  hash-word word byte hash = if lt-u32 byte 4 then
+    let shift = wrapping-mul-u32 byte 8 in
+    let value = u32-to-u64 (bit-and-u32 (wrapping-shr-u32 word shift) 255) in
+    hash-word word (wrapping-add-u32 byte 1) (wrapping-mul-u64 (bit-xor-u64 hash value) 1099511628211)
+    else hash
+
+  -- | Observe every byte of a complete packed class word independently of host byte order.
+  hash-wide :: U64 -> U32 -> U64 -> U64
+  hash-wide word byte hash = if lt-u32 byte 8 then
+    let shift = wrapping-mul-u32 byte 8 in
+    let value = bit-and-u64 (wrapping-shr-u64 word shift) 255 in
+    hash-wide word (wrapping-add-u32 byte 1) (wrapping-mul-u64 (bit-xor-u64 hash value) 1099511628211)
+    else hash
+
+  -- | Hash numeric classification and all simple mappings, retaining wrong code-point behavior.
+  observe-code :: I32 -> U64 -> U64
+  observe-code cp hash =
+    let a = hash-word (flags-code cp) 0 hash in
+    let b = hash-word (wrapping-i32-to-u32 (unicode-to-upper-code cp)) 0 a in
+    let c = hash-word (wrapping-i32-to-u32 (unicode-to-lower-code cp)) 0 b in
+    let d = hash-word (wrapping-i32-to-u32 (unicode-to-title-code cp)) 0 c in
+    hash-word (wrapping-i32-to-u32 (unicode-simple-fold-code cp)) 0 d
+
+  -- | Hash all Char-facing operations through the real scalar accessor and conversion contracts.
+  observe-char :: Char -> U64 -> U64
+  observe-char cp hash =
+    let a = hash-word (flags-char cp) 0 hash in
+    let b = hash-word (char-to-u32 (unicode-to-upper cp)) 0 a in
+    let c = hash-word (char-to-u32 (unicode-to-lower cp)) 0 b in
+    let d = hash-word (char-to-u32 (unicode-to-title cp)) 0 c in
+    hash-word (char-to-u32 (unicode-simple-fold cp)) 0 d
+
+  -- | Visit every numeric code point, including surrogates, with unboxed loop counters.
+  numeric-from :: U32 -> U32 -> U64 -> U64
+  numeric-from cp end hash = if lt-u32 cp end then
+    let raw = wrapping-u32-to-i32 cp in let next = observe-code raw hash in
+    numeric-from (wrapping-add-u32 cp 1) end next else hash
+
+  -- | Visit every constructible Char; surrogates are observed as rejected scalar construction.
+  chars-from :: U32 -> U32 -> U64 -> U64
+  chars-from cp end hash = if lt-u32 cp end then
+    let next = case u32-to-char cp of None -> hash; Some scalar -> observe-char scalar hash in
+    chars-from (wrapping-add-u32 cp 1) end next else hash
+
+  -- | Validate every script/property/fold/general-category bit against independent public table observations.
+  metadata-from :: U32 -> U32 -> U64 -> U64
+  metadata-from cp end hash = if lt-u32 cp end then
+    let word = unicode-data-class cp in let next = hash-wide word 0 hash in
+    metadata-from (wrapping-add-u32 cp 1) end next else hash
+
+  -- | Collect immutable standard rule observations in order with bounded traversal stack.
+  standard-rules :: Nat -> List UnicodeCaseRange -> List UnicodeCaseRange
+  standard-rules count out = if count > 0 then
+    let index = count - 1 in case unicode-case-range-at index of
+      None -> out
+      Some rule -> standard-rules index (Cons rule out)
+    else out
+
+  -- | Hash a constructed private override table through the actual public numeric methods.
+  observe-special :: UnicodeSpecialCase -> I32 -> U64 -> U64
+  observe-special special cp hash =
+    let a = hash-word (flags-code cp) 0 hash in
+    let b = hash-word (wrapping-i32-to-u32 (unicode-special-to-upper-code special cp)) 0 a in
+    let c = hash-word (wrapping-i32-to-u32 (unicode-special-to-lower-code special cp)) 0 b in
+    let d = hash-word (wrapping-i32-to-u32 (unicode-special-to-title-code special cp)) 0 c in
+    hash-word (wrapping-i32-to-u32 (unicode-simple-fold-code cp)) 0 d
+
+  -- | Exercise every private binary-search path while retaining one immutable custom table.
+  special-from :: UnicodeSpecialCase -> U32 -> U32 -> U64 -> U64
+  special-from special cp end hash = if lt-u32 cp end then
+    let raw = wrapping-u32-to-i32 cp in let next = observe-special special raw hash in
+    special-from special (wrapping-add-u32 cp 1) end next else hash
+
+  -- | Select one bounded complete-domain chunk and retain every observed byte.
+  run-chunk :: U32 -> U32 -> Bool
+  run-chunk mode index = if lt-u32 index __CHUNK_COUNT__ then
+    let start = wrapping-mul-u32 index 2048 in let end = wrapping-add-u32 start 2048 in
+    if eq-u32 mode 0 then eq-u64 (numeric-from start end 14695981039346656037) (unicode-data-expected-numeric index)
+    else if eq-u32 mode 1 then eq-u64 (chars-from start end 14695981039346656037) (unicode-data-expected-char index)
+    else if eq-u32 mode 2 then eq-u64 (metadata-from start end 14695981039346656037) (unicode-data-expected-metadata index)
+    else (case unicode-special-case (standard-rules unicode-case-range-count Nil) of
+      Err error -> False
+      Ok special -> eq-u64 (special-from special start end 14695981039346656037) (unicode-data-expected-numeric index))
+    else False
+
+  -- | Complete the normal-memory corpus without constructing a large constant fixture list.
+  all-chunks :: U32 -> Bool
+  all-chunks index = if lt-u32 index __CHUNK_COUNT__ then
+    run-chunk 0 index && run-chunk 1 index && run-chunk 2 index && run-chunk 3 index && all-chunks (wrapping-add-u32 index 1)
+    else True
+
+__EXPECTED__
+
+  -- | Run complete ordinary-memory coverage or one bounded poisoned-memory group.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Err error -> 2
+    Ok args -> case args of
+      Nil -> if all-chunks 0 then 0 else 1
+      Cons mode (Cons index Nil) ->
+        let m = decimal mode in let i = decimal index in
+        if m <= 3 && i < __CHUNK_COUNT__ then
+          let raw-mode = wrapping-i64-to-u32 (nat-to-i64 m) in
+          let raw-index = wrapping-i64-to-u32 (nat-to-i64 i) in
+          if run-chunk raw-mode raw-index then 0 else 1
+        else 2
+      other -> 2
