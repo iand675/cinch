@@ -12,7 +12,7 @@ Both checkers continue to refuse unknown containers, including recursive nesting
 
 Focused targets:
 
-- `cargo test --lib sealed_array_positivity_tests`: actual primitive evidence, negative/double-negative domains, unknown higher-kinded and ordinary containers, exact arity, recursive arguments and forged competing headers.
+- `cargo test --lib sealed_array_positivity_tests`: actual primitive evidence, genuine source-absent serialized-contract header facts, negative/double-negative domains, unknown higher-kinded and ordinary containers, exact arity, recursive arguments and forged competing headers.
 - `cargo test --test nested_array_positivity`: the identical source corpus through the selected frontend, plus a compiled Native elaborator executing it under normal 32 MiB heap/8 MiB stack and poisoned 256 MiB heap/8 MiB stack profiles.
 - Existing `dependent`, `codata`, `arrays`, imported interface/constructor, mutable-inference/value-restriction and effect-row targets retain their applicable boundaries. In particular, the intentionally unsupported nested-List tests remain refusals.
 - An actual source-absent interface consumer must preserve builtin-array admission while rejecting ordinary imported carrier payloads and attempts to attach arbitrary certificate metadata.
@@ -23,3 +23,7 @@ The Native test appends a private context-test snippet only to its explicit temp
 The retained pre-extension reports record the exact first18 source vectors with compiler and source hashes. Native refuses all18 (including the six intentionally new positive shapes). Frozen Rust refuses the six positive shapes but incorrectly admits four negative cases across three gap families: double-negative functions, higher-kinded heads (two positions) and boundary pointers. These reports are observations, not passed candidate gates.
 
 At the initial static checkpoint, Rust syntax parsing (`rustfmt --emit stdout`), Python source projection and whitespace checks passed. No Cargo, executable positive admission, interface-forgery or runtime-ring gate has been claimed by this note. Parent-owned integration gates and the preserved Native family remain required before publishing a validated compiler increment.
+
+## Rust API contract-only import boundary
+
+The Rust source checker currently accepts source AST modules and WIT adapters; it has no public source-absent `.cinchif` module-admission API. The new Rust authority regression therefore uses the actual producer API and checked serializer, writes its genuine carrier contract, deletes the producer source, and re-reads the contract through `Iface::from_json`. It checks the retained defining nominal identity and private constructor inventory, ordinary local/qualified alias names, ignored untrusted certificate metadata and a competing forged primitive identity against the checker-owned certificate boundary. This is a contract-only authority gate, not a claim that a Rust source consumer imported a compiled module. The experimental Native CLI supplies the genuine source-absent consumer gate.
