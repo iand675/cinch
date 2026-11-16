@@ -129,7 +129,7 @@ fn pem_declarations_have_canonical_documentation() {
     }
 }
 
-/// Actual ten primitive bodies and scanner callers compile for wasm, ARM and big-endian PowerPC.
+/// Actual eleven primitive bodies and scanner callers compile for wasm, ARM and big-endian PowerPC.
 #[test]
 fn pem_actual_readonly_kernels_compile_for_portable_targets() {
     let source = include_str!("fixtures/pem-kernels-foreign.cinch");

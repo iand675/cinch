@@ -157,6 +157,46 @@ module Main where
     else let next = plus at 16 in blank-machine base next end
     else end
 
+  -- | Actual maintained private arithmetic, exact source read or bounded scanner.
+  prim proc-token :: I64 -> Bool where
+    unsafe llvm {
+      %pointer = inttoptr i64 %0 to ptr
+      %bytes = load <8 x i8>, ptr %pointer, align 1
+      %equal = icmp eq <8 x i8> %bytes, <i8 80, i8 114, i8 111, i8 99, i8 45, i8 84, i8 121, i8 112>
+      %mask = bitcast <8 x i1> %equal to i8
+      %head = icmp eq i8 %mask, -1
+      %lastptr = getelementptr i8, ptr %pointer, i64 8
+      %last = load i8, ptr %lastptr, align 1
+      %suffix = icmp eq i8 %last, 101
+      %yes = and i1 %head, %suffix
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Actual maintained private arithmetic, exact source read or bounded scanner.
+  find-end-machine :: I64 -> U64 -> U64 -> U64
+  find-end-machine base at end = if before at end then
+    let found = find-machine base at end 45 in
+    if before found end then
+      if before 0 found then
+        let remaining = minus end found in
+        if before remaining 9 then end
+        else let line = minus found 1 in let pointer = address base line in
+          if end-token pointer then line else let next = plus found 1 in find-end-machine base next end
+      else let next = plus found 1 in find-end-machine base next end
+    else end
+    else end
+
+  -- | Actual maintained private arithmetic, exact source read or bounded scanner.
+  last-begin-machine :: I64 -> U64 -> U64 -> U64 -> U64
+  last-begin-machine base at end best = if before at end then
+    let found = find-machine base at end 45 in let remaining = minus end found in
+    if before remaining 11 then best
+    else let pointer = address base found in
+      let chosen = if begin-token pointer then found else best in
+      let next = plus found 1 in last-begin-machine base next end chosen
+    else best
+
   -- | Give each independent predicate a distinct observable output bit.
   flag :: Bool -> U64 -> U64
   flag value mask = if value then mask else 0
@@ -168,4 +208,8 @@ module Main where
     let blank = hold source (blank-machine base 0 32) in
     let begin = hold source (begin-token base) in let end = hold source (end-token base) in
     let a = flag begin 1 in let b = flag end 2 in let flags = bit-or-u64 a b in
-    let count = plus found blank in let score = plus count flags in nat-to-int (natural score)
+    let priority = hold source (proc-token base) in let c = flag priority 4 in let priority-flags = bit-or-u64 flags c in
+    let end-found = hold source (find-end-machine base 0 32) in
+    let begin-found = hold source (last-begin-machine base 0 32 32) in
+    let markers = plus end-found begin-found in let total = plus found blank in
+    let count = plus total markers in let score = plus count priority-flags in nat-to-int (natural score)

@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import re
 import resource
+import shutil
 import subprocess
 import tempfile
 import time
@@ -63,7 +64,9 @@ def main() -> None:
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--compile-only', action='store_true')
     parser.add_argument('--reuse', action='store_true')
+    parser.add_argument('--relink-from',type=Path,help='Relink exact validated source/compiler IR at another clang optimization level')
     args = parser.parse_args(); os.sched_setaffinity(0, {args.cpu})
+    if args.reuse and args.relink_from:parser.error('choose executable reuse or exact-IR relinking')
     compiler = args.compiler or (ARTIFACT / 'cinch' if args.frontend == 'rust' else NATIVE)
     compiler = compiler.resolve(); provider = json.loads(args.provider.read_text())
     interfaces = json.loads(args.interfaces.read_text())['interfaces']; objects = json.loads(args.objects.read_text())
@@ -89,15 +92,22 @@ def main() -> None:
         if any(prior.get(key) != value for key, value in identity.items()) or prior['executable_sha256'] != digest(exe): raise ValueError('Refusing reuse after an exact identity change')
         compile_command, link_command = prior['compile_command'], prior['link_command']
     else:
-        if args.frontend == 'rust': compile_command = [str(compiler),'emit-ir',str(source),'-o',str(ir),'--rc-debug']
+        if args.relink_from:
+            prior=json.loads((args.relink_from/'build-identity.json').read_text())
+            prior_ir=args.relink_from/'consumer.ll'
+            if any(prior.get(key)!=value for key,value in identity.items() if key!='opt_level') or prior['llvm_sha256']!=digest(prior_ir):raise ValueError('Refusing IR relink after an exact source/compiler/provider change')
+            shutil.copyfile(prior_ir,ir);compile_command=prior['compile_command']
+            identity['ir_reused_from']={'path':str(args.relink_from.resolve()),'identity_sha256':digest(args.relink_from/'build-identity.json'),'llvm_sha256':digest(prior_ir)}
         else:
-            bundle = artifacts / 'bundle.cinch'; bundle.write_text('\n\n'.join(path.read_text() for path in sorted(paths)))
-            compile_command = [str(compiler),'--emit-ir','--rc-debug','--interfaces',str(args.interfaces.resolve()),'--objects',str(args.objects.resolve()),str(bundle),str(ir)]
-        result = subprocess.run(compile_command,cwd=project,capture_output=True,text=True,preexec_fn=host_stack)
-        (artifacts/'compile.stdout').write_text(result.stdout);(artifacts/'compile.stderr').write_text(result.stderr)
-        if result.returncode:
-            diagnostic=ir.with_name(ir.name+'.diagnostics')
-            raise RuntimeError((diagnostic.read_text() if diagnostic.exists() else result.stdout)+'\n'+result.stderr)
+            if args.frontend == 'rust': compile_command = [str(compiler),'emit-ir',str(source),'-o',str(ir),'--rc-debug']
+            else:
+                bundle = artifacts / 'bundle.cinch'; bundle.write_text('\n\n'.join(path.read_text() for path in sorted(paths)))
+                compile_command = [str(compiler),'--emit-ir','--rc-debug','--interfaces',str(args.interfaces.resolve()),'--objects',str(args.objects.resolve()),str(bundle),str(ir)]
+            result = subprocess.run(compile_command,cwd=project,capture_output=True,text=True,preexec_fn=host_stack)
+            (artifacts/'compile.stdout').write_text(result.stdout);(artifacts/'compile.stderr').write_text(result.stderr)
+            if result.returncode:
+                diagnostic=ir.with_name(ir.name+'.diagnostics')
+                raise RuntimeError((diagnostic.read_text() if diagnostic.exists() else result.stdout)+'\n'+result.stderr)
         link_command=['clang','-O'+args.opt_level,str(ir)]
         if args.frontend=='native':link_command.append(objects['object'])
         link_command += [str(args.runtime.resolve()),'-ldl','-lpthread','-lm','-o',str(exe)]

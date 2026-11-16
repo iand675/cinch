@@ -16,19 +16,22 @@ def declaration(source: str, name: str) -> str:
     return source[match.start():end if end>=0 else len(source)].rstrip()+'\n'
 
 
-def prefix() -> str:
+def prefix(source: str | None=None) -> str:
     """Copy actual private code without exporting pointers from the maintained package."""
-    source=(ROOT/'compiler/prelude/Text/Pem.cinch').read_text()
+    source=source if source is not None else (ROOT/'compiler/prelude/Text/Pem.cinch').read_text()
     output='-- | Actual PEM byte kernels with checked caller-owned test buffers.\nmodule Main where\n  import Data.Bytes\n  import Data.Bool\n  import Data.Machine\n  import Data.Nat\n  import Data.String\n\n'
-    for name in NAMES+['hold','natural','find-machine','blank-machine']:
+    optional=[name for name in ['proc-token','find-end-machine','last-begin-machine'] if re.search(r'^  (?:prim )?'+name+r' ::',source,re.M)]
+    for name in NAMES+['hold','natural','find-machine','blank-machine']+optional:
         output+='  -- | Actual maintained private arithmetic, exact source read or bounded scanner.\n'+declaration(source,name)+'\n'
     return output
 
 
-def rendered(foreign: bool=False) -> str:
+def rendered(foreign: bool=False, source: str | None=None) -> str:
     """Retain observable unknown-input reads in portable objects; exhaust byte/lane mutations on hosts."""
+    actual=source if source is not None else (ROOT/'compiler/prelude/Text/Pem.cinch').read_text()
+    priority='  prim proc-token ::' in actual
     if foreign:
-        return prefix()+'''  -- | Give each independent predicate a distinct observable output bit.
+        output=prefix(actual)+'''  -- | Give each independent predicate a distinct observable output bit.
   flag :: Bool -> U64 -> U64
   flag value mask = if value then mask else 0
 
@@ -41,7 +44,10 @@ def rendered(foreign: bool=False) -> str:
     let a = flag begin 1 in let b = flag end 2 in let flags = bit-or-u64 a b in
     let count = plus found blank in let score = plus count flags in nat-to-int (natural score)
 '''
-    return prefix()+'''  -- | Check every byte substitution at every byte position of a complete marker.
+        if priority:
+            output=output.replace('let count = plus found blank in','let priority = hold source (proc-token base) in let c = flag priority 4 in let priority-flags = bit-or-u64 flags c in\n    let end-found = hold source (find-end-machine base 0 32) in\n    let begin-found = hold source (last-begin-machine base 0 32 32) in\n    let markers = plus end-found begin-found in let total = plus found blank in\n    let count = plus total markers in').replace('let score = plus count flags in','let score = plus count priority-flags in')
+        return output
+    output=prefix(actual)+'''  -- | Check every byte substitution at every byte position of a complete marker.
   marker-values :: Bytes -> Nat -> Nat -> Nat -> Bool -> Bool
   marker-values source at original value begin = if value < 256 then
     if at < bytes-len source && (if begin then bytes-len source == 11 else bytes-len source == 10) then let changed = bytes-set source at value in let base = bytes-data source in
@@ -117,6 +123,30 @@ def rendered(foreign: bool=False) -> str:
       && marker-lanes (string-to-bytes "\\n-----END ") 0 False
       && wanted-all source 0 && blank-lanes source 0 then 0 else 1
 '''
+    if priority:
+        marker='  -- | Check unsigned arithmetic and all exhaustive read-only marker/vector predicates.\n'
+        helpers='''  -- | Check all byte substitutions in one exact priority-key lane with an explicit owner bound.
+  priority-values :: Bytes -> Nat -> Nat -> Nat -> Bool
+  priority-values source lane original value = if value < 256 then
+    if bytes-len source == 9 && lane < 9 then
+      let changed = bytes-set source lane value in let pointer = bytes-data source in
+      let actual = hold source (proc-token pointer) in
+      (if value == original then actual else not actual) && priority-values source lane original (value + 1)
+    else False
+    else True
+
+  -- | Restore every priority-key lane before advancing through the complete nine-byte token.
+  priority-lanes :: Bytes -> Nat -> Bool
+  priority-lanes source lane = if lane < bytes-len source then
+    let original = bytes-get source lane in let checked = priority-values source lane original 0 in
+    if lane < bytes-len source && original <= 255 then
+      let restored = bytes-set source lane original in checked && priority-lanes source (lane + 1)
+    else False
+    else True
+
+'''
+        output=output.replace(marker,helpers+marker).replace('&& wanted-all source 0 && blank-lanes source 0 then','&& priority-lanes (string-to-bytes "Proc-Type") 0\n      && wanted-all source 0 && blank-lanes source 0 then')
+    return output
 
 
 if __name__=='__main__':print(rendered(),end='')

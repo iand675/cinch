@@ -157,6 +157,46 @@ module Main where
     else let next = plus at 16 in blank-machine base next end
     else end
 
+  -- | Actual maintained private arithmetic, exact source read or bounded scanner.
+  prim proc-token :: I64 -> Bool where
+    unsafe llvm {
+      %pointer = inttoptr i64 %0 to ptr
+      %bytes = load <8 x i8>, ptr %pointer, align 1
+      %equal = icmp eq <8 x i8> %bytes, <i8 80, i8 114, i8 111, i8 99, i8 45, i8 84, i8 121, i8 112>
+      %mask = bitcast <8 x i1> %equal to i8
+      %head = icmp eq i8 %mask, -1
+      %lastptr = getelementptr i8, ptr %pointer, i64 8
+      %last = load i8, ptr %lastptr, align 1
+      %suffix = icmp eq i8 %last, 101
+      %yes = and i1 %head, %suffix
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Actual maintained private arithmetic, exact source read or bounded scanner.
+  find-end-machine :: I64 -> U64 -> U64 -> U64
+  find-end-machine base at end = if before at end then
+    let found = find-machine base at end 45 in
+    if before found end then
+      if before 0 found then
+        let remaining = minus end found in
+        if before remaining 9 then end
+        else let line = minus found 1 in let pointer = address base line in
+          if end-token pointer then line else let next = plus found 1 in find-end-machine base next end
+      else let next = plus found 1 in find-end-machine base next end
+    else end
+    else end
+
+  -- | Actual maintained private arithmetic, exact source read or bounded scanner.
+  last-begin-machine :: I64 -> U64 -> U64 -> U64 -> U64
+  last-begin-machine base at end best = if before at end then
+    let found = find-machine base at end 45 in let remaining = minus end found in
+    if before remaining 11 then best
+    else let pointer = address base found in
+      let chosen = if begin-token pointer then found else best in
+      let next = plus found 1 in last-begin-machine base next end chosen
+    else best
+
   -- | Check every byte substitution at every byte position of a complete marker.
   marker-values :: Bytes -> Nat -> Nat -> Nat -> Bool -> Bool
   marker-values source at original value begin = if value < 256 then
@@ -222,6 +262,25 @@ module Main where
     wanted-lanes source 0 wanted && wanted-all source (wrapping-add-u32 index 1)
     else True
 
+  -- | Check all byte substitutions in one exact priority-key lane with an explicit owner bound.
+  priority-values :: Bytes -> Nat -> Nat -> Nat -> Bool
+  priority-values source lane original value = if value < 256 then
+    if bytes-len source == 9 && lane < 9 then
+      let changed = bytes-set source lane value in let pointer = bytes-data source in
+      let actual = hold source (proc-token pointer) in
+      (if value == original then actual else not actual) && priority-values source lane original (value + 1)
+    else False
+    else True
+
+  -- | Restore every priority-key lane before advancing through the complete nine-byte token.
+  priority-lanes :: Bytes -> Nat -> Bool
+  priority-lanes source lane = if lane < bytes-len source then
+    let original = bytes-get source lane in let checked = priority-values source lane original 0 in
+    if lane < bytes-len source && original <= 255 then
+      let restored = bytes-set source lane original in checked && priority-lanes source (lane + 1)
+    else False
+    else True
+
   -- | Check unsigned arithmetic and all exhaustive read-only marker/vector predicates.
   main :: Int
   main = let source = bytes-new 16 in
@@ -231,4 +290,5 @@ module Main where
       && before 0 18446744073709551615 && not (before 18446744073709551615 0)
       && marker-lanes (string-to-bytes "-----BEGIN ") 0 True
       && marker-lanes (string-to-bytes "\n-----END ") 0 False
+      && priority-lanes (string-to-bytes "Proc-Type") 0
       && wanted-all source 0 && blank-lanes source 0 then 0 else 1
