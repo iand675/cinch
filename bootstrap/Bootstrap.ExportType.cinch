@@ -404,13 +404,22 @@ module Bootstrap.ExportType where
     Nil -> fallback
     Cons first rest -> if char-code first == 35 || char-code first == 36 || same name "_" then fallback else name) scope
   value-quantifiers :: List (Nat, String) -> List Quant -> Result String (String, List (Nat, String))
-  value-quantifiers scope quants = case quants of
-    Nil -> Ok ("", scope)
-    Cons q rest -> let name = source-binder (fresh-name "q" (list-length scope)) (quant-name q) scope in
-      (case (kind-display-in scope (quant-kind q), value-quantifiers (Cons (quant-id q, name) scope) rest) of
-        (Ok kind, Ok (more, bound)) -> Ok (string-concat-all [if quant-implicit q then "{" else "(", name, " :: ", kind, if quant-implicit q then "}" else ")", if string-length more == 0 then "" else " ", more], bound)
-        (Err error, other) -> Err error
-        (other, Err error) -> Err error)
+  value-quantifiers scope quants = case value-quantifiers-after scope (list-length scope) quants Nil of
+    Err error -> Err error
+    Ok (pieces, bound) -> Ok (string-concat-all (reverse pieces), bound)
+  -- Pieces are collected while descending and joined once on the way out.
+  -- Rendering each binder around the already-rendered tail would copy the
+  -- whole suffix at every level, which is quadratic in the binder count; the
+  -- pieces themselves are the same strings in the same order.
+  value-quantifiers-after :: List (Nat, String) -> Nat -> List Quant -> List String -> Result String (List String, List (Nat, String))
+  value-quantifiers-after scope position quants pieces = case quants of
+    Nil -> Ok (pieces, scope)
+    Cons q rest -> let name = source-binder (fresh-name "q" position) (quant-name q) scope in
+      (case kind-display-in scope (quant-kind q) of
+        Err error -> Err error
+        Ok kind -> let piece = string-concat-all [if quant-implicit q then "{" else "(", name, " :: ", kind, if quant-implicit q then "}" else ")"] in
+          let separated = case pieces of Nil -> piece; more -> string-concat-all [" ", piece] in
+          value-quantifiers-after (Cons (quant-id q, name) scope) (position + 1) rest (Cons separated pieces))
   -- Display and factory metadata share one binder allocation. A dictionary
   -- name may collide with a quantified type name without capturing it.
   value-requirement-rows :: List (Nat, String) -> List (Nat, String) -> Nat -> List Requirement -> Result String (List String)
