@@ -577,3 +577,81 @@ that source snapshot. The corresponding unpaired reports are
 [counter-only traversal](crc64-counter-before-auto-table-O2-2026-11-16.json).
 Compiler, driver, runtime and optimization identities match in each paired
 comparison. No allocation or universal throughput parity is claimed.
+
+
+## SHA-224/SHA-256 states and portable SIMD compression
+
+`Text.Sha256` implements both complete-buffer digests and immutable update,
+reset, digest/append and checkpoint APIs. `Effect.Sha256` provides inspectable
+writes, generic sinks and bounded copying. The generated compression expands
+four 32-bit schedule words in LLVM SIMD lanes, resolving dependent upper lanes
+in a second step. Four sixteen-round helpers keep the source below the
+compiler's nesting bound; scalar message operands allow the optimizer to inline
+the phases. The resulting compression has packed shifts/XORs and 384 scalar
+round rotates, with no calls to the small round primitives. It evaluates each
+round once. Chaining state uses four ordinary packed words, allowing constructor
+reuse; private wide values carry only the SIMD schedule across primitive calls.
+Exact word loads and machine remaining-length counters avoid partial-block
+reads and natural-number work inside the block loop.
+
+[Public pipeline samples](sha256-state-O2-2026-11-16.json) cover both variants
+through whole-buffer, state, checkpoint and 64/4096-byte streaming operations,
+plus the existing runtime digest and Adler-32 controls, at four input sizes.
+All 48 observable checksums match the independent SDK. Timings include input
+cloning, copied stream chunks, prefix/checkpoint buffers and fresh digest
+allocation. They exclude process startup and common input/table preparation.
+The immutable implementations have different allocation costs from mutable
+reference accumulators.
+
+Code inspection found two important lowering effects. A large inline LLVM
+compression split into independent return fragments stayed out of line and
+repeated work; it was discarded before this implementation. The small round
+primitives and sixteen-round source helpers produce one complete compression.
+A later whole-buffer path bypasses the temporary streaming state and copied
+tail, but extracting a shared variable-size renderer changed inlining and
+produced mixed small-input timings. Fixed-size renderers helped whole-buffer
+calls but slowed state calls. The final source keeps the state path's original
+rendering/finalization shape and uses fixed-size stores in the whole-buffer
+path. The [final alternating comparison](interleaved-sha256-final-shape-O2-2026-11-16.json)
+measures about 1.17x for each 32-byte whole-buffer variant. Large-buffer and
+state cases vary by roughly 0–4%; unrelated controls vary by up to 3.4%.
+No improvement for those cases is claimed. The
+[shared-render comparison](interleaved-sha256-shared-render-O2-2026-11-16.json)
+and [fixed-state-render comparison](interleaved-sha256-fixed-state-render-O2-2026-11-16.json)
+retain the regressions that motivated the final shape.
+
+The [same-binary CPU comparison](sha256-reference-cpu-O2-2026-11-16.json)
+separates the reference's detected CPU features from `GODEBUG=cpu.all=off`.
+On this host, the detected 64 KiB pipeline took about 45 microseconds and the
+portable fallback about 304 microseconds; Cinch's portable implementation
+was about 246 microseconds in the initial samples. The host advertises SHA-NI,
+AVX, SSSE3 and SSE4.1; the SDK selects its SHA instruction path with those
+features. Cinch currently uses portable SIMD schedules and scalar rounds.
+Small inputs remain slower even against the reference portable fallback.
+These results do not establish parity with hardware SHA acceleration.
+
+[Ordinary-space probes](sha256-space-2026-11-16.json) use equal-length executable
+paths, normal reclamation, one complete public operation and the same common
+setup. At 32 bytes the final SHA-256 whole-buffer path allocates 114 blocks and
+19700 bytes, versus 122 blocks and 19944 bytes in the state-based baseline.
+The SHA-256 state pipeline allocates the same 114 blocks and 19794 bytes in
+both versions. At 64 KiB, 64-byte stream chunks allocate 8342 blocks and peak
+at 148135 bytes; 4096-byte chunks allocate 270 blocks and peak at 152171 bytes.
+All probes finish with zero live allocations. These complete-process totals
+include startup and an unrelated table setup shared by the driver; they are
+not isolated kernel allocation counts. Poisoned-free validation is separate.
+
+The [state-only baseline patch](sha256-state-only-baseline.patch),
+[shared-render intermediate patch](sha256-shared-render-intermediate.patch)
+and [fixed-state-render intermediate patch](sha256-fixed-state-render-intermediate.patch)
+reconstruct every measured intermediate from the final `Text/Sha256.cinch`.
+Apply a patch to a temporary copy, verify its source hash against the report,
+and use `bench_stdlib.py --source-override Text.Sha256=PATH`.
+Corresponding unpaired reports retain the
+[state-only](sha256-state-only-O2-2026-11-16.json),
+[shared-render](sha256-shared-render-O2-2026-11-16.json),
+[fixed-state-render](sha256-fixed-state-render-O2-2026-11-16.json) and
+[final-shape](sha256-final-shape-O2-2026-11-16.json) artifacts and samples.
+Compiler, driver, optimization and runtime source identities match in every
+alternating comparison. [Validation evidence](../../bootstrap/stdlib-sha256-state-validation-results.json)
+records frontend, ownership, checkpoint and foreign-object checks.

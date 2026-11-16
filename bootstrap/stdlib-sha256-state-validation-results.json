@@ -1,0 +1,152 @@
+{
+  "description": "Standalone SHA-224/SHA-256 portable SIMD compression, persistent checkpoints, whole-buffer and inspectable stream APIs. Full stdlib goal remains open.",
+  "full_stdlib_goal_complete": false,
+  "validation_status": "passed",
+  "source_sha256": {
+    "compiler/prelude/Text/Sha256.cinch": "95e5a6dd624575bf80bf7df22ba632819dd500d4a0c5af4f32d16d4b2befcea8",
+    "compiler/prelude/Effect/Sha256.cinch": "531b0b74ab549b22d7ee6837eb4090db8b31800860afa8bec249f2f4fd64048f",
+    "compiler/tests/lib_sha256.rs": "61fc1848829d1bb647313e38ceb85af21aa5d5b007d59b4d30a704f492adad59",
+    "tooling/generate_sha256_kernels.py": "c5623b5d91c65806691c4509d19b1541c121497223f829d48d8d8a71129abd14",
+    "tooling/go_sha256_state_vectors.go": "b31c8b7e72eec3de5723fd874b68812926e327ca463ed371375d9da7cc72da6f",
+    "tooling/tests/test_generate_sha256_kernels.py": "eb5673853bc76cbcfd1107db9bbfcfba6cd298d4fb251ac402e62fd1f6c52af7",
+    "tooling/bench_stdlib.py": "68946f9806b7b909089cc7db36b6d5132c9f2eafb9483bc84436d27273c8b3cf",
+    "tooling/bench_stdlib_reference.go": "2d4e732bd400fe7a7e65c7c2dfb413c596cb407c8d8e1ef0a254cd9ffc20d598"
+  },
+  "compilers": {
+    "rust_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+    "rust_implementation_source_sha256": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+    "native_stage3_sha256": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f",
+    "compiler_prerequisite_commit": "df1f3a18",
+    "existing_compiler_gate_evidence": "stdlib-prim-wide-validation-results.json",
+    "compiler_implementation_unchanged_after_prerequisite": true,
+    "origin_main_ancestor": "aea37603811b486188a47778df47bdf64b1b502f"
+  },
+  "tests": {
+    "rust_sha256": 12,
+    "native_stage3_sha256": 10,
+    "shared_profile_tests_per_target": 3,
+    "explicit_rust_only_optimized_owner_case": true,
+    "explicit_rust_only_foreign_object_case": true,
+    "native_excludes_those_two_cases": true,
+    "rust_existing_digest_regressions": 4,
+    "fixture_rows": {
+      "arbitrary": 160,
+      "loads": 912,
+      "valid": 132
+    },
+    "fixture_sha256": "daa9056c25b13f8c0a08246a2cc4b1bb73ac45f5360dec08918801a67e68cca0",
+    "fixture_reproduces_byte_for_byte": true,
+    "all_two_chunk_splits_through_bytes": 129,
+    "ordinary_heap_limit": "32M",
+    "stack_limit": "8M",
+    "separate_poisoned_free_quarantine_budget": "256M",
+    "one_byte_stream_bytes": 65536,
+    "optimized_ephemeral_input_bytes": 65536,
+    "optimized_ephemeral_owner_iterations": 100,
+    "zero_leaks_both_modes": true,
+    "foreign_kernel_object_targets": [
+      "wasm32-unknown-unknown",
+      "aarch64-unknown-linux-gnu",
+      "powerpc64-unknown-linux-gnu big endian"
+    ],
+    "foreign_execution": false,
+    "generator_unit_tests": 3,
+    "inventory_tool_regressions": 3,
+    "generator_check": true,
+    "rust_unit": 297,
+    "rust_sha256_seconds": 159.13,
+    "native_stage3_sha256_seconds": 557.93
+  },
+  "documentation": {
+    "modules": 141,
+    "value_exports": 3702,
+    "methods": 112,
+    "diagnostics": 0,
+    "orphans": 0,
+    "source_drift": false,
+    "canonical_comments_in_both_new_modules": true,
+    "new_module_comments_have_no_reference_language_mentions": true
+  },
+  "benchmarks": {
+    "rows": 48,
+    "opt_level": 2,
+    "all_reference_checksums_match": true,
+    "report": "../benchmarks/stdlib/sha256-state-O2-2026-11-16.json",
+    "final_shape_paired": "../benchmarks/stdlib/interleaved-sha256-final-shape-O2-2026-11-16.json",
+    "shared_render_regression_paired": "../benchmarks/stdlib/interleaved-sha256-shared-render-O2-2026-11-16.json",
+    "fixed_state_render_regression_paired": "../benchmarks/stdlib/interleaved-sha256-fixed-state-render-O2-2026-11-16.json",
+    "space_probes": "../benchmarks/stdlib/sha256-space-2026-11-16.json",
+    "reference_cpu_comparison": "../benchmarks/stdlib/sha256-reference-cpu-O2-2026-11-16.json",
+    "retained_baseline_patches": [
+      "../benchmarks/stdlib/sha256-state-only-baseline.patch",
+      "../benchmarks/stdlib/sha256-shared-render-intermediate.patch",
+      "../benchmarks/stdlib/sha256-fixed-state-render-intermediate.patch"
+    ],
+    "baseline_patches_reconstruct_measured_hashes": true,
+    "small_32_byte_whole_buffer_before_over_after": {
+      "sha256": 1.173,
+      "sha224": 1.167
+    },
+    "state_and_large_buffer_throughput_gain_claimed": false,
+    "unrelated_control_max_difference_percent": 3.4,
+    "normal_space_32_byte_whole_sha256": {
+      "before": {
+        "blocks": 122,
+        "bytes": 19944
+      },
+      "after": {
+        "blocks": 114,
+        "bytes": 19700
+      }
+    },
+    "hardware_sha_parity_claimed": false
+  },
+  "codegen_inspection": {
+    "llvm_sha256": "e0ac2f247cd2749663c0f524663afbb91c823a187b771a58b5345f009aec140e",
+    "assembly_sha256": "646bbbc901a262ee6ab477547951b54c01f99ab8f33a152591b1868e7c3b594e",
+    "compression_function_assembly_sha256": "2343432ff97aaac7bd3651562077f63fe1215425311de13787a71577cf055aa6",
+    "compression_round_rotates": 384,
+    "compression_packed_shift_instructions": 180,
+    "compression_calls": [
+      "cinch.rc.drop.obj",
+      "cinch_alloc_ctor@PLT",
+      "cinch_drop_mt@PLT",
+      "cinch_drop_slow@PLT",
+      "cinch_frame_release@PLT"
+    ],
+    "small_round_schedule_and_phase_helpers_inlined_into_compression": true,
+    "block_loop_natural_number_or_owner_runtime_calls": false,
+    "exact_full_block_bytes": 64,
+    "byte_stores_use_checked_library_operations": true
+  },
+  "coverage": {
+    "complete": 8,
+    "partial": 60,
+    "unreviewed": 112,
+    "public_reference_packages": 180
+  },
+  "limitations": [
+    "Portable SIMD schedule and scalar rounds do not use optional CPU SHA instructions; the independent detected-feature reference is substantially faster.",
+    "Small-input digest pipelines still allocate and are slower than the independent portable fallback.",
+    "Immutable checkpoints, fresh digest buffers and owned stream chunks have different allocation behavior from mutable reference states.",
+    "Foreign kernels were compiled to objects but were not executed.",
+    "A runtime-size identity keeps large constant fixture setup out of the Rust checker after constant evaluation overflowed its stack; that compiler limitation is not claimed fixed.",
+    "Native wide closures, wide tail groups and public wide primitive object exports retain the restrictions recorded by the compiler prerequisite. The library uses private wide schedule primitives and ordinary-word state loops."
+  ],
+  "bootstrap": {
+    "pinned_seed_gate_rerun": true,
+    "command": "source /workspace/.tools/cinch-env.sh; taskset -c 0,1 python3 tooling/bootstrap.py check --no-pgo -j 2",
+    "cached_stage_identities_verified": true,
+    "all_stage_smokes": true,
+    "self_built_interface_only_entry_check": true,
+    "changed_source_probe": true,
+    "stage2_stage3_executable_and_llvm_byte_identical": true,
+    "gate_uses_pinned_seed_not_working_rust_compiler": true
+  },
+  "preserved_native_target_audit": {
+    "existing_evidence": "stdlib-qualified-call-preserved-target-results.json",
+    "passed": 94,
+    "historical_failures_matching_baseline": 12,
+    "rerun_for_this_library_change": false
+  }
+}
