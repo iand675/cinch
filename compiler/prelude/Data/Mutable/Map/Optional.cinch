@@ -14,6 +14,15 @@ module Data.Mutable.Map.Optional where
   export optional-map-collect, optional-map-collect-with, optional-map-delete-if
   export optional-map-equal, optional-map-equal-by
 
+  -- | A private absent-destination session distinguishing empty input from a refused binding.
+  data MissingStatus where
+    -- | No binding has been supplied during this source invocation.
+    MissingReady :: MissingStatus
+    -- | A binding was attempted and the yield callback requested immediate stop.
+    MissingAttempted :: MissingStatus
+    -- | The source returned and a retained yield callback must remain inert.
+    MissingClosed :: MissingStatus
+
   -- | Visit no entries for an absent input, or apply ordinary live pair traversal.
   optional-map-all :: forall r k v ef. Option (MutableMap r k v) -> (k -> v ->{ef} Bool) ->{Mut r | ef} Bool
   optional-map-all input action = case input of None -> True; Some map -> mutable-map-all map action
@@ -31,19 +40,22 @@ module Data.Mutable.Map.Optional where
   optional-map-source input yield = let exhausted = optional-map-all input yield in ()
 
   -- | Record that an absent destination received a binding, then refuse further yields.
-  missing-yield :: forall r k v ef. Var r (Result MapError Unit) -> k -> v ->{Mut r | ef} Bool
+  missing-yield :: forall r k v ef. Var r MissingStatus -> k -> v ->{Mut r | ef} Bool
   missing-yield status key value = case var-read status of
-    Err error -> False
-    Ok unit -> let saved = var-write status (Err MapMissingDestination) in False
+    MissingAttempted -> False
+    MissingClosed -> False
+    MissingReady -> let saved = var-write status MissingAttempted in False
 
   -- | Consume an empty source successfully for an absent destination; refuse its first actual binding.
   optional-map-insert :: forall r k v ef. Option (MutableMap r k v) -> ((k -> v ->{Mut r | ef} Bool) ->{Mut r | ef} Unit) ->{Mut r | ef} Result MapError Unit
   optional-map-insert destination source = case destination of
     Some map -> mutable-map-insert map source
     None ->
-      let status = var-new (Ok () :: Result MapError Unit) in
+      let status = var-new MissingReady in
       let consumed = source (missing-yield status) in
-      var-read status
+      let final = var-read status in
+      let closed = var-write status MissingClosed in
+      case final of MissingReady -> Ok (); MissingAttempted -> Err MapMissingDestination; MissingClosed -> Err MapIdentityViolation
 
   -- | Copy into the supplied destination; absence is unchanged for an empty source.
   optional-map-copy :: forall r s k v. Option (MutableMap r k v) -> Option (MutableMap s k v) ->{Mut r, Mut s} Result MapError Unit

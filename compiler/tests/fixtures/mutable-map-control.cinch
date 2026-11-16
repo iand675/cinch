@@ -192,6 +192,23 @@ module Main where
               None -> False
               Some original -> replaced && var-read original == 41 && var-read fresh == 99
 
+  -- | Retain a producer callback deliberately to test that its session closes on return.
+  retain-yield :: forall r. Var r (Nat -> Nat ->{Mut r} Bool) -> (Nat -> Nat ->{Mut r} Bool) ->{Mut r} Unit
+  retain-yield retained yield =
+    let saved = var-write retained yield in
+    let accepted = yield 1 10 in ()
+
+  -- | A source cannot mutate its former destination through a yield retained past completion.
+  closed-source-case :: forall r. Unit ->{Mut r} Bool
+  closed-source-case unit =
+    let retained = var-new ((\key value -> False) :: Nat -> Nat ->{Mut r} Bool) in
+    let map = mutable-map-new () in
+    let inserted = succeeded (mutable-map-insert map (retain-yield retained)) in
+    let yield = var-read retained in
+    let late = yield 2 20 in
+    let missing = case mutable-map-lookup map 2 of None -> True; Some value -> False in
+    inserted && not late && missing && mutable-map-size map == 1 && present 10 (mutable-map-lookup map 1)
+
   -- | Construct binary64 test inputs with preserved NaN and zero bit patterns.
   prim float-input :: U64 -> F64 where
     llvm {
@@ -243,4 +260,5 @@ module Main where
     else if not (policy-case ()) then 9
     else if not (owner-case ()) then 10
     else if not (shared-value-case ()) then 11
+    else if not (closed-source-case ()) then 12
     else 0

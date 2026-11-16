@@ -173,7 +173,10 @@ Insert/Collect consume pairs in yield order and therefore keep the last
 equivalent key/value. On a checked insertion refusal, Insert stops the
 producer and returns the error after preserving its already-applied
 prefix. A defensive callback wrapper makes any further producer yields
-inert after refusal. Collect releases its unpublished partial map on
+inert after refusal. Before a normally returning source's result is
+exposed, its private insertion session is closed; a retained callback
+then returns False without mutating the destination. This does not claim
+finalization across arbitrary non-returning user effects. Collect releases its unpublished partial map on
 error. Arbitrary producers must obey the stop protocol and cannot expect
 transactional rollback of their own side effects.
 

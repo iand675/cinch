@@ -40,6 +40,9 @@ these specialized workers do not establish that gate.
   implementation first exposed my reserved identifier `target`; it is
   renamed to `destination-map`. The final complete Optional/Float check
   has not yet run. No linked executable or runtime verdict is claimed.
+  The later session-closing guard and its retained-callback control also
+  remain unqualified; the earlier source verdict is tied to its retained
+  input hashes, not to subsequent edits.
 
 Exact inputs and diagnostics remain under `build/maps-source-probe`,
 `build/maps-region-probes` and `build/maps-native-source-probe`. The
@@ -56,11 +59,14 @@ The published generation receipt explicitly does not qualify the library.
 
 The prepared trace and float templates render these independent values;
 they were generated and Python syntax-checked, but no Cinch consumer was
-compiled or executed. The separate control has eleven first-failure
+compiled or executed. The separate control has twelve first-failure
 groups: binding utilities, views/early stop, clear during traversal,
 NaN clone/self-copy, optional absence, growth/overwrite, delete/reinsert
 with immediate slot reuse, nested traversal, explicit colliding policy,
-owned Bytes after source clear, and shallow shared mutable values.
+owned Bytes after source clear, shallow shared mutable values, and a source
+retaining its yield callback after completion. The insertion/absent-source
+session is closed before returning; late yields return False without
+mutating the former destination.
 Further value-NaN/callback mutation/error-prefix controls, source-absent
 interfaces, capacity models and public benchmark gates remain required.
 

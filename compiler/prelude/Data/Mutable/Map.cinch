@@ -44,6 +44,15 @@ module Data.Mutable.Map where
     -- | Own one policy, a digest-to-identities index and the live entry list.
     MapState :: MapKeyPolicy k -> HashTable r Nat (List (ListElement r (k, v))) -> LinkedList r (k, v) -> MutableMap r k v
 
+  -- | A private insertion session preventing late or post-refusal yields from changing the destination.
+  data InsertStatus where
+    -- | The source is still allowed to supply bindings during this invocation.
+    InsertAccepting :: InsertStatus
+    -- | The first checked refusal is retained until the producer returns.
+    InsertRejected :: MapError -> InsertStatus
+    -- | The producer returned; any retained yield closure is now inert.
+    InsertClosed :: InsertStatus
+
   -- | Select pure key functions explicitly, including non-reflexive comparisons.
   map-key-policy :: forall k. (k -> Nat) -> (k -> k -> Bool) -> MapKeyPolicy k
   map-key-policy digest equal = KeyPolicy digest equal
@@ -215,19 +224,23 @@ module Data.Mutable.Map where
     Cons pair rest -> case pair of (key, value) -> if yield key value then map-source-from-list rest yield else ()
 
   -- | Apply one producer binding while suppressing further updates after a checked refusal.
-  insert-yield :: forall r k v ef. MutableMap r k v -> Var r (Result MapError Unit) -> k -> v ->{Mut r | ef} Bool
+  insert-yield :: forall r k v ef. MutableMap r k v -> Var r InsertStatus -> k -> v ->{Mut r | ef} Bool
   insert-yield map status key value = case var-read status of
-    Err error -> False
-    Ok unit -> case mutable-map-set map key value of
-      Err error -> let saved = var-write status (Err error) in False
+    InsertRejected error -> False
+    InsertClosed -> False
+    InsertAccepting -> case mutable-map-set map key value of
+      Err error -> let saved = var-write status (InsertRejected error) in False
       Ok unit -> True
 
   -- | Consume a stop-obeying pair source; later equivalent keys win and errors preserve the applied prefix.
+  -- Yield calls after refusal or after the source returns are inert and return False.
   mutable-map-insert :: forall r k v ef. MutableMap r k v -> ((k -> v ->{Mut r | ef} Bool) ->{Mut r | ef} Unit) ->{Mut r | ef} Result MapError Unit
   mutable-map-insert map source =
-    let status = var-new (Ok () :: Result MapError Unit) in
+    let status = var-new InsertAccepting in
     let consumed = source (insert-yield map status) in
-    var-read status
+    let final = var-read status in
+    let closed = var-write status InsertClosed in
+    case final of InsertRejected error -> Err error; InsertAccepting -> Ok (); InsertClosed -> Err MapIdentityViolation
 
   -- | Collect a pair source into fresh storage under an explicit captured policy, with last binding wins.
   mutable-map-collect-with :: forall r k v ef. MapKeyPolicy k -> ((k -> v ->{Mut r | ef} Bool) ->{Mut r | ef} Unit) ->{Mut r | ef} Result MapError (MutableMap r k v)
