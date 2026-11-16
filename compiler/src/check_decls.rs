@@ -412,6 +412,18 @@ fn builtin_type_name(name: &str) -> bool {
     )
 }
 
+/// Primitive spellings reserved by data and refinement declarations.
+/// Other kernel type formers can have distinct, qualified source-owned names;
+/// recognizing their spelling is not permission to skip a nominal declaration.
+fn reserved_data_type_name(name: &str) -> bool {
+    Scalar::parse(name).is_some() || matches!(name,
+        "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym"
+            | "Array" | "Tensor" | "Columnar" | "TVar"
+            | "Code" | "Syntax" | "TypeSyntax" | "PackedCode"
+            | "SyntaxBinding" | "Declarations" | "Name" | "Secret"
+            | "IoCap" | "FileReadCap" | "FileWriteCap" | "ProcCap")
+}
+
 /// The effect labels a foreign binding's row must account for (foreign
 /// function interface specification section 4: I/O, global state,
 /// blocking, divergence, reentrancy, thread affinity and failure).
@@ -3114,6 +3126,8 @@ impl Checker {
             /// The type names the declaration's body mentions.
             references: Vec<String>,
             data_family: bool,
+            /// The collecting branch's actual reserved-name policy for this declaration kind.
+            reserved: bool,
             fields: Option<Vec<String>>,
             field_erased: Vec<bool>,
         }
@@ -3130,6 +3144,7 @@ impl Checker {
                         params: &data.params,
                         references,
                         data_family: true,
+                        reserved: reserved_data_type_name(&data.name.text),
                         fields: None,
                         field_erased: Vec::new(),
                     });
@@ -3144,6 +3159,7 @@ impl Checker {
                         params: &rec.params,
                         references,
                         data_family: false,
+                        reserved: matches!(rec.name.text.as_str(), "Array" | "Tensor" | "Columnar" | "TVar"),
                         fields: Some(rec.fields.iter().map(|f| f.name.text.clone()).collect()),
                         field_erased: rec.fields.iter().map(|f| f.erased).collect(),
                     });
@@ -3182,10 +3198,10 @@ impl Checker {
             }
         }
         for h in heads {
-            if Scalar::parse(&h.name.text).is_some() || builtin_type_name(&h.name.text) {
-                // The collecting branch refuses a builtin redefinition by
-                // name; registering it first would shadow the builtin for
-                // the rest of the module.
+            if h.reserved {
+                // Match the collecting branch's policy exactly. Other
+                // kernel spellings may name a qualified source-owned
+                // nominal; omitting its head would lose that ownership.
                 continue;
             }
             // A name this module already declares is a duplicate; the
@@ -3934,29 +3950,7 @@ impl Checker {
                 }
                 ast::Decl::Data(data) => {
                     let set = self.validate_attr_site(decl_attrs, AttrSite::TypeDecl)?;
-                    if Scalar::parse(&data.name.text).is_some()
-                        || matches!(
-                            data.name.text.as_str(),
-                            "Nat"
-                                | "Int"
-                                | "Bool"
-                                | "Unit"
-                                | "Bytes"
-                                | "Sym"
-                                | "Array" | "Tensor" | "Columnar" | "TVar"
-                                | "Code"
-                                | "Syntax"
-                                | "TypeSyntax" | "PackedCode"
-                                | "SyntaxBinding"
-                                | "Declarations"
-                                | "Name"
-                                | "Secret"
-                                | "IoCap"
-                                | "FileReadCap"
-                                | "FileWriteCap"
-                                | "ProcCap"
-                        )
-                    {
+                    if reserved_data_type_name(&data.name.text) {
                         return Err(Error::at(
                             data.name.span,
                             format!("{} is a builtin primitive type and cannot be redefined", data.name.text),
@@ -4265,29 +4259,7 @@ impl Checker {
                     // types design): the runtime representation IS the
                     // container; the witness is `Prop`-erased (D31).
                     let _set = self.validate_attr_site(decl_attrs, AttrSite::TypeDecl)?;
-                    if Scalar::parse(&r.name.text).is_some()
-                        || matches!(
-                            r.name.text.as_str(),
-                            "Nat"
-                                | "Int"
-                                | "Bool"
-                                | "Unit"
-                                | "Bytes"
-                                | "Sym"
-                                | "Array" | "Tensor" | "Columnar" | "TVar"
-                                | "Code"
-                                | "Syntax"
-                                | "TypeSyntax" | "PackedCode"
-                                | "SyntaxBinding"
-                                | "Declarations"
-                                | "Name"
-                                | "Secret"
-                                | "IoCap"
-                                | "FileReadCap"
-                                | "FileWriteCap"
-                                | "ProcCap"
-                        )
-                    {
+                    if reserved_data_type_name(&r.name.text) {
                         return Err(Error::at(
                             r.name.span,
                             format!("{} is a builtin primitive type and cannot be redefined", r.name.text),
