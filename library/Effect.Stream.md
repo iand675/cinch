@@ -136,7 +136,7 @@ Expose at most limit more bytes without reading beyond that limit.
 Mirror every returned chunk to a sink before delivering it to the reader.
 No buffering occurs; a sink failure is returned with both continuations advanced.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 373
+[Source](/reference-sources/Effect.Stream.cinch) · line 410
 
 <a id="value-7265616465722d7465652d777269746572"></a>
 
@@ -147,7 +147,7 @@ No buffering occurs; a sink failure is returned with both continuations advanced
 Inspect a tee reader's advanced mirror sink, including after read failures.
 This exposes persistent memory-sink results without implicit shared mutation.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 378
+[Source](/reference-sources/Effect.Stream.cinch) · line 415
 
 <a id="value-73747265616d2d636f7079"></a>
 
@@ -158,7 +158,7 @@ This exposes persistent memory-sink results without implicit shared mutation.
 Copy until EOF with a positive chunk size. Return bytes transferred and
 both advanced handles; failures preserve those handles as well.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 337
+[Source](/reference-sources/Effect.Stream.cinch) · line 374
 
 <a id="value-73747265616d2d636f70792d6e"></a>
 
@@ -169,7 +169,7 @@ both advanced handles; failures preserve those handles as well.
 Copy exactly count bytes without reading beyond that boundary. An early
 EOF is a named error. Both returned handles reflect completed operations.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 354
+[Source](/reference-sources/Effect.Stream.cinch) · line 391
 
 <a id="value-73747265616d2d72656164"></a>
 
@@ -191,7 +191,7 @@ successful positive read means EOF. A zero request leaves the reader alone.
 Read until EOF using positive-sized chunks. Every chunk is copied once
 into the final output; failures still return the advanced reader.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 322
+[Source](/reference-sources/Effect.Stream.cinch) · line 359
 
 <a id="value-73747265616d2d726561642d61742d6c65617374"></a>
 
@@ -202,7 +202,7 @@ into the final output; failures still return the advanced reader.
 Read a minimum into a maximum-sized result. A minimum greater than the
 maximum is rejected before invoking the reader.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 304
+[Source](/reference-sources/Effect.Stream.cinch) · line 341
 
 <a id="value-73747265616d2d726561642d6578616374"></a>
 
@@ -212,7 +212,7 @@ maximum is rejected before invoking the reader.
 
 Read exactly n bytes or report how many were obtained before EOF.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 299
+[Source](/reference-sources/Effect.Stream.cinch) · line 336
 
 <a id="value-73747265616d2d726561646572"></a>
 
@@ -242,9 +242,10 @@ callbacks. Counts larger than the input are rejected as protocol errors.
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">stream-write-all</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span> <span class="tok-constructor">Nat</span>), (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>))))</code></pre>
 
 Write a full chunk despite short writes. Zero progress becomes a named
-short-write error instead of an infinite retry. The next sink is retained.
+short-write error. The first offer borrows the original input; after a
+short write, private backing and fresh adaptive windows keep copying linear.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 246
+[Source](/reference-sources/Effect.Stream.cinch) · line 247
 
 <a id="value-73747265616d2d77726974652d737472696e67"></a>
 
@@ -254,7 +255,7 @@ short-write error instead of an infinite retry. The next sink is retained.
 
 Encode text as UTF-8 and completely write the resulting bytes.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 264
+[Source](/reference-sources/Effect.Stream.cinch) · line 301
 
 <a id="value-73747265616d2d777269746572"></a>
 
@@ -294,7 +295,7 @@ Flatten copied memory chunks once into a fresh buffer. Other sinks return None.
 
 Inspect the advanced children of a broadcast sink. Other sink types return None.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 285
+[Source](/reference-sources/Effect.Stream.cinch) · line 322
 
 <a id="value-7772697465722d636f6e636174"></a>
 
@@ -305,7 +306,7 @@ Inspect the advanced children of a broadcast sink. Other sink types return None.
 Broadcast each chunk in list order. Empty lists accept and discard it.
 An error stops before subsequent sinks, retaining already advanced sinks.
 
-[Source](/reference-sources/Effect.Stream.cinch) · line 269
+[Source](/reference-sources/Effect.Stream.cinch) · line 306
 
 <a id="value-7772697465722d64697363617264"></a>
 
@@ -329,4 +330,4 @@ Borrow a descriptor for writing; the caller retains close responsibility.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Stream.cinch`. Source SHA-256: `00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Stream.cinch`. Source SHA-256: `e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

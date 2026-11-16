@@ -157,9 +157,9 @@
     {
       "module": "Data.Bytes.Utf8",
       "path": "compiler/prelude/Data/Bytes/Utf8.cinch",
-      "sha256": "6c73d599aef05a9854c78a02b6dcd26e6f40dda24ac95dba6dc07d13d7c1cdb6",
+      "sha256": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
       "embedded": false,
-      "values": 26,
+      "values": 28,
       "public_methods": 0
     },
     {
@@ -637,7 +637,7 @@
     {
       "module": "Data.Unicode.Tables",
       "path": "compiler/prelude/Data/Unicode/Tables.cinch",
-      "sha256": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+      "sha256": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
       "embedded": false,
       "values": 16,
       "public_methods": 0
@@ -925,7 +925,7 @@
     {
       "module": "Effect.Stream",
       "path": "compiler/prelude/Effect/Stream.cinch",
-      "sha256": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33",
+      "sha256": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
       "embedded": false,
       "values": 24,
       "public_methods": 0
@@ -1160,6 +1160,14 @@
       "sha256": "a22d0acc3c1f391ed0207a94984a8b6c93036239ac88f449f84324dd7ee8d478",
       "embedded": false,
       "values": 5,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Json.Codec",
+      "path": "compiler/prelude/Text/Json/Codec.cinch",
+      "sha256": "ae4470f5497bb4558ed11df1bb534d7777b041e02ab0898015172971813eb138",
+      "embedded": false,
+      "values": 71,
       "public_methods": 0
     },
     {

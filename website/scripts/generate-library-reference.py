@@ -139,6 +139,7 @@ DESCRIPTIONS = {
 'Text.Parse':'A source-distributed parser toolkit over the lexer/scanner vocabulary.',
 'Text.Json':'JSON parsing and rendering over Data.Json, with explicit errors and builder-based output.',
 'Text.Json.Value':'Owned JSON documents and navigation tapes, exact source spans and numbers, resumable lexical state, and byte-preserving formatting.',
+'Text.Json.Codec':'Explicit typed JSON codecs, record field policies, custom conversion callbacks and exact binary64 formatting.',
 'Text.Builder':'An efficient text-construction vocabulary for assembling many fragments before rendering.',
 'Text.Regex':'Regular-expression parsing/matching and replacement under the module\'s admitted regex language.',
 'Text.Args':'Command-line argument processing and its named value/error vocabulary.',

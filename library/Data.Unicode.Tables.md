@@ -38,7 +38,7 @@ This module exports no type declarations.
 
 Read one immutable ascii-fold entry; an out-of-range index returns zero.
 
-[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 21452
+[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 21497
 
 <a id="value-756e69636f64652d646174612d636173652d626f756e6473"></a>
 
@@ -48,7 +48,7 @@ Read one immutable ascii-fold entry; an out-of-range index returns zero.
 
 Read one immutable case-bounds entry; an out-of-range index returns zero.
 
-[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 20533
+[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 20578
 
 <a id="value-756e69636f64652d646174612d636173652d636f756e74"></a>
 
@@ -58,7 +58,7 @@ Read one immutable case-bounds entry; an out-of-range index returns zero.
 
 Number of complete preserved simple-case range records.
 
-[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 15
+[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 60
 
 <a id="value-756e69636f64652d646174612d636173652d64656c746173"></a>
 
@@ -68,7 +68,7 @@ Number of complete preserved simple-case range records.
 
 Read one immutable case-deltas entry; an out-of-range index returns zero.
 
-[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 20932
+[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 20977
 
 <a id="value-756e69636f64652d646174612d636c617373"></a>
 
@@ -78,7 +78,7 @@ Read one immutable case-deltas entry; an out-of-range index returns zero.
 
 Read one complete code-point class word without allocation; values beyond U+10FFFF return zero.
 
-[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 37
+[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 82
 
 <a id="value-756e69636f64652d646174612d636c6173732d6469726563746f7279"></a>
 
@@ -88,7 +88,7 @@ Read one complete code-point class word without allocation; values beyond U+10FF
 
 Read one immutable class-directory entry; an out-of-range index returns zero.
 
-[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 48
+[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 93
 
 <a id="value-756e69636f64652d646174612d636c6173732d6d65746164617461"></a>
 
@@ -98,7 +98,7 @@ Read one immutable class-directory entry; an out-of-range index returns zero.
 
 Read one immutable class-metadata entry; an out-of-range index returns zero.
 
-[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 10463
+[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 10508
 
 <a id="value-756e69636f64652d646174612d636c6173732d72756e73"></a>
 
@@ -108,7 +108,7 @@ Read one immutable class-metadata entry; an out-of-range index returns zero.
 
 Read one immutable class-runs entry; an out-of-range index returns zero.
 
-[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 5021
+[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 5066
 
 <a id="value-756e69636f64652d646174612d666f6c642d636f756e74"></a>
 
@@ -118,7 +118,7 @@ Read one immutable class-runs entry; an out-of-range index returns zero.
 
 Number of exceptional simple-fold cycle edges.
 
-[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 19
+[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 64
 
 <a id="value-756e69636f64652d646174612d666f6c642d6f72626974"></a>
 
@@ -128,7 +128,7 @@ Number of exceptional simple-fold cycle edges.
 
 Read one immutable fold-orbit entry; an out-of-range index returns zero.
 
-[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 21331
+[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 21376
 
 <a id="value-756e69636f64652d646174612d72616e67652d7265636f726473"></a>
 
@@ -138,7 +138,7 @@ Read one immutable fold-orbit entry; an out-of-range index returns zero.
 
 Read one immutable range-records entry; an out-of-range index returns zero.
 
-[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 12263
+[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 12308
 
 <a id="value-756e69636f64652d646174612d7461626c652d636f756e74"></a>
 
@@ -148,7 +148,7 @@ Read one immutable range-records entry; an out-of-range index returns zero.
 
 Number of distinct named immutable range tables.
 
-[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 23
+[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 68
 
 <a id="value-756e69636f64652d646174612d7461626c652d64657363726970746f72"></a>
 
@@ -158,7 +158,7 @@ Number of distinct named immutable range tables.
 
 Read one immutable table-descriptor entry; an out-of-range index returns zero.
 
-[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 11950
+[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 11995
 
 <a id="value-756e69636f64652d646174612d7461626c652d696e666f"></a>
 
@@ -168,7 +168,7 @@ Read one immutable table-descriptor entry; an out-of-range index returns zero.
 
 Read one immutable table-info entry; an out-of-range index returns zero.
 
-[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 11637
+[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 11682
 
 <a id="value-756e69636f64652d646174612d7475726b69632d626f756e6473"></a>
 
@@ -178,7 +178,7 @@ Read one immutable table-info entry; an out-of-range index returns zero.
 
 Read one immutable turkic-bounds entry; an out-of-range index returns zero.
 
-[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 21607
+[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 21652
 
 <a id="value-756e69636f64652d646174612d7475726b69632d64656c746173"></a>
 
@@ -188,8 +188,8 @@ Read one immutable turkic-bounds entry; an out-of-range index returns zero.
 
 Read one immutable turkic-deltas entry; an out-of-range index returns zero.
 
-[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 21629
+[Source](/reference-sources/Data.Unicode.Tables.cinch) · line 21674
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Unicode/Tables.cinch`. Source SHA-256: `c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Unicode/Tables.cinch`. Source SHA-256: `52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
