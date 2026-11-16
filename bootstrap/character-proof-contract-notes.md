@@ -43,7 +43,13 @@ and display-only reexports, and the old/new direct conversion comparison. The
 Unicode runtime probe passed normal and poisoned-free execution with zero
 leaks against the original display-only library interface.
 
-This is partial validation. The current Rust exporter tests, preserved compiler
-gates and a new full native bootstrap fixed point remain required before
-integration. The earlier scoped-argument fixed-point receipt belongs to its own
-source snapshot and does not verify this correction.
+`character-proof-contract-gates.json` records the complete character-specific
+gates. It includes the parent Rust interface target's six passing tests at its
+own source revision, and this lane's complete native fixed point, including
+identical executables, LLVM and 51 canonical interfaces, the interface-only
+consumer and changed-source diagnostic rebuild. The stage-3 compiler also
+passes all 31 character checking outcomes, both zero-leak Unicode runs and all
+11 executions of the earlier scoped-argument regression. The isolated report
+retains its original partial-validation status. The earlier scoped-argument
+fixed point and subsequent parent compiler changes belong to separate source
+snapshots.
