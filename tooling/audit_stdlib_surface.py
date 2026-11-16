@@ -49,7 +49,7 @@ HOMES = {
     "sync": ["Effect.Stm"], "sync/atomic": ["Effect.Stm"], "syscall": ["Prim.Sys"],
     "testing": ["Effect.Test", "Effect.Benchmark", "Effect.Coverage"],
     "text/scanner": ["Text.Lex", "Text.Scan"], "time": ["Data.Date", "Data.Time", "Effect.Clock"],
-    "unicode": ["Data.Char", "Data.Unicode", "Data.Unicode.Kernel", "Data.Unicode.Tables", "Data.Unicode.Range", "Data.Unicode.Names"], "unicode/utf16": ["Text.Utf16"], "unicode/utf8": ["Data.Char", "Data.String", "Data.Bytes.Utf8"],
+    "unicode": ["Data.Char", "Data.Unicode", "Data.Unicode.Kernel", "Data.Unicode.Tables", "Data.Unicode.Range", "Data.Unicode.Names"], "unicode/utf16": ["Text.Utf16"], "unicode/utf8": ["Data.Char", "Data.String", "Data.Bytes.Utf8", "Text.Utf8"],
 }
 
 EVIDENCE = {

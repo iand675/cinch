@@ -101,7 +101,7 @@ Parser state: the remaining located tokens, how many tokens were
 consumed (the span combinator's exactness), the span of the last
 consumed token, and the recovered (soft) errors so far.
 
-[Source](/reference-sources/Text.Parse.cinch) · line 281
+[Source](/reference-sources/Text.Parse.cinch) · line 282
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PState</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LToken</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Span</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseError</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">PState</span>))))</code></pre>
 
@@ -144,7 +144,7 @@ then the recovered ones in occurrence order).
 The parse outcome: the value with its recovered errors, or the
 megaparsec-style bundle of the hard failure plus recovered ones.
 
-[Source](/reference-sources/Text.Parse.cinch) · line 570
+[Source](/reference-sources/Text.Parse.cinch) · line 571
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Parsed</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseError</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseOutcome</span> <span class="tok-variable">a</span>))</code></pre>
 
@@ -159,7 +159,7 @@ megaparsec-style bundle of the hard failure plus recovered ones.
 A parser: a function from state to reply (megaparsec's `ParsecT`
 spine specialized to the pure token stream).
 
-[Source](/reference-sources/Text.Parse.cinch) · line 309
+[Source](/reference-sources/Text.Parse.cinch) · line 310
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MkParser</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">PState</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Reply</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>)</code></pre>
 
@@ -173,7 +173,7 @@ A reply: megaparsec's consumed/empty success and failure
 distinction. `ROk` carries the expected-set hint for merging;
 `RErr` carries the error and the recovered errors so far.
 
-[Source](/reference-sources/Text.Parse.cinch) · line 303
+[Source](/reference-sources/Text.Parse.cinch) · line 304
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ROk</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">PState</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ErrorItem</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Reply</span> <span class="tok-variable">a</span>))))</code></pre>
 
@@ -190,7 +190,7 @@ distinction. `ROk` carries the expected-set hint for merging;
 Backtracking (megaparsec's `try`): a failure becomes an
 empty-failure so `or-else` may try the alternative.
 
-[Source](/reference-sources/Text.Parse.cinch) · line 340
+[Source](/reference-sources/Text.Parse.cinch) · line 341
 
 <a id="value-6265747765656e2d70"></a>
 
@@ -266,7 +266,7 @@ succeeds twice) and stands alone in a user parser even though
 API finding recorded at D307: the old token-consuming form ran
 twice under the runner and the second run failed).
 
-[Source](/reference-sources/Text.Parse.cinch) · line 455
+[Source](/reference-sources/Text.Parse.cinch) · line 456
 
 <a id="value-6578706563742d6f70"></a>
 
@@ -309,7 +309,7 @@ twice under the runner and the second run failed).
 The explicit failure (megaparsec's `fail`): a fancy error at the
 current position.
 
-[Source](/reference-sources/Text.Parse.cinch) · line 467
+[Source](/reference-sources/Text.Parse.cinch) · line 468
 
 <a id="value-6c6162656c2d70"></a>
 
@@ -320,7 +320,7 @@ current position.
 Naming a parser's expectation (megaparsec's `label`): an
 empty-failure's expected set becomes the label.
 
-[Source](/reference-sources/Text.Parse.cinch) · line 366
+[Source](/reference-sources/Text.Parse.cinch) · line 367
 
 <a id="value-6c6f6f6b2d61686561642d70"></a>
 
@@ -330,7 +330,7 @@ empty-failure's expected set becomes the label.
 
 Look-ahead: parse without consuming.
 
-[Source](/reference-sources/Text.Parse.cinch) · line 472
+[Source](/reference-sources/Text.Parse.cinch) · line 473
 
 <a id="value-6d616e792d70"></a>
 
@@ -341,7 +341,7 @@ Look-ahead: parse without consuming.
 Repetition and separators. `many-p` never fails; both stop at the
 first empty-failure and propagate consumed failures.
 
-[Source](/reference-sources/Text.Parse.cinch) · line 493
+[Source](/reference-sources/Text.Parse.cinch) · line 494
 
 <a id="value-6e6f742d666f6c6c6f7765642d62792d70"></a>
 
@@ -352,7 +352,7 @@ first empty-failure and propagate consumed failures.
 megaparsec's `notFollowedBy`: succeed (consuming nothing) only
 when the parser fails.
 
-[Source](/reference-sources/Text.Parse.cinch) · line 479
+[Source](/reference-sources/Text.Parse.cinch) · line 480
 
 <a id="value-6f7074696f6e616c2d70"></a>
 
@@ -371,7 +371,7 @@ when the parser fails.
 Choice (megaparsec's `<|>`): the right parser runs only when the
 left failed without consuming; two empty failures merge.
 
-[Source](/reference-sources/Text.Parse.cinch) · line 348
+[Source](/reference-sources/Text.Parse.cinch) · line 349
 
 <a id="value-70617273652d62696e64"></a>
 
@@ -383,7 +383,7 @@ Sequencing (megaparsec's `>>=`): consumed flags combine, and the
 expected hints merge only when the second parser consumed
 nothing.
 
-[Source](/reference-sources/Text.Parse.cinch) · line 326
+[Source](/reference-sources/Text.Parse.cinch) · line 327
 
 <a id="value-70617273652d6661696c"></a>
 
@@ -417,7 +417,7 @@ nothing.
 
 The combinator core.
 
-[Source](/reference-sources/Text.Parse.cinch) · line 320
+[Source](/reference-sources/Text.Parse.cinch) · line 321
 
 <a id="value-7073746174652d636f756e74"></a>
 
@@ -459,7 +459,7 @@ The combinator core.
 
 The bundle's rendering: every error, megaparsec-style, in order.
 
-[Source](/reference-sources/Text.Parse.cinch) · line 234
+[Source](/reference-sources/Text.Parse.cinch) · line 235
 
 <a id="value-72656e6465722d6974656d"></a>
 
@@ -478,7 +478,7 @@ The bundle's rendering: every error, megaparsec-style, in order.
 The runner with the identity recovery handler: the bundle carries
 the typed errors exactly as the parser reported them.
 
-[Source](/reference-sources/Text.Parse.cinch) · line 618
+[Source](/reference-sources/Text.Parse.cinch) · line 619
 
 <a id="value-72756e2d7061727365722d666e"></a>
 
@@ -504,7 +504,7 @@ dispatch (named refusal above, decision D23). The hard error
 passes through `recover`; the recovered errors of the run stay in
 the bundle.
 
-[Source](/reference-sources/Text.Parse.cinch) · line 594
+[Source](/reference-sources/Text.Parse.cinch) · line 595
 
 <a id="value-736174697366792d63686172"></a>
 
@@ -581,7 +581,7 @@ span, from the first consumed token's start to the last
 consumed token's end; a parse that consumes nothing reports a
 zero-width span at the current token.
 
-[Source](/reference-sources/Text.Parse.cinch) · line 525
+[Source](/reference-sources/Text.Parse.cinch) · line 526
 
 <a id="value-746f6b656e2d70"></a>
 
@@ -593,7 +593,7 @@ The token matcher primitive: consume the head token when the
 predicate decodes it, otherwise an empty failure carrying the
 offending item and the expected set.
 
-[Source](/reference-sources/Text.Parse.cinch) · line 381
+[Source](/reference-sources/Text.Parse.cinch) · line 382
 
 <a id="value-776974682d7265636f766572792d70"></a>
 
@@ -608,8 +608,8 @@ recovered error in the bundle's soft list and the parse
 continues. If the recovery handler fails too, the original error
 stands (the handler is tried once: one-shot recovery).
 
-[Source](/reference-sources/Text.Parse.cinch) · line 547
+[Source](/reference-sources/Text.Parse.cinch) · line 548
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Parse.cinch`. Source SHA-256: `4b6d00ab84e6969cf6fe8a21f29a255a9871c048b6df4baab006734efd7fabed`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Parse.cinch`. Source SHA-256: `4fe975aa19fd3e43909a368f57dd13e11e86a5ab90192834a9591e27e448da6b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

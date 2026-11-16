@@ -139,4 +139,4 @@ scalars).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Shellwords.cinch`. Source SHA-256: `7b371e38d5fdfeb48bcd293783859f56e645870a217f605036f5e0d5aaa486a9`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Shellwords.cinch`. Source SHA-256: `a37ca53b9d6ab728f032df39413d1584cbcbdeea29fd40103c0219cc99e643c9`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -64,7 +64,7 @@ module Text.Shellwords where
   import Data.Option
   import Data.Result
   import Data.String
-  import Text.Scan
+  import Text.Scan (string-join as scan-string-join)
 
   export ShellwordsError, UnterminatedSingleQuote, UnterminatedDoubleQuote
   export shellwords-split, shellwords-escape, shellwords-join
@@ -218,5 +218,6 @@ module Text.Shellwords where
   shellwords-join :: List String -> String
   shellwords-join xs = join-words (map shellwords-escape xs)
 
+  -- | Separate escaped words with one space while preserving their existing quoting.
   join-words :: List String -> String
-  join-words xs = string-join " " xs
+  join-words xs = scan-string-join " " xs

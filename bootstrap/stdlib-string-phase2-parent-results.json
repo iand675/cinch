@@ -1,0 +1,111 @@
+{
+  "description": "Embedded String/Bytes phase2 and immutable-text UTF8 integration with explicit source and compiler epochs",
+  "source_checkpoint": "cafee61a",
+  "source_commits": [
+    "8503b26c",
+    "e828afcb",
+    "ddcf86a9",
+    "6c3df3cd",
+    "0cc3f598",
+    "cafee61a"
+  ],
+  "gates": {
+    "full_library": {
+      "passed": 326,
+      "seconds": 187.0,
+      "log_sha256": "66ec765e85d478d6976f22c0072ee91d0bdf440d05920d67214ee8cee956b189"
+    },
+    "buffer_construction": {
+      "passed": 4,
+      "seconds": 14.46,
+      "log_sha256": "66ec765e85d478d6976f22c0072ee91d0bdf440d05920d67214ee8cee956b189"
+    },
+    "option_parser": {
+      "passed": 7,
+      "seconds": 14.1,
+      "log_sha256": "66ec765e85d478d6976f22c0072ee91d0bdf440d05920d67214ee8cee956b189"
+    },
+    "resolver": {
+      "passed": 6,
+      "seconds": 16.03,
+      "log_sha256": "66ec765e85d478d6976f22c0072ee91d0bdf440d05920d67214ee8cee956b189"
+    },
+    "shellwords": {
+      "passed": 9,
+      "seconds": 17.8,
+      "log_sha256": "66ec765e85d478d6976f22c0072ee91d0bdf440d05920d67214ee8cee956b189"
+    },
+    "string_join": {
+      "passed": 4,
+      "seconds": 13.81,
+      "log_sha256": "66ec765e85d478d6976f22c0072ee91d0bdf440d05920d67214ee8cee956b189"
+    },
+    "string_scalars": {
+      "passed": 5,
+      "seconds": 34.78,
+      "log_sha256": "66ec765e85d478d6976f22c0072ee91d0bdf440d05920d67214ee8cee956b189"
+    },
+    "toml": {
+      "passed": 8,
+      "seconds": 22.92,
+      "log_sha256": "66ec765e85d478d6976f22c0072ee91d0bdf440d05920d67214ee8cee956b189"
+    },
+    "immutable_text_utf8": {
+      "passed": 6,
+      "seconds": 8.26,
+      "log_sha256": "66ec765e85d478d6976f22c0072ee91d0bdf440d05920d67214ee8cee956b189"
+    },
+    "parsers": {
+      "passed": 12,
+      "seconds": 93.67,
+      "log_sha256": "66ec765e85d478d6976f22c0072ee91d0bdf440d05920d67214ee8cee956b189"
+    }
+  },
+  "passed_tests": 387,
+  "namespace_validation": "bootstrap/stdlib-string-phase2-namespace-parent-results.json",
+  "documentation": {
+    "modules": 181,
+    "value_exports": 4744,
+    "public_methods": 115,
+    "diagnostics": 0,
+    "orphans": 0,
+    "drift_check": "passed",
+    "validation_log_sha256": "04f1d70c5d69a9f1d1d9f376de931d5d0722422f180b17f31608c167858c30ab"
+  },
+  "frozen_rust": {
+    "description": "Rust frontend with repaired scalar semantics and embedded phase2 String/Bytes after full parent gates",
+    "source_checkpoint": "cafee61a",
+    "compiler_sha256": "7e0d98d14cb0213d4deeb277e1ad65fce07784309716085e70e4b9db2c259102",
+    "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "rust_profile": {
+      "dev": true,
+      "debug_assertions": true,
+      "debug_symbols": false,
+      "codegen_units": 1
+    },
+    "gates": "bootstrap/stdlib-string-phase2-parent-results.json",
+    "embedded_sources": {
+      "Data.String": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+      "Data.Bytes": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146"
+    },
+    "rust_sources": {
+      "compiler/src/core.rs": "f88db704c8632df0d1a557dd625de399c3465663d4e52dad93b0ce90352a1f1c",
+      "compiler/src/codegen.rs": "f6e2ac953b95c0a898d9b30da30fda1d02d124a075a9a91e5781a436247fa38f",
+      "compiler/src/check_decls.rs": "e33cd60f09ba1a13c02a015abc2fb394abb20f1b9f499e05f5312a09dabf129c"
+    },
+    "scope": "Rust frontend snapshot only; this is not adoption of the provisional Native scalar-import family."
+  },
+  "native_family": "bootstrap/stdlib-string-combined-native-family-results.json",
+  "final_native_text": "bootstrap/stdlib-utf8-text-final-native-validation-results.json",
+  "inventory": {
+    "complete": 22,
+    "partial": 49,
+    "unreviewed": 109
+  },
+  "limitations": [
+    "Full180-package library work remains active; strings84 and bytes102 remain partial.",
+    "The exact2f077 combined String family is qualified separately from the newer scalar-lowering family and its refined-mask admission repair.",
+    "Rust compiler debug symbols were disabled to reduce test artifact size; debug assertions and Cinch consumer optimization/ownership profiles were preserved.",
+    "Existing source-override receipts remain historical; current parent embedded tests and actual final Native consumer receipts identify their distinct epochs."
+  ]
+}

@@ -21,6 +21,7 @@ def main() -> None:
     parser.add_argument('--artifacts', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--label', required=True)
+    parser.add_argument('--runtime', type=Path, help='Link and record an explicit runtime archive')
     args = parser.parse_args()
     project = args.artifacts.resolve()
     project.mkdir(parents=True, exist_ok=False)
@@ -35,6 +36,8 @@ def main() -> None:
     executable = project / 'consumer'
     command = [str(args.compiler.resolve()), 'build', str(entry), '-o',
                str(executable), '--opt-level', '2']
+    if args.runtime:
+        command += ['--runtime-archive', str(args.runtime.resolve())]
     run(command)
     assert not (project / 'Data.String.cinch').exists(), 'embedded String source shadow'
     string_interface = project / 'build/Data.String.cinchif'
@@ -49,6 +52,7 @@ def main() -> None:
         profiles.append({'poisoned': poisoned, 'zero_leaks': True,
                          'stderr': result.stderr})
     report = {'label': args.label, 'compiler_sha256': digest(args.compiler),
+              'runtime_sha256': digest(args.runtime) if args.runtime else None,
               'fixture_sha256': digest(fixture), 'command': command,
               'source_sha256': {name: digest(source) for name, source in sources.items()},
               'executable_sha256': digest(executable),
