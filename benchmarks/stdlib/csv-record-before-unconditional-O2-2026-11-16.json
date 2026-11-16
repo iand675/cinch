@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "description": "Public CSV parse/render/owned-stream pipelines with prepared mutable input, normal reclamation and observable byte samples",
+  "opt_level": 2,
+  "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+  "compiler_source_sha256": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+  "runtime_source_sha256": "cc65783bd854ae6b6e820a5adb18e5f59f5aed5ec6a40e52b912fc283c12ca31",
+  "driver_sha256": "fc68b50edf3b23a0ac708433770bb5277640588f821b779f6c57b76f3a90ac32",
+  "runner_sha256": "d0fdec6836c24849e6e8efb5f4ba71caef24c136fbae55931bd192aa71a88ba7",
+  "sources": {
+    "Text.Csv.Record": "16b603a06035efd2ec195b9a2739400290f73a3c2b1de6db4012f885bede252a",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Effect.Csv": "f41b5d46a049eef341f0ef711914ac6ef13b5a83212ba02ba53a312022aa62fc",
+    "Effect.Stream": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33"
+  },
+  "source_overrides": {
+    "Text.Csv.Record": "/workspace/dasl-stdlib-csv/build/csv-counter-baseline/Text.Csv.Record.cinch",
+    "Effect.Csv": "/workspace/dasl-stdlib-csv/build/csv-counter-baseline/Effect.Csv.cinch"
+  },
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "cpu_affinity": [
+    3
+  ],
+  "iterations": 128,
+  "warmup_processes": 1,
+  "executable_sha256": "9722cd70e6c97ed7ff42276c7ab7f3fe63b2feddb74682abfc9f7464e2c27ee0",
+  "llvm_sha256": "1229fa1a0200d6c32a76033582e71b0cd0a6c01d49f947e604fac90b5af878e6",
+  "assembly_sha256": "78cbcdd0e9e10976d6e21173b118eafacccfb19c16c2746361d0affc96b106d5",
+  "artifacts": "/workspace/dasl-stdlib-csv/build/csv-record-bench-counter-baseline",
+  "results": [],
+  "reference": {
+    "sdk": "go version go1.27.4 linux/amd64",
+    "source_sha256": "9df1cf99f7971e8e98d412489176c850a3942070388dce44823a1b619db51e92",
+    "executable_sha256": "87b37aba26e1a8bd0d3760caf072ac3cef8063c39e275f8ff99983095c3c0f6d",
+    "GOMAXPROCS": "1"
+  },
+  "scope": "Pipeline timing includes copied input/field snapshots, returned output and owned stream chunks; it does not assert equal allocation complexity",
+  "size_argument": "field byte length; prepared read input adds six unquoted or eight quoted delimiter/tail bytes"
+}
