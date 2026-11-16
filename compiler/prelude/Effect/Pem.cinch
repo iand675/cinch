@@ -1,0 +1,6 @@
+-- | One-shot PEM writing with bounded payload chunks and explicit advanced sink continuations.
+-- Validation happens before output. Positive short writes are drained; transport
+-- failure returns the advanced sink without closing or flushing borrowed resources.
+module Effect.Pem where
+  import Text.Pem
+  export pem-write, PemError, PemInvalidHeaderKey, PemOutputError, pem-error-message

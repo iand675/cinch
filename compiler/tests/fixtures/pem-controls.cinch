@@ -1,0 +1,204 @@
+-- | PEM owned snapshots, persistent metadata, deterministic output and bounded writer continuations.
+module Main where
+  import Text.Pem hiding (pem-write)
+  import Effect.Pem (pem-write)
+  import Effect.Stream
+  import Effect.Io
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Bool
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  -- | Compare exact binary contents through the public byte interface.
+  same :: Bytes -> Bytes -> Bool
+  same first second = let ordering = bytes-compare first second in eq-i64 ordering 0
+
+  -- | Fill caller-owned storage to reveal any shallow snapshot or returned-field alias.
+  fill :: Bytes -> Nat -> Unit
+  fill source at = if at < bytes-len source then let changed = bytes-set source at 255 in fill source (at + 1) else ()
+
+  -- | Check an exact canonical encoding without confusing a validation refusal with empty output.
+  encoding :: PemBlock -> Bytes -> Bool
+  encoding block expected = case pem-encode-bytes block of Err error -> False; Ok actual -> same actual expected
+
+  -- | Observe a fresh optional header value and distinguish a missing key from an empty value.
+  value :: PemBlock -> Bytes -> Bytes -> Bool
+  value block key expected = case pem-find-header block key of None -> False; Some actual -> same actual expected
+
+  -- | The immutable block remains stable after every caller input and returned byte copy is mutated.
+  owners :: Unit -> Bool
+  owners unit = let label = string-to-bytes "TEST" in let key = string-to-bytes "K" in
+    let raw = string-to-bytes "V" in let payload = string-to-bytes "abc" in
+    let header = pem-header key raw in let block = pem-block label [header] payload in
+    let expected = string-to-bytes "-----BEGIN TEST-----\nK: V\n\nYWJj\n-----END TEST-----\n" in
+    let a = fill label 0 in let b = fill key 0 in let c = fill raw 0 in let d = fill payload 0 in
+    let initial = encoding block expected in
+    let x = fill (pem-block-type block) 0 in let y = fill (pem-block-bytes block) 0 in
+    let z = fill (pem-header-key header) 0 in let q = fill (pem-header-value header) 0 in
+    let observed = case pem-find-header block (string-to-bytes "K") of None -> False; Some bytes -> let changed = fill bytes 0 in True in
+    initial && observed && encoding block expected
+      && value block (string-to-bytes "K") (string-to-bytes "V")
+
+  -- | Persistent field updates share only private immutable storage and preserve all prior block values.
+  updates :: Unit -> Bool
+  updates unit = let base = pem-block (string-to-bytes "OLD") [pem-header (string-to-bytes "K") (string-to-bytes "one"), pem-header (string-to-bytes "K") (string-to-bytes "two")] (string-to-bytes "abc") in
+    let changed = pem-with-header base (pem-header (string-to-bytes "K") (string-to-bytes "three")) in
+    let removed = pem-without-header changed (string-to-bytes "K") in
+    let label = string-to-bytes "NEW" in let payload = string-to-bytes "def" in
+    let typed = pem-with-type changed label in let updated = pem-with-bytes typed payload in
+    let cleared = pem-with-headers updated Nil in let a = fill label 0 in let b = fill payload 0 in
+    value base (string-to-bytes "K") (string-to-bytes "two")
+      && value changed (string-to-bytes "K") (string-to-bytes "three")
+      && (case pem-find-header removed (string-to-bytes "K") of None -> True; Some bytes -> False)
+      && same (pem-block-type base) (string-to-bytes "OLD")
+      && same (pem-block-bytes base) (string-to-bytes "abc")
+      && same (pem-block-type updated) (string-to-bytes "NEW")
+      && same (pem-block-bytes updated) (string-to-bytes "def")
+      && encoding cleared (string-to-bytes "-----BEGIN NEW-----\nZGVm\n-----END NEW-----\n")
+
+  -- | Generate many equal-precedence metadata pairs at runtime without a deep literal constructor AST.
+  many-headers :: Nat -> List PemHeader -> List PemHeader
+  many-headers count result = if count > 0 then
+    let next = count - 1 in let name = string-to-bytes (string-concat "k" (nat-to-string next)) in
+    many-headers next (Cons (pem-header name name) result)
+    else result
+
+  -- | Canonicalization, lookup, insertion and deletion retain bounded call depth for large metadata sets.
+  large-headers :: Unit -> Bool
+  large-headers unit = let entries = many-headers 1000 Nil in
+    let block = pem-block (string-to-bytes "MANY") entries (bytes-new 0) in
+    let added = pem-with-header block (pem-header (string-to-bytes "zzzz") (string-to-bytes "last")) in
+    let removed = pem-without-header added (string-to-bytes "zzzz") in
+    value block (string-to-bytes "k999") (string-to-bytes "k999")
+      && value added (string-to-bytes "zzzz") (string-to-bytes "last")
+      && (case pem-find-header removed (string-to-bytes "zzzz") of None -> True; Some bytes -> False)
+      && large-roundtrip block
+
+  -- | Check the independently observable large metadata lookup after a complete encoded roundtrip.
+  large-roundtrip :: PemBlock -> Bool
+  large-roundtrip block = case pem-encode-bytes block of
+    Err error -> False
+    Ok encoded -> case pem-decode encoded of
+      (None, rest) -> False
+      (Some decoded, rest) -> bytes-len rest == 0 && value decoded (string-to-bytes "k999") (string-to-bytes "k999")
+
+  -- | Read a bounded test counter; all fixtures remain below the unsigned32-bit limit.
+  counter :: Bytes -> Nat -> Nat
+  counter state at = if at + 4 <= bytes-len state then u32-to-nat (bytes-read-le32 state at) else 0
+
+  -- | Update a test counter with checked ordinary byte writes through the public word home.
+  set-counter :: Bytes -> Nat -> Nat -> Unit
+  set-counter state at value = if at + 4 <= bytes-len state && value <= 4294967295 then
+    let wide = nat-to-i64 value in let raw = wrapping-i64-to-u32 wide in bytes-write-le32 state at raw
+    else ()
+
+  -- | Copy one accepted prefix into externally inspectable test storage.
+  accept :: Bytes -> Bytes -> Nat -> Nat -> Unit
+  accept output input at count = if at + count <= bytes-len output && count <= bytes-len input then
+    bytes-copy-range output input at 0 count
+    else ()
+
+  -- | Callback sink with visible progress, retained-offer mutation and explicit post-failure continuations.
+  test-sink :: forall r. using (io :: Io r) => Bytes -> Bytes -> Nat -> Nat -> Nat -> Option Bytes -> ByteWriter r
+  test-sink output state limit budget mode previous = stream-writer (\input ->
+    let prior = case previous of None -> (); Some bytes -> fill bytes 0 in
+    let calls = counter state 4 in let called = set-counter state 4 (calls + 1) in
+    let position = counter state 0 in let total = bytes-len input in
+    if mode == 1 then
+      let next = test-sink output state limit 4294967295 0 (Some input) in (Ok 0, next)
+    else if mode == 2 then
+      let next = test-sink output state limit 4294967295 0 (Some input) in (Ok (total + 1), next)
+    else if position >= budget then
+      let next = test-sink output state limit 4294967295 0 (Some input) in (Err (StreamClosed "pem-budget"), next)
+    else
+      let available = budget - position in let take = if total < limit then total else limit in
+      let count = if take < available then take else available in
+      let copied = accept output input position count in let written = set-counter state 0 (position + count) in
+      if count < take then
+        let next = test-sink output state limit 4294967295 0 (Some input) in (Err (StreamClosed "pem-budget"), next)
+      else let next = test-sink output state limit budget 0 (Some input) in (Ok count, next))
+
+  -- | Compare only the confirmed prefix, preserving distinct untouched suffix bytes.
+  prefix :: Bytes -> Bytes -> Nat -> Nat -> Bool
+  prefix actual expected at count = if at < count then
+    if at < bytes-len actual && at < bytes-len expected then bytes-get actual at == bytes-get expected at && prefix actual expected (at + 1) count else False
+    else True
+
+  -- | Exercise positive short writes and retained earlier offers without exposing block-owned bytes.
+  short-writer :: forall r. using (io :: Io r) => Nat -> Nat ->{IO r} Bool
+  short-writer limit size = let payload = bytes-new size in let block = pem-block (string-to-bytes "TEST") Nil payload in
+    case pem-encode-bytes block of
+      Err error -> False
+      Ok expected -> let output = bytes-new (bytes-len expected + 1) in let state = bytes-new 8 in
+        let sink = test-sink output state limit 4294967295 0 None in
+        case pem-write sink block of
+          (Err error, next) -> False
+          (Ok unit, next) -> counter state 0 == bytes-len expected
+            && prefix output expected 0 (bytes-len expected) && encoding block expected
+
+  -- | A budget failure preserves its exact prefix and returns a continuation that can accept later data.
+  failed-writer :: forall r. using (io :: Io r) => Nat ->{IO r} Bool
+  failed-writer budget = let block = pem-block (string-to-bytes "TEST") Nil (string-to-bytes "abcdef") in
+    case pem-encode-bytes block of
+      Err error -> False
+      Ok expected -> let known = same expected (string-to-bytes "-----BEGIN TEST-----\nYWJjZGVm\n-----END TEST-----\n") in
+        let output = bytes-new (bytes-len expected + 2) in let state = bytes-new 8 in
+        let sink = test-sink output state 4294967295 budget 0 None in
+        case pem-write sink block of
+          (Ok unit, next) -> known && budget >= bytes-len expected && counter state 0 == bytes-len expected && prefix output expected 0 (bytes-len expected)
+          (Err error, next) ->
+            let position = counter state 0 in let initial = known && budget < bytes-len expected && position == budget && prefix output expected 0 position in
+            case stream-write next (string-to-bytes "!") of
+              (Err failure, advanced) -> False
+              (Ok count, advanced) -> initial && count == 1 && counter state 0 == position + 1
+
+  -- | Check every byte failure boundary independently of implementation chunk boundaries.
+  failures :: forall r. using (io :: Io r) => Nat ->{IO r} Bool
+  failures budget = if budget < 51 then
+    if failed-writer budget then failures (budget + 1) else False
+    else True
+
+  -- | Retain distinct zero-progress and impossible-count transport refusals.
+  expected-error :: Nat -> PemError -> Bool
+  expected-error mode error = case error of
+    PemInvalidHeaderKey index -> False
+    PemOutputError failure -> case failure of
+      StreamShortWrite expected actual -> mode == 1 && actual == 0
+      StreamInvalidCount expected actual -> mode == 2 && actual > expected
+      other -> False
+
+  -- | Zero/invalid-count sink results retain their advanced continuation without writing a false prefix.
+  bad-writer :: forall r. using (io :: Io r) => Nat ->{IO r} Bool
+  bad-writer mode = let output = bytes-new 100 in let state = bytes-new 8 in
+    let block = pem-block (string-to-bytes "TEST") Nil (bytes-new 0) in
+    case pem-write (test-sink output state 100 4294967295 mode None) block of
+      (Ok unit, next) -> False
+      (Err error, next) -> let before = counter state 0 in
+        let correct = expected-error mode error in
+        case stream-write next (string-to-bytes "!") of
+          (Err failure, advanced) -> False
+          (Ok count, advanced) -> correct && before == 0 && count == 1 && counter state 0 == 1
+
+  -- | Invalid metadata refuses all output before calling even a failing or retaining sink.
+  invalid-writer :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  invalid-writer unit = let output = bytes-new 100 in let state = bytes-new 8 in
+    let block = pem-block (bytes-new 0) [pem-header (string-to-bytes "bad:key") (bytes-new 0)] (bytes-new 0) in
+    case pem-write (test-sink output state 100 0 0 None) block of
+      (Ok ignored, next) -> False
+      (Err error, next) -> (case error of PemInvalidHeaderKey index -> index == 0; PemOutputError failure -> False)
+        && counter state 4 == 0 && counter state 0 == 0
+
+  -- | Validate ownership, persistent map operations, output failures and both tiny/large short-write pipelines.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    if not (owners () && updates () && large-headers ()) then 1
+    else if not (short-writer 1 97) then 2
+    else if not (short-writer 7 65536) then 3
+    else if not (failures 0) then 4
+    else if not (bad-writer 1 && bad-writer 2) then 5
+    else if invalid-writer () then 0 else 6
