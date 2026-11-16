@@ -437,7 +437,7 @@
     {
       "module": "Data.Mutable.LinkedList",
       "path": "compiler/prelude/Data/Mutable/LinkedList.cinch",
-      "sha256": "7251889893471322b75e5c8d7006ec87402c929db744b97cd3cdd7c90af38301",
+      "sha256": "6eaff419c6892fb56f491baf0f49375366ea79e4cfaa37e3c6e05d0c19eb5d1d",
       "embedded": false,
       "values": 28,
       "public_methods": 0
@@ -843,6 +843,14 @@
       "public_methods": 0
     },
     {
+      "module": "Effect.Pem",
+      "path": "compiler/prelude/Effect/Pem.cinch",
+      "sha256": "47dfe3101d486d89c2b6e2b78700b36c4c4c3ed80cf467de347ef7ba6ffc2bb4",
+      "embedded": false,
+      "values": 2,
+      "public_methods": 0
+    },
+    {
       "module": "Effect.Process",
       "path": "compiler/prelude/Effect/Process.cinch",
       "sha256": "08f3ecd91ba9170eec876e5a2df0662eb0bc4289aa4708533a36d4a45bfffa60",
@@ -1187,19 +1195,27 @@
       "public_methods": 0
     },
     {
+      "module": "Text.Json.Binary32",
+      "path": "compiler/prelude/Text/Json/Binary32.cinch",
+      "sha256": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+      "embedded": false,
+      "values": 2,
+      "public_methods": 0
+    },
+    {
       "module": "Text.Json.Codec",
       "path": "compiler/prelude/Text/Json/Codec.cinch",
-      "sha256": "30214dd49a094d6576996ba416a67137072f49b42b778a059b1e3f5d5e587b2a",
+      "sha256": "cd4a4f621e748b5d8bcf686062429919abbb2c4e9c98d2fa43c8af63fff5bc13",
       "embedded": false,
-      "values": 100,
+      "values": 101,
       "public_methods": 0
     },
     {
       "module": "Text.Json.Value",
       "path": "compiler/prelude/Text/Json/Value.cinch",
-      "sha256": "d83477dbc24e16529d98e0d4d5be896dec8669a8bbad965dc5a4dbaedb3a4de1",
+      "sha256": "57f516647f493fa1433c066649f00c406a8eb1040b9ed5c50f096086e2c40b54",
       "embedded": false,
-      "values": 51,
+      "values": 52,
       "public_methods": 0
     },
     {
@@ -1248,6 +1264,14 @@
       "sha256": "8a9f7c29198f038a541bd510a68aee1502f1d8c3d3693500406fe24aba86cbad",
       "embedded": false,
       "values": 11,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Pem",
+      "path": "compiler/prelude/Text/Pem.cinch",
+      "sha256": "9478c3c41a71436180df02c7ac175c309f790f39d131440895f0a81c7f733efd",
+      "embedded": false,
+      "values": 17,
       "public_methods": 0
     },
     {

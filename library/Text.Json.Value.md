@@ -10,9 +10,9 @@ Import with `import Text.Json.Value`. Selected exports may already be in Prelude
 
 # Dependencies
 
-[Data.Array](Data.Array.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Text.Show](Text.Show.md).
+[Data.Array](Data.Array.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Text.Json.Binary32](Text.Json.Binary32.md), [Text.Show](Text.Show.md).
 
-Non-embedded source closure: [Data.Array](Data.Array.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md), [Text.Json.Value](Text.Json.Value.md).
+Non-embedded source closure: [Data.Array](Data.Array.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md), [Text.Json.Binary32](Text.Json.Binary32.md), [Text.Json.Value](Text.Json.Value.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -33,7 +33,7 @@ and unmatched surrogate escapes while number spellings remain exact.
 
 An immutable document retaining one owned source snapshot and its navigation tape.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 231
+[Source](/reference-sources/Text.Json.Value.cinch) · line 232
 
 <a id="type-4a736f6e4572726f72"></a>
 
@@ -43,7 +43,7 @@ An immutable document retaining one owned source snapshot and its navigation tap
 
 Structured JSON syntax, type, configuration and custom conversion diagnostics.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 44
+[Source](/reference-sources/Text.Json.Value.cinch) · line 45
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JsonSyntaxError</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonError</span>))</code></pre>
 
@@ -75,7 +75,7 @@ Structured JSON syntax, type, configuration and custom conversion diagnostics.
 
 Public value categories, including an explicit invalid internal representation category.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 179
+[Source](/reference-sources/Text.Json.Value.cinch) · line 180
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JsonNullKind</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonKind</span></code></pre>
 
@@ -99,7 +99,7 @@ Public value categories, including an explicit invalid internal representation c
 
 An immutable resumable lexer state; source bytes remain owned by its caller.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 483
+[Source](/reference-sources/Text.Json.Value.cinch) · line 484
 
 <a id="type-4a736f6e4c657853746570"></a>
 
@@ -109,7 +109,7 @@ An immutable resumable lexer state; source bytes remain owned by its caller.
 
 Incremental lexical progress distinguishes a complete token, clean EOF and a required continuation.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 506
+[Source](/reference-sources/Text.Json.Value.cinch) · line 507
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JsonLexEnd</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonLexStep</span>)</code></pre>
 
@@ -127,7 +127,7 @@ Incremental lexical progress distinguishes a complete token, clean EOF and a req
 
 Lexical categories shared by immutable documents and incremental stream readers.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 422
+[Source](/reference-sources/Text.Json.Value.cinch) · line 423
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JsonLexNull</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonLexTag</span></code></pre>
 
@@ -159,7 +159,7 @@ Lexical categories shared by immutable documents and incremental stream readers.
 
 One lexical token's original byte interval.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 447
+[Source](/reference-sources/Text.Json.Value.cinch) · line 448
 
 <a id="type-4a736f6e4d656d626572"></a>
 
@@ -169,7 +169,7 @@ One lexical token's original byte interval.
 
 An object member retains its decoded name and source-backed value view.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 241
+[Source](/reference-sources/Text.Json.Value.cinch) · line 242
 
 <a id="type-4a736f6e4e756d626572"></a>
 
@@ -179,7 +179,7 @@ An object member retains its decoded name and source-backed value view.
 
 An exact grammar-validated JSON number spelling, or an explicit absent-spelling default.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 147
+[Source](/reference-sources/Text.Json.Value.cinch) · line 148
 
 <a id="type-4a736f6e5261774d657373616765"></a>
 
@@ -189,7 +189,7 @@ An exact grammar-validated JSON number spelling, or an explicit absent-spelling 
 
 An immutable raw JSON message; null and a non-null empty buffer are distinct.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 156
+[Source](/reference-sources/Text.Json.Value.cinch) · line 157
 
 <a id="type-4a736f6e56616c7565"></a>
 
@@ -199,7 +199,7 @@ An immutable raw JSON message; null and a non-null empty buffer are distinct.
 
 An immutable value view retaining its document and selected node without copying the input.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 236
+[Source](/reference-sources/Text.Json.Value.cinch) · line 237
 
 # Values
 
@@ -211,7 +211,7 @@ An immutable value view retaining its document and selected node without copying
 
 Append compact validated JSON while retaining numeric spellings and original string escape bytes.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1496
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1504
 
 <a id="value-6a736f6e2d617070656e642d68746d6c2d657363617065"></a>
 
@@ -221,7 +221,7 @@ Append compact validated JSON while retaining numeric spellings and original str
 
 Append escaped source bytes to an independent copy of an existing destination prefix.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1374
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1382
 
 <a id="value-6a736f6e2d617070656e642d696e64656e74"></a>
 
@@ -231,7 +231,7 @@ Append escaped source bytes to an independent copy of an existing destination pr
 
 Append indented JSON, dropping leading whitespace and preserving original trailing whitespace.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1504
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1512
 
 <a id="value-6a736f6e2d617070656e642d696e64656e742d6279746573"></a>
 
@@ -241,7 +241,7 @@ Append indented JSON, dropping leading whitespace and preserving original traili
 
 Append indented JSON with arbitrary byte prefixes, preserving malformed bytes and embedded NUL.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1513
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1521
 
 <a id="value-6a736f6e2d61727261792d676574"></a>
 
@@ -251,7 +251,7 @@ Append indented JSON with arbitrary byte prefixes, preserving malformed bytes an
 
 Read one direct array element by zero-based index, retaining its original document owner.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1092
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1100
 
 <a id="value-6a736f6e2d61727261792d6c656e677468"></a>
 
@@ -261,7 +261,7 @@ Read one direct array element by zero-based index, retaining its original docume
 
 Read the element count without traversing nested values or copying the source.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1084
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1092
 
 <a id="value-6a736f6e2d61727261792d76616c756573"></a>
 
@@ -271,7 +271,7 @@ Read the element count without traversing nested values or copying the source.
 
 Collect array element views in source order without copying their payload bytes.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1104
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1112
 
 <a id="value-6a736f6e2d636f6d70616374"></a>
 
@@ -281,7 +281,7 @@ Collect array element views in source order without copying their payload bytes.
 
 Remove insignificant whitespace from one complete validated JSON value.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1500
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1508
 
 <a id="value-6a736f6e2d646f63756d656e74"></a>
 
@@ -291,7 +291,7 @@ Remove insignificant whitespace from one complete validated JSON value.
 
 Validate and snapshot one complete JSON document, preserving all original source spellings.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 879
+[Source](/reference-sources/Text.Json.Value.cinch) · line 880
 
 <a id="value-6a736f6e2d646f63756d656e742d696e707574"></a>
 
@@ -301,7 +301,7 @@ Validate and snapshot one complete JSON document, preserving all original source
 
 Copy the complete original document bytes before exposing mutable storage.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 258
+[Source](/reference-sources/Text.Json.Value.cinch) · line 259
 
 <a id="value-6a736f6e2d646f63756d656e742d76616c7565"></a>
 
@@ -311,7 +311,7 @@ Copy the complete original document bytes before exposing mutable storage.
 
 Obtain the validated root view without copying document storage.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 254
+[Source](/reference-sources/Text.Json.Value.cinch) · line 255
 
 <a id="value-6a736f6e2d656d7074792d6e756d626572"></a>
 
@@ -322,7 +322,7 @@ Obtain the validated root view without copying document storage.
 An explicitly absent number spelling; typed marshaling represents this default as zero.
 Checked integer and float conversions reject the empty spelling.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1023
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1024
 
 <a id="value-6a736f6e2d6572726f722d6361757365"></a>
 
@@ -332,7 +332,7 @@ Checked integer and float conversions reject the empty spelling.
 
 Inspect a wrapped custom conversion or path diagnostic without flattening it.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 131
+[Source](/reference-sources/Text.Json.Value.cinch) · line 132
 
 <a id="value-6a736f6e2d6572726f722d696e76616c69642d76616c7565"></a>
 
@@ -342,7 +342,7 @@ Inspect a wrapped custom conversion or path diagnostic without flattening it.
 
 Whether a value failure lacks a valid application value, after custom/path context is removed.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 139
+[Source](/reference-sources/Text.Json.Value.cinch) · line 140
 
 <a id="value-6a736f6e2d6572726f722d6d657373616765"></a>
 
@@ -352,7 +352,7 @@ Whether a value failure lacks a valid application value, after custom/path conte
 
 Render a diagnostic using JSON and application type names.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 69
+[Source](/reference-sources/Text.Json.Value.cinch) · line 70
 
 <a id="value-6a736f6e2d6572726f722d6f6666736574"></a>
 
@@ -362,7 +362,7 @@ Render a diagnostic using JSON and application type names.
 
 Original byte offset when one exists, otherwise zero.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 84
+[Source](/reference-sources/Text.Json.Value.cinch) · line 85
 
 <a id="value-6a736f6e2d6572726f722d70617468"></a>
 
@@ -372,7 +372,7 @@ Original byte offset when one exists, otherwise zero.
 
 Application member/index path carried by a diagnostic.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 99
+[Source](/reference-sources/Text.Json.Value.cinch) · line 100
 
 <a id="value-6a736f6e2d6572726f722d74797065"></a>
 
@@ -382,7 +382,7 @@ Application member/index path carried by a diagnostic.
 
 Application type label associated with a conversion failure.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 109
+[Source](/reference-sources/Text.Json.Value.cinch) · line 110
 
 <a id="value-6a736f6e2d6572726f722d76616c7565"></a>
 
@@ -392,7 +392,7 @@ Application type label associated with a conversion failure.
 
 Actual value description associated with a conversion failure.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 120
+[Source](/reference-sources/Text.Json.Value.cinch) · line 121
 
 <a id="value-6a736f6e2d68746d6c2d657363617065"></a>
 
@@ -402,7 +402,7 @@ Actual value description associated with a conversion failure.
 
 Escape HTML-sensitive bytes and line separators without validating the source as JSON.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1380
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1388
 
 <a id="value-6a736f6e2d696e64656e74"></a>
 
@@ -412,7 +412,7 @@ Escape HTML-sensitive bytes and line separators without validating the source as
 
 Indent one complete JSON value with arbitrary per-line prefix and indentation strings.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1508
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1516
 
 <a id="value-6a736f6e2d696e64656e742d6279746573"></a>
 
@@ -422,7 +422,7 @@ Indent one complete JSON value with arbitrary per-line prefix and indentation st
 
 Indent one complete value with byte-exact line-prefix and indentation fragments.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1517
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1525
 
 <a id="value-6a736f6e2d6c65782d72656164"></a>
 
@@ -433,7 +433,7 @@ Indent one complete value with byte-exact line-prefix and indentation fragments.
 Scan at most one token from a checked owned buffer interval, resuming a partial prior token.
 Base is the absolute position of buffer byte zero; returned cursors are local to this buffer.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 622
+[Source](/reference-sources/Text.Json.Value.cinch) · line 623
 
 <a id="value-6a736f6e2d6c65782d7374617274"></a>
 
@@ -443,7 +443,7 @@ Base is the absolute position of buffer byte zero; returned cursors are local to
 
 Begin scanning one token without assuming any source chunk is already available.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 502
+[Source](/reference-sources/Text.Json.Value.cinch) · line 503
 
 <a id="value-6a736f6e2d6c6578656d652d656e64"></a>
 
@@ -453,7 +453,7 @@ Begin scanning one token without assuming any source chunk is already available.
 
 Observe a lexical token's original exclusive end.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 456
+[Source](/reference-sources/Text.Json.Value.cinch) · line 457
 
 <a id="value-6a736f6e2d6c6578656d652d7374617274"></a>
 
@@ -463,7 +463,7 @@ Observe a lexical token's original exclusive end.
 
 Observe a lexical token's original start.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 452
+[Source](/reference-sources/Text.Json.Value.cinch) · line 453
 
 <a id="value-6a736f6e2d6c6578656d652d746167"></a>
 
@@ -473,7 +473,7 @@ Observe a lexical token's original start.
 
 Observe a lexical category without decoding its source bytes.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 460
+[Source](/reference-sources/Text.Json.Value.cinch) · line 461
 
 <a id="value-6a736f6e2d6d656d6265722d6b6579"></a>
 
@@ -483,7 +483,7 @@ Observe a lexical category without decoding its source bytes.
 
 Retain the exact original quoted member-name token as an immutable source-backed string view.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1535
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1543
 
 <a id="value-6a736f6e2d6d656d6265722d6e616d65"></a>
 
@@ -493,7 +493,7 @@ Retain the exact original quoted member-name token as an immutable source-backed
 
 Observe a decoded object member name.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 246
+[Source](/reference-sources/Text.Json.Value.cinch) · line 247
 
 <a id="value-6a736f6e2d6d656d6265722d76616c7565"></a>
 
@@ -503,7 +503,7 @@ Observe a decoded object member name.
 
 Observe the member value while retaining its source document.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 250
+[Source](/reference-sources/Text.Json.Value.cinch) · line 251
 
 <a id="value-6a736f6e2d6e756d626572"></a>
 
@@ -513,7 +513,17 @@ Observe the member value while retaining its source document.
 
 Validate a complete number spelling without accepting surrounding whitespace or another value.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1035
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1036
+
+<a id="value-6a736f6e2d6e756d6265722d666c6f61743332"></a>
+
+## `json-number-float32`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-number-float32</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumber</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonError</span> <span class="tok-constructor">F32</span>))</code></pre>
+
+Round an exact number directly to finite binary32, rejecting empty spellings and overflow.
+
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1056
 
 <a id="value-6a736f6e2d6e756d6265722d666c6f61743634"></a>
 
@@ -523,7 +533,7 @@ Validate a complete number spelling without accepting surrounding whitespace or 
 
 Convert an exact number to a finite binary float, naming overflow instead of returning infinity.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1048
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1049
 
 <a id="value-6a736f6e2d6e756d6265722d696e743634"></a>
 
@@ -533,7 +543,7 @@ Convert an exact number to a finite binary float, naming overflow instead of ret
 
 Convert an integer-only exact spelling to a signed machine integer with explicit range checks.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1055
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1063
 
 <a id="value-6a736f6e2d6e756d6265722d74657874"></a>
 
@@ -543,7 +553,7 @@ Convert an integer-only exact spelling to a signed machine integer with explicit
 
 Observe the original number spelling without conversion or rounding.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 152
+[Source](/reference-sources/Text.Json.Value.cinch) · line 153
 
 <a id="value-6a736f6e2d6f626a6563742d6c6f6f6b7570"></a>
 
@@ -553,7 +563,7 @@ Observe the original number spelling without conversion or rounding.
 
 Find the final exact decoded member name; later duplicates replace earlier matches.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1139
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1147
 
 <a id="value-6a736f6e2d6f626a6563742d6d656d62657273"></a>
 
@@ -563,7 +573,7 @@ Find the final exact decoded member name; later duplicates replace earlier match
 
 Read object members in original order, preserving repeated decoded names.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1116
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1124
 
 <a id="value-6a736f6e2d71756f7465"></a>
 
@@ -573,7 +583,7 @@ Read object members in original order, preserving repeated decoded names.
 
 Encode an immutable scalar string with explicit HTML escaping policy.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1336
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1344
 
 <a id="value-6a736f6e2d71756f74652d6279746573"></a>
 
@@ -583,7 +593,7 @@ Encode an immutable scalar string with explicit HTML escaping policy.
 
 Encode arbitrary byte-string contents as valid quoted JSON, replacing each malformed UTF-8 byte.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1329
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1337
 
 <a id="value-6a736f6e2d7261772d6279746573"></a>
 
@@ -593,7 +603,7 @@ Encode arbitrary byte-string contents as valid quoted JSON, replacing each malfo
 
 Obtain an independent copy of raw storage, preserving the distinction between null and empty.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 169
+[Source](/reference-sources/Text.Json.Value.cinch) · line 170
 
 <a id="value-6a736f6e2d7261772d66726f6d2d6279746573"></a>
 
@@ -603,7 +613,7 @@ Obtain an independent copy of raw storage, preserving the distinction between nu
 
 Snapshot an arbitrary raw message without changing whitespace or validating its syntax.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 165
+[Source](/reference-sources/Text.Json.Value.cinch) · line 166
 
 <a id="value-6a736f6e2d7261772d6e756c6c"></a>
 
@@ -613,7 +623,7 @@ Snapshot an arbitrary raw message without changing whitespace or validating its 
 
 The absent raw message, which encodes as the JSON null literal.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 161
+[Source](/reference-sources/Text.Json.Value.cinch) · line 162
 
 <a id="value-6a736f6e2d7261772d7265706c616365"></a>
 
@@ -623,7 +633,7 @@ The absent raw message, which encodes as the JSON null literal.
 
 Replace a raw message with a fresh snapshot while retained earlier messages stay independent.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 175
+[Source](/reference-sources/Text.Json.Value.cinch) · line 176
 
 <a id="value-6a736f6e2d76616c6964"></a>
 
@@ -633,7 +643,7 @@ Replace a raw message with a fresh snapshot while retained earlier messages stay
 
 Validate JSON byte grammar without constructing a document or decoding scalar strings.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 888
+[Source](/reference-sources/Text.Json.Value.cinch) · line 889
 
 <a id="value-6a736f6e2d76616c75652d626f6f6c"></a>
 
@@ -643,7 +653,7 @@ Validate JSON byte grammar without constructing a document or decoding scalar st
 
 Read a boolean literal without treating other categories as false.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 301
+[Source](/reference-sources/Text.Json.Value.cinch) · line 302
 
 <a id="value-6a736f6e2d76616c75652d656e64"></a>
 
@@ -653,7 +663,7 @@ Read a boolean literal without treating other categories as false.
 
 Observe the selected value's original exclusive source end.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 274
+[Source](/reference-sources/Text.Json.Value.cinch) · line 275
 
 <a id="value-6a736f6e2d76616c75652d6b696e64"></a>
 
@@ -663,7 +673,7 @@ Observe the selected value's original exclusive source end.
 
 Observe a value category without traversing or decoding its subtree.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 278
+[Source](/reference-sources/Text.Json.Value.cinch) · line 279
 
 <a id="value-6a736f6e2d76616c75652d6e756d626572"></a>
 
@@ -673,7 +683,7 @@ Observe a value category without traversing or decoding its subtree.
 
 Read a validated exact number from a source-backed scalar view.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1027
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1028
 
 <a id="value-6a736f6e2d76616c75652d736f75726365"></a>
 
@@ -683,7 +693,7 @@ Read a validated exact number from a source-backed scalar view.
 
 Copy exactly the selected value's original bytes, preserving duplicate members and number spellings.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 293
+[Source](/reference-sources/Text.Json.Value.cinch) · line 294
 
 <a id="value-6a736f6e2d76616c75652d7374617274"></a>
 
@@ -693,7 +703,7 @@ Copy exactly the selected value's original bytes, preserving duplicate members a
 
 Observe the selected value's zero-based original source start.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 270
+[Source](/reference-sources/Text.Json.Value.cinch) · line 271
 
 <a id="value-6a736f6e2d76616c75652d737472696e67"></a>
 
@@ -703,7 +713,7 @@ Observe the selected value's zero-based original source start.
 
 Decode a string value without exposing mutable source storage.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1149
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1157
 
 <a id="value-6a736f6e2d7a65726f2d6e756d626572"></a>
 
@@ -713,8 +723,8 @@ Decode a string value without exposing mutable source storage.
 
 The invariant exact integer-zero number, usable as a total descriptor default.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1018
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1019
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Json/Value.cinch`. Source SHA-256: `d83477dbc24e16529d98e0d4d5be896dec8669a8bbad965dc5a4dbaedb3a4de1`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Json/Value.cinch`. Source SHA-256: `57f516647f493fa1433c066649f00c406a8eb1040b9ed5c50f096086e2c40b54`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

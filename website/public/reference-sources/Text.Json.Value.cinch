@@ -4,6 +4,7 @@
 -- and unmatched surrogate escapes while number spellings remain exact.
 module Text.Json.Value where
 
+  import Text.Json.Binary32
   import Data.Array
   import Data.Bool
   import Data.Bytes
@@ -23,7 +24,7 @@ module Text.Json.Value where
   export JsonInvalidValueError, json-error-invalid-value
   export JsonUnknownField, JsonCustomError, JsonPathError, JsonEncodingError, JsonTypeCause, JsonUnsupportedType
   export json-error-message, json-error-offset, json-error-path, json-error-type, json-error-value, json-error-cause
-  export JsonNumber, json-zero-number, json-empty-number, json-number, json-number-text, json-number-int64, json-number-float64
+  export JsonNumber, json-zero-number, json-empty-number, json-number, json-number-text, json-number-int64, json-number-float64, json-number-float32
   export JsonRawMessage, json-raw-null, json-raw-from-bytes, json-raw-bytes, json-raw-replace
   export JsonKind, JsonNullKind, JsonBooleanKind, JsonNumberKind, JsonStringKind, JsonArrayKind, JsonObjectKind, JsonInvalidKind
   export JsonDocument, JsonValue, json-document, json-document-value, json-document-input
@@ -1050,6 +1051,13 @@ module Text.Json.Value where
     if json-number-text number == "" then Err (JsonValueError "F64" "empty number spelling")
     else let value = f64-from-decimal (string-to-bytes (json-number-text number)) in
       if is-finite-f64 value then Ok value else Err (JsonValueError "F64" "number is outside the finite binary64 range")
+
+  -- | Round an exact number directly to finite binary32, rejecting empty spellings and overflow.
+  json-number-float32 :: JsonNumber -> Result JsonError F32
+  json-number-float32 number =
+    if json-number-text number == "" then Err (JsonValueError "F32" "empty number spelling")
+    else let value = binary32-from-decimal (string-to-bytes (json-number-text number)) in
+      if is-finite-f32 value then Ok value else Err (JsonValueError "F32" "number is outside the finite binary32 range")
 
   -- | Convert an integer-only exact spelling to a signed machine integer with explicit range checks.
   json-number-int64 :: JsonNumber -> Result JsonError I64
