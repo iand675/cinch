@@ -18,6 +18,13 @@ from validate_string_construction import checks, consumer, digest
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def missing_list_object_variant(name: str, code: int, diagnostics: str) -> bool:
+    """Recognize only the named O-variant emission refusal, not a source-checking failure."""
+    return (name == "list-string-O" and code == 5
+            and {"symbol": "Data.List.is-empty", "classes": "O"}
+            in bootstrap_objects.requested_roots(diagnostics)["units"])
+
+
 def main() -> None:
     """Link every consumer against one admitted provider and retain exact source/object/runtime identities."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -44,7 +51,9 @@ def main() -> None:
     bootstrap.write_json(args.output, report)
     for name, body in [
         ("concrete-string", "if string-byte-length (string-repeat 65536 \"x\") == 65536 then 0 else 1"),
-        ("list-string-O", "if is-empty ([\"probe\"] :: List String) then 1 else if is-empty ([] :: List String) then 0 else 2"),
+        ("list-string-O", 'let value = string-repeat 257 "é" in let values = Cons value Nil in '
+         'if is-empty values then 1 else if is-empty ([] :: List String) then '
+         'if string-byte-length value == 514 then 0 else 3 else 2'),
     ]:
         project = (args.artifacts / name).resolve()
         project.mkdir()
@@ -55,28 +64,34 @@ def main() -> None:
         compiled = subprocess.run(command, env=bootstrap.environment(), cwd=project, capture_output=True, text=True)
         diagnostic = ir.with_name(ir.name + ".diagnostics")
         text = diagnostic.read_text() if diagnostic.exists() else compiled.stderr
-        probe = {"name": name, "compile_exit": compiled.returncode, "diagnostics": text, "command": command}
+        probe = {"name": name, "compile_exit": compiled.returncode, "diagnostics": text, "command": command,
+                 "entry_sha256": digest(entry)}
         if compiled.returncode:
             demands = bootstrap_objects.requested_roots(text)
-            missing = {"symbol": "Data.List.is-empty", "classes": "O"}
-            if name != "list-string-O" or compiled.returncode != 4 or missing not in demands["units"]:
-                report.update(status="failed", failure=probe)
-                bootstrap.write_json(args.output, report)
-                raise bootstrap.BootstrapError(f"unexpected ABI probe rejection: {name}: {text}")
             metadata = bootstrap.read_json(Path(provider["configuration"]["metadata"]))
-            probe.update(status="named-provider-variant-limit", demands=demands,
+            probe.update(status="failed", demands=demands,
+                         named_missing_list_object_variant=missing_list_object_variant(name, compiled.returncode, text),
                          emitted_is_empty_variants=[row for row in metadata["units"] if row["symbol"].startswith("Data.List.is-empty")])
+            report.update(status="failed", failure=probe)
+            report["abi_probes"].append(probe)
+            bootstrap.write_json(args.output, report)
+            raise bootstrap.BootstrapError(f"required ABI probe rejected: {name}: {text}")
         else:
             link = [os.environ.get("CINCH_CLANG", "clang"), str(ir), str(provider["object"]), str(provider["runtime"]),
                     f"-O{args.opt_level}", "-o", str(executable)]
             if bootstrap.HOST["system"] == "Linux":
                 link.extend(["-ldl", "-lpthread", "-lm"])
             subprocess.run(link, env=bootstrap.environment(), capture_output=True, text=True, check=True)
-            result = subprocess.run([str(executable)], env={**os.environ, "CINCH_STACK_SIZE": "8M", "CINCH_HEAP_LIMIT": "32M",
-                                                            "CINCH_LEAK_CHECK": "1"}, capture_output=True, text=True)
-            if result.returncode or "leaked=0" not in result.stderr:
-                raise bootstrap.BootstrapError(f"ABI probe {name}: {result.returncode}: {result.stderr}")
-            probe.update(status="passed", executable_sha256=digest(executable), link_command=link, stderr=result.stderr)
+            runs = []
+            for debug in [False, True]:
+                result = subprocess.run([str(executable)],
+                    env={**os.environ, "CINCH_STACK_SIZE": "8M", "CINCH_HEAP_LIMIT": "256M" if debug else "32M",
+                         "CINCH_LEAK_CHECK": "1", "CINCH_RC_DEBUG": "1" if debug else "0"},
+                    capture_output=True, text=True, timeout=180)
+                runs.append({"debug": debug, "exit": result.returncode, "stdout": result.stdout, "stderr": result.stderr})
+                if result.returncode or "leaked=0" not in result.stderr:
+                    raise bootstrap.BootstrapError(f"ABI probe {name}/debug={debug}: {result.returncode}: {result.stderr}")
+            probe.update(status="passed", executable_sha256=digest(executable), llvm_sha256=digest(ir), link_command=link, runs=runs)
         report["abi_probes"].append(probe)
         bootstrap.write_json(args.output, report)
     for group in ["repeats", "concats", "regression", "owners"]:
@@ -91,13 +106,15 @@ def main() -> None:
         else:
             rows = fixture[group]
             expressions = checks(group, rows)
-        source = consumer(expressions)
+        source = consumer(expressions).replace("module Main where\n", "module Main where\n  export main\n", 1)
+        sources = {"Main.cinch": source.encode()}
         for name, path in source_closure(source).items():
             if name == "Data.String":
                 raise bootstrap.BootstrapError("a Native provider consumer must not shadow Data.String")
             shutil.copyfile(path, project / (name + ".cinch"))
-        entry = project / "Main.cinch"
-        entry.write_text(source)
+            sources[name + ".cinch"] = path.read_bytes()
+        entry = project / "Bundle.cinch"
+        entry.write_bytes(bootstrap.bundle(sources))
         ir, executable = project / "consumer.ll", project / "consumer"
         command = [str(args.compiler.resolve()), "--emit-ir-with-interfaces", "--rc-debug", "--interfaces", str(manifest.resolve()),
                    "--objects", str(objects.resolve()), str(entry), str(ir)]
