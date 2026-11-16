@@ -1,0 +1,12 @@
+{
+  "original_path": "/workspace/dasl-stdlib-refined-mask/build/refined-mask-experimental-emitter-v2/compiler.ll",
+  "original_bytes": 241132727,
+  "uncompressed_sha256": "11c20b12003c8f5dbcdb00db8efc230458f80715b04b4a0ae10e486bcfb9ba28",
+  "archive_path": "/workspace/dasl-stdlib-refined-mask/build/refined-mask-experimental-emitter-v2/compiler.ll.v2.zst",
+  "archive_bytes": 29467352,
+  "compressed_sha256": "6cf9f85b38696a8c320a5acba750f9fead5b7c4b211f33837570935046ad110b",
+  "verified_decompressed_bytes": 241132727,
+  "verified_decompressed_sha256": "11c20b12003c8f5dbcdb00db8efc230458f80715b04b4a0ae10e486bcfb9ba28",
+  "raw_unlinked": true,
+  "source_elf_runtime_client_evidence_unchanged": true
+}

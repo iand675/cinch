@@ -5,6 +5,7 @@ module Bootstrap.Object where
   import Bootstrap.Interface (fnv-source-hash, sha256-hex)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Builtin (scalar-intrinsic)
+  import Bootstrap.Infer (scalar-interface-contract-matches)
   import Bootstrap.Nominal (interface-global, global-data-string-string)
   import Data.Json
   import Data.Nat (nat-from-int)
@@ -253,14 +254,14 @@ module Bootstrap.Object where
       else JObj key value (scalar-reexport-contract rest)
     other -> other
   -- | Find a pure supported scalar declaration under its exact represented defining identity.
-  scalar-reexport-foreign :: String -> String -> String -> Json -> Bool
-  scalar-reexport-foreign identity scheme owner rows = case rows of
+  scalar-reexport-foreign :: String -> Json -> String -> Json -> Bool
+  scalar-reexport-foreign identity value owner rows = case rows of
     JArr row rest -> (case (field "symbol" row, field "kind" row, field "abi" row, field "effects" row, field "type" row, field "external" row) of
       (JStr local, JStr category, JStr abi, JStr effects, JStr actual, JStr opcode) ->
         (same identity (owner <> "." <> local) && same category "intrinsic" && same abi "ccall" && same effects ""
-          && same scheme actual && (case scalar-intrinsic opcode of Some operation -> True; None -> False))
-          || scalar-reexport-foreign identity scheme owner rest
-      other -> scalar-reexport-foreign identity scheme owner rest)
+          && scalar-interface-contract-matches value row && (case scalar-intrinsic opcode of Some operation -> True; None -> False))
+          || scalar-reexport-foreign identity value owner rest
+      other -> scalar-reexport-foreign identity value owner rest)
     other -> False
   -- | Match every non-name field against an actual value in the same represented defining module.
   scalar-reexport-row :: Json -> LoadedInterface -> Json -> Bool
@@ -269,7 +270,7 @@ module Bootstrap.Object where
       (case (field "symbol" row, field "scheme" row, field "resolved" row, field "total_body" row) of
         (JStr identity, JStr scheme, JObj key value tail, JNull) ->
           bytes-compare (canonical-bytes (scalar-reexport-contract wanted)) (canonical-bytes (scalar-reexport-contract row)) == 0
-            && scalar-reexport-foreign identity scheme (loaded-module defining) (field "foreign" (field "exports" (loaded-contract defining)))
+            && scalar-reexport-foreign identity row (loaded-module defining) (field "foreign" (field "exports" (loaded-contract defining)))
         other -> False) || scalar-reexport-row wanted defining rest
     other -> False
   -- | Resolve a scalar alias only through the provider's already checked interface inventory.

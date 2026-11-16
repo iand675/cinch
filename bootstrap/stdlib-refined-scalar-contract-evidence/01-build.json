@@ -1,0 +1,42 @@
+{
+  "bundle_sha256": "d7ec7706dd3d7d3124e2128c2fe9f52fff041946403d15b8fb30e5a22610f4cc",
+  "compiler_host_opt_level": 0,
+  "compiler_sha256": "4a44146bfe538cf605933f8e8175387ae40f152bb991add6640a5b5882b12d41",
+  "compiler_source_sha256": "2c6d66b29d9ab7d0c9039f0309d9d353a5e629f483e46c092aaaf3452c225c08",
+  "full_family_admission": false,
+  "llvm_sha256": "11c20b12003c8f5dbcdb00db8efc230458f80715b04b4a0ae10e486bcfb9ba28",
+  "producer_sha256": "fa97942e3f9da884ab9badd1b0463ae28fb3dacd6f3af71cbe9444e1c14e5c5d",
+  "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "status": "built",
+  "steps": [
+    {
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-refined-mask/build/refined-mask-experimental-emitter-v2/Bundle.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-refined-mask/build/refined-mask-experimental-emitter-v2/compiler.ll"
+      ],
+      "exit": 0,
+      "name": "emit",
+      "seconds": 71.4827196598053
+    },
+    {
+      "command": [
+        "clang",
+        "-O0",
+        "-Wno-override-module",
+        "/workspace/dasl-stdlib-refined-mask/build/refined-mask-experimental-emitter-v2/compiler.ll",
+        "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-refined-mask/build/refined-mask-experimental-emitter-v2/cinch"
+      ],
+      "exit": 0,
+      "name": "link",
+      "seconds": 28.7690110206604
+    }
+  ]
+}

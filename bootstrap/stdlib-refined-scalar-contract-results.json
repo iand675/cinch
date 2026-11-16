@@ -1,0 +1,141 @@
+{
+  "schema": 1,
+  "status": "focused-gates-passed",
+  "full_family_admission": false,
+  "publication_approved": false,
+  "prior_family_unchanged": "f125843bdf3ec2ff42e6f6eeca7a10435161b955",
+  "compiler": {
+    "bundle_sha256": "d7ec7706dd3d7d3124e2128c2fe9f52fff041946403d15b8fb30e5a22610f4cc",
+    "compiler_host_opt_level": 0,
+    "compiler_sha256": "4a44146bfe538cf605933f8e8175387ae40f152bb991add6640a5b5882b12d41",
+    "compiler_source_sha256": "2c6d66b29d9ab7d0c9039f0309d9d353a5e629f483e46c092aaaf3452c225c08",
+    "full_family_admission": false,
+    "llvm_sha256": "11c20b12003c8f5dbcdb00db8efc230458f80715b04b4a0ae10e486bcfb9ba28",
+    "producer_sha256": "fa97942e3f9da884ab9badd1b0463ae28fb3dacd6f3af71cbe9444e1c14e5c5d",
+    "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+    "status": "built",
+    "steps": [
+      {
+        "command": [
+          "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/cinch",
+          "emit-ir",
+          "/workspace/dasl-stdlib-refined-mask/build/refined-mask-experimental-emitter-v2/Bundle.cinch",
+          "-o",
+          "/workspace/dasl-stdlib-refined-mask/build/refined-mask-experimental-emitter-v2/compiler.ll"
+        ],
+        "exit": 0,
+        "name": "emit",
+        "seconds": 71.4827196598053
+      },
+      {
+        "command": [
+          "clang",
+          "-O0",
+          "-Wno-override-module",
+          "/workspace/dasl-stdlib-refined-mask/build/refined-mask-experimental-emitter-v2/compiler.ll",
+          "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/libcinchruntime.a",
+          "-ldl",
+          "-lpthread",
+          "-lm",
+          "-o",
+          "/workspace/dasl-stdlib-refined-mask/build/refined-mask-experimental-emitter-v2/cinch"
+        ],
+        "exit": 0,
+        "name": "link",
+        "seconds": 28.7690110206604
+      }
+    ]
+  },
+  "source": {
+    "compiler_source_sha256": "2c6d66b29d9ab7d0c9039f0309d9d353a5e629f483e46c092aaaf3452c225c08",
+    "infer_sha256": "8e4d339c99a593eb1a19c4b6c3a2c9cd10ae00a2f0cdae82448ec6a3bfa8a4ff",
+    "object_sha256": "9cbb3081573d64b418714d685a7273d0591c472cf6cac8d533c1d93c1659f89a",
+    "source_files": 51
+  },
+  "behavior": {
+    "defining_contract": "full normalized scheme equivalence, including dependent binders and refinements",
+    "inline_authority": "exact canonical bare nominal scheme only",
+    "stronger_valid_contract": "ordinary represented provider call retaining its complete checked scheme",
+    "reexport_authority": "all non-name fields and defining identity match an actual represented provider value; no serialized body authority"
+  },
+  "checks": {
+    "source_modules": 51,
+    "authority_observations_per_optimization": 27,
+    "scalar_cases_per_optimization": 667,
+    "consumer_optimizations": [
+      0,
+      2
+    ],
+    "curated_contract_alias_observations": 22,
+    "curated_runtime_profiles": 8,
+    "real_unchanged_ring_control_runtime_profiles": 4,
+    "consumer_stack": "8M",
+    "ordinary_heap": "32M",
+    "poison_heap": "256M",
+    "runtime_leaks": 0
+  },
+  "limitations": [
+    "Experimental compiler host is built at O0; no full fixed point or performance claim.",
+    "The experimental host uses the immutable fa979 producer and 80bd runtime/provider, not the repaired Rust producer.",
+    "The immutable f811/V2 family retains its refined mask admission failure and known unsigned negation/conversion provider limitations.",
+    "The 667-case compatibility fixture does not cover all public unsigned negation or checked/saturating conversion boundaries.",
+    "A separately admitted repaired provider and fresh Native family remain required."
+  ],
+  "retained_attempts": [
+    "Initial text comparison rejected genuine Data.Machine.mask-i64 and its real source-absent facade.",
+    "Early synthetic interface attempts failed stale dependency or nominal-closure guards; curated controls use their own separate module and real dependency closure.",
+    "No provider interfaces, object units, sources, pins or runtime bytes were modified."
+  ],
+  "evidence": [
+    {
+      "original_path": "/workspace/dasl-stdlib-refined-mask/build/refined-mask-source-check-v2/source.json",
+      "retained_path": "bootstrap/stdlib-refined-scalar-contract-evidence/00-source.json",
+      "sha256": "0537021dda9402cc5df7292df19a9e04e15faaf76ebb00d0951a7344116a7a5e"
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-refined-mask/build/refined-mask-experimental-emitter-v2/build.json",
+      "retained_path": "bootstrap/stdlib-refined-scalar-contract-evidence/01-build.json",
+      "sha256": "4e9ded3c1d8f0cfaba5fe7ef7613ee2fbf0d42fa25b7cc066dc5e98ef5c1968c"
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-refined-mask/build/refined-mask-curated-v2.json",
+      "retained_path": "bootstrap/stdlib-refined-scalar-contract-evidence/02-refined-mask-curated-v2.json",
+      "sha256": "9384ef46d8dc3636cdf98a8dfa21f2877e91d6a9055925816a3eaa5b473de660"
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-refined-mask/build/refined-mask-authority-o0.json",
+      "retained_path": "bootstrap/stdlib-refined-scalar-contract-evidence/03-refined-mask-authority-o0.json",
+      "sha256": "b40f2d0c60b5d09e90e2d8b4542dd02cb279b2598126fec13e32b8b864007633"
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-refined-mask/build/refined-mask-authority-o2.json",
+      "retained_path": "bootstrap/stdlib-refined-scalar-contract-evidence/04-refined-mask-authority-o2.json",
+      "sha256": "49955260dcbfe8d7046c4bdd339bd8267e6291821380518d74c1478d6b4a9253"
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-refined-mask/build/refined-mask-scalar-o0.json",
+      "retained_path": "bootstrap/stdlib-refined-scalar-contract-evidence/05-refined-mask-scalar-o0.json",
+      "sha256": "6c81289cfaf91bc4ea1223778933b54e7cec033b23ec5f08e8598d60cf86ee1f"
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-refined-mask/build/refined-mask-scalar-o2.json",
+      "retained_path": "bootstrap/stdlib-refined-scalar-contract-evidence/06-refined-mask-scalar-o2.json",
+      "sha256": "542320d498e1d42cb63dde8ba810b26f2c8b5279fc369c9c2203b226fb720310"
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-refined-mask/build/refined-mask-ring-functional-v2/report.json",
+      "retained_path": "bootstrap/stdlib-refined-scalar-contract-evidence/07-report.json",
+      "sha256": "4bcb418ed15ff4ad38cb09893819e8bb03068c744212724d674a80d65e83b1d4"
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-refined-mask/build/refined-mask-experimental-emitter-v1/host-llvm-archive.json",
+      "retained_path": "bootstrap/stdlib-refined-scalar-contract-evidence/08-host-llvm-archive.json",
+      "sha256": "88d8403dc387243257882372ccd6f47f030ff5e46b500686bfb6f837f5f6163e"
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-refined-mask/build/refined-mask-experimental-emitter-v2/host-llvm-archive.json",
+      "retained_path": "bootstrap/stdlib-refined-scalar-contract-evidence/09-host-llvm-archive.json",
+      "sha256": "de7734832003aad83a6ce5db346e9b4dcfb9d5626fe0b12005ed535f81727bd7"
+    }
+  ]
+}
