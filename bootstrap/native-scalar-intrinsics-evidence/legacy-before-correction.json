@@ -1,0 +1,30 @@
+[
+  {
+    "command": [
+      "/workspace/dasl-stdlib-mutable-family/build/mutable-stage3-frozen/cinch",
+      "--check",
+      "--interfaces",
+      "/workspace/dasl-stdlib-scalar-imports/build/scalar-r4-legacy-probe/interfaces.json",
+      "/workspace/dasl-stdlib-scalar-imports/build/scalar-r4-legacy-probe/Main.cinch",
+      "/workspace/dasl-stdlib-scalar-imports/build/scalar-r4-legacy-probe/baseline.checked"
+    ],
+    "compiler_sha256": "58676dec9c2d2f6c4f5307a7106e1b94b6806ede88113f46d665d7e55955ad8f",
+    "diagnostic": "",
+    "exit": 0,
+    "name": "baseline"
+  },
+  {
+    "command": [
+      "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter-r4/cinch",
+      "--check",
+      "--interfaces",
+      "/workspace/dasl-stdlib-scalar-imports/build/scalar-r4-legacy-probe/interfaces.json",
+      "/workspace/dasl-stdlib-scalar-imports/build/scalar-r4-legacy-probe/Main.cinch",
+      "/workspace/dasl-stdlib-scalar-imports/build/scalar-r4-legacy-probe/experimental.checked"
+    ],
+    "compiler_sha256": "fb2da2cecb31c6de147ae4090f9c53d330fb91b5f98329e09a861ed192d37dbe",
+    "diagnostic": "bootstrap.check:1:1: incomplete imported scalar intrinsic contract\n",
+    "exit": 4,
+    "name": "experimental"
+  }
+]

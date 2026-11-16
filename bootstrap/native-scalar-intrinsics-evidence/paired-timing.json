@@ -1,0 +1,363 @@
+{
+  "background_context": "Parent combined-provider Native Stage3 chain is active on CPU3; CPU0 timing window is exclusive and parent deferred documentation work. Scalar compiler host is O0; both timed clients are clang O2 with the identical source, fixture, provider and runtime.",
+  "codegen_report_sha256": "e9f64a688604a0c69ce6152769f08694be2e0b1fffb507c302cbe922b5d51fb3",
+  "compiler_activity_after": "  52739   1 cinch           [cinch] <defunct>\n  54309   1 cinch           [cinch] <defunct>\n  54867   4 clang           [clang] <defunct>\n  54869   2 clang           [clang] <defunct>\n  65199   4 rustc           [rustc] <defunct>\n 133432   2 rustc           [rustc] <defunct>\n 140904   2 rustc           [rustc] <defunct>\n 181166   1 cinch           [cinch] <defunct>\n 221699   3 rustc           [rustc] <defunct>\n 451030   3 cinch           /workspace/dasl-stdlib-string-combined/build/combined-bootstrap/stage2/cinch --emit-ir-with-interfaces --interfaces /workspace/dasl-stdlib-string-combined/build/combined-bootstrap/stage3/base-interfaces.json --objects /workspace/dasl-stdlib-string-combined/build/combined-bootstrap/stage3/objects.json /workspace/dasl-stdlib-string-combined/build/combined-bootstrap/stage1/compiler.cinch /workspace/dasl-stdlib-string-combined/build/combined-bootstrap/stage3/compiler.ll\n",
+  "compiler_activity_before": "  52739   1 cinch           [cinch] <defunct>\n  54309   1 cinch           [cinch] <defunct>\n  54867   4 clang           [clang] <defunct>\n  54869   2 clang           [clang] <defunct>\n  65199   4 rustc           [rustc] <defunct>\n 133432   2 rustc           [rustc] <defunct>\n 140904   2 rustc           [rustc] <defunct>\n 181166   1 cinch           [cinch] <defunct>\n 221699   3 rustc           [rustc] <defunct>\n 451030   3 cinch           /workspace/dasl-stdlib-string-combined/build/combined-bootstrap/stage2/cinch --emit-ir-with-interfaces --interfaces /workspace/dasl-stdlib-string-combined/build/combined-bootstrap/stage3/base-interfaces.json --objects /workspace/dasl-stdlib-string-combined/build/combined-bootstrap/stage3/objects.json /workspace/dasl-stdlib-string-combined/build/combined-bootstrap/stage1/compiler.cinch /workspace/dasl-stdlib-string-combined/build/combined-bootstrap/stage3/compiler.ll\n",
+  "cpu_affinity": [
+    0
+  ],
+  "description": "Constructor-free scalar recurrence only; input acquisition, checksum observation, startup and teardown remain outside both clocks.",
+  "driver_cpu_affinity": [
+    0
+  ],
+  "expected_checksum": 11243223993704258316,
+  "iterations": 5000000,
+  "object_sha256": "645a3d0e2feae9b4b92ecc98117f31abcb53be0bb25ae6bce06d165938f1178d",
+  "pairs": [
+    [
+      {
+        "checksum": 11243223993704258316,
+        "command": [
+          "taskset",
+          "-c",
+          "0",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-paired-codegen/baseline/consumer"
+        ],
+        "compiler_sha256": "58676dec9c2d2f6c4f5307a7106e1b94b6806ede88113f46d665d7e55955ad8f",
+        "elapsed_ns": 41845716,
+        "executable_sha256": "5450e4534d4f5f881dafdddf0b8dafe8f586e347ca499c4310675e043cdafdee",
+        "exit": 0,
+        "name": "baseline",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "checksum": 11243223993704258316,
+        "command": [
+          "taskset",
+          "-c",
+          "0",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-paired-codegen/experimental/consumer"
+        ],
+        "compiler_sha256": "167a24969606655e3450cd28470a01da67f9138ac6175e89892002a9e02d47cb",
+        "elapsed_ns": 8811263,
+        "executable_sha256": "5f572def6567dd350bc63c6eb33bf734e470942d12ec1cc59f06692c7023c0d6",
+        "exit": 0,
+        "name": "experimental",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      }
+    ],
+    [
+      {
+        "checksum": 11243223993704258316,
+        "command": [
+          "taskset",
+          "-c",
+          "0",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-paired-codegen/experimental/consumer"
+        ],
+        "compiler_sha256": "167a24969606655e3450cd28470a01da67f9138ac6175e89892002a9e02d47cb",
+        "elapsed_ns": 8887850,
+        "executable_sha256": "5f572def6567dd350bc63c6eb33bf734e470942d12ec1cc59f06692c7023c0d6",
+        "exit": 0,
+        "name": "experimental",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "checksum": 11243223993704258316,
+        "command": [
+          "taskset",
+          "-c",
+          "0",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-paired-codegen/baseline/consumer"
+        ],
+        "compiler_sha256": "58676dec9c2d2f6c4f5307a7106e1b94b6806ede88113f46d665d7e55955ad8f",
+        "elapsed_ns": 39815212,
+        "executable_sha256": "5450e4534d4f5f881dafdddf0b8dafe8f586e347ca499c4310675e043cdafdee",
+        "exit": 0,
+        "name": "baseline",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      }
+    ],
+    [
+      {
+        "checksum": 11243223993704258316,
+        "command": [
+          "taskset",
+          "-c",
+          "0",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-paired-codegen/baseline/consumer"
+        ],
+        "compiler_sha256": "58676dec9c2d2f6c4f5307a7106e1b94b6806ede88113f46d665d7e55955ad8f",
+        "elapsed_ns": 38062738,
+        "executable_sha256": "5450e4534d4f5f881dafdddf0b8dafe8f586e347ca499c4310675e043cdafdee",
+        "exit": 0,
+        "name": "baseline",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "checksum": 11243223993704258316,
+        "command": [
+          "taskset",
+          "-c",
+          "0",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-paired-codegen/experimental/consumer"
+        ],
+        "compiler_sha256": "167a24969606655e3450cd28470a01da67f9138ac6175e89892002a9e02d47cb",
+        "elapsed_ns": 8863874,
+        "executable_sha256": "5f572def6567dd350bc63c6eb33bf734e470942d12ec1cc59f06692c7023c0d6",
+        "exit": 0,
+        "name": "experimental",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      }
+    ],
+    [
+      {
+        "checksum": 11243223993704258316,
+        "command": [
+          "taskset",
+          "-c",
+          "0",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-paired-codegen/experimental/consumer"
+        ],
+        "compiler_sha256": "167a24969606655e3450cd28470a01da67f9138ac6175e89892002a9e02d47cb",
+        "elapsed_ns": 8849152,
+        "executable_sha256": "5f572def6567dd350bc63c6eb33bf734e470942d12ec1cc59f06692c7023c0d6",
+        "exit": 0,
+        "name": "experimental",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "checksum": 11243223993704258316,
+        "command": [
+          "taskset",
+          "-c",
+          "0",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-paired-codegen/baseline/consumer"
+        ],
+        "compiler_sha256": "58676dec9c2d2f6c4f5307a7106e1b94b6806ede88113f46d665d7e55955ad8f",
+        "elapsed_ns": 42541612,
+        "executable_sha256": "5450e4534d4f5f881dafdddf0b8dafe8f586e347ca499c4310675e043cdafdee",
+        "exit": 0,
+        "name": "baseline",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      }
+    ],
+    [
+      {
+        "checksum": 11243223993704258316,
+        "command": [
+          "taskset",
+          "-c",
+          "0",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-paired-codegen/baseline/consumer"
+        ],
+        "compiler_sha256": "58676dec9c2d2f6c4f5307a7106e1b94b6806ede88113f46d665d7e55955ad8f",
+        "elapsed_ns": 37816180,
+        "executable_sha256": "5450e4534d4f5f881dafdddf0b8dafe8f586e347ca499c4310675e043cdafdee",
+        "exit": 0,
+        "name": "baseline",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "checksum": 11243223993704258316,
+        "command": [
+          "taskset",
+          "-c",
+          "0",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-paired-codegen/experimental/consumer"
+        ],
+        "compiler_sha256": "167a24969606655e3450cd28470a01da67f9138ac6175e89892002a9e02d47cb",
+        "elapsed_ns": 8751442,
+        "executable_sha256": "5f572def6567dd350bc63c6eb33bf734e470942d12ec1cc59f06692c7023c0d6",
+        "exit": 0,
+        "name": "experimental",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      }
+    ],
+    [
+      {
+        "checksum": 11243223993704258316,
+        "command": [
+          "taskset",
+          "-c",
+          "0",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-paired-codegen/experimental/consumer"
+        ],
+        "compiler_sha256": "167a24969606655e3450cd28470a01da67f9138ac6175e89892002a9e02d47cb",
+        "elapsed_ns": 8697279,
+        "executable_sha256": "5f572def6567dd350bc63c6eb33bf734e470942d12ec1cc59f06692c7023c0d6",
+        "exit": 0,
+        "name": "experimental",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "checksum": 11243223993704258316,
+        "command": [
+          "taskset",
+          "-c",
+          "0",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-paired-codegen/baseline/consumer"
+        ],
+        "compiler_sha256": "58676dec9c2d2f6c4f5307a7106e1b94b6806ede88113f46d665d7e55955ad8f",
+        "elapsed_ns": 37716027,
+        "executable_sha256": "5450e4534d4f5f881dafdddf0b8dafe8f586e347ca499c4310675e043cdafdee",
+        "exit": 0,
+        "name": "baseline",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      }
+    ],
+    [
+      {
+        "checksum": 11243223993704258316,
+        "command": [
+          "taskset",
+          "-c",
+          "0",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-paired-codegen/baseline/consumer"
+        ],
+        "compiler_sha256": "58676dec9c2d2f6c4f5307a7106e1b94b6806ede88113f46d665d7e55955ad8f",
+        "elapsed_ns": 37596635,
+        "executable_sha256": "5450e4534d4f5f881dafdddf0b8dafe8f586e347ca499c4310675e043cdafdee",
+        "exit": 0,
+        "name": "baseline",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "checksum": 11243223993704258316,
+        "command": [
+          "taskset",
+          "-c",
+          "0",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-paired-codegen/experimental/consumer"
+        ],
+        "compiler_sha256": "167a24969606655e3450cd28470a01da67f9138ac6175e89892002a9e02d47cb",
+        "elapsed_ns": 8728436,
+        "executable_sha256": "5f572def6567dd350bc63c6eb33bf734e470942d12ec1cc59f06692c7023c0d6",
+        "exit": 0,
+        "name": "experimental",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      }
+    ],
+    [
+      {
+        "checksum": 11243223993704258316,
+        "command": [
+          "taskset",
+          "-c",
+          "0",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-paired-codegen/experimental/consumer"
+        ],
+        "compiler_sha256": "167a24969606655e3450cd28470a01da67f9138ac6175e89892002a9e02d47cb",
+        "elapsed_ns": 8709447,
+        "executable_sha256": "5f572def6567dd350bc63c6eb33bf734e470942d12ec1cc59f06692c7023c0d6",
+        "exit": 0,
+        "name": "experimental",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "checksum": 11243223993704258316,
+        "command": [
+          "taskset",
+          "-c",
+          "0",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-paired-codegen/baseline/consumer"
+        ],
+        "compiler_sha256": "58676dec9c2d2f6c4f5307a7106e1b94b6806ede88113f46d665d7e55955ad8f",
+        "elapsed_ns": 38380710,
+        "executable_sha256": "5450e4534d4f5f881dafdddf0b8dafe8f586e347ca499c4310675e043cdafdee",
+        "exit": 0,
+        "name": "baseline",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      }
+    ],
+    [
+      {
+        "checksum": 11243223993704258316,
+        "command": [
+          "taskset",
+          "-c",
+          "0",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-paired-codegen/baseline/consumer"
+        ],
+        "compiler_sha256": "58676dec9c2d2f6c4f5307a7106e1b94b6806ede88113f46d665d7e55955ad8f",
+        "elapsed_ns": 42506323,
+        "executable_sha256": "5450e4534d4f5f881dafdddf0b8dafe8f586e347ca499c4310675e043cdafdee",
+        "exit": 0,
+        "name": "baseline",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "checksum": 11243223993704258316,
+        "command": [
+          "taskset",
+          "-c",
+          "0",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-paired-codegen/experimental/consumer"
+        ],
+        "compiler_sha256": "167a24969606655e3450cd28470a01da67f9138ac6175e89892002a9e02d47cb",
+        "elapsed_ns": 12048110,
+        "executable_sha256": "5f572def6567dd350bc63c6eb33bf734e470942d12ec1cc59f06692c7023c0d6",
+        "exit": 0,
+        "name": "experimental",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      }
+    ]
+  ],
+  "profile": {
+    "checked_rc_compilation": true,
+    "heap": "32M",
+    "poison": false,
+    "stack": "8M"
+  },
+  "provider_receipt_sha256": "e70250a59eb9c37a0cc2d87d5b55b0cd5d60d7ab3aaac3f64cdfb9fce0e52ab9",
+  "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "source_sha256": "9fd7754fd297514e1a2716207f41adf3382fde260096aa9a74bb39c20fbca0f9",
+  "status": "passed",
+  "summary": {
+    "baseline": {
+      "max_ns": 42541612,
+      "median_ns": 38380710,
+      "min_ns": 37596635,
+      "ns_per_step": 7.676142
+    },
+    "experimental": {
+      "max_ns": 12048110,
+      "median_ns": 8811263,
+      "min_ns": 8697279,
+      "ns_per_step": 1.7622526
+    },
+    "median_speedup": 4.355869300462374
+  },
+  "warmups": [
+    {
+      "checksum": 11243223993704258316,
+      "command": [
+        "taskset",
+        "-c",
+        "0",
+        "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-paired-codegen/baseline/consumer"
+      ],
+      "compiler_sha256": "58676dec9c2d2f6c4f5307a7106e1b94b6806ede88113f46d665d7e55955ad8f",
+      "elapsed_ns": 37414355,
+      "executable_sha256": "5450e4534d4f5f881dafdddf0b8dafe8f586e347ca499c4310675e043cdafdee",
+      "exit": 0,
+      "name": "baseline",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "checksum": 11243223993704258316,
+      "command": [
+        "taskset",
+        "-c",
+        "0",
+        "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-paired-codegen/experimental/consumer"
+      ],
+      "compiler_sha256": "167a24969606655e3450cd28470a01da67f9138ac6175e89892002a9e02d47cb",
+      "elapsed_ns": 10440969,
+      "executable_sha256": "5f572def6567dd350bc63c6eb33bf734e470942d12ec1cc59f06692c7023c0d6",
+      "exit": 0,
+      "name": "experimental",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    }
+  ]
+}

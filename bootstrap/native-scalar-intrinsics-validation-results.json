@@ -1,0 +1,348 @@
+{
+  "base_revision": "fc1838389298772fffc471f3e22b302e2b4aedd9",
+  "baseline": {
+    "compiler_sha256": "58676dec9c2d2f6c4f5307a7106e1b94b6806ede88113f46d665d7e55955ad8f",
+    "full_native_family_previously_verified": true,
+    "revision": "fc1838389298772fffc471f3e22b302e2b4aedd9",
+    "source_sha256": "4de3bd70fdfeb3dd1faeb6498f7f6cc54be1980749b85f770a7fa722daaa8cb8"
+  },
+  "candidate": {
+    "bundle_sha256": "2c36efdbc966bb448977f1985042dc2872686d32fa3a010cc05c4f4aa11a6186",
+    "compiler_host_opt_level": 0,
+    "compiler_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter-r5/cinch",
+    "compiler_sha256": "167a24969606655e3450cd28470a01da67f9138ac6175e89892002a9e02d47cb",
+    "consumer_opt_levels": [
+      0,
+      2
+    ],
+    "emit_command": [
+      "taskset",
+      "-c",
+      "1",
+      "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/cinch",
+      "emit-ir",
+      "/workspace/dasl-stdlib-scalar-imports/build/scalar-source-check-r5/Bundle.cinch",
+      "-o",
+      "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter-r5/compiler.ll"
+    ],
+    "link_command": [
+      "taskset",
+      "-c",
+      "1",
+      "clang",
+      "-O0",
+      "-Wno-override-module",
+      "build/scalar-experimental-emitter-r5/compiler.ll",
+      "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+      "-o",
+      "build/scalar-experimental-emitter-r5/cinch",
+      "-ldl",
+      "-lpthread",
+      "-lm"
+    ],
+    "link_warnings": "/usr/bin/ld: /tmp/compiler-a93f20.o: warning: relocation against `Bootstrap.Infer.infer-forall-annotation-with.lam190.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+    "llvm_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter-r5/compiler.ll",
+    "llvm_sha256": "2783eb095acf7d7db0ffe70e2096e058a8eaa2caf6f86ed78ab8da48e49d520b",
+    "producer_sha256": "ae9c3f812404bd43020346ee4b7464ebf906fe4263932d011d99b8fd9301334a",
+    "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+    "source_bundle_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-source-check-r5/Bundle.cinch",
+    "source_check": {
+      "command": [
+        "taskset",
+        "-c",
+        "1",
+        "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/cinch",
+        "check",
+        "build/scalar-source-check-r5/Bundle.cinch"
+      ],
+      "exit": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "source_files": {
+      "Bootstrap.Ast.cinch": "3da668e217c0f04e9cf6d66e6e5214c9f7936d3fd481cc9176abf0da12db0455",
+      "Bootstrap.BodyContract.cinch": "ffe0b2d87bb7b69589d662e7fc15f3bb96e7502ccd79f532f47e6d82aff36de4",
+      "Bootstrap.Builtin.cinch": "432ad4032460ebb58d2688f89262468bf8c7f7b6d4c41c25db8cb24cc08305ae",
+      "Bootstrap.Check.cinch": "960dae10f40201ea2fc134e9d114ce34e66f788a0f8c48e618a5a769d6f9ed32",
+      "Bootstrap.Contracts.cinch": "e73f1b0f8258c1db4e91341ba09024f47de042c4337cc6c1fd27520adddc1dac",
+      "Bootstrap.Core.cinch": "e143fd0443e0c895150ae270a373062ee0b7e292e22ca18b68400ca9cca66d28",
+      "Bootstrap.CoreBody.cinch": "7a32cf05fb400707820e829a37edfa16b787b1b530871b9631d7ac42402ec0da",
+      "Bootstrap.Dictionary.cinch": "11caf0c05484a59c85765a2548932b9a2487aca57c3c8d1e081ccd9af08acdb6",
+      "Bootstrap.Driver.cinch": "a9350fe510c1dd5a785e5f805a0da632d343a2cd8699f838d9bb3a2b22cab533",
+      "Bootstrap.Eval.cinch": "888606e854aab7ec820f607d9004722c26075731f580b7f51c524988f1a68967",
+      "Bootstrap.Expand.cinch": "3730803f333ee26a7941be0aca9911b56276735b08bd36995c0a1f88fbb4655a",
+      "Bootstrap.Export.cinch": "599471009e75851f60ebfa6c544a03a812dd2923be105a2cd1d658fdc3dc29b3",
+      "Bootstrap.ExportNominal.cinch": "d439bae5030019593fdb9b92373875090d5bac0a0e30df054db29fc17481c85a",
+      "Bootstrap.ExportType.cinch": "2484cfc1a90c186e36ac5df077c507040efcf5d2cb77da4dffcd05fa23eb320e",
+      "Bootstrap.Foreign.cinch": "5fb6e5190352a2b4137c66a49641360d63f95bab3cb9e1763ee6546b21d025a1",
+      "Bootstrap.Global.cinch": "ef518a4894a9a5b05ec810b462d8a7a862919f2a48cac8a1c27bef44048537e0",
+      "Bootstrap.Guarded.cinch": "024615db9bfcfc432cb0ee943f9390756cb43d1f52b1de36cd8584ce53dd6d98",
+      "Bootstrap.Index.cinch": "dcb92174c01a96faaf66bc7d550c4e443bfa2d4cdc88376f899eb547c5bf166f",
+      "Bootstrap.Infer.cinch": "8e8771d10c771a328f7e25e98e23a3d2961ee1bb0b2663b409d804ea73e4504f",
+      "Bootstrap.Inputs.cinch": "62cbc9ff4fa8b920610450f7f857ecf9ccc6f056c198ab2fa1921e0c3765a194",
+      "Bootstrap.Instance.cinch": "afe28d2c4c0f703a6cae92fd25de2e9257b344396407daf046132d1ebe865314",
+      "Bootstrap.Interface.cinch": "faecf6444b48cd4bfead2b42e593c5b33d0bd88d497d0c1b6265ab8f29f4a032",
+      "Bootstrap.Ir.cinch": "be9f22e3f530cf03261edd00a9f879484365e4face8cb63cbb0f8eb2e34fd984",
+      "Bootstrap.Kinds.cinch": "4774925d2d3ce8d7cd266bb6297169f60d3f7ac2c6a866d74e947c886bfc8a9e",
+      "Bootstrap.Load.cinch": "f533faeddcdc2881f62187cf7e119efa2e6e3c5b3c59fa64ba76efe7f7bf887d",
+      "Bootstrap.Manifest.cinch": "ef5e1496af11a57909cc707921202b1dc3c867bcbcd1889ae35f76f1b09a37ac",
+      "Bootstrap.Nominal.cinch": "da38bafe2f771a7f0e65ea92c39e820bf77d85a0c310ac4c7c8424dc86e2e9c5",
+      "Bootstrap.Object.cinch": "54d5ec6fd23e3e8ae35eb81f0fb933039e4932545cf265200e276681454a4bee",
+      "Bootstrap.Parse.cinch": "697a609eff4228205cc72bc07575cc875857cb6a33826cb8bc85d9f8344edfe1",
+      "Bootstrap.Pipeline.cinch": "5f7dc1216ee085f20933196d46c26b9ba4235eff31cb68f724a217fdc9e27a6c",
+      "Bootstrap.Proof.cinch": "9ae86640664c59a780c8a27b07001e2bccf00faccde33e6d0200886feeadb1a3",
+      "Bootstrap.Report.cinch": "e6cfc868d86d7585b5ed42e7fde6be613d02a6075101ab46d5a9f150f594e9c7",
+      "Bootstrap.Resolve.cinch": "8317093e0f884473a49ef848625e4aea3d8e237eaee009ba8e9a961fee90f651",
+      "Bootstrap.RuntimeAbi.cinch": "2475d26247a8967b726c4a475fecc733a86083fced48c88779a6071b7381bd3e",
+      "Bootstrap.RuntimeIr.cinch": "6751d76d1a61589d1876af73378444e8b05ae545acc36a46ee3691f3cc71797a",
+      "Bootstrap.Stage.cinch": "3320cfd63a9983fc053e0c9b94ae393d0d2962b7b78ff428a162c012cdfb3f61",
+      "Bootstrap.StageEval.cinch": "d53907533611569bccc45f3a42af819a625ffaa68740d5b313488a849ab938ef",
+      "Bootstrap.Temporal.cinch": "4aabe2374b72497d69c46d6fe3386246b18f60ab335e57eadd5f7e9abb7f89ca",
+      "Bootstrap.TemporalCheck.cinch": "9aa948e875bb2e9bed0112e6c02caa95f3f34d6cc41d7d8caa56e75eb5e6272c",
+      "Bootstrap.Test.cinch": "72f749b7d83d8513587b2eb43f4a51d84466dca4f912cef8eaae8caffb14adc4",
+      "Bootstrap.Total.cinch": "30bef01bca5e7cc80847763478cdbb3aed290334b142c0baf61493c35d3eb317",
+      "Bootstrap.TotalSemantics.cinch": "8e4a979aaad3a770065ef81a7a648757886edb137a226857a448cf9afcf3b0de",
+      "Bootstrap.Type.cinch": "8b822b5a9107da67ffc6aae68aa0cea76466d294df9959d2a3487ec746200e79",
+      "Bootstrap.Typing.cinch": "b777884156093cf85ca921d732089e507d65062190cbfa9cbeafdcbdf553a5c1",
+      "Data.Array.cinch": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+      "Main.cinch": "af5113475ded965ccd87d34f50c24125e6d2f902ca907734b78dc59a873055cc",
+      "Text.Builder.cinch": "c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b",
+      "Text.Json.cinch": "646cb9dacbfe1f64f18870031ca3fd708bb0b71021dff562f3661954f3e80f6c",
+      "Text.Lex.cinch": "bce5acadcde6ac5967b29c6eed2933e31df83451561d3ee9165e5d3beb2a2032",
+      "Text.Parse.cinch": "4b6d00ab84e6969cf6fe8a21f29a255a9871c048b6df4baab006734efd7fabed",
+      "Text.Scan.cinch": "bc12b7a6cb5fe9a9b448047f9aeeb0fc3eac1e29927e2270e7be760014a93208"
+    },
+    "source_sha256": "937efd9faa46c5015ebbe564db80880fda4cdea0995360e73759f3eeed06355e",
+    "status": "experimental"
+  },
+  "evidence": {
+    "authority-o0.json": {
+      "path": "bootstrap/native-scalar-intrinsics-evidence/authority-o0.json",
+      "sha256": "5d0169d5be7bbec58eb6bbf95131e4212a6b48345b1353d47d2771f5532fda05"
+    },
+    "authority-o2.json": {
+      "path": "bootstrap/native-scalar-intrinsics-evidence/authority-o2.json",
+      "sha256": "f4d0bad7f8cecb5c0a5bb5bd383e9feaea84f1e8d900a48f99225fc470ee3b85"
+    },
+    "baseline-o0.json": {
+      "path": "bootstrap/native-scalar-intrinsics-evidence/baseline-o0.json",
+      "sha256": "956534bb9b7f39a2f404b951bf804c1c0b9f0e062018a2447ce36409620cce7c"
+    },
+    "baseline-o2.json": {
+      "path": "bootstrap/native-scalar-intrinsics-evidence/baseline-o2.json",
+      "sha256": "a0c9caafff64ef7eaa1631f005553a2ea90e6f1b7528362bcca4c5c32897d808"
+    },
+    "candidate-o0.json": {
+      "path": "bootstrap/native-scalar-intrinsics-evidence/candidate-o0.json",
+      "sha256": "2beb6c9a45694c87a6252ab9baf71fc4ba93a84b4b69353c6eb843086a6f9b73"
+    },
+    "candidate-o2.json": {
+      "path": "bootstrap/native-scalar-intrinsics-evidence/candidate-o2.json",
+      "sha256": "59dadbd121e703e573afd71fc35f767670bb8b767ce5bd1c0882fd7bf9870ab1"
+    },
+    "documentation.json": {
+      "path": "bootstrap/native-scalar-intrinsics-evidence/documentation.json",
+      "sha256": "00d96a6df60fc04acbe30227a3fab83428f7b37fdb260bf52018ef6b79c997ab"
+    },
+    "legacy-before-correction.json": {
+      "path": "bootstrap/native-scalar-intrinsics-evidence/legacy-before-correction.json",
+      "sha256": "a5f7ec71f1d4d90194ad3669f9d46f3ff65dd413ca5ecf75bde3ac3f058b6f39"
+    },
+    "nested-foreign-alias.json": {
+      "path": "bootstrap/native-scalar-intrinsics-evidence/nested-foreign-alias.json",
+      "sha256": "698b3e28610b65922faeb1c59c3cea25f9639f16601ee407ba254f856585f7a9"
+    },
+    "paired-codegen.json": {
+      "path": "bootstrap/native-scalar-intrinsics-evidence/paired-codegen.json",
+      "sha256": "e9f64a688604a0c69ce6152769f08694be2e0b1fffb507c302cbe922b5d51fb3"
+    },
+    "paired-timing.json": {
+      "path": "bootstrap/native-scalar-intrinsics-evidence/paired-timing.json",
+      "sha256": "3149ca2452f3edf771f3b3b6433168cdf0598954a6847763840098d17a2eacfd"
+    },
+    "pre-exporter-scalar-declaration.cinchif": {
+      "path": "bootstrap/native-scalar-intrinsics-evidence/pre-exporter-scalar-declaration.cinchif",
+      "sha256": "caa1eb8615eb1611fd33b1461c3f4b2072c33ae4e253a34fca4c9075eb2b7535"
+    },
+    "provider.json": {
+      "path": "bootstrap/native-scalar-intrinsics-evidence/provider.json",
+      "sha256": "e70250a59eb9c37a0cc2d87d5b55b0cd5d60d7ab3aaac3f64cdfb9fce0e52ab9"
+    },
+    "referenced-metadata-contradictions.json": {
+      "path": "bootstrap/native-scalar-intrinsics-evidence/referenced-metadata-contradictions.json",
+      "sha256": "c7dbdb65c1acade455e17c9e43ba6ad479cb0f40042b04f182ea76f6e50657cd"
+    }
+  },
+  "full_native_family_fixed_point_checked": false,
+  "provider": {
+    "data_machine_interface_hash": "1544268035078744818",
+    "data_machine_interface_sha256": "b45ab87b8fcf7784d80fc699ba7bb3d4814eac233173e7e49992ee62517dbf60",
+    "data_machine_source_sha256": "c06a8e2d260d6f8bab809c4fda390c7f713b2719c46e3ca170097f0b1e2c7032",
+    "data_string_source_sha256": "54ae8a339b996756323d8f5598287ca3abdfe8ce5e291cd62e71fdf975bd3b0e",
+    "default_seed_and_provider_pins_unchanged": true,
+    "object_sha256": "645a3d0e2feae9b4b92ecc98117f31abcb53be0bb25ae6bce06d165938f1178d",
+    "producer": {
+      "builder_script_sha256": "9110fe3326a2b0af9d6adf26d4c0fd0df11c33328bb0d87bde885bec2d27d9f5",
+      "commands": [
+        {
+          "command": [
+            "cargo",
+            "build",
+            "--locked",
+            "--release",
+            "--bin",
+            "cinch",
+            "--target-dir",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-cargo"
+          ],
+          "cwd": "/workspace/dasl-stdlib-base-construction/compiler",
+          "log": "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/compiler-build.log"
+        },
+        {
+          "command": [
+            "cargo",
+            "build",
+            "--locked",
+            "--release",
+            "--manifest-path",
+            "/workspace/dasl-stdlib-base-construction/compiler/runtime/Cargo.toml",
+            "--target-dir",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-cargo/runtime"
+          ],
+          "cwd": "/workspace/dasl-stdlib-base-construction/compiler",
+          "log": "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/runtime-build.log"
+        },
+        {
+          "command": [
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/cinch",
+            "emit-object",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library/CinchBaseObject.cinch",
+            "--object-roots",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/roots.json",
+            "--opt-level",
+            "2",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o"
+          ],
+          "cwd": "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library",
+          "log": "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/object-build.log"
+        }
+      ],
+      "compiler_sha256": "ae9c3f812404bd43020346ee4b7464ebf906fe4263932d011d99b8fd9301334a",
+      "mode": "fresh-embedded",
+      "source_sha256": "92f5cd23a9e9e40f921c163a7304af9e9cf1351084a6223db66b718b90d00155"
+    },
+    "receipt_sha256": "e70250a59eb9c37a0cc2d87d5b55b0cd5d60d7ab3aaac3f64cdfb9fce0e52ab9",
+    "runtime": {
+      "runtime_abi": 10,
+      "sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+    },
+    "runtime_abi": 10,
+    "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+    "source_module_count": 65,
+    "source_shadow_used_for_corpus_or_benchmark": false,
+    "target": "x86_64-unknown-linux-gnu"
+  },
+  "publication_authorized": false,
+  "remaining_gates": [
+    "current-source Native Stage1/2/3 fixed point with exact selected provider",
+    "changed-source probe and source-absent compiler-entry consumer",
+    "parent preserved Rust/interface/compiler regression gates before integration or publication"
+  ],
+  "results": {
+    "authority_observations_per_level": 27,
+    "canonical_documentation_artifacts": 9,
+    "compiler_host_opt_level": 0,
+    "consumer_optimization_levels": [
+      0,
+      2
+    ],
+    "independent_observations": 667,
+    "iterations_per_sample": 5000000,
+    "new_loop_ir_object_call_sites": 0,
+    "new_recurrence_assembly_call_instructions": 0,
+    "old_assembly_note": "The comparison has initial and loop-bottom call sites; steady-state iterations use six imported helpers.",
+    "old_loop_ir_object_call_sites": 6,
+    "old_recurrence_assembly_call_instructions": 7,
+    "runtime_profiles": [
+      "normal32M/8M",
+      "poison256M/8M"
+    ],
+    "source_absent_defining_intrinsic": {
+      "checked_rc_compilation": false,
+      "links_library_object": false,
+      "links_only_matched_runtime": true,
+      "note": "The no-object CLI uses ordinary RC emission; this pure word/closure probe also runs with runtime poison. Other positive authority and corpus clients explicitly compile checked RC.",
+      "operations": [
+        "binary U64 add",
+        "unary U8 complement",
+        "signed I16 comparison to Bool"
+      ]
+    },
+    "timed_consumer_opt_level": 2,
+    "timing": {
+      "baseline": {
+        "max_ns": 42541612,
+        "median_ns": 38380710,
+        "min_ns": 37596635,
+        "ns_per_step": 7.676142
+      },
+      "experimental": {
+        "max_ns": 12048110,
+        "median_ns": 8811263,
+        "min_ns": 8697279,
+        "ns_per_step": 1.7622526
+      },
+      "median_speedup": 4.355869300462374
+    },
+    "timing_background_context": "Parent combined-provider Native Stage3 chain is active on CPU3; CPU0 timing window is exclusive and parent deferred documentation work. Scalar compiler host is O0; both timed clients are clang O2 with the identical source, fixture, provider and runtime.",
+    "timing_samples": 9
+  },
+  "schema": 1,
+  "scope": {
+    "authority": "canonical opcode plus exact checked nominal scheme and empty effects; executable interface bodies are not imported",
+    "carriers": [
+      "I8",
+      "I16",
+      "I32",
+      "I64",
+      "U8",
+      "U16",
+      "U32",
+      "U64"
+    ],
+    "operations": [
+      "wrapping add/sub/mul",
+      "bit and/or/xor/not",
+      "masked wrapping shifts",
+      "eq/ne and signed or unsigned lt/le/gt/ge",
+      "wrapping conversions between supported carriers"
+    ],
+    "unchanged_paths": [
+      "total-body imports",
+      "legacy display-only imports",
+      "wide scalars",
+      "floating point",
+      "pointers",
+      "allocating or effectful intrinsics",
+      "unsupported ordinary object calls"
+    ]
+  },
+  "separate_limit": {
+    "diagnostic": "foreign call must supply every checked ABI argument",
+    "fixed_by_this_patch": false,
+    "name": "bare foreign function value introduced by nested argument witness lowering",
+    "nested_exit": 5,
+    "observed_compilers": [
+      "58676dec9c2d2f6c4f5307a7106e1b94b6806ede88113f46d665d7e55955ad8f",
+      "1a24657f654fec583e92a4d8d58ddd02fc421c3ad92d2cfe113cbab78cc6811e"
+    ],
+    "root_cause": "The nested Core argument is correctly typed U8. Evaluating its generated #argument-function alias first materializes a bare foreign CUse with zero supplied arguments, which the current foreign call path rejects.",
+    "sequenced_compile_and_runtime_exit": 0
+  },
+  "status": "focused_experimental_gates_passed",
+  "toolchain": {
+    "clang": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)",
+    "objdump": "GNU objdump (GNU Binutils for Debian) 2.44"
+  }
+}
