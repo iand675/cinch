@@ -1,0 +1,959 @@
+{
+  "pinned_sdk": "go1.27.4",
+  "package": "bufio",
+  "declaration_count": 80,
+  "status": "full80 capability implementation in progress; no exclusions",
+  "rows": [
+    {
+      "declaration": "const MaxScanTokenSize = 65536",
+      "capabilities": [
+        "Effect.Scanner.scanner-max-token-size"
+      ],
+      "source_declarations_present": {
+        "Effect.Scanner.scanner-max-token-size": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "const MaxScanTokenSize ideal-int",
+      "capabilities": [
+        "Effect.Scanner.scanner-max-token-size"
+      ],
+      "source_declarations_present": {
+        "Effect.Scanner.scanner-max-token-size": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "func NewReadWriter(*Reader, *Writer) *ReadWriter",
+      "capabilities": [
+        "Effect.Buffered.buffered-read-writer"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.buffered-read-writer": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "func NewReader(io.Reader) *Reader",
+      "capabilities": [
+        "Effect.Buffered.Reader.buffered-reader",
+        "Effect.Buffered.Reader.buffered-reader-from-stream"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Reader.buffered-reader": false,
+        "Effect.Buffered.Reader.buffered-reader-from-stream": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "func NewReaderSize(io.Reader, int) *Reader",
+      "capabilities": [
+        "Effect.Buffered.Reader.buffered-reader-sized",
+        "Effect.Buffered.Reader.buffered-reader-from-stream-sized",
+        "Effect.Buffered.Reader.buffered-reader-rebuffer"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Reader.buffered-reader-sized": false,
+        "Effect.Buffered.Reader.buffered-reader-from-stream-sized": false,
+        "Effect.Buffered.Reader.buffered-reader-rebuffer": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "func NewScanner(io.Reader) *Scanner",
+      "capabilities": [
+        "Effect.Scanner.scanner",
+        "Effect.Scanner.scanner-from-stream"
+      ],
+      "source_declarations_present": {
+        "Effect.Scanner.scanner": false,
+        "Effect.Scanner.scanner-from-stream": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "func NewWriter(io.Writer) *Writer",
+      "capabilities": [
+        "Effect.Buffered.Writer.buffered-writer",
+        "Effect.Buffered.Writer.buffered-writer-from-stream"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Writer.buffered-writer": false,
+        "Effect.Buffered.Writer.buffered-writer-from-stream": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "func NewWriterSize(io.Writer, int) *Writer",
+      "capabilities": [
+        "Effect.Buffered.Writer.buffered-writer-sized",
+        "Effect.Buffered.Writer.buffered-writer-from-stream-sized",
+        "Effect.Buffered.Writer.buffered-writer-rebuffer"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Writer.buffered-writer-sized": false,
+        "Effect.Buffered.Writer.buffered-writer-from-stream-sized": false,
+        "Effect.Buffered.Writer.buffered-writer-rebuffer": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "func ScanBytes([]uint8, bool) (int, []uint8, error)",
+      "capabilities": [
+        "Effect.Scanner.Split.scan-bytes"
+      ],
+      "source_declarations_present": {
+        "Effect.Scanner.Split.scan-bytes": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "func ScanLines([]uint8, bool) (int, []uint8, error)",
+      "capabilities": [
+        "Effect.Scanner.Split.scan-lines"
+      ],
+      "source_declarations_present": {
+        "Effect.Scanner.Split.scan-lines": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "func ScanRunes([]uint8, bool) (int, []uint8, error)",
+      "capabilities": [
+        "Effect.Scanner.Split.scan-runes"
+      ],
+      "source_declarations_present": {
+        "Effect.Scanner.Split.scan-runes": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "func ScanWords([]uint8, bool) (int, []uint8, error)",
+      "capabilities": [
+        "Effect.Scanner.Split.scan-words"
+      ],
+      "source_declarations_present": {
+        "Effect.Scanner.Split.scan-words": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Reader) Buffered() int",
+      "capabilities": [
+        "Effect.Buffered.Reader.buffered-reader-buffered"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Reader.buffered-reader-buffered": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Reader) Discard(int) (int, error)",
+      "capabilities": [
+        "Effect.Buffered.Reader.buffered-discard"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Reader.buffered-discard": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Reader) Peek(int) ([]uint8, error)",
+      "capabilities": [
+        "Effect.Buffered.Reader.buffered-peek"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Reader.buffered-peek": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Reader) Read([]uint8) (int, error)",
+      "capabilities": [
+        "Effect.Buffered.Reader.buffered-read",
+        "Effect.Buffered.Reader.buffered-read-into"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Reader.buffered-read": false,
+        "Effect.Buffered.Reader.buffered-read-into": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Reader) ReadByte() (uint8, error)",
+      "capabilities": [
+        "Effect.Buffered.Reader.buffered-read-byte"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Reader.buffered-read-byte": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Reader) ReadBytes(uint8) ([]uint8, error)",
+      "capabilities": [
+        "Effect.Buffered.Reader.buffered-read-delimited"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Reader.buffered-read-delimited": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Reader) ReadLine() ([]uint8, bool, error)",
+      "capabilities": [
+        "Effect.Buffered.Reader.buffered-read-line"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Reader.buffered-read-line": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Reader) ReadRune() (int32, int, error)",
+      "capabilities": [
+        "Effect.Buffered.Reader.buffered-read-rune"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Reader.buffered-read-rune": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Reader) ReadSlice(uint8) ([]uint8, error)",
+      "capabilities": [
+        "Effect.Buffered.Reader.buffered-read-slice"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Reader.buffered-read-slice": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Reader) ReadString(uint8) (string, error)",
+      "capabilities": [
+        "Effect.Buffered.Reader.buffered-read-delimited",
+        "Effect.Buffered.Reader.buffer-read-text"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Reader.buffered-read-delimited": false,
+        "Effect.Buffered.Reader.buffer-read-text": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Reader) Reset(io.Reader)",
+      "capabilities": [
+        "Effect.Buffered.Reader.buffered-reader-reset",
+        "Effect.Buffered.Reader.buffered-reader-reset-self"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Reader.buffered-reader-reset": false,
+        "Effect.Buffered.Reader.buffered-reader-reset-self": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Reader) Size() int",
+      "capabilities": [
+        "Effect.Buffered.Reader.buffered-reader-size"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Reader.buffered-reader-size": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Reader) UnreadByte() error",
+      "capabilities": [
+        "Effect.Buffered.Reader.buffered-unread-byte"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Reader.buffered-unread-byte": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Reader) UnreadRune() error",
+      "capabilities": [
+        "Effect.Buffered.Reader.buffered-unread-rune"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Reader.buffered-unread-rune": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Reader) WriteTo(io.Writer) (int64, error)",
+      "capabilities": [
+        "Effect.Buffered.Reader.buffered-write-to"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Reader.buffered-write-to": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Scanner) Buffer([]uint8, int)",
+      "capabilities": [
+        "Effect.Scanner.scanner-buffer",
+        "Effect.Scanner.scanner-buffer-size"
+      ],
+      "source_declarations_present": {
+        "Effect.Scanner.scanner-buffer": false,
+        "Effect.Scanner.scanner-buffer-size": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Scanner) Bytes() []uint8",
+      "capabilities": [
+        "Effect.Scanner.scanner-bytes",
+        "Effect.Scanner.scanner-token"
+      ],
+      "source_declarations_present": {
+        "Effect.Scanner.scanner-bytes": false,
+        "Effect.Scanner.scanner-token": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Scanner) Err() error",
+      "capabilities": [
+        "Effect.Scanner.scanner-error"
+      ],
+      "source_declarations_present": {
+        "Effect.Scanner.scanner-error": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Scanner) Scan() bool",
+      "capabilities": [
+        "Effect.Scanner.scanner-next"
+      ],
+      "source_declarations_present": {
+        "Effect.Scanner.scanner-next": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Scanner) Split(SplitFunc)",
+      "capabilities": [
+        "Effect.Scanner.scanner-split"
+      ],
+      "source_declarations_present": {
+        "Effect.Scanner.scanner-split": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Scanner) Text() string",
+      "capabilities": [
+        "Effect.Scanner.scanner-text",
+        "Effect.Scanner.scanner-bytes"
+      ],
+      "source_declarations_present": {
+        "Effect.Scanner.scanner-text": false,
+        "Effect.Scanner.scanner-bytes": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Writer) Available() int",
+      "capabilities": [
+        "Effect.Buffered.Writer.buffered-writer-available"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Writer.buffered-writer-available": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Writer) AvailableBuffer() []uint8",
+      "capabilities": [
+        "Effect.Buffered.Writer.buffered-writer-space",
+        "Effect.Buffered.Writer.buffer-space-append",
+        "Effect.Buffered.Writer.buffer-space-bytes",
+        "Effect.Buffered.Writer.buffered-write-space"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Writer.buffered-writer-space": false,
+        "Effect.Buffered.Writer.buffer-space-append": false,
+        "Effect.Buffered.Writer.buffer-space-bytes": false,
+        "Effect.Buffered.Writer.buffered-write-space": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Writer) Buffered() int",
+      "capabilities": [
+        "Effect.Buffered.Writer.buffered-writer-buffered"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Writer.buffered-writer-buffered": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Writer) Flush() error",
+      "capabilities": [
+        "Effect.Buffered.Writer.buffered-flush"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Writer.buffered-flush": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Writer) ReadFrom(io.Reader) (int64, error)",
+      "capabilities": [
+        "Effect.Buffered.Writer.buffered-read-from"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Writer.buffered-read-from": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Writer) Reset(io.Writer)",
+      "capabilities": [
+        "Effect.Buffered.Writer.buffered-writer-reset",
+        "Effect.Buffered.Writer.buffered-writer-reset-self"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Writer.buffered-writer-reset": false,
+        "Effect.Buffered.Writer.buffered-writer-reset-self": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Writer) Size() int",
+      "capabilities": [
+        "Effect.Buffered.Writer.buffered-writer-size"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Writer.buffered-writer-size": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Writer) Write([]uint8) (int, error)",
+      "capabilities": [
+        "Effect.Buffered.Writer.buffered-write"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Writer.buffered-write": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Writer) WriteByte(uint8) error",
+      "capabilities": [
+        "Effect.Buffered.Writer.buffered-write-byte"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Writer.buffered-write-byte": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Writer) WriteRune(int32) (int, error)",
+      "capabilities": [
+        "Effect.Buffered.Writer.buffered-write-rune",
+        "Effect.Buffered.Writer.buffered-write-char"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Writer.buffered-write-rune": false,
+        "Effect.Buffered.Writer.buffered-write-char": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (*Writer) WriteString(string) (int, error)",
+      "capabilities": [
+        "Effect.Buffered.Writer.buffered-write-text",
+        "Effect.Buffered.Writer.buffered-write"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Writer.buffered-write-text": false,
+        "Effect.Buffered.Writer.buffered-write": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (ReadWriter) Available() int",
+      "capabilities": [
+        "Effect.Buffered.buffered-read-writer-writer",
+        "Effect.Buffered.Writer.buffered-writer-available",
+        "Effect.Buffered.buffered-read-writer-with-writer"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.buffered-read-writer-writer": false,
+        "Effect.Buffered.Writer.buffered-writer-available": false,
+        "Effect.Buffered.buffered-read-writer-with-writer": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (ReadWriter) AvailableBuffer() []uint8",
+      "capabilities": [
+        "Effect.Buffered.buffered-read-writer-writer",
+        "Effect.Buffered.Writer.buffered-writer-space",
+        "Effect.Buffered.Writer.buffer-space-append",
+        "Effect.Buffered.Writer.buffer-space-bytes",
+        "Effect.Buffered.Writer.buffered-write-space",
+        "Effect.Buffered.buffered-read-writer-with-writer"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.buffered-read-writer-writer": false,
+        "Effect.Buffered.Writer.buffered-writer-space": false,
+        "Effect.Buffered.Writer.buffer-space-append": false,
+        "Effect.Buffered.Writer.buffer-space-bytes": false,
+        "Effect.Buffered.Writer.buffered-write-space": false,
+        "Effect.Buffered.buffered-read-writer-with-writer": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (ReadWriter) Discard(int) (int, error)",
+      "capabilities": [
+        "Effect.Buffered.buffered-read-writer-reader",
+        "Effect.Buffered.Reader.buffered-discard",
+        "Effect.Buffered.buffered-read-writer-with-reader"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.buffered-read-writer-reader": false,
+        "Effect.Buffered.Reader.buffered-discard": false,
+        "Effect.Buffered.buffered-read-writer-with-reader": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (ReadWriter) Flush() error",
+      "capabilities": [
+        "Effect.Buffered.buffered-read-writer-writer",
+        "Effect.Buffered.Writer.buffered-flush",
+        "Effect.Buffered.buffered-read-writer-with-writer"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.buffered-read-writer-writer": false,
+        "Effect.Buffered.Writer.buffered-flush": false,
+        "Effect.Buffered.buffered-read-writer-with-writer": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (ReadWriter) Peek(int) ([]uint8, error)",
+      "capabilities": [
+        "Effect.Buffered.buffered-read-writer-reader",
+        "Effect.Buffered.Reader.buffered-peek",
+        "Effect.Buffered.buffered-read-writer-with-reader"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.buffered-read-writer-reader": false,
+        "Effect.Buffered.Reader.buffered-peek": false,
+        "Effect.Buffered.buffered-read-writer-with-reader": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (ReadWriter) Read([]uint8) (int, error)",
+      "capabilities": [
+        "Effect.Buffered.buffered-read-writer-reader",
+        "Effect.Buffered.Reader.buffered-read",
+        "Effect.Buffered.Reader.buffered-read-into",
+        "Effect.Buffered.buffered-read-writer-with-reader"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.buffered-read-writer-reader": false,
+        "Effect.Buffered.Reader.buffered-read": false,
+        "Effect.Buffered.Reader.buffered-read-into": false,
+        "Effect.Buffered.buffered-read-writer-with-reader": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (ReadWriter) ReadByte() (uint8, error)",
+      "capabilities": [
+        "Effect.Buffered.buffered-read-writer-reader",
+        "Effect.Buffered.Reader.buffered-read-byte",
+        "Effect.Buffered.buffered-read-writer-with-reader"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.buffered-read-writer-reader": false,
+        "Effect.Buffered.Reader.buffered-read-byte": false,
+        "Effect.Buffered.buffered-read-writer-with-reader": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (ReadWriter) ReadBytes(uint8) ([]uint8, error)",
+      "capabilities": [
+        "Effect.Buffered.buffered-read-writer-reader",
+        "Effect.Buffered.Reader.buffered-read-delimited",
+        "Effect.Buffered.buffered-read-writer-with-reader"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.buffered-read-writer-reader": false,
+        "Effect.Buffered.Reader.buffered-read-delimited": false,
+        "Effect.Buffered.buffered-read-writer-with-reader": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (ReadWriter) ReadFrom(io.Reader) (int64, error)",
+      "capabilities": [
+        "Effect.Buffered.buffered-read-writer-writer",
+        "Effect.Buffered.Writer.buffered-read-from",
+        "Effect.Buffered.buffered-read-writer-with-writer"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.buffered-read-writer-writer": false,
+        "Effect.Buffered.Writer.buffered-read-from": false,
+        "Effect.Buffered.buffered-read-writer-with-writer": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (ReadWriter) ReadLine() ([]uint8, bool, error)",
+      "capabilities": [
+        "Effect.Buffered.buffered-read-writer-reader",
+        "Effect.Buffered.Reader.buffered-read-line",
+        "Effect.Buffered.buffered-read-writer-with-reader"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.buffered-read-writer-reader": false,
+        "Effect.Buffered.Reader.buffered-read-line": false,
+        "Effect.Buffered.buffered-read-writer-with-reader": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (ReadWriter) ReadRune() (int32, int, error)",
+      "capabilities": [
+        "Effect.Buffered.buffered-read-writer-reader",
+        "Effect.Buffered.Reader.buffered-read-rune",
+        "Effect.Buffered.buffered-read-writer-with-reader"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.buffered-read-writer-reader": false,
+        "Effect.Buffered.Reader.buffered-read-rune": false,
+        "Effect.Buffered.buffered-read-writer-with-reader": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (ReadWriter) ReadSlice(uint8) ([]uint8, error)",
+      "capabilities": [
+        "Effect.Buffered.buffered-read-writer-reader",
+        "Effect.Buffered.Reader.buffered-read-slice",
+        "Effect.Buffered.buffered-read-writer-with-reader"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.buffered-read-writer-reader": false,
+        "Effect.Buffered.Reader.buffered-read-slice": false,
+        "Effect.Buffered.buffered-read-writer-with-reader": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (ReadWriter) ReadString(uint8) (string, error)",
+      "capabilities": [
+        "Effect.Buffered.buffered-read-writer-reader",
+        "Effect.Buffered.Reader.buffered-read-delimited",
+        "Effect.Buffered.Reader.buffer-read-text",
+        "Effect.Buffered.buffered-read-writer-with-reader"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.buffered-read-writer-reader": false,
+        "Effect.Buffered.Reader.buffered-read-delimited": false,
+        "Effect.Buffered.Reader.buffer-read-text": false,
+        "Effect.Buffered.buffered-read-writer-with-reader": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (ReadWriter) UnreadByte() error",
+      "capabilities": [
+        "Effect.Buffered.buffered-read-writer-reader",
+        "Effect.Buffered.Reader.buffered-unread-byte",
+        "Effect.Buffered.buffered-read-writer-with-reader"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.buffered-read-writer-reader": false,
+        "Effect.Buffered.Reader.buffered-unread-byte": false,
+        "Effect.Buffered.buffered-read-writer-with-reader": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (ReadWriter) UnreadRune() error",
+      "capabilities": [
+        "Effect.Buffered.buffered-read-writer-reader",
+        "Effect.Buffered.Reader.buffered-unread-rune",
+        "Effect.Buffered.buffered-read-writer-with-reader"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.buffered-read-writer-reader": false,
+        "Effect.Buffered.Reader.buffered-unread-rune": false,
+        "Effect.Buffered.buffered-read-writer-with-reader": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (ReadWriter) Write([]uint8) (int, error)",
+      "capabilities": [
+        "Effect.Buffered.buffered-read-writer-writer",
+        "Effect.Buffered.Writer.buffered-write",
+        "Effect.Buffered.buffered-read-writer-with-writer"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.buffered-read-writer-writer": false,
+        "Effect.Buffered.Writer.buffered-write": false,
+        "Effect.Buffered.buffered-read-writer-with-writer": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (ReadWriter) WriteByte(uint8) error",
+      "capabilities": [
+        "Effect.Buffered.buffered-read-writer-writer",
+        "Effect.Buffered.Writer.buffered-write-byte",
+        "Effect.Buffered.buffered-read-writer-with-writer"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.buffered-read-writer-writer": false,
+        "Effect.Buffered.Writer.buffered-write-byte": false,
+        "Effect.Buffered.buffered-read-writer-with-writer": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (ReadWriter) WriteRune(int32) (int, error)",
+      "capabilities": [
+        "Effect.Buffered.buffered-read-writer-writer",
+        "Effect.Buffered.Writer.buffered-write-rune",
+        "Effect.Buffered.Writer.buffered-write-char",
+        "Effect.Buffered.buffered-read-writer-with-writer"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.buffered-read-writer-writer": false,
+        "Effect.Buffered.Writer.buffered-write-rune": false,
+        "Effect.Buffered.Writer.buffered-write-char": false,
+        "Effect.Buffered.buffered-read-writer-with-writer": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (ReadWriter) WriteString(string) (int, error)",
+      "capabilities": [
+        "Effect.Buffered.buffered-read-writer-writer",
+        "Effect.Buffered.Writer.buffered-write-text",
+        "Effect.Buffered.Writer.buffered-write",
+        "Effect.Buffered.buffered-read-writer-with-writer"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.buffered-read-writer-writer": false,
+        "Effect.Buffered.Writer.buffered-write-text": false,
+        "Effect.Buffered.Writer.buffered-write": false,
+        "Effect.Buffered.buffered-read-writer-with-writer": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "method (ReadWriter) WriteTo(io.Writer) (int64, error)",
+      "capabilities": [
+        "Effect.Buffered.buffered-read-writer-reader",
+        "Effect.Buffered.Reader.buffered-write-to",
+        "Effect.Buffered.buffered-read-writer-with-reader"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.buffered-read-writer-reader": false,
+        "Effect.Buffered.Reader.buffered-write-to": false,
+        "Effect.Buffered.buffered-read-writer-with-reader": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "type ReadWriter struct",
+      "capabilities": [
+        "Effect.Buffered.BufferedReadWriter"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.BufferedReadWriter": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "type ReadWriter struct, embedded *Reader",
+      "capabilities": [
+        "Effect.Buffered.buffered-read-writer-reader",
+        "Effect.Buffered.buffered-read-writer-with-reader"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.buffered-read-writer-reader": false,
+        "Effect.Buffered.buffered-read-writer-with-reader": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "type ReadWriter struct, embedded *Writer",
+      "capabilities": [
+        "Effect.Buffered.buffered-read-writer-writer",
+        "Effect.Buffered.buffered-read-writer-with-writer"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.buffered-read-writer-writer": false,
+        "Effect.Buffered.buffered-read-writer-with-writer": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "type Reader struct",
+      "capabilities": [
+        "Effect.Buffered.Reader.BufferedReader"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Reader.BufferedReader": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "type Scanner struct",
+      "capabilities": [
+        "Effect.Scanner.Scanner"
+      ],
+      "source_declarations_present": {
+        "Effect.Scanner.Scanner": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "type SplitFunc func([]uint8, bool) (int, []uint8, error)",
+      "capabilities": [
+        "Effect.Scanner.Split.ScanSplit",
+        "Effect.Scanner.Split.ScanStep"
+      ],
+      "source_declarations_present": {
+        "Effect.Scanner.Split.ScanSplit": false,
+        "Effect.Scanner.Split.ScanStep": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "type Writer struct",
+      "capabilities": [
+        "Effect.Buffered.Writer.BufferedWriter"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Writer.BufferedWriter": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "var ErrAdvanceTooFar error",
+      "capabilities": [
+        "Effect.Scanner.Split.ScanAdvanceTooFar"
+      ],
+      "source_declarations_present": {
+        "Effect.Scanner.Split.ScanAdvanceTooFar": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "var ErrBadReadCount error",
+      "capabilities": [
+        "Effect.Scanner.Split.ScanBadReadCount"
+      ],
+      "source_declarations_present": {
+        "Effect.Scanner.Split.ScanBadReadCount": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "var ErrBufferFull error",
+      "capabilities": [
+        "Effect.Buffered.Core.BufferFull"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Core.BufferFull": true
+      },
+      "status": "implemented; validation pending"
+    },
+    {
+      "declaration": "var ErrFinalToken error",
+      "capabilities": [
+        "Effect.Scanner.Split.ScanFinalToken"
+      ],
+      "source_declarations_present": {
+        "Effect.Scanner.Split.ScanFinalToken": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "var ErrInvalidUnreadByte error",
+      "capabilities": [
+        "Effect.Buffered.Core.BufferInvalidUnreadByte"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Core.BufferInvalidUnreadByte": true
+      },
+      "status": "implemented; validation pending"
+    },
+    {
+      "declaration": "var ErrInvalidUnreadRune error",
+      "capabilities": [
+        "Effect.Buffered.Core.BufferInvalidUnreadRune"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Core.BufferInvalidUnreadRune": true
+      },
+      "status": "implemented; validation pending"
+    },
+    {
+      "declaration": "var ErrNegativeAdvance error",
+      "capabilities": [
+        "Effect.Scanner.Split.ScanNegativeAdvance"
+      ],
+      "source_declarations_present": {
+        "Effect.Scanner.Split.ScanNegativeAdvance": false
+      },
+      "status": "in progress"
+    },
+    {
+      "declaration": "var ErrNegativeCount error",
+      "capabilities": [
+        "Effect.Buffered.Core.BufferNegativeCount"
+      ],
+      "source_declarations_present": {
+        "Effect.Buffered.Core.BufferNegativeCount": true
+      },
+      "status": "implemented; validation pending"
+    },
+    {
+      "declaration": "var ErrTooLong error",
+      "capabilities": [
+        "Effect.Scanner.Split.ScanTooLong"
+      ],
+      "source_declarations_present": {
+        "Effect.Scanner.Split.ScanTooLong": false
+      },
+      "status": "in progress"
+    }
+  ],
+  "policies": [
+    "Raw source/sink events preserve signed counts, byte prefixes and simultaneous error; existing stream adapters retain their narrower Result contracts.",
+    "Optional direct transfer callbacks preserve dispatch and advanced handles through private managed IO continuation cells; no negative recursive data types or checker exceptions.",
+    "Buffered storage is private. Externally mutable observations are fresh; callback input snapshots cannot mutate retained state.",
+    "ReadWriter promoted operations route through concrete component getters and setters, preserving the other component.",
+    "AvailableBuffer is an owned bounded append builder/reservation; it exposes capacity and a fresh used prefix without private backing aliases.",
+    "Byte data is primary. Text conversions explicitly validate UTF8 or replace invalid bytes; invalid input is never silently converted to an empty String.",
+    "Scanner distinguishes absent and empty tokens, final-token termination, signed advance errors, source count errors and checked nonprogress/configuration refusals."
+  ],
+  "reference_sources": {
+    "bufio.go": "01cda8edce0b23c41fc64bb20a28c8a13cbd0a44f8535fe10555e6ba65711676",
+    "scan.go": "67ad04ac41a859798cb26e112d52ac15ec2fb11b4948293e20c0f7983d029c0b"
+  }
+}
