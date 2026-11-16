@@ -1,0 +1,20 @@
+{
+  "description": "Explicit default Rust O0 standard corpus and portable kernel object checks",
+  "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+  "source_sha256": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+  "foreign_execution": false,
+  "foreign_targets": [
+    {
+      "target": "wasm32-unknown-unknown",
+      "llvm_sha256": "efb8c6180ca9f7512550a5d6d2c14ec1190a00e83d12315bdca9036341dd10b8",
+      "object_sha256": "ebd45718f896ceb815afd5537b458df89cc4ec66a7e1d9c9eb9f7405ca727ef1"
+    },
+    {
+      "target": "aarch64-unknown-linux-gnu",
+      "llvm_sha256": "b1ea3c3d4bd7cb0b385eea64810b2e4dde115857c949e1d6acdb74181237fd43",
+      "object_sha256": "5d15b892453e6446965094ab74f51bde087794ea02174cde2e02a4aca0b1e36b"
+    }
+  ],
+  "rust_default_standard_cases": 37,
+  "rust_default_zero_leaks_both_modes": true
+}

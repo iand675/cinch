@@ -1,0 +1,104 @@
+--- Text.Base64.Encoding.cinch
++++ Text.Base64.Encoding.cinch
+@@ -332 +332 @@
+-  -- | Transfer the state fields once before processing a potentially large feed.
++  -- | Traverse SIMD blocks; only fringes, line breaks and padding require scalar control.
+@@ -334,0 +335,15 @@
++    DecodeState encoding word digits position start last pads ended error -> case error of
++      Some failure -> (oi, state)
++      None -> if at >= bytes-len input then (oi, state)
++        else if digits == 0 && pads == 0 && not ended && at + 8 <= bytes-len input && oi + 6 <= bytes-len out then
++          let decoded = decode-word encoding (bytes-read-le64 input at) in
++          if eq-u64 (wrapping-shr-u64 decoded 56) 0 then
++            let first = bytes-write-le32 out oi (wrapping-u64-to-u32 decoded) in
++            let last-bytes = store out (oi + 4) (wrapping-shr-u64 decoded 32) 2 in
++            decode-buffer input (at + 8) out (oi + 6) (DecodeState encoding 0 0 (position + 8) (position + 8) (position + 7) 0 False None)
++          else decode-symbol input at out oi state
++        else decode-symbol input at out oi state
++
++  -- | Validate one scalar byte and preserve all incomplete values in immutable machine storage.
++  decode-symbol :: Bytes -> Nat -> Bytes -> Nat -> Base64Decoder -> (Nat, Base64Decoder)
++  decode-symbol input at out oi state = case state of
+@@ -336,32 +351,17 @@
+-      decode-fields encoding word digits position start last pads ended error input at out oi
+-
+-  -- | Carry scalar decoder fields through one direct tail loop, allocating state only at return.
+-  -- Recursive arguments are sequenced before each call to preserve bounded lowering across frontends.
+-  decode-fields :: Base64Encoding -> U64 -> Nat -> Nat -> Nat -> Nat -> Nat -> Bool -> Option Base64InputError -> Bytes -> Nat -> Bytes -> Nat -> (Nat, Base64Decoder)
+-  decode-fields encoding word digits position start last pads ended error input at out oi = case error of
+-    Some failure -> (oi, DecodeState encoding word digits position start last pads ended error)
+-    None ->
+-      if at >= bytes-len input then (oi, DecodeState encoding word digits position start last pads ended None)
+-      else
+-        let decoded = if digits == 0 && pads == 0 && not ended && at + 8 <= bytes-len input && oi + 6 <= bytes-len out then
+-              let source = bytes-read-le64 input at in decode-word encoding source
+-              else 18374686479671623680 in
+-        if eq-u64 (wrapping-shr-u64 decoded 56) 0 && at + 8 <= bytes-len input && oi + 6 <= bytes-len out then
+-          let first = bytes-write-le32 out oi (wrapping-u64-to-u32 decoded) in
+-          let last-bytes = store out (oi + 4) (wrapping-shr-u64 decoded 32) 2 in
+-          let next-at = at + 8 in let next-out = oi + 6 in
+-          let next-position = position + 8 in let next-last = position + 7 in
+-          decode-fields encoding 0 0 next-position next-position next-last 0 False None input next-at out next-out
+-        else if digits < 4 then
+-          let byte = bytes-get input at in
+-          let next-at = at + 1 in let next-position = position + 1 in
+-          if byte == 10 || byte == 13 then
+-            decode-fields encoding word digits next-position start last pads ended None input next-at out oi
+-          else if ended then (oi, DecodeState encoding word digits position start last pads ended (Some (InvalidBase64Byte position byte)))
+-          else if pads > 0 then
+-            if is-padding encoding byte then
+-              if valid-bits encoding word digits then
+-                let n = saturating-sub digits 1 in let written = store out oi (decode-values word) n in
+-                let next-out = oi + n in
+-                decode-fields encoding 0 0 next-position start last 0 True None input next-at out next-out
+-              else (oi, DecodeState encoding word digits position start last pads ended (Some (InvalidBase64TrailingBits last)))
++      if at < bytes-len input && digits < 4 then let byte = bytes-get input at in
++        if byte == 10 || byte == 13 then
++          decode-buffer input (at + 1) out oi (DecodeState encoding word digits (position + 1) start last pads ended None)
++        else if ended then (oi, DecodeState encoding word digits position start last pads ended (Some (InvalidBase64Byte position byte)))
++        else if pads > 0 then
++          if is-padding encoding byte then emit-tail input (at + 1) out oi state
++          else (oi, DecodeState encoding word digits position start last pads ended (Some (InvalidBase64Byte position byte)))
++        else case value encoding byte of
++          Some v ->
++            let next = bit-or-u64 word (wrapping-shl-u64 (wrapping-i64-to-u64 (nat-to-i64 v)) (wrapping-i64-to-u32 (nat-to-i64 (digits * 8)))) in
++            if digits == 3 then
++              let written = store out oi (decode-values next) 3 in
++              decode-buffer input (at + 1) out (oi + 3) (DecodeState encoding 0 0 (position + 1) (position + 1) position 0 False None)
++            else decode-buffer input (at + 1) out oi (DecodeState encoding next (digits + 1) (position + 1) (if digits == 0 then position else start) position 0 False None)
++          None -> if is-padding encoding byte && digits >= 2 then
++            if digits == 2 then decode-buffer input (at + 1) out oi (DecodeState encoding word digits (position + 1) start last 1 False None)
++            else emit-tail input (at + 1) out oi state
+@@ -369,22 +369,10 @@
+-          else case value encoding byte of
+-            Some v ->
+-              let raw-value = wrapping-i64-to-u64 (nat-to-i64 v) in
+-              let shift = wrapping-i64-to-u32 (nat-to-i64 (digits * 8)) in
+-              let shifted = wrapping-shl-u64 raw-value shift in
+-              let next = bit-or-u64 word shifted in
+-              if digits == 3 then
+-                let written = store out oi (decode-values next) 3 in
+-                let next-out = oi + 3 in
+-                decode-fields encoding 0 0 next-position next-position position 0 False None input next-at out next-out
+-              else
+-                let next-digits = digits + 1 in let next-start = if digits == 0 then position else start in
+-                decode-fields encoding next next-digits next-position next-start position 0 False None input next-at out oi
+-            None ->
+-              if is-padding encoding byte && digits >= 2 then
+-                if digits == 2 then decode-fields encoding word digits next-position start last 1 False None input next-at out oi
+-                else if valid-bits encoding word digits then
+-                  let written = store out oi (decode-values word) 2 in let next-out = oi + 2 in
+-                  decode-fields encoding 0 0 next-position start last 0 True None input next-at out next-out
+-                else (oi, DecodeState encoding word digits position start last pads ended (Some (InvalidBase64TrailingBits last)))
+-              else (oi, DecodeState encoding word digits position start last pads ended (Some (InvalidBase64Byte position byte)))
+-        else (oi, DecodeState encoding word digits position start last pads ended (Some (TruncatedBase64Quantum start)))
++      else (oi, state)
++
++  -- | Emit a fully validated padded tail or preserve a strict-bit failure without partial quantum output.
++  emit-tail :: Bytes -> Nat -> Bytes -> Nat -> Base64Decoder -> (Nat, Base64Decoder)
++  emit-tail input next-at out oi state = case state of
++    DecodeState encoding word digits position start last pads ended error ->
++      if valid-bits encoding word digits then
++        let n = saturating-sub digits 1 in let written = store out oi (decode-values word) n in
++        decode-buffer input next-at out (oi + n) (DecodeState encoding 0 0 (position + 1) start last 0 True None)
++      else (oi, DecodeState encoding word digits position start last pads ended (Some (InvalidBase64TrailingBits last)))
