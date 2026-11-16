@@ -1,0 +1,92 @@
+  -- | Parameter keys, values and observations cannot mutate their retained context.
+  parameter-ownership :: Unit -> Bool
+  parameter-ownership unit =
+    let key = string-to-bytes "Name" in let value = string-to-bytes "old" in
+    let params = mime-parameter-set key value mime-parameters-empty in
+    let changed-key = if bytes-len key > 0 then bytes-set key 0 88 else () in
+    let changed-value = if bytes-len value > 0 then bytes-set value 0 88 else () in
+    case mime-parameter-find (string-to-bytes "Name") params of
+      None -> False
+      Some first ->
+        let correct = same first (string-to-bytes "old") in
+        let changed-copy = if bytes-len first > 0 then bytes-set first 0 89 else () in
+        case mime-parameter-find (string-to-bytes "Name") params of Some again -> correct && same again (string-to-bytes "old"); None -> False
+
+  -- | Immutable contexts fork independently and expose only fresh lookup buffers.
+  registry-ownership :: Unit -> Bool
+  registry-ownership unit =
+    let extension = string-to-bytes ".Case" in
+    let media = string-to-bytes "application/x-first" in
+    case mime-registry-add extension media mime-registry-empty of
+      Err error -> False
+      Ok first ->
+        let mutated-key = if bytes-len extension > 0 then bytes-set extension 0 88 else () in
+        let mutated-value = if bytes-len media > 0 then bytes-set media 0 88 else () in
+        let exposed = mime-registry-type (string-to-bytes ".Case") first in
+        let correct = same exposed (string-to-bytes "application/x-first") in
+        let mutated-output = if bytes-len exposed > 0 then bytes-set exposed 0 89 else () in
+        case mime-registry-add (string-to-bytes ".CASE") (string-to-bytes "application/x-second") first of
+          Err error -> False
+          Ok next -> correct && same (mime-registry-type (string-to-bytes ".case") first) (string-to-bytes "application/x-first") && same (mime-registry-type (string-to-bytes ".Case") next) (string-to-bytes "application/x-first") && same (mime-registry-type (string-to-bytes ".cAsE") next) (string-to-bytes "application/x-second")
+
+  -- | Parsed token observations are snapshots and checked text rejects non-UTF-8 selector bytes.
+  token-ownership :: Unit -> Bool
+  token-ownership unit = case mime-word-token (string-to-bytes "=?UTF-8?q?abc?=") of
+    Err error -> False
+    Ok token ->
+      let charset = mime-word-token-charset token in let content = mime-word-token-content token in
+      let changed-charset = if bytes-len charset > 0 then bytes-set charset 0 88 else () in
+      let changed-content = if bytes-len content > 0 then bytes-set content 0 89 else () in
+      same (mime-word-token-charset token) (string-to-bytes "UTF-8") && same (mime-word-token-content token) (string-to-bytes "abc") &&
+        (case mime-word-encode-text (MimeWordEncoder 255) "UTF-8" "é" of Err (MimeInvalidUtf8 at) -> at == 8; _ -> False)
+
+  -- | Mutating a caller header during a callback cannot change its retained parse input.
+  mutating-callback :: forall r. using (io :: Io r) => Bytes -> String -> ByteReader r ->{IO r} Result FixtureError (MimeCharsetReader r FixtureError)
+  mutating-callback original charset source =
+    let changed = if bytes-len original > 0 then bytes-set original (bytes-len original - 1) 33 else () in
+    Ok (mime-charset-reader-from-stream (\error -> FixtureError 99 "unexpected callback input failure") source)
+
+  -- | Custom callbacks, default conversion and checked text retain their distinct byte contracts.
+  callback-ownership :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  callback-ownership unit =
+    let input = string-to-bytes "=?X-CUSTOM?q?a?= =?X-CUSTOM?q?b?=" in
+    let decoder = mime-word-decoder (Some (mutating-callback input)) in
+    (case mime-header-decode decoder input of Ok bytes -> same bytes (string-to-bytes "ab"); _ -> False) &&
+      (case mime-word-decode (mime-default-word-decoder ()) (string-to-bytes "=?UTF-8?q?=FF?=") of Ok bytes -> same bytes (bytes-from-list (Cons 255 Nil)); _ -> False) &&
+      (case mime-word-decode-text (mime-default-word-decoder ()) "=?UTF-8?q?=FF?=" of Err (MimeWordSyntaxFailure (MimeInvalidUtf8 at)) -> at == 0; _ -> False)
+
+  -- | Built-in associations are explicit stable data rather than hidden host initialization.
+  builtin-context :: Unit -> Bool
+  builtin-context unit =
+    let registry = mime-registry-default in
+    same (mime-registry-type (string-to-bytes ".html") registry) (string-to-bytes "text/html; charset=utf-8") && same (mime-registry-type (string-to-bytes ".PDF") registry) (string-to-bytes "application/pdf")
+
+  -- | A hostile converted reader exposes an oversized final prefix for checked refusal.
+  oversized-callback :: forall r. using (io :: Io r) => String -> ByteReader r ->{IO r} Result FixtureError (MimeCharsetReader r FixtureError)
+  oversized-callback charset source = Ok (mime-charset-reader (\request ->
+    ((bytes-new (request + 1), MimeCharsetEnd), mime-charset-reader-from-bytes (bytes-new 0))))
+
+  -- | Zero-capacity reads remain inert and oversized callback results fail before copying.
+  reader-contracts :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  reader-contracts unit =
+    let reset = raw-reset (-1) in
+    let source = traced-reader (string-to-bytes "abc") 0 99 "copy" False in
+    let inert = (case mime-charset-reader-read source 0 of ((bytes, MimeCharsetMore), next) -> bytes-len bytes == 0 && eq-u64 (raw-digest 0) 14695981039346656037; _ -> False) in
+    inert && (case mime-word-decode (mime-word-decoder (Some oversized-callback)) (string-to-bytes "=?X-CUSTOM?q?a?=") of Err (MimeCharsetInvalidCount requested actual) -> requested == 32768 && actual == 32769; _ -> False)
+
+  -- | Expose a retained caller buffer through the explicit whole-copy capability.
+  retained-callback :: forall r. using (io :: Io r) => Bytes -> String -> ByteReader r ->{IO r} Result FixtureError (MimeCharsetReader r FixtureError)
+  retained-callback output charset source = Ok (mime-charset-reader-with-copy (\unit -> Ok output) (mime-charset-reader-from-bytes output))
+
+  -- | Mutating a callback-retained output after decoding cannot alter the returned result.
+  converted-ownership :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  converted-ownership unit =
+    let retained = string-to-bytes "owned" in
+    case mime-word-decode (mime-word-decoder (Some (retained-callback retained))) (string-to-bytes "=?X-CUSTOM?q?a?=") of
+      Err error -> False
+      Ok output -> let changed = if bytes-len retained > 0 then bytes-set retained 0 88 else () in same output (string-to-bytes "owned")
+
+  -- | Run source/observation ownership, reader contracts and default conversion controls.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    if parameter-ownership () then if registry-ownership () then if token-ownership () then if callback-ownership () then if builtin-context () then if reader-contracts () then if converted-ownership () then if writer-continuations () then if converted-reader-reuse () then 0 else 9 else 8 else 7 else 6 else 5 else 4 else 3 else 2 else 1
