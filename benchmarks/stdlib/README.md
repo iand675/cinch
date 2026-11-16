@@ -406,3 +406,51 @@ and optimization level. Ordinary library comparisons still require identical
 compilers. Pure inline primitives continue to reject visible stores; packed
 output stores require a checked mutation intrinsic that preserves containment,
 read-only faults and ownership rather than a raw store hidden in a pure row.
+
+## Persistent FNV states, checkpoints and hashing streams
+
+`fnv-state-O2-2026-11-16.json` measures all six FNV variants through fresh
+digest bytes, binary checkpoint roundtrips and reader-to-hash copying. It has
+54 rows at 32 bytes, 1 KiB and 16 KiB, with seven samples of 64 iterations after
+warmup. Every observable checksum matches an independent SDK pipeline. The
+stream workload uses 64-byte chunks and includes source snapshots, returned
+owned chunks, adapter/state construction and final digest materialization.
+The reference reuses a read buffer; these are functional API comparisons with
+different ownership and allocation strategies.
+
+`Text.Fnv.State` retains only immutable scalar words. Earlier states remain
+valid when branches advance; reset preserves width and recurrence order. Digest
+and checkpoint append operations copy their prefix. Checkpoints preserve all
+bits in network order after a four-byte variant identifier; loading checks
+identity before exact size. Independent fixtures cover 108 complete digest and
+checkpoint cases, every two-chunk split, 216 arbitrary restored states, 600
+identifier/length cases and 48 independently corrupted identifier bytes.
+`Effect.Fnv` keeps the advanced hash and reader observable after source failures,
+and its generic writer adapter composes with existing stream consumers.
+
+Generated LLVM exposed a sink wrapper constructed inside each recursive copy
+iteration. The copy worker now carries the scalar hash state directly and wraps
+it at the public boundary. `fnv-state-before-worker-O2-2026-11-16.json` retains
+the earlier implementation. `interleaved-fnv-scalar-worker-O2-2026-11-16.json`
+alternates retained executables with identical compiler, driver, runtime,
+optimization level and all other library sources. Across all six stream variants,
+16 KiB median improvements range from 1.022× to 1.113×. The two digest controls
+are within 0.4% at that size; the 1 KiB 64-bit digest control is 7.6% slower.
+No timing threshold or bulk digest speedup is claimed.
+
+`fnv-scalar-worker-allocation-2026-11-16.json` separately runs one 64 KiB input
+through 64-byte chunks under an 8 MiB stack and 32 MiB heap limit, with ordinary
+reclamation and zero leaks. The 32/64-bit variants allocate 510 fewer blocks
+and about 12 KiB fewer cumulative bytes; the 128-bit variant allocates 1,022
+fewer blocks and about 24 KiB fewer bytes. Peak live heap changes by only 15
+bytes, remaining about 129 KiB. These counters include identical setup work.
+Constructor reuse already bypasses some allocation sites in the earlier LLVM,
+so removing a source-level per-chunk wrapper does not imply one fewer actual
+allocation on every iteration. The hashes identify both retained executables.
+
+The ordered eight-byte hash kernels remain unchanged; a single-message FNV
+recurrence cannot be reassociated into SIMD lanes. Network-order state encoding
+reuses the binary word operations. Remaining streaming costs include owned
+input chunks, reference counting and per-chunk state/reader continuations;
+checkpoint and digest APIs also allocate fresh buffers. Functional completeness
+does not establish equal throughput or allocation complexity.

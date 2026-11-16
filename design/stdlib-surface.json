@@ -797,27 +797,61 @@
     },
     {
       "reference_package": "hash/fnv",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
-        "Text.Fnv"
+        "Effect.Fnv",
+        "Text.Fnv",
+        "Text.Fnv.State"
       ],
-      "remaining": [
-        "128-bit variants",
-        "streaming hash-state adapters",
-        "serialized state"
-      ],
+      "remaining": [],
       "reference_declarations": 6,
       "tests": [
         "lib_go_stdlib::fnv_matches_go_and_updates_over_every_split",
         "lib_fnv128::fnv128_matches_reference_vectors_and_every_chunk_split",
-        "lib_fnv128::fnv128_updates_preserve_arbitrary_high_bits_and_exact_tails"
+        "lib_fnv128::fnv128_updates_preserve_arbitrary_high_bits_and_exact_tails",
+        "lib_fnv_state"
       ],
       "benchmarks": [
         "fnv32a",
         "fnv64a",
         "fnv128",
-        "fnv128a"
-      ]
+        "fnv128a",
+        "fnv-state32",
+        "fnv-state32a",
+        "fnv-state64",
+        "fnv-state64a",
+        "fnv-state128",
+        "fnv-state128a",
+        "fnv-roundtrip32",
+        "fnv-roundtrip32a",
+        "fnv-roundtrip64",
+        "fnv-roundtrip64a",
+        "fnv-roundtrip128",
+        "fnv-roundtrip128a",
+        "fnv-stream32",
+        "fnv-stream32a",
+        "fnv-stream64",
+        "fnv-stream64a",
+        "fnv-stream128",
+        "fnv-stream128a"
+      ],
+      "capability_mapping": {
+        "New32": "Text.Fnv.State.fnv32-state and Text.Fnv.fnv32/fnv32-update provide persistent and scalar FNV-1, 32 bits",
+        "New32a": "Text.Fnv.State.fnv32a-state and Text.Fnv.fnv32a/fnv32a-update provide persistent and scalar FNV-1a, 32 bits",
+        "New64": "Text.Fnv.State.fnv64-state and Text.Fnv.fnv64/fnv64-update provide persistent and scalar FNV-1, 64 bits",
+        "New64a": "Text.Fnv.State.fnv64a-state and Text.Fnv.fnv64a/fnv64a-update provide persistent and scalar FNV-1a, 64 bits",
+        "New128": "Text.Fnv.State.fnv128-state and Text.Fnv.fnv128/fnv128-update preserve the complete FNV-1 high/low pair",
+        "New128a": "Text.Fnv.State.fnv128a-state and Text.Fnv.fnv128a/fnv128a-update preserve the complete FNV-1a high/low pair",
+        "hash.Hash.Write": "fnv-state-update consumes a complete byte buffer; Effect.Fnv.fnv-write returns the accepted count and advanced sink; fnv-hashing-writer adapts to the generic ByteWriter protocol",
+        "hash.Hash.Sum": "fnv-state-sum returns fresh network-order digest bytes; fnv-state-append copies the caller prefix and appends those bytes without changing the state",
+        "hash.Hash.Reset": "fnv-state-reset returns the initial state of the same fixed variant",
+        "hash.Hash.Size/BlockSize": "fnv-state-size returns 4, 8 or 16 bytes; fnv-state-block-size is 1",
+        "hash.Hash32.Sum32/hash.Hash64.Sum64": "fnv-state-word32 and fnv-state-word64 expose matching widths as Option machine words; fnv-state-words128 provides a complete high/low observation",
+        "hash.Cloner.Clone": "FnvState contains immutable scalar words; retaining it branches computation, and subsequent updates preserve every prior state",
+        "encoding.BinaryMarshaler/BinaryAppender": "fnv-state-save and fnv-state-append-save emit the four-byte variant identifier and complete network-order state in fresh storage",
+        "encoding.BinaryUnmarshaler": "fnv-state-load checks the template variant before exact size; distinct identifier/length errors leave both arguments unchanged and all payload bit patterns are accepted"
+      },
+      "review": "All six reference constructors and their returned hash, clone and binary-state capabilities have idiomatic functional mappings. Independent fixtures cover 108 digest/checkpoint cases, every two-chunk split, 216 arbitrary restored payloads, 600 tag/size cases and 48 separately corrupted identifier bytes. Both compilers pass persistent-state, mutable-alias isolation, precise errors, generic writer composition and advanced-source failure tests. A 64 KiB one-byte stream copy passes ordinary 32 MiB heap/8 MiB stack bounds and separate poisoned-free validation, with zero leaks. Existing ordered eight-byte LLVM kernels remain unchanged; the sequential recurrence is not reassociated into SIMD lanes. Network-order serialization reuses Text.Binary. The 54 explicit-O2 public state/checkpoint/stream pipeline rows match independent SDK checksums. Completion means functional coverage, not identical mutable object shape or allocations; small-read copying, per-chunk continuation/state allocation and serialization allocation costs remain documented."
     },
     {
       "reference_package": "hash/maphash",
