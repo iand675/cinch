@@ -1562,8 +1562,36 @@
     },
     "orphans": 0
   },
+  "frozen_snapshot": {
+    "adapter_probe_status": "passed",
+    "compiler_sha256": "35eb9980373fa424087df6b3fda762dd956e2f651180d4804c5b1e702de13a32",
+    "original_full_gate_receipt_sha256": "feff1d0575b9c9404b69ddb66e6c8aefee18398ccf7ae76f0936450342305217",
+    "original_provider_receipt_sha256": "e70250a59eb9c37a0cc2d87d5b55b0cd5d60d7ab3aaac3f64cdfb9fce0e52ab9",
+    "path": "build/current-base-stage3-frozen",
+    "relocated_provider_receipt_sha256": "ff5f7abd61e667953b87d01a4ce060360035d91d976e20cf4e54ab8bbe77d4f5",
+    "relocation": "interface manifest paths only; original compiler/object/LLVM/runtime/source/checked-interface bytes unchanged",
+    "snapshot_sha256": "ec334496aee8c93d9281ddd74a7905e27db0ca809e5c4113281d345faa70499d"
+  },
   "full_stdlib_goal_complete": false,
   "implementation_commit": "32d16d4432b30d4e1b84d06d39aa89b97761aea9",
+  "independent_parent_checked_rc_api_gate": {
+    "compiler_sha256": "9050032982e36ae549689f0b35c448b8b91a05333c80eda09c16ce1c0b8deda7",
+    "description": "Separate parent compiler/source epoch; not an execution of this lane Cargo test binary.",
+    "duration_seconds": 25.72,
+    "fixture_commit": "e7505291415fd549b44c453f5861eeb21a5b72f7",
+    "fixture_source_sha256": "ac68396a73d90e95039c37c96566af7ebb9822f3232b4000923bdfc70c6e5afe",
+    "log_path": "build/parent-string-independent-poison-gate.log",
+    "log_sha256": "8d2e36c5685cbf1203ad0c26a0880132eb570999367c301e93fdf73625501feb",
+    "ordinary_process_scope": "all 399, optimized 29, and embedded 2; each complete corpus in one 32M process",
+    "passed_tests": 4,
+    "poison_process_scope": "one independent observation per 256M process, including the 100-iteration owner control",
+    "runtime_profiles": 433,
+    "stack": "8M",
+    "status": "passed",
+    "string_source_sha256": "54ae8a339b996756323d8f5598287ca3abdfe8ce5e291cd62e71fdf975bd3b0e",
+    "test_binary": "/workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/456cf5bf1c0cb7a6/out/lib_string_construction-456cf5bf1c0cb7a6",
+    "test_binary_sha256": "5c3716e811879dec88e535b9545383f96474ce5f2b6841b744974389094161ad"
+  },
   "limits": [
     "Generic coverage is the explicit requested concrete root inventory, not arbitrary representation combinations.",
     "Seed and Stage1 reuse is an unchanged certified bootstrap bridge and does not test new String.",

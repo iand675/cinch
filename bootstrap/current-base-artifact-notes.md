@@ -84,3 +84,19 @@ respectively. Fresh documentation extraction reports canonical comments for
 all five changed construction declarations, with zero diagnostics or
 unattached comments. Earlier source-override/SDK/timing receipts remain
 separate and retain their original compiler and source identities.
+
+The independent parent checked-RC API gate uses compiler `90500329` and test
+fixture `e7505291`. Its four tests pass across 433 runtime profiles: ordinary
+mode runs each complete corpus (399, optimized 29, and embedded 2 observations)
+in one 32 MiB process; poisoned mode runs one independent observation per
+256 MiB process. Every process uses an 8 MiB stack and reports zero leaks.
+The per-process poison bound accounts for quarantine retaining freed objects
+until process exit. This harness change preserves the String implementation
+and both heap limits. The parent API epoch is recorded separately from the
+fresh embedded and Native compiler epochs above.
+
+`build/current-base-stage3-frozen` preserves a self-contained Native adapter,
+all original payload bytes, compiler source/LLVM, and the completed original
+gate receipt. Its provider receipt differs only because its checked-interface
+manifest names the copied local paths. The snapshot records both the original
+and relocated receipt hashes, and its heap-list ABI probe passes in both modes.
