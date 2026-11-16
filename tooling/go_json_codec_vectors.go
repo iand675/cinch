@@ -17,14 +17,15 @@ import (
 
 // failure retains structured causes independently from human-readable diagnostic text.
 type failure struct {
-	Kind   string `json:"kind"`
-	Offset int64  `json:"offset"`
-	Value  string `json:"value,omitempty"`
-	Type   string `json:"type,omitempty"`
-	Struct string `json:"struct,omitempty"`
-	Field  string `json:"field,omitempty"`
-	Text   string `json:"text,omitempty"`
-	Cause  string `json:"cause,omitempty"`
+	Kind         string `json:"kind"`
+	InvalidValue bool   `json:"invalid_value,omitempty"`
+	Offset       int64  `json:"offset"`
+	Value        string `json:"value,omitempty"`
+	Type         string `json:"type,omitempty"`
+	Struct       string `json:"struct,omitempty"`
+	Field        string `json:"field,omitempty"`
+	Text         string `json:"text,omitempty"`
+	Cause        string `json:"cause,omitempty"`
 }
 
 // errorInfo extracts stable error metadata rather than converting every failure to a boolean.
@@ -56,7 +57,11 @@ func errorInfo(err error) failure {
 		out.Kind, out.Offset = "type", mismatch.Offset
 		out.Value, out.Type, out.Struct, out.Field = mismatch.Value, mismatch.Type.String(), mismatch.Struct, mismatch.Field
 	case errors.As(err, &unsupported):
-		out.Kind, out.Type, out.Value = "value", unsupported.Value.Type().String(), unsupported.Str
+		out.Kind, out.Value = "value", unsupported.Str
+		out.InvalidValue = !unsupported.Value.IsValid()
+		if unsupported.Value.IsValid() {
+			out.Type = unsupported.Value.Type().String()
+		}
 	case errors.As(err, &unsupportedType):
 		out.Kind, out.Type = "unsupported-type", unsupportedType.Type.String()
 	case errors.As(err, &target):
@@ -359,8 +364,102 @@ func binaryCodecCases() map[string]any {
 	return map[string]any{"typed": rows}
 }
 
+// foldKey makes text-key method dispatch independent of built-in string-key formatting.
+type foldKey struct{ Name string }
+
+// MarshalText returns a visible canonical spelling for the map-name sorting observation.
+func (key foldKey) MarshalText() ([]byte, error) {
+	if key.Name == "reject" {
+		return nil, errors.New("key rejected")
+	}
+	return []byte(strings.ToUpper(key.Name)), nil
+}
+
+// UnmarshalText records normalized text while preserving deliberate application refusals.
+func (key *foldKey) UnmarshalText(input []byte) error {
+	name := strings.ToLower(string(input))
+	if name == "reject" {
+		return errors.New("key rejected")
+	}
+	key.Name = name
+	return nil
+}
+
+// mapCodecCases preserves key conversion, sorted names, unrelated members and first-error updates.
+func mapCodecCases() map[string]any {
+	rows := []map[string]any{}
+	for _, text := range []string{"null", "{}", "{\"a\":1}", "{\"a\":1,\"a\":2}", "{\"a\":\"x\",\"b\":3}", "{\"a\":null}", "[]", "true", "42", "\"x\"", "{\"é\":2,\"漢\":3,\"A\":4}", "{\"\\u0061\":2,\"a\":3}"} {
+		value := map[string]int64{"a": 7, "old": 8}
+		rows = append(rows, typedCase("Map String I64", []byte(text), &value))
+	}
+	inputs := []string{"null", "{}", "{\"1\":\"one\"}", "{\"01\":\"first\",\"+1\":\"second\"}", "{\"-0\":\"zero\",\"0\":\"later\"}", "{\"9223372036854775807\":\"max\",\"-9223372036854775808\":\"min\"}", "{\"9223372036854775808\":\"bad\",\"2\":\"after\"}", "{\"18446744073709551615\":\"max\"}", "{\"18446744073709551616\":\"bad\",\"2\":\"after\"}", "{\"-1\":\"negative\",\"2\":\"after\"}", "{\"bad\":\"bad\",\"2\":\"after\"}", "{\" 1\":\"bad\",\"2\":\"after\"}", "{\"1_0\":\"bad\",\"2\":\"after\"}", "{\"1.0\":\"bad\",\"2\":\"after\"}", "{\"2\":null}", "{\"2\":1,\"3\":\"after\"}", "[]", "true"}
+	for _, text := range inputs {
+		signed := map[int64]string{1: "before", 7: "old"}
+		rows = append(rows, typedCase("Map I64 String", []byte(text), &signed))
+		unsigned := map[uint64]string{1: "before", 7: "old"}
+		rows = append(rows, typedCase("Map U64 String", []byte(text), &unsigned))
+	}
+	for _, text := range []string{"null", "{}", "{\"true\":1}", "[]", "true"} {
+		value := map[bool]int64{true: 7}
+		rows = append(rows, typedCase("Map Bool I64", []byte(text), &value))
+	}
+	for _, text := range []string{"null", "{}", "{\"WORD\":1}", "{\"Word\":1,\"word\":2}", "{\"word\":\"bad\",\"next\":3}", "{\"reject\":1,\"next\":3}", "{\"\\u0057ORD\":4}", "[]"} {
+		value := map[foldKey]int64{{Name: "before"}: 7, {Name: "old"}: 8}
+		rows = append(rows, typedCase("Map TextKey I64", []byte(text), &value))
+	}
+	return map[string]any{"typed": rows}
+}
+
+// rawMapKey preserves arbitrary byte spelling in a comparable application key.
+type rawMapKey struct{ Text string }
+
+// MarshalText returns exact raw name bytes, including malformed UTF-8 and deliberate application errors.
+func (key rawMapKey) MarshalText() ([]byte, error) {
+	if key.Text == "reject" {
+		return nil, errors.New("key rejected")
+	}
+	return []byte(key.Text), nil
+}
+
+// mapEncodingCases observes repaired UTF-8 name sorting, replacement-aware quoting and custom failure wrapping.
+func mapEncodingCases() map[string]any {
+	sets := [][]string{{"b", "a", "z"}, {"é", "漢", "😀", string([]byte{255}), string([]byte{192, 175}), string([]byte{237, 160, 128})}, {"z", string([]byte{128})}, {"é", "�", "漢"}, {"", "\"", "\\", "\n", "\x00", "<>&", "\u2028\u2029"}, {strings.Repeat("a", 15) + "z", strings.Repeat("a", 16) + "a", strings.Repeat("a", 17), strings.Repeat("a", 31), strings.Repeat("a", 32), strings.Repeat("a", 33)}, {"reject"}, {}}
+	rows := []map[string]any{}
+	for _, names := range sets {
+		value := map[rawMapKey]int64{}
+		entries := []map[string]any{}
+		for at, name := range names {
+			number := int64(at + 1)
+			value[rawMapKey{Text: name}] = number
+			entries = append(entries, map[string]any{"key_hex": wireHex([]byte(name)), "value": number})
+		}
+		encoded, err := json.Marshal(value)
+		rows = append(rows, map[string]any{"null": false, "entries": entries, "output_hex": wireHex(encoded), "error": errorInfo(err)})
+	}
+	var absent map[rawMapKey]int64
+	encoded, err := json.Marshal(absent)
+	rows = append(rows, map[string]any{"null": true, "entries": []map[string]any{}, "output_hex": wireHex(encoded), "error": errorInfo(err)})
+	return map[string]any{"map_encoding": rows}
+}
+
 // main spans malformed grammar, byte/escape boundaries and exact finite-number ranges.
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "--map-encoding-codecs" {
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(mapEncodingCases()); err != nil {
+			panic(err)
+		}
+		return
+	}
+	if len(os.Args) == 2 && os.Args[1] == "--map-codecs" {
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(mapCodecCases()); err != nil {
+			panic(err)
+		}
+		return
+	}
 	if len(os.Args) == 2 && os.Args[1] == "--binary-codecs" {
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")

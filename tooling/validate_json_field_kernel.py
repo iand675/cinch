@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compile the actual load-only JSON field classifier into wasm and ARM objects."""
+"""Compile actual load-only JSON field/key classifiers into little- and big-endian foreign objects."""
 from __future__ import annotations
 
 import argparse
@@ -31,7 +31,7 @@ def run(command: list[str], directory: Path) -> str:
 
 
 def main() -> None:
-    """Extract the complete production primitive and compile reachable calls for both foreign targets."""
+    """Extract complete production primitives and compile reachable calls without claiming foreign execution."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--compiler", type=Path, required=True)
     parser.add_argument("--artifacts", type=Path, required=True)
@@ -47,13 +47,17 @@ def main() -> None:
     start = source.index("  prim folded-ascii16 ::")
     end = source.index("\n  -- |", start)
     primitive = source[start:end]
+    for name in ["key-ascii16", "key-ascii-byte"]:
+        begin = source.index(f"  prim {name} ::")
+        finish = source.index("\n  -- |", begin)
+        primitive += "\n  -- | Actual complete-interval ASCII key classifier.\n" + source[begin:finish]
     consumer = "-- | Compile complete-interval JSON name loads for foreign targets.\nmodule Main where\n  import Data.Machine\n  -- | Exact production classifier; both callers retain complete sixteen-byte owners.\n" + primitive + '''
   -- | Keep a byte owner live through its strict primitive argument.
   keep :: Bytes -> U8 -> U8
   keep bytes result = case bytes-len bytes of _ -> result
   -- | Retain both policy branches without claiming execution on a foreign target.
   main :: Int
-  main = let bytes = bytes-new 16 in let a = keep bytes (folded-ascii16 (bytes-data bytes) (bytes-data bytes) 0) in let b = keep bytes (folded-ascii16 (bytes-data bytes) (bytes-data bytes) 1) in if eq-u8 a 2 && eq-u8 b 2 then 0 else 1
+  main = let bytes = bytes-new 16 in let a = keep bytes (folded-ascii16 (bytes-data bytes) (bytes-data bytes) 0) in let b = keep bytes (folded-ascii16 (bytes-data bytes) (bytes-data bytes) 1) in let ascii = keep bytes (key-ascii16 (bytes-data bytes)) in let fringe = keep bytes (key-ascii-byte (bytes-data bytes)) in if eq-u8 a 2 && eq-u8 b 2 && eq-u8 ascii 1 && eq-u8 fringe 1 then 0 else 1
 '''
     entry = directory / "Main.cinch"
     entry.write_text(consumer)

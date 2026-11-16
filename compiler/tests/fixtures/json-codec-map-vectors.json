@@ -1,0 +1,927 @@
+{
+  "typed": [
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "6e756c6c",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "6e756c6c",
+      "type": "Map String I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "7b7d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2261223a372c226f6c64223a387d",
+      "type": "Map String I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "7b2261223a317d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2261223a312c226f6c64223a387d",
+      "type": "Map String I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "7b2261223a312c2261223a327d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2261223a322c226f6c64223a387d",
+      "type": "Map String I64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 8,
+        "value": "string",
+        "type": "int64",
+        "field": "a",
+        "text": "json: cannot unmarshal string into Go struct field .a of type int64"
+      },
+      "input_hex": "7b2261223a2278222c2262223a337d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2261223a302c2262223a332c226f6c64223a387d",
+      "type": "Map String I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "7b2261223a6e756c6c7d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2261223a302c226f6c64223a387d",
+      "type": "Map String I64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "array",
+        "type": "map[string]int64",
+        "text": "json: cannot unmarshal array into Go value of type map[string]int64"
+      },
+      "input_hex": "5b5d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2261223a372c226f6c64223a387d",
+      "type": "Map String I64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "bool",
+        "type": "map[string]int64",
+        "text": "json: cannot unmarshal bool into Go value of type map[string]int64"
+      },
+      "input_hex": "74727565",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2261223a372c226f6c64223a387d",
+      "type": "Map String I64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 2,
+        "value": "number",
+        "type": "map[string]int64",
+        "text": "json: cannot unmarshal number into Go value of type map[string]int64"
+      },
+      "input_hex": "3432",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2261223a372c226f6c64223a387d",
+      "type": "Map String I64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "string",
+        "type": "map[string]int64",
+        "text": "json: cannot unmarshal string into Go value of type map[string]int64"
+      },
+      "input_hex": "227822",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2261223a372c226f6c64223a387d",
+      "type": "Map String I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "7b22c3a9223a322c22e6bca2223a332c2241223a347d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2241223a342c2261223a372c226f6c64223a382c22c3a9223a322c22e6bca2223a337d",
+      "type": "Map String I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "7b225c7530303631223a322c2261223a337d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2261223a332c226f6c64223a387d",
+      "type": "Map String I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "6e756c6c",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "6e756c6c",
+      "type": "Map I64 String"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "6e756c6c",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "6e756c6c",
+      "type": "Map U64 String"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "7b7d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c2237223a226f6c64227d",
+      "type": "Map I64 String"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "7b7d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c2237223a226f6c64227d",
+      "type": "Map U64 String"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "7b2231223a226f6e65227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226f6e65222c2237223a226f6c64227d",
+      "type": "Map I64 String"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "7b2231223a226f6e65227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226f6e65222c2237223a226f6c64227d",
+      "type": "Map U64 String"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "7b223031223a226669727374222c222b31223a227365636f6e64227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a227365636f6e64222c2237223a226f6c64227d",
+      "type": "Map I64 String"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 18,
+        "value": "number +1",
+        "type": "uint64",
+        "field": "+1",
+        "text": "json: cannot unmarshal number +1 into Go struct field .+1 of type uint64"
+      },
+      "input_hex": "7b223031223a226669727374222c222b31223a227365636f6e64227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226669727374222c2237223a226f6c64227d",
+      "type": "Map U64 String"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "7b222d30223a227a65726f222c2230223a226c61746572227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2230223a226c61746572222c2231223a226265666f7265222c2237223a226f6c64227d",
+      "type": "Map I64 String"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 5,
+        "value": "number -0",
+        "type": "uint64",
+        "field": "-0",
+        "text": "json: cannot unmarshal number -0 into Go struct field .-0 of type uint64"
+      },
+      "input_hex": "7b222d30223a227a65726f222c2230223a226c61746572227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2230223a226c61746572222c2231223a226265666f7265222c2237223a226f6c64227d",
+      "type": "Map U64 String"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "7b2239323233333732303336383534373735383037223a226d6178222c222d39323233333732303336383534373735383038223a226d696e227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b222d39323233333732303336383534373735383038223a226d696e222c2231223a226265666f7265222c2237223a226f6c64222c2239323233333732303336383534373735383037223a226d6178227d",
+      "type": "Map I64 String"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 51,
+        "value": "number -9223372036854775808",
+        "type": "uint64",
+        "field": "-9223372036854775808",
+        "text": "json: cannot unmarshal number -9223372036854775808 into Go struct field .-9223372036854775808 of type uint64"
+      },
+      "input_hex": "7b2239323233333732303336383534373735383037223a226d6178222c222d39323233333732303336383534373735383038223a226d696e227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c2237223a226f6c64222c2239323233333732303336383534373735383037223a226d6178227d",
+      "type": "Map U64 String"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 22,
+        "value": "number 9223372036854775808",
+        "type": "int64",
+        "field": "9223372036854775808",
+        "text": "json: cannot unmarshal number 9223372036854775808 into .9223372036854775808 of type int64"
+      },
+      "input_hex": "7b2239323233333732303336383534373735383038223a22626164222c2232223a226166746572227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c2232223a226166746572222c2237223a226f6c64227d",
+      "type": "Map I64 String"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "7b2239323233333732303336383534373735383038223a22626164222c2232223a226166746572227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c2232223a226166746572222c2237223a226f6c64222c2239323233333732303336383534373735383038223a22626164227d",
+      "type": "Map U64 String"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 23,
+        "value": "number 18446744073709551615",
+        "type": "int64",
+        "field": "18446744073709551615",
+        "text": "json: cannot unmarshal number 18446744073709551615 into .18446744073709551615 of type int64"
+      },
+      "input_hex": "7b223138343436373434303733373039353531363135223a226d6178227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c2237223a226f6c64227d",
+      "type": "Map I64 String"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "7b223138343436373434303733373039353531363135223a226d6178227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c223138343436373434303733373039353531363135223a226d6178222c2237223a226f6c64227d",
+      "type": "Map U64 String"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 23,
+        "value": "number 18446744073709551616",
+        "type": "int64",
+        "field": "18446744073709551616",
+        "text": "json: cannot unmarshal number 18446744073709551616 into .18446744073709551616 of type int64"
+      },
+      "input_hex": "7b223138343436373434303733373039353531363136223a22626164222c2232223a226166746572227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c2232223a226166746572222c2237223a226f6c64227d",
+      "type": "Map I64 String"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 23,
+        "value": "number 18446744073709551616",
+        "type": "uint64",
+        "field": "18446744073709551616",
+        "text": "json: cannot unmarshal number 18446744073709551616 into .18446744073709551616 of type uint64"
+      },
+      "input_hex": "7b223138343436373434303733373039353531363136223a22626164222c2232223a226166746572227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c2232223a226166746572222c2237223a226f6c64227d",
+      "type": "Map U64 String"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "7b222d31223a226e65676174697665222c2232223a226166746572227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b222d31223a226e65676174697665222c2231223a226265666f7265222c2232223a226166746572222c2237223a226f6c64227d",
+      "type": "Map I64 String"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 5,
+        "value": "number -1",
+        "type": "uint64",
+        "field": "-1",
+        "text": "json: cannot unmarshal number -1 into Go struct field .-1 of type uint64"
+      },
+      "input_hex": "7b222d31223a226e65676174697665222c2232223a226166746572227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c2232223a226166746572222c2237223a226f6c64227d",
+      "type": "Map U64 String"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "number bad",
+        "type": "int64",
+        "field": "bad",
+        "text": "json: cannot unmarshal number bad into Go struct field .bad of type int64"
+      },
+      "input_hex": "7b22626164223a22626164222c2232223a226166746572227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c2232223a226166746572222c2237223a226f6c64227d",
+      "type": "Map I64 String"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "number bad",
+        "type": "uint64",
+        "field": "bad",
+        "text": "json: cannot unmarshal number bad into Go struct field .bad of type uint64"
+      },
+      "input_hex": "7b22626164223a22626164222c2232223a226166746572227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c2232223a226166746572222c2237223a226f6c64227d",
+      "type": "Map U64 String"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 5,
+        "value": "number  1",
+        "type": "int64",
+        "field": " 1",
+        "text": "json: cannot unmarshal number  1 into Go struct field . 1 of type int64"
+      },
+      "input_hex": "7b222031223a22626164222c2232223a226166746572227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c2232223a226166746572222c2237223a226f6c64227d",
+      "type": "Map I64 String"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 5,
+        "value": "number  1",
+        "type": "uint64",
+        "field": " 1",
+        "text": "json: cannot unmarshal number  1 into Go struct field . 1 of type uint64"
+      },
+      "input_hex": "7b222031223a22626164222c2232223a226166746572227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c2232223a226166746572222c2237223a226f6c64227d",
+      "type": "Map U64 String"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "number 1_0",
+        "type": "int64",
+        "field": "1_0",
+        "text": "json: cannot unmarshal number 1_0 into Go struct field .1_0 of type int64"
+      },
+      "input_hex": "7b22315f30223a22626164222c2232223a226166746572227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c2232223a226166746572222c2237223a226f6c64227d",
+      "type": "Map I64 String"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "number 1_0",
+        "type": "uint64",
+        "field": "1_0",
+        "text": "json: cannot unmarshal number 1_0 into Go struct field .1_0 of type uint64"
+      },
+      "input_hex": "7b22315f30223a22626164222c2232223a226166746572227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c2232223a226166746572222c2237223a226f6c64227d",
+      "type": "Map U64 String"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "number 1.0",
+        "type": "int64",
+        "field": "1.0",
+        "text": "json: cannot unmarshal number 1.0 into .1.0 of type int64"
+      },
+      "input_hex": "7b22312e30223a22626164222c2232223a226166746572227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c2232223a226166746572222c2237223a226f6c64227d",
+      "type": "Map I64 String"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "number 1.0",
+        "type": "uint64",
+        "field": "1.0",
+        "text": "json: cannot unmarshal number 1.0 into .1.0 of type uint64"
+      },
+      "input_hex": "7b22312e30223a22626164222c2232223a226166746572227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c2232223a226166746572222c2237223a226f6c64227d",
+      "type": "Map U64 String"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "7b2232223a6e756c6c7d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c2232223a22222c2237223a226f6c64227d",
+      "type": "Map I64 String"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "7b2232223a6e756c6c7d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c2232223a22222c2237223a226f6c64227d",
+      "type": "Map U64 String"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "number",
+        "type": "string",
+        "field": "2",
+        "text": "json: cannot unmarshal number into .2 of type string"
+      },
+      "input_hex": "7b2232223a312c2233223a226166746572227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c2232223a22222c2233223a226166746572222c2237223a226f6c64227d",
+      "type": "Map I64 String"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "number",
+        "type": "string",
+        "field": "2",
+        "text": "json: cannot unmarshal number into .2 of type string"
+      },
+      "input_hex": "7b2232223a312c2233223a226166746572227d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c2232223a22222c2233223a226166746572222c2237223a226f6c64227d",
+      "type": "Map U64 String"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "array",
+        "type": "map[int64]string",
+        "text": "json: cannot unmarshal array into Go value of type map[int64]string"
+      },
+      "input_hex": "5b5d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c2237223a226f6c64227d",
+      "type": "Map I64 String"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "array",
+        "type": "map[uint64]string",
+        "text": "json: cannot unmarshal array into Go value of type map[uint64]string"
+      },
+      "input_hex": "5b5d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c2237223a226f6c64227d",
+      "type": "Map U64 String"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "bool",
+        "type": "map[int64]string",
+        "text": "json: cannot unmarshal bool into Go value of type map[int64]string"
+      },
+      "input_hex": "74727565",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c2237223a226f6c64227d",
+      "type": "Map I64 String"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "bool",
+        "type": "map[uint64]string",
+        "text": "json: cannot unmarshal bool into Go value of type map[uint64]string"
+      },
+      "input_hex": "74727565",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b2231223a226265666f7265222c2237223a226f6c64227d",
+      "type": "Map U64 String"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "6e756c6c",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "6e756c6c",
+      "type": "Map Bool I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "7b7d",
+      "output_error": {
+        "kind": "value",
+        "invalid_value": true,
+        "offset": 0,
+        "value": "jsontext: object member name must be a string after offset 2",
+        "text": "json: unsupported value: jsontext: object member name must be a string after offset 2"
+      },
+      "output_hex": "",
+      "type": "Map Bool I64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 7,
+        "value": "string",
+        "type": "bool",
+        "field": "true",
+        "text": "json: cannot unmarshal string into Go struct field .true of type bool"
+      },
+      "input_hex": "7b2274727565223a317d",
+      "output_error": {
+        "kind": "value",
+        "invalid_value": true,
+        "offset": 0,
+        "value": "jsontext: object member name must be a string after offset 2",
+        "text": "json: unsupported value: jsontext: object member name must be a string after offset 2"
+      },
+      "output_hex": "",
+      "type": "Map Bool I64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "array",
+        "type": "map[bool]int64",
+        "text": "json: cannot unmarshal array into Go value of type map[bool]int64"
+      },
+      "input_hex": "5b5d",
+      "output_error": {
+        "kind": "value",
+        "invalid_value": true,
+        "offset": 0,
+        "value": "jsontext: object member name must be a string after offset 2",
+        "text": "json: unsupported value: jsontext: object member name must be a string after offset 2"
+      },
+      "output_hex": "",
+      "type": "Map Bool I64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "bool",
+        "type": "map[bool]int64",
+        "text": "json: cannot unmarshal bool into Go value of type map[bool]int64"
+      },
+      "input_hex": "74727565",
+      "output_error": {
+        "kind": "value",
+        "invalid_value": true,
+        "offset": 0,
+        "value": "jsontext: object member name must be a string after offset 2",
+        "text": "json: unsupported value: jsontext: object member name must be a string after offset 2"
+      },
+      "output_hex": "",
+      "type": "Map Bool I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "6e756c6c",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "6e756c6c",
+      "type": "Map TextKey I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "7b7d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b224245464f5245223a372c224f4c44223a387d",
+      "type": "Map TextKey I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "7b22574f5244223a317d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b224245464f5245223a372c224f4c44223a382c22574f5244223a317d",
+      "type": "Map TextKey I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "7b22576f7264223a312c22776f7264223a327d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b224245464f5245223a372c224f4c44223a382c22574f5244223a327d",
+      "type": "Map TextKey I64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 13,
+        "value": "string",
+        "type": "int64",
+        "field": "word",
+        "text": "json: cannot unmarshal string into Go struct field .word of type int64"
+      },
+      "input_hex": "7b22776f7264223a22626164222c226e657874223a337d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b224245464f5245223a372c224e455854223a332c224f4c44223a382c22574f5244223a307d",
+      "type": "Map TextKey I64"
+    },
+    {
+      "error": {
+        "kind": "other",
+        "offset": 0,
+        "text": "key rejected"
+      },
+      "input_hex": "7b2272656a656374223a312c226e657874223a337d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b224245464f5245223a372c224e455854223a332c224f4c44223a387d",
+      "type": "Map TextKey I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "7b225c75303035374f5244223a347d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b224245464f5245223a372c224f4c44223a382c22574f5244223a347d",
+      "type": "Map TextKey I64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "array",
+        "type": "map[main.foldKey]int64",
+        "text": "json: cannot unmarshal array into Go value of type map[main.foldKey]int64"
+      },
+      "input_hex": "5b5d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "7b224245464f5245223a372c224f4c44223a387d",
+      "type": "Map TextKey I64"
+    }
+  ]
+}

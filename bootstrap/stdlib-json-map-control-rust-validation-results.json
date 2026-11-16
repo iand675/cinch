@@ -1,0 +1,69 @@
+{
+  "description": "Independent configurable JSON consumers; normal reclamation and separate poisoned-free validation",
+  "frontend": "rust",
+  "opt_level": 2,
+  "native_link_policy": null,
+  "runner_sha256": "ddad7a25545085f3e678a2920bf7be32d79f4ad8fed08a924898c5d06e121424",
+  "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+  "sources": {
+    "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Text.Json.Value": "d83477dbc24e16529d98e0d4d5be896dec8669a8bbad965dc5a4dbaedb3a4de1",
+    "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "Text.Json.Codec": "0b6526505f9d2d2416c309e7a22dbb1a3cdde681d116d2a300f00fdcf2425c9b"
+  },
+  "fixture_sha256": "0e1cf2647c83c0f9602e5430ed18025a7f1536ff2c2adaf9139363b0533de6b8",
+  "reference_fixtures": {
+    "map-control": "0e1cf2647c83c0f9602e5430ed18025a7f1536ff2c2adaf9139363b0533de6b8"
+  },
+  "cpu_affinity": [
+    2
+  ],
+  "compiler_host_stack_kib": 65536,
+  "consumer_stack_limit": "8M",
+  "suites": [
+    {
+      "suite": "map-control",
+      "consumer_source_sha256": "7203dbc27ccf1ea4ee2a9690fa0100450ad2dd08a50b68aef76fdcdcb11af24b",
+      "llvm_sha256": "779227cefcae47f9b8a59cb42571a6154ef3c382dd3e879e6f5e07fe7f38469c",
+      "build_seconds": 31.35469647499849,
+      "runs": [
+        {
+          "poisoned_free_validation": false,
+          "heap_limit": "32M",
+          "stdout": "0\n",
+          "stats": {
+            "blocks": 1176463,
+            "bytes": 38048794,
+            "peak": 1660592,
+            "header-blocks": 1101243,
+            "header-bytes": 37646160,
+            "immortal": 0,
+            "freed": 1101243,
+            "live": 0
+          },
+          "leaked": 0
+        },
+        {
+          "poisoned_free_validation": true,
+          "heap_limit": "256M",
+          "stdout": "0\n",
+          "stats": {
+            "blocks": 1176463,
+            "bytes": 38048794,
+            "peak": 37647423,
+            "header-blocks": 1101243,
+            "header-bytes": 37646160,
+            "immortal": 0,
+            "freed": 1101243,
+            "live": 0
+          },
+          "leaked": 0
+        }
+      ]
+    }
+  ],
+  "observed_runtime_archive_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac"
+}
