@@ -3,8 +3,10 @@
 
 This measures local pipeline changes without a timing threshold. Compiler,
 optimization level, driver and runtime source identities must match; differences
-in library sources remain explicit. Independent SDK results stay in the input
-reports rather than being attributed to the changed Cinch library.
+in library sources remain explicit. An explicit compiler comparison instead
+requires identical library sources and records both compiler identities.
+Independent SDK results stay in the input reports rather than being attributed
+to the changed Cinch library.
 """
 from __future__ import annotations
 
@@ -39,6 +41,7 @@ def main() -> None:
     parser.add_argument("--sizes", nargs="+", type=int, default=[32, 1024, 16384])
     parser.add_argument("--iterations", type=int, default=256)
     parser.add_argument("--samples", type=int, default=9)
+    parser.add_argument("--compiler-change", action="store_true", help="Compare compiler changes explicitly; require identical library, driver, runtime and optimization inputs")
     parser.add_argument("--cpu", type=int, default=0)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -48,14 +51,18 @@ def main() -> None:
         parser.error("--cpu must name an allowed CPU")
     os.sched_setaffinity(0, {args.cpu})
     reports = {"before": json.loads(args.before.read_text()), "after": json.loads(args.after.read_text())}
-    matched = ("compiler_sha256", "compiler_source_sha256", "runtime_source_sha256", "driver_sha256", "opt_level")
+    common = ("runtime_source_sha256", "driver_sha256", "opt_level")
+    matched = (*common, "sources") if args.compiler_change else ("compiler_sha256", "compiler_source_sha256", *common)
     for key in matched:
         if reports["before"][key] != reports["after"][key]:
             raise ValueError(f"unmatched compilation input: {key}")
-    report = {"format": 1, "description": "Alternating retained executables with matched compiler, driver, optimization and runtime sources",
+    description = "Alternating retained executables with matched library, driver, optimization and runtime sources; explicit compiler comparison" if args.compiler_change else "Alternating retained executables with matched compiler, driver, optimization and runtime sources"
+    report = {"format": 1, "description": description,
               **{key: reports["before"][key] for key in matched}, "iterations": args.iterations,
               "cpu": reports["before"]["cpu"], "cpu_affinity": [args.cpu], "warmup_processes_per_case": 1,
               "inputs": {}, "results": []}
+    if args.compiler_change:
+        report["compilers"] = {label: {key: entry[key] for key in ("compiler_sha256", "compiler_source_sha256")} for label, entry in reports.items()}
     executables = {}
     for label, entry in reports.items():
         artifacts = Path(entry["artifacts"])
