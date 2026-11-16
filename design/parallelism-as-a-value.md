@@ -49,13 +49,24 @@ A container-generic surface sits above the primitive:
 > or `data Parallel` returns nothing outside this note. `traverse` itself is
 > present in `compiler/prelude/Category/Traversable.cinch` and needs an
 > `Applicative f`, so `parTraverse` cannot be written until something
-> supplies `Applicative Parallel`. Two routes exist and neither is decided
-> here: make `Parallel` a kernel-declared type with a synthesized
-> `Applicative` instance (the route `parallelism-instance-name` already takes
-> for `Parallelism`), or give `parTraverse` its own lowering that walks the
-> `Traversable` dictionary and combines with `both` directly, as `par-map`
-> already does for arrays. Section 2.1's measurement is about the
-> `Parallelism` implicit instance; it does not settle this question.
+> supplies `Applicative Parallel`. The obvious encoding is a newtype over the
+> computation, `MkParallel (Unit ->{|e} a)`, which is what `Parallel` means in
+> the languages this borrows from. It does not typecheck here, and the reason
+> is concrete rather than a design preference: the callback's row has to be a
+> **parameter** of the wrapper (`Parallel e a`), and no data type in the tree
+> takes a row parameter. Every `:: Row` occurrence in `compiler/prelude`,
+> `bootstrap` and `library` is either inside a `forall` in a signature or a
+> value-level type named `Row` (`Bootstrap.Proof.MkSearchRow :: Row -> ...`).
+> The same wall refused `forall (a :: Type) (e :: Row).` inside a `signature`
+> block with `unknown type Row` while accepting the identical text at top
+> level.
+>
+> That leaves one route: give `parTraverse` and `parFoldMap` their own
+> lowering, walking the `Traversable`/`Foldable` dictionary and combining
+> with `both`, exactly as `par-map` already does for arrays. The alternative
+> is a type-system change (allow `Row` as a data parameter's kind), which is
+> a larger decision than this note can take. Section 2.1's measurement is
+> about the `Parallelism` implicit instance and does not bear on this.
 >
 > What did land: the `Parallelism` interface, the named host instance
 > `b.HostParallelism`, the four-slot lowering table, and `par-workers`
