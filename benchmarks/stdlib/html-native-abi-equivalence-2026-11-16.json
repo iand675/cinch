@@ -1,0 +1,20 @@
+{
+  "description": "Equivalent let-bound checked U8 argument repairs the frozen Native call shape without changing optimized LLVM instructions or production O2 assembly",
+  "measured_source_sha256": "ee342660a63a8c2f545d4bda0fafe53e82846f635e4ca848af3185f7268bfc30",
+  "final_source_sha256": "a22d0acc3c1f391ed0207a94984a8b6c93036239ac88f449f84324dd7ee8d478",
+  "measured_unoptimized_llvm_sha256": "899690d3fe3325686ad7fdf9aa5ae7a4f1b6cb317a3fb413c243f9507526e0ce",
+  "final_unoptimized_llvm_sha256": "d5315e79a2ee81a2eab35de83b8234c8803f0522803bf17f702d06b6f6809d91",
+  "unoptimized_llvm_byte_identical": false,
+  "unoptimized_difference": "An extra let-bound alloca/store/load; temporary value names shift.",
+  "optimized_llvm_pipeline": "opt -passes=default<O2>,strip -S; remove only ModuleID and source_filename input-path fields for comparison",
+  "optimized_llvm_normalized_sha256": "f64e78a98d1e349e46d33582d7c536626216d8119fac84b8db63df6db21431be",
+  "optimized_llvm_normalized_byte_identical": true,
+  "measured_assembly_sha256": "17eee72e4d011078a1832e7f1ed299636c1699e91328ff0db438abb14a9cff16",
+  "final_assembly_sha256": "17eee72e4d011078a1832e7f1ed299636c1699e91328ff0db438abb14a9cff16",
+  "production_assembly_byte_identical": true,
+  "native_probes": {
+    "nested_conversion": "checked ABI argument rejection",
+    "explicit_let_binding": "passed",
+    "typed_U8_wrapper": "passed"
+  }
+}

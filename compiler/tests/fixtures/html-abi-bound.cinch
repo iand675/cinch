@@ -1,0 +1,30 @@
+-- | Isolated checked primitive ABI argument shape.
+module Main where
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+  -- | Actual checked descriptor primitive.
+  prim escape-span :: U8 -> U64 where
+    llvm {
+      %amp = icmp eq i8 %0, 38
+      %single = icmp eq i8 %0, 39
+      %double = icmp eq i8 %0, 34
+      %less = icmp eq i8 %0, 60
+      %greater = icmp eq i8 %0, 62
+      %a = select i1 %greater, i64 1043, i64 0
+      %b = select i1 %less, i64 1039, i64 %a
+      %c = select i1 %double, i64 1290, i64 %b
+      %d = select i1 %single, i64 1285, i64 %c
+      %value = select i1 %amp, i64 1280, i64 %d
+      ret i64 %value
+    }
+
+  -- | Preserve the primitive argument at its explicit checked width.
+  code :: U8 -> U64
+  code byte = escape-span byte
+  -- | Read an unknown checked byte under its original range guard.
+  probe :: Bytes -> Nat -> U64
+  probe input at = if at < bytes-len input then let byte = wrapping-i64-to-u8 (nat-to-i64 (bytes-get input at)) in escape-span byte else 0
+  -- | Observe the checked descriptor call.
+  main :: Int
+  main = if eq-u64 (probe (bytes-new 1) 0) 0 then 0 else 1

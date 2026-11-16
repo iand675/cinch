@@ -1,0 +1,23 @@
+{
+  "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+  "executable_sha256": "3e6d19b6cf2145617db43487baab2b4feffed485183ff45c33e347aca05a167c",
+  "llvm_sha256": "c34bd52e2f3c914afbc53f92ffb9e5852521b5ca4ac536c2ce6f0d266dd2a177",
+  "assembly_sha256": "4ae084e174f606a8320947f774a9ad9dd1b195c4d92dfac3c3863cba6803191b",
+  "sources": {
+    "Text.Fnv.cinch": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+    "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Text.Hex.cinch": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+    "Text.Html.cinch": "a463d51e08dd682e791db16fee0571c70f453fa9666e05e4cbcc82e8a8ebcb3a",
+    "Main.cinch": "6e173f9d68c8bec7edeead4bc47392af48831090818df732083290344f774bd5"
+  },
+  "reference_source_sha256": "4c1acd0f8c721b0c2f3123d7cb0d41091472b6f7ee37cc5c6800eee76c33fd35",
+  "reference_executable_sha256": "6a4880bad579c70ce4537eddbd9765bca13ad041f1f27a1644e961c15f7877dc",
+  "reference_sdk": "go version go1.27.4 linux/amd64",
+  "opt_level": 2,
+  "artifacts": "/workspace/dasl-stdlib-html/build/html-bench-baseline",
+  "runner_sha256": "365eb291bc40ff04a37a6a20d62929643a6abd48c82e1934acf7fe39da943e0d",
+  "driver_sha256": "6e173f9d68c8bec7edeead4bc47392af48831090818df732083290344f774bd5",
+  "compiler_source_sha256": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+  "runtime_source_sha256": "ea8bbc995f110fd750a0ae42d4949c62fbce7e26c9f3456c9f00d77637cfaa1c",
+  "cpu": "AMD EPYC 9V74 80-Core Processor"
+}
