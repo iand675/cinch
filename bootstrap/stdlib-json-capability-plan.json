@@ -2,7 +2,7 @@
   "reference_package": "encoding/json",
   "reference_sdk": "go1.27.4 linux/amd64",
   "reference_declarations": 92,
-  "status": "partial-core-and-typed-records; numeric/map/binary catalogue and effects remain in progress",
+  "status": "partial-core-typed-numeric-binary; maps/dynamic/raw-number outcomes/effects remain in progress",
   "source_base_commit": "689eb0c0",
   "existing_modules_preserved": [
     "Text.Json",
@@ -115,7 +115,7 @@
         "json-marshal"
       ],
       "status": "implemented-generic-typed-capability; built-in catalogue partial",
-      "review_note": "JsonType supplies explicit default/zero/empty/encode/update capabilities. Record projection and functional field replacement substitute for reflection and mutation. JsonDecoded preserves the partial value, first error and fatal/continuation distinction. Map/binary/unsigned/dynamic convenience descriptors and complete error metadata remain open."
+      "review_note": "JsonType supplies explicit default/zero/empty/encode/update capabilities. Record projection and functional replacement substitute for reflection and mutation. JsonDecoded preserves partial value, first error and fatal/continuation state. All signed/unsigned machine widths and binary byte values are tested; map/key, binary32, dynamic convenience descriptors and complete record error metadata remain open."
     },
     {
       "reference_declaration": "func MarshalIndent(interface{}, string, string) ([]uint8, error)",
@@ -125,7 +125,7 @@
         "json-marshal-indent"
       ],
       "status": "implemented-generic-typed-capability; built-in catalogue partial",
-      "review_note": "JsonType supplies explicit default/zero/empty/encode/update capabilities. Record projection and functional field replacement substitute for reflection and mutation. JsonDecoded preserves the partial value, first error and fatal/continuation distinction. Map/binary/unsigned/dynamic convenience descriptors and complete error metadata remain open."
+      "review_note": "JsonType supplies explicit default/zero/empty/encode/update capabilities. Record projection and functional replacement substitute for reflection and mutation. JsonDecoded preserves partial value, first error and fatal/continuation state. All signed/unsigned machine widths and binary byte values are tested; map/key, binary32, dynamic convenience descriptors and complete record error metadata remain open."
     },
     {
       "reference_declaration": "func MatchCaseSensitiveDelimiter(bool) jsonopts.Options",
@@ -193,7 +193,7 @@
         "json-loose-base64-padding"
       ],
       "status": "implemented-policy-values; applicable built-in behavior continues with the descriptor catalogue",
-      "review_note": "Immutable assignments select independent flags and later assignments override earlier ones. Explicit descriptor callbacks inspect the same policies. These values adapt this package facade; they do not claim implementation of separate successor packages or implicit addressability/reflection."
+      "review_note": "Immutable policy assignment controls CR/LF acceptance in binary text; padded alphabet grammar remains required and nonzero unused bits remain accepted independently. Failed binary updates return an explicit fresh prefix-overlaid advanced value only when its reservation fits the prior owned logical buffer. Original aliases are never mutated and hidden spare capacity is not inferred."
     },
     {
       "reference_declaration": "func ParseTimeWithLooseRFC3339(bool) jsonopts.Options",
@@ -240,7 +240,7 @@
         "json-update"
       ],
       "status": "implemented-generic-typed-capability; built-in catalogue partial",
-      "review_note": "JsonType supplies explicit default/zero/empty/encode/update capabilities. Record projection and functional field replacement substitute for reflection and mutation. JsonDecoded preserves the partial value, first error and fatal/continuation distinction. Map/binary/unsigned/dynamic convenience descriptors and complete error metadata remain open."
+      "review_note": "JsonType supplies explicit default/zero/empty/encode/update capabilities. Record projection and functional replacement substitute for reflection and mutation. JsonDecoded preserves partial value, first error and fatal/continuation state. All signed/unsigned machine widths and binary byte values are tested; map/key, binary32, dynamic convenience descriptors and complete record error metadata remain open."
     },
     {
       "reference_declaration": "func UnmarshalArrayFromAnyLength(bool) jsonopts.Options",
@@ -1390,6 +1390,12 @@
       "source_sha256": "ae4470f5497bb4558ed11df1bb534d7777b041e02ab0898015172971813eb138",
       "evidence": "stdlib-json-typed-evidence.json",
       "scope": "Generic typed capability callbacks, records, nullable values, lists/fixed arrays, Bool/String/I64/F64/validated numbers/raw fragments. Built-in map/binary/unsigned catalogue and effect adapters remain open."
+    },
+    {
+      "module": "Text.Json.Codec",
+      "source_sha256": "7f976b62e406a8e9ea517f850da5ef226bf97388b1ed7dd2acb017af9637a1a1",
+      "evidence": "stdlib-json-numeric-binary-evidence.json",
+      "scope": "All signed/unsigned machine integer widths, binary byte slices/fixed byte buffers, independent numeric/binary observations and actual SWAR word qualification. Binary32, map/key, dynamic and effect capabilities remain open."
     }
   ]
 }

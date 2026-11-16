@@ -238,9 +238,11 @@ def program(suite: str, fixture: dict) -> str:
         for row in fixture["field_matching"]:
             assert not row["error"]["kind"] and not row["output_error"]["kind"]
             checks.append(f"field-case {text(row['name'])} {wire(row['input_hex'])} ({row['value']} :: I64) {wire(row['output_hex'])}")
-    elif suite in {"typed", "float"}:
+    elif suite in {"typed", "float", "integer", "binary"}:
         descriptors = {
             "F64": ("json-float64-type", "(i64-to-f64 7)"),
+            **({"Bytes":("json-byte-slice-type","(Some (bytes-from-list [7,8]))"), "ByteArray3":("(json-fixed-bytes-type 3)","(bytes-from-list [7,8,9])")} if suite == "binary" else {}),
+            **({label: (descriptor, f"(7 :: {label})") for label, descriptor in [("I8", "json-int8-type"),("I16","json-int16-type"),("I32","json-int32-type"),("Isize","json-isize-type"),("U8","json-uint8-type"),("U16","json-uint16-type"),("U32","json-uint32-type"),("U64","json-uint64-type"),("Usize","json-usize-type")]} if suite == "integer" else {}),
             "Bool": ("json-bool-type", "True"),
             "String": ("json-string-type", '"before"'),
             "I64": ("json-int64-type", "(7 :: I64)"),
@@ -250,7 +252,7 @@ def program(suite: str, fixture: dict) -> str:
             "JsonRawMessage": ("json-raw-type", '(json-raw-from-bytes (string-to-bytes "{\\\"before\\\":true}"))'),
             "ApplicationRecord": ("(app-type ())", '(App 7 "before" False 9 0)'),
         }
-        labels = {"float64":"F64", "bool":"Bool", "string":"String", "int64":"I64", "json.Number":"JsonNumber", "[]int64":"List I64", "[3]int64":"Array", "main.applicationRecord":"ApplicationRecord"}
+        labels = {"int8":"I8","int16":"I16","int32":"I32","int":"Isize","uint8":"U8","uint16":"U16","uint32":"U32","uint64":"U64","uint":"Usize","float64":"F64", "bool":"Bool", "string":"String", "int64":"I64", "json.Number":"JsonNumber", "[]uint8":"Bytes","[3]uint8":"Array","[]int64":"List I64", "[3]int64":"Array", "main.applicationRecord":"ApplicationRecord"}
         for row in fixture["typed"]:
             if row["type"] not in descriptors:
                 continue
@@ -260,7 +262,7 @@ def program(suite: str, fixture: dict) -> str:
             if actual == "bool":
                 actual = "boolean"
             field = err.get("field", "")
-            if row["type"] in ["List I64", "Array3 I64"] and field.isdigit():
+            if row["type"] in ["List I64", "Array3 I64", "Bytes", "ByteArray3"] and field.isdigit():
                 field = "[" + field + "]"
             checks.append(f"typed-case {descriptor} {wire(row['input_hex'])} {initial} {wire(row['output_hex'])} {text(err['kind'])} {err['offset']} {text(actual)} {text(labels.get(err.get('type',''),err.get('type','')))} {text(field)}")
         if suite == "float":
@@ -291,7 +293,7 @@ def program(suite: str, fixture: dict) -> str:
         body = ",\n      ".join("(" + check + ")" for check in checks[start:start + 6])
         batches.append(f"\n  -- | Evaluate bounded independent {suite} checks with global failure indexes.\n  {name} :: Unit -> Nat\n  {name} unit = first-failure [\n      {body}] {start + 1}\n")
     helpers = HELPERS
-    if suite in {"typed", "float", "field"}:
+    if suite in {"typed", "float", "field", "integer", "binary"}:
         helpers = helpers.replace("  import Text.Json.Value\n", "  import Text.Json.Value\n  import Text.Json.Codec\n  import Data.Array\n") + TYPED_HELPERS + (FLOAT_HELPERS if suite == "float" else FIELD_HELPERS if suite == "field" else "")
     return helpers + "".join(batches) + f'''
   -- | Print the original failing observation and return a nonzero status on failure.
@@ -311,7 +313,7 @@ def main() -> None:
     args = parser.parse_args()
     fixture = json.loads((FIXTURES / "json-codec-vectors.json").read_text())
     for suite in args.suites:
-        selected = json.loads((FIXTURES / f"json-codec-{suite}-vectors.json").read_text()) if suite in {"float", "field"} else fixture
+        selected = json.loads((FIXTURES / f"json-codec-{suite}-vectors.json").read_text()) if suite in {"float", "field", "integer", "binary"} else fixture
         path = FIXTURES / f"json-codec-{suite}.cinch"
         contents = program(suite, selected)
         if args.check:

@@ -1,0 +1,5743 @@
+{
+  "typed": [
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "6e756c6c",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "30",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "30",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "31",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "31",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d31",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d31",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "313237",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "313237",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "number 128",
+        "type": "int8",
+        "text": "json: cannot unmarshal number 128 into Go value of type int8"
+      },
+      "input_hex": "313238",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d313238",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d313238",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "number -129",
+        "type": "int8",
+        "text": "json: cannot unmarshal number -129 into Go value of type int8"
+      },
+      "input_hex": "2d313239",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "number 255",
+        "type": "int8",
+        "text": "json: cannot unmarshal number 255 into Go value of type int8"
+      },
+      "input_hex": "323535",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "number 256",
+        "type": "int8",
+        "text": "json: cannot unmarshal number 256 into Go value of type int8"
+      },
+      "input_hex": "323536",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 5,
+        "value": "number 32767",
+        "type": "int8",
+        "text": "json: cannot unmarshal number 32767 into Go value of type int8"
+      },
+      "input_hex": "3332373637",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 5,
+        "value": "number 32768",
+        "type": "int8",
+        "text": "json: cannot unmarshal number 32768 into Go value of type int8"
+      },
+      "input_hex": "3332373638",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "number -32768",
+        "type": "int8",
+        "text": "json: cannot unmarshal number -32768 into Go value of type int8"
+      },
+      "input_hex": "2d3332373638",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "number -32769",
+        "type": "int8",
+        "text": "json: cannot unmarshal number -32769 into Go value of type int8"
+      },
+      "input_hex": "2d3332373639",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 5,
+        "value": "number 65535",
+        "type": "int8",
+        "text": "json: cannot unmarshal number 65535 into Go value of type int8"
+      },
+      "input_hex": "3635353335",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 5,
+        "value": "number 65536",
+        "type": "int8",
+        "text": "json: cannot unmarshal number 65536 into Go value of type int8"
+      },
+      "input_hex": "3635353336",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 10,
+        "value": "number 2147483647",
+        "type": "int8",
+        "text": "json: cannot unmarshal number 2147483647 into Go value of type int8"
+      },
+      "input_hex": "32313437343833363437",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 10,
+        "value": "number 2147483648",
+        "type": "int8",
+        "text": "json: cannot unmarshal number 2147483648 into Go value of type int8"
+      },
+      "input_hex": "32313437343833363438",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 11,
+        "value": "number -2147483648",
+        "type": "int8",
+        "text": "json: cannot unmarshal number -2147483648 into Go value of type int8"
+      },
+      "input_hex": "2d32313437343833363438",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 11,
+        "value": "number -2147483649",
+        "type": "int8",
+        "text": "json: cannot unmarshal number -2147483649 into Go value of type int8"
+      },
+      "input_hex": "2d32313437343833363439",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 10,
+        "value": "number 4294967295",
+        "type": "int8",
+        "text": "json: cannot unmarshal number 4294967295 into Go value of type int8"
+      },
+      "input_hex": "34323934393637323935",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 10,
+        "value": "number 4294967296",
+        "type": "int8",
+        "text": "json: cannot unmarshal number 4294967296 into Go value of type int8"
+      },
+      "input_hex": "34323934393637323936",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 19,
+        "value": "number 9223372036854775807",
+        "type": "int8",
+        "text": "json: cannot unmarshal number 9223372036854775807 into Go value of type int8"
+      },
+      "input_hex": "39323233333732303336383534373735383037",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 19,
+        "value": "number 9223372036854775808",
+        "type": "int8",
+        "text": "json: cannot unmarshal number 9223372036854775808 into Go value of type int8"
+      },
+      "input_hex": "39323233333732303336383534373735383038",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number -9223372036854775808",
+        "type": "int8",
+        "text": "json: cannot unmarshal number -9223372036854775808 into Go value of type int8"
+      },
+      "input_hex": "2d39323233333732303336383534373735383038",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number -9223372036854775809",
+        "type": "int8",
+        "text": "json: cannot unmarshal number -9223372036854775809 into Go value of type int8"
+      },
+      "input_hex": "2d39323233333732303336383534373735383039",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 18446744073709551615",
+        "type": "int8",
+        "text": "json: cannot unmarshal number 18446744073709551615 into Go value of type int8"
+      },
+      "input_hex": "3138343436373434303733373039353531363135",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 18446744073709551616",
+        "type": "int8",
+        "text": "json: cannot unmarshal number 18446744073709551616 into Go value of type int8"
+      },
+      "input_hex": "3138343436373434303733373039353531363136",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 8,
+        "value": "number 12345678",
+        "type": "int8",
+        "text": "json: cannot unmarshal number 12345678 into Go value of type int8"
+      },
+      "input_hex": "3132333435363738",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 16,
+        "value": "number 1234567890123456",
+        "type": "int8",
+        "text": "json: cannot unmarshal number 1234567890123456 into Go value of type int8"
+      },
+      "input_hex": "31323334353637383930313233343536",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 12345678901234567890",
+        "type": "int8",
+        "text": "json: cannot unmarshal number 12345678901234567890 into Go value of type int8"
+      },
+      "input_hex": "3132333435363738393031323334353637383930",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 40,
+        "value": "number 9999999999999999999999999999999999999999",
+        "type": "int8",
+        "text": "json: cannot unmarshal number 9999999999999999999999999999999999999999 into Go value of type int8"
+      },
+      "input_hex": "39393939393939393939393939393939393939393939393939393939393939393939393939393939",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "number 1.0",
+        "type": "int8",
+        "text": "json: cannot unmarshal number 1.0 into Go value of type int8"
+      },
+      "input_hex": "312e30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "number 1e1",
+        "type": "int8",
+        "text": "json: cannot unmarshal number 1e1 into Go value of type int8"
+      },
+      "input_hex": "316531",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "string",
+        "type": "int8",
+        "text": "json: cannot unmarshal string into Go value of type int8"
+      },
+      "input_hex": "223122",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "bool",
+        "type": "int8",
+        "text": "json: cannot unmarshal bool into Go value of type int8"
+      },
+      "input_hex": "74727565",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "array",
+        "type": "int8",
+        "text": "json: cannot unmarshal array into Go value of type int8"
+      },
+      "input_hex": "5b5d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "object",
+        "type": "int8",
+        "text": "json: cannot unmarshal object into Go value of type int8"
+      },
+      "input_hex": "7b7d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I8"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "6e756c6c",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "30",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "30",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "31",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "31",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d31",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d31",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "313237",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "313237",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "313238",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "313238",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d313238",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d313238",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d313239",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d313239",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "323535",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "323535",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "323536",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "323536",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3332373637",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3332373637",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 5,
+        "value": "number 32768",
+        "type": "int16",
+        "text": "json: cannot unmarshal number 32768 into Go value of type int16"
+      },
+      "input_hex": "3332373638",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d3332373638",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d3332373638",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "number -32769",
+        "type": "int16",
+        "text": "json: cannot unmarshal number -32769 into Go value of type int16"
+      },
+      "input_hex": "2d3332373639",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 5,
+        "value": "number 65535",
+        "type": "int16",
+        "text": "json: cannot unmarshal number 65535 into Go value of type int16"
+      },
+      "input_hex": "3635353335",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 5,
+        "value": "number 65536",
+        "type": "int16",
+        "text": "json: cannot unmarshal number 65536 into Go value of type int16"
+      },
+      "input_hex": "3635353336",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 10,
+        "value": "number 2147483647",
+        "type": "int16",
+        "text": "json: cannot unmarshal number 2147483647 into Go value of type int16"
+      },
+      "input_hex": "32313437343833363437",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 10,
+        "value": "number 2147483648",
+        "type": "int16",
+        "text": "json: cannot unmarshal number 2147483648 into Go value of type int16"
+      },
+      "input_hex": "32313437343833363438",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 11,
+        "value": "number -2147483648",
+        "type": "int16",
+        "text": "json: cannot unmarshal number -2147483648 into Go value of type int16"
+      },
+      "input_hex": "2d32313437343833363438",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 11,
+        "value": "number -2147483649",
+        "type": "int16",
+        "text": "json: cannot unmarshal number -2147483649 into Go value of type int16"
+      },
+      "input_hex": "2d32313437343833363439",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 10,
+        "value": "number 4294967295",
+        "type": "int16",
+        "text": "json: cannot unmarshal number 4294967295 into Go value of type int16"
+      },
+      "input_hex": "34323934393637323935",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 10,
+        "value": "number 4294967296",
+        "type": "int16",
+        "text": "json: cannot unmarshal number 4294967296 into Go value of type int16"
+      },
+      "input_hex": "34323934393637323936",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 19,
+        "value": "number 9223372036854775807",
+        "type": "int16",
+        "text": "json: cannot unmarshal number 9223372036854775807 into Go value of type int16"
+      },
+      "input_hex": "39323233333732303336383534373735383037",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 19,
+        "value": "number 9223372036854775808",
+        "type": "int16",
+        "text": "json: cannot unmarshal number 9223372036854775808 into Go value of type int16"
+      },
+      "input_hex": "39323233333732303336383534373735383038",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number -9223372036854775808",
+        "type": "int16",
+        "text": "json: cannot unmarshal number -9223372036854775808 into Go value of type int16"
+      },
+      "input_hex": "2d39323233333732303336383534373735383038",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number -9223372036854775809",
+        "type": "int16",
+        "text": "json: cannot unmarshal number -9223372036854775809 into Go value of type int16"
+      },
+      "input_hex": "2d39323233333732303336383534373735383039",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 18446744073709551615",
+        "type": "int16",
+        "text": "json: cannot unmarshal number 18446744073709551615 into Go value of type int16"
+      },
+      "input_hex": "3138343436373434303733373039353531363135",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 18446744073709551616",
+        "type": "int16",
+        "text": "json: cannot unmarshal number 18446744073709551616 into Go value of type int16"
+      },
+      "input_hex": "3138343436373434303733373039353531363136",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 8,
+        "value": "number 12345678",
+        "type": "int16",
+        "text": "json: cannot unmarshal number 12345678 into Go value of type int16"
+      },
+      "input_hex": "3132333435363738",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 16,
+        "value": "number 1234567890123456",
+        "type": "int16",
+        "text": "json: cannot unmarshal number 1234567890123456 into Go value of type int16"
+      },
+      "input_hex": "31323334353637383930313233343536",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 12345678901234567890",
+        "type": "int16",
+        "text": "json: cannot unmarshal number 12345678901234567890 into Go value of type int16"
+      },
+      "input_hex": "3132333435363738393031323334353637383930",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 40,
+        "value": "number 9999999999999999999999999999999999999999",
+        "type": "int16",
+        "text": "json: cannot unmarshal number 9999999999999999999999999999999999999999 into Go value of type int16"
+      },
+      "input_hex": "39393939393939393939393939393939393939393939393939393939393939393939393939393939",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "number 1.0",
+        "type": "int16",
+        "text": "json: cannot unmarshal number 1.0 into Go value of type int16"
+      },
+      "input_hex": "312e30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "number 1e1",
+        "type": "int16",
+        "text": "json: cannot unmarshal number 1e1 into Go value of type int16"
+      },
+      "input_hex": "316531",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "string",
+        "type": "int16",
+        "text": "json: cannot unmarshal string into Go value of type int16"
+      },
+      "input_hex": "223122",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "bool",
+        "type": "int16",
+        "text": "json: cannot unmarshal bool into Go value of type int16"
+      },
+      "input_hex": "74727565",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "array",
+        "type": "int16",
+        "text": "json: cannot unmarshal array into Go value of type int16"
+      },
+      "input_hex": "5b5d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "object",
+        "type": "int16",
+        "text": "json: cannot unmarshal object into Go value of type int16"
+      },
+      "input_hex": "7b7d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I16"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "6e756c6c",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "30",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "30",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "31",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "31",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d31",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d31",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "313237",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "313237",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "313238",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "313238",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d313238",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d313238",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d313239",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d313239",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "323535",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "323535",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "323536",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "323536",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3332373637",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3332373637",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3332373638",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3332373638",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d3332373638",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d3332373638",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d3332373639",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d3332373639",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3635353335",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3635353335",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3635353336",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3635353336",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "32313437343833363437",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "32313437343833363437",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 10,
+        "value": "number 2147483648",
+        "type": "int32",
+        "text": "json: cannot unmarshal number 2147483648 into Go value of type int32"
+      },
+      "input_hex": "32313437343833363438",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d32313437343833363438",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d32313437343833363438",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 11,
+        "value": "number -2147483649",
+        "type": "int32",
+        "text": "json: cannot unmarshal number -2147483649 into Go value of type int32"
+      },
+      "input_hex": "2d32313437343833363439",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 10,
+        "value": "number 4294967295",
+        "type": "int32",
+        "text": "json: cannot unmarshal number 4294967295 into Go value of type int32"
+      },
+      "input_hex": "34323934393637323935",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 10,
+        "value": "number 4294967296",
+        "type": "int32",
+        "text": "json: cannot unmarshal number 4294967296 into Go value of type int32"
+      },
+      "input_hex": "34323934393637323936",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 19,
+        "value": "number 9223372036854775807",
+        "type": "int32",
+        "text": "json: cannot unmarshal number 9223372036854775807 into Go value of type int32"
+      },
+      "input_hex": "39323233333732303336383534373735383037",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 19,
+        "value": "number 9223372036854775808",
+        "type": "int32",
+        "text": "json: cannot unmarshal number 9223372036854775808 into Go value of type int32"
+      },
+      "input_hex": "39323233333732303336383534373735383038",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number -9223372036854775808",
+        "type": "int32",
+        "text": "json: cannot unmarshal number -9223372036854775808 into Go value of type int32"
+      },
+      "input_hex": "2d39323233333732303336383534373735383038",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number -9223372036854775809",
+        "type": "int32",
+        "text": "json: cannot unmarshal number -9223372036854775809 into Go value of type int32"
+      },
+      "input_hex": "2d39323233333732303336383534373735383039",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 18446744073709551615",
+        "type": "int32",
+        "text": "json: cannot unmarshal number 18446744073709551615 into Go value of type int32"
+      },
+      "input_hex": "3138343436373434303733373039353531363135",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 18446744073709551616",
+        "type": "int32",
+        "text": "json: cannot unmarshal number 18446744073709551616 into Go value of type int32"
+      },
+      "input_hex": "3138343436373434303733373039353531363136",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3132333435363738",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3132333435363738",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 16,
+        "value": "number 1234567890123456",
+        "type": "int32",
+        "text": "json: cannot unmarshal number 1234567890123456 into Go value of type int32"
+      },
+      "input_hex": "31323334353637383930313233343536",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 12345678901234567890",
+        "type": "int32",
+        "text": "json: cannot unmarshal number 12345678901234567890 into Go value of type int32"
+      },
+      "input_hex": "3132333435363738393031323334353637383930",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 40,
+        "value": "number 9999999999999999999999999999999999999999",
+        "type": "int32",
+        "text": "json: cannot unmarshal number 9999999999999999999999999999999999999999 into Go value of type int32"
+      },
+      "input_hex": "39393939393939393939393939393939393939393939393939393939393939393939393939393939",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "number 1.0",
+        "type": "int32",
+        "text": "json: cannot unmarshal number 1.0 into Go value of type int32"
+      },
+      "input_hex": "312e30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "number 1e1",
+        "type": "int32",
+        "text": "json: cannot unmarshal number 1e1 into Go value of type int32"
+      },
+      "input_hex": "316531",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "string",
+        "type": "int32",
+        "text": "json: cannot unmarshal string into Go value of type int32"
+      },
+      "input_hex": "223122",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "bool",
+        "type": "int32",
+        "text": "json: cannot unmarshal bool into Go value of type int32"
+      },
+      "input_hex": "74727565",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "array",
+        "type": "int32",
+        "text": "json: cannot unmarshal array into Go value of type int32"
+      },
+      "input_hex": "5b5d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "object",
+        "type": "int32",
+        "text": "json: cannot unmarshal object into Go value of type int32"
+      },
+      "input_hex": "7b7d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "6e756c6c",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "30",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "30",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "31",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "31",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d31",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d31",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "313237",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "313237",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "313238",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "313238",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d313238",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d313238",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d313239",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d313239",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "323535",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "323535",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "323536",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "323536",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3332373637",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3332373637",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3332373638",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3332373638",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d3332373638",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d3332373638",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d3332373639",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d3332373639",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3635353335",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3635353335",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3635353336",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3635353336",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "32313437343833363437",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "32313437343833363437",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "32313437343833363438",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "32313437343833363438",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d32313437343833363438",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d32313437343833363438",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d32313437343833363439",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d32313437343833363439",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "34323934393637323935",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "34323934393637323935",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "34323934393637323936",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "34323934393637323936",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "39323233333732303336383534373735383037",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "39323233333732303336383534373735383037",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 19,
+        "value": "number 9223372036854775808",
+        "type": "int64",
+        "text": "json: cannot unmarshal number 9223372036854775808 into Go value of type int64"
+      },
+      "input_hex": "39323233333732303336383534373735383038",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d39323233333732303336383534373735383038",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d39323233333732303336383534373735383038",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number -9223372036854775809",
+        "type": "int64",
+        "text": "json: cannot unmarshal number -9223372036854775809 into Go value of type int64"
+      },
+      "input_hex": "2d39323233333732303336383534373735383039",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 18446744073709551615",
+        "type": "int64",
+        "text": "json: cannot unmarshal number 18446744073709551615 into Go value of type int64"
+      },
+      "input_hex": "3138343436373434303733373039353531363135",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 18446744073709551616",
+        "type": "int64",
+        "text": "json: cannot unmarshal number 18446744073709551616 into Go value of type int64"
+      },
+      "input_hex": "3138343436373434303733373039353531363136",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3132333435363738",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3132333435363738",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "31323334353637383930313233343536",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "31323334353637383930313233343536",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 12345678901234567890",
+        "type": "int64",
+        "text": "json: cannot unmarshal number 12345678901234567890 into Go value of type int64"
+      },
+      "input_hex": "3132333435363738393031323334353637383930",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 40,
+        "value": "number 9999999999999999999999999999999999999999",
+        "type": "int64",
+        "text": "json: cannot unmarshal number 9999999999999999999999999999999999999999 into Go value of type int64"
+      },
+      "input_hex": "39393939393939393939393939393939393939393939393939393939393939393939393939393939",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "number 1.0",
+        "type": "int64",
+        "text": "json: cannot unmarshal number 1.0 into Go value of type int64"
+      },
+      "input_hex": "312e30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "number 1e1",
+        "type": "int64",
+        "text": "json: cannot unmarshal number 1e1 into Go value of type int64"
+      },
+      "input_hex": "316531",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "string",
+        "type": "int64",
+        "text": "json: cannot unmarshal string into Go value of type int64"
+      },
+      "input_hex": "223122",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "bool",
+        "type": "int64",
+        "text": "json: cannot unmarshal bool into Go value of type int64"
+      },
+      "input_hex": "74727565",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "array",
+        "type": "int64",
+        "text": "json: cannot unmarshal array into Go value of type int64"
+      },
+      "input_hex": "5b5d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "object",
+        "type": "int64",
+        "text": "json: cannot unmarshal object into Go value of type int64"
+      },
+      "input_hex": "7b7d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "I64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "6e756c6c",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "30",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "30",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "31",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "31",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d31",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d31",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "313237",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "313237",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "313238",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "313238",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d313238",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d313238",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d313239",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d313239",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "323535",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "323535",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "323536",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "323536",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3332373637",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3332373637",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3332373638",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3332373638",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d3332373638",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d3332373638",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d3332373639",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d3332373639",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3635353335",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3635353335",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3635353336",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3635353336",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "32313437343833363437",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "32313437343833363437",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "32313437343833363438",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "32313437343833363438",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d32313437343833363438",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d32313437343833363438",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d32313437343833363439",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d32313437343833363439",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "34323934393637323935",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "34323934393637323935",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "34323934393637323936",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "34323934393637323936",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "39323233333732303336383534373735383037",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "39323233333732303336383534373735383037",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 19,
+        "value": "number 9223372036854775808",
+        "type": "int",
+        "text": "json: cannot unmarshal number 9223372036854775808 into Go value of type int"
+      },
+      "input_hex": "39323233333732303336383534373735383038",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d39323233333732303336383534373735383038",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d39323233333732303336383534373735383038",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number -9223372036854775809",
+        "type": "int",
+        "text": "json: cannot unmarshal number -9223372036854775809 into Go value of type int"
+      },
+      "input_hex": "2d39323233333732303336383534373735383039",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 18446744073709551615",
+        "type": "int",
+        "text": "json: cannot unmarshal number 18446744073709551615 into Go value of type int"
+      },
+      "input_hex": "3138343436373434303733373039353531363135",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 18446744073709551616",
+        "type": "int",
+        "text": "json: cannot unmarshal number 18446744073709551616 into Go value of type int"
+      },
+      "input_hex": "3138343436373434303733373039353531363136",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3132333435363738",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3132333435363738",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "31323334353637383930313233343536",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "31323334353637383930313233343536",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 12345678901234567890",
+        "type": "int",
+        "text": "json: cannot unmarshal number 12345678901234567890 into Go value of type int"
+      },
+      "input_hex": "3132333435363738393031323334353637383930",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 40,
+        "value": "number 9999999999999999999999999999999999999999",
+        "type": "int",
+        "text": "json: cannot unmarshal number 9999999999999999999999999999999999999999 into Go value of type int"
+      },
+      "input_hex": "39393939393939393939393939393939393939393939393939393939393939393939393939393939",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "number 1.0",
+        "type": "int",
+        "text": "json: cannot unmarshal number 1.0 into Go value of type int"
+      },
+      "input_hex": "312e30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "number 1e1",
+        "type": "int",
+        "text": "json: cannot unmarshal number 1e1 into Go value of type int"
+      },
+      "input_hex": "316531",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "string",
+        "type": "int",
+        "text": "json: cannot unmarshal string into Go value of type int"
+      },
+      "input_hex": "223122",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "bool",
+        "type": "int",
+        "text": "json: cannot unmarshal bool into Go value of type int"
+      },
+      "input_hex": "74727565",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "array",
+        "type": "int",
+        "text": "json: cannot unmarshal array into Go value of type int"
+      },
+      "input_hex": "5b5d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "object",
+        "type": "int",
+        "text": "json: cannot unmarshal object into Go value of type int"
+      },
+      "input_hex": "7b7d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Isize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "6e756c6c",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "30",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 2,
+        "value": "number -0",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number -0 into Go value of type uint8"
+      },
+      "input_hex": "2d30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "31",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "31",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 2,
+        "value": "number -1",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number -1 into Go value of type uint8"
+      },
+      "input_hex": "2d31",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "313237",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "313237",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "313238",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "313238",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "number -128",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number -128 into Go value of type uint8"
+      },
+      "input_hex": "2d313238",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "number -129",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number -129 into Go value of type uint8"
+      },
+      "input_hex": "2d313239",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "323535",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "323535",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "number 256",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number 256 into Go value of type uint8"
+      },
+      "input_hex": "323536",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 5,
+        "value": "number 32767",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number 32767 into Go value of type uint8"
+      },
+      "input_hex": "3332373637",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 5,
+        "value": "number 32768",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number 32768 into Go value of type uint8"
+      },
+      "input_hex": "3332373638",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "number -32768",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number -32768 into Go value of type uint8"
+      },
+      "input_hex": "2d3332373638",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "number -32769",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number -32769 into Go value of type uint8"
+      },
+      "input_hex": "2d3332373639",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 5,
+        "value": "number 65535",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number 65535 into Go value of type uint8"
+      },
+      "input_hex": "3635353335",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 5,
+        "value": "number 65536",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number 65536 into Go value of type uint8"
+      },
+      "input_hex": "3635353336",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 10,
+        "value": "number 2147483647",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number 2147483647 into Go value of type uint8"
+      },
+      "input_hex": "32313437343833363437",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 10,
+        "value": "number 2147483648",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number 2147483648 into Go value of type uint8"
+      },
+      "input_hex": "32313437343833363438",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 11,
+        "value": "number -2147483648",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number -2147483648 into Go value of type uint8"
+      },
+      "input_hex": "2d32313437343833363438",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 11,
+        "value": "number -2147483649",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number -2147483649 into Go value of type uint8"
+      },
+      "input_hex": "2d32313437343833363439",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 10,
+        "value": "number 4294967295",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number 4294967295 into Go value of type uint8"
+      },
+      "input_hex": "34323934393637323935",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 10,
+        "value": "number 4294967296",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number 4294967296 into Go value of type uint8"
+      },
+      "input_hex": "34323934393637323936",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 19,
+        "value": "number 9223372036854775807",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number 9223372036854775807 into Go value of type uint8"
+      },
+      "input_hex": "39323233333732303336383534373735383037",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 19,
+        "value": "number 9223372036854775808",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number 9223372036854775808 into Go value of type uint8"
+      },
+      "input_hex": "39323233333732303336383534373735383038",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number -9223372036854775808",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number -9223372036854775808 into Go value of type uint8"
+      },
+      "input_hex": "2d39323233333732303336383534373735383038",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number -9223372036854775809",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number -9223372036854775809 into Go value of type uint8"
+      },
+      "input_hex": "2d39323233333732303336383534373735383039",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 18446744073709551615",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number 18446744073709551615 into Go value of type uint8"
+      },
+      "input_hex": "3138343436373434303733373039353531363135",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 18446744073709551616",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number 18446744073709551616 into Go value of type uint8"
+      },
+      "input_hex": "3138343436373434303733373039353531363136",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 8,
+        "value": "number 12345678",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number 12345678 into Go value of type uint8"
+      },
+      "input_hex": "3132333435363738",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 16,
+        "value": "number 1234567890123456",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number 1234567890123456 into Go value of type uint8"
+      },
+      "input_hex": "31323334353637383930313233343536",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 12345678901234567890",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number 12345678901234567890 into Go value of type uint8"
+      },
+      "input_hex": "3132333435363738393031323334353637383930",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 40,
+        "value": "number 9999999999999999999999999999999999999999",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number 9999999999999999999999999999999999999999 into Go value of type uint8"
+      },
+      "input_hex": "39393939393939393939393939393939393939393939393939393939393939393939393939393939",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "number 1.0",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number 1.0 into Go value of type uint8"
+      },
+      "input_hex": "312e30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "number 1e1",
+        "type": "uint8",
+        "text": "json: cannot unmarshal number 1e1 into Go value of type uint8"
+      },
+      "input_hex": "316531",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "string",
+        "type": "uint8",
+        "text": "json: cannot unmarshal string into Go value of type uint8"
+      },
+      "input_hex": "223122",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "bool",
+        "type": "uint8",
+        "text": "json: cannot unmarshal bool into Go value of type uint8"
+      },
+      "input_hex": "74727565",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "array",
+        "type": "uint8",
+        "text": "json: cannot unmarshal array into Go value of type uint8"
+      },
+      "input_hex": "5b5d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "object",
+        "type": "uint8",
+        "text": "json: cannot unmarshal object into Go value of type uint8"
+      },
+      "input_hex": "7b7d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U8"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "6e756c6c",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "30",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 2,
+        "value": "number -0",
+        "type": "uint16",
+        "text": "json: cannot unmarshal number -0 into Go value of type uint16"
+      },
+      "input_hex": "2d30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "31",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "31",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 2,
+        "value": "number -1",
+        "type": "uint16",
+        "text": "json: cannot unmarshal number -1 into Go value of type uint16"
+      },
+      "input_hex": "2d31",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "313237",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "313237",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "313238",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "313238",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "number -128",
+        "type": "uint16",
+        "text": "json: cannot unmarshal number -128 into Go value of type uint16"
+      },
+      "input_hex": "2d313238",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "number -129",
+        "type": "uint16",
+        "text": "json: cannot unmarshal number -129 into Go value of type uint16"
+      },
+      "input_hex": "2d313239",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "323535",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "323535",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "323536",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "323536",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3332373637",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3332373637",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3332373638",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3332373638",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "number -32768",
+        "type": "uint16",
+        "text": "json: cannot unmarshal number -32768 into Go value of type uint16"
+      },
+      "input_hex": "2d3332373638",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "number -32769",
+        "type": "uint16",
+        "text": "json: cannot unmarshal number -32769 into Go value of type uint16"
+      },
+      "input_hex": "2d3332373639",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3635353335",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3635353335",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 5,
+        "value": "number 65536",
+        "type": "uint16",
+        "text": "json: cannot unmarshal number 65536 into Go value of type uint16"
+      },
+      "input_hex": "3635353336",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 10,
+        "value": "number 2147483647",
+        "type": "uint16",
+        "text": "json: cannot unmarshal number 2147483647 into Go value of type uint16"
+      },
+      "input_hex": "32313437343833363437",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 10,
+        "value": "number 2147483648",
+        "type": "uint16",
+        "text": "json: cannot unmarshal number 2147483648 into Go value of type uint16"
+      },
+      "input_hex": "32313437343833363438",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 11,
+        "value": "number -2147483648",
+        "type": "uint16",
+        "text": "json: cannot unmarshal number -2147483648 into Go value of type uint16"
+      },
+      "input_hex": "2d32313437343833363438",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 11,
+        "value": "number -2147483649",
+        "type": "uint16",
+        "text": "json: cannot unmarshal number -2147483649 into Go value of type uint16"
+      },
+      "input_hex": "2d32313437343833363439",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 10,
+        "value": "number 4294967295",
+        "type": "uint16",
+        "text": "json: cannot unmarshal number 4294967295 into Go value of type uint16"
+      },
+      "input_hex": "34323934393637323935",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 10,
+        "value": "number 4294967296",
+        "type": "uint16",
+        "text": "json: cannot unmarshal number 4294967296 into Go value of type uint16"
+      },
+      "input_hex": "34323934393637323936",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 19,
+        "value": "number 9223372036854775807",
+        "type": "uint16",
+        "text": "json: cannot unmarshal number 9223372036854775807 into Go value of type uint16"
+      },
+      "input_hex": "39323233333732303336383534373735383037",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 19,
+        "value": "number 9223372036854775808",
+        "type": "uint16",
+        "text": "json: cannot unmarshal number 9223372036854775808 into Go value of type uint16"
+      },
+      "input_hex": "39323233333732303336383534373735383038",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number -9223372036854775808",
+        "type": "uint16",
+        "text": "json: cannot unmarshal number -9223372036854775808 into Go value of type uint16"
+      },
+      "input_hex": "2d39323233333732303336383534373735383038",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number -9223372036854775809",
+        "type": "uint16",
+        "text": "json: cannot unmarshal number -9223372036854775809 into Go value of type uint16"
+      },
+      "input_hex": "2d39323233333732303336383534373735383039",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 18446744073709551615",
+        "type": "uint16",
+        "text": "json: cannot unmarshal number 18446744073709551615 into Go value of type uint16"
+      },
+      "input_hex": "3138343436373434303733373039353531363135",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 18446744073709551616",
+        "type": "uint16",
+        "text": "json: cannot unmarshal number 18446744073709551616 into Go value of type uint16"
+      },
+      "input_hex": "3138343436373434303733373039353531363136",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 8,
+        "value": "number 12345678",
+        "type": "uint16",
+        "text": "json: cannot unmarshal number 12345678 into Go value of type uint16"
+      },
+      "input_hex": "3132333435363738",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 16,
+        "value": "number 1234567890123456",
+        "type": "uint16",
+        "text": "json: cannot unmarshal number 1234567890123456 into Go value of type uint16"
+      },
+      "input_hex": "31323334353637383930313233343536",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 12345678901234567890",
+        "type": "uint16",
+        "text": "json: cannot unmarshal number 12345678901234567890 into Go value of type uint16"
+      },
+      "input_hex": "3132333435363738393031323334353637383930",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 40,
+        "value": "number 9999999999999999999999999999999999999999",
+        "type": "uint16",
+        "text": "json: cannot unmarshal number 9999999999999999999999999999999999999999 into Go value of type uint16"
+      },
+      "input_hex": "39393939393939393939393939393939393939393939393939393939393939393939393939393939",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "number 1.0",
+        "type": "uint16",
+        "text": "json: cannot unmarshal number 1.0 into Go value of type uint16"
+      },
+      "input_hex": "312e30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "number 1e1",
+        "type": "uint16",
+        "text": "json: cannot unmarshal number 1e1 into Go value of type uint16"
+      },
+      "input_hex": "316531",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "string",
+        "type": "uint16",
+        "text": "json: cannot unmarshal string into Go value of type uint16"
+      },
+      "input_hex": "223122",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "bool",
+        "type": "uint16",
+        "text": "json: cannot unmarshal bool into Go value of type uint16"
+      },
+      "input_hex": "74727565",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "array",
+        "type": "uint16",
+        "text": "json: cannot unmarshal array into Go value of type uint16"
+      },
+      "input_hex": "5b5d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "object",
+        "type": "uint16",
+        "text": "json: cannot unmarshal object into Go value of type uint16"
+      },
+      "input_hex": "7b7d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U16"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "6e756c6c",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "30",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 2,
+        "value": "number -0",
+        "type": "uint32",
+        "text": "json: cannot unmarshal number -0 into Go value of type uint32"
+      },
+      "input_hex": "2d30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "31",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "31",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 2,
+        "value": "number -1",
+        "type": "uint32",
+        "text": "json: cannot unmarshal number -1 into Go value of type uint32"
+      },
+      "input_hex": "2d31",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "313237",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "313237",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "313238",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "313238",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "number -128",
+        "type": "uint32",
+        "text": "json: cannot unmarshal number -128 into Go value of type uint32"
+      },
+      "input_hex": "2d313238",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "number -129",
+        "type": "uint32",
+        "text": "json: cannot unmarshal number -129 into Go value of type uint32"
+      },
+      "input_hex": "2d313239",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "323535",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "323535",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "323536",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "323536",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3332373637",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3332373637",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3332373638",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3332373638",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "number -32768",
+        "type": "uint32",
+        "text": "json: cannot unmarshal number -32768 into Go value of type uint32"
+      },
+      "input_hex": "2d3332373638",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "number -32769",
+        "type": "uint32",
+        "text": "json: cannot unmarshal number -32769 into Go value of type uint32"
+      },
+      "input_hex": "2d3332373639",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3635353335",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3635353335",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3635353336",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3635353336",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "32313437343833363437",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "32313437343833363437",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "32313437343833363438",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "32313437343833363438",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 11,
+        "value": "number -2147483648",
+        "type": "uint32",
+        "text": "json: cannot unmarshal number -2147483648 into Go value of type uint32"
+      },
+      "input_hex": "2d32313437343833363438",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 11,
+        "value": "number -2147483649",
+        "type": "uint32",
+        "text": "json: cannot unmarshal number -2147483649 into Go value of type uint32"
+      },
+      "input_hex": "2d32313437343833363439",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "34323934393637323935",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "34323934393637323935",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 10,
+        "value": "number 4294967296",
+        "type": "uint32",
+        "text": "json: cannot unmarshal number 4294967296 into Go value of type uint32"
+      },
+      "input_hex": "34323934393637323936",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 19,
+        "value": "number 9223372036854775807",
+        "type": "uint32",
+        "text": "json: cannot unmarshal number 9223372036854775807 into Go value of type uint32"
+      },
+      "input_hex": "39323233333732303336383534373735383037",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 19,
+        "value": "number 9223372036854775808",
+        "type": "uint32",
+        "text": "json: cannot unmarshal number 9223372036854775808 into Go value of type uint32"
+      },
+      "input_hex": "39323233333732303336383534373735383038",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number -9223372036854775808",
+        "type": "uint32",
+        "text": "json: cannot unmarshal number -9223372036854775808 into Go value of type uint32"
+      },
+      "input_hex": "2d39323233333732303336383534373735383038",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number -9223372036854775809",
+        "type": "uint32",
+        "text": "json: cannot unmarshal number -9223372036854775809 into Go value of type uint32"
+      },
+      "input_hex": "2d39323233333732303336383534373735383039",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 18446744073709551615",
+        "type": "uint32",
+        "text": "json: cannot unmarshal number 18446744073709551615 into Go value of type uint32"
+      },
+      "input_hex": "3138343436373434303733373039353531363135",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 18446744073709551616",
+        "type": "uint32",
+        "text": "json: cannot unmarshal number 18446744073709551616 into Go value of type uint32"
+      },
+      "input_hex": "3138343436373434303733373039353531363136",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3132333435363738",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3132333435363738",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 16,
+        "value": "number 1234567890123456",
+        "type": "uint32",
+        "text": "json: cannot unmarshal number 1234567890123456 into Go value of type uint32"
+      },
+      "input_hex": "31323334353637383930313233343536",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 12345678901234567890",
+        "type": "uint32",
+        "text": "json: cannot unmarshal number 12345678901234567890 into Go value of type uint32"
+      },
+      "input_hex": "3132333435363738393031323334353637383930",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 40,
+        "value": "number 9999999999999999999999999999999999999999",
+        "type": "uint32",
+        "text": "json: cannot unmarshal number 9999999999999999999999999999999999999999 into Go value of type uint32"
+      },
+      "input_hex": "39393939393939393939393939393939393939393939393939393939393939393939393939393939",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "number 1.0",
+        "type": "uint32",
+        "text": "json: cannot unmarshal number 1.0 into Go value of type uint32"
+      },
+      "input_hex": "312e30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "number 1e1",
+        "type": "uint32",
+        "text": "json: cannot unmarshal number 1e1 into Go value of type uint32"
+      },
+      "input_hex": "316531",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "string",
+        "type": "uint32",
+        "text": "json: cannot unmarshal string into Go value of type uint32"
+      },
+      "input_hex": "223122",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "bool",
+        "type": "uint32",
+        "text": "json: cannot unmarshal bool into Go value of type uint32"
+      },
+      "input_hex": "74727565",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "array",
+        "type": "uint32",
+        "text": "json: cannot unmarshal array into Go value of type uint32"
+      },
+      "input_hex": "5b5d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "object",
+        "type": "uint32",
+        "text": "json: cannot unmarshal object into Go value of type uint32"
+      },
+      "input_hex": "7b7d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U32"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "6e756c6c",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "30",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 2,
+        "value": "number -0",
+        "type": "uint64",
+        "text": "json: cannot unmarshal number -0 into Go value of type uint64"
+      },
+      "input_hex": "2d30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "31",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "31",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 2,
+        "value": "number -1",
+        "type": "uint64",
+        "text": "json: cannot unmarshal number -1 into Go value of type uint64"
+      },
+      "input_hex": "2d31",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "313237",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "313237",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "313238",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "313238",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "number -128",
+        "type": "uint64",
+        "text": "json: cannot unmarshal number -128 into Go value of type uint64"
+      },
+      "input_hex": "2d313238",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "number -129",
+        "type": "uint64",
+        "text": "json: cannot unmarshal number -129 into Go value of type uint64"
+      },
+      "input_hex": "2d313239",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "323535",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "323535",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "323536",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "323536",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3332373637",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3332373637",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3332373638",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3332373638",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "number -32768",
+        "type": "uint64",
+        "text": "json: cannot unmarshal number -32768 into Go value of type uint64"
+      },
+      "input_hex": "2d3332373638",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "number -32769",
+        "type": "uint64",
+        "text": "json: cannot unmarshal number -32769 into Go value of type uint64"
+      },
+      "input_hex": "2d3332373639",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3635353335",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3635353335",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3635353336",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3635353336",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "32313437343833363437",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "32313437343833363437",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "32313437343833363438",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "32313437343833363438",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 11,
+        "value": "number -2147483648",
+        "type": "uint64",
+        "text": "json: cannot unmarshal number -2147483648 into Go value of type uint64"
+      },
+      "input_hex": "2d32313437343833363438",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 11,
+        "value": "number -2147483649",
+        "type": "uint64",
+        "text": "json: cannot unmarshal number -2147483649 into Go value of type uint64"
+      },
+      "input_hex": "2d32313437343833363439",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "34323934393637323935",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "34323934393637323935",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "34323934393637323936",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "34323934393637323936",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "39323233333732303336383534373735383037",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "39323233333732303336383534373735383037",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "39323233333732303336383534373735383038",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "39323233333732303336383534373735383038",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number -9223372036854775808",
+        "type": "uint64",
+        "text": "json: cannot unmarshal number -9223372036854775808 into Go value of type uint64"
+      },
+      "input_hex": "2d39323233333732303336383534373735383038",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number -9223372036854775809",
+        "type": "uint64",
+        "text": "json: cannot unmarshal number -9223372036854775809 into Go value of type uint64"
+      },
+      "input_hex": "2d39323233333732303336383534373735383039",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3138343436373434303733373039353531363135",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3138343436373434303733373039353531363135",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 18446744073709551616",
+        "type": "uint64",
+        "text": "json: cannot unmarshal number 18446744073709551616 into Go value of type uint64"
+      },
+      "input_hex": "3138343436373434303733373039353531363136",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3132333435363738",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3132333435363738",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "31323334353637383930313233343536",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "31323334353637383930313233343536",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3132333435363738393031323334353637383930",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3132333435363738393031323334353637383930",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 40,
+        "value": "number 9999999999999999999999999999999999999999",
+        "type": "uint64",
+        "text": "json: cannot unmarshal number 9999999999999999999999999999999999999999 into Go value of type uint64"
+      },
+      "input_hex": "39393939393939393939393939393939393939393939393939393939393939393939393939393939",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "number 1.0",
+        "type": "uint64",
+        "text": "json: cannot unmarshal number 1.0 into Go value of type uint64"
+      },
+      "input_hex": "312e30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "number 1e1",
+        "type": "uint64",
+        "text": "json: cannot unmarshal number 1e1 into Go value of type uint64"
+      },
+      "input_hex": "316531",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "string",
+        "type": "uint64",
+        "text": "json: cannot unmarshal string into Go value of type uint64"
+      },
+      "input_hex": "223122",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "bool",
+        "type": "uint64",
+        "text": "json: cannot unmarshal bool into Go value of type uint64"
+      },
+      "input_hex": "74727565",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "array",
+        "type": "uint64",
+        "text": "json: cannot unmarshal array into Go value of type uint64"
+      },
+      "input_hex": "5b5d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "object",
+        "type": "uint64",
+        "text": "json: cannot unmarshal object into Go value of type uint64"
+      },
+      "input_hex": "7b7d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "U64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "6e756c6c",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "30",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 2,
+        "value": "number -0",
+        "type": "uint",
+        "text": "json: cannot unmarshal number -0 into Go value of type uint"
+      },
+      "input_hex": "2d30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "31",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "31",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 2,
+        "value": "number -1",
+        "type": "uint",
+        "text": "json: cannot unmarshal number -1 into Go value of type uint"
+      },
+      "input_hex": "2d31",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "313237",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "313237",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "313238",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "313238",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "number -128",
+        "type": "uint",
+        "text": "json: cannot unmarshal number -128 into Go value of type uint"
+      },
+      "input_hex": "2d313238",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "number -129",
+        "type": "uint",
+        "text": "json: cannot unmarshal number -129 into Go value of type uint"
+      },
+      "input_hex": "2d313239",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "323535",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "323535",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "323536",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "323536",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3332373637",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3332373637",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3332373638",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3332373638",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "number -32768",
+        "type": "uint",
+        "text": "json: cannot unmarshal number -32768 into Go value of type uint"
+      },
+      "input_hex": "2d3332373638",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "number -32769",
+        "type": "uint",
+        "text": "json: cannot unmarshal number -32769 into Go value of type uint"
+      },
+      "input_hex": "2d3332373639",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3635353335",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3635353335",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3635353336",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3635353336",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "32313437343833363437",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "32313437343833363437",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "32313437343833363438",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "32313437343833363438",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 11,
+        "value": "number -2147483648",
+        "type": "uint",
+        "text": "json: cannot unmarshal number -2147483648 into Go value of type uint"
+      },
+      "input_hex": "2d32313437343833363438",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 11,
+        "value": "number -2147483649",
+        "type": "uint",
+        "text": "json: cannot unmarshal number -2147483649 into Go value of type uint"
+      },
+      "input_hex": "2d32313437343833363439",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "34323934393637323935",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "34323934393637323935",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "34323934393637323936",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "34323934393637323936",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "39323233333732303336383534373735383037",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "39323233333732303336383534373735383037",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "39323233333732303336383534373735383038",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "39323233333732303336383534373735383038",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number -9223372036854775808",
+        "type": "uint",
+        "text": "json: cannot unmarshal number -9223372036854775808 into Go value of type uint"
+      },
+      "input_hex": "2d39323233333732303336383534373735383038",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number -9223372036854775809",
+        "type": "uint",
+        "text": "json: cannot unmarshal number -9223372036854775809 into Go value of type uint"
+      },
+      "input_hex": "2d39323233333732303336383534373735383039",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3138343436373434303733373039353531363135",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3138343436373434303733373039353531363135",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 20,
+        "value": "number 18446744073709551616",
+        "type": "uint",
+        "text": "json: cannot unmarshal number 18446744073709551616 into Go value of type uint"
+      },
+      "input_hex": "3138343436373434303733373039353531363136",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3132333435363738",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3132333435363738",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "31323334353637383930313233343536",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "31323334353637383930313233343536",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "3132333435363738393031323334353637383930",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3132333435363738393031323334353637383930",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 40,
+        "value": "number 9999999999999999999999999999999999999999",
+        "type": "uint",
+        "text": "json: cannot unmarshal number 9999999999999999999999999999999999999999 into Go value of type uint"
+      },
+      "input_hex": "39393939393939393939393939393939393939393939393939393939393939393939393939393939",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "number 1.0",
+        "type": "uint",
+        "text": "json: cannot unmarshal number 1.0 into Go value of type uint"
+      },
+      "input_hex": "312e30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "number 1e1",
+        "type": "uint",
+        "text": "json: cannot unmarshal number 1e1 into Go value of type uint"
+      },
+      "input_hex": "316531",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "string",
+        "type": "uint",
+        "text": "json: cannot unmarshal string into Go value of type uint"
+      },
+      "input_hex": "223122",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "bool",
+        "type": "uint",
+        "text": "json: cannot unmarshal bool into Go value of type uint"
+      },
+      "input_hex": "74727565",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "array",
+        "type": "uint",
+        "text": "json: cannot unmarshal array into Go value of type uint"
+      },
+      "input_hex": "5b5d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Usize"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "object",
+        "type": "uint",
+        "text": "json: cannot unmarshal object into Go value of type uint"
+      },
+      "input_hex": "7b7d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "Usize"
+    }
+  ]
+}
