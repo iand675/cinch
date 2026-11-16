@@ -211,21 +211,21 @@
     },
     {
       "suite": "bounded",
-      "consumer_source_sha256": "773d5e62fb25214d1dc3ab47cd2fcc490905a55f7d2a4fc0c858a5c231857a5a",
-      "llvm_sha256": "0d4f218ec0ec9209e554513310e694a9d2a3ce547f61c73f4489498b9d849624",
+      "consumer_source_sha256": "ff924e4c6d858b929fca2b1810ea2fdd6b0137d3945e45c700326f301cb4cf92",
+      "llvm_sha256": "77a63af0deaf9e8ed9796ae6a33d75af56fa100837518fde0c915b5b20c55d0b",
       "runs": [
         {
           "poisoned_free_validation": false,
           "heap_limit": "32M",
           "stdout": "0\n",
           "stats": {
-            "blocks": 3866986,
-            "bytes": 113388004,
-            "peak": 4850382,
-            "header-blocks": 3490106,
-            "header-bytes": 112075928,
+            "blocks": 3866996,
+            "bytes": 113486447,
+            "peak": 4850390,
+            "header-blocks": 3490112,
+            "header-bytes": 112076056,
             "immortal": 0,
-            "freed": 3490106,
+            "freed": 3490112,
             "live": 0
           },
           "leaked": 0
@@ -235,18 +235,26 @@
           "heap_limit": "256M",
           "stdout": "0\n",
           "stats": {
-            "blocks": 3866986,
-            "bytes": 113388004,
-            "peak": 112336924,
-            "header-blocks": 3490106,
-            "header-bytes": 112075928,
+            "blocks": 3866996,
+            "bytes": 113486447,
+            "peak": 112336996,
+            "header-blocks": 3490112,
+            "header-bytes": 112076056,
             "immortal": 0,
-            "freed": 3490106,
+            "freed": 3490112,
             "live": 0
           },
           "leaked": 0
         }
       ]
+    }
+  ],
+  "updated_suites": [
+    {
+      "suite": "bounded",
+      "runner_sha256": "45c8e19e6a67b5067298cfb085f58b4bf3a6c0a63b69a6c1ade2cae997622a60",
+      "opt_level": 2,
+      "reason": "Replace only the test expected-text producer with a checked bulk-copy tail loop after diagnosing its preexisting non-tail O0 stack usage."
     }
   ]
 }

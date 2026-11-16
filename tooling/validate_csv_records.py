@@ -41,6 +41,7 @@ def main() -> None:
     parser.add_argument("--artifacts", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--suites", nargs="+", default=["read", "write", "stream", "bytes", "control", "bounded"])
+    parser.add_argument("--opt-level", type=int, choices=[0, 1, 2, 3], default=2)
     parser.add_argument("--cpu", type=int, default=3)
     args = parser.parse_args()
     if args.cpu not in os.sched_getaffinity(0):
@@ -48,12 +49,14 @@ def main() -> None:
     os.sched_setaffinity(0, {args.cpu})
     if args.frontend == "native" and not args.interfaces:
         parser.error("the native wrapper requires its frozen --interfaces manifest")
+    if args.frontend == "native" and args.opt_level != 2:
+        parser.error("the frozen Native wrapper uses optimization level 2")
     compiler = args.compiler.resolve()
     frozen_modules = {name: path.read_bytes() for name, path in MODULES.items()}
     frozen_consumers = {suite: (ROOT / f"compiler/tests/fixtures/csv-record-{suite}.cinch").read_bytes() for suite in args.suites}
     report = {
         "description": "Independent configurable CSV consumers; normal reclamation and separate poisoned-free validation",
-        "frontend": args.frontend, "runner_sha256": digest(Path(__file__)),
+        "frontend": args.frontend, "opt_level": args.opt_level, "runner_sha256": digest(Path(__file__)),
         "compiler_sha256": digest(compiler),
         "sources": {name: hashlib.sha256(contents).hexdigest() for name, contents in frozen_modules.items()},
         "fixture_sha256": digest(ROOT / "compiler/tests/fixtures/csv-record-vectors.json"),
@@ -71,7 +74,7 @@ def main() -> None:
         (directory / "Main.cinch").write_bytes(frozen_consumers[suite])
         output = directory / "consumer"
         if args.frontend == "rust":
-            command = [str(compiler), "build", str(directory / "Main.cinch"), "-o", str(output), "--opt-level", "2", "--rc-debug"]
+            command = [str(compiler), "build", str(directory / "Main.cinch"), "-o", str(output), "--opt-level", str(args.opt_level), "--rc-debug"]
         else:
             bundle = directory / "Bundle.cinch"
             bundle.write_text("\n\n".join(contents.decode() for contents in frozen_modules.values()) + "\n\n" + frozen_consumers[suite].decode())
