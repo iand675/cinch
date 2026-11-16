@@ -1,0 +1,33 @@
+{
+  "description": "Parent optimized byte search and stable linked-list validation",
+  "full_stdlib_goal_complete": false,
+  "source_revision": "1917d6062bf85473e11b5d55b30b0ee5f0329e79",
+  "targets": {
+    "lib_byte_search": {
+      "passed": 8,
+      "seconds": 39.47,
+      "test_binary_sha256": "0432a5b35a910bc007b65fb82223e2ef9e6a333f41d1a84c22acebe3d0caa8d5"
+    },
+    "lib_linked_list": {
+      "passed": 7,
+      "seconds": 41.55,
+      "test_binary_sha256": "f44918cde7375ffbe6264af2bf172e92775377c16b6e2ae8144bd0303370fea4"
+    }
+  },
+  "total_checks": 15,
+  "log_sha256": "ce73343785ae611b89901828ece386dcb413c235e6e5b5440b376c96e7ec149e",
+  "command": "taskset -c 3 cargo test --test lib_byte_search --test lib_linked_list",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "source_sha256": {
+    "compiler/prelude/Data/Bytes/Search.cinch": "65b8c75745399b692031aff515386ffaed14ad9f50b4e4a644a8f3ce259c5256",
+    "compiler/prelude/Data/Mutable/LinkedList.cinch": "7251889893471322b75e5c8d7006ec87402c929db744b97cd3cdd7c90af38301"
+  },
+  "native_family_receipt": "mutable-native-family-validation-results.json",
+  "documentation": {
+    "modules": 172,
+    "diagnostics": 0,
+    "orphans": 0,
+    "source_drift_check": "passed"
+  },
+  "scope": "Search foreign objects include actual wasm/ARM/big-endian kernels; foreign execution is not claimed. LinkedList has full21-record functional mapping, both frontend ownership/reference corpora and retained paired benchmark/space evidence. Shared compiler prerequisite is fully self-built and source-absent tested."
+}

@@ -149,7 +149,7 @@
     {
       "module": "Data.Bytes.Search",
       "path": "compiler/prelude/Data/Bytes/Search.cinch",
-      "sha256": "a6ad4980d15823c38b17cc94913689ddba0fe412ba32c42bd75b2e1ced5a8ce0",
+      "sha256": "65b8c75745399b692031aff515386ffaed14ad9f50b4e4a644a8f3ce259c5256",
       "embedded": false,
       "values": 4,
       "public_methods": 0
@@ -427,6 +427,14 @@
       "public_methods": 0
     },
     {
+      "module": "Data.Mutable.LinkedList",
+      "path": "compiler/prelude/Data/Mutable/LinkedList.cinch",
+      "sha256": "7251889893471322b75e5c8d7006ec87402c929db744b97cd3cdd7c90af38301",
+      "embedded": false,
+      "values": 28,
+      "public_methods": 0
+    },
+    {
       "module": "Data.Mutable.LruCache",
       "path": "compiler/prelude/Data/Mutable/LruCache.cinch",
       "sha256": "4ade3198bc4fd7a8686d5c6ffa38a61a80dfaa62153c15bd9543a4d10e5116de",
@@ -461,7 +469,7 @@
     {
       "module": "Data.Mutable",
       "path": "compiler/prelude/Data/Mutable.cinch",
-      "sha256": "41f43a5edd93e517e7aa298c9ae7b3af24b56313cc49dd20dfaccd380713aeaa",
+      "sha256": "6e6c039972d5efd23e30bdf1ca35c5bdf9967065ed8765a0384ec688f0c09206",
       "embedded": false,
       "values": 209,
       "public_methods": 0

@@ -115,11 +115,12 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.Mutable.Heap](Data.Mutable.Heap.md) | Ship source | A 4-ary priority queue with its ordering fixed at construction: O(log n) push and pop, O(1) peek, and an O(n) Floyd build from a list. |
 | [Data.Mutable.HeapView](Data.Mutable.HeapView.md) | Ship source | In-place heap ordering and indexed repairs through explicit borrowed storage callbacks. |
 | [Data.Mutable.IndexMap](Data.Mutable.IndexMap.md) | Ship source | An insertion-ordered hash map: dense entries with a tagged chunk index over them, positional access, O(1) swap-remove and order-keeping shift-remove. |
+| [Data.Mutable.LinkedList](Data.Mutable.LinkedList.md) | Ship source | Stable typed list elements, checked membership and movement, detached value access and bounded self-copy. |
 | [Data.Mutable.LruCache](Data.Mutable.LruCache.md) | Ship source | A bounded least-recently-used cache: a hash table to nodes threaded on a recency list, with O(1) get, put and eviction. |
 | [Data.Mutable.UnionFind](Data.Mutable.UnionFind.md) | Ship source | Disjoint sets with union by size and path halving: near-constant find, union and same-set queries, and appendable elements. |
 | [Data.Mutable.Var](Data.Mutable.Var.md) | Ship source | A single mutable cell, written in place; not synchronized (TVar is the shared cell). |
 | [Data.Mutable.Vec](Data.Mutable.Vec.md) | Ship source | A growable vector: amortised O(1) push and pop, O(1) indexing, middle insertion and removal, in-place introsort, and copying freeze/thaw against Array. |
-| [Data.Mutable](Data.Mutable.md) | Ship source | One import for the mutable containers. Every container is indexed by a region r and every operation carries the Mut r label, a capability like IO r, so purity stays a checked property. |
+| [Data.Mutable](Data.Mutable.md) | Ship source | A curated mutable-container facade. Region-indexed operations carry Mut r; callback-backed heaps and stable linked-list elements have their own module imports. |
 | [Data.Nat](Data.Nat.md) | Embedded | Mathematical nonnegative integers, exact arithmetic, checked preconditions, and admitted machine conversions. |
 | [Data.NonEmpty](Data.NonEmpty.md) | Embedded | Lists refined by nonemptiness. The total constructor returns Option; transferred operations must preserve the predicate. |
 | [Data.NonZero](Data.NonZero.md) | Embedded | Total nonzero-number constructors. The NonZero type is also available through the arithmetic vocabulary for safe divisors. |
@@ -238,7 +239,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **171 source modules**: **65 embedded** and **106 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **172 source modules**: **65 embedded** and **107 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

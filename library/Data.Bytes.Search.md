@@ -38,7 +38,7 @@ This module exports no type declarations.
 
 Test whether any exact byte value occurs, including zero and high-bit byte values.
 
-[Source](/reference-sources/Data.Bytes.Search.cinch) · line 150
+[Source](/reference-sources/Data.Bytes.Search.cinch) · line 232
 
 <a id="value-62797465732d636f756e742d62797465"></a>
 
@@ -48,7 +48,7 @@ Test whether any exact byte value occurs, including zero and high-bit byte value
 
 Count every exact matching byte using eight-lane masks and a bounded scalar fringe.
 
-[Source](/reference-sources/Data.Bytes.Search.cinch) · line 157
+[Source](/reference-sources/Data.Bytes.Search.cinch) · line 239
 
 <a id="value-62797465732d696e6465782d62797465"></a>
 
@@ -58,7 +58,7 @@ Count every exact matching byte using eight-lane masks and a bounded scalar frin
 
 Find the first exact byte value, returning no offset when the input contains no match.
 
-[Source](/reference-sources/Data.Bytes.Search.cinch) · line 136
+[Source](/reference-sources/Data.Bytes.Search.cinch) · line 218
 
 <a id="value-62797465732d6c6173742d696e6465782d62797465"></a>
 
@@ -68,8 +68,8 @@ Find the first exact byte value, returning no offset when the input contains no 
 
 Find the last exact byte value without decoding or changing the input.
 
-[Source](/reference-sources/Data.Bytes.Search.cinch) · line 143
+[Source](/reference-sources/Data.Bytes.Search.cinch) · line 225
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Bytes/Search.cinch`. Source SHA-256: `a6ad4980d15823c38b17cc94913689ddba0fe412ba32c42bd75b2e1ced5a8ce0`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Bytes/Search.cinch`. Source SHA-256: `65b8c75745399b692031aff515386ffaed14ad9f50b4e4a644a8f3ce259c5256`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -1,6 +1,6 @@
 {
   "description": "Stable mutable doubly linked lists with checked ownership, reusable indexed storage and independently retained element values.",
-  "status": "Complete operation mapping, frozen frontend corpora, optimized Native relinks and benchmark evidence passed. Parent Cargo/integration and complete self-built Native fixed point remain pending; this receipt does not promote the full standard-library goal to complete.",
+  "status": "Complete capability mapping, both frontend runtime/reference/ownership gates, parent Cargo targets, full self-built Native family and documented source distribution passed. Full standard-library goal remains open.",
   "reference_package": "container/list",
   "reference_sdk": "go version go1.27.4 linux/amd64",
   "reference_declarations": 21,
@@ -187,5 +187,7 @@
     "Parent lib_linked_list Cargo target: four new tests plus three common profile tests, seven expected.",
     "Parent complete self-built Native fixed point and final source/interface distribution gates.",
     "Parent shared inventory/module-home and generated documentation updates; existing Data.List does not provide this mutable handle surface."
-  ]
+  ],
+  "parent_integration": "stdlib-search-linked-list-integration-results.json",
+  "native_family": "mutable-native-family-validation-results.json"
 }

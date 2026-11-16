@@ -1,6 +1,6 @@
 {
   "description": "Owned four-way indexed heap repairs and a callback-backed binary heap interface.",
-  "status": "Frozen Rust and corrected Cinch frontend pass all33 consumers; parent75 targeted/preserved checks pass. Full self-built Native fixed point remains pending.",
+  "status": "Complete capability mapping, both frontend runtime/reference/ownership gates, parent Cargo targets, full self-built Native family and documented source distribution passed. Full standard-library goal remains open.",
   "reference_package": "container/heap",
   "reference_declarations": 11,
   "full_stdlib_goal_complete": false,
@@ -105,5 +105,7 @@
   "pending": [
     "Full self-built Native compiler fixed point with the focused mutation-kind and strict value-restriction repairs.",
     "Parent Cargo targets: lib_heap_view, bootstrap_mutation_kinds, bootstrap_mutable_inference and preserved typing/effect gates."
-  ]
+  ],
+  "parent_integration": "stdlib-heap-bytes-integration-results.json",
+  "native_family": "mutable-native-family-validation-results.json"
 }
