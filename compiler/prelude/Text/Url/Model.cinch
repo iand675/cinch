@@ -1,0 +1,233 @@
+-- | Immutable byte-preserving URL components, rendering and independent observations.
+-- Decoded fields remain bytes, including invalid UTF-8. Rendering returns bytes;
+-- the optional text view succeeds only when the complete result is valid UTF-8.
+-- Manual components are copied, raw encoding hints are checked before use, and
+-- all byte getters return fresh storage. Retained versions share private owners.
+module Text.Url.Model where
+  import Text.Url.Codec
+  import Text.Url.Error
+  import Text.Url.Query
+  import Text.Url.Scan
+  import Text.Url.Userinfo
+  import Data.Bool
+  import Data.Bytes
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  export Url, UrlComponents, UrlParts, url-from-components, url-components, url-empty, url-clone
+  export url-scheme, url-opaque, url-userinfo, url-host, url-path, url-fragment, url-raw-query
+  export url-raw-path, url-raw-fragment, url-force-query, url-omit-host, url-escaped-path, url-escaped-fragment, url-to-bytes
+  export url-to-text, url-is-absolute, url-hostname, url-port, url-query, url-redacted, url-request-uri
+  export url-marshal-binary, url-append-binary, url-with-path, url-with-fragment
+
+  -- | Explicit URL fields: scheme, opaque, user, host, path, fragment, raw query,
+  -- raw path hint, raw fragment hint, forced query delimiter and omitted host.
+  -- Byte fields may contain arbitrary bytes; constructing a URL snapshots them.
+  data UrlComponents where
+    -- | A complete field bundle, including explicit user/password and delimiter presence.
+    UrlParts :: Bytes -> Bytes -> Option UrlUserinfo -> Bytes -> Bytes -> Bytes -> Bytes -> Bytes -> Bytes -> Bool -> Bool -> UrlComponents
+
+  -- | An immutable URL whose component byte buffers have no external mutable aliases.
+  data Url where
+    -- | Private owned component state.
+    UrlState :: UrlComponents -> Url
+
+  -- | Snapshot every externally mutable byte field in a component bundle.
+  url-from-components :: UrlComponents -> Url
+  url-from-components parts = case parts of
+    UrlParts scheme bodybytes user host path fragment query rawpath rawfragment force omit -> UrlState (UrlParts (url-copy scheme) (url-copy bodybytes) user (url-copy host) (url-copy path) (url-copy fragment) (url-copy query) (url-copy rawpath) (url-copy rawfragment) force omit)
+
+  -- | Return a fresh editable component snapshot without exposing the private owners.
+  url-components :: Url -> UrlComponents
+  url-components value = case value of
+    UrlState parts -> case parts of
+      UrlParts scheme bodybytes user host path fragment query rawpath rawfragment force omit -> UrlParts (url-copy scheme) (url-copy bodybytes) user (url-copy host) (url-copy path) (url-copy fragment) (url-copy query) (url-copy rawpath) (url-copy rawfragment) force omit
+
+  -- | Construct the empty relative reference.
+  url-empty :: Url
+  url-empty = UrlState (UrlParts (bytes-new 0) (bytes-new 0) None (bytes-new 0) (bytes-new 0) (bytes-new 0) (bytes-new 0) (bytes-new 0) (bytes-new 0) False False)
+
+  -- | Retain an independent immutable URL version without copying private buffers.
+  url-clone :: Url -> Url
+  url-clone value = value
+
+  -- | Observe scheme as a fresh byte buffer.
+  url-scheme :: Url -> Bytes
+  url-scheme value = case value of UrlState parts -> case parts of UrlParts scheme bodybytes user host path fragment query rawpath rawfragment force omit -> (url-copy scheme)
+
+  -- | Observe opaque as a fresh byte buffer.
+  url-opaque :: Url -> Bytes
+  url-opaque value = case value of UrlState parts -> case parts of UrlParts scheme bodybytes user host path fragment query rawpath rawfragment force omit -> (url-copy bodybytes)
+
+  -- | Observe user without exposing mutable storage.
+  url-userinfo :: Url -> Option UrlUserinfo
+  url-userinfo value = case value of UrlState parts -> case parts of UrlParts scheme bodybytes user host path fragment query rawpath rawfragment force omit -> user
+
+  -- | Observe host as a fresh byte buffer.
+  url-host :: Url -> Bytes
+  url-host value = case value of UrlState parts -> case parts of UrlParts scheme bodybytes user host path fragment query rawpath rawfragment force omit -> (url-copy host)
+
+  -- | Observe path as a fresh byte buffer.
+  url-path :: Url -> Bytes
+  url-path value = case value of UrlState parts -> case parts of UrlParts scheme bodybytes user host path fragment query rawpath rawfragment force omit -> (url-copy path)
+
+  -- | Observe fragment as a fresh byte buffer.
+  url-fragment :: Url -> Bytes
+  url-fragment value = case value of UrlState parts -> case parts of UrlParts scheme bodybytes user host path fragment query rawpath rawfragment force omit -> (url-copy fragment)
+
+  -- | Observe raw query as a fresh byte buffer.
+  url-raw-query :: Url -> Bytes
+  url-raw-query value = case value of UrlState parts -> case parts of UrlParts scheme bodybytes user host path fragment query rawpath rawfragment force omit -> (url-copy query)
+
+  -- | Observe raw path as a fresh byte buffer.
+  url-raw-path :: Url -> Bytes
+  url-raw-path value = case value of UrlState parts -> case parts of UrlParts scheme bodybytes user host path fragment query rawpath rawfragment force omit -> (url-copy rawpath)
+
+  -- | Observe raw fragment as a fresh byte buffer.
+  url-raw-fragment :: Url -> Bytes
+  url-raw-fragment value = case value of UrlState parts -> case parts of UrlParts scheme bodybytes user host path fragment query rawpath rawfragment force omit -> (url-copy rawfragment)
+
+  -- | Observe force query without exposing mutable storage.
+  url-force-query :: Url -> Bool
+  url-force-query value = case value of UrlState parts -> case parts of UrlParts scheme bodybytes user host path fragment query rawpath rawfragment force omit -> force
+
+  -- | Observe omit host without exposing mutable storage.
+  url-omit-host :: Url -> Bool
+  url-omit-host value = case value of UrlState parts -> case parts of UrlParts scheme bodybytes user host path fragment query rawpath rawfragment force omit -> omit
+
+  -- | Choose a valid raw path spelling only when it decodes to the stored path.
+  url-escaped-path :: Url -> Bytes
+  url-escaped-path value =
+    let path = url-path value in let raw = url-raw-path value in
+    let canonical = if path == string-to-bytes "*" then path else url-escape UrlPath path in
+    if bytes-len raw == 0 then canonical else case url-unescape-path-hint raw of
+      Err failure -> canonical
+      Ok decoded -> if decoded == path then raw else canonical
+
+  -- | Choose a valid raw fragment spelling only when it decodes to the stored fragment.
+  url-escaped-fragment :: Url -> Bytes
+  url-escaped-fragment value =
+    let fragment = url-fragment value in let raw = url-raw-fragment value in
+    let canonical = url-escape UrlFragment fragment in
+    if bytes-len raw == 0 then canonical else case url-unescape-fragment-hint raw of
+      Err failure -> canonical
+      Ok decoded -> if decoded == fragment then raw else canonical
+
+  -- | Set an escaped path on a copied field snapshot, preserving a noncanonical raw hint.
+  url-with-path :: Bytes -> Url -> Result UrlFailure Url
+  url-with-path encoded value = case url-unescape UrlPath encoded of
+    Err failure -> Err failure
+    Ok decoded -> let raw = if encoded == url-escape UrlPath decoded then (bytes-new 0 :: Bytes) else encoded in
+      case url-components value of
+        UrlParts scheme bodybytes user host path fragment query rawpath rawfragment force omit -> Ok (url-from-components (UrlParts scheme bodybytes user host decoded fragment query raw rawfragment force omit))
+
+  -- | Set an escaped fragment, preserving a noncanonical raw hint and decoded bytes.
+  url-with-fragment :: Bytes -> Url -> Result UrlFailure Url
+  url-with-fragment encoded value = case url-unescape UrlFragment encoded of
+    Err failure -> Err failure
+    Ok decoded -> let raw = if encoded == url-escape UrlFragment decoded then (bytes-new 0 :: Bytes) else encoded in
+      case url-components value of
+        UrlParts scheme bodybytes user host path fragment query rawpath rawfragment force omit -> Ok (url-from-components (UrlParts scheme bodybytes user host path decoded query rawpath raw force omit))
+
+  -- | Test a two-byte structural prefix without reading beyond the buffer.
+  double-slash :: Bytes -> Bool
+  double-slash bytes = if bytes-len bytes >= 2 then bytes-get bytes 0 == 47 && bytes-get bytes 1 == 47 else False
+
+  -- | Determine whether a nonempty path begins with its structural slash.
+  leading-slash :: Bytes -> Bool
+  leading-slash bytes = if bytes-len bytes > 0 then bytes-get bytes 0 == 47 else False
+
+  -- | Render a user and host authority, retaining explicit empty user information.
+  authority :: Bytes -> Bytes -> Option UrlUserinfo -> Bytes -> Bool -> Bytes
+  authority scheme host user path omit =
+    let present = case user of None -> False; Some info -> True in
+    if bytes-len scheme == 0 && bytes-len host == 0 && not present then bytes-new 0
+    else if omit && bytes-len host == 0 && not present then bytes-new 0
+    else let prefix = if bytes-len host > 0 || bytes-len path > 0 || present then string-to-bytes "//" else bytes-new 0 in
+      let identity = case user of None -> (bytes-new 0 :: Bytes); Some info -> url-concat [url-userinfo-bytes info, string-to-bytes "@"] in
+      url-concat [prefix, identity, url-escape UrlHost host]
+
+  -- | Render path disambiguation prefixes without normalizing separators or dots.
+  render-path :: Bytes -> Bytes -> Bytes -> Bool -> Bool -> Bytes
+  render-path path host prefix omit no-user =
+    let safe = if omit && bytes-len host == 0 && no-user && double-slash path then url-concat [string-to-bytes "%2F", url-slice path 1 (bytes-len path)] else path in
+    if bytes-len safe > 0 && not (leading-slash safe) && bytes-len host > 0 then url-concat [string-to-bytes "/", safe]
+    else if bytes-len prefix == 0 then
+      let end = url-find-byte safe 0 (bytes-len safe) 47 in
+      if url-find-byte safe 0 end 58 < end then url-concat [string-to-bytes "./", safe] else safe
+    else safe
+
+  -- | Reassemble fresh URL bytes, preserving raw query and opaque bytes exactly.
+  url-to-bytes :: Url -> Bytes
+  url-to-bytes value = case value of
+    UrlState parts -> case parts of
+      UrlParts scheme bodybytes user host path fragment query rawpath rawfragment force omit ->
+        let scheme-prefix = if bytes-len scheme > 0 then url-concat [scheme, string-to-bytes ":"] else bytes-new 0 in
+        let body = (if bytes-len bodybytes > 0 then url-concat [scheme-prefix, bodybytes]
+          else let auth = authority scheme host user path omit in
+            let prefix = url-concat [scheme-prefix, auth] in
+            let no-user = case user of None -> True; Some info -> False in
+            url-concat [prefix, render-path (url-escaped-path value) host prefix omit no-user]) in
+        let suffix = if force || bytes-len query > 0 then url-concat [string-to-bytes "?", query] else bytes-new 0 in
+        let ending = if bytes-len fragment > 0 then url-concat [string-to-bytes "#", url-escaped-fragment value] else bytes-new 0 in
+        url-concat [body, suffix, ending]
+
+  -- | Decode rendered bytes as UTF-8 only when every preserved byte is valid text.
+  url-to-text :: Url -> Option String
+  url-to-text value = string-from-bytes (url-to-bytes value)
+
+  -- | A URL is absolute precisely when its scheme is nonempty.
+  url-is-absolute :: Url -> Bool
+  url-is-absolute value = bytes-len (url-scheme value) > 0
+
+  -- | Validate a decimal suffix without numeric conversion or an artificial port range.
+  digits :: Bytes -> Nat -> Bool
+  digits bytes at = if at < bytes-len bytes then
+    let byte = bytes-get bytes at in byte >= 48 && byte <= 57 && digits bytes (at + 1) else True
+
+  -- | Split an optional lexical port, preserving malformed manual host fields as hostname data.
+  split-host-port :: Bytes -> (Bytes, Bytes)
+  split-host-port host = let colon = url-last-byte host 0 (bytes-len host) 58 in
+    if colon < bytes-len host && digits host (colon + 1) then (url-slice host 0 colon, url-slice host (colon + 1) (bytes-len host))
+    else (host, bytes-new 0)
+
+  -- | Return host bytes without a valid optional port and without enclosing IP brackets.
+  url-hostname :: Url -> Bytes
+  url-hostname value = case split-host-port (url-host value) of
+    (host, port) -> if bytes-len host >= 2 then
+      if bytes-get host 0 == 91 && bytes-get host (bytes-len host - 1) == 93 then url-slice host 1 (bytes-len host - 1) else host
+      else host
+
+  -- | Return lexical decimal port bytes, including an empty result for an absent or empty port.
+  url-port :: Url -> Bytes
+  url-port value = case split-host-port (url-host value) of (host, port) -> port
+
+  -- | Parse raw query fields with the default bound, discarding malformed pairs and their diagnostics.
+  url-query :: Url -> UrlValues
+  url-query value = case url-parse-query (url-raw-query value) of (values, failure) -> values
+
+  -- | Return fresh URL bytes with a present password replaced by five lowercase x bytes.
+  url-redacted :: Url -> Bytes
+  url-redacted value = case url-components value of
+    UrlParts scheme bodybytes user host path fragment query rawpath rawfragment force omit ->
+      let redacted = case user of None -> None; Some info -> (case url-password info of None -> Some info; Some password -> Some (url-user-password (url-username info) (string-to-bytes "xxxxx"))) in
+      url-to-bytes (url-from-components (UrlParts scheme bodybytes redacted host path fragment query rawpath rawfragment force omit))
+
+  -- | Render a request target, excluding fragment and using slash for an empty hierarchical path.
+  url-request-uri :: Url -> Bytes
+  url-request-uri value =
+    let bodybytes = url-opaque value in let path = url-escaped-path value in
+    let body = if bytes-len bodybytes == 0 then (if bytes-len path == 0 then string-to-bytes "/" else path) else if double-slash bodybytes then url-concat [url-scheme value, string-to-bytes ":", bodybytes] else bodybytes in
+    let query = url-raw-query value in
+    if url-force-query value || bytes-len query > 0 then url-concat [body, string-to-bytes "?", query] else body
+
+  -- | Serialize a URL to its fresh byte representation.
+  url-marshal-binary :: Url -> Bytes
+  url-marshal-binary value = url-to-bytes value
+
+  -- | Append serialized URL bytes to a copied prefix without mutating either input.
+  url-append-binary :: Bytes -> Url -> Bytes
+  url-append-binary prefix value = url-concat [prefix, url-to-bytes value]

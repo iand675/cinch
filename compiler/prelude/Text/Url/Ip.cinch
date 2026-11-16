@@ -1,0 +1,68 @@
+-- | Strict bracketed IPv6 syntax, including terminal IPv4 and nonempty zones.
+-- Validation preserves spelling and performs no network resolution.
+module Text.Url.Ip where
+  import Text.Url.Scan
+  import Data.Bool
+  import Data.Bytes
+  import Data.Nat
+  import Data.Option
+  export url-valid-ipv6
+
+  -- | Recognize one ASCII hexadecimal digit.
+  hex :: Nat -> Bool
+  hex byte = (byte >= 48 && byte <= 57) || (byte >= 65 && byte <= 70) || (byte >= 97 && byte <= 102)
+
+  -- | Validate a one-to-four-digit IPv6 group.
+  hex-group :: Bytes -> Nat -> Nat -> Bool
+  hex-group input start end = if start < end && end <= bytes-len input && end - start <= 4 then hex-from input start end else False
+
+  -- | Inspect the bounded digits of one hexadecimal group.
+  hex-from :: Bytes -> Nat -> Nat -> Bool
+  hex-from input at end = if at < end && at < bytes-len input then hex (bytes-get input at) && hex-from input (at + 1) end else at == end
+
+  -- | Parse a decimal IPv4 octet without allowing leading zeros or overflow.
+  octet :: Bytes -> Nat -> Nat -> Bool
+  octet input start end = if start < end && end <= bytes-len input && end - start <= 3 then
+    if end - start > 1 && bytes-get input start == 48 then False else decimal input start end 0 else False
+
+  -- | Accumulate no more than three decimal digits with an explicit octet range.
+  decimal :: Bytes -> Nat -> Nat -> Nat -> Bool
+  decimal input at end total = if at < end && at < bytes-len input then
+    let byte = bytes-get input at in if byte >= 48 && byte <= 57 then decimal input (at + 1) end (10 * total + byte - 48) else False
+    else at == end && total <= 255
+
+  -- | Validate exactly four decimal octets in a terminal dotted suffix.
+  ipv4-from :: Bytes -> Nat -> Nat -> Nat -> Bool
+  ipv4-from input start end groups = let dot = url-find-byte input start end 46 in
+    if not (octet input start dot) then False
+    else if dot == end then groups == 3
+    else if groups < 3 then ipv4-from input (dot + 1) end (groups + 1) else False
+
+  -- | Count complete colon-separated groups, with a terminal IPv4 suffix counting as two.
+  side :: Bytes -> Nat -> Nat -> Bool -> Nat -> Option Nat
+  side input start end allow-v4 groups = if start == end then Some groups else
+    let colon = url-find-byte input start end 58 in
+    let dot = url-find-byte input start colon 46 in
+    if dot < colon then if allow-v4 && colon == end && ipv4-from input start end 0 then Some (groups + 2) else None
+    else if not (hex-group input start colon) then None
+    else if colon == end then Some (groups + 1)
+    else if colon + 1 == end then None else side input (colon + 1) end allow-v4 (groups + 1)
+
+  -- | Find the first double-colon compression marker with bounded byte access.
+  compression :: Bytes -> Nat -> Nat -> Nat
+  compression input start end = let colon = url-find-byte input start end 58 in
+    if colon + 1 < end && colon + 1 < bytes-len input then
+      if bytes-get input (colon + 1) == 58 then colon else compression input (colon + 1) end
+    else end
+
+  -- | Validate an unbracketed decoded IPv6 address, allowing one nonempty percent zone.
+  url-valid-ipv6 :: Bytes -> Bool
+  url-valid-ipv6 input =
+    let end = url-find-byte input 0 (bytes-len input) 37 in
+    let zone-valid = end == bytes-len input || end + 1 < bytes-len input in
+    let marker = compression input 0 end in
+    if end == 0 || not zone-valid then False
+    else if marker == end then case side input 0 end True 0 of None -> False; Some groups -> groups == 8
+    else case side input 0 marker False 0 of
+      None -> False
+      Some left -> case side input (marker + 2) end True 0 of None -> False; Some right -> left + right < 8

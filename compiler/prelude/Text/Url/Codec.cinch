@@ -88,16 +88,86 @@ module Text.Url.Codec where
     let count = wrapping-add-u64 (bit-and-u64 total 9223372036854775807) (bit-and-u64 chunk 9223372036854775807) in
     bit-or-u64 count (bit-and-u64 (bit-or-u64 total chunk) 9223372036854775808)
 
-  -- | Count complete SIMD blocks and exact tails with machine counters and no owner work inside the loop.
+  -- | Select a fixed byte grammar once before entering its machine-only counting loop.
   count-from :: I64 -> U64 -> U8 -> U64 -> U64
   count-from address remaining mode total =
+    if eq-u8 mode 1 then count-path address remaining total
+    else if eq-u8 mode 2 then count-segment address remaining total
+    else if eq-u8 mode 3 || eq-u8 mode 4 then count-host address remaining total
+    else if eq-u8 mode 5 then count-user address remaining total
+    else if eq-u8 mode 6 then count-query address remaining total
+    else count-fragment address remaining total
+
+  -- | Count path replacements with a constant SIMD policy and exact machine-counter tails.
+  count-path :: I64 -> U64 -> U64 -> U64
+  count-path address remaining total =
     if ge-u64 remaining 8 then
-      let word = load-eight address in let chunk = classify-eight word mode in
-      count-from (wrapping-add-i64 address 8) (wrapping-sub-u64 remaining 8) mode (merge-counts total chunk)
+      let word = load-eight address in let chunk = classify-eight word 1 in
+      count-path (wrapping-add-i64 address 8) (wrapping-sub-u64 remaining 8) (merge-counts total chunk)
     else if ne-u64 remaining 0 then
-      let byte = load-one address in let action = classify-one byte mode in
+      let byte = load-one address in let action = classify-one byte 1 in
       let chunk = if eq-u8 action 2 then (1 :: U64) else if eq-u8 action 1 then 9223372036854775808 else 0 in
-      count-from (wrapping-add-i64 address 1) (wrapping-sub-u64 remaining 1) mode (merge-counts total chunk)
+      count-path (wrapping-add-i64 address 1) (wrapping-sub-u64 remaining 1) (merge-counts total chunk)
+    else total
+
+  -- | Count segment replacements with a constant SIMD policy and exact machine-counter tails.
+  count-segment :: I64 -> U64 -> U64 -> U64
+  count-segment address remaining total =
+    if ge-u64 remaining 8 then
+      let word = load-eight address in let chunk = classify-eight word 2 in
+      count-segment (wrapping-add-i64 address 8) (wrapping-sub-u64 remaining 8) (merge-counts total chunk)
+    else if ne-u64 remaining 0 then
+      let byte = load-one address in let action = classify-one byte 2 in
+      let chunk = if eq-u8 action 2 then (1 :: U64) else if eq-u8 action 1 then 9223372036854775808 else 0 in
+      count-segment (wrapping-add-i64 address 1) (wrapping-sub-u64 remaining 1) (merge-counts total chunk)
+    else total
+
+  -- | Count host replacements with a constant SIMD policy and exact machine-counter tails.
+  count-host :: I64 -> U64 -> U64 -> U64
+  count-host address remaining total =
+    if ge-u64 remaining 8 then
+      let word = load-eight address in let chunk = classify-eight word 3 in
+      count-host (wrapping-add-i64 address 8) (wrapping-sub-u64 remaining 8) (merge-counts total chunk)
+    else if ne-u64 remaining 0 then
+      let byte = load-one address in let action = classify-one byte 3 in
+      let chunk = if eq-u8 action 2 then (1 :: U64) else if eq-u8 action 1 then 9223372036854775808 else 0 in
+      count-host (wrapping-add-i64 address 1) (wrapping-sub-u64 remaining 1) (merge-counts total chunk)
+    else total
+
+  -- | Count user replacements with a constant SIMD policy and exact machine-counter tails.
+  count-user :: I64 -> U64 -> U64 -> U64
+  count-user address remaining total =
+    if ge-u64 remaining 8 then
+      let word = load-eight address in let chunk = classify-eight word 5 in
+      count-user (wrapping-add-i64 address 8) (wrapping-sub-u64 remaining 8) (merge-counts total chunk)
+    else if ne-u64 remaining 0 then
+      let byte = load-one address in let action = classify-one byte 5 in
+      let chunk = if eq-u8 action 2 then (1 :: U64) else if eq-u8 action 1 then 9223372036854775808 else 0 in
+      count-user (wrapping-add-i64 address 1) (wrapping-sub-u64 remaining 1) (merge-counts total chunk)
+    else total
+
+  -- | Count query replacements with a constant SIMD policy and exact machine-counter tails.
+  count-query :: I64 -> U64 -> U64 -> U64
+  count-query address remaining total =
+    if ge-u64 remaining 8 then
+      let word = load-eight address in let chunk = classify-eight word 6 in
+      count-query (wrapping-add-i64 address 8) (wrapping-sub-u64 remaining 8) (merge-counts total chunk)
+    else if ne-u64 remaining 0 then
+      let byte = load-one address in let action = classify-one byte 6 in
+      let chunk = if eq-u8 action 2 then (1 :: U64) else if eq-u8 action 1 then 9223372036854775808 else 0 in
+      count-query (wrapping-add-i64 address 1) (wrapping-sub-u64 remaining 1) (merge-counts total chunk)
+    else total
+
+  -- | Count fragment replacements with a constant SIMD policy and exact machine-counter tails.
+  count-fragment :: I64 -> U64 -> U64 -> U64
+  count-fragment address remaining total =
+    if ge-u64 remaining 8 then
+      let word = load-eight address in let chunk = classify-eight word 7 in
+      count-fragment (wrapping-add-i64 address 8) (wrapping-sub-u64 remaining 8) (merge-counts total chunk)
+    else if ne-u64 remaining 0 then
+      let byte = load-one address in let action = classify-one byte 7 in
+      let chunk = if eq-u8 action 2 then (1 :: U64) else if eq-u8 action 1 then 9223372036854775808 else 0 in
+      count-fragment (wrapping-add-i64 address 1) (wrapping-sub-u64 remaining 1) (merge-counts total chunk)
     else total
 
   -- | Count one complete buffer while retaining its source throughout private exact loads.
@@ -210,15 +280,42 @@ module Text.Url.Codec where
           else Ok value
     else Err (bad-escape input at)
 
-  -- | Validate all escapes, count percent triplets and remember whether query plus needs substitution.
+  -- | Recognize a validation boundary, including raw ASCII forbidden in host and zone components.
+  validation-special :: U8 -> U8 -> Bool
+  validation-special byte mode =
+    if eq-u8 byte 37 || (eq-u8 mode 6 && eq-u8 byte 43) then True
+    else if (eq-u8 mode 3 || eq-u8 mode 4) && lt-u8 byte 128 then
+      let action = classify-one byte mode in ne-u8 action 0
+    else False
+
+  -- | Inspect only an exact validation fringe with retained machine state.
+  validation-fringe :: I64 -> U64 -> U8 -> U64 -> U64
+  validation-fringe address remaining mode skipped = if eq-u64 remaining 0 then skipped else
+    let byte = load-one address in if validation-special byte mode then skipped else
+      validation-fringe (wrapping-add-i64 address 1) (wrapping-sub-u64 remaining 1) mode (wrapping-add-u64 skipped 1)
+
+  -- | Skip all ordinary validation blocks without boxed counters or owner operations in the loop.
+  validation-skip :: I64 -> U64 -> U8 -> U64 -> U64
+  validation-skip address remaining mode skipped = if ge-u64 remaining 8 then
+    let word = load-eight address in let flags = decode-flags-eight word mode in
+    if eq-u8 flags 0 then validation-skip (wrapping-add-i64 address 8) (wrapping-sub-u64 remaining 8) mode (wrapping-add-u64 skipped 8)
+    else validation-fringe address 8 mode skipped
+    else validation-fringe address remaining mode skipped
+
+  -- | Avoid a following SIMD block when the first byte already requires validation.
+  validation-entry :: I64 -> U64 -> U8 -> U64
+  validation-entry address remaining mode = if eq-u64 remaining 0 then 0 else
+    let byte = load-one address in if validation-special byte mode then 0 else validation-skip address remaining mode 0
+
+  -- | Validate all special bytes, counting escapes after machine-only ordinary-span scans.
   validate-from :: Bytes -> Nat -> U8 -> U64 -> Result UrlFailure U64
-  validate-from input i mode counts =
-    if i >= bytes-len input then Ok counts
-    else if i + 8 <= bytes-len input then
-      let address = wrapping-add-i64 (bytes-data input) (nat-to-i64 i) in
-      let word = hold-input input (load-eight address) in let flags = decode-flags-eight word mode in
-      if eq-u8 flags 0 then validate-from input (i + 8) mode counts else validate-one input i mode counts
-    else validate-one input i mode counts
+  validate-from input i mode counts = if i < bytes-len input then
+    let base = bytes-data input in let offset = nat-to-i64 i in let address = wrapping-add-i64 base offset in
+    let remaining = wrapping-i64-to-u64 (nat-to-i64 (bytes-len input - i)) in
+    let skipped = hold-input input (validation-entry address remaining mode) in
+    let stop = i + word-natural skipped in
+    if stop < bytes-len input then validate-one input stop mode counts else Ok counts
+    else Ok counts
 
   -- | Check one scalar percent, plus or host byte with precise original component offsets.
   validate-one :: Bytes -> Nat -> U8 -> U64 -> Result UrlFailure U64
