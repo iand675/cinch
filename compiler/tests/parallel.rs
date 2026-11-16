@@ -950,3 +950,31 @@ module Main where
         0,
     );
 }
+
+// A container walk that splits its work across `parBoth`. This is the shape
+// `parTraverse`/`parFoldMap` take when they are written where the callbacks
+// are: the surface's operations are call-site elaborated, so a generic
+// dictionary-carried traversal is not the mechanism (design section 4). What
+// it shows is that a parallel fold over a container needs no new primitive.
+#[test]
+fn a_parallel_fold_over_a_list_agrees_with_the_sequential_reading() {
+    expect_ok(
+        "parallel_list_fold",
+        r#"
+module Main where
+  import Data.Nat
+  import Data.List
+
+  sumTree :: List Nat -> Nat
+  sumTree xs = case xs of
+    Nil -> 0
+    Cons a Nil -> a
+    Cons a rest -> case parBoth (\() -> a) (\() -> sumTree rest) of
+      (x, y) -> x + y
+
+  main :: Int
+  main = if nat-to-int (sumTree (Cons 1 (Cons 2 (Cons 3 Nil)))) == 6 then 0 else 1
+"#,
+        0,
+    );
+}
