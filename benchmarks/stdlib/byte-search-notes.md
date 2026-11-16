@@ -37,3 +37,50 @@ CLI or the qualified Native wrapper plus its `--native-interfaces` manifest.
 The runner copies source-distributed dependencies and retains their exact
 identities. Compile with a 64 MiB shell stack and `RUST_MIN_STACK=67108864`;
 compiled test programs independently use their explicit 8 MiB stack limit.
+
+
+## Measured optimization follow-up
+
+The subsequent source preserves all four APIs and exact offsets. It adds a
+single scalar first/final-byte check, local straight-line LLVM machine counters
+and predicates, and a horizontal sum specialized to the eight exact match bits.
+The generic x86 target had expanded population count into a long software
+sequence. Native imported arithmetic also remained external object calls inside
+each block. Assembly now shows direct arithmetic; the Native O2 count loop
+additionally vectorizes into 32-byte groups. No stores or branches are hidden
+inside primitive blocks, and checked mutations remain in the caller.
+
+The final candidate passes all 3,681 rows and 100 owner pipelines under frozen
+Rust O2, Native O0 and a separately relinked Native O2 corpus. All 408 normal and
+poison corpus processes finish with zero leaks. Actual wasm32 and AArch64 kernels
+compile, and all 29 implementation declarations have canonical documentation.
+The actual-kernel Rust test checks the new horizontal-sum instructions; the
+parent still owns the Rust/big-endian gate.
+
+Three variants use the same driver: equivalent local scalar loops, the original
+`c41c674d` implementation, and the candidate. The driver mutates three checked
+bytes before each query, compares independent checksums and full input digests,
+and keeps input reads after the ending clock. All 288 memory-profile smokes and
+900 measured processes pass those observations and report zero leaks.
+
+At 65,537 bytes, compared with the original implementation, final count pipelines
+improve 1.59–1.72× in Rust and 14.31–16.18× in Native; combined query pipelines
+improve 1.50–1.59× in Rust and 9.67–16.12× in Native. Against equivalent local
+scalar loops, large combined pipelines improve 2.27–3.08× and 3.47–4.32×
+respectively. These are shared-machine observations, not universal guarantees.
+
+Constant-time dense first/last queries initially received only eight iterations
+at the largest size. A retained follow-up uses 2,000 iterations at every size;
+most results are near parity. Shared-host outliers occur in both directions:
+for example 1.58× for one Rust index condition and 0.665× for one Native last
+condition. Every corrected and uncorrected sample is retained. Those small-query
+outliers do not justify further source changes. The initial reports, driver and
+scalar source are also preserved for reproduction. Parent CPU3 gates, a Base
+CPU1 chain and possible CPU2/4 functional work continued during measurements;
+CPU0 was explicitly assigned exclusively to this lane for each timing window.
+
+Complete source/profile, benchmark and assembly receipts are in
+`bootstrap/stdlib-byte-search-optimization-results.json`. The runner is
+`tooling/bench_byte_search.py`; Native builds explicitly relink generated IR at
+O2 with the frozen provider object and runtime. Source-only validation does not
+claim the separate embedded String/Bytes constructors or a fresh Native base.

@@ -1,0 +1,79 @@
+-- | Observe complete public byte queries after runtime initialization and checked mutation.
+module Main where
+  import Data.Bytes.Search as S
+  import Data.Bytes
+  import Data.Bool
+  import Data.String
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Effect.Clock
+  import Effect.Process
+  import Text.Hex
+  -- | Parse bounded validated harness numbers before timing.
+  decimal :: String -> Nat
+  decimal text = decimal-from (unpack text) 0
+  -- | Accumulate exact decimal digits without recursive return frames.
+  decimal-from :: List Char -> Nat -> Nat
+  decimal-from chars value = case chars of
+    Nil -> value
+    Cons first rest -> case digit-value first of
+      None -> 0
+      Some digit -> let next = value * 10 + digit in decimal-from rest next
+  -- | Initialize exact dense or sparse query input outside timing.
+  fill :: Bytes -> Bool -> Nat -> Unit
+  fill raw dense at = if at < bytes-len raw then
+    let byte = if dense then nat-rem at 2 else 0 in
+    let written = bytes-set raw at byte in let next = at + 1 in fill raw dense next
+    else ()
+  -- | Represent missing query offsets with an independent length-plus-one sentinel.
+  offset :: Bytes -> Option Nat -> Nat
+  offset raw value = case value of None -> bytes-len raw + 1; Some at -> at
+  -- | Mutate visible checked bytes so every measured query observes changed runtime data.
+  -- Sparse inputs have one alternating marker; dense inputs retain all other lanes.
+  operation :: String -> Bytes -> Bool -> Nat -> Nat
+  operation kind raw dense i =
+    let middle = nat-div (bytes-len raw) 2 in let following = middle + 1 in
+    if following < bytes-len raw && middle < bytes-len raw then
+      let zeroed = bytes-set raw middle 0 in let reset = bytes-set raw following 0 in
+      let parity = nat-rem i 2 in let at = middle + parity in
+      if at < bytes-len raw then
+        let needle-value = nat-rem ((if dense then parity else 254 + parity) :: Nat) 256 in
+        let written = bytes-set raw at needle-value in
+        let needle = wrapping-i64-to-u8 (nat-to-i64 needle-value) in
+        if kind == "index" then offset raw (S.bytes-index-byte raw needle)
+        else if kind == "last" then offset raw (S.bytes-last-index-byte raw needle)
+        else if kind == "count" then S.bytes-count-byte raw needle
+        else let first = offset raw (S.bytes-index-byte raw needle) in
+          let last = offset raw (S.bytes-last-index-byte raw needle) in
+          let count = S.bytes-count-byte raw needle in
+          first + last * 257 + count * 65537 + (if S.bytes-contains-byte raw needle then 16777217 else 0)
+      else 0
+    else 0
+  -- | Sequence complete public query observations in an ordinary tail loop.
+  work :: String -> Bytes -> Bool -> Nat -> Nat -> Nat -> Nat
+  work kind raw dense left i total = if left == 0 then total else
+    let value = operation kind raw dense i in let next-total = nat-rem (total + value) 1000000007 in
+    let remaining = left - 1 in let next = i + 1 in work kind raw dense remaining next next-total
+  -- | Keep the input owner observable beyond the ending clock and release it afterward.
+  retained :: Bytes -> Nat
+  retained raw = let size = bytes-len raw in if size > 0 then let last = size - 1 in
+    if last < bytes-len raw then size + bytes-get raw 0 * 257 + bytes-get raw last * 65537 else 0
+    else 0
+  -- | Measure query work after setup, with output digests and retained inputs outside timing.
+  measure :: forall r. using (io :: Io r) => String -> Bool -> Nat -> Nat ->{IO r} Int
+  measure kind dense size iterations =
+    let raw = bytes-new size in let initialized = fill raw dense 0 in
+    let original = hex-encode (sha256-bytes raw) in
+    let start = clock-monotonic-ns () in let checksum = work kind raw dense iterations 0 0 in
+    let end = clock-monotonic-ns () in let kept = retained raw in
+    let output = string-concat-all [nat-to-string (saturating-sub end start)," ",nat-to-string checksum," ",original," ",nat-to-string kept,"\n"] in
+    let printed = ioWrite (string-to-bytes output) in 0
+  -- | Resolve runtime workload arguments before all measured operations.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Ok (Cons kind (Cons pattern (Cons size (Cons iterations Nil)))) -> measure kind (pattern == "dense") (decimal size) (decimal iterations)
+    other -> 2
