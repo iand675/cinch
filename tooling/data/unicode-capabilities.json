@@ -3557,7 +3557,7 @@
         {
           "declaration": "func AppendRune([]uint8, int32) []uint8",
           "capabilities": [
-            "utf8-append-rune"
+            "Text.Utf8.utf8-append-rune (fresh Bytes; I32 numeric input; invalid values encode U+FFFD)"
           ],
           "status": "implemented"
         },
@@ -3571,9 +3571,9 @@
         {
           "declaration": "func DecodeLastRuneInString(string) (int32, int)",
           "capabilities": [
-            "Data.String.string-utf8-last / planned Text.Utf8.utf8-last-text"
+            "Text.Utf8.utf8-last-text / Data.String.string-utf8-last"
           ],
-          "status": "pending-string-provider-epoch"
+          "status": "implemented"
         },
         {
           "declaration": "func DecodeRune([]uint8) (int32, int)",
@@ -3585,14 +3585,14 @@
         {
           "declaration": "func DecodeRuneInString(string) (int32, int)",
           "capabilities": [
-            "Data.String.string-utf8-first / planned Text.Utf8.utf8-first-text"
+            "Text.Utf8.utf8-first-text / Data.String.string-utf8-first"
           ],
-          "status": "pending-string-provider-epoch"
+          "status": "implemented"
         },
         {
           "declaration": "func EncodeRune([]uint8, int32) int",
           "capabilities": [
-            "utf8-encode-into / utf8-encode-rune"
+            "Text.Utf8.utf8-encode-into / Text.Utf8.utf8-encode-rune (I32 numeric input; invalid values encode U+FFFD; capacity refusal is atomic None)"
           ],
           "status": "implemented"
         },
@@ -3606,9 +3606,9 @@
         {
           "declaration": "func FullRuneInString(string) bool",
           "capabilities": [
-            "planned Text.Utf8.utf8-full-rune-text; valid String nonempty test"
+            "Text.Utf8.utf8-full-rune-text (valid immutable String nonempty test)"
           ],
-          "status": "pending-string-provider-epoch"
+          "status": "implemented"
         },
         {
           "declaration": "func RuneCount([]uint8) int",
@@ -3620,9 +3620,9 @@
         {
           "declaration": "func RuneCountInString(string) int",
           "capabilities": [
-            "Data.String.string-length / planned Text.Utf8.utf8-count-text"
+            "Text.Utf8.utf8-count-text / Data.String.string-length"
           ],
-          "status": "pending-string-provider-epoch"
+          "status": "implemented"
         },
         {
           "declaration": "func RuneLen(int32) int",
@@ -3655,11 +3655,18 @@
         {
           "declaration": "func ValidString(string) bool",
           "capabilities": [
-            "String valid-UTF8 invariant / planned Text.Utf8.utf8-valid-text"
+            "Text.Utf8.utf8-valid-text (String valid-UTF8 invariant); arbitrary byte validation remains utf8-valid"
           ],
-          "status": "pending-string-provider-epoch"
+          "status": "implemented"
         }
-      ]
+      ],
+      "validation_status": "direct-gates-green; full-compiler-distribution-chain-pending",
+      "string_dependency": {
+        "module": "Data.String",
+        "sha256": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+        "source_hash": "416560347689830784",
+        "admitted_interface_hash": "14621555996612796731"
+      }
     }
   ],
   "policies": [
@@ -3667,7 +3674,7 @@
     "Char is scalar-only; numeric range membership includes surrogate code points.",
     "Built-in tables and catalogs are immutable; custom metadata is checked before private owned storage is allocated.",
     "Simple mappings preserve one scalar; no normalization, expansion or full case folding is supplied by this package.",
-    "Raw byte APIs retain malformed/non-UTF8 input; valid String adapters use the private backing under a separately registered provider epoch.",
+    "Raw byte APIs retain malformed/non-UTF8 input; text adapters use public immutable String scalar/count observations without copying or exposing backing. The combined String direct gates are green; the full compiler/distribution chain remains pending.",
     "Invalid decoding consumes one byte as U+FFFD; invalid numeric encoding emits U+FFFD; rune-length reports None for invalid numbers.",
     "Append and repair outputs are unconditionally fresh; encode-into capacity refusal writes nothing."
   ]
