@@ -41,6 +41,7 @@ WORKLOADS = (
     "fnv-roundtrip32", "fnv-roundtrip32a", "fnv-roundtrip64", "fnv-roundtrip64a", "fnv-roundtrip128", "fnv-roundtrip128a",
     "fnv-stream32", "fnv-stream32a", "fnv-stream64", "fnv-stream64a", "fnv-stream128", "fnv-stream128a",
     "adler32-state", "adler32-roundtrip", "adler32-stream", "adler32-stream4096",
+    "crc64-table", "crc64-state", "crc64-roundtrip", "crc64-stream", "crc64-stream4096", "crc64-table-build",
 )
 
 SOURCE = r'''-- | Executable workload driver; output is elapsed_ns and an observable checksum.
@@ -52,6 +53,8 @@ module Main where
   import Text.Checksum
   import Text.Adler32 as Adler
   import Effect.Adler32
+  import Text.Crc64 as Crc
+  import Effect.Crc64
   import Text.Fnv
   import Text.Fnv.State
   import Effect.Fnv
@@ -375,6 +378,36 @@ module Main where
       repeat mode b iterations (i + 1) (nat-rem (checksum + operation mode b) 1000000007)
     else checksum
 
+  -- | Observe prepared-table checksum, checkpoint and stream APIs without timing table setup.
+  crc64-operation :: forall r. using (io :: Io r) => Crc.Crc64Table -> U32 -> Bytes ->{IO r} Nat
+  crc64-operation table mode b =
+    if eq-u32 mode __CODE_crc64-table__ then word-nat (Crc.crc64-table-sum table b)
+    else if eq-u32 mode __CODE_crc64-state__ then fingerprint (Crc.crc64-state-sum (Crc.crc64-state-update (Crc.crc64-state table) b))
+    else if eq-u32 mode __CODE_crc64-roundtrip__ then
+      let state = Crc.crc64-state-update (Crc.crc64-state table) b in
+      let saved = Crc.crc64-state-save state in case Crc.crc64-state-load table saved of
+        Err error -> 1000000000
+        Ok restored -> fingerprint saved + fingerprint (Crc.crc64-state-sum restored)
+    else if eq-u32 mode __CODE_crc64-stream__ || eq-u32 mode __CODE_crc64-stream4096__ then
+      let chunk = if eq-u32 mode __CODE_crc64-stream4096__ then (4096 :: Nat) else 64 in
+      case crc64-copy chunk (reader-from-bytes b) (Crc.crc64-state table) of
+        (Err error, handles) -> 1000000000
+        (Ok count, (source, state)) -> count + fingerprint (Crc.crc64-state-sum state)
+    else
+      let byte = if 0 < bytes-len b then bytes-get b 0 else 0 in
+      let poly = bit-xor-u64 Crc.crc64-ecma (wrapping-i64-to-u64 (nat-to-i64 byte)) in
+      case Crc.crc64-table-entry (Crc.crc64-table poly) 255 of
+        None -> 1000000000
+        Some word -> word-nat word
+
+  -- | Keep existing workload loops unchanged while passing a prepared table through CRC-64 samples.
+  crc64-repeat :: forall r. using (io :: Io r) => Crc.Crc64Table -> U32 -> Bytes -> Nat -> Nat -> Nat ->{IO r} Nat
+  crc64-repeat table mode b iterations i checksum =
+    if i < iterations then
+      let changed = change mode b i in
+      crc64-repeat table mode b iterations (i + 1) (nat-rem (checksum + crc64-operation table mode b) 1000000007)
+    else checksum
+
   -- | Time only the repeated workload, then print raw nanoseconds and checksum.
   measure :: forall r. using (io :: Io r) => String -> Nat -> Nat ->{IO r} Int
   measure mode size iterations =
@@ -382,8 +415,9 @@ module Main where
     let initialized = fill raw 0 in
     let input = prepare mode raw in
     let code = workload-code mode in
+    let table = Crc.crc64-table Crc.crc64-ecma in
     let start = clock-monotonic-ns () in
-    let checksum = repeat code input iterations 0 0 in
+    let checksum = if ge-u32 code __CODE_crc64-table__ then crc64-repeat table code input iterations 0 0 else repeat code input iterations 0 0 in
     let end = clock-monotonic-ns () in
     let elapsed = saturating-sub end start in
     let printed = ioWrite (string-to-bytes (string-concat (nat-to-string elapsed) (string-concat " " (string-concat (nat-to-string checksum) "\n")))) in
@@ -566,7 +600,7 @@ def main() -> None:
                         "checksum": checksums[0], "median_ns_per_operation": median / args.iterations,
                         "raw_mib_per_second": (size * args.iterations * 1e9 / median / 1048576) if median and size and workload not in ("binary", "varint") and not workload.startswith("word-") else None}
                 report["results"].append(item)
-                if reference and workload.startswith(("hex-", "ascii85-", "utf16", "word-", "fnv128", "fnv-", "adler32")):
+                if reference and workload.startswith(("hex-", "ascii85-", "utf16", "word-", "fnv128", "fnv-", "adler32", "crc64")):
                     reference_samples = []
                     for index in range(args.warmup + args.samples):
                         elapsed, checksum = map(int, run([str(reference), workload, str(size), str(args.iterations)], env=reference_env).stdout.split())

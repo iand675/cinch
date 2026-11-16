@@ -35,6 +35,7 @@ fn run_with_profile(name: &str, checks: Vec<String>, profile: Option<cinch::core
         ("Base32", include_str!("../prelude/Text/Base32.cinch")),
         ("Checksum", include_str!("../prelude/Text/Checksum.cinch")),
         ("Adler32", include_str!("../prelude/Text/Adler32.cinch")),
+        ("Crc64", include_str!("../prelude/Text/Crc64.cinch")),
         ("Fnv", include_str!("../prelude/Text/Fnv.cinch")),
     ] {
         std::fs::write(dir.path().join(format!("Text.{module}.cinch")), source).unwrap();
@@ -249,18 +250,30 @@ fn primitive(source: &str, name: &str) -> String {
     declaration
 }
 
-/// Compile the actual kernels for AArch64 with/without CRC and a big-endian
-/// target. This catches unavailable instructions, bad constraints and missing
-/// intrinsic declarations without claiming execution on foreign hardware.
+/// Compile the actual kernels for 32-bit WebAssembly, AArch64 with/without CRC
+/// and big-endian PowerPC. This catches unavailable instructions, bad constraints
+/// and missing intrinsic declarations without claiming execution on foreign hardware.
 #[test]
 fn inline_kernels_compile_for_portable_arm_crc_and_big_endian_targets() {
     let mut source = String::from("module Main where\n  import Data.Machine\n  signature ArmCrc32 where\n    arm-crc32-evidence :: Unit -> Unit\n\n");
     let checksum = include_str!("../prelude/Text/Checksum.cinch");
     source.push_str(&primitive(include_str!("../prelude/Text/Adler32.cinch"), "adler16"));
     source.push_str(&primitive(include_str!("../prelude/Text/Adler32.cinch"), "reduce-sums"));
+    source.push_str(&primitive(
+        include_str!("../prelude/Text/Crc64.cinch"),
+        "crc64-word",
+    ));
+    for name in [
+        "table-pair", "pair-low", "pair-high", "network-word",
+        "slice-eight", "slice-one", "input-word", "input-byte",
+    ] {
+        source.push_str(&primitive(
+            include_str!("../prelude/Text/Crc64.cinch"),
+            name,
+        ));
+    }
     for name in [
         "crc32-word",
-        "crc64-word",
         "crc32c-available",
         "crc32c-word",
         "crc32-ieee-word",
@@ -278,6 +291,13 @@ fn inline_kernels_compile_for_portable_arm_crc_and_big_endian_targets() {
     source.push_str("  main :: Int\n  main = if eq-u32 (reduce-sums 65521 65521) 0 && eq-u64 (adler16 0 0) 0 && eq-u32 (crc32c-word 0 0) 0 && eq-u32 (crc32-ieee-word 0 0) 0 && eq-u32 (crc32-word 0 0 0) 0 && eq-u64 (crc64-word 0 0 0) 0 && eq-u64 (encode4 0) 0x3030303030303030 && eq-u64 (encode5 0 0) 0x4141414141414141 then 0 else 1\n");
     let dir = tempfile::tempdir().unwrap();
     for (name, triple, arch, endian, crc) in [
+        (
+            "wasm",
+            "wasm32-unknown-unknown",
+            "wasm32",
+            "little",
+            false,
+        ),
         (
             "arm",
             "aarch64-unknown-linux-gnu",
@@ -300,7 +320,14 @@ fn inline_kernels_compile_for_portable_arm_crc_and_big_endian_targets() {
             false,
         ),
     ] {
-        let mut profile = cinch::core::TargetProfile::native();
+        let mut profile = if arch == "wasm32" {
+            cinch::driver::target_profile(&cinch::driver::DriverOptions {
+                target: Some(triple.into()),
+                ..Default::default()
+            }).unwrap()
+        } else {
+            cinch::core::TargetProfile::native()
+        };
         profile.triple = triple.into();
         profile.arch = arch.into();
         profile.endian = endian.into();

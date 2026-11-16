@@ -10,9 +10,9 @@ Import with `import Text.Checksum`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Text.Adler32](Text.Adler32.md).
+[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Text.Adler32](Text.Adler32.md), [Text.Crc64](Text.Crc64.md).
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Adler32](Text.Adler32.md), [Text.Binary](Text.Binary.md), [Text.Checksum](Text.Checksum.md).
+Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Adler32](Text.Adler32.md), [Text.Binary](Text.Binary.md), [Text.Checksum](Text.Checksum.md), [Text.Crc64](Text.Crc64.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -40,7 +40,7 @@ inline LLVM shift registers. These checksums do not authenticate messages.
 Target-profile evidence that AArch64 CRC instructions may execute.
 Only profiles that guarantee the CRC extension should name this capability.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 25
+[Source](/reference-sources/Text.Checksum.cinch) · line 26
 
 # Values
 
@@ -52,7 +52,7 @@ Only profiles that guarantee the CRC extension should name this capability.
 
 Compute Adler-32 over all input bytes, starting at the standard state 1. The empty checksum is 1.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 30
+[Source](/reference-sources/Text.Checksum.cinch) · line 31
 
 <a id="value-61646c657233322d757064617465"></a>
 
@@ -62,7 +62,7 @@ Compute Adler-32 over all input bytes, starting at the standard state 1. The emp
 
 Continue a finished Adler-32 checksum with another chunk. Empty input preserves the supplied state.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 34
+[Source](/reference-sources/Text.Checksum.cinch) · line 35
 
 <a id="value-63726333322d6361737461676e6f6c69"></a>
 
@@ -72,7 +72,7 @@ Continue a finished Adler-32 checksum with another chunk. Empty input preserves 
 
 The reflected Castagnoli CRC-32C polynomial, 0x82F63B78.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 42
+[Source](/reference-sources/Text.Checksum.cinch) · line 43
 
 <a id="value-63726333322d69656565"></a>
 
@@ -82,7 +82,7 @@ The reflected Castagnoli CRC-32C polynomial, 0x82F63B78.
 
 The reflected IEEE CRC-32 polynomial, 0xEDB88320.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 38
+[Source](/reference-sources/Text.Checksum.cinch) · line 39
 
 <a id="value-63726333322d6b6f6f706d616e"></a>
 
@@ -92,7 +92,7 @@ The reflected IEEE CRC-32 polynomial, 0xEDB88320.
 
 The reflected Koopman CRC-32 polynomial, 0xEB31D82E.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 46
+[Source](/reference-sources/Text.Checksum.cinch) · line 47
 
 <a id="value-63726333322d73756d"></a>
 
@@ -102,7 +102,7 @@ The reflected Koopman CRC-32 polynomial, 0xEB31D82E.
 
 Compute the IEEE CRC-32 checksum. The empty checksum is zero.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 50
+[Source](/reference-sources/Text.Checksum.cinch) · line 51
 
 <a id="value-63726333322d757064617465"></a>
 
@@ -112,7 +112,7 @@ Compute the IEEE CRC-32 checksum. The empty checksum is zero.
 
 Continue a finished CRC-32 with another chunk. Arguments are reflected polynomial, previous checksum, and bytes; initial/final complementing is internal.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 58
+[Source](/reference-sources/Text.Checksum.cinch) · line 59
 
 <a id="value-63726333322d77697468"></a>
 
@@ -122,7 +122,7 @@ Continue a finished CRC-32 with another chunk. Arguments are reflected polynomia
 
 Compute CRC-32 with the supplied reflected polynomial, starting from the finished state zero.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 54
+[Source](/reference-sources/Text.Checksum.cinch) · line 55
 
 <a id="value-63726336342d65636d61"></a>
 
@@ -132,7 +132,7 @@ Compute CRC-32 with the supplied reflected polynomial, starting from the finishe
 
 The reflected ECMA CRC-64 polynomial, 0xC96C5795D7870F42.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 87
+[Source](/reference-sources/Text.Checksum.cinch) · line 88
 
 <a id="value-63726336342d69736f"></a>
 
@@ -142,7 +142,7 @@ The reflected ECMA CRC-64 polynomial, 0xC96C5795D7870F42.
 
 The reflected ISO CRC-64 polynomial, 0xD800000000000000.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 83
+[Source](/reference-sources/Text.Checksum.cinch) · line 84
 
 <a id="value-63726336342d73756d"></a>
 
@@ -150,9 +150,10 @@ The reflected ISO CRC-64 polynomial, 0xD800000000000000.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">crc64-sum</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">U64</span>))</code></pre>
 
-Compute CRC-64 with the supplied reflected polynomial. The empty checksum is zero.
+Compute CRC-64 with a supplied reflected polynomial. Empty input yields zero.
+Reuse a prepared Text.Crc64 table when processing many chunks of one polynomial.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 91
+[Source](/reference-sources/Text.Checksum.cinch) · line 93
 
 <a id="value-63726336342d757064617465"></a>
 
@@ -160,10 +161,10 @@ Compute CRC-64 with the supplied reflected polynomial. The empty checksum is zer
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">crc64-update</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">U64</span>)))</code></pre>
 
-Continue a finished CRC-64. Arguments are reflected polynomial, previous checksum, and bytes; an empty update preserves the checksum.
+Continue a finished CRC-64 with the same reflected polynomial and additional bytes.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 95
+[Source](/reference-sources/Text.Checksum.cinch) · line 97
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Checksum.cinch`. Source SHA-256: `d8fa3abc1d3fed0eea57aeeffb623544bf0c6efb8ef8d5e7ccda15e2018e025e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Checksum.cinch`. Source SHA-256: `6f645a7b6fd84e7edbd8b66d0ec3bf721621deb409d3f89affddac9df7f4f684`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
