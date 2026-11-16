@@ -1,0 +1,76 @@
+{
+  "description": "Configurable CSV records, byte-preserving/text adapters and bounded effectful readers/writers",
+  "capabilities": "bootstrap/stdlib-csv-record-capabilities.json",
+  "compiler_runtime_provenance": "bootstrap/stdlib-csv-record-compiler-provenance.json",
+  "sources": {
+    "compiler/prelude/Text/Csv/Record.cinch": "a9f4220c17a27ef09808c2835109cf7b5e9e83fddae72d23bc649e0923c11806",
+    "compiler/prelude/Effect/Csv.cinch": "115546a78f2887a0c90afee36770a12bb8df504ef53c76af994a5453a26a2605"
+  },
+  "independent_cases": {
+    "text_read": 252,
+    "text_write": 90,
+    "raw_read": 160,
+    "raw_write": 70,
+    "stream_text_checks": 414,
+    "raw_pure_and_stream_checks": 506
+  },
+  "validation_epochs": [
+    {
+      "report": "bootstrap/stdlib-csv-record-rust-validation-results.json",
+      "sha256": "6596c1e2260d06dfdcf23045cb6802bd1285f3480d48d25df678208e25ffa5a8",
+      "frontend": "rust",
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "suites": 6,
+      "runs": 12,
+      "all_zero_live_and_leaked": true
+    },
+    {
+      "report": "bootstrap/stdlib-csv-record-native-old-validation-results.json",
+      "sha256": "fe21218d04b75d401680452426beda0c624aeef7ff9420708cf5a10fac30fbeb",
+      "frontend": "native",
+      "compiler_sha256": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f",
+      "suites": 6,
+      "runs": 12,
+      "all_zero_live_and_leaked": true
+    },
+    {
+      "report": "bootstrap/stdlib-csv-record-native-new-validation-results.json",
+      "sha256": "787be19b278071698f34c3a3d7d60f7a4ab97c170233e0efc4f335f34b710ac1",
+      "frontend": "native",
+      "compiler_sha256": "4a14ad5dd79cff86a14deb513b1bb5f5e6e8e12a8866fd342b7d37d8915f526a",
+      "suites": 6,
+      "runs": 12,
+      "all_zero_live_and_leaked": true
+    },
+    {
+      "report": "bootstrap/stdlib-csv-record-rust-o0-validation-results.json",
+      "sha256": "f0716bff85a5ef01779d219ec73a0af3f3e80b704ba6f1570cc9cf2b85bb9762",
+      "frontend": "rust",
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "suites": 1,
+      "runs": 2,
+      "all_zero_live_and_leaked": true
+    }
+  ],
+  "canonical_docs": "bootstrap/stdlib-csv-record-doc-validation-results.json",
+  "fixture_generator_reproduction": "go1.27.4 emitted byte-identical csv-record-vectors.json; Python generator --check passed",
+  "parent_repository_tests": {
+    "initial_target_passed": 10,
+    "initial_target_failed": 1,
+    "failed_test_cause": "Preexisting non-tail Data.String.repeat-from in the test expected-text producer",
+    "bounded_rerun_passed": 1,
+    "parent_log_sha256": "e938d2b67c4f7cd5701162ddb1cce843d7336287a3644ccac669c48bb28b5230",
+    "bounded_rerun_log_sha256": "39322483016590e00a1b990f5b8980287fbbeb4318ee2c3a1cc4d0b19abce0e4",
+    "bounded_rerun_duration_seconds": 6.24,
+    "remaining_failures": 0
+  },
+  "limitations": [
+    "Synchronous per-record writer completion; borrowed ByteWriter exposes no flush/close.",
+    "Live incremental storage scales with largest record plus byte-fragment overhead and bounded4096-byte lookahead; read-all retains all records.",
+    "Raw getters snapshot mutable buffers; no mutable row reuse mode.",
+    "Foreign target kernels compile to objects; not foreign runtime execution."
+  ],
+  "initiative_scope": "This is a complete CSV increment, not a declaration that the overall standard-library initiative is complete.",
+  "rejected_optimization_receipt": "bootstrap/stdlib-csv-record-dispatch-inlining-validation-results.json",
+  "performance_report": "benchmarks/stdlib/csv-record-complete-O2-2026-11-16.json"
+}

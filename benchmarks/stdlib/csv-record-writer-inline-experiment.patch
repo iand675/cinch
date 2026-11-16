@@ -1,0 +1,8 @@
+--- a/compiler/prelude/Text/Csv/Record.cinch
++++ b/compiler/prelude/Text/Csv/Record.cinch
+@@ -707,0 +708 @@
++  #[inline(always)]
+@@ -751,0 +753 @@
++  #[inline(always)]
+@@ -778,0 +781 @@
++  #[inline(always)]

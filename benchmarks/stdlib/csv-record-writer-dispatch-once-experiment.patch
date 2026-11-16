@@ -1,0 +1,19 @@
+--- a/compiler/prelude/Text/Csv/Record.cinch
++++ b/compiler/prelude/Text/Csv/Record.cinch
+@@ -745 +745 @@
+-      leading || field-special field 0 delimiter first
++      leading || (if n < 128 then field-special-small field 0 delimiter first else field-special-large field 0 delimiter first)
+@@ -827,5 +827,8 @@
+-  raw-field-piece delimiter first crlf field = if raw-needs-quotes delimiter first field then
+-    let size = quoted-size field 0 crlf 0 in let out = bytes-new (size + 2) in
+-    let opening = bytes-set out 0 34 in
+-    let content = write-quoted field 0 out 1 crlf in
+-    let closing = bytes-set out (size + 1) 34 in out
++  raw-field-piece delimiter first crlf field =
++    let small = bytes-len field < 128 in
++    let quoted = raw-needs-quotes delimiter first field in
++    if quoted then
++      let size = if small then quoted-size-small field 0 crlf 0 else quoted-size-large field 0 crlf 0 in
++      let out = bytes-new (size + 2) in let opening = bytes-set out 0 34 in
++      let content = if small then write-quoted-small field 0 out 1 crlf else write-quoted-large field 0 out 1 crlf in
++      let closing = bytes-set out (size + 1) 34 in out

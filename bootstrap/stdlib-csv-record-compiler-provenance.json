@@ -9,7 +9,9 @@
       "library_object_sha256": "6d9c2d00ae3d7d2a4e1119938770fe9ac2c936d8988c2762b7358073a7a713a7",
       "library_metadata_sha256": "31c4f4a9a996835830066187b2843ec2ab012d561a54a72c59c3bbacb4c28826",
       "runtime_archive_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
-      "runtime_archive_path": "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/libcinchruntime.a"
+      "runtime_archive_path": "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/libcinchruntime.a",
+      "compile_helper_path": "/workspace/dasl-stdlib-io/tooling/verify_stage3.py",
+      "compile_helper_sha256": "df6b9dca7de413c1e2c4e49376df4a8bea8937f8cf0784c1f9f8a254ef696f67"
     },
     {
       "label": "fresh_fixed_point_native",
@@ -20,7 +22,9 @@
       "library_object_sha256": "2b459a81ac51e8e7a4f5e1730b9dc9fd22bc5976096cd717accbc9a84b05875d",
       "library_metadata_sha256": "5158fc3f8c659647334b110772d3ed03d0b6c29be6024989abf16e9ea33bc755",
       "runtime_archive_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
-      "runtime_archive_path": "/workspace/dasl-stdlib-codegen/build/scoped-call-stage3-experimental/libcinchruntime.a"
+      "runtime_archive_path": "/workspace/dasl-stdlib-codegen/build/scoped-call-stage3-experimental/libcinchruntime.a",
+      "compile_helper_path": "/workspace/dasl-stdlib-codegen/build/scoped-call-stage3-experimental/tooling/verify_stage3.py",
+      "compile_helper_sha256": "df6b9dca7de413c1e2c4e49376df4a8bea8937f8cf0784c1f9f8a254ef696f67"
     }
   ],
   "rust": {
