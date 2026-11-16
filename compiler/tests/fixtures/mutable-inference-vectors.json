@@ -1,0 +1,276 @@
+[
+  {
+    "name": "fresh-vector",
+    "source": "module Main where\n  data Vector r a where\n    Vector :: Vector r a\n  empty :: forall r a. Unit ->{Mut r} Vector r a\n  empty unit = Vector\n  append :: forall r a. Vector r a -> a ->{Mut r} Unit\n  append values value = ()\n  test :: forall r. Unit ->{Mut r} Int\n  test unit = let values = empty () in let first = append values (0 :: Int) in 0\n  main :: Int\n  main = 0\n",
+    "accepted": true,
+    "kinds": {
+      "m.Main.Vector": [
+        "Region",
+        "Type"
+      ]
+    },
+    "diagnostic": ""
+  },
+  {
+    "name": "shared-vector-alias",
+    "source": "module Main where\n  data Vector r a where\n    Vector :: Vector r a\n  empty :: forall r a. Unit ->{Mut r} Vector r a\n  empty unit = Vector\n  append :: forall r a. Vector r a -> a ->{Mut r} Unit\n  append values value = ()\n  test :: forall r. Unit ->{Mut r} Int\n  test unit = let values = empty () in let alias = values in let first = append values (0 :: Int) in let second = append alias (1 :: Int) in 0\n  main :: Int\n  main = 0\n",
+    "accepted": true,
+    "kinds": {
+      "m.Main.Vector": [
+        "Region",
+        "Type"
+      ]
+    },
+    "diagnostic": ""
+  },
+  {
+    "name": "mutable-vector-monomorphic",
+    "source": "module Main where\n  data Vector r a where\n    Vector :: Vector r a\n  empty :: forall r a. Unit ->{Mut r} Vector r a\n  empty unit = Vector\n  append :: forall r a. Vector r a -> a ->{Mut r} Unit\n  append values value = ()\n  test :: forall r. Unit ->{Mut r} Int\n  test unit = let values = empty () in let first = append values (0 :: Int) in let second = append values True in 0\n  main :: Int\n  main = 0\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "type mismatch"
+  },
+  {
+    "name": "mutable-vector-alias-monomorphic",
+    "source": "module Main where\n  data Vector r a where\n    Vector :: Vector r a\n  empty :: forall r a. Unit ->{Mut r} Vector r a\n  empty unit = Vector\n  append :: forall r a. Vector r a -> a ->{Mut r} Unit\n  append values value = ()\n  test :: forall r. Unit ->{Mut r} Int\n  test unit = let values = empty () in let alias = values in let first = append values (0 :: Int) in let second = append alias True in 0\n  main :: Int\n  main = 0\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "type mismatch"
+  },
+  {
+    "name": "local-group-monomorphic",
+    "source": "module Main where\n  data Vector r a where\n    Vector :: Vector r a\n  empty :: forall r a. Unit ->{Mut r} Vector r a\n  empty unit = Vector\n  append :: forall r a. Vector r a -> a ->{Mut r} Unit\n  append values value = ()\n  test :: forall r. Unit ->{Mut r} Int\n  test unit = let { values = empty (); first = append values (0 :: Int); second = append values True } in 0\n  main :: Int\n  main = 0\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "type mismatch"
+  },
+  {
+    "name": "fresh-cell",
+    "source": "module Main where\n  data Cell owner a where\n    Cell :: a -> Cell owner a\n  new :: forall owner a. a ->{Mut owner} Cell owner a\n  new value = Cell value\n  read :: forall owner a. Cell owner a ->{Mut owner} a\n  read cell = case cell of Cell value -> value\n  test :: forall region. Unit ->{Mut region} Int\n  test unit = let cell = new (7 :: Int) in read cell\n  main :: Int\n  main = 0\n",
+    "accepted": true,
+    "kinds": {
+      "m.Main.Cell": [
+        "Region",
+        "Type"
+      ]
+    },
+    "diagnostic": ""
+  },
+  {
+    "name": "fresh-heap",
+    "source": "module Main where\n  data Heap lifetime a where\n    Heap :: a -> Heap lifetime a\n  new :: forall lifetime a. a ->{Mut lifetime} Heap lifetime a\n  new value = Heap value\n  first :: forall lifetime a. Heap lifetime a ->{Mut lifetime} a\n  first values = case values of Heap value -> value\n  test :: forall r. Unit ->{Mut r} Int\n  test unit = let heap = new (3 :: Int) in let alias = heap in first alias\n  main :: Int\n  main = 0\n",
+    "accepted": true,
+    "kinds": {
+      "m.Main.Heap": [
+        "Region",
+        "Type"
+      ]
+    },
+    "diagnostic": ""
+  },
+  {
+    "name": "region-position-fixed-point",
+    "source": "module Main where\n  data First owner where\n    First :: First owner\n  data Second owner where\n    Second :: Second owner\n  bridge :: forall r. First r -> Second r -> Unit\n  bridge first second = ()\n  hint :: forall region. Io region -> Second region -> Unit\n  hint token value = ()\n  main :: Int\n  main = 0\n",
+    "accepted": true,
+    "kinds": {
+      "m.Main.First": [
+        "Region"
+      ],
+      "m.Main.Second": [
+        "Region"
+      ]
+    },
+    "diagnostic": ""
+  },
+  {
+    "name": "ordinary-phantom-retains-type",
+    "source": "module Main where\n  data Box a where\n    Box :: Box a\n  touch :: forall r a. Box a ->{Mut r} Unit\n  touch value = ()\n  main :: Int\n  main = 0\n",
+    "accepted": true,
+    "kinds": {
+      "m.Main.Box": [
+        "Type"
+      ]
+    },
+    "diagnostic": ""
+  },
+  {
+    "name": "region-spelling-grants-no-kind",
+    "source": "module Main where\n  data Region where\n    Region :: Region\n  data Box r where\n    Box :: Box r\n  use :: Box Region -> Unit\n  use value = ()\n  main :: Int\n  main = 0\n",
+    "accepted": true,
+    "kinds": {
+      "m.Main.Box": [
+        "Type"
+      ]
+    },
+    "diagnostic": ""
+  },
+  {
+    "name": "constructor-forall-shadow",
+    "source": "module Main where\n  data Outer r where\n    Outer :: (forall r. r -> r) -> Outer r\n  touch :: forall r. Outer r ->{Mut r} Unit\n  touch value = ()\n  main :: Int\n  main = 0\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "shadows a type variable"
+  },
+  {
+    "name": "signature-forall-shadow",
+    "source": "module Main where\n  data Box r where\n    Box :: Box r\n  use :: forall r. Box r -> (forall r. Unit ->{Mut r} Unit) -> Unit\n  use value callback = ()\n  main :: Int\n  main = 0\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "shadows a type variable"
+  },
+  {
+    "name": "bound-head-does-not-name-family",
+    "source": "module Main where\n  data Box a where\n    Box :: Box a\n  use :: forall (Box :: Region -> Type) r. Box r ->{Mut r} Unit\n  use value = ()\n  main :: Int\n  main = 0\n",
+    "accepted": true,
+    "kinds": {
+      "m.Main.Box": [
+        "Type"
+      ]
+    },
+    "diagnostic": ""
+  },
+  {
+    "name": "explicit-type-authority",
+    "source": "module Main where\n  data Box (r :: Type) where\n    Box :: Box r\n  touch :: forall r. Box r ->{Mut r} Unit\n  touch value = ()\n  main :: Int\n  main = 0\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "kind mismatch"
+  },
+  {
+    "name": "runtime-field-fixes-type",
+    "source": "module Main where\n  data Box r where\n    Box :: r -> Box r\n  touch :: forall r. Box r ->{Mut r} Unit\n  touch value = ()\n  main :: Int\n  main = 0\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "kind mismatch"
+  },
+  {
+    "name": "client-cannot-rekind-producer",
+    "source": "module Producer where\n  export Box, make\n  data Box a where\n    Box :: Box a\n  make :: Unit -> Box Int\n  make unit = Box\nmodule Main where\n  import Producer\n  touch :: forall r. Box r ->{Mut r} Unit\n  touch value = ()\n  main :: Int\n  main = 0\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "kind mismatch"
+  },
+  {
+    "name": "qualified-distinct-families",
+    "source": "module Regional where\n  export Box, touch\n  data Box r where\n    Box :: Box r\n  touch :: forall r. Box r ->{Mut r} Unit\n  touch value = ()\nmodule Ordinary where\n  export Box, make\n  data Box a where\n    Box :: a -> Box a\n  make :: Int -> Box Int\n  make value = Box value\nmodule Main where\n  import Regional as R\n  import Ordinary as O\n  good :: forall r. R.Box r -> O.Box Int ->{Mut r} Unit\n  good regional ordinary = ()\n  main :: Int\n  main = 0\n",
+    "accepted": true,
+    "kinds": {
+      "m.Regional.Box": [
+        "Region"
+      ],
+      "m.Ordinary.Box": [
+        "Type"
+      ]
+    },
+    "diagnostic": ""
+  },
+  {
+    "name": "qualified-alias-cannot-rekind",
+    "source": "module Producer where\n  export Box, make\n  data Box a where\n    Box :: Box a\n  make :: Unit -> Box Int\n  make unit = Box\nmodule Main where\n  import Producer as Other\n  touch :: forall r. Other.Box r ->{Mut r} Unit\n  touch value = ()\n  main :: Int\n  main = 0\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "kind mismatch"
+  },
+  {
+    "name": "pure-identity-value",
+    "source": "module Main where\n  main :: Int\n  main = let identity = \\value -> value in if identity True then identity (0 :: Int) else 1\n",
+    "accepted": true,
+    "kinds": {},
+    "diagnostic": ""
+  },
+  {
+    "name": "pure-function-name-value",
+    "source": "module Main where\n  identity :: forall a. a -> a\n  identity value = value\n  main :: Int\n  main = let alias = identity in if alias True then alias (0 :: Int) else 1\n",
+    "accepted": true,
+    "kinds": {},
+    "diagnostic": ""
+  },
+  {
+    "name": "pure-local-group-value",
+    "source": "module Main where\n  main :: Int\n  main = let { identity = \\value -> value; first = identity True } in identity (0 :: Int)\n",
+    "accepted": true,
+    "kinds": {},
+    "diagnostic": ""
+  },
+  {
+    "name": "effectful-function-value-latent",
+    "source": "module Main where\n  operation :: forall r a. a ->{Mut r} a\n  operation value = value\n  test :: forall r. Unit ->{Mut r} Int\n  test unit = let function = \\value -> operation value in let first = function True in function (0 :: Int)\n  main :: Int\n  main = 0\n",
+    "accepted": true,
+    "kinds": {},
+    "diagnostic": ""
+  },
+  {
+    "name": "io-function-value-latent",
+    "source": "module Main where\n  operation :: forall r a. using (io :: Io r) => a ->{IO r} a\n  operation value = value\n  test :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n  test unit = let function = \\value -> operation value in let first = function True in function (0 :: Int)\n  main :: Int\n  main = 0\n",
+    "accepted": true,
+    "kinds": {},
+    "diagnostic": ""
+  },
+  {
+    "name": "pure-application-not-generalized",
+    "source": "module Main where\n  make :: forall a. Unit -> a -> a\n  make unit = \\value -> value\n  main :: Int\n  main = let identity = make () in if identity True then identity (0 :: Int) else 1\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "type mismatch"
+  },
+  {
+    "name": "implicit-cell-alias-not-generalized",
+    "source": "module Main where\n  main :: Int\n  main = let ~cell = \\value -> value in let alias = cell in if alias True then alias (0 :: Int) else 1\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "type mismatch"
+  },
+  {
+    "name": "class-region-context",
+    "accepted": true,
+    "diagnostic": "",
+    "kinds": {
+      "m.Main.Token": [
+        "Region"
+      ]
+    },
+    "source": "module Main where\n  data Token r where\n    Token :: Token r\n  signature Owner (r :: Region) where\n    keep :: Token r -> Token r\n  main :: Int\n  main = 0\n"
+  },
+  {
+    "name": "class-explicit-type-authority",
+    "accepted": false,
+    "diagnostic": "kind mismatch",
+    "kinds": {},
+    "source": "module Main where\n  data Token (r :: Type) where\n    Token :: Token r\n  signature Owner (r :: Region) where\n    keep :: Token r -> Token r\n  main :: Int\n  main = 0\n"
+  },
+  {
+    "name": "class-client-cannot-rekind",
+    "accepted": false,
+    "diagnostic": "kind mismatch",
+    "kinds": {},
+    "source": "module Producer where\n  export Token, make\n  data Token r where\n    Token :: Token r\n  make :: Unit -> Token Int\n  make unit = Token\nmodule Main where\n  import Producer as P\n  signature Owner (r :: Region) where\n    keep :: P.Token r -> P.Token r\n  main :: Int\n  main = 0\n"
+  },
+  {
+    "name": "explicit-pure-forall-value",
+    "source": "module Main where\n  a :: Bool\n  a = True\n  main :: Int\n  main = let local = ((\\x -> if a then (x :: a) else x) :: forall a. a -> a) in if local True then local 0 else 1\n",
+    "accepted": true,
+    "kinds": {},
+    "diagnostic": ""
+  },
+  {
+    "name": "explicit-pure-forall-local-group",
+    "source": "module Main where\n  main :: Int\n  main = let { local = ((\\x -> x) :: forall a. a -> a); first = local True } in local (0 :: Int)\n",
+    "accepted": true,
+    "kinds": {},
+    "diagnostic": ""
+  },
+  {
+    "name": "explicit-pure-forall-application",
+    "source": "module Main where\n  make :: forall a. Unit -> a -> a\n  make unit = \\value -> value\n  main :: Int\n  main = let identity = (make () :: forall a. a -> a) in if identity True then identity (0 :: Int) else 1\n",
+    "accepted": true,
+    "kinds": {},
+    "diagnostic": ""
+  },
+  {
+    "name": "explicit-forall-cannot-hide-performed-mutation",
+    "source": "module Main where\n  operation :: forall r a. Unit ->{Mut r} (a -> a)\n  operation unit = \\value -> value\n  test :: forall r. Unit ->{Mut r} Int\n  test unit = let function = (operation () :: forall a. a -> a) in 0\n  main :: Int\n  main = 0\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "performed effects exceed the declared row"
+  }
+]

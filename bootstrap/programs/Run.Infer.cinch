@@ -53,7 +53,7 @@ module Main where
   negative :: List (String, String)
   negative =
     [ ("module Main where\n  data Crate a where\n    Pack :: a -> Crate a\n  bad :: Crate Bool -> Bool\n  bad value = case value of Pack 0 -> True; Pack n -> False\n  main :: Int\n  main = 0\n", "integer carrier")
-    , ("module Main where\n  data Crate a where\n    Pack :: a -> Crate a\n  bad :: Crate I8 -> Bool\n  bad value = case value of Pack 128 -> True; Pack n -> False\n  main :: Int\n  main = 0\n", "integer carrier")
+    , ("module Main where\n  data Crate a where\n    Pack :: a -> Crate a\n  bad :: Crate I8 -> Bool\n  bad value = case value of Pack 128 -> True; Pack n -> False\n  main :: Int\n  main = 0\n", "out of range for I8")
     , ("module Main where\n  bad :: forall a. a -> a\n  bad x = 1\n  main :: Int\n  main = 0\n", "type mismatch")
     , ("module Main where\n  bad :: forall a. a -> Int\n  bad x = x\n  main :: Int\n  main = 0\n", "type mismatch")
     , (string-concat identity-source "  main :: Int\n  main = let bad = \\f -> f f in 0\n", "infinite type")
