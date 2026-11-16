@@ -1,0 +1,65 @@
+--- Text.Sha256.cinch
++++ Text.Sha256.cinch
+@@ -55 +55 @@
+-  sha256-sum input = one-shot False input
++  sha256-sum input = sha256-state-sum (sha256-state-update sha256-state input)
+@@ -59,13 +59 @@
+-  sha224-sum input = one-shot True input
+-
+-  -- | Process a complete input directly, copying its tail only into the final padding block.
+-  -- The shared streaming representation remains unnecessary for this whole-buffer operation.
+-  one-shot :: Bool -> Bytes -> Bytes
+-  one-shot short input =
+-    let n = bytes-len input in
+-    let count = wrapping-i64-to-u64 (nat-to-i64 n) in
+-    let words = hold-input input (blocks (sha256-initial-words short) (bytes-data input) count) in
+-    let tail = nat-rem n 64 in
+-    if tail <= n then
+-      let final = finish-interval count input (n - tail) tail words in render-words short final
+-    else render-words short words
++  sha224-sum input = sha256-state-sum (sha256-state-update sha224-state input)
+@@ -166,5 +154 @@
+-  sha256-state-size state = case state of State256 short count pending words -> digest-size short
+-
+-  -- | Keep the selected output size within the proved bounds used by digest stores.
+-  digest-size :: Bool -> InRange 28 32 Nat
+-  digest-size short = if short then 28 else 32
++  sha256-state-size state = case state of State256 short count pending words -> if short then 28 else 32
+@@ -192,12 +175,0 @@
+-  -- | Copy an exactly bounded source tail into one or two private finalization blocks.
+-  -- The interval contains fewer than 64 bytes; the appended bit count uses U64 wrapping.
+-  finish-interval :: U64 -> Bytes -> Nat -> Nat -> Sha256Words -> Sha256Words
+-  finish-interval count input start n words =
+-    if n < 64 && start + n <= bytes-len input then
+-      let size = padding-size n in let padding = bytes-new size in
+-      let copied = bytes-copy-range padding input 0 start n in
+-      let mark = bytes-set padding n 128 in
+-      let length = binary-put-u64 BigEndian padding (size - 8) (wrapping-shl-u64 count 3) in
+-      hold-input padding (blocks words (bytes-data padding) (wrapping-i64-to-u64 (nat-to-i64 size)))
+-    else words
+-
+@@ -236,24 +207,0 @@
+-
+-  -- | Dispatch to a fixed-size renderer before allocating the result buffer.
+-  render-words :: Bool -> Sha256Words -> Bytes
+-  render-words short words = if short then render-short words else render-full words
+-
+-  -- | Render all eight finalized words into a fresh buffer with statically complete store bounds.
+-  render-full :: Sha256Words -> Bytes
+-  render-full words = case words of
+-    ShaWords ab cd ef gh ->
+-      let out = bytes-new 32 in
+-      let a = bytes-write-le64 out 0 (wire-pair ab) in
+-      let b = bytes-write-le64 out 8 (wire-pair cd) in
+-      let c = bytes-write-le64 out 16 (wire-pair ef) in
+-      let d = bytes-write-le64 out 24 (wire-pair gh) in out
+-
+-  -- | Render the first seven finalized words with an exact four-byte final store.
+-  render-short :: Sha256Words -> Bytes
+-  render-short words = case words of
+-    ShaWords ab cd ef gh ->
+-      let out = bytes-new 28 in
+-      let a = bytes-write-le64 out 0 (wire-pair ab) in
+-      let b = bytes-write-le64 out 8 (wire-pair cd) in
+-      let c = bytes-write-le64 out 16 (wire-pair ef) in
+-      let d = bytes-write-le32 out 24 (wrapping-u64-to-u32 (wire-pair gh)) in out

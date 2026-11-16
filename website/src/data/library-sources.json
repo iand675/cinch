@@ -747,6 +747,14 @@
       "public_methods": 6
     },
     {
+      "module": "Effect.Sha256",
+      "path": "compiler/prelude/Effect/Sha256.cinch",
+      "sha256": "531b0b74ab549b22d7ee6837eb4090db8b31800860afa8bec249f2f4fd64048f",
+      "embedded": false,
+      "values": 3,
+      "public_methods": 0
+    },
+    {
       "module": "Effect.Signal",
       "path": "compiler/prelude/Effect/Signal.cinch",
       "sha256": "93778e910173dd3b7d4cf143c34a1611734bb03524199b2bd125d79ac854a598",
@@ -1056,6 +1064,14 @@
       "sha256": "bc12b7a6cb5fe9a9b448047f9aeeb0fc3eac1e29927e2270e7be760014a93208",
       "embedded": false,
       "values": 30,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Sha256",
+      "path": "compiler/prelude/Text/Sha256.cinch",
+      "sha256": "95e5a6dd624575bf80bf7df22ba632819dd500d4a0c5af4f32d16d4b2befcea8",
+      "embedded": false,
+      "values": 17,
       "public_methods": 0
     },
     {

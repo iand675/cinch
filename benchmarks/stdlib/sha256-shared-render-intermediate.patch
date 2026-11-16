@@ -1,0 +1,56 @@
+--- Text.Sha256.cinch
++++ Text.Sha256.cinch
+@@ -182,9 +182 @@
+-  finish-words count pending words =
+-    let n = bytes-len pending in
+-    if n < 64 then
+-      let size = padding-size n in let padding = bytes-new size in
+-      let copied = bytes-copy-range padding pending 0 0 n in
+-      let mark = bytes-set padding n 128 in
+-      let length = binary-put-u64 BigEndian padding (size - 8) (wrapping-shl-u64 count 3) in
+-      hold-input padding (blocks words (bytes-data padding) (wrapping-i64-to-u64 (nat-to-i64 size)))
+-    else words
++  finish-words count pending words = finish-interval count pending 0 (bytes-len pending) words
+@@ -228,10 +220,3 @@
+-    State256 short count pending words ->
+-      let final = finish-words count pending words in
+-      let size = sha256-state-size state in let out = bytes-new size in
+-      case final of
+-        ShaWords ab cd ef gh ->
+-          let a = put-pair out 0 ab in let b = put-pair out 8 cd in
+-          let c = put-pair out 16 ef in
+-          let d = if size == 32 then put-pair out 24 gh else bytes-write-le32 out 24 (wrapping-u64-to-u32 (wire-pair gh)) in out
+-
+-  -- | Dispatch to a fixed-size renderer before allocating the result buffer.
++    State256 short count pending words -> render-words short (finish-words count pending words)
++
++  -- | Render the selected finalized word sequence directly into one fresh result buffer.
+@@ -239,21 +224,7 @@
+-  render-words short words = if short then render-short words else render-full words
+-
+-  -- | Render all eight finalized words into a fresh buffer with statically complete store bounds.
+-  render-full :: Sha256Words -> Bytes
+-  render-full words = case words of
+-    ShaWords ab cd ef gh ->
+-      let out = bytes-new 32 in
+-      let a = bytes-write-le64 out 0 (wire-pair ab) in
+-      let b = bytes-write-le64 out 8 (wire-pair cd) in
+-      let c = bytes-write-le64 out 16 (wire-pair ef) in
+-      let d = bytes-write-le64 out 24 (wire-pair gh) in out
+-
+-  -- | Render the first seven finalized words with an exact four-byte final store.
+-  render-short :: Sha256Words -> Bytes
+-  render-short words = case words of
+-    ShaWords ab cd ef gh ->
+-      let out = bytes-new 28 in
+-      let a = bytes-write-le64 out 0 (wire-pair ab) in
+-      let b = bytes-write-le64 out 8 (wire-pair cd) in
+-      let c = bytes-write-le64 out 16 (wire-pair ef) in
+-      let d = bytes-write-le32 out 24 (wrapping-u64-to-u32 (wire-pair gh)) in out
++  render-words short words =
++    let size = digest-size short in let out = bytes-new size in
++    case words of
++      ShaWords ab cd ef gh ->
++        let a = put-pair out 0 ab in let b = put-pair out 8 cd in
++        let c = put-pair out 16 ef in
++        let d = if size == 32 then put-pair out 24 gh else bytes-write-le32 out 24 (wrapping-u64-to-u32 (wire-pair gh)) in out
