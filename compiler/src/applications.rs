@@ -167,7 +167,7 @@ mod tests {
     #[test]
     fn constructor_and_primitive_arities_keep_saturated_spines() {
         let mut program = crate::driver::check_sources(
-            "module Main where\n  data Pair = Pair Nat Nat\n  pack :: Nat -> Nat -> Pair\n  pack first second = Pair first second\n  main :: Int\n  main = 0\n",
+            "module Main where\n  -- | Store two natural values.\n  data Pair where\n    -- | Construct the two-field value.\n    Pair :: Nat -> Nat -> Pair\n  -- | Exercise a declared two-argument unit.\n  pack :: Nat -> Nat -> Pair\n  pack first second = Pair first second\n  -- | Supply the executable entry.\n  main :: Int\n  main = 0\n",
             "application-arities.cinch",
         ).expect("constructor arity source");
         let constructor = program
