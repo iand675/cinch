@@ -62,7 +62,10 @@
     "parent_log_sha256": "e938d2b67c4f7cd5701162ddb1cce843d7336287a3644ccac669c48bb28b5230",
     "bounded_rerun_log_sha256": "39322483016590e00a1b990f5b8980287fbbeb4318ee2c3a1cc4d0b19abce0e4",
     "bounded_rerun_duration_seconds": 6.24,
-    "remaining_failures": 0
+    "remaining_failures": 0,
+    "integrated_target_passed": 11,
+    "integrated_target_seconds": 54.49,
+    "integrated_compiler_sha256": "16f2f4bf883d2e5358c3d09b2e97d0d3c43f2c6c1996da296eef922c9395d98f"
   },
   "limitations": [
     "Synchronous per-record writer completion; borrowed ByteWriter exposes no flush/close.",

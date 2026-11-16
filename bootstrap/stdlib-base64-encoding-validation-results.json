@@ -116,7 +116,12 @@
       "wasm32-unknown-unknown",
       "aarch64-unknown-linux-gnu",
       "powerpc64-unknown-linux-gnu big endian"
-    ]
+    ],
+    "final_integrated_target": {
+      "passed": 12,
+      "seconds": 146.76,
+      "compiler_sha256": "16f2f4bf883d2e5358c3d09b2e97d0d3c43f2c6c1996da296eef922c9395d98f"
+    }
   },
   "documentation": [
     {
@@ -246,7 +251,7 @@
     "Decode/DecodeString/AppendDecode": "Whole-buffer atomic convenience plus progress-preserving byte/text, append and checked offset destination decoding",
     "CorruptInputError/Error": "Named original-byte failures with message and offset accessors; precise module-owned offset policy",
     "NewEncoder/Write/Close": "Inspectable Base64Writer, accepted-byte writes, explicit finish and advanced-sink retrieval on success/failure",
-    "NewDecoder/Read": "Bounded decoding reader, copied surplus, inert zero reads and sticky delayed failures"
+    "NewDecoder/Read": "Bounded decoding reader with owned surplus cursor, inert zero reads and sticky delayed failures"
   },
   "deliberate_api_policies": [
     "Original-byte errors include ignored CR/LF; strict-bit errors point at the final alphabet symbol, and missing padding points at the first unfinished symbol. Incidental reference newline/pad offsets and wording are not copied.",
@@ -258,6 +263,6 @@
     "Foreign kernel object compilation does not establish foreign runtime execution.",
     "Output still uses checked word/byte helpers; generated encode/decode SIMD math is inlined, but public loops remain slower than the independent reference pipelines.",
     "Immutable chunk, append and result ownership differs from mutable reference buffers.",
-    "The Native nested-final-argument fingerprint lowering issue is avoided by explicit local sequencing; a separate compiler agent owns the general fix."
+    "The Native nested-final-argument fingerprint lowering issue is avoided by explicit local sequencing; the general Native runtime-IR repair is integrated and validated in a separately identified bootstrap epoch."
   ]
 }

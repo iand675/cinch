@@ -3178,5 +3178,19 @@
     "all_passed": true,
     "big_endian_gate": "Provided in lib_url Rust target; standalone CLI rejects the unsupported powerpc64 profile, so no fallback target is substituted."
   },
-  "full_hex_pair_domain": 65536
+  "full_hex_pair_domain": 65536,
+  "parent_repository_tests": {
+    "target": "lib_url",
+    "passed": 8,
+    "semantic_tests": 5,
+    "shared_profile_tests": 3,
+    "seconds": 29.88,
+    "compiler_sha256": "16f2f4bf883d2e5358c3d09b2e97d0d3c43f2c6c1996da296eef922c9395d98f",
+    "foreign_objects": [
+      "wasm32-unknown-unknown",
+      "aarch64-unknown-linux-gnu",
+      "powerpc64-unknown-linux-gnu big endian"
+    ],
+    "foreign_execution": false
+  }
 }

@@ -145,6 +145,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Base32](Text.Base32.md) | Ship source | Configurable Base32 byte alphabets and padding, SIMD codecs, prefix/caller-buffer operations and persistent incremental states. |
 | [Text.Base64.Encoding](Text.Base64.Encoding.md) | Ship source | Configurable Base64 byte alphabets, padding and strict trailing bits, SIMD codecs, persistent states and checked caller buffers. |
 | [Text.Base64](Text.Base64.md) | Ship source | Base64 encoding/decoding over bytes with explicit invalid-input results. |
+| [Text.Binary.Layout](Text.Binary.Layout.md) | Ship source | Typed scalar, floating-point, complex and aggregate binary layouts with checked buffers, exact sizes and packed array kernels. |
 | [Text.Binary](Text.Binary.md) | Ship source | Little- and big-endian integer encoding, checked buffer access, and signed/unsigned varints. |
 | [Text.Builder](Text.Builder.md) | Ship source | An efficient text-construction vocabulary for assembling many fragments before rendering. |
 | [Text.Checksum](Text.Checksum.md) | Ship source | Incremental Adler-32, CRC-32 and CRC-64 checksums with explicit reflected polynomials. |
@@ -170,6 +171,16 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Show](Text.Show.md) | Embedded | Rendering values as String. The concrete formatting helpers are re-exported by Prelude; import this module for Show itself. |
 | [Text.Toml](Text.Toml.md) | Ship source | The module's supported TOML parsing/rendering surface and explicit unsupported/malformed cases. |
 | [Text.Uri](Text.Uri.md) | Ship source | URI parsing, rendering, components, and validation/error vocabulary. |
+| [Text.Url.Codec](Text.Url.Codec.md) | Ship source | Checked percent codecs for URL components, exact escaped sizing and optional UTF-8 text views. |
+| [Text.Url.Error](Text.Url.Error.md) | Ship source | Structured URL failures with original byte offsets, context, diagnostics and explicit causes. |
+| [Text.Url.Ip](Text.Url.Ip.md) | Ship source | URL host IP-literal and port validation with explicit IPv6 and zone rules. |
+| [Text.Url.Model](Text.Url.Model.md) | Ship source | Immutable URL components, raw encoding hints, rendering and independent copied observations. |
+| [Text.Url.Parser](Text.Url.Parser.md) | Ship source | Checked general and request URL parsing with precise scheme, host, port and escape rules. |
+| [Text.Url.Query](Text.Url.Query.md) | Ship source | Persistent byte-preserving query multimaps with deterministic encoding, checked parsing and copied observations. |
+| [Text.Url.Resolve](Text.Url.Resolve.md) | Ship source | URL reference resolution, lexical path joining and copied persistent URL updates. |
+| [Text.Url.Scan](Text.Url.Scan.md) | Ship source | Private portable SIMD byte scanning shared by URL parsing, queries and path traversal. |
+| [Text.Url.Userinfo](Text.Url.Userinfo.md) | Ship source | Immutable copied URL user information with explicit password presence and checked percent encoding. |
+| [Text.Url](Text.Url.md) | Ship source | Immutable byte-preserving URLs, percent escaping, query multimaps, parsing and reference resolution. |
 | [Text.Utf16](Text.Utf16.md) | Ship source | UTF-16 scalar and surrogate operations, code-unit sequences and explicit-order byte codecs with SWAR ASCII blocks. |
 | [Text.Yaml](Text.Yaml.md) | Ship source | The module's supported YAML subset, structured values, and named parse errors; not an assertion of every YAML feature. |
 | [Text.Zlib](Text.Zlib.md) | Ship source | Compression/decompression operations and named malformed/unsupported-stream results. |
@@ -183,6 +194,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Effect.Base32](Effect.Base32.md) | Ship source | Explicitly finalized Base32 encoding writers and bounded decoding readers with precise errors, retained cursors and sticky failures. |
 | [Effect.Base64](Effect.Base64.md) | Ship source | Explicitly finalized Base64 writers and bounded decoding readers with sticky errors and isolated output chunks. |
 | [Effect.Benchmark](Effect.Benchmark.md) | Ship source | Benchmark case execution and timing/reporting helpers over runtime clocks. |
+| [Effect.Binary](Effect.Binary.md) | Ship source | Explicit fixed and variable binary stream codecs preserving progress and advanced handles after failures. |
 | [Effect.Clock](Effect.Clock.md) | Embedded | Runtime monotonic and wall-clock readings under an I/O capability. Clocks are not ambient compile-time inputs. |
 | [Effect.Concurrent](Effect.Concurrent.md) | Embedded | Shipped task/worker vocabulary supplementing the compiler-installed structured scope and join operations. |
 | [Effect.Coverage](Effect.Coverage.md) | Ship source | Coverage collection/reporting utilities with explicit runtime and source metadata. |
@@ -215,7 +227,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **148 source modules**: **65 embedded** and **83 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **160 source modules**: **65 embedded** and **95 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

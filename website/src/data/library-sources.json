@@ -619,6 +619,14 @@
       "public_methods": 0
     },
     {
+      "module": "Effect.Binary",
+      "path": "compiler/prelude/Effect/Binary.cinch",
+      "sha256": "ccc9fe29127f391045105575e80fb446b3452798f2e3166f939521c51b10470c",
+      "embedded": false,
+      "values": 8,
+      "public_methods": 0
+    },
+    {
       "module": "Effect.Clock",
       "path": "compiler/prelude/Effect/Clock.cinch",
       "sha256": "1e4049e0bbd8d7f17d3955669904abb1916ab8f93a3cee2dcb3fa26826357b62",
@@ -963,6 +971,14 @@
       "public_methods": 0
     },
     {
+      "module": "Text.Binary.Layout",
+      "path": "compiler/prelude/Text/Binary/Layout.cinch",
+      "sha256": "2bf98a83aaed9aeb72ac3e69d285d15aa28ff65b6543236b659bb775beb8f1d2",
+      "embedded": false,
+      "values": 52,
+      "public_methods": 0
+    },
+    {
       "module": "Text.Binary",
       "path": "compiler/prelude/Text/Binary.cinch",
       "sha256": "9e8420191ef2f63969bdd1fa54f69724c835a6ada8041b548ee3de8154e71e4d",
@@ -1160,6 +1176,86 @@
       "sha256": "b1b0e152c068b9b4ef4d47b03b84502cd0fc2b506608bdd006b87405934c50f4",
       "embedded": false,
       "values": 15,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Url.Codec",
+      "path": "compiler/prelude/Text/Url/Codec.cinch",
+      "sha256": "17b17b7cd4e76ee256793a6167a3148d3a9aa9528164ade05aab8fee53f7b539",
+      "embedded": false,
+      "values": 11,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Url.Error",
+      "path": "compiler/prelude/Text/Url/Error.cinch",
+      "sha256": "93da213a73d120c7bb2d0b5651b52a28646a13727582d49bb0d70600a92fc56f",
+      "embedded": false,
+      "values": 15,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Url.Ip",
+      "path": "compiler/prelude/Text/Url/Ip.cinch",
+      "sha256": "8bbe1f04258c0bece6823836b336e71009122463e79eb8eef923ff4e550a55be",
+      "embedded": false,
+      "values": 1,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Url.Model",
+      "path": "compiler/prelude/Text/Url/Model.cinch",
+      "sha256": "7fee092c7305cda028b8ec71763d8f1c76189cb35c76d1a02bb068db1aca7f75",
+      "embedded": false,
+      "values": 29,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Url.Parser",
+      "path": "compiler/prelude/Text/Url/Parser.cinch",
+      "sha256": "d880177f125cbdf7d9546cb5526ce6f6717ead1c719b180724745be6ef1c4f7d",
+      "embedded": false,
+      "values": 4,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Url.Query",
+      "path": "compiler/prelude/Text/Url/Query.cinch",
+      "sha256": "d21bfb7ca2d495f7e67202e8cec6ad27723f767d2d997a5afe9f1b07409e85d3",
+      "embedded": false,
+      "values": 15,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Url.Resolve",
+      "path": "compiler/prelude/Text/Url/Resolve.cinch",
+      "sha256": "5fd9ec9bddbd778d81d392e1e0e18b6be2f037cbd0f1b15fe1811e4eaf91613e",
+      "embedded": false,
+      "values": 5,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Url.Scan",
+      "path": "compiler/prelude/Text/Url/Scan.cinch",
+      "sha256": "de30fc49981ed873244a64b34de9a063548776c60264ad69475f040b3118204f",
+      "embedded": false,
+      "values": 9,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Url.Userinfo",
+      "path": "compiler/prelude/Text/Url/Userinfo.cinch",
+      "sha256": "cccdb3acac6ac60383d2a2f8ce9fd9fde4953de7f28aa8259a5d5436ec52758a",
+      "embedded": false,
+      "values": 5,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Url",
+      "path": "compiler/prelude/Text/Url.cinch",
+      "sha256": "ace795fa48c2bfdab5f1c984b072eff6ad2ca68c11403d965ad610937b45001c",
+      "embedded": false,
+      "values": 84,
       "public_methods": 0
     },
     {

@@ -1,7 +1,7 @@
 {
   "description": "Configurable Base32 SIMD/SWAR byte codecs, strict original-byte errors, immutable incremental states, checked caller buffers and explicit stream continuations. Full stdlib goal remains open.",
   "full_stdlib_goal_complete": false,
-  "status": "Integrated:14 Rust and 12 selected Native checks passed on pre-padding snapshot; adopted padding-only optimization passed 100 focused standard/hex padded goldens on both frozen frontends",
+  "status": "Final source integrated: 14 Rust checks pass, pre-padding Native 12 checks plus 100 focused final padding goldens on both frozen frontends; benchmarks reviewed",
   "source_sha256": {
     "compiler/prelude/Text/Base32.cinch": "e901c7d08842d6580c765eefac5ad5d7ab48078c6fc46dbb963e3abafd55acbd",
     "compiler/prelude/Effect/Base32.cinch": "38f8d4b0a0ac51fed5ed5251d0b16093e8983986ea36330edede81bb69705b90",
@@ -45,6 +45,12 @@
       "separate_poisoned_free_quarantine_heap": "256M",
       "zero_leaks": true,
       "scope": "standard/hex padded encode/decode; only input-remainder padding calculation changed after full harness"
+    },
+    "final_integrated_target": {
+      "passed": 14,
+      "seconds": 168.21,
+      "text_source_sha256": "e901c7d08842d6580c765eefac5ad5d7ab48078c6fc46dbb963e3abafd55acbd",
+      "compiler_sha256": "16f2f4bf883d2e5358c3d09b2e97d0d3c43f2c6c1996da296eef922c9395d98f"
     }
   },
   "compilers": {
@@ -61,12 +67,12 @@
     "Stream surplus retains one private buffer and a cursor, copying only returned output slices.",
     "Legacy fixed-text scalar fringes use bounded U64 bit arithmetic instead of dynamic Nat powers/division; scalar collection and final byte materialization use bounded-stack loops.",
     "Legacy exact padding checks inspect only the bounded required suffix rather than taking an unbounded list length.",
-    "Fixed-text encoding derives padding in constant time from input length modulo5 instead of scanning ASCII output as Unicode."
+    "Fixed-text encoding derives padding in constant time from input length modulo 5 instead of scanning ASCII output as Unicode."
   ],
   "deliberate_semantic_policies": [
     "Cinch String conversion is optional for arbitrary binary alphabets; byte APIs preserve all data.",
     "Byte decoder offsets count original bytes including CR/LF, rather than positions after stripping newlines.",
-    "Raw final lengths1/3/6 are rejected and data after a padded final quantum is rejected, even where the pinned reference accepts an odd tail or ignores a suffix.",
+    "Raw final lengths 1/3/6 are rejected and data after a padded final quantum is rejected, even where the pinned reference accepts an odd tail or ignores a suffix.",
     "Decoder prefix/append operations preserve completed quanta and errors; atomic convenience returns only an error.",
     "Finite destination decoding checks the actual completed output before mutation, allowing exact padded-result capacity and safe aliasing."
   ],

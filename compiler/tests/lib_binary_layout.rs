@@ -44,6 +44,20 @@ fn run(checks: Vec<String>, contracts: bool, optimized: bool) {
             "Effect.Binary",
             include_str!("../prelude/Effect/Binary.cinch"),
         ),
+        ("Text.Binary", include_str!("../prelude/Text/Binary.cinch")),
+        (
+            "Effect.Stream",
+            include_str!("../prelude/Effect/Stream.cinch"),
+        ),
+        ("Text.Hex", include_str!("../prelude/Text/Hex.cinch")),
+        (
+            "Data.Bytes.Word",
+            include_str!("../prelude/Data/Bytes/Word.cinch"),
+        ),
+        (
+            "Data.Complex",
+            include_str!("../prelude/Data/Complex.cinch"),
+        ),
     ] {
         std::fs::write(directory.path().join(format!("{name}.cinch")), source).unwrap();
     }
