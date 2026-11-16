@@ -729,9 +729,10 @@ impl Facts {
     /// through ordinary forwarding functions without changing any public mode.
     fn with_frame_safety(mut self, p: &Program, widen: Widen) -> Facts {
         let mut primitives = BTreeMap::new();
+        let mut primitive_globals = BTreeMap::new();
         for f in &p.fns {
             if let Some(op) = f.prim {
-                primitives.insert(f.id.0.clone(), op);
+                primitive_globals.insert(f.id.0.clone(), op);
                 primitives.insert(op.symbol(), op);
             }
             collect_frame_primitives(&f.body, &mut primitives);
@@ -743,14 +744,18 @@ impl Facts {
             && !matches!(p.lent_entries.get(&f.id.0), Some(crate::core::LentEntry::Imported { .. }));
         let units: Vec<&FnDef> = p.fns.iter().filter(analyzable).collect();
         let index: HashMap<&str, usize> = units.iter().enumerate().map(|(i, f)| (f.id.0.as_str(), i)).collect();
-        self.borrowed.retain(|name, _| index.contains_key(name.as_str()) || primitives.contains_key(name));
+        // A Core::Prim symbol proves only that direct primitive's modes.
+        // It cannot authenticate an opaque Global with the same spelling.
+        self.borrowed.retain(|name, _| index.contains_key(name.as_str()) || primitive_globals.contains_key(name));
         self.lent.retain(|name, _| primitives.contains_key(name));
-        for (name, modes) in self.borrowed.iter_mut().chain(self.lent.iter_mut()) {
-            if let Some(op) = primitives.get(name) {
+        for (modes_by_name, authority) in [(&mut self.borrowed, &primitive_globals), (&mut self.lent, &primitives)] {
+          for (name, modes) in modes_by_name {
+            if let Some(op) = authority.get(name) {
                 for (position, mode) in modes.iter_mut().enumerate() {
                     *mode &= !primitive_retains_frame_argument(*op, position);
                 }
             }
+          }
         }
         let mut callers: HashMap<String, Vec<usize>> = HashMap::new();
         for (i, f) in units.iter().enumerate() {
@@ -1862,4 +1867,32 @@ mod frame_capture_tests {
         for name in ["External", "ExternalForward", "Opaque", "OpaqueForward", "Imported", "ImportedForward"] { assert!(!frame_safe(&facts, name, 0)); }
         assert!(p.borrowed["External"][0]);
     }
+    /// An unrelated typed primitive cannot authenticate an imported Global with its canonical spelling.
+    #[test]
+    fn direct_primitive_symbols_do_not_authenticate_opaque_global_names() {
+        let read = PrimOp::Bytes(crate::core::BytesOp::Len);
+        for imported in [false, true] {
+            let name = read.symbol();
+            let mut opaque = unit(&name, vec![Class::Obj], Core::Unit);
+            opaque.meta.prim_body = !imported;
+            let direct = unit("DirectReader", vec![Class::Obj],
+                Core::App(Box::new(Core::Prim(read)), vec![Core::Var(LocalId(0))]));
+            let mut p = program(vec![opaque, direct,
+                unit("GlobalCaller", vec![Class::Obj], forward(&name))]);
+            if imported {
+                p.lent_entries.insert(name.clone(), crate::core::LentEntry::Imported { width: 1 });
+            }
+            for unit in [&name[..], "DirectReader", "GlobalCaller"] {
+                p.borrowed.insert(unit.into(), vec![true]);
+            }
+            p.lent.insert(name.clone(), vec![true]);
+            let facts = Facts::of(&p, Widen::All);
+            assert!(facts.lent[&name][0]);
+            assert!(frame_safe(&facts, "DirectReader", 0));
+            assert!(!frame_safe(&facts, &name, 0));
+            assert!(!frame_safe(&facts, "GlobalCaller", 0));
+            assert!(p.borrowed[&name][0]);
+        }
+    }
+
 }
