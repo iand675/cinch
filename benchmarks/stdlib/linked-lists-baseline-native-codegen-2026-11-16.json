@@ -1,0 +1,174 @@
+{
+  "description": "Record optimized linked-list function bodies and their remaining allocation/ownership call operands.",
+  "reporter_sha256": "e55f5a590f8983b6b4ed8b2b53d77c0b4101600b16ee3d1735e22838690e0edb",
+  "original_llvm_sha256": "05b89fa98d607040270b00f6991fb04145e8306c83a08bed3f4805832990fabe",
+  "optimized_llvm_sha256": "972db671daaf832c8a8f89a58c5ade96b4412d94f6e4a9a23a1fc3f3bbcb22f3",
+  "assembly_sha256": "78a17e68814880c8e081767caf83a20538f8f625a8690a4fc988e52a437d1f01",
+  "optimization": "clang -O2 -S -emit-llvm from the exact consumed IR; function absence may reflect inlining, not absence of the underlying work.",
+  "note": "Static call sites describe code shape, not dynamic allocation counts. Ordinary process allocation probes provide independent space evidence.",
+  "functions": [
+    {
+      "symbol": "cinch.typed.m.Data$2eMutable$2eLinkedList.copy$2dmembers.r0",
+      "decoded_symbol": "cinch.typed.m.Data.Mutable.LinkedList.copy-members.r0",
+      "header": "define noundef i64 @\"cinch.typed.m.Data$2eMutable$2eLinkedList.copy$2dmembers.r0\"(i64 %arg0, i64 %arg1, i64 %arg2, i64 %arg3, i64 %arg4) local_unnamed_addr {",
+      "body_sha256": "b2bb9b233025ee39b2041b9af12567399b5600e998dc7d24737fed5b08ac2ad6",
+      "lines": 143,
+      "call_operands": {
+        "@\"cinch.typed.m.Data$2eMutable$2eLinkedList.list$2dpush$2dback.r0\"": 1,
+        "@\"cinch.typed.m.Data$2eMutable$2eLinkedList.list$2dpush$2dfront.r0\"": 1,
+        "@\"cinch.typed.m.Data$2eMutable$2eLinkedList.node$2dat.r0\"": 1,
+        "@cinch_alloc_ctor": 2,
+        "@cinch_drop": 17,
+        "@cinch_dup": 11,
+        "@cinch_slots_fault": 3
+      },
+      "indirect_calls": 0,
+      "ownership_call_sites": 0,
+      "explicit_constructor_allocation_sites": 2
+    },
+    {
+      "symbol": "cinch.typed.m.Data$2eMutable$2eLinkedList.element$2dat.r0",
+      "decoded_symbol": "cinch.typed.m.Data.Mutable.LinkedList.element-at.r0",
+      "header": "define noundef i64 @\"cinch.typed.m.Data$2eMutable$2eLinkedList.element$2dat.r0\"(i64 %arg0, i64 %arg1) local_unnamed_addr {",
+      "body_sha256": "e7b88f8ca71b6670ca9427d270c4e5b570ba9d43fc1787757736fbfc64ac351f",
+      "lines": 69,
+      "call_operands": {
+        "@\"cinch.typed.m.Data$2eMutable$2eLinkedList.node$2dat.r0\"": 1,
+        "@cinch_alloc_ctor": 1,
+        "@cinch_drop": 4,
+        "@cinch_dup": 6,
+        "@cinch_slots_fault": 4
+      },
+      "indirect_calls": 0,
+      "ownership_call_sites": 0,
+      "explicit_constructor_allocation_sites": 1
+    },
+    {
+      "symbol": "cinch.typed.m.Data$2eMutable$2eLinkedList.allocate$2dnode.r0",
+      "decoded_symbol": "cinch.typed.m.Data.Mutable.LinkedList.allocate-node.r0",
+      "header": "define noundef i64 @\"cinch.typed.m.Data$2eMutable$2eLinkedList.allocate$2dnode.r0\"(i64 %arg0, i64 %arg1) local_unnamed_addr {",
+      "body_sha256": "956820680ace9f4e736eb6aedc3eafa7d44c0ee492bb412ddfb424f45a7ee684",
+      "lines": 146,
+      "call_operands": {
+        "@\"cinch.typed.m.Data$2eMutable$2eLinkedList.allocate$2dat.r0\"": 2,
+        "@\"cinch.typed.m.Data$2eMutable$2eLinkedList.reserve$2dwords.r0\"": 1,
+        "@cinch_alloc_ctor": 5,
+        "@cinch_drop": 9,
+        "@cinch_dup": 11,
+        "@cinch_slots_fault": 5
+      },
+      "indirect_calls": 0,
+      "ownership_call_sites": 0,
+      "explicit_constructor_allocation_sites": 5
+    },
+    {
+      "symbol": "cinch.typed.m.Main.reuse$2dhandles",
+      "decoded_symbol": "cinch.typed.m.Main.reuse-handles",
+      "header": "define range(i64 0, 2) i64 @\"cinch.typed.m.Main.reuse$2dhandles\"(i64 %arg0, i64 %arg1, i64 %arg2, i64 %arg3) local_unnamed_addr {",
+      "body_sha256": "1c7c65122b56c253a02d3187bca6fba19e4b30231023dcfa4e93049d58d15933",
+      "lines": 145,
+      "call_operands": {
+        "@\"Data.Nat.Add_Nat.+\"": 1,
+        "@\"Data.Nat.Eq_Nat.==\"": 2,
+        "@\"cinch.typed.m.Data$2eMutable$2eLinkedList.list$2dpush$2dback.r0\"": 1,
+        "@\"cinch.typed.m.Data$2eMutable$2eLinkedList.list$2dremove.r0\"": 1,
+        "@\"cinch.typed.m.Data$2eMutable$2eVec.vec$2dget.r1\"": 1,
+        "@\"cinch.typed.m.Data$2eMutable$2eVec.vec$2dset.r1\"": 1,
+        "@cinch_drop": 14,
+        "@cinch_dup": 16
+      },
+      "indirect_calls": 0,
+      "ownership_call_sites": 0,
+      "explicit_constructor_allocation_sites": 0
+    },
+    {
+      "symbol": "cinch.typed.m.Data$2eMutable$2eLinkedList.membership$2derror.r0",
+      "decoded_symbol": "cinch.typed.m.Data.Mutable.LinkedList.membership-error.r0",
+      "header": "define i64 @\"cinch.typed.m.Data$2eMutable$2eLinkedList.membership$2derror.r0\"(i64 %arg0, i64 %arg1) local_unnamed_addr {",
+      "body_sha256": "9804a60e3008232a9eb978b554c14d093dac38fc917dfdde7dc5586839d377ec",
+      "lines": 156,
+      "call_operands": {
+        "@\"cinch.typed.m.Data$2eMutable$2eLinkedList.same$2dtoken\"": 2,
+        "@Data.Bool.not": 2,
+        "@cinch_alloc_ctor": 2,
+        "@cinch_drop": 8,
+        "@cinch_dup": 11,
+        "@cinch_slots_fault": 5,
+        "@llvm.assume": 2
+      },
+      "indirect_calls": 0,
+      "ownership_call_sites": 0,
+      "explicit_constructor_allocation_sites": 2
+    },
+    {
+      "symbol": "cinch.typed.m.Data$2eMutable$2eLinkedList.same$2dtoken",
+      "decoded_symbol": "cinch.typed.m.Data.Mutable.LinkedList.same-token",
+      "header": "define i64 @\"cinch.typed.m.Data$2eMutable$2eLinkedList.same$2dtoken\"(i64 %arg0, i64 %arg1) local_unnamed_addr {",
+      "body_sha256": "f7df100e87fac3e84fcd4672fd982fa9fcacc89f32265d504169d71660973866",
+      "lines": 35,
+      "call_operands": {
+        "@\"Data.Nat.Eq_Nat.==\"": 2,
+        "@cinch_bytes_len": 2,
+        "@cinch_drop": 6,
+        "@cinch_dup": 6,
+        "@cinch_nat_from_i64": 2
+      },
+      "indirect_calls": 0,
+      "ownership_call_sites": 0,
+      "explicit_constructor_allocation_sites": 0
+    },
+    {
+      "symbol": "cinch.typed.m.Data$2eMutable$2eLinkedList.collect$2dvalues.r0",
+      "decoded_symbol": "cinch.typed.m.Data.Mutable.LinkedList.collect-values.r0",
+      "header": "define i64 @\"cinch.typed.m.Data$2eMutable$2eLinkedList.collect$2dvalues.r0\"(i64 %arg0, i64 %arg1, i64 %arg2) local_unnamed_addr {",
+      "body_sha256": "10db6b18071f9557d7a68f1a4308a5ce3cf31a382c9dfa9e447e451e0e33d980",
+      "lines": 79,
+      "call_operands": {
+        "@\"cinch.typed.m.Data$2eMutable$2eLinkedList.node$2dat.r0\"": 1,
+        "@\"cinch.typed.m.Data$2eMutable$2eLinkedList.reverse$2dvalues.r0\"": 1,
+        "@cinch_alloc_ctor": 1,
+        "@cinch_drop": 11,
+        "@cinch_dup": 10,
+        "@cinch_slots_fault": 2
+      },
+      "indirect_calls": 0,
+      "ownership_call_sites": 0,
+      "explicit_constructor_allocation_sites": 1
+    },
+    {
+      "symbol": "cinch.typed.m.Main.move$2dhandles",
+      "decoded_symbol": "cinch.typed.m.Main.move-handles",
+      "header": "define range(i64 0, 2) i64 @\"cinch.typed.m.Main.move$2dhandles\"(i64 %arg0, i64 %arg1, i64 %arg2, i64 %arg3) local_unnamed_addr {",
+      "body_sha256": "e693be9e915b4edb433faeb672e9d1d03a8a95666ba7aa191bd83815837041f0",
+      "lines": 101,
+      "call_operands": {
+        "@\"Data.Nat.Add_Nat.+\"": 1,
+        "@\"Data.Nat.Eq_Nat.==\"": 2,
+        "@\"cinch.typed.m.Data$2eMutable$2eLinkedList.list$2dmove$2dfront.r0\"": 1,
+        "@\"cinch.typed.m.Data$2eMutable$2eVec.vec$2dget.r1\"": 1,
+        "@cinch_drop": 12,
+        "@cinch_dup": 12
+      },
+      "indirect_calls": 0,
+      "ownership_call_sites": 0,
+      "explicit_constructor_allocation_sites": 0
+    },
+    {
+      "symbol": "cinch.typed.m.Main.drain",
+      "decoded_symbol": "cinch.typed.m.Main.drain",
+      "header": "define i64 @cinch.typed.m.Main.drain(i64 %arg0, i64 %arg1, i64 %arg2) local_unnamed_addr {",
+      "body_sha256": "6fdbbd770bb9745754a688898a986fd4b3e71c24bac4ec87b1467cd33c68d824",
+      "lines": 88,
+      "call_operands": {
+        "@\"cinch.typed.m.Data$2eMutable$2eLinkedList.list$2dback.r0\"": 1,
+        "@\"cinch.typed.m.Data$2eMutable$2eLinkedList.list$2dfront.r0\"": 1,
+        "@\"cinch.typed.m.Data$2eMutable$2eLinkedList.list$2dremove.r0\"": 1,
+        "@cinch_drop": 6,
+        "@cinch_dup": 4
+      },
+      "indirect_calls": 0,
+      "ownership_call_sites": 0,
+      "explicit_constructor_allocation_sites": 0
+    }
+  ]
+}
