@@ -35,14 +35,14 @@ def unicode_capability(declaration: str, aliases: dict) -> list[str]:
 
 
 def utf8_capability(declaration: str) -> tuple[list[str],str]:
-    """Keep arbitrary invalid strings in byte APIs and isolate the pending valid-String facade epoch."""
+    """Map every raw numeric/byte and sealed-valid text capability with explicit encoding refusal policy."""
     name=declaration.split()[1].split('(')[0]
     constants={'MaxRune':'utf8-max-rune','RuneError':'utf8-rune-error','RuneSelf':'utf8-rune-self','UTFMax':'utf8-max-width'}
     if declaration.startswith('const '):return [constants[name]],'implemented'
-    methods={'AppendRune':'utf8-append-rune','DecodeLastRune':'utf8-last','DecodeRune':'utf8-first / utf8-decode-at','EncodeRune':'utf8-encode-into / utf8-encode-rune','FullRune':'utf8-full-rune','RuneCount':'utf8-count','RuneLen':'utf8-rune-length','RuneStart':'utf8-rune-start','Valid':'utf8-valid','ValidRune':'utf8-valid-rune'}
+    methods={'AppendRune':'Text.Utf8.utf8-append-rune (fresh Bytes; I32 numeric input; invalid values encode U+FFFD)','DecodeLastRune':'utf8-last','DecodeRune':'utf8-first / utf8-decode-at','EncodeRune':'Text.Utf8.utf8-encode-into / Text.Utf8.utf8-encode-rune (I32 numeric input; invalid values encode U+FFFD; capacity refusal is atomic None)','FullRune':'utf8-full-rune','RuneCount':'utf8-count','RuneLen':'utf8-rune-length','RuneStart':'utf8-rune-start','Valid':'utf8-valid','ValidRune':'utf8-valid-rune'}
     if name in methods:return [methods[name]],'implemented'
-    strings={'DecodeLastRuneInString':'Data.String.string-utf8-last / planned Text.Utf8.utf8-last-text','DecodeRuneInString':'Data.String.string-utf8-first / planned Text.Utf8.utf8-first-text','FullRuneInString':'planned Text.Utf8.utf8-full-rune-text; valid String nonempty test','RuneCountInString':'Data.String.string-length / planned Text.Utf8.utf8-count-text','ValidString':'String valid-UTF8 invariant / planned Text.Utf8.utf8-valid-text'}
-    return [strings[name]],'pending-string-provider-epoch'
+    strings={'DecodeLastRuneInString':'Text.Utf8.utf8-last-text / Data.String.string-utf8-last','DecodeRuneInString':'Text.Utf8.utf8-first-text / Data.String.string-utf8-first','FullRuneInString':'Text.Utf8.utf8-full-rune-text (valid immutable String nonempty test)','RuneCountInString':'Text.Utf8.utf8-count-text / Data.String.string-length','ValidString':'Text.Utf8.utf8-valid-text (String valid-UTF8 invariant); arbitrary byte validation remains utf8-valid'}
+    return [strings[name]],'implemented'
 
 
 def main() -> None:
@@ -55,8 +55,13 @@ def main() -> None:
         for declaration in public[package]:
             capabilities,status=(unicode_capability(declaration,data['exported_aliases']),'implemented') if package=='unicode' else utf8_capability(declaration)
             rows.append({'declaration':declaration,'capabilities':capabilities,'status':status})
-        packages.append({'package':package,'declaration_count':len(rows),'rows':rows})
-    output={'pinned_sdk':'go1.27.4','unicode_version':'17.0.0','packages':packages,'policies':['Current Unicode edition is versioned; cumulative historical Version constant records do not create obsolete table sets.','Char is scalar-only; numeric range membership includes surrogate code points.','Built-in tables and catalogs are immutable; custom metadata is checked before private owned storage is allocated.','Simple mappings preserve one scalar; no normalization, expansion or full case folding is supplied by this package.','Raw byte APIs retain malformed/non-UTF8 input; valid String adapters use the private backing under a separately registered provider epoch.','Invalid decoding consumes one byte as U+FFFD; invalid numeric encoding emits U+FFFD; rune-length reports None for invalid numbers.','Append and repair outputs are unconditionally fresh; encode-into capacity refusal writes nothing.']}
+        entry={'package':package,'declaration_count':len(rows),'rows':rows}
+        if package=='unicode/utf8':
+            assert len(rows)==23, 'Pinned UTF8 compatibility declaration set changed'
+            entry['validation_status']='direct-gates-green; full-compiler-distribution-chain-pending'
+            entry['string_dependency']={'module':'Data.String','sha256':'e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6','source_hash':'416560347689830784','admitted_interface_hash':'14621555996612796731'}
+        packages.append(entry)
+    output={'pinned_sdk':'go1.27.4','unicode_version':'17.0.0','packages':packages,'policies':['Current Unicode edition is versioned; cumulative historical Version constant records do not create obsolete table sets.','Char is scalar-only; numeric range membership includes surrogate code points.','Built-in tables and catalogs are immutable; custom metadata is checked before private owned storage is allocated.','Simple mappings preserve one scalar; no normalization, expansion or full case folding is supplied by this package.','Raw byte APIs retain malformed/non-UTF8 input; text adapters use public immutable String scalar/count observations without copying or exposing backing. The combined String direct gates are green; the full compiler/distribution chain remains pending.','Invalid decoding consumes one byte as U+FFFD; invalid numeric encoding emits U+FFFD; rune-length reports None for invalid numbers.','Append and repair outputs are unconditionally fresh; encode-into capacity refusal writes nothing.']}
     args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text(json.dumps(output,indent=2)+'\n')
     print([(row['package'],row['declaration_count']) for row in packages])
 
