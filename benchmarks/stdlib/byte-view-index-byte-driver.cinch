@@ -1,0 +1,98 @@
+-- | Same-artifact public exact-byte and fresh one-byte-pattern query pipelines.
+module Main where
+  import Data.Bytes
+  import Data.Bytes.View
+  import Data.Bool
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Effect.Clock
+  import Effect.Process
+  import Text.Hex
+
+  -- | Parse validated decimal arguments outside the clocked region.
+  decimal :: String -> Nat
+  decimal text = decimal-from (unpack text) 0
+  -- | Accumulate decimal digits in ordinary tail position.
+  decimal-from :: List Char -> Nat -> Nat
+  decimal-from chars value = case chars of
+    Nil -> value
+    Cons first rest -> case digit-value first of None -> 0; Some digit -> let next = value * 10 + digit in decimal-from rest next
+
+  -- | Fill mixed delimiter, sparse-terminal and absent-byte inputs before timing.
+  fill :: Bytes -> Bool -> Bool -> Nat -> Unit
+  fill raw dense missing at = if at < bytes-len raw then
+    let value = ((if dense then (if nat-rem at 64 == 31 then 44 else if nat-rem at 64 == 63 then 59 else 97)
+      else if not missing && at + 1 == bytes-len raw then 44 else 97) :: InRange 0 255 Nat) in
+    let written = bytes-set raw at value in let following = at + 1 in fill raw dense missing following
+    else ()
+
+  -- | Include every actual offset, fragment boundary and current key in a compact observable checksum.
+  prim mix :: U64 -> I64 -> U64 where
+    llvm {
+      %first = mul i64 %0, 65599
+      %value = xor i64 %first, %1
+      ret i64 %value
+    }
+
+  -- | Convert only an actual bounded match, preserving an explicit negative absence sentinel.
+  offset :: Option Nat -> I64
+  offset result = case result of
+    None -> -1
+    Some at -> if at <= 9223372036854775807 then nat-to-i64 at else -2
+
+  -- | Compare one exact-byte query with a fresh current one-byte snapshot and compiled pattern.
+  lookup :: Bool -> ByteView -> ByteView -> Option Nat
+  lookup pattern view separator = if byte-view-is-empty view then None else if pattern then
+    let snapshot = byte-view-snapshot separator in let compiled = bytes-compile-pattern snapshot in byte-view-index-pattern view compiled
+    else case byte-view-get separator 0 of None -> None; Some key -> byte-view-index-byte view key
+
+  -- | Traverse every nonoverlapping delimiter match through public bounded views.
+  pipeline :: Bool -> ByteView -> ByteView -> Nat -> U64 -> U64
+  pipeline pattern view separator position total = let remaining = byte-view-drop position view in
+    case lookup pattern remaining separator of
+      None -> let size = byte-view-length remaining in
+        if size <= 9223372036854775807 then let width = nat-to-i64 size in mix total width else 0
+      Some at -> if at <= 9223372036854775807 then
+        let value = nat-to-i64 at in let next-total = mix total value in
+        let following = position + at + 1 in pipeline pattern view separator following next-total
+        else 0
+
+  -- | Perform changed-input public operations with all per-query allocations and cleanup inside timing.
+  work :: Bool -> Bool -> Bytes -> ByteView -> Bytes -> ByteView -> Nat -> Nat -> U64 -> U64
+  work pattern many raw view delimiter separator left index total = if left == 0 then total else
+    let key = ((if nat-rem index 2 == 0 then 44 else 59) :: InRange 0 255 Nat) in
+    let changed = if 0 < bytes-len delimiter then bytes-set delimiter 0 key else () in
+    let byte = ((if nat-rem index 2 == 0 then 121 else 122) :: InRange 0 255 Nat) in
+    let input-change = if 0 < bytes-len raw then bytes-set raw 0 byte else () in
+    let value = (if many then pipeline pattern view separator 0 0 else let found = offset (lookup pattern view separator) in mix 0 found) in
+    let key-word = nat-to-i64 key in let observed = mix value key-word in let next-total = wrapping-add-u64 total observed in
+    let remaining = left - 1 in let following = index + 1 in
+    work pattern many raw view delimiter separator remaining following next-total
+
+  -- | Convert all checksum bits to a decimal natural outside the clocked region.
+  word-nat :: U64 -> Nat
+  word-nat word = let low = wrapping-u64-to-u32 word in let upper = wrapping-shr-u64 word 32 in
+    let high = wrapping-u64-to-u32 upper in u32-to-nat low + 4294967296 * u32-to-nat high
+
+  -- | Time one same-binary mode with independent retained input and delimiter observations.
+  measure :: forall r. using (io :: Io r) => Bool -> Bool -> String -> Nat -> Nat ->{IO r} Int
+  measure pattern many name size iterations = let raw = bytes-new size in
+    let filled = fill raw (name == "dense") (name == "missing") 0 in
+    let delimiter = bytes-from-u8s [44] in let view = bytes-view raw in let separator = bytes-view delimiter in
+    let original = hex-encode (sha256-bytes raw) in let start = clock-monotonic-ns () in
+    let checksum = work pattern many raw view delimiter separator iterations 0 0 in let end = clock-monotonic-ns () in
+    let retained = hex-encode (sha256-bytes raw) in let key = hex-encode delimiter in
+    let elapsed = saturating-sub end start in let complete = word-nat checksum in
+    let output = string-concat-all [nat-to-string elapsed," ",nat-to-string complete," ",original," ",retained," ",key,"\n"] in
+    let printed = ioWrite (string-to-bytes output) in 0
+
+  -- | Select validated runtime modes before allocating inputs or reading the clock.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Ok (Cons method (Cons operation (Cons name (Cons size (Cons iterations Nil))))) -> measure (method == "pattern") (operation == "pipeline") name (decimal size) (decimal iterations)
+    other -> 2

@@ -18,6 +18,7 @@ module Data.Bytes.View where
   export byte-view-get, byte-view-set, byte-view-snapshot, byte-view-clone, byte-view-copy-into
   export byte-view-take, byte-view-drop
   export byte-view-utf8-at
+  export byte-view-index-byte
   export BytePattern, bytes-compile-pattern, byte-pattern-length, byte-pattern-bytes
   export byte-view-index-pattern, byte-view-last-index-pattern, byte-view-contains-pattern
   export byte-view-has-prefix-pattern, byte-view-has-suffix-pattern
@@ -578,6 +579,16 @@ module Data.Bytes.View where
   relative-match absolute start = if absolute >= start then
     let offset = offset-sub absolute start in if 0 <= offset then Some (nat-from-i64 offset) else None
     else None
+
+  -- | Find the first exact byte relative to the checked view, or None when it is absent.
+  -- Every byte value is compared directly, including malformed UTF8 bytes; current aliases remain observable.
+  byte-view-index-byte :: ByteView -> U8 -> Option Nat
+  byte-view-index-byte view value = case view of
+    View raw start end -> if start == end then None else
+      let begin = nat-to-i64 start in let finish = nat-to-i64 end in
+      let repeated = repeated-byte value in let base = bytes-data raw in
+      let found = hold-input raw (index-forward base begin finish repeated) in
+      relative-match found begin
 
   -- | Find the first compiled needle match relative to the view; an empty needle matches zero.
   byte-view-index-pattern :: ByteView -> BytePattern -> Option Nat
