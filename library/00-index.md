@@ -79,10 +79,12 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.Ascii](Data.Ascii.md) | Embedded | ASCII-refined values and checked construction at text boundaries. |
 | [Data.BigDecimal](Data.BigDecimal.md) | Ship source | Decimal arithmetic with explicit precision/scale and rounding/error behaviour in the exported API. |
 | [Data.Bool](Data.Bool.md) | Embedded | Boolean operations and their comparison instances. |
+| [Data.Bytes.Utf8](Data.Bytes.Utf8.md) | Ship source | Raw UTF-8 validation, forward and reverse decoding, scalar counting, fresh repair and atomic encoding. |
 | [Data.Bytes.Word](Data.Bytes.Word.md) | Ship source | Bounds-proved unaligned little-endian machine-word reads and writes for SIMD and SWAR processing. |
 | [Data.Bytes](Data.Bytes.md) | Embedded | Mutable byte buffers with length, construction, copy, and bounds/range-aware access operations. |
 | [Data.Char](Data.Char.md) | Embedded | Unicode scalar values and checked character/code conversions, with range information for safe use. |
 | [Data.Columnar](Data.Columnar.md) | Ship source | Columnar leaves over typed arrays, zipped into nested pairs that share their buffers. A length mismatch is None. |
+| [Data.Compare](Data.Compare.md) | Ship source | Explicit scalar comparison policies, NaN-aware floating orders, and first non-default selection. |
 | [Data.Complex](Data.Complex.md) | Ship source | Complex values and numeric operations using the module's current floating representation. |
 | [Data.Compose](Data.Compose.md) | Embedded | Composition of higher-kinded containers with the admitted generic instances. |
 | [Data.Const](Data.Const.md) | Embedded | A constant container that retains its first parameter while ignoring the mapped value parameter. |
@@ -132,6 +134,11 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.Target](Data.Target.md) | Embedded | Target/platform and worker vocabulary used by the compiler-supported runtime and target examples. |
 | [Data.Tensor](Data.Tensor.md) | Ship source | Immutable row-major tensors with checked runtime shapes of any rank. |
 | [Data.Time](Data.Time.md) | Ship source | Time values, durations, and conversions with explicit units and admitted ranges. |
+| [Data.Unicode.Kernel](Data.Unicode.Kernel.md) | Ship source | Unicode scalar and numeric classification, simple case mappings, fold cycles and checked locale overrides. |
+| [Data.Unicode.Names](Data.Unicode.Names.md) | Ship source | Named Unicode category, script and property tables with deterministic catalog observations. |
+| [Data.Unicode.Range](Data.Unicode.Range.md) | Ship source | Immutable Unicode range tables with checked construction, exact membership and copied observations. |
+| [Data.Unicode.Tables](Data.Unicode.Tables.md) | Ship source | Generated Unicode property, case and folding data with a pinned version and source provenance. |
+| [Data.Unicode](Data.Unicode.md) | Ship source | Versioned Unicode classification, simple case mappings, fold cycles, named tables and checked custom ranges. |
 | [Data.Wide](Data.Wide.md) | Embedded | Unboxed 128-bit integers with checked, wrapping and saturating arithmetic, bit operations, numeric conversions and explicit overflow policies. |
 | [Data.Word](Data.Word.md) | Ship source | Bit lengths, byte reversal, signed rotations and checked carry/borrow, wide multiply, divide and remainder operations over fixed and native-width words. |
 
@@ -227,7 +234,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **160 source modules**: **65 embedded** and **95 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **167 source modules**: **65 embedded** and **102 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

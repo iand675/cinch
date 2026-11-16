@@ -1,0 +1,62 @@
+{
+  "description": "Parent Rust integration of source-distributed Unicode, raw UTF8 and explicit comparison capabilities",
+  "full_stdlib_goal_complete": false,
+  "source_revision": "e58df30df1185f94441e482b08f99862d37f074c",
+  "compiler_sha256": "32d4471c19e98c8f5beef8d8a79a7d761ce12c53a42fa1f16169388e275ab6f6",
+  "compiler_source_revision": "269153a7",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "command": "taskset -c 3 cargo test --test lib_unicode_kernel --test lib_unicode_catalog --test lib_utf8 --test lib_compare",
+  "environment": {
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "RUST_TEST_THREADS": "1",
+    "RUST_MIN_STACK": "67108864",
+    "compiler_main_stack_bytes": 67108864
+  },
+  "targets": {
+    "lib_compare": {
+      "passed": 3,
+      "seconds": 26.39,
+      "test_binary_sha256": "f1797bc767dd0562ad9e0738f7f6f389d5640e4b7f3be0ce00a49a8a6c38095b"
+    },
+    "lib_unicode_catalog": {
+      "passed": 5,
+      "seconds": 11.79,
+      "test_binary_sha256": "532c12e08809429a28855d58a8bfc6c1689b9a0b345af6b327731b9b08bc72c8"
+    },
+    "lib_unicode_kernel": {
+      "passed": 5,
+      "seconds": 10.46,
+      "test_binary_sha256": "7f3b5f8267f64007a6c6af7c0e7ae8e3aacc98f9392c38b40d8d0392bd1f7ed1"
+    },
+    "lib_utf8": {
+      "passed": 6,
+      "seconds": 14.92,
+      "test_binary_sha256": "7a3289f8e22822618dd1c8971ebdd28d055c3d1e2099fdacdd12d8fde72e5737"
+    }
+  },
+  "total_passed": 19,
+  "log_sha256": "4b386bf64ca3c8929a580e845679c9acc5d6fdf778a79962c0a43ced928dcb84",
+  "limitations": [
+    "Unicode benchmark review remains open",
+    "Five String UTF8 wrappers await separately validated provider registration",
+    "Native evidence is in the individual source checkpoints, separate from this Rust Cargo gate"
+  ],
+  "documentation": {
+    "modules": 167,
+    "diagnostics": 0,
+    "orphans": 0,
+    "source_drift_check": "passed",
+    "host_noise": "Prim.Sys host-dependent rendered values retained from previous reviewed manifest; source unchanged"
+  },
+  "tooling_tests": {
+    "unicode_generators_and_catalogs": 10,
+    "surface_inventory": 3
+  },
+  "inventory": {
+    "packages": 180,
+    "complete": 16,
+    "partial": 53,
+    "unreviewed": 111
+  }
+}
