@@ -1,0 +1,240 @@
+{
+  "description": "Read-only disassembly evidence: old source copies on recursive return; O2 reduced frame size but did not remove recursion.",
+  "target": "x86_64-unknown-linux-gnu",
+  "old_o0_repeat_local_reservation_bytes": 528,
+  "old_o0_repeat_estimated_per_level_bytes_including_saved_base_and_return": 544,
+  "old_o2_repeat_estimated_per_level_bytes_including_saved_registers_and_return": 80,
+  "old_o2_concat_estimated_per_nonempty_level_bytes_including_saved_registers_and_return": 112,
+  "depth_example": 65536,
+  "old_o0_repeat_approx_stack_bytes": 35651584,
+  "old_o2_repeat_approx_stack_bytes": 5242880,
+  "old_o2_concat_approx_stack_bytes": 7340032,
+  "normal_stack_limit_bytes": 8388608,
+  "new_loop_no_recursive_calls": true,
+  "concat_remaining_costs": [
+    "Tail size pass plus tail copy pass revisits list/string metadata.",
+    "Current checked copy path performs explicit capacity checks and carries tagged natural positions.",
+    "Source and optimized assembly retain natural-number and ownership slow-path branches."
+  ],
+  "artifacts": {
+    "old_o0_csv": {
+      "executable_sha256": "fe0c41a539f33888c81cf2321ba49665ff2310e9e601d3cd9a2ba1179e712abf",
+      "functions": {
+        "Data.String.repeat-from": {
+          "prologue_through_stack_reservation": [
+            "27fd0:\t55                   \tpush   %rbp",
+            "27fd1:\t48 89 e5             \tmov    %rsp,%rbp",
+            "27fd4:\t48 81 ec 10 02 00 00 \tsub    $0x210,%rsp"
+          ],
+          "recursive_and_copy_calls": [
+            "28417:\te8 b4 fb ff ff       \tcall   27fd0 <Data.String.repeat-from>",
+            "2856e:\te8 7d 44 08 00       \tcall   ac9f0 <cinch_bytes_copy>",
+            "286f7:\te8 f4 42 08 00       \tcall   ac9f0 <cinch_bytes_copy>"
+          ]
+        }
+      }
+    },
+    "old_o2_paired": {
+      "executable_sha256": "7da318b73bd31e884e23dacfe7dbf728c6923e485f4f8f94b2a70e2ea73a45a7",
+      "functions": {
+        "Data.String.repeat-from": {
+          "prologue_through_stack_reservation": [
+            "2aff0:\t55                   \tpush   %rbp",
+            "2aff1:\t48 89 e5             \tmov    %rsp,%rbp",
+            "2aff4:\t41 57                \tpush   %r15",
+            "2aff6:\t41 56                \tpush   %r14",
+            "2aff8:\t41 55                \tpush   %r13",
+            "2affa:\t41 54                \tpush   %r12",
+            "2affc:\t53                   \tpush   %rbx",
+            "2affd:\t48 83 ec 18          \tsub    $0x18,%rsp"
+          ],
+          "recursive_and_copy_calls": [
+            "2b62e:\te8 bd f9 ff ff       \tcall   2aff0 <Data.String.repeat-from>",
+            "2b6aa:\te8 11 50 04 00       \tcall   706c0 <cinch_bytes_copy>",
+            "2b7e6:\te8 d5 4e 04 00       \tcall   706c0 <cinch_bytes_copy>"
+          ]
+        },
+        "Data.String.concat-from": {
+          "prologue_through_stack_reservation": [
+            "2a4f0:\t48 8b 46 f8          \tmov    -0x8(%rsi),%rax",
+            "2a503:\t48 8b 46 f0          \tmov    -0x10(%rsi),%rax",
+            "2a507:\t48 8b 00             \tmov    (%rax),%rax",
+            "2a513:\t55                   \tpush   %rbp",
+            "2a514:\t48 89 e5             \tmov    %rsp,%rbp",
+            "2a517:\t41 57                \tpush   %r15",
+            "2a519:\t41 56                \tpush   %r14",
+            "2a51b:\t41 55                \tpush   %r13",
+            "2a51d:\t41 54                \tpush   %r12",
+            "2a51f:\t53                   \tpush   %rbx",
+            "2a520:\t48 83 ec 38          \tsub    $0x38,%rsp"
+          ],
+          "recursive_and_copy_calls": [
+            "2a726:\te8 95 5f 04 00       \tcall   706c0 <cinch_bytes_copy>",
+            "2a8df:\te8 0c fc ff ff       \tcall   2a4f0 <Data.String.concat-from>",
+            "2aa13:\te8 a8 5c 04 00       \tcall   706c0 <cinch_bytes_copy>",
+            "2aaa5:\te8 16 5c 04 00       \tcall   706c0 <cinch_bytes_copy>"
+          ]
+        }
+      }
+    },
+    "new_o2_paired": {
+      "executable_sha256": "aa1c77b8e1217c4705798c698f6a671db43b681255afa2034eae28c4f294d5bb",
+      "functions": {
+        "Data.String.repeat-double": {
+          "prologue_through_stack_reservation": [
+            "2f160:\t55                   \tpush   %rbp",
+            "2f161:\t48 89 e5             \tmov    %rsp,%rbp",
+            "2f164:\t41 57                \tpush   %r15",
+            "2f166:\t41 56                \tpush   %r14",
+            "2f168:\t41 55                \tpush   %r13",
+            "2f16a:\t41 54                \tpush   %r12",
+            "2f16c:\t53                   \tpush   %rbx",
+            "2f16d:\t48 83 ec 38          \tsub    $0x38,%rsp"
+          ],
+          "recursive_and_copy_calls": [
+            "2fd8e:\te8 4d 6e 04 00       \tcall   76be0 <cinch_bytes_copy>"
+          ]
+        },
+        "Data.String.concat-size": {
+          "prologue_through_stack_reservation": [
+            "2ca70:\t55                   \tpush   %rbp",
+            "2ca71:\t48 89 e5             \tmov    %rsp,%rbp",
+            "2ca74:\t41 57                \tpush   %r15",
+            "2ca76:\t41 56                \tpush   %r14",
+            "2ca78:\t41 55                \tpush   %r13",
+            "2ca7a:\t41 54                \tpush   %r12",
+            "2ca7c:\t53                   \tpush   %rbx",
+            "2ca7d:\t50                   \tpush   %rax",
+            "2ca7e:\t48 89 f3             \tmov    %rsi,%rbx",
+            "2ca81:\t49 89 ff             \tmov    %rdi,%r15",
+            "2ca8e:\t49 8b 47 f8          \tmov    -0x8(%r15),%rax",
+            "2caa1:\t49 8b 47 f0          \tmov    -0x10(%r15),%rax",
+            "2caa5:\t48 8b 00             \tmov    (%rax),%rax",
+            "2cab2:\t49 8b 07             \tmov    (%r15),%rax",
+            "2cab5:\t4d 8b 6f 08          \tmov    0x8(%r15),%r13",
+            "2cab9:\t48 8b 48 f8          \tmov    -0x8(%rax),%rcx",
+            "2cacd:\t48 8b 48 f0          \tmov    -0x10(%rax),%rcx",
+            "2cad1:\t48 8b 09             \tmov    (%rcx),%rcx",
+            "2cadd:\t4c 8b 30             \tmov    (%rax),%r14",
+            "2cae5:\t49 8b 4e f8          \tmov    -0x8(%r14),%rcx",
+            "2cae9:\t48 89 c8             \tmov    %rcx,%rax",
+            "2cb04:\t49 89 4e f8          \tmov    %rcx,-0x8(%r14)",
+            "2cb38:\t4c 89 f7             \tmov    %r14,%rdi",
+            "2cb40:\t49 8b 46 f8          \tmov    -0x8(%r14),%rax",
+            "2cb60:\t49 8b 06             \tmov    (%r14),%rax",
+            "2cb70:\t4c 89 f7             \tmov    %r14,%rdi",
+            "2cb78:\t49 8b 56 f8          \tmov    -0x8(%r14),%rdx",
+            "2cb7c:\t48 89 d1             \tmov    %rdx,%rcx",
+            "2cb92:\t49 89 56 f8          \tmov    %rdx,-0x8(%r14)",
+            "2cbb4:\t49 89 c7             \tmov    %rax,%r15",
+            "2cbc0:\t4c 89 f7             \tmov    %r14,%rdi",
+            "2cbca:\t49 89 c7             \tmov    %rax,%r15",
+            "2cbeb:\t4c 89 f7             \tmov    %r14,%rdi",
+            "2cbf5:\t4c 89 f7             \tmov    %r14,%rdi",
+            "2cbfd:\t4c 89 f8             \tmov    %r15,%rax",
+            "2cc05:\t48 89 da             \tmov    %rbx,%rdx",
+            "2cc38:\t48 89 df             \tmov    %rbx,%rdi",
+            "2cc40:\t49 89 c7             \tmov    %rax,%r15",
+            "2cc49:\t89 d9                \tmov    %ebx,%ecx",
+            "2cc52:\t48 8b 4b f8          \tmov    -0x8(%rbx),%rcx",
+            "2cc56:\t48 89 c8             \tmov    %rcx,%rax",
+            "2cc6c:\t48 89 4b f8          \tmov    %rcx,-0x8(%rbx)",
+            "2cc8e:\t48 89 df             \tmov    %rbx,%rdi",
+            "2ccb6:\t48 89 df             \tmov    %rbx,%rdi",
+            "2ccc0:\t48 89 df             \tmov    %rbx,%rdi",
+            "2ccd0:\t49 8b 45 f8          \tmov    -0x8(%r13),%rax",
+            "2cce3:\t49 8b 45 f0          \tmov    -0x10(%r13),%rax",
+            "2cce7:\t48 8b 00             \tmov    (%rax),%rax",
+            "2ccf4:\t49 8b 45 00          \tmov    0x0(%r13),%rax",
+            "2ccf8:\t4d 8b 6d 08          \tmov    0x8(%r13),%r13",
+            "2ccfc:\t48 8b 48 f8          \tmov    -0x8(%rax),%rcx",
+            "2cd10:\t48 8b 48 f0          \tmov    -0x10(%rax),%rcx",
+            "2cd14:\t48 8b 09             \tmov    (%rcx),%rcx",
+            "2cd20:\t48 8b 18             \tmov    (%rax),%rbx",
+            "2cd28:\t48 8b 4b f8          \tmov    -0x8(%rbx),%rcx",
+            "2cd2c:\t48 89 c8             \tmov    %rcx,%rax",
+            "2cd47:\t48 89 4b f8          \tmov    %rcx,-0x8(%rbx)",
+            "2cd78:\t48 89 df             \tmov    %rbx,%rdi",
+            "2cd80:\t48 8b 43 f8          \tmov    -0x8(%rbx),%rax",
+            "2cda0:\t48 8b 03             \tmov    (%rbx),%rax",
+            "2cdb0:\t48 89 df             \tmov    %rbx,%rdi",
+            "2cdb8:\t48 8b 53 f8          \tmov    -0x8(%rbx),%rdx",
+            "2cdbc:\t48 89 d1             \tmov    %rdx,%rcx",
+            "2cdd2:\t48 89 53 f8          \tmov    %rdx,-0x8(%rbx)",
+            "2cdf4:\t49 89 c6             \tmov    %rax,%r14",
+            "2ce00:\t48 89 df             \tmov    %rbx,%rdi",
+            "2ce0a:\t49 89 c6             \tmov    %rax,%r14",
+            "2ce2b:\t48 89 df             \tmov    %rbx,%rdi",
+            "2ce35:\t48 89 df             \tmov    %rbx,%rdi",
+            "2ce3d:\t4c 89 f0             \tmov    %r14,%rax",
+            "2ce46:\t4c 89 fa             \tmov    %r15,%rdx",
+            "2ce78:\t4c 89 ff             \tmov    %r15,%rdi",
+            "2ce80:\t49 89 c6             \tmov    %rax,%r14",
+            "2ce89:\t44 89 f9             \tmov    %r15d,%ecx",
+            "2ce93:\t49 8b 4f f8          \tmov    -0x8(%r15),%rcx",
+            "2ce97:\t48 89 c8             \tmov    %rcx,%rax",
+            "2cead:\t49 89 4f f8          \tmov    %rcx,-0x8(%r15)",
+            "2cecf:\t4c 89 ff             \tmov    %r15,%rdi",
+            "2cef7:\t4c 89 ff             \tmov    %r15,%rdi",
+            "2cf01:\t4c 89 ff             \tmov    %r15,%rdi",
+            "2cf10:\t49 8b 45 f8          \tmov    -0x8(%r13),%rax",
+            "2cf23:\t49 8b 45 f0          \tmov    -0x10(%r13),%rax",
+            "2cf27:\t48 8b 00             \tmov    (%rax),%rax",
+            "2cf34:\t49 8b 45 00          \tmov    0x0(%r13),%rax",
+            "2cf38:\t4d 8b 7d 08          \tmov    0x8(%r13),%r15",
+            "2cf3c:\t48 8b 48 f8          \tmov    -0x8(%rax),%rcx",
+            "2cf50:\t48 8b 48 f0          \tmov    -0x10(%rax),%rcx",
+            "2cf54:\t48 8b 09             \tmov    (%rcx),%rcx",
+            "2cf6d:\t4c 89 f2             \tmov    %r14,%rdx",
+            "2cf98:\t4c 89 f7             \tmov    %r14,%rdi",
+            "2cfa0:\t48 89 c3             \tmov    %rax,%rbx",
+            "2cfa9:\t44 89 f1             \tmov    %r14d,%ecx",
+            "2cfb7:\t49 8b 4e f8          \tmov    -0x8(%r14),%rcx",
+            "2cfbb:\t48 89 c8             \tmov    %rcx,%rax",
+            "2cfd1:\t49 89 4e f8          \tmov    %rcx,-0x8(%r14)",
+            "2cfe0:\t48 8b 18             \tmov    (%rax),%rbx",
+            "2cfec:\t48 8b 4b f8          \tmov    -0x8(%rbx),%rcx",
+            "2cff0:\t48 89 c8             \tmov    %rcx,%rax",
+            "2d00b:\t48 89 4b f8          \tmov    %rcx,-0x8(%rbx)",
+            "2d039:\t4c 89 f7             \tmov    %r14,%rdi",
+            "2d05e:\t48 89 df             \tmov    %rbx,%rdi",
+            "2d066:\t48 8b 43 f8          \tmov    -0x8(%rbx),%rax",
+            "2d086:\t48 8b 03             \tmov    (%rbx),%rax",
+            "2d08b:\t48 89 df             \tmov    %rbx,%rdi",
+            "2d093:\t48 8b 53 f8          \tmov    -0x8(%rbx),%rdx",
+            "2d097:\t48 89 d1             \tmov    %rdx,%rcx",
+            "2d0ad:\t48 89 53 f8          \tmov    %rdx,-0x8(%rbx)",
+            "2d0ce:\t49 89 c5             \tmov    %rax,%r13",
+            "2d0da:\t48 89 df             \tmov    %rbx,%rdi",
+            "2d102:\t4c 89 f7             \tmov    %r14,%rdi",
+            "2d10f:\t49 89 c5             \tmov    %rax,%r13",
+            "2d130:\t48 89 df             \tmov    %rbx,%rdi",
+            "2d13a:\t4c 89 f7             \tmov    %r14,%rdi",
+            "2d147:\t48 89 df             \tmov    %rbx,%rdi",
+            "2d14f:\t4c 89 e8             \tmov    %r13,%rax",
+            "2d163:\t4c 89 fb             \tmov    %r15,%rbx",
+            "2d16d:\t4c 89 f3             \tmov    %r14,%rbx",
+            "2d174:\t48 89 d8             \tmov    %rbx,%rax"
+          ],
+          "recursive_and_copy_calls": []
+        },
+        "Data.String.concat-copy": {
+          "prologue_through_stack_reservation": [
+            "2d190:\t55                   \tpush   %rbp",
+            "2d191:\t48 89 e5             \tmov    %rsp,%rbp",
+            "2d194:\t41 57                \tpush   %r15",
+            "2d196:\t41 56                \tpush   %r14",
+            "2d198:\t41 55                \tpush   %r13",
+            "2d19a:\t41 54                \tpush   %r12",
+            "2d19c:\t53                   \tpush   %rbx",
+            "2d19d:\t48 83 ec 38          \tsub    $0x38,%rsp"
+          ],
+          "recursive_and_copy_calls": [
+            "2d576:\te8 65 96 04 00       \tcall   76be0 <cinch_bytes_copy>",
+            "2db7a:\te8 61 90 04 00       \tcall   76be0 <cinch_bytes_copy>"
+          ]
+        }
+      }
+    }
+  }
+}
