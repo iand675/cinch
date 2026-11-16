@@ -153,3 +153,33 @@ representative committed groups through the current `CARGO_BIN_EXE_cinch`, an
 ordinary compiler runtime-initialization build, the captured exact host archive,
 and actual selected kernel/scalar C objects. It refuses external Native
 selectors rather than silently falling back. Parent owns Cargo execution.
+
+
+A separate old Native 2f077/V2/80bd baseline also passed both 168-run SIMD and
+scalar preflights. Its own exclusive-CPU0 window retained all 210 raw samples
+and 42 warmups, with quota counters and identical output/input/context
+checksums. This is the admitted old-family baseline, not the newer Native family.
+The 4 KiB medians are:
+
+| Public pipeline | SIMD µs | Scalar µs | Reference µs | SIMD/scalar |
+| --- | ---: | ---: | ---: | ---: |
+| parse | 371.37 | 768.66 | 40.68 | 0.483 |
+| format | 2212.43 | 2130.99 | 64.96 | 1.038 |
+| b-encode | 1407.99 | 1335.47 | 48.22 | 1.054 |
+| q-encode | 3048.02 | 2896.86 | 85.31 | 1.052 |
+| header | 1091.25 | 1031.40 | 26.81 | 1.058 |
+| header-q | 1882.24 | 1802.81 | 49.26 | 1.044 |
+| registry | 102.28 | 512.56 | 17.14 | 0.200 |
+
+Long parse and registry scans improve versus scalar, while codec rows regress
+about 4–6% at 4 KiB in this window and remain much slower than the reference.
+All short-input regressions, raw measurements and original control evidence
+remain visible. No speed parity or newer-family adoption is claimed.
+
+To recover disk headroom after qualification, 152 completed cold functional
+ELF/LLVM clients were losslessly archived with original and compressed SHA-256
+verification, freeing 717,771,989 bytes. Source, frozen compiler, provider,
+runtime and all benchmark inputs remain untouched. The coverage verifier reads
+exact decompressed artifacts transparently; each archive receipt records its
+restore command. This does not replace an executed observation or change its
+source epoch.
