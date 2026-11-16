@@ -1,0 +1,29 @@
+{
+  "command": [
+    "taskset",
+    "-c",
+    "0",
+    "/tmp/cinch-go-current/go/bin/go",
+    "run",
+    "/workspace/dasl-stdlib-maps-audit/tooling/go_maps_vectors.go"
+  ],
+  "generator_sha256": "71ca40336888dba067176ede52134a0dd435cdad59f7d7e545db51de52cffd05",
+  "exit": 0,
+  "seconds": 0.5323277540010167,
+  "output_sha256": "ea54c9b5518f4ac45d9dfcacd81cb1a6433cd3b4f17ee4070b9886e0d786a047",
+  "observations": 800,
+  "float_rows": 14,
+  "nil_rows": 7,
+  "kind": "independent-reference-generation",
+  "reference_sdk": "go1.27.4",
+  "library_runtime_qualified": false,
+  "notes": "Actual SDK operations generated these observations. New facade source and consumers are not qualified by this report.",
+  "reference_source_hashes": {
+    "VERSION": "28ff77ac2178f2faca8a4f535e60b1738e397c9086b3ecfc18c9955abe75634a",
+    "src/maps/maps.go": "0f69acac135baa8b644e2479e514835b4d991bcc894916c2e34b8739a171fce2",
+    "src/maps/iter.go": "a803b5b1b09aa2dcedf90db32270f9cec310bc7cf8f141f87c2e6567db0c4208",
+    "src/iter/iter.go": "e868b6ef54b1c4f437444e10bc455479dfc6e936540e738016a3447bd244f249",
+    "doc/go_spec.html": "a249c493e0ad58ccfeac8081426d5b0e77f92b9761b95548f85c9e4d23d0a753",
+    "src/internal/runtime/maps/map.go": "db25c2600bef3dc809cb4d0a09d31a93867a104ea234ec2b085cb6c1ec60197d"
+  }
+}
