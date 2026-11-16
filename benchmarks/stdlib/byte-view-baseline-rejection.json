@@ -1,0 +1,10 @@
+{
+  "status": "rejected by independent pipeline preflight; no performance claim",
+  "reason": "Disabling shared same-eight also returned false for equal prefix/suffix comparisons. Keep exact comparator and disable batching only in three substring traversal conditions.",
+  "source_sha256": "44f8a0686abbcbc8d1bb688ed6ebd894643e0b520dca321c43d4358911376b58",
+  "pattern": "dense",
+  "bytes": 4097,
+  "iterations": 30,
+  "expected_checksum": 13635268,
+  "observed_checksum": 478861515
+}

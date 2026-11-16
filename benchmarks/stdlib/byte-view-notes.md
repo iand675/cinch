@@ -1,4 +1,4 @@
-# Bounded byte views and compiled substring search
+# Initial bounded byte views and compiled substring search
 
 `Data.Bytes.View` adds opaque mutable `ByteView` aliases and opaque immutable-by-
 interface `BytePattern` snapshots. A view retains the entire fixed owner, even
@@ -59,3 +59,58 @@ claim the full strings/bytes package surfaces are complete.
 Functional observations and exact artifact identities are recorded in
 `bootstrap/stdlib-byte-view-results.json`. Public changed-input scalar/packed
 pipeline measurements are a separate follow-up and make no claim here.
+
+
+# Selected endpoint and suffix refinement
+
+The selected implementation is source SHA-256
+`c55e57028c56d673d75c29ba91936ee614c3631addda328abe75c12a1bbf3e7e`.
+The public surface, error values, owner retention and mutation behavior remain
+unchanged. The source adds seven documented private declarations (105 total).
+
+Last-index checks an exact suffix first: a matching suffix proves the final
+possible occurrence immediately. General first-index first uses the existing
+fast first-byte scan, then filters impossible initial starts with intersected
+first/final-byte SWAR lane masks. Empty first-byte masks return to the fast
+scanner. The displaced complete load is bounded by the exclusive start limit
+`end - (needle_length - 1)`. Only the initial start region is filtered; the
+complete KMP failure traversal begins once, preserving linear work even when
+endpoints agree but the interior fails late. Needle block cutoffs are loop
+invariants; haystack availability retains exact fringe checks.
+
+The complete 5,421-row corpus plus 62 new endpoint/interior-mismatch controls
+passes all four Rust/Native O0/O2 gates. Independent SDK and Python generators
+agree on the new inputs, their complete SHA-256 digests and their query answers.
+All 2,280 normal/poison processes, including repeated temporary-owner and
+composed-subrange checks, report zero leaks with the same heap/stack caps.
+Production kernels compile to wasm32/AArch64 objects; host O0 controls
+independently observe four matching packed bytes and endpoint match offset eight.
+The parent owns the updated seven-test Rust target and PowerPC64 object gate.
+
+`bench_byte_view.py` records complete public pipelines with a reused compiled
+pattern and checked runtime input mutation. Initialization/input digests precede
+the first clock; complete retained-input and stable-pattern digests follow the
+ending clock. Assembly retains checked mutation and public observation calls
+inside work-loop backedges under both frontends. Five alternating samples plus
+an excluded warmup cover all 32 conditions per frontend; all results and leaks
+are checked. The final runs total 1,152 measured/warmup processes, with 384
+separate normal/poison preflight processes.
+
+For the 65,537-byte workloads, the selected complete pipelines are 2.94–45.85x
+faster than the scalar matching reference under Rust and 2.50–4.67x under Native.
+The shared-prefix first-index case is 12.05x/9.84x faster respectively. The
+Native repeated-prefix count alone remains slower (0.81x scalar in the selected
+sample); generic KMP state/batch predicates add branch work. Small/constant-work
+results and unchanged-function layout effects vary. These are shared-machine
+measurements, not universal claims, and do not include per-query pattern
+construction costs for one-shot convenience calls.
+
+The initial two-cutoff variant reduced byte-loop arithmetic but increased live
+register pressure and spills around Native skip calls. An always-used endpoint
+loop then regressed Rust sparse scans. The selected loop reuses the better
+optimized fast scan: its actual assembly is three unrolled eight-byte SWAR
+operations, not vector SIMD. All original, intermediate, rejected-baseline and
+selected sources/samples are retained. The rejected scalar control incorrectly
+disabled prefix/suffix equality; the independent preflight caught it before
+performance measurement. Exact selected functional/performance/object identities
+are in `bootstrap/stdlib-byte-view-selected-results.json`.

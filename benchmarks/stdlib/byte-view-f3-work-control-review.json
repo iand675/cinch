@@ -1,0 +1,35 @@
+{
+  "rust": {
+    "function": "Main.work",
+    "start": "0x32100",
+    "end": "0x32680",
+    "checked_mutation_and_public_operation_calls": [
+      "3228b:\te8 f0 f2 ff ff       \tcall   31580 <Main.mutate>",
+      "322cf:\te8 5c f6 ff ff       \tcall   31930 <Main.operation>"
+    ],
+    "backward_branches": [
+      "32434:\t74 a0                \tje     323d6 <Main.work+0x2d6>",
+      "32514:\t75 e0                \tjne    324f6 <Main.work+0x3f6>",
+      "32534:\t0f 85 10 fc ff ff    \tjne    3214a <Main.work+0x4a>",
+      "3254c:\t0f 8d ee fb ff ff    \tjge    32140 <Main.work+0x40>",
+      "32558:\t0f 84 ec fb ff ff    \tje     3214a <Main.work+0x4a>",
+      "3257f:\te9 c6 fb ff ff       \tjmp    3214a <Main.work+0x4a>",
+      "32589:\te9 e2 fe ff ff       \tjmp    32470 <Main.work+0x370>",
+      "3260e:\t74 c0                \tje     325d0 <Main.work+0x4d0>"
+    ],
+    "observation": "public work is enclosed by iteration control; checked mutation precedes each observation; retained digests are after ending clock in unchanged driver"
+  },
+  "native": {
+    "function": "cinch.typed.m.Main.work",
+    "start": "0x3df90",
+    "end": "0x3e270",
+    "checked_mutation_and_public_operation_calls": [
+      "3e077:\te8 f4 35 00 00       \tcall   41670 <cinch.typed.m.Main.mutate>",
+      "3e0a9:\te8 c2 01 00 00       \tcall   3e270 <cinch.typed.m.Main.operation>"
+    ],
+    "backward_branches": [
+      "3e26b:\te9 30 fd ff ff       \tjmp    3dfa0 <cinch.typed.m.Main.work+0x10>"
+    ],
+    "observation": "public work is enclosed by iteration control; checked mutation precedes each observation; retained digests are after ending clock in unchanged driver"
+  }
+}

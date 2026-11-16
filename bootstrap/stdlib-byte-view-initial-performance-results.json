@@ -1,0 +1,129 @@
+{
+  "phase": "initial public View scalar/packed comparison; complete results retained, selected candidate pending",
+  "source_sha256": "7f18724c3a082f1ced03418dea52b85ebe590460f369ff49b61e764d1a60b98c",
+  "driver_sha256": "f00252d8efe33f03da75673ac6c7de0b68c5f3b31e5dc6f4a2f0fda20b3f6849",
+  "scope": "reused stable compiled pattern, checked changed-input mutation and complete public queries inside clocks; full input setup/digests/retained-owner cleanup outside",
+  "cpu": 0,
+  "background": "Parent CPU3 NativeArray source gate; Codegen CPU1 semantic/link work, as stated in the timing grant; no own independent heavy work overlapped. Other background not asserted.",
+  "sampling": "5 alternating scalar/packed pairs plus excluded warmup per frontend and workload",
+  "memory_preflight_processes": 256,
+  "measured_and_warmup_processes": 768,
+  "initial_scalar_rejected": {
+    "status": "rejected by independent pipeline preflight; no performance claim",
+    "reason": "Disabling shared same-eight also returned false for equal prefix/suffix comparisons. Keep exact comparator and disable batching only in three substring traversal conditions.",
+    "source_sha256": "44f8a0686abbcbc8d1bb688ed6ebd894643e0b520dca321c43d4358911376b58",
+    "pattern": "dense",
+    "bytes": 4097,
+    "iterations": 30,
+    "expected_checksum": 13635268,
+    "observed_checksum": 478861515
+  },
+  "reports": {
+    "rust": {
+      "path": "benchmarks/stdlib/byte-view-initial-rust-timing.json",
+      "sha256": "ba8aa00e6db08f3fa002e3a939310729c646394696add1f44cf9a9959c4e5002",
+      "large_pipeline_ratios": {
+        "sparse": 2.941969524022382,
+        "dense": 1.7703968342274963,
+        "prefix": 1.5048451939411729,
+        "periodic": 9.620557391301878
+      },
+      "rows_with_scalar_over_packed_below_0_95": []
+    },
+    "native": {
+      "path": "benchmarks/stdlib/byte-view-initial-native-timing.json",
+      "sha256": "f13f515a8eb98bfa836839247600fe2400c0928c8d549da782919d4c6df601df",
+      "large_pipeline_ratios": {
+        "sparse": 3.655745510759176,
+        "dense": 0.8304255243191254,
+        "prefix": 0.6093581055907359,
+        "periodic": 2.8126997723457583
+      },
+      "rows_with_scalar_over_packed_below_0_95": [
+        {
+          "kind": "index",
+          "pattern": "prefix",
+          "bytes": 4097,
+          "ratio": 0.7047344706225201
+        },
+        {
+          "kind": "index",
+          "pattern": "prefix",
+          "bytes": 65537,
+          "ratio": 0.6478490390778711
+        },
+        {
+          "kind": "index",
+          "pattern": "periodic",
+          "bytes": 4097,
+          "ratio": 0.9118262989336944
+        },
+        {
+          "kind": "last",
+          "pattern": "dense",
+          "bytes": 4097,
+          "ratio": 0.7205920197427894
+        },
+        {
+          "kind": "last",
+          "pattern": "dense",
+          "bytes": 65537,
+          "ratio": 0.7846224771290268
+        },
+        {
+          "kind": "last",
+          "pattern": "prefix",
+          "bytes": 4097,
+          "ratio": 0.6901660475923947
+        },
+        {
+          "kind": "count",
+          "pattern": "prefix",
+          "bytes": 4097,
+          "ratio": 0.6242469943498025
+        },
+        {
+          "kind": "count",
+          "pattern": "prefix",
+          "bytes": 65537,
+          "ratio": 0.585250158340174
+        },
+        {
+          "kind": "count",
+          "pattern": "periodic",
+          "bytes": 4097,
+          "ratio": 0.8070668325828619
+        },
+        {
+          "kind": "pipeline",
+          "pattern": "dense",
+          "bytes": 4097,
+          "ratio": 0.783269411341521
+        },
+        {
+          "kind": "pipeline",
+          "pattern": "dense",
+          "bytes": 65537,
+          "ratio": 0.8304255243191254
+        },
+        {
+          "kind": "pipeline",
+          "pattern": "prefix",
+          "bytes": 4097,
+          "ratio": 0.6764833734094321
+        },
+        {
+          "kind": "pipeline",
+          "pattern": "prefix",
+          "bytes": 65537,
+          "ratio": 0.6093581055907359
+        }
+      ]
+    }
+  },
+  "limitations": [
+    "Native repeated-prefix/dense regressions are retained and require candidate diagnosis",
+    "shared-machine samples; no universal performance claim",
+    "selected candidate and final assembly review pending"
+  ]
+}

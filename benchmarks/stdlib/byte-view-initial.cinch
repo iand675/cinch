@@ -1,0 +1,754 @@
+-- | Bounded mutable aliases retaining an entire fixed byte-buffer owner.
+-- Views share observable mutations with their owner and overlapping views.
+-- A small view retains the complete owner allocation until the view is released.
+-- Snapshots and clones copy into fresh storage. Private backing and addresses
+-- are never exposed; all reads, writes and range copies carry checked bounds.
+module Data.Bytes.View where
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Bytes.Utf8 as Utf8
+  import Data.Bool
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+
+  export ByteView, ByteViewError, ByteViewReversedRange, ByteViewPastEnd, ByteViewShortDestination
+  export bytes-view, bytes-view-range, byte-view-slice, byte-view-length, byte-view-is-empty
+  export byte-view-get, byte-view-set, byte-view-snapshot, byte-view-clone, byte-view-copy-into
+  export byte-view-take, byte-view-drop
+  export BytePattern, bytes-compile-pattern, byte-pattern-length, byte-pattern-bytes
+  export byte-view-index-pattern, byte-view-last-index-pattern, byte-view-contains-pattern
+  export byte-view-has-prefix-pattern, byte-view-has-suffix-pattern
+  export byte-view-count-pattern, byte-view-equal, byte-view-compare
+  export byte-view-index, byte-view-last-index, byte-view-contains, byte-view-count, byte-view-has-prefix, byte-view-has-suffix
+  export byte-view-cut, byte-view-cut-last, byte-view-cut-prefix, byte-view-cut-suffix
+  export bytes-index, bytes-last-index, bytes-contains, bytes-count, bytes-has-prefix, bytes-has-suffix
+  export bytes-cut, bytes-cut-last, bytes-cut-prefix, bytes-cut-suffix
+  export byte-view-cut-pattern, byte-view-cut-last-pattern, byte-view-cut-prefix-pattern, byte-view-cut-suffix-pattern
+
+  -- | An opaque fixed range whose endpoint refinements preserve the owner's bounds.
+  data ByteView where
+    -- | Retain the complete fixed owner and an ordered pair of bounded endpoints.
+    View :: (raw :: Bytes) -> (start :: Nat) -> refined (start <= end && end <= bytes-len raw) Nat -> ByteView
+
+  -- | A refused view range or complete-copy destination; refusals never mutate storage.
+  data ByteViewError where
+    -- | The requested starting coordinate exceeds the requested ending coordinate.
+    ByteViewReversedRange :: Nat -> Nat -> ByteViewError
+    -- | The requested coordinate exceeds the available logical range length.
+    ByteViewPastEnd :: Nat -> Nat -> ByteViewError
+    -- | A destination offset, required byte count and available buffer length do not fit.
+    ByteViewShortDestination :: Nat -> Nat -> Nat -> ByteViewError
+
+  -- | Retain the whole fixed mutable buffer without copying its contents.
+  bytes-view :: Bytes -> ByteView
+  bytes-view raw = View raw 0 (bytes-len raw)
+
+  -- | Retain an explicitly checked half-open owner range, including empty ranges at the end.
+  bytes-view-range :: Bytes -> Nat -> Nat -> Result ByteViewError ByteView
+  bytes-view-range raw start end = if start > end then Err (ByteViewReversedRange start end)
+    else if end > bytes-len raw then Err (ByteViewPastEnd end (bytes-len raw))
+    else Ok (View raw start end)
+
+  -- | Count logical bytes in a view without copying or releasing its retained owner.
+  byte-view-length :: ByteView -> Nat
+  byte-view-length view = case view of View raw start end -> end - start
+
+  -- | Test whether a retained range has no logical bytes.
+  byte-view-is-empty :: ByteView -> Bool
+  byte-view-is-empty view = byte-view-length view == 0
+
+  -- | Retain a checked half-open subrange relative to this view, preserving shared mutations.
+  byte-view-slice :: ByteView -> Nat -> Nat -> Result ByteViewError ByteView
+  byte-view-slice view begin finish = case view of
+    View raw start end ->
+      let size = end - start in
+      if begin > finish then Err (ByteViewReversedRange begin finish)
+      else if finish > size then Err (ByteViewPastEnd finish size)
+      else let first = start + begin in let last = start + finish in Ok (View raw first last)
+
+  -- | Read an exact relative byte, or no value when the coordinate is outside the view.
+  byte-view-get :: ByteView -> Nat -> Option U8
+  byte-view-get view at = case view of
+    View raw start end -> if at < end - start then
+      let absolute = start + at in Some (wrapping-i64-to-u8 (nat-to-i64 (bytes-get raw absolute)))
+      else None
+
+  -- | Write one exact relative byte and report whether it fit; refusal leaves all aliases unchanged.
+  byte-view-set :: ByteView -> Nat -> U8 -> Bool
+  byte-view-set view at value = case view of
+    View raw start end -> if at < end - start then
+      let absolute = start + at in let written = bytes-set raw absolute (u8-to-nat value) in True
+      else False
+
+  -- | Copy exactly the logical range into fresh mutable storage without retaining the source owner.
+  byte-view-snapshot :: ByteView -> Bytes
+  byte-view-snapshot view = case view of
+    View raw start end -> let size = end - start in let out = bytes-new size in
+      let copied = bytes-copy-range out raw 0 start size in out
+
+  -- | Clone a view into a new independent whole-buffer view, including empty ranges.
+  byte-view-clone :: ByteView -> ByteView
+  byte-view-clone view = bytes-view (byte-view-snapshot view)
+
+  -- | Copy a complete view into a checked destination interval with overlap-safe range copying.
+  -- Destination refusal is atomic; the required and available sizes are preserved in the error.
+  byte-view-copy-into :: Bytes -> Nat -> ByteView -> Result ByteViewError Nat
+  byte-view-copy-into destination at view = case view of
+    View raw start end -> let size = end - start in
+      if at > bytes-len destination then Err (ByteViewShortDestination at size (bytes-len destination))
+      else if size > bytes-len destination - at then Err (ByteViewShortDestination at size (bytes-len destination))
+      else let copied = bytes-copy-range destination raw at start size in Ok size
+
+  -- | Retain up to the requested leading bytes, clamping the count to this view's length.
+  byte-view-take :: Nat -> ByteView -> ByteView
+  byte-view-take count view = case view of
+    View raw start end -> if count < end - start then
+      let finish = start + count in View raw start finish
+      else view
+
+  -- | Drop up to the requested leading bytes, clamping at an empty view of the original end.
+  byte-view-drop :: Nat -> ByteView -> ByteView
+  byte-view-drop count view = case view of
+    View raw start end ->
+      let begin = ((if count < end - start then start + count else end) :: Nat) in
+      case bytes-view-range raw begin end of
+        Ok result -> result
+        Err error -> view
+
+  -- | A stable private needle snapshot and its complete proper-prefix failure table.
+  data BytePattern where
+    -- | Own both immutable-by-interface buffers; neither has an outward mutable alias.
+    Pattern :: Bytes -> Bytes -> BytePattern
+
+  -- | Read an already initialized private failure entry through checked word access.
+  prefix-entry :: Bytes -> Nat -> Nat
+  prefix-entry table index = let at = index * 8 in
+    if at + 8 <= bytes-len table then
+      let word = bytes-read-le64 table at in let value = wrapping-u64-to-i64 word in
+      if 0 <= value then nat-from-i64 value else 0
+    else 0
+
+  -- | Store one bounded failure entry with ordinary checked byte stores in little-endian order.
+  prefix-store :: Bytes -> Nat -> Nat -> Unit
+  prefix-store table index value = let at = index * 8 in
+    if at + 8 <= bytes-len table && value <= 9223372036854775807 then
+      bytes-write-le64 table at (wrapping-i64-to-u64 (nat-to-i64 value))
+    else ()
+
+  -- | Follow already computed proper prefixes until the next needle byte can extend them.
+  prefix-fallback :: Bytes -> Bytes -> Nat -> InRange 0 255 Nat -> Nat
+  prefix-fallback needle table matched byte =
+    if matched > 0 && matched < bytes-len needle then
+      if bytes-get needle matched == byte then matched else
+        let previous = matched - 1 in let next = prefix-entry table previous in
+        if next < matched then prefix-fallback needle table next byte else 0
+    else 0
+
+  -- | Build the proper-prefix table in linear time without recursive return frames.
+  prefix-fill :: Bytes -> Bytes -> Nat -> Nat -> Unit
+  prefix-fill needle table at matched = if at < bytes-len needle then
+    let byte = bytes-get needle at in let fallback = prefix-fallback needle table matched byte in
+    let extended = ((if fallback < bytes-len needle then
+      if bytes-get needle fallback == byte then fallback + 1 else 0
+      else 0) :: Nat) in
+    let written = prefix-store table at extended in
+    let next = at + 1 in prefix-fill needle table next extended
+    else ()
+
+  -- | Compile an independent needle snapshot and a reusable linear-search failure table.
+  -- Caller mutation after compilation never changes this pattern or its later search results.
+  bytes-compile-pattern :: Bytes -> BytePattern
+  bytes-compile-pattern input = let size = bytes-len input in let needle = bytes-new size in
+    let copied = bytes-copy-range needle input 0 0 size in
+    let table = bytes-new (size * 8) in let filled = prefix-fill needle table 1 0 in
+    Pattern needle table
+
+  -- | Count exact needle bytes without exposing private snapshot storage.
+  byte-pattern-length :: BytePattern -> Nat
+  byte-pattern-length pattern = case pattern of Pattern needle table -> bytes-len needle
+
+  -- | Copy the compiled needle into fresh caller-owned storage.
+  byte-pattern-bytes :: BytePattern -> Bytes
+  byte-pattern-bytes pattern = case pattern of
+    Pattern needle table -> let size = bytes-len needle in let out = bytes-new size in
+      let copied = bytes-copy-range out needle 0 0 size in out
+
+  -- | Keep one backing owner alive until the complete private traversal has returned.
+  hold-input :: forall a. Bytes -> a -> a
+  hold-input owner value = case bytes-len owner of _ -> value
+
+  -- | Repeat one exact byte in every lane of a private packed word.
+  prim repeated-byte :: U8 -> U64 where
+    llvm {
+      %byte = zext i8 %0 to i64
+      %value = mul i64 %byte, 72340172838076673
+      ret i64 %value
+    }
+
+  -- | Advance a private bounded machine counter with wrapping machine addition.
+  prim offset-add :: I64 -> I64 -> I64 where
+    llvm {
+      %value = add i64 %0, %1
+      ret i64 %value
+    }
+
+  -- | Subtract private bounded machine offsets without an imported runtime call.
+  prim offset-sub :: I64 -> I64 -> I64 where
+    llvm {
+      %value = sub i64 %0, %1
+      ret i64 %value
+    }
+
+  -- | Compare private signed offsets directly inside ordinary loop branches.
+  prim offset-before :: I64 -> I64 -> Bool where
+    llvm {
+      %test = icmp slt i64 %0, %1
+      %value = zext i1 %test to i8
+      ret i8 %value
+    }
+
+  -- | Check a private remaining-length threshold without an imported object call.
+  prim offset-at-least :: I64 -> I64 -> Bool where
+    llvm {
+      %test = icmp sge i64 %0, %1
+      %value = zext i1 %test to i8
+      ret i8 %value
+    }
+
+  -- | Check whether a private signed suffix counter has available bytes.
+  prim offset-after :: I64 -> I64 -> Bool where
+    llvm {
+      %test = icmp sgt i64 %0, %1
+      %value = zext i1 %test to i8
+      ret i8 %value
+    }
+
+  -- | Compare exact packed or scalar byte values without imported call overhead.
+  prim word-equal :: U64 -> U64 -> Bool where
+    llvm {
+      %test = icmp eq i64 %0, %1
+      %value = zext i1 %test to i8
+      ret i8 %value
+    }
+
+  -- | Test whether a packed match mask has any exact marked lanes.
+  prim word-nonzero :: U64 -> Bool where
+    llvm {
+      %test = icmp ne i64 %0, 0
+      %value = zext i1 %test to i8
+      ret i8 %value
+    }
+
+  -- | Extract the repeated key byte for an exact scalar-fringe comparison.
+  prim word-byte :: U64 -> U64 where
+    llvm {
+      %value = and i64 %0, 255
+      ret i64 %value
+    }
+
+  -- | Load exactly eight proved available bytes in low-address-first numeric order.
+  prim load-word :: I64 -> I64 -> U64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %value = load i64, ptr %at, align 1
+      ret i64 %value
+    } when endian little
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %word = load i64, ptr %at, align 1
+      %value = call i64 @llvm.bswap.i64(i64 %word)
+      ret i64 %value
+    } when endian big
+
+  -- | Load exactly one proved available scalar-fringe byte as a zero-extended word.
+  prim load-byte :: I64 -> I64 -> U64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %byte = load i8, ptr %at, align 1
+      %value = zext i8 %byte to i64
+      ret i64 %value
+    }
+
+  -- | Mark exactly one high bit per matching byte, with no cross-lane borrow false positives.
+  -- Masked lane sums stay below 256, so their additions cannot carry into another byte.
+  prim matching-lanes :: U64 -> U64 -> U64 where
+    llvm {
+      %different = xor i64 %0, %1
+      %low = and i64 %different, 9187201950435737471
+      %sum = add i64 %low, 9187201950435737471
+      %nonzero = or i64 %sum, %different
+      %complement = xor i64 %nonzero, -1
+      %value = and i64 %complement, -9187201950435737472
+      ret i64 %value
+    }
+
+  -- | Return the first marked byte lane, or the defined eight-lane sentinel for an empty mask.
+  first-lane :: U64 -> I64
+  first-lane mask = let bits = u32-to-i64 (trailing-zeros-u64 mask) in wrapping-shr-i64 bits 3
+
+  -- | Return the last marked byte lane, or negative one for an empty mask.
+  last-lane :: U64 -> I64
+  last-lane mask = if word-equal mask 0 then -1 else
+    let bits = u32-to-i64 (leading-zeros-u64 mask) in let position = offset-sub 63 bits in
+    wrapping-shr-i64 position 3
+
+  -- | Sum one high-bit marker per byte without a general population-count expansion.
+  -- Shifted lanes are zero or one, so every horizontal byte sum stays below nine.
+  prim lane-count :: U64 -> I64 where
+    llvm {
+      %lanes = lshr i64 %0, 7
+      %sums = mul i64 %lanes, 72340172838076673
+      %value = lshr i64 %sums, 56
+      ret i64 %value
+    }
+
+  -- | Find a matching first byte before preparing complete packed-word scans.
+  index-forward :: I64 -> I64 -> I64 -> U64 -> I64
+  index-forward base at end repeated = if offset-before at end then
+    let value = load-byte base at in let byte = word-byte repeated in
+    if word-equal value byte then at else
+      let next = offset-add at 1 in index-forward-blocks base next end repeated
+    else -1
+
+  -- | Find the first matching word or exact scalar fringe using unboxed bounded counters.
+  index-forward-blocks :: I64 -> I64 -> I64 -> U64 -> I64
+  index-forward-blocks base at end repeated =
+    let remaining = offset-sub end at in
+    if offset-at-least remaining 8 then
+      let word = load-word base at in let matches = matching-lanes word repeated in
+      if word-nonzero matches then let lane = first-lane matches in offset-add at lane
+      else let next = offset-add at 8 in index-forward-blocks base next end repeated
+    else index-forward-tail base at end (word-byte repeated)
+
+  -- | Read only remaining scalar bytes after the complete forward words.
+  index-forward-tail :: I64 -> I64 -> I64 -> U64 -> I64
+  index-forward-tail base at end byte = if offset-before at end then
+    let value = load-byte base at in if word-equal value byte then at
+    else let next = offset-add at 1 in index-forward-tail base next end byte
+    else -1
+
+  -- | Find a matching final byte before preparing complete packed suffix scans.
+  index-backward :: I64 -> I64 -> U64 -> I64
+  index-backward base end repeated = if offset-after end 0 then
+    let previous = offset-sub end 1 in let value = load-byte base previous in let byte = word-byte repeated in
+    if word-equal value byte then previous else index-backward-blocks base previous repeated
+    else -1
+
+  -- | Find the last matching byte by reading complete suffix words before their exact leading fringe.
+  index-backward-blocks :: I64 -> I64 -> U64 -> I64
+  index-backward-blocks base end repeated = if offset-at-least end 8 then
+    let start = offset-sub end 8 in let word = load-word base start in
+    let matches = matching-lanes word repeated in
+    if word-nonzero matches then let lane = last-lane matches in offset-add start lane
+    else index-backward-blocks base start repeated
+    else index-backward-tail base end (word-byte repeated)
+
+  -- | Read only the leading scalar fringe while searching backward.
+  index-backward-tail :: I64 -> I64 -> U64 -> I64
+  index-backward-tail base end byte = if offset-after end 0 then
+    let previous = offset-sub end 1 in let value = load-byte base previous in
+    if word-equal value byte then previous else index-backward-tail base previous byte
+    else -1
+
+  -- | Count matching complete-word lanes with a bounded machine accumulator.
+  count-forward :: I64 -> I64 -> I64 -> U64 -> I64 -> I64
+  count-forward base at end repeated total =
+    let remaining = offset-sub end at in
+    if offset-at-least remaining 8 then
+      let word = load-word base at in let matches = matching-lanes word repeated in
+      let count = lane-count matches in let next-total = offset-add total count in
+      let next = offset-add at 8 in count-forward base next end repeated next-total
+    else count-tail base at end (word-byte repeated) total
+
+  -- | Count only available scalar-fringe bytes without a broad read past the end.
+  count-tail :: I64 -> I64 -> I64 -> U64 -> I64 -> I64
+  count-tail base at end byte total = if offset-before at end then
+    let value = load-byte base at in let next-total = if word-equal value byte then offset-add total 1 else total in
+    let next = offset-add at 1 in count-tail base next end byte next-total
+    else total
+
+
+  -- | Test a private matched-prefix counter without an imported conversion call.
+  prim offset-zero :: I64 -> Bool where
+    llvm {
+      %yes = icmp eq i64 %0, 0
+      %value = zext i1 %yes to i8
+      ret i8 %value
+    }
+
+  -- | Search complete suffix words without reading before the view's private starting bound.
+  last-byte-range :: I64 -> I64 -> I64 -> U64 -> I64
+  last-byte-range base begin end repeated = let left = offset-sub end begin in
+    if offset-at-least left 8 then
+      let start = offset-sub end 8 in let word = load-word base start in
+      let matches = matching-lanes word repeated in
+      if word-nonzero matches then let lane = last-lane matches in offset-add start lane
+      else last-byte-range base begin start repeated
+    else last-byte-tail base begin end (word-byte repeated)
+
+  -- | Search only the exact leading bytes remaining inside a bounded suffix scan.
+  last-byte-tail :: I64 -> I64 -> I64 -> U64 -> I64
+  last-byte-tail base begin end byte = if offset-after end begin then
+    let previous = offset-sub end 1 in let value = load-byte base previous in
+    if word-equal value byte then previous else last-byte-tail base begin previous byte
+    else -1
+
+  -- | Load one private, initialized failure entry; its value is below the matched prefix length.
+  prim failure-word :: I64 -> I64 -> I64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i64, ptr %base, i64 %1
+      %value = load i64, ptr %at, align 1
+      ret i64 %value
+    } when endian little
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i64, ptr %base, i64 %1
+      %word = load i64, ptr %at, align 1
+      %value = call i64 @llvm.bswap.i64(i64 %word)
+      ret i64 %value
+    } when endian big
+
+  -- | Compare exactly eight proved available bytes from each private input without byte-order dependence.
+  prim same-eight :: I64 -> I64 -> I64 -> I64 -> Bool where
+    unsafe llvm {
+      %left = inttoptr i64 %0 to ptr
+      %right = inttoptr i64 %2 to ptr
+      %a = getelementptr i8, ptr %left, i64 %1
+      %b = getelementptr i8, ptr %right, i64 %3
+      %x = load i64, ptr %a, align 1
+      %y = load i64, ptr %b, align 1
+      %equal = icmp eq i64 %x, %y
+      %value = zext i1 %equal to i8
+      ret i8 %value
+    }
+
+  -- | Extend a matched prefix or follow strictly smaller failure links for one current byte.
+  search-step :: I64 -> I64 -> I64 -> U64 -> I64
+  search-step needle table matched byte =
+    let expected = load-byte needle matched in
+    if word-equal expected byte then offset-add matched 1
+    else if offset-after matched 0 then
+      let previous = offset-sub matched 1 in let next = failure-word table previous in
+      search-step needle table next byte
+    else 0
+
+  -- | Find the first complete match with SWAR skipping and complete-word prefix comparisons.
+  search-first :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> U64 -> I64 -> I64
+  search-first base at end needle size table repeated matched =
+    if offset-zero matched then
+      let found = index-forward base at end repeated in
+      if offset-before found 0 then -1 else if offset-at-least 1 size then found else
+        let next = offset-add found 1 in search-first base next end needle size table repeated 1
+    else if offset-before at end then
+      let left = offset-sub end at in let needed = offset-sub size matched in
+      if offset-at-least left 8 && offset-at-least needed 8 && same-eight base at needle matched then
+        let next = offset-add at 8 in let advanced = offset-add matched 8 in
+        if offset-at-least advanced size then offset-sub next size
+        else search-first base next end needle size table repeated advanced
+      else let byte = load-byte base at in let advanced = search-step needle table matched byte in
+        let next = offset-add at 1 in
+        if offset-at-least advanced size then offset-sub next size
+        else search-first base next end needle size table repeated advanced
+    else -1
+
+  -- | Find the final complete match with complete-word prefix comparisons, retaining overlaps.
+  search-last :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> U64 -> I64 -> I64 -> I64
+  search-last base at end needle size table repeated matched best =
+    if offset-zero matched then
+      let found = index-forward base at end repeated in
+      if offset-before found 0 then best else
+        let next = offset-add found 1 in search-last base next end needle size table repeated 1 best
+    else if offset-before at end then
+      let left = offset-sub end at in let needed = offset-sub size matched in
+      if offset-at-least left 8 && offset-at-least needed 8 && same-eight base at needle matched then
+        let next = offset-add at 8 in let advanced = offset-add matched 8 in
+        if offset-at-least advanced size then
+          let found = offset-sub next size in let previous = offset-sub size 1 in
+          let fallback = failure-word table previous in
+          search-last base next end needle size table repeated fallback found
+        else search-last base next end needle size table repeated advanced best
+      else let byte = load-byte base at in let advanced = search-step needle table matched byte in
+        let next = offset-add at 1 in
+        if offset-at-least advanced size then
+          let found = offset-sub next size in let previous = offset-sub size 1 in
+          let fallback = failure-word table previous in
+          search-last base next end needle size table repeated fallback found
+        else search-last base next end needle size table repeated advanced best
+    else best
+
+  -- | Compare complete words and exact fringes for a fixed private needle interval.
+  search-equal :: I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  search-equal base at needle pos size = let left = offset-sub size pos in
+    if offset-at-least left 8 then
+      if same-eight base at needle pos then
+        let next = offset-add at 8 in let following = offset-add pos 8 in search-equal base next needle following size
+      else False
+    else if offset-before pos size then
+      let a = load-byte base at in let b = load-byte needle pos in
+      if word-equal a b then
+        let next = offset-add at 1 in let following = offset-add pos 1 in search-equal base next needle following size
+      else False
+    else True
+
+  -- | Convert a private absolute match sentinel into an exact relative view offset.
+  relative-match :: I64 -> I64 -> Option Nat
+  relative-match absolute start = if absolute >= start then
+    let offset = offset-sub absolute start in if 0 <= offset then Some (nat-from-i64 offset) else None
+    else None
+
+  -- | Find the first compiled needle match relative to the view; an empty needle matches zero.
+  byte-view-index-pattern :: ByteView -> BytePattern -> Option Nat
+  byte-view-index-pattern view pattern = case view of
+    View raw start end -> case pattern of
+      Pattern needle table -> let size = bytes-len needle in
+        if size == 0 then Some 0 else if size > end - start then None else
+          let begin = nat-to-i64 start in let finish = nat-to-i64 end in
+          let first-byte = bytes-get needle 0 in let machine-byte = nat-to-i64 first-byte in
+          let byte = wrapping-i64-to-u8 machine-byte in let repeated = repeated-byte byte in
+          let found = hold-input raw (hold-input needle (hold-input table (search-first (bytes-data raw) begin finish (bytes-data needle) (nat-to-i64 size) (bytes-data table) repeated 0))) in
+          relative-match found begin
+
+  -- | Find the final compiled match, including overlaps; an empty needle matches the view end.
+  byte-view-last-index-pattern :: ByteView -> BytePattern -> Option Nat
+  byte-view-last-index-pattern view pattern = case view of
+    View raw start end -> case pattern of
+      Pattern needle table -> let size = bytes-len needle in
+        if size == 0 then Some (end - start) else if size > end - start then None else
+          let begin = nat-to-i64 start in let finish = nat-to-i64 end in
+          let first-byte = bytes-get needle 0 in let machine-byte = nat-to-i64 first-byte in
+          let byte = wrapping-i64-to-u8 machine-byte in let repeated = repeated-byte byte in
+          let found = hold-input raw (hold-input needle (hold-input table (if size == 1 then last-byte-range (bytes-data raw) begin finish repeated else search-last (bytes-data raw) begin finish (bytes-data needle) (nat-to-i64 size) (bytes-data table) repeated 0 (-1)))) in
+          relative-match found begin
+
+  -- | Test whether a compiled needle occurs, including the empty needle in an empty view.
+  byte-view-contains-pattern :: ByteView -> BytePattern -> Bool
+  byte-view-contains-pattern view pattern = case byte-view-index-pattern view pattern of None -> False; Some at -> True
+
+  -- | Test an exact compiled prefix using complete-word comparisons and checked view lengths.
+  byte-view-has-prefix-pattern :: ByteView -> BytePattern -> Bool
+  byte-view-has-prefix-pattern view pattern = case view of
+    View raw start end -> case pattern of
+      Pattern needle table -> if bytes-len needle <= end - start then
+        hold-input raw (hold-input needle (search-equal (bytes-data raw) (nat-to-i64 start) (bytes-data needle) 0 (nat-to-i64 (bytes-len needle))))
+        else False
+
+  -- | Test an exact compiled suffix without copying or scanning the unrelated prefix.
+  byte-view-has-suffix-pattern :: ByteView -> BytePattern -> Bool
+  byte-view-has-suffix-pattern view pattern = case view of
+    View raw start end -> case pattern of
+      Pattern needle table -> if bytes-len needle <= end - start then
+        let begin = end - bytes-len needle in
+        hold-input raw (hold-input needle (search-equal (bytes-data raw) (nat-to-i64 begin) (bytes-data needle) 0 (nat-to-i64 (bytes-len needle))))
+        else False
+
+  -- | Split around an already found bounded match into two owner-retaining mutable aliases.
+  cut-at :: ByteView -> Nat -> Nat -> Option (ByteView, ByteView)
+  cut-at view at width = case view of
+    View raw start end -> if at + width <= end - start then
+      let middle = start + at in let following = middle + width in
+      Some (View raw start middle, View raw following end)
+      else None
+
+  -- | Cut around the first compiled match; empty needles produce empty-before and the complete view.
+  byte-view-cut-pattern :: ByteView -> BytePattern -> Option (ByteView, ByteView)
+  byte-view-cut-pattern view pattern = case byte-view-index-pattern view pattern of
+    None -> None
+    Some at -> cut-at view at (byte-pattern-length pattern)
+
+  -- | Cut around the final compiled match, preserving overlapping last-match semantics.
+  byte-view-cut-last-pattern :: ByteView -> BytePattern -> Option (ByteView, ByteView)
+  byte-view-cut-last-pattern view pattern = case byte-view-last-index-pattern view pattern of
+    None -> None
+    Some at -> cut-at view at (byte-pattern-length pattern)
+
+  -- | Remove an exact compiled prefix as an owner-retaining alias, or report no match.
+  byte-view-cut-prefix-pattern :: ByteView -> BytePattern -> Option ByteView
+  byte-view-cut-prefix-pattern view pattern = if byte-view-has-prefix-pattern view pattern then
+    Some (byte-view-drop (byte-pattern-length pattern) view) else None
+
+  -- | Remove an exact compiled suffix as an owner-retaining alias, or report no match.
+  byte-view-cut-suffix-pattern :: ByteView -> BytePattern -> Option ByteView
+  byte-view-cut-suffix-pattern view pattern = let size = byte-view-length view in let width = byte-pattern-length pattern in
+    if width <= size && byte-view-has-suffix-pattern view pattern then
+      let kept = size - width in Some (byte-view-take kept view)
+    else None
+
+  -- | Count nonoverlapping complete matches with SWAR skipping and complete-word prefix comparisons.
+  search-count :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> U64 -> I64 -> I64 -> I64
+  search-count base at end needle size table repeated matched count =
+    if offset-zero matched then
+      let found = index-forward base at end repeated in
+      if offset-before found 0 then count else
+        let next = offset-add found 1 in search-count base next end needle size table repeated 1 count
+    else if offset-before at end then
+      let left = offset-sub end at in let needed = offset-sub size matched in
+      if offset-at-least left 8 && offset-at-least needed 8 && same-eight base at needle matched then
+        let next = offset-add at 8 in let advanced = offset-add matched 8 in
+        if offset-at-least advanced size then
+          let total = offset-add count 1 in search-count base next end needle size table repeated 0 total
+        else search-count base next end needle size table repeated advanced count
+      else let byte = load-byte base at in let advanced = search-step needle table matched byte in
+        let next = offset-add at 1 in
+        if offset-at-least advanced size then
+          let total = offset-add count 1 in search-count base next end needle size table repeated 0 total
+        else search-count base next end needle size table repeated advanced count
+    else count
+
+  -- | Count nonoverlapping compiled matches; an empty pattern counts bounded decoded scalars plus one.
+  -- Malformed or view-truncated bytes each make one replacement-scalar step without copying the view.
+  byte-view-count-pattern :: ByteView -> BytePattern -> Nat
+  byte-view-count-pattern view pattern = case view of
+    View raw start end -> case pattern of
+      Pattern needle table -> let size = bytes-len needle in
+        if size == 0 then case Utf8.utf8-count-between raw start end of Some count -> count + 1; None -> 0
+        else if size > end - start then 0 else
+          let begin = nat-to-i64 start in let finish = nat-to-i64 end in
+          let first-byte = bytes-get needle 0 in let machine-byte = nat-to-i64 first-byte in
+          let byte = wrapping-i64-to-u8 machine-byte in let repeated = repeated-byte byte in
+          let count = hold-input raw (hold-input needle (hold-input table (if size == 1 then count-forward (bytes-data raw) begin finish repeated 0 else search-count (bytes-data raw) begin finish (bytes-data needle) (nat-to-i64 size) (bytes-data table) repeated 0 0))) in
+          if 0 <= count then nat-from-i64 count else 0
+
+  -- | Compare two exact view ranges using complete words and scalar fringes, preserving shared mutations.
+  byte-view-equal :: ByteView -> ByteView -> Bool
+  byte-view-equal a b = case a of
+    View left first last -> case b of
+      View right begin end -> if last - first == end - begin then
+        hold-input left (hold-input right (search-equal (bytes-data left) (nat-to-i64 first) (bytes-data right) (nat-to-i64 begin) (nat-to-i64 end)))
+        else False
+
+  -- | Find the first unequal private byte relative to two bounded intervals, or their complete common length.
+  compare-prefix :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64
+  compare-prefix a begin b start at size = let remaining = offset-sub size at in
+    if offset-at-least remaining 8 then
+      let left = offset-add begin at in let right = offset-add start at in
+      let x = load-word a left in let y = load-word b right in
+      if word-equal x y then let next = offset-add at 8 in compare-prefix a begin b start next size
+      else compare-prefix-tail a begin b start at size
+    else compare-prefix-tail a begin b start at size
+
+  -- | Compare only available bytes until the first mismatch or the bounded common end.
+  compare-prefix-tail :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64
+  compare-prefix-tail a begin b start at size = if offset-before at size then
+    let left = offset-add begin at in let right = offset-add start at in
+    let x = load-byte a left in let y = load-byte b right in
+    if word-equal x y then let next = offset-add at 1 in compare-prefix-tail a begin b start next size else at
+    else size
+
+  -- | Normalize the order of two known unequal zero-extended byte values.
+  prim byte-order :: U64 -> U64 -> I64 where
+    llvm {
+      %less = icmp ult i64 %0, %1
+      %value = select i1 %less, i64 -1, i64 1
+      ret i64 %value
+    }
+
+  -- | Compare raw view bytes lexicographically, returning exactly negative one, zero or one.
+  byte-view-compare :: ByteView -> ByteView -> I64
+  byte-view-compare a b = case a of
+    View left first last -> case b of
+      View right begin end -> let size-a = last - first in let size-b = end - begin in
+        let common = ((if size-a < size-b then size-a else size-b) :: Nat) in
+        if common <= 9223372036854775807 then
+          let at = hold-input left (hold-input right (compare-prefix (bytes-data left) (nat-to-i64 first) (bytes-data right) (nat-to-i64 begin) 0 (nat-to-i64 common))) in
+          if at < nat-to-i64 common then
+            let x = hold-input left (load-byte (bytes-data left) (offset-add (nat-to-i64 first) at)) in
+            let y = hold-input right (load-byte (bytes-data right) (offset-add (nat-to-i64 begin) at)) in byte-order x y
+          else if size-a < size-b then -1 else if size-a > size-b then 1 else 0
+        else 0
+
+  -- | Find a raw needle relative to a retained view, compiling one stable snapshot for this query.
+  byte-view-index :: ByteView -> Bytes -> Option Nat
+  byte-view-index view needle = byte-view-index-pattern view (bytes-compile-pattern needle)
+
+  -- | Find the last raw needle, including overlapping matches and the empty end position.
+  byte-view-last-index :: ByteView -> Bytes -> Option Nat
+  byte-view-last-index view needle = byte-view-last-index-pattern view (bytes-compile-pattern needle)
+
+  -- | Test exact raw needle containment without copying the view.
+  byte-view-contains :: ByteView -> Bytes -> Bool
+  byte-view-contains view needle = byte-view-contains-pattern view (bytes-compile-pattern needle)
+
+  -- | Count a raw needle with bounded malformed-byte counting for empty patterns.
+  byte-view-count :: ByteView -> Bytes -> Nat
+  byte-view-count view needle = byte-view-count-pattern view (bytes-compile-pattern needle)
+
+  -- | Test an exact raw prefix with complete-word comparisons and no snapshots or pattern allocation.
+  byte-view-has-prefix :: ByteView -> Bytes -> Bool
+  byte-view-has-prefix view needle = case view of
+    View raw start end -> if bytes-len needle <= end - start then
+      hold-input raw (hold-input needle (search-equal (bytes-data raw) (nat-to-i64 start) (bytes-data needle) 0 (nat-to-i64 (bytes-len needle))))
+      else False
+
+  -- | Test an exact raw suffix with no snapshots, pattern allocation or unrelated prefix scan.
+  byte-view-has-suffix :: ByteView -> Bytes -> Bool
+  byte-view-has-suffix view needle = case view of
+    View raw start end -> if bytes-len needle <= end - start then
+      let begin = end - bytes-len needle in
+      hold-input raw (hold-input needle (search-equal (bytes-data raw) (nat-to-i64 begin) (bytes-data needle) 0 (nat-to-i64 (bytes-len needle))))
+      else False
+
+  -- | Cut at the first raw match into aliases that retain the complete original owner.
+  byte-view-cut :: ByteView -> Bytes -> Option (ByteView, ByteView)
+  byte-view-cut view needle = byte-view-cut-pattern view (bytes-compile-pattern needle)
+
+  -- | Cut at the final raw match, including overlapping candidates.
+  byte-view-cut-last :: ByteView -> Bytes -> Option (ByteView, ByteView)
+  byte-view-cut-last view needle = byte-view-cut-last-pattern view (bytes-compile-pattern needle)
+
+  -- | Remove a raw prefix as an owner-retaining alias, including an unchanged empty prefix.
+  byte-view-cut-prefix :: ByteView -> Bytes -> Option ByteView
+  byte-view-cut-prefix view needle = if byte-view-has-prefix view needle then
+    Some (byte-view-drop (bytes-len needle) view) else None
+
+  -- | Remove a raw suffix as an owner-retaining alias, including an unchanged empty suffix.
+  byte-view-cut-suffix :: ByteView -> Bytes -> Option ByteView
+  byte-view-cut-suffix view needle = let size = byte-view-length view in let width = bytes-len needle in
+    if width <= size && byte-view-has-suffix view needle then
+      let kept = size - width in Some (byte-view-take kept view)
+    else None
+
+  -- | Find the first raw needle in a complete fixed buffer as an optional byte offset.
+  bytes-index :: Bytes -> Bytes -> Option Nat
+  bytes-index input needle = byte-view-index (bytes-view input) needle
+
+  -- | Find the last raw needle in a complete fixed buffer, including overlaps.
+  bytes-last-index :: Bytes -> Bytes -> Option Nat
+  bytes-last-index input needle = byte-view-last-index (bytes-view input) needle
+
+  -- | Test raw needle containment in a complete fixed buffer.
+  bytes-contains :: Bytes -> Bytes -> Bool
+  bytes-contains input needle = byte-view-contains (bytes-view input) needle
+
+  -- | Count nonoverlapping raw matches, or decoded scalars plus one for an empty needle.
+  bytes-count :: Bytes -> Bytes -> Nat
+  bytes-count input needle = byte-view-count (bytes-view input) needle
+
+  -- | Test whether a complete fixed buffer starts with exact raw bytes.
+  bytes-has-prefix :: Bytes -> Bytes -> Bool
+  bytes-has-prefix input needle = byte-view-has-prefix (bytes-view input) needle
+
+  -- | Test whether a complete fixed buffer ends with exact raw bytes.
+  bytes-has-suffix :: Bytes -> Bytes -> Bool
+  bytes-has-suffix input needle = byte-view-has-suffix (bytes-view input) needle
+
+  -- | Cut a complete fixed buffer at its first raw match into retained mutable aliases.
+  bytes-cut :: Bytes -> Bytes -> Option (ByteView, ByteView)
+  bytes-cut input needle = byte-view-cut (bytes-view input) needle
+
+  -- | Cut a complete fixed buffer at its final raw match into retained mutable aliases.
+  bytes-cut-last :: Bytes -> Bytes -> Option (ByteView, ByteView)
+  bytes-cut-last input needle = byte-view-cut-last (bytes-view input) needle
+
+  -- | Remove an exact prefix from a complete buffer while retaining its whole owner.
+  bytes-cut-prefix :: Bytes -> Bytes -> Option ByteView
+  bytes-cut-prefix input needle = byte-view-cut-prefix (bytes-view input) needle
+
+  -- | Remove an exact suffix from a complete buffer while retaining its whole owner.
+  bytes-cut-suffix :: Bytes -> Bytes -> Option ByteView
+  bytes-cut-suffix input needle = byte-view-cut-suffix (bytes-view input) needle
