@@ -1,0 +1,95 @@
+{
+  "description": "All five legacy padding remainders and empty input, baseline/candidate/reference; fingerprints observe exact encoded length and boundarybytes",
+  "rows": [
+    {
+      "input_bytes": 0,
+      "remainder_mod5": 0,
+      "checksum": 0,
+      "zero_leaks_both_cinch_variants": true
+    },
+    {
+      "input_bytes": 1,
+      "remainder_mod5": 1,
+      "checksum": 134,
+      "zero_leaks_both_cinch_variants": true
+    },
+    {
+      "input_bytes": 2,
+      "remainder_mod5": 2,
+      "checksum": 134,
+      "zero_leaks_both_cinch_variants": true
+    },
+    {
+      "input_bytes": 3,
+      "remainder_mod5": 3,
+      "checksum": 134,
+      "zero_leaks_both_cinch_variants": true
+    },
+    {
+      "input_bytes": 4,
+      "remainder_mod5": 4,
+      "checksum": 134,
+      "zero_leaks_both_cinch_variants": true
+    },
+    {
+      "input_bytes": 5,
+      "remainder_mod5": 0,
+      "checksum": 128,
+      "zero_leaks_both_cinch_variants": true
+    },
+    {
+      "input_bytes": 6,
+      "remainder_mod5": 1,
+      "checksum": 142,
+      "zero_leaks_both_cinch_variants": true
+    },
+    {
+      "input_bytes": 7,
+      "remainder_mod5": 2,
+      "checksum": 142,
+      "zero_leaks_both_cinch_variants": true
+    },
+    {
+      "input_bytes": 8,
+      "remainder_mod5": 3,
+      "checksum": 142,
+      "zero_leaks_both_cinch_variants": true
+    },
+    {
+      "input_bytes": 9,
+      "remainder_mod5": 4,
+      "checksum": 142,
+      "zero_leaks_both_cinch_variants": true
+    },
+    {
+      "input_bytes": 10,
+      "remainder_mod5": 0,
+      "checksum": 170,
+      "zero_leaks_both_cinch_variants": true
+    },
+    {
+      "input_bytes": 11,
+      "remainder_mod5": 1,
+      "checksum": 150,
+      "zero_leaks_both_cinch_variants": true
+    },
+    {
+      "input_bytes": 12,
+      "remainder_mod5": 2,
+      "checksum": 150,
+      "zero_leaks_both_cinch_variants": true
+    },
+    {
+      "input_bytes": 13,
+      "remainder_mod5": 3,
+      "checksum": 150,
+      "zero_leaks_both_cinch_variants": true
+    },
+    {
+      "input_bytes": 14,
+      "remainder_mod5": 4,
+      "checksum": 150,
+      "zero_leaks_both_cinch_variants": true
+    }
+  ]
+}

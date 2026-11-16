@@ -1,0 +1,10 @@
+--- Effect.Base32.cinch
++++ Effect.Base32.cinch
+@@ -74 +74 @@
+-  -- | Preserve the advanced source, unfinished quantum and private surplus buffer/cursor without recopying it.
++  -- | Preserve the advanced source, unfinished quantum and a copied private surplus buffer.
+@@ -86 +86,3 @@
+-      (Ok (part pending cursor next), decoding-reader source state pending next error ended)
++      let out = part pending cursor next in
++      let rest = part pending next (bytes-len pending) in
++      (Ok out, decoding-reader source state rest 0 error ended)

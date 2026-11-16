@@ -1,0 +1,71 @@
+{
+  "description": "Exact frozen source identities; library files remain in read-only parent checkout, retained snapshots in isolated build artifacts",
+  "roles": {
+    "validated-baseline": {
+      "Text.Base32": {
+        "sha256": "c6ba4bb8bd5d91163f6d9b984af35fe40a22d618bc6f4c2bd31be5cf825027a4",
+        "bytes": 56001,
+        "snapshot": "/workspace/dasl-stdlib-base32-bench/build/base32-final-bench/sources/Text.Base32.cinch"
+      },
+      "Data.Bytes.Word": {
+        "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "bytes": 4243,
+        "snapshot": "/workspace/dasl-stdlib-base32-bench/build/base32-final-bench/sources/Data.Bytes.Word.cinch"
+      },
+      "Effect.Base32": {
+        "sha256": "38f8d4b0a0ac51fed5ed5251d0b16093e8983986ea36330edede81bb69705b90",
+        "bytes": 6134,
+        "snapshot": "/workspace/dasl-stdlib-base32-bench/build/base32-final-bench/sources/Effect.Base32.cinch"
+      },
+      "Effect.Stream": {
+        "sha256": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33",
+        "bytes": 21304,
+        "snapshot": "/workspace/dasl-stdlib-base32-bench/build/base32-final-bench/sources/Effect.Stream.cinch"
+      }
+    },
+    "cursor-copy-baseline": {
+      "Text.Base32": {
+        "sha256": "c6ba4bb8bd5d91163f6d9b984af35fe40a22d618bc6f4c2bd31be5cf825027a4",
+        "bytes": 56001,
+        "snapshot": "/workspace/dasl-stdlib-base32-bench/build/base32-cursor-baseline-bench/sources/Text.Base32.cinch"
+      },
+      "Data.Bytes.Word": {
+        "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "bytes": 4243,
+        "snapshot": "/workspace/dasl-stdlib-base32-bench/build/base32-cursor-baseline-bench/sources/Data.Bytes.Word.cinch"
+      },
+      "Effect.Base32": {
+        "sha256": "56be422a4d99b7ead687ad1348df1e1a82f82297c6df5c0c6eddeb99adc4149f",
+        "bytes": 6188,
+        "snapshot": "/workspace/dasl-stdlib-base32-bench/build/base32-cursor-baseline-bench/sources/Effect.Base32.cinch"
+      },
+      "Effect.Stream": {
+        "sha256": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33",
+        "bytes": 21304,
+        "snapshot": "/workspace/dasl-stdlib-base32-bench/build/base32-cursor-baseline-bench/sources/Effect.Stream.cinch"
+      }
+    },
+    "o1-padding-candidate": {
+      "Text.Base32": {
+        "sha256": "e901c7d08842d6580c765eefac5ad5d7ab48078c6fc46dbb963e3abafd55acbd",
+        "bytes": 56135,
+        "snapshot": "/workspace/dasl-stdlib-base32-bench/build/base32-padding-bench/sources/Text.Base32.cinch"
+      },
+      "Data.Bytes.Word": {
+        "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "bytes": 4243,
+        "snapshot": "/workspace/dasl-stdlib-base32-bench/build/base32-padding-bench/sources/Data.Bytes.Word.cinch"
+      },
+      "Effect.Base32": {
+        "sha256": "38f8d4b0a0ac51fed5ed5251d0b16093e8983986ea36330edede81bb69705b90",
+        "bytes": 6134,
+        "snapshot": "/workspace/dasl-stdlib-base32-bench/build/base32-padding-bench/sources/Effect.Base32.cinch"
+      },
+      "Effect.Stream": {
+        "sha256": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33",
+        "bytes": 21304,
+        "snapshot": "/workspace/dasl-stdlib-base32-bench/build/base32-padding-bench/sources/Effect.Stream.cinch"
+      }
+    }
+  }
+}
