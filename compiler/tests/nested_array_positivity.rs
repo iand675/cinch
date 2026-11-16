@@ -39,6 +39,19 @@ fn source_array_payload_admission_preserves_strict_positivity_boundaries() {
 /// Execute the actual Native source elaborator in normal reclamation and poisoned-free profiles.
 #[test]
 fn cinch_source_array_payload_evidence_matches_the_independent_verdicts() {
+    let inference = format!(
+        "{}\n{}",
+        include_str!("../../bootstrap/Bootstrap.Infer.cinch"),
+        include_str!("fixtures/nested-array-positivity-context.cinch")
+    );
+    let source = include_str!("../../bootstrap/programs/Run.NestedArrayPositivity.cinch");
+    let marker = "main = first-failure ";
+    assert_eq!(source.matches(marker).count(), 1);
+    let checked_source = source.replace(
+        marker,
+        "main = if payload-context-tests () then first-failure ",
+    );
+    let checked_source = format!("{} else 255\n", checked_source.trim_end());
     let directory = common::project(
         "nested_array_positivity",
         &[
@@ -54,14 +67,8 @@ fn cinch_source_array_payload_evidence_matches_the_independent_verdicts() {
                 "Bootstrap.Inputs.cinch",
                 include_str!("../../bootstrap/Bootstrap.Inputs.cinch"),
             ),
-            (
-                "Bootstrap.Infer.cinch",
-                include_str!("../../bootstrap/Bootstrap.Infer.cinch"),
-            ),
-            (
-                "Main.cinch",
-                include_str!("../../bootstrap/programs/Run.NestedArrayPositivity.cinch"),
-            ),
+            ("Bootstrap.Infer.cinch", &inference),
+            ("Main.cinch", &checked_source),
         ],
     );
     let executable = directory.join("nested-array-positivity");

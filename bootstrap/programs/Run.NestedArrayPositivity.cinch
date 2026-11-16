@@ -163,6 +163,14 @@ module Main where
   check-case17 :: Unit -> Bool
   check-case17 unit = verdict (evaluate "-- | Exercise one sealed finite-payload typing contract.\nmodule Main where\n  -- | A recursive fixture with the exact candidate payload position.\n  data Arena where\n    -- | Carry the candidate field without changing its recursive type.\n    Pool :: Array (RawPtr Arena) -> Arena\n  -- | Keep the fixture executable independent from its unused type declarations.\n  main :: Int\n  main = 0\n" False "positiv" Nil)
 
+  -- | Check the nested-value-binder-preserved source and its exact strict-positivity obligations.
+  check-case18 :: Unit -> Bool
+  check-case18 unit = verdict (evaluate "-- | Preserve the existing restriction on nested value quantifiers.\nmodule Main where\n  -- | A candidate recursive carrier cannot hide an implicit negative domain.\n  data Arena where\n    -- | Nested value binders retain their original conversion refusal.\n    Pool :: (forall (x :: Arena). Unit) -> Arena\n  -- | Keep execution independent from rejected source.\n  main :: Int\n  main = 0\n" False "nested forall binder" Nil)
+
+  -- | Check the array-nested-value-binder-preserved source and its exact strict-positivity obligations.
+  check-case19 :: Unit -> Bool
+  check-case19 unit = verdict (evaluate "-- | Preserve the existing restriction on nested value quantifiers.\nmodule Main where\n  -- | A candidate recursive carrier cannot hide an implicit negative domain.\n  data Arena where\n    -- | Nested value binders retain their original conversion refusal.\n    Pool :: Array (forall (x :: Arena). Unit) -> Arena\n  -- | Keep execution independent from rejected source.\n  main :: Int\n  main = 0\n" False "nested forall binder" Nil)
+
   -- | Run every source and authority check, preserving its original case number on failure.
   main :: Int
-  main = first-failure (Cons (check-case0 ()) (Cons (check-case1 ()) (Cons (check-case2 ()) (Cons (check-case3 ()) (Cons (check-case4 ()) (Cons (check-case5 ()) (Cons (check-case6 ()) (Cons (check-case7 ()) (Cons (check-case8 ()) (Cons (check-case9 ()) (Cons (check-case10 ()) (Cons (check-case11 ()) (Cons (check-case12 ()) (Cons (check-case13 ()) (Cons (check-case14 ()) (Cons (check-case15 ()) (Cons (check-case16 ()) (Cons (check-case17 ()) Nil)))))))))))))))))) 1
+  main = first-failure (Cons (check-case0 ()) (Cons (check-case1 ()) (Cons (check-case2 ()) (Cons (check-case3 ()) (Cons (check-case4 ()) (Cons (check-case5 ()) (Cons (check-case6 ()) (Cons (check-case7 ()) (Cons (check-case8 ()) (Cons (check-case9 ()) (Cons (check-case10 ()) (Cons (check-case11 ()) (Cons (check-case12 ()) (Cons (check-case13 ()) (Cons (check-case14 ()) (Cons (check-case15 ()) (Cons (check-case16 ()) (Cons (check-case17 ()) (Cons (check-case18 ()) (Cons (check-case19 ()) Nil)))))))))))))))))))) 1

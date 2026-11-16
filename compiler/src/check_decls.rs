@@ -24639,6 +24639,11 @@ mod sealed_array_positivity_tests {
         for field in [negative.clone(), double_negative.clone(), container("Array", negative), container("Array", double_negative)] {
             assert!(!accepted(&checker, field));
         }
+        let mut quantified = Scheme::mono(Ty::Unit);
+        quantified.val_params.push(("x".into(), recursive()));
+        let field = Ty::Forall(Box::new(quantified));
+        assert!(!accepted(&checker, field.clone()));
+        assert!(!accepted(&checker, container("Array", field)));
     }
 
     /// Unknown constructors and higher-kinded heads retain no positivity authority.
