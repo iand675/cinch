@@ -27,6 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # CINCH_BOOTSTRAP_BUILD lets a second chain (another pin or source set) build
 # beside an existing one without overwriting its stages.
 BUILD = Path(os.environ["CINCH_BOOTSTRAP_BUILD"]).resolve() if os.environ.get("CINCH_BOOTSTRAP_BUILD") else ROOT / "build" / "bootstrap"
+LIBRARY_ARTIFACT = None
 TOOLKIT = ("Lex", "Scan", "Parse", "Json", "Builder")
 # Prelude source modules the compiler itself compiles, keyed by the name the
 # bundle gives them. `Data.Array` is not in the embedded base package, and
@@ -509,7 +510,9 @@ def collect_compiler_sources() -> dict[str, bytes]:
     # The seed links Stage1. The compiler inside Stage1 targets the pinned
     # library and runtime used to build and run Stage2 and later.
     lock = library_provider_lock()
-    files = {p.name: p.read_bytes() for p in sorted((ROOT / "bootstrap").glob("*.cinch"))}
+    # Reproduction clients retained next to compiler sources are not compiler
+    # modules and must not become aliases or duplicate the pipeline's Main.
+    files = {p.name: p.read_bytes() for p in sorted((ROOT / "bootstrap").glob("Bootstrap.*.cinch"))}
     files["Bootstrap.RuntimeAbi.cinch"] = runtime_abi_source(lock["runtime_abi"])
     for module in TOOLKIT:
         files[f"Text.{module}.cinch"] = (ROOT / "compiler" / "prelude" / "Text" / f"{module}.cinch").read_bytes()
@@ -769,8 +772,10 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
 
 
 def runtime_provider() -> dict:
-    from bootstrap_objects import provider
-    return provider(sys.modules[__name__])
+    """Select the pinned base by default, or fail closed on an explicitly supplied artifact receipt."""
+    from bootstrap_objects import artifact_provider, provider
+    return (artifact_provider(sys.modules[__name__], LIBRARY_ARTIFACT) if LIBRARY_ARTIFACT is not None
+            else provider(sys.modules[__name__]))
 
 
 def runtime_archive() -> Path:
@@ -974,9 +979,12 @@ def main() -> int:
                              f"(default: {'on' if PGO_DEFAULT else 'off'}; CINCH_BOOTSTRAP_PGO)")
     parser.add_argument("--no-pgo", dest="pgo", action="store_false",
                         help="plain -O2 stage links, as before profile-guided optimization")
+    parser.add_argument("--library-artifact", type=Path,
+                        help="verified current-source base receipt for stages 2/3; leaves the seed and library pins unchanged")
     args = parser.parse_args()
     try:
-        global JOBS, PGO
+        global JOBS, PGO, LIBRARY_ARTIFACT
+        LIBRARY_ARTIFACT = args.library_artifact.resolve() if args.library_artifact is not None else None
         JOBS = resolve_jobs(args.jobs)
         PGO = resolve_pgo(args.pgo)
         environment()
@@ -1020,7 +1028,9 @@ def main() -> int:
                     status = "stale sources"
                 elif status == "built" and not stage and inputs.get("seed") != seed_inputs()[0]:
                     status = "stale seed"
-                elif status == "built" and stage >= 2 and (
+                elif status == "built" and stage >= 2 and LIBRARY_ARTIFACT is not None and inputs.get("library_provider") != runtime_provider()["identity"]:
+                    status = "different explicit library artifact"
+                elif status == "built" and stage >= 2 and LIBRARY_ARTIFACT is None and (
                         inputs.get("library_provider", {}).get("producer") != read_json(ROOT / "bootstrap/library-provider.lock.json")
                         or inputs.get("library_provider", {}).get("roots_sha256") != file_hash(ROOT / "bootstrap/library-object-roots.json")):
                     status = "stale library inputs"

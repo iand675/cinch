@@ -82,11 +82,18 @@ def stage3_artifacts():
     receipt = bootstrap.read_json(stage / "stage.json")
     inputs = receipt.get("inputs", {})
     provider = inputs.get("library_provider", {})
+    if provider.get("kind") == "current-base-artifact":
+        if bootstrap.LIBRARY_ARTIFACT is None:
+            raise bootstrap.BootstrapError("this Stage3 requires its explicit --library-artifact receipt")
+        library_matches = provider == bootstrap.runtime_provider()["identity"]
+    else:
+        library_matches = (bootstrap.LIBRARY_ARTIFACT is None
+                           and provider.get("producer") == bootstrap.read_json(bootstrap.ROOT / "bootstrap/library-provider.lock.json")
+                           and provider.get("roots_sha256") == bootstrap.file_hash(bootstrap.ROOT / "bootstrap/library-object-roots.json"))
     if (inputs.get("source_sha256") != bootstrap.source_hash(bootstrap.collect_compiler_sources())
             or inputs.get("built_by_stage") != 2 or inputs.get("protocol") != bootstrap.PROTOCOL
             or inputs.get("host") != bootstrap.HOST or not bootstrap.cached(stage, inputs)
-            or provider.get("producer") != bootstrap.read_json(bootstrap.ROOT / "bootstrap/library-provider.lock.json")
-            or provider.get("roots_sha256") != bootstrap.file_hash(bootstrap.ROOT / "bootstrap/library-object-roots.json")):
+            or not library_matches):
         raise bootstrap.BootstrapError("Stage3 frontend tests require the current checked compiler and library")
     compiler, manifest, objects = (stage / name for name in ("cinch", "base-interfaces.json", "objects.json"))
     configuration = bootstrap.read_json(objects)
@@ -184,7 +191,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence", type=Path, required=True)
     parser.add_argument("--cargo-target", type=Path, required=True)
+    parser.add_argument("--library-artifact", type=Path,
+                        help="explicit current-source base receipt used to build the selected Stage3")
     args = parser.parse_args()
+    bootstrap.LIBRARY_ARTIFACT = args.library_artifact.resolve() if args.library_artifact is not None else None
     return verify(args.evidence.resolve(), args.cargo_target.resolve())
 
 
