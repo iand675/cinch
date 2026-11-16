@@ -44,12 +44,29 @@
     },
     {
       "reference_package": "cmp",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
+        "Data.Compare",
         "Relation.Ord"
       ],
       "remaining": [],
-      "reference_declarations": 4
+      "reference_declarations": 4,
+      "tests": [
+        "lib_compare"
+      ],
+      "benchmarks": [
+        "integer",
+        "float",
+        "choice",
+        "string"
+      ],
+      "capabilities": {
+        "func Compare[$0 Ordered]($0, $0) int": "Data.Compare.Compare / compare -> Ordering",
+        "func Less[$0 Ordered]($0, $0) bool": "Data.Compare.Compare / less",
+        "func Or[$0 comparable](...$0) $0": "Data.Compare.Default / first-non-default; explicit fallback/predicate via first-non-default-by",
+        "type Ordered interface {}": "Data.Compare.Compare with scalar instances; explicit capability instead of a closed type union"
+      },
+      "review": "All four recorded declarations have explicit Cinch capability mappings. Integer, mathematical integer, Char, String and IEEE float orders are covered; floating NaNs precede numbers and signed zeros compare equal. Explicit Default policies preserve the first non-default representation and canonicalize an all-zero float selection to positive zero. Both frozen frontends and the repaired Rust compiler pass 1229 independent reference/default observations; 124 recorded ordinary/poison process runs have zero leaks across the full and focused epochs. Parent lib_compare passes all three checks, including current Rust CLI execution. Both benchmark drivers and slower selection/string results are retained; no throughput parity claim. Structural default instances are optional and remain a separate constructor-inventory compiler follow-up."
     },
     {
       "reference_package": "compress/bzip2",
@@ -1888,14 +1905,24 @@
       "reference_package": "unicode",
       "status": "partial",
       "cinch_modules": [
-        "Data.Char"
+        "Data.Char",
+        "Data.Unicode",
+        "Data.Unicode.Kernel",
+        "Data.Unicode.Names",
+        "Data.Unicode.Range",
+        "Data.Unicode.Tables"
       ],
       "remaining": [
-        "Unicode property tables",
-        "Unicode case mappings",
-        "versioned classification evidence"
+        "Review public pipeline benchmarks and any measured code generation improvements before completion promotion"
       ],
-      "reference_declarations": 344
+      "reference_declarations": 344,
+      "tests": [
+        "lib_unicode_kernel",
+        "lib_unicode_catalog"
+      ],
+      "benchmarks": [],
+      "capability_mapping": "tooling/data/unicode-capabilities.json: all 344 actual declaration records mapped",
+      "review": "Unicode 17 classification, simple case mappings, fold cycles, complete named catalogs and checked custom ranges are implemented. Exhaustive numeric code-point, scalar, catalog and ownership validation passes both frozen frontends. Parent kernel/catalog targets pass all ten checks. Public-pipeline performance review remains in progress; package stays partial until that review is integrated."
     },
     {
       "reference_package": "unicode/utf16",
@@ -1930,15 +1957,21 @@
       "reference_package": "unicode/utf8",
       "status": "partial",
       "cinch_modules": [
+        "Data.Bytes.Utf8",
         "Data.Char",
         "Data.String"
       ],
-      "remaining": [],
+      "remaining": [
+        "Five String adapters require private backing wrappers and an explicitly validated base-provider dependency epoch: DecodeLastRuneInString, DecodeRuneInString, FullRuneInString, RuneCountInString, ValidString"
+      ],
       "reference_declarations": 23,
       "tests": [
-        "lib_word_utf8"
+        "lib_word_utf8",
+        "lib_utf8"
       ],
-      "benchmarks": []
+      "benchmarks": [],
+      "capability_mapping": "tooling/data/unicode-capabilities.json: implemented raw byte operations and five explicitly pending String adapters",
+      "review": "Raw byte decoding, reverse decoding, counting, validation, repair and encoding cover all numeric code points, byte pairs and malformed/aligned inputs on both frozen frontends. Parent lib_utf8 passes six checks, including actual WebAssembly, AArch64 and big-endian PowerPC kernel objects. Foreign execution is not claimed. Five String adapters and final benchmark review remain open."
     },
     {
       "reference_package": "unique",

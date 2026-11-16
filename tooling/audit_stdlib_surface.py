@@ -21,7 +21,7 @@ DEFAULT = ROOT / "design/stdlib-surface.json"
 HOMES = {
     "bufio": ["Effect.Stream"], "bytes": ["Data.Bytes", "Data.Bytes.Word", "Data.StringIo"],
     "html": ["Text.Html"],
-    "cmp": ["Relation.Ord"], "compress/flate": ["Text.Zlib"], "compress/zlib": ["Text.Zlib"],
+    "cmp": ["Data.Compare", "Relation.Ord"], "compress/flate": ["Text.Zlib"], "compress/zlib": ["Text.Zlib"],
     "container/heap": ["Data.Mutable.Heap"], "container/list": ["Data.List"], "container/ring": ["Data.Mutable.Deque"], "context": ["Effect.Concurrent", "Effect.Clock"],
     "crypto/hmac": ["Text.Digest"], "crypto/md5": ["Text.Digest"], "crypto/rand": ["Effect.Random"],
     "crypto/sha1": ["Text.Digest"], "crypto/sha256": ["Text.Digest", "Text.Sha256", "Effect.Sha256"], "crypto/sha512": ["Text.Digest"],
@@ -48,10 +48,12 @@ HOMES = {
     "sync": ["Effect.Stm"], "sync/atomic": ["Effect.Stm"], "syscall": ["Prim.Sys"],
     "testing": ["Effect.Test", "Effect.Benchmark", "Effect.Coverage"],
     "text/scanner": ["Text.Lex", "Text.Scan"], "time": ["Data.Date", "Data.Time", "Effect.Clock"],
-    "unicode": ["Data.Char"], "unicode/utf16": ["Text.Utf16"], "unicode/utf8": ["Data.Char", "Data.String"],
+    "unicode": ["Data.Char", "Data.Unicode", "Data.Unicode.Kernel", "Data.Unicode.Tables", "Data.Unicode.Range", "Data.Unicode.Names"], "unicode/utf16": ["Text.Utf16"], "unicode/utf8": ["Data.Char", "Data.String", "Data.Bytes.Utf8"],
 }
 
 EVIDENCE = {
+    "cmp": (["lib_compare"], ["integer", "float", "choice", "string"]),
+    "unicode": (["lib_unicode_kernel", "lib_unicode_catalog"], []),
     "encoding/base64": (["lib_base64", "lib_base64_encoding"], ["encode-bytes", "decode-bytes", "custom-encode", "custom-decode", "legacy-encode", "legacy-decode", "stream-encode64", "stream-decode64"]),
     "html": (["lib_html"], ["escape-bytes", "unescape-bytes", "escape-text", "unescape-text", "escape-length"]),
     "path": (["lib_path"], ["clean-component", "clean-segments", "base", "ext", "compiled-match", "match", "join"]),
@@ -69,7 +71,7 @@ EVIDENCE = {
     "hash/fnv": (["lib_go_stdlib::fnv_matches_go_and_updates_over_every_split", "lib_fnv128::fnv128_matches_reference_vectors_and_every_chunk_split", "lib_fnv128::fnv128_updates_preserve_arbitrary_high_bits_and_exact_tails", "lib_fnv_state"], ["fnv32a", "fnv64a", "fnv128", "fnv128a"] + [f"fnv-{kind}{width}" for kind in ("state", "roundtrip", "stream") for width in ("32", "32a", "64", "64a", "128", "128a")]),
     "net/url": (["lib_url"], ["query-escape", "query-unescape", "path-escape", "path-unescape", "parse-render", "query-values", "resolve", "join"]),
     "io": (["lib_stream"], ["stream-copy-buffer", "stream-copy-discard", "stream-read-all"]),
-    "unicode/utf8": (["lib_word_utf8"], []),
+    "unicode/utf8": (["lib_word_utf8", "lib_utf8"], []),
 }
 
 
