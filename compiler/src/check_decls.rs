@@ -90,12 +90,21 @@ fn prim_result_promise(op: PrimOp) -> Option<(PTerm, Option<PTerm>)> {
     })
 }
 
+/// Recover a payload certificate only from the unique authoritative builtin header.
+/// Imported/source headers cannot grant evidence, and a competing identity revokes it.
+fn sealed_positive_payload(types: &HashMap<String, Vec<TypeKind>>, identity: &str) -> Option<StrictPositivePayload> {
+    let mut headers = types.values().flatten().filter(|entry| entry.identity == identity);
+    let evidence = headers.next()?.strict_positive_payload?;
+    headers.all(|entry| entry.strict_positive_payload == Some(evidence)).then_some(evidence)
+}
+
 /// The positivity discipline (core specification section 2; roadmap gap
 /// A1): a data declaration may occur in a constructor field only strictly
 /// positively, as the field type itself or in the codomain of an arrow.
-/// Negative occurrences and nesting inside other type constructors are
-/// rejected: positivity-preserving nesting is an open design point
-/// (dependent core kernel design, section 5).
+/// The actual sealed finite-array payload also preserves strict positivity.
+/// Unknown containers, negative function positions and recursive occurrences
+/// in a group's own type arguments remain refused. No subtyping covariance
+/// follows from this finite-payload certificate.
 ///
 /// `group` is the declaration's strongly connected group in its module
 /// (`data_sccs`): itself when it is not recursive, every member of the
@@ -103,6 +112,7 @@ fn prim_result_promise(op: PrimOp) -> Option<(PTerm, Option<PTerm>)> {
 /// as one block, so a member may occur in another member's constructor and
 /// the occurrence is judged against the whole group.
 fn check_group_positivity(
+    types: &HashMap<String, Vec<TypeKind>>,
     group: &[String],
     field: &str,
     ty: &Ty,
@@ -116,7 +126,7 @@ fn check_group_positivity(
     } else {
         format!("the recursive group {{{}}}", group.join(", "))
     };
-    fn go(group: &[String], label: &str, field: &str, ctor: &ast::Name, ty: &Ty, span: ast::Span, positive: bool) -> Result<()> {
+    fn go(types: &HashMap<String, Vec<TypeKind>>, group: &[String], label: &str, field: &str, ctor: &ast::Name, ty: &Ty, span: ast::Span, positive: bool) -> Result<()> {
         let bad = |what: &str| {
             Err(Error::at(
                 span,
@@ -143,6 +153,15 @@ fn check_group_positivity(
                     }
                     Ok(())
                 } else {
+                    if !args.iter().any(|argument| mentions_group(argument, group)) {
+                        return Ok(());
+                    }
+                    if sealed_positive_payload(types, n).is_some_and(|evidence| evidence.accepts(args.len())) {
+                        for a in args {
+                            go(types, group, label, field, ctor, a, span, positive)?;
+                        }
+                        return Ok(());
+                    }
                     for a in args {
                         if mentions_group(a, group) {
                             return bad("nested inside another type constructor");
@@ -151,24 +170,34 @@ fn check_group_positivity(
                     Ok(())
                 }
             }
-            // An arrow's parameter is a negative position; its result is
-            // positive. A dependent pair is a product: both sides are
-            // positive.
+            // Strict positivity excludes every recursive arrow-domain
+            // occurrence, including double negatives. The codomain and
+            // both dependent-pair components preserve their position.
             Ty::Fun(a, _, _, b) | Ty::Pi { dom: a, cod: b, .. } => {
-                go(group, label, field, ctor, a, span, !positive)?;
-                go(group, label, field, ctor, b, span, positive)
+                if mentions_group(a, group) {
+                    return bad("negatively");
+                }
+                go(types, group, label, field, ctor, b, span, positive)
             }
             Ty::Sigma { dom, cod, .. } => {
-                go(group, label, field, ctor, dom, span, positive)?;
-                go(group, label, field, ctor, cod, span, positive)
+                go(types, group, label, field, ctor, dom, span, positive)?;
+                go(types, group, label, field, ctor, cod, span, positive)
             }
             // A polytype's binders introduce no occurrence; its body keeps
             // the polarity of its position (design/rank-n-polymorphism.md
             // section 3).
-            Ty::Forall(scheme) => go(group, label, field, ctor, &scheme.ty, span, positive),
+            Ty::Forall(scheme) => {
+                if scheme.val_params.iter().any(|(_, ty)| mentions_group(ty, group)) {
+                    return bad("negatively");
+                }
+                if scheme.ctx.iter().any(|(_, app)| app.args.iter().any(|ty| mentions_group(ty, group))) {
+                    return bad("nested inside another type constructor");
+                }
+                go(types, group, label, field, ctor, &scheme.ty, span, positive)
+            },
             Ty::Tuple(items) => {
                 for i in items {
-                    go(group, label, field, ctor, i, span, positive)?;
+                    go(types, group, label, field, ctor, i, span, positive)?;
                 }
                 Ok(())
             }
@@ -177,7 +206,7 @@ fn check_group_positivity(
                 // reading as a product component. A `Later` payload is a
                 // guarded future observation (core language specification
                 // section 9), read the same way.
-                go(group, label, field, ctor, inner, span, positive)
+                go(types, group, label, field, ctor, inner, span, positive)
             }
             // A handler carries its input and output by value, so a group
             // occurrence inside one is a structural occurrence, and the
@@ -189,15 +218,40 @@ fn check_group_positivity(
                 }
                 Ok(())
             }
+            // Higher-kinded heads, boundary pointers and borrow formers
+            // carry no established strictly-positive payload evidence.
+            _ if mentions_group(ty, group) => bad("nested inside another type constructor"),
             _ => Ok(()),
         }
     }
-    go(group, &label, field, ctor, ty, span, true)
+    go(types, group, &label, field, ctor, ty, span, true)
 }
 
-/// Does this type mention any member of the group?
+/// Find recursive occurrences in every runtime type former used by positivity.
+/// This walk is deliberately independent from ordinary source-name occurrence
+/// queries: higher-kinded applications and pointer payloads cannot be skipped.
 fn mentions_group(t: &Ty, group: &[String]) -> bool {
-    group.iter().any(|m| ty_mentions(t, m))
+    match t {
+        Ty::Param(name) => group.iter().any(|owner| owner.as_str() == name.as_str()),
+        Ty::Adt(name, args) => group.iter().any(|owner| owner.as_str() == name.as_str())
+            || args.iter().any(|ty| mentions_group(ty, group)),
+        Ty::App(head, args) => mentions_group(head, group)
+            || args.iter().any(|ty| mentions_group(ty, group)),
+        Ty::Tuple(items) => items.iter().any(|ty| mentions_group(ty, group)),
+        Ty::Fun(domain, _, _, result) | Ty::Pi { dom: domain, cod: result, .. }
+        | Ty::Sigma { dom: domain, cod: result, .. } =>
+            mentions_group(domain, group) || mentions_group(result, group),
+        Ty::Forall(scheme) => {
+            let visible: Vec<String> = group.iter().filter(|name| !scheme.params.contains(name)).cloned().collect();
+            mentions_group(&scheme.ty, &visible)
+                || scheme.val_params.iter().any(|(_, ty)| mentions_group(ty, &visible))
+                || scheme.ctx.iter().any(|(_, app)| app.args.iter().any(|ty| mentions_group(ty, &visible)))
+        }
+        Ty::Thunk { inner, .. } | Ty::Later(inner) | Ty::Lazy { inner, .. }
+        | Ty::Ref(_, inner) | Ty::Mut(_, inner) | Ty::Ptr { pointee: inner, .. } => mentions_group(inner, group),
+        Ty::Handler { input, output, .. } => mentions_group(input, group) || mentions_group(output, group),
+        _ => group.iter().any(|name| t.mentions_idx(name)),
+    }
 }
 
 /// The data type names a source type expression names without a module
@@ -723,6 +777,7 @@ impl Checker {
     fn install_builtins(&mut self) {
         for n in ["Nat", "Int", "Bool", "Unit", "Bytes", "Sym"] {
             self.types.entry(n.to_string()).or_default().push(TypeKind {
+                strict_positive_payload: None,
                 data_family: false,
                 module: "<builtin>".into(),
                 name: n.into(), identity: n.into(),
@@ -735,8 +790,12 @@ impl Checker {
         }
         // Opaque runtime type constructors: no source constructor can forge
         // a shape, a column layout or a transactional variable's cell.
-        for name in ["Array", "Tensor", "Columnar", "TVar", "MVarCell"] {
+        for (name, payload) in [
+            ("Array", Some(StrictPositivePayload::FiniteOwnedArray)),
+            ("Tensor", None), ("Columnar", None), ("TVar", None), ("MVarCell", None),
+        ] {
             self.types.entry(name.into()).or_default().push(TypeKind {
+                strict_positive_payload: payload,
                 data_family: false,
                 module: "<builtin>".into(), name: name.into(), identity: name.into(), arity: 1,
                 param_kinds: vec![ParamKind::Type], ctors: Vec::new(), fields: None,
@@ -747,6 +806,7 @@ impl Checker {
         // section 4, decision D21). The value is a uniform word; the
         // identity lives in the type.
         self.types.entry("Io".to_string()).or_default().push(TypeKind {
+            strict_positive_payload: None,
             data_family: false,
             module: "<builtin>".into(),
             name: "Io".into(), identity: "Io".into(),
@@ -760,6 +820,7 @@ impl Checker {
         // (primitive types specification, section 2).
         for s in Scalar::ALL {
             self.types.entry(s.name().to_string()).or_default().push(TypeKind {
+                strict_positive_payload: None,
                 data_family: false,
                 module: "<builtin>".into(),
                 name: s.name().into(), identity: s.name().into(),
@@ -834,6 +895,7 @@ impl Checker {
         use crate::types::{EffLabel, EffRow, Mult, RowTail};
         for (n, arity) in [("Scope", 2), ("Task", 3)] {
             self.types.entry(n.to_string()).or_default().push(TypeKind {
+                strict_positive_payload: None,
                 data_family: false,
                 module: "<builtin>".into(),
                 name: n.into(), identity: n.into(),
@@ -1590,6 +1652,7 @@ impl Checker {
             ("SchemaRead", 0),
         ] {
             self.types.entry(n.to_string()).or_default().push(TypeKind {
+                strict_positive_payload: None,
                 data_family: false,
                 module: "<builtin>".into(),
                 name: n.into(), identity: n.into(),
@@ -2356,6 +2419,7 @@ impl Checker {
             ctor_names.push((cname, tag));
         }
         self.types.entry(name.to_string()).or_default().push(TypeKind {
+            strict_positive_payload: None,
             data_family: true,
             module: "<builtin>".to_string(),
             name: name.to_string(), identity: name.to_string(),
@@ -3150,6 +3214,7 @@ impl Checker {
                 .entry(h.name.text.clone())
                 .or_default()
                 .push(TypeKind {
+                    strict_positive_payload: None,
                     data_family: h.data_family,
                     module: module.to_string(),
                     name: h.name.text.clone(),
@@ -3861,6 +3926,7 @@ impl Checker {
                     // layout projection (foreign function interface
                     // specification section 2).
                     let tk = TypeKind {
+                        strict_positive_payload: None,
                         data_family: false,
                         module: module.clone(),
                         name: o.name.text.clone(), identity: nominal_identity(&module, &o.name),
@@ -4065,7 +4131,7 @@ impl Checker {
                         // block.
                         let group = self.data_group(&module, &data.name);
                         for (fname, fty, _) in &fields {
-                            check_group_positivity(&group, fname, fty, &c.name, c.ty.span())?;
+                            check_group_positivity(&self.types, &group, fname, fty, &c.name, c.ty.span())?;
                         }
                         if fields.iter().any(|(_, ty, mult)| *mult == Mult::Zero && !erased_ty(ty)) {
                             return Err(Error::at(
@@ -4328,6 +4394,7 @@ impl Checker {
                     // Register the type before its transparent
                     // constructor (whose scheme mentions the type).
                     self.types.entry(r.name.text.clone()).or_default().push(TypeKind {
+                        strict_positive_payload: None,
                         data_family: false,
                         module: module.clone(),
                         name: r.name.text.clone(), identity: nominal_identity(&module, &r.name),
@@ -4507,6 +4574,7 @@ impl Checker {
                         // group positivity discipline (core specification
                         // section 2).
                         check_group_positivity(
+                            &self.types,
                             &self.data_group(&module, &rec.name),
                             &f.name.text,
                             &t,
@@ -4726,6 +4794,7 @@ impl Checker {
                     // types, which may mention the type being declared
                     // (`tail :: Later (Stream a)`).
                     self.types.entry(rec.name.text.clone()).or_default().push(TypeKind {
+                        strict_positive_payload: None,
                         data_family: false,
                         module: module.clone(),
                         name: rec.name.text.clone(), identity: nominal_identity(&module, &rec.name),
@@ -4739,7 +4808,7 @@ impl Checker {
                     let mut obs_tys = Vec::new();
                     for f in &rec.fields {
                         let t = self.conv_type(&f.ty, &vars)?;
-                        check_group_positivity(&[nominal_identity(&module, &rec.name)], &f.name.text, &t, &rec.name, f.span)?;
+                        check_group_positivity(&self.types, &[nominal_identity(&module, &rec.name)], &f.name.text, &t, &rec.name, f.span)?;
                         obs_tys.push(t);
                         vars.push(f.name.text.clone());
                     }
@@ -5102,6 +5171,7 @@ impl Checker {
                     // a type former (the capability binder rule of
                     // decision D21 already builds `Ty::Adt(class, args)`).
                     let tk = TypeKind {
+                        strict_positive_payload: None,
                         data_family: false,
                         module: module.clone(),
                         name: sig.name.text.clone(),
@@ -24532,5 +24602,81 @@ impl Checker {
             Err(e) => out.eval_error = Some(e.to_string()),
         }
         Ok(out)
+    }
+}
+
+#[cfg(test)]
+mod sealed_array_positivity_tests {
+    use super::*;
+
+    /// Install the actual primitive headers without obtaining authority from source metadata.
+    fn checker() -> Checker {
+        let mut checker = Checker::new();
+        checker.install_builtins();
+        checker
+    }
+
+    /// Build the source declaration's canonical recursive occurrence.
+    fn recursive() -> Ty { Ty::Adt("Main.Arena".into(), vec![]) }
+
+    /// Apply an arbitrary canonical container identity to one payload.
+    fn container(name: &str, payload: Ty) -> Ty { Ty::Adt(name.into(), vec![payload]) }
+
+    /// Check a single field under the same declaration-group discipline as ordinary constructors.
+    fn accepted(checker: &Checker, field: Ty) -> bool {
+        let span = ast::Span::new(1, 1);
+        check_group_positivity(&checker.types, &["Main.Arena".into()], "payload", &field,
+            &ast::Name::new("Pool", span), span).is_ok()
+    }
+
+    /// Actual finite arrays compose through tuples and positive function results.
+    #[test]
+    fn actual_sealed_array_payloads_preserve_strict_positivity() {
+        let checker = checker();
+        assert!(accepted(&checker, container("Array", recursive())));
+        assert!(accepted(&checker, container("Array", container("Array", recursive()))));
+        assert!(accepted(&checker, container("Array", Ty::Tuple(vec![Ty::Nat, recursive()]))));
+        assert!(accepted(&checker, container("Array", Ty::fun(Ty::Unit, recursive()))));
+        assert!(sealed_positive_payload(&checker.types, "Tensor").is_none());
+    }
+
+    /// Nested admission must not erase negative domains, including double-negative functions.
+    #[test]
+    fn certified_payloads_refuse_every_negative_function_domain() {
+        let checker = checker();
+        let negative = Ty::fun(recursive(), Ty::Unit);
+        let double_negative = Ty::fun(negative.clone(), Ty::Unit);
+        for field in [negative.clone(), double_negative.clone(), container("Array", negative), container("Array", double_negative)] {
+            assert!(!accepted(&checker, field));
+        }
+    }
+
+    /// Unknown constructors and higher-kinded heads retain no positivity authority.
+    #[test]
+    fn unknown_payloads_and_recursive_arguments_remain_refused() {
+        let checker = checker();
+        for name in ["Data.Core.List", "Other.Array", "Tensor", "Columnar", "TVar"] {
+            assert!(!accepted(&checker, container("Array", container(name, recursive()))));
+        }
+        let unknown = Ty::App(Box::new(Ty::Param("Array".into())), vec![recursive()]);
+        assert!(!accepted(&checker, container("Array", unknown)));
+        assert!(!accepted(&checker, container("Array", container("Main.Arena", recursive()))));
+        assert!(!accepted(&checker, Ty::Adt("Array".into(), vec![recursive(), Ty::Unit])));
+    }
+
+    /// Reusing a primitive's spelling or forging an imported nominal header cannot mint evidence.
+    #[test]
+    fn source_and_imported_impostor_headers_cannot_grant_payload_evidence() {
+        let mut checker = checker();
+        let mut fake = checker.types["Array"][0].clone();
+        fake.strict_positive_payload = None;
+        fake.module = "Impostor".into();
+        fake.identity = "Impostor.Array".into();
+        checker.types.entry("Array".into()).or_default().push(fake.clone());
+        assert!(!accepted(&checker, container("Impostor.Array", recursive())));
+        assert!(accepted(&checker, container("Array", recursive())));
+        fake.identity = "Array".into();
+        checker.types.entry("forged".into()).or_default().push(fake);
+        assert!(!accepted(&checker, container("Array", recursive())));
     }
 }
