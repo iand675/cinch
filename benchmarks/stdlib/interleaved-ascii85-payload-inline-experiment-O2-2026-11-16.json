@@ -1,0 +1,670 @@
+{
+  "format": 1,
+  "description": "Discarded payload-address alwaysinline experiment; same library/driver/runtime, different Rust compiler. Optimized assembly is identical excluding comments. Timing variation is not a compiler speedup.",
+  "runtime_source_sha256": "cc65783bd854ae6b6e820a5adb18e5f59f5aed5ec6a40e52b912fc283c12ca31",
+  "driver_sha256": "707f30de7830f5ab1ca6050f71f6d3811440ecf9003e94673e7c863c81eb1e64",
+  "opt_level": 2,
+  "sources": {
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Word": "1a563597517531debe37f7ab19616255dbc845d62ffed182abcdc5da9afe27ad",
+    "Effect.Ascii85": "ce62b87682e7b8b63754a346c01a3db666e0a062693fa958251dac6c89febb27",
+    "Effect.Hex": "e53cb32a3da3f471f746fe04bcd8ef54d4fc774608d236b60da57a9af60c550b",
+    "Effect.Stream": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33",
+    "Text.Ascii85": "6550cb8d1b45de4b2d0ca392ad31b6cae716213b003f1789ae7d0281948d222b",
+    "Text.Base32": "ae82b9c24657458ca5d6b0f33ee80b8ba8239cef592e793a926270cb45e308bd",
+    "Text.Base64": "54948138dd53d893cb82067bdaba883faa404e81e0013dd750c75f723c0b409d",
+    "Text.Binary": "9e8420191ef2f63969bdd1fa54f69724c835a6ada8041b548ee3de8154e71e4d",
+    "Text.Checksum": "92aeb92792906cc05fde3a49ec2e71800d8fe7a2372926b4a4665e015fd02c29",
+    "Text.Fnv": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+    "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+    "Text.Utf16": "fb5bfa4782fa832245102d8fc57818a374c4176c6a7c608f21a669030f54e8b8"
+  },
+  "iterations": 256,
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "cpu_affinity": [
+    0
+  ],
+  "warmup_processes_per_case": 1,
+  "inputs": {
+    "before": {
+      "report": "/workspace/dasl-stdlib-io/benchmarks/stdlib/ascii85-complete-O2-2026-11-16.json",
+      "sources": {
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Word": "1a563597517531debe37f7ab19616255dbc845d62ffed182abcdc5da9afe27ad",
+        "Effect.Ascii85": "ce62b87682e7b8b63754a346c01a3db666e0a062693fa958251dac6c89febb27",
+        "Effect.Hex": "e53cb32a3da3f471f746fe04bcd8ef54d4fc774608d236b60da57a9af60c550b",
+        "Effect.Stream": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33",
+        "Text.Ascii85": "6550cb8d1b45de4b2d0ca392ad31b6cae716213b003f1789ae7d0281948d222b",
+        "Text.Base32": "ae82b9c24657458ca5d6b0f33ee80b8ba8239cef592e793a926270cb45e308bd",
+        "Text.Base64": "54948138dd53d893cb82067bdaba883faa404e81e0013dd750c75f723c0b409d",
+        "Text.Binary": "9e8420191ef2f63969bdd1fa54f69724c835a6ada8041b548ee3de8154e71e4d",
+        "Text.Checksum": "92aeb92792906cc05fde3a49ec2e71800d8fe7a2372926b4a4665e015fd02c29",
+        "Text.Fnv": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+        "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+        "Text.Utf16": "fb5bfa4782fa832245102d8fc57818a374c4176c6a7c608f21a669030f54e8b8"
+      },
+      "executable_sha256": "4c14c75300840934b6bfa7420740ae67010d3a34de9a6eb731390ecc46a777bd",
+      "llvm_sha256": "c7dd64adda3863e377619df9c16282c64dc9a77d4bbc2dc590dfcc03aee8a309"
+    },
+    "after": {
+      "report": "/workspace/dasl-stdlib-io/benchmarks/stdlib/ascii85-payload-inline-experiment-O2-2026-11-16.json",
+      "sources": {
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Word": "1a563597517531debe37f7ab19616255dbc845d62ffed182abcdc5da9afe27ad",
+        "Effect.Ascii85": "ce62b87682e7b8b63754a346c01a3db666e0a062693fa958251dac6c89febb27",
+        "Effect.Hex": "e53cb32a3da3f471f746fe04bcd8ef54d4fc774608d236b60da57a9af60c550b",
+        "Effect.Stream": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33",
+        "Text.Ascii85": "6550cb8d1b45de4b2d0ca392ad31b6cae716213b003f1789ae7d0281948d222b",
+        "Text.Base32": "ae82b9c24657458ca5d6b0f33ee80b8ba8239cef592e793a926270cb45e308bd",
+        "Text.Base64": "54948138dd53d893cb82067bdaba883faa404e81e0013dd750c75f723c0b409d",
+        "Text.Binary": "9e8420191ef2f63969bdd1fa54f69724c835a6ada8041b548ee3de8154e71e4d",
+        "Text.Checksum": "92aeb92792906cc05fde3a49ec2e71800d8fe7a2372926b4a4665e015fd02c29",
+        "Text.Fnv": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+        "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+        "Text.Utf16": "fb5bfa4782fa832245102d8fc57818a374c4176c6a7c608f21a669030f54e8b8"
+      },
+      "executable_sha256": "4c14c75300840934b6bfa7420740ae67010d3a34de9a6eb731390ecc46a777bd",
+      "llvm_sha256": "bb50d116f9165f46958d3f79eb544c39d325bdd464aa23915201b8a80346a530"
+    }
+  },
+  "results": [
+    {
+      "workload": "ascii85-offset-decode",
+      "raw_input_bytes": 32,
+      "checksum": 542067,
+      "samples_ns": {
+        "before": [
+          288354,
+          213251,
+          464649,
+          256746,
+          192970,
+          192309,
+          246140,
+          287182,
+          205169,
+          192620,
+          191759
+        ],
+        "after": [
+          192930,
+          190517,
+          209505,
+          192470,
+          193762,
+          192830,
+          194022,
+          278298,
+          195414,
+          192600,
+          191859
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 833.01171875,
+        "after": 753.6328125
+      },
+      "before_over_after": 1.1053283574353392
+    },
+    {
+      "workload": "ascii85-offset-decode",
+      "raw_input_bytes": 1024,
+      "checksum": 17462643,
+      "samples_ns": {
+        "before": [
+          6604659,
+          7262698,
+          7339264,
+          6071475,
+          5822260,
+          5997625,
+          5845536,
+          6070895,
+          6678940,
+          5900668,
+          6730808
+        ],
+        "after": [
+          6199829,
+          6992933,
+          6764068,
+          6070504,
+          6852411,
+          6228622,
+          6024135,
+          5861990,
+          6002482,
+          6069082,
+          6223244
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 23716.69921875,
+        "after": 24218.08203125
+      },
+      "before_over_after": 0.9792971709381016
+    },
+    {
+      "workload": "ascii85-offset-decode",
+      "raw_input_bytes": 16384,
+      "checksum": 278951283,
+      "samples_ns": {
+        "before": [
+          134041911,
+          93705107,
+          93587199,
+          97051793,
+          101014536,
+          96701035,
+          96984142,
+          98263196,
+          97199654,
+          96934486,
+          95817996
+        ],
+        "after": [
+          94403888,
+          95708991,
+          95536543,
+          95104402,
+          97306206,
+          96140911,
+          96723058,
+          97091051,
+          96224387,
+          100722026,
+          96809809
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 378844.3046875,
+        "after": 375876.51171875
+      },
+      "before_over_after": 1.007895659548343
+    },
+    {
+      "workload": "ascii85-into-decode",
+      "raw_input_bytes": 32,
+      "checksum": 126168,
+      "samples_ns": {
+        "before": [
+          87121,
+          88483,
+          88864,
+          86731,
+          89104,
+          87922,
+          86911,
+          87712,
+          87702,
+          88132,
+          88363
+        ],
+        "after": [
+          87071,
+          88674,
+          89435,
+          162935,
+          87371,
+          86349,
+          87752,
+          87552,
+          87822,
+          86861,
+          88012
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 343.4453125,
+        "after": 342.78125
+      },
+      "before_over_after": 1.0019372777828426
+    },
+    {
+      "workload": "ascii85-into-decode",
+      "raw_input_bytes": 1024,
+      "checksum": 1967320,
+      "samples_ns": {
+        "before": [
+          1302920,
+          1406116,
+          1310932,
+          1465124,
+          1723724,
+          1361769,
+          1368710,
+          1427088,
+          1402670,
+          1389782,
+          1353456
+        ],
+        "after": [
+          1299435,
+          1334308,
+          1552726,
+          1336911,
+          1469471,
+          1376340,
+          1353387,
+          1418986,
+          1315790,
+          1471234,
+          1644043
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 5428.8359375,
+        "after": 5376.328125
+      },
+      "before_over_after": 1.0097664821192438
+    },
+    {
+      "workload": "ascii85-into-decode",
+      "raw_input_bytes": 16384,
+      "checksum": 30475480,
+      "samples_ns": {
+        "before": [
+          21698459,
+          21345669,
+          21036465,
+          20752246,
+          22546996,
+          21385000,
+          21945967,
+          20770923,
+          22374323,
+          21323888,
+          22156855
+        ],
+        "after": [
+          20582210,
+          20257651,
+          20662341,
+          20827109,
+          21507196,
+          21002542,
+          21416857,
+          21351609,
+          24447574,
+          20903573,
+          21094101
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 83535.15625,
+        "after": 82041.1796875
+      },
+      "before_over_after": 1.0182100814272863
+    },
+    {
+      "workload": "ascii85-bytes-encode",
+      "raw_input_bytes": 32,
+      "checksum": 52618,
+      "samples_ns": {
+        "before": [
+          81112,
+          80692,
+          78649,
+          80431,
+          95214,
+          77928,
+          80452,
+          78969,
+          77918,
+          78999,
+          95294
+        ],
+        "after": [
+          77417,
+          78338,
+          76766,
+          76525,
+          79540,
+          77607,
+          186883,
+          76866,
+          76505,
+          78268,
+          77968
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 314.18359375,
+        "after": 303.15234375
+      },
+      "before_over_after": 1.0363884701122321
+    },
+    {
+      "workload": "ascii85-bytes-encode",
+      "raw_input_bytes": 1024,
+      "checksum": 359562,
+      "samples_ns": {
+        "before": [
+          1405142,
+          1296097,
+          1338190,
+          1279262,
+          1265811,
+          1447556,
+          1801110,
+          1361445,
+          1392232,
+          1297559,
+          1286322
+        ],
+        "after": [
+          1213352,
+          1199661,
+          1271380,
+          1222946,
+          1508648,
+          1416649,
+          1202205,
+          1279131,
+          1258340,
+          1305822,
+          1435368
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 5227.3046875,
+        "after": 4966.328125
+      },
+      "before_over_after": 1.052549198508707
+    },
+    {
+      "workload": "ascii85-bytes-encode",
+      "raw_input_bytes": 16384,
+      "checksum": 5274762,
+      "samples_ns": {
+        "before": [
+          19004816,
+          21157226,
+          19276716,
+          20261413,
+          19645022,
+          20882862,
+          19716921,
+          22131296,
+          19965667,
+          22915716,
+          24579052
+        ],
+        "after": [
+          20066858,
+          19791334,
+          19653606,
+          20462166,
+          20250727,
+          19517750,
+          19727507,
+          19823732,
+          19655529,
+          19678142,
+          20541907
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 79146.14453125,
+        "after": 77309.8984375
+      },
+      "before_over_after": 1.02375175922957
+    },
+    {
+      "workload": "hex-into-decode",
+      "raw_input_bytes": 32,
+      "checksum": 50240,
+      "samples_ns": {
+        "before": [
+          78668,
+          78379,
+          78508,
+          79169,
+          79310,
+          86190,
+          156396,
+          153332,
+          78799,
+          79510,
+          160512
+        ],
+        "after": [
+          77537,
+          77927,
+          77767,
+          78619,
+          77858,
+          78990,
+          78378,
+          303318,
+          80041,
+          77978,
+          77737
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 309.8046875,
+        "after": 304.6015625
+      },
+      "before_over_after": 1.0170817410038728
+    },
+    {
+      "workload": "hex-into-decode",
+      "raw_input_bytes": 1024,
+      "checksum": 558144,
+      "samples_ns": {
+        "before": [
+          1175214,
+          1450009,
+          1073962,
+          942583,
+          1085679,
+          1112189,
+          948072,
+          1059680,
+          1103517,
+          965428,
+          1135915
+        ],
+        "after": [
+          1004216,
+          1246763,
+          1170006,
+          1212321,
+          1089294,
+          945257,
+          962984,
+          967441,
+          959569,
+          1028984,
+          976394
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 4240.93359375,
+        "after": 3922.71875
+      },
+      "before_over_after": 1.0811209938897608
+    },
+    {
+      "workload": "hex-into-decode",
+      "raw_input_bytes": 16384,
+      "checksum": 8422464,
+      "samples_ns": {
+        "before": [
+          16379663,
+          18519944,
+          15314243,
+          15074741,
+          16255224,
+          16001451,
+          14510970,
+          16603199,
+          15430919,
+          15170867,
+          15362685
+        ],
+        "after": [
+          15754928,
+          16565192,
+          16025858,
+          15527506,
+          15838505,
+          14796852,
+          15250317,
+          16674898,
+          15741258,
+          15214323,
+          15346022
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 60277.02734375,
+        "after": 61489.2890625
+      },
+      "before_over_after": 0.9802849937406527
+    },
+    {
+      "workload": "fnv128a",
+      "raw_input_bytes": 32,
+      "checksum": 134571588,
+      "samples_ns": {
+        "before": [
+          257830,
+          24127,
+          25088,
+          24297,
+          26520,
+          26350,
+          25458,
+          23916,
+          25228,
+          26319,
+          24007
+        ],
+        "after": [
+          24227,
+          23926,
+          24257,
+          24067,
+          25268,
+          23856,
+          25739,
+          23716,
+          25098,
+          23745,
+          120292
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 98.546875,
+        "after": 94.63671875
+      },
+      "before_over_after": 1.041317538283733
+    },
+    {
+      "workload": "fnv128a",
+      "raw_input_bytes": 1024,
+      "checksum": 747696112,
+      "samples_ns": {
+        "before": [
+          669531,
+          508959,
+          767589,
+          708630,
+          650802,
+          676401,
+          707558,
+          671644,
+          674748,
+          703652,
+          674529
+        ],
+        "after": [
+          527437,
+          513095,
+          764444,
+          772106,
+          643611,
+          677183,
+          726868,
+          699526,
+          669641,
+          651745,
+          650983
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 2635.734375,
+        "after": 2615.78515625
+      },
+      "before_over_after": 1.0076264744840893
+    },
+    {
+      "workload": "fnv128a",
+      "raw_input_bytes": 16384,
+      "checksum": 467347540,
+      "samples_ns": {
+        "before": [
+          8533726,
+          11089514,
+          8174873,
+          8160953,
+          8676270,
+          8484340,
+          8588788,
+          8567256,
+          8787379,
+          9016284,
+          8680506
+        ],
+        "after": [
+          8230938,
+          8647117,
+          8222736,
+          8467515,
+          8505702,
+          8988022,
+          8675058,
+          8648028,
+          9219360,
+          8364610,
+          8809553
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 33549.953125,
+        "after": 33777.80078125
+      },
+      "before_over_after": 0.9932545147706455
+    }
+  ],
+  "compilers": {
+    "before": {
+      "compiler_sha256": "2953cb0246737ee110c139fbff4a8968c2da7de271da4b55aff7d94f63c94e84",
+      "compiler_source_sha256": "61ab9b3cc29cc9ee7831b2e1001d0bba63ae5a1a23df42c8d431469230380961"
+    },
+    "after": {
+      "compiler_sha256": "a49f1ead26731123461059394697bf85361e5312e8b7b4b0f91a75b5c0b9f081",
+      "compiler_source_sha256": "95a38cde3a5b34af559042cbf318ff3e6b75ba0b7e09533c5dc1fa131d7bc13d"
+    }
+  },
+  "experiment": {
+    "base_commit": "18781c93",
+    "file": "compiler/src/codegen.rs",
+    "change": "Add BytesOp::Data to the existing bounded-wrapper InlineHint::Always match, with explanatory comments. This experiment was reverted after measurement.",
+    "retained": false,
+    "reason": "Clang already inlines this wrapper; all generated optimized assembly is identical after removing comments.",
+    "assembly_normalization": "Remove text from # to end of each line, strip trailing whitespace, omit empty lines; retain all instructions, labels and directives.",
+    "variants": {
+      "before": {
+        "assembly_sha256": "86d14d05e71defd37276360c6e8af222b2a79f91b3a7adc99d1bb01e60cdc229",
+        "normalized_assembly_sha256": "ffd41e2d78493cb2a800c653e7be19a96d98d8942cea4799f74227235226560f"
+      },
+      "after": {
+        "assembly_sha256": "44f50afa356d2e5513a2348bd9a1afafb6c7df9207a634f5f200a164e2ba6015",
+        "normalized_assembly_sha256": "ffd41e2d78493cb2a800c653e7be19a96d98d8942cea4799f74227235226560f"
+      }
+    }
+  }
+}

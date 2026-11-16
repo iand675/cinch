@@ -1,0 +1,255 @@
+{
+  "format": 1,
+  "opt_level": 2,
+  "label": "Payload-address wrapper inline hint; same stdlib and driver",
+  "commit": "18781c93878984f593d3fbeeac73ec21651132b5",
+  "compiler_sha256": "a49f1ead26731123461059394697bf85361e5312e8b7b4b0f91a75b5c0b9f081",
+  "compiler_source_sha256": "95a38cde3a5b34af559042cbf318ff3e6b75ba0b7e09533c5dc1fa131d7bc13d",
+  "runtime_source_sha256": "cc65783bd854ae6b6e820a5adb18e5f59f5aed5ec6a40e52b912fc283c12ca31",
+  "runner_sha256": "4a5dd229189d100c9d15a4021add4b36a5e3bf4a4b6b705df1dd8d7001e8576a",
+  "working_tree_dirty": true,
+  "driver_sha256": "707f30de7830f5ab1ca6050f71f6d3811440ecf9003e94673e7c863c81eb1e64",
+  "sources": {
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Word": "1a563597517531debe37f7ab19616255dbc845d62ffed182abcdc5da9afe27ad",
+    "Effect.Ascii85": "ce62b87682e7b8b63754a346c01a3db666e0a062693fa958251dac6c89febb27",
+    "Effect.Hex": "e53cb32a3da3f471f746fe04bcd8ef54d4fc774608d236b60da57a9af60c550b",
+    "Effect.Stream": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33",
+    "Text.Ascii85": "6550cb8d1b45de4b2d0ca392ad31b6cae716213b003f1789ae7d0281948d222b",
+    "Text.Base32": "ae82b9c24657458ca5d6b0f33ee80b8ba8239cef592e793a926270cb45e308bd",
+    "Text.Base64": "54948138dd53d893cb82067bdaba883faa404e81e0013dd750c75f723c0b409d",
+    "Text.Binary": "9e8420191ef2f63969bdd1fa54f69724c835a6ada8041b548ee3de8154e71e4d",
+    "Text.Checksum": "92aeb92792906cc05fde3a49ec2e71800d8fe7a2372926b4a4665e015fd02c29",
+    "Text.Fnv": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+    "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+    "Text.Utf16": "fb5bfa4782fa832245102d8fc57818a374c4176c6a7c608f21a669030f54e8b8"
+  },
+  "source_overrides": {},
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "machine": "x86_64",
+  "cpu_affinity": [
+    0
+  ],
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "clang": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)",
+  "timing": "runtime monotonic clock around operation loop; preparation, startup and output excluded",
+  "measurement": "public API pipeline; encoding includes conversion to observable bytes; text decoders include bytes-to-text conversion; stream operations include adapter construction",
+  "iterations": 64,
+  "warmup_processes": 1,
+  "results": [
+    {
+      "workload": "ascii85-offset-decode",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        49325,
+        49274,
+        49264,
+        49104,
+        49054
+      ],
+      "checksum": 134197,
+      "median_ns_per_operation": 769.75,
+      "raw_mib_per_second": 39.646090451445275
+    },
+    {
+      "workload": "ascii85-offset-decode",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        1519606,
+        1425104,
+        1460046,
+        1636812,
+        1411563
+      ],
+      "checksum": 4364341,
+      "median_ns_per_operation": 22813.21875,
+      "raw_mib_per_second": 42.806870468464695
+    },
+    {
+      "workload": "ascii85-offset-decode",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        23770672,
+        23608888,
+        23570090,
+        23407476,
+        23457240
+      ],
+      "checksum": 69736501,
+      "median_ns_per_operation": 368282.65625,
+      "raw_mib_per_second": 42.42665174379903
+    },
+    {
+      "workload": "ascii85-into-decode",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        24126,
+        24447,
+        23826,
+        23856,
+        23425
+      ],
+      "checksum": 30074,
+      "median_ns_per_operation": 372.75,
+      "raw_mib_per_second": 81.87143695506371
+    },
+    {
+      "workload": "ascii85-into-decode",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        322505,
+        360432,
+        322275,
+        375475,
+        398329
+      ],
+      "checksum": 490362,
+      "median_ns_per_operation": 5631.75,
+      "raw_mib_per_second": 173.40302747813735
+    },
+    {
+      "workload": "ascii85-into-decode",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        5040331,
+        5150316,
+        5407443,
+        10613703,
+        5146070
+      ],
+      "checksum": 7617402,
+      "median_ns_per_operation": 80473.6875,
+      "raw_mib_per_second": 194.16284360027618
+    },
+    {
+      "workload": "ascii85-bytes-encode",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        22123,
+        22143,
+        22513,
+        21683,
+        22203
+      ],
+      "checksum": 11180,
+      "median_ns_per_operation": 345.984375,
+      "raw_mib_per_second": 88.20507609628325
+    },
+    {
+      "workload": "ascii85-bytes-encode",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        398689,
+        297477,
+        393602,
+        296506,
+        297978
+      ],
+      "checksum": 87916,
+      "median_ns_per_operation": 4655.90625,
+      "raw_mib_per_second": 209.747028304103
+    },
+    {
+      "workload": "ascii85-bytes-encode",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        4764406,
+        4664355,
+        5128183,
+        4993790,
+        5173392
+      ],
+      "checksum": 1316716,
+      "median_ns_per_operation": 78027.96875,
+      "raw_mib_per_second": 200.2487088964494
+    },
+    {
+      "workload": "hex-into-decode",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        52088,
+        21653,
+        21713,
+        22093,
+        21812
+      ],
+      "checksum": 12416,
+      "median_ns_per_operation": 340.8125,
+      "raw_mib_per_second": 89.54359985329177
+    },
+    {
+      "workload": "hex-into-decode",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        232600,
+        234072,
+        232850,
+        233972,
+        257958
+      ],
+      "checksum": 139392,
+      "median_ns_per_operation": 3655.8125,
+      "raw_mib_per_second": 267.12598088660184
+    },
+    {
+      "workload": "hex-into-decode",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        3761757,
+        3749579,
+        3718162,
+        3664511,
+        3559613
+      ],
+      "checksum": 2105472,
+      "median_ns_per_operation": 58096.28125,
+      "raw_mib_per_second": 268.9500887804243
+    },
+    {
+      "workload": "fnv128a",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        6660,
+        6870,
+        7612,
+        6740,
+        6580
+      ],
+      "checksum": 273863839,
+      "median_ns_per_operation": 105.3125,
+      "raw_mib_per_second": 289.78115727002967
+    },
+    {
+      "workload": "fnv128a",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        127762,
+        128283,
+        127471,
+        128113,
+        190546
+      ],
+      "checksum": 217223207,
+      "median_ns_per_operation": 2001.765625,
+      "raw_mib_per_second": 487.85056941918464
+    },
+    {
+      "workload": "fnv128a",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        2360520,
+        2255722,
+        2044936,
+        2403065,
+        2140649
+      ],
+      "checksum": 813793967,
+      "median_ns_per_operation": 35245.65625,
+      "raw_mib_per_second": 443.31703995439153
+    }
+  ],
+  "compiler_path": "/workspace/dasl-stdlib-io/build/bytes-data-inline-bench/compiler",
+  "executable_sha256": "4c14c75300840934b6bfa7420740ae67010d3a34de9a6eb731390ecc46a777bd",
+  "llvm_sha256": "bb50d116f9165f46958d3f79eb544c39d325bdd464aa23915201b8a80346a530",
+  "artifacts": "/workspace/dasl-stdlib-io/build/bytes-data-inline-bench/after"
+}

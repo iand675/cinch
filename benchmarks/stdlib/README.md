@@ -393,3 +393,16 @@ natural arithmetic and checked per-byte writes remain around each small read.
 The separate native allocation probe has different lowering and must not be
 used to claim those boxes survive in the measured Rust loop. Buffer semantics,
 allocation and representation differ between these public pipelines.
+
+The payload-address inline hint was investigated separately in
+`ascii85-payload-inline-experiment-O2-2026-11-16.json` and its interleaved
+report. Clang already inlines this wrapper: the entire retained optimized
+assembly matches after removing comments (instructions, labels and directives
+are retained in that comparison). The compiler change was discarded. The
+reported timing variation therefore establishes no codegen improvement.
+`bench_stdlib_compare.py --compiler-change` explicitly permits different
+compiler identities while requiring identical library sources, driver, runtime
+and optimization level. Ordinary library comparisons still require identical
+compilers. Pure inline primitives continue to reject visible stores; packed
+output stores require a checked mutation intrinsic that preserves containment,
+read-only faults and ownership rather than a raw store hidden in a pure row.
