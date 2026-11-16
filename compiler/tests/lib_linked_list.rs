@@ -105,3 +105,15 @@ fn large_lists_preserve_complete_reference_traces() {
 fn checked_handles_preserve_detached_value_ownership() {
     run(0, "control");
 }
+
+/// Reject the first physically unrepresentable constructor and reserve sizes without changing live handles.
+#[test]
+fn physical_capacity_refusals_preserve_existing_list_state() {
+    run(0, "capacity");
+}
+
+/// Exercise actual private geometric growth near both target limits without allocating those capacities.
+#[test]
+fn geometric_capacity_growth_clamps_to_target_layout_limits() {
+    run(0, "growth");
+}

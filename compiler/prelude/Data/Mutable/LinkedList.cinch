@@ -62,9 +62,9 @@ module Data.Mutable.LinkedList where
   no-slot :: U64
   no-slot = 18446744073709551615
 
-  -- | Slot allocations fit the nonnegative machine address range.
+  -- | Bound word storage by the target's signed allocation range, including array metadata and extended headers.
   maximum-slots :: U64
-  maximum-slots = 9223372036854775807
+  maximum-slots = wrapping-shr-u64 (wrapping-sub-u64 (wrapping-shr-u64 (wrapping-usize-to-u64 max-bound-usize) 1) 32) 3
 
   -- | Convert a bounded nonnegative slot count to its public natural representation.
   natural :: U64 -> Nat
@@ -179,7 +179,7 @@ module Data.Mutable.LinkedList where
   -- | Grow geometrically without overflowing the bounded slot count.
   grown-capacity :: U64 -> U64 -> U64
   grown-capacity capacity needed =
-    let doubled = if lt-u64 capacity 4 then (4 :: U64) else if gt-u64 capacity 4611686018427387903 then maximum-slots else wrapping-add-u64 capacity capacity in
+    let doubled = if lt-u64 capacity 4 then (4 :: U64) else if gt-u64 capacity (wrapping-shr-u64 maximum-slots 1) then maximum-slots else wrapping-add-u64 capacity capacity in
     if lt-u64 doubled needed then needed else doubled
 
   -- | Install enough arena space using one bulk ownership-moving operation.

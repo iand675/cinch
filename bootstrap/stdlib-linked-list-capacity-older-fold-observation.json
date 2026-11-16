@@ -1,0 +1,16 @@
+{
+  "description": "Preserved older unsigned-fold observation; not a linked-list library failure or fix",
+  "compiler_sha256": "b004049baa8e2614dd35f5484811bbf2cd24b137923a8e3bc36bf08c9c53fc93",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "source": "build/list-capacity-rust-validation/growth/Main.cinch",
+  "source_sha256": "e53132def710e823a19df7752cccb1efb1986d51dc8e80d9b093e80dd8f1650d",
+  "llvm": "build/list-capacity-rust-validation/growth/consumer.ll",
+  "llvm_sha256": "dad8897eb01081f076bd8766ae4b5d5348f8babe67cdde22e165e0f7101adcd9",
+  "expected_model64_limit": 1152921504606846971,
+  "actual_emitted_ret_i64": -5,
+  "observed_exit": 2,
+  "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=6 bytes=264 peak=240 header-blocks=0 header-bytes=0 immortal=0 freed=0 live=0\n",
+  "native_same_source_status": "passed normal and poison with zero leaks",
+  "minimal_source": "build/list-capacity-folding-observation/Main.cinch",
+  "minimal_source_sha256": "3e96b84b68a154807ec1f75e476e189afd37a3d1269867b2e707e315dee5a76c"
+}
