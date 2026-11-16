@@ -14,7 +14,7 @@ module Effect.QuotedPrintable where
   import Data.Result
 
   export QuotedPrintableWriter, quoted-printable-writer, quoted-printable-writer-mode
-  export quoted-printable-writer-sink, quoted-printable-write, quoted-printable-finish
+  export quoted-printable-writer-sink, quoted-printable-writer-policy, quoted-printable-write, quoted-printable-finish
   export QuotedPrintableReader, quoted-printable-reader, quoted-printable-read
   export quoted-printable-reader-source, quoted-printable-reader-as-stream
   export QuotedPrintableReadStatus, QuotedPrintableReady, QuotedPrintableEof, QuotedPrintableReadFailure
@@ -23,8 +23,8 @@ module Effect.QuotedPrintable where
   data QuotedPrintableWriter r where
     -- | Private active continuation. Pending input never aliases caller buffers.
     ActiveWriter :: QuotedPrintableEncoder -> ByteWriter r -> QuotedPrintableWriter r
-    -- | Private sticky failure retaining the sink after all accepted output bytes.
-    FailedWriter :: StreamError -> ByteWriter r -> QuotedPrintableWriter r
+    -- | Private sticky failure retaining its last policy and advanced sink.
+    FailedWriter :: QuotedPrintableMode -> StreamError -> ByteWriter r -> QuotedPrintableWriter r
 
   -- | Begin writing with an explicit text or binary newline policy.
   quoted-printable-writer :: forall r. QuotedPrintableMode -> ByteWriter r -> QuotedPrintableWriter r
@@ -34,13 +34,19 @@ module Effect.QuotedPrintable where
   quoted-printable-writer-mode :: forall r. QuotedPrintableMode -> QuotedPrintableWriter r -> QuotedPrintableWriter r
   quoted-printable-writer-mode mode writer = case writer of
     ActiveWriter state sink -> ActiveWriter (quoted-printable-encoder-mode mode state) sink
-    FailedWriter error sink -> writer
+    FailedWriter old error sink -> FailedWriter mode error sink
 
   -- | Observe the advanced borrowed sink, including after a failed write.
   quoted-printable-writer-sink :: forall r. QuotedPrintableWriter r -> ByteWriter r
   quoted-printable-writer-sink writer = case writer of
     ActiveWriter state sink -> sink
-    FailedWriter error sink -> sink
+    FailedWriter mode error sink -> sink
+
+  -- | Observe the current policy, including after failure or a later policy update.
+  quoted-printable-writer-policy :: forall r. QuotedPrintableWriter r -> QuotedPrintableMode
+  quoted-printable-writer-policy writer = case writer of
+    ActiveWriter state sink -> quoted-printable-encoder-policy state
+    FailedWriter mode error sink -> mode
 
   -- | Write complete line events in order. A failure retains the input checkpoint
   -- associated with that flush, separately from the sink's accepted output prefix.
@@ -61,11 +67,11 @@ module Effect.QuotedPrintable where
   quoted-printable-write writer input =
     if bytes-len input == 0 then (Ok 0, writer)
     else case writer of
-      FailedWriter error sink -> (Err (0, error), writer)
+      FailedWriter mode error sink -> (Err (0, error), writer)
       ActiveWriter state sink -> case quoted-printable-encoder-events state input of
         (events, next) -> case write-events events sink of
           (Err pair, advanced) -> case pair of
-            (checkpoint, error) -> (Err pair, FailedWriter error advanced)
+            (checkpoint, error) -> (Err pair, FailedWriter (quoted-printable-encoder-policy state) error advanced)
           (Ok unit, advanced) -> (Ok (bytes-len input), ActiveWriter next advanced)
 
   -- | Quote the final trailing whitespace, flush retained bytes and return the
@@ -73,7 +79,7 @@ module Effect.QuotedPrintable where
   -- returned sink for later unencoded data; the encoder handle is now complete.
   quoted-printable-finish :: forall r. using (io :: Io r) => QuotedPrintableWriter r ->{IO r} (Result StreamError Unit, ByteWriter r)
   quoted-printable-finish writer = case writer of
-    FailedWriter error sink -> (Err error, sink)
+    FailedWriter mode error sink -> (Err error, sink)
     ActiveWriter state sink -> case write-events (quoted-printable-encoder-finish-events state) sink of
       (Err pair, advanced) -> case pair of
         (checkpoint, error) -> (Err error, advanced)
