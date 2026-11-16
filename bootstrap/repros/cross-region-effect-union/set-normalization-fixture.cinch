@@ -1,0 +1,57 @@
+-- | Independent mutation regions survive argument, result and callback inference.
+module Main where
+  import Data.Mutable.Var
+  import Data.Mutable.HashTable
+
+  -- | Read both rigid regions without identifying their owners.
+  read-pair :: forall r s. Var r Nat -> Var s Nat ->{Mut r, Mut s} Nat
+  read-pair first second =
+    let one = var-read first in
+    let two = var-read second in
+    one + two
+
+  -- | A local polymorphic function value preserves the second argument's region.
+  read-alias :: forall r s. Var r Nat -> Var s Nat ->{Mut r, Mut s} Nat
+  read-alias first second =
+    let one = var-read first in
+    let reader = var-read in
+    one + reader second
+
+  -- | The result can determine a new cell's region after an earlier read.
+  allocate-other :: forall r s. Var r Nat ->{Mut r, Mut s} Var s Nat
+  allocate-other first = var-new (var-read first)
+
+  -- | Perform allocation before a later argument determines the same region.
+  effect-before-region :: forall r. Unit ->{Mut r} Var r Nat -> Nat
+  effect-before-region unit =
+    let storage = var-new 0 in
+    \value -> 9
+
+  -- | A later curried argument remains free to select its own rigid region.
+  read-late :: forall r s. Var r Nat -> Var s Nat ->{Mut r, Mut s} Nat
+  read-late first second =
+    let one = var-read first in
+    effect-before-region () second
+
+  -- | Arbitrary callback effects remain in the open row alongside both mutations.
+  read-callback :: forall r s e. Var r Nat -> Var s Nat -> (Nat ->{|e} Nat) ->{Mut r, Mut s | e} Nat
+  read-callback first second callback = callback (read-pair first second)
+
+  -- | The same independent-region rule applies to existing mutable table APIs.
+  table-pair :: forall r s. HashTable r Nat Nat -> HashTable s Nat Nat ->{Mut r, Mut s} Nat
+  table-pair first second =
+    let one = hash-table-size first in
+    let two = hash-table-size second in
+    one + two
+
+  -- | Observe real mutable cells through every accepted inference path.
+  main :: Unit ->{Mut r} Int
+  main unit =
+    let first = var-new 2 in
+    let second = var-new 3 in
+    if read-pair first second == 5
+      && read-alias first second == 5
+      && var-read (allocate-other first) == 2
+      && read-late first second == 9
+      && read-callback first second (\value -> value + 1) == 6
+    then 0 else 1

@@ -5125,31 +5125,46 @@ impl Unifier {
         }
     }
 
-    /// Pair up the labels of two rows by head and region identity, greedily
-    /// in row order. Returns each side's unmatched labels.
+    /// Match definite identities first, then solve remaining flexible regions.
+    /// Rows are sets: two labels may collapse after a region binding, so a
+    /// previously matched label can still constrain a remaining duplicate.
     fn split_rows(&mut self, ra: &EffRow, rb: &EffRow) -> (Vec<EffLabel>, Vec<EffLabel>) {
+        let mut matched_a = vec![false; ra.labels.len()];
         let mut matched_b = vec![false; rb.labels.len()];
-        let mut a_only = Vec::new();
-        for la in &ra.labels {
-            let mut hit = None;
+        for (i, la) in ra.labels.iter().enumerate() {
+            if let Some(j) = rb.labels.iter().position(|lb| la == lb) {
+                matched_a[i] = true;
+                matched_b[j] = true;
+            }
+        }
+        for (i, la) in ra.labels.iter().enumerate() {
+            if matched_a[i] { continue; }
             for (j, lb) in rb.labels.iter().enumerate() {
                 if !matched_b[j] && self.label_matches(la, lb) {
-                    hit = Some(j);
+                    matched_a[i] = true;
+                    matched_b[j] = true;
                     break;
                 }
             }
-            match hit {
-                Some(j) => matched_b[j] = true,
-                None => a_only.push(la.clone()),
+        }
+        for (i, la) in ra.labels.iter().enumerate() {
+            if !matched_a[i] {
+                for lb in &rb.labels {
+                    if self.label_matches(la, lb) { break; }
+                }
             }
         }
-        let b_only = rb
-            .labels
-            .iter()
-            .enumerate()
-            .filter(|(j, _)| !matched_b[*j])
-            .map(|(_, l)| l.clone())
-            .collect();
+        for (j, lb) in rb.labels.iter().enumerate() {
+            if !matched_b[j] {
+                for la in &ra.labels {
+                    if self.label_matches(la, lb) { break; }
+                }
+            }
+        }
+        let ra = self.resolve_row(ra);
+        let rb = self.resolve_row(rb);
+        let a_only = ra.labels.iter().filter(|label| !rb.labels.contains(label)).cloned().collect();
+        let b_only = rb.labels.iter().filter(|label| !ra.labels.contains(label)).cloned().collect();
         (a_only, b_only)
     }
 
@@ -5650,15 +5665,19 @@ impl Unifier {
 
     /// Row union: the accumulation operation for performed effects. The
     /// result contains both rows' labels; tails are joined through the row
-    /// substitution. Labels of one head and one region identity merge.
+    /// substitution. Only labels already sharing a resolved region identity
+    /// merge: accumulating effects must not invent region equalities before
+    /// an application's arguments or result determine its instantiation.
     pub fn union_rows(&mut self, a: &EffRow, b: &EffRow) -> std::result::Result<EffRow, String> {
         let ra = self.resolve_row(a);
         let rb = self.resolve_row(b);
-        let (only_a, b_only) = self.split_rows(&ra, &rb);
         let mut labels = ra.labels.clone();
-        labels.extend(b_only);
+        for label in &rb.labels {
+            if !labels.contains(label) {
+                labels.push(label.clone());
+            }
+        }
         labels.sort_by(|x, y| x.to_string().cmp(&y.to_string()));
-        let _ = only_a;
         let tail = match (&ra.tail, &rb.tail) {
             (RowTail::Closed, RowTail::Closed) => RowTail::Closed,
             (t @ RowTail::Rigid(_), RowTail::Closed)
@@ -5937,6 +5956,98 @@ mod tests {
         let mut u = Unifier::new();
         u.unify(&Ty::Param("a".into()), &Ty::Param("a".into())).unwrap();
         assert!(u.unify(&Ty::Param("a".into()), &Ty::Param("b".into())).is_err());
+    }
+
+    /// Effect accumulation preserves flexible identities until actual type constraints solve them.
+    #[test]
+    fn row_union_does_not_identify_flexible_regions() {
+        for reverse in [false, true] {
+            let mut uni = Unifier::new();
+            uni.note_flex_region("fresh");
+            let rigid = EffRow::closed(vec![EffLabel::with_arg("Mut", "r")]);
+            let flexible = EffRow::closed(vec![EffLabel::with_arg("Mut", "fresh")]);
+            let joined = if reverse { uni.union_rows(&flexible, &rigid) }
+                else { uni.union_rows(&rigid, &flexible) }.unwrap();
+            assert_eq!(uni.resolve_region("fresh").to_string(), "fresh");
+            assert_eq!(joined.labels.len(), 2);
+            uni.unify_regions("fresh", "s").unwrap();
+            assert_eq!(uni.resolve_row(&joined).labels,
+                vec![EffLabel::with_arg("Mut", "r"), EffLabel::with_arg("Mut", "s")]);
+            assert!(uni.unify_regions("r", "s").is_err());
+        }
+    }
+
+    /// Independently inferred calls can later select distinct regions of the same effect.
+    #[test]
+    fn row_union_keeps_two_flexible_region_choices_independent() {
+        let mut uni = Unifier::new();
+        uni.note_flex_region("first");
+        uni.note_flex_region("second");
+        let first = EffRow::closed(vec![EffLabel::with_arg("IO", "first")]);
+        let second = EffRow::closed(vec![EffLabel::with_arg("IO", "second")]);
+        let joined = uni.union_rows(&first, &second).unwrap();
+        uni.unify_regions("first", "r").unwrap();
+        uni.unify_regions("second", "s").unwrap();
+        assert_eq!(uni.resolve_row(&joined).labels,
+            vec![EffLabel::with_arg("IO", "r"), EffLabel::with_arg("IO", "s")]);
+    }
+
+    /// Later equality constraints still deduplicate a union when the identities truly coincide.
+    #[test]
+    fn row_union_coalesces_regions_only_after_they_are_solved_equal() {
+        let mut uni = Unifier::new();
+        uni.note_flex_region("fresh");
+        let first = EffRow::closed(vec![EffLabel::with_arg("Mut", "r")]);
+        let second = EffRow::closed(vec![EffLabel::with_arg("Mut", "fresh")]);
+        let joined = uni.union_rows(&first, &second).unwrap();
+        uni.unify_regions("fresh", "r").unwrap();
+        assert_eq!(uni.resolve_row(&joined), first);
+    }
+
+    /// Region constraints can make two occurrences of an effect become the same set member.
+    #[test]
+    fn row_unification_coalesces_flexible_duplicates() {
+        for reverse in [false, true] {
+            let mut uni = Unifier::new();
+            uni.note_flex_region("fresh");
+            let single = EffRow::closed(vec![EffLabel::with_arg("Mut", "r")]);
+            let duplicate = EffRow::closed(vec![EffLabel::with_arg("Mut", "r"),
+                EffLabel::with_arg("Mut", "fresh")]);
+            if reverse { uni.unify_rows(&single, &duplicate) }
+                else { uni.unify_rows(&duplicate, &single) }.unwrap();
+            assert_eq!(uni.resolve_row(&duplicate), single);
+        }
+    }
+
+    /// A known identity keeps its exact partner before other flexible labels are solved.
+    #[test]
+    fn row_unification_prefers_exact_region_partners() {
+        for reverse in [false, true] {
+            let mut uni = Unifier::new();
+            uni.note_flex_region("fresh");
+            let known = EffRow::closed(vec![EffLabel::with_arg("Mut", "r"),
+                EffLabel::with_arg("Mut", "s")]);
+            let inferred = EffRow::closed(vec![EffLabel::with_arg("Mut", "fresh"),
+                EffLabel::with_arg("Mut", "r")]);
+            if reverse { uni.unify_rows(&known, &inferred) }
+                else { uni.unify_rows(&inferred, &known) }.unwrap();
+            assert_eq!(uni.resolve_region("fresh").to_string(), "s");
+            assert_eq!(uni.resolve_row(&inferred), known);
+        }
+    }
+
+    /// Set normalization never identifies two distinct rigid storage owners.
+    #[test]
+    fn row_unification_preserves_distinct_rigid_regions() {
+        for reverse in [false, true] {
+            let mut uni = Unifier::new();
+            let both = EffRow::closed(vec![EffLabel::with_arg("Mut", "r"),
+                EffLabel::with_arg("Mut", "s")]);
+            let one = EffRow::closed(vec![EffLabel::with_arg("Mut", "r")]);
+            assert!(if reverse { uni.unify_rows(&one, &both) }
+                else { uni.unify_rows(&both, &one) }.is_err());
+            assert!(uni.unify_regions("r", "s").is_err());
+        }
     }
 
     #[test]

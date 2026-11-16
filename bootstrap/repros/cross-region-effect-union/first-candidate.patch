@@ -1,0 +1,81 @@
+diff --git a/compiler/src/types.rs b/compiler/src/types.rs
+index 44b6515f..21e7ad3b 100644
+--- a/compiler/src/types.rs
++++ b/compiler/src/types.rs
+@@ -5650,15 +5650,19 @@ impl Unifier {
+ 
+     /// Row union: the accumulation operation for performed effects. The
+     /// result contains both rows' labels; tails are joined through the row
+-    /// substitution. Labels of one head and one region identity merge.
++    /// substitution. Only labels already sharing a resolved region identity
++    /// merge: accumulating effects must not invent region equalities before
++    /// an application's arguments or result determine its instantiation.
+     pub fn union_rows(&mut self, a: &EffRow, b: &EffRow) -> std::result::Result<EffRow, String> {
+         let ra = self.resolve_row(a);
+         let rb = self.resolve_row(b);
+-        let (only_a, b_only) = self.split_rows(&ra, &rb);
+         let mut labels = ra.labels.clone();
+-        labels.extend(b_only);
++        for label in &rb.labels {
++            if !labels.contains(label) {
++                labels.push(label.clone());
++            }
++        }
+         labels.sort_by(|x, y| x.to_string().cmp(&y.to_string()));
+-        let _ = only_a;
+         let tail = match (&ra.tail, &rb.tail) {
+             (RowTail::Closed, RowTail::Closed) => RowTail::Closed,
+             (t @ RowTail::Rigid(_), RowTail::Closed)
+@@ -5939,6 +5943,52 @@ mod tests {
+         assert!(u.unify(&Ty::Param("a".into()), &Ty::Param("b".into())).is_err());
+     }
+ 
++    /// Effect accumulation preserves flexible identities until actual type constraints solve them.
++    #[test]
++    fn row_union_does_not_identify_flexible_regions() {
++        for reverse in [false, true] {
++            let mut uni = Unifier::new();
++            uni.note_flex_region("fresh");
++            let rigid = EffRow::closed(vec![EffLabel::with_arg("Mut", "r")]);
++            let flexible = EffRow::closed(vec![EffLabel::with_arg("Mut", "fresh")]);
++            let joined = if reverse { uni.union_rows(&flexible, &rigid) }
++                else { uni.union_rows(&rigid, &flexible) }.unwrap();
++            assert_eq!(uni.resolve_region("fresh").to_string(), "fresh");
++            assert_eq!(joined.labels.len(), 2);
++            uni.unify_regions("fresh", "s").unwrap();
++            assert_eq!(uni.resolve_row(&joined).labels,
++                vec![EffLabel::with_arg("Mut", "r"), EffLabel::with_arg("Mut", "s")]);
++            assert!(uni.unify_regions("r", "s").is_err());
++        }
++    }
++
++    /// Independently inferred calls can later select distinct regions of the same effect.
++    #[test]
++    fn row_union_keeps_two_flexible_region_choices_independent() {
++        let mut uni = Unifier::new();
++        uni.note_flex_region("first");
++        uni.note_flex_region("second");
++        let first = EffRow::closed(vec![EffLabel::with_arg("IO", "first")]);
++        let second = EffRow::closed(vec![EffLabel::with_arg("IO", "second")]);
++        let joined = uni.union_rows(&first, &second).unwrap();
++        uni.unify_regions("first", "r").unwrap();
++        uni.unify_regions("second", "s").unwrap();
++        assert_eq!(uni.resolve_row(&joined).labels,
++            vec![EffLabel::with_arg("IO", "r"), EffLabel::with_arg("IO", "s")]);
++    }
++
++    /// Later equality constraints still deduplicate a union when the identities truly coincide.
++    #[test]
++    fn row_union_coalesces_regions_only_after_they_are_solved_equal() {
++        let mut uni = Unifier::new();
++        uni.note_flex_region("fresh");
++        let first = EffRow::closed(vec![EffLabel::with_arg("Mut", "r")]);
++        let second = EffRow::closed(vec![EffLabel::with_arg("Mut", "fresh")]);
++        let joined = uni.union_rows(&first, &second).unwrap();
++        uni.unify_regions("fresh", "r").unwrap();
++        assert_eq!(uni.resolve_row(&joined), first);
++    }
++
+     #[test]
+     fn row_unification_extends_through_tails() {
+         let mut u = Unifier::new();
