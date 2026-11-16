@@ -1,0 +1,379 @@
+{
+  "description": "Alternating retained public pipelines; compiler, driver, runtime and all unrelated library sources match",
+  "inputs": {
+    "before": {
+      "description": "Public Base32 pipelines with matched length/boundary checksums; immutable buffers and mutable reference allocations differ",
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "compiler_snapshot": {
+        "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+        "compiler_source_sha256": "b0588051ca4355ce54dd9dadfe9514fd1e292afdba8ed8b4a1cad1d7d24ad1f5",
+        "base_commit": "d44916e596beb3f42935b1c85e6c6fa96ca26cea",
+        "source_sha256": {
+          "compiler/src/check_decls.rs": "40e9e18436bc8445f3f73c57f2d00e2e9043c39f45a8dc9bb996684ca8da4af2",
+          "compiler/src/codegen.rs": "7f1bb4d677f67e5a036ac6f0fc248e4b6aaaddd079f7ce5c016cbd1cc463b7d4",
+          "compiler/tests/prim_wide.rs": "f4225b6804fffd40fdbc5abb89d2af91f8520599926c7b5df18990e988fcda31",
+          "design/inline-target-ir.md": "055295ca0eafd634f8621914c65e360fc7eff64e2b139f0d1ef0a783ae235375"
+        }
+      },
+      "compiler_source_sha256": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+      "runtime_source_sha256": "8f702eaca91d09a5dbba6ca58b8e7fd7fcf55cef6bd5761cee2082da772aa31f",
+      "driver_sha256": "a146a2873e41a767a2ed03c4ee01aa5bfc695047f0c2eb20d1684cdfc6fc1648",
+      "sources": {
+        "Text.Base32": "c6ba4bb8bd5d91163f6d9b984af35fe40a22d618bc6f4c2bd31be5cf825027a4",
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Effect.Base32": "38f8d4b0a0ac51fed5ed5251d0b16093e8983986ea36330edede81bb69705b90",
+        "Effect.Stream": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33"
+      },
+      "source_root": "/workspace/dasl-stdlib-io/compiler/prelude",
+      "source_paths": {
+        "Text.Base32": "/workspace/dasl-stdlib-io/compiler/prelude/Text/Base32.cinch",
+        "Data.Bytes.Word": "/workspace/dasl-stdlib-io/compiler/prelude/Data/Bytes/Word.cinch",
+        "Effect.Base32": "/workspace/dasl-stdlib-io/compiler/prelude/Effect/Base32.cinch",
+        "Effect.Stream": "/workspace/dasl-stdlib-io/compiler/prelude/Effect/Stream.cinch"
+      },
+      "source_overrides": {},
+      "source_snapshots": "/workspace/dasl-stdlib-base32-bench/build/base32-final-bench/sources",
+      "runner_sha256": "bf0ff8f40177fb9b8194dc31cda978bd129382c3ba086a06491498db65de66d7",
+      "opt_level": 2,
+      "rc_debug_capability": true,
+      "executable_sha256": "95f439f76360d1dfdb1e103a3e9d41bc5e5f2478f0bb6d4b4f0a85c4d1ddfe17",
+      "llvm_sha256": "b4565903367bb9d31ccd2f1a4f5eae7379343579f152a5fb34c78b5a2c800a0b",
+      "assembly_sha256": "480ab0cbf948e18e2004edd9a5a28a3c7317364a9c8e0749787746b8195a6c5e",
+      "reference_source_sha256": "94516dc9d56ee421ce046134802dbb7eb2ca152f5f65ec2d53af8d84286391c5",
+      "reference_executable_sha256": "8800ce7c413c69ad66429b9f2687e4798aacef434078e83e4e9d3111d3d194e0",
+      "reference_sdk": "go version go1.27.4 linux/amd64",
+      "artifacts": "/workspace/dasl-stdlib-base32-bench/build/base32-final-bench",
+      "results": []
+    },
+    "after": {
+      "description": "Public Base32 pipelines with matched length/boundary checksums; immutable buffers and mutable reference allocations differ",
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "compiler_snapshot": {
+        "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+        "compiler_source_sha256": "b0588051ca4355ce54dd9dadfe9514fd1e292afdba8ed8b4a1cad1d7d24ad1f5",
+        "base_commit": "d44916e596beb3f42935b1c85e6c6fa96ca26cea",
+        "source_sha256": {
+          "compiler/src/check_decls.rs": "40e9e18436bc8445f3f73c57f2d00e2e9043c39f45a8dc9bb996684ca8da4af2",
+          "compiler/src/codegen.rs": "7f1bb4d677f67e5a036ac6f0fc248e4b6aaaddd079f7ce5c016cbd1cc463b7d4",
+          "compiler/tests/prim_wide.rs": "f4225b6804fffd40fdbc5abb89d2af91f8520599926c7b5df18990e988fcda31",
+          "design/inline-target-ir.md": "055295ca0eafd634f8621914c65e360fc7eff64e2b139f0d1ef0a783ae235375"
+        }
+      },
+      "compiler_source_sha256": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+      "runtime_source_sha256": "8f702eaca91d09a5dbba6ca58b8e7fd7fcf55cef6bd5761cee2082da772aa31f",
+      "driver_sha256": "a146a2873e41a767a2ed03c4ee01aa5bfc695047f0c2eb20d1684cdfc6fc1648",
+      "sources": {
+        "Text.Base32": "e901c7d08842d6580c765eefac5ad5d7ab48078c6fc46dbb963e3abafd55acbd",
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Effect.Base32": "38f8d4b0a0ac51fed5ed5251d0b16093e8983986ea36330edede81bb69705b90",
+        "Effect.Stream": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33"
+      },
+      "source_root": "/workspace/dasl-stdlib-io/compiler/prelude",
+      "source_paths": {
+        "Text.Base32": "/workspace/dasl-stdlib-base32-bench/build/base32-padding-candidate/Text.Base32.cinch",
+        "Data.Bytes.Word": "/workspace/dasl-stdlib-base32-bench/build/base32-final-bench/sources/Data.Bytes.Word.cinch",
+        "Effect.Base32": "/workspace/dasl-stdlib-base32-bench/build/base32-final-bench/sources/Effect.Base32.cinch",
+        "Effect.Stream": "/workspace/dasl-stdlib-base32-bench/build/base32-final-bench/sources/Effect.Stream.cinch"
+      },
+      "source_overrides": {
+        "Text.Base32": "/workspace/dasl-stdlib-base32-bench/build/base32-padding-candidate/Text.Base32.cinch",
+        "Data.Bytes.Word": "/workspace/dasl-stdlib-base32-bench/build/base32-final-bench/sources/Data.Bytes.Word.cinch",
+        "Effect.Base32": "/workspace/dasl-stdlib-base32-bench/build/base32-final-bench/sources/Effect.Base32.cinch",
+        "Effect.Stream": "/workspace/dasl-stdlib-base32-bench/build/base32-final-bench/sources/Effect.Stream.cinch"
+      },
+      "source_snapshots": "/workspace/dasl-stdlib-base32-bench/build/base32-padding-bench/sources",
+      "runner_sha256": "bf0ff8f40177fb9b8194dc31cda978bd129382c3ba086a06491498db65de66d7",
+      "opt_level": 2,
+      "rc_debug_capability": true,
+      "executable_sha256": "f186b6c7f47a16851fc3a1abb5cbe9694227df896aaa6b95cf7c6c7506f5040c",
+      "llvm_sha256": "6f8688cd1cf3ab09b4f01135ab9741adfd7a6265bafc507fa8fb6814fd1cd1f6",
+      "assembly_sha256": "2268e2b6a2d536dcdbd8d1c8700af19877e5ee6eb809755d9e39885fd3e87dc0",
+      "reference_source_sha256": "94516dc9d56ee421ce046134802dbb7eb2ca152f5f65ec2d53af8d84286391c5",
+      "reference_executable_sha256": "8800ce7c413c69ad66429b9f2687e4798aacef434078e83e4e9d3111d3d194e0",
+      "reference_sdk": "go version go1.27.4 linux/amd64",
+      "artifacts": "/workspace/dasl-stdlib-base32-bench/build/base32-padding-bench",
+      "results": []
+    }
+  },
+  "changed_sources": [
+    "Text.Base32"
+  ],
+  "cpu_affinity": [
+    0
+  ],
+  "iterations": 64,
+  "samples": 7,
+  "warmup_processes_per_case": 1,
+  "results": [
+    {
+      "workload": "legacy-encode",
+      "input_bytes": 32,
+      "checksum": 11872,
+      "samples_ns": {
+        "before": [
+          257248,
+          257418,
+          327293,
+          256336,
+          304329,
+          256967,
+          257387
+        ],
+        "after": [
+          136445,
+          168704,
+          137367,
+          178989,
+          136285,
+          157027,
+          138449
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 4021.671875,
+        "after": 2163.265625
+      },
+      "before_over_after": 1.8590744606317127
+    },
+    {
+      "workload": "legacy-encode",
+      "input_bytes": 16384,
+      "checksum": 1686112,
+      "samples_ns": {
+        "before": [
+          66420556,
+          70166051,
+          80261234,
+          89582722,
+          65179817,
+          66282268,
+          65019055
+        ],
+        "after": [
+          5094918,
+          5372556,
+          5514811,
+          5326057,
+          5446408,
+          5005013,
+          4970400
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 1037821.1875,
+        "after": 83219.640625
+      },
+      "before_over_after": 12.470868411659882
+    },
+    {
+      "workload": "legacy-encode",
+      "input_bytes": 65536,
+      "checksum": 6719584,
+      "samples_ns": {
+        "before": [
+          261144784,
+          266794737,
+          257778881,
+          283510005,
+          259018552,
+          260284413,
+          262691657
+        ],
+        "after": [
+          20495904,
+          20664036,
+          19658285,
+          21092579,
+          19963694,
+          20054691,
+          20139890
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 4080387.25,
+        "after": 314685.78125
+      },
+      "before_over_after": 12.966544703074346
+    },
+    {
+      "workload": "encode-bytes",
+      "input_bytes": 32,
+      "checksum": 11872,
+      "samples_ns": {
+        "before": [
+          23004,
+          24426,
+          24136,
+          23205,
+          22594,
+          23836,
+          22624
+        ],
+        "after": [
+          23205,
+          45828,
+          22203,
+          22093,
+          223776,
+          22604,
+          66820
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 362.578125,
+        "after": 362.578125
+      },
+      "before_over_after": 1.0
+    },
+    {
+      "workload": "encode-bytes",
+      "input_bytes": 16384,
+      "checksum": 1686112,
+      "samples_ns": {
+        "before": [
+          4074227,
+          4144834,
+          4192375,
+          3815088,
+          3795238,
+          3990342,
+          3934698
+        ],
+        "after": [
+          3828038,
+          4040287,
+          3894197,
+          4053116,
+          4002329,
+          3899735,
+          4456842
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 62349.09375,
+        "after": 62536.390625
+      },
+      "before_over_after": 0.9970049938423353
+    },
+    {
+      "workload": "encode-bytes",
+      "input_bytes": 65536,
+      "checksum": 6719584,
+      "samples_ns": {
+        "before": [
+          15403889,
+          15745522,
+          15721285,
+          15757239,
+          15607985,
+          15356487,
+          15978311
+        ],
+        "after": [
+          15712301,
+          17924803,
+          16029917,
+          15309556,
+          16097008,
+          15857579,
+          18351343
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 245645.078125,
+        "after": 250467.453125
+      },
+      "before_over_after": 0.980746500434157
+    },
+    {
+      "workload": "decode-bytes",
+      "input_bytes": 32,
+      "checksum": 18752,
+      "samples_ns": {
+        "before": [
+          53320,
+          52729,
+          54152,
+          52509,
+          112919,
+          50456,
+          49434
+        ],
+        "after": [
+          51888,
+          54411,
+          51447,
+          69544,
+          51778,
+          51688,
+          52528
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 823.890625,
+        "after": 810.75
+      },
+      "before_over_after": 1.0162079864323157
+    },
+    {
+      "workload": "decode-bytes",
+      "input_bytes": 16384,
+      "checksum": 1071424,
+      "samples_ns": {
+        "before": [
+          5914319,
+          5828191,
+          5954611,
+          6168391,
+          6263505,
+          6187931,
+          5822943
+        ],
+        "after": [
+          6216013,
+          5912988,
+          6140799,
+          6159929,
+          6265758,
+          5841810,
+          6128943
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 93040.796875,
+        "after": 95949.984375
+      },
+      "before_over_after": 0.9696801670271247
+    },
+    {
+      "workload": "decode-bytes",
+      "input_bytes": 65536,
+      "checksum": 4217152,
+      "samples_ns": {
+        "before": [
+          23491722,
+          24185553,
+          23491672,
+          24248067,
+          23399253,
+          23868677,
+          24143190
+        ],
+        "after": [
+          23925333,
+          23820746,
+          23865353,
+          23897531,
+          25770894,
+          24288037,
+          24277842
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 372948.078125,
+        "after": 373833.328125
+      },
+      "before_over_after": 0.9976319660838159
+    }
+  ]
+}
