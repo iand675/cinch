@@ -1,0 +1,119 @@
+  -- | Increment a bounded fixture coordinate without introducing a staged recursive expansion.
+  prim next :: U32 -> U32 where
+    llvm {
+      %value = add i32 %0, 1
+      ret i32 %value
+    }
+
+  -- | Mix every bit of an independent fixed-width coordinate or search result.
+  prim hash-word :: U32 -> U64 -> U64 where
+    llvm {
+      %wide = zext i32 %0 to i64
+      %mixed = xor i64 %1, %wide
+      %value = mul i64 %mixed, 1099511628211
+      ret i64 %value
+    }
+
+  -- | Compare bounded fixture coordinates inside ordinary tail traversals.
+  prim at-most :: U32 -> U32 -> Bool where
+    llvm {
+      %yes = icmp ule i32 %0, %1
+      %value = zext i1 %yes to i8
+      ret i8 %value
+    }
+
+  -- | Convert only a bounded actual offset and preserve a distinct absence sentinel.
+  result-code :: Option Nat -> U32
+  result-code result = case result of
+    None -> 4294967295
+    Some at -> if at <= 1048576 then let word = nat-to-i64 at in wrapping-i64-to-u32 word else 4294967294
+
+  -- | Hash all exact byte values against one retained checked view.
+  all-keys :: ByteView -> U32 -> U64 -> U64
+  all-keys view key hash = if at-most key 255 then
+    let byte = wrapping-u32-to-u8 key in let result = byte-view-index-byte view byte in
+    let first = hash-word key hash in let code = result-code result in let second = hash-word code first in
+    let following = next key in all-keys view following second
+    else hash
+
+  -- | Probe long spans with exact boundary, marker, ASCII and malformed-encoding bytes.
+  chosen-keys :: ByteView -> List U32 -> U64 -> U64
+  chosen-keys view keys hash = case keys of
+    Nil -> hash
+    Cons key rest -> let byte = wrapping-u32-to-u8 key in let result = byte-view-index-byte view byte in
+      let first = hash-word key hash in let code = result-code result in let second = hash-word code first in
+      chosen-keys view rest second
+
+  -- | Include checked endpoints and complete ordered query results for one logical input span.
+  observe-span :: Bytes -> U32 -> U32 -> U32 -> U64 -> U64
+  observe-span raw size start end hash = let a = u32-to-nat start in let b = u32-to-nat end in
+    case bytes-view-range raw a b of
+      Err error -> 0
+      Ok view -> let first = hash-word start hash in let second = hash-word end first in
+        if at-most size 257 then all-keys view 0 second
+        else chosen-keys view [0,1,2,10,44,97,98,127,128,129,194,237,240,253,254,255] second
+
+  -- | Enumerate every legal short-owner subspan, including empty ranges and all scalar fringes.
+  short-spans :: Bytes -> U32 -> U32 -> U32 -> U64 -> U64
+  short-spans raw size start end hash = if at-most start size then
+    if at-most end size then let value = observe-span raw size start end hash in
+      let following = next end in short-spans raw size start following value
+    else let following = next start in short-spans raw size following following hash
+    else hash
+
+  -- | Observe exact complete-block and scalar-fringe widths from one larger-owner alignment.
+  widths :: Bytes -> U32 -> U32 -> List U32 -> U64 -> U64
+  widths raw size start values hash = case values of
+    Nil -> observe-span raw size start size hash
+    Cons width rest -> let end = wrapping-add-u32 start width in
+      let value = (if at-most end size then observe-span raw size start end hash else hash) in
+      widths raw size start rest value
+
+  -- | Walk explicitly selected midpoint and final-byte alignments.
+  extra-starts :: Bytes -> U32 -> List U32 -> U64 -> U64
+  extra-starts raw size starts hash = case starts of
+    Nil -> hash
+    Cons start rest -> let value = widths raw size start [0,1,7,8,9,15,16,17,23,24,25,31,32,33] hash in
+      extra-starts raw size rest value
+
+  -- | Exercise every alignment across four complete packed words plus selected long-range endpoints.
+  long-spans :: Bytes -> U32 -> U32 -> U64 -> U64
+  long-spans raw size start hash = if at-most start 31 then
+    let value = widths raw size start [0,1,7,8,9,15,16,17,23,24,25,31,32,33] hash in
+    let following = next start in long-spans raw size following value
+    else let middle = wrapping-shr-u32 size 1 in let a = wrapping-sub-u32 size 33 in
+      let b = wrapping-sub-u32 size 17 in let c = wrapping-sub-u32 size 9 in
+      let d = wrapping-sub-u32 size 8 in let e = wrapping-sub-u32 size 1 in
+      extra-starts raw size [middle,a,b,c,d,e,size] hash
+
+  -- | Observe a complete independent owner recipe and every selected legal view/query combination.
+  index-case :: U8 -> Nat -> String -> U64 -> Bool
+  index-case mode size expected-raw expected = let raw = input mode size in
+    let digest = hex-encode (sha256-bytes raw) in if size <= 1048576 && digest == expected-raw then
+      let bounded = nat-to-i64 size in let count = wrapping-i64-to-u32 bounded in
+      let actual = (if at-most count 33 then short-spans raw count 0 0 14695981039346656037
+        else long-spans raw count 0 14695981039346656037) in eq-u64 actual expected
+      else False
+
+  -- | Compare a public exact-byte result with a concrete expected relative offset.
+  index-is :: ByteView -> U8 -> Nat -> Bool
+  index-is view key expected = case byte-view-index-byte view key of None -> False; Some at -> at == expected
+
+  -- | Require exact absence from one current checked view.
+  index-absent :: ByteView -> U8 -> Bool
+  index-absent view key = case byte-view-index-byte view key of None -> True; Some at -> False
+
+  -- | Return an unaligned view after the temporary original owner handle leaves its frame.
+  temporary-index-view :: Unit -> ByteView
+  temporary-index-view unit = let raw = bytes-new 65 in
+    let marked = if 63 < bytes-len raw then bytes-set raw 63 255 else () in
+    case bytes-view-range raw 1 65 of Ok view -> view; Err error -> bytes-view (bytes-new 0)
+
+  -- | Preserve temporary ownership and current mutations without cloning or exposing the backing owner.
+  index-owner-case :: Unit -> Bool
+  index-owner-case unit = let view = temporary-index-view () in
+    let first = index-is view 255 62 in let absent = index-absent view 128 in
+    let changed = byte-view-set view 5 128 in let visible = index-is view 128 5 in
+    let removed = byte-view-set view 62 0 in let gone = index-absent view 255 in
+    first && absent && changed && visible && removed && gone
+      && index-absent (byte-view-take 0 view) 0 && index-is (byte-view-drop 5 view) 128 0
