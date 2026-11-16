@@ -55,3 +55,9 @@ fn full_width_constants_agree_with_emitted_operations() {
 fn staged_negation_preserves_signed_and_unsigned_saturation() {
     run(include_str!("fixtures/word-negation-staging.cinch"), &[0]);
 }
+
+/// Public staged arithmetic, Unicode ordering and bit operations retain exact boundary results.
+#[test]
+fn staged_scalar_boundaries_match_runtime_expectations() {
+    run(include_str!("fixtures/word-boundaries-staging.cinch"), &[0, 2]);
+}

@@ -1,0 +1,31 @@
+-- | Staged machine arithmetic agrees with exact scalar boundary expectations.
+module Main where
+  import Data.Machine
+  import Data.Char
+
+  generate do
+    emit (quoteDecls where
+      -- | Return zero only when every staged scalar boundary matches.
+      answer :: Int
+      answer = $(quoteInt (if
+        (eq-i64 (saturating-add-i64 9223372036854775807 1) 9223372036854775807)
+        && (eq-i64 (saturating-sub-i64 (-9223372036854775808) 1) (-9223372036854775808))
+        && (eq-i64 (saturating-mul-i64 (-9223372036854775808) (-1)) 9223372036854775807)
+        && (eq-i64 (saturating-mul-i64 (-9223372036854775808) 2) (-9223372036854775808))
+        && (eq-u64 (saturating-mul-u64 18446744073709551615 18446744073709551615) 18446744073709551615)
+        && (eq-u64 (saturating-add-u64 18446744073709551615 1) 18446744073709551615)
+        && (eq-u64 (saturating-sub-u64 0 18446744073709551615) 0)
+        && (eq-i64 max-bound-i64 9223372036854775807)
+        && (eq-i64 min-bound-i64 (-9223372036854775808))
+        && (eq-u64 (wrapping-shr-u64 18446744073709551615 1) 9223372036854775807)
+        && (eq-u64 (rotate-left-u64 9223372036854775809 0) 9223372036854775809)
+        && (eq-u64 (rotate-right-u64 9223372036854775809 64) 9223372036854775809)
+        && (gt-char '\u{100}' '\u{ff}')
+        && (lt-char '\u{ffff}' '\u{10000}')
+        && (eq-i8 (saturating-add-i8 127 1) 127)
+        && (eq-u8 (saturating-mul-u8 255 255) 255)
+        then 0 else 1)))
+
+  -- | Observe the boundary declaration produced by compile-time evaluation.
+  main :: Int
+  main = answer

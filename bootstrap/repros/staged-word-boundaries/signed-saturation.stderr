@@ -1,0 +1,4 @@
+
+thread 'main' (628711) panicked at src/check_decls.rs:22296:45:
+attempt to negate with overflow
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
