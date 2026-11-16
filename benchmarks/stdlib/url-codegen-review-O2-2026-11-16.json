@@ -1,0 +1,221 @@
+{
+  "inspection": [
+    {
+      "version": "before",
+      "function": "validate-percent",
+      "instructions": 1053,
+      "call_sites": 89,
+      "calls_full_percent_validator": false
+    },
+    {
+      "version": "before",
+      "function": "decode-from",
+      "instructions": 2869,
+      "call_sites": 183,
+      "calls_full_percent_validator": true
+    },
+    {
+      "version": "before",
+      "function": "validation-skip",
+      "instructions": 206,
+      "call_sites": 0,
+      "calls_full_percent_validator": false
+    },
+    {
+      "version": "after",
+      "function": "validate-percent",
+      "instructions": 331,
+      "call_sites": 25,
+      "calls_full_percent_validator": false
+    },
+    {
+      "version": "after",
+      "function": "decode-from",
+      "instructions": 2386,
+      "call_sites": 147,
+      "calls_full_percent_validator": false
+    },
+    {
+      "version": "after",
+      "function": "validation-skip",
+      "instructions": 206,
+      "call_sites": 0,
+      "calls_full_percent_validator": false
+    }
+  ],
+  "count_specialization": [
+    {
+      "artifact": "rust",
+      "symbol": "Text.Url.Codec.count-from#cc",
+      "assembly_instructions": 665,
+      "calls_or_external_jumps": [
+        "callq\t\"Text.Url.Codec.classify-one.llvm\"@PLT",
+        "jmp\t\"Text.Url.Codec.count-from.shared0#cc\"@PLT # TAILCALL"
+      ]
+    },
+    {
+      "artifact": "rust",
+      "symbol": "Text.Url.Codec.validate-from",
+      "assembly_instructions": 7,
+      "calls_or_external_jumps": [
+        "callq\t\"Text.Url.Codec.validate-from#cc\"@PLT"
+      ]
+    },
+    {
+      "artifact": "specialized",
+      "symbol": "Text.Url.Codec.count-query#cc",
+      "assembly_instructions": 264,
+      "calls_or_external_jumps": [
+        "callq\t\"Text.Url.Codec.classify-one.llvm\"@PLT",
+        "jmp\t\"Text.Url.Codec.count-query.shared0#cc\"@PLT # TAILCALL"
+      ]
+    },
+    {
+      "artifact": "specialized",
+      "symbol": "Text.Url.Codec.count-path#cc",
+      "assembly_instructions": 309,
+      "calls_or_external_jumps": [
+        "callq\t\"Text.Url.Codec.classify-one.llvm\"@PLT",
+        "jmp\t\"Text.Url.Codec.count-path.shared0#cc\"@PLT # TAILCALL"
+      ]
+    },
+    {
+      "artifact": "final",
+      "symbol": "Text.Url.Codec.count-query#cc",
+      "assembly_instructions": 264,
+      "calls_or_external_jumps": [
+        "callq\t\"Text.Url.Codec.classify-one.llvm\"@PLT",
+        "jmp\t\"Text.Url.Codec.count-query.shared0#cc\"@PLT # TAILCALL"
+      ]
+    }
+  ],
+  "artifact_identities": {
+    "rust": {
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "executable_sha256": "0ebede7f3f4f2f8cbd20b0baa173302fc39019f92e825cd50d5169b0f1ce78a4",
+      "llvm_sha256": "dc95b4f13759b8c59bffaef9c30f35501ff4e9030eae6de09eeeb86d45269fb3",
+      "assembly_sha256": "8af12825878f1c63b6003ff657fd8adb07bd76bb6a918705babd7ca46672b540",
+      "sources": {
+        "Text.Url.cinch": "ace795fa48c2bfdab5f1c984b072eff6ad2ca68c11403d965ad610937b45001c",
+        "Text.Url.Resolve.cinch": "5fd9ec9bddbd778d81d392e1e0e18b6be2f037cbd0f1b15fe1811e4eaf91613e",
+        "Text.Url.Userinfo.cinch": "cccdb3acac6ac60383d2a2f8ce9fd9fde4953de7f28aa8259a5d5436ec52758a",
+        "Text.Url.Scan.cinch": "906cf2b8fcc3067457f26f1686d2155f03097b879c8f85315ec4a1c622647d35",
+        "Text.Url.Codec.cinch": "5c28a93b65e0c8eb587c33da520ec38e1b0b311454c6940b3fb54198fbfb6103",
+        "Text.Url.Error.cinch": "93da213a73d120c7bb2d0b5651b52a28646a13727582d49bb0d70600a92fc56f",
+        "Text.Url.Parser.cinch": "e5ea50e1e0d52590f86c16b02fd37cccec67fb51d9311f89231a868b4a4c1618",
+        "Text.Url.Model.cinch": "7fee092c7305cda028b8ec71763d8f1c76189cb35c76d1a02bb068db1aca7f75",
+        "Text.Url.Query.cinch": "d21bfb7ca2d495f7e67202e8cec6ad27723f767d2d997a5afe9f1b07409e85d3",
+        "Text.Url.Ip.cinch": "8bbe1f04258c0bece6823836b336e71009122463e79eb8eef923ff4e550a55be",
+        "Main.cinch": "2e7fcdac28c84d5e0cb45812f46433729c368c9180929d662f7d59bb934199cb"
+      },
+      "reference_source_sha256": "20d15fdb776393098770b03dfde1cebaf5f86493663eb9ea5c886a378f1883c6",
+      "reference_executable_sha256": "638249e7ff36d854bdd6d41dedc8448802f24a5f7b1ec2b179245df15c65a649",
+      "reference_sdk": "go version go1.27.4 linux/amd64",
+      "opt_level": 2,
+      "artifacts": "/workspace/dasl-stdlib-url/build/url-bench-rust",
+      "runner_sha256": "66b8c78ba2ca5c8321e52514dd331d3e57612b8fa64014042a73c19384d3e96c",
+      "driver_sha256": "2e7fcdac28c84d5e0cb45812f46433729c368c9180929d662f7d59bb934199cb",
+      "compiler_source_sha256": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+      "runtime_source_sha256": "ea8bbc995f110fd750a0ae42d4949c62fbce7e26c9f3456c9f00d77637cfaa1c",
+      "cpu": "AMD EPYC 9V74 80-Core Processor",
+      "source_override": null
+    },
+    "specialized": {
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "executable_sha256": "db7a7cda2a43768eaf71583592f5be1e3e9719943fae9b2d5143acac4e3a890d",
+      "llvm_sha256": "6422ca639b199ad4a90a5b84149d9b47584e457f23b4941a0c4285ef14069cc7",
+      "assembly_sha256": "6ca19dc20da5d2c9513ddbc7ece7d4f7a579bbacab17ee79b7aa73144c316d03",
+      "sources": {
+        "Text.Url.cinch": "ace795fa48c2bfdab5f1c984b072eff6ad2ca68c11403d965ad610937b45001c",
+        "Text.Url.Resolve.cinch": "5fd9ec9bddbd778d81d392e1e0e18b6be2f037cbd0f1b15fe1811e4eaf91613e",
+        "Text.Url.Userinfo.cinch": "cccdb3acac6ac60383d2a2f8ce9fd9fde4953de7f28aa8259a5d5436ec52758a",
+        "Text.Url.Scan.cinch": "906cf2b8fcc3067457f26f1686d2155f03097b879c8f85315ec4a1c622647d35",
+        "Text.Url.Codec.cinch": "93a489372216c0f3198e34b524dd922b49f818822bef6fbffd86159d66f64692",
+        "Text.Url.Error.cinch": "93da213a73d120c7bb2d0b5651b52a28646a13727582d49bb0d70600a92fc56f",
+        "Text.Url.Parser.cinch": "e5ea50e1e0d52590f86c16b02fd37cccec67fb51d9311f89231a868b4a4c1618",
+        "Text.Url.Model.cinch": "7fee092c7305cda028b8ec71763d8f1c76189cb35c76d1a02bb068db1aca7f75",
+        "Text.Url.Query.cinch": "d21bfb7ca2d495f7e67202e8cec6ad27723f767d2d997a5afe9f1b07409e85d3",
+        "Text.Url.Ip.cinch": "8bbe1f04258c0bece6823836b336e71009122463e79eb8eef923ff4e550a55be",
+        "Main.cinch": "2e7fcdac28c84d5e0cb45812f46433729c368c9180929d662f7d59bb934199cb"
+      },
+      "reference_source_sha256": "20d15fdb776393098770b03dfde1cebaf5f86493663eb9ea5c886a378f1883c6",
+      "reference_executable_sha256": "638249e7ff36d854bdd6d41dedc8448802f24a5f7b1ec2b179245df15c65a649",
+      "reference_sdk": "go version go1.27.4 linux/amd64",
+      "opt_level": 2,
+      "artifacts": "/workspace/dasl-stdlib-url/build/url-bench-specialized",
+      "runner_sha256": "66b8c78ba2ca5c8321e52514dd331d3e57612b8fa64014042a73c19384d3e96c",
+      "driver_sha256": "2e7fcdac28c84d5e0cb45812f46433729c368c9180929d662f7d59bb934199cb",
+      "compiler_source_sha256": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+      "runtime_source_sha256": "ea8bbc995f110fd750a0ae42d4949c62fbce7e26c9f3456c9f00d77637cfaa1c",
+      "cpu": "AMD EPYC 9V74 80-Core Processor",
+      "source_override": null
+    },
+    "final": {
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "executable_sha256": "88d30a5e6a84b1d0f74a3aecc98568871438f5c9acc6d248f8ca94685b4f45f6",
+      "llvm_sha256": "b4abd31f375058a8a1ce644b57a1f8fcfc4e3c6a9f2bdd9fd5024e427f113f78",
+      "assembly_sha256": "a2034ba9b6f4a00bf52c5284c25351be9c45327abda1243190fad648f2330287",
+      "sources": {
+        "Text.Url.cinch": "ace795fa48c2bfdab5f1c984b072eff6ad2ca68c11403d965ad610937b45001c",
+        "Text.Url.Resolve.cinch": "5fd9ec9bddbd778d81d392e1e0e18b6be2f037cbd0f1b15fe1811e4eaf91613e",
+        "Text.Url.Userinfo.cinch": "cccdb3acac6ac60383d2a2f8ce9fd9fde4953de7f28aa8259a5d5436ec52758a",
+        "Text.Url.Scan.cinch": "de30fc49981ed873244a64b34de9a063548776c60264ad69475f040b3118204f",
+        "Text.Url.Codec.cinch": "b5235ed086b3497609a96d4288f253589db52e1d01a8ef975456996123464b91",
+        "Text.Url.Error.cinch": "93da213a73d120c7bb2d0b5651b52a28646a13727582d49bb0d70600a92fc56f",
+        "Text.Url.Parser.cinch": "d880177f125cbdf7d9546cb5526ce6f6717ead1c719b180724745be6ef1c4f7d",
+        "Text.Url.Model.cinch": "7fee092c7305cda028b8ec71763d8f1c76189cb35c76d1a02bb068db1aca7f75",
+        "Text.Url.Query.cinch": "d21bfb7ca2d495f7e67202e8cec6ad27723f767d2d997a5afe9f1b07409e85d3",
+        "Text.Url.Ip.cinch": "8bbe1f04258c0bece6823836b336e71009122463e79eb8eef923ff4e550a55be",
+        "Main.cinch": "2e7fcdac28c84d5e0cb45812f46433729c368c9180929d662f7d59bb934199cb"
+      },
+      "reference_source_sha256": "20d15fdb776393098770b03dfde1cebaf5f86493663eb9ea5c886a378f1883c6",
+      "reference_executable_sha256": "638249e7ff36d854bdd6d41dedc8448802f24a5f7b1ec2b179245df15c65a649",
+      "reference_sdk": "go version go1.27.4 linux/amd64",
+      "opt_level": 2,
+      "artifacts": "/workspace/dasl-stdlib-url/build/url-bench-final",
+      "runner_sha256": "66b8c78ba2ca5c8321e52514dd331d3e57612b8fa64014042a73c19384d3e96c",
+      "driver_sha256": "2e7fcdac28c84d5e0cb45812f46433729c368c9180929d662f7d59bb934199cb",
+      "compiler_source_sha256": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+      "runtime_source_sha256": "ea8bbc995f110fd750a0ae42d4949c62fbce7e26c9f3456c9f00d77637cfaa1c",
+      "cpu": "AMD EPYC 9V74 80-Core Processor",
+      "source_override": null
+    },
+    "pair": {
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "executable_sha256": "5aa439a209c1aee81f074490df82754c71f9bf1e4fd556e914acb29734d28fdc",
+      "llvm_sha256": "e3983f9bf33224f73e76db7f7699aa2915dce93773f51ce135c1357bf005b5cb",
+      "assembly_sha256": "1dcb591650c2e0b5e315d585195d08bf6c118022869d96a758fe7db7be51d024",
+      "sources": {
+        "Text.Url.cinch": "ace795fa48c2bfdab5f1c984b072eff6ad2ca68c11403d965ad610937b45001c",
+        "Text.Url.Resolve.cinch": "5fd9ec9bddbd778d81d392e1e0e18b6be2f037cbd0f1b15fe1811e4eaf91613e",
+        "Text.Url.Userinfo.cinch": "cccdb3acac6ac60383d2a2f8ce9fd9fde4953de7f28aa8259a5d5436ec52758a",
+        "Text.Url.Scan.cinch": "de30fc49981ed873244a64b34de9a063548776c60264ad69475f040b3118204f",
+        "Text.Url.Codec.cinch": "17b17b7cd4e76ee256793a6167a3148d3a9aa9528164ade05aab8fee53f7b539",
+        "Text.Url.Error.cinch": "93da213a73d120c7bb2d0b5651b52a28646a13727582d49bb0d70600a92fc56f",
+        "Text.Url.Parser.cinch": "d880177f125cbdf7d9546cb5526ce6f6717ead1c719b180724745be6ef1c4f7d",
+        "Text.Url.Model.cinch": "7fee092c7305cda028b8ec71763d8f1c76189cb35c76d1a02bb068db1aca7f75",
+        "Text.Url.Query.cinch": "d21bfb7ca2d495f7e67202e8cec6ad27723f767d2d997a5afe9f1b07409e85d3",
+        "Text.Url.Ip.cinch": "8bbe1f04258c0bece6823836b336e71009122463e79eb8eef923ff4e550a55be",
+        "Main.cinch": "2e7fcdac28c84d5e0cb45812f46433729c368c9180929d662f7d59bb934199cb"
+      },
+      "reference_source_sha256": "20d15fdb776393098770b03dfde1cebaf5f86493663eb9ea5c886a378f1883c6",
+      "reference_executable_sha256": "638249e7ff36d854bdd6d41dedc8448802f24a5f7b1ec2b179245df15c65a649",
+      "reference_sdk": "go version go1.27.4 linux/amd64",
+      "opt_level": 2,
+      "artifacts": "/workspace/dasl-stdlib-url/build/url-bench-pair",
+      "runner_sha256": "66b8c78ba2ca5c8321e52514dd331d3e57612b8fa64014042a73c19384d3e96c",
+      "driver_sha256": "2e7fcdac28c84d5e0cb45812f46433729c368c9180929d662f7d59bb934199cb",
+      "compiler_source_sha256": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+      "runtime_source_sha256": "ea8bbc995f110fd750a0ae42d4949c62fbce7e26c9f3456c9f00d77637cfaa1c",
+      "cpu": "AMD EPYC 9V74 80-Core Processor",
+      "source_override": null
+    }
+  },
+  "ordinary_validation_loop": {
+    "normalized_before_sha256": "40436f54743106f4a45e1ae8f1d84cd7f6d4f490eed42f2e330bcee66c7f9482",
+    "normalized_after_sha256": "40436f54743106f4a45e1ae8f1d84cd7f6d4f490eed42f2e330bcee66c7f9482",
+    "instructions": 206,
+    "normalization": "Strip comments/CFI/source directives and consistently rename local block/constant-pool labels. Preserve instruction operands, registers and immediates."
+  },
+  "remaining_cost": "Percent-dense checked output writes and boxed Nat indexing still emit runtime calls; immutable raw-hint validation contributes additional complete decoding passes in URL rendering. No mutable inline-IR stores or ABI type disguises were introduced."
+}
