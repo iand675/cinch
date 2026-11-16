@@ -25,6 +25,67 @@ module Data.Bytes.Search where
       ret i64 %value
     }
 
+  -- | Advance a private bounded machine counter with wrapping machine addition.
+  prim offset-add :: I64 -> I64 -> I64 where
+    llvm {
+      %value = add i64 %0, %1
+      ret i64 %value
+    }
+
+  -- | Subtract private bounded machine offsets without an imported runtime call.
+  prim offset-sub :: I64 -> I64 -> I64 where
+    llvm {
+      %value = sub i64 %0, %1
+      ret i64 %value
+    }
+
+  -- | Compare private signed offsets directly inside ordinary loop branches.
+  prim offset-before :: I64 -> I64 -> Bool where
+    llvm {
+      %test = icmp slt i64 %0, %1
+      %value = zext i1 %test to i8
+      ret i8 %value
+    }
+
+  -- | Check a private remaining-length threshold without an imported object call.
+  prim offset-at-least :: I64 -> I64 -> Bool where
+    llvm {
+      %test = icmp sge i64 %0, %1
+      %value = zext i1 %test to i8
+      ret i8 %value
+    }
+
+  -- | Check whether a private signed suffix counter has available bytes.
+  prim offset-after :: I64 -> I64 -> Bool where
+    llvm {
+      %test = icmp sgt i64 %0, %1
+      %value = zext i1 %test to i8
+      ret i8 %value
+    }
+
+  -- | Compare exact packed or scalar byte values without imported call overhead.
+  prim word-equal :: U64 -> U64 -> Bool where
+    llvm {
+      %test = icmp eq i64 %0, %1
+      %value = zext i1 %test to i8
+      ret i8 %value
+    }
+
+  -- | Test whether a packed match mask has any exact marked lanes.
+  prim word-nonzero :: U64 -> Bool where
+    llvm {
+      %test = icmp ne i64 %0, 0
+      %value = zext i1 %test to i8
+      ret i8 %value
+    }
+
+  -- | Extract the repeated key byte for an exact scalar-fringe comparison.
+  prim word-byte :: U64 -> U64 where
+    llvm {
+      %value = and i64 %0, 255
+      ret i64 %value
+    }
+
   -- | Load exactly eight proved available bytes in low-address-first numeric order.
   prim load-word :: I64 -> I64 -> U64 where
     unsafe llvm {
@@ -70,62 +131,83 @@ module Data.Bytes.Search where
 
   -- | Return the last marked byte lane, or negative one for an empty mask.
   last-lane :: U64 -> I64
-  last-lane mask = if eq-u64 mask 0 then -1 else
-    let bits = u32-to-i64 (leading-zeros-u64 mask) in let position = wrapping-sub-i64 63 bits in
+  last-lane mask = if word-equal mask 0 then -1 else
+    let bits = u32-to-i64 (leading-zeros-u64 mask) in let position = offset-sub 63 bits in
     wrapping-shr-i64 position 3
 
-  -- | Count exact marked byte lanes through the machine population-count intrinsic.
-  lane-count :: U64 -> I64
-  lane-count mask = u32-to-i64 (count-ones-u64 mask)
+  -- | Sum one high-bit marker per byte without a general population-count expansion.
+  -- Shifted lanes are zero or one, so every horizontal byte sum stays below nine.
+  prim lane-count :: U64 -> I64 where
+    llvm {
+      %lanes = lshr i64 %0, 7
+      %sums = mul i64 %lanes, 72340172838076673
+      %value = lshr i64 %sums, 56
+      ret i64 %value
+    }
+
+  -- | Find a matching first byte before preparing complete packed-word scans.
+  index-forward :: I64 -> I64 -> I64 -> U64 -> I64
+  index-forward base at end repeated = if offset-before at end then
+    let value = load-byte base at in let byte = word-byte repeated in
+    if word-equal value byte then at else
+      let next = offset-add at 1 in index-forward-blocks base next end repeated
+    else -1
 
   -- | Find the first matching word or exact scalar fringe using unboxed bounded counters.
-  index-forward :: I64 -> I64 -> I64 -> U64 -> I64
-  index-forward base at end repeated =
-    let remaining = wrapping-sub-i64 end at in
-    if ge-i64 remaining 8 then
+  index-forward-blocks :: I64 -> I64 -> I64 -> U64 -> I64
+  index-forward-blocks base at end repeated =
+    let remaining = offset-sub end at in
+    if offset-at-least remaining 8 then
       let word = load-word base at in let matches = matching-lanes word repeated in
-      if not (eq-u64 matches 0) then let lane = first-lane matches in wrapping-add-i64 at lane
-      else let next = wrapping-add-i64 at 8 in index-forward base next end repeated
-    else index-forward-tail base at end (bit-and-u64 repeated 255)
+      if word-nonzero matches then let lane = first-lane matches in offset-add at lane
+      else let next = offset-add at 8 in index-forward-blocks base next end repeated
+    else index-forward-tail base at end (word-byte repeated)
 
   -- | Read only remaining scalar bytes after the complete forward words.
   index-forward-tail :: I64 -> I64 -> I64 -> U64 -> I64
-  index-forward-tail base at end byte = if lt-i64 at end then
-    let value = load-byte base at in if eq-u64 value byte then at
-    else let next = wrapping-add-i64 at 1 in index-forward-tail base next end byte
+  index-forward-tail base at end byte = if offset-before at end then
+    let value = load-byte base at in if word-equal value byte then at
+    else let next = offset-add at 1 in index-forward-tail base next end byte
+    else -1
+
+  -- | Find a matching final byte before preparing complete packed suffix scans.
+  index-backward :: I64 -> I64 -> U64 -> I64
+  index-backward base end repeated = if offset-after end 0 then
+    let previous = offset-sub end 1 in let value = load-byte base previous in let byte = word-byte repeated in
+    if word-equal value byte then previous else index-backward-blocks base previous repeated
     else -1
 
   -- | Find the last matching byte by reading complete suffix words before their exact leading fringe.
-  index-backward :: I64 -> I64 -> U64 -> I64
-  index-backward base end repeated = if ge-i64 end 8 then
-    let start = wrapping-sub-i64 end 8 in let word = load-word base start in
+  index-backward-blocks :: I64 -> I64 -> U64 -> I64
+  index-backward-blocks base end repeated = if offset-at-least end 8 then
+    let start = offset-sub end 8 in let word = load-word base start in
     let matches = matching-lanes word repeated in
-    if not (eq-u64 matches 0) then let lane = last-lane matches in wrapping-add-i64 start lane
-    else index-backward base start repeated
-    else index-backward-tail base end (bit-and-u64 repeated 255)
+    if word-nonzero matches then let lane = last-lane matches in offset-add start lane
+    else index-backward-blocks base start repeated
+    else index-backward-tail base end (word-byte repeated)
 
   -- | Read only the leading scalar fringe while searching backward.
   index-backward-tail :: I64 -> I64 -> U64 -> I64
-  index-backward-tail base end byte = if gt-i64 end 0 then
-    let previous = wrapping-sub-i64 end 1 in let value = load-byte base previous in
-    if eq-u64 value byte then previous else index-backward-tail base previous byte
+  index-backward-tail base end byte = if offset-after end 0 then
+    let previous = offset-sub end 1 in let value = load-byte base previous in
+    if word-equal value byte then previous else index-backward-tail base previous byte
     else -1
 
   -- | Count matching complete-word lanes with a bounded machine accumulator.
   count-forward :: I64 -> I64 -> I64 -> U64 -> I64 -> I64
   count-forward base at end repeated total =
-    let remaining = wrapping-sub-i64 end at in
-    if ge-i64 remaining 8 then
+    let remaining = offset-sub end at in
+    if offset-at-least remaining 8 then
       let word = load-word base at in let matches = matching-lanes word repeated in
-      let count = lane-count matches in let next-total = wrapping-add-i64 total count in
-      let next = wrapping-add-i64 at 8 in count-forward base next end repeated next-total
-    else count-tail base at end (bit-and-u64 repeated 255) total
+      let count = lane-count matches in let next-total = offset-add total count in
+      let next = offset-add at 8 in count-forward base next end repeated next-total
+    else count-tail base at end (word-byte repeated) total
 
   -- | Count only available scalar-fringe bytes without a broad read past the end.
   count-tail :: I64 -> I64 -> I64 -> U64 -> I64 -> I64
-  count-tail base at end byte total = if lt-i64 at end then
-    let value = load-byte base at in let next-total = if eq-u64 value byte then wrapping-add-i64 total 1 else total in
-    let next = wrapping-add-i64 at 1 in count-tail base next end byte next-total
+  count-tail base at end byte total = if offset-before at end then
+    let value = load-byte base at in let next-total = if word-equal value byte then offset-add total 1 else total in
+    let next = offset-add at 1 in count-tail base next end byte next-total
     else total
 
   -- | Convert a private signed search sentinel into an optional exact public byte offset.
@@ -151,7 +233,7 @@ module Data.Bytes.Search where
   bytes-contains-byte input byte =
     let repeated = repeated-byte byte in let end = nat-to-i64 (bytes-len input) in
     let found = hold-input input (index-forward (bytes-data input) 0 end repeated) in
-    ge-i64 found 0
+    offset-at-least found 0
 
   -- | Count every exact matching byte using eight-lane masks and a bounded scalar fringe.
   bytes-count-byte :: Bytes -> U8 -> Nat

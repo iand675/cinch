@@ -181,7 +181,8 @@ fn byte_search_kernels_compile_for_wasm_arm_and_big_endian_targets() {
             .join()
             .unwrap()
             .unwrap();
-        assert!(ir.contains("llvm.ctpop.i64"));
+        assert!(ir.contains("%lanes = lshr i64 %0, 7"));
+        assert!(ir.contains("%sums = mul i64 %lanes, 72340172838076673"));
         let path = directory.path().join(format!("{arch}.ll"));
         std::fs::write(&path, ir).unwrap();
         let output = std::process::Command::new(
