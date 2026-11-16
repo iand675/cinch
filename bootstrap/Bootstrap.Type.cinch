@@ -42,6 +42,7 @@ module Bootstrap.Type where
   export generalize-with, generalize-application-with, abstract-metas, substitute-rigid-types
   export fresh-id, substitute-bound, fresh-for-types, pi-dependent, unify-kind, kind-free-bound
   export type-all-ids, integer-carrier, integer-literal-valid, integer-bounds
+  export index-value-bounds
   export number-literal-carrier, wide-carrier, number-literal-valid, number-literal-error, float-literal-bits
 
   data Kind where
@@ -842,7 +843,7 @@ module Bootstrap.Type where
       None -> False)
     UIndexList element fields -> carrier-type element && list-index-fields element fields
     UIndexCall function args -> total-call-arguments (total-parameters function) args
-    UIndexPromote value -> valid-type value && (case typed-index-carrier value of Some carrier -> promotable-carrier carrier; None -> False)
+    UIndexPromote value -> valid-type value && (case typed-index-carrier value of Some carrier -> index-promotable-carrier carrier; None -> False)
     UIndexMath op left right -> valid-typed-math op left right
     -- A dependent function's result is whatever its codomain is: a value
     -- carrier for `(n :: Nat) -> Vec n Int`, and a proposition for a proof
@@ -1628,6 +1629,12 @@ module Bootstrap.Type where
   integer-literal-valid :: UType -> Int -> Bool
   integer-literal-valid carrier value = if mathematical-carrier carrier then not (natural-carrier carrier) || value >= 0
     else case integer-bounds carrier of Some (low, high) -> low <= value && value <= high; None -> False
+
+  -- | Read a character's scalar bounds in proofs without admitting numeric character literals or runtime arithmetic.
+  index-value-bounds :: UType -> Option (Int, Int)
+  index-value-bounds carrier = case carrier of
+    UCon name KType -> if same-tag name "Char" then Some (0, 1114111) else integer-bounds carrier
+    other -> None
   float-literal-format :: UType -> Option (Int, Int, Int)
   float-literal-format carrier = case carrier of
     UCon name KType -> if same-tag name "F32" then Some (24, 127, 2147483648)
@@ -1793,6 +1800,10 @@ module Bootstrap.Type where
     other -> None
   promotable-carrier :: UType -> Bool
   promotable-carrier carrier = case carrier of UCon name KType -> same-tag name "Nat" || same-tag name "I8" || same-tag name "I16" || same-tag name "I32" || same-tag name "I64" || same-tag name "U8" || same-tag name "U16" || same-tag name "U32" || same-tag name "U64" || same-tag name "Isize" || same-tag name "Usize"; other -> False
+
+  -- | Promote checked character values only at the proof boundary; runtime integer admission remains separate.
+  index-promotable-carrier :: UType -> Bool
+  index-promotable-carrier carrier = promotable-carrier carrier || (case carrier of UCon name KType -> same-tag name "Char"; other -> False)
   math-operation :: String -> Bool
   math-operation op = same-tag op "+" || same-tag op "-" || same-tag op "*"
   math-index :: String -> IndexTerm -> IndexTerm -> IndexTerm
