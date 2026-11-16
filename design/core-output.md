@@ -548,6 +548,10 @@ the same forms to stay byte-identical.
    node's first child: `@class(<class>)` (a binder's or a projection's
    class), `@classes(<letters>)` (an instantiation vector), and
    `@weight(<n>)` (an alternative's weight).
+   A reuse may carry `@kept(<i>,...)`: its zero-based argument slots whose
+   payload words already occupy the reused cell and need no store. The
+   reader requires distinct indices within that reuse's argument list.
+   Quoted unit atoms are unquoted before resolving their declared module.
 9. Record annotations the seed's stages carry, in this order:
    `@span`, `@params`, `@class`, `@captures`, `@ctor(<tag>, <arity>,
    <data>)`, `@tier(justified|assumed)`, `@ffi("<symbol>")`,

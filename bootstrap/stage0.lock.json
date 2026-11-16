@@ -1,9 +1,9 @@
 {
-  "description": "ABI 10 Native seed: self-describing block headers, merged with main (through the no-reclaim switch), narrow C arguments extended; empty patch.",
+  "description": "ABI 10 coherent native borrow hardening and reuse optimization snapshot, including current main MVar runtime and library sources.",
   "patch": "bootstrap/seed/stage0.patch",
   "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "revision": "ab294c68b24fa093a84813e09e0b9f5f33667e7f",
+  "revision": "3768281841e029cde89156e8d925a0652619e4c3",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "c559c794935bbbf52d60118abd95c7207621ab1059c7e4695f40d99e8f0dfabd"
+  "source_sha256": "03826793907e4fe766af4deeff4c0cce9552fa3321af3d7bc886b50e85c743d3"
 }

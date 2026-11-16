@@ -175,6 +175,16 @@ are reported in the stage's `requested-roots.json` for the producer's explicit
 root protocol. The produced compiler must also
 run and return its bad-arguments status before the build is accepted.
 Cache hits verify source/builder identities and output hashes.
+The 2026-11-16 borrow-hardening refresh pins both roles to `37682818`,
+source hash `03826793907e`, at ABI 10. The snapshot includes the borrow
+verifier, computed-head reuse fixes, refusal diagnostics and reuse-scan
+optimizations, together with current main's MVar library and runtime.
+It built all three stages with no PGO, reached identical stage-2/3 IR and
+168 identical interfaces, passed the three smoke cases and checked all
+51 compiler source modules. Both staged compiler leak probes reported
+zero live, immortal and leaked blocks. Later Core-text reader-only fixes
+remain native inspection-tool updates; they do not change generation.
+
 Stage1 also builds the exact seed runtime with `--release` and records its
 archive hash in the cache inputs. A failed optimized runtime build is an error;
 it cannot quietly select the Native linker's debug fallback. This profile

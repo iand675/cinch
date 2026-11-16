@@ -876,10 +876,14 @@ to refuse, and both front ends accept the word.
   Taking an imported function as a value uses its published
   `object-closure` accessor: its static closure storage is local to the
   provider object and cannot be named directly by the consumer.
-  The binder ownership verifier alone did not catch the missing cleanup
-  of these anonymous computed values. A further verifier improvement is
-  to account for counted computed results passed to borrowed positions,
-  rather than certifying only the lifetime of named binders.
+  The original binder-only verifier missed these anonymous computed
+  results. Whole-program verification now also checks each borrowed call
+  against unit arities and representation metadata. A computed argument
+  must be named unless it is proved raw or immortal. Positive-arity globals
+  are static closures; zero-arity globals execute and may own a result.
+  Negative tests recreate the leaking Core directly, bypassing naming,
+  including calls nested inside computed heads. Quotes keep the same
+  program metadata while checking their closed bodies.
   The combined-fix census in
   `experiments/borrow-inference/2026-11-16-followup.json` records 5,537
   borrowed entries and 170,124 ownership sites. The extra 166 sites include
@@ -896,6 +900,13 @@ to refuse, and both front ends accept the word.
   searches, and cache occupancy. Cache slot bytes cover the checked flags;
   no target IDs or tree nodes are retained.
   The normal uninstrumented searches do not increment node counters.
+  A first scan is also unnecessary when owned-use analysis already forces
+  every remaining candidate owned. The earlier result settles the reuse
+  rule without searching the body; `reuse_skipped_owned` records these
+  cases. Computed application heads participate in both eligibility scans
+  and reuse insertion: the head's unconditional spine evaluates before
+  the arguments and can take the release token. Written-binding facts
+  also traverse these heads before alias elimination.
   The controlled A/B in
   `experiments/borrow-inference/2026-11-16-reuse-cache.json` changes only this
   cache: scans fall from 11,854 to 6,322 and combined search-node visits
@@ -903,11 +914,43 @@ to refuse, and both front ends accept the word.
   dump. The pass uses 7,227 bytes of flags. Its Core output is byte identical,
   as are every pass's formal reports. These are analysis work counts, not
   elapsed-time or scaling claims.
-- Next, split the 6,447 `owned-use` witnesses in the frozen census into
-  returns, stores, captures and dynamic applications before relaxing a
-  rule. Dynamic application currently consumes its closure through the
-  apply ABI, so lending a function merely because it is called requires
-  more than changing inference.
+- `owned-use` witnesses now carry a `use` detail: return, binding,
+  constructor-field, capture, store, write-target, dictionary,
+  quotation-hole, join-argument, owned-argument, dynamic-callee or
+  dynamic-argument. Each is the first observed witness for that formal,
+  not a count of every use. `borrow_census.py --report` prints the
+  breakdown and accepts older reports without details. Dynamic application
+  consumes its closure through the apply ABI, so lending a function merely
+  because it is called still requires more than changing inference.
+  These are immediate syntax contexts: `owned-argument` includes arguments
+  to partial known applications, and `capture` means an explicit closure
+  environment. The census does not trace an argument's requirement through
+  the callee graph to its eventual retention site.
+- `CINCH_BORROW_WORK=1` emits work counters without allocating per-formal
+  refusal records. Controlled measurements can disable caching with
+  `CINCH_BORROW_REUSE_CACHE=0` and the first-scan shortcut with
+  `CINCH_BORROW_SKIP_OWNED=0`. Both optimizations are on by default.
+  `cargo build --example compiler_allocations` builds an instrumented Core
+  CLI: `target/debug/examples/compiler_allocations emit SOURCE --stage=owned
+  -o OUTPUT` runs the ordinary compiler and reports successful Rust
+  allocation requests and requested bytes. These totals cover startup
+  through the compiler's return. They are allocation traffic, not peak or
+  live heap measurements, and exclude foreign C allocations and child
+  processes. The counter stops before formatting its own report.
+  For the ordinary production pipeline, use
+  `compiler_allocations emit-ir SOURCE -o OUTPUT.ll`. Unlike an owned Core
+  dump, this does not run an additional diagnostic ownership pass. Reset
+  the project build directory before each comparison, use identical argv,
+  and compare adjacent opt-out settings to isolate one optimization.
+
+  On the compiler corpus, the production pipeline visits 7,009,002 reuse
+  search nodes with both optimizations disabled, 2,922,203 with caching,
+  and 2,467,255 with the first-scan shortcut too. All three LLVM IR files
+  are byte identical. Two optimized trials reduce whole-process Rust
+  allocation requests by 0.66-0.68% and requested bytes by about 0.21%
+  against the uncached baseline. This is a smaller whole-compiler effect
+  than the 64.80% reuse-search work reduction. No elapsed-time or scaling
+  improvement is claimed.
 - Drop specialisation is the `Core::Release { block, moved, rest }` node,
   placed where a `Case` alternative on an owned, dead `Obj` scrutinee uses
   at least one field. Codegen tests the block's thread-local count with
