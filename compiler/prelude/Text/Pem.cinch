@@ -1,0 +1,716 @@
+-- | PEM envelopes with immutable owned byte labels, headers and payloads.
+-- Decoding preserves arbitrary byte metadata, recovers the next well-formed
+-- envelope, and returns an independently owned remainder. Encoding validates
+-- header keys before output, orders headers deterministically, and wraps the
+-- standard padded Base64 alphabet at 64 columns. Writers retain continuations.
+module Text.Pem where
+  import Data.Bytes
+  import Data.Bytes.Utf8
+  import Data.Unicode.Kernel
+  import Data.Bool
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String hiding (utf8-encode-into)
+  import Text.Base64.Encoding
+  import Effect.Stream
+
+  export PemBlock, PemHeader, pem-block, pem-header
+  export pem-block-type, pem-block-bytes, pem-block-headers, pem-header-key, pem-header-value
+  export pem-find-header, pem-with-header, pem-without-header, pem-with-headers, pem-with-type, pem-with-bytes
+  export PemError, PemInvalidHeaderKey, PemOutputError, pem-error-message
+  export pem-decode, pem-encode-bytes, pem-write
+
+  -- | Immutable header metadata; construction and byte observations copy caller storage.
+  data PemHeader where
+    -- | Private independently owned key and value bytes.
+    OwnedHeader :: Bytes -> Bytes -> PemHeader
+
+  -- | An immutable envelope; labels and metadata may contain arbitrary non-UTF8 bytes.
+  data PemBlock where
+    -- | Private label, sorted unique immutable headers, and independently owned payload.
+    OwnedBlock :: Bytes -> List PemHeader -> Bytes -> PemBlock
+
+  -- | Encoding validation or transport failure, with no implicit sink closure.
+  data PemError where
+    -- | A key contains a colon; carries its zero-based index in byte-sorted header order.
+    PemInvalidHeaderKey :: Nat -> PemError
+    -- | An output operation failed; the advanced writer is returned separately.
+    PemOutputError :: StreamError -> PemError
+
+  -- | Explain a header refusal or identify a retained underlying stream failure.
+  pem-error-message :: PemError -> String
+  pem-error-message error = case error of
+    PemInvalidHeaderKey index -> "pem: cannot encode a header key that contains a colon"
+    PemOutputError failure -> "PEM output stream failed"
+
+  -- | Copy a checked owner interval, refusing malformed private metadata with an empty result.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part source at size = if at + size <= bytes-len source then
+    let out = bytes-new size in let copied = bytes-copy-range out source 0 at size in out
+    else bytes-new 0
+
+  -- | Snapshot arbitrary mutable bytes into independent owned storage.
+  clone :: Bytes -> Bytes
+  clone source = part source 0 (bytes-len source)
+
+  -- | Construct immutable byte metadata without validating or discarding unusual keys or values.
+  pem-header :: Bytes -> Bytes -> PemHeader
+  pem-header key value = OwnedHeader (clone key) (clone value)
+
+  -- | Observe an independently mutable copy of a header key.
+  pem-header-key :: PemHeader -> Bytes
+  pem-header-key header = case header of OwnedHeader key value -> clone key
+
+  -- | Observe an independently mutable copy of a header value.
+  pem-header-value :: PemHeader -> Bytes
+  pem-header-value header = case header of OwnedHeader key value -> clone value
+
+  -- | Insert an immutable header in byte order, replacing an earlier equal key.
+  insert-header :: PemHeader -> List PemHeader -> List PemHeader
+  insert-header header headers = insert-header-from header headers Nil
+
+  -- | Insert or replace one key with bounded call depth and immutable suffix sharing.
+  insert-header-from :: PemHeader -> List PemHeader -> List PemHeader -> List PemHeader
+  insert-header-from header headers result = case header of
+    OwnedHeader key value -> case headers of
+      Nil -> reverse-headers result (Cons header Nil)
+      Cons first rest -> case first of
+        OwnedHeader other ignored -> let ordering = bytes-compare key other in
+          if lt-i64 ordering 0 then reverse-headers result (Cons header headers)
+          else if eq-i64 ordering 0 then reverse-headers result (Cons header rest)
+          else insert-header-from header rest (Cons first result)
+
+  -- | Reverse an immutable header spine onto a selected suffix without recursive pending constructors.
+  reverse-headers :: List PemHeader -> List PemHeader -> List PemHeader
+  reverse-headers input result = case input of
+    Nil -> result
+    Cons header rest -> reverse-headers rest (Cons header result)
+
+  -- | Count immutable metadata entries with a constant-space accumulator.
+  header-count :: List PemHeader -> Nat -> Nat
+  header-count input count = case input of Nil -> count; Cons header rest -> header-count rest (count + 1)
+
+  -- | Split a contiguous prefix while preserving stable equal-key precedence.
+  split-headers :: List PemHeader -> Nat -> List PemHeader -> (List PemHeader, List PemHeader)
+  split-headers input count result = if count == 0 then (reverse-headers result Nil, input)
+    else case input of
+      Nil -> (reverse-headers result Nil, Nil)
+      Cons header rest -> split-headers rest (count - 1) (Cons header result)
+
+  -- | Merge sorted header spines stably, with a tail accumulator rather than a linear call stack.
+  merge-headers :: List PemHeader -> List PemHeader -> List PemHeader -> List PemHeader
+  merge-headers first second result = case first of
+    Nil -> reverse-headers result second
+    Cons a rest -> case second of
+      Nil -> reverse-headers result first
+      Cons b tail -> case a of
+        OwnedHeader key ignored -> case b of
+          OwnedHeader other ignored -> let ordering = bytes-compare key other in
+            if le-i64 ordering 0 then merge-headers rest second (Cons a result)
+            else merge-headers first tail (Cons b result)
+
+  -- | Sort metadata in O(n log n) comparisons with logarithmic divide depth.
+  sort-headers :: List PemHeader -> Nat -> List PemHeader
+  sort-headers input count = if count < 2 then input
+    else let middle = nat-div count 2 in
+      if middle > 0 && middle < count then
+        case split-headers input middle Nil of
+          (first, second) -> let left = sort-headers first middle in
+            let right = sort-headers second (count - middle) in merge-headers left right Nil
+      else input
+
+  -- | Skip adjacent equal keys after a stable sort, retaining the highest-precedence value.
+  skip-equal :: Bytes -> List PemHeader -> List PemHeader
+  skip-equal key headers = case headers of
+    Nil -> Nil
+    Cons header rest -> case header of
+      OwnedHeader other ignored -> let ordering = bytes-compare key other in
+        if eq-i64 ordering 0 then skip-equal key rest else headers
+
+  -- | Keep the first value in each sorted equal-key group and preserve byte order.
+  unique-headers :: List PemHeader -> List PemHeader -> List PemHeader
+  unique-headers input result = case input of
+    Nil -> reverse-headers result Nil
+    Cons header rest -> case header of
+      OwnedHeader key ignored -> let next = skip-equal key rest in unique-headers next (Cons header result)
+
+  -- | Canonicalize reverse input order so the final original occurrence wins equal-key comparisons.
+  canonical-reversed :: List PemHeader -> List PemHeader
+  canonical-reversed headers = let count = header-count headers 0 in
+    let sorted = sort-headers headers count in unique-headers sorted Nil
+
+  -- | Canonicalize caller order with last-key-wins replacement and immutable header sharing.
+  collect-headers :: List PemHeader -> List PemHeader -> List PemHeader
+  collect-headers input result = case input of
+    Nil -> canonical-reversed result
+    Cons header rest -> collect-headers rest (Cons header result)
+
+  -- | Construct an immutable envelope; duplicate byte keys use the final supplied value.
+  pem-block :: Bytes -> List PemHeader -> Bytes -> PemBlock
+  pem-block label headers payload = OwnedBlock (clone label) (collect-headers headers Nil) (clone payload)
+
+  -- | Observe an independently mutable copy of the exact label bytes.
+  pem-block-type :: PemBlock -> Bytes
+  pem-block-type block = case block of OwnedBlock label headers payload -> clone label
+
+  -- | Observe an independently mutable copy of the decoded payload.
+  pem-block-bytes :: PemBlock -> Bytes
+  pem-block-bytes block = case block of OwnedBlock label headers payload -> clone payload
+
+  -- | Observe immutable unique headers in byte-lexicographic key order.
+  pem-block-headers :: PemBlock -> List PemHeader
+  pem-block-headers block = case block of OwnedBlock label headers payload -> headers
+
+  -- | Find an exact case-sensitive byte key, returning a fresh mutable value when present.
+  pem-find-header :: PemBlock -> Bytes -> Option Bytes
+  pem-find-header block key = case block of OwnedBlock label headers payload -> find-header headers key
+
+  -- | Search sorted private metadata without copying unrelated fields or payload bytes.
+  find-header :: List PemHeader -> Bytes -> Option Bytes
+  find-header headers key = case headers of
+    Nil -> None
+    Cons header rest -> case header of
+      OwnedHeader other value -> let ordering = bytes-compare key other in
+        if lt-i64 ordering 0 then None else if eq-i64 ordering 0 then Some (clone value) else find-header rest key
+
+  -- | Replace or add a header persistently; both blocks retain immutable independently observable metadata.
+  pem-with-header :: PemBlock -> PemHeader -> PemBlock
+  pem-with-header block header = case block of OwnedBlock label headers payload -> OwnedBlock label (insert-header header headers) payload
+
+  -- | Remove a byte key persistently without copying unrelated private payload storage.
+  pem-without-header :: PemBlock -> Bytes -> PemBlock
+  pem-without-header block key = case block of OwnedBlock label headers payload -> OwnedBlock label (drop-header headers key) payload
+
+  -- | Delete an exact key while preserving sorted immutable suffix sharing.
+  drop-header :: List PemHeader -> Bytes -> List PemHeader
+  drop-header headers key = drop-header-from headers key Nil
+
+  -- | Delete without accumulating one pending call frame per preceding metadata entry.
+  drop-header-from :: List PemHeader -> Bytes -> List PemHeader -> List PemHeader
+  drop-header-from headers key result = case headers of
+    Nil -> reverse-headers result Nil
+    Cons header rest -> case header of
+      OwnedHeader other value -> let ordering = bytes-compare key other in
+        if lt-i64 ordering 0 then reverse-headers result headers
+        else if eq-i64 ordering 0 then reverse-headers result rest
+        else drop-header-from rest key (Cons header result)
+
+  -- | Replace all metadata persistently, with sorted last-key-wins semantics and immutable payload sharing.
+  pem-with-headers :: PemBlock -> List PemHeader -> PemBlock
+  pem-with-headers block headers = case block of OwnedBlock label ignored payload -> OwnedBlock label (collect-headers headers Nil) payload
+
+  -- | Replace a label with an owned snapshot, preserving the original block and shared immutable fields.
+  pem-with-type :: PemBlock -> Bytes -> PemBlock
+  pem-with-type block label = case block of OwnedBlock ignored headers payload -> OwnedBlock (clone label) headers payload
+
+  -- | Replace payload bytes with an owned snapshot while preserving metadata and the original block.
+  pem-with-bytes :: PemBlock -> Bytes -> PemBlock
+  pem-with-bytes block payload = case block of OwnedBlock label headers ignored -> OwnedBlock label headers (clone payload)
+
+  -- | Retain an owner until every strict private pointer read has completed.
+  hold :: forall a. Bytes -> a -> a
+  hold source result = case bytes-len source of _ -> result
+
+  -- | Convert a complete unsigned offset without signed truncation.
+  natural :: U64 -> Nat
+  natural value = let low = wrapping-u64-to-u32 value in
+    let shifted = wrapping-shr-u64 value 32 in let high = wrapping-u64-to-u32 shifted in
+    u32-to-nat low + u32-to-nat high * 4294967296
+
+  -- | Compare bounded machine offsets without imported arithmetic calls in scanner loops.
+  prim before :: U64 -> U64 -> Bool where
+    llvm {
+      %yes = icmp ult i64 %0, %1
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Advance a checked scanner position in unsigned machine arithmetic.
+  prim plus :: U64 -> U64 -> U64 where
+    llvm {
+      %value = add i64 %0, %1
+      ret i64 %value
+    }
+
+  -- | Subtract positions only after the ordinary caller has established their order.
+  prim minus :: U64 -> U64 -> U64 where
+    llvm {
+      %value = sub i64 %0, %1
+      ret i64 %value
+    }
+
+  -- | Form a byte address within caller-proved source bounds without exposing it publicly.
+  prim address :: I64 -> U64 -> I64 where
+    llvm {
+      %value = add i64 %0, %1
+      ret i64 %value
+    }
+
+  -- | Test one caller-proved source byte without reading a larger fringe.
+  prim has-one :: I64 -> U8 -> Bool where
+    unsafe llvm {
+      %pointer = inttoptr i64 %0 to ptr
+      %byte = load i8, ptr %pointer, align 1
+      %yes = icmp eq i8 %byte, %1
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Test sixteen caller-proved source bytes with a portable read-only SIMD comparison.
+  prim has-sixteen :: I64 -> U8 -> Bool where
+    unsafe llvm {
+      %pointer = inttoptr i64 %0 to ptr
+      %bytes = load <16 x i8>, ptr %pointer, align 1
+      %first = insertelement <16 x i8> poison, i8 %1, i32 0
+      %splat = shufflevector <16 x i8> %first, <16 x i8> poison, <16 x i32> zeroinitializer
+      %equal = icmp eq <16 x i8> %bytes, %splat
+      %mask = bitcast <16 x i1> %equal to i16
+      %yes = icmp ne i16 %mask, 0
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Search complete SIMD blocks and exact single-byte fringes inside the half-open range.
+  find-machine :: I64 -> U64 -> U64 -> U8 -> U64
+  find-machine base at end wanted = if before at end then
+    let remaining = minus end at in let pointer = address base at in
+    if before remaining 16 then
+      if has-one pointer wanted then at else let next = plus at 1 in find-machine base next end wanted
+    else if has-sixteen pointer wanted then
+      if has-one pointer wanted then at else let next = plus at 1 in find-machine base next end wanted
+    else let next = plus at 16 in find-machine base next end wanted
+    else end
+
+  -- | Find a byte in an absolute half-open owner range, returning its end when absent.
+  find-byte :: Bytes -> Nat -> Nat -> U8 -> Nat
+  find-byte source start end wanted = if start <= end && end <= bytes-len source then
+    let base = bytes-data source in let low = wrapping-i64-to-u64 (nat-to-i64 start) in
+    let high = wrapping-i64-to-u64 (nat-to-i64 end) in
+    hold source (natural (find-machine base low high wanted))
+    else end
+
+  -- | Match exactly the eleven bytes of a BEGIN prefix, independent of host byte order.
+  prim begin-token :: I64 -> Bool where
+    unsafe llvm {
+      %pointer = inttoptr i64 %0 to ptr
+      %bytes = load <8 x i8>, ptr %pointer, align 1
+      %equal = icmp eq <8 x i8> %bytes, <i8 45, i8 45, i8 45, i8 45, i8 45, i8 66, i8 69, i8 71>
+      %mask = bitcast <8 x i1> %equal to i8
+      %head = icmp eq i8 %mask, -1
+      %tailptr = getelementptr i8, ptr %pointer, i64 8
+      %tail = load <2 x i8>, ptr %tailptr, align 1
+      %taileq = icmp eq <2 x i8> %tail, <i8 73, i8 78>
+      %tailmask = bitcast <2 x i1> %taileq to i2
+      %middle = icmp eq i2 %tailmask, -1
+      %lastptr = getelementptr i8, ptr %pointer, i64 10
+      %last = load i8, ptr %lastptr, align 1
+      %space = icmp eq i8 %last, 32
+      %both = and i1 %head, %middle
+      %yes = and i1 %both, %space
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Match exactly a newline and END prefix, without reading beyond its ten-byte bound.
+  prim end-token :: I64 -> Bool where
+    unsafe llvm {
+      %pointer = inttoptr i64 %0 to ptr
+      %bytes = load <8 x i8>, ptr %pointer, align 1
+      %equal = icmp eq <8 x i8> %bytes, <i8 10, i8 45, i8 45, i8 45, i8 45, i8 45, i8 69, i8 78>
+      %mask = bitcast <8 x i1> %equal to i8
+      %head = icmp eq i8 %mask, -1
+      %tailptr = getelementptr i8, ptr %pointer, i64 8
+      %tail = load <2 x i8>, ptr %tailptr, align 1
+      %taileq = icmp eq <2 x i8> %tail, <i8 68, i8 32>
+      %tailmask = bitcast <2 x i1> %taileq to i2
+      %suffix = icmp eq i2 %tailmask, -1
+      %yes = and i1 %head, %suffix
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Match a complete BEGIN prefix only inside the selected bounded interval.
+  begins :: Bytes -> Nat -> Nat -> Bool
+  begins source at end = if at + 11 <= end && end <= bytes-len source then
+    let base = bytes-data source in let offset = wrapping-i64-to-u64 (nat-to-i64 at) in
+    let pointer = address base offset in hold source (begin-token pointer)
+    else False
+
+  -- | Locate the first newline-anchored END prefix using SIMD dash scans.
+  find-end :: Bytes -> Nat -> Option Nat
+  find-end source at = let found = find-byte source at (bytes-len source) 45 in
+    if found < bytes-len source then
+      if found > 0 && found + 9 <= bytes-len source then
+        let line = found - 1 in let base = bytes-data source in
+        let offset = wrapping-i64-to-u64 (nat-to-i64 line) in let pointer = address base offset in
+        if hold source (end-token pointer) then Some line else find-end source (found + 1)
+      else find-end source (found + 1)
+    else None
+
+  -- | Preserve the final raw BEGIN before an END, including a final unanchored candidate.
+  last-begin :: Bytes -> Nat -> Nat -> Option Nat -> Option Nat
+  last-begin source at end best = let found = find-byte source at end 45 in
+    if found < end then last-begin source (found + 1) end (if begins source found end then Some found else best)
+    else best
+
+  -- | Strip only trailing space and tab bytes, preserving all other line bytes exactly.
+  trim-line :: Bytes -> Nat -> Nat -> Nat
+  trim-line source start end = if start < end && end <= bytes-len source then
+    let last = end - 1 in let byte = bytes-get source last in
+    if byte == 32 || byte == 9 then trim-line source start last else end
+    else end
+
+  -- | Observe a line's trimmed end and the next offset; a CR is removed only immediately before LF.
+  line :: Bytes -> Nat -> (Nat, Nat)
+  line source at = let lf = find-byte source at (bytes-len source) 10 in
+    if lf < bytes-len source then
+      let end = if lf > at then (if bytes-get source (lf - 1) == 13 then lf - 1 else lf) else lf in
+      (trim-line source at end, lf + 1)
+    else (trim-line source at (bytes-len source), bytes-len source)
+
+  -- | Recognize an exact run of delimiter dashes through checked single-byte reads.
+  dashes :: Bytes -> Nat -> Nat -> Bool
+  dashes source at count = if count == 0 then True
+    else if at < bytes-len source then bytes-get source at == 45 && dashes source (at + 1) (count - 1)
+    else False
+
+  -- | Compare complete arbitrary byte intervals without converting their metadata to String.
+  same-span :: Bytes -> Nat -> Nat -> Nat -> Bool
+  same-span source first second size = if size == 0 then True
+    else if first < bytes-len source && second < bytes-len source then
+      bytes-get source first == bytes-get source second && same-span source (first + 1) (second + 1) (size - 1)
+    else False
+
+  -- | Trim leading Unicode whitespace while malformed bytes remain ordinary metadata.
+  trim-left :: Bytes -> Nat -> Nat -> Nat
+  trim-left source start end = if start < end then
+    let step = utf8-decode-between source start end start in
+    let width = utf8-step-width step in
+    if width > 0 && unicode-is-space (utf8-step-char step) then trim-left source (start + width) end else start
+    else start
+
+  -- | Trim trailing Unicode whitespace without admitting a scalar crossing the field's start.
+  trim-right :: Bytes -> Nat -> Nat -> Nat
+  trim-right source start end = if start < end then
+    let step = utf8-last-before source end in let width = utf8-step-width step in
+    if width > 0 && width <= end - start && unicode-is-space (utf8-step-char step) then trim-right source start (end - width) else end
+    else end
+
+  -- | Copy a field after exact Unicode whitespace trimming, preserving invalid UTF-8 bytes.
+  trimmed :: Bytes -> Nat -> Nat -> Bytes
+  trimmed source start end = let low = trim-left source start end in let high = trim-right source low end in
+    if low <= high then part source low (high - low) else bytes-new 0
+
+  -- | Recognize spaces and tabs across sixteen caller-proved bytes without lane-order assumptions.
+  prim blank-sixteen :: I64 -> Bool where
+    unsafe llvm {
+      %pointer = inttoptr i64 %0 to ptr
+      %bytes = load <16 x i8>, ptr %pointer, align 1
+      %spaces = icmp eq <16 x i8> %bytes, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %tabs = icmp eq <16 x i8> %bytes, <i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9>
+      %equal = or <16 x i1> %spaces, %tabs
+      %mask = bitcast <16 x i1> %equal to i16
+      %yes = icmp ne i16 %mask, 0
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Recognize an exact single-byte whitespace fringe with no wider read.
+  prim blank-one :: I64 -> Bool where
+    unsafe llvm {
+      %pointer = inttoptr i64 %0 to ptr
+      %byte = load i8, ptr %pointer, align 1
+      %space = icmp eq i8 %byte, 32
+      %tab = icmp eq i8 %byte, 9
+      %yes = or i1 %space, %tab
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Find the next filtered byte in one linear pass with bounded SIMD blocks and exact fringes.
+  blank-machine :: I64 -> U64 -> U64 -> U64
+  blank-machine base at end = if before at end then
+    let remaining = minus end at in let pointer = address base at in
+    if before remaining 16 then
+      if blank-one pointer then at else let next = plus at 1 in blank-machine base next end
+    else if blank-sixteen pointer then
+      if blank-one pointer then at else let next = plus at 1 in blank-machine base next end
+    else let next = plus at 16 in blank-machine base next end
+    else end
+
+  -- | Locate spaces and tabs without repeatedly rescanning the remaining input.
+  next-blank :: Bytes -> Nat -> Nat -> Nat
+  next-blank source start end = if start <= end && end <= bytes-len source then
+    let base = bytes-data source in let low = wrapping-i64-to-u64 (nat-to-i64 start) in
+    let high = wrapping-i64-to-u64 (nat-to-i64 end) in
+    hold source (natural (blank-machine base low high))
+    else end
+
+  -- | Compute the exact filtered length using complete nonblank runs.
+  filtered-size :: Bytes -> Nat -> Nat -> Nat -> Nat
+  filtered-size source at end count = if at < end then
+    let blank = next-blank source at end in
+    if at <= blank then let next = count + (blank - at) in
+      if blank < end then filtered-size source (blank + 1) end next else next
+    else count
+    else count
+
+  -- | Copy complete runs through checked bulk copies; the destination never aliases its owner.
+  filtered-copy :: Bytes -> Nat -> Nat -> Bytes -> Nat -> Unit
+  filtered-copy source at end out cursor = if at < end then
+    let blank = next-blank source at end in
+    if at <= blank then let size = blank - at in
+      if cursor + size <= bytes-len out && at + size <= bytes-len source then
+        let copied = bytes-copy-range out source cursor at size in
+        if blank < end then filtered-copy source (blank + 1) end out (cursor + size) else ()
+      else ()
+    else ()
+    else ()
+
+  -- | Remove spaces and tabs only; the underlying decoder handles CR and LF independently.
+  filtered :: Bytes -> Nat -> Nat -> Bytes
+  filtered source start end = let size = filtered-size source start end 0 in
+    let out = bytes-new size in let copied = filtered-copy source start end out 0 in out
+
+  -- | Distinguish a decoded result, a recoverable candidate and terminal malformed header recovery.
+  data Attempt where
+    -- | A complete privately owned block and the absolute offset of the independent remainder.
+    Found :: PemBlock -> Nat -> Attempt
+    -- | Resume at the observed END trailer, preserving subsequent candidate boundaries.
+    Retry :: Nat -> Attempt
+    -- | The header parser passed its END trailer, so recovery must return the original input.
+    Stop :: Attempt
+
+  -- | Resume only when the candidate's remaining slice still contains its observed END trailer.
+  rejected :: Nat -> Nat -> Attempt
+  rejected cursor trailer = if cursor <= trailer then Retry trailer else Stop
+
+  -- | Validate the exact matching end label, whitespace suffix and complete padded Base64 payload.
+  finish-candidate :: Bytes -> Nat -> Nat -> Nat -> Nat -> Nat -> List PemHeader -> Attempt
+  finish-candidate source type-start type-size body end trailer headers =
+    let has-headers = case headers of Nil -> False; Cons first rest -> True in
+    if has-headers && body > end then rejected body trailer
+    else if trailer + type-size + 5 <= bytes-len source then
+      if same-span source type-start trailer type-size && dashes source (trailer + type-size) 5 then
+        let suffix = trailer + type-size + 5 in case line source suffix of
+          (trimmed-end, next) -> if trimmed-end == suffix then
+            let encoded = if body < end then filtered source body end else bytes-new 0 in
+            case base64-decode-bytes base64-standard-encoding encoded of
+              Err error -> rejected body trailer
+              Ok payload -> Found (OwnedBlock (part source type-start type-size) (canonical-reversed headers) payload) next
+            else rejected body trailer
+      else rejected body trailer
+    else rejected body trailer
+
+  -- | Read consecutive colon-bearing metadata lines, trimming keys/values by Unicode whitespace.
+  read-headers :: Bytes -> Nat -> Nat -> Nat -> Nat -> Nat -> List PemHeader -> Attempt
+  read-headers source type-start type-size cursor end trailer headers =
+    if cursor >= bytes-len source then Stop
+    else case line source cursor of
+      (line-end, next) -> let colon = find-byte source cursor line-end 58 in
+        if colon < line-end then
+          let key = trimmed source cursor colon in let value = trimmed source (colon + 1) line-end in
+          let header = OwnedHeader key value in
+          read-headers source type-start type-size next end trailer (Cons header headers)
+        else finish-candidate source type-start type-size cursor end trailer headers
+
+  -- | Parse a BEGIN candidate selected immediately before its first observed END prefix.
+  candidate :: Bytes -> Nat -> Nat -> Nat -> Attempt
+  candidate source window begin end = let trailer = end + 10 in
+    if begin > window && begin > 0 then
+      let previous = begin - 1 in
+      if previous < bytes-len source then
+        if bytes-get source previous /= 10 then Retry trailer else type-line source begin end trailer
+      else Retry trailer
+    else type-line source begin end trailer
+
+  -- | Require five closing BEGIN dashes after its trimmed type line and retain arbitrary label bytes.
+  type-line :: Bytes -> Nat -> Nat -> Nat -> Attempt
+  type-line source begin end trailer = let start = begin + 11 in case line source start of
+    (line-end, body) ->
+      if start + 5 <= line-end then
+        let size = line-end - start - 5 in
+        if dashes source (start + size) 5 then read-headers source start size body end trailer Nil else Retry trailer
+      else Retry trailer
+
+  -- | Recover using first-END/final-BEGIN pairing while retaining the complete original owner.
+  decode-from :: Bytes -> Nat -> Option (PemBlock, Nat)
+  decode-from source window =
+    if window <= bytes-len source then
+      case find-end source (window + 1) of
+        None -> None
+        Some end -> case last-begin source window end None of
+          None -> decode-from source (end + 10)
+          Some begin -> case candidate source window begin end of
+            Found block next -> Some (block, next)
+            Retry at -> decode-from source at
+            Stop -> None
+    else None
+
+  -- | Decode the next well-formed envelope and return a fresh independently mutable remainder.
+  -- Candidates start at a line boundary relative to recovery's current slice. Malformed
+  -- candidates are skipped by END trailer; absence or terminal malformed metadata returns
+  -- None and a fresh copy of the complete original input. Labels and headers preserve bytes.
+  pem-decode :: Bytes -> (Option PemBlock, Bytes)
+  pem-decode source = case decode-from source 0 of
+    None -> (None, clone source)
+    Some pair -> case pair of
+      (block, next) -> if next <= bytes-len source then (Some block, part source next (bytes-len source - next)) else (None, clone source)
+
+  -- | Detect invalid keys before allocating encoded output or invoking an output callback.
+  invalid-header :: List PemHeader -> Nat -> Option Nat
+  invalid-header headers index = case headers of
+    Nil -> None
+    Cons header rest -> case header of
+      OwnedHeader key value -> if find-byte key 0 (bytes-len key) 58 < bytes-len key then Some index else invalid-header rest (index + 1)
+
+  -- | Recognize the exact case-sensitive header that must precede other encoded metadata.
+  proc-type :: PemHeader -> Bool
+  proc-type header = case header of
+    OwnedHeader key value -> let expected = string-to-bytes "Proc-Type" in
+      let ordering = bytes-compare key expected in eq-i64 ordering 0
+
+  -- | Select the priority header without exposing its privately owned key/value storage.
+  proc-header :: List PemHeader -> Option PemHeader
+  proc-header headers = case headers of Nil -> None; Cons header rest -> if proc-type header then Some header else proc-header rest
+
+  -- | Count encoded header bytes including separators and the optional blank line.
+  headers-size :: List PemHeader -> Nat
+  headers-size headers = headers-size-from headers 0
+
+  -- | Accumulate encoded header size without retaining one call frame per metadata entry.
+  headers-size-from :: List PemHeader -> Nat -> Nat
+  headers-size-from headers size = case headers of
+    Nil -> size
+    Cons header rest -> case header of OwnedHeader key value -> headers-size-from rest (size + bytes-len key + bytes-len value + 3)
+
+  -- | Copy one exact source into a checked destination interval.
+  put :: Bytes -> Nat -> Bytes -> Nat
+  put out at source = let size = bytes-len source in
+    if at + size <= bytes-len out then let copied = bytes-copy-range out source at 0 size in at + size else at
+
+  -- | Write one checked delimiter byte and advance its output cursor.
+  byte :: Bytes -> Nat -> Nat -> Nat
+  byte out at value = if at < bytes-len out && value <= 255 then let written = bytes-set out at value in at + 1 else at
+
+  -- | Write one complete immutable header through checked byte copies.
+  put-header :: Bytes -> Nat -> PemHeader -> Nat
+  put-header out at header = case header of
+    OwnedHeader key value -> let a = put out at key in let b = byte out a 58 in let c = byte out b 32 in
+      let d = put out c value in byte out d 10
+
+  -- | Emit ordinary headers in byte order, omitting the separately emitted priority header.
+  put-ordinary :: Bytes -> Nat -> List PemHeader -> Nat
+  put-ordinary out at headers = case headers of
+    Nil -> at
+    Cons header rest -> put-ordinary out (if proc-type header then at else put-header out at header) rest
+
+  -- | Emit priority metadata first and a single blank line when metadata exists.
+  put-headers :: Bytes -> Nat -> List PemHeader -> Nat
+  put-headers out at headers = case headers of
+    Nil -> at
+    Cons first rest -> let priority = case proc-header headers of None -> at; Some header -> put-header out at header in
+      let end = put-ordinary out priority headers in byte out end 10
+
+  -- | Count encoded body bytes including exactly one LF per complete or final partial 64-column line.
+  body-size :: Nat -> Nat
+  body-size size = let encoded = base64-encoded-length base64-standard-encoding size in
+    encoded + nat-div (encoded + 63) 64
+
+  -- | Encode bounded 48-byte source windows into canonical 64-column output lines.
+  put-body :: Bytes -> Nat -> Bytes -> Nat -> Nat
+  put-body source at out cursor = if at < bytes-len source then
+    let remaining = bytes-len source - at in let size = if remaining < 48 then remaining else 48 in
+    let chunk = part source at size in let encoded = base64-encode-bytes base64-standard-encoding chunk in
+    let next = put out cursor encoded in let after = byte out next 10 in
+    put-body source (at + size) out after
+    else cursor
+
+  -- | Encode a complete fresh envelope or refuse a colon-bearing key without returning partial output.
+  -- Arbitrary labels and values are retained exactly, including line breaks; only header keys
+  -- containing a colon are refused. Empty payloads add no body line. Metadata is deterministic.
+  pem-encode-bytes :: PemBlock -> Result PemError Bytes
+  pem-encode-bytes block = case block of
+    OwnedBlock label headers payload -> case invalid-header headers 0 of
+      Some index -> Err (PemInvalidHeaderKey index)
+      None ->
+        let metadata = headers-size headers + (case headers of Nil -> 0; Cons first rest -> 1) in
+        let size = 32 + bytes-len label * 2 + metadata + body-size (bytes-len payload) in
+        let out = bytes-new size in let a = put out 0 (string-to-bytes "-----BEGIN ") in
+        let b = put out a label in let c = put out b (string-to-bytes "-----\n") in
+        let d = put-headers out c headers in let e = put-body payload 0 out d in
+        let f = put out e (string-to-bytes "-----END ") in let g = put out f label in
+        let h = put out g (string-to-bytes "-----\n") in Ok out
+
+  -- | Completely offer a fresh encoded chunk, retaining the advanced sink on every outcome.
+  send :: forall r. using (io :: Io r) => ByteWriter r -> Bytes ->{IO r} (Result PemError Unit, ByteWriter r)
+  send sink output = case stream-write-all sink output of
+    (Err error, next) -> (Err (PemOutputError error), next)
+    (Ok count, next) -> (Ok (), next)
+
+  -- | Encode one immutable header into fresh callback-visible storage.
+  header-bytes :: PemHeader -> Bytes
+  header-bytes header = case header of
+    OwnedHeader key value -> let out = bytes-new (bytes-len key + bytes-len value + 3) in
+      let end = put-header out 0 header in out
+
+  -- | Write sorted ordinary metadata after any separately emitted priority header.
+  write-ordinary :: forall r. using (io :: Io r) => ByteWriter r -> List PemHeader ->{IO r} (Result PemError Unit, ByteWriter r)
+  write-ordinary sink headers = case headers of
+    Nil -> (Ok (), sink)
+    Cons header rest -> if proc-type header then write-ordinary sink rest
+      else case send sink (header-bytes header) of
+        (Err error, next) -> (Err error, next)
+        (Ok unit, next) -> write-ordinary next rest
+
+  -- | Emit metadata with deterministic priority and terminate it with a single blank line.
+  write-headers :: forall r. using (io :: Io r) => ByteWriter r -> List PemHeader ->{IO r} (Result PemError Unit, ByteWriter r)
+  write-headers sink headers = case headers of
+    Nil -> (Ok (), sink)
+    Cons first rest -> case proc-header headers of
+      None -> write-header-tail sink headers
+      Some header -> case send sink (header-bytes header) of
+        (Err error, next) -> (Err error, next)
+        (Ok unit, next) -> write-header-tail next headers
+
+  -- | Preserve the advanced metadata sink if writing the separator fails.
+  write-header-tail :: forall r. using (io :: Io r) => ByteWriter r -> List PemHeader ->{IO r} (Result PemError Unit, ByteWriter r)
+  write-header-tail sink headers = case write-ordinary sink headers of
+    (Err error, next) -> (Err error, next)
+    (Ok unit, next) -> send next (string-to-bytes "\n")
+
+  -- | Stream encoded payload in bounded 64-column chunks without exposing private block storage.
+  write-body :: forall r. using (io :: Io r) => ByteWriter r -> Bytes -> Nat ->{IO r} (Result PemError Unit, ByteWriter r)
+  write-body sink source at = if at < bytes-len source then
+    let remaining = bytes-len source - at in let size = if remaining < 48 then remaining else 48 in
+    let input = part source at size in let encoded = base64-encode-bytes base64-standard-encoding input in
+    let line = bytes-new (bytes-len encoded + 1) in let cursor = put line 0 encoded in
+    let after = byte line cursor 10 in case send sink line of
+      (Err error, next) -> (Err error, next)
+      (Ok unit, next) -> write-body next source (at + size)
+    else (Ok (), sink)
+
+  -- | Form a complete boundary line in fresh storage, keeping all labels byte-preserving.
+  boundary :: Bytes -> Bytes -> Bytes
+  boundary prefix label = let out = bytes-new (bytes-len prefix + bytes-len label + 6) in
+    let a = put out 0 prefix in let b = put out a label in let c = put out b (string-to-bytes "-----\n") in out
+
+  -- | Write an envelope with bounded payload storage and explicit continuation ownership.
+  -- Validate all keys before any callback. Positive short writes are retried; zero progress,
+  -- invalid counts and sink errors preserve the advanced writer and never replay accepted
+  -- output. Chunk boundaries are unspecified. This operation never flushes or closes its sink.
+  pem-write :: forall r. using (io :: Io r) => ByteWriter r -> PemBlock ->{IO r} (Result PemError Unit, ByteWriter r)
+  pem-write sink block = case block of
+    OwnedBlock label headers payload -> case invalid-header headers 0 of
+      Some index -> (Err (PemInvalidHeaderKey index), sink)
+      None -> case send sink (boundary (string-to-bytes "-----BEGIN ") label) of
+        (Err error, next) -> (Err error, next)
+        (Ok unit, next) -> case write-headers next headers of
+          (Err error, after) -> (Err error, after)
+          (Ok ignored, after) -> case write-body after payload 0 of
+            (Err error, final) -> (Err error, final)
+            (Ok ignored, final) -> send final (boundary (string-to-bytes "-----END ") label)
