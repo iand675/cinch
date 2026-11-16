@@ -1,0 +1,21 @@
+-- | Full Unicode catalog, custom surrogate interval and metadata smoke.
+module Main where
+  import Data.Unicode
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Data.String
+  -- | Keep actual range and catalog methods reachable.
+  main :: Int
+  main = case unicode-category "Cs" of
+    None -> 1
+    Some surrogates -> if unicode-range-contains-code surrogates 55296 && not (unicode-is-scalar-code 55296)
+      && (case unicode-range-table [MkUnicodeRange16 55296 57343 1] Nil of Err error -> False; Ok table -> unicode-range-contains-code table 55296)
+      && (case unicode-category-resolve "Surrogate" of None -> False; Some table -> unicode-range-contains-code table 57343)
+      && (case unicode-category-of-code 55296 of None -> False; Some name -> name == "Cs")
+      && unicode-category-count == 38 && unicode-script-count == 174 && unicode-property-count == 39
+      && (case unicode-script "Greek" of None -> False; Some table -> unicode-range-contains table '\u{3A3}')
+      && (case unicode-property "White_Space" of None -> False; Some table -> unicode-range-contains table '\u{202F}')
+      then 0 else 2

@@ -1,0 +1,152 @@
+-- | Unicode 17.0.0 classification, simple casing, fold cycles and immutable named range tables.
+-- Character APIs accept only Unicode scalars. Numeric table membership includes
+-- all Unicode code points, including surrogates; UTF-8 validity is a separate
+-- operation. Case/fold numeric helpers retain invalid values, and checked custom
+-- tables report malformed bounds, strides, ordering and metadata explicitly.
+-- Built-in classification never materializes or copies the complete tables.
+module Data.Unicode where
+  import Data.Unicode.Kernel
+  import Data.Unicode.Range
+  import Data.Unicode.Names
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.String
+
+  export unicode-version-major, unicode-version-minor, unicode-version-patch, unicode-max-codepoint, unicode-max-ascii, unicode-max-latin1
+  export unicode-replacement, unicode-upper-lower, UnicodeCase, UnicodeUpper, UnicodeLower, UnicodeTitle
+  export unicode-case-count, unicode-case-index, unicode-to, unicode-to-code, unicode-to-lower, unicode-to-upper
+  export unicode-to-title, unicode-to-lower-code, unicode-to-upper-code, unicode-to-title-code, unicode-simple-fold, unicode-simple-fold-code
+  export unicode-equal-fold, unicode-equal-fold-code, unicode-is-scalar-code, unicode-is-control, unicode-is-control-code, unicode-is-digit
+  export unicode-is-digit-code, unicode-is-letter, unicode-is-letter-code, unicode-is-lower, unicode-is-lower-code, unicode-is-upper
+  export unicode-is-upper-code, unicode-is-title, unicode-is-title-code, unicode-is-mark, unicode-is-mark-code, unicode-is-number
+  export unicode-is-number-code, unicode-is-punct, unicode-is-punct-code, unicode-is-symbol, unicode-is-symbol-code, unicode-is-graphic
+  export unicode-is-graphic-code, unicode-is-print, unicode-is-print-code, unicode-is-space, unicode-is-space-code
+  export unicode-special-affects-ascii
+  export UnicodeCaseRange, MkUnicodeCaseRange, unicode-case-range-low, unicode-case-range-high, unicode-case-range-upper, unicode-case-range-lower
+  export unicode-case-range-title, UnicodeCaseError, UnicodeCaseInvalidBounds, UnicodeCaseInvalidOrder, UnicodeCaseInvalidMapping, UnicodeCaseInvalidAlternating
+  export UnicodeCaseTooManyRules, unicode-case-error-index, UnicodeSpecialCase, unicode-turkish-case, unicode-azeri-case, unicode-special-case
+  export unicode-special-to, unicode-special-case-count, unicode-special-case-range-at, unicode-case-range-at, unicode-case-range-count, unicode-special-to-upper
+  export unicode-special-to-upper-code, unicode-special-to-lower, unicode-special-to-lower-code, unicode-special-to-title, unicode-special-to-title-code
+  export UnicodeRange16, MkUnicodeRange16, unicode-range16-low, unicode-range16-high, unicode-range16-stride
+  export UnicodeRange32, MkUnicodeRange32, unicode-range32-low, unicode-range32-high, unicode-range32-stride
+  export UnicodeRangeTable, unicode-range-table, unicode-range-table-with-offset, unicode-range-table-clone
+  export unicode-range16-count, unicode-range32-count, unicode-latin-offset, unicode-range16-at, unicode-range32-at
+  export unicode-range-contains, unicode-range-contains-code, unicode-in, unicode-in-code, unicode-is-one-of, unicode-is-one-of-code
+  export UnicodeRangeError, UnicodeRangeInvalidBounds, UnicodeRangeZeroStride, UnicodeRangeInvalidOrder, UnicodeRangeInvalidLatinOffset, UnicodeRangeTooManyRecords
+  export unicode-range-error-index, unicode-range-error-is-wide
+  export unicode-category, unicode-category-count, unicode-category-name, unicode-category-names
+  export unicode-script, unicode-script-count, unicode-script-name, unicode-script-names
+  export unicode-property, unicode-property-count, unicode-property-name, unicode-property-names
+  export unicode-fold-category, unicode-fold-category-count, unicode-fold-category-name, unicode-fold-category-names
+  export unicode-fold-script, unicode-fold-script-count, unicode-fold-script-name, unicode-fold-script-names
+  export unicode-table, unicode-table-count, unicode-table-name, unicode-table-names
+  export unicode-category-canonical, unicode-category-alias-count, unicode-category-alias-at
+  export unicode-category-of-code, unicode-script-of-code
+  export unicode-version, unicode-max-rune, unicode-category-resolve
+  export unicode-case-ranges, unicode-special-case-ranges, unicode-graphic-ranges, unicode-print-ranges
+  export unicode-range16-ranges, unicode-range32-ranges, unicode-category-aliases
+  export unicode-case-error-message, unicode-range-error-message
+
+  -- | Exact edition of every built-in classification, script, property and simple mapping.
+  unicode-version :: String
+  unicode-version = "17.0.0"
+
+  -- | The greatest valid Unicode scalar value, including its noncharacter status.
+  unicode-max-rune :: Char
+  unicode-max-rune = '\u{10FFFF}'
+
+  -- | Resolve a canonical category name first, then an exact standard category alias.
+  unicode-category-resolve :: String -> Option UnicodeRangeTable
+  unicode-category-resolve name = case unicode-category name of
+    Some table -> Some table
+    None -> case unicode-category-canonical name of None -> None; Some canonical -> unicode-category canonical
+
+  -- | Collect standard case observations in source order with bounded traversal stack.
+  case-ranges-from :: Nat -> List UnicodeCaseRange -> List UnicodeCaseRange
+  case-ranges-from count out = if count > 0 then
+    let index = count - 1 in case unicode-case-range-at index of
+      None -> out
+      Some rule -> case-ranges-from index (Cons rule out)
+    else out
+
+  -- | Observe every exact immutable standard case range without exposing backing storage.
+  unicode-case-ranges :: Unit -> List UnicodeCaseRange
+  unicode-case-ranges unit = case-ranges-from unicode-case-range-count Nil
+
+  -- | Collect an immutable override set's observations in original order.
+  special-ranges-from :: UnicodeSpecialCase -> Nat -> List UnicodeCaseRange -> List UnicodeCaseRange
+  special-ranges-from special count out = if count > 0 then
+    let index = count - 1 in case unicode-special-case-range-at special index of
+      None -> out
+      Some rule -> special-ranges-from special index (Cons rule out)
+    else out
+
+  -- | Observe every immutable override rule without exposing its private byte storage.
+  unicode-special-case-ranges :: UnicodeSpecialCase -> List UnicodeCaseRange
+  unicode-special-case-ranges special = special-ranges-from special (unicode-special-case-count special) Nil
+
+  -- | Collect one table's 16-bit observations using its indexed copied view.
+  small-ranges-from :: UnicodeRangeTable -> Nat -> List UnicodeRange16 -> List UnicodeRange16
+  small-ranges-from table count out = if count > 0 then
+    let index = count - 1 in case unicode-range16-at table index of
+      None -> out
+      Some span -> small-ranges-from table index (Cons span out)
+    else out
+
+  -- | Observe every exact 16-bit range record in its original order.
+  unicode-range16-ranges :: UnicodeRangeTable -> List UnicodeRange16
+  unicode-range16-ranges table = small-ranges-from table (unicode-range16-count table) Nil
+
+  -- | Collect one table's supplementary-plane observations with bounded traversal stack.
+  wide-ranges-from :: UnicodeRangeTable -> Nat -> List UnicodeRange32 -> List UnicodeRange32
+  wide-ranges-from table count out = if count > 0 then
+    let index = count - 1 in case unicode-range32-at table index of
+      None -> out
+      Some span -> wide-ranges-from table index (Cons span out)
+    else out
+
+  -- | Observe every exact supplementary-plane range record in its original order.
+  unicode-range32-ranges :: UnicodeRangeTable -> List UnicodeRange32
+  unicode-range32-ranges table = wide-ranges-from table (unicode-range32-count table) Nil
+
+  -- | Resolve a small fixed category union, retaining original table order.
+  category-tables :: List String -> List UnicodeRangeTable
+  category-tables names = case names of
+    Nil -> Nil
+    Cons name rest -> case unicode-category name of None -> category-tables rest; Some table -> Cons table (category-tables rest)
+
+  -- | Immutable category tables defining graphic characters: letters, marks, numbers, punctuation, symbols and space separators.
+  unicode-graphic-ranges :: List UnicodeRangeTable
+  unicode-graphic-ranges = category-tables ["L", "M", "N", "P", "S", "Zs"]
+
+  -- | Immutable category tables used by print classification; the separate ASCII-space rule remains observable.
+  unicode-print-ranges :: List UnicodeRangeTable
+  unicode-print-ranges = category-tables ["L", "M", "N", "P", "S"]
+
+  -- | Collect all exact category aliases in sorted key order without a constant constructor chain.
+  aliases-from :: Nat -> List (String, String) -> List (String, String)
+  aliases-from count out = if count > 0 then
+    let index = count - 1 in case unicode-category-alias-at index of
+      None -> out
+      Some pair -> aliases-from index (Cons pair out)
+    else out
+
+  -- | Observe the complete immutable category-alias map as sorted key/value pairs.
+  unicode-category-aliases :: Unit -> List (String, String)
+  unicode-category-aliases unit = aliases-from unicode-category-alias-count Nil
+
+  -- | Format a precise checked custom-case construction failure with its rule index.
+  unicode-case-error-message :: UnicodeCaseError -> String
+  unicode-case-error-message error =
+    let reason = case error of UnicodeCaseInvalidBounds index -> "invalid scalar source bounds"; UnicodeCaseInvalidOrder index -> "overlapping or unordered case ranges"; UnicodeCaseInvalidMapping index -> "case delta leaves scalar domain"; UnicodeCaseInvalidAlternating index -> "invalid alternating case mapping"; UnicodeCaseTooManyRules index -> "too many case rules" in
+    string-concat reason (string-concat " at rule " (nat-to-string (unicode-case-error-index error)))
+
+  -- | Format a precise checked custom-range construction failure without reading invalid backing storage.
+  unicode-range-error-message :: UnicodeRangeError -> String
+  unicode-range-error-message error = case error of
+    UnicodeRangeInvalidLatinOffset supplied -> "invalid Latin-1 prefix count"
+    other -> let reason = case other of UnicodeRangeInvalidBounds wide index -> "invalid Unicode range bounds"; UnicodeRangeZeroStride wide index -> "zero Unicode range stride"; UnicodeRangeInvalidOrder wide index -> "overlapping or unordered Unicode ranges"; UnicodeRangeTooManyRecords wide index -> "too many Unicode range records"; UnicodeRangeInvalidLatinOffset supplied -> "invalid Latin-1 prefix count" in
+      string-concat reason (string-concat " at interval " (nat-to-string (unicode-range-error-index other)))

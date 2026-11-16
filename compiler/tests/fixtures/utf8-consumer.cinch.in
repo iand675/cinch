@@ -1,0 +1,169 @@
+-- | Independent exhaustive UTF-8 scalar encodings, byte pairs and malformed boundary observations.
+module Main where
+  import Data.Bytes.Utf8
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Bool
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String hiding (utf8-encode-into)
+  import Effect.Process
+
+  -- | Parse decimal harness arguments with ASCII digits only.
+  decimal :: String -> Nat
+  decimal text = decimal-from (unpack text) 0
+
+  -- | Keep harness argument parsing independent of Unicode tables.
+  decimal-from :: List Char -> Nat -> Nat
+  decimal-from chars value = case chars of Nil -> value; Cons cp rest -> case digit-value cp of None -> 0; Some n -> decimal-from rest (value * 10 + n)
+
+  -- | Record a boolean as a complete independent observation word.
+  bit :: Bool -> U32
+  bit value = if value then 1 else 0
+
+  -- | Hash every byte of a U32 observation in explicit little-endian order.
+  hash-word :: U32 -> U32 -> U64 -> U64
+  hash-word value shift hash = if lt-u32 shift 32 then
+    let byte = u32-to-u64 (bit-and-u32 (wrapping-shr-u32 value shift) 255) in
+    let next = wrapping-mul-u64 (bit-xor-u64 hash byte) 1099511628211 in
+    hash-word value (wrapping-add-u32 shift 8) next
+    else hash
+
+  -- | Observe consumed width and exact status separately from the replacement character.
+  hash-step :: Utf8Step -> U64 -> U64
+  hash-step step hash = let a = hash-word (char-to-u32 (utf8-step-char step)) 0 hash in
+    let width = utf8-step-width step in let raw = if width <= 4 then wrapping-i64-to-u32 (nat-to-i64 width) else 0 in
+    let b = hash-word raw 0 a in
+    let status = case utf8-step-status step of Utf8End -> 0; Utf8Valid -> 1; Utf8Invalid -> 2; Utf8OutOfBounds -> 3 in
+    hash-word status 0 b
+
+  -- | Check every forward and backward byte position including end and beyond.
+  positions :: Bytes -> Nat -> U64 -> U64
+  positions source at hash = if at <= bytes-len source + 1 then
+    let a = hash-step (utf8-decode-at source at) hash in
+    let b = hash-step (utf8-last-before source at) a in positions source (at + 1) b
+    else hash
+
+  -- | Observe complete public decoding, validation, full-prefix and first-invalid results.
+  observe :: Bytes -> U64 -> U64
+  observe source hash = let count = utf8-count source in
+    let raw = if count <= 4294967295 then wrapping-i64-to-u32 (nat-to-i64 count) else 0 in
+    let a = hash-word raw 0 hash in let b = hash-word (bit (utf8-valid source)) 0 a in
+    let c = hash-word (bit (utf8-full-rune source)) 0 b in let d = positions source 0 c in
+    let bad = case utf8-first-invalid source of None -> 4294967295; Some at -> if at <= 4294967295 then wrapping-i64-to-u32 (nat-to-i64 at) else 0 in
+    hash-word bad 0 d
+
+  -- | Observe every byte of a freshly encoded scalar.
+  hash-bytes :: Bytes -> Nat -> U64 -> U64
+  hash-bytes source at hash = if at < bytes-len source then
+    let byte = bytes-get source at in let raw = wrapping-i64-to-u32 (nat-to-i64 byte) in
+    hash-bytes source (at + 1) (hash-word raw 0 hash) else hash
+
+  -- | Encode every numeric code point, including surrogate replacement behavior.
+  scalar-from :: U32 -> U32 -> U64 -> U64
+  scalar-from cp end hash = if lt-u32 cp end then
+    let raw = wrapping-u32-to-i32 cp in let out = utf8-encode-rune raw in
+    let a = hash-word (bit (utf8-valid-rune raw)) 0 hash in
+    let length = case utf8-rune-length raw of None -> 4294967295; Some n -> if n <= 4 then wrapping-i64-to-u32 (nat-to-i64 n) else 0 in
+    let b = hash-word length 0 a in let n = bytes-len out in
+    let count = if n <= 4 then wrapping-i64-to-u32 (nat-to-i64 n) else 0 in
+    let c = hash-word count 0 b in let d = hash-bytes out 0 c in
+    scalar-from (wrapping-add-u32 cp 1) end (observe out d)
+    else hash
+
+  -- | Construct every possible two-byte sequence at runtime without a deep fixture literal.
+  pairs-from :: U32 -> U32 -> U64 -> U64
+  pairs-from value end hash = if lt-u32 value end then
+    let out = bytes-new 2 in let upper = wrapping-u32-to-u8 (wrapping-shr-u32 value 8) in
+    let lower = wrapping-u32-to-u8 value in
+    let a = bytes-set out 0 (u8-to-nat upper) in let b = bytes-set out 1 (u8-to-nat lower) in
+    pairs-from (wrapping-add-u32 value 1) end (observe out hash)
+    else hash
+
+  -- | Find the next exact delimiter in the static hexadecimal fixture stream.
+  field-end :: Bytes -> Nat -> Nat
+  field-end source at = if at < bytes-len source then if bytes-get source at == 0 then at else field-end source (at + 1) else at
+
+  -- | Decode one independently generated lowercase hexadecimal digit.
+  nibble :: Nat -> Nat
+  nibble byte = if byte >= 97 then byte - 87 else if byte >= 48 then byte - 48 else 0
+
+  -- | Decode complete hexadecimal pairs through checked fixture-only byte writes.
+  fill-field :: Bytes -> Nat -> Nat -> Bytes -> Nat -> Unit
+  fill-field source at end out cursor = if at + 1 < bytes-len source && at + 1 < end && cursor < bytes-len out then
+    let value = nibble (bytes-get source at) * 16 + nibble (bytes-get source (at + 1)) in
+    if value <= 255 then let written = bytes-set out cursor value in fill-field source (at + 2) end out (cursor + 1) else ()
+    else ()
+
+  -- | Copy one hexadecimal field into fresh independent bytes and retain its next offset.
+  field :: Bytes -> Nat -> (Bytes, Nat)
+  field source at = let end = field-end source at in
+    if at <= end then let count = nat-div (end - at) 2 in let out = bytes-new count in
+      let filled = fill-field source at end out 0 in (out, end + 1)
+    else (bytes-new 0, end + 1)
+
+  -- | Compare complete byte contents independently of UTF-8 validity.
+  same :: Bytes -> Bytes -> Bool
+  same first second = eq-i64 (bytes-compare first second) 0
+
+  -- | Mutate a caller source after repair and verify its fresh result remains unchanged.
+  isolated :: Bytes -> Bytes -> Bytes -> Bool
+  isolated source result expected = if bytes-len source > 0 then
+    let old = bytes-get source 0 in let next = if old == 255 then (0 :: Nat) else old + 1 in
+    if next <= 255 then let written = bytes-set source 0 next in same result expected else False
+    else same result expected
+
+  -- | Check independent positional fingerprints, grouped/per-byte repair and source ownership.
+  row :: Bytes -> Bytes -> Bytes -> Bytes -> Bytes -> Bool
+  row source replacement grouped each expected-hash =
+    if bytes-len expected-hash == 8 then let expected = bytes-read-le64 expected-hash 0 in
+      let fixed = utf8-repair source replacement in let fixed-each = utf8-repair-each source replacement in
+      eq-u64 (observe source 14695981039346656037) expected && same fixed grouped && same fixed-each each
+      && utf8-valid (utf8-replace-invalid source) && isolated source fixed grouped && same fixed-each each
+    else False
+
+  -- | Read one bounded group of malformed/Unicode/alignment fixture rows.
+  rows-from :: Bytes -> Nat -> Nat -> Bool
+  rows-from source at count = if count > 0 && at < bytes-len source then (case field source at of
+    (input, second) -> case field source second of
+      (replacement, third) -> case field source third of
+        (grouped, fourth) -> case field source fourth of
+          (each, fifth) -> case field source fifth of
+            (hash, next) -> row input replacement grouped each hash && rows-from source next (count - 1))
+    else True
+
+  -- | Select one bounded independent group; malformed rows deliberately use raw arbitrary replacements.
+  run-chunk :: U32 -> U32 -> Bool
+  run-chunk mode index = if eq-u32 mode 0 then
+    if lt-u32 index 544 then let start = wrapping-mul-u32 index 2048 in
+      eq-u64 (scalar-from start (wrapping-add-u32 start 2048) 14695981039346656037) (unicode-data-utf8-scalars index) else False
+    else if eq-u32 mode 1 then
+      if lt-u32 index 256 then let start = wrapping-mul-u32 index 256 in
+        eq-u64 (pairs-from start (wrapping-add-u32 start 256) 14695981039346656037) (unicode-data-utf8-pairs index) else False
+    else if eq-u32 mode 2 && lt-u32 index __ROW_GROUPS__ then
+      let source = string-to-bytes __ROWS__ in
+      let offset = u32-to-nat (unicode-data-utf8-offsets index) in rows-from source offset 64
+    else False
+
+  -- | Keep ordinary-memory coverage complete without retaining millions of setup values.
+  all-chunks :: U32 -> U32 -> Bool
+  all-chunks mode index = let count = if eq-u32 mode 0 then (544 :: U32) else if eq-u32 mode 1 then 256 else __ROW_GROUPS__ in
+    if lt-u32 index count then run-chunk mode index && all-chunks mode (wrapping-add-u32 index 1) else True
+
+__EXPECTED__
+
+  -- | Select complete normal coverage or one bounded poisoned-memory group.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Err error -> 2
+    Ok args -> case args of
+      Nil -> if all-chunks 0 0 && all-chunks 1 0 && all-chunks 2 0 then 0 else 1
+      Cons mode (Cons index Nil) -> let m = decimal mode in let i = decimal index in
+        if m <= 2 && i < 544 then let raw-mode = wrapping-i64-to-u32 (nat-to-i64 m) in let raw-index = wrapping-i64-to-u32 (nat-to-i64 i) in
+          if run-chunk raw-mode raw-index then 0 else 1
+        else 2
+      other -> 2
