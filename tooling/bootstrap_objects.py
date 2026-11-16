@@ -7,6 +7,9 @@ import shutil
 
 
 ENTRY = b"module CinchBaseObject where\n  export marker\n  marker :: Unit -> Unit\n  marker unit = unit\n"
+ARTIFACT_ENTRY = (b"-- | Root a complete explicit base artifact without introducing an implementation override.\n"
+                  b"module CinchBaseObject where\n  export marker\n"
+                  b"  -- | Retain one closed executable artifact root.\n  marker :: Unit -> Unit\n  marker unit = unit\n")
 
 
 def canonical(value):
@@ -142,6 +145,131 @@ def cached(driver, directory, inputs):
             and required <= artifacts.keys()
             and all((directory / name).is_file() and driver.file_hash(directory / name) == expected
                     for name, expected in artifacts.items()))
+
+
+def artifact_provider(driver, receipt_path):
+    """Admit an explicitly selected, complete base artifact without substituting the pinned provider.
+
+    Checked interfaces must belong to this exact object and retained source
+    snapshot. Character/source hashes and ABI fields are verified independently
+    of the receipt's artifact digests; no source-shadow module is introduced.
+    """
+    from bootstrap_interfaces import content_hash, interface_hash, validate_contract, verify_dependencies
+
+    def refuse(message):
+        """Name the selected artifact as the failing input instead of rebuilding another library."""
+        raise driver.BootstrapError("explicit library artifact: " + message)
+
+    def read_document(path):
+        """Accept metadata formatting while rejecting duplicate keys and non-object documents."""
+        def unique(pairs):
+            """Keep duplicate input fields from choosing an implicit last-value policy."""
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("duplicate artifact field: " + key)
+                result[key] = value
+            return result
+        result = json.loads(path.read_text(), object_pairs_hook=unique)
+        if not isinstance(result, dict):
+            raise ValueError("artifact document is not an object")
+        return result
+
+    try:
+        receipt_path = Path(receipt_path).resolve()
+        directory = receipt_path.parent
+        receipt = read_document(receipt_path)
+        if type(receipt.get("schema")) is not int or receipt["schema"] != 1 or receipt.get("kind") != "current-base-artifact":
+            refuse("unsupported receipt schema or kind")
+        if receipt.get("host") != driver.HOST:
+            refuse("different build host")
+        architectures = {"x86_64": "x86_64", "aarch64": "aarch64", "arm64": "aarch64"}
+        systems = {"Linux": "unknown-linux-gnu", "Darwin": "apple-darwin"}
+        if driver.HOST["machine"] not in architectures or driver.HOST["system"] not in systems:
+            refuse("unsupported native artifact host")
+        target = architectures[driver.HOST["machine"]] + "-" + systems[driver.HOST["system"]]
+        abi = driver.library_provider_lock()["runtime_abi"]
+        if receipt.get("runtime_abi") != abi or receipt.get("target") != target:
+            refuse("target or runtime ABI differs from this compiler")
+        artifacts = receipt.get("artifacts", {})
+        required = {"cinch", "library.o", "library.ll", "library.abi.json", "interfaces.json", "libcinchruntime.a", "base/cinch-base.cinchpkg", "roots.json", "library/CinchBaseObject.cinch"}
+        if not isinstance(artifacts, dict) or not required <= artifacts.keys():
+            refuse("required artifact bytes are missing from the receipt")
+        for name, digest in artifacts.items():
+            path = (directory / name).resolve()
+            if not path.is_relative_to(directory) or not path.is_file() or not re.fullmatch(r"[0-9a-f]{64}", str(digest)):
+                refuse("invalid artifact path or digest: " + name)
+            if driver.file_hash(path) != digest:
+                refuse("artifact digest mismatch: " + name)
+        if not os.access(directory / "cinch", os.X_OK):
+            refuse("producer compiler is not executable")
+        metadata = read_document(directory / "library.abi.json")
+        if (type(metadata.get("schema")) is not int or metadata["schema"] != 1 or metadata.get("runtime_abi") != abi
+                or metadata.get("target") != target or metadata.get("word_size") != 64
+                or metadata.get("endian") != "little" or metadata.get("reclaim") is not True
+                or metadata.get("self_describing") is not True):
+            refuse("incompatible object ABI or ownership descriptors")
+        if metadata.get("object_content_hash") != content_hash((directory / "library.o").read_bytes()):
+            refuse("object differs from its ABI metadata")
+        if metadata.get("ir_content_hash") != content_hash((directory / "library.ll").read_bytes()):
+            refuse("LLVM differs from its ABI metadata")
+        runtime = receipt.get("runtime", {})
+        if (runtime.get("runtime_abi") != abi or runtime.get("sha256") != artifacts["libcinchruntime.a"]
+                or not re.fullmatch(r"[0-9a-f]{64}", runtime.get("source_sha256", ""))):
+            refuse("runtime identity differs from the object")
+        producer = receipt.get("producer", {})
+        if (producer.get("mode") != "fresh-embedded" or producer.get("compiler_sha256") != artifacts["cinch"]
+                or not re.fullmatch(r"[0-9a-f]{64}", producer.get("source_sha256", ""))):
+            refuse("producer identity is incomplete or inconsistent")
+        package = read_document(directory / "base/cinch-base.cinchpkg")
+        if artifacts["base/cinch-base.cinchpkg"] != driver.file_hash(driver.ROOT / "compiler/prelude/cinch-base.cinchpkg"):
+            refuse("base package differs from current sources")
+        modules = package["modules"]
+        sources = receipt.get("sources", {})
+        if len({row["name"] for row in modules}) != len(modules) or set(sources) != {row["name"] for row in modules}:
+            refuse("base source manifest is incomplete or duplicated")
+        interfaces = admitted_interfaces(driver, metadata, package, directory)
+        if read_document(directory / "interfaces.json") != interfaces:
+            refuse("interface manifest does not name this object's actual interfaces")
+        documents = {}
+        for row in metadata["interfaces"]:
+            document = row["interface"]
+            if "library/build/" + row["module"] + ".cinchif" not in artifacts:
+                refuse("checked interface bytes are not retained: " + row["module"])
+            validate_contract(document, abi)
+            if interface_hash(document) != row["iface_hash"]:
+                refuse("checked interface hash mismatch: " + row["module"])
+            documents[row["module"]] = document
+        verify_dependencies(documents, {})
+        if not {"Data.String.string-repeat", "Data.String.string-concat-all"} <= {row["symbol"] for row in metadata["units"]}:
+            refuse("String construction bodies are absent from the object")
+        for module in modules:
+            name = module["name"]
+            relative = "base/" + module["path"]
+            if relative not in artifacts or sources[name] != {"path": relative, "sha256": artifacts[relative]}:
+                refuse("unretained base source: " + name)
+            if artifacts[relative] != driver.file_hash(driver.ROOT / "compiler/prelude" / module["path"]):
+                refuse("base module differs from current sources: " + name)
+            if name not in documents or documents[name].get("source_hash") != content_hash((directory / relative).read_bytes()):
+                refuse("interface source hash mismatch: " + name)
+        if ((directory / "library/CinchBaseObject.cinch").read_bytes() != ARTIFACT_ENTRY
+                or documents.get("CinchBaseObject", {}).get("source_hash") != content_hash(ARTIFACT_ENTRY)):
+            refuse("artifact root source differs from its checked interface")
+        roots_sha256 = driver.file_hash(driver.ROOT / "bootstrap/library-object-roots.json")
+        if artifacts["roots.json"] != roots_sha256:
+            refuse("requested object roots differ from this compiler")
+        identity = {"kind": receipt["kind"], "receipt_sha256": driver.file_hash(receipt_path),
+                    "host": driver.HOST, "producer": producer, "runtime": runtime,
+                    "sources": sources, "roots_sha256": roots_sha256, "artifacts": artifacts}
+        configuration = {"schema": 1, "target": target, "object": str(directory / "library.o"),
+                         "metadata": str(directory / "library.abi.json"),
+                         "object_sha256": artifacts["library.o"], "metadata_sha256": artifacts["library.abi.json"]}
+        return {"runtime": directory / "libcinchruntime.a", "object": directory / "library.o",
+                "interfaces": interfaces, "configuration": configuration, "identity": identity}
+    except driver.BootstrapError:
+        raise
+    except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
+        refuse("invalid receipt or checked metadata: " + str(error))
 
 
 def provider(driver):
