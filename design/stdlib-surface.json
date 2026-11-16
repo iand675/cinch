@@ -1431,10 +1431,29 @@
     },
     {
       "reference_package": "mime",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "complete",
+      "cinch_modules": [
+        "Text.Mime",
+        "Effect.Mime"
+      ],
       "remaining": [],
-      "reference_declarations": 16
+      "reference_declarations": 16,
+      "tests": [
+        "lib_mime"
+      ],
+      "benchmarks": [
+        "parse",
+        "format",
+        "b-encode",
+        "q-encode",
+        "header",
+        "header-q",
+        "registry"
+      ],
+      "capability_mapping": "tooling/data/mime-capabilities.json",
+      "runtime_evidence": "benchmarks/stdlib/mime-coverage-complete-2026-11-16.json",
+      "performance_evidence": "benchmarks/stdlib/mime-public-assembly-review-2026-11-16.json",
+      "review": "All 16 records have explicit media, raw encoded-word, charset callback and immutable registry mappings. Both admitted frontend/provider pairs pass the full 3119-observation corpus plus callback and ownership controls with zero leaks under normal and poisoned-free profiles. Parent lib_mime passes both tests; all 192 declarations have canonical documentation. Actual portable kernel objects and both public pipeline benchmark windows are retained. Codec regressions, registry population differences and the separate newer Native admission scope remain explicit."
     },
     {
       "reference_package": "mime/multipart",

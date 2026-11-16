@@ -66,8 +66,8 @@ retain the callback's actual effect-region identity; cross-runtime handles are
 rejected by negative tests.
 
 The machine-readable [surface inventory](stdlib-surface.json) covers all 180
-public packages in the pinned reference SDK. It currently records 15 functionally complete, 54 partial
-and 111 unreviewed packages. ASCII85, Base32, Base64, binary layouts, CSV, hexadecimal, HTML, paths, URLs, UTF-16, FNV, Adler-32, CRC-64, SHA-224/SHA-256 and word bit/arithmetic utilities have
+public packages in the pinned reference SDK. It currently records 23 functionally complete, 49 partial
+and 108 unreviewed packages. ASCII85, Base32, Base64, binary layouts, CSV, hexadecimal, HTML, paths, URLs, UTF-16, FNV, Adler-32, CRC-64, SHA-224/SHA-256 and word bit/arithmetic utilities have
 reviewed capability mappings, independent runtime fixtures and self-built
 compiler checks; completion does not assert matching allocation complexity or speed. Upstream mutable
 containers are included as implementation homes, not assumed full coverage.
@@ -242,7 +242,8 @@ cargo test --test lib_go_stdlib
 | `time` | `Data.Date`, `Data.Time`, `Effect.Clock` | Layout parsing/formatting, timezone database and timers |
 | `context`, `sync`, `sync/atomic` | `Effect.Concurrent`, `Effect.Stm` | Existing structured concurrency and STM; cancellation/deadline propagation and synchronization audit remain |
 | `net`, `net/netip`, `net/url`, DNS | `Effect.Net`, `Data.IpAddr`, `Text.Uri`, `Effect.Resolv` | Address/prefix, escaping and timeout coverage |
-| `net/http`, MIME, multipart | `Effect.Http` | Existing plaintext HTTP; message/body framing, MIME, multipart, server lifecycle and TLS remain |
+| `mime` | `Text.Mime`, `Effect.Mime` | Complete media types, encoded words, explicit charset callbacks and extension contexts; benchmark limits are recorded |
+| `net/http`, multipart | `Effect.Http` | Existing plaintext HTTP; message/body framing, multipart, server lifecycle and TLS remain |
 | `flag`, `log`, `testing` | `Text.OptionParser`, `Effect.Log`, `Effect.Test`, `Effect.Benchmark`, `Effect.Coverage` | Usability and integration audit |
 | `regexp`, `text/scanner` | `Text.Regex`, `Text.Lex`, `Text.Scan` | Syntax and resource-behavior audit |
 | Templates and HTML | None | HTML escaping first; templates with explicit escaping policy later |
@@ -261,7 +262,7 @@ modules' actual exports and limits.
    compression, archives and HTTP.
 3. **Everyday tools**: number conversion, ASCII85, globbing, HTML escaping,
    deterministic random state, gzip and tar.
-4. **Services**: cancellation/deadlines, HTTP framing and serving, MIME,
+4. **Services**: cancellation/deadlines, HTTP framing and serving,
    multipart, TLS and certificate handling through vetted implementations.
 5. **Breadth**: timezone data, templates, XML, zip, numerical functions and
    specialist collections.

@@ -142,6 +142,8 @@ DESCRIPTIONS = {
 'Text.Json.Value':'Owned JSON documents and navigation tapes, exact source spans and numbers, resumable lexical state, and byte-preserving formatting.',
 'Text.Json.Codec':'Typed JSON codecs for records, persistent maps, explicit key capabilities, machine integers, binary buffers and exact binary32/binary64 values.',
 'Text.Json.Binary32':'Exact decimal rounding and shortest finite binary32 JSON coefficients, with preserved signed zero and midpoint comparisons.',
+'Text.Mime':'Byte-preserving media types, encoded words, immutable parameter maps and explicit extension registries.',
+'Effect.Mime':'Encoded-word and header decoding with explicit charset reader capabilities, typed errors and advanced writer continuations.',
 'Text.Pem':'Owned byte-preserving envelope blocks, persistent headers, exact malformed-input recovery and bounded payload encoding.',
 'Effect.Pem':'Validated envelope output through explicit advanced writer continuations, bounded chunks and linear short-write draining.',
 'Text.QuotedPrintable':'Quoted-printable byte encoding and decoding with checked line wrapping, escape and malformed-input policies.',
