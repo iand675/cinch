@@ -39,7 +39,18 @@ in `bootstrap/stdlib-string-scalar-source-override-results.json`. The paired
 public count driver is built and passes 60 normal/poison smokes with independent
 scalar sums and complete before/postclock wire digests. IR verifies clock order
 and postclock backing reads; optimized assembly still calls public String count
-inside measured work. Timing remains pending.
+inside measured work. All 15 conditions with five alternating before/after samples also pass independent
+counts and both wire digests, with zero leaks in all 150 measured processes.
+Assembly call addresses lie inside actual measured loop backedges, so counts
+were not hoisted out of repeated work. At 65,537 repeats the explicit source
+comparison improves ASCII 866×, two-byte scalars 866×, four-byte scalars 467×,
+mixed text 519×, and embedded-NUL text 509×. The old source decoded and built
+observations per scalar; sealed-valid vector classification instead approaches
+memory bandwidth. Every sample is retained; these shared-host observations are
+specific to the final cad70 compiler, exact source epochs and this public
+pipeline, not a universal hardware claim. Native public-count timing awaits the
+fresh provider. The report is `string-scalars-cad70-O2-2026-11-16.json`, with
+before/after work and count assembly alongside it.
 
 This evidence is an explicit final-cad70 source override. It does not claim a
 fresh embedded module or fresh Native String provider. Those combined
