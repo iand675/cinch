@@ -181,3 +181,14 @@ fn scoped_argument_calls_preserve_prefix_and_returned_function_evaluation_order(
         0,
     );
 }
+
+/// Runtime-selected functions can saturate before their type's last arrow;
+/// their bodies run before excess arguments read a shared mutable byte.
+#[test]
+fn returned_functions_preserve_dynamic_arity_and_each_strict_boundary() {
+    expect_ok(
+        "returned-argument-order",
+        include_str!("../../bootstrap/programs/Run.ReturnedArgumentOrder.cinch"),
+        0,
+    );
+}

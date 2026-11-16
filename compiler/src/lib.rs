@@ -6,6 +6,7 @@
 //! Scope of this bootstrap slice is documented in `compiler/README.md`.
 
 pub mod analysis;
+mod applications;
 pub mod arrays;
 pub mod ast;
 pub mod cabi;

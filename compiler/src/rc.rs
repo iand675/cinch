@@ -159,6 +159,7 @@ fn insert_with(
     profile: &crate::core::TargetProfile,
     boundary: Option<&Boundary<'_>>,
 ) -> crate::Result<Program> {
+    crate::applications::insert_boundaries(&mut program);
     crate::core::share_repeated_subterms(&mut program);
     // The wide edges first, reclaiming or not: a wide value in a word
     // position is a box, and its unbox binds an owned `Obj` word that the
