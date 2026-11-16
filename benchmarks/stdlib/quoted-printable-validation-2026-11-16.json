@@ -1,0 +1,52 @@
+{
+  "format": 1,
+  "library_sources": {
+    "Text.QuotedPrintable": "cfc475a514b56bc919e4aa3de4e97ed19d09816e25ccdb530cebaee90bf8d6cb",
+    "Effect.QuotedPrintable": "10a4170d30c13f663f72ed741df8f381ae6098fe230055098f65ec607c66fd97"
+  },
+  "shared_stream_commit": "2201b484",
+  "shared_stream_sha256": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+  "sdk": "go version go1.27.4 linux/amd64",
+  "sdk_reader_sha256": "8caa6835cbdea786381063601d021dc775751bf39c5b8d41a965f6370648227b",
+  "sdk_writer_sha256": "c180dbcf62cfe6c686698b698883891703bdf93da7d27c722dac85e628683114",
+  "reference_generator_sha256": "10ebf2f0f5d80065c859bef00901de6933ca49fd1819dedcc2d09530667b50e9",
+  "precedence_generator_sha256": "c07b69552238550bad2b787cca20f3e72bae92d441e3857f9a31599cd33a4f48",
+  "regenerated_fixture_byte_comparison": "identical for both committed corpora",
+  "fixture_sha256": {
+    "quoted-printable-vectors": "11b5622d6b743509304a19cde8e85118917ea7ed9c739ad549795d704967ebd2",
+    "quoted-printable-precedence": "5021f3145a21f594decdc6a7811b8ecad45f90283782bb8466c4564ffe7ddd5e"
+  },
+  "canonical_declarations": {
+    "Text.QuotedPrintable": 76,
+    "Effect.QuotedPrintable": 28
+  },
+  "diagnostics": [],
+  "orphans": [],
+  "primary_case_counts": {
+    "values": 1368,
+    "reader_traces": 41,
+    "writer_traces": 60,
+    "final_controls": 6,
+    "supplemental_precedence_values": 8
+  },
+  "compiler_host_stack_bytes": 67108864,
+  "profiles": [
+    {
+      "heap": "32M",
+      "stack": "8M",
+      "poison": false
+    },
+    {
+      "heap": "256M",
+      "stack": "8M",
+      "poison": true
+    }
+  ],
+  "runtime_ci_target": "lib_quoted_printable; parent integration pending",
+  "source_epoch_note": "Only writer entry behavior changed after full value/read coverage; all writers and controls reran on both frontends under the final source. Exact prior source and patch retained in quoted-printable-zero-write-repair.json. Final Text comments clarify the existing acceptance policy; non-comment source lines are identical, patch retained, both frontends reran64 values +six controls after the comment-only update. The final policy-readback increment adds two observers and retains/updates policy in failed handles; all60 writers +six expanded policy/ownership/zero controls +eight representative readers reran on both frontends with zero leaks.",
+  "implementation_commits": [
+    "377419c9",
+    "cb00cdd2"
+  ],
+  "binary_field_mapping": "Explicit encoder/writer policy readback and updates, including updates/readback on failed handles while errors stay sticky."
+}

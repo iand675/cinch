@@ -1,0 +1,62 @@
+[
+  {
+    "variant": "rust-simd-final",
+    "assembly_sha256": "1e17c8a277edcea55f2c630714e966094d4e651acfbf0b52e6143ffa6a7f8383",
+    "live_scan_symbol": "Text.QuotedPrintable.scan-end",
+    "scan_vector_masks": 1,
+    "scan_byte_comparisons": 8,
+    "scan_bit_searches": 1,
+    "end_clock_precedes_retained_input_checksum": true,
+    "scope_note": "Actual optimized live scan inspected; Native delegates bit-search/Nat operations to out-of-line provider helpers. Scalar snapshot can retain unused global primitive bodies."
+  },
+  {
+    "variant": "rust-scalar-final",
+    "assembly_sha256": "28f9be74e3cec110b6093c905697ad17a2f9c89569de2c53d668c209a81ec80a",
+    "live_scan_symbol": "Text.QuotedPrintable.scan-end",
+    "scan_vector_masks": 0,
+    "scan_byte_comparisons": 0,
+    "scan_bit_searches": 0,
+    "end_clock_precedes_retained_input_checksum": true,
+    "scope_note": "Actual optimized live scan inspected; Native delegates bit-search/Nat operations to out-of-line provider helpers. Scalar snapshot can retain unused global primitive bodies."
+  },
+  {
+    "variant": "rust-stream-policy",
+    "assembly_sha256": "6fdf9b72438cb05fe768a2c05896e356de0d4a45046b4af1b093e890b89f5374",
+    "live_scan_symbol": "Text.QuotedPrintable.scan-end",
+    "scan_vector_masks": 1,
+    "scan_byte_comparisons": 8,
+    "scan_bit_searches": 1,
+    "end_clock_precedes_retained_input_checksum": true,
+    "scope_note": "Actual optimized live scan inspected; Native delegates bit-search/Nat operations to out-of-line provider helpers. Scalar snapshot can retain unused global primitive bodies."
+  },
+  {
+    "variant": "native-simd",
+    "assembly_sha256": "6e1b15c12bcb4cbd1f809739182293348dae2fbf0f953c0c2278add3ac208af6",
+    "live_scan_symbol": "cinch.typed.m.Text$2eQuotedPrintable.scan$2dend",
+    "scan_vector_masks": 1,
+    "scan_byte_comparisons": 8,
+    "scan_bit_searches": 0,
+    "end_clock_precedes_retained_input_checksum": true,
+    "scope_note": "Actual optimized live scan inspected; Native delegates bit-search/Nat operations to out-of-line provider helpers. Scalar snapshot can retain unused global primitive bodies."
+  },
+  {
+    "variant": "native-scalar",
+    "assembly_sha256": "f7dbad43e5f0c26ac348cb446027e124da65b49619584ed45f7709cf63f09bad",
+    "live_scan_symbol": "cinch.typed.m.Text$2eQuotedPrintable.scan$2dend",
+    "scan_vector_masks": 0,
+    "scan_byte_comparisons": 0,
+    "scan_bit_searches": 0,
+    "end_clock_precedes_retained_input_checksum": true,
+    "scope_note": "Actual optimized live scan inspected; Native delegates bit-search/Nat operations to out-of-line provider helpers. Scalar snapshot can retain unused global primitive bodies."
+  },
+  {
+    "variant": "native-stream-policy",
+    "assembly_sha256": "bae07889b91e1d035f59acd6ad8c1261be25a162207b0090d5361623e6934ae2",
+    "live_scan_symbol": "cinch.typed.m.Text$2eQuotedPrintable.scan$2dend",
+    "scan_vector_masks": 1,
+    "scan_byte_comparisons": 8,
+    "scan_bit_searches": 0,
+    "end_clock_precedes_retained_input_checksum": true,
+    "scope_note": "Actual optimized live scan inspected; Native delegates bit-search/Nat operations to out-of-line provider helpers. Scalar snapshot can retain unused global primitive bodies."
+  }
+]
