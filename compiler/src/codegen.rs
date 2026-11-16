@@ -12197,6 +12197,16 @@ mod tests {
         checked.certify_builtin_constructors().unwrap();
         checked.fns.retain(|unit| unit.id.0 == "Data.Core.None");
         Registry::build(&checked, 8, true).unwrap();
+        let dump = crate::coretext::print(
+            &checked,
+            crate::coretext::Stage::Lowered,
+            &crate::core::TargetProfile::native(),
+            &"0".repeat(64),
+        );
+        assert!(dump.contains("@ctor(0, 0, Data.Core.Option)"));
+        assert!(!dump.contains("checked_builtin_constructors"));
+        crate::coretext::verify(&dump).expect("a valid pruned lowered dump still verifies");
+        assert!(crate::coretext::diff(&dump, &dump).is_none());
         let independent = Program::from_functions(checked.fns.clone());
         let error = Registry::build(&independent, 8, true).err().unwrap();
         assert!(
