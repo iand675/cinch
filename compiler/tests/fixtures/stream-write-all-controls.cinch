@@ -1,0 +1,162 @@
+-- | Adaptive write-all byte bounds, retained buffers, failures and exact advanced sink state.
+module Main where
+  import Effect.Stream
+  import Data.Bytes.Word
+  import Data.Machine
+  import Data.Bytes
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+
+  -- | Keep the large regression length in runtime execution.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+
+  -- | Compare complete binary output, including embedded NUL.
+  same :: Bytes -> Bytes -> Bool
+  same left right = eq-i64 (bytes-compare left right) 0
+
+  -- | Copy a complete checked range into a new independent buffer.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input at size = if at + size <= bytes-len input then
+    let out = bytes-new size in let copied = bytes-copy-range out input 0 at size in out else bytes-new 0
+
+  -- | Prepare a varying binary payload without unrelated text/list producers.
+  fill-input :: Bytes -> Nat -> Unit
+  fill-input out at = if at < bytes-len out then let written = bytes-set out at (nat-rem at 251) in fill-input out (at + 1) else ()
+
+  -- | Mutate a retained old offer before reading the next one, exposing any reused backing.
+  poison :: Bytes -> Nat -> Unit
+  poison out at = if at < bytes-len out then let written = bytes-set out at 255 in poison out (at + 1) else ()
+
+  -- | Observe one small telemetry counter without allocating a mathematical integer per byte.
+  counter :: Bytes -> Nat -> Nat
+  counter stats at = if at + 4 <= bytes-len stats then u32-to-nat (bytes-read-le32 stats at) else 0
+
+  -- | Store one regression counter through four checked byte writes.
+  set-counter :: Bytes -> Nat -> Nat -> Unit
+  set-counter stats at value = if at + 4 <= bytes-len stats then
+    let a = bytes-set stats at (nat-rem value 256) in
+    let b = bytes-set stats (at + 1) (nat-rem (nat-div value 256) 256) in
+    let c = bytes-set stats (at + 2) (nat-rem (nat-div value 65536) 256) in
+    bytes-set stats (at + 3) (nat-rem (nat-div value 16777216) 256)
+    else ()
+
+  -- | Choose independent valid acceptance limits, including bursts and sharp throughput reductions.
+  accepted-limit :: U32 -> Nat -> Nat -> Nat -> Nat
+  accepted-limit mode epoch sent limit =
+    if eq-u32 mode 0 then 1
+    else if eq-u32 mode 1 then if epoch == 0 then 2 else if nat-rem epoch 11 == 0 then 1 else 256
+    else if eq-u32 mode 5 then limit
+    else if sent < limit then limit - sent else 0
+
+  -- | Build a continuation whose captured epoch must agree with independently observable state.
+  fixture-sink :: forall r. using (io :: Io r) => U32 -> Nat -> Bytes -> Bytes -> Bytes -> Option Bytes -> Nat -> ByteWriter r
+  fixture-sink mode limit original out stats previous epoch = stream-writer (\offer -> fixture-write mode limit original out stats previous epoch offer)
+
+  -- | Accept a prefix or return a named protocol failure, preserving the exact next continuation.
+  fixture-write :: forall r. using (io :: Io r) => U32 -> Nat -> Bytes -> Bytes -> Bytes -> Option Bytes -> Nat -> Bytes ->{IO r} (Result StreamError Nat, ByteWriter r)
+  fixture-write mode limit original out stats previous epoch offer =
+    let observed-epoch = counter stats 4 in
+    if observed-epoch /= epoch then (Err (StreamInvalidCount epoch observed-epoch), fixture-sink mode limit original out stats previous epoch)
+    else
+      let old-poison = case previous of None -> (); Some bytes -> poison bytes 0 in
+      let sent = counter stats 0 in let offered = counter stats 8 + bytes-len offer in
+      let calls = set-counter stats 4 (epoch + 1) in
+      let sum = set-counter stats 8 offered in
+      let last = set-counter stats 24 (bytes-len offer) in
+      let maximum = if epoch > 0 && bytes-len offer > counter stats 16 then set-counter stats 16 (bytes-len offer) else () in
+      let identity = if epoch == 0 then set-counter stats 20 (if eq-i64 (bytes-data offer) (bytes-data original) then 1 else 0) else () in
+      let next = fixture-sink mode limit original out stats (Some offer) (epoch + 1) in
+      if offered > bytes-len original * 4 then (Err (StreamClosed "offer budget"), next)
+      else if eq-u32 mode 2 && sent >= limit then (Err (StreamClosed "fixture"), next)
+      else if eq-u32 mode 4 && sent >= limit then (Ok (bytes-len offer + 1), next)
+      else
+        let allowed = accepted-limit mode epoch sent limit in
+        let count = if allowed < bytes-len offer then allowed else bytes-len offer in
+        let first-count = if epoch == 0 then set-counter stats 28 count else () in
+        let shorts = if count < bytes-len offer then set-counter stats 12 (counter stats 12 + 1) else () in
+        if sent + count <= bytes-len out && count <= bytes-len offer then
+          let copied = bytes-copy-range out offer sent 0 count in
+          let progress = set-counter stats 0 (sent + count) in (Ok count, next)
+        else (Err (StreamInvalidCount (bytes-len out) (sent + count)), next)
+
+  -- | Compare acknowledged progress and independently copied bytes after successful completion.
+  success-state :: Bytes -> Bytes -> Bytes -> Nat -> Bool
+  success-state expected out stats size =
+    let offers = counter stats 8 in let first = counter stats 28 in
+    let copied-bound = if first > 0 && first < size && offers >= size then (size - first) + (offers - size) else 0 in
+    same expected out && counter stats 0 == size && offers >= size && offers <= size * 3 && copied-bound <= size * 3
+      && counter stats 20 == 1 && counter stats 16 <= 4096
+
+  -- | Emit independently observed offer/progress counters for the external copy-count gate.
+  trace :: forall r. using (io :: Io r) => U32 -> Nat -> Bytes ->{IO r} Unit
+  trace mode size stats = ioWrite (string-to-bytes (string-concat-all ["stream-trace: mode=", nat-to-string (u32-to-nat mode), " size=", nat-to-string size, " sent=", nat-to-string (counter stats 0), " offers=", nat-to-string (counter stats 8), " first=", nat-to-string (counter stats 28), " max=", nat-to-string (counter stats 16), " calls=", nat-to-string (counter stats 4), "\n"]))
+
+  -- | Complete a large one-byte or variable sink while old offers are retained and mutated.
+  success-case :: forall r. using (io :: Io r) => U32 -> Nat ->{IO r} Bool
+  success-case mode size =
+    let original = bytes-new size in let prepared = fill-input original 0 in
+    let expected = part original 0 size in let out = bytes-new size in let stats = bytes-new 32 in
+    case stream-write-all (fixture-sink mode size original out stats None 0) original of
+      (Err error, next) -> let logged = trace mode size stats in False
+      (Ok count, next) ->
+        let checked = count == size && success-state expected out stats size && (if size > 1 && not (eq-u32 mode 5) then counter stats 12 > 0 && counter stats 16 > 1 else True) in
+        let logged = trace mode size stats in checked
+
+  -- | Confirm a returned error keeps the new sink epoch instead of restoring the old handle.
+  error-continuation :: forall r. using (io :: Io r) => U32 -> ByteWriter r -> Bytes ->{IO r} Bool
+  error-continuation mode sink stats =
+    let before = counter stats 4 in
+    case stream-write sink (bytes-new 1) of
+      (Err (StreamClosed label), next) -> eq-u32 mode 2 && label == "fixture" && counter stats 4 == before + 1
+      (Ok count, next) -> eq-u32 mode 3 && count == 0 && counter stats 4 == before + 1
+      (Err (StreamInvalidCount required actual), next) -> eq-u32 mode 4 && required == 1 && actual == 2 && counter stats 4 == before + 1
+      other -> False
+
+  -- | Compare named write failures against their original input and actual offered window.
+  expected-error :: U32 -> Nat -> Nat -> StreamError -> Bool
+  expected-error mode size last-offer error = case error of
+    StreamClosed label -> eq-u32 mode 2 && label == "fixture"
+    StreamShortWrite required actual -> eq-u32 mode 3 && required == size && actual == 17
+    StreamInvalidCount required actual -> eq-u32 mode 4 && required == last-offer && actual == required + 1
+    other -> False
+
+  -- | Validate exact accepted prefixes and unchanged zero/invalid-count/error contracts.
+  error-case :: forall r. using (io :: Io r) => U32 ->{IO r} Bool
+  error-case mode =
+    let size = u32-to-nat (runtime-size 64) in let limit = (17 :: Nat) in
+    let original = bytes-new size in let prepared = fill-input original 0 in
+    let expected = part original 0 size in let out = bytes-new size in let stats = bytes-new 32 in
+    case stream-write-all (fixture-sink mode limit original out stats None 0) original of
+      (Ok count, next) -> False
+      (Err error, next) ->
+        let prefix-ok = counter stats 0 == limit && same (part expected 0 limit) (part out 0 limit) in
+        let error-ok = expected-error mode size (counter stats 24) error in
+        let continued = error-continuation mode next stats in
+        let logged = trace mode size stats in prefix-ok && error-ok && continued
+
+  -- | Empty writes invoke no callback and preserve the original continuation epoch.
+  empty-case :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  empty-case unit =
+    let original = bytes-new 1 in let stats = bytes-new 32 in
+    case stream-write-all (fixture-sink 5 1 original (bytes-new 1) stats None 0) (bytes-new 0) of
+      (Err error, next) -> False
+      (Ok count, next) ->
+        if count == 0 && counter stats 4 == 0 then case stream-write next original of
+          (Ok accepted, after) -> let logged = trace 6 0 stats in accepted == 1 && counter stats 4 == 1
+          other -> False
+        else False
+
+  -- | Run bounded regressions and print the first failing control group.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let large = u32-to-nat (runtime-size 65536) in
+    let one = success-case 0 large in let variable = success-case 1 large in
+    let full = success-case 5 (u32-to-nat (runtime-size 64)) in
+    let failed = error-case 2 in let zero = error-case 3 in let invalid = error-case 4 in let empty = empty-case () in
+    let result = if not one then (1 :: Nat) else if not variable then 2 else if not full then 3 else if not failed then 4 else if not zero then 5 else if not invalid then 6 else if not empty then 7 else 0 in
+    let written = ioWrite (string-to-bytes (string-concat (nat-to-string result) "\n")) in if result == 0 then 0 else 1
