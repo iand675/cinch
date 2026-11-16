@@ -338,6 +338,131 @@ func float32CodecCases() map[string]any {
 	return map[string]any{"float32_encoding": encoding, "float32_conversion": conversions, "typed": updates}
 }
 
+// rawNumericError adds exact original-byte and function metadata without changing historical fixtures.
+func rawNumericError(err error) map[string]any {
+	out := map[string]any{"error": errorInfo(err), "function": "", "input_hex": ""}
+	var numeric *strconv.NumError
+	if errors.As(err, &numeric) {
+		out["function"], out["input_hex"] = numeric.Func, wireHex([]byte(numeric.Num))
+	}
+	return out
+}
+
+// rawNumberCodecCases records arbitrary Number string casts, partial numeric outcomes and strict marshaling.
+func rawNumberCodecCases() map[string]any {
+	texts := []string{
+		"", "-", "+", "0", "-0", "+0", "00", "01", "+01", "-01", " 1", "1 ", "\t1", "1\n", "1\x00", "１２", "−1",
+		"NaN", "nan", "NAN", "+NaN", "-NaN", "nan()", "Inf", "inf", "iNf", "+Inf", "-Inf", "Infinity", "infinity", "INFINITY", "-Infinity", "+Infinity", "Infjunk",
+		".", "+.", "1.", ".5", "-.5", "+.5", "01.00", "1.e2", ".5e+2", "1e", "1e+", "1e-", "+1e1", "-1e01",
+		"_1", "1_", "1__0", "1_0", "0_1", "0_0.0_1", "1_.0", "1._0", "._1", "1_0.2_3e+4_5", "1e_2", "1e+_2", "1e2_0",
+		"0x1p0", "0X1P0", "+0x1p0", "-0x1p0", "0x1.8p1", "0x.8p0", "0x1.p0", "0x1", "0x1.0", "0x", "0x.p1", "0x_p0", "0x_1p0", "0x__1p0", "0x1_p0", "0x1p_0", "0x1p0_1", "0x1p+0_1", "0x1p+_01", "0x1_0.0_1p+1_2",
+		"0b1", "0o1", "0x1e2", "0x1e2p0", "0x1p1.0", "0x1p1e1", "0x1p+", "0x1p-", "0x1p0junk",
+		"9223372036854775807", "9223372036854775808", "-9223372036854775808", "-9223372036854775809", "18446744073709551615", "18446744073709551616", "-18446744073709551615", "-18446744073709551616",
+		"9223372036854775808x", "-9223372036854775809x", "18446744073709551615x", "18446744073709551616x", "-18446744073709551616x", "9999999999999999999999999x", "9999999999999999999999999_", "1x999999999999999999999999",
+		"1.7976931348623157e308", "1.7976931348623159e308", "1e9999", "-1e9999", "1e-9999", "-1e-9999", "0e9999", "1e9999x",
+		"0x8000000000000000p-1138", "0x80000000000000001p-1142", "0x8000000000000001p-1138", "0x7fffffffffffffffp-1138", "-0x8000000000000000p-1138", "-0x80000000000000001p-1142", "0x1p-1074", "0x1p-1075", "0x1.0000000000001p-1075", "0x1.fffffffffffffp-1076", "-0x1p-1075", "0x1p-1022", "0x0.fffffffffffffp-1022",
+		"0x1.00000000000008p0", "0x1.000000000000080000000000000000000001p0", "0x1.00000000000007ffffffffffffffffffffffp0", "0x1.00000000000018p0",
+		"0x1.fffffffffffffp1023", "0x1.fffffffffffff8p1023", "0x1.fffffffffffff7ffffffffp1023", "0x1.fffffffffffff80000000001p1023", "-0x1.fffffffffffff8p1023", "0x2p1023", "0x1p9999", "0x1p-9999", "0x0p9999", "0x1p9999x",
+	}
+	texts = append(texts, "1."+strings.Repeat("0", 2048)+"1", "0."+strings.Repeat("0", 2048)+"1e2049", "0e"+strings.Repeat("9", 2048), "1e-"+strings.Repeat("9", 2048), "0x1."+strings.Repeat("0", 2048)+"1p-1075", "0x0."+strings.Repeat("0", 2048)+"1p8200", "0x1p"+strings.Repeat("9", 2048))
+	state := uint64(0x819c9e3779b97f4a)
+	for i := 0; i < 128; i++ {
+		state ^= state << 13
+		state ^= state >> 7
+		state ^= state << 17
+		bits := state & 0xffefffffffffffff
+		texts = append(texts, strconv.FormatFloat(math.Float64frombits(bits), 'x', -1, 64))
+	}
+	inputs := make([][]byte, 0, len(texts)+8)
+	for _, text := range texts {
+		inputs = append(inputs, []byte(text))
+	}
+	inputs = append(inputs, []byte{255}, []byte{'1', 255}, []byte{0}, []byte{192, 175}, []byte{226}, []byte{226, 130}, []byte{237, 160, 128}, append([]byte("9223372036854775808"), 255), append([]byte("18446744073709551616"), 255))
+	rows := []map[string]any{}
+	for _, input := range inputs {
+		number := json.Number(string(input))
+		integer, integerErr := number.Int64()
+		floating, floatErr := number.Float64()
+		encoded, marshalErr := json.Marshal(number)
+		rows = append(rows, map[string]any{"input_hex": wireHex(input), "text_hex": wireHex([]byte(number.String())), "scalar_text_hex": wireHex([]byte(string([]rune(string(input))))), "integer": strconv.FormatInt(integer, 10), "integer_metadata": rawNumericError(integerErr), "float_bits": fmt.Sprintf("%016x", math.Float64bits(floating)), "float_nan": math.IsNaN(floating), "float_metadata": rawNumericError(floatErr), "marshal_hex": wireHex(encoded), "marshal_error": errorInfo(marshalErr)})
+	}
+	updates := []map[string]any{}
+	for _, text := range []string{"", "0", "01", "+1", "1.", ".5", "1_0", "0x1p0", "NaN", "Inf", "1e9999", "-0", "1.0"} {
+		input, _ := json.Marshal(text)
+		value := json.Number("7")
+		updates = append(updates, typedCase("JsonNumber", input, &value))
+	}
+	return map[string]any{"raw_number": rows, "typed": updates}
+}
+
+// rawNumberEdgeCases isolates long-significand cancellation regressions from the frozen base corpus.
+func rawNumberEdgeCases() map[string]any {
+	texts := []string{
+		"0x1" + strings.Repeat("0", 1999) + "p-9999",
+		"-0x1" + strings.Repeat("0", 1999) + "p-9999",
+		"0x1" + strings.Repeat("0", 1999) + "p-99999",
+		"0x0." + strings.Repeat("0", 1999) + "1p99999",
+		"0x0." + strings.Repeat("0", 1999) + "1p99999x",
+		"0x1" + strings.Repeat("0", 1999) + "p-99999x",
+	}
+	rows := []map[string]any{}
+	for _, text := range texts {
+		input := []byte(text)
+		number := json.Number(text)
+		integer, integerErr := number.Int64()
+		floating, floatErr := number.Float64()
+		encoded, marshalErr := json.Marshal(number)
+		rows = append(rows, map[string]any{"input_hex": wireHex(input), "text_hex": wireHex([]byte(number.String())), "scalar_text_hex": wireHex([]byte(string([]rune(text)))), "integer": strconv.FormatInt(integer, 10), "integer_metadata": rawNumericError(integerErr), "float_bits": fmt.Sprintf("%016x", math.Float64bits(floating)), "float_nan": math.IsNaN(floating), "float_metadata": rawNumericError(floatErr), "marshal_hex": wireHex(encoded), "marshal_error": errorInfo(marshalErr)})
+	}
+	return map[string]any{"raw_number": rows, "typed": []map[string]any{}}
+}
+
+// rawHexRoundCases models exact integer rounding independently with arbitrary-precision arithmetic.
+func rawHexRoundCases() map[string]any {
+	rows := []map[string]any{}
+	appendCase := func(prefix uint64, shift uint32, sticky uint8) {
+		result := prefix
+		if shift > 64 {
+			result = 0
+		} else if shift > 0 {
+			numerator := new(big.Int).Lsh(new(big.Int).SetUint64(prefix), 1)
+			numerator.Add(numerator, big.NewInt(int64(sticky)))
+			denominator := new(big.Int).Lsh(big.NewInt(1), uint(shift+1))
+			quotient, remainder := new(big.Int), new(big.Int)
+			quotient.QuoRem(numerator, denominator, remainder)
+			relation := new(big.Int).Lsh(remainder, 1).Cmp(denominator)
+			if relation > 0 || relation == 0 && quotient.Bit(0) != 0 {
+				quotient.Add(quotient, big.NewInt(1))
+			}
+			result = quotient.Uint64()
+		}
+		rows = append(rows, map[string]any{"prefix": fmt.Sprintf("%016x", prefix), "shift": shift, "sticky": sticky, "rounded": fmt.Sprintf("%016x", result)})
+	}
+	for shift := uint32(1); shift <= 64; shift++ {
+		unit := new(big.Int).Lsh(big.NewInt(1), uint(shift))
+		half := new(big.Int).Rsh(new(big.Int).Set(unit), 1)
+		for quotient := int64(0); quotient < 2; quotient++ {
+			for delta := int64(-1); delta <= 1; delta++ {
+				prefix := new(big.Int).Add(new(big.Int).Mul(unit, big.NewInt(quotient)), half)
+				prefix.Add(prefix, big.NewInt(delta))
+				if prefix.Sign() >= 0 && prefix.BitLen() <= 64 {
+					for sticky := uint8(0); sticky <= 1; sticky++ {
+						appendCase(prefix.Uint64(), shift, sticky)
+					}
+				}
+			}
+		}
+	}
+	for _, shift := range []uint32{0, 65, 127, 4294967295} {
+		for _, prefix := range []uint64{0, 1, 0x8000000000000000, 0xffffffffffffffff} {
+			for sticky := uint8(0); sticky <= 1; sticky++ {
+				appendCase(prefix, shift, sticky)
+			}
+		}
+	}
+	return map[string]any{"hex_rounding": rows}
+}
+
 // fieldCodecCases independently observes name matching across complete SIMD and Unicode boundaries.
 func fieldCodecCases() map[string]any {
 	rows := []map[string]any{}
@@ -533,6 +658,28 @@ func main() {
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")
 		if err := encoder.Encode(fieldCodecCases()); err != nil {
+			panic(err)
+		}
+		return
+	}
+	if len(os.Args) == 2 && (os.Args[1] == "--raw-number-edge-codecs" || os.Args[1] == "--raw-number-kernel-codecs") {
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		var result map[string]any
+		if os.Args[1] == "--raw-number-edge-codecs" {
+			result = rawNumberEdgeCases()
+		} else {
+			result = rawHexRoundCases()
+		}
+		if err := encoder.Encode(result); err != nil {
+			panic(err)
+		}
+		return
+	}
+	if len(os.Args) == 2 && os.Args[1] == "--raw-number-codecs" {
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(rawNumberCodecCases()); err != nil {
 			panic(err)
 		}
 		return

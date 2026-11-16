@@ -2,7 +2,7 @@
   "reference_package": "encoding/json",
   "reference_sdk": "go1.27.4 linux/amd64",
   "reference_declarations": 92,
-  "status": "partial-core-typed-numeric-binary-map; binary32/dynamic/raw-number outcomes/effects remain in progress",
+  "status": "partial-core-typed-numeric-binary-map-binary32-raw-number; dynamic values, complete error/method capabilities, incremental effects and public pipeline review remain in progress",
   "source_base_commit": "689eb0c0",
   "existing_modules_preserved": [
     "Text.Json",
@@ -12,6 +12,7 @@
   "planned_modules": [
     "Text.Json.Value",
     "Text.Json.Codec",
+    "Text.Json.Binary32",
     "Effect.Json"
   ],
   "declarations": [
@@ -494,8 +495,8 @@
         "json-decoder-use-number",
         "json-decoder-reject-unknown"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "partial-core; incremental adapter pending",
+      "review_note": "json-number-type preserves exact number lexemes, validates quoted numeric input and retains prior values after refusal. A real provided incremental JsonDecoder adapter remains mandatory with Effect.Json."
     },
     {
       "reference_declaration": "method (*RawMessage) MarshalJSON() ([]uint8, error)",
@@ -649,15 +650,19 @@
       "group": "exact-numbers",
       "planned_cinch_capabilities": [
         "JsonNumber",
-        "json-number",
-        "json-number-text",
-        "json-number-int64",
-        "json-number-float64",
-        "json-number-type",
-        "json-number-token"
+        "json-number-from-text",
+        "json-number-from-bytes",
+        "json-number-float64-result",
+        "JsonNumericResult",
+        "json-numeric-value",
+        "json-numeric-error",
+        "JsonNumericError",
+        "json-numeric-error-function",
+        "json-numeric-error-bytes",
+        "json-numeric-error-kind"
       ],
-      "status": "partial-core",
-      "review_note": "Validated exact lexemes and an explicit absent-spelling default are implemented. Arbitrary string-cast conversion forms and saturated/overflow numeric outcomes remain open before this declaration is complete."
+      "status": "reviewed-language-adaptation",
+      "review_note": "Raw decimal, separator, hexadecimal and ASCII special spellings return a value plus optional typed numeric error, including overflow infinity and successful signed underflow. Original function/input bytes and syntax/range reason are explicit; no arbitrary runtime-error identity or unspecified NaN payload identity is claimed. The existing checked finite JSON conversion remains a separate capability. Both frozen frontends, exact midpoint/cancellation controls and independent integer-modeled production-kernel cases are validated."
     },
     {
       "reference_declaration": "method (Number) Int64() (int64, error)",
@@ -665,15 +670,18 @@
       "group": "exact-numbers",
       "planned_cinch_capabilities": [
         "JsonNumber",
-        "json-number",
-        "json-number-text",
-        "json-number-int64",
-        "json-number-float64",
-        "json-number-type",
-        "json-number-token"
+        "json-number-from-text",
+        "json-number-from-bytes",
+        "json-number-int64-result",
+        "JsonNumericResult",
+        "json-numeric-value",
+        "json-numeric-error",
+        "json-numeric-error-function",
+        "json-numeric-error-bytes",
+        "json-numeric-error-kind"
       ],
-      "status": "partial-core",
-      "review_note": "Validated exact lexemes and an explicit absent-spelling default are implemented. Arbitrary string-cast conversion forms and saturated/overflow numeric outcomes remain open before this declaration is complete."
+      "status": "reviewed-language-adaptation",
+      "review_note": "Raw signed decimal conversion returns its original partial value and typed error. Syntax gives zero; range gives the signed endpoint. Unsigned64 prefix overflow precedes the final signed-range check, preserving distinctions such as signed overflow followed by junk versus unsigned overflow before junk. Function, exact original input bytes and syntax/range reason are explicit; no arbitrary runtime-error identity is claimed."
     },
     {
       "reference_declaration": "method (Number) MarshalJSONTo(*jsontext.Encoder) error",
@@ -685,8 +693,8 @@
         "json-encoder-indent",
         "json-encoder-escape-html"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "partial-core; incremental adapter pending",
+      "review_note": "json-number-type now validates arbitrary raw spellings, writes an absent spelling as zero and retains exact input-bearing custom syntax causes. A real provided incremental JsonEncoder adapter remains mandatory with Effect.Json."
     },
     {
       "reference_declaration": "method (Number) String() string",
@@ -694,15 +702,13 @@
       "group": "exact-numbers",
       "planned_cinch_capabilities": [
         "JsonNumber",
-        "json-number",
-        "json-number-text",
-        "json-number-int64",
-        "json-number-float64",
-        "json-number-type",
-        "json-number-token"
+        "json-number-from-text",
+        "json-number-from-bytes",
+        "json-number-bytes",
+        "json-number-text"
       ],
-      "status": "partial-core",
-      "review_note": "Validated exact lexemes and an explicit absent-spelling default are implemented. Arbitrary string-cast conversion forms and saturated/overflow numeric outcomes remain open before this declaration is complete."
+      "status": "reviewed-language-adaptation",
+      "review_note": "The exact byte-spelling view preserves arbitrary original string-cast bytes without parsing or rounding. The scalar String view replaces malformed UTF-8 explicitly; callers use json-number-bytes for byte-exact identity. Both factories and returned byte buffers preserve independent immutable ownership."
     },
     {
       "reference_declaration": "method (RawMessage) MarshalJSON() ([]uint8, error)",
@@ -932,14 +938,18 @@
       "planned_cinch_capabilities": [
         "JsonNumber",
         "json-number",
+        "json-empty-number",
+        "json-number-from-text",
+        "json-number-from-bytes",
+        "json-number-check",
+        "json-number-bytes",
         "json-number-text",
-        "json-number-int64",
-        "json-number-float64",
-        "json-number-type",
-        "json-number-token"
+        "json-number-int64-result",
+        "json-number-float64-result",
+        "json-number-type"
       ],
-      "status": "partial-core",
-      "review_note": "Validated exact lexemes and an explicit absent-spelling default are implemented. Arbitrary string-cast conversion forms and saturated/overflow numeric outcomes remain open before this declaration is complete."
+      "status": "reviewed-language-adaptation",
+      "review_note": "An opaque value supplies checked JSON construction plus explicit raw scalar/byte string casts, exact byte identity, scalar text projection, numeric outcomes and validated descriptor marshaling. This adapts a named string type without implicit casts or reflection. The absent spelling marshals as zero while conversions report syntax; malformed byte spellings remain exact in their errors. Provided incremental encoder/decoder method adapters remain tracked separately."
     },
     {
       "reference_declaration": "type Options = jsonopts.Options",

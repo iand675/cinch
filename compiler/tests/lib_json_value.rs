@@ -133,7 +133,14 @@ fn rust_json_kernels_compile_for_wasm_arm_and_big_endian_targets() {
     let end = remaining.find("\n  -- |").unwrap_or(remaining.len());
     let mut kernels = String::from("-- | Isolated JSON vector classification.\nmodule Main where\n  import Data.Machine\n  -- | Actual complete-interval load-only classifier.\n");
     kernels.push_str(&remaining[..end]);
-    kernels.push_str("\n  -- | Retain the source owner through its checked private load.\n  keep :: Bytes -> U8 -> U8\n  keep bytes value = case bytes-len bytes of _ -> value\n  -- | Keep the complete classifier reachable without claiming foreign execution.\n  main :: Int\n  main = let bytes = bytes-new 16 in let a = keep bytes (block16 (bytes-data bytes) 0) in let b = keep bytes (block16 (bytes-data bytes) 1) in if eq-u8 a b then 0 else 1\n");
+    for name in ["numeric-hex-round", "numeric-float-from-bits"] {
+        let start = source.find(&format!("  prim {name} ::")).unwrap();
+        let rest = &source[start..];
+        let end = rest.find("\n  -- |").unwrap_or(rest.len());
+        kernels.push_str("\n  -- | Actual raw numeric representation and rounding primitive.\n");
+        kernels.push_str(&rest[..end]);
+    }
+    kernels.push_str("\n  -- | Retain the source owner through its checked private load.\n  keep :: Bytes -> U8 -> U8\n  keep bytes value = case bytes-len bytes of _ -> value\n  -- | Keep the complete classifier reachable without claiming foreign execution.\n  main :: Int\n  main = let bytes = bytes-new 16 in let a = keep bytes (block16 (bytes-data bytes) 0) in let b = keep bytes (block16 (bytes-data bytes) 1) in let prefix = wrapping-i64-to-u64 (bytes-data bytes) in let count = bit-and-u32 (wrapping-i64-to-u32 (bytes-data bytes)) 127 in if eq-u8 a b && is-finite-f64 (numeric-float-from-bits (numeric-hex-round prefix count 1)) then 0 else 1\n");
     let directory = tempfile::tempdir().unwrap();
     for (triple, arch, endian) in [
         ("wasm32-unknown-unknown", "wasm32", "little"),
@@ -165,6 +172,9 @@ fn rust_json_kernels_compile_for_wasm_arm_and_big_endian_targets() {
             .unwrap()
             .unwrap();
         assert!(ir.contains("<16 x i8>") && ir.contains("load <16 x i8>"));
+        assert!(
+            ir.contains("icmp ult i32") && ir.contains("select i1") && ir.contains("bitcast i64")
+        );
         let path = directory.path().join(format!("{arch}.ll"));
         std::fs::write(&path, &ir).unwrap();
         let output = std::process::Command::new(

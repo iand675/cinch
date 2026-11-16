@@ -207,6 +207,43 @@ FLOAT32_HELPERS = r'''
 '''
 
 
+RAW_NUMBER_HELPERS = r'''
+  -- | Compare numeric errors by original function, byte spelling and syntax/range classification.
+  numeric-error-ok :: Option JsonNumericError -> String -> String -> Bytes -> Bool
+  numeric-error-ok actual kind function input = case actual of
+    None -> kind == ""
+    Some error -> kind /= "" && json-numeric-error-function error == function && same-bytes (json-numeric-error-bytes error) input && json-numeric-is-range error == (kind == "range")
+      && (case json-numeric-error-kind error of JsonNumericRange -> kind == "range"; JsonNumericSyntax -> kind == "syntax")
+  -- | Compare strict raw-number marshaling and the original input-bearing custom syntax cause.
+  raw-marshal-ok :: JsonNumber -> Bytes -> Bytes -> String -> String -> Bool
+  raw-marshal-ok number input expected family label = case json-marshal json-number-type number of
+    Ok bytes -> family == "" && same-bytes bytes expected
+    Err error -> error-family error == family && optional-text (json-error-type error) == label && numeric-error-ok (json-error-numeric error) "syntax" "MarshalJSONTo" input
+      && (case json-error-cause error of Some cause -> (case json-error-numeric cause of Some numeric -> same-bytes (json-numeric-error-bytes numeric) input; None -> False); None -> False)
+  -- | Compare all numeric values and errors, preserving exact raw bytes independently of scalar projection.
+  raw-number-case :: Bytes -> Bytes -> I64 -> String -> String -> Bytes -> U64 -> Bool -> String -> String -> Bytes -> Bytes -> String -> String -> Bool
+  raw-number-case input scalar integer integer-kind integer-function integer-input bits nan float-kind float-function float-input marshaled marshal-kind marshal-label =
+    let number = json-number-from-bytes (runtime-bytes input) in
+    let integer-result = json-number-int64-result number in
+    let float-result = json-number-float64-result number in
+    same-bytes (json-number-bytes number) input && same-bytes (string-to-bytes (json-number-text number)) scalar
+      && eq-i64 (json-numeric-value integer-result) integer && numeric-error-ok (json-numeric-error integer-result) integer-kind integer-function integer-input
+      && (if nan then is-na-nf64 (json-numeric-value float-result) else eq-u64 (float-bits (json-numeric-value float-result)) bits)
+      && numeric-error-ok (json-numeric-error float-result) float-kind float-function float-input
+      && raw-marshal-ok number input marshaled marshal-kind marshal-label
+'''
+
+
+RAW_NUMBER_KERNEL_HELPERS = r'''
+  -- | Keep the production rounding primitive live on checked runtime-written and loaded words.
+  hex-round-case :: U64 -> U32 -> U8 -> U64 -> Bool
+  hex-round-case prefix shift sticky expected =
+    let input = bytes-new 8 in
+    let written = bytes-write-le64 input 0 prefix in
+    eq-u64 (numeric-hex-round (bytes-read-le64 input 0) shift sticky) expected
+'''
+
+
 FIELD_HELPERS = r'''
   -- | Resolve a runtime-constructed field descriptor and compare the complete independent result.
   field-case :: String -> Bytes -> I64 -> Bytes -> Bool
@@ -319,6 +356,9 @@ def program(suite: str, fixture: dict) -> str:
         for row in fixture["indent_bytes"]:
             err = row["error"]
             checks.append(f"indent-byte-case (runtime-bytes {wire(row['input_hex'])}) {wire(row['prefix_hex'])} {wire(row['step_hex'])} {wire(row['output_hex'])} {boolean(not err['kind'])} {err['offset']} {text(err.get('text', ''))}")
+    elif suite == "raw-number-kernel":
+        for row in fixture["hex_rounding"]:
+            checks.append(f"hex-round-case ({int(row['prefix'],16)} :: U64) ({row['shift']} :: U32) ({row['sticky']} :: U8) ({int(row['rounded'],16)} :: U64)")
     elif suite == "map-encode":
         for row in fixture["map_encoding"]:
             entries = "[" + ",".join(f"({wire(item['key_hex'])},({item['value']} :: I64))" for item in row["entries"]) + "]"
@@ -329,7 +369,7 @@ def program(suite: str, fixture: dict) -> str:
         for row in fixture["field_matching"]:
             assert not row["error"]["kind"] and not row["output_error"]["kind"]
             checks.append(f"field-case {text(row['name'])} {wire(row['input_hex'])} ({row['value']} :: I64) {wire(row['output_hex'])}")
-    elif suite in {"typed", "float", "float32", "integer", "binary", "map"}:
+    elif suite in {"typed", "float", "float32", "raw-number", "raw-number-edge", "integer", "binary", "map"}:
         descriptors = {
             "F32": ("json-float32-type", "(i64-to-f32 7)"),
             "F64": ("json-float64-type", "(i64-to-f64 7)"),
@@ -372,6 +412,13 @@ def program(suite: str, fixture: dict) -> str:
                 checks.append(f"map-case {descriptor} {wire(row['input_hex'])} {initial} {wire(row['output_hex'])} {text(family)} {err['offset']} {text(actual)} {text(label)} {text(field)} {text(encoded['kind'])} {text(labels.get(encoded.get('type',''),encoded.get('type','')))} {boolean(encoded.get('invalid_value',False))}")
             else:
                 checks.append(f"typed-case {descriptor} {wire(row['input_hex'])} {initial} {wire(row['output_hex'])} {text(err['kind'])} {err['offset']} {text(actual)} {text(labels.get(err.get('type',''),err.get('type','')))} {text(field)}")
+        if suite in {"raw-number", "raw-number-edge"}:
+            for row in fixture["raw_number"]:
+                integer, floating, marshal = row["integer_metadata"], row["float_metadata"], row["marshal_error"]
+                integer_kind = integer["error"].get("cause", "") if integer["error"]["kind"] else ""
+                float_kind = floating["error"].get("cause", "") if floating["error"]["kind"] else ""
+                label = "JsonNumber" if marshal.get("type", "").lstrip("*") == "json.Number" else marshal.get("type", "")
+                checks.append(f"raw-number-case {wire(row['input_hex'])} {wire(row['scalar_text_hex'])} ({row['integer']} :: I64) {text(integer_kind)} {text(integer['function'])} {wire(integer['input_hex'])} ({int(row['float_bits'],16)} :: U64) {boolean(row['float_nan'])} {text(float_kind)} {text(floating['function'])} {wire(floating['input_hex'])} {wire(row['marshal_hex'])} {text(marshal['kind'])} {text(label)}")
         if suite == "float32":
             for row in fixture["float32_encoding"]:
                 err = row["error"]
@@ -406,8 +453,13 @@ def program(suite: str, fixture: dict) -> str:
         body = ",\n      ".join("(" + check + ")" for check in checks[start:start + 6])
         batches.append(f"\n  -- | Evaluate bounded independent {suite} checks with global failure indexes.\n  {name} :: Unit -> Nat\n  {name} unit = first-failure [\n      {body}] {start + 1}\n")
     helpers = HELPERS
-    if suite in {"typed", "float", "float32", "field", "integer", "binary", "map", "map-encode"}:
-        helpers = helpers.replace("  import Text.Json.Value\n", "  import Text.Json.Value\n  import Text.Json.Codec\n  import Data.Array\n" + ("  import Data.Unicode.Kernel\n" if suite in {"map", "map-encode"} else "")) + TYPED_HELPERS + (FLOAT_HELPERS if suite == "float" else FLOAT32_HELPERS if suite == "float32" else FIELD_HELPERS if suite == "field" else MAP_HELPERS if suite == "map" else MAP_HELPERS + MAP_ENCODE_HELPERS if suite == "map-encode" else "")
+    if suite in {"typed", "float", "float32", "raw-number", "raw-number-edge", "field", "integer", "binary", "map", "map-encode"}:
+        helpers = helpers.replace("  import Text.Json.Value\n", "  import Text.Json.Value\n  import Text.Json.Codec\n  import Data.Array\n" + ("  import Data.Unicode.Kernel\n" if suite in {"map", "map-encode"} else "")) + TYPED_HELPERS + (FLOAT_HELPERS if suite == "float" else FLOAT32_HELPERS if suite == "float32" else RAW_NUMBER_HELPERS if suite in {"raw-number", "raw-number-edge"} else FIELD_HELPERS if suite == "field" else MAP_HELPERS if suite == "map" else MAP_HELPERS + MAP_ENCODE_HELPERS if suite == "map-encode" else "")
+    if suite == "raw-number-kernel":
+        production = (ROOT / "compiler/prelude/Text/Json/Value.cinch").read_text()
+        begin = production.index("  prim numeric-hex-round ::")
+        end = production.index("\n  -- |", begin)
+        helpers = HELPERS.replace("  import Data.Machine\n", "  import Data.Machine\n  import Data.Bytes.Word\n") + "\n  -- | Exact production rounding primitive.\n" + production[begin:end] + RAW_NUMBER_KERNEL_HELPERS
     return helpers + "".join(batches) + f'''
   -- | Print the original failing observation and return a nonzero status on failure.
   main :: Unit ->{{IO r}} Int
@@ -426,7 +478,7 @@ def main() -> None:
     args = parser.parse_args()
     fixture = json.loads((FIXTURES / "json-codec-vectors.json").read_text())
     for suite in args.suites:
-        selected = json.loads((FIXTURES / f"json-codec-{suite}-vectors.json").read_text()) if suite in {"float", "float32", "field", "integer", "binary", "map", "map-encode"} else fixture
+        selected = json.loads((FIXTURES / f"json-codec-{suite}-vectors.json").read_text()) if suite in {"float", "float32", "raw-number", "raw-number-edge", "raw-number-kernel", "field", "integer", "binary", "map", "map-encode"} else fixture
         path = FIXTURES / f"json-codec-{suite}.cinch"
         contents = program(suite, selected)
         if args.check:
