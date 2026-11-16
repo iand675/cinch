@@ -1,0 +1,41 @@
+--- Data.Mutable.Ring.cinch
++++ Data.Mutable.Ring.cinch
+@@ -7,7 +7,6 @@
+ module Data.Mutable.Ring where
+   import Data.Bytes (bytes-new, bytes-len, bytes-data)
+   import Data.Machine
+-  import Data.Wide (wrapping-u128-to-u64, wrapping-shr-u128)
+   import Data.Nat
+   import Data.Int (int-mod-nat)
+   import Data.Option
+@@ -281,13 +280,28 @@
+       ret i128 %packed
+     }
+ 
++  -- | Extract the packed previous-link lane without a provider call or a wide result allocation.
++  prim offset-low :: U128 -> U64 where
++    llvm {
++      %low = trunc i128 %0 to i64
++      ret i64 %low
++    }
++
++  -- | Extract the packed following-link lane by its numeric position, independently of host endianness.
++  prim offset-high :: U128 -> U64 where
++    llvm {
++      %shifted = lshr i128 %0, 64
++      %high = trunc i128 %shifted to i64
++      ret i64 %high
++    }
++
+   -- | Adjust both links of every transferred node to its new absolute arena offset.
+   offset-links :: forall a. RingArena a -> U64 -> U64 -> U64 -> Unit
+   offset-links arena offset index count = if eq-u64 index count then () else
+     let node = node-at arena index in
+     let shifted = offset-pair (node-link node 0) (node-link node 1) offset in
+-    let previous = wrapping-u128-to-u64 shifted in
+-    let following = wrapping-u128-to-u64 (wrapping-shr-u128 shifted 64) in
++    let previous = offset-low shifted in
++    let following = offset-high shifted in
+     let left = set-node-link node 0 previous in
+     let right = set-node-link node 1 following in
+     offset-links arena offset (successor index) count

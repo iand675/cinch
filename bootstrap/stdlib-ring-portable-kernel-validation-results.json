@@ -1,0 +1,23 @@
+{
+  "description": "Chosen paired vector kernel emits actual portable objects; no target runtime execution claim",
+  "compiler_sha256": "b004049baa8e2614dd35f5484811bbf2cd24b137923a8e3bc36bf08c9c53fc93",
+  "source_sha256": "ab8ff449f73c0de4a28c061a06f63f9242df937555ff831daec774f98861b689",
+  "ring_source_sha256": "9c2860648b94c3c1a3182ed33c152609d8a19a323535d57296eeaafa341d8e25",
+  "cpu_affinity": [
+    4
+  ],
+  "targets": [
+    {
+      "target": "aarch64-unknown-linux-gnu",
+      "llvm_sha256": "d6b633a46214a94663e35e65ecf300e3ac0835e3bb17b5ba49a06cad8399a24c",
+      "object_sha256": "833c6526fb9cf68a43d1d870a616a3e4ecc8229a7f0bcfe3ff69df499289f80f",
+      "exit": 0
+    },
+    {
+      "target": "wasm32-unknown-unknown",
+      "llvm_sha256": "0dd3d51cbbcba61583b54794d53e9d6c0be80183d0bdf27fa35f18611379e000",
+      "object_sha256": "95729e38fe94bbc9bce486fe0728ae0ba1bb084658518ae343b9c9105228e3bc",
+      "exit": 0
+    }
+  ]
+}

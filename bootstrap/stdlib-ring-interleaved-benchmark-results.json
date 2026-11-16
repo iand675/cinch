@@ -1,0 +1,1080 @@
+{
+  "description": "Compare frozen complete ring pipelines with rotating variant order and exact outputs.",
+  "status": "passed",
+  "cpu_affinity": [
+    0
+  ],
+  "started_utc": "2026-11-16T19:28:28.083370+00:00",
+  "runner_sha256": "25206bc52eb0a8ba34f754b9f326876d77106e57d8bd58817988f594686cd38d",
+  "iterations": 8,
+  "samples": 5,
+  "timing": "Internal monotonic clock around complete operation loop; preparation, startup and prepared-owner teardown excluded",
+  "memory": "Ordinary reclamation, 32M heap, 8M runtime stack; separate functional poison profiles already passed",
+  "profile_limit": "Native variants use generated out-of-line RC checks; Rust uses ordinary generated RC. Native before/after is matched; crossfrontend and reference ratios are not normalized compiler-speed parity.",
+  "native_limit": "Rust-produced experimental Native645; no self-built distribution claim",
+  "background_note": "Only this CPU is reserved. Parent Cargo CPU3, Codegen foreign-alias CPU1 and MIME CPU4 may overlap; shared caches/memory are not isolated.",
+  "background_process_snapshot": [
+    "    PID PSR %CPU COMMAND",
+    "      1   2  0.0 tail",
+    "      2   2  0.0 cloud-agent-log",
+    "      3   0  0.0 caas-prefix-tra",
+    "    203   2  0.0 runuser",
+    "    231   2  0.0 rootlesskit",
+    "    241   1  0.0 exe",
+    "    264   1  0.0 slirp4netns",
+    "    272   0  0.0 dockerd",
+    "    317   0  0.1 containerd",
+    "    628   1  0.2 codex",
+    "    641   4  0.0 cloud-agent-des",
+    "    642   0  0.0 cloud-agent-log",
+    "    643   1  0.0 cloud-agent-bro",
+    "    650   4  0.0 sites-preview",
+    "    651   1  0.0 cloud-agent-log",
+    "    652   4  0.0 cloud-agent-mcp",
+    "    886   3  0.0 git",
+    "   5498   4  0.2 lib_go_stdlib-4",
+    "   7175   3  0.0 git",
+    "  10983   2  0.0 git",
+    "  11005   1  0.0 git",
+    "  14204   3  0.0 git",
+    "  20426   4  0.0 git",
+    "  22181   1  0.0 git",
+    "  23924   3  0.0 git",
+    "  23990   4  0.0 git",
+    "  29073   2  0.0 git",
+    "  34036   2  0.0 git",
+    "  37364   1  0.0 git",
+    "  41202   2  0.0 git",
+    "  51950   0  0.0 git",
+    "  52739   1  0.2 cinch",
+    "  54309   1  0.0 cinch",
+    "  54865   3  0.0 python3",
+    "  54867   4  0.1 clang",
+    "  54869   2  0.1 clang",
+    "  55297   3  0.0 git",
+    "  55337   3  0.0 git",
+    "  57345   1  0.0 git",
+    "  64531   2  0.0 git",
+    "  64560   4  0.0 git",
+    "  65199   4  0.0 rustc",
+    "  67590   2  0.0 git",
+    "  72056   3  0.0 git",
+    "  75039   3  0.0 git",
+    "  77374   2  0.0 git",
+    "  80190   1  0.0 git",
+    "  80311   2  0.0 git",
+    "  83215   2  0.0 git",
+    "  87650   2  0.0 python3",
+    "  91628   4  0.0 git",
+    "  94903   2  0.0 bootstrap_abstr",
+    "  95377   2  0.0 abstract-nonzer",
+    "  96621   2  0.0 git",
+    "  97924   1  0.0 git",
+    " 111220   3  0.0 git",
+    " 111280   2  0.0 git",
+    " 112926   0  0.0 git",
+    " 123956   3  0.0 git",
+    " 127537   3  0.0 git",
+    " 129178   2  0.0 git",
+    " 131269   4  0.0 git",
+    " 131594   4  0.0 git",
+    " 133432   2  0.0 rustc",
+    " 138535   4  0.0 git",
+    " 138777   1  0.0 git",
+    " 140904   2  0.1 rustc",
+    " 146674   3  0.0 git",
+    " 155862   2  0.0 git",
+    " 156104   0  0.0 git",
+    " 169196   4  0.0 git",
+    " 180746   0  0.0 git",
+    " 181166   1  0.2 cinch",
+    " 181231   0  0.0 git",
+    " 182577   2  0.0 git",
+    " 191205   0  0.0 git",
+    " 192632   1  0.0 git",
+    " 192997   2  0.0 git",
+    " 194755   2  0.0 git",
+    " 196853   0  0.0 git",
+    " 202224   0  0.0 git",
+    " 202254   0  0.0 git",
+    " 202329   3  0.0 git",
+    " 204631   0  0.0 git",
+    " 205901   4  0.0 git",
+    " 206262   0  0.0 git",
+    " 206335   0  0.0 git",
+    " 208088   2  0.0 git",
+    " 209288   2  0.0 git",
+    " 213856   2  0.0 git",
+    " 214170   3  0.0 git",
+    " 220945   2  0.0 git",
+    " 221177   4  0.0 git",
+    " 221276   3  0.0 git",
+    " 221359   4  0.0 git",
+    " 221699   3  0.2 rustc",
+    " 221889   2  0.0 git",
+    " 221911   0  0.0 llvm-symbolizer",
+    " 221951   2  0.0 git",
+    " 226094   4  0.0 git",
+    " 226175   4  0.0 git",
+    " 226791   2  0.0 git",
+    " 227510   2  0.0 git",
+    " 227764   2  0.0 git",
+    " 229324   3  0.0 git",
+    " 230366   1  0.0 git",
+    " 231215   2  0.0 git",
+    " 239121   3  0.0 git",
+    " 250485   2  0.0 git",
+    " 251339   3  0.0 git",
+    " 252521   2  0.0 git",
+    " 252763   1  0.0 git",
+    " 253868   3  0.0 git",
+    " 256372   0  0.0 git",
+    " 260896   3  0.0 git",
+    " 262128   3  0.0 git",
+    " 262811   0  0.0 git",
+    " 263311   2  0.0 git",
+    " 265369   2  0.0 git",
+    " 266295   2  0.0 git",
+    " 266496   0  0.0 git",
+    " 267147   1  0.0 git",
+    " 284302   2  0.0 git",
+    " 291905   2  0.0 git",
+    " 292527   4  0.0 git",
+    " 292678   0  0.0 git",
+    " 293432   2  0.0 git",
+    " 302617   4  0.0 git",
+    " 304446   3  0.0 git",
+    " 309013   2  0.0 git",
+    " 310330   3  0.0 git",
+    " 311576   1  0.0 git",
+    " 311643   0  0.0 git",
+    " 312097   1  0.0 git",
+    " 312196   4  0.0 git",
+    " 312556   2  0.0 git",
+    " 312557   2  0.0 git",
+    " 312633   4  0.0 git",
+    " 313337   2  0.0 git",
+    " 313395   1  0.0 git",
+    " 324415   4  0.0 git",
+    " 324763   3  0.0 git",
+    " 373631   3  0.0 git",
+    " 390649   4  0.0 git",
+    " 395469   0  0.0 git",
+    " 396975   2  0.0 git",
+    " 399359   2  0.0 git",
+    " 399755   2  0.0 git",
+    " 399907   0  0.0 git",
+    " 399933   3  0.0 git",
+    " 400541   1  0.0 git",
+    " 401077   2  0.0 git",
+    " 401893   0  0.0 git",
+    " 401969   2  0.0 git",
+    " 402841   2  0.0 git",
+    " 403916   1  0.0 git",
+    " 404064   0  0.0 git",
+    " 404445   1  0.0 git",
+    " 404942   2  0.0 git",
+    " 419090   4  0.0 git",
+    " 427178   2  0.0 git",
+    " 431165   4  0.0 git",
+    " 433023   3  0.0 git",
+    " 434751   2  0.0 git",
+    " 434847   1  0.0 git",
+    " 435301   4  0.0 git",
+    " 435447   2  0.0 git",
+    " 435513   2  0.0 git",
+    " 435825   0  0.0 git",
+    " 436088   0  0.0 git",
+    " 436687   3  0.0 git",
+    " 438762   0  0.0 git",
+    " 439246   4  0.0 git",
+    " 445783   4  0.0 git",
+    " 447577   4  0.0 git",
+    " 447819   4  0.0 git",
+    " 447868   1  0.0 bwrap",
+    " 447869   3  0.0 codex",
+    " 447870   1  0.0 bash",
+    " 448730   4  0.0 git",
+    " 450371   4  0.0 git",
+    " 451841   2  0.0 git",
+    " 451876   1  0.0 bwrap",
+    " 451877   0  0.0 codex",
+    " 451878   4  0.0 bash",
+    " 456500   0  0.0 git",
+    " 456912   1  0.0 git",
+    " 456931   2  0.0 git",
+    " 456950   2  0.0 git",
+    " 456969   2  0.0 git",
+    " 457345   1  0.0 git",
+    " 458555   0  0.0 git",
+    " 459217   3  0.0 git",
+    " 459268   2  0.0 git",
+    " 459375   4  0.0 git",
+    " 467965   1  0.0 git",
+    " 469233   0  0.0 git",
+    " 469655   1 12.5 codex-linux-san",
+    " 469657   4  0.0 bwrap",
+    " 469658   3 15.0 codex",
+    " 469659   0 88.2 python3",
+    " 469662   0  0.0 ps"
+  ],
+  "variants": {
+    "native-before": {
+      "description": "Complete circular-sequence pipelines with exact ordered output checksums; ownership, snapshots and allocation representations differ",
+      "compiler_sha256": "645c518560ae5565e9713446e96140d1f8adb0fbccce05a0e37b3f72e7c5e17d",
+      "checkout_compiler_source_sha256_not_binary_provenance": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+      "runtime_source_sha256": "8f702eaca91d09a5dbba6ca58b8e7fd7fcf55cef6bd5761cee2082da772aa31f",
+      "driver_sha256": "6fea80fa3ca646fee2c7b389d35f8292e12449d64be101aba3f2c3cff2070ce6",
+      "sources": {
+        "Data.Mutable.Ring": "9c2860648b94c3c1a3182ed33c152609d8a19a323535d57296eeaafa341d8e25",
+        "Data.Mutable.Vec": "61fff082140825bba9490ae212de6dcfec740a684d0cc336adc6058c9b89dde7"
+      },
+      "opt_level": 2,
+      "generated_rc_debug_checks": true,
+      "runtime_poisoned_free_checks": true,
+      "executable_sha256": "0400b04742ec8e45a8fc3beb6c027cb1f04fdc7df40f11c8958b9d98f7f498ca",
+      "llvm_sha256": "9241877e107a74686190fe8ceb1fffbbd593c4dd92d01a8264ca2724848c63b9",
+      "assembly_sha256": "0974bc37afccfbf221e763b4d85a7bf89dc7bd3873f320dc237a3803b6d3a953",
+      "reference_source_sha256": "5734e848ef7386fd14301784a91f6bb2bc5fdc17a77d609dfb462194fe22c1aa",
+      "reference_executable_sha256": "4ed1640cac9c05b316d0016027cdf769649e615f855c360e7347c7c3c2648121",
+      "reference_sdk": "go version go1.27.4 linux/amd64",
+      "artifacts": "/workspace/dasl-stdlib-collections/build/ring-native-benchmark",
+      "results": [],
+      "frontend": "native",
+      "compiler_host_stack": "64M",
+      "native_provenance": {
+        "compiler_sha256": "645c518560ae5565e9713446e96140d1f8adb0fbccce05a0e37b3f72e7c5e17d",
+        "interfaces_sha256": "e2140bc97b9f30a3739c1a142f0d22c290a02602bcc66ff7342f408cf6d18a67",
+        "objects_sha256": "093de5610d22ab5c145b8c060f704fb7f4b0fd29e1a9f8de3806d0277bf88d13",
+        "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+        "compiler_snapshot_sources": {
+          "Bootstrap.Ast.cinch": "3da668e217c0f04e9cf6d66e6e5214c9f7936d3fd481cc9176abf0da12db0455",
+          "Bootstrap.BodyContract.cinch": "ffe0b2d87bb7b69589d662e7fc15f3bb96e7502ccd79f532f47e6d82aff36de4",
+          "Bootstrap.Builtin.cinch": "ecd7f0992ad0ae82e070bbb48f240d9a0ce31fd5a0dbf09fe82aa787df21cddc",
+          "Bootstrap.Check.cinch": "960dae10f40201ea2fc134e9d114ce34e66f788a0f8c48e618a5a769d6f9ed32",
+          "Bootstrap.Contracts.cinch": "e73f1b0f8258c1db4e91341ba09024f47de042c4337cc6c1fd27520adddc1dac",
+          "Bootstrap.Core.cinch": "e143fd0443e0c895150ae270a373062ee0b7e292e22ca18b68400ca9cca66d28",
+          "Bootstrap.CoreBody.cinch": "7a32cf05fb400707820e829a37edfa16b787b1b530871b9631d7ac42402ec0da",
+          "Bootstrap.Dictionary.cinch": "11caf0c05484a59c85765a2548932b9a2487aca57c3c8d1e081ccd9af08acdb6",
+          "Bootstrap.Driver.cinch": "a9350fe510c1dd5a785e5f805a0da632d343a2cd8699f838d9bb3a2b22cab533",
+          "Bootstrap.Eval.cinch": "888606e854aab7ec820f607d9004722c26075731f580b7f51c524988f1a68967",
+          "Bootstrap.Expand.cinch": "3730803f333ee26a7941be0aca9911b56276735b08bd36995c0a1f88fbb4655a",
+          "Bootstrap.Export.cinch": "dbe7a43bf3c9b9a2afdd64e3dad8c7a9395e38b61ac5ac3b4ccc161eca2e0cdc",
+          "Bootstrap.ExportNominal.cinch": "d439bae5030019593fdb9b92373875090d5bac0a0e30df054db29fc17481c85a",
+          "Bootstrap.ExportType.cinch": "2484cfc1a90c186e36ac5df077c507040efcf5d2cb77da4dffcd05fa23eb320e",
+          "Bootstrap.Foreign.cinch": "08a1d9777383b643de478d247f9bd46be815ef2bc0d98301154c6fbec351546a",
+          "Bootstrap.Global.cinch": "ef518a4894a9a5b05ec810b462d8a7a862919f2a48cac8a1c27bef44048537e0",
+          "Bootstrap.Guarded.cinch": "024615db9bfcfc432cb0ee943f9390756cb43d1f52b1de36cd8584ce53dd6d98",
+          "Bootstrap.Index.cinch": "dcb92174c01a96faaf66bc7d550c4e443bfa2d4cdc88376f899eb547c5bf166f",
+          "Bootstrap.Infer.cinch": "7dce911f88e0c1d443fa55d1d6a33c871ff72e6935fbfcdf1bab93677c78a7e3",
+          "Bootstrap.Inputs.cinch": "62cbc9ff4fa8b920610450f7f857ecf9ccc6f056c198ab2fa1921e0c3765a194",
+          "Bootstrap.Instance.cinch": "afe28d2c4c0f703a6cae92fd25de2e9257b344396407daf046132d1ebe865314",
+          "Bootstrap.Interface.cinch": "faecf6444b48cd4bfead2b42e593c5b33d0bd88d497d0c1b6265ab8f29f4a032",
+          "Bootstrap.Ir.cinch": "be9f22e3f530cf03261edd00a9f879484365e4face8cb63cbb0f8eb2e34fd984",
+          "Bootstrap.Kinds.cinch": "4774925d2d3ce8d7cd266bb6297169f60d3f7ac2c6a866d74e947c886bfc8a9e",
+          "Bootstrap.Load.cinch": "f533faeddcdc2881f62187cf7e119efa2e6e3c5b3c59fa64ba76efe7f7bf887d",
+          "Bootstrap.Manifest.cinch": "ef5e1496af11a57909cc707921202b1dc3c867bcbcd1889ae35f76f1b09a37ac",
+          "Bootstrap.Nominal.cinch": "da38bafe2f771a7f0e65ea92c39e820bf77d85a0c310ac4c7c8424dc86e2e9c5",
+          "Bootstrap.Object.cinch": "17a0e96300ad6110b748aab156c9651608877264f8bde042d5e27c0f08ed7168",
+          "Bootstrap.Parse.cinch": "697a609eff4228205cc72bc07575cc875857cb6a33826cb8bc85d9f8344edfe1",
+          "Bootstrap.Pipeline.cinch": "5f7dc1216ee085f20933196d46c26b9ba4235eff31cb68f724a217fdc9e27a6c",
+          "Bootstrap.Proof.cinch": "9ae86640664c59a780c8a27b07001e2bccf00faccde33e6d0200886feeadb1a3",
+          "Bootstrap.Report.cinch": "e6cfc868d86d7585b5ed42e7fde6be613d02a6075101ab46d5a9f150f594e9c7",
+          "Bootstrap.Resolve.cinch": "8317093e0f884473a49ef848625e4aea3d8e237eaee009ba8e9a961fee90f651",
+          "Bootstrap.RuntimeAbi.cinch": "2475d26247a8967b726c4a475fecc733a86083fced48c88779a6071b7381bd3e",
+          "Bootstrap.RuntimeIr.cinch": "6253b546d3fb635d19872b938b5fa5c7565572a73503817d2405ef4fbaa430a1",
+          "Bootstrap.Stage.cinch": "3320cfd63a9983fc053e0c9b94ae393d0d2962b7b78ff428a162c012cdfb3f61",
+          "Bootstrap.StageEval.cinch": "d53907533611569bccc45f3a42af819a625ffaa68740d5b313488a849ab938ef",
+          "Bootstrap.Temporal.cinch": "4aabe2374b72497d69c46d6fe3386246b18f60ab335e57eadd5f7e9abb7f89ca",
+          "Bootstrap.TemporalCheck.cinch": "9aa948e875bb2e9bed0112e6c02caa95f3f34d6cc41d7d8caa56e75eb5e6272c",
+          "Bootstrap.Test.cinch": "72f749b7d83d8513587b2eb43f4a51d84466dca4f912cef8eaae8caffb14adc4",
+          "Bootstrap.Total.cinch": "30bef01bca5e7cc80847763478cdbb3aed290334b142c0baf61493c35d3eb317",
+          "Bootstrap.TotalSemantics.cinch": "8e4a979aaad3a770065ef81a7a648757886edb137a226857a448cf9afcf3b0de",
+          "Bootstrap.Type.cinch": "8b822b5a9107da67ffc6aae68aa0cea76466d294df9959d2a3487ec746200e79",
+          "Bootstrap.Typing.cinch": "b777884156093cf85ca921d732089e507d65062190cbfa9cbeafdcbdf553a5c1",
+          "Data.Array.cinch": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+          "Main.cinch": "af5113475ded965ccd87d34f50c24125e6d2f902ca907734b78dc59a873055cc",
+          "Text.Builder.cinch": "c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b",
+          "Text.Json.cinch": "646cb9dacbfe1f64f18870031ca3fd708bb0b71021dff562f3661954f3e80f6c",
+          "Text.Lex.cinch": "bce5acadcde6ac5967b29c6eed2933e31df83451561d3ee9165e5d3beb2a2032",
+          "Text.Parse.cinch": "4b6d00ab84e6969cf6fe8a21f29a255a9871c048b6df4baab006734efd7fabed",
+          "Text.Scan.cinch": "bc12b7a6cb5fe9a9b448047f9aeeb0fc3eac1e29927e2270e7be760014a93208"
+        }
+      },
+      "source_snapshots": "/workspace/dasl-stdlib-collections/build/ring-native-benchmark/sources",
+      "clang": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)"
+    },
+    "native-inline": {
+      "description": "Complete circular-sequence pipelines with exact ordered output checksums; ownership, snapshots and allocation representations differ",
+      "compiler_sha256": "645c518560ae5565e9713446e96140d1f8adb0fbccce05a0e37b3f72e7c5e17d",
+      "checkout_compiler_source_sha256_not_binary_provenance": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+      "runtime_source_sha256": "8f702eaca91d09a5dbba6ca58b8e7fd7fcf55cef6bd5761cee2082da772aa31f",
+      "driver_sha256": "6fea80fa3ca646fee2c7b389d35f8292e12449d64be101aba3f2c3cff2070ce6",
+      "sources": {
+        "Data.Mutable.Ring": "31519d8f061ca489449cee7ed0ece7f9f59bc618a5f4b22997db8c8893084a21",
+        "Data.Mutable.Vec": "61fff082140825bba9490ae212de6dcfec740a684d0cc336adc6058c9b89dde7"
+      },
+      "opt_level": 2,
+      "generated_rc_debug_checks": true,
+      "runtime_poisoned_free_checks": true,
+      "executable_sha256": "f71d4ec9078612389a28230ca50c097a96caf369c44ddcd024f4042e6e0f4992",
+      "llvm_sha256": "2baf1f4ca23af0238fabcd284359345669d48d7d5a965a0bb7c545ed089bcfef",
+      "assembly_sha256": "0cfba3e68bb5e9ff24eda23c0ea5a9c1a371f0e145387cd348e01463faf38218",
+      "reference_source_sha256": "5734e848ef7386fd14301784a91f6bb2bc5fdc17a77d609dfb462194fe22c1aa",
+      "reference_executable_sha256": "4ed1640cac9c05b316d0016027cdf769649e615f855c360e7347c7c3c2648121",
+      "reference_sdk": "go version go1.27.4 linux/amd64",
+      "artifacts": "/workspace/dasl-stdlib-collections/build/ring-native-inline-benchmark",
+      "results": [],
+      "frontend": "native",
+      "compiler_host_stack": "64M",
+      "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "native_provenance": {
+        "compiler_sha256": "645c518560ae5565e9713446e96140d1f8adb0fbccce05a0e37b3f72e7c5e17d",
+        "interfaces_sha256": "e2140bc97b9f30a3739c1a142f0d22c290a02602bcc66ff7342f408cf6d18a67",
+        "objects_sha256": "093de5610d22ab5c145b8c060f704fb7f4b0fd29e1a9f8de3806d0277bf88d13",
+        "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+        "compiler_snapshot_sources": {
+          "Bootstrap.Ast.cinch": "3da668e217c0f04e9cf6d66e6e5214c9f7936d3fd481cc9176abf0da12db0455",
+          "Bootstrap.BodyContract.cinch": "ffe0b2d87bb7b69589d662e7fc15f3bb96e7502ccd79f532f47e6d82aff36de4",
+          "Bootstrap.Builtin.cinch": "ecd7f0992ad0ae82e070bbb48f240d9a0ce31fd5a0dbf09fe82aa787df21cddc",
+          "Bootstrap.Check.cinch": "960dae10f40201ea2fc134e9d114ce34e66f788a0f8c48e618a5a769d6f9ed32",
+          "Bootstrap.Contracts.cinch": "e73f1b0f8258c1db4e91341ba09024f47de042c4337cc6c1fd27520adddc1dac",
+          "Bootstrap.Core.cinch": "e143fd0443e0c895150ae270a373062ee0b7e292e22ca18b68400ca9cca66d28",
+          "Bootstrap.CoreBody.cinch": "7a32cf05fb400707820e829a37edfa16b787b1b530871b9631d7ac42402ec0da",
+          "Bootstrap.Dictionary.cinch": "11caf0c05484a59c85765a2548932b9a2487aca57c3c8d1e081ccd9af08acdb6",
+          "Bootstrap.Driver.cinch": "a9350fe510c1dd5a785e5f805a0da632d343a2cd8699f838d9bb3a2b22cab533",
+          "Bootstrap.Eval.cinch": "888606e854aab7ec820f607d9004722c26075731f580b7f51c524988f1a68967",
+          "Bootstrap.Expand.cinch": "3730803f333ee26a7941be0aca9911b56276735b08bd36995c0a1f88fbb4655a",
+          "Bootstrap.Export.cinch": "dbe7a43bf3c9b9a2afdd64e3dad8c7a9395e38b61ac5ac3b4ccc161eca2e0cdc",
+          "Bootstrap.ExportNominal.cinch": "d439bae5030019593fdb9b92373875090d5bac0a0e30df054db29fc17481c85a",
+          "Bootstrap.ExportType.cinch": "2484cfc1a90c186e36ac5df077c507040efcf5d2cb77da4dffcd05fa23eb320e",
+          "Bootstrap.Foreign.cinch": "08a1d9777383b643de478d247f9bd46be815ef2bc0d98301154c6fbec351546a",
+          "Bootstrap.Global.cinch": "ef518a4894a9a5b05ec810b462d8a7a862919f2a48cac8a1c27bef44048537e0",
+          "Bootstrap.Guarded.cinch": "024615db9bfcfc432cb0ee943f9390756cb43d1f52b1de36cd8584ce53dd6d98",
+          "Bootstrap.Index.cinch": "dcb92174c01a96faaf66bc7d550c4e443bfa2d4cdc88376f899eb547c5bf166f",
+          "Bootstrap.Infer.cinch": "7dce911f88e0c1d443fa55d1d6a33c871ff72e6935fbfcdf1bab93677c78a7e3",
+          "Bootstrap.Inputs.cinch": "62cbc9ff4fa8b920610450f7f857ecf9ccc6f056c198ab2fa1921e0c3765a194",
+          "Bootstrap.Instance.cinch": "afe28d2c4c0f703a6cae92fd25de2e9257b344396407daf046132d1ebe865314",
+          "Bootstrap.Interface.cinch": "faecf6444b48cd4bfead2b42e593c5b33d0bd88d497d0c1b6265ab8f29f4a032",
+          "Bootstrap.Ir.cinch": "be9f22e3f530cf03261edd00a9f879484365e4face8cb63cbb0f8eb2e34fd984",
+          "Bootstrap.Kinds.cinch": "4774925d2d3ce8d7cd266bb6297169f60d3f7ac2c6a866d74e947c886bfc8a9e",
+          "Bootstrap.Load.cinch": "f533faeddcdc2881f62187cf7e119efa2e6e3c5b3c59fa64ba76efe7f7bf887d",
+          "Bootstrap.Manifest.cinch": "ef5e1496af11a57909cc707921202b1dc3c867bcbcd1889ae35f76f1b09a37ac",
+          "Bootstrap.Nominal.cinch": "da38bafe2f771a7f0e65ea92c39e820bf77d85a0c310ac4c7c8424dc86e2e9c5",
+          "Bootstrap.Object.cinch": "17a0e96300ad6110b748aab156c9651608877264f8bde042d5e27c0f08ed7168",
+          "Bootstrap.Parse.cinch": "697a609eff4228205cc72bc07575cc875857cb6a33826cb8bc85d9f8344edfe1",
+          "Bootstrap.Pipeline.cinch": "5f7dc1216ee085f20933196d46c26b9ba4235eff31cb68f724a217fdc9e27a6c",
+          "Bootstrap.Proof.cinch": "9ae86640664c59a780c8a27b07001e2bccf00faccde33e6d0200886feeadb1a3",
+          "Bootstrap.Report.cinch": "e6cfc868d86d7585b5ed42e7fde6be613d02a6075101ab46d5a9f150f594e9c7",
+          "Bootstrap.Resolve.cinch": "8317093e0f884473a49ef848625e4aea3d8e237eaee009ba8e9a961fee90f651",
+          "Bootstrap.RuntimeAbi.cinch": "2475d26247a8967b726c4a475fecc733a86083fced48c88779a6071b7381bd3e",
+          "Bootstrap.RuntimeIr.cinch": "6253b546d3fb635d19872b938b5fa5c7565572a73503817d2405ef4fbaa430a1",
+          "Bootstrap.Stage.cinch": "3320cfd63a9983fc053e0c9b94ae393d0d2962b7b78ff428a162c012cdfb3f61",
+          "Bootstrap.StageEval.cinch": "d53907533611569bccc45f3a42af819a625ffaa68740d5b313488a849ab938ef",
+          "Bootstrap.Temporal.cinch": "4aabe2374b72497d69c46d6fe3386246b18f60ab335e57eadd5f7e9abb7f89ca",
+          "Bootstrap.TemporalCheck.cinch": "9aa948e875bb2e9bed0112e6c02caa95f3f34d6cc41d7d8caa56e75eb5e6272c",
+          "Bootstrap.Test.cinch": "72f749b7d83d8513587b2eb43f4a51d84466dca4f912cef8eaae8caffb14adc4",
+          "Bootstrap.Total.cinch": "30bef01bca5e7cc80847763478cdbb3aed290334b142c0baf61493c35d3eb317",
+          "Bootstrap.TotalSemantics.cinch": "8e4a979aaad3a770065ef81a7a648757886edb137a226857a448cf9afcf3b0de",
+          "Bootstrap.Type.cinch": "8b822b5a9107da67ffc6aae68aa0cea76466d294df9959d2a3487ec746200e79",
+          "Bootstrap.Typing.cinch": "b777884156093cf85ca921d732089e507d65062190cbfa9cbeafdcbdf553a5c1",
+          "Data.Array.cinch": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+          "Main.cinch": "af5113475ded965ccd87d34f50c24125e6d2f902ca907734b78dc59a873055cc",
+          "Text.Builder.cinch": "c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b",
+          "Text.Json.cinch": "646cb9dacbfe1f64f18870031ca3fd708bb0b71021dff562f3661954f3e80f6c",
+          "Text.Lex.cinch": "bce5acadcde6ac5967b29c6eed2933e31df83451561d3ee9165e5d3beb2a2032",
+          "Text.Parse.cinch": "4b6d00ab84e6969cf6fe8a21f29a255a9871c048b6df4baab006734efd7fabed",
+          "Text.Scan.cinch": "bc12b7a6cb5fe9a9b448047f9aeeb0fc3eac1e29927e2270e7be760014a93208"
+        }
+      },
+      "source_snapshots": "/workspace/dasl-stdlib-collections/build/ring-native-inline-benchmark/sources",
+      "clang": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)"
+    },
+    "rust": {
+      "description": "Complete circular-sequence pipelines with exact ordered output checksums; ownership, snapshots and allocation representations differ",
+      "compiler_sha256": "b004049baa8e2614dd35f5484811bbf2cd24b137923a8e3bc36bf08c9c53fc93",
+      "checkout_compiler_source_sha256_not_binary_provenance": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+      "runtime_source_sha256": "8f702eaca91d09a5dbba6ca58b8e7fd7fcf55cef6bd5761cee2082da772aa31f",
+      "driver_sha256": "6fea80fa3ca646fee2c7b389d35f8292e12449d64be101aba3f2c3cff2070ce6",
+      "sources": {
+        "Data.Mutable.Ring": "31519d8f061ca489449cee7ed0ece7f9f59bc618a5f4b22997db8c8893084a21",
+        "Data.Mutable.Vec": "61fff082140825bba9490ae212de6dcfec740a684d0cc336adc6058c9b89dde7"
+      },
+      "opt_level": 2,
+      "generated_rc_debug_checks": false,
+      "runtime_poisoned_free_checks": true,
+      "executable_sha256": "8fcc9414649374c4ff8acb9010d0b3ad6fcc2f89c40a79eeb4d05446a486816d",
+      "llvm_sha256": "045643e1683bcb1e08095b196669b54660a41a97c15f97dbe90d13070197b4a4",
+      "assembly_sha256": "aab91b96a50942b14b08c190f51cd79ce9f09df5451b8845baa96021b25e6614",
+      "reference_source_sha256": "5734e848ef7386fd14301784a91f6bb2bc5fdc17a77d609dfb462194fe22c1aa",
+      "reference_executable_sha256": "4ed1640cac9c05b316d0016027cdf769649e615f855c360e7347c7c3c2648121",
+      "reference_sdk": "go version go1.27.4 linux/amd64",
+      "artifacts": "/workspace/dasl-stdlib-collections/build/ring-rust-benchmark",
+      "results": [],
+      "frontend": "rust",
+      "compiler_host_stack": "64M",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "frozen_compiler_provenance": {
+        "description": "Rust sealed finite-Array admission and transitive frame-noncapture repair snapshot",
+        "compiler_sha256": "b004049baa8e2614dd35f5484811bbf2cd24b137923a8e3bc36bf08c9c53fc93",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "production_revision": "0a1f6283",
+        "new_native_scalar_intrinsics_included": false,
+        "string_epoch": "phase1 repeat/concatenation, not combined e5 provider",
+        "gates": [
+          {
+            "log": "/tmp/cinch-frame-capture-six-final-parent-gate.log",
+            "sha256": "7fd3c1c6512d32b3db7a97ab09ba662738cdcdb63677d0b09a4f3f0a9e252ff6",
+            "passed": 6,
+            "seconds": 0.0
+          },
+          {
+            "log": "/tmp/cinch-frame-array-capture-runtime-parent-gate.log",
+            "sha256": "7a8ae1d680fbc2076d19a6ab526ad0f6a2faff5f6dd9c7151dc4125ca06c7682",
+            "passed": 1,
+            "seconds": 14.09
+          },
+          {
+            "log": "/tmp/cinch-frame-recursive-array-runtime-parent-gate.log",
+            "sha256": "36d92d799e38acbc520e596fc057b3a48e227e0787b85ac3309cc14c239eb129",
+            "passed": 1,
+            "seconds": 3.83
+          },
+          {
+            "log": "/tmp/cinch-frame-capture-preserved-stack-parent-gate.log",
+            "sha256": "8eb811fd0c66746a2467a68b95b1866269ce6aef3ad1da796ffa5f4336beda75",
+            "passed": 22,
+            "seconds": 116.27
+          }
+        ],
+        "total_passed": 30,
+        "caveats": [
+          "Native positivity and full merged self-built family remain separately gated.",
+          "Rust CLI links its compile-time runtime directory by default; standalone validators must verify or explicitly select this retained matching archive.",
+          "Broader complete Rust library and Source Native authority gate are pending after this focused snapshot."
+        ]
+      },
+      "source_snapshots": "/workspace/dasl-stdlib-collections/build/ring-rust-benchmark/sources",
+      "clang": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)"
+    }
+  },
+  "reference_sha256": "4ed1640cac9c05b316d0016027cdf769649e615f855c360e7347c7c3c2648121",
+  "rows": [
+    {
+      "workload": "dense-construct-walk",
+      "elements": 32,
+      "checksum": 3529369767380284948,
+      "samples_ns": {
+        "native-before": [
+          109986,
+          109845,
+          129014,
+          250257,
+          110616
+        ],
+        "native-inline": [
+          206151,
+          133712,
+          123226,
+          495978,
+          149145
+        ],
+        "rust": [
+          40361,
+          41393,
+          50626,
+          112449,
+          100281
+        ],
+        "reference": [
+          10306,
+          9995,
+          52229,
+          13310,
+          10656
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "native-before": 13827.0,
+        "native-inline": 18643.125,
+        "rust": 6328.25,
+        "reference": 1332.0
+      }
+    },
+    {
+      "workload": "dense-construct-walk",
+      "elements": 1024,
+      "checksum": 438780952743564084,
+      "samples_ns": {
+        "native-before": [
+          3779518,
+          4666195,
+          4185450,
+          4104858,
+          4151999
+        ],
+        "native-inline": [
+          3498584,
+          4088533,
+          3882693,
+          4021432,
+          3819178
+        ],
+        "rust": [
+          1451918,
+          1148731,
+          1116323,
+          1460221,
+          1689137
+        ],
+        "reference": [
+          1167460,
+          348906,
+          633746,
+          471811,
+          346883
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "native-before": 518999.875,
+        "native-inline": 485336.625,
+        "rust": 181489.75,
+        "reference": 58976.375
+      }
+    },
+    {
+      "workload": "dense-construct-walk",
+      "elements": 16384,
+      "checksum": 3782530947632248628,
+      "samples_ns": {
+        "native-before": [
+          62667239,
+          61149131,
+          60278359,
+          55047523,
+          56367703
+        ],
+        "native-inline": [
+          64021131,
+          59152201,
+          54975004,
+          58613068,
+          55755201
+        ],
+        "rust": [
+          23571424,
+          21378547,
+          21021089,
+          20461685,
+          18673070
+        ],
+        "reference": [
+          7095777,
+          11330805,
+          6718448,
+          7089817,
+          6494140
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "native-before": 7534794.875,
+        "native-inline": 7326633.5,
+        "rust": 2627636.125,
+        "reference": 886227.125
+      }
+    },
+    {
+      "workload": "growing-join",
+      "elements": 32,
+      "checksum": 3529369767380284948,
+      "samples_ns": {
+        "native-before": [
+          450709,
+          456568,
+          435697,
+          530820,
+          452422
+        ],
+        "native-inline": [
+          505913,
+          559364,
+          568326,
+          418792,
+          461756
+        ],
+        "rust": [
+          170066,
+          169776,
+          268415,
+          168063,
+          307223
+        ],
+        "reference": [
+          12589,
+          114062,
+          12219,
+          13049,
+          11848
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "native-before": 56552.75,
+        "native-inline": 63239.125,
+        "rust": 21258.25,
+        "reference": 1573.625
+      }
+    },
+    {
+      "workload": "growing-join",
+      "elements": 1024,
+      "checksum": 438780952743564084,
+      "samples_ns": {
+        "native-before": [
+          15964697,
+          15903514,
+          30062529,
+          14605347,
+          14212586
+        ],
+        "native-inline": [
+          14952060,
+          16203546,
+          13736187,
+          14147597,
+          14473508
+        ],
+        "rust": [
+          5763689,
+          6500950,
+          10719560,
+          5408463,
+          5316004
+        ],
+        "reference": [
+          476408,
+          394745,
+          7536190,
+          370438,
+          370339
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "native-before": 1987939.25,
+        "native-inline": 1809188.5,
+        "rust": 720461.125,
+        "reference": 49343.125
+      }
+    },
+    {
+      "workload": "growing-join",
+      "elements": 16384,
+      "checksum": 3782530947632248628,
+      "samples_ns": {
+        "native-before": [
+          244245760,
+          242876560,
+          226771073,
+          243306238,
+          259565246
+        ],
+        "native-inline": [
+          246498513,
+          246588766,
+          449797711,
+          234175564,
+          241773618
+        ],
+        "rust": [
+          89623878,
+          90464745,
+          84455387,
+          89938473,
+          97137855
+        ],
+        "reference": [
+          8630310,
+          8488366,
+          8793441,
+          8279740,
+          9595935
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "native-before": 30413279.75,
+        "native-inline": 30812314.125,
+        "rust": 11242309.125,
+        "reference": 1078788.75
+      }
+    },
+    {
+      "workload": "balanced-join-aliases",
+      "elements": 32,
+      "checksum": 1799112867308924864,
+      "samples_ns": {
+        "native-before": [
+          863732,
+          935089,
+          876501,
+          1053017,
+          905275
+        ],
+        "native-inline": [
+          1089873,
+          933677,
+          925495,
+          1084815,
+          1005646
+        ],
+        "rust": [
+          270598,
+          272551,
+          308846,
+          292160,
+          2516933
+        ],
+        "reference": [
+          12279,
+          13230,
+          13220,
+          12769,
+          13350
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "native-before": 113159.375,
+        "native-inline": 125705.75,
+        "rust": 36520.0,
+        "reference": 1652.5
+      }
+    },
+    {
+      "workload": "balanced-join-aliases",
+      "elements": 1024,
+      "checksum": 2292449416196659808,
+      "samples_ns": {
+        "native-before": [
+          33017930,
+          32399889,
+          33204643,
+          70516515,
+          36732601
+        ],
+        "native-inline": [
+          36253368,
+          33641561,
+          35659172,
+          81552151,
+          35381964
+        ],
+        "rust": [
+          10428400,
+          9548423,
+          13998722,
+          10199945,
+          9669055
+        ],
+        "reference": [
+          501115,
+          424469,
+          624731,
+          1022662,
+          716861
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "native-before": 4150580.375,
+        "native-inline": 4457396.5,
+        "rust": 1274993.125,
+        "reference": 78091.375
+      }
+    },
+    {
+      "workload": "balanced-join-aliases",
+      "elements": 16384,
+      "checksum": 9001597697675538016,
+      "samples_ns": {
+        "native-before": [
+          581527482,
+          584413001,
+          592143246,
+          1011857984,
+          571368619
+        ],
+        "native-inline": [
+          760712632,
+          803609364,
+          644697419,
+          707569596,
+          726365133
+        ],
+        "rust": [
+          168238982,
+          176689501,
+          229183400,
+          177661910,
+          165646879
+        ],
+        "reference": [
+          11063777,
+          11100345,
+          11334867,
+          11924775,
+          10692288
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "native-before": 73051625.125,
+        "native-inline": 90795641.625,
+        "rust": 22086187.625,
+        "reference": 1387543.125
+      }
+    },
+    {
+      "workload": "short-split-rejoin",
+      "elements": 32,
+      "checksum": 616101303360294154,
+      "samples_ns": {
+        "native-before": [
+          829781,
+          853667,
+          816872,
+          857893,
+          1591449
+        ],
+        "native-inline": [
+          977734,
+          916181,
+          816551,
+          952066,
+          1550367
+        ],
+        "rust": [
+          302186,
+          283237,
+          225019,
+          348696,
+          461055
+        ],
+        "reference": [
+          5799,
+          5589,
+          5698,
+          6059,
+          9814
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "native-before": 106708.375,
+        "native-inline": 119008.25,
+        "rust": 37773.25,
+        "reference": 724.875
+      }
+    },
+    {
+      "workload": "short-split-rejoin",
+      "elements": 1024,
+      "checksum": 5083665145150533674,
+      "samples_ns": {
+        "native-before": [
+          5338228,
+          5391037,
+          5367401,
+          5322023,
+          5451288
+        ],
+        "native-inline": [
+          5252688,
+          5215021,
+          5248221,
+          5236924,
+          5181150
+        ],
+        "rust": [
+          1252128,
+          1303525,
+          1266459,
+          1256153,
+          1263424
+        ],
+        "reference": [
+          57637,
+          73942,
+          59299,
+          32969,
+          58308
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "native-before": 670925.125,
+        "native-inline": 654615.5,
+        "rust": 157928.0,
+        "reference": 7288.5
+      }
+    },
+    {
+      "workload": "short-split-rejoin",
+      "elements": 16384,
+      "checksum": 5211170718519530538,
+      "samples_ns": {
+        "native-before": [
+          34638605,
+          33351245,
+          34017328,
+          33436702,
+          62405341
+        ],
+        "native-inline": [
+          34149919,
+          32293180,
+          32440070,
+          63520732,
+          74102493
+        ],
+        "rust": [
+          8864002,
+          6951789,
+          7259984,
+          13296753,
+          13056612
+        ],
+        "reference": [
+          507695,
+          364900,
+          500495,
+          555637,
+          553344
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "native-before": 4252166.0,
+        "native-inline": 4268739.875,
+        "rust": 1108000.25,
+        "reference": 63461.875
+      }
+    },
+    {
+      "workload": "detached-copy",
+      "elements": 32,
+      "checksum": 996202237659332476,
+      "samples_ns": {
+        "native-before": [
+          184098,
+          189316,
+          184428,
+          174904,
+          185119
+        ],
+        "native-inline": [
+          182285,
+          182795,
+          183397,
+          174823,
+          181223
+        ],
+        "rust": [
+          64748,
+          67582,
+          58418,
+          66711,
+          64257
+        ],
+        "reference": [
+          4898,
+          5248,
+          5008,
+          5549,
+          4307
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "native-before": 23053.5,
+        "native-inline": 22785.625,
+        "rust": 8093.5,
+        "reference": 626.0
+      }
+    },
+    {
+      "workload": "detached-copy",
+      "elements": 1024,
+      "checksum": 5904653505992269916,
+      "samples_ns": {
+        "native-before": [
+          2994264,
+          3546547,
+          3223410,
+          3629562,
+          5306730
+        ],
+        "native-inline": [
+          5013229,
+          3324882,
+          3604114,
+          7246305,
+          5289765
+        ],
+        "rust": [
+          1010118,
+          852946,
+          816661,
+          1370937,
+          1453802
+        ],
+        "reference": [
+          156726,
+          154664,
+          212951,
+          204448,
+          232681
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "native-before": 443318.375,
+        "native-inline": 626653.625,
+        "rust": 126264.75,
+        "reference": 25556.0
+      }
+    },
+    {
+      "workload": "detached-copy",
+      "elements": 16384,
+      "checksum": 6209854373159435356,
+      "samples_ns": {
+        "native-before": [
+          82380729,
+          53699183,
+          49219634,
+          48072935,
+          58711394
+        ],
+        "native-inline": [
+          82331374,
+          47377497,
+          48279818,
+          46792866,
+          47696899
+        ],
+        "rust": [
+          21456268,
+          21336847,
+          12853338,
+          13531800,
+          11795803
+        ],
+        "reference": [
+          3381408,
+          3546858,
+          2477205,
+          2350463,
+          2310764
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "native-before": 6712397.875,
+        "native-inline": 5962112.375,
+        "rust": 1691475.0,
+        "reference": 309650.625
+      }
+    }
+  ],
+  "finished_utc": "2026-11-16T19:28:47.849600+00:00"
+}
