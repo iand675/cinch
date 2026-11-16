@@ -489,6 +489,21 @@ impl<'a> Printer<'a> {
         if !f.params.is_empty() {
             lines.push((rank("params"), format!("@params {}", self.params_line(f))));
         }
+        let node = self.body(f);
+        let body_text = render_body(&node);
+        // The formals' use counts describe the body, so the body is rendered
+        // first. A reader debugging a borrow decision (or a dying register)
+        // should not have to grep the text to answer `is this formal read, or
+        // does the callee take it?`
+        if !f.params.is_empty() {
+            let names: Vec<String> = (0..f.params.len()).map(|index| self.local(LocalId(index))).collect();
+            let formals = formal_uses(&body_text, &names);
+            lines.push((rank("uses"), format!("@uses({})", formals.render_uses())));
+            let candidates = formals.render_readable();
+            if !candidates.is_empty() {
+                lines.push((rank("borrow-candidates"), format!("@borrow-candidates({})", candidates)));
+            }
+        }
         lines.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
         for (_, line) in lines {
             out.push_str("  ");
@@ -496,8 +511,7 @@ impl<'a> Printer<'a> {
             out.push('\n');
         }
         out.push_str("  body ");
-        let node = self.body(f);
-        out.push_str(&render_body(&node));
+        out.push_str(&body_text);
         out.push_str("end\n");
     }
 
@@ -2022,6 +2036,8 @@ const ANNOTATION_ORDER: &[&str] = &[
     "tier",
     "ffi",
     "borrowed",
+    "uses",
+    "borrow-candidates",
     "frame",
     "specialised",
     "rewrite",
@@ -2036,6 +2052,71 @@ const ANNOTATION_ORDER: &[&str] = &[
 
 fn annotation_rank(name: &str) -> Option<usize> {
     ANNOTATION_ORDER.iter().position(|known| *known == name)
+}
+
+
+/// Each formal's uses in a unit's rendered body: every mention, and how many
+/// of those mentions name the formal inside a `dup`, `drop` or `release`,
+/// which are the sites where the callee transfers or duplicates ownership.
+///
+/// This is a description of the emitted text, not a new analysis: the counts
+/// are what a reader would get by grepping, printed where the reader is. The
+/// borrow set it derives is a set of *candidates* - formals the body only
+/// reads - and it is deliberately not called a decision, because the
+/// compiler makes none here (every formal of every unit in this tree prints
+/// `@owned`, and the seed's whole-program `borrow_modes` lends none of them).
+struct FormalUses {
+    entries: Vec<(String, usize, usize)>,
+}
+
+impl FormalUses {
+    /// `@uses(t0=4, t1=0)`: mentions per formal.
+    fn render_uses(&self) -> String {
+        self.entries
+            .iter()
+            .map(|(name, uses, _)| format!("{}={}", name, uses))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    /// `@borrow-candidates(t1)`: formals mentioned at least once and never
+    /// inside `dup`, `drop` or `release`.
+    fn render_readable(&self) -> String {
+        self.entries
+            .iter()
+            .filter(|(_, uses, owning)| *uses > 0 && *owning == 0)
+            .map(|(name, _, _)| name.clone())
+            .collect::<Vec<_>>()
+            .join(",")
+    }
+}
+
+/// `true` when the character can continue an identifier, so `t1` does not
+/// match inside `t10`.
+fn identifier_char(c: char) -> bool {
+    c.is_alphanumeric() || c == '_' || c == '.' || c == '#'
+}
+
+fn formal_uses(body: &str, names: &[String]) -> FormalUses {
+    let mut entries = Vec::with_capacity(names.len());
+    for name in names {
+        let mut uses = 0usize;
+        let mut owning = 0usize;
+        for (start, _) in body.match_indices(name.as_str()) {
+            let before = body[..start].chars().next_back();
+            let after = body[start + name.len()..].chars().next();
+            if before.map_or(false, identifier_char) || after.map_or(false, identifier_char) {
+                continue;
+            }
+            uses += 1;
+            let prefix = &body[..start];
+            if prefix.ends_with("(dup ") || prefix.ends_with("(drop ") || prefix.ends_with("(release ") {
+                owning += 1;
+            }
+        }
+        entries.push((name.clone(), uses, owning));
+    }
+    FormalUses { entries }
 }
 
 /// `s` when `n` is not one: the annotation lines read as prose.
