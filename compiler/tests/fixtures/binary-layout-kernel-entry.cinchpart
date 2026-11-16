@@ -1,0 +1,17 @@
+  -- | Exercise actual packed lanes and exact bitcasts with target-selected byte order.
+  probe :: U64 -> U64
+  probe salt =
+    let a = pack-four8 salt 2 3 4 in
+    let b = ordered-four16 (pack-four16 salt 2 3 4) 1 in
+    let c = ordered-four32 (pack-four32 salt 2 3 4) 1 in
+    let d = join-wide (wide-low c) (wide-high c) in
+    let e = wide-lane32 d 64 in
+    let single = binary-f32-bits (binary-f32-from-bits a) in
+    let double = binary-f64-bits (binary-f64-from-bits e) in
+    bit-xor-u64 b (bit-xor-u64 (wrapping-u32-to-u64 single) (bit-xor-u64 double (if native-little 0 then 1 else 0)))
+  -- | Root every portable SIMD and bitcast fragment in an actual object entry.
+  main :: Int
+  main = let owner = bytes-new 2 in if 2 <= bytes-len owner then
+    let loaded = hold-field owner (load-le16 (bytes-data owner) 0) in
+    if eq-u16 loaded 0 && not (eq-u64 (probe 5) 0) then 0 else 1
+    else 2

@@ -1,0 +1,8 @@
+--- a/compiler/prelude/Text/Binary/Layout.cinch
++++ b/compiler/prelude/Text/Binary/Layout.cinch
+@@ -657 +657 @@
+-        ScalarAtom width pack unpack -> put-atom-elements width pack order output start values)
++        ScalarAtom width pack unpack -> put-elements size put order output start values)
+@@ -660 +660 @@
+-        ScalarAtom width pack unpack -> get-atom-elements count width unpack order input start Nil)
++        ScalarAtom width pack unpack -> get-elements count size get order input start Nil)

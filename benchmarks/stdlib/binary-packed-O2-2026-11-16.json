@@ -1,0 +1,182 @@
+{
+  "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+  "driver_sha256": "4ce199fde3fdf702484f8fd4bfce15c1db44fab61218f6d5ac5551269b5861a2",
+  "source_sha256": "2bf98a83aaed9aeb72ac3e69d285d15aa28ff65b6543236b659bb775beb8f1d2",
+  "baseline_sha256": "8eeaed4ad1091d74c355c0a72adc6f9c1d9e543828a326e18f057a0e57b09a0a",
+  "optimization": 2,
+  "cpu": 0,
+  "results": [
+    {
+      "workload": "encode",
+      "count": 17,
+      "iterations": 10000,
+      "samples": {
+        "scalar": [
+          15157879,
+          14379223,
+          15448058,
+          14793308,
+          13925868
+        ],
+        "packed": [
+          10163552,
+          10858902,
+          10089580,
+          9848075,
+          10503315
+        ]
+      },
+      "wire_sha256": "24a83a6c1f0f7db20f8ed00e484059025546960694fed08c3fbe7cef94923b97",
+      "checksum": 50675000,
+      "median_ns": {
+        "scalar": 14793308,
+        "packed": 10163552
+      },
+      "speedup": 1.4555253911231034
+    },
+    {
+      "workload": "encode",
+      "count": 1024,
+      "iterations": 400,
+      "samples": {
+        "scalar": [
+          28850495,
+          30071530,
+          28277148,
+          27662909,
+          27529077
+        ],
+        "packed": [
+          19585602,
+          21060259,
+          17463965,
+          17457416,
+          17395712
+        ]
+      },
+      "wire_sha256": "46d95cfd21ad85418ab6010e6fc76c1a1ee64c364d798a0a666a78850562a4bf",
+      "checksum": 1718200,
+      "median_ns": {
+        "scalar": 28277148,
+        "packed": 17463965
+      },
+      "speedup": 1.6191711332449419
+    },
+    {
+      "workload": "encode",
+      "count": 16385,
+      "iterations": 24,
+      "samples": {
+        "scalar": [
+          26450848,
+          28048252,
+          27361864,
+          33205802,
+          47163883
+        ],
+        "packed": [
+          16546989,
+          22452941,
+          18256883,
+          16588051,
+          20091571
+        ]
+      },
+      "wire_sha256": "7b0504d5fb9fe0267e8faa2c2c420c1ede18ceaa906659f37f1ded6d3efb5f03",
+      "checksum": 1573236,
+      "median_ns": {
+        "scalar": 28048252,
+        "packed": 18256883
+      },
+      "speedup": 1.5363110997644012
+    },
+    {
+      "workload": "roundtrip",
+      "count": 17,
+      "iterations": 10000,
+      "samples": {
+        "scalar": [
+          25730569,
+          26009180,
+          26429846,
+          25257173,
+          25391757
+        ],
+        "packed": [
+          16783527,
+          17102478,
+          16891480,
+          16825861,
+          16631467
+        ]
+      },
+      "wire_sha256": "24a83a6c1f0f7db20f8ed00e484059025546960694fed08c3fbe7cef94923b97",
+      "checksum": 156979180,
+      "median_ns": {
+        "scalar": 25730569,
+        "packed": 16825861
+      },
+      "speedup": 1.5292274790573868
+    },
+    {
+      "workload": "roundtrip",
+      "count": 1024,
+      "iterations": 400,
+      "samples": {
+        "scalar": [
+          54188901,
+          55068961,
+          56724482,
+          51951480,
+          52425866
+        ],
+        "packed": [
+          30631416,
+          32080877,
+          31925582,
+          30452886,
+          30264702
+        ]
+      },
+      "wire_sha256": "46d95cfd21ad85418ab6010e6fc76c1a1ee64c364d798a0a666a78850562a4bf",
+      "checksum": 720945762,
+      "median_ns": {
+        "scalar": 54188901,
+        "packed": 30631416
+      },
+      "speedup": 1.7690628797571748
+    },
+    {
+      "workload": "roundtrip",
+      "count": 16385,
+      "iterations": 24,
+      "samples": {
+        "scalar": [
+          51202346,
+          50301916,
+          49916644,
+          50901352,
+          50256257
+        ],
+        "packed": [
+          29626998,
+          43483346,
+          29844217,
+          29318101,
+          29861602
+        ]
+      },
+      "wire_sha256": "7b0504d5fb9fe0267e8faa2c2c420c1ede18ceaa906659f37f1ded6d3efb5f03",
+      "checksum": 2433060,
+      "median_ns": {
+        "scalar": 50301916,
+        "packed": 29844217
+      },
+      "speedup": 1.6854828525070702
+    }
+  ],
+  "executables": {
+    "scalar": "3ebd8d0fe5197447d14b29a382ca7adc82f6a4f15e5e29426bb2150d6a76b4b1",
+    "packed": "9d5bd9a7d3deff170ea92e97ff06e47f7d41d572d374d79cdc02bf2681cfe244"
+  }
+}

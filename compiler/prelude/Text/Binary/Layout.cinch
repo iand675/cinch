@@ -1,0 +1,811 @@
+-- | Typed fixed-size binary layouts with checked offsets, native wire order and exact float bits.
+-- Layouts describe concrete scalars, arrays, byte fields, padding and products;
+-- pure inverse views adapt products to application record types. Fields have no
+-- implicit alignment. Encoding validates values before allocation and commits
+-- caller-buffer output only after a complete private encoding succeeds.
+-- Decoding returns fresh byte fields and a consumed count, leaving trailing input.
+module Text.Binary.Layout where
+
+  import Text.Binary as Wire
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Char
+  import Data.Complex as Complex
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  export BinaryOrder, BinaryLittleEndian, BinaryBigEndian, BinaryNativeEndian, binary-order-name
+  export BinaryLayout, BinaryLayoutError, BinaryShortInput, BinaryShortDestination, BinaryInvalidOffset, BinaryLengthMismatch
+  export BinaryIncompleteVarint, BinaryVarintOverflow, binary-layout-error-message
+  export binary-size, binary-encode, binary-encode-into, binary-decode, binary-decode-at, binary-append
+  export binary-bool, binary-u8, binary-i8, binary-u16, binary-i16, binary-u32, binary-i32, binary-u64, binary-i64
+  export binary-f32, binary-f64, binary-complex64, binary-complex128, binary-complex-value
+  export binary-f32-bits, binary-f32-from-bits, binary-f64-bits, binary-f64-from-bits
+  export binary-unit, binary-padding, binary-bytes, binary-pair, binary-array, binary-map
+  export binary-read-u16, binary-read-u32, binary-read-u64, binary-put-u16, binary-put-u32, binary-put-u64
+  export binary-append-u16, binary-append-u32, binary-append-u64
+  export binary-max-varint16, binary-max-varint32, binary-max-varint64
+  export binary-encode-uvarint, binary-encode-varint, binary-put-uvarint, binary-put-varint
+  export binary-append-uvarint, binary-append-varint, binary-decode-uvarint, binary-decode-varint
+
+  -- | Wire significance, including an explicit target-native order that retains its own name.
+  data BinaryOrder where
+    -- | Least significant byte first.
+    BinaryLittleEndian :: BinaryOrder
+    -- | Most significant byte first.
+    BinaryBigEndian :: BinaryOrder
+    -- | Byte significance selected by the compilation target's endianness.
+    BinaryNativeEndian :: BinaryOrder
+
+  -- | Stable names for the three wire-order values.
+  binary-order-name :: BinaryOrder -> String
+  binary-order-name order = case order of
+    BinaryLittleEndian -> "LittleEndian"
+    BinaryBigEndian -> "BigEndian"
+    BinaryNativeEndian -> "NativeEndian"
+
+  -- | Select target endianness at compilation, without runtime CPU probing.
+  prim native-little :: U8 -> Bool where
+    llvm { ret i8 1 } when endian little
+    llvm { ret i8 0 } when endian big
+
+  -- | Resolve explicit or target-native significance before fixed-word conversion.
+  little-order :: BinaryOrder -> Bool
+  little-order order = case order of
+    BinaryLittleEndian -> True
+    BinaryBigEndian -> False
+    BinaryNativeEndian -> native-little 0
+
+  -- | Fixed-layout, range and variable-integer failures, with exact progress where available.
+  data BinaryLayoutError where
+    -- | A complete input field is unavailable: required bytes followed by available bytes.
+    BinaryShortInput :: Nat -> Nat -> BinaryLayoutError
+    -- | A complete destination field is unavailable; no caller-buffer bytes were changed.
+    BinaryShortDestination :: Nat -> Nat -> BinaryLayoutError
+    -- | The requested zero-based offset exceeds the buffer length.
+    BinaryInvalidOffset :: Nat -> Nat -> BinaryLayoutError
+    -- | A byte field or fixed array has the wrong element count: expected then actual.
+    BinaryLengthMismatch :: Nat -> Nat -> BinaryLayoutError
+    -- | A variable integer has no terminating byte; carries the available prefix count.
+    BinaryIncompleteVarint :: Nat -> BinaryLayoutError
+    -- | A variable integer exceeds 64 payload bits; carries the offending prefix count.
+    BinaryVarintOverflow :: Nat -> BinaryLayoutError
+
+  -- | Render complete required/available counts, invalid offsets or variable-integer progress.
+  binary-layout-error-message :: BinaryLayoutError -> String
+  binary-layout-error-message error = case error of
+    BinaryShortInput required available -> string-concat "binary input requires " (string-concat (nat-to-string required) (string-concat " bytes; available " (nat-to-string available)))
+    BinaryShortDestination required available -> string-concat "binary output requires " (string-concat (nat-to-string required) (string-concat " bytes; available " (nat-to-string available)))
+    BinaryInvalidOffset offset length -> string-concat "binary offset " (string-concat (nat-to-string offset) (string-concat " exceeds buffer length " (nat-to-string length)))
+    BinaryLengthMismatch expected actual -> string-concat "binary value requires " (string-concat (nat-to-string expected) (string-concat " elements; received " (nat-to-string actual)))
+    BinaryIncompleteVarint count -> string-concat "incomplete binary varint after " (string-concat (nat-to-string count) " bytes")
+    BinaryVarintOverflow count -> string-concat "binary varint overflow after " (string-concat (nat-to-string count) " bytes")
+
+  -- | Private lane extraction metadata for concrete arithmetic fields and bulk array kernels.
+  data BinaryAtom a where
+    -- | Composite values have no single machine-word lane representation.
+    GeneralAtom :: BinaryAtom a
+    -- | A one-, two-, four- or eight-byte field, with exact bit-preserving value conversions.
+    ScalarAtom :: Nat -> (a -> U64) -> (U64 -> a) -> BinaryAtom a
+
+  -- | A typed fixed-size wire descriptor; its constructor and trusted buffer callbacks are private.
+  data BinaryLayout a where
+    -- | Exact size, value validator, lane metadata, checked writer and checked reader.
+    Layout :: Nat -> (a -> Result BinaryLayoutError Unit) -> BinaryAtom a -> (BinaryOrder -> Bytes -> Nat -> a -> Result BinaryLayoutError Unit) -> (BinaryOrder -> Bytes -> Nat -> Result BinaryLayoutError a) -> BinaryLayout a
+
+  -- | Exact wire bytes described by a layout, independent of its values or target alignment.
+  binary-size :: forall a. BinaryLayout a -> Nat
+  binary-size layout = case layout of Layout size validate atom put get -> size
+
+  -- | Validate a complete readable interval before allocating or decoding a result.
+  check-input :: Bytes -> Nat -> Nat -> Result BinaryLayoutError Unit
+  check-input input start n =
+    if start <= bytes-len input then
+      let available = bytes-len input - start in
+      if n <= available then Ok () else Err (BinaryShortInput n available)
+    else Err (BinaryInvalidOffset start (bytes-len input))
+
+  -- | Validate an entire writable interval before any caller-buffer mutation.
+  check-output :: Bytes -> Nat -> Nat -> Result BinaryLayoutError Unit
+  check-output output start n =
+    if start <= bytes-len output then
+      let available = bytes-len output - start in
+      if n <= available then Ok () else Err (BinaryShortDestination n available)
+    else Err (BinaryInvalidOffset start (bytes-len output))
+
+  -- | Snapshot one checked interval into independent byte storage.
+  copy-field :: Bytes -> Nat -> Nat -> Bytes
+  copy-field input start n = if start + n <= bytes-len input then
+    let out = bytes-new n in let copied = bytes-copy-range out input 0 start n in out
+    else bytes-new 0
+
+  -- | Join complete byte intervals without retaining caller aliases.
+  join-fields :: Bytes -> Bytes -> Bytes
+  join-fields prefix field =
+    let n = bytes-len prefix in let out = bytes-new (n + bytes-len field) in
+    if n <= bytes-len out then
+      let first = bytes-copy-range out prefix 0 0 n in
+      let last = bytes-copy-range out field n 0 (bytes-len field) in out
+    else out
+
+  -- | Encode a validated value into one fresh complete buffer, returning no partial bytes on error.
+  binary-encode :: forall a. BinaryLayout a -> BinaryOrder -> a -> Result BinaryLayoutError Bytes
+  binary-encode layout order value = case layout of
+    Layout size validate atom put get -> case validate value of
+      Err error -> Err error
+      Ok unit ->
+        let out = bytes-new size in case put order out 0 value of
+          Err error -> Err error
+          Ok unit -> Ok out
+
+  -- | Encode into an offset only after both complete capacity and value validation succeed.
+  -- A private encoding makes nested validation failures and source/destination overlap atomic.
+  binary-encode-into :: forall a. BinaryLayout a -> BinaryOrder -> Bytes -> Nat -> a -> Result BinaryLayoutError Nat
+  binary-encode-into layout order destination start value =
+    case check-output destination start (binary-size layout) of
+      Err error -> Err error
+      Ok unit -> case binary-encode layout order value of
+        Err error -> Err error
+        Ok encoded -> if start + bytes-len encoded <= bytes-len destination then
+          let copied = bytes-copy-range destination encoded start 0 (bytes-len encoded) in Ok (bytes-len encoded)
+          else Err (BinaryShortDestination (bytes-len encoded) (saturating-sub (bytes-len destination) start))
+
+  -- | Decode one complete value and return its consumed byte count; trailing bytes remain available.
+  binary-decode :: forall a. BinaryLayout a -> BinaryOrder -> Bytes -> Result BinaryLayoutError (a, Nat)
+  binary-decode layout order input = binary-decode-at layout order input 0
+
+  -- | Decode at a checked zero-based offset without changing the input or retaining byte-field aliases.
+  binary-decode-at :: forall a. BinaryLayout a -> BinaryOrder -> Bytes -> Nat -> Result BinaryLayoutError (a, Nat)
+  binary-decode-at layout order input start = case layout of
+    Layout size validate atom put get -> case check-input input start size of
+      Err error -> Err error
+      Ok unit -> case get order input start of
+        Err error -> Err error
+        Ok value -> Ok (value, size)
+
+  -- | Append a complete private encoding to a copied prefix, preserving both caller values.
+  binary-append :: forall a. BinaryLayout a -> BinaryOrder -> Bytes -> a -> Result BinaryLayoutError Bytes
+  binary-append layout order prefix value = case binary-encode layout order value of
+    Err error -> Err error
+    Ok encoded -> Ok (join-fields prefix encoded)
+
+  -- | Accept any already typed scalar value without dynamic format guessing.
+  accept-value :: forall a. a -> Result BinaryLayoutError Unit
+  accept-value value = Ok ()
+
+  -- | Retain a complete byte owner around its exact private word load.
+  hold-field :: forall a. Bytes -> a -> a
+  hold-field owner value = case bytes-len owner of _ -> value
+
+  -- | Load exactly two little-endian bytes from a caller-proved unaligned interval.
+  prim load-le16 :: I64 -> I64 -> U16 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %value = load i16, ptr %at, align 1
+      ret i16 %value
+    } when endian little
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %value = load i16, ptr %at, align 1
+      %swapped = call i16 @llvm.bswap.i16(i16 %value)
+      ret i16 %swapped
+    } when endian big
+
+  -- | Reverse one complete unsigned sixteen-bit field.
+  prim swap16 :: U16 -> U16 where
+    llvm {
+      %value = call i16 @llvm.bswap.i16(i16 %0)
+      ret i16 %value
+    }
+
+  -- | Reverse one complete unsigned thirty-two-bit field.
+  prim swap32 :: U32 -> U32 where
+    llvm {
+      %value = call i32 @llvm.bswap.i32(i32 %0)
+      ret i32 %value
+    }
+
+  -- | Reverse one complete unsigned sixty-four-bit field.
+  prim swap64 :: U64 -> U64 where
+    llvm {
+      %value = call i64 @llvm.bswap.i64(i64 %0)
+      ret i64 %value
+    }
+
+  -- | Convert a numeric sixteen-bit field to or from the canonical little-endian packed convention.
+  ordered16 :: BinaryOrder -> U16 -> U16
+  ordered16 order value = if little-order order then value else swap16 value
+
+  -- | Convert a numeric thirty-two-bit field to or from the packed little-endian convention.
+  ordered32 :: BinaryOrder -> U32 -> U32
+  ordered32 order value = if little-order order then value else swap32 value
+
+  -- | Convert a numeric sixty-four-bit field to or from the packed little-endian convention.
+  ordered64 :: BinaryOrder -> U64 -> U64
+  ordered64 order value = if little-order order then value else swap64 value
+
+  -- | Read one exact arithmetic field; all private widths are one, two, four or eight bytes.
+  read-atom :: BinaryOrder -> Nat -> Bytes -> Nat -> Result BinaryLayoutError U64
+  read-atom order width input start =
+    if width == 1 && start < bytes-len input then Ok (wrapping-i64-to-u64 (nat-to-i64 (bytes-get input start)))
+    else if width == 2 && start + 2 <= bytes-len input then
+      let value = hold-field input (load-le16 (bytes-data input) (nat-to-i64 start)) in Ok (wrapping-u16-to-u64 (ordered16 order value))
+    else if width == 4 && start + 4 <= bytes-len input then Ok (wrapping-u32-to-u64 (ordered32 order (bytes-read-le32 input start)))
+    else if width == 8 && start + 8 <= bytes-len input then Ok (ordered64 order (bytes-read-le64 input start))
+    else if start > bytes-len input then Err (BinaryInvalidOffset start (bytes-len input))
+    else Err (BinaryShortInput width (bytes-len input - start))
+
+  -- | Write a complete arithmetic field after its exact width check, with checked stores only.
+  write-atom :: BinaryOrder -> Nat -> Bytes -> Nat -> U64 -> Result BinaryLayoutError Unit
+  write-atom order width output start value =
+    if width == 1 && start < bytes-len output then Ok (bytes-set output start (u8-to-nat (wrapping-u64-to-u8 value)))
+    else if width == 2 && start + 2 <= bytes-len output then
+      let word = wrapping-u16-to-u64 (ordered16 order (wrapping-u64-to-u16 value)) in
+      let first = bytes-set output start (u8-to-nat (wrapping-u64-to-u8 word)) in
+      Ok (bytes-set output (start + 1) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 word 8))))
+    else if width == 4 && start + 4 <= bytes-len output then Ok (bytes-write-le32 output start (ordered32 order (wrapping-u64-to-u32 value)))
+    else if width == 8 && start + 8 <= bytes-len output then Ok (bytes-write-le64 output start (ordered64 order value))
+    else if start > bytes-len output then Err (BinaryInvalidOffset start (bytes-len output))
+    else Err (BinaryShortDestination width (bytes-len output - start))
+
+  -- | Construct a concrete arithmetic layout from exact machine-bit conversions.
+  scalar-layout :: forall a. Nat -> (a -> U64) -> (U64 -> a) -> BinaryLayout a
+  scalar-layout width pack unpack = Layout width accept-value (ScalarAtom width pack unpack)
+    (\order output start value -> write-atom order width output start (pack value))
+    (\order input start -> case read-atom order width input start of Err error -> Err error; Ok word -> Ok (unpack word))
+
+  -- | Encode False as zero and True as one; every nonzero decoded byte is True.
+  binary-bool :: BinaryLayout Bool
+  binary-bool = scalar-layout 1 (\value -> if value then 1 else 0) (\word -> not (eq-u64 word 0))
+
+  -- | One unsigned eight-bit field.
+  binary-u8 :: BinaryLayout U8
+  binary-u8 = scalar-layout 1 wrapping-u8-to-u64 wrapping-u64-to-u8
+
+  -- | One signed two's-complement eight-bit field.
+  binary-i8 :: BinaryLayout I8
+  binary-i8 = scalar-layout 1 (\value -> wrapping-u8-to-u64 (wrapping-i8-to-u8 value)) (\word -> wrapping-u8-to-i8 (wrapping-u64-to-u8 word))
+
+  -- | One unsigned sixteen-bit field.
+  binary-u16 :: BinaryLayout U16
+  binary-u16 = scalar-layout 2 wrapping-u16-to-u64 wrapping-u64-to-u16
+
+  -- | One signed two's-complement sixteen-bit field.
+  binary-i16 :: BinaryLayout I16
+  binary-i16 = scalar-layout 2 (\value -> wrapping-u16-to-u64 (wrapping-i16-to-u16 value)) (\word -> wrapping-u16-to-i16 (wrapping-u64-to-u16 word))
+
+  -- | One unsigned thirty-two-bit field.
+  binary-u32 :: BinaryLayout U32
+  binary-u32 = scalar-layout 4 wrapping-u32-to-u64 wrapping-u64-to-u32
+
+  -- | One signed two's-complement thirty-two-bit field.
+  binary-i32 :: BinaryLayout I32
+  binary-i32 = scalar-layout 4 (\value -> wrapping-u32-to-u64 (wrapping-i32-to-u32 value)) (\word -> wrapping-u32-to-i32 (wrapping-u64-to-u32 word))
+
+  -- | One unsigned sixty-four-bit field.
+  binary-u64 :: BinaryLayout U64
+  binary-u64 = scalar-layout 8 (\value -> value) (\word -> word)
+
+  -- | One signed two's-complement sixty-four-bit field.
+  binary-i64 :: BinaryLayout I64
+  binary-i64 = scalar-layout 8 wrapping-i64-to-u64 wrapping-u64-to-i64
+
+  -- | Observe all binary32 bits without arithmetic or NaN canonicalization.
+  prim binary-f32-bits :: F32 -> U32 where
+    llvm {
+      %bits = bitcast float %0 to i32
+      ret i32 %bits
+    }
+
+  -- | Construct binary32 from its complete bit pattern, including signed zeros and NaN payloads.
+  prim binary-f32-from-bits :: U32 -> F32 where
+    llvm {
+      %value = bitcast i32 %0 to float
+      ret float %value
+    }
+
+  -- | Observe all binary64 bits without arithmetic or NaN canonicalization.
+  prim binary-f64-bits :: F64 -> U64 where
+    llvm {
+      %bits = bitcast double %0 to i64
+      ret i64 %bits
+    }
+
+  -- | Construct binary64 from its complete bit pattern, including signed zeros and NaN payloads.
+  prim binary-f64-from-bits :: U64 -> F64 where
+    llvm {
+      %value = bitcast i64 %0 to double
+      ret double %value
+    }
+
+  -- | One bit-preserving binary32 floating-point field.
+  binary-f32 :: BinaryLayout F32
+  binary-f32 = scalar-layout 4 (\value -> wrapping-u32-to-u64 (binary-f32-bits value)) (\word -> binary-f32-from-bits (wrapping-u64-to-u32 word))
+
+  -- | One bit-preserving binary64 floating-point field.
+  binary-f64 :: BinaryLayout F64
+  binary-f64 = scalar-layout 8 (\value -> binary-f64-bits value) (\bits -> binary-f64-from-bits bits)
+
+  -- | Empty fixed layout; encoding emits no bytes and decoding consumes no input.
+  binary-unit :: BinaryLayout Unit
+  binary-unit = Layout 0 accept-value GeneralAtom
+    (\order output start value -> check-output output start 0)
+    (\order input start -> case check-input input start 0 of Err error -> Err error; Ok unit -> Ok ())
+
+  -- | Clear a private padding interval with checked complete words and an exact byte fringe.
+  clear-padding :: Bytes -> Nat -> Nat -> Unit
+  clear-padding output start remaining =
+    if remaining >= 8 && start + 8 <= bytes-len output then
+      let written = bytes-write-le64 output start 0 in
+      let next = start + 8 in let left = remaining - 8 in clear-padding output next left
+    else if remaining > 0 && start < bytes-len output then
+      let written = bytes-set output start 0 in
+      let next = start + 1 in let left = remaining - 1 in clear-padding output next left
+    else ()
+
+  -- | Explicit zero-filled padding; decoding skips its bytes without requiring them to be zero.
+  binary-padding :: Nat -> BinaryLayout Unit
+  binary-padding n = Layout n accept-value GeneralAtom
+    (\order output start value -> case check-output output start n of Err error -> Err error; Ok unit -> Ok (clear-padding output start n))
+    (\order input start -> case check-input input start n of Err error -> Err error; Ok unit -> Ok ())
+
+  -- | Require an exact byte-field length before any output allocation or mutation.
+  validate-bytes :: Nat -> Bytes -> Result BinaryLayoutError Unit
+  validate-bytes expected value = if bytes-len value == expected then Ok () else Err (BinaryLengthMismatch expected (bytes-len value))
+
+  -- | Encode an already checked byte field using the bulk copy primitive.
+  put-bytes :: Nat -> BinaryOrder -> Bytes -> Nat -> Bytes -> Result BinaryLayoutError Unit
+  put-bytes n order output start value = case validate-bytes n value of
+    Err error -> Err error
+    Ok unit -> if start + n <= bytes-len output && n <= bytes-len value then Ok (bytes-copy-range output value start 0 n)
+      else if start > bytes-len output then Err (BinaryInvalidOffset start (bytes-len output))
+      else Err (BinaryShortDestination n (bytes-len output - start))
+
+  -- | An exact-size byte field. Decoded values and encoded output never retain a mutable input alias.
+  binary-bytes :: Nat -> BinaryLayout Bytes
+  binary-bytes n = Layout n (validate-bytes n) GeneralAtom (put-bytes n)
+    (\order input start -> case check-input input start n of Err error -> Err error; Ok unit -> Ok (copy-field input start n))
+
+  -- | Validate both product fields before allocating the complete result buffer.
+  validate-pair :: forall a b. (a -> Result BinaryLayoutError Unit) -> (b -> Result BinaryLayoutError Unit) -> (a, b) -> Result BinaryLayoutError Unit
+  validate-pair left right value = case value of
+    (a, b) -> case left a of Err error -> Err error; Ok unit -> right b
+
+  -- | Sequence two checked fields without adding alignment or implicit padding.
+  binary-pair :: forall a b. BinaryLayout a -> BinaryLayout b -> BinaryLayout (a, b)
+  binary-pair left right = case left of
+    Layout na va aa pa ga -> case right of
+      Layout nb vb ab pb gb -> Layout (na + nb) (validate-pair va vb) GeneralAtom
+        (\order output start value -> case value of
+          (a, b) -> case pa order output start a of
+            Err error -> Err error
+            Ok unit -> let next = start + na in pb order output next b)
+        (\order input start -> case ga order input start of
+          Err error -> Err error
+          Ok a -> let next = start + na in case gb order input next of Err error -> Err error; Ok b -> Ok (a, b))
+
+  -- | Adapt a fixed wire view to an application type with pure inverse conversions.
+  -- Round trips require the supplied conversions to be inverses on the represented domain.
+  binary-map :: forall a b. (a -> b) -> (b -> a) -> BinaryLayout a -> BinaryLayout b
+  binary-map from-wire to-wire inner = case inner of
+    Layout n validate atom put get -> Layout n
+      (\value -> let view = to-wire value in validate view) GeneralAtom
+      (\order output start value -> let view = to-wire value in put order output start view)
+      (\order input start -> case get order input start of Err error -> Err error; Ok view -> Ok (from-wire view))
+
+  -- | Count list values using an accumulator so large arrays do not unwind recursive allocations.
+  value-count :: forall a. List a -> Nat -> Nat
+  value-count values n = case values of
+    Nil -> n
+    Cons first rest -> let next = n + 1 in value-count rest next
+
+  -- | Validate every nested field after confirming a fixed array's exact element count.
+  validate-elements :: forall a. (a -> Result BinaryLayoutError Unit) -> List a -> Result BinaryLayoutError Unit
+  validate-elements validate values = case values of
+    Nil -> Ok ()
+    Cons first rest -> case validate first of Err error -> Err error; Ok unit -> validate-elements validate rest
+
+  -- | Reject a mismatched fixed array before allocating its wire buffer.
+  validate-array :: forall a. Nat -> (a -> Result BinaryLayoutError Unit) -> List a -> Result BinaryLayoutError Unit
+  validate-array expected validate values =
+    let actual = value-count values 0 in
+    if actual == expected then validate-elements validate values else Err (BinaryLengthMismatch expected actual)
+
+  -- | Write complete fixed elements through a direct tail traversal with named next positions.
+  put-elements :: forall a. Nat -> (BinaryOrder -> Bytes -> Nat -> a -> Result BinaryLayoutError Unit) -> BinaryOrder -> Bytes -> Nat -> List a -> Result BinaryLayoutError Unit
+  put-elements size put order output start values = case values of
+    Nil -> Ok ()
+    Cons first rest -> case put order output start first of
+      Err error -> Err error
+      Ok unit -> let next = start + size in put-elements size put order output next rest
+
+  -- | Decode fixed elements into a reversed private accumulator, then restore source order once.
+  get-elements :: forall a. Nat -> Nat -> (BinaryOrder -> Bytes -> Nat -> Result BinaryLayoutError a) -> BinaryOrder -> Bytes -> Nat -> List a -> Result BinaryLayoutError (List a)
+  get-elements remaining size get order input start reversed =
+    if remaining == 0 then Ok (reverse reversed)
+    else case get order input start of
+      Err error -> Err error
+      Ok value ->
+        let left = remaining - 1 in let next = start + size in let values = Cons value reversed in
+        get-elements left size get order input next values
+
+  -- | Pack four low byte lanes with SWAR into their exact wire-order word.
+  prim pack-four8 :: U64 -> U64 -> U64 -> U64 -> U32 where
+    llvm {
+      %a = trunc i64 %0 to i8
+      %b = trunc i64 %1 to i8
+      %c = trunc i64 %2 to i8
+      %d = trunc i64 %3 to i8
+      %aw = zext i8 %a to i32
+      %bw = zext i8 %b to i32
+      %cw = zext i8 %c to i32
+      %dw = zext i8 %d to i32
+      %bs = shl i32 %bw, 8
+      %cs = shl i32 %cw, 16
+      %ds = shl i32 %dw, 24
+      %ab = or i32 %aw, %bs
+      %cd = or i32 %cs, %ds
+      %value = or i32 %ab, %cd
+      ret i32 %value
+    }
+
+  -- | Pack four low sixteen-bit lanes into one complete word without numeric conversion.
+  prim pack-four16 :: U64 -> U64 -> U64 -> U64 -> U64 where
+    llvm {
+      %a = and i64 %0, 65535
+      %b = and i64 %1, 65535
+      %c = and i64 %2, 65535
+      %d = and i64 %3, 65535
+      %bs = shl i64 %b, 16
+      %cs = shl i64 %c, 32
+      %ds = shl i64 %d, 48
+      %ab = or i64 %a, %bs
+      %cd = or i64 %cs, %ds
+      %value = or i64 %ab, %cd
+      ret i64 %value
+    }
+
+  -- | Pack four low thirty-two-bit lanes into a private wide register, first lane low.
+  prim pack-four32 :: U64 -> U64 -> U64 -> U64 -> U128 where
+    llvm {
+      %a = trunc i64 %0 to i32
+      %b = trunc i64 %1 to i32
+      %c = trunc i64 %2 to i32
+      %d = trunc i64 %3 to i32
+      %aw = zext i32 %a to i128
+      %bw = zext i32 %b to i128
+      %cw = zext i32 %c to i128
+      %dw = zext i32 %d to i128
+      %bs = shl i128 %bw, 32
+      %cs = shl i128 %cw, 64
+      %ds = shl i128 %dw, 96
+      %ab = or i128 %aw, %bs
+      %cd = or i128 %cs, %ds
+      %value = or i128 %ab, %cd
+      ret i128 %value
+    }
+
+  -- | Join two packed words in a private wide register without introducing a stored wide field.
+  prim join-wide :: U64 -> U64 -> U128 where
+    llvm {
+      %low = zext i64 %0 to i128
+      %high = zext i64 %1 to i128
+      %upper = shl i128 %high, 64
+      %value = or i128 %low, %upper
+      ret i128 %value
+    }
+
+  -- | Observe the low packed word of one private wide register.
+  prim wide-low :: U128 -> U64 where
+    llvm {
+      %value = trunc i128 %0 to i64
+      ret i64 %value
+    }
+
+  -- | Observe the high packed word of one private wide register.
+  prim wide-high :: U128 -> U64 where
+    llvm {
+      %upper = lshr i128 %0, 64
+      %value = trunc i128 %upper to i64
+      ret i64 %value
+    }
+
+  -- | Select a private thirty-two-bit lane by a bounded bit shift, returning its zero-extended bits.
+  prim wide-lane32 :: U128 -> U32 -> U64 where
+    llvm {
+      %bounded = and i32 %1, 127
+      %shift = zext i32 %bounded to i128
+      %upper = lshr i128 %0, %shift
+      %lane = trunc i128 %upper to i32
+      %value = zext i32 %lane to i64
+      ret i64 %value
+    }
+
+  -- | Conditionally reverse bytes in four independent sixteen-bit SIMD lanes.
+  -- Only lane-local operations are used, so numeric packing is independent of host endianness.
+  prim ordered-four16 :: U64 -> U8 -> U64 where
+    llvm {
+      %lanes = bitcast i64 %0 to <4 x i16>
+      %left = shl <4 x i16> %lanes, <i16 8, i16 8, i16 8, i16 8>
+      %right = lshr <4 x i16> %lanes, <i16 8, i16 8, i16 8, i16 8>
+      %swapped = or <4 x i16> %left, %right
+      %swap = icmp ne i8 %1, 0
+      %selected = select i1 %swap, <4 x i16> %swapped, <4 x i16> %lanes
+      %value = bitcast <4 x i16> %selected to i64
+      ret i64 %value
+    }
+
+  -- | Conditionally reverse bytes in four independent thirty-two-bit SIMD lanes.
+  -- Integer lane operations preserve all floating-point payloads when used by binary32 arrays.
+  prim ordered-four32 :: U128 -> U8 -> U128 where
+    llvm {
+      %lanes = bitcast i128 %0 to <4 x i32>
+      %a = shl <4 x i32> %lanes, <i32 24, i32 24, i32 24, i32 24>
+      %bm = and <4 x i32> %lanes, <i32 65280, i32 65280, i32 65280, i32 65280>
+      %b = shl <4 x i32> %bm, <i32 8, i32 8, i32 8, i32 8>
+      %cm = and <4 x i32> %lanes, <i32 16711680, i32 16711680, i32 16711680, i32 16711680>
+      %c = lshr <4 x i32> %cm, <i32 8, i32 8, i32 8, i32 8>
+      %d = lshr <4 x i32> %lanes, <i32 24, i32 24, i32 24, i32 24>
+      %ab = or <4 x i32> %a, %b
+      %cd = or <4 x i32> %c, %d
+      %swapped = or <4 x i32> %ab, %cd
+      %swap = icmp ne i8 %1, 0
+      %selected = select i1 %swap, <4 x i32> %swapped, <4 x i32> %lanes
+      %value = bitcast <4 x i32> %selected to i128
+      ret i128 %value
+    }
+
+  -- | Resolve the packed little-endian convention's per-lane swap flag outside each SIMD fragment.
+  swap-flag :: BinaryOrder -> U8
+  swap-flag order = if little-order order then 0 else 1
+
+  -- | Store four scalar lanes in one proved block using SWAR packing and SIMD byte-order conversion.
+  put-four-atoms :: forall a. Nat -> (a -> U64) -> BinaryOrder -> Bytes -> Nat -> a -> a -> a -> a -> Result BinaryLayoutError Nat
+  put-four-atoms width pack order output start a b c d =
+    let av = pack a in let bv = pack b in let cv = pack c in let dv = pack d in
+    if width == 1 && start + 4 <= bytes-len output then
+      let stored = bytes-write-le32 output start (pack-four8 av bv cv dv) in Ok 4
+    else if width == 2 && start + 8 <= bytes-len output then
+      let packed = pack-four16 av bv cv dv in let flag = swap-flag order in
+      let word = ordered-four16 packed flag in
+      let stored = bytes-write-le64 output start word in Ok 8
+    else if width == 4 && start + 16 <= bytes-len output then
+      let packed = pack-four32 av bv cv dv in let flag = swap-flag order in
+      let word = ordered-four32 packed flag in
+      let first = bytes-write-le64 output start (wide-low word) in
+      let next = start + 8 in let last = bytes-write-le64 output next (wide-high word) in Ok 16
+    else Err (BinaryShortDestination (width * 4) (saturating-sub (bytes-len output) start))
+
+  -- | Write homogeneous machine fields in blocks, carrying no wide value through recursive boundaries.
+  put-atom-elements :: forall a. Nat -> (a -> U64) -> BinaryOrder -> Bytes -> Nat -> List a -> Result BinaryLayoutError Unit
+  put-atom-elements width pack order output start values = case values of
+    Nil -> Ok ()
+    Cons first rest ->
+      if width == 8 then case rest of
+        Nil -> write-atom order width output start (pack first)
+        Cons second following -> if start + 16 <= bytes-len output then
+          let a = pack first in let b = pack second in
+          let written = bytes-write-le64 output start (ordered64 order a) in
+          let middle = start + 8 in let last = bytes-write-le64 output middle (ordered64 order b) in
+          let next = start + 16 in put-atom-elements width pack order output next following
+          else Err (BinaryShortDestination 16 (saturating-sub (bytes-len output) start))
+      else case rest of
+        Cons second (Cons third (Cons fourth following)) -> case put-four-atoms width pack order output start first second third fourth of
+          Err error -> Err error
+          Ok written -> let next = start + written in put-atom-elements width pack order output next following
+        other -> case write-atom order width output start (pack first) of
+          Err error -> Err error
+          Ok unit -> let next = start + width in put-atom-elements width pack order output next rest
+
+  -- | Decode homogeneous machine fields in exact packed blocks, retaining only typed values between iterations.
+  get-atom-elements :: forall a. Nat -> Nat -> (U64 -> a) -> BinaryOrder -> Bytes -> Nat -> List a -> Result BinaryLayoutError (List a)
+  get-atom-elements remaining width unpack order input start reversed =
+    if remaining == 0 then Ok (reverse reversed)
+    else if width == 8 && remaining >= 2 && start + 16 <= bytes-len input then
+      let first-word = bytes-read-le64 input start in let first-bits = ordered64 order first-word in let first = unpack first-bits in
+      let middle = start + 8 in let second-word = bytes-read-le64 input middle in
+      let second-bits = ordered64 order second-word in let second = unpack second-bits in
+      let a = Cons first reversed in let values = Cons second a in
+      let left = remaining - 2 in let next = start + 16 in get-atom-elements left width unpack order input next values
+    else if width == 4 && remaining >= 4 && start + 16 <= bytes-len input then
+      let low = bytes-read-le64 input start in let middle = start + 8 in let high = bytes-read-le64 input middle in
+      let packed = join-wide low high in let flag = swap-flag order in
+      let word = ordered-four32 packed flag in
+      let first = unpack (wide-lane32 word 0) in let second = unpack (wide-lane32 word 32) in
+      let third = unpack (wide-lane32 word 64) in let fourth = unpack (wide-lane32 word 96) in
+      let a = Cons first reversed in let b = Cons second a in let c = Cons third b in let values = Cons fourth c in
+      let left = remaining - 4 in let next = start + 16 in get-atom-elements left width unpack order input next values
+    else if width == 2 && remaining >= 4 then
+      if start + 8 <= bytes-len input then
+        let packed = bytes-read-le64 input start in let flag = swap-flag order in
+        let word = ordered-four16 packed flag in
+        let first = unpack (bit-and-u64 word 65535) in let second = unpack (bit-and-u64 (wrapping-shr-u64 word 16) 65535) in
+        let third = unpack (bit-and-u64 (wrapping-shr-u64 word 32) 65535) in let fourth = unpack (wrapping-shr-u64 word 48) in
+        let a = Cons first reversed in let b = Cons second a in let c = Cons third b in let values = Cons fourth c in
+        let left = remaining - 4 in let next = start + 8 in get-atom-elements left width unpack order input next values
+      else Err (BinaryShortInput 8 (saturating-sub (bytes-len input) start))
+    else if width == 1 && remaining >= 4 then
+      if start + 4 <= bytes-len input then
+        let packed = bytes-read-le32 input start in let word = wrapping-u32-to-u64 packed in
+        let first = unpack (bit-and-u64 word 255) in let second = unpack (bit-and-u64 (wrapping-shr-u64 word 8) 255) in
+        let third = unpack (bit-and-u64 (wrapping-shr-u64 word 16) 255) in let fourth = unpack (wrapping-shr-u64 word 24) in
+        let a = Cons first reversed in let b = Cons second a in let c = Cons third b in let values = Cons fourth c in
+        let left = remaining - 4 in let next = start + 4 in get-atom-elements left width unpack order input next values
+      else Err (BinaryShortInput 4 (saturating-sub (bytes-len input) start))
+    else if remaining >= 1 then let result = read-atom order width input start in
+      case result of
+        Err error -> Err error
+        Ok word ->
+          let value = unpack word in let values = Cons value reversed in
+          let left = remaining - 1 in let next = start + width in get-atom-elements left width unpack order input next values
+    else Ok (reverse reversed)
+
+  -- | A fixed-count homogeneous array represented by a list; nested arrays and records are supported.
+  -- Encoding rejects length mismatches; decoding obtains its element count from the descriptor.
+  binary-array :: forall a. Nat -> BinaryLayout a -> BinaryLayout (List a)
+  binary-array count element = case element of
+    Layout size validate atom put get -> Layout (count * size) (validate-array count validate) GeneralAtom
+      (\order output start values -> case atom of
+        GeneralAtom -> put-elements size put order output start values
+        ScalarAtom width pack unpack -> put-atom-elements width pack order output start values)
+      (\order input start -> case atom of
+        GeneralAtom -> get-elements count size get order input start Nil
+        ScalarAtom width pack unpack -> get-atom-elements count width unpack order input start Nil)
+
+  -- | A complex binary64 field represented by two binary32 components, real part first.
+  binary-complex64 :: BinaryLayout (F32, F32)
+  binary-complex64 = binary-pair binary-f32 binary-f32
+
+  -- | A complex binary128 field represented by two binary64 components, real part first.
+  binary-complex128 :: BinaryLayout (F64, F64)
+  binary-complex128 = binary-pair binary-f64 binary-f64
+
+  -- | Construct the standard complex value from exact real and imaginary binary64 components.
+  complex-from-pair :: (F64, F64) -> Complex.Complex
+  complex-from-pair value = case value of (real, imaginary) -> Complex.complex real imaginary
+
+  -- | Observe a standard complex value without floating-point arithmetic or payload conversion.
+  complex-to-pair :: Complex.Complex -> (F64, F64)
+  complex-to-pair value = (Complex.real-part value, Complex.imag-part value)
+
+  -- | The standard binary64 complex value, encoded as real then imaginary components in sixteen bytes.
+  binary-complex-value :: BinaryLayout Complex.Complex
+  binary-complex-value = binary-map complex-from-pair complex-to-pair binary-complex128
+
+  -- | Read an unsigned sixteen-bit field at a checked offset in explicit or native wire order.
+  binary-read-u16 :: BinaryOrder -> Bytes -> Nat -> Result BinaryLayoutError U16
+  binary-read-u16 order input start = case read-atom order 2 input start of Err error -> Err error; Ok word -> Ok (wrapping-u64-to-u16 word)
+
+  -- | Read an unsigned thirty-two-bit field at a checked offset.
+  binary-read-u32 :: BinaryOrder -> Bytes -> Nat -> Result BinaryLayoutError U32
+  binary-read-u32 order input start = case read-atom order 4 input start of Err error -> Err error; Ok word -> Ok (wrapping-u64-to-u32 word)
+
+  -- | Read an unsigned sixty-four-bit field at a checked offset.
+  binary-read-u64 :: BinaryOrder -> Bytes -> Nat -> Result BinaryLayoutError U64
+  binary-read-u64 order input start = read-atom order 8 input start
+
+  -- | Write an unsigned sixteen-bit field after checking its entire destination interval.
+  binary-put-u16 :: BinaryOrder -> Bytes -> Nat -> U16 -> Result BinaryLayoutError Unit
+  binary-put-u16 order output start value = write-atom order 2 output start (wrapping-u16-to-u64 value)
+
+  -- | Write an unsigned thirty-two-bit field after checking its entire destination interval.
+  binary-put-u32 :: BinaryOrder -> Bytes -> Nat -> U32 -> Result BinaryLayoutError Unit
+  binary-put-u32 order output start value = write-atom order 4 output start (wrapping-u32-to-u64 value)
+
+  -- | Write an unsigned sixty-four-bit field after checking its entire destination interval.
+  binary-put-u64 :: BinaryOrder -> Bytes -> Nat -> U64 -> Result BinaryLayoutError Unit
+  binary-put-u64 order output start value = write-atom order 8 output start value
+
+  -- | Append an always-valid arithmetic field to a copied prefix in one exact allocation.
+  append-atom :: BinaryOrder -> Bytes -> Nat -> U64 -> Bytes
+  append-atom order prefix width value =
+    let start = bytes-len prefix in let out = bytes-new (start + width) in
+    if start <= bytes-len out then
+      let copied = bytes-copy-range out prefix 0 0 start in
+      let written = write-atom order width out start value in out
+    else out
+
+  -- | Append an unsigned sixteen-bit field without changing the caller's prefix.
+  binary-append-u16 :: BinaryOrder -> Bytes -> U16 -> Bytes
+  binary-append-u16 order prefix value = append-atom order prefix 2 (wrapping-u16-to-u64 value)
+
+  -- | Append an unsigned thirty-two-bit field without changing the caller's prefix.
+  binary-append-u32 :: BinaryOrder -> Bytes -> U32 -> Bytes
+  binary-append-u32 order prefix value = append-atom order prefix 4 (wrapping-u32-to-u64 value)
+
+  -- | Append an unsigned sixty-four-bit field without changing the caller's prefix.
+  binary-append-u64 :: BinaryOrder -> Bytes -> U64 -> Bytes
+  binary-append-u64 order prefix value = append-atom order prefix 8 value
+
+  -- | Maximum bytes for a base-128 integer whose value fits sixteen bits.
+  binary-max-varint16 :: Nat
+  binary-max-varint16 = 3
+
+  -- | Maximum bytes for a base-128 integer whose value fits thirty-two bits.
+  binary-max-varint32 :: Nat
+  binary-max-varint32 = 5
+
+  -- | Maximum bytes for a base-128 integer whose value fits sixty-four bits.
+  binary-max-varint64 :: Nat
+  binary-max-varint64 = 10
+
+  -- | Encode a complete unsigned integer with its shortest base-128 representation.
+  binary-encode-uvarint :: U64 -> Bytes
+  binary-encode-uvarint value = Wire.binary-uvarint value
+
+  -- | Encode a signed integer by zigzag mapping all I64 values before base-128 encoding.
+  binary-encode-varint :: I64 -> Bytes
+  binary-encode-varint value = Wire.binary-varint value
+
+  -- | Copy a complete variable-length field only after validating its entire destination.
+  put-varint-field :: Bytes -> Nat -> Bytes -> Result BinaryLayoutError Nat
+  put-varint-field destination start encoded =
+    if start + bytes-len encoded <= bytes-len destination then
+      let copied = bytes-copy-range destination encoded start 0 (bytes-len encoded) in Ok (bytes-len encoded)
+    else if start > bytes-len destination then Err (BinaryInvalidOffset start (bytes-len destination))
+    else Err (BinaryShortDestination (bytes-len encoded) (bytes-len destination - start))
+
+  -- | Write a complete unsigned varint at an offset; short destinations remain unchanged.
+  binary-put-uvarint :: Bytes -> Nat -> U64 -> Result BinaryLayoutError Nat
+  binary-put-uvarint destination start value = put-varint-field destination start (binary-encode-uvarint value)
+
+  -- | Write a complete signed varint at an offset; short destinations remain unchanged.
+  binary-put-varint :: Bytes -> Nat -> I64 -> Result BinaryLayoutError Nat
+  binary-put-varint destination start value = put-varint-field destination start (binary-encode-varint value)
+
+  -- | Append a complete unsigned varint to a copied prefix.
+  binary-append-uvarint :: Bytes -> U64 -> Bytes
+  binary-append-uvarint prefix value = join-fields prefix (binary-encode-uvarint value)
+
+  -- | Append a complete signed varint to a copied prefix.
+  binary-append-varint :: Bytes -> I64 -> Bytes
+  binary-append-varint prefix value = join-fields prefix (binary-encode-varint value)
+
+  -- | Inspect at most eleven available bytes, retaining precise incomplete and overflow prefix counts.
+  -- Ten continuation bytes are incomplete at buffer EOF; an available eleventh byte proves overflow.
+  varint-prefix :: Bytes -> Nat -> Nat -> U32 -> U64 -> Result BinaryLayoutError (U64, Nat)
+  varint-prefix input start used shift acc =
+    if used == 10 then
+      if start < bytes-len input then Err (BinaryVarintOverflow 11) else Err (BinaryIncompleteVarint 10)
+    else if start < bytes-len input then
+      let byte = bytes-get input start in
+      if byte < 128 then
+        if used == 9 && byte > 1 then Err (BinaryVarintOverflow 10)
+        else
+          let lane = wrapping-i64-to-u64 (nat-to-i64 byte) in
+          let result = bit-or-u64 acc (wrapping-shl-u64 lane shift) in Ok (result, used + 1)
+      else
+        let lane = wrapping-i64-to-u64 (nat-to-i64 (nat-rem byte 128)) in
+        let result = bit-or-u64 acc (wrapping-shl-u64 lane shift) in
+        let following = start + 1 in let count = used + 1 in let next-shift = wrapping-add-u32 shift 7 in
+        varint-prefix input following count next-shift result
+    else Err (BinaryIncompleteVarint used)
+
+  -- | Decode an unsigned varint with consumed counts, distinguishing incomplete prefixes and overflow.
+  -- Complete first-eight-byte quanta reuse the existing SWAR payload compactor.
+  binary-decode-uvarint :: Bytes -> Nat -> Result BinaryLayoutError (U64, Nat)
+  binary-decode-uvarint input start =
+    if start > bytes-len input then Err (BinaryInvalidOffset start (bytes-len input))
+    else if start + 8 <= bytes-len input then
+      let word = bytes-read-le64 input start in let ends = bit-and-u64 (bit-not-u64 word) 0x8080808080808080 in
+      if not (eq-u64 ends 0) then case Wire.binary-read-uvarint input start of
+        Ok result -> Ok result
+        Err error -> varint-prefix input start 0 0 0
+      else varint-prefix input start 0 0 0
+    else varint-prefix input start 0 0 0
+
+  -- | Decode a signed varint with the same checked prefix counts and full-width inverse zigzag mapping.
+  binary-decode-varint :: Bytes -> Nat -> Result BinaryLayoutError (I64, Nat)
+  binary-decode-varint input start = case binary-decode-uvarint input start of
+    Err error -> Err error
+    Ok pair -> case pair of
+      (word, count) ->
+        let value = wrapping-u64-to-i64 (wrapping-shr-u64 word 1) in
+        Ok ((if eq-u64 (bit-and-u64 word 1) 1 then bit-not-i64 value else value), count)
