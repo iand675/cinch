@@ -1,0 +1,343 @@
+{
+  "description": "Record exact source verdicts for sealed-array positivity, distinguishing baseline observations from gates.",
+  "frontend": "rust",
+  "baseline_only": true,
+  "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+  "fixture_sha256": "f2439c9439b87456000a68a6aec720ea9d6a31c3529e1ced599b66e3f8c994dd",
+  "runner_sha256": "c64edbeb4db505b48638d8a90108936f892ad29b16b64595d9434034ce129ce4",
+  "cpu_affinity": [
+    4
+  ],
+  "compiler_host_stack": "64M",
+  "compiler_heap": "256M",
+  "results": [
+    {
+      "name": "array-direct",
+      "source_sha256": "d2dcb3129d037cdd2419833d21120238fd94deacf193429eb0e32f634bd206a1",
+      "accepted": false,
+      "exit": 1,
+      "diagnostic": "cinch: 6:13: Main.Arena occurs nested inside another type constructor in field `$f0` of constructor Pool; the positivity discipline only allows direct recursive occurrences (positivity-preserving nesting is not supported in this slice) (in /workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/array-direct/Main.cinch)\n",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/array-direct/Main.cinch"
+      ],
+      "expected_new_acceptance": true,
+      "expected_new_diagnostic": "",
+      "matches_new_gate": false
+    },
+    {
+      "name": "array-nested",
+      "source_sha256": "b8fea9aa7d77bdf3a7e1bc7809fbda5e7ff29f6a9ab5a7bd72d88aab07e632c6",
+      "accepted": false,
+      "exit": 1,
+      "diagnostic": "cinch: 6:13: Main.Arena occurs nested inside another type constructor in field `$f0` of constructor Pool; the positivity discipline only allows direct recursive occurrences (positivity-preserving nesting is not supported in this slice) (in /workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/array-nested/Main.cinch)\n",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/array-nested/Main.cinch"
+      ],
+      "expected_new_acceptance": true,
+      "expected_new_diagnostic": "",
+      "matches_new_gate": false
+    },
+    {
+      "name": "array-tuple",
+      "source_sha256": "9cd69aa9ffcf5867ec6d5ecd848065b58ee14e7d5dc79d5157de61c5d85db60f",
+      "accepted": false,
+      "exit": 1,
+      "diagnostic": "cinch: 6:13: Main.Arena occurs nested inside another type constructor in field `$f0` of constructor Pool; the positivity discipline only allows direct recursive occurrences (positivity-preserving nesting is not supported in this slice) (in /workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/array-tuple/Main.cinch)\n",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/array-tuple/Main.cinch"
+      ],
+      "expected_new_acceptance": true,
+      "expected_new_diagnostic": "",
+      "matches_new_gate": false
+    },
+    {
+      "name": "array-function-result",
+      "source_sha256": "4bf39510c82ece91d0269968450eb5f1f9482601b5759a2da1bf38365abf0051",
+      "accepted": false,
+      "exit": 1,
+      "diagnostic": "cinch: 6:13: Main.Arena occurs nested inside another type constructor in field `$f0` of constructor Pool; the positivity discipline only allows direct recursive occurrences (positivity-preserving nesting is not supported in this slice) (in /workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/array-function-result/Main.cinch)\n",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/array-function-result/Main.cinch"
+      ],
+      "expected_new_acceptance": true,
+      "expected_new_diagnostic": "",
+      "matches_new_gate": false
+    },
+    {
+      "name": "array-mutual",
+      "source_sha256": "ffe02ba5ed9845f424a0f25e091d9f6d6881e166d2261b0d55bbff07b799615c",
+      "accepted": false,
+      "exit": 1,
+      "diagnostic": "cinch: 6:14: the recursive group {Main.First, Main.Second} occurs nested inside another type constructor in field `$f0` of constructor First; the positivity discipline only allows direct recursive occurrences (positivity-preserving nesting is not supported in this slice) (in /workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/array-mutual/Main.cinch)\n",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/array-mutual/Main.cinch"
+      ],
+      "expected_new_acceptance": true,
+      "expected_new_diagnostic": "",
+      "matches_new_gate": false
+    },
+    {
+      "name": "array-ordinary-parameter",
+      "source_sha256": "9d90dab26d8c3b020abf0c65e0437c279913adbc9b4b05a26d35d7bf3063a01a",
+      "accepted": false,
+      "exit": 1,
+      "diagnostic": "cinch: 8:13: Main.Arena occurs nested inside another type constructor in field `$f1` of constructor Pool; the positivity discipline only allows direct recursive occurrences (positivity-preserving nesting is not supported in this slice) (in /workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/array-ordinary-parameter/Main.cinch)\n",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/array-ordinary-parameter/Main.cinch"
+      ],
+      "expected_new_acceptance": true,
+      "expected_new_diagnostic": "",
+      "matches_new_gate": false
+    },
+    {
+      "name": "array-negative",
+      "source_sha256": "365b3fb6a4ef4c82893d3eb25d6ea72a6b05409ae74b30ea1f7f08ce091372e2",
+      "accepted": false,
+      "exit": 1,
+      "diagnostic": "cinch: 6:13: Main.Arena occurs nested inside another type constructor in field `$f0` of constructor Pool; the positivity discipline only allows direct recursive occurrences (positivity-preserving nesting is not supported in this slice) (in /workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/array-negative/Main.cinch)\n",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/array-negative/Main.cinch"
+      ],
+      "expected_new_acceptance": false,
+      "expected_new_diagnostic": "positiv",
+      "matches_new_gate": true
+    },
+    {
+      "name": "array-double-negative",
+      "source_sha256": "61e166269c42b40fbed3f2bfac205197c9aef286671a9941adf4f7806a2b02cc",
+      "accepted": false,
+      "exit": 1,
+      "diagnostic": "cinch: 6:13: Main.Arena occurs nested inside another type constructor in field `$f0` of constructor Pool; the positivity discipline only allows direct recursive occurrences (positivity-preserving nesting is not supported in this slice) (in /workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/array-double-negative/Main.cinch)\n",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/array-double-negative/Main.cinch"
+      ],
+      "expected_new_acceptance": false,
+      "expected_new_diagnostic": "positiv",
+      "matches_new_gate": true
+    },
+    {
+      "name": "direct-double-negative",
+      "source_sha256": "7e0861685e27d1146e2148781a08a704fe86b234c2f7cf487aa2ec540ca031cd",
+      "accepted": true,
+      "exit": 0,
+      "diagnostic": "",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/direct-double-negative/Main.cinch"
+      ],
+      "expected_new_acceptance": false,
+      "expected_new_diagnostic": "positiv",
+      "matches_new_gate": false
+    },
+    {
+      "name": "direct-negative",
+      "source_sha256": "dd714d17e94672171e7149f77894dbc0bcbbcb636a01c3c92e571221746ced7d",
+      "accepted": false,
+      "exit": 1,
+      "diagnostic": "cinch: 6:13: Main.Arena occurs negatively in field `$f0` of constructor Pool; the positivity discipline only allows direct recursive occurrences (negative occurrences is not supported in this slice) (in /workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/direct-negative/Main.cinch)\n",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/direct-negative/Main.cinch"
+      ],
+      "expected_new_acceptance": false,
+      "expected_new_diagnostic": "positiv",
+      "matches_new_gate": true
+    },
+    {
+      "name": "unknown-higher-kinded",
+      "source_sha256": "89019c0569e64b86dc80a18a48939d6592b21b10127dda16f0b6dc30e9c764fb",
+      "accepted": true,
+      "exit": 0,
+      "diagnostic": "",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/unknown-higher-kinded/Main.cinch"
+      ],
+      "expected_new_acceptance": false,
+      "expected_new_diagnostic": "positiv",
+      "matches_new_gate": false
+    },
+    {
+      "name": "higher-kinded-nested-in-tuple",
+      "source_sha256": "f70feed4f739e44d31705c9fe43a71fdbb3fed0e095f16bac47c9843e6b5c749",
+      "accepted": true,
+      "exit": 0,
+      "diagnostic": "",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/higher-kinded-nested-in-tuple/Main.cinch"
+      ],
+      "expected_new_acceptance": false,
+      "expected_new_diagnostic": "positiv",
+      "matches_new_gate": false
+    },
+    {
+      "name": "ordinary-wrapper",
+      "source_sha256": "584c89a5e2f053cc9e2b79b95742673f011b76e82f50ab96d675368d6779ebb4",
+      "accepted": false,
+      "exit": 1,
+      "diagnostic": "cinch: 10:13: Main.Arena occurs nested inside another type constructor in field `$f0` of constructor Pool; the positivity discipline only allows direct recursive occurrences (positivity-preserving nesting is not supported in this slice) (in /workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/ordinary-wrapper/Main.cinch)\n",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/ordinary-wrapper/Main.cinch"
+      ],
+      "expected_new_acceptance": false,
+      "expected_new_diagnostic": "positiv",
+      "matches_new_gate": true
+    },
+    {
+      "name": "nested-list-preserved",
+      "source_sha256": "22aeedbdf68d27e8fa19c6a7e9f7968721b61024f2c0ca80f724283d3ba3f62a",
+      "accepted": false,
+      "exit": 1,
+      "diagnostic": "cinch: 6:13: Main.Arena occurs nested inside another type constructor in field `$f0` of constructor Pool; the positivity discipline only allows direct recursive occurrences (positivity-preserving nesting is not supported in this slice) (in /workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/nested-list-preserved/Main.cinch)\n",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/nested-list-preserved/Main.cinch"
+      ],
+      "expected_new_acceptance": false,
+      "expected_new_diagnostic": "positiv",
+      "matches_new_gate": true
+    },
+    {
+      "name": "array-nested-list-preserved",
+      "source_sha256": "047cdecef0426b6588774c90d8c751ad84d87c5a0b2bed911c6d38f817068420",
+      "accepted": false,
+      "exit": 1,
+      "diagnostic": "cinch: 6:13: Main.Arena occurs nested inside another type constructor in field `$f0` of constructor Pool; the positivity discipline only allows direct recursive occurrences (positivity-preserving nesting is not supported in this slice) (in /workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/array-nested-list-preserved/Main.cinch)\n",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/array-nested-list-preserved/Main.cinch"
+      ],
+      "expected_new_acceptance": false,
+      "expected_new_diagnostic": "positiv",
+      "matches_new_gate": true
+    },
+    {
+      "name": "tensor-unverified",
+      "source_sha256": "639e1ac0134b8c5e2afa5ee4586ff81b879100788d9e3b2df37d0121e569a550",
+      "accepted": false,
+      "exit": 1,
+      "diagnostic": "cinch: 6:13: Main.Arena occurs nested inside another type constructor in field `$f0` of constructor Pool; the positivity discipline only allows direct recursive occurrences (positivity-preserving nesting is not supported in this slice) (in /workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/tensor-unverified/Main.cinch)\n",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/tensor-unverified/Main.cinch"
+      ],
+      "expected_new_acceptance": false,
+      "expected_new_diagnostic": "positiv",
+      "matches_new_gate": true
+    },
+    {
+      "name": "array-self-argument",
+      "source_sha256": "f78a481595fcebe9028d99a030f99ffcffff16e31283e85d08388d2a87547d3c",
+      "accepted": false,
+      "exit": 1,
+      "diagnostic": "cinch: 6:13: Main.Arena occurs nested inside another type constructor in field `$f0` of constructor Pool; the positivity discipline only allows direct recursive occurrences (positivity-preserving nesting is not supported in this slice) (in /workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/array-self-argument/Main.cinch)\n",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/array-self-argument/Main.cinch"
+      ],
+      "expected_new_acceptance": false,
+      "expected_new_diagnostic": "positiv",
+      "matches_new_gate": true
+    },
+    {
+      "name": "array-pointer-unverified",
+      "source_sha256": "1621feb0b4e38371c32ecf18dd87ef99c8f22e95ec3c77e053ff65a107ea1b0a",
+      "accepted": true,
+      "exit": 0,
+      "diagnostic": "",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-ring-positivity/build/array-payload-static/baseline-rust/array-pointer-unverified/Main.cinch"
+      ],
+      "expected_new_acceptance": false,
+      "expected_new_diagnostic": "positiv",
+      "matches_new_gate": false
+    }
+  ],
+  "status": "baseline-observed",
+  "checkpoint_role": "Pre-extension observation only; this older frontend does not admit the new sealed-array recursive shape.",
+  "fixture_selection": "The first18 source vectors, before the two preserved nested-value-binder cases were appended.",
+  "compiler_provenance": "Older frozen f2d5 Rust executable; no Array-payload extension and known distinct positivity holes."
+}

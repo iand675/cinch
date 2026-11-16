@@ -83,6 +83,16 @@ module Bootstrap.Infer where
     DClass sp name parameters methods -> Some name
     other -> None
 
+  -- | Revoke competing local names and defining identities without trusting imported certificate claims.
+  declaration-payloads :: Decl -> List PayloadCertificate -> List PayloadCertificate
+  declaration-payloads declaration payloads =
+    let remaining = case payload-declaration-name declaration of Some name -> revoke-payload name payloads; None -> payloads in
+    case declaration of
+      DExternal sp name category syntax metadata -> if same category "type" then
+        (case field "identity" metadata of JStr identity -> revoke-payload (interface-global identity) remaining; other -> remaining)
+        else remaining
+      other -> remaining
+
   -- | Observe a declared kind without granting any payload evidence.
   context-kind :: String -> TypeContext -> Option Kind
   context-kind name context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> lookup-kind name kinds
@@ -96,8 +106,7 @@ module Bootstrap.Infer where
   context-add-alias :: Decl -> TypeContext -> TypeContext
   context-add-alias alias context = case context of
     MkTypeContext kinds aliases active observers effects source-classes payloads ->
-      let remaining = case payload-declaration-name alias of Some name -> revoke-payload name payloads; None -> payloads in
-      MkTypeContext kinds (Cons alias aliases) active observers effects source-classes remaining
+      MkTypeContext kinds (Cons alias aliases) active observers effects source-classes (declaration-payloads alias payloads)
   -- | Enter a checked alias once while retaining the same sealed primitive authority.
   context-enter-alias :: String -> TypeContext -> Option TypeContext
   context-enter-alias name context = case context of
@@ -2215,9 +2224,28 @@ module Bootstrap.Infer where
     UUsageArrow usage arrow -> occurs-owner name arrow
     UProofFun predicate row result -> occurs-owner name predicate || occurs-owner name row || occurs-owner name result
     UTuple xs -> occurs-owner name xs
-    UForall qs body -> occurs-owner name body
+    UForall qs body -> occurs-quant-owner name qs || occurs-owner name body
     UArg x rest -> occurs-owner name x || occurs-owner name rest
     other -> False
+  -- | Inspect implicit value domains carried by nested quantifier kinds.
+  occurs-kind-owner :: String -> Kind -> Bool
+  occurs-kind-owner name kind = case kind of
+    KValue carrier -> occurs-owner name carrier
+    KFun first last -> occurs-kind-owner name first || occurs-kind-owner name last
+    other -> False
+
+  -- | Keep quantified kind carriers visible to recursive-occurrence checking.
+  occurs-quant-owner :: String -> Quants -> Bool
+  occurs-quant-owner name parameters = case parameters of
+    QEnd -> False
+    QCons first rest -> occurs-kind-owner name (quant-kind first) || occurs-quant-owner name rest
+
+  -- | Forbid a recursive group's occurrence in an implicit quantified value domain.
+  positive-quantifiers :: List String -> Quants -> Bool
+  positive-quantifiers group parameters = case group of
+    Nil -> True
+    Cons owner rest -> not (occurs-quant-owner owner parameters) && positive-quantifiers rest parameters
+
   -- A data declaration's strongly connected group is what the positivity
   -- discipline judges (core specification section 2, mutual inductive
   -- groups). A declaration on no cycle is the one-member group, so its
@@ -2243,7 +2271,7 @@ module Bootstrap.Infer where
           None -> False))
       else True
     UTuple xs -> positive kinds group xs
-    UForall qs body -> positive kinds group body
+    UForall qs body -> positive-quantifiers group qs && positive kinds group body
     UArg x rest -> positive kinds group x && positive kinds group rest
     -- A refinement's carrier is the value, so a group occurrence there is a
     -- structural occurrence and the former is not established as

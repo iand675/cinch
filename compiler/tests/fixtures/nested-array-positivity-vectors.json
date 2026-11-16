@@ -124,5 +124,19 @@
     "accepted": false,
     "kinds": {},
     "diagnostic": "positiv"
+  },
+  {
+    "name": "nested-value-binder-preserved",
+    "source": "-- | Preserve the existing restriction on nested value quantifiers.\nmodule Main where\n  -- | A candidate recursive carrier cannot hide an implicit negative domain.\n  data Arena where\n    -- | Nested value binders retain their original conversion refusal.\n    Pool :: (forall (x :: Arena). Unit) -> Arena\n  -- | Keep execution independent from rejected source.\n  main :: Int\n  main = 0\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "nested forall binder"
+  },
+  {
+    "name": "array-nested-value-binder-preserved",
+    "source": "-- | Preserve the existing restriction on nested value quantifiers.\nmodule Main where\n  -- | A candidate recursive carrier cannot hide an implicit negative domain.\n  data Arena where\n    -- | Nested value binders retain their original conversion refusal.\n    Pool :: Array (forall (x :: Arena). Unit) -> Arena\n  -- | Keep execution independent from rejected source.\n  main :: Int\n  main = 0\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "nested forall binder"
   }
 ]
