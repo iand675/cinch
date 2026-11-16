@@ -1,0 +1,28 @@
+-- | Measure a scalar recurrence with runtime-selected work and an externally observed checksum.
+module Main where
+  export main
+  import Data.Machine as W
+  -- | Read the runtime-selected number of recurrence steps.
+  foreign import ccall "scalar_iterations" iterations :: Unit ->{Foreign Test} U64
+  -- | Read the monotonic clock through an explicit foreign effect.
+  foreign import ccall "scalar_clock" clock :: Unit ->{Foreign Test} U64
+  -- | Observe the checksum and elapsed time after the final clock read.
+  foreign import ccall "scalar_report" report :: U64 -> U64 -> U64 ->{Foreign Test} I64
+  -- | Preserve the fixed-width recurrence while counting down without mathematical allocation.
+  recurrence :: U64 -> U64 -> U64
+  recurrence remaining value = if W.eq-u64 remaining 0 then value else
+    let decremented = W.wrapping-sub-u64 remaining 1 in
+    let multiplied = W.wrapping-mul-u64 value 6364136223846793005 in
+    let added = W.wrapping-add-u64 multiplied 1442695040888963407 in
+    let shifted = W.wrapping-shr-u64 added 29 in
+    let mixed = W.bit-xor-u64 added shifted in
+    recurrence decremented mixed
+  -- | Keep both clock boundaries outside the measured recurrence and publish its exact checksum.
+  main :: Unit ->{Foreign Test} Int
+  main unit =
+    let count = iterations () in
+    let start = clock () in
+    let checksum = recurrence count 1 in
+    let end = clock () in
+    let observed = report start end checksum in
+    case observed of 0 -> 0; _ -> 1

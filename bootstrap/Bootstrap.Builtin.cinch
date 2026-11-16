@@ -7,8 +7,100 @@ module Bootstrap.Builtin where
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Data.Json
   import Text.Lex (Span)
+  import Text.Scan (string-starts-with, string-drop)
 
   export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, intrinsic-contract, array-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation, wide-intrinsic, platform-intrinsic, total-primitive
+  export ScalarShape, ScalarOperation, scalar-shape-name, scalar-shape-width, scalar-shape-signed
+  export scalar-operation-arguments, scalar-operation-result, scalar-operation-code, scalar-operation-scheme, scalar-intrinsic
+
+  -- | Describe one canonical integer carrier independently of a source binding's display name.
+  data ScalarShape where
+    -- | Retain the builtin nominal identity, fixed bit width, and signed interpretation.
+    ScalarShape :: String -> Nat -> Bool -> ScalarShape
+  -- | Retain a closed pure scalar operation from the compiler's intrinsic vocabulary.
+  data ScalarOperation where
+    -- | Pair exact operand/result carriers with a compiler-selected operation code.
+    ScalarOperation :: List ScalarShape -> ScalarShape -> String -> ScalarOperation
+  -- | Read the canonical nominal identity required by a scalar operation.
+  scalar-shape-name :: ScalarShape -> String
+  scalar-shape-name shape = case shape of ScalarShape name width signed -> name
+  -- | Read the fixed LLVM integer width of a scalar carrier.
+  scalar-shape-width :: ScalarShape -> Nat
+  scalar-shape-width shape = case shape of ScalarShape name width signed -> width
+  -- | Distinguish sign extension from zero extension at a scalar result boundary.
+  scalar-shape-signed :: ScalarShape -> Bool
+  scalar-shape-signed shape = case shape of ScalarShape name width signed -> signed
+  -- | Read every operand in its original evaluation order.
+  scalar-operation-arguments :: ScalarOperation -> List ScalarShape
+  scalar-operation-arguments operation = case operation of ScalarOperation arguments result code -> arguments
+  -- | Read the declared scalar result carrier.
+  scalar-operation-result :: ScalarOperation -> ScalarShape
+  scalar-operation-result operation = case operation of ScalarOperation arguments result code -> result
+  -- | Read an operation code selected only by the closed intrinsic registry.
+  scalar-operation-code :: ScalarOperation -> String
+  scalar-operation-code operation = case operation of ScalarOperation arguments result code -> code
+  -- | Render the exact first-order nominal scheme used for source intrinsic validation.
+  scalar-operation-scheme :: ScalarOperation -> String
+  scalar-operation-scheme operation = scalar-argument-scheme (scalar-operation-arguments operation)
+    (scalar-shape-name (scalar-operation-result operation))
+  -- | Preserve scalar arrow order without adding implicit values or constraints.
+  scalar-argument-scheme :: List ScalarShape -> String -> String
+  scalar-argument-scheme arguments result = case arguments of
+    Nil -> result
+    Cons first rest -> string-concat-all [scalar-shape-name first, " -> ", scalar-argument-scheme rest result]
+  -- | Admit only fixed integer nominals supported by the one-word Native scalar ABI.
+  scalar-shape :: String -> Option ScalarShape
+  scalar-shape name =
+    if string-compare name "I8" == 0 then Some (ScalarShape "I8" 8 True)
+    else if string-compare name "I16" == 0 then Some (ScalarShape "I16" 16 True)
+    else if string-compare name "I32" == 0 then Some (ScalarShape "I32" 32 True)
+    else if string-compare name "I64" == 0 then Some (ScalarShape "I64" 64 True)
+    else if string-compare name "U8" == 0 then Some (ScalarShape "U8" 8 False)
+    else if string-compare name "U16" == 0 then Some (ScalarShape "U16" 16 False)
+    else if string-compare name "U32" == 0 then Some (ScalarShape "U32" 32 False)
+    else if string-compare name "U64" == 0 then Some (ScalarShape "U64" 64 False)
+    else None
+  -- | Decode only canonical operation identifiers, never user-facing function names or LLVM text.
+  scalar-intrinsic :: String -> Option ScalarOperation
+  scalar-intrinsic symbol = if string-starts-with "cinch.prim." symbol then
+    scalar-family (string-drop 11 symbol) scalar-prefixes
+    else None
+  -- | Enumerate the pure arithmetic, bit, comparison, and masked-shift opcode families.
+  scalar-prefixes :: List (String, String)
+  scalar-prefixes = [("wrappingAdd", "add"), ("wrappingSub", "sub"), ("wrappingMul", "mul"),
+    ("bitAnd", "and"), ("bitOr", "or"), ("bitXor", "xor"), ("bitNot", "not"),
+    ("wrappingShl", "shl"), ("wrappingShr", "shr"), ("eq", "eq"), ("ne", "ne"),
+    ("lt", "lt"), ("le", "le"), ("gt", "gt"), ("ge", "ge")]
+  -- | Match a canonical family and require an exact supported nominal suffix.
+  scalar-family :: String -> List (String, String) -> Option ScalarOperation
+  scalar-family body families = case families of
+    Nil -> scalar-wrapping-conversion body ["I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64"]
+    Cons (prefix, code) rest -> if string-starts-with prefix body then
+      (case scalar-shape (string-drop (string-length prefix) body) of
+        Some shape -> Some (scalar-family-operation code shape)
+        None -> scalar-family body rest)
+      else scalar-family body rest
+  -- | Construct a fixed scalar signature; shift counts retain their canonical U32 carrier.
+  scalar-family-operation :: String -> ScalarShape -> ScalarOperation
+  scalar-family-operation code shape =
+    if string-compare code "not" == 0 then ScalarOperation [shape] shape code
+    else if string-compare code "shl" == 0 || string-compare code "shr" == 0 then
+      ScalarOperation [shape, ScalarShape "U32" 32 False] shape code
+    else if string-compare code "eq" == 0 || string-compare code "ne" == 0
+      || string-compare code "lt" == 0 || string-compare code "le" == 0
+      || string-compare code "gt" == 0 || string-compare code "ge" == 0 then
+      ScalarOperation [shape, shape] (ScalarShape "Bool" 1 False) code
+    else ScalarOperation [shape, shape] shape code
+  -- | Match only wrapping integer conversions whose opcode explicitly names both carriers.
+  scalar-wrapping-conversion :: String -> List String -> Option ScalarOperation
+  scalar-wrapping-conversion body names = case names of
+    Nil -> None
+    Cons name rest -> let prefix = string-concat-all ["wrapping", name, "To"] in
+      if string-starts-with prefix body then
+        (case (scalar-shape name, scalar-shape (string-drop (string-length prefix) body)) of
+          (Some source, Some destination) -> Some (ScalarOperation [source] destination "convert")
+          other -> None)
+      else scalar-wrapping-conversion body rest
 
   nat-arithmetic-extern :: String -> Option String
   nat-arithmetic-extern symbol =
@@ -53,8 +145,14 @@ module Bootstrap.Builtin where
   -- The selected runtime ABI's pure intrinsics. The returned scheme is checked
   -- against the declaration, not taken on trust from foreign source text.
   -- The extern is retained separately from the language-level identity.
+  -- | Require the canonical scalar or established runtime scheme for an intrinsic declaration.
   intrinsic-contract :: String -> Option (String, String)
-  intrinsic-contract symbol =
+  intrinsic-contract symbol = case scalar-intrinsic symbol of
+    Some operation -> Some (scalar-operation-scheme operation, symbol)
+    None -> other-intrinsic-contract symbol
+  -- | Preserve the established non-scalar intrinsic contracts and their runtime targets.
+  other-intrinsic-contract :: String -> Option (String, String)
+  other-intrinsic-contract symbol =
     -- Machine primitives retain their canonical operation identity. They
     -- lower directly to LLVM, rather than naming an unchecked C function.
     if string-compare symbol "cinch.prim.eqI64" == 0 || string-compare symbol "cinch.prim.neI64" == 0 then

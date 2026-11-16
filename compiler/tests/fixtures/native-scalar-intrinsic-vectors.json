@@ -1,0 +1,4004 @@
+[
+  {
+    "name": "wrapping-add-I8-0",
+    "expression": "W.wrapping-add-i8 (127 :: I8) (1 :: I8)",
+    "expected": -128,
+    "result": "I8"
+  },
+  {
+    "name": "wrapping-sub-I8-0",
+    "expression": "W.wrapping-sub-i8 (127 :: I8) (1 :: I8)",
+    "expected": 126,
+    "result": "I8"
+  },
+  {
+    "name": "wrapping-mul-I8-0",
+    "expression": "W.wrapping-mul-i8 (127 :: I8) (1 :: I8)",
+    "expected": 127,
+    "result": "I8"
+  },
+  {
+    "name": "bit-and-I8-0",
+    "expression": "W.bit-and-i8 (127 :: I8) (1 :: I8)",
+    "expected": 1,
+    "result": "I8"
+  },
+  {
+    "name": "bit-or-I8-0",
+    "expression": "W.bit-or-i8 (127 :: I8) (1 :: I8)",
+    "expected": 127,
+    "result": "I8"
+  },
+  {
+    "name": "bit-xor-I8-0",
+    "expression": "W.bit-xor-i8 (127 :: I8) (1 :: I8)",
+    "expected": 126,
+    "result": "I8"
+  },
+  {
+    "name": "eq-I8-0",
+    "expression": "W.eq-i8 (127 :: I8) (1 :: I8)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ne-I8-0",
+    "expression": "W.ne-i8 (127 :: I8) (1 :: I8)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "lt-I8-0",
+    "expression": "W.lt-i8 (127 :: I8) (1 :: I8)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "le-I8-0",
+    "expression": "W.le-i8 (127 :: I8) (1 :: I8)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "gt-I8-0",
+    "expression": "W.gt-i8 (127 :: I8) (1 :: I8)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "ge-I8-0",
+    "expression": "W.ge-i8 (127 :: I8) (1 :: I8)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "wrapping-add-I8-1",
+    "expression": "W.wrapping-add-i8 (-128 :: I8) (-1 :: I8)",
+    "expected": 127,
+    "result": "I8"
+  },
+  {
+    "name": "wrapping-sub-I8-1",
+    "expression": "W.wrapping-sub-i8 (-128 :: I8) (-1 :: I8)",
+    "expected": -127,
+    "result": "I8"
+  },
+  {
+    "name": "wrapping-mul-I8-1",
+    "expression": "W.wrapping-mul-i8 (-128 :: I8) (-1 :: I8)",
+    "expected": -128,
+    "result": "I8"
+  },
+  {
+    "name": "bit-and-I8-1",
+    "expression": "W.bit-and-i8 (-128 :: I8) (-1 :: I8)",
+    "expected": -128,
+    "result": "I8"
+  },
+  {
+    "name": "bit-or-I8-1",
+    "expression": "W.bit-or-i8 (-128 :: I8) (-1 :: I8)",
+    "expected": -1,
+    "result": "I8"
+  },
+  {
+    "name": "bit-xor-I8-1",
+    "expression": "W.bit-xor-i8 (-128 :: I8) (-1 :: I8)",
+    "expected": 127,
+    "result": "I8"
+  },
+  {
+    "name": "eq-I8-1",
+    "expression": "W.eq-i8 (-128 :: I8) (-1 :: I8)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ne-I8-1",
+    "expression": "W.ne-i8 (-128 :: I8) (-1 :: I8)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "lt-I8-1",
+    "expression": "W.lt-i8 (-128 :: I8) (-1 :: I8)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "le-I8-1",
+    "expression": "W.le-i8 (-128 :: I8) (-1 :: I8)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "gt-I8-1",
+    "expression": "W.gt-i8 (-128 :: I8) (-1 :: I8)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ge-I8-1",
+    "expression": "W.ge-i8 (-128 :: I8) (-1 :: I8)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "wrapping-add-I8-2",
+    "expression": "W.wrapping-add-i8 (-1 :: I8) (127 :: I8)",
+    "expected": 126,
+    "result": "I8"
+  },
+  {
+    "name": "wrapping-sub-I8-2",
+    "expression": "W.wrapping-sub-i8 (-1 :: I8) (127 :: I8)",
+    "expected": -128,
+    "result": "I8"
+  },
+  {
+    "name": "wrapping-mul-I8-2",
+    "expression": "W.wrapping-mul-i8 (-1 :: I8) (127 :: I8)",
+    "expected": -127,
+    "result": "I8"
+  },
+  {
+    "name": "bit-and-I8-2",
+    "expression": "W.bit-and-i8 (-1 :: I8) (127 :: I8)",
+    "expected": 127,
+    "result": "I8"
+  },
+  {
+    "name": "bit-or-I8-2",
+    "expression": "W.bit-or-i8 (-1 :: I8) (127 :: I8)",
+    "expected": -1,
+    "result": "I8"
+  },
+  {
+    "name": "bit-xor-I8-2",
+    "expression": "W.bit-xor-i8 (-1 :: I8) (127 :: I8)",
+    "expected": -128,
+    "result": "I8"
+  },
+  {
+    "name": "eq-I8-2",
+    "expression": "W.eq-i8 (-1 :: I8) (127 :: I8)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ne-I8-2",
+    "expression": "W.ne-i8 (-1 :: I8) (127 :: I8)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "lt-I8-2",
+    "expression": "W.lt-i8 (-1 :: I8) (127 :: I8)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "le-I8-2",
+    "expression": "W.le-i8 (-1 :: I8) (127 :: I8)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "gt-I8-2",
+    "expression": "W.gt-i8 (-1 :: I8) (127 :: I8)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ge-I8-2",
+    "expression": "W.ge-i8 (-1 :: I8) (127 :: I8)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "not-I8-0",
+    "expression": "W.bit-not-i8 (-128 :: I8)",
+    "expected": 127,
+    "result": "I8"
+  },
+  {
+    "name": "not-I8-1",
+    "expression": "W.bit-not-i8 (127 :: I8)",
+    "expected": -128,
+    "result": "I8"
+  },
+  {
+    "name": "not-I8-2",
+    "expression": "W.bit-not-i8 (-1 :: I8)",
+    "expected": 0,
+    "result": "I8"
+  },
+  {
+    "name": "shl-I8--128-0",
+    "expression": "W.wrapping-shl-i8 (-128 :: I8) (0 :: U32)",
+    "expected": -128,
+    "result": "I8"
+  },
+  {
+    "name": "shr-I8--128-0",
+    "expression": "W.wrapping-shr-i8 (-128 :: I8) (0 :: U32)",
+    "expected": -128,
+    "result": "I8"
+  },
+  {
+    "name": "shl-I8--128-7",
+    "expression": "W.wrapping-shl-i8 (-128 :: I8) (7 :: U32)",
+    "expected": 0,
+    "result": "I8"
+  },
+  {
+    "name": "shr-I8--128-7",
+    "expression": "W.wrapping-shr-i8 (-128 :: I8) (7 :: U32)",
+    "expected": -1,
+    "result": "I8"
+  },
+  {
+    "name": "shl-I8--128-8",
+    "expression": "W.wrapping-shl-i8 (-128 :: I8) (8 :: U32)",
+    "expected": -128,
+    "result": "I8"
+  },
+  {
+    "name": "shr-I8--128-8",
+    "expression": "W.wrapping-shr-i8 (-128 :: I8) (8 :: U32)",
+    "expected": -128,
+    "result": "I8"
+  },
+  {
+    "name": "shl-I8--128-9",
+    "expression": "W.wrapping-shl-i8 (-128 :: I8) (9 :: U32)",
+    "expected": 0,
+    "result": "I8"
+  },
+  {
+    "name": "shr-I8--128-9",
+    "expression": "W.wrapping-shr-i8 (-128 :: I8) (9 :: U32)",
+    "expected": -64,
+    "result": "I8"
+  },
+  {
+    "name": "shl-I8--128-4294967295",
+    "expression": "W.wrapping-shl-i8 (-128 :: I8) (4294967295 :: U32)",
+    "expected": 0,
+    "result": "I8"
+  },
+  {
+    "name": "shr-I8--128-4294967295",
+    "expression": "W.wrapping-shr-i8 (-128 :: I8) (4294967295 :: U32)",
+    "expected": -1,
+    "result": "I8"
+  },
+  {
+    "name": "shl-I8-127-0",
+    "expression": "W.wrapping-shl-i8 (127 :: I8) (0 :: U32)",
+    "expected": 127,
+    "result": "I8"
+  },
+  {
+    "name": "shr-I8-127-0",
+    "expression": "W.wrapping-shr-i8 (127 :: I8) (0 :: U32)",
+    "expected": 127,
+    "result": "I8"
+  },
+  {
+    "name": "shl-I8-127-7",
+    "expression": "W.wrapping-shl-i8 (127 :: I8) (7 :: U32)",
+    "expected": -128,
+    "result": "I8"
+  },
+  {
+    "name": "shr-I8-127-7",
+    "expression": "W.wrapping-shr-i8 (127 :: I8) (7 :: U32)",
+    "expected": 0,
+    "result": "I8"
+  },
+  {
+    "name": "shl-I8-127-8",
+    "expression": "W.wrapping-shl-i8 (127 :: I8) (8 :: U32)",
+    "expected": 127,
+    "result": "I8"
+  },
+  {
+    "name": "shr-I8-127-8",
+    "expression": "W.wrapping-shr-i8 (127 :: I8) (8 :: U32)",
+    "expected": 127,
+    "result": "I8"
+  },
+  {
+    "name": "shl-I8-127-9",
+    "expression": "W.wrapping-shl-i8 (127 :: I8) (9 :: U32)",
+    "expected": -2,
+    "result": "I8"
+  },
+  {
+    "name": "shr-I8-127-9",
+    "expression": "W.wrapping-shr-i8 (127 :: I8) (9 :: U32)",
+    "expected": 63,
+    "result": "I8"
+  },
+  {
+    "name": "shl-I8-127-4294967295",
+    "expression": "W.wrapping-shl-i8 (127 :: I8) (4294967295 :: U32)",
+    "expected": -128,
+    "result": "I8"
+  },
+  {
+    "name": "shr-I8-127-4294967295",
+    "expression": "W.wrapping-shr-i8 (127 :: I8) (4294967295 :: U32)",
+    "expected": 0,
+    "result": "I8"
+  },
+  {
+    "name": "cast-I8-I8-0",
+    "expression": "W.wrapping-i8-to-i8 (-128 :: I8)",
+    "expected": -128,
+    "result": "I8"
+  },
+  {
+    "name": "cast-I8-I8-1",
+    "expression": "W.wrapping-i8-to-i8 (127 :: I8)",
+    "expected": 127,
+    "result": "I8"
+  },
+  {
+    "name": "cast-I8-I8-2",
+    "expression": "W.wrapping-i8-to-i8 (-1 :: I8)",
+    "expected": -1,
+    "result": "I8"
+  },
+  {
+    "name": "cast-I8-I16-0",
+    "expression": "W.wrapping-i8-to-i16 (-128 :: I8)",
+    "expected": -128,
+    "result": "I16"
+  },
+  {
+    "name": "cast-I8-I16-1",
+    "expression": "W.wrapping-i8-to-i16 (127 :: I8)",
+    "expected": 127,
+    "result": "I16"
+  },
+  {
+    "name": "cast-I8-I16-2",
+    "expression": "W.wrapping-i8-to-i16 (-1 :: I8)",
+    "expected": -1,
+    "result": "I16"
+  },
+  {
+    "name": "cast-I8-I32-0",
+    "expression": "W.wrapping-i8-to-i32 (-128 :: I8)",
+    "expected": -128,
+    "result": "I32"
+  },
+  {
+    "name": "cast-I8-I32-1",
+    "expression": "W.wrapping-i8-to-i32 (127 :: I8)",
+    "expected": 127,
+    "result": "I32"
+  },
+  {
+    "name": "cast-I8-I32-2",
+    "expression": "W.wrapping-i8-to-i32 (-1 :: I8)",
+    "expected": -1,
+    "result": "I32"
+  },
+  {
+    "name": "cast-I8-I64-0",
+    "expression": "W.wrapping-i8-to-i64 (-128 :: I8)",
+    "expected": -128,
+    "result": "I64"
+  },
+  {
+    "name": "cast-I8-I64-1",
+    "expression": "W.wrapping-i8-to-i64 (127 :: I8)",
+    "expected": 127,
+    "result": "I64"
+  },
+  {
+    "name": "cast-I8-I64-2",
+    "expression": "W.wrapping-i8-to-i64 (-1 :: I8)",
+    "expected": -1,
+    "result": "I64"
+  },
+  {
+    "name": "cast-I8-U8-0",
+    "expression": "W.wrapping-i8-to-u8 (-128 :: I8)",
+    "expected": 128,
+    "result": "U8"
+  },
+  {
+    "name": "cast-I8-U8-1",
+    "expression": "W.wrapping-i8-to-u8 (127 :: I8)",
+    "expected": 127,
+    "result": "U8"
+  },
+  {
+    "name": "cast-I8-U8-2",
+    "expression": "W.wrapping-i8-to-u8 (-1 :: I8)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "cast-I8-U16-0",
+    "expression": "W.wrapping-i8-to-u16 (-128 :: I8)",
+    "expected": 65408,
+    "result": "U16"
+  },
+  {
+    "name": "cast-I8-U16-1",
+    "expression": "W.wrapping-i8-to-u16 (127 :: I8)",
+    "expected": 127,
+    "result": "U16"
+  },
+  {
+    "name": "cast-I8-U16-2",
+    "expression": "W.wrapping-i8-to-u16 (-1 :: I8)",
+    "expected": 65535,
+    "result": "U16"
+  },
+  {
+    "name": "cast-I8-U32-0",
+    "expression": "W.wrapping-i8-to-u32 (-128 :: I8)",
+    "expected": 4294967168,
+    "result": "U32"
+  },
+  {
+    "name": "cast-I8-U32-1",
+    "expression": "W.wrapping-i8-to-u32 (127 :: I8)",
+    "expected": 127,
+    "result": "U32"
+  },
+  {
+    "name": "cast-I8-U32-2",
+    "expression": "W.wrapping-i8-to-u32 (-1 :: I8)",
+    "expected": 4294967295,
+    "result": "U32"
+  },
+  {
+    "name": "cast-I8-U64-0",
+    "expression": "W.wrapping-i8-to-u64 (-128 :: I8)",
+    "expected": 18446744073709551488,
+    "result": "U64"
+  },
+  {
+    "name": "cast-I8-U64-1",
+    "expression": "W.wrapping-i8-to-u64 (127 :: I8)",
+    "expected": 127,
+    "result": "U64"
+  },
+  {
+    "name": "cast-I8-U64-2",
+    "expression": "W.wrapping-i8-to-u64 (-1 :: I8)",
+    "expected": 18446744073709551615,
+    "result": "U64"
+  },
+  {
+    "name": "wrapping-add-I16-0",
+    "expression": "W.wrapping-add-i16 (32767 :: I16) (1 :: I16)",
+    "expected": -32768,
+    "result": "I16"
+  },
+  {
+    "name": "wrapping-sub-I16-0",
+    "expression": "W.wrapping-sub-i16 (32767 :: I16) (1 :: I16)",
+    "expected": 32766,
+    "result": "I16"
+  },
+  {
+    "name": "wrapping-mul-I16-0",
+    "expression": "W.wrapping-mul-i16 (32767 :: I16) (1 :: I16)",
+    "expected": 32767,
+    "result": "I16"
+  },
+  {
+    "name": "bit-and-I16-0",
+    "expression": "W.bit-and-i16 (32767 :: I16) (1 :: I16)",
+    "expected": 1,
+    "result": "I16"
+  },
+  {
+    "name": "bit-or-I16-0",
+    "expression": "W.bit-or-i16 (32767 :: I16) (1 :: I16)",
+    "expected": 32767,
+    "result": "I16"
+  },
+  {
+    "name": "bit-xor-I16-0",
+    "expression": "W.bit-xor-i16 (32767 :: I16) (1 :: I16)",
+    "expected": 32766,
+    "result": "I16"
+  },
+  {
+    "name": "eq-I16-0",
+    "expression": "W.eq-i16 (32767 :: I16) (1 :: I16)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ne-I16-0",
+    "expression": "W.ne-i16 (32767 :: I16) (1 :: I16)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "lt-I16-0",
+    "expression": "W.lt-i16 (32767 :: I16) (1 :: I16)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "le-I16-0",
+    "expression": "W.le-i16 (32767 :: I16) (1 :: I16)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "gt-I16-0",
+    "expression": "W.gt-i16 (32767 :: I16) (1 :: I16)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "ge-I16-0",
+    "expression": "W.ge-i16 (32767 :: I16) (1 :: I16)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "wrapping-add-I16-1",
+    "expression": "W.wrapping-add-i16 (-32768 :: I16) (-1 :: I16)",
+    "expected": 32767,
+    "result": "I16"
+  },
+  {
+    "name": "wrapping-sub-I16-1",
+    "expression": "W.wrapping-sub-i16 (-32768 :: I16) (-1 :: I16)",
+    "expected": -32767,
+    "result": "I16"
+  },
+  {
+    "name": "wrapping-mul-I16-1",
+    "expression": "W.wrapping-mul-i16 (-32768 :: I16) (-1 :: I16)",
+    "expected": -32768,
+    "result": "I16"
+  },
+  {
+    "name": "bit-and-I16-1",
+    "expression": "W.bit-and-i16 (-32768 :: I16) (-1 :: I16)",
+    "expected": -32768,
+    "result": "I16"
+  },
+  {
+    "name": "bit-or-I16-1",
+    "expression": "W.bit-or-i16 (-32768 :: I16) (-1 :: I16)",
+    "expected": -1,
+    "result": "I16"
+  },
+  {
+    "name": "bit-xor-I16-1",
+    "expression": "W.bit-xor-i16 (-32768 :: I16) (-1 :: I16)",
+    "expected": 32767,
+    "result": "I16"
+  },
+  {
+    "name": "eq-I16-1",
+    "expression": "W.eq-i16 (-32768 :: I16) (-1 :: I16)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ne-I16-1",
+    "expression": "W.ne-i16 (-32768 :: I16) (-1 :: I16)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "lt-I16-1",
+    "expression": "W.lt-i16 (-32768 :: I16) (-1 :: I16)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "le-I16-1",
+    "expression": "W.le-i16 (-32768 :: I16) (-1 :: I16)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "gt-I16-1",
+    "expression": "W.gt-i16 (-32768 :: I16) (-1 :: I16)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ge-I16-1",
+    "expression": "W.ge-i16 (-32768 :: I16) (-1 :: I16)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "wrapping-add-I16-2",
+    "expression": "W.wrapping-add-i16 (-1 :: I16) (32767 :: I16)",
+    "expected": 32766,
+    "result": "I16"
+  },
+  {
+    "name": "wrapping-sub-I16-2",
+    "expression": "W.wrapping-sub-i16 (-1 :: I16) (32767 :: I16)",
+    "expected": -32768,
+    "result": "I16"
+  },
+  {
+    "name": "wrapping-mul-I16-2",
+    "expression": "W.wrapping-mul-i16 (-1 :: I16) (32767 :: I16)",
+    "expected": -32767,
+    "result": "I16"
+  },
+  {
+    "name": "bit-and-I16-2",
+    "expression": "W.bit-and-i16 (-1 :: I16) (32767 :: I16)",
+    "expected": 32767,
+    "result": "I16"
+  },
+  {
+    "name": "bit-or-I16-2",
+    "expression": "W.bit-or-i16 (-1 :: I16) (32767 :: I16)",
+    "expected": -1,
+    "result": "I16"
+  },
+  {
+    "name": "bit-xor-I16-2",
+    "expression": "W.bit-xor-i16 (-1 :: I16) (32767 :: I16)",
+    "expected": -32768,
+    "result": "I16"
+  },
+  {
+    "name": "eq-I16-2",
+    "expression": "W.eq-i16 (-1 :: I16) (32767 :: I16)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ne-I16-2",
+    "expression": "W.ne-i16 (-1 :: I16) (32767 :: I16)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "lt-I16-2",
+    "expression": "W.lt-i16 (-1 :: I16) (32767 :: I16)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "le-I16-2",
+    "expression": "W.le-i16 (-1 :: I16) (32767 :: I16)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "gt-I16-2",
+    "expression": "W.gt-i16 (-1 :: I16) (32767 :: I16)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ge-I16-2",
+    "expression": "W.ge-i16 (-1 :: I16) (32767 :: I16)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "not-I16-0",
+    "expression": "W.bit-not-i16 (-32768 :: I16)",
+    "expected": 32767,
+    "result": "I16"
+  },
+  {
+    "name": "not-I16-1",
+    "expression": "W.bit-not-i16 (32767 :: I16)",
+    "expected": -32768,
+    "result": "I16"
+  },
+  {
+    "name": "not-I16-2",
+    "expression": "W.bit-not-i16 (-1 :: I16)",
+    "expected": 0,
+    "result": "I16"
+  },
+  {
+    "name": "shl-I16--32768-0",
+    "expression": "W.wrapping-shl-i16 (-32768 :: I16) (0 :: U32)",
+    "expected": -32768,
+    "result": "I16"
+  },
+  {
+    "name": "shr-I16--32768-0",
+    "expression": "W.wrapping-shr-i16 (-32768 :: I16) (0 :: U32)",
+    "expected": -32768,
+    "result": "I16"
+  },
+  {
+    "name": "shl-I16--32768-15",
+    "expression": "W.wrapping-shl-i16 (-32768 :: I16) (15 :: U32)",
+    "expected": 0,
+    "result": "I16"
+  },
+  {
+    "name": "shr-I16--32768-15",
+    "expression": "W.wrapping-shr-i16 (-32768 :: I16) (15 :: U32)",
+    "expected": -1,
+    "result": "I16"
+  },
+  {
+    "name": "shl-I16--32768-16",
+    "expression": "W.wrapping-shl-i16 (-32768 :: I16) (16 :: U32)",
+    "expected": -32768,
+    "result": "I16"
+  },
+  {
+    "name": "shr-I16--32768-16",
+    "expression": "W.wrapping-shr-i16 (-32768 :: I16) (16 :: U32)",
+    "expected": -32768,
+    "result": "I16"
+  },
+  {
+    "name": "shl-I16--32768-17",
+    "expression": "W.wrapping-shl-i16 (-32768 :: I16) (17 :: U32)",
+    "expected": 0,
+    "result": "I16"
+  },
+  {
+    "name": "shr-I16--32768-17",
+    "expression": "W.wrapping-shr-i16 (-32768 :: I16) (17 :: U32)",
+    "expected": -16384,
+    "result": "I16"
+  },
+  {
+    "name": "shl-I16--32768-4294967295",
+    "expression": "W.wrapping-shl-i16 (-32768 :: I16) (4294967295 :: U32)",
+    "expected": 0,
+    "result": "I16"
+  },
+  {
+    "name": "shr-I16--32768-4294967295",
+    "expression": "W.wrapping-shr-i16 (-32768 :: I16) (4294967295 :: U32)",
+    "expected": -1,
+    "result": "I16"
+  },
+  {
+    "name": "shl-I16-32767-0",
+    "expression": "W.wrapping-shl-i16 (32767 :: I16) (0 :: U32)",
+    "expected": 32767,
+    "result": "I16"
+  },
+  {
+    "name": "shr-I16-32767-0",
+    "expression": "W.wrapping-shr-i16 (32767 :: I16) (0 :: U32)",
+    "expected": 32767,
+    "result": "I16"
+  },
+  {
+    "name": "shl-I16-32767-15",
+    "expression": "W.wrapping-shl-i16 (32767 :: I16) (15 :: U32)",
+    "expected": -32768,
+    "result": "I16"
+  },
+  {
+    "name": "shr-I16-32767-15",
+    "expression": "W.wrapping-shr-i16 (32767 :: I16) (15 :: U32)",
+    "expected": 0,
+    "result": "I16"
+  },
+  {
+    "name": "shl-I16-32767-16",
+    "expression": "W.wrapping-shl-i16 (32767 :: I16) (16 :: U32)",
+    "expected": 32767,
+    "result": "I16"
+  },
+  {
+    "name": "shr-I16-32767-16",
+    "expression": "W.wrapping-shr-i16 (32767 :: I16) (16 :: U32)",
+    "expected": 32767,
+    "result": "I16"
+  },
+  {
+    "name": "shl-I16-32767-17",
+    "expression": "W.wrapping-shl-i16 (32767 :: I16) (17 :: U32)",
+    "expected": -2,
+    "result": "I16"
+  },
+  {
+    "name": "shr-I16-32767-17",
+    "expression": "W.wrapping-shr-i16 (32767 :: I16) (17 :: U32)",
+    "expected": 16383,
+    "result": "I16"
+  },
+  {
+    "name": "shl-I16-32767-4294967295",
+    "expression": "W.wrapping-shl-i16 (32767 :: I16) (4294967295 :: U32)",
+    "expected": -32768,
+    "result": "I16"
+  },
+  {
+    "name": "shr-I16-32767-4294967295",
+    "expression": "W.wrapping-shr-i16 (32767 :: I16) (4294967295 :: U32)",
+    "expected": 0,
+    "result": "I16"
+  },
+  {
+    "name": "cast-I16-I8-0",
+    "expression": "W.wrapping-i16-to-i8 (-32768 :: I16)",
+    "expected": 0,
+    "result": "I8"
+  },
+  {
+    "name": "cast-I16-I8-1",
+    "expression": "W.wrapping-i16-to-i8 (32767 :: I16)",
+    "expected": -1,
+    "result": "I8"
+  },
+  {
+    "name": "cast-I16-I8-2",
+    "expression": "W.wrapping-i16-to-i8 (-1 :: I16)",
+    "expected": -1,
+    "result": "I8"
+  },
+  {
+    "name": "cast-I16-I16-0",
+    "expression": "W.wrapping-i16-to-i16 (-32768 :: I16)",
+    "expected": -32768,
+    "result": "I16"
+  },
+  {
+    "name": "cast-I16-I16-1",
+    "expression": "W.wrapping-i16-to-i16 (32767 :: I16)",
+    "expected": 32767,
+    "result": "I16"
+  },
+  {
+    "name": "cast-I16-I16-2",
+    "expression": "W.wrapping-i16-to-i16 (-1 :: I16)",
+    "expected": -1,
+    "result": "I16"
+  },
+  {
+    "name": "cast-I16-I32-0",
+    "expression": "W.wrapping-i16-to-i32 (-32768 :: I16)",
+    "expected": -32768,
+    "result": "I32"
+  },
+  {
+    "name": "cast-I16-I32-1",
+    "expression": "W.wrapping-i16-to-i32 (32767 :: I16)",
+    "expected": 32767,
+    "result": "I32"
+  },
+  {
+    "name": "cast-I16-I32-2",
+    "expression": "W.wrapping-i16-to-i32 (-1 :: I16)",
+    "expected": -1,
+    "result": "I32"
+  },
+  {
+    "name": "cast-I16-I64-0",
+    "expression": "W.wrapping-i16-to-i64 (-32768 :: I16)",
+    "expected": -32768,
+    "result": "I64"
+  },
+  {
+    "name": "cast-I16-I64-1",
+    "expression": "W.wrapping-i16-to-i64 (32767 :: I16)",
+    "expected": 32767,
+    "result": "I64"
+  },
+  {
+    "name": "cast-I16-I64-2",
+    "expression": "W.wrapping-i16-to-i64 (-1 :: I16)",
+    "expected": -1,
+    "result": "I64"
+  },
+  {
+    "name": "cast-I16-U8-0",
+    "expression": "W.wrapping-i16-to-u8 (-32768 :: I16)",
+    "expected": 0,
+    "result": "U8"
+  },
+  {
+    "name": "cast-I16-U8-1",
+    "expression": "W.wrapping-i16-to-u8 (32767 :: I16)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "cast-I16-U8-2",
+    "expression": "W.wrapping-i16-to-u8 (-1 :: I16)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "cast-I16-U16-0",
+    "expression": "W.wrapping-i16-to-u16 (-32768 :: I16)",
+    "expected": 32768,
+    "result": "U16"
+  },
+  {
+    "name": "cast-I16-U16-1",
+    "expression": "W.wrapping-i16-to-u16 (32767 :: I16)",
+    "expected": 32767,
+    "result": "U16"
+  },
+  {
+    "name": "cast-I16-U16-2",
+    "expression": "W.wrapping-i16-to-u16 (-1 :: I16)",
+    "expected": 65535,
+    "result": "U16"
+  },
+  {
+    "name": "cast-I16-U32-0",
+    "expression": "W.wrapping-i16-to-u32 (-32768 :: I16)",
+    "expected": 4294934528,
+    "result": "U32"
+  },
+  {
+    "name": "cast-I16-U32-1",
+    "expression": "W.wrapping-i16-to-u32 (32767 :: I16)",
+    "expected": 32767,
+    "result": "U32"
+  },
+  {
+    "name": "cast-I16-U32-2",
+    "expression": "W.wrapping-i16-to-u32 (-1 :: I16)",
+    "expected": 4294967295,
+    "result": "U32"
+  },
+  {
+    "name": "cast-I16-U64-0",
+    "expression": "W.wrapping-i16-to-u64 (-32768 :: I16)",
+    "expected": 18446744073709518848,
+    "result": "U64"
+  },
+  {
+    "name": "cast-I16-U64-1",
+    "expression": "W.wrapping-i16-to-u64 (32767 :: I16)",
+    "expected": 32767,
+    "result": "U64"
+  },
+  {
+    "name": "cast-I16-U64-2",
+    "expression": "W.wrapping-i16-to-u64 (-1 :: I16)",
+    "expected": 18446744073709551615,
+    "result": "U64"
+  },
+  {
+    "name": "wrapping-add-I32-0",
+    "expression": "W.wrapping-add-i32 (2147483647 :: I32) (1 :: I32)",
+    "expected": -2147483648,
+    "result": "I32"
+  },
+  {
+    "name": "wrapping-sub-I32-0",
+    "expression": "W.wrapping-sub-i32 (2147483647 :: I32) (1 :: I32)",
+    "expected": 2147483646,
+    "result": "I32"
+  },
+  {
+    "name": "wrapping-mul-I32-0",
+    "expression": "W.wrapping-mul-i32 (2147483647 :: I32) (1 :: I32)",
+    "expected": 2147483647,
+    "result": "I32"
+  },
+  {
+    "name": "bit-and-I32-0",
+    "expression": "W.bit-and-i32 (2147483647 :: I32) (1 :: I32)",
+    "expected": 1,
+    "result": "I32"
+  },
+  {
+    "name": "bit-or-I32-0",
+    "expression": "W.bit-or-i32 (2147483647 :: I32) (1 :: I32)",
+    "expected": 2147483647,
+    "result": "I32"
+  },
+  {
+    "name": "bit-xor-I32-0",
+    "expression": "W.bit-xor-i32 (2147483647 :: I32) (1 :: I32)",
+    "expected": 2147483646,
+    "result": "I32"
+  },
+  {
+    "name": "eq-I32-0",
+    "expression": "W.eq-i32 (2147483647 :: I32) (1 :: I32)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ne-I32-0",
+    "expression": "W.ne-i32 (2147483647 :: I32) (1 :: I32)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "lt-I32-0",
+    "expression": "W.lt-i32 (2147483647 :: I32) (1 :: I32)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "le-I32-0",
+    "expression": "W.le-i32 (2147483647 :: I32) (1 :: I32)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "gt-I32-0",
+    "expression": "W.gt-i32 (2147483647 :: I32) (1 :: I32)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "ge-I32-0",
+    "expression": "W.ge-i32 (2147483647 :: I32) (1 :: I32)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "wrapping-add-I32-1",
+    "expression": "W.wrapping-add-i32 (-2147483648 :: I32) (-1 :: I32)",
+    "expected": 2147483647,
+    "result": "I32"
+  },
+  {
+    "name": "wrapping-sub-I32-1",
+    "expression": "W.wrapping-sub-i32 (-2147483648 :: I32) (-1 :: I32)",
+    "expected": -2147483647,
+    "result": "I32"
+  },
+  {
+    "name": "wrapping-mul-I32-1",
+    "expression": "W.wrapping-mul-i32 (-2147483648 :: I32) (-1 :: I32)",
+    "expected": -2147483648,
+    "result": "I32"
+  },
+  {
+    "name": "bit-and-I32-1",
+    "expression": "W.bit-and-i32 (-2147483648 :: I32) (-1 :: I32)",
+    "expected": -2147483648,
+    "result": "I32"
+  },
+  {
+    "name": "bit-or-I32-1",
+    "expression": "W.bit-or-i32 (-2147483648 :: I32) (-1 :: I32)",
+    "expected": -1,
+    "result": "I32"
+  },
+  {
+    "name": "bit-xor-I32-1",
+    "expression": "W.bit-xor-i32 (-2147483648 :: I32) (-1 :: I32)",
+    "expected": 2147483647,
+    "result": "I32"
+  },
+  {
+    "name": "eq-I32-1",
+    "expression": "W.eq-i32 (-2147483648 :: I32) (-1 :: I32)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ne-I32-1",
+    "expression": "W.ne-i32 (-2147483648 :: I32) (-1 :: I32)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "lt-I32-1",
+    "expression": "W.lt-i32 (-2147483648 :: I32) (-1 :: I32)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "le-I32-1",
+    "expression": "W.le-i32 (-2147483648 :: I32) (-1 :: I32)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "gt-I32-1",
+    "expression": "W.gt-i32 (-2147483648 :: I32) (-1 :: I32)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ge-I32-1",
+    "expression": "W.ge-i32 (-2147483648 :: I32) (-1 :: I32)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "wrapping-add-I32-2",
+    "expression": "W.wrapping-add-i32 (-1 :: I32) (2147483647 :: I32)",
+    "expected": 2147483646,
+    "result": "I32"
+  },
+  {
+    "name": "wrapping-sub-I32-2",
+    "expression": "W.wrapping-sub-i32 (-1 :: I32) (2147483647 :: I32)",
+    "expected": -2147483648,
+    "result": "I32"
+  },
+  {
+    "name": "wrapping-mul-I32-2",
+    "expression": "W.wrapping-mul-i32 (-1 :: I32) (2147483647 :: I32)",
+    "expected": -2147483647,
+    "result": "I32"
+  },
+  {
+    "name": "bit-and-I32-2",
+    "expression": "W.bit-and-i32 (-1 :: I32) (2147483647 :: I32)",
+    "expected": 2147483647,
+    "result": "I32"
+  },
+  {
+    "name": "bit-or-I32-2",
+    "expression": "W.bit-or-i32 (-1 :: I32) (2147483647 :: I32)",
+    "expected": -1,
+    "result": "I32"
+  },
+  {
+    "name": "bit-xor-I32-2",
+    "expression": "W.bit-xor-i32 (-1 :: I32) (2147483647 :: I32)",
+    "expected": -2147483648,
+    "result": "I32"
+  },
+  {
+    "name": "eq-I32-2",
+    "expression": "W.eq-i32 (-1 :: I32) (2147483647 :: I32)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ne-I32-2",
+    "expression": "W.ne-i32 (-1 :: I32) (2147483647 :: I32)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "lt-I32-2",
+    "expression": "W.lt-i32 (-1 :: I32) (2147483647 :: I32)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "le-I32-2",
+    "expression": "W.le-i32 (-1 :: I32) (2147483647 :: I32)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "gt-I32-2",
+    "expression": "W.gt-i32 (-1 :: I32) (2147483647 :: I32)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ge-I32-2",
+    "expression": "W.ge-i32 (-1 :: I32) (2147483647 :: I32)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "not-I32-0",
+    "expression": "W.bit-not-i32 (-2147483648 :: I32)",
+    "expected": 2147483647,
+    "result": "I32"
+  },
+  {
+    "name": "not-I32-1",
+    "expression": "W.bit-not-i32 (2147483647 :: I32)",
+    "expected": -2147483648,
+    "result": "I32"
+  },
+  {
+    "name": "not-I32-2",
+    "expression": "W.bit-not-i32 (-1 :: I32)",
+    "expected": 0,
+    "result": "I32"
+  },
+  {
+    "name": "shl-I32--2147483648-0",
+    "expression": "W.wrapping-shl-i32 (-2147483648 :: I32) (0 :: U32)",
+    "expected": -2147483648,
+    "result": "I32"
+  },
+  {
+    "name": "shr-I32--2147483648-0",
+    "expression": "W.wrapping-shr-i32 (-2147483648 :: I32) (0 :: U32)",
+    "expected": -2147483648,
+    "result": "I32"
+  },
+  {
+    "name": "shl-I32--2147483648-31",
+    "expression": "W.wrapping-shl-i32 (-2147483648 :: I32) (31 :: U32)",
+    "expected": 0,
+    "result": "I32"
+  },
+  {
+    "name": "shr-I32--2147483648-31",
+    "expression": "W.wrapping-shr-i32 (-2147483648 :: I32) (31 :: U32)",
+    "expected": -1,
+    "result": "I32"
+  },
+  {
+    "name": "shl-I32--2147483648-32",
+    "expression": "W.wrapping-shl-i32 (-2147483648 :: I32) (32 :: U32)",
+    "expected": -2147483648,
+    "result": "I32"
+  },
+  {
+    "name": "shr-I32--2147483648-32",
+    "expression": "W.wrapping-shr-i32 (-2147483648 :: I32) (32 :: U32)",
+    "expected": -2147483648,
+    "result": "I32"
+  },
+  {
+    "name": "shl-I32--2147483648-33",
+    "expression": "W.wrapping-shl-i32 (-2147483648 :: I32) (33 :: U32)",
+    "expected": 0,
+    "result": "I32"
+  },
+  {
+    "name": "shr-I32--2147483648-33",
+    "expression": "W.wrapping-shr-i32 (-2147483648 :: I32) (33 :: U32)",
+    "expected": -1073741824,
+    "result": "I32"
+  },
+  {
+    "name": "shl-I32--2147483648-4294967295",
+    "expression": "W.wrapping-shl-i32 (-2147483648 :: I32) (4294967295 :: U32)",
+    "expected": 0,
+    "result": "I32"
+  },
+  {
+    "name": "shr-I32--2147483648-4294967295",
+    "expression": "W.wrapping-shr-i32 (-2147483648 :: I32) (4294967295 :: U32)",
+    "expected": -1,
+    "result": "I32"
+  },
+  {
+    "name": "shl-I32-2147483647-0",
+    "expression": "W.wrapping-shl-i32 (2147483647 :: I32) (0 :: U32)",
+    "expected": 2147483647,
+    "result": "I32"
+  },
+  {
+    "name": "shr-I32-2147483647-0",
+    "expression": "W.wrapping-shr-i32 (2147483647 :: I32) (0 :: U32)",
+    "expected": 2147483647,
+    "result": "I32"
+  },
+  {
+    "name": "shl-I32-2147483647-31",
+    "expression": "W.wrapping-shl-i32 (2147483647 :: I32) (31 :: U32)",
+    "expected": -2147483648,
+    "result": "I32"
+  },
+  {
+    "name": "shr-I32-2147483647-31",
+    "expression": "W.wrapping-shr-i32 (2147483647 :: I32) (31 :: U32)",
+    "expected": 0,
+    "result": "I32"
+  },
+  {
+    "name": "shl-I32-2147483647-32",
+    "expression": "W.wrapping-shl-i32 (2147483647 :: I32) (32 :: U32)",
+    "expected": 2147483647,
+    "result": "I32"
+  },
+  {
+    "name": "shr-I32-2147483647-32",
+    "expression": "W.wrapping-shr-i32 (2147483647 :: I32) (32 :: U32)",
+    "expected": 2147483647,
+    "result": "I32"
+  },
+  {
+    "name": "shl-I32-2147483647-33",
+    "expression": "W.wrapping-shl-i32 (2147483647 :: I32) (33 :: U32)",
+    "expected": -2,
+    "result": "I32"
+  },
+  {
+    "name": "shr-I32-2147483647-33",
+    "expression": "W.wrapping-shr-i32 (2147483647 :: I32) (33 :: U32)",
+    "expected": 1073741823,
+    "result": "I32"
+  },
+  {
+    "name": "shl-I32-2147483647-4294967295",
+    "expression": "W.wrapping-shl-i32 (2147483647 :: I32) (4294967295 :: U32)",
+    "expected": -2147483648,
+    "result": "I32"
+  },
+  {
+    "name": "shr-I32-2147483647-4294967295",
+    "expression": "W.wrapping-shr-i32 (2147483647 :: I32) (4294967295 :: U32)",
+    "expected": 0,
+    "result": "I32"
+  },
+  {
+    "name": "cast-I32-I8-0",
+    "expression": "W.wrapping-i32-to-i8 (-2147483648 :: I32)",
+    "expected": 0,
+    "result": "I8"
+  },
+  {
+    "name": "cast-I32-I8-1",
+    "expression": "W.wrapping-i32-to-i8 (2147483647 :: I32)",
+    "expected": -1,
+    "result": "I8"
+  },
+  {
+    "name": "cast-I32-I8-2",
+    "expression": "W.wrapping-i32-to-i8 (-1 :: I32)",
+    "expected": -1,
+    "result": "I8"
+  },
+  {
+    "name": "cast-I32-I16-0",
+    "expression": "W.wrapping-i32-to-i16 (-2147483648 :: I32)",
+    "expected": 0,
+    "result": "I16"
+  },
+  {
+    "name": "cast-I32-I16-1",
+    "expression": "W.wrapping-i32-to-i16 (2147483647 :: I32)",
+    "expected": -1,
+    "result": "I16"
+  },
+  {
+    "name": "cast-I32-I16-2",
+    "expression": "W.wrapping-i32-to-i16 (-1 :: I32)",
+    "expected": -1,
+    "result": "I16"
+  },
+  {
+    "name": "cast-I32-I32-0",
+    "expression": "W.wrapping-i32-to-i32 (-2147483648 :: I32)",
+    "expected": -2147483648,
+    "result": "I32"
+  },
+  {
+    "name": "cast-I32-I32-1",
+    "expression": "W.wrapping-i32-to-i32 (2147483647 :: I32)",
+    "expected": 2147483647,
+    "result": "I32"
+  },
+  {
+    "name": "cast-I32-I32-2",
+    "expression": "W.wrapping-i32-to-i32 (-1 :: I32)",
+    "expected": -1,
+    "result": "I32"
+  },
+  {
+    "name": "cast-I32-I64-0",
+    "expression": "W.wrapping-i32-to-i64 (-2147483648 :: I32)",
+    "expected": -2147483648,
+    "result": "I64"
+  },
+  {
+    "name": "cast-I32-I64-1",
+    "expression": "W.wrapping-i32-to-i64 (2147483647 :: I32)",
+    "expected": 2147483647,
+    "result": "I64"
+  },
+  {
+    "name": "cast-I32-I64-2",
+    "expression": "W.wrapping-i32-to-i64 (-1 :: I32)",
+    "expected": -1,
+    "result": "I64"
+  },
+  {
+    "name": "cast-I32-U8-0",
+    "expression": "W.wrapping-i32-to-u8 (-2147483648 :: I32)",
+    "expected": 0,
+    "result": "U8"
+  },
+  {
+    "name": "cast-I32-U8-1",
+    "expression": "W.wrapping-i32-to-u8 (2147483647 :: I32)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "cast-I32-U8-2",
+    "expression": "W.wrapping-i32-to-u8 (-1 :: I32)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "cast-I32-U16-0",
+    "expression": "W.wrapping-i32-to-u16 (-2147483648 :: I32)",
+    "expected": 0,
+    "result": "U16"
+  },
+  {
+    "name": "cast-I32-U16-1",
+    "expression": "W.wrapping-i32-to-u16 (2147483647 :: I32)",
+    "expected": 65535,
+    "result": "U16"
+  },
+  {
+    "name": "cast-I32-U16-2",
+    "expression": "W.wrapping-i32-to-u16 (-1 :: I32)",
+    "expected": 65535,
+    "result": "U16"
+  },
+  {
+    "name": "cast-I32-U32-0",
+    "expression": "W.wrapping-i32-to-u32 (-2147483648 :: I32)",
+    "expected": 2147483648,
+    "result": "U32"
+  },
+  {
+    "name": "cast-I32-U32-1",
+    "expression": "W.wrapping-i32-to-u32 (2147483647 :: I32)",
+    "expected": 2147483647,
+    "result": "U32"
+  },
+  {
+    "name": "cast-I32-U32-2",
+    "expression": "W.wrapping-i32-to-u32 (-1 :: I32)",
+    "expected": 4294967295,
+    "result": "U32"
+  },
+  {
+    "name": "cast-I32-U64-0",
+    "expression": "W.wrapping-i32-to-u64 (-2147483648 :: I32)",
+    "expected": 18446744071562067968,
+    "result": "U64"
+  },
+  {
+    "name": "cast-I32-U64-1",
+    "expression": "W.wrapping-i32-to-u64 (2147483647 :: I32)",
+    "expected": 2147483647,
+    "result": "U64"
+  },
+  {
+    "name": "cast-I32-U64-2",
+    "expression": "W.wrapping-i32-to-u64 (-1 :: I32)",
+    "expected": 18446744073709551615,
+    "result": "U64"
+  },
+  {
+    "name": "wrapping-add-I64-0",
+    "expression": "W.wrapping-add-i64 (9223372036854775807 :: I64) (1 :: I64)",
+    "expected": -9223372036854775808,
+    "result": "I64"
+  },
+  {
+    "name": "wrapping-sub-I64-0",
+    "expression": "W.wrapping-sub-i64 (9223372036854775807 :: I64) (1 :: I64)",
+    "expected": 9223372036854775806,
+    "result": "I64"
+  },
+  {
+    "name": "wrapping-mul-I64-0",
+    "expression": "W.wrapping-mul-i64 (9223372036854775807 :: I64) (1 :: I64)",
+    "expected": 9223372036854775807,
+    "result": "I64"
+  },
+  {
+    "name": "bit-and-I64-0",
+    "expression": "W.bit-and-i64 (9223372036854775807 :: I64) (1 :: I64)",
+    "expected": 1,
+    "result": "I64"
+  },
+  {
+    "name": "bit-or-I64-0",
+    "expression": "W.bit-or-i64 (9223372036854775807 :: I64) (1 :: I64)",
+    "expected": 9223372036854775807,
+    "result": "I64"
+  },
+  {
+    "name": "bit-xor-I64-0",
+    "expression": "W.bit-xor-i64 (9223372036854775807 :: I64) (1 :: I64)",
+    "expected": 9223372036854775806,
+    "result": "I64"
+  },
+  {
+    "name": "eq-I64-0",
+    "expression": "W.eq-i64 (9223372036854775807 :: I64) (1 :: I64)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ne-I64-0",
+    "expression": "W.ne-i64 (9223372036854775807 :: I64) (1 :: I64)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "lt-I64-0",
+    "expression": "W.lt-i64 (9223372036854775807 :: I64) (1 :: I64)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "le-I64-0",
+    "expression": "W.le-i64 (9223372036854775807 :: I64) (1 :: I64)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "gt-I64-0",
+    "expression": "W.gt-i64 (9223372036854775807 :: I64) (1 :: I64)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "ge-I64-0",
+    "expression": "W.ge-i64 (9223372036854775807 :: I64) (1 :: I64)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "wrapping-add-I64-1",
+    "expression": "W.wrapping-add-i64 (-9223372036854775808 :: I64) (-1 :: I64)",
+    "expected": 9223372036854775807,
+    "result": "I64"
+  },
+  {
+    "name": "wrapping-sub-I64-1",
+    "expression": "W.wrapping-sub-i64 (-9223372036854775808 :: I64) (-1 :: I64)",
+    "expected": -9223372036854775807,
+    "result": "I64"
+  },
+  {
+    "name": "wrapping-mul-I64-1",
+    "expression": "W.wrapping-mul-i64 (-9223372036854775808 :: I64) (-1 :: I64)",
+    "expected": -9223372036854775808,
+    "result": "I64"
+  },
+  {
+    "name": "bit-and-I64-1",
+    "expression": "W.bit-and-i64 (-9223372036854775808 :: I64) (-1 :: I64)",
+    "expected": -9223372036854775808,
+    "result": "I64"
+  },
+  {
+    "name": "bit-or-I64-1",
+    "expression": "W.bit-or-i64 (-9223372036854775808 :: I64) (-1 :: I64)",
+    "expected": -1,
+    "result": "I64"
+  },
+  {
+    "name": "bit-xor-I64-1",
+    "expression": "W.bit-xor-i64 (-9223372036854775808 :: I64) (-1 :: I64)",
+    "expected": 9223372036854775807,
+    "result": "I64"
+  },
+  {
+    "name": "eq-I64-1",
+    "expression": "W.eq-i64 (-9223372036854775808 :: I64) (-1 :: I64)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ne-I64-1",
+    "expression": "W.ne-i64 (-9223372036854775808 :: I64) (-1 :: I64)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "lt-I64-1",
+    "expression": "W.lt-i64 (-9223372036854775808 :: I64) (-1 :: I64)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "le-I64-1",
+    "expression": "W.le-i64 (-9223372036854775808 :: I64) (-1 :: I64)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "gt-I64-1",
+    "expression": "W.gt-i64 (-9223372036854775808 :: I64) (-1 :: I64)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ge-I64-1",
+    "expression": "W.ge-i64 (-9223372036854775808 :: I64) (-1 :: I64)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "wrapping-add-I64-2",
+    "expression": "W.wrapping-add-i64 (-1 :: I64) (9223372036854775807 :: I64)",
+    "expected": 9223372036854775806,
+    "result": "I64"
+  },
+  {
+    "name": "wrapping-sub-I64-2",
+    "expression": "W.wrapping-sub-i64 (-1 :: I64) (9223372036854775807 :: I64)",
+    "expected": -9223372036854775808,
+    "result": "I64"
+  },
+  {
+    "name": "wrapping-mul-I64-2",
+    "expression": "W.wrapping-mul-i64 (-1 :: I64) (9223372036854775807 :: I64)",
+    "expected": -9223372036854775807,
+    "result": "I64"
+  },
+  {
+    "name": "bit-and-I64-2",
+    "expression": "W.bit-and-i64 (-1 :: I64) (9223372036854775807 :: I64)",
+    "expected": 9223372036854775807,
+    "result": "I64"
+  },
+  {
+    "name": "bit-or-I64-2",
+    "expression": "W.bit-or-i64 (-1 :: I64) (9223372036854775807 :: I64)",
+    "expected": -1,
+    "result": "I64"
+  },
+  {
+    "name": "bit-xor-I64-2",
+    "expression": "W.bit-xor-i64 (-1 :: I64) (9223372036854775807 :: I64)",
+    "expected": -9223372036854775808,
+    "result": "I64"
+  },
+  {
+    "name": "eq-I64-2",
+    "expression": "W.eq-i64 (-1 :: I64) (9223372036854775807 :: I64)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ne-I64-2",
+    "expression": "W.ne-i64 (-1 :: I64) (9223372036854775807 :: I64)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "lt-I64-2",
+    "expression": "W.lt-i64 (-1 :: I64) (9223372036854775807 :: I64)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "le-I64-2",
+    "expression": "W.le-i64 (-1 :: I64) (9223372036854775807 :: I64)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "gt-I64-2",
+    "expression": "W.gt-i64 (-1 :: I64) (9223372036854775807 :: I64)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ge-I64-2",
+    "expression": "W.ge-i64 (-1 :: I64) (9223372036854775807 :: I64)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "not-I64-0",
+    "expression": "W.bit-not-i64 (-9223372036854775808 :: I64)",
+    "expected": 9223372036854775807,
+    "result": "I64"
+  },
+  {
+    "name": "not-I64-1",
+    "expression": "W.bit-not-i64 (9223372036854775807 :: I64)",
+    "expected": -9223372036854775808,
+    "result": "I64"
+  },
+  {
+    "name": "not-I64-2",
+    "expression": "W.bit-not-i64 (-1 :: I64)",
+    "expected": 0,
+    "result": "I64"
+  },
+  {
+    "name": "shl-I64--9223372036854775808-0",
+    "expression": "W.wrapping-shl-i64 (-9223372036854775808 :: I64) (0 :: U32)",
+    "expected": -9223372036854775808,
+    "result": "I64"
+  },
+  {
+    "name": "shr-I64--9223372036854775808-0",
+    "expression": "W.wrapping-shr-i64 (-9223372036854775808 :: I64) (0 :: U32)",
+    "expected": -9223372036854775808,
+    "result": "I64"
+  },
+  {
+    "name": "shl-I64--9223372036854775808-63",
+    "expression": "W.wrapping-shl-i64 (-9223372036854775808 :: I64) (63 :: U32)",
+    "expected": 0,
+    "result": "I64"
+  },
+  {
+    "name": "shr-I64--9223372036854775808-63",
+    "expression": "W.wrapping-shr-i64 (-9223372036854775808 :: I64) (63 :: U32)",
+    "expected": -1,
+    "result": "I64"
+  },
+  {
+    "name": "shl-I64--9223372036854775808-64",
+    "expression": "W.wrapping-shl-i64 (-9223372036854775808 :: I64) (64 :: U32)",
+    "expected": -9223372036854775808,
+    "result": "I64"
+  },
+  {
+    "name": "shr-I64--9223372036854775808-64",
+    "expression": "W.wrapping-shr-i64 (-9223372036854775808 :: I64) (64 :: U32)",
+    "expected": -9223372036854775808,
+    "result": "I64"
+  },
+  {
+    "name": "shl-I64--9223372036854775808-65",
+    "expression": "W.wrapping-shl-i64 (-9223372036854775808 :: I64) (65 :: U32)",
+    "expected": 0,
+    "result": "I64"
+  },
+  {
+    "name": "shr-I64--9223372036854775808-65",
+    "expression": "W.wrapping-shr-i64 (-9223372036854775808 :: I64) (65 :: U32)",
+    "expected": -4611686018427387904,
+    "result": "I64"
+  },
+  {
+    "name": "shl-I64--9223372036854775808-4294967295",
+    "expression": "W.wrapping-shl-i64 (-9223372036854775808 :: I64) (4294967295 :: U32)",
+    "expected": 0,
+    "result": "I64"
+  },
+  {
+    "name": "shr-I64--9223372036854775808-4294967295",
+    "expression": "W.wrapping-shr-i64 (-9223372036854775808 :: I64) (4294967295 :: U32)",
+    "expected": -1,
+    "result": "I64"
+  },
+  {
+    "name": "shl-I64-9223372036854775807-0",
+    "expression": "W.wrapping-shl-i64 (9223372036854775807 :: I64) (0 :: U32)",
+    "expected": 9223372036854775807,
+    "result": "I64"
+  },
+  {
+    "name": "shr-I64-9223372036854775807-0",
+    "expression": "W.wrapping-shr-i64 (9223372036854775807 :: I64) (0 :: U32)",
+    "expected": 9223372036854775807,
+    "result": "I64"
+  },
+  {
+    "name": "shl-I64-9223372036854775807-63",
+    "expression": "W.wrapping-shl-i64 (9223372036854775807 :: I64) (63 :: U32)",
+    "expected": -9223372036854775808,
+    "result": "I64"
+  },
+  {
+    "name": "shr-I64-9223372036854775807-63",
+    "expression": "W.wrapping-shr-i64 (9223372036854775807 :: I64) (63 :: U32)",
+    "expected": 0,
+    "result": "I64"
+  },
+  {
+    "name": "shl-I64-9223372036854775807-64",
+    "expression": "W.wrapping-shl-i64 (9223372036854775807 :: I64) (64 :: U32)",
+    "expected": 9223372036854775807,
+    "result": "I64"
+  },
+  {
+    "name": "shr-I64-9223372036854775807-64",
+    "expression": "W.wrapping-shr-i64 (9223372036854775807 :: I64) (64 :: U32)",
+    "expected": 9223372036854775807,
+    "result": "I64"
+  },
+  {
+    "name": "shl-I64-9223372036854775807-65",
+    "expression": "W.wrapping-shl-i64 (9223372036854775807 :: I64) (65 :: U32)",
+    "expected": -2,
+    "result": "I64"
+  },
+  {
+    "name": "shr-I64-9223372036854775807-65",
+    "expression": "W.wrapping-shr-i64 (9223372036854775807 :: I64) (65 :: U32)",
+    "expected": 4611686018427387903,
+    "result": "I64"
+  },
+  {
+    "name": "shl-I64-9223372036854775807-4294967295",
+    "expression": "W.wrapping-shl-i64 (9223372036854775807 :: I64) (4294967295 :: U32)",
+    "expected": -9223372036854775808,
+    "result": "I64"
+  },
+  {
+    "name": "shr-I64-9223372036854775807-4294967295",
+    "expression": "W.wrapping-shr-i64 (9223372036854775807 :: I64) (4294967295 :: U32)",
+    "expected": 0,
+    "result": "I64"
+  },
+  {
+    "name": "cast-I64-I8-0",
+    "expression": "W.wrapping-i64-to-i8 (-9223372036854775808 :: I64)",
+    "expected": 0,
+    "result": "I8"
+  },
+  {
+    "name": "cast-I64-I8-1",
+    "expression": "W.wrapping-i64-to-i8 (9223372036854775807 :: I64)",
+    "expected": -1,
+    "result": "I8"
+  },
+  {
+    "name": "cast-I64-I8-2",
+    "expression": "W.wrapping-i64-to-i8 (-1 :: I64)",
+    "expected": -1,
+    "result": "I8"
+  },
+  {
+    "name": "cast-I64-I16-0",
+    "expression": "W.wrapping-i64-to-i16 (-9223372036854775808 :: I64)",
+    "expected": 0,
+    "result": "I16"
+  },
+  {
+    "name": "cast-I64-I16-1",
+    "expression": "W.wrapping-i64-to-i16 (9223372036854775807 :: I64)",
+    "expected": -1,
+    "result": "I16"
+  },
+  {
+    "name": "cast-I64-I16-2",
+    "expression": "W.wrapping-i64-to-i16 (-1 :: I64)",
+    "expected": -1,
+    "result": "I16"
+  },
+  {
+    "name": "cast-I64-I32-0",
+    "expression": "W.wrapping-i64-to-i32 (-9223372036854775808 :: I64)",
+    "expected": 0,
+    "result": "I32"
+  },
+  {
+    "name": "cast-I64-I32-1",
+    "expression": "W.wrapping-i64-to-i32 (9223372036854775807 :: I64)",
+    "expected": -1,
+    "result": "I32"
+  },
+  {
+    "name": "cast-I64-I32-2",
+    "expression": "W.wrapping-i64-to-i32 (-1 :: I64)",
+    "expected": -1,
+    "result": "I32"
+  },
+  {
+    "name": "cast-I64-I64-0",
+    "expression": "W.wrapping-i64-to-i64 (-9223372036854775808 :: I64)",
+    "expected": -9223372036854775808,
+    "result": "I64"
+  },
+  {
+    "name": "cast-I64-I64-1",
+    "expression": "W.wrapping-i64-to-i64 (9223372036854775807 :: I64)",
+    "expected": 9223372036854775807,
+    "result": "I64"
+  },
+  {
+    "name": "cast-I64-I64-2",
+    "expression": "W.wrapping-i64-to-i64 (-1 :: I64)",
+    "expected": -1,
+    "result": "I64"
+  },
+  {
+    "name": "cast-I64-U8-0",
+    "expression": "W.wrapping-i64-to-u8 (-9223372036854775808 :: I64)",
+    "expected": 0,
+    "result": "U8"
+  },
+  {
+    "name": "cast-I64-U8-1",
+    "expression": "W.wrapping-i64-to-u8 (9223372036854775807 :: I64)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "cast-I64-U8-2",
+    "expression": "W.wrapping-i64-to-u8 (-1 :: I64)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "cast-I64-U16-0",
+    "expression": "W.wrapping-i64-to-u16 (-9223372036854775808 :: I64)",
+    "expected": 0,
+    "result": "U16"
+  },
+  {
+    "name": "cast-I64-U16-1",
+    "expression": "W.wrapping-i64-to-u16 (9223372036854775807 :: I64)",
+    "expected": 65535,
+    "result": "U16"
+  },
+  {
+    "name": "cast-I64-U16-2",
+    "expression": "W.wrapping-i64-to-u16 (-1 :: I64)",
+    "expected": 65535,
+    "result": "U16"
+  },
+  {
+    "name": "cast-I64-U32-0",
+    "expression": "W.wrapping-i64-to-u32 (-9223372036854775808 :: I64)",
+    "expected": 0,
+    "result": "U32"
+  },
+  {
+    "name": "cast-I64-U32-1",
+    "expression": "W.wrapping-i64-to-u32 (9223372036854775807 :: I64)",
+    "expected": 4294967295,
+    "result": "U32"
+  },
+  {
+    "name": "cast-I64-U32-2",
+    "expression": "W.wrapping-i64-to-u32 (-1 :: I64)",
+    "expected": 4294967295,
+    "result": "U32"
+  },
+  {
+    "name": "cast-I64-U64-0",
+    "expression": "W.wrapping-i64-to-u64 (-9223372036854775808 :: I64)",
+    "expected": 9223372036854775808,
+    "result": "U64"
+  },
+  {
+    "name": "cast-I64-U64-1",
+    "expression": "W.wrapping-i64-to-u64 (9223372036854775807 :: I64)",
+    "expected": 9223372036854775807,
+    "result": "U64"
+  },
+  {
+    "name": "cast-I64-U64-2",
+    "expression": "W.wrapping-i64-to-u64 (-1 :: I64)",
+    "expected": 18446744073709551615,
+    "result": "U64"
+  },
+  {
+    "name": "wrapping-add-U8-0",
+    "expression": "W.wrapping-add-u8 (255 :: U8) (1 :: U8)",
+    "expected": 0,
+    "result": "U8"
+  },
+  {
+    "name": "wrapping-sub-U8-0",
+    "expression": "W.wrapping-sub-u8 (255 :: U8) (1 :: U8)",
+    "expected": 254,
+    "result": "U8"
+  },
+  {
+    "name": "wrapping-mul-U8-0",
+    "expression": "W.wrapping-mul-u8 (255 :: U8) (1 :: U8)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "bit-and-U8-0",
+    "expression": "W.bit-and-u8 (255 :: U8) (1 :: U8)",
+    "expected": 1,
+    "result": "U8"
+  },
+  {
+    "name": "bit-or-U8-0",
+    "expression": "W.bit-or-u8 (255 :: U8) (1 :: U8)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "bit-xor-U8-0",
+    "expression": "W.bit-xor-u8 (255 :: U8) (1 :: U8)",
+    "expected": 254,
+    "result": "U8"
+  },
+  {
+    "name": "eq-U8-0",
+    "expression": "W.eq-u8 (255 :: U8) (1 :: U8)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ne-U8-0",
+    "expression": "W.ne-u8 (255 :: U8) (1 :: U8)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "lt-U8-0",
+    "expression": "W.lt-u8 (255 :: U8) (1 :: U8)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "le-U8-0",
+    "expression": "W.le-u8 (255 :: U8) (1 :: U8)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "gt-U8-0",
+    "expression": "W.gt-u8 (255 :: U8) (1 :: U8)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "ge-U8-0",
+    "expression": "W.ge-u8 (255 :: U8) (1 :: U8)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "wrapping-add-U8-1",
+    "expression": "W.wrapping-add-u8 (0 :: U8) (255 :: U8)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "wrapping-sub-U8-1",
+    "expression": "W.wrapping-sub-u8 (0 :: U8) (255 :: U8)",
+    "expected": 1,
+    "result": "U8"
+  },
+  {
+    "name": "wrapping-mul-U8-1",
+    "expression": "W.wrapping-mul-u8 (0 :: U8) (255 :: U8)",
+    "expected": 0,
+    "result": "U8"
+  },
+  {
+    "name": "bit-and-U8-1",
+    "expression": "W.bit-and-u8 (0 :: U8) (255 :: U8)",
+    "expected": 0,
+    "result": "U8"
+  },
+  {
+    "name": "bit-or-U8-1",
+    "expression": "W.bit-or-u8 (0 :: U8) (255 :: U8)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "bit-xor-U8-1",
+    "expression": "W.bit-xor-u8 (0 :: U8) (255 :: U8)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "eq-U8-1",
+    "expression": "W.eq-u8 (0 :: U8) (255 :: U8)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ne-U8-1",
+    "expression": "W.ne-u8 (0 :: U8) (255 :: U8)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "lt-U8-1",
+    "expression": "W.lt-u8 (0 :: U8) (255 :: U8)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "le-U8-1",
+    "expression": "W.le-u8 (0 :: U8) (255 :: U8)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "gt-U8-1",
+    "expression": "W.gt-u8 (0 :: U8) (255 :: U8)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ge-U8-1",
+    "expression": "W.ge-u8 (0 :: U8) (255 :: U8)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "wrapping-add-U8-2",
+    "expression": "W.wrapping-add-u8 (255 :: U8) (255 :: U8)",
+    "expected": 254,
+    "result": "U8"
+  },
+  {
+    "name": "wrapping-sub-U8-2",
+    "expression": "W.wrapping-sub-u8 (255 :: U8) (255 :: U8)",
+    "expected": 0,
+    "result": "U8"
+  },
+  {
+    "name": "wrapping-mul-U8-2",
+    "expression": "W.wrapping-mul-u8 (255 :: U8) (255 :: U8)",
+    "expected": 1,
+    "result": "U8"
+  },
+  {
+    "name": "bit-and-U8-2",
+    "expression": "W.bit-and-u8 (255 :: U8) (255 :: U8)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "bit-or-U8-2",
+    "expression": "W.bit-or-u8 (255 :: U8) (255 :: U8)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "bit-xor-U8-2",
+    "expression": "W.bit-xor-u8 (255 :: U8) (255 :: U8)",
+    "expected": 0,
+    "result": "U8"
+  },
+  {
+    "name": "eq-U8-2",
+    "expression": "W.eq-u8 (255 :: U8) (255 :: U8)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "ne-U8-2",
+    "expression": "W.ne-u8 (255 :: U8) (255 :: U8)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "lt-U8-2",
+    "expression": "W.lt-u8 (255 :: U8) (255 :: U8)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "le-U8-2",
+    "expression": "W.le-u8 (255 :: U8) (255 :: U8)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "gt-U8-2",
+    "expression": "W.gt-u8 (255 :: U8) (255 :: U8)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ge-U8-2",
+    "expression": "W.ge-u8 (255 :: U8) (255 :: U8)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "not-U8-0",
+    "expression": "W.bit-not-u8 (0 :: U8)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "not-U8-1",
+    "expression": "W.bit-not-u8 (255 :: U8)",
+    "expected": 0,
+    "result": "U8"
+  },
+  {
+    "name": "not-U8-2",
+    "expression": "W.bit-not-u8 (255 :: U8)",
+    "expected": 0,
+    "result": "U8"
+  },
+  {
+    "name": "shl-U8-128-0",
+    "expression": "W.wrapping-shl-u8 (128 :: U8) (0 :: U32)",
+    "expected": 128,
+    "result": "U8"
+  },
+  {
+    "name": "shr-U8-128-0",
+    "expression": "W.wrapping-shr-u8 (128 :: U8) (0 :: U32)",
+    "expected": 128,
+    "result": "U8"
+  },
+  {
+    "name": "shl-U8-128-7",
+    "expression": "W.wrapping-shl-u8 (128 :: U8) (7 :: U32)",
+    "expected": 0,
+    "result": "U8"
+  },
+  {
+    "name": "shr-U8-128-7",
+    "expression": "W.wrapping-shr-u8 (128 :: U8) (7 :: U32)",
+    "expected": 1,
+    "result": "U8"
+  },
+  {
+    "name": "shl-U8-128-8",
+    "expression": "W.wrapping-shl-u8 (128 :: U8) (8 :: U32)",
+    "expected": 128,
+    "result": "U8"
+  },
+  {
+    "name": "shr-U8-128-8",
+    "expression": "W.wrapping-shr-u8 (128 :: U8) (8 :: U32)",
+    "expected": 128,
+    "result": "U8"
+  },
+  {
+    "name": "shl-U8-128-9",
+    "expression": "W.wrapping-shl-u8 (128 :: U8) (9 :: U32)",
+    "expected": 0,
+    "result": "U8"
+  },
+  {
+    "name": "shr-U8-128-9",
+    "expression": "W.wrapping-shr-u8 (128 :: U8) (9 :: U32)",
+    "expected": 64,
+    "result": "U8"
+  },
+  {
+    "name": "shl-U8-128-4294967295",
+    "expression": "W.wrapping-shl-u8 (128 :: U8) (4294967295 :: U32)",
+    "expected": 0,
+    "result": "U8"
+  },
+  {
+    "name": "shr-U8-128-4294967295",
+    "expression": "W.wrapping-shr-u8 (128 :: U8) (4294967295 :: U32)",
+    "expected": 1,
+    "result": "U8"
+  },
+  {
+    "name": "shl-U8-255-0",
+    "expression": "W.wrapping-shl-u8 (255 :: U8) (0 :: U32)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "shr-U8-255-0",
+    "expression": "W.wrapping-shr-u8 (255 :: U8) (0 :: U32)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "shl-U8-255-7",
+    "expression": "W.wrapping-shl-u8 (255 :: U8) (7 :: U32)",
+    "expected": 128,
+    "result": "U8"
+  },
+  {
+    "name": "shr-U8-255-7",
+    "expression": "W.wrapping-shr-u8 (255 :: U8) (7 :: U32)",
+    "expected": 1,
+    "result": "U8"
+  },
+  {
+    "name": "shl-U8-255-8",
+    "expression": "W.wrapping-shl-u8 (255 :: U8) (8 :: U32)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "shr-U8-255-8",
+    "expression": "W.wrapping-shr-u8 (255 :: U8) (8 :: U32)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "shl-U8-255-9",
+    "expression": "W.wrapping-shl-u8 (255 :: U8) (9 :: U32)",
+    "expected": 254,
+    "result": "U8"
+  },
+  {
+    "name": "shr-U8-255-9",
+    "expression": "W.wrapping-shr-u8 (255 :: U8) (9 :: U32)",
+    "expected": 127,
+    "result": "U8"
+  },
+  {
+    "name": "shl-U8-255-4294967295",
+    "expression": "W.wrapping-shl-u8 (255 :: U8) (4294967295 :: U32)",
+    "expected": 128,
+    "result": "U8"
+  },
+  {
+    "name": "shr-U8-255-4294967295",
+    "expression": "W.wrapping-shr-u8 (255 :: U8) (4294967295 :: U32)",
+    "expected": 1,
+    "result": "U8"
+  },
+  {
+    "name": "cast-U8-I8-0",
+    "expression": "W.wrapping-u8-to-i8 (0 :: U8)",
+    "expected": 0,
+    "result": "I8"
+  },
+  {
+    "name": "cast-U8-I8-1",
+    "expression": "W.wrapping-u8-to-i8 (255 :: U8)",
+    "expected": -1,
+    "result": "I8"
+  },
+  {
+    "name": "cast-U8-I8-2",
+    "expression": "W.wrapping-u8-to-i8 (255 :: U8)",
+    "expected": -1,
+    "result": "I8"
+  },
+  {
+    "name": "cast-U8-I16-0",
+    "expression": "W.wrapping-u8-to-i16 (0 :: U8)",
+    "expected": 0,
+    "result": "I16"
+  },
+  {
+    "name": "cast-U8-I16-1",
+    "expression": "W.wrapping-u8-to-i16 (255 :: U8)",
+    "expected": 255,
+    "result": "I16"
+  },
+  {
+    "name": "cast-U8-I16-2",
+    "expression": "W.wrapping-u8-to-i16 (255 :: U8)",
+    "expected": 255,
+    "result": "I16"
+  },
+  {
+    "name": "cast-U8-I32-0",
+    "expression": "W.wrapping-u8-to-i32 (0 :: U8)",
+    "expected": 0,
+    "result": "I32"
+  },
+  {
+    "name": "cast-U8-I32-1",
+    "expression": "W.wrapping-u8-to-i32 (255 :: U8)",
+    "expected": 255,
+    "result": "I32"
+  },
+  {
+    "name": "cast-U8-I32-2",
+    "expression": "W.wrapping-u8-to-i32 (255 :: U8)",
+    "expected": 255,
+    "result": "I32"
+  },
+  {
+    "name": "cast-U8-I64-0",
+    "expression": "W.wrapping-u8-to-i64 (0 :: U8)",
+    "expected": 0,
+    "result": "I64"
+  },
+  {
+    "name": "cast-U8-I64-1",
+    "expression": "W.wrapping-u8-to-i64 (255 :: U8)",
+    "expected": 255,
+    "result": "I64"
+  },
+  {
+    "name": "cast-U8-I64-2",
+    "expression": "W.wrapping-u8-to-i64 (255 :: U8)",
+    "expected": 255,
+    "result": "I64"
+  },
+  {
+    "name": "cast-U8-U8-0",
+    "expression": "W.wrapping-u8-to-u8 (0 :: U8)",
+    "expected": 0,
+    "result": "U8"
+  },
+  {
+    "name": "cast-U8-U8-1",
+    "expression": "W.wrapping-u8-to-u8 (255 :: U8)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "cast-U8-U8-2",
+    "expression": "W.wrapping-u8-to-u8 (255 :: U8)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "cast-U8-U16-0",
+    "expression": "W.wrapping-u8-to-u16 (0 :: U8)",
+    "expected": 0,
+    "result": "U16"
+  },
+  {
+    "name": "cast-U8-U16-1",
+    "expression": "W.wrapping-u8-to-u16 (255 :: U8)",
+    "expected": 255,
+    "result": "U16"
+  },
+  {
+    "name": "cast-U8-U16-2",
+    "expression": "W.wrapping-u8-to-u16 (255 :: U8)",
+    "expected": 255,
+    "result": "U16"
+  },
+  {
+    "name": "cast-U8-U32-0",
+    "expression": "W.wrapping-u8-to-u32 (0 :: U8)",
+    "expected": 0,
+    "result": "U32"
+  },
+  {
+    "name": "cast-U8-U32-1",
+    "expression": "W.wrapping-u8-to-u32 (255 :: U8)",
+    "expected": 255,
+    "result": "U32"
+  },
+  {
+    "name": "cast-U8-U32-2",
+    "expression": "W.wrapping-u8-to-u32 (255 :: U8)",
+    "expected": 255,
+    "result": "U32"
+  },
+  {
+    "name": "cast-U8-U64-0",
+    "expression": "W.wrapping-u8-to-u64 (0 :: U8)",
+    "expected": 0,
+    "result": "U64"
+  },
+  {
+    "name": "cast-U8-U64-1",
+    "expression": "W.wrapping-u8-to-u64 (255 :: U8)",
+    "expected": 255,
+    "result": "U64"
+  },
+  {
+    "name": "cast-U8-U64-2",
+    "expression": "W.wrapping-u8-to-u64 (255 :: U8)",
+    "expected": 255,
+    "result": "U64"
+  },
+  {
+    "name": "wrapping-add-U16-0",
+    "expression": "W.wrapping-add-u16 (65535 :: U16) (1 :: U16)",
+    "expected": 0,
+    "result": "U16"
+  },
+  {
+    "name": "wrapping-sub-U16-0",
+    "expression": "W.wrapping-sub-u16 (65535 :: U16) (1 :: U16)",
+    "expected": 65534,
+    "result": "U16"
+  },
+  {
+    "name": "wrapping-mul-U16-0",
+    "expression": "W.wrapping-mul-u16 (65535 :: U16) (1 :: U16)",
+    "expected": 65535,
+    "result": "U16"
+  },
+  {
+    "name": "bit-and-U16-0",
+    "expression": "W.bit-and-u16 (65535 :: U16) (1 :: U16)",
+    "expected": 1,
+    "result": "U16"
+  },
+  {
+    "name": "bit-or-U16-0",
+    "expression": "W.bit-or-u16 (65535 :: U16) (1 :: U16)",
+    "expected": 65535,
+    "result": "U16"
+  },
+  {
+    "name": "bit-xor-U16-0",
+    "expression": "W.bit-xor-u16 (65535 :: U16) (1 :: U16)",
+    "expected": 65534,
+    "result": "U16"
+  },
+  {
+    "name": "eq-U16-0",
+    "expression": "W.eq-u16 (65535 :: U16) (1 :: U16)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ne-U16-0",
+    "expression": "W.ne-u16 (65535 :: U16) (1 :: U16)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "lt-U16-0",
+    "expression": "W.lt-u16 (65535 :: U16) (1 :: U16)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "le-U16-0",
+    "expression": "W.le-u16 (65535 :: U16) (1 :: U16)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "gt-U16-0",
+    "expression": "W.gt-u16 (65535 :: U16) (1 :: U16)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "ge-U16-0",
+    "expression": "W.ge-u16 (65535 :: U16) (1 :: U16)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "wrapping-add-U16-1",
+    "expression": "W.wrapping-add-u16 (0 :: U16) (65535 :: U16)",
+    "expected": 65535,
+    "result": "U16"
+  },
+  {
+    "name": "wrapping-sub-U16-1",
+    "expression": "W.wrapping-sub-u16 (0 :: U16) (65535 :: U16)",
+    "expected": 1,
+    "result": "U16"
+  },
+  {
+    "name": "wrapping-mul-U16-1",
+    "expression": "W.wrapping-mul-u16 (0 :: U16) (65535 :: U16)",
+    "expected": 0,
+    "result": "U16"
+  },
+  {
+    "name": "bit-and-U16-1",
+    "expression": "W.bit-and-u16 (0 :: U16) (65535 :: U16)",
+    "expected": 0,
+    "result": "U16"
+  },
+  {
+    "name": "bit-or-U16-1",
+    "expression": "W.bit-or-u16 (0 :: U16) (65535 :: U16)",
+    "expected": 65535,
+    "result": "U16"
+  },
+  {
+    "name": "bit-xor-U16-1",
+    "expression": "W.bit-xor-u16 (0 :: U16) (65535 :: U16)",
+    "expected": 65535,
+    "result": "U16"
+  },
+  {
+    "name": "eq-U16-1",
+    "expression": "W.eq-u16 (0 :: U16) (65535 :: U16)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ne-U16-1",
+    "expression": "W.ne-u16 (0 :: U16) (65535 :: U16)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "lt-U16-1",
+    "expression": "W.lt-u16 (0 :: U16) (65535 :: U16)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "le-U16-1",
+    "expression": "W.le-u16 (0 :: U16) (65535 :: U16)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "gt-U16-1",
+    "expression": "W.gt-u16 (0 :: U16) (65535 :: U16)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ge-U16-1",
+    "expression": "W.ge-u16 (0 :: U16) (65535 :: U16)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "wrapping-add-U16-2",
+    "expression": "W.wrapping-add-u16 (65535 :: U16) (65535 :: U16)",
+    "expected": 65534,
+    "result": "U16"
+  },
+  {
+    "name": "wrapping-sub-U16-2",
+    "expression": "W.wrapping-sub-u16 (65535 :: U16) (65535 :: U16)",
+    "expected": 0,
+    "result": "U16"
+  },
+  {
+    "name": "wrapping-mul-U16-2",
+    "expression": "W.wrapping-mul-u16 (65535 :: U16) (65535 :: U16)",
+    "expected": 1,
+    "result": "U16"
+  },
+  {
+    "name": "bit-and-U16-2",
+    "expression": "W.bit-and-u16 (65535 :: U16) (65535 :: U16)",
+    "expected": 65535,
+    "result": "U16"
+  },
+  {
+    "name": "bit-or-U16-2",
+    "expression": "W.bit-or-u16 (65535 :: U16) (65535 :: U16)",
+    "expected": 65535,
+    "result": "U16"
+  },
+  {
+    "name": "bit-xor-U16-2",
+    "expression": "W.bit-xor-u16 (65535 :: U16) (65535 :: U16)",
+    "expected": 0,
+    "result": "U16"
+  },
+  {
+    "name": "eq-U16-2",
+    "expression": "W.eq-u16 (65535 :: U16) (65535 :: U16)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "ne-U16-2",
+    "expression": "W.ne-u16 (65535 :: U16) (65535 :: U16)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "lt-U16-2",
+    "expression": "W.lt-u16 (65535 :: U16) (65535 :: U16)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "le-U16-2",
+    "expression": "W.le-u16 (65535 :: U16) (65535 :: U16)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "gt-U16-2",
+    "expression": "W.gt-u16 (65535 :: U16) (65535 :: U16)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ge-U16-2",
+    "expression": "W.ge-u16 (65535 :: U16) (65535 :: U16)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "not-U16-0",
+    "expression": "W.bit-not-u16 (0 :: U16)",
+    "expected": 65535,
+    "result": "U16"
+  },
+  {
+    "name": "not-U16-1",
+    "expression": "W.bit-not-u16 (65535 :: U16)",
+    "expected": 0,
+    "result": "U16"
+  },
+  {
+    "name": "not-U16-2",
+    "expression": "W.bit-not-u16 (65535 :: U16)",
+    "expected": 0,
+    "result": "U16"
+  },
+  {
+    "name": "shl-U16-32768-0",
+    "expression": "W.wrapping-shl-u16 (32768 :: U16) (0 :: U32)",
+    "expected": 32768,
+    "result": "U16"
+  },
+  {
+    "name": "shr-U16-32768-0",
+    "expression": "W.wrapping-shr-u16 (32768 :: U16) (0 :: U32)",
+    "expected": 32768,
+    "result": "U16"
+  },
+  {
+    "name": "shl-U16-32768-15",
+    "expression": "W.wrapping-shl-u16 (32768 :: U16) (15 :: U32)",
+    "expected": 0,
+    "result": "U16"
+  },
+  {
+    "name": "shr-U16-32768-15",
+    "expression": "W.wrapping-shr-u16 (32768 :: U16) (15 :: U32)",
+    "expected": 1,
+    "result": "U16"
+  },
+  {
+    "name": "shl-U16-32768-16",
+    "expression": "W.wrapping-shl-u16 (32768 :: U16) (16 :: U32)",
+    "expected": 32768,
+    "result": "U16"
+  },
+  {
+    "name": "shr-U16-32768-16",
+    "expression": "W.wrapping-shr-u16 (32768 :: U16) (16 :: U32)",
+    "expected": 32768,
+    "result": "U16"
+  },
+  {
+    "name": "shl-U16-32768-17",
+    "expression": "W.wrapping-shl-u16 (32768 :: U16) (17 :: U32)",
+    "expected": 0,
+    "result": "U16"
+  },
+  {
+    "name": "shr-U16-32768-17",
+    "expression": "W.wrapping-shr-u16 (32768 :: U16) (17 :: U32)",
+    "expected": 16384,
+    "result": "U16"
+  },
+  {
+    "name": "shl-U16-32768-4294967295",
+    "expression": "W.wrapping-shl-u16 (32768 :: U16) (4294967295 :: U32)",
+    "expected": 0,
+    "result": "U16"
+  },
+  {
+    "name": "shr-U16-32768-4294967295",
+    "expression": "W.wrapping-shr-u16 (32768 :: U16) (4294967295 :: U32)",
+    "expected": 1,
+    "result": "U16"
+  },
+  {
+    "name": "shl-U16-65535-0",
+    "expression": "W.wrapping-shl-u16 (65535 :: U16) (0 :: U32)",
+    "expected": 65535,
+    "result": "U16"
+  },
+  {
+    "name": "shr-U16-65535-0",
+    "expression": "W.wrapping-shr-u16 (65535 :: U16) (0 :: U32)",
+    "expected": 65535,
+    "result": "U16"
+  },
+  {
+    "name": "shl-U16-65535-15",
+    "expression": "W.wrapping-shl-u16 (65535 :: U16) (15 :: U32)",
+    "expected": 32768,
+    "result": "U16"
+  },
+  {
+    "name": "shr-U16-65535-15",
+    "expression": "W.wrapping-shr-u16 (65535 :: U16) (15 :: U32)",
+    "expected": 1,
+    "result": "U16"
+  },
+  {
+    "name": "shl-U16-65535-16",
+    "expression": "W.wrapping-shl-u16 (65535 :: U16) (16 :: U32)",
+    "expected": 65535,
+    "result": "U16"
+  },
+  {
+    "name": "shr-U16-65535-16",
+    "expression": "W.wrapping-shr-u16 (65535 :: U16) (16 :: U32)",
+    "expected": 65535,
+    "result": "U16"
+  },
+  {
+    "name": "shl-U16-65535-17",
+    "expression": "W.wrapping-shl-u16 (65535 :: U16) (17 :: U32)",
+    "expected": 65534,
+    "result": "U16"
+  },
+  {
+    "name": "shr-U16-65535-17",
+    "expression": "W.wrapping-shr-u16 (65535 :: U16) (17 :: U32)",
+    "expected": 32767,
+    "result": "U16"
+  },
+  {
+    "name": "shl-U16-65535-4294967295",
+    "expression": "W.wrapping-shl-u16 (65535 :: U16) (4294967295 :: U32)",
+    "expected": 32768,
+    "result": "U16"
+  },
+  {
+    "name": "shr-U16-65535-4294967295",
+    "expression": "W.wrapping-shr-u16 (65535 :: U16) (4294967295 :: U32)",
+    "expected": 1,
+    "result": "U16"
+  },
+  {
+    "name": "cast-U16-I8-0",
+    "expression": "W.wrapping-u16-to-i8 (0 :: U16)",
+    "expected": 0,
+    "result": "I8"
+  },
+  {
+    "name": "cast-U16-I8-1",
+    "expression": "W.wrapping-u16-to-i8 (65535 :: U16)",
+    "expected": -1,
+    "result": "I8"
+  },
+  {
+    "name": "cast-U16-I8-2",
+    "expression": "W.wrapping-u16-to-i8 (65535 :: U16)",
+    "expected": -1,
+    "result": "I8"
+  },
+  {
+    "name": "cast-U16-I16-0",
+    "expression": "W.wrapping-u16-to-i16 (0 :: U16)",
+    "expected": 0,
+    "result": "I16"
+  },
+  {
+    "name": "cast-U16-I16-1",
+    "expression": "W.wrapping-u16-to-i16 (65535 :: U16)",
+    "expected": -1,
+    "result": "I16"
+  },
+  {
+    "name": "cast-U16-I16-2",
+    "expression": "W.wrapping-u16-to-i16 (65535 :: U16)",
+    "expected": -1,
+    "result": "I16"
+  },
+  {
+    "name": "cast-U16-I32-0",
+    "expression": "W.wrapping-u16-to-i32 (0 :: U16)",
+    "expected": 0,
+    "result": "I32"
+  },
+  {
+    "name": "cast-U16-I32-1",
+    "expression": "W.wrapping-u16-to-i32 (65535 :: U16)",
+    "expected": 65535,
+    "result": "I32"
+  },
+  {
+    "name": "cast-U16-I32-2",
+    "expression": "W.wrapping-u16-to-i32 (65535 :: U16)",
+    "expected": 65535,
+    "result": "I32"
+  },
+  {
+    "name": "cast-U16-I64-0",
+    "expression": "W.wrapping-u16-to-i64 (0 :: U16)",
+    "expected": 0,
+    "result": "I64"
+  },
+  {
+    "name": "cast-U16-I64-1",
+    "expression": "W.wrapping-u16-to-i64 (65535 :: U16)",
+    "expected": 65535,
+    "result": "I64"
+  },
+  {
+    "name": "cast-U16-I64-2",
+    "expression": "W.wrapping-u16-to-i64 (65535 :: U16)",
+    "expected": 65535,
+    "result": "I64"
+  },
+  {
+    "name": "cast-U16-U8-0",
+    "expression": "W.wrapping-u16-to-u8 (0 :: U16)",
+    "expected": 0,
+    "result": "U8"
+  },
+  {
+    "name": "cast-U16-U8-1",
+    "expression": "W.wrapping-u16-to-u8 (65535 :: U16)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "cast-U16-U8-2",
+    "expression": "W.wrapping-u16-to-u8 (65535 :: U16)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "cast-U16-U16-0",
+    "expression": "W.wrapping-u16-to-u16 (0 :: U16)",
+    "expected": 0,
+    "result": "U16"
+  },
+  {
+    "name": "cast-U16-U16-1",
+    "expression": "W.wrapping-u16-to-u16 (65535 :: U16)",
+    "expected": 65535,
+    "result": "U16"
+  },
+  {
+    "name": "cast-U16-U16-2",
+    "expression": "W.wrapping-u16-to-u16 (65535 :: U16)",
+    "expected": 65535,
+    "result": "U16"
+  },
+  {
+    "name": "cast-U16-U32-0",
+    "expression": "W.wrapping-u16-to-u32 (0 :: U16)",
+    "expected": 0,
+    "result": "U32"
+  },
+  {
+    "name": "cast-U16-U32-1",
+    "expression": "W.wrapping-u16-to-u32 (65535 :: U16)",
+    "expected": 65535,
+    "result": "U32"
+  },
+  {
+    "name": "cast-U16-U32-2",
+    "expression": "W.wrapping-u16-to-u32 (65535 :: U16)",
+    "expected": 65535,
+    "result": "U32"
+  },
+  {
+    "name": "cast-U16-U64-0",
+    "expression": "W.wrapping-u16-to-u64 (0 :: U16)",
+    "expected": 0,
+    "result": "U64"
+  },
+  {
+    "name": "cast-U16-U64-1",
+    "expression": "W.wrapping-u16-to-u64 (65535 :: U16)",
+    "expected": 65535,
+    "result": "U64"
+  },
+  {
+    "name": "cast-U16-U64-2",
+    "expression": "W.wrapping-u16-to-u64 (65535 :: U16)",
+    "expected": 65535,
+    "result": "U64"
+  },
+  {
+    "name": "wrapping-add-U32-0",
+    "expression": "W.wrapping-add-u32 (4294967295 :: U32) (1 :: U32)",
+    "expected": 0,
+    "result": "U32"
+  },
+  {
+    "name": "wrapping-sub-U32-0",
+    "expression": "W.wrapping-sub-u32 (4294967295 :: U32) (1 :: U32)",
+    "expected": 4294967294,
+    "result": "U32"
+  },
+  {
+    "name": "wrapping-mul-U32-0",
+    "expression": "W.wrapping-mul-u32 (4294967295 :: U32) (1 :: U32)",
+    "expected": 4294967295,
+    "result": "U32"
+  },
+  {
+    "name": "bit-and-U32-0",
+    "expression": "W.bit-and-u32 (4294967295 :: U32) (1 :: U32)",
+    "expected": 1,
+    "result": "U32"
+  },
+  {
+    "name": "bit-or-U32-0",
+    "expression": "W.bit-or-u32 (4294967295 :: U32) (1 :: U32)",
+    "expected": 4294967295,
+    "result": "U32"
+  },
+  {
+    "name": "bit-xor-U32-0",
+    "expression": "W.bit-xor-u32 (4294967295 :: U32) (1 :: U32)",
+    "expected": 4294967294,
+    "result": "U32"
+  },
+  {
+    "name": "eq-U32-0",
+    "expression": "W.eq-u32 (4294967295 :: U32) (1 :: U32)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ne-U32-0",
+    "expression": "W.ne-u32 (4294967295 :: U32) (1 :: U32)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "lt-U32-0",
+    "expression": "W.lt-u32 (4294967295 :: U32) (1 :: U32)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "le-U32-0",
+    "expression": "W.le-u32 (4294967295 :: U32) (1 :: U32)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "gt-U32-0",
+    "expression": "W.gt-u32 (4294967295 :: U32) (1 :: U32)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "ge-U32-0",
+    "expression": "W.ge-u32 (4294967295 :: U32) (1 :: U32)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "wrapping-add-U32-1",
+    "expression": "W.wrapping-add-u32 (0 :: U32) (4294967295 :: U32)",
+    "expected": 4294967295,
+    "result": "U32"
+  },
+  {
+    "name": "wrapping-sub-U32-1",
+    "expression": "W.wrapping-sub-u32 (0 :: U32) (4294967295 :: U32)",
+    "expected": 1,
+    "result": "U32"
+  },
+  {
+    "name": "wrapping-mul-U32-1",
+    "expression": "W.wrapping-mul-u32 (0 :: U32) (4294967295 :: U32)",
+    "expected": 0,
+    "result": "U32"
+  },
+  {
+    "name": "bit-and-U32-1",
+    "expression": "W.bit-and-u32 (0 :: U32) (4294967295 :: U32)",
+    "expected": 0,
+    "result": "U32"
+  },
+  {
+    "name": "bit-or-U32-1",
+    "expression": "W.bit-or-u32 (0 :: U32) (4294967295 :: U32)",
+    "expected": 4294967295,
+    "result": "U32"
+  },
+  {
+    "name": "bit-xor-U32-1",
+    "expression": "W.bit-xor-u32 (0 :: U32) (4294967295 :: U32)",
+    "expected": 4294967295,
+    "result": "U32"
+  },
+  {
+    "name": "eq-U32-1",
+    "expression": "W.eq-u32 (0 :: U32) (4294967295 :: U32)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ne-U32-1",
+    "expression": "W.ne-u32 (0 :: U32) (4294967295 :: U32)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "lt-U32-1",
+    "expression": "W.lt-u32 (0 :: U32) (4294967295 :: U32)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "le-U32-1",
+    "expression": "W.le-u32 (0 :: U32) (4294967295 :: U32)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "gt-U32-1",
+    "expression": "W.gt-u32 (0 :: U32) (4294967295 :: U32)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ge-U32-1",
+    "expression": "W.ge-u32 (0 :: U32) (4294967295 :: U32)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "wrapping-add-U32-2",
+    "expression": "W.wrapping-add-u32 (4294967295 :: U32) (4294967295 :: U32)",
+    "expected": 4294967294,
+    "result": "U32"
+  },
+  {
+    "name": "wrapping-sub-U32-2",
+    "expression": "W.wrapping-sub-u32 (4294967295 :: U32) (4294967295 :: U32)",
+    "expected": 0,
+    "result": "U32"
+  },
+  {
+    "name": "wrapping-mul-U32-2",
+    "expression": "W.wrapping-mul-u32 (4294967295 :: U32) (4294967295 :: U32)",
+    "expected": 1,
+    "result": "U32"
+  },
+  {
+    "name": "bit-and-U32-2",
+    "expression": "W.bit-and-u32 (4294967295 :: U32) (4294967295 :: U32)",
+    "expected": 4294967295,
+    "result": "U32"
+  },
+  {
+    "name": "bit-or-U32-2",
+    "expression": "W.bit-or-u32 (4294967295 :: U32) (4294967295 :: U32)",
+    "expected": 4294967295,
+    "result": "U32"
+  },
+  {
+    "name": "bit-xor-U32-2",
+    "expression": "W.bit-xor-u32 (4294967295 :: U32) (4294967295 :: U32)",
+    "expected": 0,
+    "result": "U32"
+  },
+  {
+    "name": "eq-U32-2",
+    "expression": "W.eq-u32 (4294967295 :: U32) (4294967295 :: U32)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "ne-U32-2",
+    "expression": "W.ne-u32 (4294967295 :: U32) (4294967295 :: U32)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "lt-U32-2",
+    "expression": "W.lt-u32 (4294967295 :: U32) (4294967295 :: U32)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "le-U32-2",
+    "expression": "W.le-u32 (4294967295 :: U32) (4294967295 :: U32)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "gt-U32-2",
+    "expression": "W.gt-u32 (4294967295 :: U32) (4294967295 :: U32)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ge-U32-2",
+    "expression": "W.ge-u32 (4294967295 :: U32) (4294967295 :: U32)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "not-U32-0",
+    "expression": "W.bit-not-u32 (0 :: U32)",
+    "expected": 4294967295,
+    "result": "U32"
+  },
+  {
+    "name": "not-U32-1",
+    "expression": "W.bit-not-u32 (4294967295 :: U32)",
+    "expected": 0,
+    "result": "U32"
+  },
+  {
+    "name": "not-U32-2",
+    "expression": "W.bit-not-u32 (4294967295 :: U32)",
+    "expected": 0,
+    "result": "U32"
+  },
+  {
+    "name": "shl-U32-2147483648-0",
+    "expression": "W.wrapping-shl-u32 (2147483648 :: U32) (0 :: U32)",
+    "expected": 2147483648,
+    "result": "U32"
+  },
+  {
+    "name": "shr-U32-2147483648-0",
+    "expression": "W.wrapping-shr-u32 (2147483648 :: U32) (0 :: U32)",
+    "expected": 2147483648,
+    "result": "U32"
+  },
+  {
+    "name": "shl-U32-2147483648-31",
+    "expression": "W.wrapping-shl-u32 (2147483648 :: U32) (31 :: U32)",
+    "expected": 0,
+    "result": "U32"
+  },
+  {
+    "name": "shr-U32-2147483648-31",
+    "expression": "W.wrapping-shr-u32 (2147483648 :: U32) (31 :: U32)",
+    "expected": 1,
+    "result": "U32"
+  },
+  {
+    "name": "shl-U32-2147483648-32",
+    "expression": "W.wrapping-shl-u32 (2147483648 :: U32) (32 :: U32)",
+    "expected": 2147483648,
+    "result": "U32"
+  },
+  {
+    "name": "shr-U32-2147483648-32",
+    "expression": "W.wrapping-shr-u32 (2147483648 :: U32) (32 :: U32)",
+    "expected": 2147483648,
+    "result": "U32"
+  },
+  {
+    "name": "shl-U32-2147483648-33",
+    "expression": "W.wrapping-shl-u32 (2147483648 :: U32) (33 :: U32)",
+    "expected": 0,
+    "result": "U32"
+  },
+  {
+    "name": "shr-U32-2147483648-33",
+    "expression": "W.wrapping-shr-u32 (2147483648 :: U32) (33 :: U32)",
+    "expected": 1073741824,
+    "result": "U32"
+  },
+  {
+    "name": "shl-U32-2147483648-4294967295",
+    "expression": "W.wrapping-shl-u32 (2147483648 :: U32) (4294967295 :: U32)",
+    "expected": 0,
+    "result": "U32"
+  },
+  {
+    "name": "shr-U32-2147483648-4294967295",
+    "expression": "W.wrapping-shr-u32 (2147483648 :: U32) (4294967295 :: U32)",
+    "expected": 1,
+    "result": "U32"
+  },
+  {
+    "name": "shl-U32-4294967295-0",
+    "expression": "W.wrapping-shl-u32 (4294967295 :: U32) (0 :: U32)",
+    "expected": 4294967295,
+    "result": "U32"
+  },
+  {
+    "name": "shr-U32-4294967295-0",
+    "expression": "W.wrapping-shr-u32 (4294967295 :: U32) (0 :: U32)",
+    "expected": 4294967295,
+    "result": "U32"
+  },
+  {
+    "name": "shl-U32-4294967295-31",
+    "expression": "W.wrapping-shl-u32 (4294967295 :: U32) (31 :: U32)",
+    "expected": 2147483648,
+    "result": "U32"
+  },
+  {
+    "name": "shr-U32-4294967295-31",
+    "expression": "W.wrapping-shr-u32 (4294967295 :: U32) (31 :: U32)",
+    "expected": 1,
+    "result": "U32"
+  },
+  {
+    "name": "shl-U32-4294967295-32",
+    "expression": "W.wrapping-shl-u32 (4294967295 :: U32) (32 :: U32)",
+    "expected": 4294967295,
+    "result": "U32"
+  },
+  {
+    "name": "shr-U32-4294967295-32",
+    "expression": "W.wrapping-shr-u32 (4294967295 :: U32) (32 :: U32)",
+    "expected": 4294967295,
+    "result": "U32"
+  },
+  {
+    "name": "shl-U32-4294967295-33",
+    "expression": "W.wrapping-shl-u32 (4294967295 :: U32) (33 :: U32)",
+    "expected": 4294967294,
+    "result": "U32"
+  },
+  {
+    "name": "shr-U32-4294967295-33",
+    "expression": "W.wrapping-shr-u32 (4294967295 :: U32) (33 :: U32)",
+    "expected": 2147483647,
+    "result": "U32"
+  },
+  {
+    "name": "shl-U32-4294967295-4294967295",
+    "expression": "W.wrapping-shl-u32 (4294967295 :: U32) (4294967295 :: U32)",
+    "expected": 2147483648,
+    "result": "U32"
+  },
+  {
+    "name": "shr-U32-4294967295-4294967295",
+    "expression": "W.wrapping-shr-u32 (4294967295 :: U32) (4294967295 :: U32)",
+    "expected": 1,
+    "result": "U32"
+  },
+  {
+    "name": "cast-U32-I8-0",
+    "expression": "W.wrapping-u32-to-i8 (0 :: U32)",
+    "expected": 0,
+    "result": "I8"
+  },
+  {
+    "name": "cast-U32-I8-1",
+    "expression": "W.wrapping-u32-to-i8 (4294967295 :: U32)",
+    "expected": -1,
+    "result": "I8"
+  },
+  {
+    "name": "cast-U32-I8-2",
+    "expression": "W.wrapping-u32-to-i8 (4294967295 :: U32)",
+    "expected": -1,
+    "result": "I8"
+  },
+  {
+    "name": "cast-U32-I16-0",
+    "expression": "W.wrapping-u32-to-i16 (0 :: U32)",
+    "expected": 0,
+    "result": "I16"
+  },
+  {
+    "name": "cast-U32-I16-1",
+    "expression": "W.wrapping-u32-to-i16 (4294967295 :: U32)",
+    "expected": -1,
+    "result": "I16"
+  },
+  {
+    "name": "cast-U32-I16-2",
+    "expression": "W.wrapping-u32-to-i16 (4294967295 :: U32)",
+    "expected": -1,
+    "result": "I16"
+  },
+  {
+    "name": "cast-U32-I32-0",
+    "expression": "W.wrapping-u32-to-i32 (0 :: U32)",
+    "expected": 0,
+    "result": "I32"
+  },
+  {
+    "name": "cast-U32-I32-1",
+    "expression": "W.wrapping-u32-to-i32 (4294967295 :: U32)",
+    "expected": -1,
+    "result": "I32"
+  },
+  {
+    "name": "cast-U32-I32-2",
+    "expression": "W.wrapping-u32-to-i32 (4294967295 :: U32)",
+    "expected": -1,
+    "result": "I32"
+  },
+  {
+    "name": "cast-U32-I64-0",
+    "expression": "W.wrapping-u32-to-i64 (0 :: U32)",
+    "expected": 0,
+    "result": "I64"
+  },
+  {
+    "name": "cast-U32-I64-1",
+    "expression": "W.wrapping-u32-to-i64 (4294967295 :: U32)",
+    "expected": 4294967295,
+    "result": "I64"
+  },
+  {
+    "name": "cast-U32-I64-2",
+    "expression": "W.wrapping-u32-to-i64 (4294967295 :: U32)",
+    "expected": 4294967295,
+    "result": "I64"
+  },
+  {
+    "name": "cast-U32-U8-0",
+    "expression": "W.wrapping-u32-to-u8 (0 :: U32)",
+    "expected": 0,
+    "result": "U8"
+  },
+  {
+    "name": "cast-U32-U8-1",
+    "expression": "W.wrapping-u32-to-u8 (4294967295 :: U32)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "cast-U32-U8-2",
+    "expression": "W.wrapping-u32-to-u8 (4294967295 :: U32)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "cast-U32-U16-0",
+    "expression": "W.wrapping-u32-to-u16 (0 :: U32)",
+    "expected": 0,
+    "result": "U16"
+  },
+  {
+    "name": "cast-U32-U16-1",
+    "expression": "W.wrapping-u32-to-u16 (4294967295 :: U32)",
+    "expected": 65535,
+    "result": "U16"
+  },
+  {
+    "name": "cast-U32-U16-2",
+    "expression": "W.wrapping-u32-to-u16 (4294967295 :: U32)",
+    "expected": 65535,
+    "result": "U16"
+  },
+  {
+    "name": "cast-U32-U32-0",
+    "expression": "W.wrapping-u32-to-u32 (0 :: U32)",
+    "expected": 0,
+    "result": "U32"
+  },
+  {
+    "name": "cast-U32-U32-1",
+    "expression": "W.wrapping-u32-to-u32 (4294967295 :: U32)",
+    "expected": 4294967295,
+    "result": "U32"
+  },
+  {
+    "name": "cast-U32-U32-2",
+    "expression": "W.wrapping-u32-to-u32 (4294967295 :: U32)",
+    "expected": 4294967295,
+    "result": "U32"
+  },
+  {
+    "name": "cast-U32-U64-0",
+    "expression": "W.wrapping-u32-to-u64 (0 :: U32)",
+    "expected": 0,
+    "result": "U64"
+  },
+  {
+    "name": "cast-U32-U64-1",
+    "expression": "W.wrapping-u32-to-u64 (4294967295 :: U32)",
+    "expected": 4294967295,
+    "result": "U64"
+  },
+  {
+    "name": "cast-U32-U64-2",
+    "expression": "W.wrapping-u32-to-u64 (4294967295 :: U32)",
+    "expected": 4294967295,
+    "result": "U64"
+  },
+  {
+    "name": "wrapping-add-U64-0",
+    "expression": "W.wrapping-add-u64 (18446744073709551615 :: U64) (1 :: U64)",
+    "expected": 0,
+    "result": "U64"
+  },
+  {
+    "name": "wrapping-sub-U64-0",
+    "expression": "W.wrapping-sub-u64 (18446744073709551615 :: U64) (1 :: U64)",
+    "expected": 18446744073709551614,
+    "result": "U64"
+  },
+  {
+    "name": "wrapping-mul-U64-0",
+    "expression": "W.wrapping-mul-u64 (18446744073709551615 :: U64) (1 :: U64)",
+    "expected": 18446744073709551615,
+    "result": "U64"
+  },
+  {
+    "name": "bit-and-U64-0",
+    "expression": "W.bit-and-u64 (18446744073709551615 :: U64) (1 :: U64)",
+    "expected": 1,
+    "result": "U64"
+  },
+  {
+    "name": "bit-or-U64-0",
+    "expression": "W.bit-or-u64 (18446744073709551615 :: U64) (1 :: U64)",
+    "expected": 18446744073709551615,
+    "result": "U64"
+  },
+  {
+    "name": "bit-xor-U64-0",
+    "expression": "W.bit-xor-u64 (18446744073709551615 :: U64) (1 :: U64)",
+    "expected": 18446744073709551614,
+    "result": "U64"
+  },
+  {
+    "name": "eq-U64-0",
+    "expression": "W.eq-u64 (18446744073709551615 :: U64) (1 :: U64)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ne-U64-0",
+    "expression": "W.ne-u64 (18446744073709551615 :: U64) (1 :: U64)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "lt-U64-0",
+    "expression": "W.lt-u64 (18446744073709551615 :: U64) (1 :: U64)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "le-U64-0",
+    "expression": "W.le-u64 (18446744073709551615 :: U64) (1 :: U64)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "gt-U64-0",
+    "expression": "W.gt-u64 (18446744073709551615 :: U64) (1 :: U64)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "ge-U64-0",
+    "expression": "W.ge-u64 (18446744073709551615 :: U64) (1 :: U64)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "wrapping-add-U64-1",
+    "expression": "W.wrapping-add-u64 (0 :: U64) (18446744073709551615 :: U64)",
+    "expected": 18446744073709551615,
+    "result": "U64"
+  },
+  {
+    "name": "wrapping-sub-U64-1",
+    "expression": "W.wrapping-sub-u64 (0 :: U64) (18446744073709551615 :: U64)",
+    "expected": 1,
+    "result": "U64"
+  },
+  {
+    "name": "wrapping-mul-U64-1",
+    "expression": "W.wrapping-mul-u64 (0 :: U64) (18446744073709551615 :: U64)",
+    "expected": 0,
+    "result": "U64"
+  },
+  {
+    "name": "bit-and-U64-1",
+    "expression": "W.bit-and-u64 (0 :: U64) (18446744073709551615 :: U64)",
+    "expected": 0,
+    "result": "U64"
+  },
+  {
+    "name": "bit-or-U64-1",
+    "expression": "W.bit-or-u64 (0 :: U64) (18446744073709551615 :: U64)",
+    "expected": 18446744073709551615,
+    "result": "U64"
+  },
+  {
+    "name": "bit-xor-U64-1",
+    "expression": "W.bit-xor-u64 (0 :: U64) (18446744073709551615 :: U64)",
+    "expected": 18446744073709551615,
+    "result": "U64"
+  },
+  {
+    "name": "eq-U64-1",
+    "expression": "W.eq-u64 (0 :: U64) (18446744073709551615 :: U64)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ne-U64-1",
+    "expression": "W.ne-u64 (0 :: U64) (18446744073709551615 :: U64)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "lt-U64-1",
+    "expression": "W.lt-u64 (0 :: U64) (18446744073709551615 :: U64)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "le-U64-1",
+    "expression": "W.le-u64 (0 :: U64) (18446744073709551615 :: U64)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "gt-U64-1",
+    "expression": "W.gt-u64 (0 :: U64) (18446744073709551615 :: U64)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ge-U64-1",
+    "expression": "W.ge-u64 (0 :: U64) (18446744073709551615 :: U64)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "wrapping-add-U64-2",
+    "expression": "W.wrapping-add-u64 (18446744073709551615 :: U64) (18446744073709551615 :: U64)",
+    "expected": 18446744073709551614,
+    "result": "U64"
+  },
+  {
+    "name": "wrapping-sub-U64-2",
+    "expression": "W.wrapping-sub-u64 (18446744073709551615 :: U64) (18446744073709551615 :: U64)",
+    "expected": 0,
+    "result": "U64"
+  },
+  {
+    "name": "wrapping-mul-U64-2",
+    "expression": "W.wrapping-mul-u64 (18446744073709551615 :: U64) (18446744073709551615 :: U64)",
+    "expected": 1,
+    "result": "U64"
+  },
+  {
+    "name": "bit-and-U64-2",
+    "expression": "W.bit-and-u64 (18446744073709551615 :: U64) (18446744073709551615 :: U64)",
+    "expected": 18446744073709551615,
+    "result": "U64"
+  },
+  {
+    "name": "bit-or-U64-2",
+    "expression": "W.bit-or-u64 (18446744073709551615 :: U64) (18446744073709551615 :: U64)",
+    "expected": 18446744073709551615,
+    "result": "U64"
+  },
+  {
+    "name": "bit-xor-U64-2",
+    "expression": "W.bit-xor-u64 (18446744073709551615 :: U64) (18446744073709551615 :: U64)",
+    "expected": 0,
+    "result": "U64"
+  },
+  {
+    "name": "eq-U64-2",
+    "expression": "W.eq-u64 (18446744073709551615 :: U64) (18446744073709551615 :: U64)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "ne-U64-2",
+    "expression": "W.ne-u64 (18446744073709551615 :: U64) (18446744073709551615 :: U64)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "lt-U64-2",
+    "expression": "W.lt-u64 (18446744073709551615 :: U64) (18446744073709551615 :: U64)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "le-U64-2",
+    "expression": "W.le-u64 (18446744073709551615 :: U64) (18446744073709551615 :: U64)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "gt-U64-2",
+    "expression": "W.gt-u64 (18446744073709551615 :: U64) (18446744073709551615 :: U64)",
+    "expected": false,
+    "result": "Bool"
+  },
+  {
+    "name": "ge-U64-2",
+    "expression": "W.ge-u64 (18446744073709551615 :: U64) (18446744073709551615 :: U64)",
+    "expected": true,
+    "result": "Bool"
+  },
+  {
+    "name": "not-U64-0",
+    "expression": "W.bit-not-u64 (0 :: U64)",
+    "expected": 18446744073709551615,
+    "result": "U64"
+  },
+  {
+    "name": "not-U64-1",
+    "expression": "W.bit-not-u64 (18446744073709551615 :: U64)",
+    "expected": 0,
+    "result": "U64"
+  },
+  {
+    "name": "not-U64-2",
+    "expression": "W.bit-not-u64 (18446744073709551615 :: U64)",
+    "expected": 0,
+    "result": "U64"
+  },
+  {
+    "name": "shl-U64-9223372036854775808-0",
+    "expression": "W.wrapping-shl-u64 (9223372036854775808 :: U64) (0 :: U32)",
+    "expected": 9223372036854775808,
+    "result": "U64"
+  },
+  {
+    "name": "shr-U64-9223372036854775808-0",
+    "expression": "W.wrapping-shr-u64 (9223372036854775808 :: U64) (0 :: U32)",
+    "expected": 9223372036854775808,
+    "result": "U64"
+  },
+  {
+    "name": "shl-U64-9223372036854775808-63",
+    "expression": "W.wrapping-shl-u64 (9223372036854775808 :: U64) (63 :: U32)",
+    "expected": 0,
+    "result": "U64"
+  },
+  {
+    "name": "shr-U64-9223372036854775808-63",
+    "expression": "W.wrapping-shr-u64 (9223372036854775808 :: U64) (63 :: U32)",
+    "expected": 1,
+    "result": "U64"
+  },
+  {
+    "name": "shl-U64-9223372036854775808-64",
+    "expression": "W.wrapping-shl-u64 (9223372036854775808 :: U64) (64 :: U32)",
+    "expected": 9223372036854775808,
+    "result": "U64"
+  },
+  {
+    "name": "shr-U64-9223372036854775808-64",
+    "expression": "W.wrapping-shr-u64 (9223372036854775808 :: U64) (64 :: U32)",
+    "expected": 9223372036854775808,
+    "result": "U64"
+  },
+  {
+    "name": "shl-U64-9223372036854775808-65",
+    "expression": "W.wrapping-shl-u64 (9223372036854775808 :: U64) (65 :: U32)",
+    "expected": 0,
+    "result": "U64"
+  },
+  {
+    "name": "shr-U64-9223372036854775808-65",
+    "expression": "W.wrapping-shr-u64 (9223372036854775808 :: U64) (65 :: U32)",
+    "expected": 4611686018427387904,
+    "result": "U64"
+  },
+  {
+    "name": "shl-U64-9223372036854775808-4294967295",
+    "expression": "W.wrapping-shl-u64 (9223372036854775808 :: U64) (4294967295 :: U32)",
+    "expected": 0,
+    "result": "U64"
+  },
+  {
+    "name": "shr-U64-9223372036854775808-4294967295",
+    "expression": "W.wrapping-shr-u64 (9223372036854775808 :: U64) (4294967295 :: U32)",
+    "expected": 1,
+    "result": "U64"
+  },
+  {
+    "name": "shl-U64-18446744073709551615-0",
+    "expression": "W.wrapping-shl-u64 (18446744073709551615 :: U64) (0 :: U32)",
+    "expected": 18446744073709551615,
+    "result": "U64"
+  },
+  {
+    "name": "shr-U64-18446744073709551615-0",
+    "expression": "W.wrapping-shr-u64 (18446744073709551615 :: U64) (0 :: U32)",
+    "expected": 18446744073709551615,
+    "result": "U64"
+  },
+  {
+    "name": "shl-U64-18446744073709551615-63",
+    "expression": "W.wrapping-shl-u64 (18446744073709551615 :: U64) (63 :: U32)",
+    "expected": 9223372036854775808,
+    "result": "U64"
+  },
+  {
+    "name": "shr-U64-18446744073709551615-63",
+    "expression": "W.wrapping-shr-u64 (18446744073709551615 :: U64) (63 :: U32)",
+    "expected": 1,
+    "result": "U64"
+  },
+  {
+    "name": "shl-U64-18446744073709551615-64",
+    "expression": "W.wrapping-shl-u64 (18446744073709551615 :: U64) (64 :: U32)",
+    "expected": 18446744073709551615,
+    "result": "U64"
+  },
+  {
+    "name": "shr-U64-18446744073709551615-64",
+    "expression": "W.wrapping-shr-u64 (18446744073709551615 :: U64) (64 :: U32)",
+    "expected": 18446744073709551615,
+    "result": "U64"
+  },
+  {
+    "name": "shl-U64-18446744073709551615-65",
+    "expression": "W.wrapping-shl-u64 (18446744073709551615 :: U64) (65 :: U32)",
+    "expected": 18446744073709551614,
+    "result": "U64"
+  },
+  {
+    "name": "shr-U64-18446744073709551615-65",
+    "expression": "W.wrapping-shr-u64 (18446744073709551615 :: U64) (65 :: U32)",
+    "expected": 9223372036854775807,
+    "result": "U64"
+  },
+  {
+    "name": "shl-U64-18446744073709551615-4294967295",
+    "expression": "W.wrapping-shl-u64 (18446744073709551615 :: U64) (4294967295 :: U32)",
+    "expected": 9223372036854775808,
+    "result": "U64"
+  },
+  {
+    "name": "shr-U64-18446744073709551615-4294967295",
+    "expression": "W.wrapping-shr-u64 (18446744073709551615 :: U64) (4294967295 :: U32)",
+    "expected": 1,
+    "result": "U64"
+  },
+  {
+    "name": "cast-U64-I8-0",
+    "expression": "W.wrapping-u64-to-i8 (0 :: U64)",
+    "expected": 0,
+    "result": "I8"
+  },
+  {
+    "name": "cast-U64-I8-1",
+    "expression": "W.wrapping-u64-to-i8 (18446744073709551615 :: U64)",
+    "expected": -1,
+    "result": "I8"
+  },
+  {
+    "name": "cast-U64-I8-2",
+    "expression": "W.wrapping-u64-to-i8 (18446744073709551615 :: U64)",
+    "expected": -1,
+    "result": "I8"
+  },
+  {
+    "name": "cast-U64-I16-0",
+    "expression": "W.wrapping-u64-to-i16 (0 :: U64)",
+    "expected": 0,
+    "result": "I16"
+  },
+  {
+    "name": "cast-U64-I16-1",
+    "expression": "W.wrapping-u64-to-i16 (18446744073709551615 :: U64)",
+    "expected": -1,
+    "result": "I16"
+  },
+  {
+    "name": "cast-U64-I16-2",
+    "expression": "W.wrapping-u64-to-i16 (18446744073709551615 :: U64)",
+    "expected": -1,
+    "result": "I16"
+  },
+  {
+    "name": "cast-U64-I32-0",
+    "expression": "W.wrapping-u64-to-i32 (0 :: U64)",
+    "expected": 0,
+    "result": "I32"
+  },
+  {
+    "name": "cast-U64-I32-1",
+    "expression": "W.wrapping-u64-to-i32 (18446744073709551615 :: U64)",
+    "expected": -1,
+    "result": "I32"
+  },
+  {
+    "name": "cast-U64-I32-2",
+    "expression": "W.wrapping-u64-to-i32 (18446744073709551615 :: U64)",
+    "expected": -1,
+    "result": "I32"
+  },
+  {
+    "name": "cast-U64-I64-0",
+    "expression": "W.wrapping-u64-to-i64 (0 :: U64)",
+    "expected": 0,
+    "result": "I64"
+  },
+  {
+    "name": "cast-U64-I64-1",
+    "expression": "W.wrapping-u64-to-i64 (18446744073709551615 :: U64)",
+    "expected": -1,
+    "result": "I64"
+  },
+  {
+    "name": "cast-U64-I64-2",
+    "expression": "W.wrapping-u64-to-i64 (18446744073709551615 :: U64)",
+    "expected": -1,
+    "result": "I64"
+  },
+  {
+    "name": "cast-U64-U8-0",
+    "expression": "W.wrapping-u64-to-u8 (0 :: U64)",
+    "expected": 0,
+    "result": "U8"
+  },
+  {
+    "name": "cast-U64-U8-1",
+    "expression": "W.wrapping-u64-to-u8 (18446744073709551615 :: U64)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "cast-U64-U8-2",
+    "expression": "W.wrapping-u64-to-u8 (18446744073709551615 :: U64)",
+    "expected": 255,
+    "result": "U8"
+  },
+  {
+    "name": "cast-U64-U16-0",
+    "expression": "W.wrapping-u64-to-u16 (0 :: U64)",
+    "expected": 0,
+    "result": "U16"
+  },
+  {
+    "name": "cast-U64-U16-1",
+    "expression": "W.wrapping-u64-to-u16 (18446744073709551615 :: U64)",
+    "expected": 65535,
+    "result": "U16"
+  },
+  {
+    "name": "cast-U64-U16-2",
+    "expression": "W.wrapping-u64-to-u16 (18446744073709551615 :: U64)",
+    "expected": 65535,
+    "result": "U16"
+  },
+  {
+    "name": "cast-U64-U32-0",
+    "expression": "W.wrapping-u64-to-u32 (0 :: U64)",
+    "expected": 0,
+    "result": "U32"
+  },
+  {
+    "name": "cast-U64-U32-1",
+    "expression": "W.wrapping-u64-to-u32 (18446744073709551615 :: U64)",
+    "expected": 4294967295,
+    "result": "U32"
+  },
+  {
+    "name": "cast-U64-U32-2",
+    "expression": "W.wrapping-u64-to-u32 (18446744073709551615 :: U64)",
+    "expected": 4294967295,
+    "result": "U32"
+  },
+  {
+    "name": "cast-U64-U64-0",
+    "expression": "W.wrapping-u64-to-u64 (0 :: U64)",
+    "expected": 0,
+    "result": "U64"
+  },
+  {
+    "name": "cast-U64-U64-1",
+    "expression": "W.wrapping-u64-to-u64 (18446744073709551615 :: U64)",
+    "expected": 18446744073709551615,
+    "result": "U64"
+  },
+  {
+    "name": "cast-U64-U64-2",
+    "expression": "W.wrapping-u64-to-u64 (18446744073709551615 :: U64)",
+    "expected": 18446744073709551615,
+    "result": "U64"
+  },
+  {
+    "name": "higher-order-u64",
+    "expression": "apply-word W.wrapping-add-u64 18446744073709551615 1",
+    "expected": 0,
+    "result": "U64"
+  },
+  {
+    "name": "partial-u64",
+    "expression": "(let increment = W.wrapping-add-u64 18446744073709551615 in increment 2)",
+    "expected": 1,
+    "result": "U64"
+  },
+  {
+    "name": "higher-order-unary-u8",
+    "expression": "apply-byte W.bit-not-u8 128",
+    "expected": 127,
+    "result": "U8"
+  }
+]
