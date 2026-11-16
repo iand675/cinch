@@ -142,6 +142,8 @@ def main():
         names = {unit_name(unit) for unit in units(core)}
         rows = refusal_report(Path(args.report).read_text(), names)
         result["reasons"] = collections.Counter(row["reason"] for row in rows)
+        result["owned_uses"] = collections.Counter(row["use"] for row in rows
+                                                 if row["reason"] == "owned-use" and "use" in row)
     if args.json:
         print(json.dumps(result, sort_keys=True))
         return 0
@@ -153,6 +155,8 @@ def main():
     if "reasons" in result:
         for reason, count in result["reasons"].most_common():
             print(f"  {reason:28} {count}")
+        for use, count in result["owned_uses"].most_common():
+            print(f"    owned-use/{use:18} {count}")
     if args.by_module:
         print()
         for module, count in result["by_module"].most_common(args.top):

@@ -216,7 +216,7 @@ fn insert_with(
         }
         let borrowed = borrowed_params(&modes, f);
         let body = transform(f, &modes, &borrowed, &ctors);
-        if verifying() {
+        if verifying() && std::env::var_os("CINCH_RC_TRACE").is_some() {
             verify(f, &body, &modes, &borrowed).map_err(|m| {
                 if std::env::var_os("CINCH_RC_TRACE").is_some() {
                     eprintln!("cinch-rc: {}\n  input: {:?}\n  output: {:?}", f.id, f.body, body);
@@ -225,6 +225,9 @@ fn insert_with(
             })?;
         }
         f.body = body;
+    }
+    if verifying() {
+        verify_program(&program)?;
     }
     Ok(program)
 }
@@ -247,12 +250,13 @@ pub(crate) fn verifying() -> bool {
 /// generation reads, not the one the counting pass handed over.
 pub fn verify_program(program: &Program) -> crate::Result<()> {
     let modes: Modes = program.borrowed.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+    let globals: HashMap<&str, &FnDef> = program.fns.iter().map(|f| (f.id.0.as_str(), f)).collect();
     for f in &program.fns {
         if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body {
             continue;
         }
         let borrowed = borrowed_params(&modes, f);
-        verify(f, &f.body, &modes, &borrowed)
+        verify_body(&param_classes(f), &f.body, &modes, &borrowed, Some(&globals))
             .map_err(|m| crate::Error::plain(format!("compiler bug: ownership verifier rejected {}: {m}", f.id)))?;
     }
     Ok(())
@@ -267,7 +271,9 @@ type Modes = HashMap<String, Vec<bool>>;
 #[derive(Default)]
 struct BorrowReport {
     reasons: Option<HashMap<(String, usize), &'static str>>,
+    owned_details: Option<HashMap<(String, usize), &'static str>>,
     work: BorrowWork,
+    work_enabled: bool,
 }
 
 /// Work counters are populated only with CINCH_BORROW_REPORT enabled.
@@ -284,9 +290,15 @@ struct BorrowWork {
 }
 
 impl BorrowReport {
+    fn record_owned(&mut self, unit: &str, param: usize, detail: &'static str) {
+        self.record(unit, param, "owned-use");
+        if let Some(details) = &mut self.owned_details {
+            details.entry((unit.to_string(), param)).or_insert(detail);
+        }
+    }
     fn reuse_scrutinees(&mut self, body: &Core, ctors: &Ctors) -> Set {
         let mut out = Set::new();
-        if self.reasons.is_some() {
+        if self.work_enabled {
             self.work.reuse_scans += 1;
             reuse_scrutinees::<true>(body, ctors, &mut out, &mut self.work);
         } else {
@@ -302,7 +314,10 @@ impl BorrowReport {
     }
 
     fn emit(&self, program: &Program, modes: &Modes, excluded: &std::collections::HashSet<String>, boundary: &Boundary<'_>) {
-        let Some(reasons) = &self.reasons else { return };
+        let Some(reasons) = &self.reasons else {
+            self.emit_work();
+            return;
+        };
         eprintln!("cinch-borrow: {{\"event\":\"begin\"}}");
         for f in &program.fns {
             if f.ctor.is_some() || f.meta.prim_body || f.prim.is_some() {
@@ -323,19 +338,41 @@ impl BorrowReport {
                 } else {
                     reasons.get(&(f.id.0.clone(), i)).copied().unwrap_or("owned")
                 };
-                eprintln!("cinch-borrow: {}", serde_json::json!({
+                let mut row = serde_json::json!({
                     "unit": f.id.0, "param": i + 1, "class": format!("{class:?}"), "reason": reason
-                }));
+                });
+                if reason == "owned-use" {
+                    if let Some(detail) = self.owned_details.as_ref().and_then(|d| d.get(&(f.id.0.clone(), i))) {
+                        row["use"] = (*detail).into();
+                    }
+                }
+                eprintln!("cinch-borrow: {row}");
             }
         }
         eprintln!("cinch-borrow: {{\"event\":\"end\"}}");
         // Keep work counters outside the per-formal report stream.
-        eprintln!("cinch-borrow-work: {}", serde_json::to_string(&self.work).expect("work counters serialize"));
+        self.emit_work();
+    }
+
+    fn emit_work(&self) {
+        if self.work_enabled {
+            eprintln!("cinch-borrow-work: {}", serde_json::to_string(&self.work).expect("work counters serialize"));
+        }
     }
 }
 
 fn borrowed_params(modes: &Modes, f: &FnDef) -> Set {
     modes.get(&f.id.0).map_or_else(Set::new, |m| (0..m.len()).filter(|i| m[*i]).collect())
+}
+
+/// Generic child traversal omits application heads. These walkers need
+/// computed heads too, but their usual leaf heads contain nothing to scan.
+fn computed_call_head(e: &Core) -> Option<&Core> {
+    match e {
+        Core::App(head, _) if !matches!(&**head,
+            Core::Global(..) | Core::Prim(_) | Core::Ctor(..) | Core::Var(_) | Core::Foreign(_)) => Some(head),
+        _ => None,
+    }
 }
 
 /// Borrowed parameter inference (design/reclamation.md section 4, Lean 4
@@ -375,6 +412,9 @@ fn reuse_scrutinees<const MEASURE: bool>(body: &Core, ctors: &Ctors, out: &mut S
             }
         }
     }
+    if let Some(head) = computed_call_head(body) {
+        reuse_scrutinees::<MEASURE>(head, ctors, out, work);
+    }
     for k in crate::core::child_slots_imm(body) {
         reuse_scrutinees::<MEASURE>(k, ctors, out, work);
     }
@@ -383,6 +423,9 @@ fn reuse_scrutinees<const MEASURE: bool>(body: &Core, ctors: &Ctors, out: &mut S
 fn borrow_modes(program: &Program, ctors: &Ctors, boundary: &Boundary<'_>) -> (Modes, std::collections::HashSet<String>) {
     let mut report = BorrowReport {
         reasons: std::env::var_os("CINCH_BORROW_REPORT").map(|_| HashMap::new()),
+        owned_details: std::env::var_os("CINCH_BORROW_REPORT").map(|_| HashMap::new()),
+        work_enabled: std::env::var_os("CINCH_BORROW_REPORT").is_some()
+            || std::env::var_os("CINCH_BORROW_WORK").is_some(),
         ..BorrowReport::default()
     };
     // Defined here: shipped, or a private copy (`Program::private_modules`).
@@ -474,10 +517,13 @@ fn borrow_modes(program: &Program, ctors: &Ctors, boundary: &Boundary<'_>) -> (M
     // Modes only lose loans, so later visits cannot need those facts again:
     // cache just that the rule ran, even when its answer was empty. Flags
     // belong to this pass; a later compilation may redefine the same names.
-    let mut reuse_checked = vec![false; units.len()];
+    // The opt-out is for controlled work/allocation measurements and for
+    // reproducing uncached inference with otherwise identical code.
+    let cache_reuse = std::env::var("CINCH_BORROW_REUSE_CACHE").as_deref() != Ok("0");
+    let mut reuse_checked = if cache_reuse { vec![false; units.len()] } else { Vec::new() };
     let mut killed: Vec<String> = Vec::new();
     while let Some(u) = queue.pop() {
-        if report.reasons.is_some() { report.work.unit_visits += 1; }
+        if report.work_enabled { report.work.unit_visits += 1; }
         queued[u] = false;
         let (f, cx) = &units[u];
         let mut mine = borrowed_params(&modes, f);
@@ -485,16 +531,17 @@ fn borrow_modes(program: &Program, ctors: &Ctors, boundary: &Boundary<'_>) -> (M
         if !mine.is_empty() {
             let names: HashMap<usize, usize> = mine.iter().map(|p| (*p, *p)).collect();
             let mut owned = Set::new();
-            owned_uses(&f.body, &names, &modes, cx, &mut owned);
+            let mut details = report.reasons.as_ref().map(|_| HashMap::new());
+            owned_uses(&f.body, &names, &modes, cx, &mut owned, &mut details, "return");
             for &p in &owned {
-                report.record(&f.id.0, p, "owned-use");
+                report.record_owned(&f.id.0, p, details.as_ref().and_then(|d| d.get(&p)).copied().unwrap_or("other"));
             }
             // A reuse target is owned by construction (Lean's forced
             // ownership rule for a reset target).
-            if report.reasons.is_some() { report.work.reuse_requests += 1; }
-            if !reuse_checked[u] {
+            if report.work_enabled { report.work.reuse_requests += 1; }
+            if !cache_reuse || !reuse_checked[u] {
                 owned.extend(report.reuse_scrutinees(&f.body, ctors));
-                reuse_checked[u] = true;
+                if cache_reuse { reuse_checked[u] = true; }
             }
             for &p in &owned {
                 report.record(&f.id.0, p, "reuse");
@@ -520,7 +567,7 @@ fn borrow_modes(program: &Program, ctors: &Ctors, boundary: &Boundary<'_>) -> (M
             }
         }
     }
-    if report.reasons.is_some() {
+    if report.work_enabled {
         report.work.cache_entries = reuse_checked.iter().filter(|checked| **checked).count();
         report.work.cache_slot_bytes = reuse_checked.capacity() * std::mem::size_of::<bool>();
     }
@@ -612,7 +659,8 @@ fn direct_callees(e: &Core, out: &mut impl FnMut(String)) {
 /// Add to `out` the parameters that `e` uses other than in a borrowed
 /// position, for the parameters `names` maps from their names (the
 /// parameter and its [`let_alias`] renamings).
-fn owned_uses(e: &Core, names: &HashMap<usize, usize>, modes: &Modes, cx: &UnitFacts, out: &mut Set) {
+fn owned_uses(e: &Core, names: &HashMap<usize, usize>, modes: &Modes, cx: &UnitFacts, out: &mut Set,
+    details: &mut Option<HashMap<usize, &'static str>>, context: &'static str) {
     let named = |c: &Core| match c {
         Core::Var(x) => names.get(&x.0).copied(),
         _ => None,
@@ -621,13 +669,18 @@ fn owned_uses(e: &Core, names: &HashMap<usize, usize>, modes: &Modes, cx: &UnitF
         Core::Var(x) => {
             if let Some(p) = names.get(&x.0) {
                 out.insert(*p);
+                if let Some(details) = details { details.entry(*p).or_insert(context); }
             }
         }
         Core::Let(x, c, v, b) if let_alias(*x, *c, v, &cx.classes, &cx.written).is_some_and(|y| names.contains_key(&y)) => {
             let p = named(v).expect("an alias of a tracked name");
             let mut names = names.clone();
             names.insert(x.0, p);
-            owned_uses(b, &names, modes, cx, out);
+            owned_uses(b, &names, modes, cx, out, details, context);
+        }
+        Core::Let(_, _, value, body) => {
+            owned_uses(value, names, modes, cx, out, details, "binding");
+            owned_uses(body, names, modes, cx, out, details, context);
         }
         Core::Case { scrut, alts } if named(scrut).is_some() => {
             for a in alts {
@@ -638,32 +691,52 @@ fn owned_uses(e: &Core, names: &HashMap<usize, usize>, modes: &Modes, cx: &UnitF
                     // (stack allocation trusts a loan not to escape).
                     let mut aliases = names.clone();
                     aliases.insert(x.0, named(scrut).expect("a tracked scrutinee"));
-                    owned_uses(&a.body, &aliases, modes, cx, out);
+                    owned_uses(&a.body, &aliases, modes, cx, out, details, context);
                 } else {
-                    owned_uses(&a.body, names, modes, cx, out);
+                    owned_uses(&a.body, names, modes, cx, out, details, context);
                 }
             }
         }
         Core::Proj(d, _) | Core::DictProj(d, ..) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _)
             if named(d).is_some() => {}
-        Core::LazyInit(l, v) | Core::BoxInit(l, v, _) | Core::RefSet(l, v, _) if names.contains_key(&l.0) => {
-            out.insert(names[&l.0]);
-            owned_uses(v, names, modes, cx, out);
+        Core::LazyInit(l, v) | Core::BoxInit(l, v, _) | Core::RefSet(l, v, _) => {
+            if let Some(p) = names.get(&l.0) {
+                out.insert(*p);
+                if let Some(details) = details { details.entry(*p).or_insert("write-target"); }
+            }
+            owned_uses(v, names, modes, cx, out, details, "store");
         }
+        Core::Lam { env: values, .. } => for v in values {
+            owned_uses(v, names, modes, cx, out, details, "capture");
+        },
+        Core::InstDict(_, values, _) => for v in values {
+            owned_uses(v, names, modes, cx, out, details, "dictionary");
+        },
+        Core::Quote { holes, .. } => for v in holes {
+            owned_uses(v, names, modes, cx, out, details, "quotation-hole");
+        },
+        Core::Jump { args, .. } => for v in args {
+            owned_uses(v, names, modes, cx, out, details, "join-argument");
+        },
         Core::App(h, args) => {
             let callee = callee_modes(modes, h, args.len());
             if callee.is_none() {
-                owned_uses(h, names, modes, cx, out);
+                owned_uses(h, names, modes, cx, out, details, "dynamic-callee");
             }
+            let argument_context = match &**h {
+                Core::Ctor(..) => "constructor-field",
+                Core::Global(..) | Core::Prim(_) => "owned-argument",
+                _ => "dynamic-argument",
+            };
             for (i, a) in args.iter().enumerate() {
                 if !(callee.is_some_and(|m| m[i]) && named(a).is_some()) {
-                    owned_uses(a, names, modes, cx, out);
+                    owned_uses(a, names, modes, cx, out, details, argument_context);
                 }
             }
         }
         other => {
             for k in crate::core::child_slots_imm(other) {
-                owned_uses(k, names, modes, cx, out);
+                owned_uses(k, names, modes, cx, out, details, context);
             }
         }
     }
@@ -805,6 +878,7 @@ impl UnitFacts {
             if let Core::LazyInit(l, _) | Core::BoxInit(l, ..) | Core::RefSet(l, ..) = e {
                 out.insert(l.0);
             }
+            if let Some(head) = computed_call_head(e) { walk(head, out); }
             for k in crate::core::child_slots_imm(e) {
                 walk(k, out);
             }
@@ -1010,13 +1084,15 @@ fn insert_reuse(
             .map(|b2| Core::Dup(*x, *c, Box::new(b2))),
         Core::Drop(x, c, b) => insert_reuse(b, token, words, tag, fields, relaxed, ctors)
             .map(|b2| Core::Drop(*x, *c, Box::new(b2))),
-        // A call's arguments are evaluated in order before the transfer,
-        // with no branch between them and the `Release`, so the first
-        // compatible allocation among them is on the spine. The head is
-        // left alone: it is a unit, a primitive or a variable in every
-        // shape that reaches here, and a constructor there would not be an
-        // allocation on this path.
+        // The computed head runs before the arguments and the transfer.
+        // Its unconditional spine can take the token under the same rule
+        // as an argument. Leaf heads cannot allocate here.
         Core::App(f, args) => {
+            if computed_call_head(e).is_some() {
+                if let Some(head) = insert_reuse(f, token, words, tag, fields, relaxed, ctors) {
+                    return Some(Core::App(Box::new(head), args.clone()));
+                }
+            }
             let (i, a2) = insert_reuse_in_args(args, token, words, tag, fields, relaxed, ctors)?;
             let mut args = args.clone();
             args[i] = a2;
@@ -1182,6 +1258,9 @@ fn reuse_allocation_anywhere<const MEASURE: bool>(e: &Core, words: usize, tag: u
     if compatible_ctor(e, words, tag, false, ctors).is_some()
         || compatible_ctor(e, words, tag, true, ctors).is_some()
     {
+        return true;
+    }
+    if computed_call_head(e).is_some_and(|head| reuse_allocation_anywhere::<MEASURE>(head, words, tag, ctors, work)) {
         return true;
     }
     crate::core::child_slots_imm(e)
@@ -1958,13 +2037,14 @@ fn pat_binders(p: &CPat) -> Vec<usize> {
 /// `Dup` adds one, a borrowed read needs one, and every path that returns
 /// ends with none held.
 pub fn verify(f: &FnDef, body: &Core, modes: &Modes, borrowed: &Set) -> Result<(), String> {
-    verify_body(&param_classes(f), body, modes, borrowed)
+    verify_body(&param_classes(f), body, modes, borrowed, None)
 }
 
 /// [`verify`] for a body whose parameters have the classes `params`, of
 /// which those in `lent` are borrowed: alive throughout, holding no
 /// reference of their own.
-fn verify_body(params: &[Class], body: &Core, modes: &Modes, lent: &Set) -> Result<(), String> {
+fn verify_body(params: &[Class], body: &Core, modes: &Modes, lent: &Set,
+    globals: Option<&HashMap<&str, &FnDef>>) -> Result<(), String> {
     let class = binder_classes(params, body);
     let mut st = State { cnt: HashMap::new(), parent: HashMap::new() };
     for i in 0..params.len() {
@@ -1972,7 +2052,7 @@ fn verify_body(params: &[Class], body: &Core, modes: &Modes, lent: &Set) -> Resu
             st.cnt.insert(i, 1);
         }
     }
-    let mut v = Verifier { class, modes, lent: lent.clone() };
+    let mut v = Verifier { class, modes, lent: lent.clone(), globals };
     if v.value(body, &mut st)? {
         v.ended(&st)?;
     }
@@ -1986,14 +2066,69 @@ struct State {
     parent: HashMap<usize, usize>,
 }
 
-struct Verifier<'m> {
+struct Verifier<'m, 'g, 'p> {
     class: HashMap<usize, Class>,
     modes: &'m Modes,
     /// Borrowed parameters.
     lent: Set,
+    globals: Option<&'g HashMap<&'p str, &'p FnDef>>,
 }
 
-impl Verifier<'_> {
+impl Verifier<'_, '_, '_> {
+    /// Independent of argument naming: a borrowed computed result may
+    /// remain anonymous only when it owns no reference. Static closures
+    /// and constructor words are immortal; a zero-arity global executes.
+    fn safe_borrow_argument(&self, head: &Core, index: usize, arg: &Core) -> bool {
+        let globals = self.globals.expect("program verification has unit metadata");
+        let raw = |class: Class| matches!(class, Class::Raw | Class::Wide);
+        let result = |name: &str| globals.get(name).and_then(|f| f.repr.result);
+        match arg {
+            Core::Let(_, _, _, body) => return self.safe_borrow_argument(head, index, body),
+            Core::If(_, yes, no) => return self.safe_borrow_argument(head, index, &yes.body)
+                && self.safe_borrow_argument(head, index, &no.body),
+            Core::Case { alts, .. } => return alts.iter()
+                .all(|a| self.safe_borrow_argument(head, index, &a.body)),
+            _ => {}
+        }
+        let immortal = match arg {
+            Core::Int(_) | Core::Bool(_) | Core::Unit | Core::ConstSym(_) | Core::Ctor(..) => true,
+            Core::Global(g, _) => globals.get(g.0.as_str()).is_some_and(|f| f.arity() > 0),
+            Core::Prim(op) => op.arity() > 0,
+            Core::ConstBig { digits, .. } => digits.parse::<i64>()
+                .is_ok_and(|v| v.unsigned_abs() < 1 << 29),
+            _ => false,
+        };
+        if immortal { return true; }
+        let class = match arg {
+            Core::Var(x) => self.class.get(&x.0).copied(),
+            Core::Global(g, _) => result(&g.0),
+            Core::Prim(op) => crate::codegen::prim_result_class(*op),
+            Core::App(h, args) => match &**h {
+                Core::Global(g, _) if globals.get(g.0.as_str()).is_some_and(|f| f.arity() == args.len()) => result(&g.0),
+                Core::Prim(op) if op.arity() == args.len() => crate::codegen::prim_result_class(*op),
+                Core::Ctor(..) => Some(Class::Obj),
+                _ => None,
+            },
+            Core::ConstBytes(_) | Core::ConstString { .. } | Core::Lam { .. }
+            | Core::InstDict(..) | Core::BoxAlloc | Core::LazyAlloc => Some(Class::Obj),
+            Core::ConstBig { .. } => Some(Class::TObj),
+            Core::Proj(_, access) => Some(access.class),
+            Core::DictProj(_, _, _, c) | Core::Demand(_, c) | Core::BoxGet(_, c)
+            | Core::BoxInit(_, _, c) => Some(*c),
+            Core::RefSet(..) | Core::LazyInit(..) | Core::BoxClear(..) | Core::Fault => Some(Class::Raw),
+            _ => None,
+        };
+        if let Some(c) = class { return raw(c); }
+        // A typed raw parameter also proves the result of a computed
+        // application raw when its head does not expose a result class.
+        match head {
+            Core::Global(g, _) => globals.get(g.0.as_str())
+                .and_then(|f| f.repr.params.get(index)).copied().is_some_and(raw),
+            Core::Prim(op) => crate::codegen::prim_param_classes(*op).get(index).copied().is_some_and(raw),
+            _ => false,
+        }
+    }
+
     fn counted(&self, x: usize) -> bool {
         self.class.get(&x).copied().is_some_and(counted)
     }
@@ -2121,6 +2256,9 @@ impl Verifier<'_> {
                     match a {
                         Core::Var(x) if modes[i] => reads.push(x.0),
                         _ => {
+                            if modes[i] && self.globals.is_some() && !self.safe_borrow_argument(f, i, a) {
+                                return Err(format!("unbound owned argument {} to a borrowed parameter: {}", i + 1, short(a)));
+                            }
                             if !self.value(a, st)? {
                                 return Ok(false);
                             }
@@ -2140,7 +2278,7 @@ impl Verifier<'_> {
             Core::Reuse { args, .. } => self.all(args, st),
             Core::Quote { holes, body, .. } => {
                 if let Some(b) = body {
-                    verify_body(&[], b, self.modes, &Set::new()).map_err(|m| format!("in a quotation body: {m}"))?;
+                    verify_body(&[], b, self.modes, &Set::new(), self.globals).map_err(|m| format!("in a quotation body: {m}"))?;
                 }
                 self.all(holes, st)
             }
@@ -2446,5 +2584,32 @@ fn expr_class_in(e: &Core, classes: &HashMap<usize, Class>) -> Option<Class> {
         }
         Core::App(f, _) if matches!(**f, Core::Ctor(..)) => Some(Class::Obj),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod owned_use_tests {
+    use super::*;
+
+    #[test]
+    fn ownership_witnesses_distinguish_escapes_and_consuming_calls() {
+        let var = || Core::Var(LocalId(0));
+        for (body, expected) in [
+            (var(), "return"),
+            (Core::App(Box::new(Core::Ctor(GlobalId("Main.Box".into()), vec![])), vec![var()]), "constructor-field"),
+            (Core::Lam { fn_id: GlobalId("Main.worker".into()), env: vec![var()], classes: vec![] }, "capture"),
+            (Core::RefSet(LocalId(9), Box::new(var()), Class::Obj), "store"),
+            (Core::App(Box::new(var()), vec![Core::Unit]), "dynamic-callee"),
+            (Core::App(Box::new(Core::Var(LocalId(9))), vec![var()]), "dynamic-argument"),
+            (Core::App(Box::new(Core::Global(GlobalId("Main.take".into()), vec![])), vec![var()]), "owned-argument"),
+        ] {
+            let facts = UnitFacts::of(&[Class::Obj], &body);
+            let mut out = Set::new();
+            let mut details = Some(HashMap::new());
+            owned_uses(&body, &[(0, 0)].into_iter().collect(), &Modes::new(), &facts,
+                &mut out, &mut details, "return");
+            assert_eq!(out, [0].into_iter().collect());
+            assert_eq!(details.unwrap().get(&0), Some(&expected));
+        }
     }
 }

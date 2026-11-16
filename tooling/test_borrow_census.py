@@ -1,8 +1,32 @@
 import unittest
+import json
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
 from borrow_census import census, refusal_report
 
 
 class BorrowCensusTests(unittest.TestCase):
+    def test_cli_breaks_down_owned_use_witnesses_and_accepts_legacy_rows(self):
+        with tempfile.TemporaryDirectory() as temp:
+            core = Path(temp) / "input.core"
+            report = Path(temp) / "report.log"
+            core.write_text("unit Main.read :: -\n  @params x :: A @obj, y :: A @obj, z :: A @obj\n  body (unit)\nend\n")
+            rows = [dict(unit="Main.read", param=1, reason="owned-use", use="return"),
+                    dict(unit="Main.read", param=2, reason="owned-use", use="capture"),
+                    dict(unit="Main.read", param=3, reason="lent")]
+            for detailed in [True, False]:
+                actual = rows if detailed else [{k: v for k, v in row.items() if k != "use"} for row in rows]
+                report.write_text('\n'.join('cinch-borrow: ' + json.dumps(row)
+                                           for row in [dict(event="begin"), *actual, dict(event="end")]))
+                result = subprocess.run([sys.executable, str(Path(__file__).with_name("borrow_census.py")),
+                                         str(core), "--report", str(report), "--json"],
+                                        check=True, text=True, capture_output=True)
+                counted = json.loads(result.stdout)
+                self.assertEqual(counted["reasons"], {"owned-use": 2, "lent": 1})
+                self.assertEqual(counted["owned_uses"], {"return": 1, "capture": 1} if detailed else {})
+
     def test_modes_are_distinct_from_classes_and_primitive_conventions(self):
         result = census('''unit Main.read :: A -> A -> A
   @params x :: A @obj, y :: A @obj

@@ -89,6 +89,30 @@ fn an_imported_borrow_of_a_static_function_needs_no_cleanup() {
 }
 
 #[test]
+fn the_verifier_rejects_anonymous_owned_arguments_to_borrowers() {
+    for computed_head in [false, true] {
+        for arg in [Core::ConstBytes(vec![1, 2, 3]),
+            Core::Global(GlobalId("Main.thunk".into()), vec![]),
+            Core::Lam { fn_id: GlobalId("Dep.function".into()), env: vec![], classes: vec![] }] {
+            // Recreate the pre-fix Core directly, bypassing argument naming.
+            let mut p = imported_reader_program(arg, computed_head);
+            p.borrowed.insert("Dep.inspect".into(), vec![true]);
+            let error = cinch::rc::verify_program(&p).expect_err("an anonymous owned loan leaks");
+            assert!(error.to_string().contains("unbound owned argument"), "{error}");
+        }
+    }
+}
+
+#[test]
+fn the_verifier_accepts_static_and_immediate_borrow_arguments() {
+    for arg in [Core::Global(GlobalId("Dep.function".into()), vec![]), Core::Int(7), Core::Unit] {
+        let mut p = imported_reader_program(arg, false);
+        p.borrowed.insert("Dep.inspect".into(), vec![true]);
+        cinch::rc::verify_program(&p).expect("a static or immediate word needs no cleanup");
+    }
+}
+
+#[test]
 fn imported_borrowed_temporaries_run_across_objects_without_leaks() {
     use std::process::Command;
     let dir = common::project("borrow_imported", &[]);
@@ -200,6 +224,46 @@ fn reuse_facts_survive_revisits_but_do_not_escape_the_inference_pass() {
         if reuses {
             assert!(format!("{:?}", p.fns[2].body).contains("Reuse {"), "the owned scrutinee still reuses its cell");
         }
+    }
+}
+
+#[test]
+fn computed_heads_record_writes_before_alias_elimination() {
+    for write in [Core::RefSet(LocalId(1), Box::new(Core::Int(0)), Class::Raw),
+        Core::BoxInit(LocalId(1), Box::new(Core::Int(0)), Class::Raw),
+        Core::LazyInit(LocalId(1), Box::new(Core::Global(GlobalId("Main.worker".into()), vec![])))] {
+        let head = Core::Let(LocalId(2), Class::Raw, Box::new(write),
+            Box::new(Core::Global(GlobalId("Main.worker".into()), vec![])));
+        let body = Core::Let(LocalId(1), Class::Obj, Box::new(var(0)),
+            Box::new(Core::App(Box::new(head), vec![var(0)])));
+        let p = counted(vec![unit("Main.worker", vec![Class::Obj], var(0)),
+            unit("Main.write", vec![Class::Obj], body)]);
+        assert!(matches!(p.fns[1].body, Core::Let(LocalId(1), Class::Obj, _, _)),
+            "a written alias must keep its own binding: {:?}", p.fns[1].body);
+    }
+}
+
+#[test]
+fn computed_heads_reuse_cells_inside_and_outside_the_match() {
+    for match_in_head in [false, true] {
+        let mut ctor = unit("Main.Box", vec![Class::Raw], Core::Unit);
+        ctor.ctor = Some((0, 1));
+        ctor.repr.fields = vec![Class::Raw];
+        ctor.repr.data = Some("Main.Box".into());
+        let head = Core::Let(LocalId(2), Class::Obj,
+            Box::new(Core::App(Box::new(Core::Ctor(GlobalId("Main.Box".into()), vec![])), vec![var(1)])),
+            Box::new(Core::Let(LocalId(3), Class::Raw, Box::new(call("Main.read", var(2))),
+                Box::new(Core::Global(GlobalId("Main.worker".into()), vec![])))));
+        let apply = |h| Core::App(Box::new(h), vec![Core::Unit]);
+        let matched = Core::Case { scrut: Box::new(var(0)), alts: vec![CAlt {
+            pat: CPat::Con { tag: 0, fields: vec![LocalId(1)], classes: vec![Class::Raw] },
+            weight: None, body: Box::new(if match_in_head { head.clone() } else { apply(head.clone()) }),
+        }] };
+        let body = if match_in_head { apply(matched) } else { matched };
+        let p = counted(vec![ctor, reader(), unit("Main.worker", vec![Class::Raw], Core::Unit),
+            unit("Main.rebuild", vec![Class::Obj], body)]);
+        assert!(!p.borrowed.contains_key("Main.rebuild"), "a reused parameter must be owned");
+        assert!(format!("{:?}", p.fns[3].body).contains("Reuse {"), "{:?}", p.fns[3].body);
     }
 }
 
