@@ -1,0 +1,48 @@
+{
+  "compile_command": [
+    "/workspace/dasl-stdlib-io/build/staged-word-safe-frozen/cinch",
+    "emit-ir",
+    "/workspace/dasl-stdlib-refined-mask/build/producer37dc-cross-signed-control/Main.cinch",
+    "--rc-debug",
+    "-o",
+    "/workspace/dasl-stdlib-refined-mask/build/producer37dc-cross-signed-control/consumer.ll"
+  ],
+  "compile_exit": 0,
+  "compiler_sha256": "37dc1ed7f5d6571fc65275802025a7be92b904b6455300c87856e4dbec1de4da",
+  "llvm_sha256": "79a9e41ce4341adcd8031a39f23d92259749324b9301084195d3c3ac4116a39a",
+  "profiles": [
+    {
+      "executable_sha256": "49b3587c745b0f542c9584c18711d3b457fc1ba4ef582efeb0d297dad1977440",
+      "exit": 0,
+      "optimization": 0,
+      "poisoned": false,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "executable_sha256": "49b3587c745b0f542c9584c18711d3b457fc1ba4ef582efeb0d297dad1977440",
+      "exit": 0,
+      "optimization": 0,
+      "poisoned": true,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "executable_sha256": "4afe7431fc509908b7e328236d3a81cb48afb9c53e9163c79a327cdb65c4afbd",
+      "exit": 0,
+      "optimization": 2,
+      "poisoned": false,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "executable_sha256": "4afe7431fc509908b7e328236d3a81cb48afb9c53e9163c79a327cdb65c4afbd",
+      "exit": 0,
+      "optimization": 2,
+      "poisoned": true,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    }
+  ],
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "scope": "Qualified Rust embedded-family control, not a V3 object or Native-family claim",
+  "source_sha256": "960d1ebf2a2e214c4568dc2b1ff579b0ad0b0718cee6cfa88b3815f33f717014",
+  "source_shadow_used": false,
+  "status": "passed"
+}
