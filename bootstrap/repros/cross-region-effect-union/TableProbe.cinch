@@ -1,0 +1,10 @@
+module Main where
+  import Data.Mutable.HashTable
+  import Data.Nat
+  probe :: forall r s. HashTable r Nat Nat -> HashTable s Nat Nat ->{Mut r, Mut s} Nat
+  probe first second =
+    let one = hash-table-size first in
+    let two = hash-table-size second in
+    one + two
+  main :: Int
+  main = 0

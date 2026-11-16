@@ -1,0 +1,20 @@
+{
+  "compiler_sha256": "b004049baa8e2614dd35f5484811bbf2cd24b137923a8e3bc36bf08c9c53fc93",
+  "elapsed_seconds": 4.2608173829939915,
+  "runs": [
+    {
+      "source": "VarProbe.cinch",
+      "source_text": "module Main where\n  import Data.Mutable.Var\n  import Data.Nat\n  probe :: forall r s. Var r Nat -> Var s Nat ->{Mut r, Mut s} Nat\n  probe first second =\n    let one = var-read first in\n    let two = var-read second in\n    one + two\n  main :: Int\n  main = 0\n",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cinch: 7:24: regions do not match: s#1031 vs r#1030 (in /workspace/dasl-stdlib-maps-audit/build/maps-region-probes/VarProbe.cinch)\n"
+    },
+    {
+      "source": "TableProbe.cinch",
+      "source_text": "module Main where\n  import Data.Mutable.HashTable\n  import Data.Nat\n  probe :: forall r s. HashTable r Nat Nat -> HashTable s Nat Nat ->{Mut r, Mut s} Nat\n  probe first second =\n    let one = hash-table-size first in\n    let two = hash-table-size second in\n    one + two\n  main :: Int\n  main = 0\n",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cinch: 7:31: regions do not match: s#1156 vs r#1155 (in /workspace/dasl-stdlib-maps-audit/build/maps-region-probes/TableProbe.cinch)\n"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "description": "The initial non-unifying union alone exposes an existing duplicate-label row-unification limitation in Effect.Clock before reaching the target fixture. This failed candidate is retained before the solver correction.",
+  "types_sha256": "25e419b32632d8478af08a5cea3cb311400ca04b51bb0feff5607c856fb11479",
+  "cli_sha256": "23a47d0ecfb2ab1e5559be0f23feb7b5d0ea604fe84b8c950d436a82e426d422",
+  "patch_sha256": "0e6017404c19e02c7778e127159993669192279ca9111408e4730806a52d770c",
+  "targeted_tests": {
+    "passed": 7,
+    "failed": 1
+  },
+  "log_sha256": "02b7064e89386c7cd59d23d2bca1203b2c45f89e2dfc24cf03a799d8c840bf13",
+  "control_limitation": "The dependency failure also masked four negative cases in this first test harness. The corrected harness requires the error to come from Main.cinch, so these first-run negatives are not credited as exercised refusals.",
+  "initial_test_source_sha256": "21ec4a850b875ae46d628f83cc638584845866ba1b8850c2052f78041ea21b4a"
+}

@@ -1,0 +1,10 @@
+module Main where
+  import Data.Mutable.Var
+  import Data.Nat
+  probe :: forall r s. Var r Nat -> Var s Nat ->{Mut r, Mut s} Nat
+  probe first second =
+    let one = var-read first in
+    let two = var-read second in
+    one + two
+  main :: Int
+  main = 0
