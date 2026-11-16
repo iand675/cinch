@@ -324,9 +324,12 @@ fn emit_module(
     // The internal convention is a target property (`tail_conv`): where
     // LLVM's `tailcc` exists, the units whose tail calls are guaranteed run
     // under it ([`tail_units`]) and the rest keep the C convention;
-    // elsewhere (WebAssembly, whose backend has only the C convention, and
-    // 32-bit targets) the C convention and its widened tail workers stay.
-    let tail_conv = profile.word_size == 64 && profile.arch != "wasm32";
+    // The convention is supported by the x86-64 and AArch64 backends;
+    // word size alone does not establish support. In particular, PowerPC64
+    // refuses required tailcc calls with stack arguments. Other targets
+    // retain the C convention and its widened tail workers.
+    let tail_conv = profile.word_size == 64
+        && matches!(profile.arch.as_str(), "x86_64" | "aarch64");
     let mut reg = Registry::build(program, (profile.word_size / 8) as usize, tail_conv)?;
     // An apply stub's prefix data holds the tail twin's address as an
     // absolute integer, and Mach-O cannot encode an absolute address in a
@@ -997,6 +1000,13 @@ fn emit_module(
             group,
             if private(&u.name) {
                 Some("internal")
+            } else if profile.arch == "powerpc64" && !object && !shared {
+                // Whole-program definitions bind within this executable.
+                // ELFv1 must know that a required C-convention tail call
+                // keeps the current TOC; a preemptable symbol cannot give
+                // that guarantee. Relocatable/public object linkage and
+                // shared-library export handling remain separate.
+                Some("dso_local")
             } else {
                 (object && primitive).then_some("linkonce_odr")
             },

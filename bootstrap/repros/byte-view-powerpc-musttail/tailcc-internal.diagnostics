@@ -1,0 +1,54 @@
+fatal error: error in backend: failed to perform tail call elimination on a call site marked musttail
+PLEASE submit a bug report to https://github.com/llvm/llvm-project/issues/ and include the crash backtrace, preprocessed source, and associated run script.
+Stack dump:
+0.	Program arguments: clang -target powerpc64-unknown-linux-gnu -O2 -c -x ir build/powerpc-tailcc-repro/tailcc-internal.ll -o build/powerpc-tailcc-repro/tailcc-internal.o
+1.	Code generation
+2.	Running pass 'Function Pass Manager' on module 'build/powerpc-tailcc-repro/tailcc-internal.ll'.
+3.	Running pass 'PowerPC DAG->DAG Pattern Instruction Selection' on function '@caller'
+ #0 0x00007fd3d0b491ca llvm::sys::PrintStackTrace(llvm::raw_ostream&, int) (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1+0x48001ca)
+ #1 0x00007fd3d0b46d64 llvm::sys::RunSignalHandlers() (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1+0x47fdd64)
+ #2 0x00007fd3d0a8832e (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1+0x473f32e)
+ #3 0x00007fd3d0a882ef (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1+0x473f2ef)
+ #4 0x00007fd3d0b4322b llvm::sys::Process::Exit(int, bool) (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1+0x47fa22b)
+ #5 0x0000564383f7a21a (/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang+0x1321a)
+ #6 0x00007fd3d0a979dd llvm::report_fatal_error(llvm::Twine const&, bool) (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1+0x474e9dd)
+ #7 0x00007fd3d0a978ca (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1+0x474e8ca)
+ #8 0x00007fd3d38ca4a6 (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1+0x75814a6)
+ #9 0x00007fd3d13b9290 llvm::TargetLowering::LowerCallTo(llvm::TargetLowering::CallLoweringInfo&) const (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1+0x5070290)
+#10 0x00007fd3d13d68aa llvm::SelectionDAGBuilder::lowerInvokable(llvm::TargetLowering::CallLoweringInfo&, llvm::BasicBlock const*) (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1+0x508d8aa)
+#11 0x00007fd3d13c0505 llvm::SelectionDAGBuilder::LowerCallTo(llvm::CallBase const&, llvm::SDValue, bool, bool, llvm::BasicBlock const*, llvm::TargetLowering::PtrAuthInfo const*) (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1+0x5077505)
+#12 0x00007fd3d13ad083 llvm::SelectionDAGBuilder::visitCall(llvm::CallInst const&) (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1+0x5064083)
+#13 0x00007fd3d13a2f93 llvm::SelectionDAGBuilder::visit(llvm::Instruction const&) (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1+0x5059f93)
+#14 0x00007fd3d1445798 llvm::SelectionDAGISel::SelectBasicBlock(llvm::ilist_iterator_w_bits<llvm::ilist_detail::node_options<llvm::Instruction, false, false, void, true, llvm::BasicBlock>, false, true>, llvm::ilist_iterator_w_bits<llvm::ilist_detail::node_options<llvm::Instruction, false, false, void, true, llvm::BasicBlock>, false, true>, bool&) (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1+0x50fc798)
+#15 0x00007fd3d14455e4 llvm::SelectionDAGISel::SelectAllBasicBlocks(llvm::Function const&) (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1+0x50fc5e4)
+#16 0x00007fd3d1443584 llvm::SelectionDAGISel::runOnMachineFunction(llvm::MachineFunction&) (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1+0x50fa584)
+#17 0x00007fd3d3898032 (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1+0x754f032)
+#18 0x00007fd3d144195d llvm::SelectionDAGISelLegacy::runOnMachineFunction(llvm::MachineFunction&) (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1+0x50f895d)
+#19 0x00007fd3d0f59fd2 llvm::MachineFunctionPass::runOnFunction(llvm::Function&) (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1+0x4c10fd2)
+#20 0x00007fd3d0ca243e llvm::FPPassManager::runOnFunction(llvm::Function&) (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1+0x495943e)
+#21 0x00007fd3d0ca8213 llvm::FPPassManager::runOnModule(llvm::Module&) (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1+0x495f213)
+#22 0x00007fd3d0ca2b91 llvm::legacy::PassManagerImpl::run(llvm::Module&) (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1+0x4959b91)
+#23 0x00007fd3d764cb15 clang::emitBackendOutput(clang::CompilerInstance&, clang::CodeGenOptions&, llvm::StringRef, llvm::Module*, clang::BackendAction, llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem>, std::unique_ptr<llvm::raw_pwrite_stream, std::default_delete<llvm::raw_pwrite_stream>>, clang::BackendConsumer*) (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libclang-cpp.so.20.1+0x28b6b15)
+#24 0x00007fd3d7a2b903 clang::CodeGenAction::ExecuteAction() (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libclang-cpp.so.20.1+0x2c95903)
+#25 0x00007fd3d84cbadf clang::FrontendAction::Execute() (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libclang-cpp.so.20.1+0x3735adf)
+#26 0x00007fd3d843f2c4 clang::CompilerInstance::ExecuteAction(clang::FrontendAction&) (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libclang-cpp.so.20.1+0x36a92c4)
+#27 0x00007fd3d855057e clang::ExecuteCompilerInvocation(clang::CompilerInstance*) (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libclang-cpp.so.20.1+0x37ba57e)
+#28 0x0000564383f79dbf cc1_main(llvm::ArrayRef<char const*>, char const*, void*) (/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang+0x12dbf)
+#29 0x0000564383f76b45 (/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang+0xfb45)
+#30 0x00007fd3d80c0fad (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libclang-cpp.so.20.1+0x332afad)
+#31 0x00007fd3d0a882d0 llvm::CrashRecoveryContext::RunSafely(llvm::function_ref<void ()>) (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1+0x473f2d0)
+#32 0x00007fd3d80c0a31 clang::driver::CC1Command::Execute(llvm::ArrayRef<std::optional<llvm::StringRef>>, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>*, bool*) const (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libclang-cpp.so.20.1+0x332aa31)
+#33 0x00007fd3d8086e82 clang::driver::Compilation::ExecuteCommand(clang::driver::Command const&, clang::driver::Command const*&, bool) const (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libclang-cpp.so.20.1+0x32f0e82)
+#34 0x00007fd3d808704e clang::driver::Compilation::ExecuteJobs(clang::driver::JobList const&, llvm::SmallVectorImpl<std::pair<int, clang::driver::Command const*>>&, bool) const (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libclang-cpp.so.20.1+0x32f104e)
+#35 0x00007fd3d80a235d clang::driver::Driver::ExecuteCompilation(clang::driver::Compilation&, llvm::SmallVectorImpl<std::pair<int, clang::driver::Command const*>>&) (/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu/libclang-cpp.so.20.1+0x330c35d)
+#36 0x0000564383f76616 clang_main(int, char**, llvm::ToolContext const&) (/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang+0xf616)
+#37 0x0000564383f8434a main (/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang+0x1d34a)
+#38 0x00007fd3cbdd6ca8 (/lib/x86_64-linux-gnu/libc.so.6+0x29ca8)
+#39 0x00007fd3cbdd6d65 __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d65)
+#40 0x0000564383f74931 _start (/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang+0xd931)
+clang: error: clang frontend command failed with exit code 70 (use -v to see invocation)
+Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)
+Target: powerpc64-unknown-linux-gnu
+Thread model: posix
+InstalledDir: /workspace/.tools/llvm/usr/lib/llvm-20/bin
+clang: note: diagnostic msg: Error generating preprocessed source(s) - no preprocessable inputs.

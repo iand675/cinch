@@ -293,11 +293,14 @@ fn byte_view_kernels_compile_for_wasm_arm_and_big_endian_targets() {
         .arg(path.with_extension("o"))
         .output()
         .unwrap();
-        assert!(
-            output.status.success(),
-            "{triple}: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
+        if !output.status.success() {
+            let retained = directory.keep();
+            panic!(
+                "{triple}: {}\nretained portability inputs: {}",
+                String::from_utf8_lossy(&output.stderr),
+                retained.display()
+            );
+        }
     }
 }
 

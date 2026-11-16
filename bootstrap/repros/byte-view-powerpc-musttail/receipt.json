@@ -1,0 +1,70 @@
+{
+  "description": "Actual final byte-view portability failure, before architecture admission repair",
+  "compiler_source": "44d6cf9f plus failure-input retention only",
+  "library_sha256": "c55e57028c56d673d75c29ba91936ee614c3631addda328abe75c12a1bbf3e7e",
+  "target": "powerpc64-unknown-linux-gnu",
+  "clang": "Debian clang20.1.8",
+  "command": [
+    "clang",
+    "-target",
+    "powerpc64-unknown-linux-gnu",
+    "-O2",
+    "-c",
+    "-x",
+    "ir",
+    "consumer.ll",
+    "-o",
+    "consumer.o"
+  ],
+  "failure": "The backend refuses the internal tailcc convention. Merely retaining C-convention workers also fails because ELFv1 requires local binding to preserve the TOC across a required call between definitions.",
+  "files": [
+    {
+      "file": "consumer.ll.gz",
+      "uncompressed_sha256": "daad8514cd3490d0934aa630e81be58defa4f5b5bd0497792084d1ba0424e63d",
+      "compressed_sha256": "504582ff094f3d511586eaf0703a05f56ca7e522ab2a121f6ebe4ccffb7ef03f",
+      "uncompressed_bytes": 137066
+    },
+    {
+      "file": "failure.log.gz",
+      "uncompressed_sha256": "8525795e2b4181dcdb0150d4126d6fa86eede802110c87e13c54092336dd6345",
+      "compressed_sha256": "a8223cfa5180f4378f74219b6c817ac3ad0933190f2abd7248b9ed175f632516",
+      "uncompressed_bytes": 45333
+    },
+    {
+      "file": "c-convention-unbound-consumer.ll.gz",
+      "uncompressed_sha256": "c01adb5bfa4782efb481208b9d9ead9a1077ccdac4d557fe266d2bb15b8ceded",
+      "compressed_sha256": "4d890cf4b390dda8db1d7aa8972d08563e04eea77844829d3418806ec044bdb4",
+      "uncompressed_bytes": 117923
+    },
+    {
+      "file": "c-convention-unbound-failure.log.gz",
+      "uncompressed_sha256": "a5096b20c7c0130073e91cfe88d9fcee55aa22e0e37a30a3338572b6158a12e6",
+      "compressed_sha256": "71837c2a11b24d902d371dd62bf97c19b3c706f39da39047563f171930f68fae",
+      "uncompressed_bytes": 45329
+    }
+  ],
+  "minimal_controls": [
+    {
+      "file": "tailcc-internal.ll",
+      "exit": 1
+    },
+    {
+      "file": "ccc-internal.ll",
+      "exit": 0
+    }
+  ],
+  "semantic_validation": "Cross-target object compilation only; no PowerPC execution claim.",
+  "profile_scope": "Explicit synthetic big-endian qualification profile; PowerPC is not added to the public CLI supported-target table.",
+  "repair_validation": {
+    "passed": 1,
+    "seconds": 15.87,
+    "log_sha256": "e362e4f06ced7da6fb527a2cd6b93aa29276446690577e3d5334bd762c012eb5",
+    "targets": [
+      "wasm32-unknown-unknown",
+      "aarch64-unknown-linux-gnu",
+      "powerpc64-unknown-linux-gnu"
+    ],
+    "complete_production_kernels": true,
+    "required_tail_calls_retained": true
+  }
+}
