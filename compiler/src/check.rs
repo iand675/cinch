@@ -1930,8 +1930,27 @@ struct TransferOblig {
     span: ast::Span,
 }
 
+/// Compiler-owned evidence for a sealed primitive's finite positive payload.
+/// This is neither subtyping variance nor an interface-provided annotation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum StrictPositivePayload {
+    /// A finite array owns its elements in initialized payload slots.
+    FiniteOwnedArray,
+}
+
+impl StrictPositivePayload {
+    /// Validate the primitive's exact application arity before traversing its payload.
+    fn accepts(self, arity: usize) -> bool {
+        match self {
+            Self::FiniteOwnedArray => arity == 1,
+        }
+    }
+}
+
 #[derive(Clone)]
 struct TypeKind {
+    /// Installed only with the actual sealed primitive; source/import headers have no authority to grant it.
+    strict_positive_payload: Option<StrictPositivePayload>,
     module: String,
     name: String,
     /// Stable nominal identity in checked types. Public names and import

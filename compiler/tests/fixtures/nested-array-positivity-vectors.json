@@ -1,0 +1,128 @@
+[
+  {
+    "name": "array-direct",
+    "source": "-- | Exercise one sealed finite-payload typing contract.\nmodule Main where\n  -- | A recursive fixture with the exact candidate payload position.\n  data Arena where\n    -- | Carry the candidate field without changing its recursive type.\n    Pool :: Array Arena -> Arena\n  -- | Keep the fixture executable independent from its unused type declarations.\n  main :: Int\n  main = 0\n",
+    "accepted": true,
+    "kinds": {},
+    "diagnostic": ""
+  },
+  {
+    "name": "array-nested",
+    "source": "-- | Exercise one sealed finite-payload typing contract.\nmodule Main where\n  -- | A recursive fixture with the exact candidate payload position.\n  data Arena where\n    -- | Carry the candidate field without changing its recursive type.\n    Pool :: Array (Array Arena) -> Arena\n  -- | Keep the fixture executable independent from its unused type declarations.\n  main :: Int\n  main = 0\n",
+    "accepted": true,
+    "kinds": {},
+    "diagnostic": ""
+  },
+  {
+    "name": "array-tuple",
+    "source": "-- | Exercise one sealed finite-payload typing contract.\nmodule Main where\n  -- | A recursive fixture with the exact candidate payload position.\n  data Arena where\n    -- | Carry the candidate field without changing its recursive type.\n    Pool :: Array (Nat, Arena) -> Arena\n  -- | Keep the fixture executable independent from its unused type declarations.\n  main :: Int\n  main = 0\n",
+    "accepted": true,
+    "kinds": {},
+    "diagnostic": ""
+  },
+  {
+    "name": "array-function-result",
+    "source": "-- | Exercise one sealed finite-payload typing contract.\nmodule Main where\n  -- | A recursive fixture with the exact candidate payload position.\n  data Arena where\n    -- | Carry the candidate field without changing its recursive type.\n    Pool :: Array (Unit -> Arena) -> Arena\n  -- | Keep the fixture executable independent from its unused type declarations.\n  main :: Int\n  main = 0\n",
+    "accepted": true,
+    "kinds": {},
+    "diagnostic": ""
+  },
+  {
+    "name": "array-mutual",
+    "source": "-- | Exercise one sealed finite-payload typing contract.\nmodule Main where\n  -- | The first member of a mutually recursive group.\n  data First where\n    -- | Carry the second member inside a finite array.\n    First :: Array Second -> First\n  -- | Complete the group with a direct positive field.\n  data Second where\n    -- | Retain the first member directly.\n    Second :: First -> Second\n  -- | Keep the fixture executable independent from its unused type declarations.\n  main :: Int\n  main = 0\n",
+    "accepted": true,
+    "kinds": {},
+    "diagnostic": ""
+  },
+  {
+    "name": "array-ordinary-parameter",
+    "source": "-- | Exercise one sealed finite-payload typing contract.\nmodule Main where\n  -- | Keep a regular element parameter unchanged through recursion.\n  data Arena a where\n    -- | Terminate a finite construction.\n    End :: Arena a\n    -- | Retain recursive values under the same element parameter.\n    Pool :: a -> Array (Arena a) -> Arena a\n  -- | Keep the fixture executable independent from its unused type declarations.\n  main :: Int\n  main = 0\n",
+    "accepted": true,
+    "kinds": {},
+    "diagnostic": ""
+  },
+  {
+    "name": "array-negative",
+    "source": "-- | Exercise one sealed finite-payload typing contract.\nmodule Main where\n  -- | A recursive fixture with the exact candidate payload position.\n  data Arena where\n    -- | Carry the candidate field without changing its recursive type.\n    Pool :: Array (Arena -> Unit) -> Arena\n  -- | Keep the fixture executable independent from its unused type declarations.\n  main :: Int\n  main = 0\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "positiv"
+  },
+  {
+    "name": "array-double-negative",
+    "source": "-- | Exercise one sealed finite-payload typing contract.\nmodule Main where\n  -- | A recursive fixture with the exact candidate payload position.\n  data Arena where\n    -- | Carry the candidate field without changing its recursive type.\n    Pool :: Array ((Arena -> Unit) -> Unit) -> Arena\n  -- | Keep the fixture executable independent from its unused type declarations.\n  main :: Int\n  main = 0\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "positiv"
+  },
+  {
+    "name": "direct-double-negative",
+    "source": "-- | Exercise one sealed finite-payload typing contract.\nmodule Main where\n  -- | A recursive fixture with the exact candidate payload position.\n  data Arena where\n    -- | Carry the candidate field without changing its recursive type.\n    Pool :: ((Arena -> Unit) -> Unit) -> Arena\n  -- | Keep the fixture executable independent from its unused type declarations.\n  main :: Int\n  main = 0\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "positiv"
+  },
+  {
+    "name": "direct-negative",
+    "source": "-- | Exercise one sealed finite-payload typing contract.\nmodule Main where\n  -- | A recursive fixture with the exact candidate payload position.\n  data Arena where\n    -- | Carry the candidate field without changing its recursive type.\n    Pool :: (Arena -> Unit) -> Arena\n  -- | Keep the fixture executable independent from its unused type declarations.\n  main :: Int\n  main = 0\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "positiv"
+  },
+  {
+    "name": "unknown-higher-kinded",
+    "source": "-- | Exercise one sealed finite-payload typing contract.\nmodule Main where\n  -- | A recursive fixture with the exact candidate payload position.\n  data Arena (f :: Type -> Type) where\n    -- | Carry the candidate field without changing its recursive type.\n    Pool :: Array (f (Arena f)) -> Arena f\n  -- | Keep the fixture executable independent from its unused type declarations.\n  main :: Int\n  main = 0\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "positiv"
+  },
+  {
+    "name": "shadowed-array-binder",
+    "source": "-- | Exercise one sealed finite-payload typing contract.\nmodule Main where\n  -- | A local higher-kinded parameter has no primitive authority.\n  data Arena (Array :: Type -> Type) where\n    -- | The same spelling must not grant evidence to the bound constructor.\n    Pool :: Array (Arena Array) -> Arena Array\n  -- | Keep the fixture executable independent from its unused type declarations.\n  main :: Int\n  main = 0\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "positiv"
+  },
+  {
+    "name": "ordinary-wrapper",
+    "source": "-- | Exercise one sealed finite-payload typing contract.\nmodule Main where\n  -- | An ordinary wrapper has no established payload certificate in this increment.\n  data Wrapper a where\n    -- | Keep the generic field private to the ordinary constructor.\n    Wrapper :: a -> Wrapper a\n  -- | A recursive fixture with the exact candidate payload position.\n  data Arena where\n    -- | Carry the candidate field without changing its recursive type.\n    Pool :: Array (Wrapper Arena) -> Arena\n  -- | Keep the fixture executable independent from its unused type declarations.\n  main :: Int\n  main = 0\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "positiv"
+  },
+  {
+    "name": "nested-list-preserved",
+    "source": "-- | Exercise one sealed finite-payload typing contract.\nmodule Main where\n  -- | A recursive fixture with the exact candidate payload position.\n  data Arena where\n    -- | Carry the candidate field without changing its recursive type.\n    Pool :: List Arena -> Arena\n  -- | Keep the fixture executable independent from its unused type declarations.\n  main :: Int\n  main = 0\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "positiv"
+  },
+  {
+    "name": "array-nested-list-preserved",
+    "source": "-- | Exercise one sealed finite-payload typing contract.\nmodule Main where\n  -- | A recursive fixture with the exact candidate payload position.\n  data Arena where\n    -- | Carry the candidate field without changing its recursive type.\n    Pool :: Array (List Arena) -> Arena\n  -- | Keep the fixture executable independent from its unused type declarations.\n  main :: Int\n  main = 0\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "positiv"
+  },
+  {
+    "name": "tensor-unverified",
+    "source": "-- | Exercise one sealed finite-payload typing contract.\nmodule Main where\n  -- | A recursive fixture with the exact candidate payload position.\n  data Arena where\n    -- | Carry the candidate field without changing its recursive type.\n    Pool :: Tensor Arena -> Arena\n  -- | Keep the fixture executable independent from its unused type declarations.\n  main :: Int\n  main = 0\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "positiv"
+  },
+  {
+    "name": "array-self-argument",
+    "source": "-- | Exercise one sealed finite-payload typing contract.\nmodule Main where\n  -- | Recursive arguments remain subject to the existing regularity boundary.\n  data Arena a where\n    -- | Nesting the recursive owner inside its own argument remains refused.\n    Pool :: Array (Arena (Arena a)) -> Arena a\n  -- | Keep the fixture executable independent from its unused type declarations.\n  main :: Int\n  main = 0\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "positiv"
+  },
+  {
+    "name": "array-pointer-unverified",
+    "source": "-- | Exercise one sealed finite-payload typing contract.\nmodule Main where\n  -- | A recursive fixture with the exact candidate payload position.\n  data Arena where\n    -- | Carry the candidate field without changing its recursive type.\n    Pool :: Array (RawPtr Arena) -> Arena\n  -- | Keep the fixture executable independent from its unused type declarations.\n  main :: Int\n  main = 0\n",
+    "accepted": false,
+    "kinds": {},
+    "diagnostic": "positiv"
+  }
+]
