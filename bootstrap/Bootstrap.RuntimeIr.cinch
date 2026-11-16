@@ -941,9 +941,41 @@ module Bootstrap.RuntimeIr where
       else None
     other -> None
 
-  -- | Consult actual source parameter counts and reject hidden dictionary captures before eliding a closure.
+  -- | Elide a pure bare foreign function alias only for one complete checked positional call.
+  -- Argument witness lets remain in place; partial, escaping, branching and shadowed uses keep their existing lowering.
+  fuse-scoped-foreign-plan :: String -> ForeignPlan -> CoreTerm -> Option CoreTerm
+  fuse-scoped-foreign-plan binding plan term = case term of
+    CLet sp ty id name sc rhs body -> case rhs of
+      CUse at function symbol role Nil ->
+        if same name "#argument-function" && same role "foreign" && same symbol binding
+          && list-length (scheme-params sc) == 0 && list-length (scheme-requirements sc) == 0
+          && ordinary-call-type function && scheme-equivalent sc (mono function)
+          && scheme-equivalent sc (foreign-scheme plan)
+          && (case core-effects rhs of URow UEnd -> True; other -> False) then
+          (let count = list-length (foreign-parameters plan) in
+           if count > 0 && scoped-call-saturated id count body then Some (specialize-local id sc rhs body) else None)
+        else None
+      other -> None
+    other -> None
+
+  -- | Obtain foreign authority from the checked binding index, never the alias's display spelling.
+  fuse-scoped-foreign :: Writer -> CoreTerm -> Option CoreTerm
+  fuse-scoped-foreign w term = case term of
+    CLet sp ty id name sc (CUse at function symbol role Nil) body ->
+      (case program-foreign-binding symbol (writer-program w) of
+        Some plan -> fuse-scoped-foreign-plan symbol plan term
+        None -> None)
+    other -> None
+
+  -- | Select a guarded static foreign alias or the existing proper source-call fusion.
   fuse-scoped-call :: List CoreDefinition -> Writer -> CoreTerm -> Option CoreTerm
-  fuse-scoped-call definitions w term = case scoped-partial-name term of
+  fuse-scoped-call definitions w term = case fuse-scoped-foreign w term of
+    Some fused -> Some fused
+    None -> fuse-scoped-source-call definitions w term
+
+  -- | Consult actual source parameter counts and reject hidden dictionary captures before eliding a source closure.
+  fuse-scoped-source-call :: List CoreDefinition -> Writer -> CoreTerm -> Option CoreTerm
+  fuse-scoped-source-call definitions w term = case scoped-partial-name term of
     Some name -> case definition name definitions of
       Some d -> case field-owner name (program-instances (writer-program w)) of
         Some owner -> None
