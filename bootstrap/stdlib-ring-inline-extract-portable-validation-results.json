@@ -1,0 +1,22 @@
+{
+  "description": "Actual private vector pair and raw low/high extraction emit portable target objects; not target runtime execution",
+  "compiler_sha256": "b004049baa8e2614dd35f5484811bbf2cd24b137923a8e3bc36bf08c9c53fc93",
+  "source_sha256": "b255d25e3d4dec6cf29e9d76f590b6437dd240fd830a96b4ea0bb1990a0dd392",
+  "cpu_affinity": [
+    4
+  ],
+  "targets": [
+    {
+      "target": "aarch64-unknown-linux-gnu",
+      "llvm_sha256": "89fff62df66bc268535e6777abb7b458cdc7221025a7fee7086ad495034bac5a",
+      "object_sha256": "72903edd0ec40df17bc48ccefed0389098fd4c36c3e5bc0bbba011fdda1a2bc4",
+      "exit": 0
+    },
+    {
+      "target": "wasm32-unknown-unknown",
+      "llvm_sha256": "0916ed6ba117f3b1ab96debb23d96a0db8abf32e0eafc726be836df4f8c2dd37",
+      "object_sha256": "18b610aa3603613bb2b8b7379ac6fc7d293020b5ce7c045b71d7b09915182bc6",
+      "exit": 0
+    }
+  ]
+}
