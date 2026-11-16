@@ -75,5 +75,31 @@
   "csv_no_stack_poison": {
     "exit": 0,
     "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
-  }
+  },
+  "initial_counted_guard": {
+    "compiler_sha256": "ddd7c2e4e8104bf41f43d2c94b3480f46f61488fbdcf99540ebfa064f36d766c",
+    "parent_tests": {
+      "lib": 302,
+      "stack_allocation": 21,
+      "wide": 18,
+      "tail_calls": 11,
+      "lib_csv_record": 11
+    },
+    "tiny_runtime_runs": 8,
+    "csv_candidate_runtime_runs": 6,
+    "zero_leaks": true,
+    "superseded_scope": "The initial rule did not prevent raw child addresses from leaving their allocating activation."
+  },
+  "raw_projection_review": {
+    "source": "bootstrap/programs/Run.ReturnedFrameProjection.cinch",
+    "source_sha256": "07902d57c0a80e8c1707e4a245b97a2bd4b01ed5c5c5a03be55c749e2d9c0a01",
+    "review_source_snapshot": "build/raw-projection-return/Main.cinch",
+    "review_source_snapshot_sha256": "2dd3d1778fc8da83dba895589cfcbac433c60a4c8dafaf697b3a40ed9badad57",
+    "lowered_core": "build/raw-projection-return/lowered-sum.core",
+    "llvm": "build/raw-projection-return/retained.ll",
+    "llvm_sha256": "4c36ef54b16a2b51aa3fa88b213c28a04d0181b40c2a91d8d4a26ada0f313097",
+    "finding": "Main.produce returns a child pointer derived from its own alloca. A zero exit under unchanged stack contents does not prove that returned storage survives the activation."
+  },
+  "current_guard": "All nested children remain on the heap until cross-owner field aliases are tracked; standalone raw duplication and safe consuming-callee placements remain eligible.",
+  "current_guard_validation": "pending focused and preserved parent tests"
 }
