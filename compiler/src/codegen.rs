@@ -2213,7 +2213,7 @@ pub(crate) fn prim_result_class(op: PrimOp) -> Option<Class> {
 /// their classes are fixed here: a thunk, memo cell, quotation or task
 /// body is a block, a capability, scope or task handle is raw, and a
 /// byte count or duration is a `Nat`.
-fn prim_param_classes(op: PrimOp) -> Vec<Class> {
+pub(crate) fn prim_param_classes(op: PrimOp) -> Vec<Class> {
     use ConcOp::*;
     match op {
         PrimOp::Array {
