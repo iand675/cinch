@@ -22,7 +22,7 @@ is not an available API.
 | `encoding/hex` | [Text.Hex](../library/Text.Hex.md), [Effect.Hex](../library/Effect.Hex.md) | Text/byte codecs, prefix and append APIs, checked caller buffers, formatted dumps, encoding writers, decoding readers and explicitly finished dump sinks | All 15 declarations mapped; immutable continuation, partial-row latency and allocation differences are documented |
 | `encoding/ascii85` | [Text.Ascii85](../library/Text.Ascii85.md), [Effect.Ascii85](../library/Effect.Ascii85.md) | Text/byte codecs, checked caller buffers and source offsets, retained prefix/progress, incremental states, stream adapters, shorthand, control runs and wrapped arithmetic | All seven declarations mapped; immutable continuation, buffered-read copying and allocation costs are documented |
 | `encoding/base32` | [Text.Base32](../library/Text.Base32.md) | RFC 4648 standard and extended-hex alphabets, padded and raw forms, CR/LF tolerance, final-quantum validation | Custom alphabets/padding, stream adapters |
-| `hash/adler32` | [Text.Checksum](../library/Text.Checksum.md) | Whole-buffer checksum and incremental update | Stream adapters, serialized state |
+| `hash/adler32` | [Text.Adler32](../library/Text.Adler32.md), [Effect.Adler32](../library/Effect.Adler32.md), [Text.Checksum](../library/Text.Checksum.md) | SIMD bounded-segment checksums, persistent states, numeric/byte digests, reset, copied-prefix append, checked checkpoints and stream sinks/copies | All four recorded declarations and returned hash/clone/state capabilities mapped; ownership and streaming costs are documented |
 | `hash/crc32` | [Text.Checksum](../library/Text.Checksum.md) | IEEE, Castagnoli, Koopman and custom reflected polynomials, incremental update | Table acceleration, stream adapters, serialized state |
 | `hash/crc64` | [Text.Checksum](../library/Text.Checksum.md) | ISO, ECMA and custom reflected polynomials, incremental update | Table acceleration, stream adapters, serialized state |
 | `hash/fnv` | [Text.Fnv](../library/Text.Fnv.md), [Text.Fnv.State](../library/Text.Fnv.State.md), [Effect.Fnv](../library/Effect.Fnv.md) | All six variants, numeric and byte digests, persistent states, reset, copied-prefix append, checked checkpoints and inspectable stream sinks/copies | All six constructors and returned hash/clone/state capabilities mapped; allocation and stream-copy costs are documented |
@@ -60,8 +60,8 @@ retain the callback's actual effect-region identity; cross-runtime handles are
 rejected by negative tests.
 
 The machine-readable [surface inventory](stdlib-surface.json) covers all 180
-public packages in the pinned reference SDK. It currently records five functionally complete, 63 partial
-and 112 unreviewed packages. ASCII85, hexadecimal, UTF-16, FNV and word bit/arithmetic utilities have
+public packages in the pinned reference SDK. It currently records six functionally complete, 62 partial
+and 112 unreviewed packages. ASCII85, hexadecimal, UTF-16, FNV, Adler-32 and word bit/arithmetic utilities have
 reviewed capability mappings, independent runtime fixtures and self-built
 compiler checks; completion does not assert matching allocation complexity or speed. Upstream mutable
 containers are included as implementation homes, not assumed full coverage.
@@ -111,6 +111,20 @@ advanced sources and the last valid hash. Scalar sinks have no runtime resource;
 the generic writer carries its own runtime identity. Independent state fixtures
 and all 54 public benchmark rows cover every variant. Small-read copying,
 per-chunk continuations and fresh serialization buffers remain performance costs.
+
+Adler-32 now has its own portable SIMD home, `Text.Adler32`, with the previous
+`Text.Checksum` names preserved as delegating functions. Sixteen-byte weighted
+reductions accumulate in machine words and normalize after at most 5552 bytes,
+replacing natural-number modular operations after every vector block. Persistent
+states expose numeric/network-order digests, reset, size/block size, copied-prefix
+append and checked eight-byte checkpoints. `Effect.Adler32` carries the scalar
+state directly through bounded stream copies, including after source failures.
+Both compilers validate this standalone API. The separate CRC assembly definitions
+in `Text.Checksum` remain unsupported by the self-built frontend; this increment
+does not repair or promote the CRC packages. The benchmark notes retain matched
+before/after pipelines and controls. Runtime fixture setup also avoids a known
+Rust compiler stack overflow on large constant corpus initialization; that
+compiler limitation remains open.
 
 ### Using the additions
 
