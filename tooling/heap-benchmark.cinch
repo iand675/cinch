@@ -1,0 +1,151 @@
+-- | Time complete public heap pipelines with deterministic mutable input and consumed results.
+module Main where
+  import Data.Bool
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Data.Mutable.Heap
+  import Data.Mutable.HeapView
+  import Data.Mutable.Vec
+  import Effect.Clock
+  import Effect.Process
+
+  -- | Parse the host runner's validated nonnegative decimal arguments.
+  decimal :: String -> Nat
+  decimal text = decimal-from (unpack text) 0
+
+  -- | Accumulate decimal digits, using zero for a malformed argument.
+  decimal-from :: List Char -> Nat -> Nat
+  decimal-from chars n = case chars of
+    Nil -> n
+    Cons first rest -> case digit-value first of
+      None -> 0
+      Some value -> decimal-from rest (n * 10 + value)
+
+  -- | Prepare deterministic input outside the measured interval.
+  input-from :: Nat -> Nat -> List Nat -> List Nat
+  input-from size at reversed = if at < size then
+    input-from size (at + 1) (Cons (nat-rem (at * 37 + 11) 65536) reversed)
+    else reverse reversed
+
+  -- | Change one element for every measured construction without copying the input tail.
+  varied :: List Nat -> Nat -> List Nat
+  varied input iteration = case input of
+    Nil -> Nil
+    Cons first rest -> Cons (nat-rem iteration 257) rest
+
+  -- | Consume each popped value in order under a bounded exact checksum.
+  mix :: Nat -> Nat -> Nat
+  mix checksum value = nat-rem (checksum * 33 + value) 1000000007
+
+  -- | Compare two initialized caller-owned positions, with absent positions refused by the vector.
+  before-at :: forall r. Vec r Nat -> Nat -> Nat ->{Mut r} Bool
+  before-at values first second = case vec-get values first of
+    None -> False
+    Some a -> case vec-get values second of None -> False; Some b -> a < b
+
+  -- | Adapt the checked vector swap's result to the heap callback's unit result.
+  exchange :: forall r. Vec r Nat -> Nat -> Nat ->{Mut r} Unit
+  exchange values first second = let swapped = vec-swap values first second in ()
+
+  -- | Retain the vector's region explicitly in its delayed length callback.
+  length-of :: forall r. Vec r Nat -> Unit ->{Mut r} Nat
+  length-of values unit = vec-length values
+
+  -- | Retain the vector's region explicitly in its delayed remove-last callback.
+  remove-last :: forall r. Vec r Nat -> Unit ->{Mut r} Option Nat
+  remove-last values unit = vec-pop values
+
+  -- | Build callbacks over a single coherent vector in the current mutation region.
+  view-of :: forall r. Vec r Nat ->{Mut r} HeapView r Nat
+  view-of values = heap-view (length-of values) (before-at values) (exchange values) (vec-push values) (remove-last values)
+
+  -- | Push source values one by one through the owned queue's public operation.
+  push-owned :: forall r. Heap r Nat -> List Nat ->{Mut r} Unit
+  push-owned heap values = case values of
+    Nil -> ()
+    Cons first rest -> let pushed = heap-push heap first in push-owned heap rest
+
+  -- | Push source values one by one through the callback-backed public operation.
+  push-view :: forall r. HeapView r Nat -> List Nat ->{Mut r} Unit
+  push-view view values = case values of
+    Nil -> ()
+    Cons first rest -> let pushed = heap-view-push view first in push-view view rest
+
+  -- | Drain the owned queue through public pops, consuming every value without an output list.
+  drain-owned :: forall r. Heap r Nat -> Nat ->{Mut r} Nat
+  drain-owned heap checksum = case heap-pop heap of
+    None -> checksum
+    Some value -> let next = mix checksum value in drain-owned heap next
+
+  -- | Drain the callback-backed queue through public pops and consume the complete result.
+  drain-view :: forall r. HeapView r Nat -> Nat ->{Mut r} Nat
+  drain-view view checksum = case heap-view-pop view of
+    None -> checksum
+    Some value -> let next = mix checksum value in drain-view view next
+
+  -- | Execute a complete build/drain or push/drain pipeline, including owned storage allocation.
+  construction :: forall r. Nat -> List Nat ->{Mut r} Nat
+  construction mode input = if mode == 0 then
+    let heap = heap-from-list input in drain-owned heap 1
+    else if mode == 1 then
+      let values = vec-from-list input in
+      let view = view-of values in let built = heap-view-init view in drain-view view 1
+    else if mode == 2 then
+      let heap = heap-new () in let pushed = push-owned heap input in drain-owned heap 1
+    else
+      let values = vec-new () in
+      let view = view-of values in let pushed = push-view view input in drain-view view 1
+
+  -- | Replace the first owned value and consume both the removed and new minimum values.
+  replace-owned :: forall r. Heap r Nat -> Nat ->{Mut r} Nat
+  replace-owned heap value = case heap-replace heap 0 value of
+    None -> 0
+    Some previous -> case heap-peek heap of None -> previous; Some next -> mix previous next
+
+  -- | Change the first application-owned value and repair its path through the public view.
+  replace-view :: forall r. HeapView r Nat -> Vec r Nat -> Nat ->{Mut r} Nat
+  replace-view view values value = case vec-get values 0 of
+    None -> 0
+    Some previous ->
+      let changed = vec-set values 0 value in
+      let fixed = heap-view-fix view 0 in
+      case vec-get values 0 of None -> previous; Some next -> mix previous next
+
+  -- | Select one changing public pipeline without adding preparation to the timed interval.
+  operation :: forall r. Nat -> List Nat -> Heap r Nat -> HeapView r Nat -> Vec r Nat -> Nat -> Nat ->{Mut r} Nat
+  operation mode input heap view values iteration value =
+    if mode < 4 then construction mode (varied input iteration)
+    else if mode == 4 then replace-owned heap value else replace-view view values value
+
+  -- | Repeat changing observable operations, excluding preparation, process startup and printing.
+  repeat :: forall r. Nat -> List Nat -> Heap r Nat -> HeapView r Nat -> Vec r Nat -> Nat -> Nat -> Nat ->{Mut r} Nat
+  repeat mode input heap view values iterations iteration checksum = if iteration < iterations then
+    let value = nat-rem (iteration * 43 + 17) 65536 in
+    let observed = operation mode input heap view values iteration value in
+    let next = nat-rem (checksum + observed) 1000000007 in
+    repeat mode input heap view values iterations (iteration + 1) next
+    else checksum
+
+  -- | Time the operation loop with the runtime clock and print an independent checksum.
+  measure :: forall r. using (io :: Io r) => Nat -> Nat -> Nat ->{IO r, Mut r} Int
+  measure mode size iterations =
+    let input = input-from size 0 Nil in
+    let heap = heap-from-list input in
+    let values = vec-from-list input in
+    let view = view-of values in
+    let built = heap-view-init view in
+    let start = clock-monotonic-ns () in
+    let checksum = repeat mode input heap view values iterations 0 0 in
+    let end = clock-monotonic-ns () in
+    let retained = heap-length heap + vec-length values + list-length input in
+    let observed = nat-rem (checksum + retained) 1000000007 in
+    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string (saturating-sub end start)) (string-concat " " (string-concat (nat-to-string observed) "\n")))) in 0
+
+  -- | Resolve host arguments before entering the measured operation loop.
+  main :: Unit ->{IO r, Mut r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Ok (Cons mode (Cons size (Cons iterations Nil))) -> measure (decimal mode) (decimal size) (decimal iterations)
+    other -> 2

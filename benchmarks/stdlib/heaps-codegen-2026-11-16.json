@@ -1,0 +1,54 @@
+{
+  "Data.Mutable.HeapView.before@T#cc": {
+    "assembly_sha256": "66d90cceb6531e8648d483b61da766bbbe852d333fd788bffc726889a4940d5c",
+    "lines": 82,
+    "indirect_calls": 2,
+    "call_operands": [
+      "*%rax",
+      "cinch_dup_mt@PLT"
+    ]
+  },
+  "Data.Mutable.HeapView.down@T": {
+    "assembly_sha256": "f75789e11d95945a3da37cf18bedb4f8c00e29a7790b093640a8c7be1bd4c589",
+    "lines": 1748,
+    "indirect_calls": 8,
+    "call_operands": [
+      "\"Data.Mutable.HeapView.first-child@T\"@PLT",
+      "*%rax",
+      "*(%r13)",
+      "*-8(%rax)",
+      "cinch_drop_mt@PLT",
+      "cinch_drop_slow@PLT",
+      "cinch_dup_mt@PLT",
+      "cinch_frame_release@PLT",
+      "cinch_nat_add@PLT",
+      "cinch_nat_cmp@PLT",
+      "cinch_nat_mul@PLT"
+    ]
+  },
+  "Data.Mutable.Heap.sift-down@T$s10": {
+    "assembly_sha256": "77aa9bdb920c580fa8502de47ffe12ffff3ab00d66178aa73e206c724cd60ec4",
+    "lines": 75,
+    "indirect_calls": 0,
+    "call_operands": [
+      "\"Data.Mutable.Heap.hole-down@T$s14\"@PLT",
+      "\"Data.Mutable.Heap.least-child@T$s13\"@PLT",
+      "\"Data.Mutable.Heap.slots-write@T\"@PLT",
+      "cinch_slots_fault@PLT"
+    ]
+  },
+  "Data.Mutable.Heap.least-child@T$s11": {
+    "assembly_sha256": "4a36d3d92b89c0c44913bc670bdcdb7e6de5d0f154f0bdd0be4a39ce3a347259",
+    "lines": 741,
+    "indirect_calls": 5,
+    "call_operands": [
+      "*(%rbx)",
+      "cinch_alloc_shaped@PLT",
+      "cinch_drop_mt@PLT",
+      "cinch_drop_slow@PLT",
+      "cinch_dup_mt@PLT",
+      "cinch_frame_release@PLT",
+      "cinch_slots_fault@PLT"
+    ]
+  }
+}

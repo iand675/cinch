@@ -1,0 +1,354 @@
+-- | Independent indexed-heap callback traces and owned-heap priority changes.
+module Main where
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.List
+  import Data.Machine
+  import Data.Mutable.Heap
+  import Data.Mutable.HeapView
+  import Data.Mutable.Vec
+  import Data.Mutable.Var
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Hex
+
+  -- | One independently identified mutable-priority queue value.
+  data Item where
+    -- | Priority followed by stable identity.
+    Item :: Nat -> Nat -> Item
+
+  -- | One operation and its independently recorded post-operation observations.
+  data Step where
+    -- | Kind, index, priority, identity, length, storage/position/callback hashes, result and validity.
+    Step :: Nat -> Nat -> Nat -> Nat -> Nat -> U64 -> U64 -> U64 -> Option Item -> Bool -> Step
+
+  -- | Convert the bounded fixture integers to an exact machine word.
+  word :: Nat -> U64
+  word n = if n <= 9223372036854775807 then wrapping-i64-to-u64 (nat-to-i64 n) else 0
+
+  -- | Keep fixture-list construction in runtime execution rather than a large constant constructor tree.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+
+  -- | Decode independently packed little-endian priority/identity pairs from compact fixture bytes.
+  initial-items :: String -> List Item
+  initial-items text = case hex-decode text of
+    Err error -> Nil
+    Ok bytes ->
+      let count = u32-to-nat (runtime-size (wrapping-i64-to-u32 (nat-to-i64 (bytes-len bytes)))) in
+      initial-from bytes count 0 Nil
+
+  -- | Build one runtime record per exact four-byte fixture tuple without overreading a tail.
+  initial-from :: Bytes -> Nat -> Nat -> List Item -> List Item
+  initial-from bytes count at reversed = if at + 4 <= count && at + 4 <= bytes-len bytes then
+    let priority = bytes-get bytes at + bytes-get bytes (at + 1) * 256 in
+    let id = bytes-get bytes (at + 2) + bytes-get bytes (at + 3) * 256 in
+    initial-from bytes count (at + 4) (Cons (Item priority id) reversed)
+    else reverse reversed
+
+  -- | Mix one observed value using the independently specified wrapping checksum.
+  mix :: U64 -> U64 -> U64
+  mix h value = wrapping-add-u64 (wrapping-mul-u64 h 1099511628211) value
+
+  -- | Record one callback argument in sequence.
+  note-value :: forall r. Var r U64 -> U64 ->{Mut r} Unit
+  note-value trace value = let before = var-read trace in var-write trace (mix before value)
+
+  -- | Record a callback tag and two arguments in their original evaluation order.
+  event :: forall r. Var r U64 -> U64 -> Nat -> Nat ->{Mut r} Unit
+  event trace tag first second =
+    let a = note-value trace tag in
+    let b = note-value trace (word first) in
+    note-value trace (word second)
+
+  -- | Compare priorities and stable identities under the selected direction.
+  item-before :: Bool -> Item -> Item -> Bool
+  item-before backwards first second =
+    let a = priority-of first in let i = identity first in
+    let b = priority-of second in let j = identity second in
+    if backwards then a > b || (a == b && i > j)
+    else a < b || (a == b && i < j)
+
+  -- | Observe the priority of an independently identified queue value.
+  priority-of :: Item -> Nat
+  priority-of value = case value of Item priority id -> priority
+
+  -- | Obtain the stable identity of a queue value.
+  identity :: Item -> Nat
+  identity value = case value of Item priority id -> id
+
+  -- | Compare the positions passed to the callback and retain their exact call order.
+  less-at :: forall r. Vec r Item -> Var r U64 -> Var r Bool -> Nat -> Nat ->{Mut r} Bool
+  less-at values trace backwards first second =
+    let noted = event trace 1 first second in
+    let direction = var-read backwards in
+    case vec-get values first of
+      None -> False
+      Some a -> case vec-get values second of
+        None -> False
+        Some b -> item-before direction a b
+
+  -- | Swap queue values and update their independent identity-position map.
+  swap-at :: forall r. Vec r Item -> Vec r Nat -> Var r U64 -> Nat -> Nat ->{Mut r} Unit
+  swap-at values positions trace first second =
+    let noted = event trace 2 first second in
+    let swapped = vec-swap values first second in
+    case vec-get values first of
+      None -> ()
+      Some a -> case vec-get values second of
+        None -> ()
+        Some b ->
+          let one = vec-set positions (identity a) first in
+          let two = vec-set positions (identity b) second in ()
+
+  -- | Append one value and initialize the position recorded by the application.
+  append-value :: forall r. Vec r Item -> Vec r Nat -> Var r U64 -> Item ->{Mut r} Unit
+  append-value values positions trace value =
+    let priority = priority-of value in let id = identity value in
+    let noted = event trace 3 id priority in
+    let index = vec-length values in
+    let located = vec-set positions id index in
+    vec-push values value
+
+  -- | Remove the final value and invalidate its application-maintained position.
+  remove-value :: forall r. Vec r Item -> Vec r Nat -> Var r U64 -> Unit ->{Mut r} Option Item
+  remove-value values positions trace unit = case vec-pop values of
+    None -> None
+    Some value ->
+      let priority = priority-of value in let id = identity value in
+      let noted = event trace 4 id priority in
+      let invalidated = vec-set positions id 1000000 in Some value
+
+  -- | Preserve the captured vector's region in the explicitly typed length callback.
+  length-callback :: forall r. Vec r Item -> Unit ->{Mut r} Nat
+  length-callback values unit = vec-length values
+
+  -- | Assemble a view whose callbacks all share one queue and its bookkeeping.
+  view-of :: forall r. Vec r Item -> Vec r Nat -> Var r U64 -> Var r Bool ->{Mut r} HeapView r Item
+  view-of values positions trace backwards = heap-view
+    (length-callback values)
+    (less-at values trace backwards)
+    (swap-at values positions trace)
+    (append-value values positions trace)
+    (remove-value values positions trace)
+
+  -- | Fill the independently sized identity map with the absent-position marker.
+  empty-positions :: forall r. Nat -> Vec r Nat ->{Mut r} Unit
+  empty-positions remaining positions = if remaining == 0 then () else
+    let added = vec-push positions 1000000 in
+    empty-positions (remaining - 1) positions
+
+  -- | Initialize identity positions for an unsorted source sequence before heap construction.
+  locate-initial :: forall r. List Item -> Vec r Nat -> Nat ->{Mut r} Unit
+  locate-initial values positions index = case values of
+    Nil -> ()
+    Cons value rest ->
+      let stored = vec-set positions (identity value) index in
+      locate-initial rest positions (index + 1)
+
+  -- | Hash queue storage order rather than merely checking a sorted drain.
+  items-hash :: List Item -> U64 -> U64
+  items-hash values h = case values of
+    Nil -> h
+    Cons value rest ->
+      let priority = priority-of value in let id = identity value in
+      let first = mix h (word priority) in
+      let second = mix first (word id) in
+      items-hash rest second
+
+  -- | Hash the entire independent identity-position map, including removed identities.
+  positions-hash :: List Nat -> U64 -> U64
+  positions-hash values h = case values of
+    Nil -> h
+    Cons value rest -> let next = mix h (word value) in positions-hash rest next
+
+  -- | Compare optional returned values without an instance depending on the heap implementation.
+  same-result :: Option Item -> Option Item -> Bool
+  same-result first second = case first of
+    None -> case second of None -> True; Some value -> False
+    Some a -> case second of
+      None -> False
+      Some b -> priority-of a == priority-of b && identity a == identity b
+
+  -- | Execute one independent operation while preserving its explicit absent-index policy.
+  apply-step :: forall r. HeapView r Item -> Vec r Item -> Var r Bool -> Step ->{Mut r} (Option Item, Bool)
+  apply-step view values backwards step = case step of
+    Step kind index priority id count storage positions trace expected valid ->
+      if kind == 0 then let built = heap-view-init view in (None, True)
+      else if kind == 1 then let added = heap-view-push view (Item priority id) in (None, True)
+      else if kind == 2 then case vec-get values index of
+        None -> let absent = heap-view-fix view index in (None, absent)
+        Some previous ->
+          let changed = vec-set values index (Item priority (identity previous)) in
+          let fixed = heap-view-fix view index in (None, fixed)
+      else if kind == 3 then let removed = heap-view-remove view index in (removed, present removed)
+      else if kind == 4 then let removed = heap-view-pop view in (removed, present removed)
+      else if kind == 5 then
+        let previous = var-read backwards in
+        let selected = var-write backwards (not previous) in
+        let built = heap-view-init view in (None, True)
+      else
+        let fixed = heap-view-fix view index in
+        let removed = heap-view-remove view index in
+        (removed, fixed || present removed)
+
+  -- | Recognize successful removals without extracting an absent value.
+  present :: Option Item -> Bool
+  present value = case value of None -> False; Some item -> True
+
+  -- | Check the complete state and continue through the independent operation trace.
+  check-steps :: forall r. HeapView r Item -> Vec r Item -> Vec r Nat -> Var r U64 -> Var r Bool -> List Step ->{Mut r} Bool
+  check-steps view values positions trace backwards steps = case steps of
+    Nil -> True
+    Cons step rest -> case step of
+      Step kind index priority id expected-count expected-storage expected-positions expected-trace expected-result expected-valid ->
+        let actual = apply-step view values backwards step in
+        let count = heap-view-length view in
+        let stored = vec-to-list values in
+        let located = vec-to-list positions in
+        let called = var-read trace in
+        case actual of
+          (result, valid) -> if valid == expected-valid && same-result result expected-result
+             && count == expected-count && eq-u64 (items-hash stored 1) expected-storage
+             && eq-u64 (positions-hash located 1) expected-positions && eq-u64 called expected-trace then
+            check-steps view values positions trace backwards rest
+            else False
+
+  -- | Run one source sequence against the independent callback and storage trace.
+  trace-case :: forall r. List Item -> Nat -> List Step ->{Mut r} Bool
+  trace-case initial slots steps =
+    let values = vec-from-list initial in
+    let positions = vec-new () in
+    let filled = empty-positions slots positions in
+    let located = locate-initial initial positions 0 in
+    let trace = var-new (1 :: U64) in
+    let backwards = var-new False in
+    let view = view-of values positions trace backwards in
+    check-steps view values positions trace backwards steps
+
+  -- | Encode an owned heap priority and stable identity into independently mutable exact bytes.
+  owned-item :: Item -> Bytes
+  owned-item value =
+    let priority = priority-of value in let id = identity value in
+    let bytes = bytes-new 16 in
+    let first = bytes-write-le64 bytes 0 (word priority) in
+    let second = bytes-write-le64 bytes 8 (word id) in bytes
+
+  -- | Observe a complete private owned-heap fixture field without an unchecked load.
+  owned-field :: Bytes -> Nat -> U64
+  owned-field bytes index = if index + 8 <= bytes-len bytes then bytes-read-le64 bytes index else 0
+
+  -- | Order mutable fixture records by priority followed by identity.
+  owned-before :: Bytes -> Bytes -> Bool
+  owned-before first second =
+    let a = owned-field first 0 in let b = owned-field second 0 in
+    if eq-u64 a b then lt-u64 (owned-field first 8) (owned-field second 8) else lt-u64 a b
+
+  -- | Convert the independent initial records without depending on a heap transformation.
+  owned-input :: List Item -> List Bytes -> List Bytes
+  owned-input values reversed = case values of
+    Nil -> reverse reversed
+    Cons first rest -> owned-input rest (Cons (owned-item first) reversed)
+
+  -- | Find a stable identity despite changes to four-way heap storage positions.
+  owned-index :: forall r. Heap r Bytes -> Nat -> Nat ->{Mut r} Option Nat
+  owned-index values wanted index = case heap-get values index of
+    None -> None
+    Some value -> if eq-u64 (owned-field value 8) (word wanted) then Some index else owned-index values wanted (index + 1)
+
+  -- | Hash a completed drain, preserving both priorities and stable identities.
+  owned-hash :: List Bytes -> U64 -> U64
+  owned-hash values h = case values of
+    Nil -> h
+    Cons first rest ->
+      let a = mix h (owned-field first 0) in
+      let b = mix a (owned-field first 8) in owned-hash rest b
+
+  -- | Recognize an absent checked owned-heap read or removal.
+  no-owned :: Option Bytes -> Bool
+  no-owned value = case value of None -> True; Some bytes -> False
+
+  -- | Check indexed replacement, mutable-priority repair, removal and comparator rebuilding.
+  owned-case :: forall r. List Item -> Nat -> U64 -> U64 -> U64 -> U64 ->{Mut r} Bool
+  owned-case initial wanted-id replace-hash fix-hash remove-hash reverse-hash =
+    let replaced = heap-from-list-by owned-before (owned-input initial Nil) in
+    let fixed = heap-from-list-by owned-before (owned-input initial Nil) in
+    let removed = heap-from-list-by owned-before (owned-input initial Nil) in
+    let reversed = heap-from-list-by owned-before (owned-input initial Nil) in
+    let reversed-order = heap-init-by (\first second -> owned-before second first) reversed in
+    let reverse-values = heap-drain-by (\first second -> owned-before second first) reversed in
+    let invalid-read = heap-get replaced 1000000 in
+    let invalid-remove = heap-remove-by owned-before replaced 1000000 in
+    let invalid-replace = heap-replace-by owned-before replaced 1000000 (owned-item (Item 4 4)) in
+    let invalid-fix = heap-fix-by owned-before replaced 1000000 in
+    let index = owned-index replaced wanted-id 0 in
+    let indexed = case index of
+          None -> is-empty initial
+          Some at ->
+            let old = heap-replace-by owned-before replaced at (owned-item (Item 5000 wanted-id)) in
+            let fix-index = owned-index fixed wanted-id 0 in
+            let fixed-ok = case fix-index of
+                  None -> False
+                  Some fi -> case heap-get fixed fi of
+                    None -> False
+                    Some bytes -> if 8 <= bytes-len bytes then
+                      let changed = bytes-write-le64 bytes 0 10000 in heap-fix-by owned-before fixed fi
+                      else False in
+            let remove-index = owned-index removed wanted-id 0 in
+            let removed-ok = case remove-index of
+                  None -> False
+                  Some ri -> case heap-remove-by owned-before removed ri of
+                    None -> False
+                    Some value -> eq-u64 (owned-field value 8) (word wanted-id) in
+            not (no-owned old) && fixed-ok && removed-ok in
+    let replacement = heap-drain-by owned-before replaced in
+    let repaired = heap-drain-by owned-before fixed in
+    let without = heap-drain-by owned-before removed in
+    indexed && no-owned invalid-read && no-owned invalid-remove && no-owned invalid-replace && not invalid-fix
+      && eq-u64 (owned-hash replacement 1) replace-hash && eq-u64 (owned-hash repaired 1) fix-hash
+      && eq-u64 (owned-hash without 1) remove-hash && eq-u64 (owned-hash reverse-values 1) reverse-hash
+
+  -- | Compare a checked natural-valued observation without an optional-value equality instance.
+  natural-result :: Option Nat -> Nat -> Bool
+  natural-result value expected = case value of None -> False; Some actual -> actual == expected
+
+  -- | Recognize an absent natural-valued result.
+  no-natural :: Option Nat -> Bool
+  no-natural value = case value of None -> True; Some actual -> False
+
+  -- | Check empty operations, unbounded absent indices, aliases and natural-order convenience wrappers.
+  control-case :: forall r. Unit ->{Mut r} Bool
+  control-case unit =
+    let values = vec-new () in
+    let positions = vec-new () in
+    let trace = var-new (1 :: U64) in
+    let backwards = var-new False in
+    let view = view-of values positions trace backwards in
+    let empty-pop = heap-view-pop view in
+    let empty-remove = heap-view-remove view 340282366920938463463374607431768211455 in
+    let empty-fix = heap-view-fix view 340282366920938463463374607431768211455 in
+    let no-callback = var-read trace in
+    let heap = heap-from-list (Cons (3 :: Nat) (Cons 1 (Cons 2 Nil))) in
+    let alias = heap in
+    let replaced = heap-replace heap 0 4 in
+    let first = heap-peek alias in
+    let fixed = heap-fix heap 1 in
+    let invalid-read = heap-get heap 340282366920938463463374607431768211455 in
+    let invalid-remove = heap-remove heap 340282366920938463463374607431768211455 in
+    let invalid-replace = heap-replace heap 340282366920938463463374607431768211455 8 in
+    let invalid-fix = heap-fix heap 340282366920938463463374607431768211455 in
+    let initialized = heap-init heap in
+    let removed = heap-remove alias 0 in
+    let remaining = heap-drain heap in
+    let cleared = heap-clear alias in
+    not (present empty-pop) && not (present empty-remove) && not empty-fix && eq-u64 no-callback 1
+      && natural-result replaced 1 && natural-result first 2 && fixed
+      && no-natural invalid-read && no-natural invalid-remove && no-natural invalid-replace && not invalid-fix
+      && natural-result removed 2 && heap-is-empty alias
+      && (case remaining of Cons 3 (Cons 4 Nil) -> True; other -> False)
