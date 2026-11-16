@@ -1,0 +1,111 @@
+--- a/compiler/prelude/Text/Crc64.cinch
++++ b/compiler/prelude/Text/Crc64.cinch
+@@ -106,47 +106,19 @@
+   -- Empty input preserves every supplied bit; inputs and table storage are never modified.
+   crc64-table-update :: Crc64Table -> U64 -> Bytes -> U64
+   crc64-table-update table previous input = case table of
+-    CrcTable storage sum ->
+-      if 16384 <= bytes-len storage then
+-        bit-not-u64 (hold-table storage (hold-table input
+-          (word-from (bytes-data storage) (bytes-data input)
+-            (wrapping-i64-to-u64 (nat-to-i64 (bytes-len input))) (bit-not-u64 previous))))
+-      else previous
+-
+-  -- | Traverse only the remaining input bytes using fixed-width counters and private addresses.
+-  -- The caller retains both owners throughout the call and supplies the exact input length.
+-  -- Subtraction follows positive bounds checks; address steps stay inside that owned interval.
+-  word-from :: I64 -> I64 -> U64 -> U64 -> U64
+-  word-from table input remaining acc =
+-    if ge-u64 remaining 8 then
+-      word-from table (wrapping-add-i64 input 8) (wrapping-sub-u64 remaining 8)
+-        (slice-eight table (bit-xor-u64 acc (input-word input)))
+-    else if ne-u64 remaining 0 then
+-      word-from table (wrapping-add-i64 input 1) (wrapping-sub-u64 remaining 1)
+-        (slice-one table acc (input-byte input))
++    CrcTable storage sum -> bit-not-u64 (table-from storage input 0 (bit-not-u64 previous))
++
++  -- | Advance eight independent lookup slices from each packed input word, then consume exact tails.
++  table-from :: Bytes -> Bytes -> Nat -> U64 -> U64
++  table-from storage input pos acc =
++    if 16384 <= bytes-len storage && pos + 8 <= bytes-len input then
++      let word = bit-xor-u64 acc (bytes-read-le64 input pos) in
++      table-from storage input (pos + 8) (hold-table storage (slice-eight (bytes-data storage) word))
++    else if pos < bytes-len input then
++      let byte = wrapping-i64-to-u64 (nat-to-i64 (bytes-get input pos)) in
++      let index = u8-to-nat (wrapping-u64-to-u8 (bit-xor-u64 acc byte)) in
++      table-from storage input (pos + 1) (bit-xor-u64 (table-word storage (index * 8)) (wrapping-shr-u64 acc 8))
+     else acc
+-
+-  -- | Load exactly one remaining input byte; the private caller proves remaining is positive.
+-  prim input-byte :: I64 -> U8 where
+-    unsafe llvm {
+-      %address = inttoptr i64 %0 to ptr
+-      %value = load i8, ptr %address, align 1
+-      ret i8 %value
+-    }
+-
+-  -- | Load exactly eight remaining input bytes and normalize to low-byte-first wire order.
+-  prim input-word :: I64 -> U64 where
+-    unsafe llvm {
+-      %address = inttoptr i64 %0 to ptr
+-      %value = load i64, ptr %address, align 1
+-      ret i64 %value
+-    } when endian little
+-    unsafe llvm {
+-      %address = inttoptr i64 %0 to ptr
+-      %host = load i64, ptr %address, align 1
+-      %value = call i64 @llvm.bswap.i64(i64 %host)
+-      ret i64 %value
+-    } when endian big
+ 
+   -- | Retain the private table owner until the strict raw-address lookup result has completed.
+   hold-table :: Bytes -> U64 -> U64
+@@ -253,13 +225,9 @@
+   crc64-sum :: U64 -> Bytes -> U64
+   crc64-sum poly b = crc64-update poly 0 b
+ 
+-  -- | Continue a finished CRC-64 with a reflected polynomial, preserving empty updates.
+-  -- Chunks of at least 16384 bytes prepare a slicing table; shorter chunks use
+-  -- the direct shift register. Reuse crc64-table-update to amortize table setup.
++  -- | Continue a finished CRC-64. Arguments are reflected polynomial, previous checksum, and bytes; an empty update preserves the checksum.
+   crc64-update :: U64 -> U64 -> Bytes -> U64
+-  crc64-update poly previous b =
+-    if 16384 <= bytes-len b then crc64-table-update (crc64-table poly) previous b
+-    else bit-not-u64 (crc64-from poly b 0 (bit-not-u64 previous))
++  crc64-update poly previous b = bit-not-u64 (crc64-from poly b 0 (bit-not-u64 previous))
+ 
+   -- | Consume complete eight-byte native shift-register blocks before handling the exact scalar tail.
+   crc64-from :: U64 -> Bytes -> Nat -> U64 -> U64
+@@ -816,32 +784,3 @@
+       ret i64 %r63
+     }
+ 
+-
+-  -- | Advance one exact tail byte using a masked index in the retained 16384-byte table.
+-  prim slice-one :: I64 -> U64 -> U8 -> U64 where
+-    unsafe llvm {
+-      %base = inttoptr i64 %0 to ptr
+-      %byte = zext i8 %2 to i64
+-      %mixed = xor i64 %1, %byte
+-      %index = and i64 %mixed, 255
+-      %offset = shl i64 %index, 3
+-      %at = getelementptr i8, ptr %base, i64 %offset
+-      %host = load i64, ptr %at, align 1
+-      %word = or i64 %host, 0
+-      %shifted = lshr i64 %1, 8
+-      %value = xor i64 %word, %shifted
+-      ret i64 %value
+-    } when endian little
+-    unsafe llvm {
+-      %base = inttoptr i64 %0 to ptr
+-      %byte = zext i8 %2 to i64
+-      %mixed = xor i64 %1, %byte
+-      %index = and i64 %mixed, 255
+-      %offset = shl i64 %index, 3
+-      %at = getelementptr i8, ptr %base, i64 %offset
+-      %host = load i64, ptr %at, align 1
+-      %word = call i64 @llvm.bswap.i64(i64 %host)
+-      %shifted = lshr i64 %1, 8
+-      %value = xor i64 %word, %shifted
+-      ret i64 %value
+-    } when endian big

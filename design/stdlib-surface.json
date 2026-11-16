@@ -805,22 +805,40 @@
     },
     {
       "reference_package": "hash/crc64",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
-        "Text.Checksum"
+        "Effect.Crc64",
+        "Text.Checksum",
+        "Text.Crc64"
       ],
-      "remaining": [
-        "table and hash-state capability review",
-        "inspectable stream adapters and serialized state",
-        "native frontend validation of embedded assembly bodies"
-      ],
+      "remaining": [],
       "reference_declarations": 11,
       "tests": [
-        "lib_go_stdlib::checksums_match_go_and_update_over_every_split"
+        "lib_go_stdlib::checksums_match_go_and_update_over_every_split",
+        "lib_crc64"
       ],
       "benchmarks": [
-        "crc64"
-      ]
+        "crc64",
+        "crc64-table",
+        "crc64-state",
+        "crc64-roundtrip",
+        "crc64-stream",
+        "crc64-stream4096",
+        "crc64-table-build"
+      ],
+      "capability_mapping": {
+        "ISO/ECMA (value and ideal-integer declarations)": "crc64-iso and crc64-ecma expose the complete reflected U64 polynomials",
+        "Size (value and ideal-integer declarations)": "crc64-size is the digest size 8 as Nat",
+        "Table/MakeTable": "Crc64Table is opaque immutable polynomial storage; crc64-table supports every U64 polynomial and prepares eight slices; crc64-table-entry/entries expose every base entry without mutable aliases",
+        "Checksum/Update": "crc64-table-sum and crc64-table-update use a reusable table; polynomial conveniences crc64-sum/update preserve the older Text.Checksum names",
+        "New / hash.Hash64.Write": "crc64-state starts at zero with a prepared table; crc64-state-update consumes a full buffer; crc64-write reports accepted bytes and the advanced state; crc64-hashing-writer adapts to ByteWriter",
+        "hash.Hash64.Sum/Sum64": "crc64-state-word observes U64; crc64-state-sum returns fresh network-order digest bytes; crc64-state-append copies the prefix before appending",
+        "hash.Hash64.Reset/Size/BlockSize": "crc64-state-reset preserves the table and returns checksum zero; size is 8 and block size is 1",
+        "hash.Cloner.Clone": "Retaining a Crc64State branches computation; updates preserve every earlier state and its immutable table",
+        "encoding.BinaryMarshaler/BinaryAppender": "crc64-state-save/append-save encode crc, version 2, the network-order base-table fingerprint and the full checksum in twenty bytes",
+        "encoding.BinaryUnmarshaler": "crc64-state-load checks identifier, exact twenty-byte length and matching table fingerprint in that order; it accepts every checksum payload and retains no mutable input buffer"
+      },
+      "review": "All eleven recorded declarations, including duplicate constant value/ideal-integer records, and returned hash/clone/binary-state capabilities have functional mappings. Immutable tables support every reflected U64 polynomial and expose every base entry without mutable aliases. Seven independent complete tables, 350 digest/checkpoint cases, 525 arbitrary restored-state updates and 791 malformed-state cases validate identifier/size/table error precedence. Requested two-chunk splits cover every position through 65 bytes and selected larger boundaries, including 16383/16384/16385 and 64 KiB. Rust passes twelve target tests including three shared profile checks and an explicit O2/RC-debug ephemeral-owner stress case; the self-built compiler passes eleven target checks with that Rust-only case excluded. A strengthened nonzero branching/isolation case is rerun through both compilers. Both modes validate ordinary 32 MiB heap/8 MiB stack bounds and a separate 256 MiB poisoned-free quarantine with zero leaks, including a 64 KiB one-byte stream. Twelve Rust compatibility tests pass, with actual CRC SIMD/SWAR kernels compiled for 32-bit WebAssembly, AArch64 with/without CRC capability and big-endian PowerPC; no foreign execution is claimed. The compiler prerequisite preserves private U128 SIMD pair results. Prepared-table traversal uses exact remaining-length machine counters and retains both backing owners, removing natural-number/ownership runtime paths from the O2 word loop. Thirty-two public pipeline/control rows match independent SDK checksums; retained source patches and paired frozen executables record counter-only and polynomial table-selection gains. Eight-slice construction, copied serialization buffers and owned stream chunks have different allocation costs; functional completion does not assert allocation or throughput parity. The compatibility Text.Checksum facade still includes CRC-32 embedded assembly unsupported by the self-built frontend; standalone CRC-64 is validated independently. Full stdlib coverage remains open."
     },
     {
       "reference_package": "hash/fnv",
