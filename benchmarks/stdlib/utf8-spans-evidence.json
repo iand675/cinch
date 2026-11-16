@@ -1,0 +1,4175 @@
+{
+  "scope": "Additive checked absolute-owner half-open UTF-8 span queries; existing scanner/decoder bodies unchanged",
+  "api": [
+    "utf8-count-between :: Bytes -> Nat -> Nat -> Option Nat",
+    "utf8-decode-between :: Bytes -> Nat -> Nat -> Nat -> Utf8Step"
+  ],
+  "source_sha256": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+  "sdk_version": "go1.27.4",
+  "reference_generator_sha256": "aff2e2165c0c739d1ad945f291d8110df352ba88fbe013ed96a82117370e3111",
+  "fixture_sha256": "f8255c96ceef7a226a7d03b938c531dac4a33604e188230a50aa7b31ace8fd07",
+  "owner_buffers": 1505,
+  "legal_subspans": 147105,
+  "decode_observations": 1028230,
+  "canonical_declarations": 74,
+  "doc_diagnostics": [],
+  "doc_orphans": [],
+  "codegen_review": {
+    "source_sha256": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+    "original_value_declarations_byte_identical": 65,
+    "new_primitive_count": 0,
+    "original_primitive_count": 22,
+    "foreign_kernel_revalidation": "No primitive changed; prior wasm32/AArch64/powerpc64 target gates apply to identical bodies. Parent lib_utf8 supplies current integration target.",
+    "graphs": [
+      {
+        "frontend": "rust",
+        "llvm_sha256": "4fe045a911e748ab6c4afa7e64d69028e4c147bf36f87037d607ab001d2e1367",
+        "roots": [
+          "\"Data.Bytes.Utf8.utf8-count-between\"",
+          "\"Main.decode\""
+        ],
+        "reachable_count": 88,
+        "source_buffer_allocation_copy_or_mutation_calls": [],
+        "reachable": [
+          "\"Data.Bytes.Utf8.DecodedStep\"",
+          "\"Data.Bytes.Utf8.ascii-eight\"",
+          "\"Data.Bytes.Utf8.ascii-eight.llvm\"",
+          "\"Data.Bytes.Utf8.ascii-sixteen\"",
+          "\"Data.Bytes.Utf8.ascii-sixteen.llvm\"",
+          "\"Data.Bytes.Utf8.count-from#cc\"",
+          "\"Data.Bytes.Utf8.count-from.shared0#cc\"",
+          "\"Data.Bytes.Utf8.count-scalar#cc\"",
+          "\"Data.Bytes.Utf8.decode-word\"",
+          "\"Data.Bytes.Utf8.decode-word.llvm\"",
+          "\"Data.Bytes.Utf8.load-eight\"",
+          "\"Data.Bytes.Utf8.load-eight.llvm\"",
+          "\"Data.Bytes.Utf8.load-four\"",
+          "\"Data.Bytes.Utf8.load-four.llvm\"",
+          "\"Data.Bytes.Utf8.load-one\"",
+          "\"Data.Bytes.Utf8.load-one.llvm\"",
+          "\"Data.Bytes.Utf8.packed-valid\"",
+          "\"Data.Bytes.Utf8.packed-valid.llvm\"",
+          "\"Data.Bytes.Utf8.packed-width\"",
+          "\"Data.Bytes.Utf8.packed-width.llvm\"",
+          "\"Data.Bytes.Utf8.scan-add\"",
+          "\"Data.Bytes.Utf8.scan-add.llvm\"",
+          "\"Data.Bytes.Utf8.scan-address\"",
+          "\"Data.Bytes.Utf8.scan-address.llvm\"",
+          "\"Data.Bytes.Utf8.scan-four\"",
+          "\"Data.Bytes.Utf8.scan-four.llvm\"",
+          "\"Data.Bytes.Utf8.scan-from-packed\"",
+          "\"Data.Bytes.Utf8.scan-from-packed.llvm\"",
+          "\"Data.Bytes.Utf8.scan-ge\"",
+          "\"Data.Bytes.Utf8.scan-ge.llvm\"",
+          "\"Data.Bytes.Utf8.scan-gt\"",
+          "\"Data.Bytes.Utf8.scan-gt.llvm\"",
+          "\"Data.Bytes.Utf8.scan-lt\"",
+          "\"Data.Bytes.Utf8.scan-lt.llvm\"",
+          "\"Data.Bytes.Utf8.scan-raw\"",
+          "\"Data.Bytes.Utf8.scan-ready\"",
+          "\"Data.Bytes.Utf8.scan-ready.llvm\"",
+          "\"Data.Bytes.Utf8.scan-simple\"",
+          "\"Data.Bytes.Utf8.scan-simple.llvm\"",
+          "\"Data.Bytes.Utf8.scan-sub\"",
+          "\"Data.Bytes.Utf8.scan-sub.llvm\"",
+          "\"Data.Bytes.Utf8.scan-width\"",
+          "\"Data.Bytes.Utf8.scan-width.llvm\"",
+          "\"Data.Bytes.Utf8.utf8-count-between\"",
+          "\"Data.Bytes.Utf8.utf8-rune-error\"",
+          "\"Data.Core.Some@T\"",
+          "\"Main.decode\"",
+          "\"Main.hash-word\"",
+          "\"Main.hash-word.llvm\"",
+          "\"cinch.prim.bitAndU32\"",
+          "\"cinch.prim.bitOrU32\"",
+          "\"cinch.prim.charToU32\"",
+          "\"cinch.prim.eqI64\"",
+          "\"cinch.prim.leI64\"",
+          "\"cinch.prim.u32ToChar\"",
+          "\"cinch.prim.u32ToI64\"",
+          "\"cinch.prim.u8ToU32\"",
+          "\"cinch.prim.wrappingAddI64\"",
+          "\"cinch.prim.wrappingI64ToU32\"",
+          "\"cinch.prim.wrappingI64ToU64\"",
+          "\"cinch.prim.wrappingShlU32\"",
+          "\"cinch.prim.wrappingShrU64\"",
+          "\"cinch.prim.wrappingU64ToU32\"",
+          "\"cinch.prim.wrappingU64ToU8\"",
+          "\"cinch.runtime.bytesData\"",
+          "\"cinch.runtime.bytesLen\"",
+          "\"cinch.runtime.natAdd\"",
+          "\"cinch.runtime.natCmp\"",
+          "\"cinch.runtime.natFromI64\"",
+          "\"cinch.runtime.natMul\"",
+          "\"cinch.runtime.natToI64\"",
+          "cinch.rc.drop.obj",
+          "cinch.rc.drop.tobj",
+          "cinch.rc.dup.obj",
+          "cinch.rc.dup.tobj",
+          "cinch.rc.unique",
+          "cinch_alloc_ctor",
+          "cinch_bytes_data",
+          "cinch_bytes_len",
+          "cinch_drop_mt",
+          "cinch_drop_slow",
+          "cinch_dup_mt",
+          "cinch_free",
+          "cinch_nat_add",
+          "cinch_nat_cmp",
+          "cinch_nat_from_i64",
+          "cinch_nat_mul",
+          "cinch_nat_to_i64"
+        ]
+      },
+      {
+        "frontend": "native",
+        "llvm_sha256": "3007cba7dd72e4c5145675019e172fec8a90b2ddf34c4aad0ab3a947e92f6099",
+        "roots": [
+          "\"cinch.typed.m.Data$2eBytes$2eUtf8.utf8$2ddecode$2dbetween\"",
+          "\"cinch.typed.m.Data$2eBytes$2eUtf8.utf8$2dcount$2dbetween\""
+        ],
+        "reachable_count": 58,
+        "source_buffer_allocation_copy_or_mutation_calls": [],
+        "reachable": [
+          "\"\\44\\61\\74\\61\\2E\\42\\79\\74\\65\\73\\2E\\55\\74\\66\\38\\2E\\61\\73\\63\\69\\69\\2D\\65\\69\\67\\68\\74\\2E\\6C\\6C\\76\\6D\"",
+          "\"\\44\\61\\74\\61\\2E\\42\\79\\74\\65\\73\\2E\\55\\74\\66\\38\\2E\\61\\73\\63\\69\\69\\2D\\73\\69\\78\\74\\65\\65\\6E\\2E\\6C\\6C\\76\\6D\"",
+          "\"\\44\\61\\74\\61\\2E\\42\\79\\74\\65\\73\\2E\\55\\74\\66\\38\\2E\\64\\65\\63\\6F\\64\\65\\2D\\77\\6F\\72\\64\\2E\\6C\\6C\\76\\6D\"",
+          "\"\\44\\61\\74\\61\\2E\\42\\79\\74\\65\\73\\2E\\55\\74\\66\\38\\2E\\6C\\6F\\61\\64\\2D\\65\\69\\67\\68\\74\\2E\\6C\\6C\\76\\6D\"",
+          "\"\\44\\61\\74\\61\\2E\\42\\79\\74\\65\\73\\2E\\55\\74\\66\\38\\2E\\6C\\6F\\61\\64\\2D\\66\\6F\\75\\72\\2E\\6C\\6C\\76\\6D\"",
+          "\"\\44\\61\\74\\61\\2E\\42\\79\\74\\65\\73\\2E\\55\\74\\66\\38\\2E\\6C\\6F\\61\\64\\2D\\6F\\6E\\65\\2E\\6C\\6C\\76\\6D\"",
+          "\"\\44\\61\\74\\61\\2E\\42\\79\\74\\65\\73\\2E\\55\\74\\66\\38\\2E\\70\\61\\63\\6B\\65\\64\\2D\\76\\61\\6C\\69\\64\\2E\\6C\\6C\\76\\6D\"",
+          "\"\\44\\61\\74\\61\\2E\\42\\79\\74\\65\\73\\2E\\55\\74\\66\\38\\2E\\70\\61\\63\\6B\\65\\64\\2D\\77\\69\\64\\74\\68\\2E\\6C\\6C\\76\\6D\"",
+          "\"\\44\\61\\74\\61\\2E\\42\\79\\74\\65\\73\\2E\\55\\74\\66\\38\\2E\\73\\63\\61\\6E\\2D\\61\\64\\64\\2E\\6C\\6C\\76\\6D\"",
+          "\"\\44\\61\\74\\61\\2E\\42\\79\\74\\65\\73\\2E\\55\\74\\66\\38\\2E\\73\\63\\61\\6E\\2D\\61\\64\\64\\72\\65\\73\\73\\2E\\6C\\6C\\76\\6D\"",
+          "\"\\44\\61\\74\\61\\2E\\42\\79\\74\\65\\73\\2E\\55\\74\\66\\38\\2E\\73\\63\\61\\6E\\2D\\66\\6F\\75\\72\\2E\\6C\\6C\\76\\6D\"",
+          "\"\\44\\61\\74\\61\\2E\\42\\79\\74\\65\\73\\2E\\55\\74\\66\\38\\2E\\73\\63\\61\\6E\\2D\\66\\72\\6F\\6D\\2D\\70\\61\\63\\6B\\65\\64\\2E\\6C\\6C\\76\\6D\"",
+          "\"\\44\\61\\74\\61\\2E\\42\\79\\74\\65\\73\\2E\\55\\74\\66\\38\\2E\\73\\63\\61\\6E\\2D\\67\\65\\2E\\6C\\6C\\76\\6D\"",
+          "\"\\44\\61\\74\\61\\2E\\42\\79\\74\\65\\73\\2E\\55\\74\\66\\38\\2E\\73\\63\\61\\6E\\2D\\67\\74\\2E\\6C\\6C\\76\\6D\"",
+          "\"\\44\\61\\74\\61\\2E\\42\\79\\74\\65\\73\\2E\\55\\74\\66\\38\\2E\\73\\63\\61\\6E\\2D\\6C\\74\\2E\\6C\\6C\\76\\6D\"",
+          "\"\\44\\61\\74\\61\\2E\\42\\79\\74\\65\\73\\2E\\55\\74\\66\\38\\2E\\73\\63\\61\\6E\\2D\\72\\65\\61\\64\\79\\2E\\6C\\6C\\76\\6D\"",
+          "\"\\44\\61\\74\\61\\2E\\42\\79\\74\\65\\73\\2E\\55\\74\\66\\38\\2E\\73\\63\\61\\6E\\2D\\73\\69\\6D\\70\\6C\\65\\2E\\6C\\6C\\76\\6D\"",
+          "\"\\44\\61\\74\\61\\2E\\42\\79\\74\\65\\73\\2E\\55\\74\\66\\38\\2E\\73\\63\\61\\6E\\2D\\73\\75\\62\\2E\\6C\\6C\\76\\6D\"",
+          "\"\\44\\61\\74\\61\\2E\\42\\79\\74\\65\\73\\2E\\55\\74\\66\\38\\2E\\73\\63\\61\\6E\\2D\\77\\69\\64\\74\\68\\2E\\6C\\6C\\76\\6D\"",
+          "\"\\44\\61\\74\\61\\2E\\42\\79\\74\\65\\73\\2E\\62\\79\\74\\65\\73\\2D\\64\\61\\74\\61\"",
+          "\"\\44\\61\\74\\61\\2E\\43\\68\\61\\72\\2E\\75\\33\\32\\2D\\74\\6F\\2D\\63\\68\\61\\72\"",
+          "\"\\44\\61\\74\\61\\2E\\4D\\61\\63\\68\\69\\6E\\65\\2E\\62\\69\\74\\2D\\61\\6E\\64\\2D\\75\\33\\32\"",
+          "\"\\44\\61\\74\\61\\2E\\4D\\61\\63\\68\\69\\6E\\65\\2E\\62\\69\\74\\2D\\6F\\72\\2D\\75\\33\\32\"",
+          "\"\\44\\61\\74\\61\\2E\\4D\\61\\63\\68\\69\\6E\\65\\2E\\75\\33\\32\\2D\\74\\6F\\2D\\6E\\61\\74\"",
+          "\"\\44\\61\\74\\61\\2E\\4D\\61\\63\\68\\69\\6E\\65\\2E\\75\\38\\2D\\74\\6F\\2D\\75\\33\\32\"",
+          "\"\\44\\61\\74\\61\\2E\\4D\\61\\63\\68\\69\\6E\\65\\2E\\77\\72\\61\\70\\70\\69\\6E\\67\\2D\\61\\64\\64\\2D\\69\\36\\34\"",
+          "\"\\44\\61\\74\\61\\2E\\4D\\61\\63\\68\\69\\6E\\65\\2E\\77\\72\\61\\70\\70\\69\\6E\\67\\2D\\69\\36\\34\\2D\\74\\6F\\2D\\75\\36\\34\"",
+          "\"\\44\\61\\74\\61\\2E\\4D\\61\\63\\68\\69\\6E\\65\\2E\\77\\72\\61\\70\\70\\69\\6E\\67\\2D\\73\\68\\6C\\2D\\75\\33\\32\"",
+          "\"\\44\\61\\74\\61\\2E\\4D\\61\\63\\68\\69\\6E\\65\\2E\\77\\72\\61\\70\\70\\69\\6E\\67\\2D\\73\\68\\72\\2D\\75\\36\\34\"",
+          "\"\\44\\61\\74\\61\\2E\\4D\\61\\63\\68\\69\\6E\\65\\2E\\77\\72\\61\\70\\70\\69\\6E\\67\\2D\\75\\36\\34\\2D\\74\\6F\\2D\\75\\33\\32\"",
+          "\"\\44\\61\\74\\61\\2E\\4D\\61\\63\\68\\69\\6E\\65\\2E\\77\\72\\61\\70\\70\\69\\6E\\67\\2D\\75\\36\\34\\2D\\74\\6F\\2D\\75\\38\"",
+          "\"\\44\\61\\74\\61\\2E\\4E\\61\\74\\2E\\41\\64\\64\\5F\\4E\\61\\74\\2E\\2B\"",
+          "\"\\44\\61\\74\\61\\2E\\4E\\61\\74\\2E\\45\\71\\5F\\4E\\61\\74\\2E\\3D\\3D\"",
+          "\"\\44\\61\\74\\61\\2E\\4E\\61\\74\\2E\\4D\\75\\6C\\5F\\4E\\61\\74\\2E\\2A\"",
+          "\"\\44\\61\\74\\61\\2E\\4E\\61\\74\\2E\\4F\\72\\64\\5F\\4E\\61\\74\\2E\\3C\\3D\"",
+          "\"\\44\\61\\74\\61\\2E\\4E\\61\\74\\2E\\6E\\61\\74\\2D\\74\\6F\\2D\\69\\36\\34\"",
+          "\"cinch.typed.cinch.runtime.bytesLen\"",
+          "\"cinch.typed.m.Data$2eBytes$2eUtf8.count$2dfrom\"",
+          "\"cinch.typed.m.Data$2eBytes$2eUtf8.count$2dfrom#tail\"",
+          "\"cinch.typed.m.Data$2eBytes$2eUtf8.count$2dscalar#tail\"",
+          "\"cinch.typed.m.Data$2eBytes$2eUtf8.decode$2draw\"",
+          "\"cinch.typed.m.Data$2eBytes$2eUtf8.hold$2dsource.r1\"",
+          "\"cinch.typed.m.Data$2eBytes$2eUtf8.hold$2dsource.r2\"",
+          "\"cinch.typed.m.Data$2eBytes$2eUtf8.packed$2dstep\"",
+          "\"cinch.typed.m.Data$2eBytes$2eUtf8.scan$2draw\"",
+          "\"cinch.typed.m.Data$2eBytes$2eUtf8.tail$2dword\"",
+          "\"cinch.typed.m.Data$2eBytes$2eUtf8.utf8$2dcount$2dbetween\"",
+          "\"cinch.typed.m.Data$2eBytes$2eUtf8.utf8$2ddecode$2dbetween\"",
+          "\"cinch.typed.m.Data$2eBytes$2eUtf8.utf8$2dend$2dstep\"",
+          "\"cinch.typed.m.Data$2eBytes$2eUtf8.utf8$2drune$2derror\"",
+          "\"cinch.typed.m.Data$2eBytes$2eUtf8.word$2dnatural\"",
+          "cinch.typed.rc.drop",
+          "cinch.typed.rc.dup",
+          "cinch_alloc_ctor",
+          "cinch_bytes_len",
+          "cinch_drop",
+          "cinch_dup",
+          "cinch_nat_from_i64"
+        ]
+      }
+    ]
+  },
+  "reports": [
+    {
+      "kind": "utf8-spans",
+      "frontend": "rust",
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "provider_sha256": {},
+      "sources": {
+        "Data.Bytes.Utf8.cinch": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Main.cinch": "e736ecbefa7a57ef7055d0a8e89bab6519cf775ecfd8b7aa49396999a846852f"
+      },
+      "executable_sha256": "2090cb551344459ba618422d17ccb67d69c484f545e3623669a48dc13cd04f2a",
+      "compile_command": [
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "build",
+        "/workspace/dasl-stdlib-unicode/build/utf8-span-controls-final-rust/project/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-unicode/build/utf8-span-controls-final-rust/consumer",
+        "--opt-level",
+        "2",
+        "--rc-debug"
+      ],
+      "compile_seconds": 4.624395895007183,
+      "cpu": 2,
+      "runs": [
+        {
+          "poisoned": false,
+          "heap": "32M",
+          "stack": "8M",
+          "seconds": 0.0015965490019880235,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0013778489956166595,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "all_passed": true,
+      "full_report_sha256": "fd957fac55da7227afe73f27ca0c99d3a634e2c323fe9a1a793422bff7607296"
+    },
+    {
+      "kind": "utf8-spans",
+      "frontend": "native",
+      "compiler_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+      "runtime_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+      "provider_sha256": {
+        "frontend.py": "98535f99062bb90d8109f879dd22f412f65a0365b036e6d2bba95f1e1c5fbcac",
+        "base-interfaces.json": "89189ebe8226d4f26defffdd6481f40351f4da80e035a6a2ee4b2fa19800893f",
+        "objects.json": "4655257140bfd5ab73525f0fbef41dc41622a9f1225b034dbe1571dd2174c5e6",
+        "library.o": "2b459a81ac51e8e7a4f5e1730b9dc9fd22bc5976096cd717accbc9a84b05875d",
+        "library.abi.json": "5158fc3f8c659647334b110772d3ed03d0b6c29be6024989abf16e9ea33bc755",
+        "provenance.json": "bf09e1ffb70c224055df04b279f64259227e44d93f0ebd31ea4bcc926c3c68b7"
+      },
+      "sources": {
+        "Data.Bytes.Utf8.cinch": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Main.cinch": "e736ecbefa7a57ef7055d0a8e89bab6519cf775ecfd8b7aa49396999a846852f"
+      },
+      "executable_sha256": "b2f504a4d4be1ee2cedbcb6a987ab23ba2df9f038fee9a74b16d38705f9ed174",
+      "compile_command": [
+        "python3",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/frontend.py",
+        "--compile-only",
+        "--interfaces",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/base-interfaces.json",
+        "--rc-debug",
+        "/workspace/dasl-stdlib-unicode/build/utf8-span-controls-final-native/bundle.cinch",
+        "/workspace/dasl-stdlib-unicode/build/utf8-span-controls-final-native/consumer.ll",
+        "/workspace/dasl-stdlib-unicode/build/utf8-span-controls-final-native/consumer",
+        "/workspace/dasl-stdlib-unicode/build/utf8-span-controls-final-native/link-report.txt"
+      ],
+      "compile_seconds": 7.891086397998151,
+      "cpu": 2,
+      "runs": [
+        {
+          "poisoned": false,
+          "heap": "32M",
+          "stack": "8M",
+          "seconds": 0.00304317100381013,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.002196322995587252,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "all_passed": true,
+      "full_report_sha256": "6ca4769967c662bd0b9fabb69a86e3dddb5d4aa5dc8bf3c50c52643d9dabcbd2"
+    },
+    {
+      "sources": {
+        "Data.Bytes.Utf8.cinch": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Main.cinch": "e8b7a6df3dd9907d857b19d95b4878713a7e059d20d02e14ddcc6c08cfe83b42"
+      },
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "provider_sha256": {},
+      "fixture_sha256": "f8255c96ceef7a226a7d03b938c531dac4a33604e188230a50aa7b31ace8fd07",
+      "executable_sha256": "ff6dae343bca2e0e8e85300b12d5e1f0a1863ab543ba2b998f5549fe8f3b558f",
+      "compile_command": [
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "build",
+        "/workspace/dasl-stdlib-unicode/build/utf8-spans-rust/project/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-unicode/build/utf8-spans-rust/consumer",
+        "--opt-level",
+        "2",
+        "--rc-debug"
+      ],
+      "frontend": "rust",
+      "native_link_optimization": null,
+      "compiler": "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+      "runtime": "/workspace/dasl-stdlib-io/compiler/runtime/target/release/libcinchruntime.a",
+      "compile_seconds": 0.0069111540069570765,
+      "cpu": 2,
+      "owner_buffers": 1505,
+      "spans": 147105,
+      "decodes": 1028230,
+      "complete_domain": true,
+      "runs": [
+        {
+          "group": [],
+          "poisoned": false,
+          "heap": "32M",
+          "stack": "8M",
+          "seconds": 0.0494004530046368,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "0"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0024797509977361187,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "1"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0017026950081344694,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "2"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001746421999996528,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "3"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001272765002795495,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "4"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0014065169962123036,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "5"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0011423279938753694,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "6"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.006011734003550373,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "7"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0013800270098727196,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "8"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0011966599995503202,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "9"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0014365130045916885,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "10"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0010464619990671054,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "11"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0011554779921425506,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "12"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0011662140022963285,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "13"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0011325230007059872,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "14"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001205844004289247,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "15"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0013955409958725795,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "16"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0016670120094204322,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "17"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0014393769961316139,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "18"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0014502840058412403,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "19"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001475972996558994,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "20"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0017111479974118993,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "21"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0015550819953205064,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "22"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0024896460090531036,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "23"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0013233719946583733,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "24"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0017227560019819066,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "25"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.00148255200474523,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "26"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0010979210055666044,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "27"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001013182001770474,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "28"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0013267970061860979,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "29"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0013292299991007894,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "30"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0012375619990052655,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "31"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0013938389893155545,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "32"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.002319037987035699,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "33"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001941376001923345,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "34"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.002034677003393881,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "35"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0011856529890792444,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "36"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0010840399918379262,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "37"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0012786639999831095,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "38"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0010634589998517185,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "39"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0010647409944795072,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "40"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0011495379876578227,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "41"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0010643700079526752,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "42"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0010576400090940297,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "43"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0013092199951643124,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "44"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0010637590021360666,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "45"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0011375100002624094,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "46"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0012400050036376342,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "47"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0013107419945299625,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "48"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.00119361600081902,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "49"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001180896011646837,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "50"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0013704630109714344,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "51"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0013069370033917949,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "52"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0013092209992464632,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "53"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0010951459989883006,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "54"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0015186670061666518,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "55"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0012918340071337298,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "56"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0010915510065387934,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "57"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0012141159968450665,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "58"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0010626369912642986,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "59"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0011581919970922172,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "60"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0017714800051180646,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "61"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.00135853499523364,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "62"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0016476519958814606,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "63"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0012181530037196353,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "64"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0011702499905368313,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "65"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001250280998647213,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "66"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.002417547002551146,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "67"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0021788360027130693,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "68"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0014188770001055673,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "69"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0014157419936964288,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "70"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0025946849928004667,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "71"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001695373997790739,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "72"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0016039760084822774,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "73"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0016343829920515418,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "74"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0016173670010175556,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "75"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0015979369927663356,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "76"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0015340809914050624,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "77"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0016059689951362088,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "78"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0015564339992124587,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "79"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001598326998646371,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "80"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0018323120020795614,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "81"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0015890130016487092,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "82"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0015832549979677424,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "83"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0015894840034889057,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "84"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001590005005709827,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "85"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001587229999131523,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "86"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0015884320018813014,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "87"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0018328419973840937,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "88"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0014549999905284494,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "89"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0015778670058352873,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "90"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001802525992388837,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "91"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0019057320023421198,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "92"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0015003589942352846,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "93"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0015627240063622594,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "94"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001707032002741471,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "95"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0015125980135053396,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "96"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0015668999985791743,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "97"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0015638449985999614,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "98"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0014713060081703588,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "99"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0015778770030010492,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "100"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001514210001914762,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "101"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0015614010044373572,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "102"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0017099370015785098,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "103"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0015439660055562854,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "104"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0015477010019822046,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "105"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0017231069941772148,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "106"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0016023329953895882,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "107"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001548611995531246,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "108"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001944850999279879,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "109"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001543353995657526,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "110"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001586209997185506,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "111"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0016488039982505143,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "112"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0016456299927085638,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "113"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0016089729906525463,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "114"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0016241160046774894,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "115"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0017605129978619516,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "116"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0014934179926058277,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "117"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0015178949979599565,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "118"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001561261000460945,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "119"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001532358000986278,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "120"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0016250990011030808,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "121"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001568331994349137,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "122"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0015013410011306405,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "123"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0015402499993797392,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "124"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0015119370073080063,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "125"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0017707389924908057,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "126"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0016293149965349585,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "127"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0015827140014152974,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "128"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0016097249899758026,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "129"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0016372270038118586,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "130"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0016998010105453432,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "131"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0017082340054912493,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "132"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0018370189936831594,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "133"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0017751959967426956,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "134"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001981788009288721,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "135"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0017716000002110377,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "136"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0018365269934292883,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "137"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0018494169926270843,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "138"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0019257329986430705,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "139"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0019948669942095876,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "140"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0021696019975934178,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "141"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0020158190018264577,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "142"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001973826001631096,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "143"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0020156079990556464,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "144"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0020845020044362172,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "145"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0021466969919856638,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "146"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0021570820099441335,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "147"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.002269693010021001,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "148"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.002213567990111187,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "149"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.002359900012379512,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "150"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.00231785599316936,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "151"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0027477260009618476,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "152"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0025681749975774437,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "153"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0024742920068092644,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "154"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0025467420055065304,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "155"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.002584500005468726,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "156"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0027029280026908964,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "157"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.00310450499819126,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "158"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.002741556992987171,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "159"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0030294419993879274,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "160"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0026526629953878,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "161"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0021589560055872425,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "162"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.002043952001258731,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "163"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001949448007508181,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "164"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0020169599883956835,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "165"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.002193016989622265,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "166"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0022079399932408705,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "167"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.002234390005469322,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "168"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.002299677988048643,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "169"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0021658959885826334,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "170"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.002244966002763249,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "171"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0025108379923040047,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "172"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0023618319974048063,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "173"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.002356764001888223,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "174"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0024394000065512955,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "175"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0025426659994991496,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "176"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0024439469998469576,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "177"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0025658910017227754,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "178"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.002500952992704697,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "179"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0026951269974233583,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "180"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0030791370081715286,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "181"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003228253000997938,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "182"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0029194759990787134,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "183"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003230335991247557,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "184"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.002979516997584142,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "185"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0030233929865062237,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "186"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0033584199991310015,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "187"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0035799239994958043,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "188"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.001326045996393077,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "all_passed": true,
+      "full_report_sha256": "9c56556294269afc805806158fac362acf71ec3c4f5d4bd545f31fa203b6c567"
+    },
+    {
+      "sources": {
+        "Data.Bytes.Utf8.cinch": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Main.cinch": "e8b7a6df3dd9907d857b19d95b4878713a7e059d20d02e14ddcc6c08cfe83b42"
+      },
+      "compiler_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+      "runtime_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+      "provider_sha256": {
+        "frontend.py": "98535f99062bb90d8109f879dd22f412f65a0365b036e6d2bba95f1e1c5fbcac",
+        "base-interfaces.json": "89189ebe8226d4f26defffdd6481f40351f4da80e035a6a2ee4b2fa19800893f",
+        "objects.json": "4655257140bfd5ab73525f0fbef41dc41622a9f1225b034dbe1571dd2174c5e6",
+        "library.o": "2b459a81ac51e8e7a4f5e1730b9dc9fd22bc5976096cd717accbc9a84b05875d",
+        "library.abi.json": "5158fc3f8c659647334b110772d3ed03d0b6c29be6024989abf16e9ea33bc755",
+        "provenance.json": "bf09e1ffb70c224055df04b279f64259227e44d93f0ebd31ea4bcc926c3c68b7"
+      },
+      "fixture_sha256": "f8255c96ceef7a226a7d03b938c531dac4a33604e188230a50aa7b31ace8fd07",
+      "executable_sha256": "8462c4c1397363f0e89e91ce02574ee8597447402672b49e980851589f67f3d9",
+      "compile_command": [
+        "python3",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/frontend.py",
+        "--compile-only",
+        "--interfaces",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/base-interfaces.json",
+        "--rc-debug",
+        "/workspace/dasl-stdlib-unicode/build/utf8-spans-native/bundle.cinch",
+        "/workspace/dasl-stdlib-unicode/build/utf8-spans-native/consumer.ll",
+        "/workspace/dasl-stdlib-unicode/build/utf8-spans-native/consumer",
+        "/workspace/dasl-stdlib-unicode/build/utf8-spans-native/link-report.txt"
+      ],
+      "frontend": "native",
+      "native_link_optimization": "wrapper default O0",
+      "compiler": "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+      "runtime": "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/libcinchruntime.a",
+      "compile_seconds": 10.14046124399465,
+      "cpu": 2,
+      "owner_buffers": 1505,
+      "spans": 147105,
+      "decodes": 1028230,
+      "complete_domain": true,
+      "runs": [
+        {
+          "group": [],
+          "poisoned": false,
+          "heap": "32M",
+          "stack": "8M",
+          "seconds": 0.45189793600002304,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "0"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003912678002961911,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "1"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0033466640015831217,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "2"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003331199986860156,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "3"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003139771011774428,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "4"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0030913880036678165,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "5"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0032681250013411045,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "6"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0032288060028804466,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "7"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0030245569942053407,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "8"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.002933479001512751,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "9"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0029592179926112294,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "10"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0030375159985851496,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "11"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003017166003701277,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "12"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.00285636298940517,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "13"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003262886995798908,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "14"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0032259010040434077,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "15"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0033243399957427755,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "16"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.00310854401323013,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "17"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003112209989922121,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "18"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0030026940075913444,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "19"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0029932100005680695,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "20"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.002925237000454217,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "21"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003105709998635575,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "22"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0028159119974588975,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "23"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003005809005117044,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "24"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0030043269944144413,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "25"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003345682009239681,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "26"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003356337998411618,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "27"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0030151429964462295,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "28"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0029481410019798204,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "29"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003133671998512,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "30"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0031816740083741024,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "31"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003016645001480356,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "32"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.011249316987232305,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "33"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.006586635994608514,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "34"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.011016915988875553,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "35"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003750953997951001,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "36"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0034473760024411604,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "37"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003275276001659222,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "38"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0036087290063733235,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "39"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0035742970067076385,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "40"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003252962007536553,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "41"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003452863995335065,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "42"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0034804159949999303,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "43"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0033321219962090254,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "44"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003548407999915071,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "45"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0032171780039789155,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "46"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0033674450096441433,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "47"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0034916519944090396,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "48"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0031120490020839497,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "49"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003221936000045389,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "50"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003250798996305093,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "51"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0033246200036955997,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "52"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0030648579995613545,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "53"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0030848680034978315,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "54"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0033476359967608005,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "55"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003498302001389675,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "56"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0035629100020742044,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "57"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0037872190005145967,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "58"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003642630996182561,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "59"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0035810380068141967,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "60"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0031988599948817864,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "61"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0032016439945437014,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "62"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0034330539929214865,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "63"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003224758998840116,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "64"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0035563010023906827,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "65"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0038735989946871996,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "66"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0038104439881863073,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "67"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0037061769980937243,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "68"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003881301003275439,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "69"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003646957004093565,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "70"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003642359995865263,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "71"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.00351497701194603,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "72"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0033672449935693294,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "73"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003172830998664722,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "74"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003495508004561998,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "75"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0032675940019544214,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "76"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003705135008203797,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "77"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003154642996378243,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "78"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0033664729999145493,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "79"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0035495700140018016,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "80"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0033678659965517,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "81"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0035637209948617965,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "82"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0033646600059000775,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "83"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0032692270033294335,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "84"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0034301989944651723,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "85"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003169194998918101,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "86"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0030767359858145937,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "87"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003424340990022756,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "88"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0031180480000330135,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "89"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0033166180073749274,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "90"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003142134999507107,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "91"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003196546997060068,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "92"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0034758980036713183,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "93"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0032455909968120977,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "94"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0033661229972494766,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "95"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0034288169990759343,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "96"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0031444179912796244,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "97"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0035646829928737134,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "98"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003220463011530228,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "99"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0032696970010874793,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "100"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003599606003263034,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "101"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.00354203800088726,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "102"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003452132994425483,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "103"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0032459610083606094,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "104"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0033590719976928085,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "105"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003235495008993894,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "106"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0032173889921978116,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "107"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003381496004294604,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "108"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.00338423099310603,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "109"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0033926430041901767,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "110"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0032142639975063503,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "111"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003599415998905897,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "112"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003261935999034904,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "113"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0032188009936362505,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "114"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0033911309874383733,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "115"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003656180007965304,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "116"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0036571620003087446,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "117"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0035153289936715737,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "118"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003491202005534433,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "119"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0033726630063029006,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "120"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0034067839878844097,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "121"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003249846995458938,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "122"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0036327460111351684,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "123"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0034820879955077544,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "124"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0035997959930682555,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "125"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003435117003391497,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "126"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003699014996527694,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "127"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0037610090075759217,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "128"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0035502310056472197,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "129"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0040466500067850575,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "130"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.004093089999514632,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "131"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.004009864991530776,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "132"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.003901991993188858,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "133"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.004315307000069879,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "134"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.004100612000911497,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "135"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.004455907997908071,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "136"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.004756141992402263,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "137"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.004884876005235128,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "138"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.005080602000816725,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "139"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.005041362004703842,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "140"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.005291991008562036,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "141"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0060651079984381795,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "142"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.005736653009080328,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "143"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.005838926997967064,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "144"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.005646575998980552,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "145"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.006427104992326349,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "146"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.00646412099013105,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "147"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.007369617989752442,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "148"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.006687757995678112,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "149"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.00812093200511299,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "150"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.007530440998380072,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "151"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.007864044993766584,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "152"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.007730483994237147,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "153"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.008435568001004867,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "154"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.009004967010696419,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "155"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.009187493997160345,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "156"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.00907141801144462,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "157"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.009839548001764342,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "158"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.00966889999108389,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "159"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.010279120993800461,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "160"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.010277328998199664,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "161"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.011048362997826189,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "162"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.011124108001240529,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "163"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.01128743500157725,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "164"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.011356759001500905,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "165"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.011707269004546106,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "166"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.01185020399861969,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "167"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.012705785993603058,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "168"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.009181133995298296,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "169"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.00945292400137987,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "170"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.01429564600402955,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "171"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.011775901992223226,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "172"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.012667854010942392,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "173"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.012672565993852913,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "174"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.013108093990013003,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "175"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.012951577009516768,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "176"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.01380563699058257,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "177"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.01575526100350544,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "178"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.014043115006643347,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "179"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.016099952001241036,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "180"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.01470086901099421,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "181"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.01620559999719262,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "182"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.014565941004548222,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "183"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.01443827799812425,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "184"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.01629679399775341,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "185"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.019619229991803877,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "186"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.016313129002810456,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "187"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.01800452200404834,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": [
+            "188"
+          ],
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.004608717994415201,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "all_passed": true,
+      "full_report_sha256": "882a90c8cb7fad66eec97c98d9f8405cf736a5c6df09e6dedc9f850b2cde0c08"
+    }
+  ],
+  "limitations": [
+    "Query results allocate ordinary Nat/Option/step values; zero-copy means no owner-buffer snapshot, not zero allocations.",
+    "No new timing comparison; exact existing SIMD/SWAR scalar kernels are reused.",
+    "String facade integration remains pending the fresh combined String/provider gate."
+  ]
+}

@@ -59,6 +59,12 @@ fn utf8_invalid_numeric_values_fresh_repair_and_atomic_encoding() {
     run(include_str!("fixtures/utf8-ownership-consumer.cinch"));
 }
 
+/// Absolute half-open span bounds preserve malformed fringes and never snapshot mutable owners.
+#[test]
+fn utf8_bounded_spans_preserve_exact_fringe_and_alias_semantics() {
+    run(include_str!("fixtures/utf8-span-controls.cinch"));
+}
+
 /// Every byte-layer declaration, constructor and arithmetic helper has canonical documentation.
 #[test]
 fn utf8_declarations_have_canonical_documentation() {

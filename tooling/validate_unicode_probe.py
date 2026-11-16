@@ -16,7 +16,7 @@ from validate_url import source_closure
 def main() -> None:
     """Keep source closure, provider hashes and both bounded-memory outcomes with each probe."""
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--kind',choices=['edges','catalog','utf8-ownership'],required=True)
+    parser.add_argument('--kind',choices=['edges','catalog','utf8-ownership','utf8-spans'],required=True)
     parser.add_argument('--frontend',choices=['rust','native'],required=True)
     parser.add_argument('--native-snapshot',type=Path,default=NATIVE)
     parser.add_argument('--cpu',type=int,default=2)
@@ -25,11 +25,11 @@ def main() -> None:
     parser.add_argument('--output',type=Path,required=True)
     args=parser.parse_args();os.sched_setaffinity(0,{args.cpu})
     artifacts=args.artifacts.resolve();project=artifacts/'project';project.mkdir(parents=True,exist_ok=True)
-    text=edges() if args.kind=='edges' else catalog() if args.kind=='catalog' else (ROOT/'compiler/tests/fixtures/utf8-ownership-consumer.cinch').read_text()
+    text=edges() if args.kind=='edges' else catalog() if args.kind=='catalog' else (ROOT / ('compiler/tests/fixtures/utf8-span-controls.cinch' if args.kind == 'utf8-spans' else 'compiler/tests/fixtures/utf8-ownership-consumer.cinch')).read_text()
     source=project/'Main.cinch';source.write_text(text)
     paths=source_closure(project,source)+[source];exe=artifacts/'consumer'
     if args.utf8_source_override:
-        if args.kind!='utf8-ownership':raise ValueError('UTF8 override only applies to its ownership probe')
+        if args.kind not in ['utf8-ownership','utf8-spans']:raise ValueError('UTF8 override only applies to its ownership probe')
         (project/'Data.Bytes.Utf8.cinch').write_bytes(args.utf8_source_override.read_bytes())
     compiler=RUST if args.frontend=='rust' else args.native_snapshot/'cinch'
     runtime=Path('/workspace/dasl-stdlib-io/compiler/runtime/target/release/libcinchruntime.a') if args.frontend=='rust' else args.native_snapshot/'libcinchruntime.a'
