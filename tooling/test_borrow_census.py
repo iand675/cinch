@@ -23,6 +23,28 @@ end
         self.assertEqual(result['params'], 2)
         self.assertEqual(result['counted'], 2)
 
+    def test_wrapping_marks_and_quoted_names_do_not_hide_sites(self):
+        result = census('''unit Main.read :: A -> A
+  @params x :: A @obj, 'odd-name' :: A @obj
+  body (drop @class(obj)
+    x
+    (dup 'odd-name' @class(obj)
+      (string "(drop fake)" 11)))
+end
+''')
+        self.assertEqual(result['params'], 2)
+        self.assertEqual(result['sites'], 2)
+        self.assertEqual(result['on_params'], 2)
+
+    def test_types_and_annotations_are_not_executable_ownership_sites(self):
+        result = census('''unit Main.read :: forall drop. drop Int -> Int
+  @params x :: (drop Int) @obj
+  @prim("(dup fake)")
+  body (int 0)
+end
+''')
+        self.assertEqual(result['sites'], 0)
+
     def test_reports_do_not_add_two_inference_passes_together(self):
         text = '\n'.join([
             'unrelated diagnostic',

@@ -3,16 +3,18 @@
   "base_revision": "0bd9ae93",
   "corpus": "tooling.bootstrap.bundle(tooling.bootstrap.collect_compiler_sources())",
   "corpus_sha256": "1988dbcf0d56f34d41a2b5d879df2e16a03315eed27035615cc3f182d9229cd1",
+  "counter": "Tokenized Core body nodes, ignoring quoted text and allowing class marks before or after the operand. Parameter totals split tuple types without adding formals.",
   "date": "2026-11-16",
   "instrument": "native Rust compiler, core emit --stage=owned, CINCH_BORROW_REPORT=1",
   "measurement": "static Core ownership sites; not dynamic counts, elapsed time or a scaling measurement",
+  "refusal_scope": "Counted formals of ordinary Core functions in the dump. Constructor fields and primitive bodies are outside this refusal breakdown.",
   "rejected_leaf_rule": "Keep primitive exemptions and also exempt known ordinary units built only from literals, locals, constructors, lets, branches, projections, dictionary projections, allocations and box reads, rejecting user calls, globals and demands. Reject this change: ownership sites increase despite more borrowing.",
   "results": {
     "after_alias": {
       "borrowed": 5398,
       "core_sha256": "2d38728fdf444459d8379448aa4590c03ddc664b641a916212d48bdc0b7f1277",
       "counted": 16470,
-      "on_params": 70366,
+      "on_params": 70470,
       "params": 16907,
       "refusal_reasons": {
         "computed-argument": 27,
@@ -21,14 +23,14 @@
         "reuse": 3,
         "tail-owned-argument": 3146
       },
-      "sites": 168272,
+      "sites": 169958,
       "units": 6683
     },
     "before_alias": {
       "borrowed": 5398,
       "core_sha256": "2d38728fdf444459d8379448aa4590c03ddc664b641a916212d48bdc0b7f1277",
       "counted": 16470,
-      "on_params": 70366,
+      "on_params": 70470,
       "params": 16907,
       "refusal_reasons": {
         "computed-argument": 27,
@@ -37,14 +39,14 @@
         "reuse": 3,
         "tail-owned-argument": 3146
       },
-      "sites": 168272,
+      "sites": 169958,
       "units": 6683
     },
     "rejected_leaf_relaxation": {
       "borrowed": 5475,
       "core_sha256": "30020ae583d1f1220d170ca147548c428af7ac313cde9eaa26b97ca7a3593530",
       "counted": 16470,
-      "on_params": 71627,
+      "on_params": 71732,
       "params": 16907,
       "refusal_reasons": {
         "computed-argument": 27,
@@ -53,7 +55,7 @@
         "reuse": 3,
         "tail-owned-argument": 3116
       },
-      "sites": 169930,
+      "sites": 171650,
       "units": 6683
     }
   }

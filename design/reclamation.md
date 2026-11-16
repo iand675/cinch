@@ -852,14 +852,16 @@ to refuse, and both front ends accept the word.
   the argument, which the tail-call rule forbids.
 - A newer controlled census on 2026-11-16, based on `0bd9ae93`, is in
   `experiments/borrow-inference/2026-11-16.json`. The compiler bundle has
-  168,272 ownership sites and 5,398 inferred borrowed entries. Preserving
+  169,958 ownership sites and 5,398 inferred borrowed entries. Preserving
   variable-pattern aliases fixes the focused recursive examples but
   leaves this bundle byte identical. An experimental relaxation for
   callees that cannot call user code inferred 77 more borrowed entries
-  but increased ownership sites by 1,658, to 169,930, so it was rejected.
+  but increased ownership sites by 1,692, to 171,650, so it was rejected.
   More borrowed entries alone are not a performance improvement. These
   are static Core counts, with no dynamic-count or scaling claim. The
-  census also stops counting tuple-type commas as parameter separators.
+  census also stops counting tuple-type commas as parameter separators,
+  counts wrapped nodes whose class mark precedes the operand, and ignores
+  quoted text. The old operand-first regex missed 1,686 ownership sites.
 - Drop specialisation is the `Core::Release { block, moved, rest }` node,
   placed where a `Case` alternative on an owned, dead `Obj` scrutinee uses
   at least one field. Codegen tests the block's thread-local count with

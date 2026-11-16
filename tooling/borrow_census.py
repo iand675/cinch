@@ -25,6 +25,39 @@ import json
 from pathlib import Path
 import re
 
+TOKEN = re.compile(r'''"(?:\\.|[^"\\])*"|'(?:''|[^'])*'|[()]|[^()\s]+''')
+
+
+def unquote(name):
+    return name[1:-1].replace("''", "'") if name.startswith("'") and name.endswith("'") else name
+
+
+def ownership_sites(unit):
+    """Read actual node heads, ignoring strings and either mark layout."""
+    body = re.search(r"(?m)^  body\s+", unit)
+    if not body:
+        return []
+    tokens = TOKEN.findall(unit[body.end():])
+    sites = []
+    for i in range(len(tokens) - 1):
+        if tokens[i] != "(" or tokens[i + 1] not in {"dup", "drop", "release"}:
+            continue
+        at = i + 2
+        # Wrapped forms print `(drop @class(obj) x ...)`; inline forms
+        # print `(drop x @class(obj) ...)`. Marks may have nested arguments.
+        while at < len(tokens) and tokens[at].startswith("@"):
+            at += 1
+            if at < len(tokens) and tokens[at] == "(":
+                depth = 1
+                at += 1
+                while at < len(tokens) and depth:
+                    depth += (tokens[at] == "(") - (tokens[at] == ")")
+                    at += 1
+        if at >= len(tokens) or tokens[at] in {"(", ")"}:
+            raise ValueError(f"{tokens[i + 1]} has no operand")
+        sites.append(unquote(tokens[at]))
+    return sites
+
 
 def units(text):
     return re.split(r"(?m)^unit ", text)[1:]
@@ -32,7 +65,7 @@ def units(text):
 
 def unit_name(unit):
     name = unit.split(" ::")[0].strip()
-    return name[1:-1].replace("''", "'") if name.startswith("'") and name.endswith("'") else name
+    return unquote(name)
 
 
 def census(text):
@@ -44,18 +77,18 @@ def census(text):
         declared = set()
         header = re.search(r"@params (.*)", unit)
         if header:
-            for part in re.split(r",\s*(?=[A-Za-z0-9_]+\s+::)", header.group(1)):
+            for part in re.split(r",\s*(?=(?:[A-Za-z0-9_.$-]+|'(?:''|[^'])*')\s+::)", header.group(1)):
                 entry = part.strip()
                 if not entry:
                     continue
-                declared.add(entry.split()[0])
+                declared.add(unquote(TOKEN.match(entry).group()))
                 params += 1
                 counted += bool(re.search(r"@(?:obj|owned)\b", entry))
         inferred = re.search(r"@borrow-modes\(([^)]*)\)", unit)
         if inferred:
             borrowed += len([p for p in inferred.group(1).split(",") if p.strip()])
             borrowed_units.append(name)
-        sites = re.findall(r"\((?:dup|drop|release)\s+([A-Za-z0-9_]+)", unit)
+        sites = ownership_sites(unit)
         hit = sum(site in declared for site in sites)
         total += len(sites)
         on_params += hit
