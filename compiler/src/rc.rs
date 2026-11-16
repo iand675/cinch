@@ -210,12 +210,15 @@ fn insert_with(
             program.lent_entries.insert(unit.clone(), entry);
         }
     }
+    let results: HashMap<String, Class> = program.fns.iter()
+        .filter_map(|f| f.repr.result.map(|c| (f.id.0.clone(), concrete(c))))
+        .collect();
     for f in &mut program.fns {
         if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body {
             continue;
         }
         let borrowed = borrowed_params(&modes, f);
-        let body = transform(f, &modes, &borrowed, &ctors);
+        let body = transform(f, &modes, &borrowed, &ctors, &results);
         if verifying() && std::env::var_os("CINCH_RC_TRACE").is_some() {
             verify(f, &body, &modes, &borrowed).map_err(|m| {
                 if std::env::var_os("CINCH_RC_TRACE").is_some() {
@@ -1346,8 +1349,8 @@ fn reuse_allocation(
     })
 }
 
-fn transform(f: &FnDef, modes: &Modes, borrowed: &Set, ctors: &Ctors) -> Core {
-    transform_body(&param_classes(f), &f.body, true, modes, borrowed, ctors)
+fn transform(f: &FnDef, modes: &Modes, borrowed: &Set, ctors: &Ctors, results: &HashMap<String, Class>) -> Core {
+    transform_body(&param_classes(f), &f.body, true, modes, borrowed, ctors, results)
 }
 
 /// The count operations of a body whose parameters have the classes
@@ -1363,6 +1366,7 @@ fn transform_body(
     modes: &Modes,
     borrowed: &Set,
     ctors: &Ctors,
+    results: &HashMap<String, Class>,
 ) -> Core {
     let UnitFacts { classes: class, written } = UnitFacts::of(params, body);
     let mut next = params.len();
@@ -1379,6 +1383,7 @@ fn transform_body(
         specialize,
         modes,
         ctors,
+        results,
     };
     let owned: Set = (0..params.len()).filter(|i| pass.counted(*i) && !borrowed.contains(i)).collect();
     pass.go(body, &owned, &Set::new())
@@ -1400,6 +1405,9 @@ struct Pass<'m> {
     modes: &'m Modes,
     /// The program's constructors ([`Ctors`]), for reuse insertion.
     ctors: &'m Ctors,
+    /// Direct call result classes, including unboxed wide results held
+    /// temporarily while a borrowed argument is released.
+    results: &'m HashMap<String, Class>,
     /// Binders written through ([`UnitFacts`]).
     written: Set,
 }
@@ -1584,7 +1592,7 @@ impl Pass<'_> {
                 Core::Quote {
                     template: template.clone(),
                     holes: self.seq(&es, owned, live),
-                    body: body.as_ref().map(|b| Box::new(transform_body(&[], b, false, self.modes, &Set::new(), self.ctors))),
+                    body: body.as_ref().map(|b| Box::new(transform_body(&[], b, false, self.modes, &Set::new(), self.ctors, self.results))),
                 }
             }
             Core::Let(x, c, v, b) if let_alias(*x, *c, v, &self.class, &self.written).is_some() => {
@@ -1778,12 +1786,23 @@ impl Pass<'_> {
         let mut call = Core::App(Box::new(head), args);
         let drops: Vec<usize> = reads.iter().copied().filter(|x| owned.contains(x) && !live.contains(x)).collect();
         if !drops.is_empty() {
-            let r = self.fresh(Class::Raw);
+            // Preserve the result's representation across the argument
+            // drops. Calling an i128 result Raw would make the emitter
+            // insert a box after counting, with no drop for that box.
+            let class = match &call {
+                Core::App(head, _) => match &**head {
+                    Core::Global(id, _) => self.results.get(&id.0).copied(),
+                    Core::Prim(op) => crate::codegen::prim_result_class(*op),
+                    _ => None,
+                },
+                _ => None,
+            }.map(concrete).unwrap_or(Class::Raw);
+            let r = self.fresh(class);
             let mut after = Core::Var(LocalId(r));
             for x in drops.into_iter().rev() {
                 after = self.rc(true, x, after);
             }
-            call = Core::Let(LocalId(r), Class::Raw, Box::new(call), Box::new(after));
+            call = Core::Let(LocalId(r), class, Box::new(call), Box::new(after));
         }
         call
     }

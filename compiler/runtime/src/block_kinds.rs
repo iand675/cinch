@@ -99,8 +99,10 @@ pub const KIND_COLUMNAR: u8 = 16;
 /// scanned slot a live block ever has rewritten in place; its code is the
 /// cell's own `format` word (`SCAN_RAW`, `SCAN_OBJ` or `SCAN_TOBJ`).
 pub const KIND_TVAR: u8 = 17;
+/// Native MVar box: Rust-owned mutex, slot and FIFO wait queues.
+pub const KIND_MVAR: u8 = 18;
 /// Last live kind; keep range validation in step with new runtime kinds.
-pub const KIND_LAST: u8 = KIND_TVAR;
+pub const KIND_LAST: u8 = KIND_MVAR;
 /// A freed block (debug poisoning): the largest value the field holds.
 pub const KIND_FREED: u8 = 31;
 

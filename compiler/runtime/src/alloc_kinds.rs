@@ -56,6 +56,7 @@ const NAMES: [&[u8]; BUCKETS] = [
     b"tensor",
     b"columnar",
     b"tvar",
+    b"mvar",
     b"other",
 ];
 

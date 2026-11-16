@@ -78,6 +78,8 @@
 mod arrays_codegen;
 #[path = "slots_codegen.rs"]
 mod slots_codegen;
+#[path = "mvar_codegen.rs"]
+mod mvar_codegen;
 
 use crate::core::{
     AbiClass, AbiParam, ArithMode, ArithOp, BitOp, BitScanOp, BytesOp, CAlt, CBranch, CPat, Class,
@@ -504,6 +506,8 @@ fn emit_module(
         "declare i64 @cinch_array_slice(i64, i64, i64)",
         "declare i64 @cinch_array_append(i64, i64)",
         "declare i64 @cinch_stm_cell_new(i64, i64)",
+        "declare i64 @cinch_mvar_new(i64, i64, i64)",
+        "declare i64 @cinch_mvar_access(i64, i64, i64, i64, ptr)",
         crate::slots::DECLARES[0],
         crate::slots::DECLARES[1],
         crate::slots::DECLARES[2],
@@ -2188,6 +2192,7 @@ pub(crate) fn prim_result_class(op: PrimOp) -> Option<Class> {
     match op {
         PrimOp::Array { op, classes, packed } => Some(subst(op.params(packed), &op.sig(packed).1, &classes)),
         PrimOp::Stm { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
+        PrimOp::MVar { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
         PrimOp::Slots { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
         _ => prim_sig(op).map(|(_, result)| sig_class(&result)),
     }
@@ -2229,6 +2234,14 @@ pub(crate) fn prim_param_classes(op: PrimOp) -> Vec<Class> {
                 .map(|t| crate::repr::repr_of(t, &params, &SigTypes, &mut |_| {}).subst(&classes))
                 .collect()
         }
+        PrimOp::MVar { op, classes } => {
+            let params = op.params();
+            op.sig()
+                .0
+                .iter()
+                .map(|t| crate::repr::repr_of(t, &params, &SigTypes, &mut |_| {}).subst(&classes))
+                .collect()
+        }
         PrimOp::Delay | PrimOp::Force | PrimOp::ApplyErased | PrimOp::Eval => vec![Class::Obj],
         // The parallel units' parameters: two closures, or the callback and
         // the count / input array. The element classes are immediates in
@@ -2263,6 +2276,7 @@ pub(crate) fn prim_consumes(op: PrimOp, i: usize) -> bool {
     match op {
         PrimOp::Delay | PrimOp::Force | PrimOp::ApplyErased => i == 0,
         PrimOp::Stm { op, .. } => op.consumes(i),
+        PrimOp::MVar { op, .. } => op.consumes(i),
         PrimOp::Slots { op, .. } => op.consumes(i),
         PrimOp::Conc(ConcOp::WithScope | ConcOp::Spawn) => i == 1,
         _ => false,
@@ -2279,6 +2293,9 @@ fn prim_payload_classes(op: PrimOp) -> Vec<Class> {
         } else {
             vec![]
         };
+    }
+    if let PrimOp::MVar { op, classes } = op {
+        return if op.returns_option() { vec![classes[0]] } else { vec![] };
     }
     if matches!(op, PrimOp::Stm { .. } | PrimOp::Slots { .. }) {
         return vec![];
@@ -4177,6 +4194,7 @@ fn build_unit(
     };
     match &body {
         UnitBody::Prim(op) => {
+            if matches!(op, PrimOp::MVar { .. }) { lang.pure = false; }
             // A primitive that returns `Option` or `Ordering` boxes its
             // results as the prelude ADTs do: zero-field constructors are
             // static blocks whose headers carry their layout ids (`None`;
@@ -4626,6 +4644,11 @@ impl NarrowSig {
     fn of_wide_prim(op: PrimOp) -> Option<NarrowSig> {
         if !op.touches_wide() {
             return None;
+        }
+        if matches!(op, PrimOp::MVar { .. }) {
+            let cross = |c| if c == Class::Wide { Cross::WIDE } else { Cross::WORD };
+            return Some(NarrowSig { params: prim_param_classes(op).into_iter().map(cross).collect(),
+                ret: cross(prim_result_class(op).unwrap_or(Class::Raw)) });
         }
         let (params, ret) = prim_sig(op)?;
         let cross = |t: &crate::types::Ty| match t {
@@ -5853,6 +5876,10 @@ fn arith_overflow(
 /// `v`: the `Some@W` block's one field is an `i128` over two raw payload
 /// words, the layout the program's own `Option` copy at `W` has.
 fn ret_option_wide(b: &mut Builder, reg: &Registry, name: &str, none_if: &str, v: &str) {
+    ret_option_wide_with(b, reg, name, none_if, |_| v.to_string());
+}
+
+fn ret_option_wide_with(b: &mut Builder, reg: &Registry, name: &str, none_if: &str, val: impl FnOnce(&mut Builder) -> String) {
     let lnone = b.label();
     let lsome = b.label();
     b.line(&format!("br i1 {none_if}, label %{lnone}, label %{lsome}"));
@@ -5865,6 +5892,7 @@ fn ret_option_wide(b: &mut Builder, reg: &Registry, name: &str, none_if: &str, v
     ));
     b.line(&format!("ret i64 {w}"));
     b.start(&lsome);
+    let v = val(b);
     let p = b.reg();
     b.line(&ctor_alloc_call(&p, 16, reg.shape_desc(&[Class::Raw, Class::Raw], TAG_SOME)));
     b.line(&format!("store i128 {v}, ptr {p}, align 8"));
@@ -5883,6 +5911,10 @@ fn ret_option_wide(b: &mut Builder, reg: &Registry, name: &str, none_if: &str, v
 fn wide_prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: PrimOp) -> Result<()> {
     use crate::core::{IntOp, NatOp};
     use PrimOp::*;
+    if let MVar { op: mvar_op, classes } = op {
+        mvar_codegen::emit(b, reg, name, op, mvar_op, classes);
+        return Ok(());
+    }
     // `Usize`/`Isize` take the target's width (a conversion's other end).
     let op = op.resolve_widths(cx.usize_bits);
     let not_yet = |what: &str| {
@@ -6615,6 +6647,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             packed,
         } => arrays_codegen::emit(b, reg, name, op, array_op, classes, packed),
         Slots { op: slot_op, classes } => slots_codegen::emit(b, reg, slot_op, classes),
+        MVar { op: mvar_op, classes } => mvar_codegen::emit(b, reg, name, op, mvar_op, classes),
         Stm { op: stm_op, classes } => {
             use crate::stm::StmOp::*;
             match stm_op {

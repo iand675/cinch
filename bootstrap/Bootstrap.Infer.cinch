@@ -2094,9 +2094,15 @@ module Bootstrap.Infer where
     Cons (DMethod sp label symbol syntax) rest -> case source-method label (class-methods description) of
       Some method -> case class-method-equation method of
         Some equation -> register-source-methods description rest env st
-        None -> register-source-methods description rest
-          (Cons (MkMethodBinding symbol (class-method-scheme method) (class-name description) (class-method-slot method))
-            (without-binding symbol env)) st
+        -- A method whose symbol is a kernel operation is checked at the call
+        -- site, where the caller's element classes are known; a method
+        -- binding would route the call through the class contract instead
+        -- and record the method's own type parameters (section 4).
+        None -> case par-syntax-name symbol of
+          True -> register-source-methods description rest env st
+          False -> register-source-methods description rest
+            (Cons (MkMethodBinding symbol (class-method-scheme method) (class-name description) (class-method-slot method))
+              (without-binding symbol env)) st
       None -> register-source-methods description rest env (add-error sp "source method has no declaring slot" st)
     Cons (DFun sp label clauses) rest -> case source-method label (class-methods description) of
       Some (MkCoreEquationMethod at name slot telescope symbol equation) ->
@@ -2603,7 +2609,7 @@ module Bootstrap.Infer where
   -- values: their callbacks are read literally at the call site, so a
   -- function-typed parameter or a first-class alias cannot be checked.
   par-syntax-name :: String -> Bool
-  par-syntax-name name = has name ["b.parBoth", "b.parTabulate", "b.parMap"]
+  par-syntax-name name = has name ["b.parBoth", "b.parTabulate", "b.parMap", "b.parWorkers"]
   par-operation :: String -> String
   par-operation name = if same name "b.parBoth" then "ParBoth"
     else if same name "b.parTabulate" then "ParTabulate"
@@ -4956,6 +4962,13 @@ module Bootstrap.Infer where
                         (CPrimitive sp result (par-operation-name name) (CArgument sp checked-f (CArgument sp checked-g (CArgumentsEnd sp))),
                           case wanted of None -> six; Some expected -> unify sp result expected six)))
         other -> term-error sp "parBoth takes exactly two callbacks" st)
+      else if same name "b.parWorkers" then (case args of
+        Cons count Nil -> (case check classes kinds families env locals count (primitive-type "Nat") st of
+          (checked-count, one) ->
+            let result = primitive-type "Unit" in
+            (CPrimitive sp result "par-workers" (CArgument sp checked-count (CArgumentsEnd sp)),
+              case wanted of None -> one; Some expected -> unify sp result expected one))
+        other -> term-error sp "workers takes exactly one participant count" st)
       else if same name "b.parTabulate" then (case args of
         Cons count (Cons f Nil) -> (case check classes kinds families env locals count (primitive-type "Nat") st of
           (checked-count, one) -> case fresh-meta KType one of

@@ -548,6 +548,21 @@ impl<'a> Printer<'a> {
                 anns.push((rank("prim"), format!("@prim({} for {})", plan.name, plan.selected_why)));
             }
         }
+        // What `rc::borrow_modes` decided about this unit's parameters. The
+        // `@borrowed` annotation below is `Program::lent`, which is the
+        // lending convention a call site uses and is populated for the units
+        // this artifact calls through a worker, not for every lending unit.
+        if let Some(modes) = self.program.borrowed.get(&f.id.0) {
+            let lendable: Vec<String> = modes
+                .iter()
+                .enumerate()
+                .filter(|(_, borrowable)| **borrowable)
+                .map(|(index, _)| (index + 1).to_string())
+                .collect();
+            if !lendable.is_empty() {
+                anns.push((rank("borrow-modes"), format!("@borrow-modes({})", lendable.join(","))));
+            }
+        }
         if let Some(lent) = self.program.lent.get(&f.id.0) {
             let borrowed: Vec<String> = lent
                 .iter()
@@ -1061,6 +1076,10 @@ fn class_text(class: Class) -> String {
     match class {
         Class::Raw => "uncounted".to_string(),
         Class::Wide => "uncounted wide".to_string(),
+        // A counted object class, NOT the owned calling convention. The
+        // dump once labelled this `@owned`, which reads as the opposite of
+        // the `@borrow-modes` annotation beside it and sent a reader looking
+        // for a lending analysis result that was never printed.
         Class::Obj | Class::TObj => "obj".to_string(),
         Class::Param(index) => format!("param({index})"),
     }

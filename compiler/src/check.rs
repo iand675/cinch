@@ -5449,7 +5449,7 @@ impl Checker {
             Ty::Adt(name, args) => {
                 if is_capability_class(name) || name == "Scope" || name == "Copy" { return false; }
                 if name == "Task" { return true; }
-                if matches!(name.as_str(), "Array" | "Tensor" | "Columnar" | "TVar") {
+                if matches!(name.as_str(), "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell") {
                     return args.iter().any(|arg| self.value_may_hide_scope(arg, seen, fuel - 1));
                 }
                 seen.push(ty.clone());
@@ -5566,7 +5566,7 @@ impl Checker {
                 // is reached from both sides whether the handle is shared
                 // or moved (another copy of it may stay behind), so both
                 // need the value's type to be safe to share.
-                if name == "TVar" {
+                if matches!(name.as_str(), "TVar" | "MVarCell") {
                     return usage == StructuralUsage::Copy
                         || args.iter().all(|a| self.structural_usage(a, scope, &mut Vec::new(), StructuralUsage::Share));
                 }

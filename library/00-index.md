@@ -131,6 +131,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.Target](Data.Target.md) | Embedded | Target/platform and worker vocabulary used by the compiler-supported runtime and target examples. |
 | [Data.Tensor](Data.Tensor.md) | Ship source | Immutable row-major tensors with checked runtime shapes of any rank. |
 | [Data.Time](Data.Time.md) | Ship source | Time values, durations, and conversions with explicit units and admitted ranges. |
+| [Data.Wide](Data.Wide.md) | Embedded | Signed and unsigned 128-bit scalars, with explicit checked, wrapping, and saturating arithmetic, bit operations, comparisons, and numeric conversions. |
 
 ## Text
 
@@ -162,6 +163,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | --- | --- | --- |
 | [Effect.Benchmark](Effect.Benchmark.md) | Ship source | Benchmark case execution and timing/reporting helpers over runtime clocks. |
 | [Effect.Clock](Effect.Clock.md) | Embedded | Runtime monotonic and wall-clock readings under an I/O capability. Clocks are not ambient compile-time inputs. |
+| [Effect.Concurrent.MVar](Effect.Concurrent.MVar.md) | Embedded | Native single-place shared variables with FIFO handoff, blocking take/put/read/swap, nonblocking operations, and cancellable waits through the task scheduler. |
 | [Effect.Concurrent](Effect.Concurrent.md) | Embedded | Shipped task/worker vocabulary supplementing the compiler-installed structured scope and join operations. |
 | [Effect.Coverage](Effect.Coverage.md) | Ship source | Coverage collection/reporting utilities with explicit runtime and source metadata. |
 | [Effect.FileUtils](Effect.FileUtils.md) | Ship source | Convenience filesystem operations built on the lower-level filesystem API. |
@@ -187,7 +189,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **120 source modules**: **64 embedded** and **56 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **122 source modules**: **66 embedded** and **56 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

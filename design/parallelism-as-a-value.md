@@ -581,3 +581,85 @@ Until that lands, the parallel safety rules stay attached to the
 `parBoth`/`parTabulate`/`parMap` builtin path, which is the status quo and
 not a weakening of anything that works today. Nothing in this port
 loosens a rule.
+
+## 11 Outcome (2026-11-16)
+
+What shipped is the operations, not a class:
+
+- `parBoth`, `parTabulate`, `parMap`, `parWorkers` are the surface. Each is
+  kernel syntax elaborated at its call site, so the caller's element classes
+  reach `PrimOp::Par`; `parWorkers` is new and lowers through `par-workers`
+  to `cinch_par_set_workers`.
+- `parWorkers 4` and `parBoth (\() -> 1) (\() -> 2)` are checked, built and
+  run by tests, which is the first executable evidence the surface works.
+- The class, its parsed signature, the method-slot table, the instance name
+  and the class admission are deleted. Two measured reasons: a dictionary
+  field body exists once, so it records the method's own type parameters
+  instead of the caller's element classes, and a method spelled `both` is
+  unreachable anyway because `Function.Combinators` already defines
+  `both :: (a -> b) -> (a -> c) -> a -> (b, c)` and the prelude wins a bare
+  call.
+- A parallel fold over a container needs no further primitive:
+  `sumTree` splits a list across `parBoth` at each step with lambda-literal
+  callbacks, and a test runs it.
+
+What remains open is only the generic form. `parTraverse` over any
+`Traversable` needs effects carried through a dictionary, which is the one
+thing the class vector forbids, and a `Parallel e a` wrapper needs a row
+parameter no data type can declare. Both are recorded above; neither is
+attempted.
+
+## 12 Why a generic `parTraverse` is refused, measured
+
+My earlier notes blamed the dictionary and the row parameter. Both were wrong
+for the case that actually matters, and the real blocker is one rule.
+
+**It is the capture rule, and it reads types only.** `par-callback-error`
+takes a callback's free variables and classifies each with
+`par-capture-error ... id ty`; the only thing it knows about a capture is its
+**type**. `task-shareable` has no case for `UFun` or `UFunEff`: a function
+type falls through to `task-data-property`, finds no data declaration, and
+answers False. So a capture of function type can never be `Share`, no matter
+what value is passed.
+
+Two programs, both checked against stage 3, isolate it:
+
+```ken
+-- refused: bootstrap.check:8:25: a parallel capture must be Share, or move
+-- into one parBoth branch: f is shared with a parBoth callback without
+-- shareable evidence
+parTraverseList f xs = case xs of
+  Cons y rest -> case parBoth (\() -> f y) (\() -> parTraverseList f rest) of
+    (head, tail) -> Cons head tail
+
+-- accepted, exit 0: the same walk with a global callback, `twice`
+doubleAll xs = case xs of
+  Cons y rest -> case parBoth (\() -> twice y) (\() -> doubleAll rest) of
+    (head, tail) -> Cons head tail
+```
+
+So the operations, the lowering, the call-site classes and the walk itself
+are all fine. What is missing is a channel for **evidence about a function
+value's captures**.
+
+**What that takes.** A capture is Share when the value's own captures are:
+a global function has none and is trivially Share; a lambda or partial
+application is Share iff each of its captures is. The checker sees captures
+where the value is *built*, so the evidence has to travel with the value —
+the note's own section 2.4 `share` attribute, or a `Share` class whose
+function instance is discharged at the binding site. Then
+
+```text
+parTraverse :: using (shareable :: Share (a -> b)) => (a -> b) -> t a -> t b
+```
+
+and a caller either passes a global (free) or a closure whose captures it can
+prove shareable.
+
+**And the row parameter is only needed for the other encoding.** The
+`Parallel e a` wrapper exists to instantiate the prelude's `traverse`, which
+requires an `Applicative f`. Walking the container directly with `parBoth`
+needs no wrapper and no row parameter, as `doubleAll` shows. So the two
+remaining pieces are independent: the generic-over-`Traversable` version
+needs an applicative (hence the row parameter), and any version taking a
+callback *parameter* needs Share evidence for it.

@@ -163,6 +163,7 @@ fn prim_sig(op: PrimOp) -> Option<Sig> {
     let (params, ret) = op.sig();
     let r = |t: &crate::types::Ty| match t {
         crate::types::Ty::Prim(s) if s.is_wide() => Rep::Wide,
+        crate::types::Ty::Param(_) if matches!(op, PrimOp::MVar { classes, .. } if classes[0] == Class::Wide) => Rep::Wide,
         _ => Rep::Word,
     };
     Some(Sig { params: params.iter().map(r).collect(), ret: r(&ret) })

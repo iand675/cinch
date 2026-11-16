@@ -913,3 +913,68 @@ module Main where
     );
     common::cleanup(&dir);
 }
+
+// The host instance's methods are the operations that lower them, resolved at
+// the call site: a dictionary field body exists once and would record the
+// classes of the method's own type parameters, while `PrimOp::Par` needs the
+// caller's (design/parallelism-as-a-value.md). These two programs are the
+// first user-level callers of the interface.
+#[test]
+fn the_host_instance_sets_the_participant_budget() {
+    expect_ok(
+        "parallel_workers",
+        r#"
+module Main where
+  main :: Int
+  main = case parWorkers 4 of _ -> 0
+"#,
+        0,
+    );
+}
+
+#[test]
+fn the_host_instance_runs_both_branches() {
+    expect_ok(
+        "parallel_host_both",
+        r#"
+module Main where
+  import Data.Nat
+
+  pair :: (Nat, Nat)
+  pair = parBoth (\() -> 1) (\() -> 2)
+
+  main :: Int
+  main = case pair of
+    (a, b) -> if nat-to-int (a + b) == 3 then 0 else 1
+"#,
+        0,
+    );
+}
+
+// A container walk that splits its work across `parBoth`. This is the shape
+// `parTraverse`/`parFoldMap` take when they are written where the callbacks
+// are: the surface's operations are call-site elaborated, so a generic
+// dictionary-carried traversal is not the mechanism (design section 4). What
+// it shows is that a parallel fold over a container needs no new primitive.
+#[test]
+fn a_parallel_fold_over_a_list_agrees_with_the_sequential_reading() {
+    expect_ok(
+        "parallel_list_fold",
+        r#"
+module Main where
+  import Data.Nat
+  import Data.List
+
+  sumTree :: List Nat -> Nat
+  sumTree xs = case xs of
+    Nil -> 0
+    Cons a Nil -> a
+    Cons a rest -> case parBoth (\() -> a) (\() -> sumTree rest) of
+      (x, y) -> x + y
+
+  main :: Int
+  main = if nat-to-int (sumTree (Cons 1 (Cons 2 (Cons 3 Nil)))) == 6 then 0 else 1
+"#,
+        0,
+    );
+}

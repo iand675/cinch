@@ -1,0 +1,92 @@
+-- A native, shared single-place variable with FIFO handoff.
+--
+-- Take waits while empty; put waits while full. Read leaves the value
+-- in place and swap replaces it atomically. Blocked takers (including
+-- swaps) and putters are served in registration order. A put completes
+-- every reader waiting for that value, even when a taker receives it
+-- immediately. Nonblocking calls cannot steal reserved values or space.
+--
+-- Each variable owns a runtime mutex and FIFO wait queues. Waiting parks
+-- the current scheduler context, giving its worker to another task. No
+-- STM, global variable registry, or busy polling is involved. The MVar
+-- effect labels access; blocking calls additionally carry Diverge.
+--
+-- The -or-cancel forms remove pending requests before returning None
+-- (False for put). A committed handoff wins a cancellation race: the
+-- call returns the value/success, so cancellation cannot lose a value.
+-- Plain calls wait regardless of cooperative cancellation. As with
+-- other cancellable waits, immediately available operations succeed
+-- even when cancellation has already been requested.
+--
+-- Constructors are private. A handle is Copy, but crossing a task
+-- boundary requires its contents to be shareable. is-empty is only a
+-- snapshot. FIFO starts at registration, not before acquiring the mutex;
+-- no bound on scheduling or mutex acquisition is promised.
+module Effect.Concurrent.MVar where
+
+  import Data.Option
+
+  export MVar, mvar-new, mvar-new-empty
+  export mvar-take, mvar-put, mvar-read, mvar-swap
+  export mvar-try-take, mvar-try-put, mvar-try-read, mvar-is-empty
+  export mvar-take-or-cancel, mvar-put-or-cancel, mvar-read-or-cancel, mvar-swap-or-cancel
+
+  data MVar a where
+    MkMVar :: MVarCell a -> MVar a
+
+  foreign import ccall "cinch.runtime.mvarNew" cell-new :: forall a. a ->{MVar} MVarCell a
+  foreign import ccall "cinch.runtime.mvarNewEmpty" cell-new-empty :: forall a. Unit ->{MVar} MVarCell a
+  foreign import ccall "cinch.runtime.mvarTake" cell-take :: forall a. MVarCell a ->{MVar, Diverge} a
+  foreign import ccall "cinch.runtime.mvarPut" cell-put :: forall a. MVarCell a -> a ->{MVar, Diverge} Unit
+  foreign import ccall "cinch.runtime.mvarRead" cell-read :: forall a. MVarCell a ->{MVar, Diverge} a
+  foreign import ccall "cinch.runtime.mvarSwap" cell-swap :: forall a. MVarCell a -> a ->{MVar, Diverge} a
+  foreign import ccall "cinch.runtime.mvarTryTake" cell-try-take :: forall a. MVarCell a ->{MVar} Option a
+  foreign import ccall "cinch.runtime.mvarTryPut" cell-try-put :: forall a. MVarCell a -> a ->{MVar} Bool
+  foreign import ccall "cinch.runtime.mvarTryRead" cell-try-read :: forall a. MVarCell a ->{MVar} Option a
+  foreign import ccall "cinch.runtime.mvarIsEmpty" cell-is-empty :: forall a. MVarCell a ->{MVar} Bool
+  foreign import ccall "cinch.runtime.mvarTakeOrCancel" cell-take-or-cancel :: forall a. MVarCell a ->{MVar, Diverge} Option a
+  foreign import ccall "cinch.runtime.mvarReadOrCancel" cell-read-or-cancel :: forall a. MVarCell a ->{MVar, Diverge} Option a
+  foreign import ccall "cinch.runtime.mvarSwapOrCancel" cell-swap-or-cancel :: forall a. MVarCell a -> a ->{MVar, Diverge} Option a
+  foreign import ccall "cinch.runtime.mvarPutOrCancel" cell-put-or-cancel :: forall a. MVarCell a -> a ->{MVar, Diverge} Bool
+
+  mvar-new :: forall a. a ->{MVar} MVar a
+  mvar-new x = MkMVar (cell-new x)
+
+  mvar-new-empty :: forall a. Unit ->{MVar} MVar a
+  mvar-new-empty u = MkMVar (cell-new-empty u)
+
+  mvar-take :: forall a. MVar a ->{MVar, Diverge} a
+  mvar-take (MkMVar cell) = cell-take cell
+
+  mvar-put :: forall a. MVar a -> a ->{MVar, Diverge} Unit
+  mvar-put (MkMVar cell) x = cell-put cell x
+
+  mvar-read :: forall a. MVar a ->{MVar, Diverge} a
+  mvar-read (MkMVar cell) = cell-read cell
+
+  mvar-swap :: forall a. MVar a -> a ->{MVar, Diverge} a
+  mvar-swap (MkMVar cell) x = cell-swap cell x
+
+  mvar-try-take :: forall a. MVar a ->{MVar} Option a
+  mvar-try-take (MkMVar cell) = cell-try-take cell
+
+  mvar-try-put :: forall a. MVar a -> a ->{MVar} Bool
+  mvar-try-put (MkMVar cell) x = cell-try-put cell x
+
+  mvar-try-read :: forall a. MVar a ->{MVar} Option a
+  mvar-try-read (MkMVar cell) = cell-try-read cell
+
+  mvar-is-empty :: forall a. MVar a ->{MVar} Bool
+  mvar-is-empty (MkMVar cell) = cell-is-empty cell
+
+  mvar-take-or-cancel :: forall r a. using (io :: Io r) => MVar a ->{MVar, Cancel r, Diverge} Option a
+  mvar-take-or-cancel (MkMVar cell) = cell-take-or-cancel cell
+
+  mvar-read-or-cancel :: forall r a. using (io :: Io r) => MVar a ->{MVar, Cancel r, Diverge} Option a
+  mvar-read-or-cancel (MkMVar cell) = cell-read-or-cancel cell
+
+  mvar-swap-or-cancel :: forall r a. using (io :: Io r) => MVar a -> a ->{MVar, Cancel r, Diverge} Option a
+  mvar-swap-or-cancel (MkMVar cell) x = cell-swap-or-cancel cell x
+
+  mvar-put-or-cancel :: forall r a. using (io :: Io r) => MVar a -> a ->{MVar, Cancel r, Diverge} Bool
+  mvar-put-or-cancel (MkMVar cell) x = cell-put-or-cancel cell x
