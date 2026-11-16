@@ -163,6 +163,14 @@
       "public_methods": 0
     },
     {
+      "module": "Data.Bytes.View",
+      "path": "compiler/prelude/Data/Bytes/View.cinch",
+      "sha256": "c55e57028c56d673d75c29ba91936ee614c3631addda328abe75c12a1bbf3e7e",
+      "embedded": false,
+      "values": 47,
+      "public_methods": 0
+    },
+    {
       "module": "Data.Bytes.Word",
       "path": "compiler/prelude/Data/Bytes/Word.cinch",
       "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
@@ -843,6 +851,14 @@
       "public_methods": 0
     },
     {
+      "module": "Effect.QuotedPrintable",
+      "path": "compiler/prelude/Effect/QuotedPrintable.cinch",
+      "sha256": "10a4170d30c13f663f72ed741df8f381ae6098fe230055098f65ec607c66fd97",
+      "embedded": false,
+      "values": 10,
+      "public_methods": 0
+    },
+    {
       "module": "Effect.Random",
       "path": "compiler/prelude/Effect/Random.cinch",
       "sha256": "c5d1bcb6f88ed290dd79e70ddf789c1071b9e492a913b54bb62eff3022f012ce",
@@ -1165,9 +1181,9 @@
     {
       "module": "Text.Json.Codec",
       "path": "compiler/prelude/Text/Json/Codec.cinch",
-      "sha256": "ae4470f5497bb4558ed11df1bb534d7777b041e02ab0898015172971813eb138",
+      "sha256": "7f976b62e406a8e9ea517f850da5ef226bf97388b1ed7dd2acb017af9637a1a1",
       "embedded": false,
-      "values": 71,
+      "values": 83,
       "public_methods": 0
     },
     {
@@ -1224,6 +1240,14 @@
       "sha256": "8a9f7c29198f038a541bd510a68aee1502f1d8c3d3693500406fe24aba86cbad",
       "embedded": false,
       "values": 11,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.QuotedPrintable",
+      "path": "compiler/prelude/Text/QuotedPrintable.cinch",
+      "sha256": "cfc475a514b56bc919e4aa3de4e97ed19d09816e25ccdb530cebaee90bf8d6cb",
+      "embedded": false,
+      "values": 20,
       "public_methods": 0
     },
     {

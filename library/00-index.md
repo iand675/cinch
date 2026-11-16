@@ -82,6 +82,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.Bytes.Build](Data.Bytes.Build.md) | Ship source | Fresh byte cloning, doubling repetition, concatenation and separator-aware joining. |
 | [Data.Bytes.Search](Data.Bytes.Search.md) | Ship source | Exact first, last, containment and count queries over raw bytes with bounded SWAR traversals. |
 | [Data.Bytes.Utf8](Data.Bytes.Utf8.md) | Ship source | Raw UTF-8 validation, forward and reverse decoding, scalar counting, fresh repair and atomic encoding. |
+| [Data.Bytes.View](Data.Bytes.View.md) | Ship source | Owner-retaining checked byte views, stable compiled substring patterns and bounded search, cut and comparison operations. |
 | [Data.Bytes.Word](Data.Bytes.Word.md) | Ship source | Bounds-proved unaligned little-endian machine-word reads and writes for SIMD and SWAR processing. |
 | [Data.Bytes](Data.Bytes.md) | Embedded | Mutable byte buffers with length, construction, copy, and bounds/range-aware access operations. |
 | [Data.Char](Data.Char.md) | Embedded | Unicode scalar values and checked character/code conversions, with range information for safe use. |
@@ -169,7 +170,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Fnv](Text.Fnv.md) | Ship source | Incremental 32-, 64- and 128-bit FNV-1 and FNV-1a hashing with explicit wrapping arithmetic. |
 | [Text.Hex](Text.Hex.md) | Ship source | SIMD hexadecimal text/byte codecs, prefix-preserving decoding, append and destination operations, and formatted byte dumps. |
 | [Text.Html](Text.Html.md) | Ship source | HTML text/byte escaping, complete HTML5 character references, exact escaped sizing and SIMD/SWAR scanning. |
-| [Text.Json.Codec](Text.Json.Codec.md) | Ship source | Explicit typed JSON codecs, record field policies, custom conversion callbacks and exact binary64 formatting. |
+| [Text.Json.Codec](Text.Json.Codec.md) | Ship source | Typed JSON codecs for records, machine integers, binary buffers and exact binary64 values, with explicit policies and custom callbacks. |
 | [Text.Json.Value](Text.Json.Value.md) | Ship source | Owned JSON documents and navigation tapes, exact source spans and numbers, resumable lexical state, and byte-preserving formatting. |
 | [Text.Json](Text.Json.md) | Ship source | JSON parsing and rendering over Data.Json, with explicit errors and builder-based output. |
 | [Text.Lex](Text.Lex.md) | Ship source | A source-distributed lexer toolkit: tokens, spans, and lexical errors for compiler/parser clients. |
@@ -177,6 +178,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Otlp](Text.Otlp.md) | Ship source | OTLP/JSON record construction/rendering for structured log/trace data and trace-context helpers. |
 | [Text.Parse](Text.Parse.md) | Ship source | A source-distributed parser toolkit over the lexer/scanner vocabulary. |
 | [Text.Path](Text.Path.md) | Ship source | Portable slash-path lexical operations and checked shell patterns with reusable compiled matchers and exact SIMD scans. |
+| [Text.QuotedPrintable](Text.QuotedPrintable.md) | Ship source | Quoted-printable byte encoding and decoding with checked line wrapping, escape and malformed-input policies. |
 | [Text.Regex](Text.Regex.md) | Ship source | Regular-expression parsing/matching and replacement under the module's admitted regex language. |
 | [Text.Scan](Text.Scan.md) | Ship source | Scanning primitives over input text and the shared position/error vocabulary. |
 | [Text.Sha256](Text.Sha256.md) | Ship source | Portable SHA-224/SHA-256 with generated SIMD schedules, persistent states, network-order digests and checked binary checkpoints. |
@@ -224,6 +226,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Effect.Net](Effect.Net.md) | Ship source | Socket operations with explicit handles, address values, errors, and runtime effects. |
 | [Effect.Process](Effect.Process.md) | Embedded | One-shot and live subprocesses, command arguments/environment additions, pipes, exit codes, and this process's arguments. |
 | [Effect.Pty](Effect.Pty.md) | Ship source | Pseudo-terminal-backed child processes, terminal I/O, and lifecycle operations. |
+| [Effect.QuotedPrintable](Effect.QuotedPrintable.md) | Ship source | Incremental quoted-printable readers and writers with explicit binary policy, partial progress and sticky errors. |
 | [Effect.Random](Effect.Random.md) | Ship source | Runtime entropy/random utilities with explicit effectful access. |
 | [Effect.Resolv](Effect.Resolv.md) | Ship source | Hostname/address resolution through the runtime, with named failure results. |
 | [Effect.Sequencing](Effect.Sequencing.md) | Embedded | The direct, Result, and Option do providers. One lexical provider/container is selected per definition. |
@@ -240,7 +243,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **173 source modules**: **65 embedded** and **108 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **176 source modules**: **65 embedded** and **111 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 
