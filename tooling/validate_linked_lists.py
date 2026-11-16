@@ -34,20 +34,28 @@ def main() -> None:
     parser.add_argument('--frontend', choices=['rust', 'native'], required=True)
     parser.add_argument('--compiler', type=Path, required=True)
     parser.add_argument('--interfaces', type=Path)
+    parser.add_argument('--runtime', type=Path, help='Explicit matched Rust runtime archive')
     parser.add_argument('--artifacts', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--cpu', type=int, default=4)
     parser.add_argument('--cases', type=int, nargs='+', default=list(range(8)))
-    parser.add_argument('--modes', choices=['trace', 'control'], nargs='+', default=['trace', 'control'])
+    parser.add_argument('--modes', choices=['trace', 'control', 'capacity', 'growth'], nargs='+', default=['trace', 'control', 'capacity', 'growth'])
     args = parser.parse_args()
     os.sched_setaffinity(0, {args.cpu})
     args.compiler = args.compiler.resolve()
     if args.frontend == 'native' and not args.interfaces:
         parser.error('native consumers require the exact frozen interface manifest')
+    if args.frontend == 'rust' and not args.runtime:
+        parser.error('Rust consumers require an explicit matched --runtime archive')
+    if args.frontend == 'native' and args.runtime:
+        parser.error('Native runtime selection belongs to its exact frontend wrapper')
     frozen = {name: path.read_bytes() for name, path in MODULES.items()}
     jobs = {f'trace-{index}': source(index) for index in args.cases if 'trace' in args.modes}
     if 'control' in args.modes:
         jobs['control'] = source(0, 'control')
+    for mode in ['capacity', 'growth']:
+        if mode in args.modes:
+            jobs[mode] = source(0, mode)
     report = {'description': __doc__, 'frontend': args.frontend, 'compiler_sha256': digest(args.compiler),
               'runner_sha256': digest(Path(__file__)), 'fixture_sha256': digest(ROOT / 'compiler/tests/fixtures/linked-list-vectors.json'),
               'sources': {name: hashlib.sha256(contents).hexdigest() for name, contents in frozen.items()},
@@ -55,7 +63,18 @@ def main() -> None:
     if args.frontend == 'native':
         report.update(native_compiler_sha256=digest(args.compiler.parent / 'cinch'),
                       interfaces_sha256=digest(args.interfaces.resolve()))
+    if args.runtime:
+        args.runtime = args.runtime.resolve()
+        report['runtime_sha256'] = digest(args.runtime)
+        provenance = args.compiler.parent / 'provenance.json'
+        if provenance.exists():
+            frozen_producer = json.loads(provenance.read_text())
+            assert frozen_producer['compiler_sha256'] == digest(args.compiler)
+            assert frozen_producer['runtime_sha256'] == digest(args.runtime)
+            report['frozen_compiler_provenance'] = frozen_producer
     args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.artifacts.mkdir(parents=True, exist_ok=True)
+    (args.artifacts / 'runner.py').write_bytes(Path(__file__).read_bytes())
     for label, consumer in jobs.items():
         directory = args.artifacts.resolve() / label
         directory.mkdir(parents=True, exist_ok=True)
@@ -64,7 +83,7 @@ def main() -> None:
         (directory / 'Main.cinch').write_text(consumer)
         executable = directory / 'consumer'
         if args.frontend == 'rust':
-            command = [str(args.compiler), 'build', str(directory / 'Main.cinch'), '-o', str(executable), '--opt-level', '2', '--rc-debug']
+            command = [str(args.compiler), 'build', str(directory / 'Main.cinch'), '-o', str(executable), '--opt-level', '2', '--runtime-archive', str(args.runtime)]
         else:
             bundle = directory / 'Bundle.cinch'
             bundle.write_text('\n\n'.join(contents.decode() for contents in frozen.values()) + '\n\n' + consumer)
