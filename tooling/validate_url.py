@@ -33,6 +33,8 @@ def literal(text: str) -> str:
 def consumer(suite: str) -> str:
     """Render compact exact rows and shallow batches of large public-pipeline checks."""
     fixture = json.loads((ROOT / "compiler/tests/fixtures/url-vectors.json").read_text())
+    if suite == "url":
+        return url_consumer()
     if suite != "codec":
         raise ValueError(f"URL suite not yet implemented: {suite}")
     source = (ROOT / "compiler/tests/fixtures/url-codec-consumer.cinch.in").read_text()
@@ -49,6 +51,46 @@ def consumer(suite: str) -> str:
         calls.append(name + " ()")
         selection.append(f'    else if name == "{name}" then {name} ()')
     return source.replace("__ENCODED__", literal(encoded)).replace("__DECODED__", literal(decoded)).replace("__LONG_DECLS__", "\n\n".join(declarations)).replace("__LONG_CALLS__", ", ".join(calls)).replace("__LONG_SELECT__", "\n".join(selection))
+
+
+def url_consumer() -> str:
+    """Render shallow independent public-capability groups with exact byte metadata."""
+    fixture = json.loads((ROOT / "compiler/tests/fixtures/url-vectors.json").read_text())
+    source = (ROOT / "compiler/tests/fixtures/url-consumer.cinch.in").read_text()
+    declarations, selection, calls = [], ['    else if name == "ownership" then ownership-cases ()'], ["ownership-cases"]
+    for section, runner in [("parsing", "parsing-from"), ("queries", "query-from"), ("resolution", "resolution-from"), ("manual", "manual-from"), ("joining", "joining-from")]:
+        for index, start in enumerate(range(0, len(fixture[section]), 64)):
+            fields = []
+            for row in fixture[section][start:start + 64]:
+                if section == "manual": fields.extend(row)
+                elif section == "parsing": fields.extend([row["input"], "1" if row["request"] else "0", row["error"], row["context"], *row["fields"]])
+                elif section == "resolution": fields.extend([row["base"], row["reference"], row["error"], row["context"], *row["fields"]])
+                elif section == "queries": fields.extend([row["input"], row["output"], row["error"], str(row["size"])])
+                else: fields.extend([row["base"], str(len(row["elements"])), *row["elements"], row["output"], row["error"], *row["fields"]])
+            name = section + "-batch-" + (chr(97 + index) if index < 26 else "a" + chr(97 + index - 26))
+            stream = "".join(value + "\0" for value in fields)
+            declarations.append(f"  -- | Check independent {section} rows in one bounded metadata group.\n  {name} :: Unit -> Nat\n  {name} unit = {runner} (string-to-bytes {literal(stream)}) (u32-to-nat (runtime-size 0))")
+            selection.append(f'    else if name == "{name}" then {name} ()')
+            calls.append(name)
+    for index, row in enumerate(fixture["query_long"]):
+        name = "stress-batch-" + (chr(97 + index) if index < 26 else "a" + chr(97 + index - 26))
+        arguments = " ".join(str(row[key]) for key in ["count", "mode", "input_size", "input_hash", "output_size", "output_hash", "size"]) + " " + literal(row["error"])
+        declarations.append(f"  -- | Check independent query stress and exact default-limit boundaries.\n  {name} :: Unit -> Nat\n  {name} unit = if query-stress-case {arguments} then 0 else 1")
+        selection.append(f'    else if name == "{name}" then {name} ()')
+        calls.append(name)
+    blocks = []
+    for block, start in enumerate(range(0, len(calls), 8)):
+        name = "check-block-" + chr(97 + block)
+        block_source = f"  -- | Check a shallow batch of independent capability groups.\n  {name} :: Unit -> Nat\n  {name} unit =\n"
+        for index, call in enumerate(calls[start:start + 8], start):
+            block_source += f"    let result = {call} () in if result /= 0 then {index + 1} * 1000000 + result else\n"
+        declarations.append(block_source + "    0")
+        blocks.append(name)
+    all_source = "  -- | Return the first failing group number and byte offset.\n  all-groups :: Unit -> Nat\n  all-groups unit =\n"
+    for name in blocks:
+        all_source += f"    let result = {name} () in if result /= 0 then result else\n"
+    declarations.append(all_source + "    0")
+    return source.replace("__GROUP_DECLS__", "\n\n".join(declarations)).replace("__GROUP_SELECT__", "\n".join(selection))
 
 
 def source_closure(project: Path, main: Path) -> list[Path]:
@@ -76,7 +118,7 @@ def source_closure(project: Path, main: Path) -> list[Path]:
 def main() -> None:
     """Build a selected suite once and preserve complete source/ownership evidence."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--suite", choices=["codec"], required=True)
+    parser.add_argument("--suite", choices=["codec", "url"], required=True)
     parser.add_argument("--frontend", choices=["rust", "native"], required=True)
     parser.add_argument("--cpu", type=int, default=2)
     parser.add_argument("--build-root", type=Path, default=BUILD_ROOT)
@@ -109,7 +151,7 @@ def main() -> None:
         raise RuntimeError(f"{args.frontend} compile failed:\n{detail[-8000:]}\n{built.stderr[-8000:]}")
     elapsed = time.monotonic() - started
     runs = []
-    groups = ["small"] + re.findall(r'else if name == "(long-batch-[a-z]+)"', source.read_text())
+    groups = re.findall(r'else if name == "([a-z-]+)"', source.read_text())
     for debug, group in [(False, "all")] + [(True, group) for group in groups]:
         environment = {**os.environ, "CINCH_RC_DEBUG": "1" if debug else "0", "CINCH_LEAK_CHECK": "1", "CINCH_HEAP_LIMIT": "256M" if debug else "32M", "CINCH_STACK_SIZE": "8M"}
         started = time.monotonic()

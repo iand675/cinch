@@ -1,0 +1,347 @@
+-- | Independent parsing, query, component, reference and joining observations.
+module Main where
+  import Effect.Process
+  import Text.Url
+  import Text.Url.Scan
+  import Text.Hex
+  import Text.Fnv
+  import Data.Bool
+  import Data.Bytes
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  -- | Keep large deterministic input construction in the executable.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+
+  -- | Parse nonnegative fixture metadata independently of URL conversion.
+  decimal :: String -> Nat
+  decimal text = decimal-from (unpack text) 0
+
+  -- | Fold independently recorded decimal digits.
+  decimal-from :: List Char -> Nat -> Nat
+  decimal-from chars total = case chars of
+    Nil -> total
+    Cons char rest -> case digit-value char of Some value -> decimal-from rest (total * 10 + value); None -> 0
+
+  -- | Parse hexadecimal expected bytes without using URL decoding.
+  input :: String -> Bytes
+  input text = case hex-decode text of Ok bytes -> bytes; Err error -> bytes-new 0
+
+  -- | Compare every byte, including invalid UTF-8 and embedded NULs.
+  same :: Bytes -> Bytes -> Bool
+  same first last = eq-i64 (bytes-compare first last) 0
+
+  -- | Find a bounded NUL delimiter in the ASCII fixture stream.
+  field-end :: Bytes -> Nat -> Nat
+  field-end bytes at = if at < bytes-len bytes then
+    if bytes-get bytes at == 0 then at else field-end bytes (at + 1)
+    else at
+
+  -- | Read one copied metadata field and its advanced original byte position.
+  field :: Bytes -> Nat -> (String, Nat)
+  field bytes at = let end = field-end bytes at in
+    if at <= end && end <= bytes-len bytes then
+      let out = bytes-new (end - at) in let copied = bytes-copy-range out bytes 0 at (end - at) in
+      case string-from-bytes out of Some text -> (text, end + 1); None -> ("", end + 1)
+    else ("", end + 1)
+
+
+  -- | Observe explicit boolean presence with compact independent fixture bits.
+  truth :: Bool -> String
+  truth value = if value then "1" else "0"
+
+  -- | Describe every structured grammar failure without depending on diagnostic wording.
+  failure-code :: UrlFailure -> String
+  failure-code error = case url-failure-kind error of
+    UrlInvalidEscape -> "escape"
+    UrlInvalidHost -> "host"
+    UrlControlByte -> "control"
+    UrlMissingScheme -> "scheme"
+    UrlInvalidRequest -> "request"
+    UrlEmptyRequest -> "empty"
+    UrlPathColon -> "colon"
+    UrlInvalidPort -> "port"
+    UrlMissingBracket -> "bracket"
+    UrlInvalidIpLiteral -> "ip"
+    UrlInvalidUserinfo -> "user"
+    UrlQuerySemicolon -> "semicolon"
+    UrlTooManyParameters -> "limit"
+
+  -- | Observe all stored URL fields and public rendering/accessor capabilities.
+  observe :: Url -> List String
+  observe value =
+    let user = url-userinfo value in
+    let present = case user of None -> False; Some info -> True in
+    let username = case user of None -> (bytes-new 0 :: Bytes); Some info -> url-username info in
+    let password = case user of None -> None; Some info -> url-password info in
+    let pass-present = case password of None -> False; Some bytes -> True in
+    let pass = case password of None -> (bytes-new 0 :: Bytes); Some bytes -> bytes in
+    [hex-encode (url-scheme value), hex-encode (url-opaque value), hex-encode (url-host value),
+      hex-encode (url-path value), hex-encode (url-fragment value), hex-encode (url-raw-query value),
+      hex-encode (url-raw-path value), hex-encode (url-raw-fragment value), truth (url-force-query value), truth (url-omit-host value),
+      truth present, hex-encode username, truth pass-present, hex-encode pass, hex-encode (url-to-bytes value),
+      hex-encode (url-escaped-path value), hex-encode (url-escaped-fragment value), hex-encode (url-hostname value),
+      hex-encode (url-port value), hex-encode (url-request-uri value), hex-encode (url-redacted value), truth (url-is-absolute value),
+      truth (case url-to-text value of None -> False; Some text -> True)]
+
+  -- | Compare all expected observation fields and advance past the complete row.
+  fields-match :: List String -> Bytes -> Nat -> Bool -> (Bool, Nat)
+  fields-match observed stream at valid = case observed of
+    Nil -> (valid, at)
+    Cons actual rest -> case field stream at of (expected, next) -> fields-match rest stream next (valid && actual == expected)
+
+  -- | Validate a parsed URL or a typed contextual failure, including exact original context bytes.
+  parsed-match :: Result (UrlError UrlFailure) Url -> String -> String -> Bytes -> Nat -> (Bool, Nat)
+  parsed-match result code context stream at = case result of
+    Err error -> (code /= "" && code == failure-code (url-error-cause error) && context == hex-encode (url-error-input error) && not (url-error-temporary error) && not (url-error-timeout error), at)
+    Ok value -> if code == "" then fields-match (observe value) stream at True else (False, at)
+
+  -- | Check request and general parsing rows with every public URL observation.
+  parsing-from :: Bytes -> Nat -> Nat
+  parsing-from stream at = if at >= bytes-len stream then 0 else case field stream at of
+    (raw, a) -> case field stream a of
+      (request, b) -> case field stream b of
+        (code, c) -> case field stream c of
+          (context, d) ->
+            let parsed = if request == "1" then url-parse-request-uri (input raw) else url-parse (input raw) in
+            case parsed-match parsed code context stream d of (valid, next) -> if valid then parsing-from stream next else at + 1
+
+  -- | Check independently resolved references including opaque and relative bases.
+  resolution-from :: Bytes -> Nat -> Nat
+  resolution-from stream at = if at >= bytes-len stream then 0 else case field stream at of
+    (base, a) -> case field stream a of
+      (reference, b) -> case field stream b of
+        (code, c) -> case field stream c of
+          (context, d) -> case url-parse (input base) of
+            Err error -> at + 1
+            Ok value -> case parsed-match (url-parse-reference value (input reference)) code context stream d of
+              (valid, next) -> if valid then resolution-from stream next else at + 1
+
+  -- | Check partial query results, canonical key ordering and error precedence.
+  query-from :: Bytes -> Nat -> Nat
+  query-from stream at = if at >= bytes-len stream then 0 else case field stream at of
+    (raw, a) -> case field stream a of
+      (encoded, b) -> case field stream b of
+        (code, c) -> case field stream c of
+          (size, next) -> case url-parse-query (input raw) of
+            (values, error) -> let actual = case error of None -> ""; Some failure -> failure-code failure in
+              if url-values-size values == decimal size && hex-encode (url-values-encode values) == encoded && actual == code then query-from stream next else at + 1
+
+  -- | Read a fixed count of ASCII fixture fields into a forward list.
+  read-fields :: Bytes -> Nat -> Nat -> List String -> (List String, Nat)
+  read-fields stream at count reversed = if count == 0 then (reverse reversed, at) else case field stream at of
+    (text, next) -> read-fields stream next (count - 1) (Cons text reversed)
+
+  -- | Read an independently recorded field by its fixed position.
+  item :: List String -> Nat -> String
+  item values at = case nth at values of None -> ""; Some text -> text
+
+  -- | Snapshot independently supplied manual components, including raw hints and empty credentials.
+  from-observation :: List String -> Url
+  from-observation row =
+    let username = input (item row 11) in
+    let user = if item row 10 == "0" then None else if item row 12 == "0" then Some (url-user username) else Some (url-user-password username (input (item row 13))) in
+    url-from-components (UrlParts (input (item row 0)) (input (item row 1)) user (input (item row 2)) (input (item row 3))
+      (input (item row 4)) (input (item row 5)) (input (item row 6)) (input (item row 7)) (item row 8 == "1") (item row 9 == "1"))
+
+  -- | Compare independently recorded string fields without a polymorphic list equality instance.
+  same-fields :: List String -> List String -> Bool
+  same-fields first last = case first of
+    Nil -> case last of Nil -> True; Cons x xs -> False
+    Cons value rest -> case last of Nil -> False; Cons other tail -> value == other && same-fields rest tail
+
+  -- | Check all manual field combinations and raw hint fallback behavior.
+  manual-from :: Bytes -> Nat -> Nat
+  manual-from stream at = if at >= bytes-len stream then 0 else case read-fields stream at 23 Nil of
+    (expected, next) -> if same-fields (observe (from-observation expected)) expected then manual-from stream next else at + 1
+
+  -- | Decode already escaped joining elements from independently encoded fixture fields.
+  read-elements :: Bytes -> Nat -> Nat -> List Bytes -> (List Bytes, Nat)
+  read-elements stream at count reversed = if count == 0 then (reverse reversed, at) else case field stream at of
+    (text, next) -> read-elements stream next (count - 1) (Cons (input text) reversed)
+
+  -- | Check the top-level join result or its precise malformed-escape category.
+  joined-match :: Bytes -> List Bytes -> String -> String -> Bool
+  joined-match base elements code encoded = case url-join base elements of
+    Err error -> code == failure-code (url-error-cause error)
+    Ok joined -> code == "" && hex-encode (url-to-bytes joined) == encoded
+
+  -- | Check method joining plus checked top-level joining, including malformed percent errors.
+  joining-from :: Bytes -> Nat -> Nat
+  joining-from stream at = if at >= bytes-len stream then 0 else case field stream at of
+    (base, a) -> case field stream a of
+      (count, b) -> case read-elements stream b (decimal count) Nil of
+        (elements, c) -> case field stream c of
+          (encoded, d) -> case field stream d of
+            (code, e) -> case url-parse (input base) of
+              Err error -> at + 1
+              Ok value -> case fields-match (observe (url-join-path value elements)) stream e True of
+                (valid, next) -> if valid && joined-match (input base) elements code encoded then joining-from stream next else at + 1
+
+  -- | Check persistent query versions and independently copied constructor/getter buffers.
+  query-owned :: Unit -> Bool
+  query-owned unit =
+    let key = string-to-bytes "k" in let value = bytes-from-u8s [255] in
+    let first = url-values-add key value url-values-empty in
+    let retained = url-values-clone first in
+    let second = url-values-add key (string-to-bytes "two") first in
+    let removed = url-values-delete key second in
+    let empty = url-values-set-all (string-to-bytes "empty") Nil removed in
+    if bytes-len key > 0 && bytes-len value > 0 then
+      let changed-key = bytes-set key 0 120 in let changed-value = bytes-set value 0 0 in
+      let observed = url-values-get (string-to-bytes "k") first in
+      if bytes-len observed > 0 then
+        let changed-copy = bytes-set observed 0 1 in
+        same (url-values-get (string-to-bytes "k") retained) (bytes-from-u8s [255])
+          && same (url-values-encode second) (string-to-bytes "k=%FF&k=two")
+          && not (url-values-has (string-to-bytes "k") removed)
+          && url-values-has (string-to-bytes "empty") empty && url-values-size empty == 1
+          && bytes-len (url-values-encode empty) == 0
+          && same (url-values-encode (url-values-from-pairs (url-values-pairs second))) (url-values-encode second)
+          && same (url-values-encode (url-values-set (string-to-bytes "k") (string-to-bytes "new") second)) (string-to-bytes "k=new")
+          && same (url-values-encode retained) (string-to-bytes "k=%FF")
+      else False
+    else False
+
+  -- | Check copied credentials and distinguish absent from present empty passwords.
+  user-owned :: Unit -> Bool
+  user-owned unit = let name = bytes-from-u8s [255] in let secret = bytes-from-u8s [0] in
+    let user = url-user-password name secret in
+    if bytes-len name > 0 && bytes-len secret > 0 then
+      let changed-name = bytes-set name 0 0 in let changed-secret = bytes-set secret 0 1 in
+      let observed = url-username user in
+      if bytes-len observed > 0 then
+        let changed-copy = bytes-set observed 0 2 in
+        same (url-userinfo-bytes user) (string-to-bytes "%FF:%00")
+          && (case url-password user of None -> False; Some bytes -> same bytes (bytes-from-u8s [0]))
+          && (case url-password (url-user (bytes-new 0)) of None -> True; Some bytes -> False)
+          && (case url-password (url-user-password (bytes-new 0) (bytes-new 0)) of None -> False; Some bytes -> bytes-len bytes == 0)
+      else False
+    else False
+
+  -- | Extract a mutable path view from an independent component snapshot.
+  snapshot-path :: Url -> Bytes
+  snapshot-path value = case url-components value of UrlParts a b c d path f g h i j k -> path
+
+  -- | Check parse input, component snapshot and binary output ownership independently.
+  url-owned :: Unit -> Bool
+  url-owned unit = let raw = string-to-bytes "/a%2fb?x=%FF#f" in case url-parse raw of
+    Err error -> False
+    Ok value -> if bytes-len raw > 0 then
+      let changed-raw = bytes-set raw 0 120 in
+      let path = url-path value in let snapshot = snapshot-path value in
+      if bytes-len path > 0 && bytes-len snapshot > 0 then
+        let changed-path = bytes-set path 0 121 in let changed-snapshot = bytes-set snapshot 0 122 in
+        let binary = url-marshal-binary (url-clone value) in
+        let prefix = string-to-bytes "prefix:" in let appended = url-append-binary prefix value in
+        if bytes-len binary > 0 && bytes-len prefix > 0 then
+          let changed-binary = bytes-set binary 0 120 in let changed-prefix = bytes-set prefix 0 120 in
+          same (url-to-bytes value) (string-to-bytes "/a%2fb?x=%FF#f")
+            && same appended (string-to-bytes "prefix:/a%2fb?x=%FF#f")
+            && (case url-unmarshal-binary (url-to-bytes value) of Err error -> False; Ok copy -> same (url-to-bytes copy) (url-to-bytes value))
+            && same (url-values-encode (url-query value)) (string-to-bytes "x=%FF")
+        else False
+      else False
+      else False
+
+  -- | Check explicit inclusive query limits and original-query diagnostic offsets.
+  query-limits :: Unit -> Bool
+  query-limits unit =
+    (case url-parse-query-limit 2 (string-to-bytes "a&b") of (values, error) -> url-values-size values == 2 && (case error of None -> True; Some failure -> False))
+      && (case url-parse-query-limit 2 (string-to-bytes "a&&") of (values, error) -> url-values-size values == 0 && (case error of None -> False; Some failure -> failure-code failure == "limit"))
+      && (case url-parse-query-limit 0 (string-to-bytes "a&&") of (values, error) -> url-values-size values == 1 && (case error of None -> True; Some failure -> False))
+      && (case url-parse-query (string-to-bytes "a=%GG&b=2;c=3") of (values, error) -> case error of None -> False; Some failure -> failure-code failure == "semicolon" && url-failure-offset failure == 9)
+      && (case url-parse-query (string-to-bytes "a=%GG&b=2") of (values, error) -> case error of None -> False; Some failure -> failure-code failure == "escape" && url-failure-offset failure == 2)
+
+  -- | Check that decoded invalid UTF-8 survives, while preserved opaque/query bytes refuse a text view.
+  byte-policies :: Unit -> Bool
+  byte-policies unit =
+    (case url-parse (string-to-bytes "/%FF%00") of Err error -> False; Ok value -> same (url-path value) (bytes-from-u8s [47,255,0]) && (case url-to-text value of None -> False; Some text -> text == "/%FF%00"))
+      && (case url-parse (bytes-from-u8s [120,58,255]) of Err error -> False; Ok value -> same (url-opaque value) (bytes-from-u8s [255]) && (case url-to-text value of None -> True; Some text -> False))
+      && (case url-parse (bytes-from-u8s [47,63,255]) of Err error -> False; Ok value -> same (url-raw-query value) (bytes-from-u8s [255]) && (case url-to-text value of None -> True; Some text -> False))
+
+  -- | Check exact SIMD/fringe searches for every interval of an independent raw-byte buffer.
+  scan-interval :: Bytes -> Nat -> Nat -> Nat -> Bool
+  scan-interval bytes start end wanted =
+    let expected = scalar-find bytes start end wanted in
+    let last = scalar-last bytes start end wanted end in
+    url-find-byte bytes start end wanted == expected && url-last-byte bytes start end wanted == last
+      && url-count-byte bytes start end wanted == scalar-count bytes start end wanted 0
+
+  -- | Compute a scalar first-match oracle independently of packed machine scans.
+  scalar-find :: Bytes -> Nat -> Nat -> Nat -> Nat
+  scalar-find bytes at end wanted = if at < end && at < bytes-len bytes then if bytes-get bytes at == wanted then at else scalar-find bytes (at + 1) end wanted else end
+
+  -- | Compute a scalar final-match oracle independently of packed machine scans.
+  scalar-last :: Bytes -> Nat -> Nat -> Nat -> Nat -> Nat
+  scalar-last bytes at end wanted previous = if at < end && at < bytes-len bytes then
+    scalar-last bytes (at + 1) end wanted (if bytes-get bytes at == wanted then at else previous) else previous
+
+  -- | Compute a scalar population oracle independently of SIMD masks and SWAR reduction.
+  scalar-count :: Bytes -> Nat -> Nat -> Nat -> Nat -> Nat
+  scalar-count bytes at end wanted total = if at < end && at < bytes-len bytes then
+    scalar-count bytes (at + 1) end wanted (if bytes-get bytes at == wanted then total + 1 else total) else total
+
+  -- | Traverse all interval endpoints around exact block boundaries.
+  scan-ends :: Bytes -> Nat -> Nat -> Bool
+  scan-ends bytes start end = if end <= bytes-len bytes then
+    scan-interval bytes start end 0 && scan-interval bytes start end 38 && scan-interval bytes start end 255 && scan-ends bytes start (end + 1) else True
+
+  -- | Traverse all interval starts, including empty and unaligned intervals.
+  scan-starts :: Bytes -> Nat -> Bool
+  scan-starts bytes start = if start <= bytes-len bytes then scan-ends bytes start start && scan-starts bytes (start + 1) else True
+
+  -- | Check SIMD, unaligned blocks, tails and absent matches against independent scalar fixtures.
+  scan-cases :: Unit -> Bool
+  scan-cases unit = scan-starts (bytes-from-u8s [0,38,255,1,2,3,4,5,6,7,38,9,10,11,12,13,14,255,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30]) 0
+
+  -- | Check retained versions and byte policies alongside all independent grammar observations.
+  ownership-cases :: Unit -> Nat
+  ownership-cases unit = if query-owned () && user-owned () && url-owned () && query-limits () && byte-policies () && scan-cases () then 0 else 1
+
+  -- | Build independent ordered, repeated-key or empty raw query fields without URL escaping.
+  stress-parts :: Nat -> Nat -> Nat -> List Bytes -> List Bytes
+  stress-parts count mode at reversed = if at < count then
+    let suffix = nat-to-string (100000 + at) in
+    let key = if mode == 0 then string-concat "k" suffix else "k" in
+    let part = if mode == 2 then (bytes-new 0 :: Bytes) else string-to-bytes (string-concat key (string-concat "=v" suffix)) in
+    let chunks = if at == 0 then Cons part reversed else Cons part (Cons (string-to-bytes "&") reversed) in
+    stress-parts count mode (at + 1) chunks else reverse reversed
+
+  -- | Check default query-limit boundaries and adversarial ordered/repeated keys by every-byte hashes.
+  query-stress-case :: Nat -> Nat -> Nat -> U64 -> Nat -> U64 -> Nat -> String -> Bool
+  query-stress-case count mode input-size input-hash output-size output-hash keys code = if count <= 10001 then
+    let n = u32-to-nat (runtime-size (wrapping-i64-to-u32 (nat-to-i64 count))) in
+    let raw = url-concat (stress-parts n mode 0 Nil) in
+    case url-parse-query raw of
+      (values, error) -> let actual = case error of None -> ""; Some failure -> failure-code failure in
+        let output = url-values-encode values in
+        bytes-len raw == input-size && eq-u64 (fnv64a raw) input-hash
+          && bytes-len output == output-size && eq-u64 (fnv64a output) output-hash
+          && url-values-size values == keys && actual == code
+    else False
+
+__GROUP_DECLS__
+
+  -- | Run one bounded suite group, or all groups under the ordinary live-space limit.
+  selected :: String -> Nat
+  selected name = if name == "all" then all-groups ()
+__GROUP_SELECT__
+    else 1
+
+  -- | Run the selected public capability corpus and print a precise failing metadata offset.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let args = process-args () in
+    let name = case args of Ok values -> (case values of Nil -> "all"; Cons value rest -> value); Err error -> "invalid" in
+    let result = selected name in if result == 0 then 0
+    else let written = ioWrite (string-to-bytes (string-concat "URL group " (string-concat name (string-concat " failed at " (string-concat (nat-to-string result) "\n"))))) in 1

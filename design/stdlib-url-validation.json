@@ -1,0 +1,2890 @@
+{
+  "reference_sdk": "go version go1.27.4 linux/amd64",
+  "capability_mapping": "stdlib-url-capabilities.json",
+  "fixture_sha256": "ee5ad6a9d94591e2b32965e870d633ba12b0f4c57e6805affe7382bcfbe4068a",
+  "reports": [
+    {
+      "suite": "codec",
+      "frontend": "rust",
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "compiler_command": [
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "build",
+        "/workspace/dasl-stdlib-url/build/url-codec-rust/project/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-url/build/url-codec-rust/consumer",
+        "--opt-level",
+        "2",
+        "--rc-debug"
+      ],
+      "compile_seconds": 12.046935097008827,
+      "cpu_affinity": [
+        2
+      ],
+      "sources": {
+        "Text.Fnv.cinch": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Text.Hex.cinch": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+        "Text.Url.Error.cinch": "93da213a73d120c7bb2d0b5651b52a28646a13727582d49bb0d70600a92fc56f",
+        "Text.Url.Codec.cinch": "b5235ed086b3497609a96d4288f253589db52e1d01a8ef975456996123464b91",
+        "Main.cinch": "7fb15f48c5b727184d5360809170f0d23c6f1c3390da7e7b0d44289d92225e94"
+      },
+      "fixture_sha256": "ee5ad6a9d94591e2b32965e870d633ba12b0f4c57e6805affe7382bcfbe4068a",
+      "executable_sha256": "eecadc9786c56e5e22ea0184872130a4a65292685d19c6347fa1a9a3a1bb0240",
+      "runs": [
+        {
+          "group": "all",
+          "debug_poisoning": false,
+          "heap_limit": "32M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.14782472800288815,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "small",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.019335008997586556,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-a",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0013841160107403994,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-b",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.001243623992195353,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-c",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0011383149976609275,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-d",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0011160319991176948,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-e",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0012008589983452111,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-f",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0025124649982899427,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-g",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.018714664998697117,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-h",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.001161219013738446,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-i",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.001076982996892184,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-j",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0012119260063627735,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-k",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.001112847006879747,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-l",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0011637239949777722,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-m",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.002767119003692642,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-n",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.01936767899314873,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-o",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0011835030018119141,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-p",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0010679389961296692,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-q",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.001107258998672478,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-r",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0011894519993802533,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-s",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0011778140033129603,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-t",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0032659600110491738,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-u",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.019306586997117847,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-v",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0012687010021181777,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-w",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0011046440049540251,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-x",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0013109650026308373,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-y",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0012464869942050427,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-z",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0012947810027981177,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-aa",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0036945059982826933,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-ab",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.019489242011331953,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-ac",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.001182822001283057,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-ad",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0012348400050541386,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-ae",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.001272026012884453,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-af",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.001229471992701292,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-ag",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0012203579972265288,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-ah",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.003767105008591898,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-ai",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.016940061002969742,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-aj",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.001130933000240475,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-ak",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0011151400103699416,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-al",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0015077020070748404,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-am",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.001539560005767271,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-an",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0013760230067418888,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-ao",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.005436210994957946,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-ap",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.016675221995683387,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-aq",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0012480309960665181,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-ar",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0011509339965414256,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-as",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0012013700034003705,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-at",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0011369830026524141,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-au",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0015095239941729233,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-av",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.012378870000247844,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-aw",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.008306374002131633,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "all_passed": true
+    },
+    {
+      "suite": "codec",
+      "frontend": "native",
+      "compiler_sha256": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f",
+      "compiler_command": [
+        "python3",
+        "/workspace/dasl-stdlib-io/build/stdlib-qualified-tail-stage3-frozen/frontend.py",
+        "--compile-only",
+        "--interfaces",
+        "/workspace/dasl-stdlib-io/build/stdlib-qualified-tail-stage3-frozen/base-interfaces.json",
+        "--rc-debug",
+        "/workspace/dasl-stdlib-url/build/url-codec-native/bundle.cinch",
+        "/workspace/dasl-stdlib-url/build/url-codec-native/consumer.ll",
+        "/workspace/dasl-stdlib-url/build/url-codec-native/consumer",
+        "/workspace/dasl-stdlib-url/build/url-codec-native/link-report.txt"
+      ],
+      "compile_seconds": 14.288697622003383,
+      "cpu_affinity": [
+        2
+      ],
+      "sources": {
+        "Text.Fnv.cinch": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Text.Hex.cinch": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+        "Text.Url.Error.cinch": "93da213a73d120c7bb2d0b5651b52a28646a13727582d49bb0d70600a92fc56f",
+        "Text.Url.Codec.cinch": "b5235ed086b3497609a96d4288f253589db52e1d01a8ef975456996123464b91",
+        "Main.cinch": "7fb15f48c5b727184d5360809170f0d23c6f1c3390da7e7b0d44289d92225e94"
+      },
+      "fixture_sha256": "ee5ad6a9d94591e2b32965e870d633ba12b0f4c57e6805affe7382bcfbe4068a",
+      "executable_sha256": "4868891123c5130781cef70ba2a1f829d2cf033a43b812f4ffd31eabd87ef3b6",
+      "runs": [
+        {
+          "group": "all",
+          "debug_poisoning": false,
+          "heap_limit": "32M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 1.6501191569986986,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "small",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.06181321700569242,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-a",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0030567369976779446,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-b",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0026959859969792888,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-c",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0023807100078556687,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-d",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.002614939003251493,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-e",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0033215000003110617,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-f",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.01785647199722007,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-g",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.4822844959999202,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-h",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.009134738997090608,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-i",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0031672769982833415,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-j",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0030712680018041283,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-k",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0031407179922098294,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-l",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.005093189000035636,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-m",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.026567598994006403,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-n",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.349494631998823,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-o",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0032416640024166554,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-p",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0026051540044136345,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-q",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.003345253993757069,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-r",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.003873586989357136,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-s",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.005992849008180201,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-t",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.04674447298748419,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-u",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.26894500499474816,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-v",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0038088009896455333,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-w",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0034992940054507926,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-x",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0035404769878368825,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-y",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.003967800992541015,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-z",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.006074835997424088,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-aa",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.05269230999692809,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-ab",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.25997118098894134,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-ac",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.003899177012499422,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-ad",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.003518843004712835,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-ae",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.003371170998434536,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-af",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0038310149975586683,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-ag",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.006600818989682011,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-ah",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.042869584998697974,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-ai",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.219527242006734,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-aj",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0031974390003597364,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-ak",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0027755740011343732,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-al",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0028205209964653477,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-am",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0032063929975265637,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-an",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.005616795999230817,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-ao",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.06292239000322297,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-ap",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.21486806900065858,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-aq",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.003113572995061986,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-ar",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.003344650991493836,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-as",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.002732909008045681,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-at",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.003392392987734638,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-au",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.009927042992785573,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-av",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.16202773600525688,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "long-batch-aw",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.5389853550004773,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "all_passed": true
+    },
+    {
+      "suite": "url",
+      "frontend": "rust",
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "compiler_command": [
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "build",
+        "/workspace/dasl-stdlib-url/build/url-public-rust/project/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-url/build/url-public-rust/consumer",
+        "--opt-level",
+        "2",
+        "--rc-debug"
+      ],
+      "compile_seconds": 15.718480750001618,
+      "cpu_affinity": [
+        2
+      ],
+      "sources": {
+        "Text.Fnv.cinch": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Text.Hex.cinch": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+        "Text.Url.Scan.cinch": "de30fc49981ed873244a64b34de9a063548776c60264ad69475f040b3118204f",
+        "Text.Url.cinch": "ace795fa48c2bfdab5f1c984b072eff6ad2ca68c11403d965ad610937b45001c",
+        "Text.Url.Resolve.cinch": "5fd9ec9bddbd778d81d392e1e0e18b6be2f037cbd0f1b15fe1811e4eaf91613e",
+        "Text.Url.Userinfo.cinch": "cccdb3acac6ac60383d2a2f8ce9fd9fde4953de7f28aa8259a5d5436ec52758a",
+        "Text.Url.Codec.cinch": "b5235ed086b3497609a96d4288f253589db52e1d01a8ef975456996123464b91",
+        "Text.Url.Error.cinch": "93da213a73d120c7bb2d0b5651b52a28646a13727582d49bb0d70600a92fc56f",
+        "Text.Url.Parser.cinch": "d880177f125cbdf7d9546cb5526ce6f6717ead1c719b180724745be6ef1c4f7d",
+        "Text.Url.Model.cinch": "7fee092c7305cda028b8ec71763d8f1c76189cb35c76d1a02bb068db1aca7f75",
+        "Text.Url.Query.cinch": "d21bfb7ca2d495f7e67202e8cec6ad27723f767d2d997a5afe9f1b07409e85d3",
+        "Text.Url.Ip.cinch": "8bbe1f04258c0bece6823836b336e71009122463e79eb8eef923ff4e550a55be",
+        "Main.cinch": "3c4d6f06d2adefc8cde476f94a62b55c7dfd0bbe29acf5f62a0f3052b9f60b46"
+      },
+      "fixture_sha256": "ee5ad6a9d94591e2b32965e870d633ba12b0f4c57e6805affe7382bcfbe4068a",
+      "executable_sha256": "6f159a74bbd8b37e87c393f16bead40cd396223137f8fc9476f21745cb9000d0",
+      "runs": [
+        {
+          "group": "all",
+          "debug_poisoning": false,
+          "heap_limit": "32M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.19016894701053388,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "ownership",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.002591038995888084,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-a",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0027936389960814267,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-b",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0022490300034405664,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-c",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.001986343995667994,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-d",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0016796199925011024,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-e",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0015635970048606396,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-f",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0016797910066088662,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-g",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.00153610399866011,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-h",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.001579853007569909,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-i",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0020763469947269186,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-j",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0022958329936955124,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-k",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.00243669499468524,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-l",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.002727473998675123,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-m",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0027858870016643777,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-n",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0023944479908095673,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-o",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.002649620990268886,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-p",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0026167989999521524,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-q",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0030674700101371855,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-r",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0025079080078285187,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-s",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.003292885987320915,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-t",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0025832660030573606,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-u",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.002374917996348813,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-v",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.00256169299245812,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-w",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0024480330030201003,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-x",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.00247768999543041,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-y",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.004466519007110037,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-z",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0029561350092990324,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-aa",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0029933240002719685,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ab",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0027637820021482185,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ac",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.002779657006612979,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ad",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0037743520078947768,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ae",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.004030030002468266,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-af",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0029667420021723956,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ag",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0032377099996665493,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ah",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0028877470031147823,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ai",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0024306660052388906,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-aj",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0025271279882872477,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ak",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0029987930029165,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-al",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.002522511000279337,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-am",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0024332799948751926,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-an",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.00233439399744384,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ao",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0023315589933190495,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ap",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0021874320082133636,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-aq",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0028324900049483404,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ar",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.002707132007344626,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-as",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0024525800108676776,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-at",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.002434181995340623,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-au",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.002286759001435712,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-av",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0021984799968777224,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-aw",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.002628798989462666,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ax",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.002588585004559718,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ay",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0016394870035583153,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "queries-batch-a",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0017864690016722307,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "queries-batch-b",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0020280210010241717,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "queries-batch-c",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0018950509984279051,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "queries-batch-d",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0018944100011140108,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "queries-batch-e",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0018475749966455624,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "queries-batch-f",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0022333840024657547,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "queries-batch-g",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0017648649954935536,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "queries-batch-h",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.001737262005917728,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "queries-batch-i",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.001341858005616814,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "resolution-batch-a",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0036862970009678975,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "resolution-batch-b",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0036607980000553653,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "resolution-batch-c",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.003530752001097426,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "resolution-batch-d",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.003565467006410472,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "resolution-batch-e",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0033768089924706146,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "resolution-batch-f",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.002486774988938123,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "manual-batch-a",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0019246470037614927,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "joining-batch-a",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0038749459927203134,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "joining-batch-b",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0028498579922597855,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-a",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0024405019939877093,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-b",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0012737200013361871,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-c",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0012123129999963567,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-d",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0011415019980631769,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-e",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.001516864009317942,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-f",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0014670359960291535,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-g",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0011839890066767111,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-h",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.001435315003618598,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-i",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0012577450106618926,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-j",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.00119161099428311,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-k",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0012752819893648848,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-l",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0012584759970195591,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-m",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.002140687996870838,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-n",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0019338619895279408,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-o",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0014106960006756708,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-p",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.002110531000653282,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-q",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0016782290040282533,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-r",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0015399910043925047,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-s",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.04296991298906505,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-t",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.023538327994174324,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-u",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.00956520599720534,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-v",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.050801371995476075,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-w",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0375389980035834,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-x",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.009479119995376095,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-y",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.012928222000482492,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-z",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.011433894003857858,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-aa",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.012900494009954855,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "all_passed": true
+    },
+    {
+      "suite": "url",
+      "frontend": "native",
+      "compiler_sha256": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f",
+      "compiler_command": [
+        "python3",
+        "/workspace/dasl-stdlib-io/build/stdlib-qualified-tail-stage3-frozen/frontend.py",
+        "--compile-only",
+        "--interfaces",
+        "/workspace/dasl-stdlib-io/build/stdlib-qualified-tail-stage3-frozen/base-interfaces.json",
+        "--rc-debug",
+        "/workspace/dasl-stdlib-url/build/url-public-native/bundle.cinch",
+        "/workspace/dasl-stdlib-url/build/url-public-native/consumer.ll",
+        "/workspace/dasl-stdlib-url/build/url-public-native/consumer",
+        "/workspace/dasl-stdlib-url/build/url-public-native/link-report.txt"
+      ],
+      "compile_seconds": 31.78568052200717,
+      "cpu_affinity": [
+        2
+      ],
+      "sources": {
+        "Text.Fnv.cinch": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Text.Hex.cinch": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+        "Text.Url.Scan.cinch": "de30fc49981ed873244a64b34de9a063548776c60264ad69475f040b3118204f",
+        "Text.Url.cinch": "ace795fa48c2bfdab5f1c984b072eff6ad2ca68c11403d965ad610937b45001c",
+        "Text.Url.Resolve.cinch": "5fd9ec9bddbd778d81d392e1e0e18b6be2f037cbd0f1b15fe1811e4eaf91613e",
+        "Text.Url.Userinfo.cinch": "cccdb3acac6ac60383d2a2f8ce9fd9fde4953de7f28aa8259a5d5436ec52758a",
+        "Text.Url.Codec.cinch": "b5235ed086b3497609a96d4288f253589db52e1d01a8ef975456996123464b91",
+        "Text.Url.Error.cinch": "93da213a73d120c7bb2d0b5651b52a28646a13727582d49bb0d70600a92fc56f",
+        "Text.Url.Parser.cinch": "d880177f125cbdf7d9546cb5526ce6f6717ead1c719b180724745be6ef1c4f7d",
+        "Text.Url.Model.cinch": "7fee092c7305cda028b8ec71763d8f1c76189cb35c76d1a02bb068db1aca7f75",
+        "Text.Url.Query.cinch": "d21bfb7ca2d495f7e67202e8cec6ad27723f767d2d997a5afe9f1b07409e85d3",
+        "Text.Url.Ip.cinch": "8bbe1f04258c0bece6823836b336e71009122463e79eb8eef923ff4e550a55be",
+        "Main.cinch": "3c4d6f06d2adefc8cde476f94a62b55c7dfd0bbe29acf5f62a0f3052b9f60b46"
+      },
+      "fixture_sha256": "ee5ad6a9d94591e2b32965e870d633ba12b0f4c57e6805affe7382bcfbe4068a",
+      "executable_sha256": "3c2452308462f1125d9ec350b51f6c76b99f3b7dac0875b0f2fe13128819d1d2",
+      "runs": [
+        {
+          "group": "all",
+          "debug_poisoning": false,
+          "heap_limit": "32M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.7073671989928698,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "ownership",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.008994841991807334,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-a",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.007255314005305991,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-b",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.006373530006385408,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-c",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.004632910990039818,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-d",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.004608503993949853,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-e",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.004113706992939115,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-f",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.004162480006925762,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-g",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.004016408987808973,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-h",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.003976739011704922,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-i",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.005437576008262113,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-j",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.006058624989236705,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-k",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.006705583000439219,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-l",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.007374673994490877,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-m",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.007742198999039829,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-n",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.006839355002739467,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-o",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.007059908006340265,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-p",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.006908848998136818,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-q",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0071682819980196655,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-r",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0073478230042383075,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-s",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.00917252100771293,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-t",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.006785974008380435,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-u",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.006166238003061153,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-v",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.006633293000049889,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-w",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.00742822399479337,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-x",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0071263590070884675,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-y",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.007102161995135248,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-z",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.007211917996755801,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-aa",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.005745071001001634,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ab",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.006355383011396043,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ac",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.006178276002174243,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ad",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.005521522994968109,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ae",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.006560323003213853,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-af",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.006012275000102818,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ag",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0063056489889277145,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ah",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.006185266000102274,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ai",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.006204806006280705,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-aj",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.005691579994163476,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ak",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.006223584001418203,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-al",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.005746283000917174,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-am",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.005677438995917328,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-an",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.005797360005090013,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ao",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.005769818992121145,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ap",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.005867576997843571,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-aq",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.006484598998213187,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ar",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.00620498601347208,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-as",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.00597641100466717,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-at",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.005881838005734608,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-au",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.006065805995604023,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-av",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.005660894006723538,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-aw",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0057958170073106885,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ax",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.005668165002134629,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "parsing-batch-ay",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0037152040022192523,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "queries-batch-a",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.004869658994721249,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "queries-batch-b",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.005027125997003168,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "queries-batch-c",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.004965123007423244,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "queries-batch-d",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.005007786996429786,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "queries-batch-e",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.00526148101198487,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "queries-batch-f",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.005546712010982446,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "queries-batch-g",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.005095580010674894,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "queries-batch-h",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.005637378999381326,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "queries-batch-i",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.003799361002165824,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "resolution-batch-a",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.010314136001397856,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "resolution-batch-b",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.00988080000388436,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "resolution-batch-c",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0109121290006442,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "resolution-batch-d",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.01821019699855242,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "resolution-batch-e",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.015949941996950656,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "resolution-batch-f",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.010982175008393824,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "manual-batch-a",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0069858470087638125,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "joining-batch-a",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.016572952998103574,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "joining-batch-b",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.009079290000954643,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-a",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0029685550107387826,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-b",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0026703859912231565,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-c",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.002588852003100328,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-d",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.002686589999939315,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-e",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0025582660018699244,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-f",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0026328279927838594,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-g",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.002672168004210107,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-h",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0025188760046148673,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-i",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0025750510103534907,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-j",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.003082568000536412,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-k",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.002952360999188386,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-l",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.0024789859890006483,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-m",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.005104022013256326,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-n",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.004047276001074351,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-o",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.003251603993703611,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-p",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.005368932994315401,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-q",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.00436862200149335,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-r",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.003107134994934313,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-s",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.1403692210005829,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-t",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.07238446900737472,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-u",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.020135166007094085,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-v",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.13681147500756197,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-w",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.07416392899176572,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-x",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.020049917991855182,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-y",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.02314474299782887,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-z",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.02192356900195591,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "group": "stress-batch-aa",
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.017105147009715438,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "all_passed": true
+    }
+  ],
+  "canonical_docs": [
+    {
+      "source": "compiler/prelude/Text/Url.cinch",
+      "sha256": "ace795fa48c2bfdab5f1c984b072eff6ad2ca68c11403d965ad610937b45001c",
+      "documented_declarations": 0
+    },
+    {
+      "source": "compiler/prelude/Text/Url/Codec.cinch",
+      "sha256": "b5235ed086b3497609a96d4288f253589db52e1d01a8ef975456996123464b91",
+      "documented_declarations": 58
+    },
+    {
+      "source": "compiler/prelude/Text/Url/Error.cinch",
+      "sha256": "93da213a73d120c7bb2d0b5651b52a28646a13727582d49bb0d70600a92fc56f",
+      "documented_declarations": 40
+    },
+    {
+      "source": "compiler/prelude/Text/Url/Ip.cinch",
+      "sha256": "8bbe1f04258c0bece6823836b336e71009122463e79eb8eef923ff4e550a55be",
+      "documented_declarations": 9
+    },
+    {
+      "source": "compiler/prelude/Text/Url/Model.cinch",
+      "sha256": "7fee092c7305cda028b8ec71763d8f1c76189cb35c76d1a02bb068db1aca7f75",
+      "documented_declarations": 39
+    },
+    {
+      "source": "compiler/prelude/Text/Url/Parser.cinch",
+      "sha256": "d880177f125cbdf7d9546cb5526ce6f6717ead1c719b180724745be6ef1c4f7d",
+      "documented_declarations": 20
+    },
+    {
+      "source": "compiler/prelude/Text/Url/Query.cinch",
+      "sha256": "d21bfb7ca2d495f7e67202e8cec6ad27723f767d2d997a5afe9f1b07409e85d3",
+      "documented_declarations": 41
+    },
+    {
+      "source": "compiler/prelude/Text/Url/Resolve.cinch",
+      "sha256": "5fd9ec9bddbd778d81d392e1e0e18b6be2f037cbd0f1b15fe1811e4eaf91613e",
+      "documented_declarations": 15
+    },
+    {
+      "source": "compiler/prelude/Text/Url/Scan.cinch",
+      "sha256": "de30fc49981ed873244a64b34de9a063548776c60264ad69475f040b3118204f",
+      "documented_declarations": 28
+    },
+    {
+      "source": "compiler/prelude/Text/Url/Userinfo.cinch",
+      "sha256": "cccdb3acac6ac60383d2a2f8ce9fd9fde4953de7f28aa8259a5d5436ec52758a",
+      "documented_declarations": 7
+    }
+  ],
+  "total_memory_runs": 298
+}
