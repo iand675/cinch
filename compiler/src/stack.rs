@@ -24,11 +24,14 @@
 //!    argument of a call in tail position, a `spawn` argument, a jump
 //!    argument, a projection's container, a closure environment slot, or a
 //!    `RefSet`/`BoxInit`/`LazyInit` store;
-//! 2. the binder is `Dup`ped only when its payload holds no counted word. A
-//!    second reference would outlive the payload's release, and a frame
-//!    block has no count to make one reference's drop a no-op; with
-//!    nothing counted in the payload there is nothing for either release to
-//!    do, so the two references cannot disagree;
+//! 2. a block with counted payload is neither `Dup`ped nor stored inside
+//!    another frame block. A second reference would outlive the payload's
+//!    release, and a frame block has no count to make one reference's drop
+//!    a no-op. A nested owner's field can acquire that second reference
+//!    through a borrowed accessor even when this binder has no explicit
+//!    `Dup`. Until field-alias lifetimes are propagated across owners,
+//!    counted nested payloads stay on the heap. Blocks with no counted
+//!    payload still admit duplication and nested placement;
 //! 3. the constructor's layout is a regular one (a `repr(C)`,
 //!    `repr(packed)` or `repr(transparent)` block stores its fields at
 //!    recorded offsets, which this lowering does not reproduce);
@@ -252,9 +255,10 @@ pub enum Refusal {
     /// the collector left), so there is no `Drop` for the payload release
     /// to hang on.
     Uncounted,
-    /// The binder is `Dup`ped and its payload holds a counted word: a
-    /// second reference needs a second release of that word, which a frame
-    /// block has no count to make a no-op.
+    /// The binder is `Dup`ped, or stored inside another frame block, and
+    /// its payload holds a counted word. Field extraction can create an
+    /// alias independently of the enclosing owner's release; a frame
+    /// child has no count to keep its payload alive for that alias.
     Duplicated,
     /// The payload is above the block limit and nothing else refuses it.
     Size,
@@ -971,13 +975,14 @@ fn eligible(x: usize, cand: &Cand, scan: &Scan<'_>) -> Result<(), Refusal> {
         return Err(Refusal::Size);
     }
     let u = scan.uses.get(&x).cloned().unwrap_or_default();
-    // A second reference is harmless only when the payload holds nothing to
-    // release: a frame block's dup writes no count (the `RC_FRAME` header
-    // is never counted) and its drop frees nothing, so two references
-    // cannot disagree about a payload that has no owned word in it. With a
-    // counted word, the release of one reference would leave the other
-    // reading dropped children, and no count can tell them apart.
-    if u.duplicated > 0 && !site.fields.is_empty() {
+    // A second reference is harmless only when the payload holds nothing
+    // to release: a frame block's dup writes no count. Storing the block
+    // in another frame also permits an implicit alias: a borrowed accessor
+    // can dup and return the field, after which releasing its parent must
+    // not destroy the returned child's payload. The scan does not track
+    // that field alias back to this binder, so keep counted nested children
+    // on the heap until such a lifetime proof is available.
+    if (u.duplicated > 0 || u.stored > 0) && !site.fields.is_empty() {
         return Err(Refusal::Duplicated);
     }
     if let Some(why) = u.first() {
@@ -1627,9 +1632,10 @@ fn verify(program: &Program, opts: &Options) {
             // no counted word to release twice (the rule `eligible` states),
             // and some path must release the payload.
             assert!(
-                (u.duplicated == 0 || site.fields.is_empty()) && u.escapes() == 0,
-                "compiler bug: {unit}: frame binder {x} escapes ({} dups, {} escapes, {} counted fields)",
+                ((u.duplicated == 0 && u.stored == 0) || site.fields.is_empty()) && u.escapes() == 0,
+                "compiler bug: {unit}: frame binder {x} escapes ({} dups, {} nested stores, {} escapes, {} counted fields)",
                 u.duplicated,
+                u.stored,
                 u.escapes(),
                 site.fields.len()
             );
