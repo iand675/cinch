@@ -10,7 +10,7 @@
 //! exactly the shape the toolkit produces in `Data.Path.path-to-string`.
 
 use cinch::core::{
-    CAlt, CPat, Class, Core, FnDef, FnHints, FnMeta, GlobalId, InstanceDef, LocalId, Program,
+    CAlt, CPat, Class, Core, FnDef, FnHints, FnMeta, GlobalId, LocalId, Program,
     SimplifyReport, TargetProfile, UnitRepr,
 };
 use cinch::simplify::{simplify, SimplifyOptions};
@@ -39,24 +39,7 @@ fn ctor_unit(name: &str, tag: usize, fields: usize) -> FnDef {
 }
 
 fn program(fns: Vec<FnDef>) -> Program {
-    Program {
-        total_bodies: cinch::total::CheckedGraph::empty(),
-        fns,
-        instances: Vec::<InstanceDef>::new(),
-        main: None,
-        rewrites: vec![],
-        plans: Default::default(),
-        foreigns: Default::default(),
-        prims: vec![],
-        laws: vec![],
-        lent: Default::default(),
-        frame: Default::default(),
-        stack: Default::default(),
-        borrowed: Default::default(),
-        lent_entries: Default::default(),
-        private_modules: Vec::new(),
-        inline: Default::default(),
-    }
+    Program::from_functions(fns)
 }
 
 /// `path-to-string p = case p of Path s -> s`: the body the toolkit copies.

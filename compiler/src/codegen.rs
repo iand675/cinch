@@ -2040,9 +2040,10 @@ impl Registry {
     /// in a fixed order, each constructor's map its field classes or its
     /// boundary plan's words.
     fn lay_out_constructors(&mut self, p: &Program) -> Result<()> {
+        // Whole declarations were checked before reachability pruning. Live
+        // representation copies still have to match that exact inventory.
+        check_builtin_constructors(p)?;
         let mut types: BTreeMap<String, BTreeMap<usize, (String, Vec<Class>)>> = BTreeMap::new();
-        // The built prelude types' payload words per tag, across copies.
-        let mut built: BTreeMap<&str, BTreeMap<usize, u64>> = BTreeMap::new();
         for f in &p.fns {
             let Some((tag, fields)) = f.ctor else {
                 continue;
@@ -2064,14 +2065,6 @@ impl Registry {
                 // index family's): never counted.
                 None => vec![Class::Raw; fields],
             };
-            if let Some(d) = f.repr.data.as_deref() {
-                if let Some((name, _)) = BUILT_TYPES.iter().find(|(k, _)| *k == d) {
-                    // Fields, not words: `Some@W`'s one field is two words,
-                    // and the blocks the primitives build follow the same
-                    // field layout.
-                    built.entry(name).or_default().insert(tag, fields as u64);
-                }
-            }
             if types
                 .entry(key.clone())
                 .or_default()
@@ -2083,23 +2076,14 @@ impl Registry {
                 ));
             }
         }
-        for (key, words) in BUILT_TYPES {
-            if let Some(got) = built.get(key) {
-                let got: Vec<u64> = (0..got.keys().next_back().map_or(0, |t| t + 1))
-                    .map(|t| got.get(&t).copied().unwrap_or(0))
-                    .collect();
-                if got != words {
-                    return err(format!(
-                        "the prelude type {key} has payload words {got:?} per constructor; code generation builds it as {words:?}"
-                    ));
-                }
-            }
-        }
         // Every constructor describes itself by its tag and the counted
         // mask of its fields (design/self-describing-blocks.md).
         for ctors in types.values() {
             for (tag, (unit, map)) in ctors {
-                let desc = self.descs.borrow_mut().describe(block::KIND_CTOR, *tag as u64, map);
+                let desc = self
+                    .descs
+                    .borrow_mut()
+                    .describe(block::KIND_CTOR, *tag as u64, map);
                 self.ctor_descs.insert(unit.clone(), desc);
             }
         }
@@ -2404,16 +2388,131 @@ fn unit_param_classes(p: &Program, reg: &Registry) -> HashMap<String, Vec<Class>
 /// The prelude types the code generator builds without a constructor unit
 /// in hand: the `Option` results of primitives, the `Result` outcomes of
 /// the platform and task units, and the `Ordering` of comparisons. Each
-/// row is the data type and its constructors' payload words in tag order,
-/// exactly the prelude's declarations (`prelude/Data/Core.cinch`,
+/// row is the data type and its constructor identities and runtime field
+/// counts in tag order, exactly the prelude's declarations (`prelude/Data/Core.cinch`,
 /// `prelude/Data/Ordering.cinch`). Those blocks take anonymous shapes
 /// (`Layouts::shape_desc`) with the same tags, so a program that declares
 /// the types otherwise is refused rather than miscompiled.
-const BUILT_TYPES: [(&str, &[u64]); 3] = [
-    (crate::known::OPTION, &[0, 1]),
-    (crate::known::RESULT, &[1, 1]),
-    (crate::known::ORDERING, &[0, 0, 0]),
+/// A wide scalar remains one field even though it occupies two payload words.
+const BUILT_TYPES: [(&str, &[(&str, usize)]); 3] = [
+    (
+        crate::known::OPTION,
+        &[("Data.Core.None", 0), ("Data.Core.Some", 1)],
+    ),
+    (
+        crate::known::RESULT,
+        &[("Data.Core.Err", 1), ("Data.Core.Ok", 1)],
+    ),
+    (
+        crate::known::ORDERING,
+        &[
+            (crate::known::ORDERING_LT, 0),
+            (crate::known::ORDERING_EQ, 0),
+            (crate::known::ORDERING_GT, 0),
+        ],
+    ),
 ];
+
+/// Read an actual built-in constructor unit, refusing impostor names, nominal
+/// identities, tags or callable arities before using any layout information.
+fn builtin_constructor(f: &FnDef) -> Result<Option<(String, (String, usize, usize))>> {
+    let Some((tag, fields)) = f.ctor else {
+        return Ok(None);
+    };
+    let base = crate::repr::base_unit(&f.id.0);
+    let schema = BUILT_TYPES
+        .iter()
+        .find(|(data, _)| Some(*data) == f.repr.data.as_deref())
+        .or_else(|| {
+            BUILT_TYPES.iter().find(|(_, constructors)| {
+                constructors.iter().any(|(name, _)| *name == base.as_ref())
+            })
+        });
+    let Some((data, constructors)) = schema else {
+        return Ok(None);
+    };
+    if f.repr.data.as_deref() != Some(*data) {
+        return err(format!(
+            "prelude constructor {base} must belong to {data}, not {:?}",
+            f.repr.data
+        ));
+    }
+    let Some((expected_name, _)) = constructors.get(tag) else {
+        return err(format!(
+            "the prelude type {data} has unexpected constructor {base} of tag {tag}"
+        ));
+    };
+    if base.as_ref() != *expected_name {
+        return err(format!(
+            "the prelude type {data} needs constructor {expected_name} at tag {tag}, not {base}"
+        ));
+    }
+    if f.params.len() != fields {
+        return err(format!("prelude constructor {base} has callable arity {}, but its checked layout has {fields} fields", f.params.len()));
+    }
+    Ok(Some((
+        base.into_owned(),
+        ((*data).to_string(), tag, fields),
+    )))
+}
+
+/// Validate the complete original inventory, including zero-field tags. Each
+/// retained entry comes from an actual checked constructor unit; missing tags
+/// are refused rather than filled from the expected runtime ABI.
+pub(crate) fn check_full_builtin_constructors(
+    fns: &[FnDef],
+) -> Result<crate::core::BuiltinConstructorInventory> {
+    let mut inventory = crate::core::BuiltinConstructorInventory::new();
+    let mut shapes: BTreeMap<String, BTreeMap<usize, usize>> = BTreeMap::new();
+    for f in fns {
+        let Some((base, (data, tag, fields))) = builtin_constructor(f)? else {
+            continue;
+        };
+        if let Some(previous) = shapes.entry(data.clone()).or_default().insert(tag, fields) {
+            if previous != fields {
+                return err(format!("the prelude type {data} has conflicting field counts {previous} and {fields} for tag {tag}"));
+            }
+        }
+        inventory.insert(base, (data, tag, fields));
+    }
+    for (data, constructors) in BUILT_TYPES {
+        if let Some(got) = shapes.get(data) {
+            let words: Vec<usize> = constructors.iter().map(|(_, fields)| *fields).collect();
+            let complete = got.len() == constructors.len()
+                && (0..constructors.len()).all(|tag| got.contains_key(&tag));
+            let observed: Vec<Option<usize>> = (0..got.keys().next_back().map_or(0, |tag| tag + 1))
+                .map(|tag| got.get(&tag).copied())
+                .collect();
+            if !complete || observed.iter().copied().ne(words.iter().copied().map(Some)) {
+                return err(format!("the prelude type {data} has payload words {observed:?} per constructor; code generation builds it as {words:?} (complete constructor inventory required)"));
+            }
+        }
+    }
+    Ok(inventory)
+}
+
+/// Check every live constructor against its program's original validated
+/// inventory. Uncertified hand-built Core must still supply the complete
+/// inventory; a missing constructor is never presumed to have been pruned.
+pub(crate) fn check_builtin_constructors(
+    p: &Program,
+) -> Result<crate::core::BuiltinConstructorInventory> {
+    let Some(inventory) = p.checked_builtin_constructors() else {
+        return check_full_builtin_constructors(&p.fns);
+    };
+    for f in &p.fns {
+        let Some((base, actual)) = builtin_constructor(f)? else {
+            continue;
+        };
+        if inventory.get(&base) != Some(&actual) {
+            return err(format!(
+                "prelude constructor {} differs from its original checked inventory: {actual:?}",
+                f.id.0
+            ));
+        }
+    }
+    Ok(inventory.clone())
+}
 
 /// The prelude tags of the built types.
 const TAG_NONE: u64 = 0;
@@ -12107,23 +12206,126 @@ mod tests {
 
     fn main_prog(mut fns: Vec<FnDef>, body: Core) -> Program {
         fns.push(thunk("program.main", body));
-        Program {
-            total_bodies: crate::total::CheckedGraph::empty(),
-            rewrites: Vec::new(),
-            fns,
-            instances: vec![],
-            main: Some(gid("program.main")),
-            plans: Default::default(),
-            foreigns: Default::default(),
-            prims: Vec::new(),
-            laws: Vec::new(),
-            lent: Default::default(),
-            frame: Default::default(),
-            stack: Default::default(),
-            borrowed: Default::default(),
-            lent_entries: Default::default(),
-            private_modules: Vec::new(),
-            inline: Default::default(),
+        let mut program = Program::from_functions(fns);
+        program.main = Some(gid("program.main"));
+        program
+    }
+
+    /// Actual constructor metadata for a hand-built copy of a runtime ABI type.
+    fn builtin_ctor(unit: &str, data: &str, tag: usize, fields: usize) -> FnDef {
+        let mut constructor = ctor_fn(unit, &[], tag, fields);
+        constructor.params = (0..fields).map(|i| format!("field{i}")).collect();
+        constructor.repr.data = Some(data.to_string());
+        constructor.repr.fields = vec![Class::Raw; fields];
+        constructor.repr.params = constructor.repr.fields.clone();
+        constructor.repr.result = Some(Class::Obj);
+        constructor
+    }
+
+    /// Construct the complete real Option inventory before any pruning.
+    fn option_inventory() -> Program {
+        Program::from_functions(vec![
+            builtin_ctor("Data.Core.None", crate::known::OPTION, 0, 0),
+            builtin_ctor("Data.Core.Some", crate::known::OPTION, 1, 1),
+        ])
+    }
+
+    /// A certified checked program may lose constructor bodies to reachability,
+    /// but independent hand-built Core cannot inherit that missing-tag authority.
+    #[test]
+    fn builtin_inventory_distinguishes_pruning_from_incomplete_untrusted_core() {
+        let mut checked = option_inventory();
+        checked.certify_builtin_constructors().unwrap();
+        checked.fns.retain(|unit| unit.id.0 == "Data.Core.None");
+        Registry::build(&checked, 8, true).unwrap();
+        let independent = Program::from_functions(checked.fns.clone());
+        let error = Registry::build(&independent, 8, true).err().unwrap();
+        assert!(
+            error
+                .message
+                .contains("complete constructor inventory required"),
+            "{error}"
+        );
+        let mut missing_zero_tag = option_inventory();
+        missing_zero_tag
+            .fns
+            .retain(|unit| unit.id.0 == "Data.Core.Some");
+        assert!(check_builtin_constructors(&missing_zero_tag).is_err());
+    }
+
+    /// A malformed dead Some must fail before driving can prune its evidence.
+    #[test]
+    fn builtin_inventory_rejects_malformed_some_before_pruning() {
+        let mut program = option_inventory();
+        program.fns[1] = builtin_ctor("Data.Core.Some", crate::known::OPTION, 1, 2);
+        program.fns.push(thunk("Main.main", n(0)));
+        program.main = Some(gid("Main.main"));
+        let error = crate::core::optimize(&program, &crate::core::TargetProfile::native())
+            .err()
+            .unwrap();
+        assert!(error.message.contains(crate::known::OPTION), "{error}");
+        assert!(
+            error
+                .message
+                .contains("complete constructor inventory required"),
+            "{error}"
+        );
+        assert!(program.fns.iter().any(|unit| unit.id.0 == "Data.Core.Some"));
+    }
+
+    /// Valid declaration provenance never excuses a later counterfeit name,
+    /// nominal type, tag, field count or callable arity in a live constructor.
+    #[test]
+    fn builtin_inventory_checks_live_constructor_consistency() {
+        let mut checked = option_inventory();
+        checked.certify_builtin_constructors().unwrap();
+        for variant in 0..5 {
+            let mut changed = checked.clone();
+            let some = &mut changed.fns[1];
+            match variant {
+                0 => some.id.0 = "Data.Core.Impostor".into(),
+                1 => some.repr.data = Some("Main.Impostor".into()),
+                2 => some.ctor = Some((0, 1)),
+                3 => *some = builtin_ctor("Data.Core.Some", crate::known::OPTION, 1, 2),
+                4 => some.params.clear(),
+                _ => unreachable!(),
+            }
+            assert!(
+                Registry::build(&changed, 8, true).is_err(),
+                "variant {variant}"
+            );
+        }
+        let mut representation_copy = checked.clone();
+        representation_copy.fns[1].id.0.push_str("@W");
+        representation_copy.fns[1].repr.fields = vec![Class::Wide];
+        representation_copy.fns[1].repr.params = vec![Class::Wide];
+        Registry::build(&representation_copy, 8, true).unwrap();
+    }
+
+    /// All three anonymous runtime ABI families retain their complete inventory
+    /// guard, including a missing zero-field constructor and a wrong field count.
+    #[test]
+    fn builtin_inventory_rejects_fake_option_result_and_ordering_shapes() {
+        for (data, constructors) in BUILT_TYPES {
+            let good: Vec<FnDef> = constructors
+                .iter()
+                .enumerate()
+                .map(|(tag, (unit, fields))| builtin_ctor(unit, data, tag, *fields))
+                .collect();
+            check_builtin_constructors(&Program::from_functions(good.clone())).unwrap();
+            let mut missing = good.clone();
+            missing.pop();
+            assert!(
+                check_builtin_constructors(&Program::from_functions(missing)).is_err(),
+                "{data}"
+            );
+            let mut wrong = good;
+            let tag = wrong.len() - 1;
+            wrong[tag] = builtin_ctor(constructors[tag].0, data, tag, constructors[tag].1 + 1);
+            assert!(
+                check_builtin_constructors(&Program::from_functions(wrong)).is_err(),
+                "{data}"
+            );
         }
     }
 

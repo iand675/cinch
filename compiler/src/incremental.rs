@@ -1433,24 +1433,8 @@ impl Session {
             d.body.sort();
             d.body.dedup();
         }
-        let program = Program {
-            total_bodies: crate::total::CheckedGraph::empty(),
-            fns: Vec::new(),
-            instances: self.merged_instance_rows(),
-            main: None,
-            rewrites: Vec::new(),
-            plans: BTreeMap::new(),
-            foreigns: BTreeMap::new(),
-            prims: Vec::new(),
-            laws: Vec::new(),
-            lent: Default::default(),
-            frame: Default::default(),
-            stack: Default::default(),
-            borrowed: Default::default(),
-            lent_entries: Default::default(),
-            private_modules: Vec::new(),
-            inline: Default::default(),
-        };
+        let mut program = Program::from_functions(Vec::new());
+        program.instances = self.merged_instance_rows();
         let mut state = crate::driver::query::QueryState::of(
             modules,
             &program,
@@ -2043,24 +2027,17 @@ impl Session {
         if let Some(run) = self.run.clone() {
             if run.full {
                 let main_exit = self.main_exit.clone().map(crate::core::GlobalId);
-                return Ok(Program {
-                    total_bodies: run.total_bodies,
-                    fns: run.fns,
-                    instances: run.instances,
-                    main: main_exit,
-                    rewrites: run.rewrites,
-                    plans: run.plans,
-                    foreigns: run.foreigns,
-                    prims: run.prims,
-                    laws: run.laws,
-                    lent: Default::default(),
-            frame: Default::default(),
-            stack: Default::default(),
-            borrowed: Default::default(),
-            lent_entries: Default::default(),
-            private_modules: Vec::new(),
-            inline: Default::default(),
-                });
+                let mut program = Program::from_functions(run.fns);
+                program.total_bodies = run.total_bodies;
+                program.instances = run.instances;
+                program.main = main_exit;
+                program.rewrites = run.rewrites;
+                program.plans = run.plans;
+                program.foreigns = run.foreigns;
+                program.prims = run.prims;
+                program.laws = run.laws;
+                program.certify_builtin_constructors()?;
+                return Ok(program);
             }
         }
         let fns: Vec<FnDef> = self.merge_list(ListKind::Fns, |s| s.fns.clone())?;
@@ -2099,24 +2076,19 @@ impl Session {
             .collect();
         self.layouts.prims = segment_ids(&prim_ids, &self.all_modules);
         let total_bodies = crate::total::CheckedGraph::closed_subset(self.states.values().flat_map(|s| s.total_bodies.clone()).collect());
-        Ok(Program {
-            total_bodies,
-            fns,
-            instances,
-            main: main_exit,
-            rewrites,
-            plans,
-            foreigns,
-            prims,
-            laws,
-            lent: Default::default(),
-            frame: Default::default(),
-            stack: Default::default(),
-            borrowed: Default::default(),
-            lent_entries: Default::default(),
-            private_modules: Vec::new(),
-            inline: Default::default(),
-        })
+        let mut program = Program::from_functions(fns);
+        program.total_bodies = total_bodies;
+        program.instances = instances;
+        program.main = main_exit;
+        program.rewrites = rewrites;
+        program.plans = plans;
+        program.foreigns = foreigns;
+        program.prims = prims;
+        program.laws = laws;
+        // Merging creates an independent program: validate the final merged
+        // inventory instead of borrowing any individual module's certificate.
+        program.certify_builtin_constructors()?;
+        Ok(program)
     }
 
     /// Assemble one list from the recorded segment layout and the

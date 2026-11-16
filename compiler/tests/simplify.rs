@@ -35,24 +35,7 @@ fn ctor_unit(name: &str, tag: usize, fields: usize) -> FnDef {
 }
 
 fn program(fns: Vec<FnDef>) -> Program {
-    Program {
-        total_bodies: cinch::total::CheckedGraph::empty(),
-        fns,
-        instances: vec![],
-        main: None,
-        rewrites: vec![],
-        plans: Default::default(),
-        foreigns: Default::default(),
-        prims: vec![],
-        laws: vec![],
-        lent: Default::default(),
-            frame: Default::default(),
-            stack: Default::default(),
-            borrowed: Default::default(),
-            lent_entries: Default::default(),
-            private_modules: Vec::new(),
-            inline: Default::default(),
-    }
+    Program::from_functions(fns)
 }
 
 fn con(pattern_tag: usize, fields: &[usize]) -> CPat {
