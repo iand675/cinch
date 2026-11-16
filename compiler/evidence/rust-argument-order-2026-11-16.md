@@ -95,3 +95,14 @@ control uses its provider's frozen archive SHA-256
 `80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141`.
 No runtime source changes form part of either correction, and the checks
 make no cross-runtime performance comparison.
+
+The final patched Rust CLI, SHA-256
+`16f2f4bf883d2e5358c3d09b2e97d0d3c43f2c6c1996da296eef922c9395d98f`,
+passes all three fixtures at O0 and O2. All twelve runs exit 0 with zero
+leaks, with explicit linkage to the frozen Rust runtime archive above:
+normal 32 MiB heap / 8 MiB stack and RC poisoning 256 MiB heap / 8 MiB stack.
+The fresh saved-prefix fixture also passes both modes through the original
+frozen Native frontend. The coordinated parent compiler unit gate passes
+302/302, including all five application-boundary checks. The final JSON
+retains full compiler provenance, source hashes, runtime identity, and every
+run's exit code and leak line.
